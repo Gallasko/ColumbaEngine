@@ -53,13 +53,13 @@ struct ConveyorEntry
 struct BuildingPlacedEvent
 {
     int x, y;
-    uint16_t tileId;
+    std::string tileName;
 };
 
 struct BuildingRemovedEvent
 {
     int x, y;
-    uint16_t tileId;
+    std::string tileName;
 };
 
 // Pick the correct LINE_*_N variant based on direction and neighbor connectivity.
@@ -140,12 +140,12 @@ public:
     void removeBuilding(size_t layer, int x, int y);
 
     // Legacy: place a single-cell tile (kept for backward compat with setCell/clearCell calls)
-    void setCell(size_t layer, int x, int y, uint16_t tileId, size_t conveyorTileIndex = LINE_RIGHT_1);
+    void setCell(size_t layer, int x, int y, const std::string& tileName, size_t conveyorTileIndex = LINE_RIGHT_1);
 
     // Remove a tile from the grid
     void clearCell(size_t layer, int x, int y)
     {
-        setCell(layer, x, y, 0);
+        setCell(layer, x, y, "");
     }
 
     // Get tile at position
@@ -222,7 +222,7 @@ private:
 
     void removeConveyorEntry(uint64_t entityId);
 
-    constant::Vector4D getTileColor(uint16_t tileId) const;
+    constant::Vector4D getTileColor(const std::string& tileName) const;
 
     BuildingRegistry* registry = nullptr;
 

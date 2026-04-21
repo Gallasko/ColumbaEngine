@@ -45,7 +45,7 @@ struct DemoSimBelt
 struct DemoSimMachine
 {
     int gridX, gridY;
-    uint16_t tileId;
+    std::string tileName;
     int inputItemIndex = -1;
     int outputItemIndex = -1;
     int processTimer = 0;
@@ -98,8 +98,8 @@ public:
     void execute() override;
 
     bool isOpen() const { return open; }
-    bool hasDemoForTile(uint16_t tileId) const;
-    void openDemo(uint16_t tileId);
+    bool hasDemoForTile(const std::string& tileName) const;
+    void openDemo(const std::string& tileName);
     void closeDemo();
 
 private:
@@ -147,7 +147,7 @@ private:
     bool panelCreated = false;
     bool pendingOpen = false;
     bool pendingClose = false;
-    uint16_t pendingTileId = 0;
+    std::string pendingTileName;
     size_t tickAccumulator = 0;
     size_t spawnTickCounter = 0;
 

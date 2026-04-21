@@ -17,13 +17,13 @@ void StorageSystem::load(const UnserializedObject& serializedString)
 
 void StorageSystem::onEvent(const BuildingPlacedEvent& event)
 {
-    if (event.tileId == STORAGE_TILE_ID)
+    if (event.tileName == "Storage")
         registerStorage(event.x, event.y);
 }
 
 void StorageSystem::onEvent(const BuildingRemovedEvent& event)
 {
-    if (event.tileId == STORAGE_TILE_ID)
+    if (event.tileName == "Storage")
         unregisterStorage(event.x, event.y);
 }
 

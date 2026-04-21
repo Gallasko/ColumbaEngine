@@ -16,6 +16,7 @@ enum class ItemCategory : uint8_t
     Building
 };
 
+// Todo maybe cache the building id when loading the registry
 struct ItemDef
 {
     ItemId       id              = ITEM_NONE;
@@ -23,7 +24,7 @@ struct ItemDef
     std::string  textureName;     // Atlas frame name or "" for color fallback
     ItemCategory category        = ItemCategory::Resource;
     uint16_t     maxStack        = 50;
-    uint16_t     buildingTileId  = 0; // Non-zero = placeable building (maps to BuildingDef tileId)
+    std::string  buildingName;        // Non-empty = placeable building (maps to BuildingDef name)
     uint8_t      toolTier        = 0;   // 0=not a tool, 1=stone, 2=iron, etc.
     float        miningSpeedMult = 1.0f; // Multiplier: 2.0 = halves required hits
     float        iconWidthRatio  = 1.0f; // Width:height ratio for icon display (e.g. 2/3 for furnace)
@@ -46,21 +47,22 @@ struct ItemRegistry : public pg::Registry<ItemDef, ItemId>
 {
     ItemId addItem(const ItemDef& def)
     {
-        ItemId assignedId;
+        ItemId assignedId = add(def);
 
-        if (def.buildingTileId != 0)
-            assignedId = add(def, static_cast<size_t>(def.buildingTileId));
-        else
-            assignedId = add(def);
-
+        // Todo is the .id here really needed
         m_entries[static_cast<size_t>(assignedId)].id = assignedId;
 
         return assignedId;
     }
 
-    const ItemDef* findByBuildingTileId(uint16_t tileId) const
+    const ItemDef* findByBuildingName(const std::string& name) const
     {
-        return findByKey(static_cast<size_t>(tileId));
+        for (const auto& entry : m_entries)
+        {
+            if (entry.buildingName == name)
+                return &entry;
+        }
+        return nullptr;
     }
 };
 

@@ -23,19 +23,19 @@ void GridSystem::save(Archive& archive)
         for (int x = 0; x < Grid::WIDTH; ++x)
         {
             const auto& cell = grid.getCell(buildingLayer, x, y);
-            if (cell.tileId == 0 or not cell.isOwner)
+            if (cell.tileName.empty() or not cell.isOwner)
                 continue;
 
             SavedBuilding sb;
             sb.x = x;
             sb.y = y;
-            sb.tileId = cell.tileId;
+            sb.tileName = cell.tileName;
             sb.direction = cell.direction;
             sb.enterDirection = cell.enterDirection;
             sb.conveyorTileIndex = LINE_RIGHT_1; // default
 
             // Find conveyor tile index if this is a belt
-            if (cell.tileId == 4 and cell.entityId != 0)
+            if (cell.tileName == "Conveyor" and cell.entityId != 0)
             {
                 for (const auto& conv : conveyors)
                 {
@@ -105,7 +105,7 @@ void GridSystem::load(const UnserializedObject& serializedString)
     // Restore buildings (without emitting BuildingPlacedEvent)
     for (const auto& sb : buildings)
     {
-        const BuildingDef* def = registry->findByTileId(sb.tileId);
+        const BuildingDef* def = registry->findByName(sb.tileName);
         if (def)
             restoreBuilding(buildingLayer, sb.x, sb.y, *def,
                             sb.direction, sb.conveyorTileIndex, sb.enterDirection);
@@ -171,7 +171,7 @@ void GridSystem::placeBuilding(size_t layer, int x, int y, const BuildingDef& de
     for (int dy = 0; dy < def.gridH; ++dy)
         for (int dx = 0; dx < def.gridW; ++dx)
             if (not grid.isInBounds(x + dx, y + dy) or
-                grid.getCell(layer, x + dx, y + dy).tileId != 0 or
+                not grid.getCell(layer, x + dx, y + dy).tileName.empty() or
                 isBlockingTerrain(getTerrainAt(x + dx, y + dy)))
                 return;
 
@@ -239,7 +239,7 @@ void GridSystem::placeBuilding(size_t layer, int x, int y, const BuildingDef& de
         for (int dx = 0; dx < def.gridW; ++dx)
         {
             auto& cell = grid.getCell(layer, x + dx, y + dy);
-            cell.tileId = def.tileId;
+            cell.tileName = def.name;
             cell.direction = static_cast<uint8_t>(direction);
             cell.enterDirection = actualEnterDir;
             cell.ownerX = static_cast<int8_t>(x);
@@ -249,7 +249,7 @@ void GridSystem::placeBuilding(size_t layer, int x, int y, const BuildingDef& de
         }
     }
 
-    sendEvent(BuildingPlacedEvent{x, y, def.tileId});
+    sendEvent(BuildingPlacedEvent{x, y, def.name});
 }
 
 void GridSystem::restoreBuilding(size_t layer, int x, int y, const BuildingDef& def,
@@ -317,7 +317,7 @@ void GridSystem::restoreBuilding(size_t layer, int x, int y, const BuildingDef& 
         for (int dx = 0; dx < def.gridW; ++dx)
         {
             auto& cell = grid.getCell(layer, x + dx, y + dy);
-            cell.tileId = def.tileId;
+            cell.tileName = def.name;
             cell.direction = static_cast<uint8_t>(direction);
             cell.enterDirection = actualEnterDir;
             cell.ownerX = static_cast<int8_t>(x);
@@ -335,7 +335,7 @@ void GridSystem::removeBuilding(size_t layer, int x, int y)
         return;
 
     auto& cell = grid.getCell(layer, x, y);
-    if (cell.tileId == 0)
+    if (cell.tileName.empty())
         return;
 
     // Find the owner cell
@@ -351,8 +351,8 @@ void GridSystem::removeBuilding(size_t layer, int x, int y)
     }
 
     // Look up building def to know the footprint
-    const BuildingDef* def = registry->findByTileId(ownerCell.tileId);
-    uint16_t savedTileId = ownerCell.tileId;
+    const BuildingDef* def = registry->findByName(ownerCell.tileName);
+    std::string savedTileName = ownerCell.tileName;
     int w = def ? def->gridW : 1;
     int h = def ? def->gridH : 1;
 
@@ -366,7 +366,7 @@ void GridSystem::removeBuilding(size_t layer, int x, int y)
         }
     }
 
-    sendEvent(BuildingRemovedEvent{ox, oy, savedTileId});
+    sendEvent(BuildingRemovedEvent{ox, oy, savedTileName});
 
     // Update adjacent belts that may now be disconnected
     for (int dy = 0; dy < h; ++dy)
@@ -374,7 +374,7 @@ void GridSystem::removeBuilding(size_t layer, int x, int y)
             updateNeighborBelts(layer, ox + dx, oy + dy);
 }
 
-void GridSystem::setCell(size_t layer, int x, int y, uint16_t tileId, size_t conveyorTileIndex)
+void GridSystem::setCell(size_t layer, int x, int y, const std::string& tileName, size_t conveyorTileIndex)
 {
     if (not grid.isInBounds(x, y))
         return;
@@ -389,22 +389,22 @@ void GridSystem::setCell(size_t layer, int x, int y, uint16_t tileId, size_t con
         cell.entityId = 0;
     }
 
-    cell.tileId = tileId;
+    cell.tileName = tileName;
 
-    if (tileId == 0)
+    if (tileName.empty())
         return;
 
     // Create visual entity for this cell
     auto [worldX, worldY] = grid.gridToWorld(x, y);
     float z = grid.getLayer(layer).zIndex;
 
-    if (tileId == 4) // Conveyor belt - use sprite
+    if (tileName == "Conveyor") // Conveyor belt - use sprite
     {
         createConveyorEntity(cell, worldX, worldY, z, conveyorTileIndex);
     }
     else // Other tiles - use colored squares
     {
-        constant::Vector4D color = getTileColor(tileId);
+        constant::Vector4D color = getTileColor(tileName);
 
         auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, color);
         auto pos = shape.get<PositionComponent>();
@@ -429,11 +429,11 @@ bool GridSystem::isNeighborConnected(size_t layer, int x, int y, uint8_t checkDi
         return false;
 
     const auto& neighbor = grid.getCell(layer, nx, ny);
-    if (neighbor.tileId == 0)
+    if (neighbor.tileName.empty())
         return false;
 
     // Non-belt buildings (machines) are always connectable
-    if (neighbor.tileId != 4)
+    if (neighbor.tileName != "Conveyor")
         return true;
 
     // Belt neighbor: the neighbor connects on the side facing us if either
@@ -460,7 +460,7 @@ void GridSystem::updateConveyorTileIndex(size_t layer, int x, int y, size_t newT
         return;
 
     auto& cell = grid.getCell(layer, x, y);
-    if (cell.tileId != 4 or cell.entityId == 0)
+    if (cell.tileName != "Conveyor" or cell.entityId == 0)
         return;
 
     for (auto& conv : conveyors)
@@ -487,7 +487,7 @@ void GridSystem::resolveAndUpdateBelt(size_t layer, int x, int y)
         return;
 
     const auto& cell = grid.getCell(layer, x, y);
-    if (cell.tileId != 4 or cell.entityId == 0)
+    if (cell.tileName != "Conveyor" or cell.entityId == 0)
         return;
 
     // Check if this is a corner (tileIndex 0-7) — corners are always connected, skip
@@ -809,17 +809,10 @@ void GridSystem::removeConveyorEntry(uint64_t entityId)
         conveyors.end());
 }
 
-constant::Vector4D GridSystem::getTileColor(uint16_t tileId) const
+constant::Vector4D GridSystem::getTileColor(const std::string& tileName) const
 {
-    switch (tileId)
-    {
-        case 1: return {80.0f, 140.0f, 80.0f, 255.0f};   // Grass / terrain
-        case 2: return {140.0f, 140.0f, 160.0f, 255.0f};  // Stone / building
-        case 3: return {200.0f, 160.0f, 60.0f, 255.0f};   // Item / resource
-        case 4: return {100.0f, 160.0f, 220.0f, 255.0f};  // Conveyor
-        case 5: return {200.0f, 100.0f, 60.0f, 255.0f};   // Furnace
-        case 6: return {120.0f, 80.0f, 180.0f, 255.0f};   // Assembler
-        case 7: return {180.0f, 140.0f, 60.0f, 255.0f};   // Miner
-        default: return {200.0f, 200.0f, 200.0f, 255.0f}; // Generic
-    }
+    const BuildingDef* def = registry->findByName(tileName);
+    if (def)
+        return def->color;
+    return {200.0f, 200.0f, 200.0f, 255.0f}; // Generic
 }

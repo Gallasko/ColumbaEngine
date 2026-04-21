@@ -13,7 +13,7 @@ using namespace pg;
 struct MachineData
 {
     int ownerX, ownerY;
-    uint16_t machineType;       // tileId (5=Furnace, 6=Assembler)
+    std::string machineName;    // "Furnace", "Assembler"
 
     Inventory inputSlots;
     Inventory outputSlots;
@@ -69,7 +69,7 @@ public:
     }
 
 private:
-    void registerMachine(int x, int y, uint16_t tileId);
+    void registerMachine(int x, int y, const std::string& tileName);
     void unregisterMachine(int x, int y);
     void craftTick();
 

@@ -95,7 +95,7 @@ private:
     TooltipContent buildContent(ItemId id) const;
 
     static const char* categoryName(ItemCategory cat);
-    static const char* machineLabel(uint16_t machineType);  // 0=Hand, 5=Furnace, 6=Assembler
+    static const char* machineLabel(const std::string& machineName);
 
     // --- Helpers --------------------------------------------------------
 

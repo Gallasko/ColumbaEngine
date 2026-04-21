@@ -73,13 +73,13 @@ void TutorialSystem::onEvent(const HandCraftCompletedEvent& event)
 
 void TutorialSystem::onEvent(const BuildingPlacedEvent& event)
 {
-    if (currentStep == 5 && event.tileId == 5)   // Furnace
+    if (currentStep == 5 && event.tileName == "Furnace")
         pendingAdvance = true;
-    if (currentStep == 6 && event.tileId == 6)   // Assembler
+    if (currentStep == 6 && event.tileName == "Assembler")
         pendingAdvance = true;
-    if (currentStep == 7 && event.tileId == 7)   // Miner
+    if (currentStep == 7 && event.tileName == "Miner")
         pendingAdvance = true;
-    if (currentStep == 8 && event.tileId == 8)   // Inserter
+    if (currentStep == 8 && event.tileName == "Inserter")
         pendingAdvance = true;
 }
 

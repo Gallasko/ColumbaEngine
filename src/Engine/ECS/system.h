@@ -10,6 +10,9 @@
 
 #include "logger.h"
 
+// Todo
+// Add an OnDelta caps that actually does all the listening to TickEvent and accumulation (like the standard sys)
+
 namespace tf
 {
     // Forward declaration
@@ -841,6 +844,7 @@ namespace pg
                 return nullptr;
             }
 
+            // Todo remove this as those are just used for debug and log, but still polutes the system with registry stuff
             // Track this group type once (viewGroup() calls us on every execute, so deduplicate)
             const char* groupTypeName = typeid(Group<Type, Types...>).name();
             bool alreadyTracked = false;

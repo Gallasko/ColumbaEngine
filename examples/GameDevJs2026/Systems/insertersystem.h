@@ -40,7 +40,6 @@ class InserterSystem : public System<Listener<TickEvent>,
                                       SaveSys>
 {
 public:
-    static constexpr uint16_t INSERTER_TILE_ID = 8;
     static constexpr size_t ANIM_FRAME_DURATION_MS = 100;
     static constexpr size_t SWING_FRAMES = 5;
     static constexpr size_t TOTAL_SPRITE_FRAMES = 8;

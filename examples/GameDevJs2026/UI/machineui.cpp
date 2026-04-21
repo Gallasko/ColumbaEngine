@@ -25,14 +25,14 @@ bool MachineUISystem::isClickOnPanel(float x, float y) const
 // open / close
 // ---------------------------------------------------------------------------
 
-void MachineUISystem::open(int gridX, int gridY, uint16_t tileId)
+void MachineUISystem::open(int gridX, int gridY, const std::string& tileName)
 {
     if (visible)
         close();
 
     openMachineX   = gridX;
     openMachineY   = gridY;
-    openMachineType = tileId;
+    openMachineName = tileName;
     visible = true;
 
     // Switch the crafting-recipe panel to show this machine's recipes.
@@ -49,7 +49,7 @@ void MachineUISystem::open(int gridX, int gridY, uint16_t tileId)
             MachineData* m = craftingSystem->getMachine(openMachineX, openMachineY);
             if (m) m->lockedRecipe = &recipe;
         });
-        craftingUI->setMachineMode(tileId, locked);
+        craftingUI->setMachineMode(openMachineName, locked);
     }
 
     if (inventoryUI and not inventoryUI->isOpen())
@@ -94,7 +94,7 @@ void MachineUISystem::close()
     visible = false;
     openMachineX   = -1;
     openMachineY   = -1;
-    openMachineType = 0;
+    openMachineName.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -143,9 +143,9 @@ void MachineUISystem::onProcessEvent(const OnMouseClick& event)
         if (event.pos.x >= btnX and event.pos.x <= btnX + btnSize
             and event.pos.y >= btnY and event.pos.y <= btnY + btnSize)
         {
-            uint16_t tileId = openMachineType;
+            std::string name = openMachineName;
             close();
-            machineDemo->openDemo(tileId);
+            machineDemo->openDemo(name);
             return;
         }
     }
@@ -155,7 +155,7 @@ void MachineUISystem::onProcessEvent(const OnMouseClick& event)
         return;
 
     // Input slots
-    int numInputs = (openMachineType == 6) ? 2 : 1;
+    int numInputs = (openMachineName == "Assembler") ? 2 : 1;
     for (int i = 0; i < numInputs; ++i)
     {
         if (isClickOnInputSlot(static_cast<size_t>(i), event.pos.x, event.pos.y))
@@ -231,12 +231,11 @@ void MachineUISystem::updateForMachineType()
     auto titleEnt = ecsRef->getEntity(titleEntityId);
     if (titleEnt and titleEnt->has<TTFText>())
     {
-        const char* name = (openMachineType == 5) ? "Furnace" : "Assembler";
-        titleEnt->get<TTFText>()->setText(name);
+        titleEnt->get<TTFText>()->setText(openMachineName.c_str());
     }
 
     // Show/hide 2nd input slot based on machine type
-    bool hasSecondInput = (openMachineType == 6);
+    bool hasSecondInput = (openMachineName == "Assembler");
     setEntityVisibility(inputSlotBgEntityId[1], hasSecondInput);
     setEntityVisibility(inputItemEntityId[1],   false); // refreshAllSlots will show if needed
     setEntityVisibility(inputCountEntityId[1],  false);
@@ -427,7 +426,7 @@ void MachineUISystem::refreshAllSlots()
     MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
     if (not machine) return;
 
-    int numInputs = (openMachineType == 6) ? 2 : 1;
+    int numInputs = (openMachineName == "Assembler") ? 2 : 1;
     for (int i = 0; i < numInputs; ++i)
     {
         const auto& stack = machine->inputSlots.getSlot(static_cast<size_t>(i));

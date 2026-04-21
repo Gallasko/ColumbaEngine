@@ -8,7 +8,7 @@
 
 struct CellData
 {
-    uint16_t tileId = 0;         // 0 = empty
+    std::string tileName;        // empty = no building
     uint64_t entityId = 0;       // ECS entity id, 0 = no entity
     uint8_t  direction = 0;      // Exit direction (0-3)
     uint8_t  enterDirection = 0; // Enter direction (same as direction for straight belts, differs for corners)

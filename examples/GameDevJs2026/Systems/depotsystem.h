@@ -19,8 +19,6 @@ class DepotSystem : public System<Listener<BuildingPlacedEvent>,
                                    SaveSys>
 {
 public:
-    static constexpr uint16_t DEPOT_TILE_ID = 10;
-
     DepotSystem(GridSystem* gridSystem, ItemRegistry* itemRegistry)
         : gridSystem(gridSystem), itemRegistry(itemRegistry) {}
 

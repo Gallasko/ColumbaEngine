@@ -57,7 +57,7 @@ void TransportSystem::load(const UnserializedObject& serializedString)
 
 void TransportSystem::onEvent(const BuildingRemovedEvent& event)
 {
-    if (event.tileId == 4)
+    if (event.tileName == "Conveyor")
     {
         auto& cell = beltGrid.get(event.x, event.y);
         if (cell.itemId != ITEM_NONE)
@@ -87,7 +87,7 @@ bool TransportSystem::tryPlaceItem(int x, int y, ItemId id)
 
     const auto& buildingCell = gridSystem->getGrid().getCell(
         gridSystem->getBuildingLayer(), x, y);
-    if (buildingCell.tileId != 4) return false;
+    if (buildingCell.tileName != "Conveyor") return false;
 
     cell.itemId = id;
     createItemVisual(x, y, id);
@@ -151,7 +151,7 @@ void TransportSystem::transportTick()
                 continue;
 
             const auto& cell = grid.getCell(buildingLayer, x, y);
-            if (cell.tileId != 4)
+            if (cell.tileName != "Conveyor")
                 continue;
 
             uint8_t dir = cell.direction;
@@ -164,7 +164,7 @@ void TransportSystem::transportTick()
             const auto& nextCell = grid.getCell(buildingLayer, nx, ny);
 
             // Only move to another belt cell (machine transfers are handled by CraftingSystem)
-            if (nextCell.tileId == 4)
+            if (nextCell.tileName == "Conveyor")
                 moves.push_back({x, y, nx, ny, beltCell.itemId});
         }
     }

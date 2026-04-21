@@ -18,13 +18,13 @@ void DepotSystem::load(const UnserializedObject& serializedString)
 
 void DepotSystem::onEvent(const BuildingPlacedEvent& event)
 {
-    if (event.tileId == DEPOT_TILE_ID)
+    if (event.tileName == "Depot")
         registerDepot(event.x, event.y);
 }
 
 void DepotSystem::onEvent(const BuildingRemovedEvent& event)
 {
-    if (event.tileId == DEPOT_TILE_ID)
+    if (event.tileName == "Depot")
         unregisterDepot(event.x, event.y);
 }
 

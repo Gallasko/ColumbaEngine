@@ -34,13 +34,13 @@ void MinerSystem::load(const UnserializedObject& serializedString)
 
 void MinerSystem::onEvent(const BuildingPlacedEvent& event)
 {
-    if (event.tileId == MINER_TILE_ID)
+    if (event.tileName == "Miner")
         registerMiner(event.x, event.y);
 }
 
 void MinerSystem::onEvent(const BuildingRemovedEvent& event)
 {
-    if (event.tileId == MINER_TILE_ID)
+    if (event.tileName == "Miner")
         unregisterMiner(event.x, event.y);
 }
 

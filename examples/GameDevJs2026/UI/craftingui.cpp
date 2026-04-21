@@ -93,7 +93,7 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
     float y = event.pos.y;
 
     // Craft / Cancel buttons only active in hand-craft mode
-    if (activeMachineType == 0)
+    if (activeMachineName.empty())
     {
         auto craftBtnEnt = ecsRef->getEntity(craftButtonBgEntityId);
         if (craftBtnEnt)
@@ -127,7 +127,7 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
     }
 
     // Per-row "?" demo button click (hand-craft mode)
-    if (activeMachineType == 0 and machineDemo)
+    if (activeMachineName.empty() and machineDemo)
     {
         for (size_t i = 0; i < rowVisuals.size(); ++i)
         {
@@ -145,10 +145,10 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
                     const Recipe& recipe = recipeRegistry->get(visibleRecipes[absIdx]);
                     if (not recipe.outputs.empty())
                     {
-                        uint16_t buildTile = itemRegistry->get(recipe.outputs.front().id).buildingTileId;
-                        if (buildTile != 0)
+                        std::string buildName = itemRegistry->get(recipe.outputs.front().id).buildingName;
+                        if (!buildName.empty())
                         {
-                            machineDemo->openDemo(buildTile);
+                            machineDemo->openDemo(buildName);
                             return;
                         }
                     }
@@ -178,13 +178,13 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
         if (absIndex < visibleRecipes.size())
         {
             uint32_t now = static_cast<uint32_t>(SDL_GetTicks());
-            bool isDoubleClick = (activeMachineType != 0)
+            bool isDoubleClick = (!activeMachineName.empty())
                               && (lastClickRowAbs == static_cast<int>(absIndex))
                               && (now - lastClickTime <= 400u);
 
             // In machine mode: every click locks/selects the recipe
             selectedIndex = absIndex;
-            if (activeMachineType != 0 && machineSelectCallback)
+            if (!activeMachineName.empty() && machineSelectCallback)
             {
                 const Recipe& recipe = recipeRegistry->get(visibleRecipes[absIndex]);
                 machineSelectCallback(recipe);
@@ -230,9 +230,9 @@ void CraftingUISystem::onProcessEvent(const OnSDLMouseWheel& event)
 // setMachineMode / clearMachineMode
 // ---------------------------------------------------------------------------
 
-void CraftingUISystem::setMachineMode(uint16_t tileId, const Recipe* initialLocked)
+void CraftingUISystem::setMachineMode(const std::string& machineName, const Recipe* initialLocked)
 {
-    activeMachineType = tileId;
+    activeMachineName = machineName;
     selectedIndex = 0;
     scrollOffset = 0;
     if (visible)
@@ -255,7 +255,7 @@ void CraftingUISystem::setMachineMode(uint16_t tileId, const Recipe* initialLock
 
 void CraftingUISystem::clearMachineMode()
 {
-    activeMachineType = 0;
+    activeMachineName.clear();
     selectedIndex = 0;
     scrollOffset = 0;
     if (visible)
@@ -264,7 +264,7 @@ void CraftingUISystem::clearMachineMode()
 
 void CraftingUISystem::applyModeToPanel()
 {
-    bool handCraft = (activeMachineType == 0);
+    bool handCraft = activeMachineName.empty();
 
     // Update title text
     if (titleEntityId != 0)
@@ -272,8 +272,8 @@ void CraftingUISystem::applyModeToPanel()
         auto titleEnt = ecsRef->getEntity(titleEntityId);
         if (titleEnt)
         {
-            const char* text = (activeMachineType == 5) ? "Furnace" :
-                               (activeMachineType == 6) ? "Assembler" : "Craft";
+            const char* text = (activeMachineName == "Furnace") ? "Furnace" :
+                               (activeMachineName == "Assembler") ? "Assembler" : "Craft";
             titleEnt->get<TTFText>()->setText(text);
         }
     }
@@ -324,7 +324,7 @@ void CraftingUISystem::open()
 void CraftingUISystem::close()
 {
     visible = false;
-    activeMachineType = 0;
+    activeMachineName.clear();
     draggingScrollbar = false;
 
     if (inventoryUI)
@@ -681,15 +681,15 @@ void CraftingUISystem::rebuildVisibleRecipes()
 {
     visibleRecipes.clear();
 
-    if (activeMachineType != 0)
+    if (!activeMachineName.empty())
     {
         // Machine mode: show all recipes for this machine type
-        RecipeCategory cat = (activeMachineType == 5) ? RecipeCategory::Furnace
-                                                      : RecipeCategory::Assembler;
+        RecipeCategory cat = (activeMachineName == "Furnace") ? RecipeCategory::Furnace
+                                                              : RecipeCategory::Assembler;
         for (size_t i = 0; i < recipeRegistry->count(); ++i)
         {
             const Recipe& r = recipeRegistry->get(i);
-            if (r.category == cat and r.machineType == activeMachineType)
+            if (r.category == cat and r.machineName == activeMachineName)
                 visibleRecipes.push_back(i);
         }
     }
@@ -875,7 +875,7 @@ void CraftingUISystem::refreshRows()
 
         // Background tint
         RowTint tint = RowTint::Idle;
-        if (activeMachineType == 0)
+        if (activeMachineName.empty())
         {
             // Hand-craft mode: colour by can-craft status
             if (absIdx == selectedIndex)
@@ -894,10 +894,10 @@ void CraftingUISystem::refreshRows()
 
         // Per-row "?" demo button (hand-craft mode only, for machine recipes with a demo)
         bool showDemo = false;
-        if (activeMachineType == 0 and machineDemo and not recipe.outputs.empty())
+        if (activeMachineName.empty() and machineDemo and not recipe.outputs.empty())
         {
-            uint16_t buildTile = itemRegistry->get(recipe.outputs.front().id).buildingTileId;
-            if (buildTile != 0 and machineDemo->hasDemoForTile(buildTile))
+            std::string buildName = itemRegistry->get(recipe.outputs.front().id).buildingName;
+            if (!buildName.empty() and machineDemo->hasDemoForTile(buildName))
                 showDemo = true;
         }
         if (showDemo)
@@ -942,7 +942,7 @@ void CraftingUISystem::tintRow(uint64_t bgId, RowTint tint)
 
 void CraftingUISystem::refreshProgressBar()
 {
-    if (activeMachineType != 0)
+    if (!activeMachineName.empty())
         return; // Progress bar is hidden in machine mode
 
     auto fillEnt = ecsRef->getEntity(progressFillEntityId);
@@ -997,7 +997,7 @@ CraftingUISystem::CraftTab CraftingUISystem::classifyRecipe(const Recipe& recipe
     if (outDef.toolTier > 0)
         return CraftTab::Tools;
 
-    if (outDef.buildingTileId != 0)
+    if (!outDef.buildingName.empty())
         return CraftTab::Machines;
 
     return CraftTab::Misc;

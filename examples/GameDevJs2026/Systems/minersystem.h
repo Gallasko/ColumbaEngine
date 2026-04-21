@@ -34,7 +34,6 @@ class MinerSystem : public System<Listener<TickEvent>,
                                    SaveSys>
 {
 public:
-    static constexpr uint16_t MINER_TILE_ID = 7;
     static constexpr size_t MINE_TICK_MS = 250;
     static constexpr size_t MINE_TIME_MS = 2000;
     static constexpr size_t ANIM_FRAME_DURATION_MS = 200;

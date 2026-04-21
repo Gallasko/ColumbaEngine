@@ -60,7 +60,7 @@ namespace pg
         archive.startSerialization(SavedBuilding::getType());
         serialize(archive, "x", value.x);
         serialize(archive, "y", value.y);
-        serialize(archive, "tileId", static_cast<unsigned int>(value.tileId));
+        serialize(archive, "tileName", value.tileName);
         serialize(archive, "direction", static_cast<unsigned int>(value.direction));
         serialize(archive, "enterDirection", static_cast<unsigned int>(value.enterDirection));
         serialize(archive, "conveyorTileIndex", value.conveyorTileIndex);
@@ -76,11 +76,11 @@ namespace pg
         defaultDeserialize(s, "x", result.x);
         defaultDeserialize(s, "y", result.y);
 
-        unsigned int tileId = 0, dir = 0, enterDir = 0;
-        defaultDeserialize(s, "tileId", tileId);
+        defaultDeserialize(s, "tileName", result.tileName);
+
+        unsigned int dir = 0, enterDir = 0;
         defaultDeserialize(s, "direction", dir);
         defaultDeserialize(s, "enterDirection", enterDir);
-        result.tileId = static_cast<uint16_t>(tileId);
         result.direction = static_cast<uint8_t>(dir);
         result.enterDirection = static_cast<uint8_t>(enterDir);
 
@@ -96,7 +96,7 @@ namespace pg
         archive.startSerialization("MachineData");
         serialize(archive, "ownerX", value.ownerX);
         serialize(archive, "ownerY", value.ownerY);
-        serialize(archive, "machineType", static_cast<unsigned int>(value.machineType));
+        serialize(archive, "machineName", value.machineName);
         serialize(archive, "inputSlots", value.inputSlots);
         serialize(archive, "outputSlots", value.outputSlots);
         serialize(archive, "craftProgress", value.craftProgress);
@@ -112,9 +112,7 @@ namespace pg
         defaultDeserialize(s, "ownerX", result.ownerX);
         defaultDeserialize(s, "ownerY", result.ownerY);
 
-        unsigned int machineType = 0;
-        defaultDeserialize(s, "machineType", machineType);
-        result.machineType = static_cast<uint16_t>(machineType);
+        defaultDeserialize(s, "machineName", result.machineName);
 
         defaultDeserialize(s, "inputSlots", result.inputSlots);
         defaultDeserialize(s, "outputSlots", result.outputSlots);

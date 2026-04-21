@@ -4,9 +4,8 @@ BuildingRegistry createDefaultBuildingRegistry()
 {
     BuildingRegistry reg;
 
-    // Slot 0 (key 1): Conveyor belt
+    // Slot 0: Conveyor belt
     reg.addBuilding({
-        4,                                             // tileId
         "Conveyor",                                    // name
         "Conveyor_Belt",                               // textureName
         {100.0f, 160.0f, 220.0f, 255.0f},             // color
@@ -16,9 +15,8 @@ BuildingRegistry createDefaultBuildingRegistry()
         true                                           // isAnimated
     });
 
-    // Slot 1 (key 2): Furnace (2x3)
+    // Slot 1: Furnace (2x3)
     reg.addBuilding({
-        5,
         "Furnace",
         "Stone_Furnace",                               // idle atlas
         {200.0f, 100.0f, 60.0f, 255.0f},
@@ -28,9 +26,8 @@ BuildingRegistry createDefaultBuildingRegistry()
         false                                          // animation managed by CraftingSystem
     });
 
-    // Slot 2 (key 3): Assembler (2x3)
+    // Slot 2: Assembler (2x3)
     reg.addBuilding({
-        6,
         "Assembler",
         "Assembler_Machine_1",                         // idle atlas
         {120.0f, 80.0f, 180.0f, 255.0f},
@@ -40,9 +37,8 @@ BuildingRegistry createDefaultBuildingRegistry()
         false                                          // animation managed by CraftingSystem
     });
 
-    // Slot 3 (key 4): Miner (2x3)
+    // Slot 3: Miner (2x3)
     reg.addBuilding({
-        7,                                             // tileId
         "Miner",                                       // name
         "Miner_Machine_1",                             // textureName (idle atlas)
         {180.0f, 140.0f, 60.0f, 255.0f},              // color (fallback)
@@ -52,9 +48,8 @@ BuildingRegistry createDefaultBuildingRegistry()
         false                                          // isAnimated (managed by MinerSystem)
     });
 
-    // Slot 4 (key 5): Inserter arm (1x1)
+    // Slot 4: Inserter arm (1x1)
     reg.addBuilding({
-        8,                                             // tileId
         "Inserter",                                    // name
         "Robotic_Arms_1",                              // textureName
         {220.0f, 160.0f, 60.0f, 255.0f},              // color (orange fallback)
@@ -64,9 +59,8 @@ BuildingRegistry createDefaultBuildingRegistry()
         false                                          // isAnimated (managed by InserterSystem)
     });
 
-    // Slot 5 (key 6): Storage (1x1)
+    // Slot 5: Storage (1x1)
     reg.addBuilding({
-        9,                                             // tileId
         "Storage",                                     // name
         "Crate",                                       // textureName
         {160.0f, 120.0f, 80.0f, 255.0f},              // color (brown fallback)
@@ -76,9 +70,8 @@ BuildingRegistry createDefaultBuildingRegistry()
         false                                          // isAnimated
     });
 
-    // Slot 6 (key 7): Depot (2x2)
+    // Slot 6: Depot (2x2)
     reg.addBuilding({
-        10,                                            // tileId
         "Depot",                                       // name
         "",                                            // textureName (placeholder — uses color fallback)
         {60.0f, 120.0f, 200.0f, 255.0f},              // color (blue fallback)

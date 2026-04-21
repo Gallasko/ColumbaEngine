@@ -27,7 +27,7 @@ void CraftingSystem::load(const UnserializedObject& serializedString)
         machine.isCrafting = (machine.currentRecipe != nullptr);
 
         // Furnace active sprite is 64px tall; restore correct size after load
-        if (machine.machineType == 5 and machine.isCrafting)
+        if (machine.machineName == "Furnace" and machine.isCrafting)
         {
             auto ent = ecsRef->getEntity(machine.entityId);
             if (ent)
@@ -42,13 +42,13 @@ void CraftingSystem::load(const UnserializedObject& serializedString)
 
 void CraftingSystem::onEvent(const BuildingPlacedEvent& event)
 {
-    if (event.tileId == 5 or event.tileId == 6)
-        registerMachine(event.x, event.y, event.tileId);
+    if (event.tileName == "Furnace" or event.tileName == "Assembler")
+        registerMachine(event.x, event.y, event.tileName);
 }
 
 void CraftingSystem::onEvent(const BuildingRemovedEvent& event)
 {
-    if (event.tileId == 5 or event.tileId == 6)
+    if (event.tileName == "Furnace" or event.tileName == "Assembler")
         unregisterMachine(event.x, event.y);
 }
 
@@ -64,7 +64,7 @@ void CraftingSystem::execute()
             if (not machine.isCrafting)
                 continue;
 
-            size_t numFrames = (machine.machineType == 5)
+            size_t numFrames = (machine.machineName == "Furnace")
                 ? FURNACE_ANIM_FRAMES
                 : ASSEMBLER_ANIM_FRAMES;
 
@@ -73,7 +73,7 @@ void CraftingSystem::execute()
             auto ent = ecsRef->getEntity(machine.entityId);
             if (ent and ent->has<Texture2DComponent>())
             {
-                std::string atlas = (machine.machineType == 5)
+                std::string atlas = (machine.machineName == "Furnace")
                     ? "Stone_Furnace_Active"
                     : "Assembler_Machine_1_Running";
                 ent->get<Texture2DComponent>()->setTexture(
@@ -89,19 +89,19 @@ void CraftingSystem::execute()
     }
 }
 
-void CraftingSystem::registerMachine(int x, int y, uint16_t tileId)
+void CraftingSystem::registerMachine(int x, int y, const std::string& tileName)
 {
     MachineData data;
     data.ownerX = x;
     data.ownerY = y;
-    data.machineType = tileId;
+    data.machineName = tileName;
 
-    if (tileId == 5) // Furnace: 1 input, 1 output
+    if (tileName == "Furnace") // Furnace: 1 input, 1 output
     {
         data.inputSlots = Inventory(1);
         data.outputSlots = Inventory(1);
     }
-    else if (tileId == 6) // Assembler: 2 inputs, 1 output
+    else if (tileName == "Assembler") // Assembler: 2 inputs, 1 output
     {
         data.inputSlots = Inventory(2);
         data.outputSlots = Inventory(1);
@@ -165,7 +165,7 @@ void CraftingSystem::craftTick()
             else
             {
                 matched = recipeRegistry->findMatchingRecipe(
-                    machine.machineType, machine.inputSlots);
+                    machine.machineName, machine.inputSlots);
             }
             machine.currentRecipe = matched;
 
@@ -185,13 +185,13 @@ void CraftingSystem::craftTick()
                     auto ent = ecsRef->getEntity(machine.entityId);
                     if (ent and ent->has<Texture2DComponent>())
                     {
-                        std::string atlas = (machine.machineType == 5)
+                        std::string atlas = (machine.machineName == "Furnace")
                             ? "Stone_Furnace_Active"
                             : "Assembler_Machine_1_Running";
                         ent->get<Texture2DComponent>()->setTexture(atlas + ".0");
                     }
                     // Furnace active sprite is 32x64 (grows upward by 16px)
-                    if (machine.machineType == 5 and ent)
+                    if (machine.machineName == "Furnace" and ent)
                     {
                         auto pos = ent->get<PositionComponent>();
                         pos->setY(pos->getY() - 16.0f);
@@ -250,13 +250,13 @@ void CraftingSystem::craftTick()
                     auto ent = ecsRef->getEntity(machine.entityId);
                     if (ent and ent->has<Texture2DComponent>())
                     {
-                        std::string idle = (machine.machineType == 5)
+                        std::string idle = (machine.machineName == "Furnace")
                             ? "Stone_Furnace.0"
                             : "Assembler_Machine_1.0";
                         ent->get<Texture2DComponent>()->setTexture(idle);
                     }
                     // Restore furnace to idle size (32x48)
-                    if (machine.machineType == 5 and ent)
+                    if (machine.machineName == "Furnace" and ent)
                     {
                         auto pos = ent->get<PositionComponent>();
                         pos->setY(pos->getY() + 16.0f);
@@ -272,7 +272,7 @@ void CraftingSystem::craftTick()
 
 void CraftingSystem::pullFromBelts(MachineData& machine, const Grid& grid, size_t buildingLayer)
 {
-    const BuildingDef* def = gridSystem->getRegistry()->findByTileId(machine.machineType);
+    const BuildingDef* def = gridSystem->getRegistry()->findByName(machine.machineName);
     int w = def ? def->gridW : 1;
     int h = def ? def->gridH : 1;
 
@@ -291,7 +291,7 @@ void CraftingSystem::pullFromBelts(MachineData& machine, const Grid& grid, size_
                 if (not grid.isInBounds(nx, ny)) continue;
 
                 const auto& neighborCell = grid.getCell(buildingLayer, nx, ny);
-                if (neighborCell.tileId != 4) continue;
+                if (neighborCell.tileName != "Conveyor") continue;
 
                 // Belt must be pointing INTO this machine cell
                 uint8_t beltExitDir = neighborCell.direction;

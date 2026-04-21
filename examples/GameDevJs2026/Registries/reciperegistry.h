@@ -31,7 +31,7 @@ enum class RecipeCategory : uint8_t
 struct Recipe
 {
     std::string name;
-    uint16_t    machineType = 0;    // tileId of the machine (5=Furnace, 6=Assembler). 0 for HandCraft/AutoCrafter.
+    std::string machineName;        // Name of the machine ("Furnace", "Assembler"). Empty for HandCraft/AutoCrafter.
     std::vector<RecipeIngredient> inputs;
     std::vector<RecipeIngredient> outputs;
     size_t      craftTimeMs = 2000;
@@ -47,12 +47,12 @@ struct RecipeRegistry : public pg::Registry<Recipe>
 {
     void addRecipe(const Recipe& recipe) { add(recipe); }
 
-    std::vector<const Recipe*> getRecipesForMachine(uint16_t tileId) const;
+    std::vector<const Recipe*> getRecipesForMachine(const std::string& machineName) const;
 
     // Find the first recipe whose inputs are satisfiable by the given inventory.
     // Only machine-category recipes are considered here — hand-craft recipes
     // are driven separately by HandCraftingSystem.
-    const Recipe* findMatchingRecipe(uint16_t machineType,
+    const Recipe* findMatchingRecipe(const std::string& machineName,
                                      const Inventory& inputSlots) const;
 };
 

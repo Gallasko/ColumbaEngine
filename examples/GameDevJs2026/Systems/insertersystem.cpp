@@ -53,13 +53,13 @@ void InserterSystem::load(const UnserializedObject& serializedString)
 
 void InserterSystem::onEvent(const BuildingPlacedEvent& event)
 {
-    if (event.tileId == INSERTER_TILE_ID)
+    if (event.tileName == "Inserter")
         registerInserter(event.x, event.y);
 }
 
 void InserterSystem::onEvent(const BuildingRemovedEvent& event)
 {
-    if (event.tileId == INSERTER_TILE_ID)
+    if (event.tileName == "Inserter")
         unregisterInserter(event.x, event.y);
 }
 
@@ -214,11 +214,11 @@ bool InserterSystem::tryPickup(InserterData& ins)
     size_t buildingLayer = gridSystem->getBuildingLayer();
     const auto& cell = gridSystem->getGrid().getCell(buildingLayer, pickupX, pickupY);
 
-    if (cell.tileId == 0)
+    if (cell.tileName.empty())
         return false;
 
     // Pick from belt
-    if (cell.tileId == 4)
+    if (cell.tileName == "Conveyor")
     {
         ItemId item = transportSystem->tryTakeItem(pickupX, pickupY);
         if (item != ITEM_NONE)
@@ -230,7 +230,7 @@ bool InserterSystem::tryPickup(InserterData& ins)
     }
 
     // Pick from miner output
-    if (cell.tileId == MinerSystem::MINER_TILE_ID)
+    if (cell.tileName == "Miner")
     {
         int ox = cell.isOwner ? pickupX : static_cast<int>(cell.ownerX);
         int oy = cell.isOwner ? pickupY : static_cast<int>(cell.ownerY);
@@ -252,7 +252,7 @@ bool InserterSystem::tryPickup(InserterData& ins)
     }
 
     // Pick from machine (furnace/assembler) output
-    if (cell.tileId == 5 or cell.tileId == 6)
+    if (cell.tileName == "Furnace" or cell.tileName == "Assembler")
     {
         int ox = cell.isOwner ? pickupX : static_cast<int>(cell.ownerX);
         int oy = cell.isOwner ? pickupY : static_cast<int>(cell.ownerY);
@@ -274,7 +274,7 @@ bool InserterSystem::tryPickup(InserterData& ins)
     }
 
     // Pick from storage
-    if (cell.tileId == StorageSystem::STORAGE_TILE_ID)
+    if (cell.tileName == "Storage")
     {
         StorageData* storage = storageSystem->getStorage(pickupX, pickupY);
         if (storage)
@@ -294,7 +294,7 @@ bool InserterSystem::tryPickup(InserterData& ins)
     }
 
     // Pick from depot
-    if (cell.tileId == DepotSystem::DEPOT_TILE_ID)
+    if (cell.tileName == "Depot")
     {
         int ox = cell.isOwner ? pickupX : static_cast<int>(cell.ownerX);
         int oy = cell.isOwner ? pickupY : static_cast<int>(cell.ownerY);
@@ -329,11 +329,11 @@ bool InserterSystem::tryDrop(InserterData& ins)
     size_t buildingLayer = gridSystem->getBuildingLayer();
     const auto& cell = gridSystem->getGrid().getCell(buildingLayer, dropX, dropY);
 
-    if (cell.tileId == 0)
+    if (cell.tileName.empty())
         return false;
 
     // Drop onto belt
-    if (cell.tileId == 4)
+    if (cell.tileName == "Conveyor")
     {
         if (transportSystem->tryPlaceItem(dropX, dropY, ins.heldItem))
         {
@@ -344,7 +344,7 @@ bool InserterSystem::tryDrop(InserterData& ins)
     }
 
     // Drop into machine input
-    if (cell.tileId == 5 or cell.tileId == 6)
+    if (cell.tileName == "Furnace" or cell.tileName == "Assembler")
     {
         int ox = cell.isOwner ? dropX : static_cast<int>(cell.ownerX);
         int oy = cell.isOwner ? dropY : static_cast<int>(cell.ownerY);
@@ -359,7 +359,7 @@ bool InserterSystem::tryDrop(InserterData& ins)
     }
 
     // Drop into storage
-    if (cell.tileId == StorageSystem::STORAGE_TILE_ID)
+    if (cell.tileName == "Storage")
     {
         StorageData* storage = storageSystem->getStorage(dropX, dropY);
         if (storage and storage->inventory.canAccept(ins.heldItem, *itemRegistry))
@@ -372,7 +372,7 @@ bool InserterSystem::tryDrop(InserterData& ins)
     }
 
     // Drop into depot
-    if (cell.tileId == DepotSystem::DEPOT_TILE_ID)
+    if (cell.tileName == "Depot")
     {
         int ox = cell.isOwner ? dropX : static_cast<int>(cell.ownerX);
         int oy = cell.isOwner ? dropY : static_cast<int>(cell.ownerY);

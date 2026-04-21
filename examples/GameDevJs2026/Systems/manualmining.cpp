@@ -110,7 +110,7 @@ void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
 
     // Don't mine if there's a building on this tile
     auto layer = gridSystem->getBuildingLayer();
-    if (gridSystem->getCell(layer, gx, gy).tileId != 0)
+    if (not gridSystem->getCell(layer, gx, gy).tileName.empty())
         return;
 
     TerrainType terrain = gridSystem->getTerrainAt(gx, gy);

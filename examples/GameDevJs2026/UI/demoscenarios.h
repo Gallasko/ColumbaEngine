@@ -8,7 +8,7 @@
 struct DemoTileDef
 {
     int x, y;
-    uint16_t tileId;
+    std::string tileName;
     uint8_t direction;       // 0=R, 1=D, 2=L, 3=U
 };
 
@@ -22,7 +22,7 @@ struct DemoItemSpawn
 
 struct DemoScenario
 {
-    uint16_t tileId;         // Which building this demo is for
+    std::string tileName;    // Which building this demo is for
     const char* title;
     const char* description;
     int gridW, gridH;        // Dimensions of the mini-grid
@@ -37,7 +37,7 @@ struct DemoScenario
 inline DemoScenario createInserterDemo()
 {
     DemoScenario s;
-    s.tileId = 8;
+    s.tileName = "Inserter";
     s.title = "Inserter";
     s.description = "Picks from behind, drops in front. R to rotate.";
     s.gridW = 7;
@@ -45,13 +45,13 @@ inline DemoScenario createInserterDemo()
 
     // Layout (row 1): belt belt belt INSERTER [furnace occupies 2x3]
     // Belt going right at y=1
-    s.tiles.push_back({1, 1, 4, 0}); // belt right
-    s.tiles.push_back({2, 1, 4, 0}); // belt right
-    s.tiles.push_back({3, 1, 4, 0}); // belt right
+    s.tiles.push_back({1, 1, "Conveyor", 0}); // belt right
+    s.tiles.push_back({2, 1, "Conveyor", 0}); // belt right
+    s.tiles.push_back({3, 1, "Conveyor", 0}); // belt right
     // Inserter at (4,1) facing right -> picks from belt at (3,1), drops at (5,1)
-    s.tiles.push_back({4, 1, 8, 0}); // inserter facing right
+    s.tiles.push_back({4, 1, "Inserter", 0}); // inserter facing right
     // Furnace at (5, 0) occupying (5,0)-(6,2)
-    s.tiles.push_back({5, 0, 5, 0}); // furnace
+    s.tiles.push_back({5, 0, "Furnace", 0}); // furnace
 
     // Items spawn on first belt cell
     s.itemSpawns.push_back({1, 1, 1, 20}); // iron ore, spawn every 20 ticks
@@ -62,7 +62,7 @@ inline DemoScenario createInserterDemo()
 inline DemoScenario createConveyorDemo()
 {
     DemoScenario s;
-    s.tileId = 4;
+    s.tileName = "Conveyor";
     s.title = "Conveyor Belt";
     s.description = "Items travel in arrow direction. Drag to place.";
     s.gridW = 7;
@@ -70,7 +70,7 @@ inline DemoScenario createConveyorDemo()
 
     // A straight belt line going right at y=1
     for (int x = 0; x < 7; ++x)
-        s.tiles.push_back({x, 1, 4, 0}); // belt right
+        s.tiles.push_back({x, 1, "Conveyor", 0}); // belt right
 
     // Items spawn at start
     s.itemSpawns.push_back({1, 0, 1, 15}); // iron ore at belt start
@@ -81,23 +81,23 @@ inline DemoScenario createConveyorDemo()
 inline DemoScenario createMinerDemo()
 {
     DemoScenario s;
-    s.tileId = 7;
+    s.tileName = "Miner";
     s.title = "Miner";
     s.description = "Place on ore. Use inserter to move output to belt.";
     s.gridW = 8;
     s.gridH = 4;
 
     // Miner at (1,0) occupying (1,0)-(2,2)
-    s.tiles.push_back({1, 0, 7, 0}); // miner
+    s.tiles.push_back({1, 0, "Miner", 0}); // miner
 
     // Inserter at (3,1) facing right -> picks from miner area (2,1), drops on belt (4,1)
-    s.tiles.push_back({3, 1, 8, 0}); // inserter facing right
+    s.tiles.push_back({3, 1, "Inserter", 0}); // inserter facing right
 
     // Belt going right starting at (4,1)
-    s.tiles.push_back({4, 1, 4, 0});
-    s.tiles.push_back({5, 1, 4, 0});
-    s.tiles.push_back({6, 1, 4, 0});
-    s.tiles.push_back({7, 1, 4, 0});
+    s.tiles.push_back({4, 1, "Conveyor", 0});
+    s.tiles.push_back({5, 1, "Conveyor", 0});
+    s.tiles.push_back({6, 1, "Conveyor", 0});
+    s.tiles.push_back({7, 1, "Conveyor", 0});
 
     // No item spawns — miner produces output internally
     return s;
@@ -106,29 +106,29 @@ inline DemoScenario createMinerDemo()
 inline DemoScenario createFurnaceDemo()
 {
     DemoScenario s;
-    s.tileId = 5;
+    s.tileName = "Furnace";
     s.title = "Furnace";
     s.description = "Smelts ore into bars. Use inserters to automate.";
     s.gridW = 9;
     s.gridH = 4;
 
     // Input belt going right at y=1
-    s.tiles.push_back({0, 1, 4, 0});
-    s.tiles.push_back({1, 1, 4, 0});
-    s.tiles.push_back({2, 1, 4, 0});
+    s.tiles.push_back({0, 1, "Conveyor", 0});
+    s.tiles.push_back({1, 1, "Conveyor", 0});
+    s.tiles.push_back({2, 1, "Conveyor", 0});
 
     // Input inserter at (3,1) facing right -> picks from belt(2,1), drops into furnace
-    s.tiles.push_back({3, 1, 8, 0});
+    s.tiles.push_back({3, 1, "Inserter", 0});
 
     // Furnace at (4,0) occupying (4,0)-(5,2)
-    s.tiles.push_back({4, 0, 5, 0});
+    s.tiles.push_back({4, 0, "Furnace", 0});
 
     // Output inserter at (6,1) facing right -> picks from furnace, drops onto belt
-    s.tiles.push_back({6, 1, 8, 0});
+    s.tiles.push_back({6, 1, "Inserter", 0});
 
     // Output belt going right
-    s.tiles.push_back({7, 1, 4, 0});
-    s.tiles.push_back({8, 1, 4, 0});
+    s.tiles.push_back({7, 1, "Conveyor", 0});
+    s.tiles.push_back({8, 1, "Conveyor", 0});
 
     // Items spawn on input belt
     s.itemSpawns.push_back({1, 0, 1, 20}); // iron ore
@@ -139,29 +139,29 @@ inline DemoScenario createFurnaceDemo()
 inline DemoScenario createAssemblerDemo()
 {
     DemoScenario s;
-    s.tileId = 6;
+    s.tileName = "Assembler";
     s.title = "Assembler";
     s.description = "Crafts intermediate goods. Use inserters to automate.";
     s.gridW = 9;
     s.gridH = 4;
 
     // Input belt going right at y=1
-    s.tiles.push_back({0, 1, 4, 0});
-    s.tiles.push_back({1, 1, 4, 0});
-    s.tiles.push_back({2, 1, 4, 0});
+    s.tiles.push_back({0, 1, "Conveyor", 0});
+    s.tiles.push_back({1, 1, "Conveyor", 0});
+    s.tiles.push_back({2, 1, "Conveyor", 0});
 
     // Input inserter at (3,1) facing right -> picks from belt(2,1), drops into assembler
-    s.tiles.push_back({3, 1, 8, 0});
+    s.tiles.push_back({3, 1, "Inserter", 0});
 
     // Assembler at (4,0) occupying (4,0)-(5,2)
-    s.tiles.push_back({4, 0, 6, 0});
+    s.tiles.push_back({4, 0, "Assembler", 0});
 
     // Output inserter at (6,1) facing right -> picks from assembler, drops onto belt
-    s.tiles.push_back({6, 1, 8, 0});
+    s.tiles.push_back({6, 1, "Inserter", 0});
 
     // Output belt going right
-    s.tiles.push_back({7, 1, 4, 0});
-    s.tiles.push_back({8, 1, 4, 0});
+    s.tiles.push_back({7, 1, "Conveyor", 0});
+    s.tiles.push_back({8, 1, "Conveyor", 0});
 
     // Items spawn on input belt: iron plates
     s.itemSpawns.push_back({5, 0, 1, 20}); // iron plate

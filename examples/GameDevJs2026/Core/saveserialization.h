@@ -15,7 +15,7 @@ using namespace pg;
 struct SavedBuilding
 {
     int x = 0, y = 0;
-    uint16_t tileId = 0;
+    std::string tileName;
     uint8_t direction = 0;
     uint8_t enterDirection = 0;
     size_t conveyorTileIndex = 0;

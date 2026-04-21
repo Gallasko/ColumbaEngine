@@ -295,9 +295,9 @@ TooltipSystem::TooltipContent TooltipSystem::buildContent(ItemId id) const
     c.descLine = def.description;
 
     // Determine preferred recipe category based on open machine UI
-    uint16_t preferMachineType = 0; // 0 = prefer HandCraft
+    std::string preferMachineName; // empty = prefer HandCraft
     if (machineUI and machineUI->isOpen())
-        preferMachineType = machineUI->getOpenMachineType();
+        preferMachineName = machineUI->getOpenMachineName();
 
     // Search for a recipe that produces this item
     const Recipe* preferred = nullptr;
@@ -309,7 +309,7 @@ TooltipSystem::TooltipContent TooltipSystem::buildContent(ItemId id) const
         {
             if (out.id != id) continue;
 
-            if (preferMachineType == 0)
+            if (preferMachineName.empty())
             {
                 // Hand-craft mode: prefer HandCraft, fall back to anything
                 if (recipe.category == RecipeCategory::HandCraft)
@@ -320,7 +320,7 @@ TooltipSystem::TooltipContent TooltipSystem::buildContent(ItemId id) const
             else
             {
                 // Machine mode: prefer the open machine's recipe
-                if (recipe.machineType == preferMachineType)
+                if (recipe.machineName == preferMachineName)
                     { preferred = &recipe; break; }
                 else if (not fallback)
                     fallback = &recipe;
@@ -337,7 +337,7 @@ TooltipSystem::TooltipContent TooltipSystem::buildContent(ItemId id) const
         float secs = static_cast<float>(recipe->craftTimeMs) / 1000.0f;
         char buf[64];
         std::snprintf(buf, sizeof(buf), "%s - %.1fs",
-            machineLabel(recipe->machineType), secs);
+            machineLabel(recipe->machineName), secs);
         c.sourceLine = buf;
 
         // Ingredient lines (up to 3 ingredients split across 2 lines)
@@ -391,14 +391,10 @@ const char* TooltipSystem::categoryName(ItemCategory cat)
     }
 }
 
-const char* TooltipSystem::machineLabel(uint16_t machineType)
+const char* TooltipSystem::machineLabel(const std::string& machineName)
 {
-    switch (machineType)
-    {
-    case 5:  return "Furnace";
-    case 6:  return "Assembler";
-    default: return "Hand";
-    }
+    if (machineName.empty()) return "Hand";
+    return machineName.c_str();
 }
 
 // ---------------------------------------------------------------------------

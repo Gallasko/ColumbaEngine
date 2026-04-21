@@ -117,7 +117,7 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
             if (gridSystem->getGrid().isInBounds(gx, gy))
             {
                 const auto& cell = gridSystem->getCell(layer, gx, gy);
-                if (cell.tileId == MinerSystem::MINER_TILE_ID)
+                if (cell.tileName == "Miner")
                 {
                     minerUI->open(cell.ownerX, cell.ownerY);
                     return;
@@ -133,9 +133,9 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
             if (gridSystem->getGrid().isInBounds(gx, gy))
             {
                 const auto& cell = gridSystem->getCell(layer, gx, gy);
-                if (cell.tileId == 5 or cell.tileId == 6)
+                if (cell.tileName == "Furnace" or cell.tileName == "Assembler")
                 {
-                    machineUI->open(cell.ownerX, cell.ownerY, cell.tileId);
+                    machineUI->open(cell.ownerX, cell.ownerY, cell.tileName);
                     return;
                 }
             }
@@ -149,7 +149,7 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
             if (gridSystem->getGrid().isInBounds(gx, gy))
             {
                 const auto& cell = gridSystem->getCell(layer, gx, gy);
-                if (cell.tileId == StorageSystem::STORAGE_TILE_ID)
+                if (cell.tileName == "Storage")
                 {
                     storageUI->open(gx, gy);
                     return;
@@ -165,7 +165,7 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
             if (gridSystem->getGrid().isInBounds(gx, gy))
             {
                 const auto& cell = gridSystem->getCell(layer, gx, gy);
-                if (cell.tileId == DepotSystem::DEPOT_TILE_ID)
+                if (cell.tileName == "Depot")
                 {
                     int ox = cell.isOwner ? gx : static_cast<int>(cell.ownerX);
                     int oy = cell.isOwner ? gy : static_cast<int>(cell.ownerY);
@@ -319,7 +319,7 @@ void GameSystem::rebuildGhostForSelectedBuilding()
         size_t frameIndex = 0;
         if (def->gridW == 1 and def->gridH == 1)
         {
-            if (def->tileId == 4) // Conveyor
+            if (def->name == "Conveyor")
             {
                 size_t tileIndex = def->hasDirection ? DIRECTION_TILE_INDEX[currentDirection] : 0;
                 frameIndex = tileIndex * 8;
@@ -330,7 +330,7 @@ void GameSystem::rebuildGhostForSelectedBuilding()
                 frameIndex = def->hasDirection ? IDLE_FRAME[currentDirection] : 0;
             }
             // Inserter ghost is oversized to show the arm
-            if (def->tileId == 8)
+            if (def->name == "Inserter")
             {
                 ghostW = static_cast<float>(Grid::TILE_SIZE) * 3.0f;
                 ghostH = ghostW;
@@ -403,7 +403,7 @@ void GameSystem::updateCursorPosition()
             if (ghostEnt)
             {
                 auto pos = ghostEnt->get<PositionComponent>();
-                float ghostOffset = (def->tileId == 8)
+                float ghostOffset = (def->name == "Inserter")
                     ? -static_cast<float>(Grid::TILE_SIZE) : 0.0f;
                 pos->setX(wx + ghostOffset);
                 pos->setY(wy + ghostOffset);
@@ -459,7 +459,7 @@ void GameSystem::updateGhostTexture()
         return;
 
     size_t frameIndex;
-    if (def->tileId == 4) // Conveyor
+    if (def->name == "Conveyor")
     {
         size_t tileIndex = DIRECTION_TILE_INDEX[currentDirection];
         frameIndex = tileIndex * 8;
@@ -485,7 +485,7 @@ bool GameSystem::canPlaceAt(int gx, int gy, const BuildingDef& def) const
             int cx = gx + dx, cy = gy + dy;
             if (not gridSystem->getGrid().isInBounds(cx, cy))
                 return false;
-            if (gridSystem->getCell(layer, cx, cy).tileId != 0)
+            if (not gridSystem->getCell(layer, cx, cy).tileName.empty())
                 return false;
             if (isBlockingTerrain(gridSystem->getTerrainAt(cx, cy)))
                 return false;
@@ -538,19 +538,19 @@ void GameSystem::removeAtMouse()
 
     auto layer = gridSystem->getBuildingLayer();
     const auto& cell = gridSystem->getCell(layer, gridX, gridY);
-    if (cell.tileId == 0)
+    if (cell.tileName.empty())
         return;
 
     // Find the building item to return to inventory
-    uint16_t tileId = cell.isOwner ? cell.tileId
-        : gridSystem->getCell(layer, cell.ownerX, cell.ownerY).tileId;
+    const std::string& tileName = cell.isOwner ? cell.tileName
+        : gridSystem->getCell(layer, cell.ownerX, cell.ownerY).tileName;
 
     gridSystem->removeBuilding(layer, gridX, gridY);
 
     // Return the building item to the player
     if (itemRegistry)
     {
-        const auto* itemDef = itemRegistry->findByBuildingTileId(tileId);
+        const auto* itemDef = itemRegistry->findByBuildingName(tileName);
         if (itemDef)
             sendEvent(PlayerGainItemEvent{itemDef->id, 1});
     }
@@ -773,11 +773,11 @@ void GameSystem::commitDragPath()
         const auto& existing = gridSystem->getCell(layer, gx, gy);
 
         // Skip non-conveyor occupied cells
-        if (existing.tileId != 0 and existing.tileId != 4)
+        if (not existing.tileName.empty() and existing.tileName != "Conveyor")
             continue;
 
         // Remove existing conveyor to replace with new direction
-        if (existing.tileId == 4)
+        if (existing.tileName == "Conveyor")
             gridSystem->removeBuilding(layer, gx, gy);
 
         uint8_t enterDir, exitDir;

@@ -12,7 +12,7 @@ using namespace pg;
 class CraftingUISystem;
 class MachineDemoSystem;
 
-// Side-panel UI for Furnace (tileId 5) and Assembler (tileId 6).
+// Side-panel UI for Furnace and Assembler.
 // Shows input slot(s), output slot and a crafting progress bar.
 // Mirrors the MinerUISystem pattern exactly.
 class MachineUISystem : public System<Listener<ResizeEvent>,
@@ -48,14 +48,14 @@ public:
     virtual std::string getSystemName() const override { return "Machine UI System"; }
 
     bool isOpen() const { return visible; }
-    uint16_t getOpenMachineType() const { return openMachineType; }
+    const std::string& getOpenMachineName() const { return openMachineName; }
 
     bool isClickOnPanel(float x, float y) const;
 
     void setCraftingUI(CraftingUISystem* ui) { craftingUI = ui; }
     void setMachineDemo(MachineDemoSystem* demo) { machineDemo = demo; }
 
-    void open(int gridX, int gridY, uint16_t tileId);
+    void open(int gridX, int gridY, const std::string& tileName);
     void close();
 
     virtual void onEvent(const ResizeEvent& event) override
@@ -124,7 +124,7 @@ private:
     bool panelCreated = false;
     int openMachineX = -1;
     int openMachineY = -1;
-    uint16_t openMachineType = 0; // 5=Furnace, 6=Assembler
+    std::string openMachineName;
 
     // Cached slot positions for hit testing
     float cachedInputSlotX[2]  = {0.0f, 0.0f};

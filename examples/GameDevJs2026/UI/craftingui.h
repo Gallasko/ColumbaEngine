@@ -100,7 +100,7 @@ public:
     // Switch the recipe list to show recipes for the given machine type.
     // Call before openInventory() so it takes effect when the panel opens.
     // Also safe to call while the panel is already open.
-    void setMachineMode(uint16_t tileId, const Recipe* initialLocked = nullptr);
+    void setMachineMode(const std::string& machineName, const Recipe* initialLocked = nullptr);
     void clearMachineMode();
 
     // Set a callback invoked when the player double-clicks a recipe row in
@@ -163,7 +163,7 @@ private:
     // --- Mode visuals --------------------------------------------------
 
     // Apply title / button / progress-bar visibility for the current
-    // activeMachineType, then rebuild and refresh the recipe list.
+    // activeMachineName, then rebuild and refresh the recipe list.
     void applyModeToPanel();
 
     // --- Rendering -----------------------------------------------------
@@ -227,8 +227,8 @@ private:
     bool visible = false;
     bool panelCreated = false;
 
-    // 0 = hand-craft mode; 5 = Furnace; 6 = Assembler
-    uint16_t activeMachineType = 0;
+    // Empty = hand-craft mode; "Furnace", "Assembler" = machine mode
+    std::string activeMachineName;
 
     std::vector<size_t> visibleRecipes; // Indices into recipeRegistry->all()
     size_t selectedIndex = 0;

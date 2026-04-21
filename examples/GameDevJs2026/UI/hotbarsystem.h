@@ -68,9 +68,9 @@ public:
         if (item.isEmpty())
             return nullptr;
         const auto& def = itemRegistry->get(item.id);
-        if (def.buildingTileId == 0)
+        if (def.buildingName.empty())
             return nullptr;
-        return buildingRegistry->findByTileId(def.buildingTileId);
+        return buildingRegistry->findByName(def.buildingName);
     }
 
     bool isMouseOverHotbar(float mouseY) const

@@ -19,8 +19,6 @@ class StorageSystem : public System<Listener<BuildingPlacedEvent>,
                                      SaveSys>
 {
 public:
-    static constexpr uint16_t STORAGE_TILE_ID = 9;
-
     StorageSystem(GridSystem* gridSystem, ItemRegistry* itemRegistry)
         : gridSystem(gridSystem), itemRegistry(itemRegistry) {}
 

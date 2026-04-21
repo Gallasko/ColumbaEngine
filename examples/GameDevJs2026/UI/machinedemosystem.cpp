@@ -72,7 +72,7 @@ void MachineDemoSystem::execute()
         pendingOpen = false;
         for (const auto& demo : getDemos())
         {
-            if (demo.tileId == pendingTileId)
+            if (demo.tileName == pendingTileName)
             {
                 currentScenario = demo;
                 createPanel();
@@ -80,7 +80,7 @@ void MachineDemoSystem::execute()
                 open = true;
                 tickAccumulator = 0;
                 spawnTickCounter = 0;
-                printf("MachineDemoSystem: opened demo for tileId %u\n", pendingTileId);
+                printf("MachineDemoSystem: opened demo for tileName %s\n", pendingTileName.c_str());
                 break;
             }
         }
@@ -102,20 +102,20 @@ void MachineDemoSystem::execute()
 // Open / Close
 // ─────────────────────────────────────────────────────────────────────────────
 
-bool MachineDemoSystem::hasDemoForTile(uint16_t tileId) const
+bool MachineDemoSystem::hasDemoForTile(const std::string& tileName) const
 {
     for (const auto& d : getDemos())
     {
-        if (d.tileId == tileId)
+        if (d.tileName == tileName)
             return true;
     }
     return false;
 }
 
-void MachineDemoSystem::openDemo(uint16_t tileId)
+void MachineDemoSystem::openDemo(const std::string& tileName)
 {
     pendingOpen = true;
-    pendingTileId = tileId;
+    pendingTileName = tileName;
 }
 
 void MachineDemoSystem::closeDemo()
@@ -301,11 +301,10 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
         float worldX = ox + tile.x * DEMO_TILE_SIZE;
         float worldY = oy + tile.y * DEMO_TILE_SIZE;
 
-        switch (tile.tileId)
+        if (tile.tileName == "Conveyor")
         {
-            case 4: // Belt
+            if (beltCount < MAX_BELTS)
             {
-                if (beltCount >= MAX_BELTS) break;
                 auto& belt = belts[beltCount];
                 belt.gridX = tile.x;
                 belt.gridY = tile.y;
@@ -325,12 +324,12 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 tex.get<Texture2DComponent>()->setViewport(UI_VP);
                 belt.entityId = tex.entity->id;
                 beltCount++;
-                break;
             }
-
-            case 8: // Inserter
+        }
+        else if (tile.tileName == "Inserter")
+        {
+            if (inserterCount < MAX_INSERTERS)
             {
-                if (inserterCount >= MAX_INSERTERS) break;
                 auto& ins = inserters[inserterCount];
                 ins.gridX = tile.x;
                 ins.gridY = tile.y;
@@ -352,22 +351,21 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 tex.get<Texture2DComponent>()->setViewport(UI_VP);
                 ins.entityId = tex.entity->id;
                 inserterCount++;
-                break;
             }
-
-            case 5: // Furnace
-            case 6: // Assembler
+        }
+        else if (tile.tileName == "Furnace" || tile.tileName == "Assembler")
+        {
+            if (machineCount < MAX_MACHINES)
             {
-                if (machineCount >= MAX_MACHINES) break;
                 auto& mach = machines[machineCount];
                 mach.gridX = tile.x;
                 mach.gridY = tile.y;
-                mach.tileId = tile.tileId;
+                mach.tileName = tile.tileName;
                 mach.inputItemIndex = -1;
                 mach.outputItemIndex = -1;
                 mach.processTimer = 0;
 
-                std::string texName = (tile.tileId == 5) ? "Stone_Furnace.0" : "Assembler_Machine_1.0";
+                std::string texName = (tile.tileName == "Furnace") ? "Stone_Furnace.0" : "Assembler_Machine_1.0";
                 float w = DEMO_TILE_SIZE * 2.0f;
                 float h = DEMO_TILE_SIZE * 3.0f;
 
@@ -380,16 +378,16 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 tex.get<Texture2DComponent>()->setViewport(UI_VP);
                 mach.entityId = tex.entity->id;
                 machineCount++;
-                break;
             }
-
-            case 7: // Miner
+        }
+        else if (tile.tileName == "Miner")
+        {
+            if (machineCount < MAX_MACHINES)
             {
-                if (machineCount >= MAX_MACHINES) break;
                 auto& mach = machines[machineCount];
                 mach.gridX = tile.x;
                 mach.gridY = tile.y;
-                mach.tileId = tile.tileId;
+                mach.tileName = tile.tileName;
                 mach.inputItemIndex = -1;
                 mach.outputItemIndex = -1;
                 mach.processTimer = 0;
@@ -406,7 +404,6 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 tex.get<Texture2DComponent>()->setViewport(UI_VP);
                 mach.entityId = tex.entity->id;
                 machineCount++;
-                break;
             }
         }
     }
@@ -641,7 +638,7 @@ void MachineDemoSystem::tickMachines()
         auto& mach = machines[i];
 
         // Miner: periodically produce output (no input needed)
-        if (mach.tileId == 7)
+        if (mach.tileName == "Miner")
         {
             if (mach.outputItemIndex < 0)
             {
@@ -667,8 +664,8 @@ void MachineDemoSystem::tickMachines()
             {
                 mach.processTimer = 0;
                 // Determine output based on machine type
-                uint16_t outputItem = (mach.tileId == 5) ? 5  // Furnace: Iron Plate
-                                    : (mach.tileId == 6) ? 7  // Assembler: Iron Gear
+                uint16_t outputItem = (mach.tileName == "Furnace") ? 5  // Furnace: Iron Plate
+                                    : (mach.tileName == "Assembler") ? 7  // Assembler: Iron Gear
                                     : 5;
                 freeItem(mach.inputItemIndex);
                 mach.inputItemIndex = -1;
@@ -771,8 +768,8 @@ int MachineDemoSystem::findMachineAt(int x, int y) const
     for (size_t i = 0; i < machineCount; ++i)
     {
         auto& m = machines[i];
-        int w = (m.tileId == 5 || m.tileId == 6 || m.tileId == 7) ? 2 : 1;
-        int h = (m.tileId == 5 || m.tileId == 6 || m.tileId == 7) ? 3 : 1;
+        int w = (m.tileName == "Furnace" || m.tileName == "Assembler" || m.tileName == "Miner") ? 2 : 1;
+        int h = (m.tileName == "Furnace" || m.tileName == "Assembler" || m.tileName == "Miner") ? 3 : 1;
         if (x >= m.gridX && x < m.gridX + w && y >= m.gridY && y < m.gridY + h)
             return static_cast<int>(i);
     }
