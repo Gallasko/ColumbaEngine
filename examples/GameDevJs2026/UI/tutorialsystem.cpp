@@ -57,9 +57,9 @@ void TutorialSystem::onEvent(const HandCraftCompletedEvent& event)
     if (currentStep != 3)
         return;
 
-    if (event.recipeIndex < recipeRegistry->recipes.size())
+    if (event.recipeIndex < recipeRegistry->count())
     {
-        const auto& recipe = recipeRegistry->recipes[event.recipeIndex];
+        const auto& recipe = recipeRegistry->get(event.recipeIndex);
         for (const auto& output : recipe.outputs)
         {
             if (output.id == 29) // Stone Pickaxe

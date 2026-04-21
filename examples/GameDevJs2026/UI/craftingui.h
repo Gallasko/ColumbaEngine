@@ -230,7 +230,7 @@ private:
     // 0 = hand-craft mode; 5 = Furnace; 6 = Assembler
     uint16_t activeMachineType = 0;
 
-    std::vector<size_t> visibleRecipes; // Indices into recipeRegistry->recipes
+    std::vector<size_t> visibleRecipes; // Indices into recipeRegistry->all()
     size_t selectedIndex = 0;
     size_t scrollOffset = 0;
 

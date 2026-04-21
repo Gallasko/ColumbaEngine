@@ -1,10 +1,11 @@
 #pragma once
 
-#include <string>
-#include <vector>
 #include <cstdint>
+#include <string>
 
 #include "pgconstant.h"
+
+#include "Helpers/registry.h"
 
 enum class PlacementMode : uint8_t
 {
@@ -25,18 +26,17 @@ struct BuildingDef
     bool isAnimated = false;      // GridSystem should animate this
 };
 
-struct BuildingRegistry
+struct BuildingRegistry : public pg::Registry<BuildingDef>
 {
-    std::vector<BuildingDef> buildings;
+    void addBuilding(const BuildingDef& def)
+    {
+        add(def, static_cast<size_t>(def.tileId));
+    }
 
-    void addBuilding(const BuildingDef& def);
-
-    const BuildingDef& get(size_t index) const { return buildings[index]; }
-
-    size_t count() const { return buildings.size(); }
-
-    // Find a building def by tileId, returns nullptr if not found
-    const BuildingDef* findByTileId(uint16_t tileId) const;
+    const BuildingDef* findByTileId(uint16_t tileId) const
+    {
+        return findByKey(static_cast<size_t>(tileId));
+    }
 };
 
-BuildingRegistry createDefaultRegistry();
+BuildingRegistry createDefaultBuildingRegistry();

@@ -1,21 +1,6 @@
 #include "buildingregistry.h"
 
-void BuildingRegistry::addBuilding(const BuildingDef& def)
-{
-    buildings.push_back(def);
-}
-
-const BuildingDef* BuildingRegistry::findByTileId(uint16_t tileId) const
-{
-    for (const auto& def : buildings)
-    {
-        if (def.tileId == tileId)
-            return &def;
-    }
-    return nullptr;
-}
-
-BuildingRegistry createDefaultRegistry()
+BuildingRegistry createDefaultBuildingRegistry()
 {
     BuildingRegistry reg;
 

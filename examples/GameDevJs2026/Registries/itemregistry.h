@@ -1,9 +1,9 @@
 #pragma once
 
-#include <string>
-#include <vector>
-#include <unordered_map>
 #include <cstdint>
+#include <string>
+
+#include "Helpers/registry.h"
 
 using ItemId = uint16_t;
 inline constexpr ItemId ITEM_NONE = 0;
@@ -42,20 +42,26 @@ struct ItemStack
     void clear() { id = ITEM_NONE; count = 0; }
 };
 
-struct ItemRegistry
+struct ItemRegistry : public pg::Registry<ItemDef, ItemId>
 {
-    std::vector<ItemDef> items;
-    std::unordered_map<std::string, ItemId> nameToId;
+    ItemId addItem(const ItemDef& def)
+    {
+        ItemId assignedId;
 
-    ItemId addItem(const ItemDef& def);
+        if (def.buildingTileId != 0)
+            assignedId = add(def, static_cast<size_t>(def.buildingTileId));
+        else
+            assignedId = add(def);
 
-    const ItemDef& get(ItemId id) const { return items[id]; }
+        m_entries[static_cast<size_t>(assignedId)].id = assignedId;
 
-    const ItemDef* findByName(const std::string& name) const;
+        return assignedId;
+    }
 
-    const ItemDef* findByBuildingTileId(uint16_t tileId) const;
-
-    size_t count() const { return items.size(); }
+    const ItemDef* findByBuildingTileId(uint16_t tileId) const
+    {
+        return findByKey(static_cast<size_t>(tileId));
+    }
 };
 
 ItemRegistry createDefaultItemRegistry();

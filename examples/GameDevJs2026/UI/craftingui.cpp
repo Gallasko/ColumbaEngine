@@ -142,7 +142,7 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
                 size_t absIdx = scrollOffset + i;
                 if (absIdx < visibleRecipes.size())
                 {
-                    const Recipe& recipe = recipeRegistry->recipes[visibleRecipes[absIdx]];
+                    const Recipe& recipe = recipeRegistry->get(visibleRecipes[absIdx]);
                     if (not recipe.outputs.empty())
                     {
                         uint16_t buildTile = itemRegistry->get(recipe.outputs.front().id).buildingTileId;
@@ -186,14 +186,14 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
             selectedIndex = absIndex;
             if (activeMachineType != 0 && machineSelectCallback)
             {
-                const Recipe& recipe = recipeRegistry->recipes[visibleRecipes[absIndex]];
+                const Recipe& recipe = recipeRegistry->get(visibleRecipes[absIndex]);
                 machineSelectCallback(recipe);
             }
 
             // Double-click: additionally feed items from player inventory
             if (isDoubleClick && machineFeedCallback)
             {
-                const Recipe& recipe = recipeRegistry->recipes[visibleRecipes[absIndex]];
+                const Recipe& recipe = recipeRegistry->get(visibleRecipes[absIndex]);
                 machineFeedCallback(recipe);
                 lastClickTime   = 0;
                 lastClickRowAbs = -1;
@@ -242,7 +242,7 @@ void CraftingUISystem::setMachineMode(uint16_t tileId, const Recipe* initialLock
     {
         for (size_t i = 0; i < visibleRecipes.size(); ++i)
         {
-            if (&recipeRegistry->recipes[visibleRecipes[i]] == initialLocked)
+            if (&recipeRegistry->get(visibleRecipes[i]) == initialLocked)
             {
                 selectedIndex = i;
                 ensureSelectionVisible();
@@ -686,9 +686,9 @@ void CraftingUISystem::rebuildVisibleRecipes()
         // Machine mode: show all recipes for this machine type
         RecipeCategory cat = (activeMachineType == 5) ? RecipeCategory::Furnace
                                                       : RecipeCategory::Assembler;
-        for (size_t i = 0; i < recipeRegistry->recipes.size(); ++i)
+        for (size_t i = 0; i < recipeRegistry->count(); ++i)
         {
-            const Recipe& r = recipeRegistry->recipes[i];
+            const Recipe& r = recipeRegistry->get(i);
             if (r.category == cat and r.machineType == activeMachineType)
                 visibleRecipes.push_back(i);
         }
@@ -696,9 +696,9 @@ void CraftingUISystem::rebuildVisibleRecipes()
     else
     {
         // Hand-craft mode
-        for (size_t i = 0; i < recipeRegistry->recipes.size(); ++i)
+        for (size_t i = 0; i < recipeRegistry->count(); ++i)
         {
-            const Recipe& r = recipeRegistry->recipes[i];
+            const Recipe& r = recipeRegistry->get(i);
             if (r.category != RecipeCategory::HandCraft)
                 continue;
             if (not handCrafting->isUnlocked(r))
@@ -798,7 +798,7 @@ void CraftingUISystem::refreshRows()
         float rowY = rowBgPos->getY();
 
         size_t recipeIdx = visibleRecipes[absIdx];
-        const Recipe& recipe = recipeRegistry->recipes[recipeIdx];
+        const Recipe& recipe = recipeRegistry->get(recipeIdx);
 
         // Output icon: first output item.
         if (not recipe.outputs.empty())
@@ -1058,7 +1058,7 @@ void CraftingUISystem::requestCraft()
     if (handCrafting->isActive())
         return;
     size_t recipeIdx = visibleRecipes[selectedIndex];
-    const Recipe& recipe = recipeRegistry->recipes[recipeIdx];
+    const Recipe& recipe = recipeRegistry->get(recipeIdx);
     if (not handCrafting->canCraft(recipe))
         return;
     ecsRef->sendEvent(HandCraftRequest{recipeIdx});

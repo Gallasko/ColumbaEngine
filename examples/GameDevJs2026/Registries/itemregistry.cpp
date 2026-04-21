@@ -1,39 +1,11 @@
 #include "itemregistry.h"
 
-ItemId ItemRegistry::addItem(const ItemDef& def)
-{
-    ItemId assignedId = static_cast<ItemId>(items.size());
-    ItemDef copy = def;
-    copy.id = assignedId;
-    nameToId[copy.name] = assignedId;
-    items.push_back(copy);
-    return assignedId;
-}
-
-const ItemDef* ItemRegistry::findByName(const std::string& name) const
-{
-    auto it = nameToId.find(name);
-    if (it != nameToId.end())
-        return &items[it->second];
-    return nullptr;
-}
-
-const ItemDef* ItemRegistry::findByBuildingTileId(uint16_t tileId) const
-{
-    for (const auto& item : items)
-    {
-        if (item.buildingTileId == tileId)
-            return &item;
-    }
-    return nullptr;
-}
-
 ItemRegistry createDefaultItemRegistry()
 {
     ItemRegistry reg;
 
     // Index 0 is the null item
-    reg.items.push_back({ITEM_NONE, "None", "", ItemCategory::Resource, 0});
+    reg.addItem({ITEM_NONE, "None", "", ItemCategory::Resource, 0});
 
     // Raw resources (IDs 1-4)
     // {id, name, texture, category, maxStack, bldTile, toolTier, speedMult, iconRatio, description, worldSourceTier}

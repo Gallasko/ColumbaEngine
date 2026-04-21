@@ -38,7 +38,7 @@ using namespace pg;
 
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
-    registry = createDefaultRegistry();
+    registry = createDefaultBuildingRegistry();
     itemRegistry = createDefaultItemRegistry();
     recipeRegistry = createDefaultRecipeRegistry();
 

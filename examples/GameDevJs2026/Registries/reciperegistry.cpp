@@ -1,14 +1,9 @@
 #include "reciperegistry.h"
 
-void RecipeRegistry::addRecipe(const Recipe& recipe)
-{
-    recipes.push_back(recipe);
-}
-
 std::vector<const Recipe*> RecipeRegistry::getRecipesForMachine(uint16_t tileId) const
 {
     std::vector<const Recipe*> result;
-    for (const auto& r : recipes)
+    for (const auto& r : all())
         if (r.machineType == tileId and
             (r.category == RecipeCategory::Furnace or r.category == RecipeCategory::Assembler))
             result.push_back(&r);
@@ -18,7 +13,7 @@ std::vector<const Recipe*> RecipeRegistry::getRecipesForMachine(uint16_t tileId)
 const Recipe* RecipeRegistry::findMatchingRecipe(uint16_t machineType,
                                                  const Inventory& inputSlots) const
 {
-    for (const auto& recipe : recipes)
+    for (const auto& recipe : all())
     {
         if (recipe.machineType != machineType)
             continue;

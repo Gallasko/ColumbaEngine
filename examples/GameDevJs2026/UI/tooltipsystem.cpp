@@ -303,7 +303,7 @@ TooltipSystem::TooltipContent TooltipSystem::buildContent(ItemId id) const
     const Recipe* preferred = nullptr;
     const Recipe* fallback  = nullptr;
 
-    for (const auto& recipe : recipeRegistry->recipes)
+    for (const auto& recipe : recipeRegistry->all())
     {
         for (const auto& out : recipe.outputs)
         {

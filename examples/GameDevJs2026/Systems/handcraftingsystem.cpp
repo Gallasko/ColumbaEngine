@@ -5,10 +5,10 @@ void HandCraftingSystem::onEvent(const HandCraftRequest& event)
     if (activeRecipe != nullptr)
         return; // Already crafting
 
-    if (event.recipeIndex >= recipeRegistry->recipes.size())
+    if (event.recipeIndex >= recipeRegistry->count())
         return;
 
-    const Recipe& recipe = recipeRegistry->recipes[event.recipeIndex];
+    const Recipe& recipe = recipeRegistry->get(event.recipeIndex);
 
     if (not canCraft(recipe))
         return;

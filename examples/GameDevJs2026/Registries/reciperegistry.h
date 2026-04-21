@@ -3,8 +3,10 @@
 #include "inventory.h"
 #include "worldfacts.h"
 
-#include <vector>
 #include <string>
+#include <vector>
+
+#include "Helpers/registry.h"
 
 struct RecipeIngredient
 {
@@ -41,11 +43,9 @@ struct Recipe
     std::vector<pg::FactChecker> unlockConditions;
 };
 
-struct RecipeRegistry
+struct RecipeRegistry : public pg::Registry<Recipe>
 {
-    std::vector<Recipe> recipes;
-
-    void addRecipe(const Recipe& recipe);
+    void addRecipe(const Recipe& recipe) { add(recipe); }
 
     std::vector<const Recipe*> getRecipesForMachine(uint16_t tileId) const;
 
