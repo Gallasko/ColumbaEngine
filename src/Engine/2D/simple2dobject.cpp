@@ -35,7 +35,7 @@ namespace pg
         materialId = masterRenderer->registerMaterial(simpleShapeMaterial);
     }
 
-    RenderCall Simple2DObjectSystem::createRenderCall(CompRef<Simple2DObject> obj, CompRef<PositionComponent> ui)
+    RenderCall Simple2DObjectSystem::createRenderCall(CompRef<Simple2DObject> obj, CompRef<PositionComponent> ui, CompRef<ViewportComponent> vp)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -56,7 +56,7 @@ namespace pg
 
         call.setMaterial(materialId);
 
-        call.setViewport(obj->viewport);
+        call.setViewport(vp->viewport);
 
         call.data.resize(10);
 
@@ -97,7 +97,7 @@ namespace pg
         materialId = masterRenderer->registerMaterial(mat);
     }
 
-    RenderCall RoundedRect2DObjectSystem::createRenderCall(CompRef<RoundedRect2DObject> obj, CompRef<PositionComponent> ui)
+    RenderCall RoundedRect2DObjectSystem::createRenderCall(CompRef<RoundedRect2DObject> obj, CompRef<PositionComponent> ui, CompRef<ViewportComponent> vp)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -111,7 +111,7 @@ namespace pg
 
         call.setMaterial(materialId);
 
-        call.setViewport(obj->viewport);
+        call.setViewport(vp->viewport);
 
         // 11 floats: x, y, z, width, height, rotation, r, g, b, a, cornerRadius
         call.data.resize(11);

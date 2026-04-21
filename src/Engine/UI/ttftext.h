@@ -8,6 +8,7 @@
 #include "Renderer/renderer.h"
 
 #include "Components/TTFText.generated.h"
+#include "Components/ViewportComponent.generated.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -15,7 +16,7 @@
 namespace pg
 {
     struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Ref<PositionComponent>,
-        Listener<PositionComponentChangedEvent>, Listener<TTFTextChangedEvent>, InitSys>
+        Listener<PositionComponentChangedEvent>, Listener<TTFTextChangedEvent>, Listener<ViewportComponentChangedEvent>, InitSys>
     {
         struct Character
         {
@@ -47,13 +48,14 @@ namespace pg
 
         virtual void onEvent(const PositionComponentChangedEvent& event) override;
         virtual void onEvent(const TTFTextChangedEvent& event) override;
+        virtual void onEvent(const ViewportComponentChangedEvent& event) override;
 
         void registerFont(const std::string& fontPath, const std::string& fontName = "", int size = 48);
 
         virtual void execute() override;
 
         // Builds glyph layout templates from text content. Only called when text changes.
-        std::vector<GlyphRenderData> buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj);
+        std::vector<GlyphRenderData> buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj, size_t viewport);
 
         // Produces RenderCalls by applying position data to pre-built glyph templates.
         std::vector<RenderCall> createRenderCall(CompRef<PositionComponent> ui, const std::vector<GlyphRenderData>& glyphs);
@@ -91,7 +93,7 @@ namespace pg
     };
 
     template <typename Type>
-    CompList<PositionComponent, UiAnchor, TTFText> makeTTFText(Type *ecs, float x, float y, float z, const std::string& fontPath, const std::string& text, float scale = 1.0f, constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f})
+    CompList<PositionComponent, UiAnchor, ViewportComponent, TTFText> makeTTFText(Type *ecs, float x, float y, float z, const std::string& fontPath, const std::string& text, float scale = 1.0f, constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f})
     {
         LOG_THIS("TTFText System");
         // Todo add an error when trying to create a ttf with a non existing font
@@ -106,11 +108,13 @@ namespace pg
 
         auto anchor = ecs->template attach<UiAnchor>(entity);
 
+        auto vp = ecs->template attach<ViewportComponent>(entity);
+
         auto sentence = ecs->template attach<TTFText>(entity, text, fontPath, scale, colors);
 
         ui->setWidth(sentence->textWidth);
         ui->setHeight(sentence->textHeight);
 
-        return {entity, ui, anchor, sentence};
+        return {entity, ui, anchor, vp, sentence};
     }
 }

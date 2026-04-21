@@ -24,11 +24,6 @@ fields:
     default: "{255.0f, 255.0f, 255.0f, 255.0f}"
     setter: event
 
-  - name: viewport
-    type: size_t
-    default: 0
-    setter: event
-
 constructors:
   - params: [shape]
   - params: [shape, colors]
