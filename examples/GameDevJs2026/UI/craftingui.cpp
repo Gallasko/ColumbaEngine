@@ -251,6 +251,7 @@ void CraftingUISystem::applyModeToPanel()
     }
 
     rebuildVisibleRecipes();
+    ensureSelectionVisible();
     refreshRows();
 }
 
@@ -706,8 +707,10 @@ void CraftingUISystem::rebuildVisibleRecipes()
     }
 
     if (selectedIndex >= visibleRecipes.size())
+    {
         selectedIndex = visibleRecipes.size() - 1;
-    ensureSelectionVisible();
+        ensureSelectionVisible();
+    }
 }
 
 void CraftingUISystem::moveSelection(int delta)
@@ -911,6 +914,7 @@ void CraftingUISystem::setActiveTab(CraftTab tab)
 
     refreshTabHighlights();
     rebuildVisibleRecipes();
+    ensureSelectionVisible();
     refreshRows();
 }
 
