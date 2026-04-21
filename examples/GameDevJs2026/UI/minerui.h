@@ -39,8 +39,6 @@ public:
 
     bool isOpen() const { return visible; }
 
-    bool isClickOnPanel(float x, float y) const;
-
     void open(int gridX, int gridY);
     void close();
 

@@ -7,19 +7,6 @@
 #include <SDL2/SDL.h>
 
 // ---------------------------------------------------------------------------
-// isClickOnPanel
-// ---------------------------------------------------------------------------
-
-bool DepotUISystem::isClickOnPanel(float x, float y) const
-{
-    if (not visible) return false;
-    float px = getPanelX();
-    float py = getPanelY();
-    return x >= px and x <= px + getPanelWidth()
-       and y >= py and y <= py + getPanelHeight();
-}
-
-// ---------------------------------------------------------------------------
 // open / close
 // ---------------------------------------------------------------------------
 
@@ -35,10 +22,6 @@ void DepotUISystem::open(int gridX, int gridY)
     if (inventoryUI and not inventoryUI->isOpen())
         inventoryUI->openInventory();
 
-    inventoryUI->setExternalClickCheck([this](float x, float y) {
-        return isClickOnPanel(x, y);
-    });
-
     ensurePanelCreated();
     setPanelVisibility(true);
     refreshAllSlots();
@@ -48,8 +31,6 @@ void DepotUISystem::close()
 {
     if (inventoryUI and inventoryUI->hasHeldItem())
         inventoryUI->cancelHeld();
-
-    inventoryUI->setExternalClickCheck(nullptr);
 
     // Hide item/count entities
     for (size_t i = 0; i < NUM_SLOTS; ++i)
@@ -175,6 +156,9 @@ void DepotUISystem::createPanel()
         pos->setWidth(panelW); pos->setHeight(panelH);
         bd.get<ViewportComponent>()->setViewport(UI_VP);
         backdropEntityId = bd.entity->id;
+
+        ecsRef->attach<MouseLeftClickComponent>(bd.entity,
+            makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
     }
 
     // Title

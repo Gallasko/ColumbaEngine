@@ -6,19 +6,6 @@
 
 #include <SDL2/SDL.h>
 
-bool MinerUISystem::isClickOnPanel(float x, float y) const
-{
-    if (not visible) return false;
-    float panelX = getPanelX();
-    float panelY = getPanelY();
-    float panelW = SLOT_SIZE + 2 * PANEL_PADDING;
-    float titleH = 20.0f, gapAfterTitle = 6.0f, gapAfterSlot = 8.0f;
-    float contentH = titleH + gapAfterTitle + SLOT_SIZE + gapAfterSlot + PROGRESS_BAR_HEIGHT;
-    float panelH = contentH + 2 * PANEL_PADDING;
-    return x >= panelX and x <= panelX + panelW
-       and y >= panelY and y <= panelY + panelH;
-}
-
 void MinerUISystem::open(int gridX, int gridY)
 {
     if (visible)
@@ -32,12 +19,6 @@ void MinerUISystem::open(int gridX, int gridY)
     if (inventoryUI and not inventoryUI->isOpen())
         inventoryUI->openInventory();
 
-    // Register external click check so inventory doesn't cancel held items
-    // when clicking on our panel
-    inventoryUI->setExternalClickCheck([this](float x, float y) {
-        return isClickOnPanel(x, y);
-    });
-
     ensurePanelCreated();
     setPanelVisibility(true);
     lastDisplayedStack.clear();
@@ -49,9 +30,6 @@ void MinerUISystem::close()
     // Cancel any held item that came from our slot
     if (inventoryUI and inventoryUI->hasHeldItem())
         inventoryUI->cancelHeld();
-
-    // Unregister external click check
-    inventoryUI->setExternalClickCheck(nullptr);
 
     // Hide item/text entities
     setEntityVisibility(itemEntityId, false);
@@ -185,6 +163,9 @@ void MinerUISystem::createPanel()
     bdPos->setHeight(panelH);
     backdrop.get<ViewportComponent>()->setViewport(UI_VP);
     backdropEntityId = backdrop.entity->id;
+
+    ecsRef->attach<MouseLeftClickComponent>(backdrop.entity,
+        makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
 
     // Title text "Miner" — left-aligned with padding
     auto title = makeTTFText(ecsRef,

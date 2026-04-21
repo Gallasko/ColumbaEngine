@@ -7,15 +7,15 @@
 #include "playerinventory.h"
 #include "itemregistry.h"
 
-#include <functional>
-
 using namespace pg;
 
 struct InventoryOpenedEvent {};
 struct InventoryClosedEvent {};
+struct PanelWasClickedEvent {};
 
 class InventoryUISystem : public System<InitSys,
                                         Listener<ResizeEvent>,
+                                        Listener<PanelWasClickedEvent>,
                                         QueuedListener<OnSDLScanCode>,
                                         QueuedListener<OnMouseClick>,
                                         QueuedListener<OnSDLMouseMotion>>
@@ -44,8 +44,6 @@ public:
     bool isOpen() const { return visible; }
     uint64_t getBackdropEntityId() const { return backdropEntityId; }
 
-    bool isClickOnPanel(float x, float y) const;
-
     // Returns the ItemId under screen-space (x,y), or ITEM_NONE if panel is
     // closed or the position is not over a non-empty slot.
     ItemId itemAtPosition(float x, float y) const;
@@ -53,11 +51,6 @@ public:
     // --- External Slot Support (for miner UI, etc.) ---
 
     bool hasHeldItem() const { return not heldItem.isEmpty(); }
-
-    void setExternalClickCheck(std::function<bool(float, float)> check)
-    {
-        externalClickCheck = std::move(check);
-    }
 
     void pickUpFromExternal(ItemStack& slot);
     void dropOnExternal(ItemStack& slot);
@@ -70,6 +63,11 @@ public:
         screenHeight = event.height;
         if (visible)
             refreshAllSlots();
+    }
+
+    virtual void onEvent(const PanelWasClickedEvent&) override
+    {
+        panelClickedThisFrame = true;
     }
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
@@ -135,6 +133,7 @@ private:
     bool panelCreated = false;
 
     uint64_t backdropEntityId = 0;
+    uint64_t slotLayoutEntityId = 0;
 
     struct SlotVisual
     {
@@ -150,7 +149,7 @@ private:
     uint64_t heldItemEntityId = 0;
     uint64_t heldTextEntityId = 0;
 
-    std::function<bool(float, float)> externalClickCheck;
+    bool panelClickedThisFrame = false;
 
     float lastMouseX = 0.0f;
     float lastMouseY = 0.0f;

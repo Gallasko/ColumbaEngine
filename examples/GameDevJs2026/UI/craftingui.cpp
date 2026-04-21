@@ -2,12 +2,14 @@
 #include "machinedemosystem.h"
 
 #include "2D/simple2dobject.h"
+#include "UI/sizer.h"
 #include "2D/texture.h"
 #include "2D/position.h"
 #include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
 #include <cstring>
+#include <unordered_set>
 
 // Strip common crafting prefixes from recipe names shown in the UI.
 static std::string stripCraftingPrefix(const std::string& name)
@@ -22,20 +24,6 @@ static std::string stripCraftingPrefix(const std::string& name)
             return name.substr(len);
     }
     return name;
-}
-
-bool CraftingUISystem::isClickOnPanel(float x, float y) const
-{
-    if (not visible)
-        return false;
-    auto bdEnt = ecsRef->getEntity(backdropEntityId);
-    if (not bdEnt) return false;
-    auto bdPos = bdEnt->get<PositionComponent>();
-    float px = bdPos->getX();
-    float py = bdPos->getY();
-    float pw = bdPos->getWidth();
-    float ph = bdPos->getHeight();
-    return x >= px and x <= px + pw and y >= py and y <= py + ph;
 }
 
 void CraftingUISystem::onProcessEvent(const TickEvent&)
@@ -129,9 +117,10 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
     // Per-row "?" demo button click (hand-craft mode)
     if (activeMachineName.empty() and machineDemo)
     {
-        for (size_t i = 0; i < rowVisuals.size(); ++i)
+        for (size_t i = 0; i < visibleRecipes.size(); ++i)
         {
-            auto demoEnt = ecsRef->getEntity(rowVisuals[i].demoBtnEntityId);
+            size_t recipeIdx = visibleRecipes[i];
+            auto demoEnt = ecsRef->getEntity(rowVisuals[recipeIdx].demoBtnEntityId);
             if (not demoEnt) continue;
             auto demoPos = demoEnt->get<PositionComponent>();
             if (not demoPos->isVisible()) continue;
@@ -139,34 +128,17 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
             if (isPointInRect(x, y, demoPos->getX() - 4.0f, demoPos->getY(),
                               20.0f, ROW_HEIGHT))
             {
-                size_t absIdx = scrollOffset + i;
-                if (absIdx < visibleRecipes.size())
+                const Recipe& recipe = recipeRegistry->get(recipeIdx);
+                if (not recipe.outputs.empty())
                 {
-                    const Recipe& recipe = recipeRegistry->get(visibleRecipes[absIdx]);
-                    if (not recipe.outputs.empty())
+                    std::string buildName = itemRegistry->get(recipe.outputs.front().id).buildingName;
+                    if (!buildName.empty())
                     {
-                        std::string buildName = itemRegistry->get(recipe.outputs.front().id).buildingName;
-                        if (!buildName.empty())
-                        {
-                            machineDemo->openDemo(buildName);
-                            return;
-                        }
+                        machineDemo->openDemo(buildName);
+                        return;
                     }
                 }
             }
-        }
-    }
-
-    // Scrollbar track click — jump to position + start drag
-    if (visibleRecipes.size() > VISIBLE_ROWS)
-    {
-        auto tr = getScrollTrackRect();
-        // Wider hit area (8px padding on each side) for easier clicking
-        if (isPointInRect(x, y, tr.x - 8.0f, tr.y, tr.w + 16.0f, tr.h))
-        {
-            draggingScrollbar = true;
-            scrollToTrackY(y);
-            return;
         }
     }
 
@@ -174,7 +146,7 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
     int rowIndex = rowAtPosition(x, y);
     if (rowIndex >= 0)
     {
-        size_t absIndex = scrollOffset + static_cast<size_t>(rowIndex);
+        size_t absIndex = static_cast<size_t>(rowIndex);
         if (absIndex < visibleRecipes.size())
         {
             uint32_t now = static_cast<uint32_t>(SDL_GetTicks());
@@ -209,23 +181,6 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
     }
 }
 
-void CraftingUISystem::onProcessEvent(const OnSDLMouseWheel& event)
-{
-    if (not visible or not panelCreated or visibleRecipes.empty())
-        return;
-
-    int maxOffset = static_cast<int>(visibleRecipes.size()) - static_cast<int>(VISIBLE_ROWS);
-    if (maxOffset <= 0)
-        return;
-
-    // SDL: event.y > 0 = scroll up = show earlier recipes (decrease offset)
-    int newOffset = static_cast<int>(scrollOffset) - event.y;
-    if (newOffset < 0) newOffset = 0;
-    if (newOffset > maxOffset) newOffset = maxOffset;
-    scrollOffset = static_cast<size_t>(newOffset);
-    refreshRows();
-}
-
 // ---------------------------------------------------------------------------
 // setMachineMode / clearMachineMode
 // ---------------------------------------------------------------------------
@@ -234,7 +189,6 @@ void CraftingUISystem::setMachineMode(const std::string& machineName, const Reci
 {
     activeMachineName = machineName;
     selectedIndex = 0;
-    scrollOffset = 0;
     if (visible)
         applyModeToPanel();
 
@@ -257,7 +211,6 @@ void CraftingUISystem::clearMachineMode()
 {
     activeMachineName.clear();
     selectedIndex = 0;
-    scrollOffset = 0;
     if (visible)
         applyModeToPanel();
 }
@@ -310,12 +263,6 @@ void CraftingUISystem::open()
     visible = true;
     ensurePanelCreated();
 
-    if (inventoryUI)
-    {
-        inventoryUI->setExternalClickCheck(
-            [this](float x, float y) { return isClickOnPanel(x, y); });
-    }
-
     setPanelVisibility(true);
     applyModeToPanel();
     refreshProgressBar();
@@ -325,10 +272,6 @@ void CraftingUISystem::close()
 {
     visible = false;
     activeMachineName.clear();
-    draggingScrollbar = false;
-
-    if (inventoryUI)
-        inventoryUI->setExternalClickCheck(nullptr);
 
     setPanelVisibility(false);
     hideRowVisuals();
@@ -369,16 +312,10 @@ void CraftingUISystem::setPanelVisibility(bool vis)
         setEntityVisibility(tab.bgEntityId, vis);
         setEntityVisibility(tab.textEntityId, vis);
     }
-    for (auto& row : rowVisuals)
-        setEntityVisibility(row.bgEntityId, vis);
-    // Item + name visibility is driven by refreshRows()
-    // Scrollbar visibility is driven by refreshScrollbar()
+    setEntityVisibility(recipeLayoutEntityId, vis);
+    // Row bg + item + name visibility is driven by rebuildVisibleRecipes() / refreshRows()
     if (not vis)
-    {
         hideRowVisuals();
-        setEntityVisibility(scrollTrackEntityId, false);
-        setEntityVisibility(scrollThumbEntityId, false);
-    }
 }
 
 void CraftingUISystem::hideRowVisuals()
@@ -415,6 +352,9 @@ void CraftingUISystem::createPanel()
     bdPos->setHeight(ph);
     backdrop.get<ViewportComponent>()->setViewport(UI_VP);
     backdropEntityId = backdrop.entity->id;
+
+    ecsRef->attach<MouseLeftClickComponent>(backdrop.entity,
+        makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
 
     auto bdAnchor = ecsRef->attach<UiAnchor>(backdrop.entity);
     bdAnchor->setLeftAnchor(PosAnchor{invBackdropId, AnchorType::Right});
@@ -477,96 +417,26 @@ void CraftingUISystem::createPanel()
         }
     }
 
-    // Row skeletons — anchored to backdrop
+    // Scrollable vertical layout for recipe rows
     float listTopMargin = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
                         + TAB_ROW_H + GAP_AFTER_TABS;
+    float listH = VISIBLE_ROWS * ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_SPACING;
 
-    rowVisuals.resize(VISIBLE_ROWS);
-    for (size_t i = 0; i < VISIBLE_ROWS; ++i)
+    auto layout = makeVerticalLayout(ecsRef, 0, 0, rowW, listH, true);
+    recipeLayoutEntityId = layout.entity->id;
+    auto vLayout = layout.get<VerticalLayout>();
+    vLayout->spacing = ROW_SPACING;
+    vLayout->scrollSpeed = ROW_HEIGHT + ROW_SPACING;
+    ecsRef->attach<ViewportComponent>(layout.entity)->setViewport(UI_VP);
+
+    auto layoutAnchor = layout.get<UiAnchor>();
+    layoutAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+    layoutAnchor->setLeftMargin(PANEL_PADDING);
+    layoutAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+    layoutAnchor->setTopMargin(listTopMargin);
+
+    // Scrollbar thumb — positioned by layout's verticalScrollBar
     {
-        float rowTopMargin = listTopMargin + i * (ROW_HEIGHT + ROW_SPACING);
-
-        // Row background
-        auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
-        auto bgPos = bg.get<PositionComponent>();
-        bgPos->setZ(98.0f);
-        bgPos->setWidth(rowW);
-        bgPos->setHeight(ROW_HEIGHT);
-        bg.get<ViewportComponent>()->setViewport(UI_VP);
-        rowVisuals[i].bgEntityId = bg.entity->id;
-
-        auto rowAnchor = ecsRef->attach<UiAnchor>(bg.entity);
-        rowAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
-        rowAnchor->setLeftMargin(PANEL_PADDING);
-        rowAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
-        rowAnchor->setTopMargin(rowTopMargin);
-
-        // Output item icon (hidden; positioned in refreshRows)
-        auto item = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
-        auto itemPos = item.get<PositionComponent>();
-        itemPos->setZ(99.0f);
-        itemPos->setVisibility(false);
-        item.get<ViewportComponent>()->setViewport(UI_VP);
-        rowVisuals[i].outputItemEntityId = item.entity->id;
-
-        // Recipe name (hidden; positioned in refreshRows)
-        auto name = makeTTFText(ecsRef,
-            0.0f, 0.0f, 100.0f,
-            FONT_PATH, "", TEXT_SCALE,
-            {255.0f, 255.0f, 255.0f, 255.0f});
-        name.get<ViewportComponent>()->setViewport(UI_VP);
-        name.get<PositionComponent>()->setVisibility(false);
-        rowVisuals[i].nameEntityId = name.entity->id;
-
-        // Ingredient icon + count text slots (hidden; positioned in refreshRows)
-        for (size_t j = 0; j < MAX_INPUTS; ++j)
-        {
-            auto cnt = makeTTFText(ecsRef,
-                0.0f, 0.0f, 100.0f,
-                FONT_PATH, "", TEXT_SCALE, {200.0f, 200.0f, 210.0f, 255.0f});
-            cnt.get<ViewportComponent>()->setViewport(UI_VP);
-            cnt.get<PositionComponent>()->setVisibility(false);
-            rowVisuals[i].ingrCountEntityId[j] = cnt.entity->id;
-
-            auto icon = make2DTexture(ecsRef, INGR_ICON_SIZE, INGR_ICON_SIZE, "NoneIcon");
-            auto iPos = icon.get<PositionComponent>();
-            iPos->setZ(99.0f);
-            iPos->setVisibility(false);
-            icon.get<ViewportComponent>()->setViewport(UI_VP);
-            rowVisuals[i].ingrIconEntityId[j] = icon.entity->id;
-        }
-
-        // Per-row "?" demo button (hidden; shown in refreshRows for machine recipes)
-        auto demoBtn = makeTTFText(ecsRef,
-            0.0f, 0.0f, 100.0f,
-            FONT_PATH, "?", TEXT_SCALE,
-            {180.0f, 180.0f, 255.0f, 255.0f});
-        demoBtn.get<ViewportComponent>()->setViewport(UI_VP);
-        demoBtn.get<PositionComponent>()->setVisibility(false);
-        rowVisuals[i].demoBtnEntityId = demoBtn.entity->id;
-    }
-
-    // Scrollbar (track + thumb) — anchored to backdrop, right edge of list area
-    {
-        float listH = VISIBLE_ROWS * ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_SPACING;
-
-        auto scrollTrack = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{40.0f, 40.0f, 50.0f, 150.0f});
-        auto trackPos = scrollTrack.get<PositionComponent>();
-        trackPos->setZ(100.0f);
-        trackPos->setWidth(SCROLLBAR_WIDTH);
-        trackPos->setHeight(listH);
-        trackPos->setVisibility(false);
-        scrollTrack.get<ViewportComponent>()->setViewport(UI_VP);
-        scrollTrackEntityId = scrollTrack.entity->id;
-
-        auto trackAnchor = ecsRef->attach<UiAnchor>(scrollTrack.entity);
-        trackAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
-        trackAnchor->setLeftMargin(pw - PANEL_PADDING - SCROLLBAR_WIDTH);
-        trackAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
-        trackAnchor->setTopMargin(listTopMargin);
-
         auto scrollThumb = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{120.0f, 120.0f, 140.0f, 220.0f});
         auto thumbPos = scrollThumb.get<PositionComponent>();
@@ -575,12 +445,108 @@ void CraftingUISystem::createPanel()
         thumbPos->setHeight(40.0f);
         thumbPos->setVisibility(false);
         scrollThumb.get<ViewportComponent>()->setViewport(UI_VP);
-        scrollThumbEntityId = scrollThumb.entity->id;
 
-        auto thumbAnchor = ecsRef->attach<UiAnchor>(scrollThumb.entity);
-        thumbAnchor->setLeftAnchor(PosAnchor{scrollTrackEntityId, AnchorType::Left});
-        thumbAnchor->setTopAnchor(PosAnchor{scrollTrackEntityId, AnchorType::Top});
-        thumbAnchor->setTopMargin(0.0f);
+        vLayout->verticalScrollBar = scrollThumb.entity;
+    }
+
+    // One row per recipe
+    size_t totalRecipes = recipeRegistry->count();
+    rowVisuals.resize(totalRecipes);
+    for (size_t i = 0; i < totalRecipes; ++i)
+    {
+        // Row background — positioned by layout
+        auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+            constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
+        auto bgPos = bg.get<PositionComponent>();
+        bgPos->setZ(98.0f);
+        bgPos->setWidth(rowW);
+        bgPos->setHeight(ROW_HEIGHT);
+        bgPos->setVisibility(false);
+        bg.get<ViewportComponent>()->setViewport(UI_VP);
+        rowVisuals[i].bgEntityId = bg.entity->id;
+
+        vLayout->addEntity(bg.entity);
+
+        // Output item icon — anchored to row bg
+        auto item = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
+        auto itemPos = item.get<PositionComponent>();
+        itemPos->setZ(99.0f);
+        itemPos->setVisibility(false);
+        item.get<ViewportComponent>()->setViewport(UI_VP);
+        rowVisuals[i].outputItemEntityId = item.entity->id;
+        ecsRef->attach<ClippedTo>(item.entity, recipeLayoutEntityId);
+
+        auto itemAnchor = ecsRef->attach<UiAnchor>(item.entity);
+        itemAnchor->setLeftAnchor(PosAnchor{rowVisuals[i].bgEntityId, AnchorType::Left});
+        itemAnchor->setLeftMargin(6.0f);
+        itemAnchor->setVerticalCenter(PosAnchor{rowVisuals[i].bgEntityId, AnchorType::VerticalCenter});
+
+        // Recipe name — anchored to row bg
+        auto name = makeTTFText(ecsRef,
+            0.0f, 0.0f, 100.0f,
+            FONT_PATH, "", TEXT_SCALE,
+            {255.0f, 255.0f, 255.0f, 255.0f});
+        name.get<ViewportComponent>()->setViewport(UI_VP);
+        name.get<PositionComponent>()->setVisibility(false);
+        rowVisuals[i].nameEntityId = name.entity->id;
+        ecsRef->attach<ClippedTo>(name.entity, recipeLayoutEntityId);
+
+        auto nameAnchor = ecsRef->attach<UiAnchor>(name.entity);
+        nameAnchor->setLeftAnchor(PosAnchor{rowVisuals[i].bgEntityId, AnchorType::Left});
+        nameAnchor->setLeftMargin(6.0f + ITEM_SIZE + 6.0f);
+        nameAnchor->setTopAnchor(PosAnchor{rowVisuals[i].bgEntityId, AnchorType::Top});
+        nameAnchor->setTopMargin(4.0f);
+
+        // Ingredient icon + count text slots — anchored to row bg
+        float ingrTopOffset = ROW_HEIGHT - INGR_ICON_SIZE - 3.0f;
+        for (size_t j = 0; j < MAX_INPUTS; ++j)
+        {
+            float ingrLeftOffset = 6.0f + ITEM_SIZE + 6.0f + static_cast<float>(j) * INGR_SLOT_W;
+
+            auto cnt = makeTTFText(ecsRef,
+                0.0f, 0.0f, 100.0f,
+                FONT_PATH, "", TEXT_SCALE, {200.0f, 200.0f, 210.0f, 255.0f});
+            cnt.get<ViewportComponent>()->setViewport(UI_VP);
+            cnt.get<PositionComponent>()->setVisibility(false);
+            rowVisuals[i].ingrCountEntityId[j] = cnt.entity->id;
+            ecsRef->attach<ClippedTo>(cnt.entity, recipeLayoutEntityId);
+
+            auto cntAnchor = ecsRef->attach<UiAnchor>(cnt.entity);
+            cntAnchor->setLeftAnchor(PosAnchor{rowVisuals[i].bgEntityId, AnchorType::Left});
+            cntAnchor->setLeftMargin(ingrLeftOffset);
+            cntAnchor->setTopAnchor(PosAnchor{rowVisuals[i].bgEntityId, AnchorType::Top});
+            cntAnchor->setTopMargin(ingrTopOffset + 2.0f);
+
+            auto icon = make2DTexture(ecsRef, INGR_ICON_SIZE, INGR_ICON_SIZE, "NoneIcon");
+            auto iPos = icon.get<PositionComponent>();
+            iPos->setZ(99.0f);
+            iPos->setVisibility(false);
+            icon.get<ViewportComponent>()->setViewport(UI_VP);
+            rowVisuals[i].ingrIconEntityId[j] = icon.entity->id;
+            ecsRef->attach<ClippedTo>(icon.entity, recipeLayoutEntityId);
+
+            auto iconAnchor = ecsRef->attach<UiAnchor>(icon.entity);
+            iconAnchor->setLeftAnchor(PosAnchor{rowVisuals[i].bgEntityId, AnchorType::Left});
+            iconAnchor->setLeftMargin(ingrLeftOffset + 22.0f);
+            iconAnchor->setTopAnchor(PosAnchor{rowVisuals[i].bgEntityId, AnchorType::Top});
+            iconAnchor->setTopMargin(ingrTopOffset);
+        }
+
+        // Per-row "?" demo button — anchored to row bg
+        auto demoBtn = makeTTFText(ecsRef,
+            0.0f, 0.0f, 100.0f,
+            FONT_PATH, "?", TEXT_SCALE,
+            {180.0f, 180.0f, 255.0f, 255.0f});
+        demoBtn.get<ViewportComponent>()->setViewport(UI_VP);
+        demoBtn.get<PositionComponent>()->setVisibility(false);
+        rowVisuals[i].demoBtnEntityId = demoBtn.entity->id;
+        ecsRef->attach<ClippedTo>(demoBtn.entity, recipeLayoutEntityId);
+
+        auto demoAnchor = ecsRef->attach<UiAnchor>(demoBtn.entity);
+        demoAnchor->setLeftAnchor(PosAnchor{rowVisuals[i].bgEntityId, AnchorType::Left});
+        demoAnchor->setLeftMargin(rowW - 14.0f - SCROLLBAR_WIDTH - 4.0f);
+        demoAnchor->setTopAnchor(PosAnchor{rowVisuals[i].bgEntityId, AnchorType::Top});
+        demoAnchor->setTopMargin(4.0f);
     }
 
     // Progress bar — anchored to backdrop
@@ -709,10 +675,30 @@ void CraftingUISystem::rebuildVisibleRecipes()
         }
     }
 
+    // Build lookup set for O(1) visibility check
+    std::unordered_set<size_t> visibleSet(visibleRecipes.begin(), visibleRecipes.end());
+
+    // Show/hide row containers — layout skips invisible children
+    for (size_t i = 0; i < rowVisuals.size(); ++i)
+    {
+        bool vis = visibleSet.count(i) > 0;
+        setEntityVisibility(rowVisuals[i].bgEntityId, vis);
+        if (not vis)
+        {
+            setEntityVisibility(rowVisuals[i].outputItemEntityId, false);
+            setEntityVisibility(rowVisuals[i].nameEntityId, false);
+            setEntityVisibility(rowVisuals[i].demoBtnEntityId, false);
+            for (size_t j = 0; j < MAX_INPUTS; ++j)
+            {
+                setEntityVisibility(rowVisuals[i].ingrIconEntityId[j],  false);
+                setEntityVisibility(rowVisuals[i].ingrCountEntityId[j], false);
+            }
+        }
+    }
+
     if (visibleRecipes.empty())
     {
         selectedIndex = 0;
-        scrollOffset = 0;
         return;
     }
 
@@ -738,13 +724,23 @@ void CraftingUISystem::moveSelection(int delta)
 
 void CraftingUISystem::ensureSelectionVisible()
 {
-    if (visibleRecipes.empty())
+    if (visibleRecipes.empty() or recipeLayoutEntityId == 0)
         return;
 
-    if (selectedIndex < scrollOffset)
-        scrollOffset = selectedIndex;
-    else if (selectedIndex >= scrollOffset + VISIBLE_ROWS)
-        scrollOffset = selectedIndex - VISIBLE_ROWS + 1;
+    auto layoutEnt = ecsRef->getEntity(recipeLayoutEntityId);
+    if (not layoutEnt) return;
+    auto vLayout = layoutEnt->get<VerticalLayout>();
+
+    float viewH = VISIBLE_ROWS * ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_SPACING;
+    float itemTop = static_cast<float>(selectedIndex) * (ROW_HEIGHT + ROW_SPACING);
+    float itemBottom = itemTop + ROW_HEIGHT;
+
+    if (itemTop < vLayout->yOffset)
+        vLayout->yOffset = itemTop;
+    else if (itemBottom > vLayout->yOffset + viewH)
+        vLayout->yOffset = itemBottom - viewH;
+
+    ecsRef->sendEvent(LayoutScrolledEvent{recipeLayoutEntityId});
 }
 
 void CraftingUISystem::refreshRows()
@@ -753,54 +749,17 @@ void CraftingUISystem::refreshRows()
     size_t prevSelected = selectedIndex;
     rebuildVisibleRecipes();
     if (visibleRecipes.empty())
-    {
-        for (auto& row : rowVisuals)
-        {
-            setEntityVisibility(row.outputItemEntityId, false);
-            setEntityVisibility(row.nameEntityId, false);
-            setEntityVisibility(row.demoBtnEntityId, false);
-            for (size_t j = 0; j < MAX_INPUTS; ++j)
-            {
-                setEntityVisibility(row.ingrIconEntityId[j],  false);
-                setEntityVisibility(row.ingrCountEntityId[j], false);
-            }
-            tintRow(row.bgEntityId, RowTint::Idle);
-        }
         return;
-    }
     if (prevSelected != selectedIndex)
         ensureSelectionVisible();
 
-    for (size_t rowIdx = 0; rowIdx < VISIBLE_ROWS; ++rowIdx)
+    for (size_t visIdx = 0; visIdx < visibleRecipes.size(); ++visIdx)
     {
-        size_t absIdx = scrollOffset + rowIdx;
-        auto& row = rowVisuals[rowIdx];
-
-        if (absIdx >= visibleRecipes.size())
-        {
-            setEntityVisibility(row.outputItemEntityId, false);
-            setEntityVisibility(row.nameEntityId, false);
-            setEntityVisibility(row.demoBtnEntityId, false);
-            for (size_t j = 0; j < MAX_INPUTS; ++j)
-            {
-                setEntityVisibility(row.ingrIconEntityId[j],  false);
-                setEntityVisibility(row.ingrCountEntityId[j], false);
-            }
-            tintRow(row.bgEntityId, RowTint::Idle);
-            continue;
-        }
-
-        // Read row bg position (auto-updated by anchoring)
-        auto rowBgEnt = ecsRef->getEntity(row.bgEntityId);
-        if (not rowBgEnt) continue;
-        auto rowBgPos = rowBgEnt->get<PositionComponent>();
-        float rowX = rowBgPos->getX();
-        float rowY = rowBgPos->getY();
-
-        size_t recipeIdx = visibleRecipes[absIdx];
+        size_t recipeIdx = visibleRecipes[visIdx];
+        auto& row = rowVisuals[recipeIdx];
         const Recipe& recipe = recipeRegistry->get(recipeIdx);
 
-        // Output icon: first output item.
+        // Output icon (position handled by anchor, just update texture + visibility)
         if (not recipe.outputs.empty())
         {
             const auto& outDef = itemRegistry->get(recipe.outputs.front().id);
@@ -810,12 +769,8 @@ void CraftingUISystem::refreshRows()
                 itemEnt->get<Texture2DComponent>()->setTexture(outDef.textureName);
                 auto pos = itemEnt->get<PositionComponent>();
                 float iconW = ITEM_SIZE * outDef.iconWidthRatio;
-                float baseX = rowX + 6.0f;
-                float baseY = rowY + (ROW_HEIGHT - ITEM_SIZE) * 0.5f;
                 pos->setWidth(iconW);
                 pos->setHeight(ITEM_SIZE);
-                pos->setX(baseX + (ITEM_SIZE - iconW) * 0.5f);
-                pos->setY(baseY);
                 pos->setVisibility(true);
             }
         }
@@ -824,46 +779,34 @@ void CraftingUISystem::refreshRows()
             setEntityVisibility(row.outputItemEntityId, false);
         }
 
-        // Recipe name (strip redundant "Craft "/"Smelt "/etc. prefix)
-        float textAreaX = rowX + 6.0f + ITEM_SIZE + 6.0f;
+        // Recipe name (position handled by anchor)
         auto nameEnt = ecsRef->getEntity(row.nameEntityId);
         if (nameEnt)
         {
             nameEnt->get<TTFText>()->setText(stripCraftingPrefix(recipe.name));
-            auto namePos = nameEnt->get<PositionComponent>();
-            namePos->setX(textAreaX);
-            namePos->setY(rowY + 4.0f);
-            namePos->setVisibility(true);
+            nameEnt->get<PositionComponent>()->setVisibility(true);
         }
 
-        // Ingredient icons + count labels
-        float ingrY = rowY + ROW_HEIGHT - INGR_ICON_SIZE - 3.0f;
+        // Ingredient icons + count labels (positions handled by anchors)
         for (size_t j = 0; j < MAX_INPUTS; ++j)
         {
             if (j < recipe.inputs.size())
             {
                 const auto& in  = recipe.inputs[j];
                 const auto& def = itemRegistry->get(in.id);
-                float ix = textAreaX + static_cast<float>(j) * INGR_SLOT_W;
 
                 auto cntEnt = ecsRef->getEntity(row.ingrCountEntityId[j]);
                 if (cntEnt)
                 {
                     cntEnt->get<TTFText>()->setText(std::to_string(in.count) + "x");
-                    auto cntPos = cntEnt->get<PositionComponent>();
-                    cntPos->setX(ix);
-                    cntPos->setY(ingrY + 2.0f);
-                    cntPos->setVisibility(true);
+                    cntEnt->get<PositionComponent>()->setVisibility(true);
                 }
 
                 auto iconEnt = ecsRef->getEntity(row.ingrIconEntityId[j]);
                 if (iconEnt)
                 {
                     iconEnt->get<Texture2DComponent>()->setTexture(def.textureName);
-                    auto iPos = iconEnt->get<PositionComponent>();
-                    iPos->setX(ix + 22.0f);
-                    iPos->setY(ingrY);
-                    iPos->setVisibility(true);
+                    iconEnt->get<PositionComponent>()->setVisibility(true);
                 }
             }
             else
@@ -877,8 +820,7 @@ void CraftingUISystem::refreshRows()
         RowTint tint = RowTint::Idle;
         if (activeMachineName.empty())
         {
-            // Hand-craft mode: colour by can-craft status
-            if (absIdx == selectedIndex)
+            if (visIdx == selectedIndex)
                 tint = handCrafting->canCraft(recipe) ? RowTint::SelectedOk : RowTint::SelectedBad;
             else if (handCrafting->canCraft(recipe))
                 tint = RowTint::CanCraft;
@@ -887,12 +829,11 @@ void CraftingUISystem::refreshRows()
         }
         else
         {
-            // Machine mode: just highlight selected
-            tint = (absIdx == selectedIndex) ? RowTint::SelectedOk : RowTint::Idle;
+            tint = (visIdx == selectedIndex) ? RowTint::SelectedOk : RowTint::Idle;
         }
         tintRow(row.bgEntityId, tint);
 
-        // Per-row "?" demo button (hand-craft mode only, for machine recipes with a demo)
+        // Per-row "?" demo button (hand-craft mode only)
         bool showDemo = false;
         if (activeMachineName.empty() and machineDemo and not recipe.outputs.empty())
         {
@@ -900,25 +841,8 @@ void CraftingUISystem::refreshRows()
             if (!buildName.empty() and machineDemo->hasDemoForTile(buildName))
                 showDemo = true;
         }
-        if (showDemo)
-        {
-            auto demoEnt = ecsRef->getEntity(row.demoBtnEntityId);
-            if (demoEnt)
-            {
-                float rowW = rowBgPos->getWidth();
-                auto demoPos = demoEnt->get<PositionComponent>();
-                demoPos->setX(rowX + rowW - 14.0f - SCROLLBAR_WIDTH - 4.0f);
-                demoPos->setY(rowY + 4.0f);
-                demoPos->setVisibility(true);
-            }
-        }
-        else
-        {
-            setEntityVisibility(row.demoBtnEntityId, false);
-        }
+        setEntityVisibility(row.demoBtnEntityId, showDemo);
     }
-
-    refreshScrollbar();
 }
 
 void CraftingUISystem::tintRow(uint64_t bgId, RowTint tint)
@@ -954,35 +878,6 @@ void CraftingUISystem::refreshProgressBar()
     fillEnt->get<PositionComponent>()->setWidth(barMaxW * ratio);
 }
 
-void CraftingUISystem::refreshScrollbar()
-{
-    size_t totalRecipes = visibleRecipes.size();
-    bool scrollable = totalRecipes > VISIBLE_ROWS;
-
-    setEntityVisibility(scrollTrackEntityId, visible and scrollable);
-    setEntityVisibility(scrollThumbEntityId, visible and scrollable);
-
-    if (not scrollable)
-        return;
-
-    float listH = VISIBLE_ROWS * ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_SPACING;
-
-    float thumbH = (static_cast<float>(VISIBLE_ROWS) / static_cast<float>(totalRecipes)) * listH;
-    if (thumbH < 16.0f)
-        thumbH = 16.0f;
-
-    size_t maxOffset = totalRecipes - VISIBLE_ROWS;
-    float trackTravel = listH - thumbH;
-    float thumbY = (static_cast<float>(scrollOffset) / static_cast<float>(maxOffset)) * trackTravel;
-
-    auto thumbEnt = ecsRef->getEntity(scrollThumbEntityId);
-    if (thumbEnt)
-    {
-        thumbEnt->get<PositionComponent>()->setHeight(thumbH);
-        thumbEnt->get<UiAnchor>()->setTopMargin(thumbY);
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Tab helpers
 // ---------------------------------------------------------------------------
@@ -1010,7 +905,6 @@ void CraftingUISystem::setActiveTab(CraftTab tab)
 
     activeTab = tab;
     selectedIndex = 0;
-    scrollOffset = 0;
 
     refreshTabHighlights();
     rebuildVisibleRecipes();
@@ -1066,15 +960,15 @@ void CraftingUISystem::requestCraft()
 
 int CraftingUISystem::rowAtPosition(float x, float y) const
 {
-    for (size_t i = 0; i < rowVisuals.size(); ++i)
+    for (size_t i = 0; i < visibleRecipes.size(); ++i)
     {
-        auto rowEnt = ecsRef->getEntity(rowVisuals[i].bgEntityId);
+        size_t recipeIdx = visibleRecipes[i];
+        auto rowEnt = ecsRef->getEntity(rowVisuals[recipeIdx].bgEntityId);
         if (not rowEnt) continue;
         auto pos = rowEnt->get<PositionComponent>();
-        float rx = pos->getX();
-        float ry = pos->getY();
-        float rw = pos->getWidth();
-        if (x >= rx and x <= rx + rw and y >= ry and y <= ry + ROW_HEIGHT)
+        if (not pos->isObservable()) continue;
+        if (x >= pos->x and x <= pos->x + pos->width and
+            y >= pos->y and y <= pos->y + ROW_HEIGHT)
             return static_cast<int>(i);
     }
     return -1;
@@ -1088,54 +982,3 @@ void CraftingUISystem::setEntityVisibility(uint64_t id, bool vis)
         ent->get<PositionComponent>()->setVisibility(vis);
 }
 
-// ---------------------------------------------------------------------------
-// Scrollbar drag helpers
-// ---------------------------------------------------------------------------
-
-CraftingUISystem::TrackRect CraftingUISystem::getScrollTrackRect() const
-{
-    auto bdEnt = ecsRef->getEntity(backdropEntityId);
-    if (not bdEnt)
-        return {0, 0, 0, 0};
-    auto bdPos = bdEnt->get<PositionComponent>();
-    float bx = bdPos->getX();
-    float by = bdPos->getY();
-
-    float listTopMargin = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
-                        + TAB_ROW_H + GAP_AFTER_TABS;
-    float listH = VISIBLE_ROWS * ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_SPACING;
-
-    return { bx + PANEL_WIDTH - PANEL_PADDING - SCROLLBAR_WIDTH,
-             by + listTopMargin,
-             SCROLLBAR_WIDTH,
-             listH };
-}
-
-void CraftingUISystem::scrollToTrackY(float mouseY)
-{
-    auto tr = getScrollTrackRect();
-    if (tr.h <= 0.0f)
-        return;
-
-    float ratio = (mouseY - tr.y) / tr.h;
-    if (ratio < 0.0f) ratio = 0.0f;
-    if (ratio > 1.0f) ratio = 1.0f;
-
-    size_t maxOffset = visibleRecipes.size() - VISIBLE_ROWS;
-    scrollOffset = static_cast<size_t>(ratio * static_cast<float>(maxOffset) + 0.5f);
-    if (scrollOffset > maxOffset)
-        scrollOffset = maxOffset;
-    refreshRows();
-}
-
-void CraftingUISystem::onProcessEvent(const OnMouseMove& event)
-{
-    if (not draggingScrollbar or not visible)
-        return;
-    scrollToTrackY(event.pos.y);
-}
-
-void CraftingUISystem::onProcessEvent(const OnMouseRelease& event)
-{
-    draggingScrollbar = false;
-}

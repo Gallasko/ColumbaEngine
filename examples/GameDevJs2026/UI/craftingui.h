@@ -25,9 +25,6 @@ class CraftingUISystem : public System<InitSys,
                                        QueuedListener<OnSDLScanCode>,
                                        QueuedListener<OnMouseClick>,
                                        QueuedListener<TickEvent>,
-                                       QueuedListener<OnSDLMouseWheel>,
-                                       QueuedListener<OnMouseMove>,
-                                       QueuedListener<OnMouseRelease>,
                                        Listener<HandCraftCompletedEvent>,
                                        Listener<InventoryOpenedEvent>,
                                        Listener<InventoryClosedEvent>>
@@ -93,8 +90,6 @@ public:
 
     bool isOpen() const { return visible; }
 
-    bool isClickOnPanel(float x, float y) const;
-
     void init() override {}
 
     // Switch the recipe list to show recipes for the given machine type.
@@ -133,9 +128,6 @@ public:
     virtual void onEvent(const InventoryClosedEvent&) override;
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
-    virtual void onProcessEvent(const OnSDLMouseWheel& event) override;
-    virtual void onProcessEvent(const OnMouseMove& event) override;
-    virtual void onProcessEvent(const OnMouseRelease& event) override;
 
 private:
     // --- Open / close --------------------------------------------------
@@ -181,7 +173,6 @@ private:
 
     void tintRow(uint64_t bgId, RowTint tint);
     void refreshProgressBar();
-    void refreshScrollbar();
 
     // --- Tabs ----------------------------------------------------------
 
@@ -202,12 +193,6 @@ private:
     {
         return x >= rx and x <= rx + rw and y >= ry and y <= ry + rh;
     }
-
-    // Compute scrollbar track area from the backdrop position (reliable for anchored entities).
-    struct TrackRect { float x, y, w, h; };
-    TrackRect getScrollTrackRect() const;
-
-    void scrollToTrackY(float mouseY);
 
     // --- Helpers -------------------------------------------------------
 
@@ -232,7 +217,6 @@ private:
 
     std::vector<size_t> visibleRecipes; // Indices into recipeRegistry->all()
     size_t selectedIndex = 0;
-    size_t scrollOffset = 0;
 
     struct RowVisual
     {
@@ -261,9 +245,7 @@ private:
     uint64_t craftButtonTextEntityId = 0;
     uint64_t cancelButtonBgEntityId = 0;
     uint64_t cancelButtonTextEntityId = 0;
-    uint64_t scrollTrackEntityId = 0;
-    uint64_t scrollThumbEntityId = 0;
-    bool draggingScrollbar = false;
+    uint64_t recipeLayoutEntityId = 0;
 
     MachineDemoSystem* machineDemo = nullptr;
 

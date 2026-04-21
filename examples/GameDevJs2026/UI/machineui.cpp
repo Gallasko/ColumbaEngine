@@ -9,19 +9,6 @@
 #include <SDL2/SDL.h>
 
 // ---------------------------------------------------------------------------
-// isClickOnPanel
-// ---------------------------------------------------------------------------
-
-bool MachineUISystem::isClickOnPanel(float x, float y) const
-{
-    if (not visible) return false;
-    float px = getPanelX();
-    float py = getPanelY();
-    return x >= px and x <= px + getPanelWidth()
-       and y >= py and y <= py + getPanelHeight();
-}
-
-// ---------------------------------------------------------------------------
 // open / close
 // ---------------------------------------------------------------------------
 
@@ -55,10 +42,6 @@ void MachineUISystem::open(int gridX, int gridY, const std::string& tileName)
     if (inventoryUI and not inventoryUI->isOpen())
         inventoryUI->openInventory();
 
-    inventoryUI->setExternalClickCheck([this](float x, float y) {
-        return isClickOnPanel(x, y);
-    });
-
     ensurePanelCreated();
     updateForMachineType();
     setPanelVisibility(true);
@@ -70,8 +53,6 @@ void MachineUISystem::close()
 {
     if (inventoryUI and inventoryUI->hasHeldItem())
         inventoryUI->cancelHeld();
-
-    inventoryUI->setExternalClickCheck(nullptr);
 
     // Return the crafting-recipe panel to hand-craft mode.
     if (craftingUI)
@@ -281,6 +262,9 @@ void MachineUISystem::createPanel()
         pos->setWidth(panelW); pos->setHeight(panelH);
         bd.get<ViewportComponent>()->setViewport(UI_VP);
         backdropEntityId = bd.entity->id;
+
+        ecsRef->attach<MouseLeftClickComponent>(bd.entity,
+            makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
     }
 
     // Title

@@ -1,4 +1,5 @@
 #include "machinedemosystem.h"
+#include "inventoryui.h"
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
@@ -179,6 +180,9 @@ void MachineDemoSystem::createPanel()
     bdPos->setVisibility(true);
     bd.get<ViewportComponent>()->setViewport(UI_VP);
     backdropId = bd.entity->id;
+
+    ecsRef->attach<MouseLeftClickComponent>(bd.entity,
+        makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
 
     // Title
     auto title = makeTTFText(ecsRef,
@@ -820,12 +824,6 @@ void MachineDemoSystem::freeItem(int index)
         items[index].entityId = 0;
     }
     items[index].active = false;
-}
-
-bool MachineDemoSystem::isClickOnPanel(float x, float y) const
-{
-    return x >= panelX() && x <= panelX() + panelW() &&
-           y >= panelY() && y <= panelY() + panelH();
 }
 
 bool MachineDemoSystem::isClickOnCloseBtn(float x, float y) const

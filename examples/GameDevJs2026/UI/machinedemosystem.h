@@ -132,7 +132,6 @@ private:
     int findMachineAt(int x, int y) const;
     int allocateItem(uint16_t itemId, float x, float y);
     void freeItem(int index);
-    bool isClickOnPanel(float x, float y) const;
     bool isClickOnCloseBtn(float x, float y) const;
 
     static size_t getInserterSpriteFrame(uint8_t direction, size_t animFrame, bool returning);

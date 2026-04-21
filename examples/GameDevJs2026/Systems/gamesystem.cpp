@@ -65,6 +65,9 @@ void GameSystem::onProcessEvent(const OnSDLScanCode& event)
 
 void GameSystem::onProcessEvent(const OnMouseClick& event)
 {
+    bool clickedOnPanel = panelClickedThisFrame;
+    panelClickedThisFrame = false;
+
     if (machineDemo and machineDemo->isOpen())
         return;
 
@@ -80,19 +83,8 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
     {
         if (event.button == SDL_BUTTON_LEFT)
         {
-            bool onAnyPanel = (hotbar and hotbar->isMouseOverHotbar(event.pos.y));
-            if (inventoryUI and inventoryUI->isOpen())
-                onAnyPanel = onAnyPanel or inventoryUI->isClickOnPanel(event.pos.x, event.pos.y);
-            if (minerUI and minerUI->isOpen())
-                onAnyPanel = onAnyPanel or minerUI->isClickOnPanel(event.pos.x, event.pos.y);
-            if (craftingUI and craftingUI->isOpen())
-                onAnyPanel = onAnyPanel or craftingUI->isClickOnPanel(event.pos.x, event.pos.y);
-            if (machineUI and machineUI->isOpen())
-                onAnyPanel = onAnyPanel or machineUI->isClickOnPanel(event.pos.x, event.pos.y);
-            if (storageUI and storageUI->isOpen())
-                onAnyPanel = onAnyPanel or storageUI->isClickOnPanel(event.pos.x, event.pos.y);
-            if (depotUI and depotUI->isOpen())
-                onAnyPanel = onAnyPanel or depotUI->isClickOnPanel(event.pos.x, event.pos.y);
+            bool onAnyPanel = clickedOnPanel
+                           or (hotbar and hotbar->isMouseOverHotbar(event.pos.y));
 
             if (not onAnyPanel)
             {

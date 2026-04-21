@@ -50,8 +50,6 @@ public:
     bool isOpen() const { return visible; }
     const std::string& getOpenMachineName() const { return openMachineName; }
 
-    bool isClickOnPanel(float x, float y) const;
-
     void setCraftingUI(CraftingUISystem* ui) { craftingUI = ui; }
     void setMachineDemo(MachineDemoSystem* demo) { machineDemo = demo; }
 

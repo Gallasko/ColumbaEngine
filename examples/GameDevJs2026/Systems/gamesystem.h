@@ -19,7 +19,7 @@
 
 using namespace pg;
 
-class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>>
+class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>, Listener<PanelWasClickedEvent>>
 {
 public:
     GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, HotbarSystem* hotbar, BuildingRegistry* registry, ItemRegistry* itemRegistry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, MinerUISystem* minerUI = nullptr, CraftingUISystem* craftingUI = nullptr, ManualMiningSystem* manualMining = nullptr, MachineUISystem* machineUI = nullptr, StorageUISystem* storageUI = nullptr, DepotUISystem* depotUI = nullptr, MachineDemoSystem* machineDemo = nullptr)
@@ -33,6 +33,11 @@ public:
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onProcessEvent(const OnMouseRelease& event) override;
     virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
+
+    virtual void onEvent(const PanelWasClickedEvent&) override
+    {
+        panelClickedThisFrame = true;
+    }
 
 private:
     // Direction constants
@@ -98,6 +103,7 @@ private:
     DepotUISystem* depotUI = nullptr;
     MachineDemoSystem* machineDemo = nullptr;
 
+    bool panelClickedThisFrame = false;
     size_t currentDirection = 0; // 0=Right, 1=Down, 2=Left, 3=Up
     bool leftMouseDown = false;
     const BuildingDef* lastBuildingDef = nullptr; // Track for ghost rebuild
