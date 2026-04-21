@@ -428,6 +428,9 @@ void CraftingUISystem::createPanel()
     vLayout->spacing = ROW_SPACING;
     vLayout->scrollSpeed = ROW_HEIGHT + ROW_SPACING;
     ecsRef->attach<ViewportComponent>(layout.entity)->setViewport(UI_VP);
+    layout.get<PositionComponent>()->setZ(101.0f);
+    ecsRef->attach<MouseLeftClickComponent>(layout.entity,
+        makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
 
     auto layoutAnchor = layout.get<UiAnchor>();
     layoutAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
@@ -446,7 +449,7 @@ void CraftingUISystem::createPanel()
         thumbPos->setVisibility(false);
         scrollThumb.get<ViewportComponent>()->setViewport(UI_VP);
 
-        vLayout->verticalScrollBar = scrollThumb.entity;
+        vLayout->setVerticalScrollBar(scrollThumb.entity);
     }
 
     // One row per recipe
