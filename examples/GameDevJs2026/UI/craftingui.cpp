@@ -437,7 +437,7 @@ void CraftingUISystem::createPanel()
 
     // Scrollbar thumb — positioned by layout's verticalScrollBar
     {
-        auto scrollThumb = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+        auto scrollThumb = makeUiSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{120.0f, 120.0f, 140.0f, 220.0f});
         auto thumbPos = scrollThumb.get<PositionComponent>();
         thumbPos->setZ(101.0f);

@@ -40,6 +40,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     registry = createDefaultBuildingRegistry();
     itemRegistry = createDefaultItemRegistry();
+    missionRegistry = createDefaultMissionRegistry();
     recipeRegistry = createDefaultRecipeRegistry();
 
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
@@ -283,7 +284,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         machineUI->setMachineDemo(machineDemo);
         craftingUI->setMachineDemo(machineDemo);
 
-        auto* missionSystem = ecs.createSystem<MissionSystem>(depotSystem, worldFacts);
+        auto* missionSystem = ecs.createSystem<MissionSystem>(&missionRegistry, depotSystem, worldFacts);
 
         auto* missionUI = ecs.createSystem<MissionUISystem>(
             missionSystem, depotSystem, playerInvSystem, screenW, screenH);

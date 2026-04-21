@@ -2,6 +2,7 @@
 
 #include "Systems/basicsystems.h"
 
+#include "missionregistry.h"
 #include "depotsystem.h"
 #include "playerinventory.h"
 #include "worldfacts.h"
@@ -9,26 +10,9 @@
 
 using namespace pg;
 
-struct MissionReward
-{
-    ItemId itemId;
-    uint16_t count;
-};
-
-struct MissionDef
-{
-    std::string name;
-    std::string description;
-    uint16_t robotCoreCost;
-    size_t durationMs;
-    std::vector<MissionReward> rewards;
-    std::string unlockFact; // WorldFact required (empty = always available)
-    std::string completionFact; // Fact to set on first completion
-};
-
 struct ActiveMission
 {
-    size_t defIndex;         // Index into missionDefs
+    size_t defIndex;         // Index into MissionRegistry
     int depotX, depotY;     // Linked depot owner coordinates
     size_t elapsedMs = 0;
     bool completed = false;
@@ -40,10 +24,9 @@ public:
     static constexpr size_t DEFAULT_MAX_ACTIVE = 2;
     static constexpr ItemId ROBOT_CORE_ID = 33;
 
-    MissionSystem(DepotSystem* depotSystem, WorldFacts* worldFacts)
-        : depotSystem(depotSystem), worldFacts(worldFacts)
+    MissionSystem(MissionRegistry* missionRegistry, DepotSystem* depotSystem, WorldFacts* worldFacts)
+        : missionRegistry(missionRegistry), depotSystem(depotSystem), worldFacts(worldFacts)
     {
-        buildMissionDefs();
     }
 
     virtual std::string getSystemName() const override { return "Mission System"; }
@@ -61,7 +44,7 @@ public:
 
     // --- Public API (called by MissionUI) ---
 
-    const std::vector<MissionDef>& getDefs() const { return missionDefs; }
+    const std::vector<MissionDef>& getDefs() const { return missionRegistry->all(); }
     const std::vector<ActiveMission>& getActive() const { return activeMissions; }
 
     bool isMissionUnlocked(size_t defIndex) const;
@@ -74,12 +57,10 @@ public:
     size_t getExtraSlotCost() const { return 10; } // Tickets
 
 private:
-    void buildMissionDefs();
-
+    MissionRegistry* missionRegistry = nullptr;
     DepotSystem* depotSystem = nullptr;
     WorldFacts* worldFacts = nullptr;
 
-    std::vector<MissionDef> missionDefs;
     std::vector<ActiveMission> activeMissions;
     size_t maxActiveMissions = DEFAULT_MAX_ACTIVE;
     size_t tickAccumulator = 0;

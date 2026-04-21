@@ -4,6 +4,7 @@
 #include "engine.h"
 #include "buildingregistry.h"
 #include "itemregistry.h"
+#include "missionregistry.h"
 #include "reciperegistry.h"
 
 class GameApp
@@ -18,6 +19,7 @@ private:
     pg::Engine engine;
     BuildingRegistry registry;
     ItemRegistry itemRegistry;
+    MissionRegistry missionRegistry;
     RecipeRegistry recipeRegistry;
 };
 

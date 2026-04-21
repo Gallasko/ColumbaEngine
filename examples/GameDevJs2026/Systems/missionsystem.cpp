@@ -2,54 +2,6 @@
 
 #include <cstdio>
 
-void MissionSystem::buildMissionDefs()
-{
-    // Tier 1: Scout Nearby
-    missionDefs.push_back({
-        "Scout Nearby",
-        "Send a robot to scout the surrounding area.",
-        1, 30000, // 1 core, 30s
-        {{35, 3}, {1, 5}}, // 3 Tickets, 5 Iron Ore
-        "", "completed_scout"
-    });
-
-    // Tier 2: Mineral Expedition
-    missionDefs.push_back({
-        "Mineral Expedition",
-        "Explore mineral-rich caves for resources.",
-        1, 60000, // 1 core, 60s
-        {{35, 5}, {2, 10}, {3, 5}}, // 5 Tickets, 10 Copper Ore, 5 Coal
-        "completed_scout", "completed_mineral"
-    });
-
-    // Tier 3: Deep Mining
-    missionDefs.push_back({
-        "Deep Mining",
-        "Venture deep underground for valuable materials.",
-        2, 90000, // 2 cores, 90s
-        {{35, 8}, {5, 5}, {4, 5}}, // 8 Tickets, 5 Iron Plate, 5 Stone
-        "completed_mineral", "completed_deep"
-    });
-
-    // Tier 4: Factory Salvage
-    missionDefs.push_back({
-        "Factory Salvage",
-        "Salvage parts from an abandoned factory.",
-        2, 120000, // 2 cores, 120s
-        {{35, 12}, {9, 2}, {7, 3}}, // 12 Tickets, 2 Circuit, 3 Iron Gear
-        "completed_deep", "completed_salvage"
-    });
-
-    // Tier 5: Frontier Exploration
-    missionDefs.push_back({
-        "Frontier Exploration",
-        "Push into unknown territory. High reward.",
-        3, 180000, // 3 cores, 180s
-        {{35, 20}}, // 20 Tickets
-        "completed_salvage", "completed_frontier"
-    });
-}
-
 void MissionSystem::save(Archive& archive)
 {
     serialize(archive, "maxActiveMissions", maxActiveMissions);
@@ -86,7 +38,7 @@ void MissionSystem::load(const UnserializedObject& serializedString)
         defaultDeserialize(serializedString, prefix + "elapsedMs", m.elapsedMs);
         defaultDeserialize(serializedString, prefix + "completed", m.completed);
 
-        if (m.defIndex < missionDefs.size())
+        if (m.defIndex < missionRegistry->count())
             activeMissions.push_back(m);
     }
 
@@ -108,20 +60,21 @@ void MissionSystem::execute()
 
         m.elapsedMs += dt;
 
-        if (m.defIndex < missionDefs.size() and m.elapsedMs >= missionDefs[m.defIndex].durationMs)
+        const auto* def = missionRegistry->tryGet(m.defIndex);
+        if (def and m.elapsedMs >= def->durationMs)
         {
             m.completed = true;
-            m.elapsedMs = missionDefs[m.defIndex].durationMs;
+            m.elapsedMs = def->durationMs;
         }
     }
 }
 
 bool MissionSystem::isMissionUnlocked(size_t defIndex) const
 {
-    if (defIndex >= missionDefs.size())
+    if (defIndex >= missionRegistry->count())
         return false;
 
-    const auto& def = missionDefs[defIndex];
+    const auto& def = missionRegistry->get(defIndex);
     if (def.unlockFact.empty())
         return true;
 
@@ -142,7 +95,7 @@ bool MissionSystem::startMission(size_t defIndex, int depotX, int depotY)
     if (not canStartMission(defIndex))
         return false;
 
-    const auto& def = missionDefs[defIndex];
+    const auto& def = missionRegistry->get(defIndex);
 
     // Find depot and check for robot cores
     DepotData* depot = depotSystem->getDepot(depotX, depotY);
@@ -194,7 +147,7 @@ bool MissionSystem::claimMission(size_t activeIndex)
     if (not m.completed)
         return false;
 
-    const auto& def = missionDefs[m.defIndex];
+    const auto& def = missionRegistry->get(m.defIndex);
 
     // Deposit rewards into linked depot
     DepotData* depot = depotSystem->getDepot(m.depotX, m.depotY);

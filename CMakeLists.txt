@@ -860,6 +860,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/Registries/itemregistry.cpp
             examples/GameDevJs2026/Registries/buildingregistry.cpp
             examples/GameDevJs2026/Registries/reciperegistry.cpp
+            examples/GameDevJs2026/Registries/missionregistry.cpp
             examples/GameDevJs2026/Systems/camerasystem.cpp
             examples/GameDevJs2026/Systems/gridsystem.cpp
             examples/GameDevJs2026/Systems/gamesystem.cpp
@@ -1218,6 +1219,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/Registries/itemregistry.cpp
             examples/GameDevJs2026/Registries/buildingregistry.cpp
             examples/GameDevJs2026/Registries/reciperegistry.cpp
+            examples/GameDevJs2026/Registries/missionregistry.cpp
             examples/GameDevJs2026/Systems/camerasystem.cpp
             examples/GameDevJs2026/Systems/gridsystem.cpp
             examples/GameDevJs2026/Systems/gamesystem.cpp
