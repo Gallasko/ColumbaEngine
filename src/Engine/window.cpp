@@ -221,6 +221,9 @@ namespace pg
 #ifndef PG_WSL
         SDL_GL_MakeCurrent(window, NULL);
         SDL_GL_DeleteContext(context);
+#else
+        // In WSL, OpenGL context creation fails, so we skip context cleanup to avoid errors.
+        LOG_WARNING(DOM, "Skipping OpenGL context cleanup due to WSL compatibility issues");
 #endif
         SDL_DestroyWindow(window);
         SDL_Quit();

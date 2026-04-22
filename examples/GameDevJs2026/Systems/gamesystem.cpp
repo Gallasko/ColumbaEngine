@@ -534,7 +534,7 @@ void GameSystem::removeAtMouse()
         return;
 
     // Find the building item to return to inventory
-    const std::string& tileName = cell.isOwner ? cell.tileName
+    const std::string tileName = cell.isOwner ? cell.tileName
         : gridSystem->getCell(layer, cell.ownerX, cell.ownerY).tileName;
 
     gridSystem->removeBuilding(layer, gridX, gridY);
