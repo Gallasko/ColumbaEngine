@@ -100,6 +100,13 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         if (${ENABLE_TIME_TRACE} AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-trace")
         endif()
+
+        # Detect WSL
+        execute_process(COMMAND grep -qi microsoft /proc/version RESULT_VARIABLE IS_WSL)
+        if(IS_WSL EQUAL 0)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPG_WSL")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPG_WSL")
+        endif()
     endif()
 
     if(${CMAKE_HOST_SYSTEM} MATCHES "Windows")

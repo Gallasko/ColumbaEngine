@@ -218,7 +218,10 @@ namespace pg
         // LOG_INFO(DOM, "Shutting down network backend...");
         // SDLNet_Quit();
 
+#ifndef PG_WSL
+        SDL_GL_MakeCurrent(window, NULL);
         SDL_GL_DeleteContext(context);
+#endif
         SDL_DestroyWindow(window);
         SDL_Quit();
 
