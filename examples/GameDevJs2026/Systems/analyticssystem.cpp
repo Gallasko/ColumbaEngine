@@ -16,6 +16,15 @@ void AnalyticsSystem::onEvent(const TickEvent& event)
     heartbeatAccMs   += static_cast<size_t>(event.tick);
 }
 
+void AnalyticsSystem::onEvent(const OnSDLScanCode& event)
+{
+    if (event.key == SDL_SCANCODE_T)
+    {
+        sendToNeon("debug_test", "");
+        printf("[Analytics] debug_test event sent\n");
+    }
+}
+
 void AnalyticsSystem::execute()
 {
     // Lazy init: register exit callback and send session_start on first execute.
@@ -115,7 +124,7 @@ void AnalyticsSystem::sendToNeon(const std::string& eventType, const std::string
 
     std::string paramsStr = params.str();
 
-    js_analytics_send(NEON_HOST, NEON_CONN, query, paramsStr.c_str());
+    js_analytics_send(PROXY_URL, NEON_CONN, query, paramsStr.c_str());
 #else
     (void)eventType;
     (void)saveSnapshot;

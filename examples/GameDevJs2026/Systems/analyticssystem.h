@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ECS/system.h"
+#include "Input/inputcomponent.h"
 #include "Systems/coresystems.h"
 
 #include <string>
@@ -13,18 +14,20 @@ using namespace pg;
 // The system registers an exit callback on EntitySystem::forceSaveNow() so that
 // when the player closes/hides the tab, we read the freshly-written save files
 // and POST them to Neon's SQL-over-HTTP endpoint.
-struct AnalyticsSystem : public System<Listener<TickEvent>, SaveSys>
+struct AnalyticsSystem : public System<Listener<TickEvent>, Listener<OnSDLScanCode>, SaveSys>
 {
-    // Neon endpoint and connection string — set these to your project's values.
-    // The connection string should use a restricted role (INSERT-only).
-    static constexpr const char* NEON_HOST = "https://ep-CHANGEME.us-east-2.aws.neon.tech";
-    static constexpr const char* NEON_CONN = "postgresql://analytics_writer:CHANGEME@ep-CHANGEME.us-east-2.aws.neon.tech/neondb";
+    // Analytics proxy worker URL — the worker holds the Neon connection string.
+    // Deploy the worker in analytics-worker/ and replace this URL.
+    static constexpr const char* PROXY_URL = "https://analytics-proxy.pigeoncodeur.workers.dev";
+    // Kept for API compat — unused, the worker holds the real connection string.
+    static constexpr const char* NEON_CONN = "";
 
     AnalyticsSystem();
 
     virtual std::string getSystemName() const override { return "Analytics"; }
 
     virtual void onEvent(const TickEvent& event) override;
+    virtual void onEvent(const OnSDLScanCode& event) override;
     virtual void execute() override;
 
     // SaveSys — persist cumulative play time across sessions

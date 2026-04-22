@@ -25,19 +25,17 @@ EM_JS(char*, js_analytics_get_session_id, (), {
     return buf;
 });
 
-// Send a parameterized INSERT to Neon's SQL-over-HTTP endpoint using fetch + keepalive.
-// neonHost: e.g. "https://ep-cool-darkness-123456.us-east-2.aws.neon.tech"
-// connStr:  e.g. "postgresql://analytics_writer:pass@ep-cool-darkness-123456.us-east-2.aws.neon.tech/neondb"
+// Send a parameterized INSERT to the analytics proxy worker using fetch + keepalive.
+// proxyUrl: e.g. "https://analytics-proxy.your-account.workers.dev"
+// connStr:  unused (kept for API compat) — the worker holds the Neon connection string.
 // query:    the SQL query with $1, $2, ... placeholders
 // paramsJson: a JSON array string, e.g. '["abc","session_end",12345]'
-EM_JS(void, js_analytics_send, (const char* neonHost, const char* connStr,
+EM_JS(void, js_analytics_send, (const char* proxyUrl, const char* connStr,
                                  const char* query, const char* paramsJson), {
-    var host = UTF8ToString(neonHost);
-    var conn = UTF8ToString(connStr);
+    var url  = UTF8ToString(proxyUrl);
     var sql  = UTF8ToString(query);
     var params = UTF8ToString(paramsJson);
 
-    var url = host + "/sql";
     var body = JSON.stringify({
         query: sql,
         params: JSON.parse(params)
@@ -46,8 +44,7 @@ EM_JS(void, js_analytics_send, (const char* neonHost, const char* connStr,
     fetch(url, {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
-            "Neon-Connection-String": conn
+            "Content-Type": "application/json"
         },
         body: body,
         keepalive: true
