@@ -9,7 +9,7 @@ MissionRegistry createDefaultMissionRegistry()
         "Iron Delivery",
         "Deliver iron plates to a depot.",
         0, 0,
-        {{35, 3}}, // reward: 3 Tickets
+        {{35, 1}}, // reward: 1 Ticket
         "", "completed_scout",
         {{5, 10}}, // deliver: 10 Iron Plates
         true // repeatable
@@ -17,8 +17,8 @@ MissionRegistry createDefaultMissionRegistry()
 
     // Tier 2: Mineral Expedition
     reg.addMission({
-        "Mineral Expedition",
-        "Explore mineral-rich caves for resources.",
+        "World Expedition",
+        "Unlock map extensions.",
         1, 60000, // 1 core, 60s
         {{35, 5}, {2, 10}, {3, 5}}, // 5 Tickets, 10 Copper Ore, 5 Coal
         "completed_scout", "completed_mineral"

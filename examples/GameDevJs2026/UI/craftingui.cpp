@@ -40,7 +40,7 @@ void CraftingUISystem::onProcessEvent(const TickEvent&)
 
 void CraftingUISystem::onEvent(const InventoryOpenedEvent&)
 {
-    if (not visible)
+    if (not visible and not suppressed)
         open();
 }
 

@@ -73,7 +73,7 @@ BuildingRegistry createDefaultBuildingRegistry()
     // Slot 6: Depot (2x2)
     reg.addBuilding({
         "Depot",                                       // name
-        "",                                            // textureName (placeholder — uses color fallback)
+        "Assembler_Machine_4",                         // textureName (assembler v4 sprite)
         {60.0f, 120.0f, 200.0f, 255.0f},              // color (blue fallback)
         2, 2,                                          // 2x2
         PlacementMode::ClickToPlace,

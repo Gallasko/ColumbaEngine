@@ -109,6 +109,13 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "",
             std::make_unique<GridAtlas>("Assembler_Machine_1_Running.png", 128, 48, 32, 48, 4, 4));
 
+        // Load assembler 4 idle sprite (used as depot building texture)
+        window.masterRenderer->registerAtlasTexture(
+            "Assembler_Machine_4",
+            "res/ext/Structures & Machines/Assembler_Machine_4.png",
+            "",
+            std::make_unique<GridAtlas>("Assembler_Machine_4.png", 32, 48, 32, 48, 1, 1));
+
         // Load item icons as a grid atlas (5 cols × 5 rows of 16×16 icons, 23 used)
         window.masterRenderer->registerAtlasTexture(
             "Items",

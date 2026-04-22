@@ -20,11 +20,15 @@ void DepotUISystem::open(int gridX, int gridY)
     openDepotY = gridY;
     visible = true;
 
+    // Suppress crafting UI BEFORE opening inventory (prevents auto-open via InventoryOpenedEvent)
+    if (craftingUI)
+        craftingUI->setSuppressed(true);
+
     if (inventoryUI and not inventoryUI->isOpen())
         inventoryUI->openInventory();
 
-    // Close crafting UI — depot's mission panel takes its place on the right
-    if (craftingUI)
+    // Close crafting UI if it was already open before we set suppress
+    if (craftingUI and craftingUI->isOpen())
         craftingUI->close();
 
     ensurePanelCreated();
@@ -54,9 +58,13 @@ void DepotUISystem::close()
     openDepotX = -1;
     openDepotY = -1;
 
-    // Re-open crafting UI if inventory is still open (depot closed independently)
-    if (craftingUI and inventoryUI and inventoryUI->isOpen())
-        craftingUI->open();
+    // Un-suppress and re-open crafting UI if inventory is still open
+    if (craftingUI)
+    {
+        craftingUI->setSuppressed(false);
+        if (inventoryUI and inventoryUI->isOpen())
+            craftingUI->open();
+    }
 }
 
 // ---------------------------------------------------------------------------

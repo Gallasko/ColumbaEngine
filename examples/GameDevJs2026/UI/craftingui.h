@@ -93,6 +93,8 @@ public:
     void open();
     void close();
 
+    void setSuppressed(bool s) { suppressed = s; }
+
     void init() override {}
 
     // Switch the recipe list to show recipes for the given machine type.
@@ -208,6 +210,7 @@ private:
     float screenHeight = 0.0f;
 
     bool visible = false;
+    bool suppressed = false;
     bool panelCreated = false;
 
     // Empty = hand-craft mode; "Furnace", "Assembler" = machine mode
