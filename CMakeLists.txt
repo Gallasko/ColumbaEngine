@@ -892,6 +892,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/UI/depotui.cpp
             examples/GameDevJs2026/UI/hudbarsystem.cpp
             examples/GameDevJs2026/Systems/missionsystem.cpp
+            examples/GameDevJs2026/Systems/analyticssystem.cpp
             examples/GameDevJs2026/UI/missionui.cpp
         )
 
@@ -1251,6 +1252,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/UI/depotui.cpp
             examples/GameDevJs2026/UI/hudbarsystem.cpp
             examples/GameDevJs2026/Systems/missionsystem.cpp
+            examples/GameDevJs2026/Systems/analyticssystem.cpp
             examples/GameDevJs2026/UI/missionui.cpp
         )
 

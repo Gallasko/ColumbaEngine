@@ -28,6 +28,7 @@
 #include "tooltipsystem.h"
 #include "tutorialsystem.h"
 #include "autosavesystem.h"
+#include "analyticssystem.h"
 #include "machinedemosystem.h"
 #include "hudbarsystem.h"
 #include "missionsystem.h"
@@ -295,6 +296,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         hudBar->setMissionUIToggle([missionUI]() { missionUI->toggle(); });
 
         ecs.createSystem<AutoSaveSystem>();
+        ecs.createSystem<AnalyticsSystem>();
 
         ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI, storageUI, depotUI, machineDemo, missionUI);
     });

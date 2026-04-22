@@ -737,12 +737,18 @@ namespace pg
 
         inline ElementType getSavedData(const std::string& id) const { return saveManager.getValue(id); }
 
+        /** Register a callback invoked after forceSaveNow() writes data to disk. */
+        void registerOnExitCallback(std::function<void()> cb) { onExitCallbacks.push_back(std::move(cb)); }
+
         /** Force an immediate save (used by browser lifecycle events in Emscripten). */
         inline void forceSaveNow()
         {
             saveManager.forceSave();
 
             registry.saveAllSystems();
+
+            for (auto& cb : onExitCallbacks)
+                cb();
         }
 
         inline bool isRunning() const { return running; }
@@ -942,6 +948,9 @@ namespace pg
 
         /** Custom VM modules to be added to all VMs created by this ECS */
         std::vector<std::function<void(VM&)>> customVmModules;
+
+        /** Callbacks invoked after forceSaveNow() (e.g. analytics). */
+        std::vector<std::function<void()>> onExitCallbacks;
     };
 
     template <typename Comp>
