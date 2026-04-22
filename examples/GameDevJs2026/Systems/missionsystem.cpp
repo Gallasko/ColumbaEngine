@@ -58,13 +58,24 @@ void MissionSystem::execute()
         if (m.completed)
             continue;
 
-        m.elapsedMs += dt;
-
         const auto* def = missionRegistry->tryGet(m.defIndex);
-        if (def and m.elapsedMs >= def->durationMs)
+        if (not def)
+            continue;
+
+        if (def->isDeliveryMission())
         {
-            m.completed = true;
-            m.elapsedMs = def->durationMs;
+            // Check if linked depot has all required items
+            if (getDeliveryProgress(m) >= 1.0f)
+                m.completed = true;
+        }
+        else
+        {
+            m.elapsedMs += dt;
+            if (m.elapsedMs >= def->durationMs)
+            {
+                m.completed = true;
+                m.elapsedMs = def->durationMs;
+            }
         }
     }
 }
@@ -97,33 +108,35 @@ bool MissionSystem::startMission(size_t defIndex, int depotX, int depotY)
 
     const auto& def = missionRegistry->get(defIndex);
 
-    // Find depot and check for robot cores
+    // Find depot
     DepotData* depot = depotSystem->getDepot(depotX, depotY);
     if (not depot)
         return false;
 
-    // Count robot cores in depot
-    uint16_t coreCount = 0;
-    for (const auto& slot : depot->inventory.slots)
+    // Check and consume robot cores (skip if cost is 0)
+    if (def.robotCoreCost > 0)
     {
-        if (slot.id == ROBOT_CORE_ID)
-            coreCount += slot.count;
-    }
-
-    if (coreCount < def.robotCoreCost)
-        return false;
-
-    // Consume robot cores
-    uint16_t remaining = def.robotCoreCost;
-    for (auto& slot : depot->inventory.slots)
-    {
-        if (slot.id == ROBOT_CORE_ID and remaining > 0)
+        uint16_t coreCount = 0;
+        for (const auto& slot : depot->inventory.slots)
         {
-            uint16_t take = std::min(slot.count, remaining);
-            slot.count -= take;
-            remaining -= take;
-            if (slot.count == 0)
-                slot.clear();
+            if (slot.id == ROBOT_CORE_ID)
+                coreCount += slot.count;
+        }
+
+        if (coreCount < def.robotCoreCost)
+            return false;
+
+        uint16_t remaining = def.robotCoreCost;
+        for (auto& slot : depot->inventory.slots)
+        {
+            if (slot.id == ROBOT_CORE_ID and remaining > 0)
+            {
+                uint16_t take = std::min(slot.count, remaining);
+                slot.count -= take;
+                remaining -= take;
+                if (slot.count == 0)
+                    slot.clear();
+            }
         }
     }
 
@@ -149,8 +162,29 @@ bool MissionSystem::claimMission(size_t activeIndex)
 
     const auto& def = missionRegistry->get(m.defIndex);
 
-    // Deposit rewards into linked depot
+    // For delivery missions, consume required items from depot
     DepotData* depot = depotSystem->getDepot(m.depotX, m.depotY);
+    if (def.isDeliveryMission() and depot)
+    {
+        for (const auto& req : def.deliveryRequirements)
+        {
+            uint16_t remaining = req.count;
+            for (auto& slot : depot->inventory.slots)
+            {
+                if (remaining == 0) break;
+                if (slot.id == req.itemId)
+                {
+                    uint16_t take = std::min(slot.count, remaining);
+                    slot.count -= take;
+                    remaining -= take;
+                    if (slot.count == 0)
+                        slot.clear();
+                }
+            }
+        }
+    }
+
+    // Deposit rewards into linked depot
     if (not depot)
     {
         // Depot was removed — give rewards directly to player
@@ -200,4 +234,39 @@ void MissionSystem::purchaseExtraSlot()
 {
     maxActiveMissions++;
     printf("MissionSystem: max active missions increased to %zu\n", maxActiveMissions);
+}
+
+uint16_t MissionSystem::getDeliveryCount(const ActiveMission& m, const DeliveryRequirement& req) const
+{
+    DepotData* depot = depotSystem->getDepot(m.depotX, m.depotY);
+    if (not depot)
+        return 0;
+
+    uint16_t count = 0;
+    for (const auto& slot : depot->inventory.slots)
+    {
+        if (slot.id == req.itemId)
+            count += slot.count;
+    }
+    return std::min(count, req.count);
+}
+
+float MissionSystem::getDeliveryProgress(const ActiveMission& m) const
+{
+    const auto* def = missionRegistry->tryGet(m.defIndex);
+    if (not def or not def->isDeliveryMission())
+        return 0.0f;
+
+    uint16_t totalRequired = 0;
+    uint16_t totalDelivered = 0;
+    for (const auto& req : def->deliveryRequirements)
+    {
+        totalRequired += req.count;
+        totalDelivered += getDeliveryCount(m, req);
+    }
+
+    if (totalRequired == 0)
+        return 1.0f;
+
+    return static_cast<float>(totalDelivered) / static_cast<float>(totalRequired);
 }

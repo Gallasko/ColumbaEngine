@@ -56,6 +56,10 @@ public:
     void purchaseExtraSlot();
     size_t getExtraSlotCost() const { return 10; } // Tickets
 
+    // Delivery mission helpers
+    uint16_t getDeliveryCount(const ActiveMission& m, const DeliveryRequirement& req) const;
+    float getDeliveryProgress(const ActiveMission& m) const;
+
 private:
     MissionRegistry* missionRegistry = nullptr;
     DepotSystem* depotSystem = nullptr;

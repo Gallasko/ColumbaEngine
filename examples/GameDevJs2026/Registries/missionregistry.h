@@ -14,6 +14,12 @@ struct MissionReward
     uint16_t count;
 };
 
+struct DeliveryRequirement
+{
+    ItemId itemId;
+    uint16_t count;
+};
+
 struct MissionDef
 {
     std::string name;
@@ -23,6 +29,9 @@ struct MissionDef
     std::vector<MissionReward> rewards;
     std::string unlockFact;     // WorldFact required (empty = always available)
     std::string completionFact; // Fact to set on first completion
+    std::vector<DeliveryRequirement> deliveryRequirements; // Non-empty = delivery mission
+
+    bool isDeliveryMission() const { return !deliveryRequirements.empty(); }
 };
 
 struct MissionRegistry : public pg::Registry<MissionDef>

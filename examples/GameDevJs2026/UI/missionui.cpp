@@ -127,6 +127,13 @@ void MissionUISystem::tryStartWithFirstAvailableDepot(size_t defIndex)
 
     for (const auto& [key, depot] : depots)
     {
+        if (def.robotCoreCost == 0)
+        {
+            // No core cost — use the first depot found
+            missionSystem->startMission(defIndex, depot.ownerX, depot.ownerY);
+            return;
+        }
+
         // Count cores in this depot
         uint16_t cores = 0;
         for (const auto& slot : depot.inventory.slots)
@@ -141,7 +148,10 @@ void MissionUISystem::tryStartWithFirstAvailableDepot(size_t defIndex)
         }
     }
 
-    printf("MissionUI: no depot has enough Robot Cores (%u needed)\n", def.robotCoreCost);
+    if (depots.empty())
+        printf("MissionUI: no depot built\n");
+    else
+        printf("MissionUI: no depot has enough Robot Cores (%u needed)\n", def.robotCoreCost);
 }
 
 // ---------------------------------------------------------------------------
@@ -448,8 +458,17 @@ void MissionUISystem::refresh()
         const auto& def = defs[i];
         setEntityText(row.nameId, def.name);
 
-        std::string info = std::to_string(def.durationMs / 1000) + "s  "
-                         + std::to_string(def.robotCoreCost) + " Core";
+        std::string info;
+        if (def.isDeliveryMission())
+        {
+            for (const auto& req : def.deliveryRequirements)
+                info += std::to_string(req.count) + "x #" + std::to_string(req.itemId) + " ";
+        }
+        else
+        {
+            info = std::to_string(def.durationMs / 1000) + "s  "
+                 + std::to_string(def.robotCoreCost) + " Core";
+        }
         setEntityText(row.infoId, info);
 
         bool unlocked = missionSystem->isMissionUnlocked(i);
@@ -505,7 +524,13 @@ void MissionUISystem::refresh()
 
         setEntityText(row.nameId, def.name);
 
-        float progress = static_cast<float>(m.elapsedMs) / static_cast<float>(def.durationMs);
+        float progress;
+        if (def.isDeliveryMission())
+            progress = missionSystem->getDeliveryProgress(m);
+        else
+            progress = def.durationMs > 0
+                ? static_cast<float>(m.elapsedMs) / static_cast<float>(def.durationMs)
+                : 1.0f;
         if (progress > 1.0f) progress = 1.0f;
 
         // Update progress bar fill width
@@ -519,6 +544,13 @@ void MissionUISystem::refresh()
             auto btnEnt = ecsRef->getEntity(row.btnBgId);
             if (btnEnt)
                 btnEnt->get<Simple2DObject>()->setColors({60.0f, 100.0f, 180.0f, 200.0f});
+        }
+        else if (def.isDeliveryMission())
+        {
+            // Show delivery count for first requirement
+            const auto& req = def.deliveryRequirements[0];
+            uint16_t have = missionSystem->getDeliveryCount(m, req);
+            setEntityText(row.statusId, std::to_string(have) + "/" + std::to_string(req.count));
         }
         else
         {

@@ -4,13 +4,14 @@ MissionRegistry createDefaultMissionRegistry()
 {
     MissionRegistry reg;
 
-    // Tier 1: Scout Nearby
+    // Tier 1: Iron Delivery (delivery mission — no core cost, no timer)
     reg.addMission({
-        "Scout Nearby",
-        "Send a robot to scout the surrounding area.",
-        1, 30000, // 1 core, 30s
-        {{35, 3}, {1, 5}}, // 3 Tickets, 5 Iron Ore
-        "", "completed_scout"
+        "Iron Delivery",
+        "Deliver iron plates to a depot.",
+        0, 0,
+        {{35, 3}}, // reward: 3 Tickets
+        "", "completed_scout",
+        {{5, 10}} // deliver: 10 Iron Plates
     });
 
     // Tier 2: Mineral Expedition
