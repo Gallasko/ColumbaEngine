@@ -4,14 +4,15 @@ MissionRegistry createDefaultMissionRegistry()
 {
     MissionRegistry reg;
 
-    // Tier 1: Iron Delivery (delivery mission — no core cost, no timer)
+    // Tier 1: Iron Delivery (delivery mission — no core cost, no timer, repeatable)
     reg.addMission({
         "Iron Delivery",
         "Deliver iron plates to a depot.",
         0, 0,
         {{35, 3}}, // reward: 3 Tickets
         "", "completed_scout",
-        {{5, 10}} // deliver: 10 Iron Plates
+        {{5, 10}}, // deliver: 10 Iron Plates
+        true // repeatable
     });
 
     // Tier 2: Mineral Expedition

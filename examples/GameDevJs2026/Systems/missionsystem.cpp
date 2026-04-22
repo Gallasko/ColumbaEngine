@@ -98,6 +98,12 @@ bool MissionSystem::canStartMission(size_t defIndex) const
         return false;
     if (activeMissions.size() >= maxActiveMissions)
         return false;
+
+    const auto& def = missionRegistry->get(defIndex);
+    // Block non-repeatable missions that have already been completed
+    if (not def.repeatable and isMissionCompleted(defIndex))
+        return false;
+
     return true;
 }
 
@@ -108,9 +114,11 @@ bool MissionSystem::startMission(size_t defIndex, int depotX, int depotY)
 
     const auto& def = missionRegistry->get(defIndex);
 
-    // Find depot
+    // Find depot — block if depot already has an active mission
     DepotData* depot = depotSystem->getDepot(depotX, depotY);
     if (not depot)
+        return false;
+    if (hasActiveMissionAtDepot(depotX, depotY))
         return false;
 
     // Check and consume robot cores (skip if cost is 0)
@@ -274,4 +282,44 @@ float MissionSystem::getDeliveryProgress(const ActiveMission& m) const
         return 1.0f;
 
     return static_cast<float>(totalDelivered) / static_cast<float>(totalRequired);
+}
+
+bool MissionSystem::isMissionCompleted(size_t defIndex) const
+{
+    if (defIndex >= missionRegistry->count())
+        return false;
+    const auto& def = missionRegistry->get(defIndex);
+    if (def.completionFact.empty())
+        return false;
+    return worldFacts and worldFacts->getFact<bool>(def.completionFact);
+}
+
+bool MissionSystem::hasActiveMissionAtDepot(int x, int y) const
+{
+    for (const auto& m : activeMissions)
+    {
+        if (m.depotX == x and m.depotY == y)
+            return true;
+    }
+    return false;
+}
+
+const ActiveMission* MissionSystem::getActiveMissionForDepot(int x, int y) const
+{
+    for (const auto& m : activeMissions)
+    {
+        if (m.depotX == x and m.depotY == y)
+            return &m;
+    }
+    return nullptr;
+}
+
+size_t MissionSystem::getActiveMissionIndexForDepot(int x, int y) const
+{
+    for (size_t i = 0; i < activeMissions.size(); ++i)
+    {
+        if (activeMissions[i].depotX == x and activeMissions[i].depotY == y)
+            return i;
+    }
+    return SIZE_MAX;
 }

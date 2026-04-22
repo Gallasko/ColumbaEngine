@@ -29,6 +29,7 @@ public:
     static constexpr size_t MAIN_SLOTS = 20;
     static constexpr size_t HOTBAR_START = 20;
     static constexpr size_t HOTBAR_COUNT = 9;
+    static constexpr ItemId TICKET_ID = 35;
 
     PlayerInventorySystem(ItemRegistry* itemRegistry)
         : itemRegistry(itemRegistry) {}
@@ -50,10 +51,22 @@ public:
 
     bool hasItem(ItemId id, uint16_t count = 1) const
     {
+        if (id == TICKET_ID)
+            return ticketCount >= count;
         return inventory.hasAtLeast(id, count);
+    }
+
+    uint32_t getTickets() const { return ticketCount; }
+    void addTickets(uint32_t amount) { ticketCount += amount; }
+    bool spendTickets(uint32_t amount)
+    {
+        if (ticketCount < amount) return false;
+        ticketCount -= amount;
+        return true;
     }
 
 private:
     ItemRegistry* itemRegistry = nullptr;
     Inventory inventory;
+    uint32_t ticketCount = 0;
 };

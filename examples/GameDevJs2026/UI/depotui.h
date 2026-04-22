@@ -6,6 +6,7 @@
 #include "depotsystem.h"
 #include "inventoryui.h"
 #include "playerinventory.h"
+#include "missionsystem.h"
 
 using namespace pg;
 
@@ -35,13 +36,24 @@ public:
     static constexpr float TITLE_SCALE        = 0.4f;
     static constexpr float GAP_BETWEEN_PANELS = 8.0f;
 
+    // Mission section layout
+    static constexpr float MISSION_ROW_H   = 24.0f;
+    static constexpr float MISSION_ROW_GAP = 3.0f;
+    static constexpr size_t MAX_MISSION_ROWS = 5;
+    static constexpr float BTN_W           = 50.0f;
+    static constexpr float BTN_H           = 20.0f;
+    static constexpr float BTN_TEXT_SCALE  = 0.25f;
+    static constexpr float PROGRESS_H      = 8.0f;
+
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
     DepotUISystem(DepotSystem* depotSystem, ItemRegistry* itemRegistry,
                   PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
+                  MissionSystem* missionSystem,
                   float screenWidth, float screenHeight)
         : depotSystem(depotSystem), itemRegistry(itemRegistry),
           playerInv(playerInv), inventoryUI(inventoryUI),
+          missionSystem(missionSystem),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Depot UI System"; }
@@ -68,6 +80,8 @@ private:
                                         + ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING
                                         + SECTION_GAP + TITLE_H + GAP_AFTER_TITLE
                                         + ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING
+                                        + SECTION_GAP + TITLE_H + GAP_AFTER_TITLE
+                                        + MAX_MISSION_ROWS * (MISSION_ROW_H + MISSION_ROW_GAP)
                                         + PANEL_PADDING; }
     float getPanelX() const;
     float getPanelY() const;
@@ -91,8 +105,13 @@ private:
     }
 
     void setEntityVisibility(uint64_t id, bool vis);
+    void setEntityText(uint64_t id, const std::string& text);
     void refreshItemSlotDisplay(uint64_t itemEntId, uint64_t countEntId,
                                 const ItemStack& stack);
+
+    // Mission section
+    void createMissionSection(float startY);
+    void refreshMissionSection();
 
     // --- Members ---
 
@@ -100,6 +119,7 @@ private:
     ItemRegistry* itemRegistry = nullptr;
     PlayerInventorySystem* playerInv = nullptr;
     InventoryUISystem* inventoryUI = nullptr;
+    MissionSystem* missionSystem = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
@@ -126,4 +146,29 @@ private:
     uint64_t outputSlotBgEntityId[NUM_OUTPUT_SLOTS]   = {};
     uint64_t outputSlotItemEntityId[NUM_OUTPUT_SLOTS] = {};
     uint64_t outputSlotCountEntityId[NUM_OUTPUT_SLOTS] = {};
+
+    // Mission section
+    uint64_t missionSectionTitleId = 0;
+
+    // Active mission display (when depot has an active mission)
+    uint64_t activeMissionNameId = 0;
+    uint64_t activeMissionProgressBgId = 0;
+    uint64_t activeMissionProgressFillId = 0;
+    uint64_t activeMissionStatusId = 0;
+    uint64_t activeMissionClaimBtnBgId = 0;
+    uint64_t activeMissionClaimBtnTextId = 0;
+    float claimBtnX = 0, claimBtnY = 0;
+
+    // Available mission rows (when no active mission)
+    struct MissionRow
+    {
+        uint64_t bgId = 0;
+        uint64_t nameId = 0;
+        uint64_t infoId = 0;
+        uint64_t btnBgId = 0;
+        uint64_t btnTextId = 0;
+        float btnX = 0, btnY = 0;
+        size_t defIndex = 0;
+    };
+    MissionRow missionRows[MAX_MISSION_ROWS] = {};
 };

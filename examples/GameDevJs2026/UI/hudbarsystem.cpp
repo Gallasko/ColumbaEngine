@@ -173,15 +173,11 @@ void HudBarSystem::updateTicketDisplay()
     if (not playerInv)
         return;
 
-    // Count tickets in player inventory
-    uint16_t count = 0;
-    for (const auto& slot : playerInv->getInventory().slots)
-    {
-        if (slot.id == TICKET_ID)
-            count += slot.count;
-    }
+    uint16_t count = static_cast<uint16_t>(
+        std::min(playerInv->getTickets(), static_cast<uint32_t>(65535)));
 
-    bool shouldShow = count > 0;
+    // Show ticket display once missions are unlocked (even at 0)
+    bool shouldShow = missionButtonVisible;
 
     if (shouldShow and ticketBgId == 0)
         createTicketDisplay();

@@ -89,6 +89,8 @@ private:
     };
 
     void tryStartWithFirstAvailableDepot(size_t defIndex);
+    void showDepotSelectionPrompt();
+    void hideDepotSelectionPrompt();
 
     // --- Members ---
     MissionSystem* missionSystem = nullptr;
@@ -142,4 +144,9 @@ private:
     uint64_t shopBtnBgId = 0;
     uint64_t shopBtnTextId = 0;
     float shopBtnX = 0, shopBtnY = 0;
+
+    // Depot selection prompt (floating banner)
+    uint64_t promptBgId = 0;
+    uint64_t promptTextId = 0;
+    bool promptVisible = false;
 };

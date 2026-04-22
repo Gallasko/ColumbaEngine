@@ -165,13 +165,6 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
                     int ox = cell.isOwner ? gx : static_cast<int>(cell.ownerX);
                     int oy = cell.isOwner ? gy : static_cast<int>(cell.ownerY);
 
-                    // If mission UI is waiting for depot selection, route there
-                    if (missionUI and missionUI->isSelectingDepot())
-                    {
-                        missionUI->selectDepot(ox, oy);
-                        return;
-                    }
-
                     if (depotUI)
                     {
                         depotUI->open(ox, oy);

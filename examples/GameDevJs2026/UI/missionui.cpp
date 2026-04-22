@@ -45,23 +45,18 @@ void MissionUISystem::selectDepot(int depotX, int depotY)
 
     size_t defIndex = pendingStart.defIndex;
     pendingStart.active = false;
+    hideDepotSelectionPrompt();
 
     if (missionSystem->startMission(defIndex, depotX, depotY))
-    {
         printf("MissionUI: mission started at depot (%d, %d)\n", depotX, depotY);
-        open();
-    }
     else
-    {
         printf("MissionUI: failed to start mission at depot (%d, %d)\n", depotX, depotY);
-        open();
-    }
 }
 
 void MissionUISystem::cancelDepotSelection()
 {
     pendingStart.active = false;
-    printf("MissionUI: depot selection cancelled\n");
+    hideDepotSelectionPrompt();
 }
 
 // ---------------------------------------------------------------------------
@@ -119,7 +114,7 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
                 pendingStart.defIndex = i;
                 pendingStart.active = true;
                 close();
-                printf("MissionUI: select a depot to start '%s'\n", defs[i].name.c_str());
+                showDepotSelectionPrompt();
             }
             return;
         }
@@ -140,13 +135,9 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
     // Shop buy button
     if (isClickInRect(mx, my, shopBtnX, shopBtnY, BTN_W, BTN_H))
     {
-        // Check if player has enough tickets (ID 35)
-        size_t cost = missionSystem->getExtraSlotCost();
-        if (playerInv and playerInv->getInventory().hasAtLeast(35, static_cast<uint16_t>(cost)))
-        {
-            playerInv->getInventory().remove(35, static_cast<uint16_t>(cost));
+        uint32_t cost = static_cast<uint32_t>(missionSystem->getExtraSlotCost());
+        if (playerInv and playerInv->spendTickets(cost))
             missionSystem->purchaseExtraSlot();
-        }
     }
 }
 
@@ -507,6 +498,7 @@ void MissionUISystem::refresh()
 
         bool unlocked = missionSystem->isMissionUnlocked(i);
         bool canStart = missionSystem->canStartMission(i);
+        bool completed = missionSystem->isMissionCompleted(i);
 
         if (not unlocked)
         {
@@ -514,6 +506,13 @@ void MissionUISystem::refresh()
             auto btnEnt = ecsRef->getEntity(row.btnBgId);
             if (btnEnt)
                 btnEnt->get<Simple2DObject>()->setColors({80.0f, 80.0f, 80.0f, 200.0f});
+        }
+        else if (not def.repeatable and completed)
+        {
+            setEntityText(row.btnTextId, "DONE");
+            auto btnEnt = ecsRef->getEntity(row.btnBgId);
+            if (btnEnt)
+                btnEnt->get<Simple2DObject>()->setColors({60.0f, 60.0f, 80.0f, 200.0f});
         }
         else if (not canStart)
         {
@@ -597,6 +596,49 @@ void MissionUISystem::refresh()
     size_t cost = missionSystem->getExtraSlotCost();
     std::string shopLabel = "Extra Mission Slot  " + std::to_string(cost) + " Tickets";
     setEntityText(shopLabelId, shopLabel);
+}
+
+// ---------------------------------------------------------------------------
+// Depot selection prompt
+// ---------------------------------------------------------------------------
+
+void MissionUISystem::showDepotSelectionPrompt()
+{
+    if (promptBgId == 0)
+    {
+        // Create the prompt entities (once, lazily)
+        float bannerW = 300.0f;
+        float bannerH = 32.0f;
+        float bx = (screenWidth - bannerW) * 0.5f;
+        float by = 40.0f;
+
+        auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+            constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
+        auto pos = bg.get<PositionComponent>();
+        pos->setX(bx); pos->setY(by); pos->setZ(101.0f);
+        pos->setWidth(bannerW); pos->setHeight(bannerH);
+        bg.get<ViewportComponent>()->setViewport(UI_VP);
+        promptBgId = bg.entity->id;
+
+        auto txt = makeTTFText(ecsRef, bx + 16.0f, by + 6.0f, 102.0f,
+            FONT_PATH, "Click a depot to start mission", TEXT_SCALE,
+            {255.0f, 230.0f, 80.0f, 255.0f});
+        txt.get<ViewportComponent>()->setViewport(UI_VP);
+        promptTextId = txt.entity->id;
+    }
+
+    setEntityVisibility(promptBgId, true);
+    setEntityVisibility(promptTextId, true);
+    promptVisible = true;
+}
+
+void MissionUISystem::hideDepotSelectionPrompt()
+{
+    if (promptBgId == 0)
+        return;
+    setEntityVisibility(promptBgId, false);
+    setEntityVisibility(promptTextId, false);
+    promptVisible = false;
 }
 
 // ---------------------------------------------------------------------------

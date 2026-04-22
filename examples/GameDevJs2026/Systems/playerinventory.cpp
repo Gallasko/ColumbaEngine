@@ -5,20 +5,33 @@
 void PlayerInventorySystem::save(Archive& archive)
 {
     serialize(archive, "slots", inventory.slots);
-    printf("PlayerInventory: saved %zu slots\n", inventory.slots.size());
+    serialize(archive, "ticketCount", ticketCount);
+    printf("PlayerInventory: saved %zu slots, %u tickets\n", inventory.slots.size(), ticketCount);
 }
 
 void PlayerInventorySystem::load(const UnserializedObject& serializedString)
 {
     std::vector<ItemStack> slots;
     defaultDeserialize(serializedString, "slots", slots);
-    printf("PlayerInventory: loaded %zu slots\n", slots.size());
+    defaultDeserialize(serializedString, "ticketCount", ticketCount);
 
     // init() already ran and created the 29-slot inventory — fill directly
     // (old saves with fewer slots are handled by the min below)
     size_t count = std::min(slots.size(), static_cast<size_t>(NUM_SLOTS));
     for (size_t i = 0; i < count; ++i)
         inventory.slots[i] = slots[i];
+
+    // Migration: move any tickets from slots to the currency counter
+    for (auto& slot : inventory.slots)
+    {
+        if (slot.id == TICKET_ID)
+        {
+            ticketCount += slot.count;
+            slot.clear();
+        }
+    }
+
+    printf("PlayerInventory: loaded %zu slots, %u tickets\n", slots.size(), ticketCount);
 }
 
 void PlayerInventorySystem::init()
@@ -28,6 +41,14 @@ void PlayerInventorySystem::init()
 
 void PlayerInventorySystem::onEvent(const PlayerGainItemEvent& event)
 {
+    // Tickets bypass the inventory — stored as a currency counter
+    if (event.id == TICKET_ID)
+    {
+        ticketCount += event.count;
+        sendEvent(AddFact{"discovered_ticket", ElementType{true}});
+        return;
+    }
+
     inventory.insert(event.id, event.count, *itemRegistry);
 
     // Fire a discovered_<name> fact on every item pickup so recipes,
@@ -51,5 +72,13 @@ void PlayerInventorySystem::onEvent(const PlayerGainItemEvent& event)
 
 void PlayerInventorySystem::onEvent(const PlayerLoseItemEvent& event)
 {
+    if (event.id == TICKET_ID)
+    {
+        if (ticketCount >= event.count)
+            ticketCount -= event.count;
+        else
+            ticketCount = 0;
+        return;
+    }
     inventory.remove(event.id, event.count);
 }

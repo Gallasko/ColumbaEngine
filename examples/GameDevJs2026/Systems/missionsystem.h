@@ -61,6 +61,12 @@ public:
     uint16_t getDeliveryCount(const ActiveMission& m, const DeliveryRequirement& req) const;
     float getDeliveryProgress(const ActiveMission& m) const;
 
+    // Repeatable / depot helpers
+    bool isMissionCompleted(size_t defIndex) const;
+    bool hasActiveMissionAtDepot(int x, int y) const;
+    const ActiveMission* getActiveMissionForDepot(int x, int y) const;
+    size_t getActiveMissionIndexForDepot(int x, int y) const;
+
 private:
     MissionRegistry* missionRegistry = nullptr;
     DepotSystem* depotSystem = nullptr;

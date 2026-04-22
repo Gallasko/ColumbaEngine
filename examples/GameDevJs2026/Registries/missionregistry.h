@@ -30,6 +30,7 @@ struct MissionDef
     std::string unlockFact;     // WorldFact required (empty = always available)
     std::string completionFact; // Fact to set on first completion
     std::vector<DeliveryRequirement> deliveryRequirements; // Non-empty = delivery mission
+    bool repeatable = false;    // If true, can be started again after completion
 
     bool isDeliveryMission() const { return !deliveryRequirements.empty(); }
 };

@@ -249,14 +249,18 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* storageUI = ecs.createSystem<StorageUISystem>(
             storageSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
 
-        auto* depotUI = ecs.createSystem<DepotUISystem>(
-            depotSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
-
         // World facts (progression/discovery state) must exist before the
         // hand-crafting system and crafting UI query it for unlock checks.
         // Discovery facts (discovered_<item>) are set generically by
         // PlayerInventorySystem on first pickup — no defaults needed.
         auto* worldFacts = ecs.createSystem<WorldFacts>();
+
+        // MissionSystem must exist before DepotUI (depot panel shows mission section)
+        auto* missionSystem = ecs.createSystem<MissionSystem>(&missionRegistry, depotSystem, worldFacts);
+
+        auto* depotUI = ecs.createSystem<DepotUISystem>(
+            depotSystem, &itemRegistry, playerInvSystem, inventoryUI,
+            missionSystem, screenW, screenH);
 
         auto* handCrafting = ecs.createSystem<HandCraftingSystem>(
             playerInvSystem, &itemRegistry, &recipeRegistry, worldFacts);
@@ -283,8 +287,6 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         machineUI->setMachineDemo(machineDemo);
         craftingUI->setMachineDemo(machineDemo);
-
-        auto* missionSystem = ecs.createSystem<MissionSystem>(&missionRegistry, depotSystem, worldFacts);
 
         auto* missionUI = ecs.createSystem<MissionUISystem>(
             missionSystem, depotSystem, playerInvSystem, screenW, screenH);
