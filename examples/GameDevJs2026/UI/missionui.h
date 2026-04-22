@@ -2,6 +2,7 @@
 
 #include "Systems/basicsystems.h"
 #include "Input/inputcomponent.h"
+#include "ECS/entitysystem_fwd.h"
 
 #include "missionsystem.h"
 #include "depotsystem.h"
@@ -11,7 +12,8 @@ using namespace pg;
 
 class MissionUISystem : public System<QueuedListener<OnMouseClick>,
                                        QueuedListener<OnSDLScanCode>,
-                                       Listener<TickEvent>>
+                                       Listener<TickEvent>,
+                                       Listener<ResizeEvent>>
 {
 public:
     static constexpr size_t UI_VP = 2;
@@ -31,9 +33,9 @@ public:
     static constexpr size_t MAX_DEF_ROWS    = 5;
     static constexpr size_t MAX_ACTIVE_ROWS = 3;
 
-    static constexpr float TITLE_SCALE   = 0.45f;
+    static constexpr float TITLE_SCALE   = 0.40f;
     static constexpr float TEXT_SCALE     = 0.30f;
-    static constexpr float BTN_TEXT_SCALE = 0.28f;
+    static constexpr float BTN_TEXT_SCALE = 0.30f;
 
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
@@ -54,6 +56,11 @@ public:
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onEvent(const TickEvent&) override;
+    virtual void onEvent(const ResizeEvent& event) override
+    {
+        screenWidth = event.width;
+        screenHeight = event.height;
+    }
 
     void execute() override;
 

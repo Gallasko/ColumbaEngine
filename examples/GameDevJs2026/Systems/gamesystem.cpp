@@ -39,6 +39,8 @@ void GameSystem::onProcessEvent(const OnSDLScanCode& event)
         return;
     if (depotUI and depotUI->isOpen())
         return;
+    if (missionUI and missionUI->isOpen())
+        return;
 
     if (event.key == SDL_SCANCODE_R)
     {
@@ -76,7 +78,8 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
                   or (craftingUI and craftingUI->isOpen())
                   or (machineUI and machineUI->isOpen())
                   or (storageUI and storageUI->isOpen())
-                  or (depotUI and depotUI->isOpen());
+                  or (depotUI and depotUI->isOpen())
+                  or (missionUI and missionUI->isOpen());
 
     // Centralized click-outside-to-close for all UIs
     if (anyUIOpen)
@@ -90,6 +93,7 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
             {
                 // Closing inventory cascades to miner and crafting via events
                 if (inventoryUI and inventoryUI->isOpen()) inventoryUI->closeInventory();
+                if (missionUI and missionUI->isOpen()) missionUI->close();
             }
         }
         return; // Block all game input while any UI is open

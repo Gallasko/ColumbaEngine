@@ -1,4 +1,5 @@
 #include "missionui.h"
+#include "inventoryui.h"
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
@@ -25,8 +26,8 @@ void MissionUISystem::open()
         return;
     visible = true;
     ensurePanelCreated();
-    setPanelVisibility(true);
     refresh();
+    setPanelVisibility(true);
 }
 
 void MissionUISystem::close()
@@ -73,13 +74,6 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
     // Close button
     if (isClickInRect(mx, my, px + PANEL_W - PADDING - CLOSE_SIZE, py + PADDING,
                       CLOSE_SIZE, CLOSE_SIZE))
-    {
-        close();
-        return;
-    }
-
-    // Check click outside panel
-    if (mx < px or mx > px + PANEL_W or my < py or my > py + panelH)
     {
         close();
         return;
@@ -186,6 +180,9 @@ void MissionUISystem::createPanel()
         pos->setWidth(PANEL_W); pos->setHeight(panelH);
         bd.get<ViewportComponent>()->setViewport(UI_VP);
         backdropId = bd.entity->id;
+
+        ecsRef->attach<MouseLeftClickComponent>(bd.entity,
+            makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
     }
 
     // Title
