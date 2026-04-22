@@ -153,8 +153,7 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
             }
         }
 
-        // Check if clicking on a depot — open depot UI
-        if (depotUI)
+        // Check if clicking on a depot
         {
             auto [gx, gy] = getMouseGridPos();
             auto layer = gridSystem->getBuildingLayer();
@@ -165,8 +164,19 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
                 {
                     int ox = cell.isOwner ? gx : static_cast<int>(cell.ownerX);
                     int oy = cell.isOwner ? gy : static_cast<int>(cell.ownerY);
-                    depotUI->open(ox, oy);
-                    return;
+
+                    // If mission UI is waiting for depot selection, route there
+                    if (missionUI and missionUI->isSelectingDepot())
+                    {
+                        missionUI->selectDepot(ox, oy);
+                        return;
+                    }
+
+                    if (depotUI)
+                    {
+                        depotUI->open(ox, oy);
+                        return;
+                    }
                 }
             }
         }

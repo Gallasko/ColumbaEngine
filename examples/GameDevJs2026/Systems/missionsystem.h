@@ -23,6 +23,7 @@ class MissionSystem : public System<Listener<TickEvent>, SaveSys>
 public:
     static constexpr size_t DEFAULT_MAX_ACTIVE = 2;
     static constexpr ItemId ROBOT_CORE_ID = 33;
+    static constexpr ItemId TICKET_ID = 35;
 
     MissionSystem(MissionRegistry* missionRegistry, DepotSystem* depotSystem, WorldFacts* worldFacts)
         : missionRegistry(missionRegistry), depotSystem(depotSystem), worldFacts(worldFacts)

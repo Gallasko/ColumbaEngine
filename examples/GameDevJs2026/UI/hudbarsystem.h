@@ -5,6 +5,7 @@
 
 #include "inventoryui.h"
 #include "worldfacts.h"
+#include "playerinventory.h"
 
 using namespace pg;
 
@@ -26,9 +27,13 @@ public:
     static constexpr size_t BTN_MISSIONS  = 1;
     static constexpr size_t BTN_SETTINGS  = 2;
 
-    HudBarSystem(InventoryUISystem* inventoryUI, WorldFacts* worldFacts,
-                 float screenWidth, float screenHeight)
-        : inventoryUI(inventoryUI), worldFacts(worldFacts),
+    static constexpr float TEXT_SCALE = 0.30f;
+    static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
+    static constexpr ItemId TICKET_ID = 35;
+
+    HudBarSystem(InventoryUISystem* inventoryUI, PlayerInventorySystem* playerInv,
+                 WorldFacts* worldFacts, float screenWidth, float screenHeight)
+        : inventoryUI(inventoryUI), playerInv(playerInv), worldFacts(worldFacts),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "HUD Bar System"; }
@@ -48,6 +53,7 @@ private:
     bool isClickOnButton(size_t idx, float x, float y) const;
 
     InventoryUISystem* inventoryUI = nullptr;
+    PlayerInventorySystem* playerInv = nullptr;
     WorldFacts* worldFacts = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
@@ -56,6 +62,7 @@ private:
 
     bool buttonsCreated = false;
     bool missionButtonVisible = false;
+    bool ticketDisplayVisible = false;
 
     // Cached positions (top-left of each button)
     float buttonX[NUM_BUTTONS] = {};
@@ -64,4 +71,13 @@ private:
     // Entity IDs
     uint64_t buttonBgId[NUM_BUTTONS]   = {};
     uint64_t buttonIconId[NUM_BUTTONS] = {};
+
+    // Ticket currency display
+    uint64_t ticketBgId = 0;
+    uint64_t ticketIconId = 0;
+    uint64_t ticketTextId = 0;
+    uint16_t lastTicketCount = 0;
+
+    void createTicketDisplay();
+    void updateTicketDisplay();
 };

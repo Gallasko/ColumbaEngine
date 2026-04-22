@@ -20,7 +20,8 @@ class DepotUISystem : public System<Listener<ResizeEvent>,
 {
 public:
     static constexpr size_t UI_VP             = 2;
-    static constexpr size_t NUM_SLOTS         = 4;
+    static constexpr size_t NUM_SLOTS         = 4;  // Input slots
+    static constexpr size_t NUM_OUTPUT_SLOTS  = 4;  // Output slots
     static constexpr size_t COLS              = 2;
     static constexpr size_t ROWS              = 2;
     static constexpr float SLOT_SIZE          = 40.0f;
@@ -28,6 +29,7 @@ public:
     static constexpr float PANEL_PADDING      = 12.0f;
     static constexpr float SLOT_SPACING       = 4.0f;
     static constexpr float GAP_AFTER_TITLE    = 6.0f;
+    static constexpr float SECTION_GAP        = 8.0f;
     static constexpr float TITLE_H            = 20.0f;
     static constexpr float TEXT_SCALE         = 0.3f;
     static constexpr float TITLE_SCALE        = 0.4f;
@@ -63,7 +65,10 @@ public:
 private:
     float getPanelWidth() const  { return COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2.0f * PANEL_PADDING; }
     float getPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
-                                        + ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + PANEL_PADDING; }
+                                        + ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING
+                                        + SECTION_GAP + TITLE_H + GAP_AFTER_TITLE
+                                        + ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING
+                                        + PANEL_PADDING; }
     float getPanelX() const;
     float getPanelY() const;
 
@@ -78,6 +83,11 @@ private:
     {
         return x >= cachedSlotX[i] and x <= cachedSlotX[i] + SLOT_SIZE
            and y >= cachedSlotY[i] and y <= cachedSlotY[i] + SLOT_SIZE;
+    }
+    bool isClickOnOutputSlot(size_t i, float x, float y) const
+    {
+        return x >= cachedOutputSlotX[i] and x <= cachedOutputSlotX[i] + SLOT_SIZE
+           and y >= cachedOutputSlotY[i] and y <= cachedOutputSlotY[i] + SLOT_SIZE;
     }
 
     void setEntityVisibility(uint64_t id, bool vis);
@@ -101,6 +111,8 @@ private:
     // Cached slot positions for hit testing
     float cachedSlotX[NUM_SLOTS] = {};
     float cachedSlotY[NUM_SLOTS] = {};
+    float cachedOutputSlotX[NUM_OUTPUT_SLOTS] = {};
+    float cachedOutputSlotY[NUM_OUTPUT_SLOTS] = {};
 
     // Entity IDs
     uint64_t backdropEntityId = 0;
@@ -108,4 +120,10 @@ private:
     uint64_t slotBgEntityId[NUM_SLOTS]   = {};
     uint64_t slotItemEntityId[NUM_SLOTS] = {};
     uint64_t slotCountEntityId[NUM_SLOTS] = {};
+
+    // Output section
+    uint64_t outputTitleEntityId = 0;
+    uint64_t outputSlotBgEntityId[NUM_OUTPUT_SLOTS]   = {};
+    uint64_t outputSlotItemEntityId[NUM_OUTPUT_SLOTS] = {};
+    uint64_t outputSlotCountEntityId[NUM_OUTPUT_SLOTS] = {};
 };

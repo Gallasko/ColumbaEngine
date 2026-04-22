@@ -2,6 +2,7 @@
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
+#include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
 
@@ -13,6 +14,7 @@ void HudBarSystem::init()
 void HudBarSystem::onEvent(const TickEvent&)
 {
     updateMissionButtonVisibility();
+    updateTicketDisplay();
 }
 
 void HudBarSystem::onProcessEvent(const OnMouseClick& event)
@@ -127,4 +129,82 @@ bool HudBarSystem::isClickOnButton(size_t idx, float x, float y) const
 
     return x >= buttonX[idx] and x <= buttonX[idx] + BUTTON_SIZE
        and y >= buttonY[idx] and y <= buttonY[idx] + BUTTON_SIZE;
+}
+
+void HudBarSystem::createTicketDisplay()
+{
+    // Position below the mission button
+    float cx = buttonX[BTN_MISSIONS];
+    float cy = buttonY[BTN_MISSIONS] + BUTTON_SIZE + 6.0f;
+
+    // Background pill
+    auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+        constant::Vector4D{30.0f, 30.0f, 40.0f, 180.0f});
+    auto bgPos = bg.get<PositionComponent>();
+    bgPos->setX(cx - 4.0f);
+    bgPos->setY(cy);
+    bgPos->setZ(95.0f);
+    bgPos->setWidth(BUTTON_SIZE + 8.0f);
+    bgPos->setHeight(20.0f);
+    bgPos->setVisibility(false);
+    bg.get<ViewportComponent>()->setViewport(UI_VP);
+    ticketBgId = bg.entity->id;
+
+    // Ticket icon (small)
+    auto icon = make2DTexture(ecsRef, 14.0f, 14.0f, "PixelwoodIcons.103");
+    auto iconPos = icon.get<PositionComponent>();
+    iconPos->setX(cx);
+    iconPos->setY(cy + 3.0f);
+    iconPos->setZ(96.0f);
+    iconPos->setVisibility(false);
+    icon.get<ViewportComponent>()->setViewport(UI_VP);
+    ticketIconId = icon.entity->id;
+
+    // Count text
+    auto txt = makeTTFText(ecsRef, cx + 16.0f, cy + 2.0f, 97.0f,
+        FONT_PATH, "0", TEXT_SCALE, {255.0f, 220.0f, 100.0f, 255.0f});
+    txt.get<PositionComponent>()->setVisibility(false);
+    txt.get<ViewportComponent>()->setViewport(UI_VP);
+    ticketTextId = txt.entity->id;
+}
+
+void HudBarSystem::updateTicketDisplay()
+{
+    if (not playerInv)
+        return;
+
+    // Count tickets in player inventory
+    uint16_t count = 0;
+    for (const auto& slot : playerInv->getInventory().slots)
+    {
+        if (slot.id == TICKET_ID)
+            count += slot.count;
+    }
+
+    bool shouldShow = count > 0;
+
+    if (shouldShow and ticketBgId == 0)
+        createTicketDisplay();
+
+    if (shouldShow != ticketDisplayVisible)
+    {
+        ticketDisplayVisible = shouldShow;
+        auto setVis = [this](uint64_t id, bool vis) {
+            if (id == 0) return;
+            auto ent = ecsRef->getEntity(id);
+            if (ent)
+                ent->get<PositionComponent>()->setVisibility(vis);
+        };
+        setVis(ticketBgId, shouldShow);
+        setVis(ticketIconId, shouldShow);
+        setVis(ticketTextId, shouldShow);
+    }
+
+    if (shouldShow and count != lastTicketCount)
+    {
+        lastTicketCount = count;
+        auto ent = ecsRef->getEntity(ticketTextId);
+        if (ent and ent->has<TTFText>())
+            ent->get<TTFText>()->setText(std::to_string(count));
+    }
 }

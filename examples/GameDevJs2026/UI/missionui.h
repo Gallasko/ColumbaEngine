@@ -49,9 +49,12 @@ public:
     virtual std::string getSystemName() const override { return "Mission UI System"; }
 
     bool isOpen() const { return visible; }
+    bool isSelectingDepot() const { return pendingStart.active; }
     void toggle();
     void open();
     void close();
+    void selectDepot(int depotX, int depotY);
+    void cancelDepotSelection();
 
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onProcessEvent(const OnSDLScanCode& event) override;

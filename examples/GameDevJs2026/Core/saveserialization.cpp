@@ -221,6 +221,7 @@ namespace pg
         serialize(archive, "ownerX", value.ownerX);
         serialize(archive, "ownerY", value.ownerY);
         serialize(archive, "inventory", value.inventory);
+        serialize(archive, "output", value.output);
         archive.endSerialization();
     }
 
@@ -233,6 +234,7 @@ namespace pg
         defaultDeserialize(s, "ownerX", result.ownerX);
         defaultDeserialize(s, "ownerY", result.ownerY);
         defaultDeserialize(s, "inventory", result.inventory);
+        defaultDeserialize(s, "output", result.output);
 
         return result;
     }

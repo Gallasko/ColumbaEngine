@@ -38,6 +38,11 @@ void DepotUISystem::close()
         setEntityVisibility(slotItemEntityId[i],  false);
         setEntityVisibility(slotCountEntityId[i], false);
     }
+    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
+    {
+        setEntityVisibility(outputSlotItemEntityId[i],  false);
+        setEntityVisibility(outputSlotCountEntityId[i], false);
+    }
 
     setPanelVisibility(false);
     visible = false;
@@ -98,6 +103,21 @@ void DepotUISystem::onProcessEvent(const OnMouseClick& event)
             return;
         }
     }
+
+    // Output slots — pick up only (no dropping)
+    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
+    {
+        if (isClickOnOutputSlot(i, event.pos.x, event.pos.y))
+        {
+            if (not inventoryUI->hasHeldItem())
+            {
+                auto& slot = depot->output.getSlot(i);
+                inventoryUI->pickUpFromExternal(slot);
+                refreshAllSlots();
+            }
+            return;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +156,9 @@ void DepotUISystem::setPanelVisibility(bool vis)
     setEntityVisibility(titleEntityId,    vis);
     for (size_t i = 0; i < NUM_SLOTS; ++i)
         setEntityVisibility(slotBgEntityId[i], vis);
+    setEntityVisibility(outputTitleEntityId, vis);
+    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
+        setEntityVisibility(outputSlotBgEntityId[i], vis);
 }
 
 void DepotUISystem::createPanel()
@@ -170,7 +193,7 @@ void DepotUISystem::createPanel()
         titleEntityId = t.entity->id;
     }
 
-    // Slot backgrounds + item/count entities
+    // Input slot backgrounds + item/count entities
     for (size_t i = 0; i < NUM_SLOTS; ++i)
     {
         size_t col = i % COLS;
@@ -207,6 +230,58 @@ void DepotUISystem::createPanel()
         countTxt.get<PositionComponent>()->setVisibility(false);
         countTxt.get<ViewportComponent>()->setViewport(UI_VP);
         slotCountEntityId[i] = countTxt.entity->id;
+    }
+
+    // --- Output section ---
+    float outputStartY = slotsStartY + ROWS * (SLOT_SIZE + SLOT_SPACING) + SECTION_GAP;
+
+    // Output title
+    {
+        auto t = makeTTFText(ecsRef,
+            panelX + PANEL_PADDING, outputStartY + 4.0f, 100.0f,
+            FONT_PATH, "Output", TITLE_SCALE, {180.0f, 180.0f, 200.0f, 255.0f});
+        t.get<ViewportComponent>()->setViewport(UI_VP);
+        outputTitleEntityId = t.entity->id;
+    }
+
+    float outputSlotsStartY = outputStartY + TITLE_H + GAP_AFTER_TITLE;
+
+    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
+    {
+        size_t col = i % COLS;
+        size_t row = i / COLS;
+
+        float sx = panelX + PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
+        float sy = outputSlotsStartY + row * (SLOT_SIZE + SLOT_SPACING);
+
+        cachedOutputSlotX[i] = sx;
+        cachedOutputSlotY[i] = sy;
+
+        // Slot background (slightly different color for output)
+        auto slotBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+            constant::Vector4D{45.0f, 55.0f, 50.0f, 200.0f});
+        auto pos = slotBg.get<PositionComponent>();
+        pos->setX(sx); pos->setY(sy); pos->setZ(98.0f);
+        pos->setWidth(SLOT_SIZE); pos->setHeight(SLOT_SIZE);
+        slotBg.get<ViewportComponent>()->setViewport(UI_VP);
+        outputSlotBgEntityId[i] = slotBg.entity->id;
+
+        // Item texture
+        float offset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
+        auto itemTex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
+        auto iPos = itemTex.get<PositionComponent>();
+        iPos->setX(sx + offset); iPos->setY(sy + offset); iPos->setZ(99.0f);
+        iPos->setVisibility(false);
+        itemTex.get<ViewportComponent>()->setViewport(UI_VP);
+        outputSlotItemEntityId[i] = itemTex.entity->id;
+
+        // Count text
+        auto countTxt = makeTTFText(ecsRef,
+            sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 100.0f,
+            FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
+        countTxt.get<PositionComponent>()->setVisibility(false);
+        countTxt.get<ViewportComponent>()->setViewport(UI_VP);
+        outputSlotCountEntityId[i] = countTxt.entity->id;
     }
 }
 
@@ -258,8 +333,17 @@ void DepotUISystem::refreshSlot(size_t slotIndex)
 
 void DepotUISystem::refreshAllSlots()
 {
+    DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
+    if (not depot) return;
+
     for (size_t i = 0; i < NUM_SLOTS; ++i)
         refreshSlot(i);
+
+    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
+    {
+        const auto& stack = depot->output.getSlot(i);
+        refreshItemSlotDisplay(outputSlotItemEntityId[i], outputSlotCountEntityId[i], stack);
+    }
 }
 
 // ---------------------------------------------------------------------------

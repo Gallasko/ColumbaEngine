@@ -11,7 +11,8 @@ using namespace pg;
 struct DepotData
 {
     int ownerX = 0, ownerY = 0;
-    Inventory inventory{4}; // 4 slots for Robot Cores in / rewards out
+    Inventory inventory{4}; // 4 input slots (Robot Cores, delivery items)
+    Inventory output{4};    // 4 output slots (mission rewards)
 };
 
 class DepotSystem : public System<Listener<BuildingPlacedEvent>,

@@ -38,16 +38,45 @@ void MissionUISystem::close()
     setPanelVisibility(false);
 }
 
+void MissionUISystem::selectDepot(int depotX, int depotY)
+{
+    if (not pendingStart.active)
+        return;
+
+    size_t defIndex = pendingStart.defIndex;
+    pendingStart.active = false;
+
+    if (missionSystem->startMission(defIndex, depotX, depotY))
+    {
+        printf("MissionUI: mission started at depot (%d, %d)\n", depotX, depotY);
+        open();
+    }
+    else
+    {
+        printf("MissionUI: failed to start mission at depot (%d, %d)\n", depotX, depotY);
+        open();
+    }
+}
+
+void MissionUISystem::cancelDepotSelection()
+{
+    pendingStart.active = false;
+    printf("MissionUI: depot selection cancelled\n");
+}
+
 // ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
 
 void MissionUISystem::onProcessEvent(const OnSDLScanCode& event)
 {
-    if (not visible)
-        return;
     if (event.key == SDL_SCANCODE_ESCAPE)
-        close();
+    {
+        if (pendingStart.active)
+            cancelDepotSelection();
+        else if (visible)
+            close();
+    }
 }
 
 void MissionUISystem::onEvent(const TickEvent&)
@@ -79,14 +108,19 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
         return;
     }
 
-    // Available mission GO buttons
+    // Available mission GO buttons — enter depot selection mode
     const auto& defs = missionSystem->getDefs();
     for (size_t i = 0; i < MAX_DEF_ROWS and i < defs.size(); ++i)
     {
         if (isClickInRect(mx, my, defRows[i].btnX, defRows[i].btnY, BTN_W, BTN_H))
         {
             if (missionSystem->canStartMission(i))
-                tryStartWithFirstAvailableDepot(i);
+            {
+                pendingStart.defIndex = i;
+                pendingStart.active = true;
+                close();
+                printf("MissionUI: select a depot to start '%s'\n", defs[i].name.c_str());
+            }
             return;
         }
     }

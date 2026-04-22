@@ -50,8 +50,16 @@ void DepotSystem::unregisterDepot(int x, int y)
     {
         auto& depot = it->second;
 
-        // Return all items to player
+        // Return all items to player (input + output)
         for (auto& slot : depot.inventory.slots)
+        {
+            if (not slot.isEmpty())
+            {
+                sendEvent(PlayerGainItemEvent{slot.id, slot.count});
+                slot.clear();
+            }
+        }
+        for (auto& slot : depot.output.slots)
         {
             if (not slot.isEmpty())
             {

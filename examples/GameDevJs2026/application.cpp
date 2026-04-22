@@ -289,7 +289,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* missionUI = ecs.createSystem<MissionUISystem>(
             missionSystem, depotSystem, playerInvSystem, screenW, screenH);
 
-        auto* hudBar = ecs.createSystem<HudBarSystem>(inventoryUI, worldFacts, screenW, screenH);
+        auto* hudBar = ecs.createSystem<HudBarSystem>(inventoryUI, playerInvSystem, worldFacts, screenW, screenH);
         hudBar->setMissionUIToggle([missionUI]() { missionUI->toggle(); });
 
         ecs.createSystem<AutoSaveSystem>();

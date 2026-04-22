@@ -184,39 +184,44 @@ bool MissionSystem::claimMission(size_t activeIndex)
         }
     }
 
-    // Deposit rewards into linked depot
-    if (not depot)
+    // Distribute rewards: tickets go to player, other items to depot output
+    for (const auto& reward : def.rewards)
     {
-        // Depot was removed — give rewards directly to player
-        for (const auto& reward : def.rewards)
-            sendEvent(PlayerGainItemEvent{reward.itemId, reward.count});
-    }
-    else
-    {
-        for (const auto& reward : def.rewards)
+        if (reward.itemId == TICKET_ID)
         {
-            // Try to insert into depot; overflow goes to player
-            uint16_t left = reward.count;
-            for (auto& slot : depot->inventory.slots)
-            {
-                if (left == 0) break;
-                if (slot.isEmpty())
-                {
-                    slot.id = reward.itemId;
-                    slot.count = left;
-                    left = 0;
-                }
-                else if (slot.id == reward.itemId and slot.count < 999)
-                {
-                    uint16_t space = 999 - slot.count;
-                    uint16_t add = std::min(left, space);
-                    slot.count += add;
-                    left -= add;
-                }
-            }
-            if (left > 0)
-                sendEvent(PlayerGainItemEvent{reward.itemId, left});
+            // Tickets always go to player inventory as currency
+            sendEvent(PlayerGainItemEvent{reward.itemId, reward.count});
+            continue;
         }
+
+        if (not depot)
+        {
+            // Depot was removed — give directly to player
+            sendEvent(PlayerGainItemEvent{reward.itemId, reward.count});
+            continue;
+        }
+
+        // Non-ticket rewards go to depot output slots
+        uint16_t left = reward.count;
+        for (auto& slot : depot->output.slots)
+        {
+            if (left == 0) break;
+            if (slot.isEmpty())
+            {
+                slot.id = reward.itemId;
+                slot.count = left;
+                left = 0;
+            }
+            else if (slot.id == reward.itemId and slot.count < 999)
+            {
+                uint16_t space = 999 - slot.count;
+                uint16_t add = std::min(left, space);
+                slot.count += add;
+                left -= add;
+            }
+        }
+        if (left > 0)
+            sendEvent(PlayerGainItemEvent{reward.itemId, left});
     }
 
     // Set completion fact for tier gating
