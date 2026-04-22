@@ -50,9 +50,5 @@ private:
     size_t sessionElapsedMs = 0;
     size_t totalPlayTimeMs  = 0;
 
-    // Heartbeat: send a lightweight ping every 60s
-    size_t heartbeatAccMs   = 0;
-    static constexpr size_t HEARTBEAT_INTERVAL_MS = 60000;
-
     bool exitSent = false;
 };

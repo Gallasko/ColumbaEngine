@@ -13,7 +13,6 @@ AnalyticsSystem::AnalyticsSystem()
 void AnalyticsSystem::onEvent(const TickEvent& event)
 {
     sessionElapsedMs += static_cast<size_t>(event.tick);
-    heartbeatAccMs   += static_cast<size_t>(event.tick);
 }
 
 void AnalyticsSystem::onEvent(const OnSDLScanCode& event)
@@ -52,12 +51,6 @@ void AnalyticsSystem::execute()
         printf("[Analytics] session %s started\n", sessionId.c_str());
     }
 
-    // Periodic heartbeat
-    if (heartbeatAccMs >= HEARTBEAT_INTERVAL_MS)
-    {
-        heartbeatAccMs -= HEARTBEAT_INTERVAL_MS;
-        sendToNeon("heartbeat", "");
-    }
 }
 
 // --- SaveSys: persist cumulative play time across sessions ---
