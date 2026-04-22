@@ -271,6 +271,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             worldFacts, inventoryUI, screenW, screenH);
 
         machineUI->setCraftingUI(craftingUI);
+        depotUI->setCraftingUI(craftingUI);
 
         ecs.createSystem<TweenSystem>();
 

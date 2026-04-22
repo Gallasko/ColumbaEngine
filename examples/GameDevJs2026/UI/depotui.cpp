@@ -1,4 +1,5 @@
 #include "depotui.h"
+#include "craftingui.h"
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
@@ -21,6 +22,10 @@ void DepotUISystem::open(int gridX, int gridY)
 
     if (inventoryUI and not inventoryUI->isOpen())
         inventoryUI->openInventory();
+
+    // Close crafting UI — depot's mission panel takes its place on the right
+    if (craftingUI)
+        craftingUI->close();
 
     ensurePanelCreated();
     setPanelVisibility(true);
@@ -48,6 +53,10 @@ void DepotUISystem::close()
     visible = false;
     openDepotX = -1;
     openDepotY = -1;
+
+    // Re-open crafting UI if inventory is still open (depot closed independently)
+    if (craftingUI and inventoryUI and inventoryUI->isOpen())
+        craftingUI->open();
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +189,20 @@ float DepotUISystem::getPanelY() const
     return (screenHeight - getPanelHeight()) * 0.5f;
 }
 
+float DepotUISystem::getMissionPanelX() const
+{
+    float invW = InventoryUISystem::COLS * InventoryUISystem::SLOT_SIZE
+               + (InventoryUISystem::COLS - 1) * InventoryUISystem::SLOT_SPACING
+               + 2.0f * InventoryUISystem::PANEL_PADDING;
+    float invX = (screenWidth - invW) * 0.5f;
+    return invX + invW + GAP_BETWEEN_PANELS;
+}
+
+float DepotUISystem::getMissionPanelY() const
+{
+    return (screenHeight - getMissionPanelHeight()) * 0.5f;
+}
+
 // ---------------------------------------------------------------------------
 // Panel creation
 // ---------------------------------------------------------------------------
@@ -202,7 +225,8 @@ void DepotUISystem::setPanelVisibility(bool vis)
     for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
         setEntityVisibility(outputSlotBgEntityId[i], vis);
 
-    // Mission section — section title is always shown; rows are managed by refresh
+    // Mission panel (right side)
+    setEntityVisibility(missionPanelBackdropId, vis);
     setEntityVisibility(missionSectionTitleId, vis);
     if (not vis)
     {
@@ -347,9 +371,25 @@ void DepotUISystem::createPanel()
         outputSlotCountEntityId[i] = countTxt.entity->id;
     }
 
-    // --- Mission section ---
-    float missionStartY = outputSlotsStartY + ROWS * (SLOT_SIZE + SLOT_SPACING) + SECTION_GAP;
-    createMissionSection(missionStartY);
+    // --- Mission panel (RIGHT of inventory) ---
+    {
+        float rightX = getMissionPanelX();
+        float rightY = getMissionPanelY();
+        float rightW = getMissionPanelWidth();
+        float rightH = getMissionPanelHeight();
+
+        auto bd = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+            constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
+        auto pos = bd.get<PositionComponent>();
+        pos->setX(rightX); pos->setY(rightY); pos->setZ(97.0f);
+        pos->setWidth(rightW); pos->setHeight(rightH);
+        bd.get<ViewportComponent>()->setViewport(UI_VP);
+        missionPanelBackdropId = bd.entity->id;
+
+        ecsRef->attach<MouseLeftClickComponent>(bd.entity,
+            makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
+    }
+    createMissionSection();
 }
 
 // ---------------------------------------------------------------------------
@@ -419,11 +459,11 @@ void DepotUISystem::refreshAllSlots()
 // Mission section
 // ---------------------------------------------------------------------------
 
-void DepotUISystem::createMissionSection(float startY)
+void DepotUISystem::createMissionSection()
 {
-    float panelX = getPanelX();
-    float panelW = getPanelWidth();
-    float curY = startY;
+    float panelX = getMissionPanelX();
+    float panelW = getMissionPanelWidth();
+    float curY = getMissionPanelY() + PANEL_PADDING;
 
     // Section title
     {
@@ -577,7 +617,7 @@ void DepotUISystem::refreshMissionSection()
         setEntityVisibility(activeMissionProgressBgId, true);
         setEntityVisibility(activeMissionProgressFillId, true);
         {
-            float panelW = getPanelWidth();
+            float panelW = getMissionPanelWidth();
             float pbW = panelW - 2.0f * PANEL_PADDING;
             auto fillEnt = ecsRef->getEntity(activeMissionProgressFillId);
             if (fillEnt)

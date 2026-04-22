@@ -8,6 +8,8 @@
 #include "playerinventory.h"
 #include "missionsystem.h"
 
+class CraftingUISystem;
+
 using namespace pg;
 
 // Side-panel UI for Depot (tileId 10).
@@ -58,6 +60,8 @@ public:
 
     virtual std::string getSystemName() const override { return "Depot UI System"; }
 
+    void setCraftingUI(CraftingUISystem* ui) { craftingUI = ui; }
+
     bool isOpen() const { return visible; }
 
     void open(int gridX, int gridY);
@@ -80,11 +84,17 @@ private:
                                         + ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING
                                         + SECTION_GAP + TITLE_H + GAP_AFTER_TITLE
                                         + ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING
-                                        + SECTION_GAP + TITLE_H + GAP_AFTER_TITLE
-                                        + MAX_MISSION_ROWS * (MISSION_ROW_H + MISSION_ROW_GAP)
                                         + PANEL_PADDING; }
     float getPanelX() const;
     float getPanelY() const;
+
+    // Mission panel (RIGHT of inventory)
+    float getMissionPanelWidth() const  { return getPanelWidth(); }
+    float getMissionPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
+                                              + MAX_MISSION_ROWS * (MISSION_ROW_H + MISSION_ROW_GAP)
+                                              + PANEL_PADDING; }
+    float getMissionPanelX() const;
+    float getMissionPanelY() const;
 
     void ensurePanelCreated();
     void setPanelVisibility(bool vis);
@@ -110,7 +120,7 @@ private:
                                 const ItemStack& stack);
 
     // Mission section
-    void createMissionSection(float startY);
+    void createMissionSection();
     void refreshMissionSection();
 
     // --- Members ---
@@ -120,6 +130,7 @@ private:
     PlayerInventorySystem* playerInv = nullptr;
     InventoryUISystem* inventoryUI = nullptr;
     MissionSystem* missionSystem = nullptr;
+    CraftingUISystem* craftingUI = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
@@ -147,7 +158,8 @@ private:
     uint64_t outputSlotItemEntityId[NUM_OUTPUT_SLOTS] = {};
     uint64_t outputSlotCountEntityId[NUM_OUTPUT_SLOTS] = {};
 
-    // Mission section
+    // Mission panel (right side)
+    uint64_t missionPanelBackdropId = 0;
     uint64_t missionSectionTitleId = 0;
 
     // Active mission display (when depot has an active mission)

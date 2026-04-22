@@ -90,6 +90,9 @@ public:
 
     bool isOpen() const { return visible; }
 
+    void open();
+    void close();
+
     void init() override {}
 
     // Switch the recipe list to show recipes for the given machine type.
@@ -130,11 +133,6 @@ public:
     virtual void onProcessEvent(const OnMouseClick& event) override;
 
 private:
-    // --- Open / close --------------------------------------------------
-
-    void open();
-    void close();
-
     // --- Layout --------------------------------------------------------
 
     float getPanelHeight() const;

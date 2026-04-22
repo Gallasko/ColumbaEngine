@@ -68,6 +68,8 @@ public:
     size_t getActiveMissionIndexForDepot(int x, int y) const;
 
 private:
+    void autoClaimAndRestart(ActiveMission& m);
+
     MissionRegistry* missionRegistry = nullptr;
     DepotSystem* depotSystem = nullptr;
     WorldFacts* worldFacts = nullptr;

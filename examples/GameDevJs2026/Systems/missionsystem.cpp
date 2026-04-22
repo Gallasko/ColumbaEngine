@@ -66,15 +66,32 @@ void MissionSystem::execute()
         {
             // Check if linked depot has all required items
             if (getDeliveryProgress(m) >= 1.0f)
-                m.completed = true;
+            {
+                if (def->repeatable)
+                {
+                    // Auto-claim: consume items, give rewards, restart
+                    autoClaimAndRestart(m);
+                }
+                else
+                {
+                    m.completed = true;
+                }
+            }
         }
         else
         {
             m.elapsedMs += dt;
             if (m.elapsedMs >= def->durationMs)
             {
-                m.completed = true;
-                m.elapsedMs = def->durationMs;
+                if (def->repeatable)
+                {
+                    autoClaimAndRestart(m);
+                }
+                else
+                {
+                    m.completed = true;
+                    m.elapsedMs = def->durationMs;
+                }
             }
         }
     }
@@ -241,6 +258,80 @@ bool MissionSystem::claimMission(size_t activeIndex)
     // Remove from active list
     activeMissions.erase(activeMissions.begin() + static_cast<ptrdiff_t>(activeIndex));
     return true;
+}
+
+void MissionSystem::autoClaimAndRestart(ActiveMission& m)
+{
+    const auto& def = missionRegistry->get(m.defIndex);
+
+    // Consume delivered items from depot
+    DepotData* depot = depotSystem->getDepot(m.depotX, m.depotY);
+    if (def.isDeliveryMission() and depot)
+    {
+        for (const auto& req : def.deliveryRequirements)
+        {
+            uint16_t remaining = req.count;
+            for (auto& slot : depot->inventory.slots)
+            {
+                if (remaining == 0) break;
+                if (slot.id == req.itemId)
+                {
+                    uint16_t take = std::min(slot.count, remaining);
+                    slot.count -= take;
+                    remaining -= take;
+                    if (slot.count == 0)
+                        slot.clear();
+                }
+            }
+        }
+    }
+
+    // Distribute rewards
+    for (const auto& reward : def.rewards)
+    {
+        if (reward.itemId == TICKET_ID)
+        {
+            sendEvent(PlayerGainItemEvent{reward.itemId, reward.count});
+            continue;
+        }
+
+        if (not depot)
+        {
+            sendEvent(PlayerGainItemEvent{reward.itemId, reward.count});
+            continue;
+        }
+
+        uint16_t left = reward.count;
+        for (auto& slot : depot->output.slots)
+        {
+            if (left == 0) break;
+            if (slot.isEmpty())
+            {
+                slot.id = reward.itemId;
+                slot.count = left;
+                left = 0;
+            }
+            else if (slot.id == reward.itemId and slot.count < 999)
+            {
+                uint16_t space = 999 - slot.count;
+                uint16_t add = std::min(left, space);
+                slot.count += add;
+                left -= add;
+            }
+        }
+        if (left > 0)
+            sendEvent(PlayerGainItemEvent{reward.itemId, left});
+    }
+
+    // Set completion fact
+    if (not def.completionFact.empty() and worldFacts)
+        worldFacts->setFact(def.completionFact, true);
+
+    // Reset mission for next cycle
+    m.elapsedMs = 0;
+    m.completed = false;
+
+    printf("MissionSystem: auto-claimed '%s' (repeatable)\n", def.name.c_str());
 }
 
 void MissionSystem::purchaseExtraSlot()

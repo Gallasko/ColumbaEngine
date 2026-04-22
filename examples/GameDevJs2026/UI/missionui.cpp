@@ -610,7 +610,7 @@ void MissionUISystem::showDepotSelectionPrompt()
         float bannerW = 300.0f;
         float bannerH = 32.0f;
         float bx = (screenWidth - bannerW) * 0.5f;
-        float by = 40.0f;
+        float by = 80.0f;
 
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
