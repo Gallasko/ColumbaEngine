@@ -103,42 +103,93 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
         return;
     }
 
-    // Available mission GO buttons — enter depot selection mode
-    const auto& defs = missionSystem->getDefs();
-    for (size_t i = 0; i < MAX_DEF_ROWS and i < defs.size(); ++i)
+    // Tab clicks
+    for (size_t t = 0; t < NUM_TABS; ++t)
+    {
+        if (isClickInRect(mx, my, tabButtons[t].x, tabButtons[t].y,
+                          tabButtons[t].w, TAB_H))
+        {
+            switchTab(t);
+            return;
+        }
+    }
+
+    // Available mission buttons
+    for (size_t i = 0; i < MAX_DEF_ROWS and i < filteredDefs.size(); ++i)
     {
         if (isClickInRect(mx, my, defRows[i].btnX, defRows[i].btnY, BTN_W, BTN_H))
         {
-            if (missionSystem->canStartMission(i))
+            size_t defIndex = filteredDefs[i];
+
+            if (currentTab == 0)
             {
-                pendingStart.defIndex = i;
-                pendingStart.active = true;
-                close();
-                showDepotSelectionPrompt();
+                // Main tab: validate from player inventory
+                missionSystem->validateMainMission(defIndex);
+            }
+            else if (currentTab == 1)
+            {
+                // Missions tab: enter depot selection
+                if (missionSystem->canStartMission(defIndex))
+                {
+                    pendingStart.defIndex = defIndex;
+                    pendingStart.active = true;
+                    close();
+                    showDepotSelectionPrompt();
+                }
             }
             return;
         }
     }
 
-    // Active mission CLAIM buttons
-    const auto& active = missionSystem->getActive();
-    for (size_t i = 0; i < MAX_ACTIVE_ROWS and i < active.size(); ++i)
+    // Active mission CLAIM buttons (tab 1 only)
+    if (currentTab == 1)
     {
-        if (isClickInRect(mx, my, activeRows[i].btnX, activeRows[i].btnY, BTN_W, BTN_H))
+        const auto& active = missionSystem->getActive();
+        for (size_t i = 0; i < MAX_ACTIVE_ROWS and i < active.size(); ++i)
         {
-            if (active[i].completed)
-                missionSystem->claimMission(i);
-            return;
+            if (isClickInRect(mx, my, activeRows[i].btnX, activeRows[i].btnY, BTN_W, BTN_H))
+            {
+                if (active[i].completed)
+                    missionSystem->claimMission(i);
+                return;
+            }
         }
     }
 
-    // Shop buy button
-    if (isClickInRect(mx, my, shopBtnX, shopBtnY, BTN_W, BTN_H))
+    // Shop buy button (tab 2 only)
+    if (currentTab == 2)
     {
-        uint32_t cost = static_cast<uint32_t>(missionSystem->getExtraSlotCost());
-        if (playerInv and playerInv->spendTickets(cost))
-            missionSystem->purchaseExtraSlot();
+        if (isClickInRect(mx, my, shopBtnX, shopBtnY, BTN_W, BTN_H))
+        {
+            uint32_t cost = static_cast<uint32_t>(missionSystem->getExtraSlotCost());
+            if (playerInv and playerInv->spendTickets(cost))
+                missionSystem->purchaseExtraSlot();
+        }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+
+void MissionUISystem::switchTab(size_t tab)
+{
+    if (tab == currentTab)
+        return;
+    currentTab = tab;
+    refresh();
+}
+
+std::vector<size_t> MissionUISystem::getFilteredDefs(MissionCategory cat) const
+{
+    std::vector<size_t> result;
+    const auto& defs = missionSystem->getDefs();
+    for (size_t i = 0; i < defs.size(); ++i)
+    {
+        if (defs[i].category == cat)
+            result.push_back(i);
+    }
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -154,12 +205,10 @@ void MissionUISystem::tryStartWithFirstAvailableDepot(size_t defIndex)
     {
         if (def.robotCoreCost == 0)
         {
-            // No core cost — use the first depot found
             missionSystem->startMission(defIndex, depot.ownerX, depot.ownerY);
             return;
         }
 
-        // Count cores in this depot
         uint16_t cores = 0;
         for (const auto& slot : depot.inventory.slots)
         {
@@ -194,12 +243,11 @@ void MissionUISystem::ensurePanelCreated()
 
 void MissionUISystem::createPanel()
 {
-    // Calculate panel height
-    size_t numDefs = std::min(missionSystem->getDefs().size(), MAX_DEF_ROWS);
+    // Fixed panel height accommodating the largest tab content
     panelH = PADDING + TITLE_H
-           + SECTION_H + numDefs * (ROW_H + ROW_GAP)
+           + TAB_H + TAB_GAP
+           + SECTION_H + MAX_DEF_ROWS * (ROW_H + ROW_GAP)
            + SECTION_H + MAX_ACTIVE_ROWS * (ROW_H + ROW_GAP)
-           + SECTION_H + ROW_H
            + PADDING;
 
     float px = getPanelX();
@@ -246,7 +294,36 @@ void MissionUISystem::createPanel()
     }
     curY += TITLE_H;
 
-    // --- Available section ---
+    // --- Tab bar ---
+    {
+        static const char* TAB_LABELS[NUM_TABS] = {"Main", "Missions", "Shop"};
+        float contentW = PANEL_W - 2.0f * PADDING;
+        float tabW = (contentW - (NUM_TABS - 1) * 2.0f) / NUM_TABS;
+
+        for (size_t t = 0; t < NUM_TABS; ++t)
+        {
+            float tx = px + PADDING + t * (tabW + 2.0f);
+            tabButtons[t].x = tx;
+            tabButtons[t].y = curY;
+            tabButtons[t].w = tabW;
+
+            auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+                constant::Vector4D{50.0f, 50.0f, 65.0f, 200.0f});
+            auto pos = bg.get<PositionComponent>();
+            pos->setX(tx); pos->setY(curY); pos->setZ(98.5f);
+            pos->setWidth(tabW); pos->setHeight(TAB_H);
+            bg.get<ViewportComponent>()->setViewport(UI_VP);
+            tabButtons[t].bgId = bg.entity->id;
+
+            auto txt = makeTTFText(ecsRef, tx + 8.0f, curY + 4.0f, 100.0f,
+                FONT_PATH, TAB_LABELS[t], BTN_TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
+            txt.get<ViewportComponent>()->setViewport(UI_VP);
+            tabButtons[t].textId = txt.entity->id;
+        }
+    }
+    curY += TAB_H + TAB_GAP;
+
+    // --- Available section header ---
     {
         auto h = makeTTFText(ecsRef, px + PADDING, curY, 100.0f,
             FONT_PATH, "AVAILABLE:", TEXT_SCALE, {180.0f, 180.0f, 200.0f, 255.0f});
@@ -255,7 +332,7 @@ void MissionUISystem::createPanel()
     }
     curY += SECTION_H;
 
-    size_t numDefRows = std::min(missionSystem->getDefs().size(), MAX_DEF_ROWS);
+    // --- Available rows (with req icons) ---
     for (size_t i = 0; i < MAX_DEF_ROWS; ++i)
     {
         float rowY = curY + i * (ROW_H + ROW_GAP);
@@ -276,11 +353,31 @@ void MissionUISystem::createPanel()
         name.get<ViewportComponent>()->setViewport(UI_VP);
         row.nameId = name.entity->id;
 
-        // Info (cost + duration)
-        auto info = makeTTFText(ecsRef, px + PADDING + 180.0f, rowY + 4.0f, 100.0f,
+        // Info text (fallback for timed missions)
+        auto info = makeTTFText(ecsRef, px + PADDING + 160.0f, rowY + 4.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {180.0f, 180.0f, 180.0f, 255.0f});
         info.get<ViewportComponent>()->setViewport(UI_VP);
         row.infoId = info.entity->id;
+
+        // Delivery requirement icons + counts
+        for (size_t r = 0; r < MAX_REQS; ++r)
+        {
+            float rx = px + PADDING + 160.0f + r * 44.0f;
+            float ry = rowY + (ROW_H - REQ_ICON_SIZE) * 0.5f;
+
+            auto icon = make2DTexture(ecsRef, REQ_ICON_SIZE, REQ_ICON_SIZE, "Items.0");
+            auto iconPos = icon.get<PositionComponent>();
+            iconPos->setX(rx); iconPos->setY(ry); iconPos->setZ(99.0f);
+            iconPos->setVisibility(false);
+            icon.get<ViewportComponent>()->setViewport(UI_VP);
+            row.reqs[r].iconId = icon.entity->id;
+
+            auto cnt = makeTTFText(ecsRef, rx + REQ_ICON_SIZE + 2.0f, rowY + 4.0f, 100.0f,
+                FONT_PATH, "", TEXT_SCALE, {220.0f, 220.0f, 220.0f, 255.0f});
+            cnt.get<PositionComponent>()->setVisibility(false);
+            cnt.get<ViewportComponent>()->setViewport(UI_VP);
+            row.reqs[r].countTextId = cnt.entity->id;
+        }
 
         // Button
         float bx = px + PANEL_W - PADDING - BTN_W - 4.0f;
@@ -300,9 +397,9 @@ void MissionUISystem::createPanel()
         btnTxt.get<ViewportComponent>()->setViewport(UI_VP);
         row.btnTextId = btnTxt.entity->id;
     }
-    curY += numDefRows * (ROW_H + ROW_GAP);
+    curY += MAX_DEF_ROWS * (ROW_H + ROW_GAP);
 
-    // --- Active section ---
+    // --- Active section header ---
     {
         auto h = makeTTFText(ecsRef, px + PADDING, curY, 100.0f,
             FONT_PATH, "ACTIVE:", TEXT_SCALE, {180.0f, 180.0f, 200.0f, 255.0f});
@@ -311,12 +408,12 @@ void MissionUISystem::createPanel()
     }
     curY += SECTION_H;
 
+    // --- Active rows ---
     for (size_t i = 0; i < MAX_ACTIVE_ROWS; ++i)
     {
         float rowY = curY + i * (ROW_H + ROW_GAP);
         auto& row = activeRows[i];
 
-        // Row bg
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{35.0f, 35.0f, 45.0f, 180.0f});
         auto pos = bg.get<PositionComponent>();
@@ -325,13 +422,11 @@ void MissionUISystem::createPanel()
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         row.bgId = bg.entity->id;
 
-        // Name
-        auto name = makeTTFText(ecsRef, px + PADDING + 4.0f, rowY + 4.0f, 100.0f,
+        auto nameE = makeTTFText(ecsRef, px + PADDING + 4.0f, rowY + 4.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        name.get<ViewportComponent>()->setViewport(UI_VP);
-        row.nameId = name.entity->id;
+        nameE.get<ViewportComponent>()->setViewport(UI_VP);
+        row.nameId = nameE.entity->id;
 
-        // Progress bar bg
         float pbX = px + PADDING + 140.0f;
         float pbY = rowY + (ROW_H - PROGRESS_H) * 0.5f;
         float pbW = 100.0f;
@@ -344,7 +439,6 @@ void MissionUISystem::createPanel()
         pbBg.get<ViewportComponent>()->setViewport(UI_VP);
         row.progressBgId = pbBg.entity->id;
 
-        // Progress bar fill
         auto pbFill = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{80.0f, 160.0f, 80.0f, 220.0f});
         auto pfPos = pbFill.get<PositionComponent>();
@@ -353,13 +447,11 @@ void MissionUISystem::createPanel()
         pbFill.get<ViewportComponent>()->setViewport(UI_VP);
         row.progressFillId = pbFill.entity->id;
 
-        // Status text (percent or "DONE")
         auto status = makeTTFText(ecsRef, pbX + pbW + 4.0f, rowY + 4.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {180.0f, 180.0f, 180.0f, 255.0f});
         status.get<ViewportComponent>()->setViewport(UI_VP);
         row.statusId = status.entity->id;
 
-        // CLAIM button
         float bx = px + PANEL_W - PADDING - BTN_W - 4.0f;
         row.btnX = bx;
         row.btnY = rowY + 3.0f;
@@ -379,24 +471,20 @@ void MissionUISystem::createPanel()
     }
     curY += MAX_ACTIVE_ROWS * (ROW_H + ROW_GAP);
 
-    // --- Shop section ---
+    // --- Shop section (tab 2 content, placed after active area) ---
+    // Reuse same curY area as active section for shop (they're never shown together)
     {
-        auto h = makeTTFText(ecsRef, px + PADDING, curY, 100.0f,
-            FONT_PATH, "SHOP:", TEXT_SCALE, {180.0f, 180.0f, 200.0f, 255.0f});
-        h.get<ViewportComponent>()->setViewport(UI_VP);
-        shopHeaderId = h.entity->id;
-    }
-    curY += SECTION_H;
+        // Position shop content where active section header would be
+        float shopY = py + PADDING + TITLE_H + TAB_H + TAB_GAP + SECTION_H;
 
-    {
-        auto lbl = makeTTFText(ecsRef, px + PADDING + 4.0f, curY + 4.0f, 100.0f,
+        auto lbl = makeTTFText(ecsRef, px + PADDING + 4.0f, shopY + 4.0f, 100.0f,
             FONT_PATH, "Extra Mission Slot", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
         lbl.get<ViewportComponent>()->setViewport(UI_VP);
         shopLabelId = lbl.entity->id;
 
         float bx = px + PANEL_W - PADDING - BTN_W - 4.0f;
         shopBtnX = bx;
-        shopBtnY = curY + 3.0f;
+        shopBtnY = shopY + 3.0f;
 
         auto btnBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{180.0f, 160.0f, 60.0f, 200.0f});
@@ -419,37 +507,53 @@ void MissionUISystem::createPanel()
 
 void MissionUISystem::setPanelVisibility(bool vis)
 {
+    // Chrome (always visible when panel is open)
     setEntityVisibility(backdropId, vis);
     setEntityVisibility(titleTextId, vis);
     setEntityVisibility(closeBtnBgId, vis);
     setEntityVisibility(closeBtnTextId, vis);
-    setEntityVisibility(availHeaderId, vis);
-    setEntityVisibility(activeHeaderId, vis);
-    setEntityVisibility(shopHeaderId, vis);
-    setEntityVisibility(shopLabelId, vis);
-    setEntityVisibility(shopBtnBgId, vis);
-    setEntityVisibility(shopBtnTextId, vis);
 
-    for (size_t i = 0; i < MAX_DEF_ROWS; ++i)
+    for (size_t t = 0; t < NUM_TABS; ++t)
     {
-        auto& r = defRows[i];
-        setEntityVisibility(r.bgId, vis);
-        setEntityVisibility(r.nameId, vis);
-        setEntityVisibility(r.infoId, vis);
-        setEntityVisibility(r.btnBgId, vis);
-        setEntityVisibility(r.btnTextId, vis);
+        setEntityVisibility(tabButtons[t].bgId, vis);
+        setEntityVisibility(tabButtons[t].textId, vis);
     }
 
-    for (size_t i = 0; i < MAX_ACTIVE_ROWS; ++i)
+    // Content — let refresh() handle per-row visibility
+    if (not vis)
     {
-        auto& r = activeRows[i];
-        setEntityVisibility(r.bgId, vis);
-        setEntityVisibility(r.nameId, vis);
-        setEntityVisibility(r.progressBgId, vis);
-        setEntityVisibility(r.progressFillId, vis);
-        setEntityVisibility(r.statusId, vis);
-        setEntityVisibility(r.btnBgId, vis);
-        setEntityVisibility(r.btnTextId, vis);
+        setEntityVisibility(availHeaderId, false);
+        for (size_t i = 0; i < MAX_DEF_ROWS; ++i)
+        {
+            auto& r = defRows[i];
+            setEntityVisibility(r.bgId, false);
+            setEntityVisibility(r.nameId, false);
+            setEntityVisibility(r.infoId, false);
+            setEntityVisibility(r.btnBgId, false);
+            setEntityVisibility(r.btnTextId, false);
+            for (size_t j = 0; j < MAX_REQS; ++j)
+            {
+                setEntityVisibility(r.reqs[j].iconId, false);
+                setEntityVisibility(r.reqs[j].countTextId, false);
+            }
+        }
+
+        setEntityVisibility(activeHeaderId, false);
+        for (size_t i = 0; i < MAX_ACTIVE_ROWS; ++i)
+        {
+            auto& r = activeRows[i];
+            setEntityVisibility(r.bgId, false);
+            setEntityVisibility(r.nameId, false);
+            setEntityVisibility(r.progressBgId, false);
+            setEntityVisibility(r.progressFillId, false);
+            setEntityVisibility(r.statusId, false);
+            setEntityVisibility(r.btnBgId, false);
+            setEntityVisibility(r.btnTextId, false);
+        }
+
+        setEntityVisibility(shopLabelId, false);
+        setEntityVisibility(shopBtnBgId, false);
+        setEntityVisibility(shopBtnTextId, false);
     }
 }
 
@@ -465,81 +569,180 @@ void MissionUISystem::refresh()
     const auto& defs = missionSystem->getDefs();
     const auto& active = missionSystem->getActive();
 
-    // Update available mission rows
+    // Update tab styling
+    for (size_t t = 0; t < NUM_TABS; ++t)
+    {
+        auto bgEnt = ecsRef->getEntity(tabButtons[t].bgId);
+        if (bgEnt)
+        {
+            if (t == currentTab)
+                bgEnt->get<Simple2DObject>()->setColors({70.0f, 70.0f, 100.0f, 240.0f});
+            else
+                bgEnt->get<Simple2DObject>()->setColors({40.0f, 40.0f, 55.0f, 200.0f});
+        }
+    }
+
+    // Filter defs for current tab
+    bool showAvail = (currentTab == 0 or currentTab == 1);
+    bool showActive = (currentTab == 1);
+    bool showShop = (currentTab == 2);
+
+    if (showAvail)
+    {
+        MissionCategory cat = (currentTab == 0) ? MissionCategory::Main : MissionCategory::Endgame;
+        filteredDefs = getFilteredDefs(cat);
+    }
+    else
+    {
+        filteredDefs.clear();
+    }
+
+    // --- Available section ---
+    setEntityVisibility(availHeaderId, showAvail);
+
     for (size_t i = 0; i < MAX_DEF_ROWS; ++i)
     {
         auto& row = defRows[i];
-        bool show = i < defs.size();
+        bool show = showAvail and i < filteredDefs.size();
 
         setEntityVisibility(row.bgId, show);
         setEntityVisibility(row.nameId, show);
-        setEntityVisibility(row.infoId, show);
         setEntityVisibility(row.btnBgId, show);
         setEntityVisibility(row.btnTextId, show);
 
         if (not show)
+        {
+            setEntityVisibility(row.infoId, false);
+            for (size_t r = 0; r < MAX_REQS; ++r)
+            {
+                setEntityVisibility(row.reqs[r].iconId, false);
+                setEntityVisibility(row.reqs[r].countTextId, false);
+            }
             continue;
+        }
 
-        const auto& def = defs[i];
+        size_t defIndex = filteredDefs[i];
+        const auto& def = defs[defIndex];
         setEntityText(row.nameId, def.name);
 
-        std::string info;
-        if (def.isDeliveryMission())
+        // Show delivery requirements with icons or fallback text
+        if (def.isDeliveryMission() and itemRegistry)
         {
-            for (const auto& req : def.deliveryRequirements)
-                info += std::to_string(req.count) + "x #" + std::to_string(req.itemId) + " ";
+            setEntityVisibility(row.infoId, false);
+            for (size_t r = 0; r < MAX_REQS; ++r)
+            {
+                bool hasReq = r < def.deliveryRequirements.size();
+                setEntityVisibility(row.reqs[r].iconId, hasReq);
+                setEntityVisibility(row.reqs[r].countTextId, hasReq);
+
+                if (hasReq)
+                {
+                    const auto& req = def.deliveryRequirements[r];
+                    setEntityTexture(row.reqs[r].iconId, itemRegistry->get(req.itemId).textureName);
+                    setEntityText(row.reqs[r].countTextId, std::to_string(req.count));
+                }
+            }
         }
         else
         {
-            info = std::to_string(def.durationMs / 1000) + "s  "
-                 + std::to_string(def.robotCoreCost) + " Core";
+            // Timed mission: show duration + core cost as text
+            for (size_t r = 0; r < MAX_REQS; ++r)
+            {
+                setEntityVisibility(row.reqs[r].iconId, false);
+                setEntityVisibility(row.reqs[r].countTextId, false);
+            }
+            setEntityVisibility(row.infoId, true);
+            std::string info = std::to_string(def.durationMs / 1000) + "s  "
+                             + std::to_string(def.robotCoreCost) + " Core";
+            setEntityText(row.infoId, info);
         }
-        setEntityText(row.infoId, info);
 
-        bool unlocked = missionSystem->isMissionUnlocked(i);
-        bool canStart = missionSystem->canStartMission(i);
-        bool completed = missionSystem->isMissionCompleted(i);
+        // Button state
+        bool unlocked = missionSystem->isMissionUnlocked(defIndex);
+        bool completed = missionSystem->isMissionCompleted(defIndex);
 
-        if (not unlocked)
+        if (currentTab == 0)
         {
-            setEntityText(row.btnTextId, "LOCKED");
-            auto btnEnt = ecsRef->getEntity(row.btnBgId);
-            if (btnEnt)
-                btnEnt->get<Simple2DObject>()->setColors({80.0f, 80.0f, 80.0f, 200.0f});
-        }
-        else if (not def.repeatable and completed)
-        {
-            setEntityText(row.btnTextId, "DONE");
-            auto btnEnt = ecsRef->getEntity(row.btnBgId);
-            if (btnEnt)
-                btnEnt->get<Simple2DObject>()->setColors({60.0f, 60.0f, 80.0f, 200.0f});
-        }
-        else if (not canStart)
-        {
-            setEntityText(row.btnTextId, "FULL");
-            auto btnEnt = ecsRef->getEntity(row.btnBgId);
-            if (btnEnt)
-                btnEnt->get<Simple2DObject>()->setColors({80.0f, 80.0f, 80.0f, 200.0f});
+            // Main tab: GO button greyed out unless player has all items
+            if (not unlocked)
+            {
+                setEntityText(row.btnTextId, "LOCKED");
+                auto btnEnt = ecsRef->getEntity(row.btnBgId);
+                if (btnEnt)
+                    btnEnt->get<Simple2DObject>()->setColors({80.0f, 80.0f, 80.0f, 200.0f});
+            }
+            else if (completed)
+            {
+                setEntityText(row.btnTextId, "DONE");
+                auto btnEnt = ecsRef->getEntity(row.btnBgId);
+                if (btnEnt)
+                    btnEnt->get<Simple2DObject>()->setColors({60.0f, 60.0f, 80.0f, 200.0f});
+            }
+            else if (missionSystem->canValidateMainMission(defIndex))
+            {
+                setEntityText(row.btnTextId, "GO");
+                auto btnEnt = ecsRef->getEntity(row.btnBgId);
+                if (btnEnt)
+                    btnEnt->get<Simple2DObject>()->setColors({60.0f, 120.0f, 60.0f, 200.0f});
+            }
+            else
+            {
+                setEntityText(row.btnTextId, "GO");
+                auto btnEnt = ecsRef->getEntity(row.btnBgId);
+                if (btnEnt)
+                    btnEnt->get<Simple2DObject>()->setColors({80.0f, 80.0f, 80.0f, 200.0f});
+            }
         }
         else
         {
-            setEntityText(row.btnTextId, "GO");
-            auto btnEnt = ecsRef->getEntity(row.btnBgId);
-            if (btnEnt)
-                btnEnt->get<Simple2DObject>()->setColors({60.0f, 120.0f, 60.0f, 200.0f});
+            // Missions tab: existing GO / LOCKED / DONE / FULL states
+            bool canStart = missionSystem->canStartMission(defIndex);
+
+            if (not unlocked)
+            {
+                setEntityText(row.btnTextId, "LOCKED");
+                auto btnEnt = ecsRef->getEntity(row.btnBgId);
+                if (btnEnt)
+                    btnEnt->get<Simple2DObject>()->setColors({80.0f, 80.0f, 80.0f, 200.0f});
+            }
+            else if (not def.repeatable and completed)
+            {
+                setEntityText(row.btnTextId, "DONE");
+                auto btnEnt = ecsRef->getEntity(row.btnBgId);
+                if (btnEnt)
+                    btnEnt->get<Simple2DObject>()->setColors({60.0f, 60.0f, 80.0f, 200.0f});
+            }
+            else if (not canStart)
+            {
+                setEntityText(row.btnTextId, "FULL");
+                auto btnEnt = ecsRef->getEntity(row.btnBgId);
+                if (btnEnt)
+                    btnEnt->get<Simple2DObject>()->setColors({80.0f, 80.0f, 80.0f, 200.0f});
+            }
+            else
+            {
+                setEntityText(row.btnTextId, "GO");
+                auto btnEnt = ecsRef->getEntity(row.btnBgId);
+                if (btnEnt)
+                    btnEnt->get<Simple2DObject>()->setColors({60.0f, 120.0f, 60.0f, 200.0f});
+            }
         }
     }
 
-    // Update active header
-    std::string activeHeader = "ACTIVE (" + std::to_string(active.size()) + "/"
-                              + std::to_string(missionSystem->getMaxActive()) + "):";
-    setEntityText(activeHeaderId, activeHeader);
+    // --- Active section (tab 1 only) ---
+    setEntityVisibility(activeHeaderId, showActive);
 
-    // Update active mission rows
+    if (showActive)
+    {
+        std::string activeHeader = "ACTIVE (" + std::to_string(active.size()) + "/"
+                                  + std::to_string(missionSystem->getMaxActive()) + "):";
+        setEntityText(activeHeaderId, activeHeader);
+    }
+
     for (size_t i = 0; i < MAX_ACTIVE_ROWS; ++i)
     {
         auto& row = activeRows[i];
-        bool show = i < active.size();
+        bool show = showActive and i < active.size();
 
         setEntityVisibility(row.bgId, show);
         setEntityVisibility(row.nameId, show);
@@ -566,7 +769,6 @@ void MissionUISystem::refresh()
                 : 1.0f;
         if (progress > 1.0f) progress = 1.0f;
 
-        // Update progress bar fill width
         auto fillEnt = ecsRef->getEntity(row.progressFillId);
         if (fillEnt)
             fillEnt->get<PositionComponent>()->setWidth(100.0f * progress);
@@ -580,7 +782,6 @@ void MissionUISystem::refresh()
         }
         else if (def.isDeliveryMission())
         {
-            // Show delivery count for first requirement
             const auto& req = def.deliveryRequirements[0];
             uint16_t have = missionSystem->getDeliveryCount(m, req);
             setEntityText(row.statusId, std::to_string(have) + "/" + std::to_string(req.count));
@@ -592,10 +793,17 @@ void MissionUISystem::refresh()
         }
     }
 
-    // Update shop
-    size_t cost = missionSystem->getExtraSlotCost();
-    std::string shopLabel = "Extra Mission Slot  " + std::to_string(cost) + " Tickets";
-    setEntityText(shopLabelId, shopLabel);
+    // --- Shop section (tab 2 only) ---
+    setEntityVisibility(shopLabelId, showShop);
+    setEntityVisibility(shopBtnBgId, showShop);
+    setEntityVisibility(shopBtnTextId, showShop);
+
+    if (showShop)
+    {
+        size_t cost = missionSystem->getExtraSlotCost();
+        std::string shopLabel = "Extra Mission Slot  " + std::to_string(cost) + " Tickets";
+        setEntityText(shopLabelId, shopLabel);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -606,7 +814,6 @@ void MissionUISystem::showDepotSelectionPrompt()
 {
     if (promptBgId == 0)
     {
-        // Create the prompt entities (once, lazily)
         float bannerW = 300.0f;
         float bannerH = 32.0f;
         float bx = (screenWidth - bannerW) * 0.5f;
@@ -659,6 +866,14 @@ void MissionUISystem::setEntityText(uint64_t id, const std::string& text)
     auto ent = ecsRef->getEntity(id);
     if (ent and ent->has<TTFText>())
         ent->get<TTFText>()->setText(text);
+}
+
+void MissionUISystem::setEntityTexture(uint64_t id, const std::string& textureName)
+{
+    if (id == 0) return;
+    auto ent = ecsRef->getEntity(id);
+    if (ent and ent->has<Texture2DComponent>())
+        ent->get<Texture2DComponent>()->setTexture(textureName);
 }
 
 bool MissionUISystem::isClickInRect(float cx, float cy, float rx, float ry, float rw, float rh) const

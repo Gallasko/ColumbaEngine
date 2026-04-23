@@ -266,7 +266,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             storageSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
 
         // MissionSystem must exist before DepotUI (depot panel shows mission section)
-        auto* missionSystem = ecs.createSystem<MissionSystem>(&missionRegistry, depotSystem, worldFacts);
+        auto* missionSystem = ecs.createSystem<MissionSystem>(&missionRegistry, depotSystem, worldFacts, playerInvSystem, &itemRegistry);
 
         auto* depotUI = ecs.createSystem<DepotUISystem>(
             depotSystem, &itemRegistry, playerInvSystem, inventoryUI,
@@ -300,7 +300,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         craftingUI->setMachineDemo(machineDemo);
 
         auto* missionUI = ecs.createSystem<MissionUISystem>(
-            missionSystem, depotSystem, playerInvSystem, screenW, screenH);
+            missionSystem, depotSystem, playerInvSystem, &itemRegistry, screenW, screenH);
 
         auto* hudBar = ecs.createSystem<HudBarSystem>(inventoryUI, playerInvSystem, worldFacts, screenW, screenH);
         hudBar->setMissionUIToggle([missionUI]() { missionUI->toggle(); });

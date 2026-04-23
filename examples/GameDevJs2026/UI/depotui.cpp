@@ -704,7 +704,7 @@ void DepotUISystem::refreshMissionSection()
             if (defs[d].isDeliveryMission())
             {
                 for (const auto& req : defs[d].deliveryRequirements)
-                    info += std::to_string(req.count) + "x #" + std::to_string(req.itemId) + " ";
+                    info += std::to_string(req.count) + "x " + itemRegistry->get(req.itemId).name + " ";
             }
             else
             {

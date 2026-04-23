@@ -96,7 +96,7 @@ MissionRegistry createDefaultMissionRegistry()
         {{35, 1}}, // reward: 1 Ticket
         "mission_electronics", "completed_scout",
         {{5, 10}}, // deliver: 10 Iron Plates
-        true // repeatable
+        true, MissionCategory::Endgame
     });
 
     // World Expedition
@@ -105,7 +105,8 @@ MissionRegistry createDefaultMissionRegistry()
         "Unlock map extensions.",
         1, 60000, // 1 core, 60s
         {{35, 5}, {2, 10}, {3, 5}}, // 5 Tickets, 10 Copper Ore, 5 Coal
-        "completed_scout", "completed_mineral"
+        "completed_scout", "completed_mineral",
+        {}, false, MissionCategory::Endgame
     });
 
     // Deep Mining
@@ -114,7 +115,8 @@ MissionRegistry createDefaultMissionRegistry()
         "Venture deep underground for valuable materials.",
         2, 90000, // 2 cores, 90s
         {{35, 8}, {5, 5}, {4, 5}}, // 8 Tickets, 5 Iron Plate, 5 Stone
-        "completed_mineral", "completed_deep"
+        "completed_mineral", "completed_deep",
+        {}, false, MissionCategory::Endgame
     });
 
     // Factory Salvage
@@ -123,7 +125,8 @@ MissionRegistry createDefaultMissionRegistry()
         "Salvage parts from an abandoned factory.",
         2, 120000, // 2 cores, 120s
         {{35, 12}, {9, 2}, {7, 3}}, // 12 Tickets, 2 Circuit, 3 Iron Gear
-        "completed_deep", "completed_salvage"
+        "completed_deep", "completed_salvage",
+        {}, false, MissionCategory::Endgame
     });
 
     // Frontier Exploration
@@ -132,7 +135,8 @@ MissionRegistry createDefaultMissionRegistry()
         "Push into unknown territory. High reward.",
         3, 180000, // 3 cores, 180s
         {{35, 20}}, // 20 Tickets
-        "completed_salvage", "completed_frontier"
+        "completed_salvage", "completed_frontier",
+        {}, false, MissionCategory::Endgame
     });
 
     return reg;

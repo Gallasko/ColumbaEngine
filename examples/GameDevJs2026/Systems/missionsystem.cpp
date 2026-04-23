@@ -375,6 +375,50 @@ float MissionSystem::getDeliveryProgress(const ActiveMission& m) const
     return static_cast<float>(totalDelivered) / static_cast<float>(totalRequired);
 }
 
+bool MissionSystem::canValidateMainMission(size_t defIndex) const
+{
+    if (defIndex >= missionRegistry->count() or not playerInv)
+        return false;
+
+    const auto& def = missionRegistry->get(defIndex);
+    if (def.category != MissionCategory::Main)
+        return false;
+    if (not isMissionUnlocked(defIndex))
+        return false;
+    if (not def.repeatable and isMissionCompleted(defIndex))
+        return false;
+
+    for (const auto& req : def.deliveryRequirements)
+    {
+        if (not playerInv->hasItem(req.itemId, req.count))
+            return false;
+    }
+    return true;
+}
+
+bool MissionSystem::validateMainMission(size_t defIndex)
+{
+    if (not canValidateMainMission(defIndex))
+        return false;
+
+    const auto& def = missionRegistry->get(defIndex);
+
+    // Consume items from player inventory
+    for (const auto& req : def.deliveryRequirements)
+        playerInv->getInventory().remove(req.itemId, req.count);
+
+    // Distribute rewards
+    for (const auto& reward : def.rewards)
+        sendEvent(PlayerGainItemEvent{reward.itemId, reward.count});
+
+    // Set completion fact
+    if (not def.completionFact.empty() and worldFacts)
+        worldFacts->setFact(def.completionFact, true);
+
+    printf("MissionSystem: validated main mission '%s' from player inventory\n", def.name.c_str());
+    return true;
+}
+
 bool MissionSystem::isMissionCompleted(size_t defIndex) const
 {
     if (defIndex >= missionRegistry->count())

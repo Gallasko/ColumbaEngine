@@ -25,8 +25,10 @@ public:
     static constexpr ItemId ROBOT_CORE_ID = 33;
     static constexpr ItemId TICKET_ID = 35;
 
-    MissionSystem(MissionRegistry* missionRegistry, DepotSystem* depotSystem, WorldFacts* worldFacts)
-        : missionRegistry(missionRegistry), depotSystem(depotSystem), worldFacts(worldFacts)
+    MissionSystem(MissionRegistry* missionRegistry, DepotSystem* depotSystem, WorldFacts* worldFacts,
+                  PlayerInventorySystem* playerInv = nullptr, ItemRegistry* itemRegistry = nullptr)
+        : missionRegistry(missionRegistry), depotSystem(depotSystem), worldFacts(worldFacts),
+          playerInv(playerInv), itemRegistry(itemRegistry)
     {
     }
 
@@ -61,6 +63,10 @@ public:
     uint16_t getDeliveryCount(const ActiveMission& m, const DeliveryRequirement& req) const;
     float getDeliveryProgress(const ActiveMission& m) const;
 
+    // Main quest: validate directly from player inventory (no depot needed)
+    bool canValidateMainMission(size_t defIndex) const;
+    bool validateMainMission(size_t defIndex);
+
     // Repeatable / depot helpers
     bool isMissionCompleted(size_t defIndex) const;
     bool hasActiveMissionAtDepot(int x, int y) const;
@@ -73,6 +79,8 @@ private:
     MissionRegistry* missionRegistry = nullptr;
     DepotSystem* depotSystem = nullptr;
     WorldFacts* worldFacts = nullptr;
+    PlayerInventorySystem* playerInv = nullptr;
+    ItemRegistry* itemRegistry = nullptr;
 
     std::vector<ActiveMission> activeMissions;
     size_t maxActiveMissions = DEFAULT_MAX_ACTIVE;

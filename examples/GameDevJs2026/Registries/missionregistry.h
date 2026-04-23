@@ -8,6 +8,12 @@
 
 #include "itemregistry.h"
 
+enum class MissionCategory : uint8_t
+{
+    Main,    // Progression chain — validates from player inventory
+    Endgame  // Repeatable/timed — uses depot delivery
+};
+
 struct MissionReward
 {
     ItemId itemId;
@@ -31,6 +37,7 @@ struct MissionDef
     std::string completionFact; // Fact to set on first completion
     std::vector<DeliveryRequirement> deliveryRequirements; // Non-empty = delivery mission
     bool repeatable = false;    // If true, can be started again after completion
+    MissionCategory category = MissionCategory::Main;
 
     bool isDeliveryMission() const { return !deliveryRequirements.empty(); }
 };
