@@ -264,6 +264,11 @@ set(ENGINESOURCE
     src/Engine/Files/filemanager.cpp
     src/Engine/Files/fileparser.cpp
     src/Engine/Profiler/profiler.cpp
+    src/Engine/Init/coresystems.cpp
+    src/Engine/Init/rendersystems.cpp
+    src/Engine/Init/inputsystems.cpp
+    src/Engine/Init/uisystems.cpp
+    src/Engine/Init/audiosystems.cpp
     src/Engine/Helpers/fsm.cpp
     src/Engine/Helpers/openglobject.cpp
     src/Engine/Helpers/tinyfiledialogs.cpp

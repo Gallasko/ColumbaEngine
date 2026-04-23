@@ -3,10 +3,9 @@
 #include <algorithm>
 #include <unordered_set>
 
-#include "renderer.h"
+#include "Renderer/rendercall.h"
 
 #include "ECS/entitysystem.h"
-#include "ECS/system.h"
 
 namespace pg
 {

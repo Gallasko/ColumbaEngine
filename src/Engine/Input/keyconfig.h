@@ -2,7 +2,7 @@
 
 #include "ECS/system.h"
 
-#include "Input/inputcomponent.h"
+#include "Input/sdlevents.h"
 
 #ifdef __EMSCRIPTEN__
     #include <SDL2/SDL.h>

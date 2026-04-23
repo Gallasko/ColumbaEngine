@@ -10,51 +10,40 @@
 #include "ECS/entitysystem.h"
 #include "ECS/loggersystem.h"
 #include "ECS/ecsmodule.h"
-#include "Input/inputcomponent.h"
 
 #include "Renderer/renderer.h"
-#include "Renderer/renderermodule.h"
 
 #include "Input/input.h"
+#include "Input/inputcomponent.h"
 #include "Input/inputmodule.h"
 
-#include "UI/uisystem.h"
 #include "UI/focusable.h"
-#include "UI/progressbar.h"
-#include "UI/textinput.h"
-#include "UI/sentencesystem.h"
 
 #ifdef PROFILE
 #include "Profiler/profiler.h"
 #endif
-#include "UI/listview.h"
-#include "UI/prefab.h"
-#include "UI/sizer.h"
-#include "UI/animation.h"
-#include "UI/namedanchor.h"
 
 #include "2D/position.h"
-#include "2D/simple2dobject.h"
-#include "2D/texture.h"
-
-#include "Scene/scenemanager.h"
 
 #include "Interpreter/pginterpreter.h"
 #include "Interpreter/systemfunction.h"
 
+#include "Systems/coresystems.h"
 #include "Systems/coremodule.h"
 #include "Systems/logmodule.h"
-#include "Systems/oneventcomponent.h"
 #include "Systems/shape2Dmodule.h"
 #include "Systems/timemodule.h"
-#include "Systems/sentencemodule.h"
 #include "Systems/texture2Dmodule.h"
 #include "Systems/scenemodule.h"
 
 #include "Audio/audiosystem.h"
 #include "Audio/audiomodule.h"
 
-// #include "GameElements/Systems/basicsystems.h"
+#include "Init/coresystems.h"
+#include "Init/rendersystems.h"
+#include "Init/inputsystems.h"
+#include "Init/uisystems.h"
+#include "Init/audiosystems.h"
 
 #include "logger.h"
 #include "serialization.h"
@@ -393,104 +382,15 @@ namespace pg
 
         // glViewport(0, 0, width, height);
 
-        ecs->createSystem<EntityNameSystem>();
+        registerCoreSystems(ecs);
 
-        ecs->createSystem<TickingSystem>();
+        masterRenderer = registerRenderSystems(ecs, interpreter, width, height);
 
-        ecs->createSystem<TimerSystem>();
+        registerUiSystems(ecs);
 
-        ecs->createSystem<TerminalLogSystem>();
+        registerInputSystems(ecs, inputHandler);
 
-        ecs->createSystem<FocusableSystem>();
-
-        // [Start] Master render definition
-
-        masterRenderer = ecs->createSystem<MasterRenderer>("res/None.png");
-        interpreter->addSystemModule("renderer", RendererModule{masterRenderer});
-
-        // Configure the master renderer system
-        interpreter->interpretFromFile("res/setupRenderer.pg");
-
-        masterRenderer->setWindowSize(width, height);
-
-        // [End] Master render definition
-
-        ecs->createSystem<OnEventComponentSystem>();
-
-        // ecs->createSystem<UiComponentSystem>();
-
-        ecs->createSystem<PositionComponentSystem>();
-        ecs->createSystem<NamedUiAnchorSystem>();
-
-        ecs->createSystem<Simple2DObjectSystem>(masterRenderer);
-
-        ecs->createSystem<RoundedRect2DObjectSystem>(masterRenderer);
-
-        ecs->createSystem<Texture2DComponentSystem>(masterRenderer);
-
-        ecs->createSystem<ProgressBarComponentSystem>(masterRenderer);
-
-        // ecs->createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
-
-        ecs->createSystem<AnimationPositionSystem>();
-
-        // Todo fix for emscripten
-        audioSystem = ecs->createSystem<AudioSystem>();
-
-        // ecs->createSystem<FpsSystem>();
-
-        ecs->createSystem<MouseClickSystem>(inputHandler);
-
-        ecs->createSystem<MouseLeaveClickSystem>(inputHandler);
-
-        ecs->createSystem<MouseWheelSystem>(inputHandler);
-
-        ecs->createSystem<MouseHoverSystem>();
-
-        ecs->createSystem<TextInputSystem>(inputHandler);
-
-        ecs->createSystem<SceneElementSystem>();
-
-        ecs->createSystem<PrefabSystem>();
-
-        ecs->createSystem<LayoutSystem>();
-
-        ecs->createSystem<ListViewSystem>();
-
-        // Ecs task scheduling
-
-        ecs->succeed<TickingSystem, PgInterpreter>();
-
-        ecs->succeed<TimerSystem, TickingSystem>();
-
-        ecs->succeed<MouseClickSystem, TickingSystem>();
-
-        // ecs->succeed<UiComponentSystem, PrefabSystem>();
-        // ecs->succeed<UiComponentSystem, MouseClickSystem>();
-
-        ecs->succeed<LayoutSystem, PrefabSystem>();
-
-        ecs->succeed<PositionComponentSystem, PrefabSystem>();
-        ecs->succeed<PositionComponentSystem, NamedUiAnchorSystem>();
-        ecs->succeed<PositionComponentSystem, ProgressBarComponentSystem>();
-        ecs->succeed<PositionComponentSystem, ListViewSystem>();
-        ecs->succeed<PositionComponentSystem, LayoutSystem>();
-        ecs->succeed<PositionComponentSystem, TextInputComponent>();
-
-        ecs->succeed<AnimationPositionSystem, PositionComponentSystem>();
-
-        // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
-        ecs->succeed<MasterRenderer, Simple2DObjectSystem>();
-        ecs->succeed<MasterRenderer, RoundedRect2DObjectSystem>();
-        ecs->succeed<MasterRenderer, Texture2DComponentSystem>();
-        // ecs->succeed<MasterRenderer, SentenceSystem>();
-        ecs->succeed<MasterRenderer, ProgressBarComponentSystem>();
-        ecs->succeed<MasterRenderer, PrefabSystem>();
-
-        // ecs->succeed<MasterRenderer, UiComponentSystem>();
-        ecs->succeed<MasterRenderer, PositionComponentSystem>();
-
-        ecs->succeed<SceneElementSystem, MasterRenderer>();
+        audioSystem = registerAudioSystem(ecs);
 
         // Script to configure all the users systems
         interpreter->interpretFromFile("res/sysRegister.pg");
