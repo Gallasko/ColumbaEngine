@@ -575,6 +575,7 @@ namespace pg
     template <typename Sys, typename... Comps>
     void registerComponents(Sys *system, ComponentRegistry *registry, const tag<Comps>&... comps)
     {
+        (void)system; (void)registry;
         (registerOneComponent(system, registry, comps), ...);
     }
 
@@ -638,6 +639,7 @@ namespace pg
     template <typename Sys, typename... Comps>
     void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<Comps>&... comps)
     {
+        (void)system; (void)registry;
         (unregisterOneComponent(system, registry, comps), ...);
     }
 

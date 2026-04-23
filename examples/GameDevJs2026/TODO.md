@@ -37,3 +37,4 @@
 replacing belt actually destroy them
 Launching a hand craft and have it complete in the background make all the inventory items visible for nothing
 Remove entitysystem.h include from generated component headers (make the method be able to put in cpp)
+Move the generated component code to the build folder
