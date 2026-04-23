@@ -809,7 +809,7 @@ namespace pg
 
             if (not entity)
             {
-                LOG_WARNING(DOM, "Entity " << id << " not found");
+                // LOG_WARNING(DOM, "Entity " << id << " not found");
                 continue;
             }
 

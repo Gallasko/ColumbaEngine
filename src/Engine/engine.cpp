@@ -50,6 +50,8 @@ Engine::~Engine()
         delete initThread;
     }
 #endif
+
+    LOG_INFO(DOM, "Engine destroyed");
 }
 
 std::string Engine::constructSavePath() const
@@ -119,6 +121,30 @@ void Engine::initializeECS()
     try
     {
         mainWindow->initEngine();
+
+        // Version check: load manifest and compare against saved version
+        auto& saveManager = mainWindow->ecs->getSaveManager();
+        auto versionResult = versionManager.initialize(
+            config.manifestPath, saveManager,
+            config.autoWipeSaveOnMajorBump, config.autoRunMigrations);
+
+        if (versionResult.isMajorBump)
+        {
+            printf("Major version bump: save wiped (%s -> %s)\n",
+                   versionResult.oldVersion.toString().c_str(),
+                   versionResult.newVersion.toString().c_str());
+        }
+        else if (versionResult.isNewInstall)
+        {
+            printf("New install: version %s\n",
+                   versionResult.newVersion.toString().c_str());
+        }
+        else if (!versionResult.isSameVersion)
+        {
+            printf("Version updated: %s -> %s\n",
+                   versionResult.oldVersion.toString().c_str(),
+                   versionResult.newVersion.toString().c_str());
+        }
 
         printf("Config: %dx%d\n", config.width, config.height);
 

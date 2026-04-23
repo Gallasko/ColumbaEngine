@@ -209,6 +209,9 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Profiler/profiler.cpp
     # Core systems (provides EntityName component)
     src/Engine/Systems/coresystems.cpp
+    # Versioning
+    src/Engine/Versioning/manifest.cpp
+    src/Engine/Versioning/versionmanager.cpp
 )
 
 # Full engine source files
@@ -216,6 +219,8 @@ set(ENGINESOURCE
     src/Engine/engine.cpp
     src/Engine/window.cpp
     src/Engine/configuration.cpp
+    src/Engine/Versioning/manifest.cpp
+    src/Engine/Versioning/versionmanager.cpp
     src/Engine/logger.cpp
     src/Engine/serialization.cpp
     src/Engine/2D/animator2d.cpp

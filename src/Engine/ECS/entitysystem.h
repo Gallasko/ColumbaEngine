@@ -737,6 +737,8 @@ namespace pg
 
         inline ElementType getSavedData(const std::string& id) const { return saveManager.getValue(id); }
 
+        SaveManager& getSaveManager() { return saveManager; }
+
         /** Register a callback invoked after forceSaveNow() writes data to disk. */
         void registerOnExitCallback(std::function<void()> cb) { onExitCallbacks.push_back(std::move(cb)); }
 

@@ -39,6 +39,10 @@ using namespace pg;
 
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
+    auto config = engine.getConfig();
+    config.manifestPath = "res/gamedevjs/manifest.json";
+    engine.setConfig(config);
+
     registry = createDefaultBuildingRegistry();
     itemRegistry = createDefaultItemRegistry();
     missionRegistry = createDefaultMissionRegistry();
