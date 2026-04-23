@@ -1,14 +1,10 @@
 #include "stdafx.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-
 #include "simple2dobject.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 
 #include "logger.h"
-
-#include "Helpers/openglobject.h"
 
 namespace pg
 {

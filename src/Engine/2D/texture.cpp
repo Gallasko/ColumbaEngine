@@ -9,7 +9,6 @@
 
 #include "Helpers/openglobject.h"
 
-#include "Compiler/ecsserialization.h"
 
 namespace pg
 {
