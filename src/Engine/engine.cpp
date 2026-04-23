@@ -123,9 +123,8 @@ void Engine::initializeECS()
         mainWindow->initEngine();
 
         // Version check: load manifest and compare against saved version
-        auto& saveManager = mainWindow->ecs->getSaveManager();
         auto versionResult = versionManager.initialize(
-            config.manifestPath, saveManager,
+            config.manifestPath, *mainWindow->ecs,
             config.autoWipeSaveOnMajorBump, config.autoRunMigrations);
 
         if (versionResult.isMajorBump)

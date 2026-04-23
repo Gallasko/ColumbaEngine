@@ -739,6 +739,13 @@ namespace pg
 
         SaveManager& getSaveManager() { return saveManager; }
 
+        /** Clear all save data (simple key-value store AND system serialized data). */
+        void clearAllSaveData()
+        {
+            saveManager.clearSaveData();
+            registry.clearSystemSaveData();
+        }
+
         /** Register a callback invoked after forceSaveNow() writes data to disk. */
         void registerOnExitCallback(std::function<void()> cb) { onExitCallbacks.push_back(std::move(cb)); }
 

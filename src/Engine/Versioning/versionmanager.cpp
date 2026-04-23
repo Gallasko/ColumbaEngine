@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "Versioning/versionmanager.h"
 #include "ECS/savemanager.h"
+#include "ECS/entitysystem.h"
 #include "logger.h"
 
 namespace pg
@@ -13,7 +14,7 @@ namespace pg
     VersionManager::VersionManager() = default;
 
     VersionCheckResult VersionManager::initialize(
-        const std::string& manifestPath, SaveManager& saveManager,
+        const std::string& manifestPath, EntitySystem& ecs,
         bool autoWipe, bool autoMigrate)
     {
         LOG_INFO(DOM, "Initializing version manager...");
@@ -21,6 +22,8 @@ namespace pg
         manifest.loadFromFile(manifestPath);
 
         LOG_INFO(DOM, "Current game version: " << manifest.getVersion().toString());
+
+        auto& saveManager = ecs.getSaveManager();
 
         // Read saved version from the save file
         auto savedVersionElement = saveManager.getValue(manifest_keys::SAVE_VERSION_KEY);
@@ -44,7 +47,7 @@ namespace pg
 
             if (autoWipe)
             {
-                wipeSave(saveManager);
+                wipeSave(ecs);
             }
         }
         else if (!lastResult.isSameVersion && !lastResult.isNewInstall && !lastResult.isDowngrade)
@@ -68,14 +71,15 @@ namespace pg
                              manifest.getVersion().toString()));
     }
 
-    void VersionManager::wipeSave(SaveManager& saveManager)
+    void VersionManager::wipeSave(EntitySystem& ecs)
     {
         LOG_WARNING(DOM, "Wiping save data due to major version bump");
 
-        saveManager.clearSaveData();
+        // Clear both the simple key-value save data AND system serialized data
+        ecs.clearAllSaveData();
 
-        stampVersionInSave(saveManager);
-        saveManager.forceSave();
+        stampVersionInSave(ecs.getSaveManager());
+        ecs.getSaveManager().forceSave();
     }
 
     size_t VersionManager::runMigrations(SaveManager& saveManager)

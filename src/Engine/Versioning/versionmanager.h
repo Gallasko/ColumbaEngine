@@ -8,6 +8,7 @@
 namespace pg
 {
     class SaveManager;
+    class EntitySystem;
 
     class VersionManager
     {
@@ -17,14 +18,14 @@ namespace pg
         Manifest& getManifest() { return manifest; }
         const Manifest& getManifest() const { return manifest; }
 
-        VersionCheckResult initialize(const std::string& manifestPath, SaveManager& saveManager,
+        VersionCheckResult initialize(const std::string& manifestPath, EntitySystem& ecs,
                                       bool autoWipe = true, bool autoMigrate = true);
 
         const VersionCheckResult& getLastCheckResult() const { return lastResult; }
 
         void stampVersionInSave(SaveManager& saveManager);
 
-        void wipeSave(SaveManager& saveManager);
+        void wipeSave(EntitySystem& ecs);
 
         size_t runMigrations(SaveManager& saveManager);
 

@@ -489,6 +489,14 @@ namespace pg
             }
         }
 
+        /** Clear all serialized system data (e.g. on major version bump).
+         *  Clears in-memory map and flushes the empty state to disk. */
+        void clearSystemSaveData()
+        {
+            systemSerializer.clear();
+            systemSerializer.save();
+        }
+
         bool loadSystem(std::function<void(const UnserializedObject&)> f, const std::string& objectName)
         {
             const auto& map = systemSerializer.getSerializedMap();
