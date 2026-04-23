@@ -7,6 +7,7 @@
 #include "reciperegistry.h"
 #include "machinekey.h"
 #include "saveserialization.h"
+#include "worldfacts.h"
 
 using namespace pg;
 
@@ -40,9 +41,11 @@ public:
     static constexpr size_t ASSEMBLER_ANIM_FRAMES  = 4;
 
     CraftingSystem(GridSystem* gridSystem, TransportSystem* transportSystem,
-                   ItemRegistry* itemRegistry, RecipeRegistry* recipeRegistry)
+                   ItemRegistry* itemRegistry, RecipeRegistry* recipeRegistry,
+                   pg::WorldFacts* worldFacts = nullptr)
         : gridSystem(gridSystem), transportSystem(transportSystem),
-          itemRegistry(itemRegistry), recipeRegistry(recipeRegistry) {}
+          itemRegistry(itemRegistry), recipeRegistry(recipeRegistry),
+          worldFacts(worldFacts) {}
 
     virtual std::string getSystemName() const override { return "Crafting System"; }
 
@@ -80,6 +83,7 @@ private:
     TransportSystem* transportSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
     RecipeRegistry* recipeRegistry = nullptr;
+    pg::WorldFacts* worldFacts = nullptr;
 
     std::unordered_map<uint32_t, MachineData> machines;
     size_t tickAccumulator = 0;

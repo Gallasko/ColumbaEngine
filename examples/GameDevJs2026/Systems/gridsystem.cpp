@@ -50,6 +50,11 @@ void GridSystem::save(Archive& archive)
         }
     }
     serialize(archive, "buildings", buildings);
+
+    // Save starter depot position
+    serialize(archive, "starterDepotX", starterDepotX);
+    serialize(archive, "starterDepotY", starterDepotY);
+
     printf("GridSystem: saved %zu terrain cells, %zu buildings\n",
            terrainFlat.size(), buildings.size());
 }
@@ -110,6 +115,10 @@ void GridSystem::load(const UnserializedObject& serializedString)
             restoreBuilding(buildingLayer, sb.x, sb.y, *def,
                             sb.direction, sb.conveyorTileIndex, sb.enterDirection);
     }
+
+    // Restore starter depot position
+    defaultDeserialize(serializedString, "starterDepotX", starterDepotX);
+    defaultDeserialize(serializedString, "starterDepotY", starterDepotY);
 }
 
 void GridSystem::init()
@@ -121,6 +130,50 @@ void GridSystem::init()
 
     // Generate fresh terrain (load() will replace it if a save exists)
     generateAndRenderTerrain();
+
+    // Place the starter depot at map center (load() will override with saved state)
+    placeStarterDepot();
+}
+
+void GridSystem::placeStarterDepot()
+{
+    const BuildingDef* depotDef = registry->findByName("Depot");
+    if (not depotDef)
+        return;
+
+    int cx = Grid::WIDTH / 2 - 1;  // 15
+    int cy = Grid::HEIGHT / 2 - 1; // 15
+
+    // Clear terrain under the depot footprint and a 1-cell buffer around it
+    for (int dy = -1; dy < depotDef->gridH + 1; ++dy)
+    {
+        for (int dx = -1; dx < depotDef->gridW + 1; ++dx)
+        {
+            int tx = cx + dx;
+            int ty = cy + dy;
+            if (grid.isInBounds(tx, ty))
+                terrainGrid[ty][tx] = TerrainType::Grass;
+        }
+    }
+
+    // Remove any tree instances that overlap the cleared area
+    treeInstances.erase(
+        std::remove_if(treeInstances.begin(), treeInstances.end(),
+            [cx, cy, depotDef](const TreeInstance& tree) {
+                // Tree footprint is TREE_W x TREE_H from anchor
+                int clearMinX = cx - 1, clearMinY = cy - 1;
+                int clearMaxX = cx + depotDef->gridW;
+                int clearMaxY = cy + depotDef->gridH;
+                return tree.anchorX + TREE_W > clearMinX and tree.anchorX <= clearMaxX
+                   and tree.anchorY + TREE_H > clearMinY and tree.anchorY <= clearMaxY;
+            }),
+        treeInstances.end());
+
+    placeBuilding(buildingLayer, cx, cy, *depotDef, 0);
+    starterDepotX = cx;
+    starterDepotY = cy;
+
+    printf("GridSystem: placed starter depot at (%d, %d)\n", cx, cy);
 }
 
 void GridSystem::regenerateTerrain(uint32_t seed)
@@ -523,7 +576,7 @@ void GridSystem::generateAndRenderTerrain(uint32_t seed)
 {
     GenerationParams params;
     params.seed = seed;
-    params.requiredOres = {TerrainType::OreStone, TerrainType::OreIron, TerrainType::OreCopper};
+    params.requiredOres = {TerrainType::OreStone, TerrainType::OreIron, TerrainType::OreCopper, TerrainType::OreCoal};
 
     auto gen = CanvasGenerator::generate(params);
     terrainGrid = gen.terrain;

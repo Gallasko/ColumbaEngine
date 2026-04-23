@@ -153,19 +153,33 @@ void CraftingSystem::craftTick()
         // Phase 2: try to start or continue crafting
         if (machine.currentRecipe == nullptr)
         {
+            const auto* facts = worldFacts ? &worldFacts->factMap : nullptr;
+
             const Recipe* matched = nullptr;
             if (machine.lockedRecipe)
             {
-                bool ok = true;
-                for (const auto& input : machine.lockedRecipe->inputs)
-                    if (not machine.inputSlots.hasAtLeast(input.id, input.count))
-                        { ok = false; break; }
-                if (ok) matched = machine.lockedRecipe;
+                // Check unlock conditions for the locked recipe
+                bool unlocked = true;
+                if (facts and not machine.lockedRecipe->unlockConditions.empty())
+                {
+                    for (const auto& cond : machine.lockedRecipe->unlockConditions)
+                        if (not cond.check(*facts))
+                            { unlocked = false; break; }
+                }
+
+                if (unlocked)
+                {
+                    bool ok = true;
+                    for (const auto& input : machine.lockedRecipe->inputs)
+                        if (not machine.inputSlots.hasAtLeast(input.id, input.count))
+                            { ok = false; break; }
+                    if (ok) matched = machine.lockedRecipe;
+                }
             }
             else
             {
                 matched = recipeRegistry->findMatchingRecipe(
-                    machine.machineName, machine.inputSlots);
+                    machine.machineName, machine.inputSlots, facts);
             }
             machine.currentRecipe = matched;
 

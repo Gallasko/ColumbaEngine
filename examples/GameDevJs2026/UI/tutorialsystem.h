@@ -28,7 +28,8 @@ public:
     static constexpr float  BODY_SCALE  = 0.30f;
     static constexpr float  PANEL_X     = 10.0f;
     static constexpr float  PANEL_Y     = 10.0f;
-    static constexpr int    TOTAL_STEPS = 9;
+    static constexpr int    TOTAL_STEPS = 5;
+    static constexpr float  AUTO_ADVANCE_MS = 3000.0f;
 
     static constexpr const char* FONT_PATH =
         "res/font/Inter/static/Inter_28pt-Light.ttf";
@@ -72,6 +73,7 @@ private:
     bool visible        = false;
     int  currentStep    = 0;
     bool pendingAdvance = false;
+    float autoAdvanceTimer = -1.0f;
 
     uint64_t backdropId = 0;
     uint64_t titleId    = 0;

@@ -61,7 +61,7 @@ private:
     std::function<void()> missionToggle;
 
     bool buttonsCreated = false;
-    bool missionButtonVisible = false;
+    bool missionButtonVisible = true;
     bool ticketDisplayVisible = false;
 
     // Cached positions (top-left of each button)

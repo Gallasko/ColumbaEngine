@@ -222,10 +222,14 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         auto* gridSystem = ecs.createSystem<GridSystem>(&registry);
 
+        // World facts (progression/discovery state) must exist before crafting
+        // systems that query it for recipe unlock checks.
+        auto* worldFacts = ecs.createSystem<WorldFacts>();
+
         // Inventory and crafting systems (must come after GridSystem)
         auto* transportSystem = ecs.createSystem<TransportSystem>(gridSystem, &itemRegistry);
         auto* craftingSystem = ecs.createSystem<CraftingSystem>(
-            gridSystem, transportSystem, &itemRegistry, &recipeRegistry);
+            gridSystem, transportSystem, &itemRegistry, &recipeRegistry, worldFacts);
         auto* minerSystem = ecs.createSystem<MinerSystem>(gridSystem, transportSystem, &itemRegistry);
         auto* storageSystem = ecs.createSystem<StorageSystem>(gridSystem, &itemRegistry);
         auto* depotSystem = ecs.createSystem<DepotSystem>(gridSystem, &itemRegistry);
@@ -260,12 +264,6 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         auto* storageUI = ecs.createSystem<StorageUISystem>(
             storageSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
-
-        // World facts (progression/discovery state) must exist before the
-        // hand-crafting system and crafting UI query it for unlock checks.
-        // Discovery facts (discovered_<item>) are set generically by
-        // PlayerInventorySystem on first pickup — no defaults needed.
-        auto* worldFacts = ecs.createSystem<WorldFacts>();
 
         // MissionSystem must exist before DepotUI (depot panel shows mission section)
         auto* missionSystem = ecs.createSystem<MissionSystem>(&missionRegistry, depotSystem, worldFacts);
@@ -310,7 +308,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<AutoSaveSystem>();
         ecs.createSystem<AnalyticsSystem>();
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI, storageUI, depotUI, machineDemo, missionUI);
+        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI, storageUI, depotUI, machineDemo, missionUI, worldFacts);
     });
 }
 

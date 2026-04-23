@@ -99,27 +99,13 @@ void HudBarSystem::createButtons()
         buttonIconId[i] = icon.entity->id;
     }
 
-    // Mission button starts hidden until first depot is placed
-    updateMissionButtonVisibility();
+    // Mission button is always visible (starter depot placed at game start)
+    createTicketDisplay();
 }
 
 void HudBarSystem::updateMissionButtonVisibility()
 {
-    bool shouldShow = worldFacts and worldFacts->getFact<bool>("depot_placed");
-
-    if (shouldShow == missionButtonVisible)
-        return;
-    missionButtonVisible = shouldShow;
-
-    auto setVis = [this](uint64_t id, bool vis) {
-        if (id == 0) return;
-        auto ent = ecsRef->getEntity(id);
-        if (ent)
-            ent->get<PositionComponent>()->setVisibility(vis);
-    };
-
-    setVis(buttonBgId[BTN_MISSIONS], shouldShow);
-    setVis(buttonIconId[BTN_MISSIONS], shouldShow);
+    // Mission button is always visible — starter depot is placed at game start.
 }
 
 bool HudBarSystem::isClickOnButton(size_t idx, float x, float y) const
@@ -176,27 +162,25 @@ void HudBarSystem::updateTicketDisplay()
     uint16_t count = static_cast<uint16_t>(
         std::min(playerInv->getTickets(), static_cast<uint32_t>(65535)));
 
-    // Show ticket display once missions are unlocked (even at 0)
-    bool shouldShow = missionButtonVisible;
+    if (ticketBgId == 0)
+        return;
 
-    if (shouldShow and ticketBgId == 0)
-        createTicketDisplay();
-
-    if (shouldShow != ticketDisplayVisible)
+    // Show ticket display on first tick
+    if (not ticketDisplayVisible)
     {
-        ticketDisplayVisible = shouldShow;
+        ticketDisplayVisible = true;
         auto setVis = [this](uint64_t id, bool vis) {
             if (id == 0) return;
             auto ent = ecsRef->getEntity(id);
             if (ent)
                 ent->get<PositionComponent>()->setVisibility(vis);
         };
-        setVis(ticketBgId, shouldShow);
-        setVis(ticketIconId, shouldShow);
-        setVis(ticketTextId, shouldShow);
+        setVis(ticketBgId, true);
+        setVis(ticketIconId, true);
+        setVis(ticketTextId, true);
     }
 
-    if (shouldShow and count != lastTicketCount)
+    if (count != lastTicketCount)
     {
         lastTicketCount = count;
         auto ent = ecsRef->getEntity(ticketTextId);

@@ -52,8 +52,10 @@ struct RecipeRegistry : public pg::Registry<Recipe>
     // Find the first recipe whose inputs are satisfiable by the given inventory.
     // Only machine-category recipes are considered here — hand-craft recipes
     // are driven separately by HandCraftingSystem.
+    // If facts is provided, recipes with unlockConditions are checked against it.
     const Recipe* findMatchingRecipe(const std::string& machineName,
-                                     const Inventory& inputSlots) const;
+                                     const Inventory& inputSlots,
+                                     const std::unordered_map<std::string, pg::ElementType>* facts = nullptr) const;
 };
 
 RecipeRegistry createDefaultRecipeRegistry();

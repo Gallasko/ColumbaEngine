@@ -13,12 +13,8 @@ const TutorialSystem::StepDef TutorialSystem::STEPS[] = {
     {"Welcome!",            "Use WASD to move the camera and scroll to zoom."},
     {"Great!",              "Click on a tree or rock to gather resources."},
     {"Resources gathered!", "Press TAB to open your inventory."},
-    {"Inventory opened!",   "Craft a Stone Pickaxe from the crafting menu."},
-    {"Pickaxe crafted!",    "Equip it in hotbar. Mine coal or iron ore!"},
-    {"Ore mined!",          "Craft a Furnace and place it on the ground."},
-    {"Furnace placed!",     "Craft an Assembler (in Mach tab) and place it down."},
-    {"Assembler placed!",   "Place a Miner on an ore deposit."},
-    {"Miner placed!",       "Connect machines with Inserters."},
+    {"Inventory opened!",   "Click on the Depot to view and start missions."},
+    {"Good job!",           "Complete missions to unlock crafting recipes!"},
 };
 
 // ---------------------------------------------------------------------------
@@ -40,10 +36,6 @@ void TutorialSystem::onEvent(const PlayerGainItemEvent& event)
     // Step 1: gather wood or stone
     if (currentStep == 1 && (event.id == 15 || event.id == 4))
         pendingAdvance = true;
-
-    // Step 4: mine coal or iron ore
-    if (currentStep == 4 && (event.id == 1 || event.id == 3))
-        pendingAdvance = true;
 }
 
 void TutorialSystem::onEvent(const InventoryOpenedEvent&)
@@ -52,40 +44,28 @@ void TutorialSystem::onEvent(const InventoryOpenedEvent&)
         pendingAdvance = true;
 }
 
-void TutorialSystem::onEvent(const HandCraftCompletedEvent& event)
+void TutorialSystem::onEvent(const HandCraftCompletedEvent&)
 {
-    if (currentStep != 3)
-        return;
+    // No longer used for tutorial advancement.
+}
 
-    if (event.recipeIndex < recipeRegistry->count())
+void TutorialSystem::onEvent(const BuildingPlacedEvent&)
+{
+    // No longer used for tutorial advancement.
+}
+
+void TutorialSystem::onEvent(const TickEvent& event)
+{
+    // Auto-advance timer for steps 3 and 4
+    if (autoAdvanceTimer > 0.0f)
     {
-        const auto& recipe = recipeRegistry->get(event.recipeIndex);
-        for (const auto& output : recipe.outputs)
+        autoAdvanceTimer -= event.tick;
+        if (autoAdvanceTimer <= 0.0f)
         {
-            if (output.id == 29) // Stone Pickaxe
-            {
-                pendingAdvance = true;
-                break;
-            }
+            autoAdvanceTimer = -1.0f;
+            pendingAdvance = true;
         }
     }
-}
-
-void TutorialSystem::onEvent(const BuildingPlacedEvent& event)
-{
-    if (currentStep == 5 && event.tileName == "Furnace")
-        pendingAdvance = true;
-    if (currentStep == 6 && event.tileName == "Assembler")
-        pendingAdvance = true;
-    if (currentStep == 7 && event.tileName == "Miner")
-        pendingAdvance = true;
-    if (currentStep == 8 && event.tileName == "Inserter")
-        pendingAdvance = true;
-}
-
-void TutorialSystem::onEvent(const TickEvent&)
-{
-    // Reserved for future use (e.g. initial delay before showing panel).
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +145,10 @@ void TutorialSystem::advanceStep()
     }
 
     updateContent();
+
+    // Steps 3 and 4 auto-advance after a short delay
+    if (currentStep == 3 || currentStep == 4)
+        autoAdvanceTimer = AUTO_ADVANCE_MS;
 }
 
 void TutorialSystem::updateContent()
