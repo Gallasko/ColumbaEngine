@@ -9,9 +9,11 @@
 
 #include <cstdarg>
 
-#include "ECS/entitysystem.h"
+#include "Memory/concurrentqueue.h"
 
-#include "Input/inputcomponent.h"
+#include "ECS/system.h"
+
+#include "Input/sdlevents.h"
 
 #include "Loaders/atlasloader.h"
 
@@ -545,14 +547,7 @@ namespace pg
             queueRegisterTexture(name, f);
         }
 
-        void queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback)
-        {
-            if (ecsRef->isRunning())
-                textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback});
-            else
-                registerTexture(name, callback);
-
-        }
+        void queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback);
 
         // Todo change default camera
 
@@ -563,24 +558,7 @@ namespace pg
             return cameraList.size() + cameraRegisterQueue.size(); // Return the index of the new camera
         }
 
-        void processCameraRegister()
-        {
-            for (auto id : cameraRegisterQueue)
-            {
-                auto* camera = ecsRef->getComponent<BaseCamera2D>(id);
-
-                if (not camera)
-                {
-                    LOG_MILE("Renderer", "Camera " << id << " not found");
-                    continue;
-                }
-
-                cameraList.push_back(camera);
-                ++nbCamera;
-            }
-
-            cameraRegisterQueue.clear();
-        }
+        void processCameraRegister();
 
         size_t registerMaterial(const Material& material)
         {

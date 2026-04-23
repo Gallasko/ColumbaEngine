@@ -22,6 +22,8 @@
 #include <GL/gl.h>
 #endif
 
+#include <ECS/entityref.h>
+
 namespace pg
 {
     // Forward declarations
@@ -32,7 +34,6 @@ namespace pg
     class MasterRenderer;
     struct AudioSystem;
     using _unique_id = uint64_t;
-    struct EntityRef;
     template<typename T> struct CompRef;
     struct Point2D;
 
@@ -97,7 +98,7 @@ namespace pg
         Input *inputHandler = nullptr;
         AudioSystem *audioSystem = nullptr;
 
-        EntityRef* screenEntity;
+        EntityRef screenEntity;
         // CompRef<UiComponent>* screenUi;
 
         Point2D* mousePos;

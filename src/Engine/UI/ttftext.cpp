@@ -3,6 +3,8 @@
 
 #include "ttftext.h"
 
+#include "ECS/entitysystem.h"
+
 #ifdef __EMSCRIPTEN__
 #define GL_GLEXT_PROTOTYPES 1
 #include <emscripten.h>

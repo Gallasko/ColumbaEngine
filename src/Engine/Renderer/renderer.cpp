@@ -5,6 +5,8 @@
 
 #include "renderer.h"
 
+#include "ECS/entitysystem.h"
+
 #include <filesystem>
 namespace fs = std::filesystem;
 
@@ -114,6 +116,33 @@ namespace pg
     MasterRenderer::~MasterRenderer()
     {
         LOG_THIS_MEMBER(DOM);
+    }
+
+    void MasterRenderer::queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback)
+    {
+        if (ecsRef->isRunning())
+            textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback});
+        else
+            registerTexture(name, callback);
+    }
+
+    void MasterRenderer::processCameraRegister()
+    {
+        for (auto id : cameraRegisterQueue)
+        {
+            auto* camera = ecsRef->getComponent<BaseCamera2D>(id);
+
+            if (not camera)
+            {
+                LOG_MILE("Renderer", "Camera " << id << " not found");
+                continue;
+            }
+
+            cameraList.push_back(camera);
+            ++nbCamera;
+        }
+
+        cameraRegisterQueue.clear();
     }
 
     void MasterRenderer::onEvent(const OnSDLScanCode&)

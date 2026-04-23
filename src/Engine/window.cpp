@@ -140,7 +140,6 @@ namespace pg
     Window::Window(const std::string &title, const std::string& savePath) : title(title)
     {
         ecs = new EntitySystem(savePath);
-        screenEntity = nullptr;
         // screenUi = nullptr;
         mousePos = new Point2D();
         terminalSink = new std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
@@ -198,7 +197,6 @@ namespace pg
 
         delete ecs;
 
-        delete screenEntity;
         // delete screenUi;
         delete mousePos;
         delete static_cast<std::shared_ptr<pg::Logger::LogSink>*>(terminalSink);
@@ -500,8 +498,8 @@ namespace pg
         // // Log taskflow for this window
         // ecs->dumbTaskflow();
 
-        delete screenEntity;
-        screenEntity = new EntityRef(ecs->createEntity());
+
+        screenEntity = ecs->createEntity();
         // Todo remove this
         // delete screenUi;
         // screenUi = new CompRef<UiComponent>(ecs->attach<UiComponent>(*screenEntity));
@@ -509,20 +507,20 @@ namespace pg
         // (*screenUi)->height = height;
         // (*screenUi)->setZ(-1);
 
-        auto screenPos = ecs->attach<PositionComponent>(*screenEntity);
+        auto screenPos = ecs->attach<PositionComponent>(screenEntity);
         screenPos->setWidth(width);
         screenPos->setHeight(height);
         screenPos->setZ(-1);
 
-        ecs->attach<UiAnchor>(*screenEntity);
+        ecs->attach<UiAnchor>(screenEntity);
 
-        ecs->attach<FocusableComponent>(*screenEntity);
+        ecs->attach<FocusableComponent>(screenEntity);
 
-        ecs->attach<MouseLeftClickComponent>(*screenEntity, makeCallable<OnFocus>(screenEntity->id));
+        ecs->attach<MouseLeftClickComponent>(screenEntity, makeCallable<OnFocus>(screenEntity->id));
 
         // (*screenUi)->update();
 
-        ecs->attach<EntityName>(*screenEntity, "__MainWindow");
+        ecs->attach<EntityName>(screenEntity, "__MainWindow");
 
         return true;
     }

@@ -2,7 +2,9 @@
 
 #include "ECS/system.h"
 
-#include "2D/texture.h"
+#include "ECS/entitysystem.h"
+
+#include "2D/position.h"
 
 namespace pg
 {

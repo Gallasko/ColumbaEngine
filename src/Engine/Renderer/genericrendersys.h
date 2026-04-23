@@ -5,6 +5,7 @@
 
 #include "renderer.h"
 
+#include "ECS/entitysystem.h"
 #include "ECS/system.h"
 
 namespace pg

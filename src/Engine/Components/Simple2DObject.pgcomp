@@ -8,6 +8,7 @@ includes:
   - "2D/position.h"
   - "Renderer/renderer.h"
   - "pgconstant.h"
+  - "ECS/entitysystem.h"
 
 enums:
   - name: Shape2D
