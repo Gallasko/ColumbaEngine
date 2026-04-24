@@ -334,6 +334,18 @@ file(GLOB COMPONENT_DEFINITIONS
 
 # Note: ColumbaEngine library will be created AFTER component generation
 
+# Output generated files into the build directory instead of the source tree
+# Use -DPREGENERATED_COMPONENTS_DIR=<path> to point to an existing generated dir
+# (e.g. from a native build) instead of generating locally.
+set(PREGENERATED_COMPONENTS_DIR "" CACHE PATH "Path to pre-generated component files (e.g. from a native build)")
+if(PREGENERATED_COMPONENTS_DIR)
+    set(GENERATED_COMPONENTS_DIR "${PREGENERATED_COMPONENTS_DIR}")
+    message(STATUS "Using pre-generated components from: ${GENERATED_COMPONENTS_DIR}")
+else()
+    set(GENERATED_COMPONENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/Components")
+    file(MAKE_DIRECTORY ${GENERATED_COMPONENTS_DIR})
+endif()
+
 # ===============================================
 # MINIMAL ENGINE LIBRARY + BOOTSTRAP COMPILER
 # (native builds only - cannot run wasm tools on host)
@@ -389,10 +401,6 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # ===============================================
     # Create a target to regenerate components when .pgcomp files change
     # This uses the bootstrap compiler to avoid circular dependencies
-    # Output generated files into the build directory instead of the source tree
-    set(GENERATED_COMPONENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/Components")
-    file(MAKE_DIRECTORY ${GENERATED_COMPONENTS_DIR})
-
     if(SKIP_COMPONENT_GENERATION)
         message(STATUS "SKIP_COMPONENT_GENERATION is ON: skipping component regeneration (using existing generated files)")
     elseif(COMPONENT_DEFINITIONS)
@@ -447,7 +455,10 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         message(STATUS "  Manual regeneration: cmake --build . --target RegenerateComponents")
     endif()
 else()
-    message(STATUS "Emscripten build: skipping bootstrap compiler and component regeneration (using pre-generated files)")
+    if(NOT PREGENERATED_COMPONENTS_DIR)
+        message(STATUS "Emscripten build: skipping component generation")
+        message(STATUS "  Use -DPREGENERATED_COMPONENTS_DIR=<native-build-dir>/generated/Components")
+    endif()
 endif()
 
 # ===============================================
@@ -509,8 +520,8 @@ target_include_directories(ColumbaEngine PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLTF_DIR}/include>
-    # Generated components in build directory (resolves "Components/X.generated.h" includes)
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
+    # Generated components (resolves "Components/X.generated.h" includes)
+    $<BUILD_INTERFACE:${GENERATED_COMPONENTS_DIR}/..>
     $<BUILD_INTERFACE:${GENERATED_COMPONENTS_DIR}>
     $<INSTALL_INTERFACE:include/ColumbaEngine>
     $<INSTALL_INTERFACE:include/ColumbaEngine/GameElements>
