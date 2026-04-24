@@ -115,19 +115,20 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
     float px = getPanelX();
     float py = getPanelY();
 
-    // Close button
-    if (isClickInRect(mx, my, px + PANEL_W - PADDING - CLOSE_SIZE, py + PADDING,
+    // Close button (vertically centered in title bar)
+    float cbOffY = (TITLE_H - CLOSE_SIZE) * 0.5f;
+    if (isClickInRect(mx, my, px + PANEL_W - PADDING - CLOSE_SIZE, py + PADDING + cbOffY,
                       CLOSE_SIZE, CLOSE_SIZE))
     {
         close();
         return;
     }
 
-    // Tab clicks (breadcrumb text areas)
+    // Tab clicks (pill backgrounds)
     for (size_t t = 0; t < NUM_TABS; ++t)
     {
         if (isClickInRect(mx, my, tabButtons[t].x, tabButtons[t].y,
-                          tabButtons[t].w, TITLE_H))
+                          tabButtons[t].w, tabButtons[t].h))
         {
             switchTab(t);
             return;
@@ -325,74 +326,70 @@ void MissionUISystem::createPanel()
 
     float curY = py + PADDING;
 
-    // --- Title "MISSIONS" ---
+    // --- Tab bar (left-aligned pill tabs, replaces title) ---
     {
-        auto t = makeTTFText(ecsRef, px + PADDING, curY, 100.0f,
-            FONT_BOLD, "MISSIONS", SCALE_TITLE, C::TEXT);
-        t.get<ViewportComponent>()->setViewport(UI_VP);
-        titleTextId = t.entity->id;
-    }
+        static const char* TAB_LABELS[NUM_TABS] = {"Main", "Missions", "Shop"};
+        float charW = 6.0f;
+        float tabPadH = 12.0f;  // horizontal padding inside pill
+        float tabGap = 6.0f;    // gap between pills
+        float tabH = TITLE_H;
+        float tabRad = 5.0f;
+        float tabOffY = 0.0f;
 
-    // --- Tab breadcrumbs (right-aligned) ---
-    {
-        static const char* TAB_LABELS[NUM_TABS] = {"main", "missions", "shop"};
-        // Position tabs from right to left, before close button
-        float tabStartX = px + PANEL_W - PADDING - CLOSE_SIZE - 8.0f;
-
-        // First measure approximate widths (rough: 6px per char at this scale)
-        float charW = 5.5f;
-        float slashW = 12.0f;
-
-        float totalTabW = 0;
-        for (size_t t = 0; t < NUM_TABS; ++t)
-            totalTabW += strlen(TAB_LABELS[t]) * charW;
-        totalTabW += (NUM_TABS - 1) * slashW;
-
-        float tx = tabStartX - totalTabW;
+        float tx = px + PADDING;
 
         for (size_t t = 0; t < NUM_TABS; ++t)
         {
             float labelW = strlen(TAB_LABELS[t]) * charW;
-            tabButtons[t].x = tx;
-            tabButtons[t].y = curY + 4.0f;
-            tabButtons[t].w = labelW;
+            float pillW = labelW + tabPadH * 2.0f;
 
-            auto txt = makeTTFText(ecsRef, tx, curY + 6.0f, 100.0f,
-                FONT_MEDIUM, TAB_LABELS[t], SCALE_TAB,
+            tabButtons[t].x = tx;
+            tabButtons[t].y = curY + tabOffY;
+            tabButtons[t].w = pillW;
+            tabButtons[t].h = tabH;
+
+            auto bg = makeRoundedRect2DShape(ecsRef, tabRad, pillW, tabH,
+                (t == currentTab) ? C::SELECTED : C::PANEL);
+            auto bgPos = bg.get<PositionComponent>();
+            bgPos->setX(tx); bgPos->setY(curY + tabOffY); bgPos->setZ(99.0f);
+            bg.get<ViewportComponent>()->setViewport(UI_VP);
+            tabButtons[t].bgId = bg.entity->id;
+
+            auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
+                FONT_MEDIUM, TAB_LABELS[t], SCALE_LIST,
                 (t == currentTab) ? C::TEXT : C::TEXT_DIM);
             txt.get<ViewportComponent>()->setViewport(UI_VP);
             tabButtons[t].textId = txt.entity->id;
 
-            tx += labelW;
+            auto txtAnchor = ecsRef->attach<UiAnchor>(txt.entity);
+            txtAnchor->setHorizontalCenter(PosAnchor{tabButtons[t].bgId, AnchorType::HorizontalCenter});
+            txtAnchor->setVerticalCenter(PosAnchor{tabButtons[t].bgId, AnchorType::VerticalCenter});
 
-            // Add slash separator between tabs
-            if (t < NUM_TABS - 1)
-            {
-                auto slash = makeTTFText(ecsRef, tx + 2.0f, curY + 6.0f, 100.0f,
-                    FONT_LIGHT, "/", SCALE_TAB, C::TEXT_DIM);
-                slash.get<ViewportComponent>()->setViewport(UI_VP);
-                if (t == 0) tabSlash1Id = slash.entity->id;
-                else tabSlash2Id = slash.entity->id;
-                tx += slashW;
-            }
+            tx += pillW + tabGap;
         }
     }
 
-    // --- Close button ---
+    // --- Close button (vertically centered in title bar) ---
     {
         float cbx = px + PANEL_W - PADDING - CLOSE_SIZE;
-        auto bg = makeRoundedRect2DShape(ecsRef, 4.0f, CLOSE_SIZE, CLOSE_SIZE, C::PANEL);
+        float cbOffY = (TITLE_H - CLOSE_SIZE) * 0.5f;
+        auto bg = makeRoundedRect2DShape(ecsRef, 4.0f, CLOSE_SIZE, CLOSE_SIZE,
+            {180.0f, 60.0f, 60.0f, 255.0f});
         auto pos = bg.get<PositionComponent>();
-        pos->setX(cbx); pos->setY(curY); pos->setZ(99.0f);
+        pos->setX(cbx); pos->setY(curY + cbOffY); pos->setZ(99.0f);
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         closeBtnBgId = bg.entity->id;
 
-        auto txt = makeTTFText(ecsRef, cbx + 7.0f, curY + 4.0f, 100.0f,
-            FONT_MEDIUM, "x", SCALE_TAB, C::TEXT_DIM);
+        auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
+            FONT_BOLD, "X", SCALE_TAB, C::WHITE);
         txt.get<ViewportComponent>()->setViewport(UI_VP);
         closeBtnTextId = txt.entity->id;
+
+        auto txtAnchor = ecsRef->attach<UiAnchor>(txt.entity);
+        txtAnchor->setHorizontalCenter(PosAnchor{closeBtnBgId, AnchorType::HorizontalCenter});
+        txtAnchor->setVerticalCenter(PosAnchor{closeBtnBgId, AnchorType::VerticalCenter});
     }
-    curY += TITLE_H;
+    curY += TITLE_H + 2.0f;
 
     // --- Horizontal divider ---
     {
@@ -710,13 +707,14 @@ void MissionUISystem::createRightColumn(float px, float contentY)
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         actionBtnBgId = bg.entity->id;
 
-        auto txt = makeTTFText(ecsRef, 0.0f, btnY + 8.0f, 100.0f,
+        auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_BOLD, "Start Mission", SCALE_BTN, C::WHITE);
         txt.get<ViewportComponent>()->setViewport(UI_VP);
         actionBtnTextId = txt.entity->id;
 
         auto txtAnchor = ecsRef->attach<UiAnchor>(txt.entity);
         txtAnchor->setHorizontalCenter(PosAnchor{actionBtnBgId, AnchorType::HorizontalCenter});
+        txtAnchor->setVerticalCenter(PosAnchor{actionBtnBgId, AnchorType::VerticalCenter});
     }
 }
 
@@ -728,16 +726,16 @@ void MissionUISystem::setPanelVisibility(bool vis)
 {
     // Chrome
     setEntityVisibility(backdropId, vis);
-    setEntityVisibility(titleTextId, vis);
     setEntityVisibility(closeBtnBgId, vis);
     setEntityVisibility(closeBtnTextId, vis);
     setEntityVisibility(topDividerId, vis);
     setEntityVisibility(columnDividerId, vis);
-    setEntityVisibility(tabSlash1Id, vis);
-    setEntityVisibility(tabSlash2Id, vis);
 
     for (size_t t = 0; t < NUM_TABS; ++t)
+    {
+        setEntityVisibility(tabButtons[t].bgId, vis);
         setEntityVisibility(tabButtons[t].textId, vis);
+    }
 
     if (not vis)
     {
@@ -794,9 +792,12 @@ void MissionUISystem::refresh()
     if (not visible)
         return;
 
-    // Update tab text styling
+    // Update tab styling
     for (size_t t = 0; t < NUM_TABS; ++t)
+    {
         setEntityTextColor(tabButtons[t].textId, (t == currentTab) ? C::TEXT : C::TEXT_DIM);
+        setEntityRoundedRectColor(tabButtons[t].bgId, (t == currentTab) ? C::SELECTED : C::PANEL);
+    }
 
     // Rebuild filtered defs if needed
     if (currentTab < 2)
@@ -908,15 +909,15 @@ void MissionUISystem::refreshLeftColumn()
             setEntityRoundedRectColor(row.statusFillId, C::BG);
         }
 
-        // Locked row opacity for status squares
-        if (not unlocked)
+        // Status square opacity
         {
+            float opacity = unlocked ? 255.0f : 80.0f;
             auto borderEnt = ecsRef->getEntity(row.statusBorderId);
             if (borderEnt and borderEnt->has<RoundedRect2DObject>())
-                borderEnt->get<RoundedRect2DObject>()->setOpacity(80.0f);
+                borderEnt->get<RoundedRect2DObject>()->setOpacity(opacity);
             auto fillEnt = ecsRef->getEntity(row.statusFillId);
             if (fillEnt and fillEnt->has<RoundedRect2DObject>())
-                fillEnt->get<RoundedRect2DObject>()->setOpacity(80.0f);
+                fillEnt->get<RoundedRect2DObject>()->setOpacity(opacity);
         }
 
         // GO pill: show on first actionable mission

@@ -182,13 +182,11 @@ private:
     // Tab bar
     struct TabButton
     {
+        uint64_t bgId = 0;
         uint64_t textId = 0;
-        float x = 0, y = 0, w = 0;
+        float x = 0, y = 0, w = 0, h = 0;
     };
     TabButton tabButtons[NUM_TABS] = {};
-    // Tab separator slashes
-    uint64_t tabSlash1Id = 0;
-    uint64_t tabSlash2Id = 0;
 
     // --- Left column (mission list) ---
     struct ListRow
