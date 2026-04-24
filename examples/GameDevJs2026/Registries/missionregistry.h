@@ -30,6 +30,7 @@ struct MissionDef
 {
     std::string name;
     std::string description;
+    std::string unlockLabel;    // Human-readable unlock description (e.g. "Furnace")
     uint16_t robotCoreCost;
     size_t durationMs;
     std::vector<MissionReward> rewards;

@@ -215,6 +215,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         // TTF text system for UI text rendering
         auto* ttfSys = ecs.createSystem<TTFTextSystem>(window.masterRenderer);
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf");
+        ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf");
+        ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Medium.ttf");
 
         // Camera must be created first so it exists before grid renders
         auto* cameraSystem = ecs.createSystem<CameraSystem>(

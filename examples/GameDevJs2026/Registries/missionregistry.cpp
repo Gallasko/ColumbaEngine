@@ -13,6 +13,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "First Steps",
         "Gather basic resources and deliver them.",
+        "Stone Pickaxe",
         0, 0,
         {{35, 1}}, // reward: 1 Ticket
         "", "mission_tools",
@@ -24,6 +25,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "Stone Masonry",
         "Collect stone for building a smelter.",
+        "Furnace",
         0, 0,
         {{35, 1}}, // reward: 1 Ticket
         "mission_tools", "mission_furnace",
@@ -35,6 +37,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "Ore Discovery",
         "Mine iron ore to unlock smelting.",
+        "Smelting",
         0, 0,
         {{35, 2}}, // reward: 2 Tickets
         "mission_furnace", "mission_smelting",
@@ -46,6 +49,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "Metal Working",
         "Produce iron plates to advance crafting.",
+        "Gears & Wire",
         0, 0,
         {{35, 2}}, // reward: 2 Tickets
         "mission_smelting", "mission_metals",
@@ -57,6 +61,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "Mechanical Parts",
         "Craft intermediate components.",
+        "Assembler",
         0, 0,
         {{35, 3}}, // reward: 3 Tickets
         "mission_metals", "mission_mechanical",
@@ -68,6 +73,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "Scaling Up",
         "Scale up production for automation.",
+        "Miner & Inserter",
         0, 0,
         {{35, 3}}, // reward: 3 Tickets
         "mission_mechanical", "mission_automation",
@@ -79,6 +85,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "Electronics",
         "Produce circuits to unlock advanced tech.",
+        "Circuits & Depot",
         0, 0,
         {{35, 5}}, // reward: 5 Tickets
         "mission_automation", "mission_electronics",
@@ -92,6 +99,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "Iron Delivery",
         "Deliver iron plates to a depot.",
+        "",
         0, 0,
         {{35, 1}}, // reward: 1 Ticket
         "mission_electronics", "completed_scout",
@@ -103,6 +111,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "World Expedition",
         "Unlock map extensions.",
+        "",
         1, 60000, // 1 core, 60s
         {{35, 5}, {2, 10}, {3, 5}}, // 5 Tickets, 10 Copper Ore, 5 Coal
         "completed_scout", "completed_mineral",
@@ -113,6 +122,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "Deep Mining",
         "Venture deep underground for valuable materials.",
+        "",
         2, 90000, // 2 cores, 90s
         {{35, 8}, {5, 5}, {4, 5}}, // 8 Tickets, 5 Iron Plate, 5 Stone
         "completed_mineral", "completed_deep",
@@ -123,6 +133,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "Factory Salvage",
         "Salvage parts from an abandoned factory.",
+        "",
         2, 120000, // 2 cores, 120s
         {{35, 12}, {9, 2}, {7, 3}}, // 12 Tickets, 2 Circuit, 3 Iron Gear
         "completed_deep", "completed_salvage",
@@ -133,6 +144,7 @@ MissionRegistry createDefaultMissionRegistry()
     reg.addMission({
         "Frontier Exploration",
         "Push into unknown territory. High reward.",
+        "",
         3, 180000, // 3 cores, 180s
         {{35, 20}}, // 20 Tickets
         "completed_salvage", "completed_frontier",
