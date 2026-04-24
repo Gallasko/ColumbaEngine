@@ -532,15 +532,19 @@ void MissionUISystem::createRightColumn(float px, float contentY)
     }
     curY += 28.0f;
 
-    // Description
+    // Description — anchored left+right to backdrop so width follows column
     {
-        auto desc = makeTTFText(ecsRef, colX, curY, 100.0f,
+        auto desc = makeTTFText(ecsRef, 0.0f, curY, 100.0f,
             FONT_LIGHT, "", SCALE_BODY, C::TEXT_DIM);
         desc.get<ViewportComponent>()->setViewport(UI_VP);
-        auto pos = desc.get<PositionComponent>();
-        pos->setWidth(colW);
         desc.entity->get<TTFText>()->setWrap(true);
         detailDescId = desc.entity->id;
+
+        auto anchor = ecsRef->attach<UiAnchor>(desc.entity);
+        anchor->setLeftAnchor(PosAnchor{backdropId, AnchorType::Left});
+        anchor->setLeftMargin(LEFT_W + DETAIL_PAD);
+        anchor->setRightAnchor(PosAnchor{backdropId, AnchorType::Right});
+        anchor->setRightMargin(DETAIL_PAD);
     }
     curY += 44.0f;
 
@@ -706,10 +710,13 @@ void MissionUISystem::createRightColumn(float px, float contentY)
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         actionBtnBgId = bg.entity->id;
 
-        auto txt = makeTTFText(ecsRef, colX + colW * 0.5f - 50.0f, btnY + 8.0f, 100.0f,
+        auto txt = makeTTFText(ecsRef, 0.0f, btnY + 8.0f, 100.0f,
             FONT_BOLD, "Start Mission", SCALE_BTN, C::WHITE);
         txt.get<ViewportComponent>()->setViewport(UI_VP);
         actionBtnTextId = txt.entity->id;
+
+        auto txtAnchor = ecsRef->attach<UiAnchor>(txt.entity);
+        txtAnchor->setHorizontalCenter(PosAnchor{actionBtnBgId, AnchorType::HorizontalCenter});
     }
 }
 
@@ -1015,11 +1022,13 @@ void MissionUISystem::refreshRightColumn()
     setEntityText(detailNameId, def.name);
     setEntityText(detailDescId, def.description);
 
-    // --- Cost block ---
+    // --- Cost / Obtain block ---
     bool hasCost = not def.deliveryRequirements.empty() or def.robotCoreCost > 0;
     setEntityVisibility(costLabelId, hasCost);
     setEntityVisibility(costBlockBorderId, hasCost);
     setEntityVisibility(costBlockFillId, hasCost);
+    if (hasCost)
+        setEntityText(costLabelId, def.consumeItems ? "COST" : "OBTAIN");
 
     if (hasCost and itemRegistry)
     {
@@ -1035,7 +1044,8 @@ void MissionUISystem::refreshRightColumn()
                 {
                     const auto& req = def.deliveryRequirements[r];
                     setEntityTexture(costItems[r].iconId, itemRegistry->get(req.itemId).textureName);
-                    setEntityText(costItems[r].countTextId, "-" + std::to_string(req.count));
+                    std::string prefix = def.consumeItems ? "-" : "";
+                    setEntityText(costItems[r].countTextId, prefix + std::to_string(req.count));
                 }
             }
         }
