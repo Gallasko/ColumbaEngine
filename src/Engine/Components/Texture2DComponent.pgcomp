@@ -4,7 +4,6 @@ base_class: Component
 
 includes:
   - <string>
-  - "ECS/system.h"
   - "pgconstant.h"
 
 fields:

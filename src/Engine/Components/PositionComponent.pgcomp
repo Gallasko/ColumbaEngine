@@ -2,10 +2,6 @@ name: PositionComponent
 namespace: pg
 base_class: Component
 
-includes:
-  - "ECS/component.h"
-  - "pgconstant.h"
-
 forwards:
   - "struct UiAnchor;"
 

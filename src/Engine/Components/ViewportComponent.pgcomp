@@ -2,9 +2,6 @@ name: ViewportComponent
 namespace: pg
 base_class: Component
 
-includes:
-  - "ECS/system.h"
-
 fields:
   - name: viewport
     type: size_t

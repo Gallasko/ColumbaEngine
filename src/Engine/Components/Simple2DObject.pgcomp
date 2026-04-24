@@ -3,7 +3,6 @@ namespace: pg
 base_class: Component
 
 includes:
-  - "ECS/system.h"
   - "pgconstant.h"
 
 enums:
