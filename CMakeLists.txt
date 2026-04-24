@@ -1319,6 +1319,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/taskflow.cc
             test/uiconstanttest.cc
             test/uisystemtest.cc
+            test/semanticversion.cc
+            test/manifest.cc
         )
 
         target_link_libraries(t1 PRIVATE gtest gtest_main ColumbaEngine)
