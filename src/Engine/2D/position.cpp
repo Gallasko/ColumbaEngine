@@ -846,6 +846,7 @@ namespace pg
             // LOG_MILE(DOM, "Sending EntityChangedEvent for entity " << id);
             // ecsRef->sendEvent(EntityChangedEvent{id});
 
+            // Todo remove this
             if (anchorChanged)
             {
                 LOG_MILE(DOM, "Sending PositionComponentChangedEvent for entity " << id);

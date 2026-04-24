@@ -1,4 +1,5 @@
 #include "stdafx.h"
+
 #include "Versioning/versionmanager.h"
 #include "ECS/savemanager.h"
 #include "ECS/entitysystem.h"
@@ -13,9 +14,7 @@ namespace pg
 
     VersionManager::VersionManager() = default;
 
-    VersionCheckResult VersionManager::initialize(
-        const std::string& manifestPath, EntitySystem& ecs,
-        bool autoWipe, bool autoMigrate)
+    VersionCheckResult VersionManager::initialize(const std::string& manifestPath, EntitySystem& ecs, bool autoWipe, bool autoMigrate)
     {
         LOG_INFO(DOM, "Initializing version manager...");
 
@@ -29,28 +28,26 @@ namespace pg
         auto savedVersionElement = saveManager.getValue(manifest_keys::SAVE_VERSION_KEY);
         std::string savedVersionStr = "";
 
-        if (!savedVersionElement.isEmpty() && savedVersionElement.isLitteral())
+        if (not savedVersionElement.isEmpty() and savedVersionElement.isLitteral())
         {
             savedVersionStr = savedVersionElement.get<std::string>();
         }
 
-        LOG_INFO(DOM, "Saved version: " <<
-            (savedVersionStr.empty() ? "(none - new install)" : savedVersionStr));
+        LOG_INFO(DOM, "Saved version: " << (savedVersionStr.empty() ? "(none - new install)" : savedVersionStr));
 
         lastResult = manifest.checkVersion(savedVersionStr);
 
         if (lastResult.isMajorBump)
         {
-            LOG_WARNING(DOM,
-                "Major version bump detected (" << lastResult.oldVersion.toString()
-                << " -> " << lastResult.newVersion.toString() << ")");
+            LOG_WARNING(DOM, "Major version bump detected (" << lastResult.oldVersion.toString() <<
+                " -> " << lastResult.newVersion.toString() << ")");
 
             if (autoWipe)
             {
                 wipeSave(ecs);
             }
         }
-        else if (!lastResult.isSameVersion && !lastResult.isNewInstall && !lastResult.isDowngrade)
+        else if (not lastResult.isSameVersion and not lastResult.isNewInstall and not lastResult.isDowngrade)
         {
             if (autoMigrate)
             {
@@ -66,9 +63,7 @@ namespace pg
 
     void VersionManager::stampVersionInSave(SaveManager& saveManager)
     {
-        saveManager.onProcessEvent(
-            SaveElementEvent(manifest_keys::SAVE_VERSION_KEY,
-                             manifest.getVersion().toString()));
+        saveManager.onProcessEvent(SaveElementEvent(manifest_keys::SAVE_VERSION_KEY, manifest.getVersion().toString()));
     }
 
     void VersionManager::wipeSave(EntitySystem& ecs)

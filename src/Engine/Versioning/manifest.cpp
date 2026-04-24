@@ -33,12 +33,11 @@ namespace pg
     {
         LOG_INFO(DOM, "Loading manifest from: " << filepath);
 
-        if (!UniversalFileAccessor::exists(filepath))
+        if (not UniversalFileAccessor::exists(filepath))
         {
-            LOG_WARNING(DOM,
-                "Manifest file not found at '" << filepath
-                << "', using default version 1.0.0");
+            LOG_WARNING(DOM, "Manifest file not found at '" << filepath << "', using default version 1.0.0");
             setDefaults();
+
             return false;
         }
 
@@ -46,10 +45,9 @@ namespace pg
 
         if (textFile.data.empty())
         {
-            LOG_WARNING(DOM,
-                "Manifest file is empty at '" << filepath
-                << "', using default version 1.0.0");
+            LOG_WARNING(DOM, "Manifest file is empty at '" << filepath << "', using default version 1.0.0");
             setDefaults();
+
             return false;
         }
 
@@ -57,34 +55,34 @@ namespace pg
         {
             json j = json::parse(textFile.data);
 
-            if (j.contains("version") && j["version"].is_string())
+            if (j.contains("version") and j["version"].is_string())
             {
-                if (!version.parse(j["version"].get<std::string>()))
+                if (not version.parse(j["version"].get<std::string>()))
                 {
-                    LOG_WARNING(DOM,
-                        "Failed to parse version string: " << j["version"].get<std::string>());
+                    LOG_WARNING(DOM, "Failed to parse version string: " << j["version"].get<std::string>());
                     setDefaults();
+
                     return false;
                 }
             }
 
-            if (j.contains("description") && j["description"].is_string())
+            if (j.contains("description") and j["description"].is_string())
             {
                 description = j["description"].get<std::string>();
             }
 
-            if (j.contains("changelog") && j["changelog"].is_array())
+            if (j.contains("changelog") and j["changelog"].is_array())
             {
                 for (const auto& entry : j["changelog"])
                 {
                     ChangelogEntry ce;
 
-                    if (entry.contains("version") && entry["version"].is_string())
+                    if (entry.contains("version") and entry["version"].is_string())
                     {
                         ce.version = entry["version"].get<std::string>();
                     }
 
-                    if (entry.contains("changes") && entry["changes"].is_array())
+                    if (entry.contains("changes") and entry["changes"].is_array())
                     {
                         for (const auto& change : entry["changes"])
                         {
@@ -98,16 +96,16 @@ namespace pg
             }
 
             loaded = true;
-            LOG_INFO(DOM,
-                "Manifest loaded: version=" << version.toString()
-                << ", description=" << description
-                << ", changelog entries=" << changelog.size());
+            LOG_INFO(DOM, "Manifest loaded: version=" << version.toString() <<
+                ", description=" << description << ", changelog entries=" << changelog.size());
+
             return true;
         }
         catch (const json::exception& e)
         {
             LOG_ERROR(DOM, "JSON parse error in manifest: " << e.what());
             setDefaults();
+
             return false;
         }
     }
@@ -125,8 +123,7 @@ namespace pg
         return nullptr;
     }
 
-    std::vector<ChangelogEntry> Manifest::getChangelogBetween(
-        const SemanticVersion& from, const SemanticVersion& to) const
+    std::vector<ChangelogEntry> Manifest::getChangelogBetween(const SemanticVersion& from, const SemanticVersion& to) const
     {
         std::vector<ChangelogEntry> result;
 
@@ -134,7 +131,7 @@ namespace pg
         {
             SemanticVersion entryVer(entry.version);
 
-            if (entryVer > from && entryVer <= to)
+            if (entryVer > from and entryVer <= to)
             {
                 result.push_back(entry);
             }
@@ -182,9 +179,11 @@ namespace pg
         if (savedVersionStr.empty())
         {
             VersionCheckResult result;
+
             result.oldVersion = SemanticVersion(0, 0, 0);
             result.newVersion = version;
             result.isNewInstall = true;
+
             return result;
         }
 
@@ -207,11 +206,9 @@ namespace pg
 
         for (const auto& [targetVersion, callbacks] : migrations)
         {
-            if (targetVersion > oldVersion && targetVersion <= version)
+            if (targetVersion > oldVersion and targetVersion <= version)
             {
-                LOG_INFO(DOM,
-                    "Running " << callbacks.size() << " migration(s) for version "
-                    << targetVersion.toString());
+                LOG_INFO(DOM, "Running " << callbacks.size() << " migration(s) for version " << targetVersion.toString());
 
                 for (const auto& callback : callbacks)
                 {
