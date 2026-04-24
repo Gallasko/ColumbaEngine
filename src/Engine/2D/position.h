@@ -338,26 +338,28 @@ namespace pg
 
             reverseParentalMap.erase(event.id);
 
-            pushChildrenInChange(changedIds, event.id);
+            pushChildrenInChange(changedIdsList, changedIdsSet, event.id);
         }
 
         virtual void onProcessEvent(const PositionComponentChangedEvent& event) override
         {
-            if (not changedIds.count(event.id))
+            if (not changedIdsSet.count(event.id))
             {
-                changedIds.insert(event.id);
-                pushChildrenInChange(changedIds, event.id);
+                changedIdsList.push_back(event.id);
+                changedIdsSet.insert(event.id);
+                pushChildrenInChange(changedIdsList, changedIdsSet, event.id);
             }
         }
 
-        void pushChildrenInChange(std::unordered_set<_unique_id>& set, _unique_id parentId);
+        void pushChildrenInChange(std::vector<_unique_id>& list, std::unordered_set<_unique_id>& set, _unique_id parentId);
 
         virtual void execute() override;
 
         std::unordered_map<_unique_id, std::unordered_set<_unique_id>> parentalMap;
         std::unordered_map<_unique_id, std::unordered_set<_unique_id>> reverseParentalMap;
 
-        std::unordered_set<_unique_id> changedIds;
+        std::vector<_unique_id> changedIdsList;
+        std::unordered_set<_unique_id> changedIdsSet;
 
         bool updated = false;
     };

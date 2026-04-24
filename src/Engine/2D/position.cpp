@@ -780,27 +780,26 @@ namespace pg
     }
     }
 
-    void PositionComponentSystem::pushChildrenInChange(std::unordered_set<_unique_id>& set, _unique_id parentId)
+    void PositionComponentSystem::pushChildrenInChange(std::vector<_unique_id>& list, std::unordered_set<_unique_id>& set, _unique_id parentId)
     {
         for (const auto& child : parentalMap[parentId])
         {
             auto inserted = set.insert(child);
 
             if (inserted.second)
-                pushChildrenInChange(set, child);
+            {
+                list.push_back(child);
+                pushChildrenInChange(list, set, child);
+            }
         }
     }
 
     void PositionComponentSystem::execute()
     {
-        if (changedIds.size() <= 0)
+        if (changedIdsList.empty())
             return;
 
-        // std::set<_unique_id> modifiedIds;
-        // std::set<_unique_id> impactedIds;
-
-        // while (changedIds.size() > 0)
-        for (const auto& id : changedIds)
+        for (const auto& id : changedIdsList)
         {
             LOG_MILE(DOM, "Processing changed entity ID: " << id);
 
@@ -861,15 +860,8 @@ namespace pg
             // LOG_INFO("PositionComponentSystem", "Changed ids: " << changedIds.size() << ", modified ids: " << modifiedIds.size() << ", impacted ids: " << impactedIds.size());
         }
 
-        changedIds.clear();
-        // changedIds = impactedIds;
-
-        // impactedIds.clear();
-
-        // for (const auto& id : modifiedIds)
-        // {
-            // ecsRef->sendEvent(EntityChangedEvent{id});
-        // }
+        changedIdsList.clear();
+        changedIdsSet.clear();
     }
 
     bool inBound(EntityRef entity, float x, float y)
