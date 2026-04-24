@@ -172,20 +172,6 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
                         return;
                     }
 
-                    // Starter depot: open player inventory instead of depot UI
-                    auto [sdx, sdy] = gridSystem->getStarterDepotPos();
-                    if (ox == sdx and oy == sdy)
-                    {
-                        if (inventoryUI)
-                        {
-                            if (inventoryUI->isOpen())
-                                inventoryUI->closeInventory();
-                            else
-                                inventoryUI->openInventory();
-                        }
-                        return;
-                    }
-
                     if (depotUI)
                     {
                         depotUI->open(ox, oy);
