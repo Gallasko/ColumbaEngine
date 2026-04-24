@@ -156,9 +156,9 @@ namespace pg
                 }
 
                 // If the glyph won't fit in the current row, move to next row.
-                if (currentX + face->glyph->bitmap.width > atlasWidth) {
+                if (currentX + face->glyph->bitmap.width + 2 > atlasWidth) {
                     currentX = 0;
-                    currentY += rowHeight;
+                    currentY += rowHeight + 2;
                     rowHeight = 0;
                 }
 
@@ -191,8 +191,8 @@ namespace pg
 
                 charactersMap[texName][c] = character;
 
-                // Update currentX and rowHeight.
-                currentX += face->glyph->bitmap.width;
+                // Update currentX and rowHeight (2px padding to prevent mipmap bleeding).
+                currentX += face->glyph->bitmap.width + 2;
                 if (static_cast<int>(face->glyph->bitmap.rows) > rowHeight)
                     rowHeight = face->glyph->bitmap.rows;
             }
@@ -219,7 +219,8 @@ namespace pg
             // Set texture parameters.
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glGenerateMipmap(GL_TEXTURE_2D);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
             // Save atlasTexture in your renderer/material preset.
