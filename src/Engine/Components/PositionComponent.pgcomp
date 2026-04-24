@@ -3,7 +3,7 @@ namespace: pg
 base_class: Component
 
 includes:
-  - "ECS/system.h"
+  - "ECS/component.h"
   - "pgconstant.h"
 
 forwards:

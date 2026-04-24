@@ -6,6 +6,8 @@
 
 #include "logger.h"
 
+#include "Renderer/renderer.h"
+
 namespace pg
 {
     namespace
