@@ -37,6 +37,7 @@ struct MissionDef
     std::string unlockFact;     // WorldFact required (empty = always available)
     std::string completionFact; // Fact to set on first completion
     std::vector<DeliveryRequirement> deliveryRequirements; // Non-empty = delivery mission
+    bool consumeItems = true;   // If false, items are not consumed on completion
     bool repeatable = false;    // If true, can be started again after completion
     MissionCategory category = MissionCategory::Main;
 

@@ -18,7 +18,7 @@ MissionRegistry createDefaultMissionRegistry()
         {{35, 1}}, // reward: 1 Ticket
         "", "mission_tools",
         {{15, 3}, {4, 3}}, // deliver: 3 Wood + 3 Stone
-        false
+        false, false // consumeItems=false (keep items), repeatable=false
     });
 
     // Mission 1: Stone Masonry — unlocks Furnace recipe
@@ -30,7 +30,7 @@ MissionRegistry createDefaultMissionRegistry()
         {{35, 1}}, // reward: 1 Ticket
         "mission_tools", "mission_furnace",
         {{4, 10}}, // deliver: 10 Stone
-        false
+        false, false // consumeItems=false, repeatable=false
     });
 
     // Mission 2: Ore Discovery — unlocks furnace smelting recipes
@@ -42,7 +42,7 @@ MissionRegistry createDefaultMissionRegistry()
         {{35, 2}}, // reward: 2 Tickets
         "mission_furnace", "mission_smelting",
         {{1, 5}}, // deliver: 5 Iron Ore
-        false
+        false, false // consumeItems=false, repeatable=false
     });
 
     // Mission 3: Metal Working — unlocks Iron Gear, Copper Wire, Storage
@@ -54,7 +54,7 @@ MissionRegistry createDefaultMissionRegistry()
         {{35, 2}}, // reward: 2 Tickets
         "mission_smelting", "mission_metals",
         {{5, 10}}, // deliver: 10 Iron Plate
-        false
+        true, false // consumeItems=true, repeatable=false
     });
 
     // Mission 4: Mechanical Parts — unlocks Assembler, Conveyor Belt, Iron Pickaxe
@@ -66,7 +66,7 @@ MissionRegistry createDefaultMissionRegistry()
         {{35, 3}}, // reward: 3 Tickets
         "mission_metals", "mission_mechanical",
         {{7, 5}, {8, 5}}, // deliver: 5 Iron Gear + 5 Copper Wire
-        false
+        true, false // consumeItems=true, repeatable=false
     });
 
     // Mission 5: Scaling Up — unlocks Miner, Inserter
@@ -78,7 +78,7 @@ MissionRegistry createDefaultMissionRegistry()
         {{35, 3}}, // reward: 3 Tickets
         "mission_mechanical", "mission_automation",
         {{5, 10}, {7, 5}}, // deliver: 10 Iron Plate + 5 Iron Gear
-        false
+        true, false // consumeItems=true, repeatable=false
     });
 
     // Mission 6: Electronics — unlocks Circuit (hand), Depot
@@ -90,7 +90,7 @@ MissionRegistry createDefaultMissionRegistry()
         {{35, 5}}, // reward: 5 Tickets
         "mission_automation", "mission_electronics",
         {{9, 3}}, // deliver: 3 Circuit
-        false
+        true, false // consumeItems=true, repeatable=false
     });
 
     // ===== Endgame missions (existing, gated behind progression) =====
@@ -104,7 +104,7 @@ MissionRegistry createDefaultMissionRegistry()
         {{35, 1}}, // reward: 1 Ticket
         "mission_electronics", "completed_scout",
         {{5, 10}}, // deliver: 10 Iron Plates
-        true, MissionCategory::Endgame
+        true, true, MissionCategory::Endgame
     });
 
     // World Expedition
@@ -115,7 +115,7 @@ MissionRegistry createDefaultMissionRegistry()
         1, 60000, // 1 core, 60s
         {{35, 5}, {2, 10}, {3, 5}}, // 5 Tickets, 10 Copper Ore, 5 Coal
         "completed_scout", "completed_mineral",
-        {}, false, MissionCategory::Endgame
+        {}, true, false, MissionCategory::Endgame
     });
 
     // Deep Mining
@@ -126,7 +126,7 @@ MissionRegistry createDefaultMissionRegistry()
         2, 90000, // 2 cores, 90s
         {{35, 8}, {5, 5}, {4, 5}}, // 8 Tickets, 5 Iron Plate, 5 Stone
         "completed_mineral", "completed_deep",
-        {}, false, MissionCategory::Endgame
+        {}, true, false, MissionCategory::Endgame
     });
 
     // Factory Salvage
@@ -137,7 +137,7 @@ MissionRegistry createDefaultMissionRegistry()
         2, 120000, // 2 cores, 120s
         {{35, 12}, {9, 2}, {7, 3}}, // 12 Tickets, 2 Circuit, 3 Iron Gear
         "completed_deep", "completed_salvage",
-        {}, false, MissionCategory::Endgame
+        {}, true, false, MissionCategory::Endgame
     });
 
     // Frontier Exploration
@@ -148,7 +148,7 @@ MissionRegistry createDefaultMissionRegistry()
         3, 180000, // 3 cores, 180s
         {{35, 20}}, // 20 Tickets
         "completed_salvage", "completed_frontier",
-        {}, false, MissionCategory::Endgame
+        {}, true, false, MissionCategory::Endgame
     });
 
     return reg;

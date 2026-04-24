@@ -187,9 +187,9 @@ bool MissionSystem::claimMission(size_t activeIndex)
 
     const auto& def = missionRegistry->get(m.defIndex);
 
-    // For delivery missions, consume required items from depot
+    // For delivery missions, consume required items from depot (unless flagged to keep)
     DepotData* depot = depotSystem->getDepot(m.depotX, m.depotY);
-    if (def.isDeliveryMission() and depot)
+    if (def.isDeliveryMission() and def.consumeItems and depot)
     {
         for (const auto& req : def.deliveryRequirements)
         {
@@ -403,9 +403,12 @@ bool MissionSystem::validateMainMission(size_t defIndex)
 
     const auto& def = missionRegistry->get(defIndex);
 
-    // Consume items from player inventory
-    for (const auto& req : def.deliveryRequirements)
-        playerInv->getInventory().remove(req.itemId, req.count);
+    // Consume items from player inventory (unless flagged to keep)
+    if (def.consumeItems)
+    {
+        for (const auto& req : def.deliveryRequirements)
+            playerInv->getInventory().remove(req.itemId, req.count);
+    }
 
     // Distribute rewards
     for (const auto& reward : def.rewards)
