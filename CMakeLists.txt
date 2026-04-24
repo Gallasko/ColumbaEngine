@@ -389,6 +389,10 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # ===============================================
     # Create a target to regenerate components when .pgcomp files change
     # This uses the bootstrap compiler to avoid circular dependencies
+    # Output generated files into the build directory instead of the source tree
+    set(GENERATED_COMPONENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/Components")
+    file(MAKE_DIRECTORY ${GENERATED_COMPONENTS_DIR})
+
     if(SKIP_COMPONENT_GENERATION)
         message(STATUS "SKIP_COMPONENT_GENERATION is ON: skipping component regeneration (using existing generated files)")
     elseif(COMPONENT_DEFINITIONS)
@@ -397,10 +401,10 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
             get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
 
-            # Define the output files
-            set(GENERATED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.h")
-            set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp")
-            set(GENERATED_SER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp")
+            # Define the output files (in build directory)
+            set(GENERATED_HEADER "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.generated.h")
+            set(GENERATED_CPP "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.generated.cpp")
+            set(GENERATED_SER "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.serialization.cpp")
 
             # Add custom command that only runs when inputs change
             add_custom_command(
@@ -413,7 +417,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
                     PgCompilerBootstrap
                     ${COMP_DEF}
                     ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components
+                WORKING_DIRECTORY ${GENERATED_COMPONENTS_DIR}
                 COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
                 VERBATIM
             )
@@ -455,8 +459,8 @@ if(COMPONENT_DEFINITIONS)
     foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
         get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
         list(APPEND GENERATED_COMPONENT_SOURCES
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp"
+            "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.generated.cpp"
+            "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.serialization.cpp"
         )
     endforeach()
 
@@ -505,6 +509,9 @@ target_include_directories(ColumbaEngine PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLTF_DIR}/include>
+    # Generated components in build directory (resolves "Components/X.generated.h" includes)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
+    $<BUILD_INTERFACE:${GENERATED_COMPONENTS_DIR}>
     $<INSTALL_INTERFACE:include/ColumbaEngine>
     $<INSTALL_INTERFACE:include/ColumbaEngine/GameElements>
     $<INSTALL_INTERFACE:include/glm>
