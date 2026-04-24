@@ -51,7 +51,7 @@ MissionRegistry createDefaultMissionRegistry()
         "Produce iron plates to advance crafting.",
         "Gears & Wire",
         0, 0,
-        {{35, 2}}, // reward: 2 Tickets
+        {{35, 2}, {7, 3}}, // reward: 2 Tickets + 3 Iron Gear
         "mission_smelting", "mission_metals",
         {{5, 10}}, // deliver: 10 Iron Plate
         true, false // consumeItems=true, repeatable=false
@@ -63,7 +63,7 @@ MissionRegistry createDefaultMissionRegistry()
         "Craft intermediate components.",
         "Assembler",
         0, 0,
-        {{35, 3}}, // reward: 3 Tickets
+        {{35, 3}, {26, 1}}, // reward: 3 Tickets + 1 Assembler
         "mission_metals", "mission_mechanical",
         {{7, 5}, {8, 5}}, // deliver: 5 Iron Gear + 5 Copper Wire
         true, false // consumeItems=true, repeatable=false
@@ -87,9 +87,9 @@ MissionRegistry createDefaultMissionRegistry()
         "Produce circuits to unlock advanced tech.",
         "Circuits & Depot",
         0, 0,
-        {{35, 5}}, // reward: 5 Tickets
+        {{35, 5}, {34, 1}}, // reward: 5 Tickets + 1 Depot
         "mission_automation", "mission_electronics",
-        {{9, 3}}, // deliver: 3 Circuit
+        {{9, 3}, {5, 10}, {7, 3}}, // deliver: 3 Circuit + 10 Iron Plate + 3 Iron Gear
         true, false // consumeItems=true, repeatable=false
     });
 

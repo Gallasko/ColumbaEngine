@@ -395,7 +395,7 @@ void MissionUISystem::createPanel()
     {
         auto div = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, C::DIVIDER);
         auto pos = div.get<PositionComponent>();
-        pos->setX(px + PADDING); pos->setY(curY); pos->setZ(98.5f);
+        pos->setX(px + PADDING); pos->setY(curY); pos->setZ(99.0f);
         pos->setWidth(PANEL_W - 2 * PADDING); pos->setHeight(DIVIDER_H);
         div.get<ViewportComponent>()->setViewport(UI_VP);
         topDividerId = div.entity->id;
@@ -410,7 +410,7 @@ void MissionUISystem::createPanel()
         float divH = panelH - (contentY - py) - PADDING;
         auto div = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, C::DIVIDER);
         auto pos = div.get<PositionComponent>();
-        pos->setX(divX); pos->setY(contentY); pos->setZ(98.5f);
+        pos->setX(divX); pos->setY(contentY); pos->setZ(99.0f);
         pos->setWidth(1.0f); pos->setHeight(divH);
         div.get<ViewportComponent>()->setViewport(UI_VP);
         columnDividerId = div.entity->id;
@@ -449,18 +449,19 @@ void MissionUISystem::createLeftColumn(float px, float contentY)
         {
             auto sq = makeRoundedRect2DShape(ecsRef, STATUS_SQ_RAD, STATUS_SQ_SIZE, STATUS_SQ_SIZE, C::TEXT_DIM);
             auto pos = sq.get<PositionComponent>();
-            pos->setX(sqX); pos->setY(sqY); pos->setZ(98.5f);
+            pos->setX(sqX); pos->setY(sqY); pos->setZ(99.0f);
             sq.get<ViewportComponent>()->setViewport(UI_VP);
             row.statusBorderId = sq.entity->id;
         }
 
         // Status square (fill = inner rect)
+        // Todo buggy af, so currently not visible
         {
             float inset = 2.0f;
             auto sq = makeRoundedRect2DShape(ecsRef, STATUS_SQ_RAD,
                 STATUS_SQ_SIZE - 2 * inset, STATUS_SQ_SIZE - 2 * inset, C::BG);
             auto pos = sq.get<PositionComponent>();
-            pos->setX(sqX + inset); pos->setY(sqY + inset); pos->setZ(98.6f);
+            pos->setX(sqX + inset); pos->setY(sqY + inset); pos->setZ(86.0f);
             sq.get<ViewportComponent>()->setViewport(UI_VP);
             row.statusFillId = sq.entity->id;
         }
@@ -497,7 +498,7 @@ void MissionUISystem::createLeftColumn(float px, float contentY)
             float sepY = rowY + LIST_ROW_H;
             auto sep = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, C::DIVIDER);
             auto pos = sep.get<PositionComponent>();
-            pos->setX(colX + PADDING); pos->setY(sepY); pos->setZ(98.3f);
+            pos->setX(colX + PADDING); pos->setY(sepY); pos->setZ(99.0f);
             pos->setWidth(rowW - PADDING); pos->setHeight(SEPARATOR_H);
             sep.get<ViewportComponent>()->setViewport(UI_VP);
             row.separatorId = sep.entity->id;
@@ -557,7 +558,7 @@ void MissionUISystem::createRightColumn(float px, float contentY)
         // Outer border rect (1px, dim)
         auto outer = makeRoundedRect2DShape(ecsRef, BLOCK_RADIUS, colW, BLOCK_H, C::COST_BRD);
         auto opos = outer.get<PositionComponent>();
-        opos->setX(colX); opos->setY(curY); opos->setZ(98.2f);
+        opos->setX(colX); opos->setY(curY); opos->setZ(98.0f);
         outer.get<ViewportComponent>()->setViewport(UI_VP);
         costBlockBorderId = outer.entity->id;
 
@@ -565,7 +566,7 @@ void MissionUISystem::createRightColumn(float px, float contentY)
         auto inner = makeRoundedRect2DShape(ecsRef, BLOCK_RADIUS - 1.0f,
             colW - 2 * COST_BORDER, BLOCK_H - 2 * COST_BORDER, C::BLOCK_FILL);
         auto ipos = inner.get<PositionComponent>();
-        ipos->setX(colX + COST_BORDER); ipos->setY(curY + COST_BORDER); ipos->setZ(98.3f);
+        ipos->setX(colX + COST_BORDER); ipos->setY(curY + COST_BORDER); ipos->setZ(99.0f);
         inner.get<ViewportComponent>()->setViewport(UI_VP);
         costBlockFillId = inner.entity->id;
 
@@ -604,7 +605,7 @@ void MissionUISystem::createRightColumn(float px, float contentY)
         // Outer border rect (2px, brighter)
         auto outer = makeRoundedRect2DShape(ecsRef, BLOCK_RADIUS, colW, BLOCK_H, C::REWARD_BRD);
         auto opos = outer.get<PositionComponent>();
-        opos->setX(colX); opos->setY(curY); opos->setZ(98.2f);
+        opos->setX(colX); opos->setY(curY); opos->setZ(98.0f);
         outer.get<ViewportComponent>()->setViewport(UI_VP);
         rewardBlockBorderId = outer.entity->id;
 
@@ -613,7 +614,7 @@ void MissionUISystem::createRightColumn(float px, float contentY)
         auto inner = makeRoundedRect2DShape(ecsRef, BLOCK_RADIUS - 1.0f,
             colW - 2 * REWARD_BORDER, BLOCK_H - 2 * REWARD_BORDER, rewardFill);
         auto ipos = inner.get<PositionComponent>();
-        ipos->setX(colX + REWARD_BORDER); ipos->setY(curY + REWARD_BORDER); ipos->setZ(98.3f);
+        ipos->setX(colX + REWARD_BORDER); ipos->setY(curY + REWARD_BORDER); ipos->setZ(99.0f);
         inner.get<ViewportComponent>()->setViewport(UI_VP);
         rewardBlockFillId = inner.entity->id;
 
@@ -655,7 +656,7 @@ void MissionUISystem::createRightColumn(float px, float contentY)
         auto pbBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
         auto pbPos = pbBg.get<PositionComponent>();
-        pbPos->setX(colX); pbPos->setY(curY); pbPos->setZ(98.5f);
+        pbPos->setX(colX); pbPos->setY(curY); pbPos->setZ(98.0f);
         pbPos->setWidth(colW); pbPos->setHeight(PROGRESS_H);
         pbPos->setVisibility(false);
         pbBg.get<ViewportComponent>()->setViewport(UI_VP);
@@ -664,7 +665,7 @@ void MissionUISystem::createRightColumn(float px, float contentY)
         auto pbFill = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{80.0f, 160.0f, 80.0f, 220.0f});
         auto pfPos = pbFill.get<PositionComponent>();
-        pfPos->setX(colX); pfPos->setY(curY); pfPos->setZ(98.6f);
+        pfPos->setX(colX); pfPos->setY(curY); pfPos->setZ(99.0f);
         pfPos->setWidth(0.0f); pfPos->setHeight(PROGRESS_H);
         pfPos->setVisibility(false);
         pbFill.get<ViewportComponent>()->setViewport(UI_VP);
