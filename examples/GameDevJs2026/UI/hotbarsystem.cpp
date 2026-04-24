@@ -20,8 +20,6 @@ void HotbarSystem::onEvent(const ResizeEvent& event)
     screenWidth = event.width;
     screenHeight = event.height;
 
-    // Slot bgs are anchored and auto-reposition; refresh items/texts to match
-    refreshAllSlots();
     updateHighlight();
 }
 
@@ -177,7 +175,7 @@ void HotbarSystem::createHotbarUI()
         slotAnchor->setLeftMargin(slotLeftMargin);
         slotAnchor->setTopAnchor(PosAnchor{containerEntityId, AnchorType::Top});
 
-        // Item texture entity (hidden; positioned in refreshSlot)
+        // Item texture entity — anchored to slot bg center
         auto tex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
         auto itemPos = tex.get<PositionComponent>();
         itemPos->setZ(0.96f);
@@ -185,7 +183,11 @@ void HotbarSystem::createHotbarUI()
         tex.get<ViewportComponent>()->setViewport(UI_VP);
         slotVisuals[i].itemEntityId = tex.entity->id;
 
-        // Count text entity (hidden; positioned in refreshSlot)
+        auto itemAnchor = ecsRef->attach<UiAnchor>(tex.entity);
+        itemAnchor->setVerticalCenter(PosAnchor{slotVisuals[i].bgEntityId, AnchorType::VerticalCenter});
+        itemAnchor->setHorizontalCenter(PosAnchor{slotVisuals[i].bgEntityId, AnchorType::HorizontalCenter});
+
+        // Count text entity — anchored to slot bg bottom-right
         auto text = makeTTFText(ecsRef,
             0.0f, 0.0f, 0.97f,
             FONT_PATH, "", TEXT_SCALE,
@@ -193,6 +195,12 @@ void HotbarSystem::createHotbarUI()
         text.get<PositionComponent>()->setVisibility(false);
         text.get<ViewportComponent>()->setViewport(UI_VP);
         slotVisuals[i].textEntityId = text.entity->id;
+
+        auto textAnchor = ecsRef->attach<UiAnchor>(text.entity);
+        textAnchor->setLeftAnchor(PosAnchor{slotVisuals[i].bgEntityId, AnchorType::Left});
+        textAnchor->setLeftMargin(SLOT_SIZE - 4.0f);
+        textAnchor->setTopAnchor(PosAnchor{slotVisuals[i].bgEntityId, AnchorType::Top});
+        textAnchor->setTopMargin(SLOT_SIZE - 4.0f);
     }
 
     // Selection highlight overlay
@@ -261,16 +269,7 @@ void HotbarSystem::refreshSlot(size_t index)
         return;
     }
 
-    // Read slot bg position (auto-updated by anchoring)
-    auto slotEnt = ecsRef->getEntity(sv.bgEntityId);
-    if (not slotEnt)
-        return;
-    auto slotPos = slotEnt->get<PositionComponent>();
-    float slotX = slotPos->getX();
-    float slotY = slotPos->getY();
-    float itemOffset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
-
-    // Update item texture and show
+    // Update item texture and show (position handled by anchor)
     const auto& def = itemRegistry->get(stack.id);
     auto itemEnt = ecsRef->getEntity(sv.itemEntityId);
     if (itemEnt)
@@ -280,22 +279,17 @@ void HotbarSystem::refreshSlot(size_t index)
         float iconW = ITEM_SIZE * def.iconWidthRatio;
         pos->setWidth(iconW);
         pos->setHeight(ITEM_SIZE);
-        pos->setX(slotX + itemOffset + (ITEM_SIZE - iconW) * 0.5f);
-        pos->setY(slotY + itemOffset);
         pos->setVisibility(true);
     }
 
-    // Update count text position and show
+    // Update count text (position handled by anchor)
     if (stack.count > 1)
     {
         auto textEnt = ecsRef->getEntity(sv.textEntityId);
         if (textEnt)
         {
             textEnt->get<TTFText>()->setText(std::to_string(stack.count));
-            auto pos = textEnt->get<PositionComponent>();
-            pos->setX(slotX + SLOT_SIZE - 4.0f);
-            pos->setY(slotY + SLOT_SIZE - 4.0f);
-            pos->setVisibility(true);
+            textEnt->get<PositionComponent>()->setVisibility(true);
         }
     }
     else
