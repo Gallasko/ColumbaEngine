@@ -21,9 +21,9 @@ class HudBarSystem : public System<InitSys,
 {
 public:
     static constexpr size_t UI_VP       = 2;
-    static constexpr float BUTTON_SIZE  = 32.0f;
+    static constexpr float BUTTON_SIZE  = 48.0f;
     static constexpr float BUTTON_GAP   = 6.0f;
-    static constexpr float ICON_SIZE    = 24.0f;
+    static constexpr float ICON_SIZE    = 40.0f;
     static constexpr float MARGIN_RIGHT = 12.0f;
     static constexpr float MARGIN_TOP   = 12.0f;
     static constexpr size_t NUM_BUTTONS = 3;
