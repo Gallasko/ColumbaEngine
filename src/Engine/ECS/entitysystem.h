@@ -923,8 +923,8 @@ namespace pg
             }
         }
 
-        bool running = false;
-        bool stopRequested = false;
+        std::atomic<bool> running{false};
+        std::atomic<bool> stopRequested{false};
 
         VmOptimizationLevel vmOptimizationLevel = VmOptimizationLevel::O3;
 

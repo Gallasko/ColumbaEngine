@@ -36,7 +36,7 @@ MissionRegistry createDefaultMissionRegistry()
     // Mission 2: Ore Discovery — unlocks furnace smelting recipes
     reg.addMission({
         "Ore Discovery",
-        "Mine iron ore to unlock smelting.",
+        "Equip your pickaxe and mine an iron ore patch.",
         "Smelting",
         0, 0,
         {{35, 2}}, // reward: 2 Tickets

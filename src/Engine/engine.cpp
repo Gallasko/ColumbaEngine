@@ -29,6 +29,20 @@ Engine::~Engine()
 {
     LOG_THIS_MEMBER(DOM);
 
+    if (mainWindow and mainWindow->ecs)
+    {
+        LOG_INFO(DOM, "Stopping ECS before engine teardown...");
+        try
+        {
+            mainWindow->ecs->stop();
+            LOG_INFO(DOM, "ECS stopped cleanly");
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR(DOM, "Exception during ECS stop: " << e.what());
+        }
+    }
+
     if (mainWindow)
     {
         delete mainWindow;

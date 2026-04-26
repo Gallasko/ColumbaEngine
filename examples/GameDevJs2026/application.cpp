@@ -289,7 +289,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* manualMining = ecs.createSystem<ManualMiningSystem>(
             gridSystem, cameraSystem, playerInvSystem, &itemRegistry, hotbar, screenW, screenH);
 
-        ecs.createSystem<TooltipSystem>(
+        auto* tooltipSystem = ecs.createSystem<TooltipSystem>(
             inventoryUI, hotbar, machineUI, playerInvSystem,
             &itemRegistry, &recipeRegistry, screenW, screenH);
 
@@ -303,6 +303,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         auto* missionUI = ecs.createSystem<MissionUISystem>(
             missionSystem, depotSystem, playerInvSystem, &itemRegistry, screenW, screenH);
+        missionUI->setTooltipSystem(tooltipSystem);
 
         auto* hudBar = ecs.createSystem<HudBarSystem>(inventoryUI, playerInvSystem, worldFacts, screenW, screenH);
         hudBar->setMissionUIToggle([missionUI]() { missionUI->toggle(); });

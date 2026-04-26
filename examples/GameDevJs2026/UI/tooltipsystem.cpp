@@ -30,6 +30,16 @@ void TooltipSystem::onProcessEvent(const OnSDLMouseMotion& event)
     }
 }
 
+void TooltipSystem::setHoveredItem(ItemId id)
+{
+    if (id == hoveredItem)
+        return;
+    hoveredItem = id;
+    hoverStart  = static_cast<uint32_t>(SDL_GetTicks());
+    if (id == ITEM_NONE)
+        hideTooltip();
+}
+
 void TooltipSystem::onProcessEvent(const TickEvent&)
 {
     if (hoveredItem == ITEM_NONE)

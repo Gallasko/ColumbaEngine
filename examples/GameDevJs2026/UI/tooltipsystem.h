@@ -59,6 +59,11 @@ public:
     virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
     virtual void onProcessEvent(const TickEvent& event) override;
 
+    // External hover signal — used by component-driven hover sources
+    // (mission UI icons, etc.) that don't go through the motion-poll path.
+    // Pass ITEM_NONE to clear/hide.
+    void setHoveredItem(ItemId id);
+
 private:
     // --- Panel creation -------------------------------------------------
 

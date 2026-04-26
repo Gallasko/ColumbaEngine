@@ -4,6 +4,8 @@
 #include "2D/texture.h"
 #include "UI/ttftext.h"
 
+#include "tooltipsystem.h"
+
 #include <SDL2/SDL.h>
 #include <cstdio>
 #include <algorithm>
@@ -57,6 +59,8 @@ void MissionUISystem::close()
         return;
     visible = false;
     setPanelVisibility(false);
+    if (tooltipSystem)
+        tooltipSystem->setHoveredItem(ITEM_NONE);
 }
 
 void MissionUISystem::selectDepot(int depotX, int depotY)
@@ -97,6 +101,26 @@ void MissionUISystem::onProcessEvent(const OnSDLScanCode& event)
 
 void MissionUISystem::onEvent(const TickEvent&)
 {
+}
+
+void MissionUISystem::onEvent(const OnMissionIconHoverEnter& event)
+{
+    if (not tooltipSystem or not visible)
+        return;
+    auto it = iconItemMap.find(event.iconEntityId);
+    if (it == iconItemMap.end())
+        return;
+    tooltipSystem->setHoveredItem(it->second);
+}
+
+void MissionUISystem::onEvent(const OnMissionIconHoverLeave& event)
+{
+    if (not tooltipSystem)
+        return;
+    auto it = iconItemMap.find(event.iconEntityId);
+    if (it == iconItemMap.end())
+        return;
+    tooltipSystem->setHoveredItem(ITEM_NONE);
 }
 
 void MissionUISystem::execute()
@@ -584,6 +608,11 @@ void MissionUISystem::createRightColumn(float px, float contentY)
             icon.get<ViewportComponent>()->setViewport(UI_VP);
             costItems[r].iconId = icon.entity->id;
 
+            ecsRef->attach<MouseEnterComponent>(icon.entity,
+                makeCallable<OnMissionIconHoverEnter>(OnMissionIconHoverEnter{icon.entity->id}));
+            ecsRef->attach<MouseLeaveComponent>(icon.entity,
+                makeCallable<OnMissionIconHoverLeave>(OnMissionIconHoverLeave{icon.entity->id}));
+
             auto cnt = makeTTFText(ecsRef, rx + ICON_SIZE + 4.0f, curY + 14.0f, 100.0f,
                 FONT_MEDIUM, "", SCALE_NUM, C::TEXT);
             cnt.get<PositionComponent>()->setVisibility(false);
@@ -631,6 +660,11 @@ void MissionUISystem::createRightColumn(float px, float contentY)
             iconPos->setVisibility(false);
             icon.get<ViewportComponent>()->setViewport(UI_VP);
             rewardItems[r].iconId = icon.entity->id;
+
+            ecsRef->attach<MouseEnterComponent>(icon.entity,
+                makeCallable<OnMissionIconHoverEnter>(OnMissionIconHoverEnter{icon.entity->id}));
+            ecsRef->attach<MouseLeaveComponent>(icon.entity,
+                makeCallable<OnMissionIconHoverLeave>(OnMissionIconHoverLeave{icon.entity->id}));
 
             auto cnt = makeTTFText(ecsRef, rx + ICON_SIZE + 4.0f, curY + 14.0f, 100.0f,
                 FONT_MEDIUM, "", SCALE_NUM, C::TEXT);
@@ -937,6 +971,8 @@ void MissionUISystem::refreshLeftColumn()
 
 void MissionUISystem::refreshRightColumn()
 {
+    iconItemMap.clear();
+
     const auto& defs = missionSystem->getDefs();
     const auto& active = missionSystem->getActive();
     bool isShopTab = (currentTab == 2);
@@ -1048,6 +1084,7 @@ void MissionUISystem::refreshRightColumn()
                     setEntityTexture(costItems[r].iconId, itemRegistry->get(req.itemId).textureName);
                     std::string prefix = def.consumeItems ? "-" : "";
                     setEntityText(costItems[r].countTextId, prefix + std::to_string(req.count));
+                    iconItemMap[costItems[r].iconId] = req.itemId;
                 }
             }
         }
@@ -1099,6 +1136,7 @@ void MissionUISystem::refreshRightColumn()
                 const auto& reward = def.rewards[r];
                 setEntityTexture(rewardItems[r].iconId, itemRegistry->get(reward.itemId).textureName);
                 setEntityText(rewardItems[r].countTextId, "+" + std::to_string(reward.count));
+                iconItemMap[rewardItems[r].iconId] = reward.itemId;
             }
         }
     }

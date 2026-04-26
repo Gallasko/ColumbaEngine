@@ -10,10 +10,24 @@
 #include "itemregistry.h"
 #include "inventoryui.h"
 
+#include <cstdint>
+#include <unordered_map>
+
 using namespace pg;
+
+class TooltipSystem;
+
+// Fired by MouseEnter/MouseLeave callbacks attached to mission cost/reward
+// icon entities.  The payload carries the icon's entity id; the current
+// ItemId is resolved via MissionUISystem's iconItemMap (kept in sync as
+// the right-pane refreshes).
+struct OnMissionIconHoverEnter { uint64_t iconEntityId; };
+struct OnMissionIconHoverLeave { uint64_t iconEntityId; };
 
 class MissionUISystem : public System<QueuedListener<OnMouseClick>,
                                        QueuedListener<OnSDLScanCode>,
+                                       Listener<OnMissionIconHoverEnter>,
+                                       Listener<OnMissionIconHoverLeave>,
                                        Listener<TickEvent>,
                                        Listener<ResizeEvent>>
 {
@@ -112,6 +126,8 @@ public:
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onEvent(const TickEvent&) override;
+    virtual void onEvent(const OnMissionIconHoverEnter& event) override;
+    virtual void onEvent(const OnMissionIconHoverLeave& event) override;
     virtual void onEvent(const ResizeEvent& event) override
     {
         screenWidth = event.width;
@@ -119,6 +135,8 @@ public:
     }
 
     void execute() override;
+
+    void setTooltipSystem(TooltipSystem* tooltip) { tooltipSystem = tooltip; }
 
 private:
     float getPanelX() const { return (screenWidth - PANEL_W) * 0.5f; }
@@ -161,7 +179,13 @@ private:
     DepotSystem* depotSystem = nullptr;
     PlayerInventorySystem* playerInv = nullptr;
     ItemRegistry* itemRegistry = nullptr;
+    TooltipSystem* tooltipSystem = nullptr;
     float screenWidth, screenHeight;
+
+    // Icon entity id → currently-displayed ItemId for cost & reward icons.
+    // Updated in refreshRightColumn so hover callbacks can resolve which
+    // item they're hovering when the mission selection changes.
+    std::unordered_map<uint64_t, ItemId> iconItemMap;
 
     bool visible = false;
     bool panelCreated = false;
