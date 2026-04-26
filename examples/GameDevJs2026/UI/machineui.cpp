@@ -51,6 +51,9 @@ void MachineUISystem::open(int gridX, int gridY, const std::string& tileName)
 
 void MachineUISystem::close()
 {
+    if (not visible)
+        return;
+
     if (inventoryUI and inventoryUI->hasHeldItem())
         inventoryUI->cancelHeld();
 
@@ -76,6 +79,10 @@ void MachineUISystem::close()
     openMachineX   = -1;
     openMachineY   = -1;
     openMachineName.clear();
+
+    // Close the companion inventory (cascades to crafting).
+    if (inventoryUI and inventoryUI->isOpen())
+        inventoryUI->closeInventory();
 }
 
 // ---------------------------------------------------------------------------

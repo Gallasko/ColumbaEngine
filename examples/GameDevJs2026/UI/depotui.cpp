@@ -39,6 +39,9 @@ void DepotUISystem::open(int gridX, int gridY)
 
 void DepotUISystem::close()
 {
+    if (not visible)
+        return;
+
     if (inventoryUI and inventoryUI->hasHeldItem())
         inventoryUI->cancelHeld();
 
@@ -58,14 +61,17 @@ void DepotUISystem::close()
     visible = false;
     openDepotX = -1;
     openDepotY = -1;
+    depotDataSeenThisOpen = false;
 
-    // Un-suppress and re-open crafting UI if inventory is still open
     if (craftingUI)
-    {
         craftingUI->setSuppressed(false);
-        if (inventoryUI and inventoryUI->isOpen())
-            craftingUI->open();
-    }
+
+    // Close the companion inventory we opened in open(). closeInventory is
+    // idempotent and cascades to crafting via InventoryClosedEvent. The
+    // visible-guard at the top of this function prevents the cascade from
+    // re-entering close().
+    if (inventoryUI and inventoryUI->isOpen())
+        inventoryUI->closeInventory();
 }
 
 // ---------------------------------------------------------------------------

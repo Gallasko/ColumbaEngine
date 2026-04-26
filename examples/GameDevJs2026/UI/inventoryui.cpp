@@ -130,6 +130,9 @@ void InventoryUISystem::openInventory()
 
 void InventoryUISystem::closeInventory()
 {
+    if (not visible)
+        return;
+
     if (not heldItem.isEmpty())
         cancelHeldDataOnly();
 

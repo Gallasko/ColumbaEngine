@@ -27,6 +27,9 @@ void MinerUISystem::open(int gridX, int gridY)
 
 void MinerUISystem::close()
 {
+    if (not visible)
+        return;
+
     // Cancel any held item that came from our slot
     if (inventoryUI and inventoryUI->hasHeldItem())
         inventoryUI->cancelHeld();
@@ -41,6 +44,10 @@ void MinerUISystem::close()
     openMinerX = -1;
     openMinerY = -1;
     lastDisplayedStack.clear();
+
+    // Close the companion inventory (cascades to crafting).
+    if (inventoryUI and inventoryUI->isOpen())
+        inventoryUI->closeInventory();
 }
 
 void MinerUISystem::onProcessEvent(const OnSDLScanCode& event)

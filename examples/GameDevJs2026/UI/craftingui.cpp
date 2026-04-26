@@ -271,6 +271,9 @@ void CraftingUISystem::open()
 
 void CraftingUISystem::close()
 {
+    if (not visible)
+        return;
+
     visible = false;
     activeMachineName.clear();
 

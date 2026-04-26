@@ -29,6 +29,9 @@ void StorageUISystem::open(int gridX, int gridY)
 
 void StorageUISystem::close()
 {
+    if (not visible)
+        return;
+
     if (inventoryUI and inventoryUI->hasHeldItem())
         inventoryUI->cancelHeld();
 
@@ -43,6 +46,10 @@ void StorageUISystem::close()
     visible = false;
     openStorageX = -1;
     openStorageY = -1;
+
+    // Close the companion inventory (cascades to crafting).
+    if (inventoryUI and inventoryUI->isOpen())
+        inventoryUI->closeInventory();
 }
 
 // ---------------------------------------------------------------------------
