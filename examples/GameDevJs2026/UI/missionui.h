@@ -25,6 +25,16 @@ class TooltipSystem;
 struct OnMissionIconHoverEnter { uint64_t iconEntityId; };
 struct OnMissionIconHoverLeave { uint64_t iconEntityId; };
 
+// Fired by MissionUISystem::open() exactly once per closed→open transition.
+// Used by TutorialSystem to advance the "open mission tab" step and by
+// HudBarSystem to clear the unread-mission badge.
+struct MissionUIOpenedEvent {};
+
+// Fired by MissionUISystem::close() exactly once per open→closed transition.
+// HudBar uses it to flip its "missionTabOpen" tracking off so transitions
+// detected after closing can re-arm the badge.
+struct MissionUIClosedEvent {};
+
 class MissionUISystem : public System<QueuedListener<OnMouseClick>,
                                        QueuedListener<OnSDLScanCode>,
                                        Listener<OnMissionIconHoverEnter>,

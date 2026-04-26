@@ -13,7 +13,7 @@ const TutorialSystem::StepDef TutorialSystem::STEPS[] = {
     {"Welcome!",            "Use WASD to move the camera and scroll to zoom."},
     {"Great!",              "Click on a tree or rock to gather resources."},
     {"Resources gathered!", "Press TAB to open your inventory."},
-    {"Inventory opened!",   "Click on the Depot to view and start missions."},
+    {"Inventory opened!",   "Click the mission button at the top-right to view available missions."},
     {"Good job!",           "Complete missions to unlock crafting recipes!"},
 };
 
@@ -41,6 +41,12 @@ void TutorialSystem::onEvent(const PlayerGainItemEvent& event)
 void TutorialSystem::onEvent(const InventoryOpenedEvent&)
 {
     if (currentStep == 2)
+        pendingAdvance = true;
+}
+
+void TutorialSystem::onEvent(const MissionUIOpenedEvent&)
+{
+    if (currentStep == 3)
         pendingAdvance = true;
 }
 
@@ -146,8 +152,9 @@ void TutorialSystem::advanceStep()
 
     updateContent();
 
-    // Steps 3 and 4 auto-advance after a short delay
-    if (currentStep == 3 || currentStep == 4)
+    // Step 3 (open mission tab) waits for explicit user action — no timeout.
+    // Step 4 (final "Good job!") auto-advances to dismiss the tutorial.
+    if (currentStep == 4)
         autoAdvanceTimer = AUTO_ADVANCE_MS;
 }
 

@@ -8,6 +8,7 @@
 #include "gridsystem.h"
 #include "worldfacts.h"
 #include "inventoryui.h"
+#include "missionui.h"
 #include "reciperegistry.h"
 
 using namespace pg;
@@ -15,6 +16,7 @@ using namespace pg;
 class TutorialSystem : public System<Listener<OnSDLScanCode>,
                                       Listener<PlayerGainItemEvent>,
                                       Listener<InventoryOpenedEvent>,
+                                      Listener<MissionUIOpenedEvent>,
                                       Listener<HandCraftCompletedEvent>,
                                       Listener<BuildingPlacedEvent>,
                                       Listener<TickEvent>>
@@ -45,6 +47,7 @@ public:
     virtual void onEvent(const OnSDLScanCode& event) override;
     virtual void onEvent(const PlayerGainItemEvent& event) override;
     virtual void onEvent(const InventoryOpenedEvent& event) override;
+    virtual void onEvent(const MissionUIOpenedEvent& event) override;
     virtual void onEvent(const HandCraftCompletedEvent& event) override;
     virtual void onEvent(const BuildingPlacedEvent& event) override;
     virtual void onEvent(const TickEvent& event) override;

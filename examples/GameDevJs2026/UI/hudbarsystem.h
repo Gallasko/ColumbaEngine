@@ -5,14 +5,19 @@
 
 #include "worldfacts.h"
 #include "playerinventory.h"
+#include "missionui.h"
 
 #include <functional>
 
 using namespace pg;
 
+class MissionSystem;
+
 class HudBarSystem : public System<InitSys,
                                     QueuedListener<OnMouseClick>,
-                                    Listener<TickEvent>>
+                                    Listener<TickEvent>,
+                                    Listener<MissionUIOpenedEvent>,
+                                    Listener<MissionUIClosedEvent>>
 {
 public:
     static constexpr size_t UI_VP       = 2;
@@ -33,8 +38,10 @@ public:
     static constexpr ItemId TICKET_ID = 35;
 
     HudBarSystem(PlayerInventorySystem* playerInv, WorldFacts* worldFacts,
+                 MissionSystem* missionSystem,
                  float screenWidth, float screenHeight)
         : playerInv(playerInv), worldFacts(worldFacts),
+          missionSystem(missionSystem),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "HUD Bar System"; }
@@ -42,6 +49,8 @@ public:
     void init() override;
 
     virtual void onEvent(const TickEvent&) override;
+    virtual void onEvent(const MissionUIOpenedEvent&) override;
+    virtual void onEvent(const MissionUIClosedEvent&) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
 
     // Set by application after GameSystem is created. These route through
@@ -58,6 +67,7 @@ private:
 
     PlayerInventorySystem* playerInv = nullptr;
     WorldFacts* worldFacts = nullptr;
+    MissionSystem* missionSystem = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
@@ -84,4 +94,19 @@ private:
 
     void createTicketDisplay();
     void updateTicketDisplay();
+
+    // Mission notification badge — lights up when a mission becomes
+    // unlocked or a main mission's materials become satisfied. Cleared
+    // when the player opens the mission tab.
+    static constexpr float MISSION_BADGE_SIZE = 10.0f;
+    uint64_t missionBadgeId = 0;
+    int prevUnlockCount = -1;     // sentinel: first tick seeds without arming
+    int prevCompletableCount = -1;
+    bool missionTabOpen = false;
+
+    void createMissionBadge();
+    void updateMissionBadge();
+    int countUnlockedMissions() const;
+    int countCompletableMainMissions() const;
+    void setEntityVisibility(uint64_t id, bool vis);
 };

@@ -1,5 +1,7 @@
 #include "hudbarsystem.h"
 
+#include "missionsystem.h"
+
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
 #include "UI/ttftext.h"
@@ -15,6 +17,20 @@ void HudBarSystem::onEvent(const TickEvent&)
 {
     updateMissionButtonVisibility();
     updateTicketDisplay();
+    updateMissionBadge();
+}
+
+void HudBarSystem::onEvent(const MissionUIOpenedEvent&)
+{
+    missionTabOpen = true;
+    if (worldFacts)
+        worldFacts->setFact("mission_attention_pending", false);
+    setEntityVisibility(missionBadgeId, false);
+}
+
+void HudBarSystem::onEvent(const MissionUIClosedEvent&)
+{
+    missionTabOpen = false;
 }
 
 void HudBarSystem::onProcessEvent(const OnMouseClick& event)
@@ -96,6 +112,7 @@ void HudBarSystem::createButtons()
 
     // Mission button is always visible (starter depot placed at game start)
     createTicketDisplay();
+    createMissionBadge();
 }
 
 void HudBarSystem::updateMissionButtonVisibility()
@@ -182,4 +199,101 @@ void HudBarSystem::updateTicketDisplay()
         if (ent and ent->has<TTFText>())
             ent->get<TTFText>()->setText(std::to_string(count));
     }
+}
+
+void HudBarSystem::createMissionBadge()
+{
+    // Small red square at the top-right corner of the mission button.
+    float bx = buttonX[BTN_MISSIONS] + BUTTON_SIZE - MISSION_BADGE_SIZE - 2.0f;
+    float by = buttonY[BTN_MISSIONS] + 2.0f;
+
+    auto badge = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+        constant::Vector4D{220.0f, 60.0f, 60.0f, 255.0f});
+    auto pos = badge.get<PositionComponent>();
+    pos->setX(bx);
+    pos->setY(by);
+    pos->setZ(97.0f);
+    pos->setWidth(MISSION_BADGE_SIZE);
+    pos->setHeight(MISSION_BADGE_SIZE);
+    pos->setVisibility(false);
+    badge.get<ViewportComponent>()->setViewport(UI_VP);
+    missionBadgeId = badge.entity->id;
+}
+
+int HudBarSystem::countUnlockedMissions() const
+{
+    if (not missionSystem)
+        return 0;
+    const auto& defs = missionSystem->getDefs();
+    int count = 0;
+    for (size_t i = 0; i < defs.size(); ++i)
+        if (missionSystem->isMissionUnlocked(i))
+            ++count;
+    return count;
+}
+
+int HudBarSystem::countCompletableMainMissions() const
+{
+    if (not missionSystem)
+        return 0;
+    const auto& defs = missionSystem->getDefs();
+    int count = 0;
+    for (size_t i = 0; i < defs.size(); ++i)
+        if (missionSystem->canValidateMainMission(i))
+            ++count;
+    return count;
+}
+
+void HudBarSystem::updateMissionBadge()
+{
+    if (missionBadgeId == 0 or not missionSystem or not worldFacts)
+        return;
+
+    int currentUnlocks = countUnlockedMissions();
+    int currentCompletable = countCompletableMainMissions();
+
+    // Lazy seed: on the first tick after load we don't know the player's
+    // baseline, so we just record current counts without arming the badge.
+    // Missions with empty unlockFact report as unlocked from the start.
+    if (prevUnlockCount < 0 or prevCompletableCount < 0)
+    {
+        prevUnlockCount = currentUnlocks;
+        prevCompletableCount = currentCompletable;
+    }
+
+    // Detect transitions. We only ARM the badge when the count goes UP and
+    // the player isn't already in the mission tab — anything they'd see by
+    // opening the tab is implicitly "seen".
+    if (not missionTabOpen)
+    {
+        bool unlockTransition     = currentUnlocks     > prevUnlockCount;
+        bool completableTransition = currentCompletable > prevCompletableCount;
+        if (unlockTransition or completableTransition)
+            worldFacts->setFact("mission_attention_pending", true);
+    }
+
+    prevUnlockCount = currentUnlocks;
+    prevCompletableCount = currentCompletable;
+
+    if (missionTabOpen)
+    {
+        setEntityVisibility(missionBadgeId, false);
+        return;
+    }
+
+    bool pending = worldFacts->getFact<bool>("mission_attention_pending", false);
+    // Also show the badge while the tutorial is on the "open mission tab"
+    // step so it doubles as a visual ping pointing at the button.
+    bool tutorialPointsHere = (worldFacts->getFact<int>("tutorial_step", 0) == 3);
+
+    setEntityVisibility(missionBadgeId, pending or tutorialPointsHere);
+}
+
+void HudBarSystem::setEntityVisibility(uint64_t id, bool vis)
+{
+    if (id == 0)
+        return;
+    auto ent = ecsRef->getEntity(id);
+    if (ent)
+        ent->get<PositionComponent>()->setVisibility(vis);
 }

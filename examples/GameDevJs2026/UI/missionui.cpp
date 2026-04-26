@@ -27,6 +27,7 @@ void MissionUISystem::open()
     if (visible)
         return;
     visible = true;
+    ecsRef->sendEvent(MissionUIOpenedEvent{});
     ensurePanelCreated();
 
     // Rebuild filtered defs and auto-select first actionable mission
@@ -61,6 +62,7 @@ void MissionUISystem::close()
     setPanelVisibility(false);
     if (tooltipSystem)
         tooltipSystem->setHoveredItem(ITEM_NONE);
+    ecsRef->sendEvent(MissionUIClosedEvent{});
 }
 
 void MissionUISystem::selectDepot(int depotX, int depotY)

@@ -309,7 +309,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         // OnMouseClick handler runs first — GameSystem's click-outside
         // handler then sees the post-toggle UI state and won't immediately
         // close a panel that the HUD button just opened.
-        auto* hudBar = ecs.createSystem<HudBarSystem>(playerInvSystem, worldFacts, screenW, screenH);
+        auto* hudBar = ecs.createSystem<HudBarSystem>(playerInvSystem, worldFacts, missionSystem, screenW, screenH);
 
         ecs.createSystem<AutoSaveSystem>();
         ecs.createSystem<AnalyticsSystem>();
