@@ -16,11 +16,11 @@ public:
     int exec();
 
 private:
-    pg::Engine engine;
     BuildingRegistry registry;
     ItemRegistry itemRegistry;
     MissionRegistry missionRegistry;
     RecipeRegistry recipeRegistry;
+    pg::Engine engine;
 };
 
 #endif

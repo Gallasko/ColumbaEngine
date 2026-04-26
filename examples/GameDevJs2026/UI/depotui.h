@@ -136,6 +136,7 @@ private:
 
     bool visible = false;
     bool panelCreated = false;
+    bool depotDataSeenThisOpen = false;
     int openDepotX = -1;
     int openDepotY = -1;
 

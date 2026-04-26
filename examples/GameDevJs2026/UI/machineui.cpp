@@ -267,11 +267,14 @@ void MachineUISystem::createPanel()
             makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
     }
 
-    // Title
+    // Title — seeded with openMachineName (already set in open() before
+    // ensurePanelCreated) so the very first frame renders the correct
+    // label. updateForMachineType() will keep it in sync on later opens.
     {
+        const char* initialTitle = openMachineName.empty() ? "Machine" : openMachineName.c_str();
         auto t = makeTTFText(ecsRef,
             panelX + PANEL_PADDING, panelY + PANEL_PADDING + 4.0f, 100.0f,
-            FONT_PATH, "Machine", TITLE_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
+            FONT_PATH, initialTitle, TITLE_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
         t.get<ViewportComponent>()->setViewport(UI_VP);
         titleEntityId = t.entity->id;
     }

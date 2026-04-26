@@ -141,9 +141,11 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
 
             if (not onAnyPanel)
             {
-                // Closing inventory cascades to miner and crafting via events
-                if (inventoryUI and inventoryUI->isOpen()) inventoryUI->closeInventory();
-                if (missionUI and missionUI->isOpen()) missionUI->close();
+                // Close every group explicitly. Relying on InventoryClosedEvent
+                // to cascade to companion panels left depot/storage/etc. open
+                // for one extra frame, which the user perceived as needing a
+                // second click.
+                closeOtherGroup(UIPanel::None);
             }
         }
         return; // Block all game input while any UI is open

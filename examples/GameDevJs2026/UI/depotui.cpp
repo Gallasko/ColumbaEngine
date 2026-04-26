@@ -19,6 +19,7 @@ void DepotUISystem::open(int gridX, int gridY)
     openDepotX = gridX;
     openDepotY = gridY;
     visible = true;
+    depotDataSeenThisOpen = false;
 
     // Suppress crafting UI BEFORE opening inventory (prevents auto-open via InventoryOpenedEvent)
     if (craftingUI)
@@ -91,10 +92,18 @@ void DepotUISystem::onProcessEvent(const TickEvent&)
     DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
     if (not depot)
     {
-        close();
+        // Auto-close on missing data is intended to handle "depot destroyed
+        // while UI is open". Skip it on the first ticks after open so the
+        // panel doesn't disappear when BuildingPlacedEvent for a freshly
+        // placed depot hasn't been dispatched yet.
+        if (depotDataSeenThisOpen)
+            close();
+        // Still refresh the mission section so it reflects current state.
+        refreshMissionSection();
         return;
     }
 
+    depotDataSeenThisOpen = true;
     refreshAllSlots();
 }
 
@@ -449,17 +458,23 @@ void DepotUISystem::refreshSlot(size_t slotIndex)
 void DepotUISystem::refreshAllSlots()
 {
     DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
-    if (not depot) return;
 
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-        refreshSlot(i);
-
-    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
+    if (depot)
     {
-        const auto& stack = depot->output.getSlot(i);
-        refreshItemSlotDisplay(outputSlotItemEntityId[i], outputSlotCountEntityId[i], stack);
+        for (size_t i = 0; i < NUM_SLOTS; ++i)
+            refreshSlot(i);
+
+        for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
+        {
+            const auto& stack = depot->output.getSlot(i);
+            refreshItemSlotDisplay(outputSlotItemEntityId[i], outputSlotCountEntityId[i], stack);
+        }
     }
 
+    // Mission section is queried via missionSystem by depot coords, so it
+    // works even if depot data isn't registered yet (e.g. first frame after
+    // a fresh starter-depot placement, before BuildingPlacedEvent has been
+    // dispatched).
     refreshMissionSection();
 }
 
