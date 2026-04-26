@@ -328,6 +328,127 @@ void MissionUISystem::ensurePanelCreated()
     panelCreated = true;
 }
 
+void MissionUISystem::onEvent(const ResizeEvent& event)
+{
+    screenWidth = event.width;
+    screenHeight = event.height;
+    if (not panelCreated)
+        return;
+
+    // Panel positions are baked in at creation time, so a window resize would
+    // leave the panel offset from center. Rebuild at the new screen size.
+    bool wasOpen = visible;
+    bool wasPromptVisible = promptVisible;
+    destroyPanel();
+
+    if (wasOpen)
+    {
+        ensurePanelCreated();
+        setPanelVisibility(true);
+        refresh();
+        if (wasPromptVisible)
+            showDepotSelectionPrompt();
+    }
+}
+
+std::vector<uint64_t> MissionUISystem::collectAllPanelEntityIds() const
+{
+    std::vector<uint64_t> ids;
+    auto add = [&ids](uint64_t id) { if (id != 0) ids.push_back(id); };
+
+    add(backdropId);
+    add(closeBtnBgId);
+    add(closeBtnTextId);
+    add(topDividerId);
+    add(columnDividerId);
+
+    for (size_t t = 0; t < NUM_TABS; ++t)
+    {
+        add(tabButtons[t].bgId);
+        add(tabButtons[t].textId);
+    }
+
+    for (size_t i = 0; i < MAX_LIST_ROWS; ++i)
+    {
+        const auto& r = listRows[i];
+        add(r.bgId);
+        add(r.statusBorderId);
+        add(r.statusFillId);
+        add(r.nameId);
+        add(r.goPillBgId);
+        add(r.goPillTextId);
+        add(r.separatorId);
+    }
+
+    add(detailMissionLabelId);
+    add(detailNameId);
+    add(detailDescId);
+
+    add(costLabelId);
+    add(costBlockBorderId);
+    add(costBlockFillId);
+    for (const auto& c : costItems)
+    {
+        add(c.iconId);
+        add(c.countTextId);
+    }
+
+    add(rewardLabelId);
+    add(rewardBlockBorderId);
+    add(rewardBlockFillId);
+    for (const auto& r : rewardItems)
+    {
+        add(r.iconId);
+        add(r.countTextId);
+    }
+
+    add(unlockLabelId);
+    add(detailProgressBgId);
+    add(detailProgressFillId);
+    add(detailProgressTextId);
+    add(actionBtnBgId);
+    add(actionBtnTextId);
+    add(shopLabelId);
+    add(shopCostTextId);
+    add(promptBgId);
+    add(promptTextId);
+
+    return ids;
+}
+
+void MissionUISystem::destroyPanel()
+{
+    auto ids = collectAllPanelEntityIds();
+    for (auto id : ids)
+        ecsRef->removeEntity(id);
+
+    backdropId = 0;
+    closeBtnBgId = closeBtnTextId = 0;
+    topDividerId = columnDividerId = 0;
+
+    for (size_t t = 0; t < NUM_TABS; ++t)
+        tabButtons[t] = {};
+
+    for (size_t i = 0; i < MAX_LIST_ROWS; ++i)
+        listRows[i] = {};
+
+    detailMissionLabelId = detailNameId = detailDescId = 0;
+    costLabelId = costBlockBorderId = costBlockFillId = 0;
+    for (auto& c : costItems) c = {};
+    rewardLabelId = rewardBlockBorderId = rewardBlockFillId = 0;
+    for (auto& r : rewardItems) r = {};
+    unlockLabelId = 0;
+    detailProgressBgId = detailProgressFillId = detailProgressTextId = 0;
+    actionBtnBgId = actionBtnTextId = 0;
+    actionBtnX = actionBtnY = actionBtnW = 0.0f;
+    shopLabelId = shopCostTextId = 0;
+    promptBgId = promptTextId = 0;
+    promptVisible = false;
+
+    iconItemMap.clear();
+    panelCreated = false;
+}
+
 void MissionUISystem::createPanel()
 {
     float listContentH = MAX_LIST_ROWS * (LIST_ROW_H + SEPARATOR_H);

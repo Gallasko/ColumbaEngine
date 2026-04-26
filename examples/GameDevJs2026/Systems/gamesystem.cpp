@@ -23,6 +23,56 @@ void GameSystem::init()
         manualMining->setEnabled(not hasBuildingSelected());
 }
 
+void GameSystem::closeOtherGroup(UIPanel keep)
+{
+    if (keep != UIPanel::InventoryGroup)
+    {
+        // Children first so each panel's close() sees a consistent inventory
+        // state. closeInventory() fires InventoryClosedEvent which would
+        // re-close them, but doing it explicitly is safer if order changes.
+        if (depotUI    and depotUI->isOpen())    depotUI->close();
+        if (machineUI  and machineUI->isOpen())  machineUI->close();
+        if (storageUI  and storageUI->isOpen())  storageUI->close();
+        if (minerUI    and minerUI->isOpen())    minerUI->close();
+        if (craftingUI and craftingUI->isOpen()) craftingUI->close();
+        if (inventoryUI and inventoryUI->isOpen()) inventoryUI->closeInventory();
+    }
+    if (keep != UIPanel::Mission)
+    {
+        if (missionUI and missionUI->isOpen()) missionUI->close();
+    }
+}
+
+void GameSystem::toggleInventoryFromHud()
+{
+    if (not inventoryUI)
+        return;
+    if (inventoryUI->isOpen())
+    {
+        inventoryUI->closeInventory();
+    }
+    else
+    {
+        closeOtherGroup(UIPanel::InventoryGroup);
+        inventoryUI->openInventory();
+    }
+}
+
+void GameSystem::toggleMissionFromHud()
+{
+    if (not missionUI)
+        return;
+    if (missionUI->isOpen())
+    {
+        missionUI->close();
+    }
+    else
+    {
+        closeOtherGroup(UIPanel::Mission);
+        missionUI->open();
+    }
+}
+
 void GameSystem::onProcessEvent(const OnSDLScanCode& event)
 {
     if (machineDemo and machineDemo->isOpen())

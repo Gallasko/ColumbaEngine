@@ -3,9 +3,10 @@
 #include "Systems/basicsystems.h"
 #include "Input/inputcomponent.h"
 
-#include "inventoryui.h"
 #include "worldfacts.h"
 #include "playerinventory.h"
+
+#include <functional>
 
 using namespace pg;
 
@@ -31,9 +32,9 @@ public:
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
     static constexpr ItemId TICKET_ID = 35;
 
-    HudBarSystem(InventoryUISystem* inventoryUI, PlayerInventorySystem* playerInv,
-                 WorldFacts* worldFacts, float screenWidth, float screenHeight)
-        : inventoryUI(inventoryUI), playerInv(playerInv), worldFacts(worldFacts),
+    HudBarSystem(PlayerInventorySystem* playerInv, WorldFacts* worldFacts,
+                 float screenWidth, float screenHeight)
+        : playerInv(playerInv), worldFacts(worldFacts),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "HUD Bar System"; }
@@ -43,8 +44,11 @@ public:
     virtual void onEvent(const TickEvent&) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
 
-    // Set by application after MissionUI is created (Phase 4)
-    void setMissionUIToggle(std::function<void()> toggle) { missionToggle = toggle; }
+    // Set by application after GameSystem is created. These route through
+    // GameSystem so it can enforce UI group exclusivity (close mission when
+    // inventory opens, and vice versa).
+    void setInventoryToggle(std::function<void()> toggle) { inventoryToggle = std::move(toggle); }
+    void setMissionUIToggle(std::function<void()> toggle) { missionToggle = std::move(toggle); }
 
 private:
     void createButtons();
@@ -52,12 +56,12 @@ private:
 
     bool isClickOnButton(size_t idx, float x, float y) const;
 
-    InventoryUISystem* inventoryUI = nullptr;
     PlayerInventorySystem* playerInv = nullptr;
     WorldFacts* worldFacts = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
+    std::function<void()> inventoryToggle;
     std::function<void()> missionToggle;
 
     bool buttonsCreated = false;

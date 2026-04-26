@@ -305,13 +305,22 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             missionSystem, depotSystem, playerInvSystem, &itemRegistry, screenW, screenH);
         missionUI->setTooltipSystem(tooltipSystem);
 
-        auto* hudBar = ecs.createSystem<HudBarSystem>(inventoryUI, playerInvSystem, worldFacts, screenW, screenH);
-        hudBar->setMissionUIToggle([missionUI]() { missionUI->toggle(); });
+        // HudBar must be created BEFORE GameSystem so that its queued
+        // OnMouseClick handler runs first — GameSystem's click-outside
+        // handler then sees the post-toggle UI state and won't immediately
+        // close a panel that the HUD button just opened.
+        auto* hudBar = ecs.createSystem<HudBarSystem>(playerInvSystem, worldFacts, screenW, screenH);
 
         ecs.createSystem<AutoSaveSystem>();
         ecs.createSystem<AnalyticsSystem>();
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI, storageUI, depotUI, machineDemo, missionUI, worldFacts);
+        auto* gameSystem = ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI, storageUI, depotUI, machineDemo, missionUI, worldFacts);
+
+        // Callbacks routed through GameSystem so it can enforce UI group
+        // exclusivity (closing inventory/companions when mission opens, and
+        // vice versa).
+        hudBar->setInventoryToggle([gameSystem]() { gameSystem->toggleInventoryFromHud(); });
+        hudBar->setMissionUIToggle([gameSystem]() { gameSystem->toggleMissionFromHud(); });
     });
 }
 

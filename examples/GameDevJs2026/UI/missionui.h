@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <unordered_map>
+#include <vector>
 
 using namespace pg;
 
@@ -128,11 +129,7 @@ public:
     virtual void onEvent(const TickEvent&) override;
     virtual void onEvent(const OnMissionIconHoverEnter& event) override;
     virtual void onEvent(const OnMissionIconHoverLeave& event) override;
-    virtual void onEvent(const ResizeEvent& event) override
-    {
-        screenWidth = event.width;
-        screenHeight = event.height;
-    }
+    virtual void onEvent(const ResizeEvent& event) override;
 
     void execute() override;
 
@@ -147,6 +144,11 @@ private:
     void createLeftColumn(float px, float contentY);
     void createRightColumn(float px, float contentY);
     void setPanelVisibility(bool vis);
+
+    // Tear down the panel and reset all entity-id fields. Used on resize so
+    // the next ensurePanelCreated() rebuilds at the new screen size.
+    void destroyPanel();
+    std::vector<uint64_t> collectAllPanelEntityIds() const;
     void refresh();
     void refreshLeftColumn();
     void refreshRightColumn();

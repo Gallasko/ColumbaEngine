@@ -30,13 +30,8 @@ void HudBarSystem::onProcessEvent(const OnMouseClick& event)
         switch (i)
         {
             case BTN_INVENTORY:
-                if (inventoryUI)
-                {
-                    if (inventoryUI->isOpen())
-                        inventoryUI->closeInventory();
-                    else
-                        inventoryUI->openInventory();
-                }
+                if (inventoryToggle)
+                    inventoryToggle();
                 break;
 
             case BTN_MISSIONS:

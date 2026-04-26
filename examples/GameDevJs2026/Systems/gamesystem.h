@@ -21,6 +21,11 @@
 
 using namespace pg;
 
+// UI exclusivity groups. The InventoryGroup (inventory + crafting + miner +
+// machine + storage + depot) panels are designed to coexist side-by-side; the
+// Mission panel is a fullscreen modal that must not overlap with them.
+enum class UIPanel { None, InventoryGroup, Mission };
+
 class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>, Listener<PanelWasClickedEvent>>
 {
 public:
@@ -40,6 +45,15 @@ public:
     {
         panelClickedThisFrame = true;
     }
+
+    // Closes every UI panel that does not belong to `keep`. Call before
+    // opening a panel from a new group to enforce mutual exclusion.
+    void closeOtherGroup(UIPanel keep);
+
+    // HUD button entry points. These wrap closeOtherGroup + open/toggle so
+    // HudBarSystem doesn't have to know about every UI.
+    void toggleInventoryFromHud();
+    void toggleMissionFromHud();
 
 private:
     // Direction constants
