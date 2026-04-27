@@ -1,7 +1,5 @@
 #include "slotsystem.h"
 
-#include <SDL2/SDL.h>
-
 void SlotSystem::init()
 {
     // Held-item visual entities (hidden by default, follow cursor during drag)
@@ -38,19 +36,12 @@ uint64_t SlotSystem::createSlot(SlotCategory category, uint8_t index,
 
 // ---- Mouse events ----
 
-void SlotSystem::onProcessEvent(const OnMouseClick& event)
+void SlotSystem::onProcessEvent(const SlotClickedEvent& event)
 {
-    if (event.button != SDL_BUTTON_LEFT)
-        return;
-
-    uint64_t hit = slotEntityAtPosition(event.pos.x, event.pos.y);
-    if (hit == 0)
-        return;
-
     if (heldItem.isEmpty())
-        pickUpFrom(hit);
+        pickUpFrom(event.entityId);
     else
-        dropOn(hit);
+        dropOn(event.entityId);
 }
 
 void SlotSystem::onProcessEvent(const OnSDLMouseMotion& event)
@@ -58,7 +49,7 @@ void SlotSystem::onProcessEvent(const OnSDLMouseMotion& event)
     lastMouseX = static_cast<float>(event.x);
     lastMouseY = static_cast<float>(event.y);
 
-    if (!heldItem.isEmpty())
+    if (not heldItem.isEmpty())
         updateHeldPosition();
 }
 
@@ -67,7 +58,7 @@ void SlotSystem::onProcessEvent(const OnSDLMouseMotion& event)
 void SlotSystem::pickUpFrom(uint64_t entityId)
 {
     auto* slot = atEntity<SlotComponent>(entityId);
-    if (!slot || slot->isEmpty() || slot->isReadOnly())
+    if (not slot or slot->isEmpty() or slot->isReadOnly())
         return;
 
     heldItem = slot->stack;
@@ -87,7 +78,7 @@ void SlotSystem::pickUpFrom(uint64_t entityId)
 void SlotSystem::dropOn(uint64_t entityId)
 {
     auto* slot = atEntity<SlotComponent>(entityId);
-    if (!slot || slot->isReadOnly())
+    if (not slot or slot->isReadOnly())
         return;
 
     auto ent = ecsRef->getEntity(entityId);
@@ -137,7 +128,8 @@ void SlotSystem::dropOn(uint64_t entityId)
         heldItem = temp;
         heldFromEntity = entityId;
 
-        if (hasPrefab) ent->get<Prefab>()->callHelper("setItem", slot->stack);
+        if (hasPrefab)
+            ent->get<Prefab>()->callHelper("setItem", slot->stack);
         showHeldVisual();
 
         sendEvent(SlotDroppedEvent{entityId, slot->stack, slot->category});
@@ -204,10 +196,12 @@ void SlotSystem::showHeldVisual()
 void SlotSystem::hideHeldVisual()
 {
     auto itemEnt = ecsRef->getEntity(heldItemEntityId);
-    if (itemEnt) itemEnt->get<PositionComponent>()->setVisibility(false);
+    if (itemEnt)
+        itemEnt->get<PositionComponent>()->setVisibility(false);
 
     auto textEnt = ecsRef->getEntity(heldTextEntityId);
-    if (textEnt) textEnt->get<PositionComponent>()->setVisibility(false);
+    if (textEnt)
+        textEnt->get<PositionComponent>()->setVisibility(false);
 }
 
 void SlotSystem::updateHeldPosition()
@@ -231,20 +225,4 @@ void SlotSystem::updateHeldPosition()
     }
 }
 
-// ---- Hit testing ----
 
-uint64_t SlotSystem::slotEntityAtPosition(float x, float y) const
-{
-    for (const auto& elem : viewGroup<SlotComponent, PositionComponent>())
-    {
-        auto pos = elem->get<PositionComponent>();
-        if (!pos->visible)
-            continue;
-
-        if (x >= pos->x and x <= pos->x + pos->width and
-            y >= pos->y and y <= pos->y + pos->height)
-            return elem->entityId;
-    }
-
-    return 0;
-}

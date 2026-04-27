@@ -9,6 +9,7 @@
 #include "2D/texture.h"
 #include "UI/ttftext.h"
 
+#include "ECS/callable.h"
 #include "Registries/itemregistry.h"
 #include "slotcomponent.h"
 
@@ -41,7 +42,12 @@ CompList<PositionComponent, UiAnchor, Prefab> makeUiSlot(
         constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
     bg.get<PositionComponent>()->setZ(98.0f);
     bg.get<ViewportComponent>()->setViewport(SLOT_UI_VIEWPORT);
+    auto bgAnchor = bg.get<UiAnchor>();
     prefab->setMainEntity(bg.entity);
+
+    // Click handler: fires SlotClickedEvent on both press and release
+    bg->template attach<MouseLeftClickComponent>(
+        makeCallable<SlotClickedEvent>(slot.entity->id), MouseStateTrigger::Both);
 
     // Item texture (centered in bg, hidden by default)
     auto item = makeUiTexture(ecs, itemSize, itemSize, "NoneIcon");
@@ -50,7 +56,7 @@ CompList<PositionComponent, UiAnchor, Prefab> makeUiSlot(
     item.get<ViewportComponent>()->setViewport(SLOT_UI_VIEWPORT);
 
     auto itemAnchor = item.get<UiAnchor>();
-    itemAnchor->centeredIn(bg.get<UiAnchor>());
+    itemAnchor->centeredIn(bgAnchor);
 
     prefab->addToPrefab(item.entity, "item");
 
@@ -63,9 +69,9 @@ CompList<PositionComponent, UiAnchor, Prefab> makeUiSlot(
     text.get<ViewportComponent>()->setViewport(SLOT_UI_VIEWPORT);
 
     auto textAnchor = text.get<UiAnchor>();
-    textAnchor->setLeftAnchor(PosAnchor{bg.entity->id, AnchorType::Left});
+    textAnchor->setLeftAnchor(bgAnchor->left);
     textAnchor->setLeftMargin(slotSize - 4.0f);
-    textAnchor->setTopAnchor(PosAnchor{bg.entity->id, AnchorType::Top});
+    textAnchor->setTopAnchor(bgAnchor->top);
     textAnchor->setTopMargin(slotSize - 4.0f);
 
     prefab->addToPrefab(text.entity, "text");
@@ -126,6 +132,13 @@ CompList<PositionComponent, UiAnchor, Prefab> makeUiSlot(
 
 // ---- Events ----
 
+struct SlotClickedEvent
+{
+    SlotClickedEvent(_unique_id entityId) : entityId(entityId) {}
+
+    _unique_id entityId;
+};
+
 struct SlotPickedUpEvent
 {
     uint64_t slotEntityId;
@@ -144,7 +157,7 @@ struct SlotDroppedEvent
 
 class SlotSystem : public System<Own<SlotComponent>,
                                   InitSys,
-                                  QueuedListener<OnMouseClick>,
+                                  QueuedListener<SlotClickedEvent>,
                                   QueuedListener<OnSDLMouseMotion>>
 {
 public:
@@ -156,7 +169,7 @@ public:
     void init() override;
     void execute() override;
 
-    virtual void onProcessEvent(const OnMouseClick& event) override;
+    virtual void onProcessEvent(const SlotClickedEvent& event) override;
     virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
 
     // Create a slot prefab entity with SlotComponent attached.
@@ -177,8 +190,6 @@ private:
     void showHeldVisual();
     void hideHeldVisual();
     void updateHeldPosition();
-
-    uint64_t slotEntityAtPosition(float x, float y) const;
 
     ItemRegistry* itemRegistry = nullptr;
 
