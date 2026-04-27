@@ -26,8 +26,7 @@ struct GridLayer
     float zIndex = 0.0f;
     std::array<std::array<CellData, WIDTH>, HEIGHT> cells = {};
 
-    GridLayer(const std::string& name, float zIndex)
-        : name(name), zIndex(zIndex) {}
+    GridLayer(const std::string& name, float zIndex) : name(name), zIndex(zIndex) {}
 };
 
 struct Grid

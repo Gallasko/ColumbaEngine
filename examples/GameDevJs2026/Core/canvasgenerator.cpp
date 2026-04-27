@@ -54,6 +54,7 @@ namespace
                 float dist = std::sqrt(dx * dx + dy * dy);
                 // Noisy threshold so patches aren't perfect circles.
                 float noise = (rng.unitFloat() - 0.5f) * 1.5f;
+
                 if (dist + noise <= r)
                     terrain[y][x] = patch.ore;
             }
@@ -68,12 +69,15 @@ namespace
             {
                 int nx = x + dx;
                 int ny = y + dy;
+
                 if (nx < 0 or ny < 0 or nx >= GridLayer::WIDTH or ny >= GridLayer::HEIGHT)
                     continue;
+
                 if (isOre(terrain[ny][nx]))
                     return true;
             }
         }
+
         return false;
     }
 
@@ -81,9 +85,14 @@ namespace
     // Requires in-bounds footprint, all cells being free grass, and no ore nearby.
     bool canPlaceTree(const TerrainGrid& terrain, int x, int y)
     {
-        if (x < 0 or y < 0)                                 return false;
-        if (x + TREE_W > GridLayer::WIDTH)                  return false;
-        if (y + TREE_H > GridLayer::HEIGHT)                 return false;
+        if (x < 0 or y < 0)
+            return false;
+
+        if (x + TREE_W > GridLayer::WIDTH)
+            return false;
+
+        if (y + TREE_H > GridLayer::HEIGHT)
+            return false;
 
         for (int dy = 0; dy < TREE_H; ++dy)
         {
@@ -91,10 +100,12 @@ namespace
             {
                 if (terrain[y + dy][x + dx] != TerrainType::Grass)
                     return false;
+
                 if (isNearOre(terrain, x + dx, y + dy, 1))
                     return false;
             }
         }
+
         return true;
     }
 }
@@ -104,10 +115,12 @@ namespace canvasgen_detail
     uint32_t deriveSeed(uint32_t worldSeed, int cx, int cy)
     {
         uint32_t h = worldSeed * 2654435761u;
+
         h ^= static_cast<uint32_t>(cx) * 374761393u;
         h ^= static_cast<uint32_t>(cy) * 668265263u;
         h ^= h >> 13;
         h *= 1274126177u;
+
         return h ? h : 0x9E3779B9u;
     }
 }
@@ -119,11 +132,16 @@ CanvasGenResult CanvasGenerator::generate(const GenerationParams& params)
 
     // 1. Fill with grass.
     for (int y = 0; y < GridLayer::HEIGHT; ++y)
+    {
         for (int x = 0; x < GridLayer::WIDTH; ++x)
+        {
             result.terrain[y][x] = TerrainType::Grass;
+        }
+    }
 
     // 2a. Place required ore patches first (guaranteed on this canvas).
     std::vector<TerrainType> pool = params.allowedOres;
+
     for (const auto& reqOre : params.requiredOres)
     {
         OrePatch patch;
@@ -137,6 +155,7 @@ CanvasGenResult CanvasGenerator::generate(const GenerationParams& params)
 
         // Remove from pool so it won't be duplicated by random selection.
         auto it = std::find(pool.begin(), pool.end(), reqOre);
+
         if (it != pool.end())
             pool.erase(it);
     }
@@ -144,6 +163,7 @@ CanvasGenResult CanvasGenerator::generate(const GenerationParams& params)
     // 2b. Fill remaining budget with random ore patches.
     int desiredCount = rng.rangeInt(params.minOrePatches, params.maxOrePatches);
     int remaining = desiredCount - static_cast<int>(params.requiredOres.size());
+
     if (remaining > static_cast<int>(pool.size()))
         remaining = static_cast<int>(pool.size());
 
@@ -172,12 +192,17 @@ CanvasGenResult CanvasGenerator::generate(const GenerationParams& params)
         {
             if (rng.unitFloat() >= params.treeDensity)
                 continue;
+
             if (not canPlaceTree(result.terrain, x, y))
                 continue;
 
             for (int dy = 0; dy < TREE_H; ++dy)
+            {
                 for (int dx = 0; dx < TREE_W; ++dx)
+                {
                     result.terrain[y + dy][x + dx] = TerrainType::Tree;
+                }
+            }
 
             result.trees.push_back({x, y});
         }
@@ -190,6 +215,7 @@ CanvasGenResult CanvasGenerator::generate(const GenerationParams& params)
         {
             if (result.terrain[y][x] != TerrainType::Grass)
                 continue;
+
             if (isNearOre(result.terrain, x, y, 1))
                 continue;
 
@@ -205,10 +231,18 @@ CanvasGenResult CanvasGenerator::generate(const GenerationParams& params)
         int bbMax = std::min(GridLayer::WIDTH - 1, patch.centerX + patch.radius + 1);
         int byMin = std::max(0, patch.centerY - patch.radius - 1);
         int byMax = std::min(GridLayer::HEIGHT - 1, patch.centerY + patch.radius + 1);
+
         uint16_t count = 0;
+
         for (int y = byMin; y <= byMax; ++y)
+        {
             for (int x = bbMin; x <= bbMax; ++x)
-                if (result.terrain[y][x] == patch.ore) ++count;
+            {
+                if (result.terrain[y][x] == patch.ore)
+                    ++count;
+            }
+        }
+
         patch.tileCount = count;
     }
 
