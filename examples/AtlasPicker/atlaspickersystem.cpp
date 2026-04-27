@@ -65,7 +65,7 @@ void AtlasPickerSystem::init()
         0.5f,
         {255.0f, 255.0f, 0.0f, 255.0f});
 
-    label.get<TTFText>()->setViewport(2);
+    label.get<ViewportComponent>()->setViewport(2);
     labelEntityId = label.entity->id;
 }
 

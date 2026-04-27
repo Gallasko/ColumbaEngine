@@ -71,9 +71,9 @@ void HudBarSystem::createButtons()
 
     // Placeholder icons from PixelwoodIcons atlas
     static const char* ICON_TEXTURES[NUM_BUTTONS] = {
-        "PixelwoodIcons.147",   // Backpack / chest
-        "PixelwoodIcons.168",   // Mission / scroll
-        "PixelwoodIcons.189",   // Settings / gear
+        "PixelwoodIcons.15",   // Backpack / chest
+        "PixelwoodIcons.14",   // Mission / scroll
+        "PixelwoodIcons.36",   // Settings / gear
     };
 
     float totalWidth = NUM_BUTTONS * BUTTON_SIZE + (NUM_BUTTONS - 1) * BUTTON_GAP;
