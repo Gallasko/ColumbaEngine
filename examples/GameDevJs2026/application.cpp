@@ -21,6 +21,7 @@
 #include "saveserialization.h"
 #include "gamesystem.h"
 #include "hotbarsystem.h"
+#include "slotsystem.h"
 #include "manualmining.h"
 #include "worldfacts.h"
 #include "handcraftingsystem.h"
@@ -34,6 +35,8 @@
 #include "missionsystem.h"
 #include "missionui.h"
 #include "Systems/tween.h"
+
+#include "UI/slotcomponent.h"
 
 using namespace pg;
 
@@ -238,6 +241,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<InserterSystem>(
             gridSystem, transportSystem, minerSystem, craftingSystem, storageSystem, depotSystem, &itemRegistry);
         auto* playerInvSystem = ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
+        auto* slotSystem = ecs.createSystem<SlotSystem>(&itemRegistry);
 
         // UI camera at viewport 2 — needed by hotbar, inventory panel, crafting UI, etc.
         auto uiCam = ecs.createEntity();
