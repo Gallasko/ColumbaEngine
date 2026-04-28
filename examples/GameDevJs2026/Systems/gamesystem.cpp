@@ -821,6 +821,7 @@ void GameSystem::commitDragPath()
 
     for (size_t i = 0; i < dragPath.size(); ++i)
     {
+        bool consumed = true;
         auto [gx, gy] = dragPath[i];
 
         // Check if we have items remaining
@@ -836,7 +837,10 @@ void GameSystem::commitDragPath()
 
         // Remove existing conveyor to replace with new direction
         if (existing.tileName == "Conveyor")
+        {
+            consumed = false; // Don't consume an item if we're just replacing an existing conveyor
             gridSystem->removeBuilding(layer, gx, gy);
+        }
 
         uint8_t enterDir, exitDir;
 
@@ -865,7 +869,8 @@ void GameSystem::commitDragPath()
         placedCells.push_back({gx, gy});
 
         // Consume one building item per placed cell
-        hotbar->consumeSelectedItem(1);
+        if (consumed)
+            hotbar->consumeSelectedItem(1);
     }
 
     // Phase 2: Resolve correct variants for all newly placed straight belts
