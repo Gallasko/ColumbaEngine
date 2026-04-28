@@ -127,7 +127,6 @@ public:
 
     virtual void onEvent(const TickEvent& event) override
     {
-        deltaTime += event.tick / 1000.0f;
         animElapsed += event.tick;
     }
 
@@ -138,15 +137,6 @@ public:
 
     // Remove a building from the grid (handles multi-cell)
     void removeBuilding(size_t layer, int x, int y);
-
-    // Legacy: place a single-cell tile (kept for backward compat with setCell/clearCell calls)
-    void setCell(size_t layer, int x, int y, const std::string& tileName, size_t conveyorTileIndex = LINE_RIGHT_1);
-
-    // Remove a tile from the grid
-    void clearCell(size_t layer, int x, int y)
-    {
-        setCell(layer, x, y, "");
-    }
 
     // Get tile at position
     const CellData& getCell(size_t layer, int x, int y) const
@@ -203,10 +193,10 @@ private:
     // fresh generation and save-file restoration).
     void renderTerrain();
 
-    // Restore a building from save data (like placeBuilding but skips
-    // BuildingPlacedEvent since other systems haven't been created yet).
-    void restoreBuilding(size_t layer, int x, int y, const BuildingDef& def,
-                         size_t direction, size_t conveyorTileIndex, size_t enterDir);
+    // Shared entity-creation + cell-marking logic used by both placeBuilding
+    // and restoreBuilding. enterDir must already be resolved (no SIZE_MAX).
+    void placeBuildingInternal(size_t layer, int x, int y, const BuildingDef& def,
+                               size_t direction, size_t conveyorTileIndex, uint8_t enterDir);
 
     // Pick the autotile frame for a grass cell from Environment_Tileset.
     uint16_t grassAutotileFrame(int x, int y, const RenderAsDirtGrid& renderAsDirt) const;
@@ -222,12 +212,9 @@ private:
 
     void removeConveyorEntry(uint64_t entityId);
 
-    constant::Vector4D getTileColor(const std::string& tileName) const;
-
     BuildingRegistry* registry = nullptr;
 
     Grid grid;
-    float deltaTime = 0.0f;
 
     // Conveyor animation state (global — all conveyors animate in sync)
     size_t animElapsed = 0;
