@@ -479,8 +479,7 @@ void DepotUISystem::refreshAllSlots()
 
     // Mission section is queried via missionSystem by depot coords, so it
     // works even if depot data isn't registered yet (e.g. first frame after
-    // a fresh starter-depot placement, before BuildingPlacedEvent has been
-    // dispatched).
+    // placement, before BuildingPlacedEvent has been dispatched).
     refreshMissionSection();
 }
 

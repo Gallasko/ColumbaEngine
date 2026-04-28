@@ -603,20 +603,6 @@ void GameSystem::removeAtMouse()
     const std::string tileName = cell.isOwner ? cell.tileName
         : gridSystem->getCell(layer, cell.ownerX, cell.ownerY).tileName;
 
-    // Block destruction of the starter depot until depot recipe is unlocked
-    if (tileName == "Depot")
-    {
-        int ox = cell.isOwner ? gridX : static_cast<int>(cell.ownerX);
-        int oy = cell.isOwner ? gridY : static_cast<int>(cell.ownerY);
-        auto [sdx, sdy] = gridSystem->getStarterDepotPos();
-        if (ox == sdx and oy == sdy)
-        {
-            bool depotUnlocked = worldFacts and worldFacts->getFact<bool>("mission_electronics");
-            if (not depotUnlocked)
-                return;
-        }
-    }
-
     gridSystem->removeBuilding(layer, gridX, gridY);
 
     // Return the building item to the player

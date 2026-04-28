@@ -110,14 +110,13 @@ void HudBarSystem::createButtons()
         buttonIconId[i] = icon.entity->id;
     }
 
-    // Mission button is always visible (starter depot placed at game start)
     createTicketDisplay();
     createMissionBadge();
 }
 
 void HudBarSystem::updateMissionButtonVisibility()
 {
-    // Mission button is always visible — starter depot is placed at game start.
+    // Mission button is always visible.
 }
 
 bool HudBarSystem::isClickOnButton(size_t idx, float x, float y) const

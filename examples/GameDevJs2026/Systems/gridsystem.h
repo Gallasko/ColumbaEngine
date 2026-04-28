@@ -180,12 +180,7 @@ public:
     // Update all 4 neighbors of (x,y) — call after placing or removing a building
     void updateNeighborBelts(size_t layer, int x, int y);
 
-    // Starter depot position (-1,-1 if none). Used to prevent destruction.
-    std::pair<int, int> getStarterDepotPos() const { return {starterDepotX, starterDepotY}; }
-
 private:
-    // Place a starter depot at the map center (called from init())
-    void placeStarterDepot();
     static constexpr size_t NUM_ANIM_FRAMES = 8;
     static constexpr size_t FRAME_DURATION_MS = 100;
 
@@ -250,7 +245,4 @@ private:
     std::vector<OrePatch>      orePatches;
     std::vector<TreeInstance>  treeInstances;
 
-    // Starter depot coordinates (-1 = none)
-    int starterDepotX = -1;
-    int starterDepotY = -1;
 };
