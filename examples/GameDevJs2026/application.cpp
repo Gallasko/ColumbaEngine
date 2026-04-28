@@ -95,6 +95,20 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "",
             std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 48, 32, 48, 1, 1));
 
+        // Furnace split sub-atlases (2x3 visual, 2x1 footprint)
+        // Base: bottom 16px (1 tile row)
+        window.masterRenderer->registerAtlasTexture(
+            "Stone_Furnace_base",
+            "res/ext/Structures & Machines/Stone_Furnace.png",
+            "",
+            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 48, 32, 16, 1, 1, 0, 32));
+        // Overflow: top 32px (2 tile rows)
+        window.masterRenderer->registerAtlasTexture(
+            "Stone_Furnace_overflow",
+            "res/ext/Structures & Machines/Stone_Furnace.png",
+            "",
+            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 48, 32, 32, 1, 1, 0, 0));
+
         // Load furnace active animation atlas (3 frames of 32x64 in a 96x64 strip)
         window.masterRenderer->registerAtlasTexture(
             "Stone_Furnace_Active",
@@ -204,6 +218,20 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "res/ext/Tileset & Environment/Tree.png",
             "",
             std::make_unique<GridAtlas>("Tree.png", 32, 48, 32, 48, 1, 1));
+
+        // Tree split sub-atlases (2x3 visual, 2x2 footprint)
+        // Base: bottom 32px (2 tile rows)
+        window.masterRenderer->registerAtlasTexture(
+            "Tree_base",
+            "res/ext/Tileset & Environment/Tree.png",
+            "",
+            std::make_unique<GridAtlas>("Tree.png", 32, 48, 32, 32, 1, 1, 0, 16));
+        // Overflow: top 16px (1 tile row)
+        window.masterRenderer->registerAtlasTexture(
+            "Tree_overflow",
+            "res/ext/Tileset & Environment/Tree.png",
+            "",
+            std::make_unique<GridAtlas>("Tree.png", 32, 48, 32, 16, 1, 1, 0, 0));
 
         // Pixelwood Valley icon pack: 21 cols × 15 rows of 16×16 icons (315 total)
         window.masterRenderer->registerAtlasTexture(

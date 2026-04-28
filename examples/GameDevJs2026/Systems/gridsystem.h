@@ -8,6 +8,8 @@
 #include "terrain.h"
 #include "saveserialization.h"
 
+#include <unordered_map>
+
 using namespace pg;
 
 // Viewport index for the game camera (FollowCamera2D registers as cameraList[0] = viewport 1)
@@ -232,4 +234,7 @@ private:
     std::vector<OrePatch>      orePatches;
     std::vector<TreeInstance>  treeInstances;
 
+    // Maps a building's main entityId to its overflow (top-portion) entityId.
+    // Only populated for buildings where footprintH < gridH.
+    std::unordered_map<uint64_t, uint64_t> overflowEntities;
 };

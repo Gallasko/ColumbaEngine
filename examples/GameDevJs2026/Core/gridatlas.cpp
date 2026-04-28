@@ -3,7 +3,8 @@
 GridAtlas::GridAtlas(const std::string& imgPath,
                      unsigned int atlasW, unsigned int atlasH,
                      unsigned int frameW, unsigned int frameH,
-                     unsigned int cols, unsigned int count)
+                     unsigned int cols, unsigned int count,
+                     unsigned int startX, unsigned int startY)
 {
     this->imagePath = imgPath;
     this->atlasWidth = atlasW;
@@ -11,8 +12,8 @@ GridAtlas::GridAtlas(const std::string& imgPath,
 
     for (unsigned int i = 0; i < count; ++i)
     {
-        unsigned int xPos = (i % cols) * frameW;
-        unsigned int yPos = (i / cols) * frameH;
+        unsigned int xPos = startX + (i % cols) * frameW;
+        unsigned int yPos = startY + (i / cols) * frameH;
 
         pg::AtlasTexture tex;
         tex.setId(nbTextureId);

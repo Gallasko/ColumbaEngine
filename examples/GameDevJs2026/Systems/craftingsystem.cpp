@@ -287,8 +287,8 @@ void CraftingSystem::craftTick()
 void CraftingSystem::pullFromBelts(MachineData& machine, const Grid& grid, size_t buildingLayer)
 {
     const BuildingDef* def = gridSystem->getRegistry()->findByName(machine.machineName);
-    int w = def ? def->gridW : 1;
-    int h = def ? def->gridH : 1;
+    int w = def ? def->getFootprintW() : 1;
+    int h = def ? def->getFootprintH() : 1;
 
     for (int dy = 0; dy < h; ++dy)
     {

@@ -167,9 +167,9 @@ void GridSystem::execute()
 
 void GridSystem::placeBuilding(size_t layer, int x, int y, const BuildingDef& def, size_t direction, size_t conveyorTileIndex, size_t enterDir)
 {
-    // Check all cells are free, in bounds, and not on blocking terrain.
-    for (int dy = 0; dy < def.gridH; ++dy)
-        for (int dx = 0; dx < def.gridW; ++dx)
+    // Check all footprint cells are free, in bounds, and not on blocking terrain.
+    for (int dy = 0; dy < def.getFootprintH(); ++dy)
+        for (int dx = 0; dx < def.getFootprintW(); ++dx)
             if (not grid.isInBounds(x + dx, y + dy) or
                 not grid.getCell(layer, x + dx, y + dy).tileName.empty() or
                 isBlockingTerrain(getTerrainAt(x + dx, y + dy)))
@@ -187,9 +187,12 @@ void GridSystem::placeBuildingInternal(size_t layer, int x, int y, const Buildin
     float z = grid.getLayer(layer).zIndex;
     uint64_t entityId = 0;
 
+    int fpW = def.getFootprintW();
+    int fpH = def.getFootprintH();
+
     if (def.isAnimated and not def.textureName.empty())
     {
-        // Animated sprite (conveyor belts)
+        // Animated sprite (conveyor belts) — always full-size, no overflow
         size_t frameIndex = conveyorTileIndex * NUM_ANIM_FRAMES + currentFrame;
         std::string texName = def.textureName + "." + std::to_string(frameIndex);
 
@@ -208,9 +211,44 @@ void GridSystem::placeBuildingInternal(size_t layer, int x, int y, const Buildin
 
         conveyors.push_back({entityId, conveyorTileIndex});
     }
+    else if (not def.textureName.empty() and def.hasOverflow())
+    {
+        // Split sprite: base (footprint) at building z, overflow at higher z
+        int oh = def.overflowH();
+
+        // Base entity — bottom portion at footprint position
+        std::string baseTex = def.textureName + "_base.0";
+        auto base = make2DTexture(ecsRef,
+            static_cast<float>(Grid::TILE_SIZE * fpW),
+            static_cast<float>(Grid::TILE_SIZE * fpH),
+            baseTex);
+
+        auto basePos = base.get<PositionComponent>();
+        basePos->setX(worldX);
+        basePos->setY(worldY);
+        basePos->setZ(z);
+
+        base.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
+        entityId = base.entity->id;
+
+        // Overflow entity — top portion above the footprint
+        std::string overflowTex = def.textureName + "_overflow.0";
+        auto overflow = make2DTexture(ecsRef,
+            static_cast<float>(Grid::TILE_SIZE * def.gridW),
+            static_cast<float>(Grid::TILE_SIZE * oh),
+            overflowTex);
+
+        auto overflowPos = overflow.get<PositionComponent>();
+        overflowPos->setX(worldX);
+        overflowPos->setY(worldY - static_cast<float>(Grid::TILE_SIZE * oh));
+        overflowPos->setZ(z + 0.5f);
+
+        overflow.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
+        overflowEntities[entityId] = overflow.entity->id;
+    }
     else if (not def.textureName.empty())
     {
-        // Static texture (use first atlas frame)
+        // Static texture, no overflow (use first atlas frame)
         std::string texName = def.textureName + ".0";
         auto tex = make2DTexture(ecsRef,
             static_cast<float>(Grid::TILE_SIZE * def.gridW),
@@ -233,17 +271,17 @@ void GridSystem::placeBuildingInternal(size_t layer, int x, int y, const Buildin
         pos->setX(worldX);
         pos->setY(worldY);
         pos->setZ(z);
-        pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def.gridW));
-        pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def.gridH));
+        pos->setWidth(static_cast<float>(Grid::TILE_SIZE * fpW));
+        pos->setHeight(static_cast<float>(Grid::TILE_SIZE * fpH));
 
         shape.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         entityId = shape.entity->id;
     }
 
-    // Mark all cells in the footprint
-    for (int dy = 0; dy < def.gridH; ++dy)
+    // Mark only footprint cells in the grid
+    for (int dy = 0; dy < fpH; ++dy)
     {
-        for (int dx = 0; dx < def.gridW; ++dx)
+        for (int dx = 0; dx < fpW; ++dx)
         {
             auto& cell = grid.getCell(layer, x + dx, y + dy);
             cell.tileName = def.name;
@@ -271,9 +309,16 @@ void GridSystem::removeBuilding(size_t layer, int x, int y)
     int oy = cell.isOwner ? y : static_cast<int>(cell.ownerY);
     auto& ownerCell = grid.getCell(layer, ox, oy);
 
-    // Remove entity
+    // Remove entity and its overflow (if any)
     if (ownerCell.entityId != 0)
     {
+        auto it = overflowEntities.find(ownerCell.entityId);
+        if (it != overflowEntities.end())
+        {
+            ecsRef->removeEntity(it->second);
+            overflowEntities.erase(it);
+        }
+
         removeConveyorEntry(ownerCell.entityId);
         ecsRef->removeEntity(ownerCell.entityId);
     }
@@ -281,8 +326,8 @@ void GridSystem::removeBuilding(size_t layer, int x, int y)
     // Look up building def to know the footprint
     const BuildingDef* def = registry->findByName(ownerCell.tileName);
     std::string savedTileName = ownerCell.tileName;
-    int w = def ? def->gridW : 1;
-    int h = def ? def->gridH : 1;
+    int w = def ? def->getFootprintW() : 1;
+    int h = def ? def->getFootprintH() : 1;
 
     // Clear all cells in the footprint
     for (int dy = 0; dy < h; ++dy)

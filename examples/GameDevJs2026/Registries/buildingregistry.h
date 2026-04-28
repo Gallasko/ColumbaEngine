@@ -18,11 +18,19 @@ struct BuildingDef
     std::string name;             // Display name
     std::string textureName;      // Atlas texture prefix ("" = use color)
     pg::constant::Vector4D color; // Fallback color when no texture
-    int gridW = 1;                // Footprint width in cells
-    int gridH = 1;                // Footprint height in cells
+    int gridW = 1;                // Visual width in cells
+    int gridH = 1;                // Visual height in cells
+    int footprintW = 0;           // Grid occupation width (0 = use gridW)
+    int footprintH = 0;           // Grid occupation height (0 = use gridH)
     PlacementMode mode = PlacementMode::ClickToPlace;
     bool hasDirection = false;    // R-key rotation applies
     bool isAnimated = false;      // GridSystem should animate this
+
+    // Footprint helpers — footprint is anchored at the bottom of the visual.
+    int getFootprintW() const { return footprintW > 0 ? footprintW : gridW; }
+    int getFootprintH() const { return footprintH > 0 ? footprintH : gridH; }
+    bool hasOverflow() const { return getFootprintH() < gridH; }
+    int overflowH() const { return gridH - getFootprintH(); }
 };
 
 struct BuildingRegistry : public pg::Registry<BuildingDef>

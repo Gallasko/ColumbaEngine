@@ -7,5 +7,6 @@ public:
     GridAtlas(const std::string& imgPath,
              unsigned int atlasW, unsigned int atlasH,
              unsigned int frameW, unsigned int frameH,
-             unsigned int cols, unsigned int count);
+             unsigned int cols, unsigned int count,
+             unsigned int startX = 0, unsigned int startY = 0);
 };

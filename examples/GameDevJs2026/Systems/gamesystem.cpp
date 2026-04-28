@@ -421,13 +421,13 @@ void GameSystem::rebuildGhostForSelectedBuilding()
         ghostEntityId = ghost.entity->id;
     }
 
-    // Resize cursor to match building footprint
+    // Resize cursor to match building footprint (not full visual)
     auto cursorEnt = ecsRef->getEntity(cursorEntityId);
     if (cursorEnt)
     {
         auto pos = cursorEnt->get<PositionComponent>();
-        pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def->gridW));
-        pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def->gridH));
+        pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def->getFootprintW()));
+        pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def->getFootprintH()));
     }
 }
 
@@ -463,8 +463,10 @@ void GameSystem::updateCursorPosition()
                 auto pos = ghostEnt->get<PositionComponent>();
                 float ghostOffset = (def->name == "Inserter")
                     ? -static_cast<float>(Grid::TILE_SIZE) : 0.0f;
+                float overflowOffset = def->hasOverflow()
+                    ? -static_cast<float>(Grid::TILE_SIZE * def->overflowH()) : 0.0f;
                 pos->setX(wx + ghostOffset);
-                pos->setY(wy + ghostOffset);
+                pos->setY(wy + ghostOffset + overflowOffset);
 
                 // Tint ghost red if placement is invalid
                 bool canPlace = canPlaceAt(gridX, gridY, *def);
@@ -537,8 +539,8 @@ void GameSystem::updateGhostTexture()
 bool GameSystem::canPlaceAt(int gx, int gy, const BuildingDef& def) const
 {
     auto layer = gridSystem->getBuildingLayer();
-    for (int dy = 0; dy < def.gridH; ++dy)
-        for (int dx = 0; dx < def.gridW; ++dx)
+    for (int dy = 0; dy < def.getFootprintH(); ++dy)
+        for (int dx = 0; dx < def.getFootprintW(); ++dx)
         {
             int cx = gx + dx, cy = gy + dy;
             if (not gridSystem->getGrid().isInBounds(cx, cy))
@@ -580,8 +582,8 @@ void GameSystem::placeAtMouse()
     gridSystem->placeBuilding(layer, gridX, gridY, *def, currentDirection, tileIndex);
 
     // Update adjacent belts to reflect the new neighbor
-    for (int dy = 0; dy < def->gridH; ++dy)
-        for (int dx = 0; dx < def->gridW; ++dx)
+    for (int dy = 0; dy < def->getFootprintH(); ++dy)
+        for (int dx = 0; dx < def->getFootprintW(); ++dx)
             gridSystem->updateNeighborBelts(layer, gridX + dx, gridY + dy);
 
     // Consume one building item from hotbar
