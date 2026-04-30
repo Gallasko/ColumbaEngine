@@ -5,6 +5,7 @@
 
 #include "minersystem.h"
 #include "inventoryui.h"
+#include "slotsystem.h"
 #include "playerinventory.h"
 
 using namespace pg;
@@ -12,7 +13,8 @@ using namespace pg;
 class MinerUISystem : public System<Listener<ResizeEvent>,
                                      QueuedListener<OnSDLScanCode>,
                                      QueuedListener<TickEvent>,
-                                     QueuedListener<OnMouseClick>,
+                                     QueuedListener<SlotPickedUpEvent>,
+                                     QueuedListener<SlotDroppedEvent>,
                                      Listener<InventoryClosedEvent>>
 {
 public:
@@ -30,9 +32,10 @@ public:
 
     MinerUISystem(MinerSystem* minerSystem, ItemRegistry* itemRegistry,
                   PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
+                  SlotSystem* slotSystem,
                   float screenWidth, float screenHeight)
         : minerSystem(minerSystem), itemRegistry(itemRegistry),
-          playerInv(playerInv), inventoryUI(inventoryUI),
+          playerInv(playerInv), inventoryUI(inventoryUI), slotSystem(slotSystem),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Miner UI System"; }
@@ -50,29 +53,18 @@ public:
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const TickEvent&) override;
-    virtual void onProcessEvent(const OnMouseClick& event) override;
+    virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
+    virtual void onProcessEvent(const SlotDroppedEvent& event) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
 private:
-    // Compute panel position: to the left of the inventory panel
     float getPanelX() const;
     float getPanelY() const;
 
     void ensurePanelCreated();
     void setPanelVisibility(bool vis);
     void createPanel();
-    void refreshSlot();
     void refreshProgressBar();
-
-    // --- Click Handling ---
-
-    bool isClickOnSlot(float x, float y) const
-    {
-        return x >= cachedSlotX and x <= cachedSlotX + SLOT_SIZE
-           and y >= cachedSlotY and y <= cachedSlotY + SLOT_SIZE;
-    }
-
-    // --- Helpers ---
 
     void setEntityVisibility(uint64_t id, bool vis);
 
@@ -82,6 +74,7 @@ private:
     ItemRegistry* itemRegistry = nullptr;
     PlayerInventorySystem* playerInv = nullptr;
     InventoryUISystem* inventoryUI = nullptr;
+    SlotSystem* slotSystem = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
@@ -90,18 +83,10 @@ private:
     int openMinerX = -1;
     int openMinerY = -1;
 
-    ItemStack lastDisplayedStack;
-
-    // Cached layout positions
-    float cachedSlotX = 0.0f;
-    float cachedSlotY = 0.0f;
-
     // Entity IDs
     uint64_t backdropEntityId = 0;
     uint64_t titleEntityId = 0;
-    uint64_t slotBgEntityId = 0;
-    uint64_t itemEntityId = 0;
-    uint64_t countTextEntityId = 0;
+    uint64_t slotEntityId = 0;
     uint64_t progressBgEntityId = 0;
     uint64_t progressFillEntityId = 0;
 };

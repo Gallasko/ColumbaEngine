@@ -5,6 +5,7 @@
 
 #include "craftingsystem.h"
 #include "inventoryui.h"
+#include "slotsystem.h"
 #include "playerinventory.h"
 
 using namespace pg;
@@ -14,10 +15,11 @@ class MachineDemoSystem;
 
 // Side-panel UI for Furnace and Assembler.
 // Shows input slot(s), output slot and a crafting progress bar.
-// Mirrors the MinerUISystem pattern exactly.
 class MachineUISystem : public System<Listener<ResizeEvent>,
                                       QueuedListener<OnSDLScanCode>,
                                       QueuedListener<TickEvent>,
+                                      QueuedListener<SlotPickedUpEvent>,
+                                      QueuedListener<SlotDroppedEvent>,
                                       QueuedListener<OnMouseClick>,
                                       Listener<InventoryClosedEvent>>
 {
@@ -40,9 +42,10 @@ public:
 
     MachineUISystem(CraftingSystem* craftingSystem, ItemRegistry* itemRegistry,
                     PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
+                    SlotSystem* slotSystem,
                     float screenWidth, float screenHeight)
         : craftingSystem(craftingSystem), itemRegistry(itemRegistry),
-          playerInv(playerInv), inventoryUI(inventoryUI),
+          playerInv(playerInv), inventoryUI(inventoryUI), slotSystem(slotSystem),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Machine UI System"; }
@@ -64,6 +67,8 @@ public:
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const TickEvent&) override;
+    virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
+    virtual void onProcessEvent(const SlotDroppedEvent& event) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
@@ -72,10 +77,6 @@ public:
     void feedMachineFromPlayer(const Recipe& recipe);
 
 private:
-    // Panel width  = 2*SLOT_SIZE + ARROW_GAP + 2*PANEL_PADDING = 124px
-    // Panel height = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
-    //              + 2*SLOT_SIZE + SLOT_SPACING + GAP_AFTER_SLOTS
-    //              + PROGRESS_H + PANEL_PADDING = 150px (max, assembler)
     float getPanelWidth() const  { return 2.0f * SLOT_SIZE + ARROW_GAP + 2.0f * PANEL_PADDING; }
     float getPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
                                         + 2.0f * SLOT_SIZE + SLOT_SPACING + GAP_AFTER_SLOTS
@@ -88,24 +89,11 @@ private:
     void updateForMachineType();
     void createPanel();
 
-    void refreshSlot(size_t slotIndex, bool isInput);
-    void refreshAllSlots();
+    void syncAllSlots();
+    void syncSlotToMachine(size_t slotIndex, bool isInput);
     void refreshProgressBar();
 
-    bool isClickOnInputSlot(size_t i, float x, float y) const
-    {
-        return x >= cachedInputSlotX[i] and x <= cachedInputSlotX[i] + SLOT_SIZE
-           and y >= cachedInputSlotY[i] and y <= cachedInputSlotY[i] + SLOT_SIZE;
-    }
-    bool isClickOnOutputSlot(float x, float y) const
-    {
-        return x >= cachedOutputSlotX and x <= cachedOutputSlotX + SLOT_SIZE
-           and y >= cachedOutputSlotY and y <= cachedOutputSlotY + SLOT_SIZE;
-    }
-
     void setEntityVisibility(uint64_t id, bool vis);
-    void refreshItemSlotDisplay(uint64_t itemEntId, uint64_t countEntId,
-                                float slotX, float slotY, const ItemStack& stack);
 
     // --- Members ---
 
@@ -113,6 +101,7 @@ private:
     ItemRegistry* itemRegistry = nullptr;
     PlayerInventorySystem* playerInv = nullptr;
     InventoryUISystem* inventoryUI = nullptr;
+    SlotSystem* slotSystem = nullptr;
     CraftingUISystem* craftingUI = nullptr;
     MachineDemoSystem* machineDemo = nullptr;
     float screenWidth = 0.0f;
@@ -124,25 +113,16 @@ private:
     int openMachineY = -1;
     std::string openMachineName;
 
-    // Cached slot positions for hit testing
-    float cachedInputSlotX[2]  = {0.0f, 0.0f};
-    float cachedInputSlotY[2]  = {0.0f, 0.0f};
-    float cachedOutputSlotX = 0.0f;
-    float cachedOutputSlotY = 0.0f;
-    float cachedBarX = 0.0f;
-    float cachedBarMaxW = 0.0f;
-
     // Entity IDs
     uint64_t backdropEntityId     = 0;
     uint64_t titleEntityId        = 0;
-    uint64_t inputSlotBgEntityId[2]  = {0, 0};
-    uint64_t inputItemEntityId[2]    = {0, 0};
-    uint64_t inputCountEntityId[2]   = {0, 0};
-    uint64_t outputSlotBgEntityId = 0;
-    uint64_t outputItemEntityId   = 0;
-    uint64_t outputCountEntityId  = 0;
+    uint64_t inputSlotEntityIds[2]  = {0, 0};
+    uint64_t outputSlotEntityId   = 0;
     uint64_t progressBgEntityId   = 0;
     uint64_t progressFillEntityId = 0;
     uint64_t demoBtnBgEntityId    = 0;
     uint64_t demoBtnTextEntityId  = 0;
+
+    float cachedBarX    = 0.0f;
+    float cachedBarMaxW = 0.0f;
 };

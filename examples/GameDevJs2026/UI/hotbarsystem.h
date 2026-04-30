@@ -1,15 +1,14 @@
 #pragma once
 
 #include "Systems/basicsystems.h"
-#include "ECS/entitysystem_fwd.h"
 #include "Input/inputcomponent.h"
 #include "Renderer/renderer.h"
 
 #include "playerinventory.h"
 #include "itemregistry.h"
 #include "buildingregistry.h"
-
-class InventoryUISystem;
+#include "inventoryui.h"
+#include "slotsystem.h"
 
 using namespace pg;
 
@@ -20,8 +19,11 @@ class HotbarSystem : public System<InitSys,
                                     Listener<ResizeEvent>,
                                     Listener<PlayerGainItemEvent>,
                                     Listener<PlayerLoseItemEvent>,
-                                    QueuedListener<OnMouseClick>,
-                                    QueuedListener<OnSDLMouseMotion>>
+                                    Listener<InventoryOpenedEvent>,
+                                    Listener<InventoryClosedEvent>,
+                                    QueuedListener<SlotClickedEvent>,
+                                    QueuedListener<SlotPickedUpEvent>,
+                                    QueuedListener<SlotDroppedEvent>>
 {
 public:
     static constexpr float HOTBAR_HEIGHT = 48.0f;
@@ -35,10 +37,10 @@ public:
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
     HotbarSystem(PlayerInventorySystem* playerInv, ItemRegistry* itemRegistry,
-                 BuildingRegistry* buildingRegistry,
+                 BuildingRegistry* buildingRegistry, SlotSystem* slotSystem,
                  float screenWidth, float screenHeight)
         : playerInv(playerInv), itemRegistry(itemRegistry),
-          buildingRegistry(buildingRegistry),
+          buildingRegistry(buildingRegistry), slotSystem(slotSystem),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Hotbar System"; }
@@ -50,8 +52,11 @@ public:
     virtual void onEvent(const ResizeEvent& event) override;
     virtual void onEvent(const PlayerGainItemEvent& event) override;
     virtual void onEvent(const PlayerLoseItemEvent& event) override;
-    virtual void onProcessEvent(const OnMouseClick& event) override;
-    virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
+    virtual void onEvent(const InventoryOpenedEvent&) override;
+    virtual void onEvent(const InventoryClosedEvent&) override;
+    virtual void onProcessEvent(const SlotClickedEvent& event) override;
+    virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
+    virtual void onProcessEvent(const SlotDroppedEvent& event) override;
 
     // Queries
     size_t getSelectedSlot() const { return selectedSlot; }
@@ -65,11 +70,15 @@ public:
     const BuildingDef* getSelectedBuildingDef() const
     {
         const auto& item = getSelectedItem();
+
         if (item.isEmpty())
             return nullptr;
+
         const auto& def = itemRegistry->get(item.id);
+
         if (def.buildingName.empty())
             return nullptr;
+
         return buildingRegistry->findByName(def.buildingName);
     }
 
@@ -81,16 +90,13 @@ public:
     // Returns the ItemId at screen-space (x, y), or ITEM_NONE if not over a slot.
     ItemId itemAtPosition(float x, float y) const;
 
-    void setInventoryUI(InventoryUISystem* inv) { inventoryUI = inv; }
-
     // Consume one item from the selected hotbar slot (after building placement)
     void consumeSelectedItem(uint16_t count = 1);
 
-    // Refresh all slot visuals
+    // Refresh all slot visuals from player inventory
     void refreshAllSlots();
-    void refreshSlot(size_t index);
 
-    // Drag-swap: called by InventoryUISystem for cross-panel transfers
+    // Drag-swap: called by external code for cross-panel transfers
     ItemStack& getHotbarSlot(size_t index)
     {
         return playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + index);
@@ -100,6 +106,8 @@ private:
     void selectSlot(size_t index);
     void createHotbarUI();
     void updateHighlight();
+    void syncAllSlots();
+    void syncSlotToInventory(size_t index);
 
     int slotAtPosition(float x, float y) const;
 
@@ -107,23 +115,14 @@ private:
     PlayerInventorySystem* playerInv = nullptr;
     ItemRegistry* itemRegistry = nullptr;
     BuildingRegistry* buildingRegistry = nullptr;
-    InventoryUISystem* inventoryUI = nullptr;
+    SlotSystem* slotSystem = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
     size_t selectedSlot = 0;
 
-    struct SlotVisual
-    {
-        uint64_t bgEntityId = 0;
-        uint64_t itemEntityId = 0;
-        uint64_t textEntityId = 0;
-    };
-    std::vector<SlotVisual> slotVisuals;
+    uint64_t slotEntityIds[HOTBAR_SLOTS] = {};
     uint64_t highlightEntityId = 0;
     uint64_t backdropEntityId = 0;
     uint64_t containerEntityId = 0;
-
-    float lastMouseX = 0.0f;
-    float lastMouseY = 0.0f;
 };

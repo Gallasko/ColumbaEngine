@@ -5,6 +5,7 @@
 
 #include "depotsystem.h"
 #include "inventoryui.h"
+#include "slotsystem.h"
 #include "playerinventory.h"
 #include "missionsystem.h"
 
@@ -14,10 +15,11 @@ using namespace pg;
 
 // Side-panel UI for Depot (tileId 10).
 // Shows a 4-slot grid (2 columns x 2 rows) for Robot Core input / reward output.
-// Mirrors the StorageUISystem pattern.
 class DepotUISystem : public System<Listener<ResizeEvent>,
                                      QueuedListener<OnSDLScanCode>,
                                      QueuedListener<TickEvent>,
+                                     QueuedListener<SlotPickedUpEvent>,
+                                     QueuedListener<SlotDroppedEvent>,
                                      QueuedListener<OnMouseClick>,
                                      Listener<InventoryClosedEvent>>
 {
@@ -51,10 +53,10 @@ public:
 
     DepotUISystem(DepotSystem* depotSystem, ItemRegistry* itemRegistry,
                   PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
-                  MissionSystem* missionSystem,
+                  SlotSystem* slotSystem, MissionSystem* missionSystem,
                   float screenWidth, float screenHeight)
         : depotSystem(depotSystem), itemRegistry(itemRegistry),
-          playerInv(playerInv), inventoryUI(inventoryUI),
+          playerInv(playerInv), inventoryUI(inventoryUI), slotSystem(slotSystem),
           missionSystem(missionSystem),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
@@ -75,6 +77,8 @@ public:
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const TickEvent&) override;
+    virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
+    virtual void onProcessEvent(const SlotDroppedEvent& event) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
@@ -100,24 +104,11 @@ private:
     void setPanelVisibility(bool vis);
     void createPanel();
 
-    void refreshSlot(size_t slotIndex);
-    void refreshAllSlots();
-
-    bool isClickOnSlot(size_t i, float x, float y) const
-    {
-        return x >= cachedSlotX[i] and x <= cachedSlotX[i] + SLOT_SIZE
-           and y >= cachedSlotY[i] and y <= cachedSlotY[i] + SLOT_SIZE;
-    }
-    bool isClickOnOutputSlot(size_t i, float x, float y) const
-    {
-        return x >= cachedOutputSlotX[i] and x <= cachedOutputSlotX[i] + SLOT_SIZE
-           and y >= cachedOutputSlotY[i] and y <= cachedOutputSlotY[i] + SLOT_SIZE;
-    }
+    void syncAllSlots();
+    void syncSlotToDepot(size_t slotIndex, bool isInput);
 
     void setEntityVisibility(uint64_t id, bool vis);
     void setEntityText(uint64_t id, const std::string& text);
-    void refreshItemSlotDisplay(uint64_t itemEntId, uint64_t countEntId,
-                                const ItemStack& stack);
 
     // Mission section
     void createMissionSection();
@@ -129,6 +120,7 @@ private:
     ItemRegistry* itemRegistry = nullptr;
     PlayerInventorySystem* playerInv = nullptr;
     InventoryUISystem* inventoryUI = nullptr;
+    SlotSystem* slotSystem = nullptr;
     MissionSystem* missionSystem = nullptr;
     CraftingUISystem* craftingUI = nullptr;
     float screenWidth = 0.0f;
@@ -140,24 +132,12 @@ private:
     int openDepotX = -1;
     int openDepotY = -1;
 
-    // Cached slot positions for hit testing
-    float cachedSlotX[NUM_SLOTS] = {};
-    float cachedSlotY[NUM_SLOTS] = {};
-    float cachedOutputSlotX[NUM_OUTPUT_SLOTS] = {};
-    float cachedOutputSlotY[NUM_OUTPUT_SLOTS] = {};
-
     // Entity IDs
     uint64_t backdropEntityId = 0;
     uint64_t titleEntityId    = 0;
-    uint64_t slotBgEntityId[NUM_SLOTS]   = {};
-    uint64_t slotItemEntityId[NUM_SLOTS] = {};
-    uint64_t slotCountEntityId[NUM_SLOTS] = {};
-
-    // Output section
+    uint64_t inputSlotEntityIds[NUM_SLOTS]       = {};
     uint64_t outputTitleEntityId = 0;
-    uint64_t outputSlotBgEntityId[NUM_OUTPUT_SLOTS]   = {};
-    uint64_t outputSlotItemEntityId[NUM_OUTPUT_SLOTS] = {};
-    uint64_t outputSlotCountEntityId[NUM_OUTPUT_SLOTS] = {};
+    uint64_t outputSlotEntityIds[NUM_OUTPUT_SLOTS] = {};
 
     // Mission panel (right side)
     uint64_t missionPanelBackdropId = 0;

@@ -24,24 +24,35 @@ void SlotSystem::execute()
     // or by the drag-and-drop handlers below. No per-frame polling needed.
 }
 
-uint64_t SlotSystem::createSlot(SlotCategory category, uint8_t index,
-                                 SlotFlags flags, float slotSize, float itemSize)
+EntityRef SlotSystem::createSlot(SlotCategory category, uint8_t index,
+                                 SlotFlags flags, float slotSize, float itemSize,
+                                 constant::Vector4D bgColor)
 {
-    auto slot = makeUiSlot(ecsRef, itemRegistry, slotSize, itemSize);
+    auto slot = makeUiSlot(ecsRef, itemRegistry, slotSize, itemSize, bgColor);
 
-    createOwnedComponent<SlotComponent>(slot.entity.operator->(), category, index, flags);
+    slot.attach<SlotComponent>(category, index, flags);
+    // createOwnedComponent<SlotComponent>(slot.entity.operator->(), category, index, flags);
 
-    return slot.entity->id;
+    return slot.entity;
 }
 
 // ---- Mouse events ----
 
 void SlotSystem::onProcessEvent(const SlotClickedEvent& event)
 {
+    auto* slot = atEntity<SlotComponent>(event.entityId);
+    if (not slot)
+        return;
+
     if (heldItem.isEmpty())
-        pickUpFrom(event.entityId);
+    {
+        if (not slot->isNoPickUp())
+            pickUpFrom(event.entityId);
+    }
     else
+    {
         dropOn(event.entityId);
+    }
 }
 
 void SlotSystem::onProcessEvent(const OnSDLMouseMotion& event)
@@ -78,7 +89,7 @@ void SlotSystem::pickUpFrom(uint64_t entityId)
 void SlotSystem::dropOn(uint64_t entityId)
 {
     auto* slot = atEntity<SlotComponent>(entityId);
-    if (not slot or slot->isReadOnly())
+    if (not slot or slot->isReadOnly() or slot->isOutputOnly())
         return;
 
     auto ent = ecsRef->getEntity(entityId);
@@ -87,7 +98,8 @@ void SlotSystem::dropOn(uint64_t entityId)
     if (slot->isEmpty())
     {
         slot->stack = heldItem;
-        if (hasPrefab) ent->get<Prefab>()->callHelper("setItem", slot->stack);
+        if (hasPrefab)
+            ent->get<Prefab>()->callHelper("setItem", slot->stack);
 
         auto dropped = heldItem;
         heldItem.clear();
@@ -158,6 +170,26 @@ void SlotSystem::cancelHeld()
     heldItem.clear();
     heldFromEntity = 0;
     hideHeldVisual();
+}
+
+// ---- External sync ----
+
+void SlotSystem::syncSlotVisual(uint64_t entityId, const ItemStack& newStack)
+{
+    auto* slot = atEntity<SlotComponent>(entityId);
+    if (not slot)
+        return;
+
+    slot->stack = newStack;
+
+    auto ent = ecsRef->getEntity(entityId);
+    if (ent and ent->has<Prefab>())
+    {
+        if (newStack.isEmpty())
+            ent->get<Prefab>()->callHelper("clear");
+        else
+            ent->get<Prefab>()->callHelper("setItem", newStack);
+    }
 }
 
 // ---- Held visual ----

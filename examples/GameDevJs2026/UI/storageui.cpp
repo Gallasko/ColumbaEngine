@@ -1,7 +1,6 @@
 #include "storageui.h"
 
 #include "2D/simple2dobject.h"
-#include "2D/texture.h"
 #include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
@@ -24,7 +23,7 @@ void StorageUISystem::open(int gridX, int gridY)
 
     ensurePanelCreated();
     setPanelVisibility(true);
-    refreshAllSlots();
+    syncAllSlots();
 }
 
 void StorageUISystem::close()
@@ -32,14 +31,15 @@ void StorageUISystem::close()
     if (not visible)
         return;
 
-    if (inventoryUI and inventoryUI->hasHeldItem())
-        inventoryUI->cancelHeld();
+    if (slotSystem->hasHeldItem())
+        slotSystem->cancelHeld();
 
-    // Hide item/count entities
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
+    // Sync all slots back to storage before closing
+    StorageData* storage = storageSystem->getStorage(openStorageX, openStorageY);
+    if (storage)
     {
-        setEntityVisibility(slotItemEntityId[i],  false);
-        setEntityVisibility(slotCountEntityId[i], false);
+        for (size_t i = 0; i < NUM_SLOTS; ++i)
+            syncSlotToStorage(i);
     }
 
     setPanelVisibility(false);
@@ -58,7 +58,9 @@ void StorageUISystem::close()
 
 void StorageUISystem::onProcessEvent(const OnSDLScanCode& event)
 {
-    if (not visible) return;
+    if (not visible)
+        return;
+
     if (event.key == SDL_SCANCODE_ESCAPE)
         close();
 }
@@ -71,7 +73,8 @@ void StorageUISystem::onEvent(const InventoryClosedEvent&)
 
 void StorageUISystem::onProcessEvent(const TickEvent&)
 {
-    if (not visible) return;
+    if (not visible)
+        return;
 
     StorageData* storage = storageSystem->getStorage(openStorageX, openStorageY);
     if (not storage)
@@ -80,28 +83,34 @@ void StorageUISystem::onProcessEvent(const TickEvent&)
         return;
     }
 
-    refreshAllSlots();
+    syncAllSlots();
 }
 
-void StorageUISystem::onProcessEvent(const OnMouseClick& event)
+void StorageUISystem::onProcessEvent(const SlotPickedUpEvent& event)
 {
-    if (not visible or event.button != SDL_BUTTON_LEFT)
-        return;
-
-    StorageData* storage = storageSystem->getStorage(openStorageX, openStorageY);
-    if (not storage)
+    if (not visible)
         return;
 
     for (size_t i = 0; i < NUM_SLOTS; ++i)
     {
-        if (isClickOnSlot(i, event.pos.x, event.pos.y))
+        if (event.slotEntityId == slotEntityIds[i])
         {
-            auto& slot = storage->inventory.getSlot(i);
-            if (inventoryUI->hasHeldItem())
-                inventoryUI->dropOnExternal(slot);
-            else
-                inventoryUI->pickUpFromExternal(slot);
-            refreshAllSlots();
+            syncSlotToStorage(i);
+            return;
+        }
+    }
+}
+
+void StorageUISystem::onProcessEvent(const SlotDroppedEvent& event)
+{
+    if (not visible)
+        return;
+
+    for (size_t i = 0; i < NUM_SLOTS; ++i)
+    {
+        if (event.slotEntityId == slotEntityIds[i])
+        {
+            syncSlotToStorage(i);
             return;
         }
     }
@@ -117,6 +126,7 @@ float StorageUISystem::getPanelX() const
                + (InventoryUISystem::COLS - 1) * InventoryUISystem::SLOT_SPACING
                + 2.0f * InventoryUISystem::PANEL_PADDING;
     float invX = (screenWidth - invW) * 0.5f;
+
     return invX - GAP_BETWEEN_PANELS - getPanelWidth();
 }
 
@@ -131,7 +141,8 @@ float StorageUISystem::getPanelY() const
 
 void StorageUISystem::ensurePanelCreated()
 {
-    if (panelCreated) return;
+    if (panelCreated)
+        return;
     createPanel();
     setPanelVisibility(false);
     panelCreated = true;
@@ -141,8 +152,13 @@ void StorageUISystem::setPanelVisibility(bool vis)
 {
     setEntityVisibility(backdropEntityId, vis);
     setEntityVisibility(titleEntityId,    vis);
+
     for (size_t i = 0; i < NUM_SLOTS; ++i)
-        setEntityVisibility(slotBgEntityId[i], vis);
+    {
+        auto ent = ecsRef->getEntity(slotEntityIds[i]);
+        if (ent)
+            ent->get<PositionComponent>()->setVisibility(vis);
+    }
 }
 
 void StorageUISystem::createPanel()
@@ -151,8 +167,6 @@ void StorageUISystem::createPanel()
     float panelY = getPanelY();
     float panelW = getPanelWidth();
     float panelH = getPanelHeight();
-
-    float slotsStartY = panelY + PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
 
     // Backdrop
     {
@@ -177,96 +191,49 @@ void StorageUISystem::createPanel()
         titleEntityId = t.entity->id;
     }
 
-    // Slot backgrounds + item/count entities
+    // Slots via SlotSystem
+    float slotsStartY = panelY + PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
+
     for (size_t i = 0; i < NUM_SLOTS; ++i)
     {
+        auto slotRef = slotSystem->createSlot(
+            SlotCategory::Input, static_cast<uint8_t>(i));
+        slotEntityIds[i] = slotRef.id;
+
         size_t col = i % COLS;
         size_t row = i / COLS;
-
         float sx = panelX + PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
         float sy = slotsStartY + row * (SLOT_SIZE + SLOT_SPACING);
 
-        cachedSlotX[i] = sx;
-        cachedSlotY[i] = sy;
-
-        // Slot background
-        auto slotBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
-        auto pos = slotBg.get<PositionComponent>();
-        pos->setX(sx); pos->setY(sy); pos->setZ(98.0f);
-        pos->setWidth(SLOT_SIZE); pos->setHeight(SLOT_SIZE);
-        slotBg.get<ViewportComponent>()->setViewport(UI_VP);
-        slotBgEntityId[i] = slotBg.entity->id;
-
-        // Item texture
-        float offset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
-        auto itemTex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
-        auto iPos = itemTex.get<PositionComponent>();
-        iPos->setX(sx + offset); iPos->setY(sy + offset); iPos->setZ(99.0f);
-        iPos->setVisibility(false);
-        itemTex.get<ViewportComponent>()->setViewport(UI_VP);
-        slotItemEntityId[i] = itemTex.entity->id;
-
-        // Count text
-        auto countTxt = makeTTFText(ecsRef,
-            sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 100.0f,
-            FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        countTxt.get<PositionComponent>()->setVisibility(false);
-        countTxt.get<ViewportComponent>()->setViewport(UI_VP);
-        slotCountEntityId[i] = countTxt.entity->id;
+        auto pos = slotRef.get<PositionComponent>();
+        pos->setX(sx);
+        pos->setY(sy);
     }
 }
 
 // ---------------------------------------------------------------------------
-// Refresh helpers
+// Sync helpers
 // ---------------------------------------------------------------------------
 
-void StorageUISystem::refreshItemSlotDisplay(uint64_t itemEntId, uint64_t countEntId,
-                                              const ItemStack& stack)
-{
-    if (stack.isEmpty())
-    {
-        setEntityVisibility(itemEntId,  false);
-        setEntityVisibility(countEntId, false);
-        return;
-    }
-
-    const auto& def = itemRegistry->get(stack.id);
-    auto itemEnt = ecsRef->getEntity(itemEntId);
-    if (itemEnt)
-    {
-        itemEnt->get<Texture2DComponent>()->setTexture(def.textureName);
-        itemEnt->get<PositionComponent>()->setVisibility(true);
-    }
-
-    if (stack.count > 1)
-    {
-        auto countEnt = ecsRef->getEntity(countEntId);
-        if (countEnt)
-        {
-            countEnt->get<TTFText>()->setText(std::to_string(stack.count));
-            countEnt->get<PositionComponent>()->setVisibility(true);
-        }
-    }
-    else
-    {
-        setEntityVisibility(countEntId, false);
-    }
-}
-
-void StorageUISystem::refreshSlot(size_t slotIndex)
+void StorageUISystem::syncAllSlots()
 {
     StorageData* storage = storageSystem->getStorage(openStorageX, openStorageY);
-    if (not storage) return;
+    if (not storage)
+        return;
 
-    const auto& stack = storage->inventory.getSlot(slotIndex);
-    refreshItemSlotDisplay(slotItemEntityId[slotIndex], slotCountEntityId[slotIndex], stack);
+    for (size_t i = 0; i < NUM_SLOTS; ++i)
+        slotSystem->syncSlotVisual(slotEntityIds[i], storage->inventory.getSlot(i));
 }
 
-void StorageUISystem::refreshAllSlots()
+void StorageUISystem::syncSlotToStorage(size_t slotIndex)
 {
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-        refreshSlot(i);
+    StorageData* storage = storageSystem->getStorage(openStorageX, openStorageY);
+    if (not storage)
+        return;
+
+    auto* sc = slotSystem->getSlotComponent(slotEntityIds[slotIndex]);
+    if (sc)
+        storage->inventory.getSlot(slotIndex) = sc->stack;
 }
 
 // ---------------------------------------------------------------------------
@@ -275,7 +242,8 @@ void StorageUISystem::refreshAllSlots()
 
 void StorageUISystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
     if (ent)
         ent->get<PositionComponent>()->setVisibility(vis);

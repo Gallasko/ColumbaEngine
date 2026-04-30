@@ -6,6 +6,7 @@
 
 #include "playerinventory.h"
 #include "itemregistry.h"
+#include "slotsystem.h"
 
 using namespace pg;
 
@@ -15,26 +16,27 @@ struct PanelWasClickedEvent {};
 
 class InventoryUISystem : public System<InitSys,
                                         Listener<ResizeEvent>,
-                                        Listener<PanelWasClickedEvent>,
                                         QueuedListener<OnSDLScanCode>,
-                                        QueuedListener<OnMouseClick>,
-                                        QueuedListener<OnSDLMouseMotion>>
+                                        QueuedListener<SlotPickedUpEvent>,
+                                        QueuedListener<SlotDroppedEvent>>
 {
 public:
     static constexpr size_t INV_UI_VIEWPORT = 2;
     static constexpr size_t COLS = 5;
     static constexpr size_t ROWS = 4;
+    static constexpr size_t NUM_SLOTS = COLS * ROWS;
     static constexpr float SLOT_SIZE = 40.0f;
     static constexpr float SLOT_SPACING = 4.0f;
     static constexpr float PANEL_PADDING = 12.0f;
-    static constexpr float ITEM_SIZE = 28.0f; // Item square inside the slot
+    static constexpr float ITEM_SIZE = 28.0f;
     static constexpr float TEXT_SCALE = 0.3f;
 
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
     InventoryUISystem(PlayerInventorySystem* playerInv, ItemRegistry* itemRegistry,
+                      SlotSystem* slotSystem,
                       float screenWidth, float screenHeight)
-        : playerInv(playerInv), itemRegistry(itemRegistry),
+        : playerInv(playerInv), itemRegistry(itemRegistry), slotSystem(slotSystem),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Inventory UI System"; }
@@ -48,12 +50,10 @@ public:
     // closed or the position is not over a non-empty slot.
     ItemId itemAtPosition(float x, float y) const;
 
-    // --- External Slot Support (for miner UI, etc.) ---
+    // --- Held Item Support (delegates to SlotSystem) ---
 
-    bool hasHeldItem() const { return not heldItem.isEmpty(); }
-
-    void pickUpFromExternal(ItemStack& slot);
-    void dropOnExternal(ItemStack& slot);
+    bool hasHeldItem() const { return slotSystem->hasHeldItem(); }
+    void cancelHeld();
 
     // --- Event Handlers ---
 
@@ -61,34 +61,24 @@ public:
     {
         screenWidth = event.width;
         screenHeight = event.height;
+
         if (visible)
             refreshAllSlots();
     }
 
-    virtual void onEvent(const PanelWasClickedEvent&) override
-    {
-        panelClickedThisFrame = true;
-    }
-
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
-    virtual void onProcessEvent(const OnMouseClick& event) override;
-    virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
+    virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
+    virtual void onProcessEvent(const SlotDroppedEvent& event) override;
 
     // --- Open / Close ---
 
     void openInventory();
     void closeInventory();
-    void cancelHeld();
 
     // Refresh all slot visuals to match the current player inventory state.
     // Safe to call from external systems (e.g. HandCraftingSystem after a
     // craft completes). Does nothing if the panel hasn't been built yet.
     void refreshAllSlots();
-
-    // Returns the held item to its source without any visual refresh.
-    // Use this when the panel is about to be hidden (avoids creating
-    // deferred entities that would immediately leak on panel hide).
-    void cancelHeldDataOnly();
 
 private:
     // --- Panel Creation / Visibility ---
@@ -97,26 +87,10 @@ private:
     void setPanelVisibility(bool vis);
     void createPanel();
 
-    // --- Slot Refresh ---
+    // --- Sync ---
 
-    void refreshSlot(size_t index);
-
-    // --- Drag & Drop ---
-
-    void pickUpFromSlot(size_t slotIndex);
-    void dropOnSlot(size_t slotIndex);
-    void clearHeld();
-
-    // --- Held Item Visual ---
-
-    void showHeldVisual();
-    void hideHeldVisual();
-    void updateHeldPosition();
-
-    // --- Hit Testing ---
-
-    int slotAtPosition(float x, float y) const;
-    std::pair<float, float> slotScreenPos(size_t index) const;
+    void syncAllSlots();
+    void syncSlotToInventory(size_t index);
 
     // --- Helpers ---
 
@@ -126,6 +100,7 @@ private:
 
     PlayerInventorySystem* playerInv = nullptr;
     ItemRegistry* itemRegistry = nullptr;
+    SlotSystem* slotSystem = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
@@ -133,24 +108,5 @@ private:
     bool panelCreated = false;
 
     uint64_t backdropEntityId = 0;
-    uint64_t slotLayoutEntityId = 0;
-
-    struct SlotVisual
-    {
-        uint64_t bgEntityId = 0;
-        uint64_t itemEntityId = 0;
-        uint64_t textEntityId = 0;
-    };
-    std::vector<SlotVisual> slotVisuals;
-
-    ItemStack heldItem;
-    int heldFromSlot = -1;
-    ItemStack* externalSourceSlot = nullptr;
-    uint64_t heldItemEntityId = 0;
-    uint64_t heldTextEntityId = 0;
-
-    bool panelClickedThisFrame = false;
-
-    float lastMouseX = 0.0f;
-    float lastMouseY = 0.0f;
+    uint64_t slotEntityIds[NUM_SLOTS] = {};
 };

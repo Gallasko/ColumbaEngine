@@ -2,7 +2,6 @@
 #include "craftingui.h"
 
 #include "2D/simple2dobject.h"
-#include "2D/texture.h"
 #include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
@@ -34,7 +33,7 @@ void DepotUISystem::open(int gridX, int gridY)
 
     ensurePanelCreated();
     setPanelVisibility(true);
-    refreshAllSlots();
+    syncAllSlots();
 }
 
 void DepotUISystem::close()
@@ -42,19 +41,17 @@ void DepotUISystem::close()
     if (not visible)
         return;
 
-    if (inventoryUI and inventoryUI->hasHeldItem())
-        inventoryUI->cancelHeld();
+    if (slotSystem->hasHeldItem())
+        slotSystem->cancelHeld();
 
-    // Hide item/count entities
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
+    // Sync all slots back to depot
+    DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
+    if (depot)
     {
-        setEntityVisibility(slotItemEntityId[i],  false);
-        setEntityVisibility(slotCountEntityId[i], false);
-    }
-    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
-    {
-        setEntityVisibility(outputSlotItemEntityId[i],  false);
-        setEntityVisibility(outputSlotCountEntityId[i], false);
+        for (size_t i = 0; i < NUM_SLOTS; ++i)
+            syncSlotToDepot(i, true);
+        for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
+            syncSlotToDepot(i, false);
     }
 
     setPanelVisibility(false);
@@ -110,46 +107,61 @@ void DepotUISystem::onProcessEvent(const TickEvent&)
     }
 
     depotDataSeenThisOpen = true;
-    refreshAllSlots();
+    syncAllSlots();
+}
+
+void DepotUISystem::onProcessEvent(const SlotPickedUpEvent& event)
+{
+    if (not visible)
+        return;
+
+    for (size_t i = 0; i < NUM_SLOTS; ++i)
+    {
+        if (event.slotEntityId == inputSlotEntityIds[i])
+        {
+            syncSlotToDepot(i, true);
+            return;
+        }
+    }
+
+    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
+    {
+        if (event.slotEntityId == outputSlotEntityIds[i])
+        {
+            syncSlotToDepot(i, false);
+            return;
+        }
+    }
+}
+
+void DepotUISystem::onProcessEvent(const SlotDroppedEvent& event)
+{
+    if (not visible)
+        return;
+
+    for (size_t i = 0; i < NUM_SLOTS; ++i)
+    {
+        if (event.slotEntityId == inputSlotEntityIds[i])
+        {
+            syncSlotToDepot(i, true);
+            return;
+        }
+    }
+
+    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
+    {
+        if (event.slotEntityId == outputSlotEntityIds[i])
+        {
+            syncSlotToDepot(i, false);
+            return;
+        }
+    }
 }
 
 void DepotUISystem::onProcessEvent(const OnMouseClick& event)
 {
     if (not visible or event.button != SDL_BUTTON_LEFT)
         return;
-
-    DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
-    if (not depot)
-        return;
-
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-    {
-        if (isClickOnSlot(i, event.pos.x, event.pos.y))
-        {
-            auto& slot = depot->inventory.getSlot(i);
-            if (inventoryUI->hasHeldItem())
-                inventoryUI->dropOnExternal(slot);
-            else
-                inventoryUI->pickUpFromExternal(slot);
-            refreshAllSlots();
-            return;
-        }
-    }
-
-    // Output slots — pick up only (no dropping)
-    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
-    {
-        if (isClickOnOutputSlot(i, event.pos.x, event.pos.y))
-        {
-            if (not inventoryUI->hasHeldItem())
-            {
-                auto& slot = depot->output.getSlot(i);
-                inventoryUI->pickUpFromExternal(slot);
-                refreshAllSlots();
-            }
-            return;
-        }
-    }
 
     float mx = event.pos.x;
     float my = event.pos.y;
@@ -161,15 +173,17 @@ void DepotUISystem::onProcessEvent(const OnMouseClick& event)
             and my >= claimBtnY and my <= claimBtnY + BTN_H)
         {
             size_t idx = missionSystem->getActiveMissionIndexForDepot(openDepotX, openDepotY);
+
             if (idx != SIZE_MAX)
             {
                 const auto& active = missionSystem->getActive();
                 if (idx < active.size() and active[idx].completed)
                 {
                     missionSystem->claimMission(idx);
-                    refreshAllSlots();
+                    syncAllSlots();
                 }
             }
+
             return;
         }
     }
@@ -179,15 +193,19 @@ void DepotUISystem::onProcessEvent(const OnMouseClick& event)
         for (size_t i = 0; i < MAX_MISSION_ROWS; ++i)
         {
             auto& row = missionRows[i];
-            if (row.bgId == 0) continue;
+
+            if (row.bgId == 0)
+                continue;
+
             if (mx >= row.btnX and mx <= row.btnX + BTN_W
                 and my >= row.btnY and my <= row.btnY + BTN_H)
             {
                 if (missionSystem->canStartMission(row.defIndex))
                 {
                     missionSystem->startMission(row.defIndex, openDepotX, openDepotY);
-                    refreshAllSlots();
+                    syncAllSlots();
                 }
+
                 return;
             }
         }
@@ -204,6 +222,7 @@ float DepotUISystem::getPanelX() const
                + (InventoryUISystem::COLS - 1) * InventoryUISystem::SLOT_SPACING
                + 2.0f * InventoryUISystem::PANEL_PADDING;
     float invX = (screenWidth - invW) * 0.5f;
+
     return invX - GAP_BETWEEN_PANELS - getPanelWidth();
 }
 
@@ -218,6 +237,7 @@ float DepotUISystem::getMissionPanelX() const
                + (InventoryUISystem::COLS - 1) * InventoryUISystem::SLOT_SPACING
                + 2.0f * InventoryUISystem::PANEL_PADDING;
     float invX = (screenWidth - invW) * 0.5f;
+
     return invX + invW + GAP_BETWEEN_PANELS;
 }
 
@@ -232,7 +252,9 @@ float DepotUISystem::getMissionPanelY() const
 
 void DepotUISystem::ensurePanelCreated()
 {
-    if (panelCreated) return;
+    if (panelCreated)
+        return;
+
     createPanel();
     setPanelVisibility(false);
     panelCreated = true;
@@ -242,11 +264,21 @@ void DepotUISystem::setPanelVisibility(bool vis)
 {
     setEntityVisibility(backdropEntityId, vis);
     setEntityVisibility(titleEntityId,    vis);
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-        setEntityVisibility(slotBgEntityId[i], vis);
     setEntityVisibility(outputTitleEntityId, vis);
+
+    for (size_t i = 0; i < NUM_SLOTS; ++i)
+    {
+        auto ent = ecsRef->getEntity(inputSlotEntityIds[i]);
+        if (ent)
+            ent->get<PositionComponent>()->setVisibility(vis);
+    }
+
     for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
-        setEntityVisibility(outputSlotBgEntityId[i], vis);
+    {
+        auto ent = ecsRef->getEntity(outputSlotEntityIds[i]);
+        if (ent)
+            ent->get<PositionComponent>()->setVisibility(vis);
+    }
 
     // Mission panel (right side)
     setEntityVisibility(missionPanelBackdropId, vis);
@@ -303,7 +335,7 @@ void DepotUISystem::createPanel()
         titleEntityId = t.entity->id;
     }
 
-    // Input slot backgrounds + item/count entities
+    // Input slots via SlotSystem
     for (size_t i = 0; i < NUM_SLOTS; ++i)
     {
         size_t col = i % COLS;
@@ -312,34 +344,13 @@ void DepotUISystem::createPanel()
         float sx = panelX + PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
         float sy = slotsStartY + row * (SLOT_SIZE + SLOT_SPACING);
 
-        cachedSlotX[i] = sx;
-        cachedSlotY[i] = sy;
+        auto slotRef = slotSystem->createSlot(
+            SlotCategory::Input, static_cast<uint8_t>(i));
+        inputSlotEntityIds[i] = slotRef.id;
 
-        // Slot background
-        auto slotBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
-        auto pos = slotBg.get<PositionComponent>();
-        pos->setX(sx); pos->setY(sy); pos->setZ(98.0f);
-        pos->setWidth(SLOT_SIZE); pos->setHeight(SLOT_SIZE);
-        slotBg.get<ViewportComponent>()->setViewport(UI_VP);
-        slotBgEntityId[i] = slotBg.entity->id;
-
-        // Item texture
-        float offset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
-        auto itemTex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
-        auto iPos = itemTex.get<PositionComponent>();
-        iPos->setX(sx + offset); iPos->setY(sy + offset); iPos->setZ(99.0f);
-        iPos->setVisibility(false);
-        itemTex.get<ViewportComponent>()->setViewport(UI_VP);
-        slotItemEntityId[i] = itemTex.entity->id;
-
-        // Count text
-        auto countTxt = makeTTFText(ecsRef,
-            sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 100.0f,
-            FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        countTxt.get<PositionComponent>()->setVisibility(false);
-        countTxt.get<ViewportComponent>()->setViewport(UI_VP);
-        slotCountEntityId[i] = countTxt.entity->id;
+        auto pos = slotRef.get<PositionComponent>();
+        pos->setX(sx);
+        pos->setY(sy);
     }
 
     // --- Output section ---
@@ -356,6 +367,7 @@ void DepotUISystem::createPanel()
 
     float outputSlotsStartY = outputStartY + TITLE_H + GAP_AFTER_TITLE;
 
+    // Output slots via SlotSystem (OutputOnly — pick up only, no dropping)
     for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
     {
         size_t col = i % COLS;
@@ -364,34 +376,16 @@ void DepotUISystem::createPanel()
         float sx = panelX + PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
         float sy = outputSlotsStartY + row * (SLOT_SIZE + SLOT_SPACING);
 
-        cachedOutputSlotX[i] = sx;
-        cachedOutputSlotY[i] = sy;
+        auto slotRef = slotSystem->createSlot(
+            SlotCategory::Output, static_cast<uint8_t>(i),
+            SlotFlags::OutputOnly,
+            DEFAULT_SLOT_SIZE, DEFAULT_ITEM_SIZE,
+            {45.0f, 55.0f, 50.0f, 200.0f});
+        outputSlotEntityIds[i] = slotRef.id;
 
-        // Slot background (slightly different color for output)
-        auto slotBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{45.0f, 55.0f, 50.0f, 200.0f});
-        auto pos = slotBg.get<PositionComponent>();
-        pos->setX(sx); pos->setY(sy); pos->setZ(98.0f);
-        pos->setWidth(SLOT_SIZE); pos->setHeight(SLOT_SIZE);
-        slotBg.get<ViewportComponent>()->setViewport(UI_VP);
-        outputSlotBgEntityId[i] = slotBg.entity->id;
-
-        // Item texture
-        float offset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
-        auto itemTex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
-        auto iPos = itemTex.get<PositionComponent>();
-        iPos->setX(sx + offset); iPos->setY(sy + offset); iPos->setZ(99.0f);
-        iPos->setVisibility(false);
-        itemTex.get<ViewportComponent>()->setViewport(UI_VP);
-        outputSlotItemEntityId[i] = itemTex.entity->id;
-
-        // Count text
-        auto countTxt = makeTTFText(ecsRef,
-            sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 100.0f,
-            FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        countTxt.get<PositionComponent>()->setVisibility(false);
-        countTxt.get<ViewportComponent>()->setViewport(UI_VP);
-        outputSlotCountEntityId[i] = countTxt.entity->id;
+        auto pos = slotRef.get<PositionComponent>();
+        pos->setX(sx);
+        pos->setY(sy);
     }
 
     // --- Mission panel (RIGHT of inventory) ---
@@ -416,71 +410,46 @@ void DepotUISystem::createPanel()
 }
 
 // ---------------------------------------------------------------------------
-// Refresh helpers
+// Sync helpers
 // ---------------------------------------------------------------------------
 
-void DepotUISystem::refreshItemSlotDisplay(uint64_t itemEntId, uint64_t countEntId,
-                                            const ItemStack& stack)
-{
-    if (stack.isEmpty())
-    {
-        setEntityVisibility(itemEntId,  false);
-        setEntityVisibility(countEntId, false);
-        return;
-    }
-
-    const auto& def = itemRegistry->get(stack.id);
-    auto itemEnt = ecsRef->getEntity(itemEntId);
-    if (itemEnt)
-    {
-        itemEnt->get<Texture2DComponent>()->setTexture(def.textureName);
-        itemEnt->get<PositionComponent>()->setVisibility(true);
-    }
-
-    if (stack.count > 1)
-    {
-        auto countEnt = ecsRef->getEntity(countEntId);
-        if (countEnt)
-        {
-            countEnt->get<TTFText>()->setText(std::to_string(stack.count));
-            countEnt->get<PositionComponent>()->setVisibility(true);
-        }
-    }
-    else
-    {
-        setEntityVisibility(countEntId, false);
-    }
-}
-
-void DepotUISystem::refreshSlot(size_t slotIndex)
-{
-    DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
-    if (not depot) return;
-
-    const auto& stack = depot->inventory.getSlot(slotIndex);
-    refreshItemSlotDisplay(slotItemEntityId[slotIndex], slotCountEntityId[slotIndex], stack);
-}
-
-void DepotUISystem::refreshAllSlots()
+void DepotUISystem::syncAllSlots()
 {
     DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
 
     if (depot)
     {
         for (size_t i = 0; i < NUM_SLOTS; ++i)
-            refreshSlot(i);
+            slotSystem->syncSlotVisual(inputSlotEntityIds[i], depot->inventory.getSlot(i));
 
         for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
-        {
-            const auto& stack = depot->output.getSlot(i);
-            refreshItemSlotDisplay(outputSlotItemEntityId[i], outputSlotCountEntityId[i], stack);
-        }
+            slotSystem->syncSlotVisual(outputSlotEntityIds[i], depot->output.getSlot(i));
     }
 
     // Mission section is queried via missionSystem by depot coords, so it
     // works even if depot data isn't registered yet (e.g. first frame after
     // placement, before BuildingPlacedEvent has been dispatched).
     refreshMissionSection();
+}
+
+void DepotUISystem::syncSlotToDepot(size_t slotIndex, bool isInput)
+{
+    DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
+    if (not depot)
+        return;
+
+    if (isInput)
+    {
+        auto* sc = slotSystem->getSlotComponent(inputSlotEntityIds[slotIndex]);
+        if (sc)
+            depot->inventory.getSlot(slotIndex) = sc->stack;
+    }
+    else
+    {
+        auto* sc = slotSystem->getSlotComponent(outputSlotEntityIds[slotIndex]);
+        if (sc)
+            depot->output.getSlot(slotIndex) = sc->stack;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -776,7 +745,9 @@ void DepotUISystem::refreshMissionSection()
 
 void DepotUISystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
+
     auto ent = ecsRef->getEntity(id);
     if (ent)
         ent->get<PositionComponent>()->setVisibility(vis);
@@ -784,7 +755,9 @@ void DepotUISystem::setEntityVisibility(uint64_t id, bool vis)
 
 void DepotUISystem::setEntityText(uint64_t id, const std::string& text)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
+
     auto ent = ecsRef->getEntity(id);
     if (ent and ent->has<TTFText>())
         ent->get<TTFText>()->setText(text);

@@ -1,10 +1,7 @@
 #include "hotbarsystem.h"
-#include "inventoryui.h"
 
 #include "2D/simple2dobject.h"
-#include "2D/texture.h"
 #include "2D/position.h"
-#include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
 
@@ -36,52 +33,89 @@ void HotbarSystem::onEvent(const OnSDLScanCode& event)
 
 void HotbarSystem::onEvent(const PlayerGainItemEvent& /*event*/)
 {
-    refreshAllSlots();
+    syncAllSlots();
 }
 
 void HotbarSystem::onEvent(const PlayerLoseItemEvent& /*event*/)
 {
-    refreshAllSlots();
+    syncAllSlots();
 }
 
-void HotbarSystem::onProcessEvent(const OnMouseClick& event)
+void HotbarSystem::onEvent(const InventoryOpenedEvent&)
 {
-    if (event.button != SDL_BUTTON_LEFT)
-        return;
-
-    int slot = slotAtPosition(event.pos.x, event.pos.y);
-    if (slot < 0)
-        return;
-
-    // When inventory is open, handle item transfers
-    if (inventoryUI and inventoryUI->isOpen())
+    // Enable drag-drop on hotbar slots
+    for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
     {
-        auto& hotbarSlot = getHotbarSlot(static_cast<size_t>(slot));
-
-        if (inventoryUI->hasHeldItem())
-            inventoryUI->dropOnExternal(hotbarSlot);
-        else
-            inventoryUI->pickUpFromExternal(hotbarSlot);
-
-        refreshSlot(static_cast<size_t>(slot));
-        return;
+        auto* sc = slotSystem->getSlotComponent(slotEntityIds[i]);
+        if (sc)
+            sc->clearFlag(SlotFlags::NoPickUp);
     }
-
-    selectSlot(static_cast<size_t>(slot));
 }
 
-void HotbarSystem::onProcessEvent(const OnSDLMouseMotion& event)
+void HotbarSystem::onEvent(const InventoryClosedEvent&)
 {
-    lastMouseX = static_cast<float>(event.x);
-    lastMouseY = static_cast<float>(event.y);
+    // Switch to selection-only mode and sync backing data
+    for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
+    {
+        auto* sc = slotSystem->getSlotComponent(slotEntityIds[i]);
+        if (sc)
+        {
+            sc->setFlag(SlotFlags::NoPickUp);
+            playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + i) = sc->stack;
+        }
+    }
+}
+
+void HotbarSystem::onProcessEvent(const SlotClickedEvent& event)
+{
+    for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
+    {
+        if (event.entityId == slotEntityIds[i])
+        {
+            auto* sc = slotSystem->getSlotComponent(slotEntityIds[i]);
+
+            if (sc and sc->isNoPickUp() and not slotSystem->hasHeldItem())
+                selectSlot(i);
+
+            return;
+        }
+    }
+}
+
+void HotbarSystem::onProcessEvent(const SlotPickedUpEvent& event)
+{
+    for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
+    {
+        if (event.slotEntityId == slotEntityIds[i])
+        {
+            syncSlotToInventory(i);
+            return;
+        }
+    }
+}
+
+void HotbarSystem::onProcessEvent(const SlotDroppedEvent& event)
+{
+    for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
+    {
+        if (event.slotEntityId == slotEntityIds[i])
+        {
+            syncSlotToInventory(i);
+            return;
+        }
+    }
 }
 
 ItemId HotbarSystem::itemAtPosition(float x, float y) const
 {
     int idx = slotAtPosition(x, y);
-    if (idx < 0) return ITEM_NONE;
+
+    if (idx < 0)
+        return ITEM_NONE;
+
     const auto& stack = playerInv->getInventory()
         .getSlot(PlayerInventorySystem::HOTBAR_START + static_cast<size_t>(idx));
+
     return stack.isEmpty() ? ITEM_NONE : stack.id;
 }
 
@@ -94,6 +128,7 @@ void HotbarSystem::selectSlot(size_t index)
     updateHighlight();
 
     const auto& item = getSelectedItem();
+
     if (not item.isEmpty())
     {
         const auto& def = itemRegistry->get(item.id);
@@ -108,6 +143,7 @@ void HotbarSystem::selectSlot(size_t index)
 void HotbarSystem::consumeSelectedItem(uint16_t count)
 {
     auto& slot = playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + selectedSlot);
+
     if (slot.isEmpty())
         return;
 
@@ -116,7 +152,7 @@ void HotbarSystem::consumeSelectedItem(uint16_t count)
     else
         slot.count -= count;
 
-    refreshSlot(selectedSlot);
+    slotSystem->syncSlotVisual(slotEntityIds[selectedSlot], slot);
 }
 
 void HotbarSystem::createHotbarUI()
@@ -129,7 +165,7 @@ void HotbarSystem::createHotbarUI()
         constant::Vector4D{30.0f, 30.0f, 40.0f, 200.0f});
 
     auto backdropPos = backdrop.get<PositionComponent>();
-    backdropPos->setZ(0.9f);
+    backdropPos->setZ(90.f);
     backdropPos->setHeight(HOTBAR_HEIGHT);
     backdrop.get<ViewportComponent>()->setViewport(UI_VP);
     backdropEntityId = backdrop.entity->id;
@@ -152,55 +188,22 @@ void HotbarSystem::createHotbarUI()
     cAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
     cAnchor->setTopMargin(SLOT_PADDING);
 
-    // Slots — anchored to container
-    slotVisuals.resize(HOTBAR_SLOTS);
-
+    // Slots via SlotSystem — NoPickUp by default (inventory starts closed)
     for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
     {
         float slotLeftMargin = static_cast<float>(i) * (SLOT_SIZE + SLOT_SPACING);
 
-        // Slot background
-        auto slotBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
+        auto slotRef = slotSystem->createSlot(
+            SlotCategory::Hotbar, static_cast<uint8_t>(i),
+            SlotFlags::NoPickUp, SLOT_SIZE, ITEM_SIZE);
+        slotEntityIds[i] = slotRef.id;
 
-        auto bgPos = slotBg.get<PositionComponent>();
-        bgPos->setZ(0.95f);
-        bgPos->setWidth(SLOT_SIZE);
-        bgPos->setHeight(SLOT_SIZE);
-        slotBg.get<ViewportComponent>()->setViewport(UI_VP);
-        slotVisuals[i].bgEntityId = slotBg.entity->id;
+        slotRef.get<PositionComponent>()->setZ(95.f);
 
-        auto slotAnchor = ecsRef->attach<UiAnchor>(slotBg.entity);
-        slotAnchor->setLeftAnchor(PosAnchor{containerEntityId, AnchorType::Left});
-        slotAnchor->setLeftMargin(slotLeftMargin);
-        slotAnchor->setTopAnchor(PosAnchor{containerEntityId, AnchorType::Top});
-
-        // Item texture entity — anchored to slot bg center
-        auto tex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
-        auto itemPos = tex.get<PositionComponent>();
-        itemPos->setZ(0.96f);
-        itemPos->setVisibility(false);
-        tex.get<ViewportComponent>()->setViewport(UI_VP);
-        slotVisuals[i].itemEntityId = tex.entity->id;
-
-        auto itemAnchor = ecsRef->attach<UiAnchor>(tex.entity);
-        itemAnchor->setVerticalCenter(PosAnchor{slotVisuals[i].bgEntityId, AnchorType::VerticalCenter});
-        itemAnchor->setHorizontalCenter(PosAnchor{slotVisuals[i].bgEntityId, AnchorType::HorizontalCenter});
-
-        // Count text entity — anchored to slot bg bottom-right
-        auto text = makeTTFText(ecsRef,
-            0.0f, 0.0f, 0.97f,
-            FONT_PATH, "", TEXT_SCALE,
-            {255.0f, 255.0f, 255.0f, 255.0f});
-        text.get<PositionComponent>()->setVisibility(false);
-        text.get<ViewportComponent>()->setViewport(UI_VP);
-        slotVisuals[i].textEntityId = text.entity->id;
-
-        auto textAnchor = ecsRef->attach<UiAnchor>(text.entity);
-        textAnchor->setLeftAnchor(PosAnchor{slotVisuals[i].bgEntityId, AnchorType::Left});
-        textAnchor->setLeftMargin(SLOT_SIZE - 4.0f);
-        textAnchor->setTopAnchor(PosAnchor{slotVisuals[i].bgEntityId, AnchorType::Top});
-        textAnchor->setTopMargin(SLOT_SIZE - 4.0f);
+        auto anchor = slotRef.get<UiAnchor>();
+        anchor->setLeftAnchor(PosAnchor{containerEntityId, AnchorType::Left});
+        anchor->setLeftMargin(slotLeftMargin);
+        anchor->setTopAnchor(PosAnchor{containerEntityId, AnchorType::Top});
     }
 
     // Selection highlight overlay
@@ -208,94 +211,56 @@ void HotbarSystem::createHotbarUI()
         constant::Vector4D{255.0f, 255.0f, 255.0f, 60.0f});
 
     auto hlPos = highlight.get<PositionComponent>();
-    hlPos->setZ(0.98f);
+    hlPos->setZ(98.f);
     hlPos->setWidth(SLOT_SIZE + 4.0f);
     hlPos->setHeight(SLOT_SIZE + 4.0f);
     highlight.get<ViewportComponent>()->setViewport(UI_VP);
     highlightEntityId = highlight.entity->id;
 
     updateHighlight();
-    refreshAllSlots();
+    syncAllSlots();
 }
 
 void HotbarSystem::updateHighlight()
 {
-    if (selectedSlot >= slotVisuals.size())
+    if (selectedSlot >= HOTBAR_SLOTS)
         return;
 
     auto hlEnt = ecsRef->getEntity(highlightEntityId);
     if (not hlEnt)
         return;
 
-    auto slotBgId = slotVisuals[selectedSlot].bgEntityId;
-
-    // Anchor highlight to the selected slot bg (auto-follows on resize)
+    // Anchor highlight to the selected slot prefab entity (auto-follows on resize)
     auto hlAnchor = hlEnt->get<UiAnchor>();
     if (not hlAnchor)
         hlAnchor = ecsRef->attach<UiAnchor>(hlEnt);
 
     hlAnchor->clearAnchors();
-    hlAnchor->setLeftAnchor(PosAnchor{slotBgId, AnchorType::Left});
+    hlAnchor->setLeftAnchor(PosAnchor{slotEntityIds[selectedSlot], AnchorType::Left});
     hlAnchor->setLeftMargin(-2.0f);
-    hlAnchor->setTopAnchor(PosAnchor{slotBgId, AnchorType::Top});
+    hlAnchor->setTopAnchor(PosAnchor{slotEntityIds[selectedSlot], AnchorType::Top});
     hlAnchor->setTopMargin(-2.0f);
 }
 
 void HotbarSystem::refreshAllSlots()
 {
-    for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
-        refreshSlot(i);
+    syncAllSlots();
 }
 
-void HotbarSystem::refreshSlot(size_t index)
+void HotbarSystem::syncAllSlots()
 {
-    if (index >= slotVisuals.size())
-        return;
-
-    auto& sv = slotVisuals[index];
-    const auto& stack = playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + index);
-
-    auto setVis = [this](uint64_t id, bool vis) {
-        if (id == 0) return;
-        auto ent = ecsRef->getEntity(id);
-        if (ent)
-            ent->get<PositionComponent>()->setVisibility(vis);
-    };
-
-    if (stack.isEmpty())
+    for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
     {
-        setVis(sv.itemEntityId, false);
-        setVis(sv.textEntityId, false);
-        return;
+        const auto& stack = playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + i);
+        slotSystem->syncSlotVisual(slotEntityIds[i], stack);
     }
+}
 
-    // Update item texture and show (position handled by anchor)
-    const auto& def = itemRegistry->get(stack.id);
-    auto itemEnt = ecsRef->getEntity(sv.itemEntityId);
-    if (itemEnt)
-    {
-        itemEnt->get<Texture2DComponent>()->setTexture(def.textureName);
-        auto pos = itemEnt->get<PositionComponent>();
-        float iconW = ITEM_SIZE * def.iconWidthRatio;
-        pos->setWidth(iconW);
-        pos->setHeight(ITEM_SIZE);
-        pos->setVisibility(true);
-    }
-
-    // Update count text (position handled by anchor)
-    if (stack.count > 1)
-    {
-        auto textEnt = ecsRef->getEntity(sv.textEntityId);
-        if (textEnt)
-        {
-            textEnt->get<TTFText>()->setText(std::to_string(stack.count));
-            textEnt->get<PositionComponent>()->setVisibility(true);
-        }
-    }
-    else
-    {
-        setVis(sv.textEntityId, false);
-    }
+void HotbarSystem::syncSlotToInventory(size_t index)
+{
+    auto* sc = slotSystem->getSlotComponent(slotEntityIds[index]);
+    if (sc)
+        playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + index) = sc->stack;
 }
 
 int HotbarSystem::slotAtPosition(float x, float y) const
@@ -310,11 +275,13 @@ int HotbarSystem::slotAtPosition(float x, float y) const
     for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
     {
         float slotX = startX + i * (SLOT_SIZE + SLOT_SPACING);
+
         if (x >= slotX and x <= slotX + SLOT_SIZE and
             y >= slotY and y <= slotY + SLOT_SIZE)
         {
             return static_cast<int>(i);
         }
     }
+
     return -1;
 }

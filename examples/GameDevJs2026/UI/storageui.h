@@ -5,17 +5,18 @@
 
 #include "storagesystem.h"
 #include "inventoryui.h"
+#include "slotsystem.h"
 #include "playerinventory.h"
 
 using namespace pg;
 
 // Side-panel UI for Storage (tileId 9).
 // Shows an 8-slot grid (2 columns x 4 rows) for drag-and-drop item management.
-// Mirrors the MachineUISystem pattern.
 class StorageUISystem : public System<Listener<ResizeEvent>,
                                       QueuedListener<OnSDLScanCode>,
                                       QueuedListener<TickEvent>,
-                                      QueuedListener<OnMouseClick>,
+                                      QueuedListener<SlotPickedUpEvent>,
+                                      QueuedListener<SlotDroppedEvent>,
                                       Listener<InventoryClosedEvent>>
 {
 public:
@@ -37,9 +38,10 @@ public:
 
     StorageUISystem(StorageSystem* storageSystem, ItemRegistry* itemRegistry,
                     PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
+                    SlotSystem* slotSystem,
                     float screenWidth, float screenHeight)
         : storageSystem(storageSystem), itemRegistry(itemRegistry),
-          playerInv(playerInv), inventoryUI(inventoryUI),
+          playerInv(playerInv), inventoryUI(inventoryUI), slotSystem(slotSystem),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Storage UI System"; }
@@ -57,7 +59,8 @@ public:
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const TickEvent&) override;
-    virtual void onProcessEvent(const OnMouseClick& event) override;
+    virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
+    virtual void onProcessEvent(const SlotDroppedEvent& event) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
 private:
@@ -71,18 +74,10 @@ private:
     void setPanelVisibility(bool vis);
     void createPanel();
 
-    void refreshSlot(size_t slotIndex);
-    void refreshAllSlots();
-
-    bool isClickOnSlot(size_t i, float x, float y) const
-    {
-        return x >= cachedSlotX[i] and x <= cachedSlotX[i] + SLOT_SIZE
-           and y >= cachedSlotY[i] and y <= cachedSlotY[i] + SLOT_SIZE;
-    }
+    void syncAllSlots();
+    void syncSlotToStorage(size_t slotIndex);
 
     void setEntityVisibility(uint64_t id, bool vis);
-    void refreshItemSlotDisplay(uint64_t itemEntId, uint64_t countEntId,
-                                const ItemStack& stack);
 
     // --- Members ---
 
@@ -90,6 +85,7 @@ private:
     ItemRegistry* itemRegistry = nullptr;
     PlayerInventorySystem* playerInv = nullptr;
     InventoryUISystem* inventoryUI = nullptr;
+    SlotSystem* slotSystem = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
@@ -98,14 +94,8 @@ private:
     int openStorageX = -1;
     int openStorageY = -1;
 
-    // Cached slot positions for hit testing
-    float cachedSlotX[NUM_SLOTS] = {};
-    float cachedSlotY[NUM_SLOTS] = {};
-
     // Entity IDs
     uint64_t backdropEntityId = 0;
     uint64_t titleEntityId    = 0;
-    uint64_t slotBgEntityId[NUM_SLOTS]   = {};
-    uint64_t slotItemEntityId[NUM_SLOTS] = {};
-    uint64_t slotCountEntityId[NUM_SLOTS] = {};
+    uint64_t slotEntityIds[NUM_SLOTS] = {};
 };

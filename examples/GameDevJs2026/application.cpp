@@ -282,29 +282,28 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         cameraSystem->setUiCameraEntity(uiCam);
 
         auto* hotbar = ecs.createSystem<HotbarSystem>(
-            playerInvSystem, &itemRegistry, &registry, screenW, screenH);
+            playerInvSystem, &itemRegistry, &registry, slotSystem, screenW, screenH);
 
         auto* inventoryUI = ecs.createSystem<InventoryUISystem>(
-            playerInvSystem, &itemRegistry, screenW, screenH);
+            playerInvSystem, &itemRegistry, slotSystem, screenW, screenH);
 
-        hotbar->setInventoryUI(inventoryUI);
         cameraSystem->setInventoryUI(inventoryUI);
 
         auto* minerUI = ecs.createSystem<MinerUISystem>(
-            minerSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
+            minerSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
 
         auto* machineUI = ecs.createSystem<MachineUISystem>(
-            craftingSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
+            craftingSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
 
         auto* storageUI = ecs.createSystem<StorageUISystem>(
-            storageSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
+            storageSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
 
         // MissionSystem must exist before DepotUI (depot panel shows mission section)
         auto* missionSystem = ecs.createSystem<MissionSystem>(&missionRegistry, depotSystem, worldFacts, playerInvSystem, &itemRegistry);
 
         auto* depotUI = ecs.createSystem<DepotUISystem>(
             depotSystem, &itemRegistry, playerInvSystem, inventoryUI,
-            missionSystem, screenW, screenH);
+            slotSystem, missionSystem, screenW, screenH);
 
         auto* handCrafting = ecs.createSystem<HandCraftingSystem>(
             playerInvSystem, &itemRegistry, &recipeRegistry, worldFacts);

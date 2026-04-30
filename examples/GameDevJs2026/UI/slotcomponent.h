@@ -20,6 +20,7 @@ enum class SlotFlags : uint8_t
     None       = 0,
     ReadOnly   = 1 << 0,
     OutputOnly = 1 << 1,
+    NoPickUp   = 1 << 2,
 };
 
 inline SlotFlags operator|(SlotFlags a, SlotFlags b)
@@ -53,4 +54,8 @@ struct SlotComponent : public Component
     bool isEmpty() const { return stack.isEmpty(); }
     bool isReadOnly() const { return flags & SlotFlags::ReadOnly; }
     bool isOutputOnly() const { return flags & SlotFlags::OutputOnly; }
+    bool isNoPickUp() const { return flags & SlotFlags::NoPickUp; }
+
+    void setFlag(SlotFlags f) { flags = flags | f; }
+    void clearFlag(SlotFlags f) { flags = static_cast<SlotFlags>(static_cast<uint8_t>(flags) & ~static_cast<uint8_t>(f)); }
 };

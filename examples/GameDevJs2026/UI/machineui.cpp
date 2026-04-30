@@ -3,7 +3,6 @@
 #include "machinedemosystem.h"
 
 #include "2D/simple2dobject.h"
-#include "2D/texture.h"
 #include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
@@ -17,8 +16,8 @@ void MachineUISystem::open(int gridX, int gridY, const std::string& tileName)
     if (visible)
         close();
 
-    openMachineX   = gridX;
-    openMachineY   = gridY;
+    openMachineX    = gridX;
+    openMachineY    = gridY;
     openMachineName = tileName;
     visible = true;
 
@@ -32,10 +31,13 @@ void MachineUISystem::open(int gridX, int gridY, const std::string& tileName)
         craftingUI->setMachineFeedCallback([this](const Recipe& recipe) {
             feedMachineFromPlayer(recipe);
         });
+
         craftingUI->setMachineSelectCallback([this](const Recipe& recipe) {
             MachineData* m = craftingSystem->getMachine(openMachineX, openMachineY);
-            if (m) m->lockedRecipe = &recipe;
+            if (m)
+                m->lockedRecipe = &recipe;
         });
+
         craftingUI->setMachineMode(openMachineName, locked);
     }
 
@@ -45,7 +47,7 @@ void MachineUISystem::open(int gridX, int gridY, const std::string& tileName)
     ensurePanelCreated();
     updateForMachineType();
     setPanelVisibility(true);
-    refreshAllSlots();
+    syncAllSlots();
     refreshProgressBar();
 }
 
@@ -54,8 +56,20 @@ void MachineUISystem::close()
     if (not visible)
         return;
 
-    if (inventoryUI and inventoryUI->hasHeldItem())
-        inventoryUI->cancelHeld();
+    if (slotSystem->hasHeldItem())
+        slotSystem->cancelHeld();
+
+    // Sync all slots back to machine
+    MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
+    if (machine)
+    {
+        int numInputs = (openMachineName == "Assembler") ? 2 : 1;
+
+        for (int i = 0; i < numInputs; ++i)
+            syncSlotToMachine(static_cast<size_t>(i), true);
+
+        syncSlotToMachine(0, false);
+    }
 
     // Return the crafting-recipe panel to hand-craft mode.
     if (craftingUI)
@@ -65,19 +79,10 @@ void MachineUISystem::close()
         craftingUI->clearMachineMode();
     }
 
-    // Hide item/count entities
-    for (int i = 0; i < 2; ++i)
-    {
-        setEntityVisibility(inputItemEntityId[i],  false);
-        setEntityVisibility(inputCountEntityId[i], false);
-    }
-    setEntityVisibility(outputItemEntityId,  false);
-    setEntityVisibility(outputCountEntityId, false);
-
     setPanelVisibility(false);
     visible = false;
-    openMachineX   = -1;
-    openMachineY   = -1;
+    openMachineX = -1;
+    openMachineY = -1;
     openMachineName.clear();
 
     // Close the companion inventory (cascades to crafting).
@@ -91,7 +96,8 @@ void MachineUISystem::close()
 
 void MachineUISystem::onProcessEvent(const OnSDLScanCode& event)
 {
-    if (not visible) return;
+    if (not visible)
+        return;
     if (event.key == SDL_SCANCODE_ESCAPE)
         close();
 }
@@ -104,7 +110,8 @@ void MachineUISystem::onEvent(const InventoryClosedEvent&)
 
 void MachineUISystem::onProcessEvent(const TickEvent&)
 {
-    if (not visible) return;
+    if (not visible)
+        return;
 
     MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
     if (not machine)
@@ -113,8 +120,44 @@ void MachineUISystem::onProcessEvent(const TickEvent&)
         return;
     }
 
-    refreshAllSlots();
+    syncAllSlots();
     refreshProgressBar();
+}
+
+void MachineUISystem::onProcessEvent(const SlotPickedUpEvent& event)
+{
+    if (not visible)
+        return;
+
+    for (int i = 0; i < 2; ++i)
+    {
+        if (event.slotEntityId == inputSlotEntityIds[i])
+        {
+            syncSlotToMachine(static_cast<size_t>(i), true);
+            return;
+        }
+    }
+
+    if (event.slotEntityId == outputSlotEntityId)
+        syncSlotToMachine(0, false);
+}
+
+void MachineUISystem::onProcessEvent(const SlotDroppedEvent& event)
+{
+    if (not visible)
+        return;
+
+    for (int i = 0; i < 2; ++i)
+    {
+        if (event.slotEntityId == inputSlotEntityIds[i])
+        {
+            syncSlotToMachine(static_cast<size_t>(i), true);
+            return;
+        }
+    }
+
+    if (event.slotEntityId == outputSlotEntityId)
+        syncSlotToMachine(0, false);
 }
 
 void MachineUISystem::onProcessEvent(const OnMouseClick& event)
@@ -136,37 +179,6 @@ void MachineUISystem::onProcessEvent(const OnMouseClick& event)
             machineDemo->openDemo(name);
             return;
         }
-    }
-
-    MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
-    if (not machine)
-        return;
-
-    // Input slots
-    int numInputs = (openMachineName == "Assembler") ? 2 : 1;
-    for (int i = 0; i < numInputs; ++i)
-    {
-        if (isClickOnInputSlot(static_cast<size_t>(i), event.pos.x, event.pos.y))
-        {
-            auto& slot = machine->inputSlots.getSlot(static_cast<size_t>(i));
-            if (inventoryUI->hasHeldItem())
-                inventoryUI->dropOnExternal(slot);
-            else
-                inventoryUI->pickUpFromExternal(slot);
-            refreshAllSlots();
-            return;
-        }
-    }
-
-    // Output slot
-    if (isClickOnOutputSlot(event.pos.x, event.pos.y))
-    {
-        auto& slot = machine->outputSlots.getSlot(0);
-        if (inventoryUI->hasHeldItem())
-            inventoryUI->dropOnExternal(slot);
-        else
-            inventoryUI->pickUpFromExternal(slot);
-        refreshAllSlots();
     }
 }
 
@@ -194,7 +206,8 @@ float MachineUISystem::getPanelY() const
 
 void MachineUISystem::ensurePanelCreated()
 {
-    if (panelCreated) return;
+    if (panelCreated)
+        return;
     createPanel();
     setPanelVisibility(false);
     panelCreated = true;
@@ -204,13 +217,21 @@ void MachineUISystem::setPanelVisibility(bool vis)
 {
     setEntityVisibility(backdropEntityId,     vis);
     setEntityVisibility(titleEntityId,        vis);
-    setEntityVisibility(inputSlotBgEntityId[0], vis);
-    setEntityVisibility(inputSlotBgEntityId[1], vis);
-    setEntityVisibility(outputSlotBgEntityId, vis);
     setEntityVisibility(progressBgEntityId,   vis);
     setEntityVisibility(progressFillEntityId, vis);
     setEntityVisibility(demoBtnBgEntityId,    vis);
     setEntityVisibility(demoBtnTextEntityId,  vis);
+
+    for (int i = 0; i < 2; ++i)
+    {
+        auto ent = ecsRef->getEntity(inputSlotEntityIds[i]);
+        if (ent)
+            ent->get<PositionComponent>()->setVisibility(vis);
+    }
+
+    auto outEnt = ecsRef->getEntity(outputSlotEntityId);
+    if (outEnt)
+        outEnt->get<PositionComponent>()->setVisibility(vis);
 }
 
 void MachineUISystem::updateForMachineType()
@@ -218,15 +239,13 @@ void MachineUISystem::updateForMachineType()
     // Update title
     auto titleEnt = ecsRef->getEntity(titleEntityId);
     if (titleEnt and titleEnt->has<TTFText>())
-    {
         titleEnt->get<TTFText>()->setText(openMachineName.c_str());
-    }
 
     // Show/hide 2nd input slot based on machine type
     bool hasSecondInput = (openMachineName == "Assembler");
-    setEntityVisibility(inputSlotBgEntityId[1], hasSecondInput);
-    setEntityVisibility(inputItemEntityId[1],   false); // refreshAllSlots will show if needed
-    setEntityVisibility(inputCountEntityId[1],  false);
+    auto ent = ecsRef->getEntity(inputSlotEntityIds[1]);
+    if (ent)
+        ent->get<PositionComponent>()->setVisibility(hasSecondInput);
 }
 
 void MachineUISystem::createPanel()
@@ -250,15 +269,8 @@ void MachineUISystem::createPanel()
 
     float barY = slotsStartY + 2.0f * SLOT_SIZE + SLOT_SPACING + GAP_AFTER_SLOTS;
 
-    // Cache layout for hit testing
-    cachedInputSlotX[0] = inputColX;
-    cachedInputSlotY[0] = inputSlot0Y;
-    cachedInputSlotX[1] = inputColX;
-    cachedInputSlotY[1] = inputSlot1Y;
-    cachedOutputSlotX   = outputColX;
-    cachedOutputSlotY   = outputSlotY;
-    cachedBarX          = inputColX;
-    cachedBarMaxW       = panelW - 2.0f * PANEL_PADDING;
+    cachedBarX    = inputColX;
+    cachedBarMaxW = panelW - 2.0f * PANEL_PADDING;
 
     // Backdrop
     {
@@ -274,9 +286,7 @@ void MachineUISystem::createPanel()
             makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
     }
 
-    // Title — seeded with openMachineName (already set in open() before
-    // ensurePanelCreated) so the very first frame renders the correct
-    // label. updateForMachineType() will keep it in sync on later opens.
+    // Title
     {
         const char* initialTitle = openMachineName.empty() ? "Machine" : openMachineName.c_str();
         auto t = makeTTFText(ecsRef,
@@ -286,28 +296,29 @@ void MachineUISystem::createPanel()
         titleEntityId = t.entity->id;
     }
 
-    // Input slot backgrounds
-    for (int i = 0; i < 2; ++i)
+    // Input slots via SlotSystem
     {
-        float sy = (i == 0) ? inputSlot0Y : inputSlot1Y;
-        auto slotBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
-        auto pos = slotBg.get<PositionComponent>();
-        pos->setX(inputColX); pos->setY(sy); pos->setZ(98.0f);
-        pos->setWidth(SLOT_SIZE); pos->setHeight(SLOT_SIZE);
-        slotBg.get<ViewportComponent>()->setViewport(UI_VP);
-        inputSlotBgEntityId[i] = slotBg.entity->id;
+        float inputSlotYs[2] = {inputSlot0Y, inputSlot1Y};
+        for (int i = 0; i < 2; ++i)
+        {
+            auto slotRef = slotSystem->createSlot(
+                SlotCategory::Input, static_cast<uint8_t>(i));
+            inputSlotEntityIds[i] = slotRef.id;
+
+            auto pos = slotRef.get<PositionComponent>();
+            pos->setX(inputColX);
+            pos->setY(inputSlotYs[i]);
+        }
     }
 
-    // Output slot background
+    // Output slot via SlotSystem
     {
-        auto slotBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
-        auto pos = slotBg.get<PositionComponent>();
-        pos->setX(outputColX); pos->setY(outputSlotY); pos->setZ(98.0f);
-        pos->setWidth(SLOT_SIZE); pos->setHeight(SLOT_SIZE);
-        slotBg.get<ViewportComponent>()->setViewport(UI_VP);
-        outputSlotBgEntityId = slotBg.entity->id;
+        auto slotRef = slotSystem->createSlot(SlotCategory::Output, 0);
+        outputSlotEntityId = slotRef.id;
+
+        auto pos = slotRef.get<PositionComponent>();
+        pos->setX(outputColX);
+        pos->setY(outputSlotY);
     }
 
     // Progress bar background
@@ -332,30 +343,6 @@ void MachineUISystem::createPanel()
         progressFillEntityId = fill.entity->id;
     }
 
-    // Item texture + count text entities for each slot
-    auto makeItemAndCount = [&](float slotX, float slotY,
-                                uint64_t& outItemId, uint64_t& outCountId)
-    {
-        float offset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
-        auto itemTex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
-        auto iPos = itemTex.get<PositionComponent>();
-        iPos->setX(slotX + offset); iPos->setY(slotY + offset); iPos->setZ(99.0f);
-        iPos->setVisibility(false);
-        itemTex.get<ViewportComponent>()->setViewport(UI_VP);
-        outItemId = itemTex.entity->id;
-
-        auto countTxt = makeTTFText(ecsRef,
-            slotX + SLOT_SIZE - 4.0f, slotY + SLOT_SIZE - 4.0f, 100.0f,
-            FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        countTxt.get<PositionComponent>()->setVisibility(false);
-        countTxt.get<ViewportComponent>()->setViewport(UI_VP);
-        outCountId = countTxt.entity->id;
-    };
-
-    makeItemAndCount(inputColX, inputSlot0Y, inputItemEntityId[0], inputCountEntityId[0]);
-    makeItemAndCount(inputColX, inputSlot1Y, inputItemEntityId[1], inputCountEntityId[1]);
-    makeItemAndCount(outputColX, outputSlotY, outputItemEntityId, outputCountEntityId);
-
     // "?" demo button (top-right of panel)
     {
         float btnSize = 20.0f;
@@ -378,72 +365,56 @@ void MachineUISystem::createPanel()
 }
 
 // ---------------------------------------------------------------------------
-// Refresh helpers
+// Sync helpers
 // ---------------------------------------------------------------------------
 
-void MachineUISystem::refreshItemSlotDisplay(uint64_t itemEntId, uint64_t countEntId,
-                                              float /*slotX*/, float /*slotY*/,
-                                              const ItemStack& stack)
-{
-    if (stack.isEmpty())
-    {
-        setEntityVisibility(itemEntId,  false);
-        setEntityVisibility(countEntId, false);
-        return;
-    }
-
-    const auto& def = itemRegistry->get(stack.id);
-    auto itemEnt = ecsRef->getEntity(itemEntId);
-    if (itemEnt)
-    {
-        itemEnt->get<Texture2DComponent>()->setTexture(def.textureName);
-        itemEnt->get<PositionComponent>()->setVisibility(true);
-    }
-
-    if (stack.count > 1)
-    {
-        auto countEnt = ecsRef->getEntity(countEntId);
-        if (countEnt)
-        {
-            countEnt->get<TTFText>()->setText(std::to_string(stack.count));
-            countEnt->get<PositionComponent>()->setVisibility(true);
-        }
-    }
-    else
-    {
-        setEntityVisibility(countEntId, false);
-    }
-}
-
-void MachineUISystem::refreshAllSlots()
+void MachineUISystem::syncAllSlots()
 {
     MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
-    if (not machine) return;
+    if (not machine)
+        return;
 
     int numInputs = (openMachineName == "Assembler") ? 2 : 1;
     for (int i = 0; i < numInputs; ++i)
-    {
-        const auto& stack = machine->inputSlots.getSlot(static_cast<size_t>(i));
-        refreshItemSlotDisplay(inputItemEntityId[i], inputCountEntityId[i],
-                               cachedInputSlotX[i], cachedInputSlotY[i], stack);
-    }
+        slotSystem->syncSlotVisual(inputSlotEntityIds[i],
+            machine->inputSlots.getSlot(static_cast<size_t>(i)));
 
-    const auto& outStack = machine->outputSlots.getSlot(0);
-    refreshItemSlotDisplay(outputItemEntityId, outputCountEntityId,
-                           cachedOutputSlotX, cachedOutputSlotY, outStack);
+    slotSystem->syncSlotVisual(outputSlotEntityId, machine->outputSlots.getSlot(0));
+}
+
+void MachineUISystem::syncSlotToMachine(size_t slotIndex, bool isInput)
+{
+    MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
+    if (not machine)
+        return;
+
+    if (isInput)
+    {
+        auto* sc = slotSystem->getSlotComponent(inputSlotEntityIds[slotIndex]);
+        if (sc)
+            machine->inputSlots.getSlot(slotIndex) = sc->stack;
+    }
+    else
+    {
+        auto* sc = slotSystem->getSlotComponent(outputSlotEntityId);
+        if (sc)
+            machine->outputSlots.getSlot(0) = sc->stack;
+    }
 }
 
 void MachineUISystem::refreshProgressBar()
 {
     MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
-    if (not machine) return;
+    if (not machine)
+        return;
 
     float progress = 0.0f;
     if (machine->currentRecipe and machine->currentRecipe->craftTimeMs > 0)
     {
         progress = static_cast<float>(machine->craftProgress)
                  / static_cast<float>(machine->currentRecipe->craftTimeMs);
-        if (progress > 1.0f) progress = 1.0f;
+        if (progress > 1.0f)
+            progress = 1.0f;
     }
 
     auto fillEnt = ecsRef->getEntity(progressFillEntityId);
@@ -458,7 +429,8 @@ void MachineUISystem::refreshProgressBar()
 void MachineUISystem::feedMachineFromPlayer(const Recipe& recipe)
 {
     MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
-    if (not machine) return;
+    if (not machine)
+        return;
 
     // Check player has all ingredients before touching any inventory
     for (const auto& ing : recipe.inputs)
@@ -472,7 +444,7 @@ void MachineUISystem::feedMachineFromPlayer(const Recipe& recipe)
         machine->inputSlots.insert(ing.id, ing.count, *itemRegistry);
     }
 
-    refreshAllSlots();
+    syncAllSlots();
     if (inventoryUI)
         inventoryUI->refreshAllSlots();
 }
@@ -483,7 +455,8 @@ void MachineUISystem::feedMachineFromPlayer(const Recipe& recipe)
 
 void MachineUISystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
     if (ent)
         ent->get<PositionComponent>()->setVisibility(vis);

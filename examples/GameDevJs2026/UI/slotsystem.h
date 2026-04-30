@@ -54,15 +54,15 @@ template <typename Type>
 CompList<PositionComponent, UiAnchor, Prefab> makeUiSlot(
     Type* ecs, ItemRegistry* itemRegistry,
     float slotSize = DEFAULT_SLOT_SIZE,
-    float itemSize = DEFAULT_ITEM_SIZE)
+    float itemSize = DEFAULT_ITEM_SIZE,
+    constant::Vector4D bgColor = {50.0f, 50.0f, 60.0f, 200.0f})
 {
     // Prefab entity (invisible container, takes on bg size)
     auto slot = makeAnchoredPrefab(ecs);
     auto prefab = slot.template get<Prefab>();
 
     // Background rect
-    auto bg = makeUiSimple2DShape(ecs, Shape2D::Square, slotSize, slotSize,
-        constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
+    auto bg = makeUiSimple2DShape(ecs, Shape2D::Square, slotSize, slotSize, bgColor);
     bg.template get<PositionComponent>()->setZ(98.0f);
     bg.template get<ViewportComponent>()->setViewport(SLOT_UI_VIEWPORT);
     auto bgAnchor = bg.template get<UiAnchor>();
@@ -174,10 +174,17 @@ public:
 
     // Create a slot prefab entity with SlotComponent attached.
     // Returns the prefab entity ID. Caller positions via UiAnchor.
-    uint64_t createSlot(SlotCategory category, uint8_t index,
+    EntityRef createSlot(SlotCategory category, uint8_t index,
                         SlotFlags flags = SlotFlags::None,
                         float slotSize = DEFAULT_SLOT_SIZE,
-                        float itemSize = DEFAULT_ITEM_SIZE);
+                        float itemSize = DEFAULT_ITEM_SIZE,
+                        constant::Vector4D bgColor = {50.0f, 50.0f, 60.0f, 200.0f});
+
+    // Update a slot's data and visuals from backing data.
+    void syncSlotVisual(uint64_t entityId, const ItemStack& newStack);
+
+    // Access a SlotComponent by entity ID (for external sync).
+    SlotComponent* getSlotComponent(uint64_t entityId) { return atEntity<SlotComponent>(entityId); }
 
     bool hasHeldItem() const { return not heldItem.isEmpty(); }
     const ItemStack& getHeldItem() const { return heldItem; }
