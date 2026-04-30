@@ -220,25 +220,24 @@ namespace pg
             if (not pressedList[button])
             {
                 ecsRef->sendEvent(OnMouseClick{mousePos, button});
-            }
 
-            // Todo check if this should not be in a if (not pressedList[button]) statment
-            for (const auto& mouseArea : pressAreas)
-            {
-                auto pos = mouseArea.pos;
-                auto areaVp = getViewport(mouseArea.vp);
-
-                if (areaVp < highestViewport)
-                    break;
-                if (areaVp == highestViewport and pos->z < highestZ)
-                    break;
-
-                if (inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
+                for (const auto& mouseArea : pressAreas)
                 {
-                    highestViewport = areaVp;
-                    highestZ = pos->z;
+                    auto pos = mouseArea.pos;
+                    auto areaVp = getViewport(mouseArea.vp);
 
-                    callCallback(button, mouseArea.id);
+                    if (areaVp < highestViewport)
+                        break;
+                    if (areaVp == highestViewport and pos->z < highestZ)
+                        break;
+
+                    if (inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
+                    {
+                        highestViewport = areaVp;
+                        highestZ = pos->z;
+
+                        callCallback(button, mouseArea.id);
+                    }
                 }
             }
 

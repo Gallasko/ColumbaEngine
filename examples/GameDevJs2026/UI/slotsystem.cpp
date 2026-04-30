@@ -134,17 +134,45 @@ void SlotSystem::dropOn(uint64_t entityId)
     }
     else
     {
-        // Swap
-        ItemStack temp = slot->stack;
-        slot->stack = heldItem;
-        heldItem = temp;
-        heldFromEntity = entityId;
+        // Swap — place held item in target, return target's item to source
+        auto* sourceSlot = (heldFromEntity != 0) ? atEntity<SlotComponent>(heldFromEntity) : nullptr;
+        auto* sourceEnt = (heldFromEntity != 0) ? ecsRef->getEntity(heldFromEntity) : nullptr;
 
-        if (hasPrefab)
-            ent->get<Prefab>()->callHelper("setItem", slot->stack);
-        showHeldVisual();
+        if (sourceSlot and sourceEnt)
+        {
+            ItemStack oldTarget = slot->stack;
 
-        sendEvent(SlotDroppedEvent{entityId, slot->stack, slot->category});
+            // Target gets the held item
+            slot->stack = heldItem;
+            if (hasPrefab)
+                ent->get<Prefab>()->callHelper("setItem", slot->stack);
+
+            // Source gets the target's old item
+            sourceSlot->stack = oldTarget;
+            if (sourceEnt->has<Prefab>())
+                sourceEnt->get<Prefab>()->callHelper("setItem", sourceSlot->stack);
+
+            sendEvent(SlotDroppedEvent{entityId, slot->stack, slot->category});
+            sendEvent(SlotDroppedEvent{heldFromEntity, oldTarget, sourceSlot->category});
+
+            heldItem.clear();
+            heldFromEntity = 0;
+            hideHeldVisual();
+        }
+        else
+        {
+            // Fallback: source slot gone, keep displaced item held
+            ItemStack temp = slot->stack;
+            slot->stack = heldItem;
+            heldItem = temp;
+            heldFromEntity = entityId;
+
+            if (hasPrefab)
+                ent->get<Prefab>()->callHelper("setItem", slot->stack);
+            showHeldVisual();
+
+            sendEvent(SlotDroppedEvent{entityId, slot->stack, slot->category});
+        }
     }
 }
 
