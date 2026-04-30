@@ -49,7 +49,7 @@ void PlayerInventorySystem::onEvent(const PlayerGainItemEvent& event)
         return;
     }
 
-    inventory.insert(event.id, event.count, *itemRegistry);
+    inventory.insert(event.id, event.count, *itemRegistry, HOTBAR_START, HOTBAR_COUNT);
 
     // Fire a discovered_<name> fact on every item pickup so recipes,
     // quests and tutorial steps can gate on any item without hardcoding.

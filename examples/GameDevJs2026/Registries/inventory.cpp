@@ -37,6 +37,62 @@ uint16_t Inventory::insert(ItemId id, uint16_t count, const ItemRegistry& reg)
     return remaining;
 }
 
+uint16_t Inventory::insert(ItemId id, uint16_t count, const ItemRegistry& reg,
+                           size_t priorityStart, size_t priorityCount)
+{
+    if (id == ITEM_NONE or count == 0)
+        return 0;
+    uint16_t maxStack = reg.get(id).maxStack;
+    uint16_t remaining = count;
+
+    // Phase 1: stack into existing matching slots (all slots)
+    for (auto& slot : slots)
+    {
+        if (remaining == 0)
+            break;
+        if (slot.id == id and slot.count < maxStack)
+        {
+            uint16_t space = maxStack - slot.count;
+            uint16_t toAdd = std::min(remaining, space);
+            slot.count += toAdd;
+            remaining -= toAdd;
+        }
+    }
+
+    // Phase 2a: fill empty slots in priority range first
+    size_t priorityEnd = std::min(priorityStart + priorityCount, slots.size());
+    for (size_t i = priorityStart; i < priorityEnd; ++i)
+    {
+        if (remaining == 0)
+            break;
+        if (slots[i].isEmpty())
+        {
+            uint16_t toAdd = std::min(remaining, maxStack);
+            slots[i].id = id;
+            slots[i].count = toAdd;
+            remaining -= toAdd;
+        }
+    }
+
+    // Phase 2b: fill remaining empty slots
+    for (size_t i = 0; i < slots.size(); ++i)
+    {
+        if (remaining == 0)
+            break;
+        if (i >= priorityStart and i < priorityEnd)
+            continue;
+        if (slots[i].isEmpty())
+        {
+            uint16_t toAdd = std::min(remaining, maxStack);
+            slots[i].id = id;
+            slots[i].count = toAdd;
+            remaining -= toAdd;
+        }
+    }
+
+    return remaining;
+}
+
 uint16_t Inventory::remove(ItemId id, uint16_t count)
 {
     uint16_t remaining = count;

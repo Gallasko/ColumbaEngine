@@ -20,6 +20,10 @@ struct Inventory
     // Returns the number of items that could NOT be inserted (overflow).
     uint16_t insert(ItemId id, uint16_t count, const ItemRegistry& reg);
 
+    // Same as insert, but when filling empty slots, checks the priority range first.
+    uint16_t insert(ItemId id, uint16_t count, const ItemRegistry& reg,
+                    size_t priorityStart, size_t priorityCount);
+
     // Remove up to `count` of item `id`. Returns the number actually removed.
     uint16_t remove(ItemId id, uint16_t count);
 
