@@ -95,7 +95,7 @@ public:
 
     void setSuppressed(bool s) { suppressed = s; }
 
-    void init() override {}
+    void init() override { ensurePanelCreated(); }
 
     // Switch the recipe list to show recipes for the given machine type.
     // Call before openInventory() so it takes effect when the panel opens.
