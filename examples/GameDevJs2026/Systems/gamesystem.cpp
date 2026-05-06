@@ -39,7 +39,10 @@ void GameSystem::closeOtherGroup(UIPanel keep)
     }
     if (keep != UIPanel::Mission)
     {
-        if (missionUI and missionUI->isOpen()) missionUI->close();
+        // Event-driven: MissionUI's task processes the close on its own tick,
+        // avoiding a race with MissionUI's execute() / refresh().
+        if (missionUI and missionUI->isOpen())
+            ecsRef->sendEvent(MissionUICloseRequest{});
     }
 }
 
@@ -64,12 +67,12 @@ void GameSystem::toggleMissionFromHud()
         return;
     if (missionUI->isOpen())
     {
-        missionUI->close();
+        ecsRef->sendEvent(MissionUICloseRequest{});
     }
     else
     {
         closeOtherGroup(UIPanel::Mission);
-        missionUI->open();
+        ecsRef->sendEvent(MissionUIOpenRequest{});
     }
 }
 
@@ -220,7 +223,7 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
                     // If mission UI is waiting for depot selection, route there
                     if (missionUI and missionUI->isSelectingDepot())
                     {
-                        missionUI->selectDepot(ox, oy);
+                        ecsRef->sendEvent(MissionUISelectDepotRequest{ox, oy});
                         return;
                     }
 

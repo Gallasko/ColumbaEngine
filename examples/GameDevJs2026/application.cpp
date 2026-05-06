@@ -28,6 +28,7 @@
 #include "craftingui.h"
 #include "tooltipsystem.h"
 #include "tutorialsystem.h"
+#include "spotlightoverlaysystem.h"
 #include "autosavesystem.h"
 #include "analyticssystem.h"
 #include "machinedemosystem.h"
@@ -324,7 +325,12 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             inventoryUI, hotbar, machineUI, playerInvSystem,
             &itemRegistry, &recipeRegistry, screenW, screenH);
 
-        ecs.createSystem<TutorialSystem>(worldFacts, &recipeRegistry);
+        auto* spotlightOverlay = ecs.createSystem<SpotlightOverlaySystem>(
+            cameraSystem, screenW, screenH);
+
+        ecs.createSystem<TutorialSystem>(
+            worldFacts, &recipeRegistry, spotlightOverlay,
+            cameraSystem, gridSystem, screenW, screenH);
 
         auto* machineDemo = ecs.createSystem<MachineDemoSystem>(
             &registry, &itemRegistry, screenW, screenH);
@@ -352,6 +358,33 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         // vice versa).
         hudBar->setInventoryToggle([gameSystem]() { gameSystem->toggleInventoryFromHud(); });
         hudBar->setMissionUIToggle([gameSystem]() { gameSystem->toggleMissionFromHud(); });
+
+        // ---- Task ordering for cross-system reads ----
+        // Sequential systems otherwise run in parallel each frame; declare
+        // explicit dependencies anywhere a system polls another system's
+        // state directly (`isOpen()`, `itemAtPosition()`, etc.) so the read
+        // sees a consistent post-tick value rather than racing the writer.
+
+        // GameSystem polls every UI's `isOpen()` to gate input and to drive
+        // click-outside-to-close. Make it run after every UI it queries.
+        ecs.succeed<GameSystem, MissionUISystem>();
+        ecs.succeed<GameSystem, InventoryUISystem>();
+        ecs.succeed<GameSystem, MinerUISystem>();
+        ecs.succeed<GameSystem, CraftingUISystem>();
+        ecs.succeed<GameSystem, MachineUISystem>();
+        ecs.succeed<GameSystem, StorageUISystem>();
+        ecs.succeed<GameSystem, DepotUISystem>();
+        ecs.succeed<GameSystem, MachineDemoSystem>();
+
+        // TooltipSystem queries InventoryUI/Hotbar slot positions and
+        // MachineUI's open state every mouse-motion tick.
+        ecs.succeed<TooltipSystem, InventoryUISystem>();
+        ecs.succeed<TooltipSystem, HotbarSystem>();
+        ecs.succeed<TooltipSystem, MachineUISystem>();
+
+        // CameraSystem checks `inventoryUI->isOpen()` to disable pan while
+        // a panel is up (see camerasystem.cpp).
+        ecs.succeed<CameraSystem, InventoryUISystem>();
     });
 }
 

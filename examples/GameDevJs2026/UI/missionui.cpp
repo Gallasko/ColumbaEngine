@@ -16,7 +16,9 @@
 
 void MissionUISystem::toggle()
 {
-    if (visible)
+    bool wasVisible = visible.load(std::memory_order_acquire);
+    printf("MissionUI: toggle() — currently visible=%d\n", static_cast<int>(wasVisible));
+    if (wasVisible)
         close();
     else
         open();
@@ -24,9 +26,15 @@ void MissionUISystem::toggle()
 
 void MissionUISystem::open()
 {
-    if (visible)
+    bool wasVisible = visible.load(std::memory_order_acquire);
+    printf("MissionUI: open() entry — visible=%d, panelCreated=%d\n",
+        static_cast<int>(wasVisible), static_cast<int>(panelCreated));
+    if (wasVisible)
+    {
+        printf("MissionUI: open() early-return (already visible)\n");
         return;
-    visible = true;
+    }
+    visible.store(true, std::memory_order_release);
     ecsRef->sendEvent(MissionUIOpenedEvent{});
     ensurePanelCreated();
 
@@ -50,28 +58,41 @@ void MissionUISystem::open()
     if (selectedDefIndex == SIZE_MAX and not filteredDefs.empty())
         selectedDefIndex = filteredDefs[0];
 
+    printf("MissionUI: open() — tab=%zu, filteredDefs=%zu, selectedDefIndex=%zu\n",
+        currentTab, filteredDefs.size(), selectedDefIndex);
+
     refresh();
     setPanelVisibility(true);
+    printf("MissionUI: open() done\n");
 }
 
 void MissionUISystem::close()
 {
-    if (not visible)
+    bool wasVisible = visible.load(std::memory_order_acquire);
+    printf("MissionUI: close() entry — visible=%d, panelCreated=%d\n",
+        static_cast<int>(wasVisible), static_cast<int>(panelCreated));
+    if (not wasVisible)
+    {
+        printf("MissionUI: close() early-return (not visible)\n");
         return;
-    visible = false;
+    }
+    visible.store(false, std::memory_order_release);
     setPanelVisibility(false);
-    if (tooltipSystem)
-        tooltipSystem->setHoveredItem(ITEM_NONE);
+    // Clear tooltip via event so the mutation runs on TooltipSystem's task,
+    // not ours. Direct setHoveredItem() would race with TooltipSystem::tick.
+    printf("MissionUI: close() — sending tooltip clear event\n");
+    ecsRef->sendEvent(SetTooltipHoveredItemEvent{ITEM_NONE});
     ecsRef->sendEvent(MissionUIClosedEvent{});
+    printf("MissionUI: close() done\n");
 }
 
 void MissionUISystem::selectDepot(int depotX, int depotY)
 {
-    if (not pendingStart.active)
+    if (not pendingStart.active.load(std::memory_order_acquire))
         return;
 
     size_t defIndex = pendingStart.defIndex;
-    pendingStart.active = false;
+    pendingStart.active.store(false, std::memory_order_release);
     hideDepotSelectionPrompt();
 
     if (missionSystem->startMission(defIndex, depotX, depotY))
@@ -82,7 +103,7 @@ void MissionUISystem::selectDepot(int depotX, int depotY)
 
 void MissionUISystem::cancelDepotSelection()
 {
-    pendingStart.active = false;
+    pendingStart.active.store(false, std::memory_order_release);
     hideDepotSelectionPrompt();
 }
 
@@ -94,9 +115,9 @@ void MissionUISystem::onProcessEvent(const OnSDLScanCode& event)
 {
     if (event.key == SDL_SCANCODE_ESCAPE)
     {
-        if (pendingStart.active)
+        if (pendingStart.active.load(std::memory_order_acquire))
             cancelDepotSelection();
-        else if (visible)
+        else if (visible.load(std::memory_order_acquire))
             close();
     }
 }
@@ -105,35 +126,54 @@ void MissionUISystem::onEvent(const TickEvent&)
 {
 }
 
-void MissionUISystem::onEvent(const OnMissionIconHoverEnter& event)
+void MissionUISystem::onProcessEvent(const OnMissionIconHoverEnter& event)
 {
-    if (not tooltipSystem or not visible)
+    if (not visible.load(std::memory_order_acquire))
         return;
     auto it = iconItemMap.find(event.iconEntityId);
     if (it == iconItemMap.end())
         return;
-    tooltipSystem->setHoveredItem(it->second);
+    // Send event so TooltipSystem mutation runs on its own task.
+    ecsRef->sendEvent(SetTooltipHoveredItemEvent{it->second});
 }
 
-void MissionUISystem::onEvent(const OnMissionIconHoverLeave& event)
+void MissionUISystem::onProcessEvent(const OnMissionIconHoverLeave& event)
 {
-    if (not tooltipSystem)
-        return;
     auto it = iconItemMap.find(event.iconEntityId);
     if (it == iconItemMap.end())
         return;
-    tooltipSystem->setHoveredItem(ITEM_NONE);
+    ecsRef->sendEvent(SetTooltipHoveredItemEvent{ITEM_NONE});
+}
+
+void MissionUISystem::onProcessEvent(const MissionUIOpenRequest&)
+{
+    open();
+}
+
+void MissionUISystem::onProcessEvent(const MissionUICloseRequest&)
+{
+    close();
+}
+
+void MissionUISystem::onProcessEvent(const MissionUIToggleRequest&)
+{
+    toggle();
+}
+
+void MissionUISystem::onProcessEvent(const MissionUISelectDepotRequest& event)
+{
+    selectDepot(event.depotX, event.depotY);
 }
 
 void MissionUISystem::execute()
 {
-    if (visible)
+    if (visible.load(std::memory_order_acquire))
         refresh();
 }
 
 void MissionUISystem::onProcessEvent(const OnMouseClick& event)
 {
-    if (not visible or event.button != SDL_BUTTON_LEFT)
+    if (not visible.load(std::memory_order_acquire) or event.button != SDL_BUTTON_LEFT)
         return;
 
     float mx = event.pos.x;
@@ -215,7 +255,7 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
             if (missionSystem->canStartMission(defIndex))
             {
                 pendingStart.defIndex = defIndex;
-                pendingStart.active = true;
+                pendingStart.active.store(true, std::memory_order_release);
                 close();
                 showDepotSelectionPrompt();
             }
@@ -324,10 +364,15 @@ void MissionUISystem::tryStartWithFirstAvailableDepot(size_t defIndex)
 void MissionUISystem::ensurePanelCreated()
 {
     if (panelCreated)
+    {
+        printf("MissionUI: ensurePanelCreated() — already created, skipping\n");
         return;
+    }
+    printf("MissionUI: ensurePanelCreated() — building panel\n");
     createPanel();
     setPanelVisibility(false);
     panelCreated = true;
+    printf("MissionUI: ensurePanelCreated() — done, panelCreated=true\n");
 }
 
 void MissionUISystem::onEvent(const ResizeEvent& event)
@@ -337,10 +382,13 @@ void MissionUISystem::onEvent(const ResizeEvent& event)
     if (not panelCreated)
         return;
 
+    bool wasOpen = visible.load(std::memory_order_acquire);
+    bool wasPromptVisible = promptVisible;
+    printf("MissionUI: ResizeEvent — rebuilding panel (wasOpen=%d, wasPromptVisible=%d)\n",
+        static_cast<int>(wasOpen), static_cast<int>(wasPromptVisible));
+
     // Panel positions are baked in at creation time, so a window resize would
     // leave the panel offset from center. Rebuild at the new screen size.
-    bool wasOpen = visible;
-    bool wasPromptVisible = promptVisible;
     destroyPanel();
 
     if (wasOpen)
@@ -421,6 +469,8 @@ std::vector<uint64_t> MissionUISystem::collectAllPanelEntityIds() const
 void MissionUISystem::destroyPanel()
 {
     auto ids = collectAllPanelEntityIds();
+    printf("MissionUI: destroyPanel() — removing %zu entities, iconItemMap had %zu entries\n",
+        ids.size(), iconItemMap.size());
     for (auto id : ids)
         ecsRef->removeEntity(id);
 
@@ -449,10 +499,12 @@ void MissionUISystem::destroyPanel()
 
     iconItemMap.clear();
     panelCreated = false;
+    printf("MissionUI: destroyPanel() done — panelCreated=false\n");
 }
 
 void MissionUISystem::createPanel()
 {
+    printf("MissionUI: createPanel() entry\n");
     float listContentH = MAX_LIST_ROWS * (LIST_ROW_H + SEPARATOR_H);
     panelH = PADDING + TITLE_H + DIVIDER_H + std::max(listContentH, 340.0f) + PADDING;
 
@@ -565,6 +617,7 @@ void MissionUISystem::createPanel()
 
     createLeftColumn(px, contentY);
     createRightColumn(px, contentY);
+    printf("MissionUI: createPanel() done\n");
 }
 
 void MissionUISystem::createLeftColumn(float px, float contentY)
@@ -882,6 +935,8 @@ void MissionUISystem::createRightColumn(float px, float contentY)
 
 void MissionUISystem::setPanelVisibility(bool vis)
 {
+    printf("MissionUI: setPanelVisibility(%d) — backdropId=%lu\n",
+        static_cast<int>(vis), static_cast<unsigned long>(backdropId));
     // Chrome
     setEntityVisibility(backdropId, vis);
     setEntityVisibility(closeBtnBgId, vis);
@@ -947,7 +1002,7 @@ void MissionUISystem::setPanelVisibility(bool vis)
 
 void MissionUISystem::refresh()
 {
-    if (not visible)
+    if (not visible.load(std::memory_order_acquire))
         return;
 
     // Update tab styling

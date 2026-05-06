@@ -40,6 +40,11 @@ void TooltipSystem::setHoveredItem(ItemId id)
         hideTooltip();
 }
 
+void TooltipSystem::onProcessEvent(const SetTooltipHoveredItemEvent& event)
+{
+    setHoveredItem(event.id);
+}
+
 void TooltipSystem::onProcessEvent(const TickEvent&)
 {
     if (hoveredItem == ITEM_NONE)

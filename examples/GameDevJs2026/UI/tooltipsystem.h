@@ -15,12 +15,18 @@
 
 using namespace pg;
 
+// Cross-system request — sent by other systems (e.g. MissionUI's hover icons)
+// instead of calling TooltipSystem::setHoveredItem() directly. Processed as a
+// QueuedListener so the mutation runs on TooltipSystem's task, not the sender's.
+struct SetTooltipHoveredItemEvent { ItemId id; };
+
 // Shows a small tooltip after 200ms of hovering over an inventory or hotbar slot.
 // The tooltip displays the item name, category, description, and how to obtain it
 // (crafting recipe or world mining source).  When the machine UI is open the
 // recipe shown is filtered to prefer that machine's recipes.
 class TooltipSystem : public System<Listener<ResizeEvent>,
                                     QueuedListener<OnSDLMouseMotion>,
+                                    QueuedListener<SetTooltipHoveredItemEvent>,
                                     QueuedListener<TickEvent>>
 {
 public:
@@ -57,11 +63,14 @@ public:
     }
 
     virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
+    virtual void onProcessEvent(const SetTooltipHoveredItemEvent& event) override;
     virtual void onProcessEvent(const TickEvent& event) override;
 
     // External hover signal — used by component-driven hover sources
     // (mission UI icons, etc.) that don't go through the motion-poll path.
-    // Pass ITEM_NONE to clear/hide.
+    // Pass ITEM_NONE to clear/hide. Internal-only; cross-system callers must
+    // send SetTooltipHoveredItemEvent via ecs->sendEvent() to avoid racing
+    // with TooltipSystem's tick.
     void setHoveredItem(ItemId id);
 
 private:

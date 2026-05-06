@@ -1,7 +1,11 @@
 #include "tutorialsystem.h"
 
-#include "2D/simple2dobject.h"
-#include "UI/ttftext.h"
+#include "spotlightoverlaysystem.h"
+#include "camerasystem.h"
+#include "Renderer/camera.h"
+#include "terrain.h"
+
+#include <cmath>
 
 // Indexed by TutorialStep. Entries past Complete are unused.
 const TutorialSystem::StepDef TutorialSystem::STEPS[] = {
@@ -31,6 +35,47 @@ bool TutorialSystem::recipeOutputs(size_t recipeIndex, ItemId id) const
             return true;
     }
     return false;
+}
+
+template <typename Match>
+std::pair<int, int> TutorialSystem::findNearestTerrain(const Match& match) const
+{
+    if (not gridSystem or not cameraSystem)
+        return {-1, -1};
+
+    auto camEnt = cameraSystem->getCameraEntity();
+    if (not camEnt)
+        return {-1, -1};
+    auto cam = camEnt->get<BaseCamera2D>();
+    if (not cam)
+        return {-1, -1};
+
+    float centerWorldX = cam->x + cam->getWidth() * 0.5f;
+    float centerWorldY = cam->y + cam->getHeight() * 0.5f;
+    int centerGX = static_cast<int>(centerWorldX) / Grid::TILE_SIZE;
+    int centerGY = static_cast<int>(centerWorldY) / Grid::TILE_SIZE;
+
+    int bestGX = -1, bestGY = -1;
+    int bestDistSq = std::numeric_limits<int>::max();
+
+    for (int y = 0; y < Grid::HEIGHT; ++y)
+    {
+        for (int x = 0; x < Grid::WIDTH; ++x)
+        {
+            if (not match(gridSystem->getTerrainAt(x, y)))
+                continue;
+            int dx = x - centerGX;
+            int dy = y - centerGY;
+            int d2 = dx * dx + dy * dy;
+            if (d2 < bestDistSq)
+            {
+                bestDistSq = d2;
+                bestGX = x;
+                bestGY = y;
+            }
+        }
+    }
+    return {bestGX, bestGY};
 }
 
 // ---------------------------------------------------------------------------
@@ -107,8 +152,6 @@ void TutorialSystem::onEvent(const AddFact& event)
 {
     const auto step = static_cast<TutorialStep>(currentStep);
 
-    // Mission validation always sets the completion fact to bool true via
-    // worldFacts->setFact(...). We only care about transitions to truthy.
     if (not event.value.isTrue())
         return;
 
@@ -118,13 +161,27 @@ void TutorialSystem::onEvent(const AddFact& event)
         pendingAdvance = true;
 }
 
+void TutorialSystem::onEvent(const TutorialSkipRequested&)
+{
+    if (currentStep >= TOTAL_STEPS)
+        return;
+    currentStep = TOTAL_STEPS;
+    worldFacts->setFact("tutorial_step", currentStep);
+    if (spotlight)
+        spotlight->hide();
+}
+
 // ---------------------------------------------------------------------------
 // Execute
 // ---------------------------------------------------------------------------
 
 void TutorialSystem::execute()
 {
-    ensureCreated();
+    if (not initialized)
+    {
+        initOnFirstTick();
+        initialized = true;
+    }
 
     if (pendingAdvance)
     {
@@ -133,15 +190,8 @@ void TutorialSystem::execute()
     }
 }
 
-// ---------------------------------------------------------------------------
-// Panel creation
-// ---------------------------------------------------------------------------
-
-void TutorialSystem::ensureCreated()
+void TutorialSystem::initOnFirstTick()
 {
-    if (created) return;
-    created = true;
-
     int loaded = worldFacts->getFact<int>("tutorial_step", 0);
 
     // Save migration: legacy saves used a 5-step flow. Anyone with a step value
@@ -150,7 +200,7 @@ void TutorialSystem::ensureCreated()
     static constexpr int LEGACY_TOTAL_STEPS = 5;
     if (loaded >= LEGACY_TOTAL_STEPS && loaded < TOTAL_STEPS)
     {
-        loaded = TOTAL_STEPS; // -> Complete
+        loaded = TOTAL_STEPS;
         worldFacts->setFact("tutorial_step", loaded);
     }
     if (loaded < 0 || loaded > TOTAL_STEPS)
@@ -178,79 +228,136 @@ void TutorialSystem::ensureCreated()
     }
     worldFacts->setFact("tutorial_step", currentStep);
 
-    if (currentStep >= TOTAL_STEPS)
-        return;
-
-    auto bd = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-        constant::Vector4D{15.0f, 15.0f, 25.0f, 200.0f});
-    auto bdPos = bd.get<PositionComponent>();
-    bdPos->setX(PANEL_X);
-    bdPos->setY(PANEL_Y);
-    bdPos->setZ(100.0f);
-    bdPos->setWidth(PANEL_W);
-    bdPos->setHeight(PANEL_H);
-    bdPos->setVisibility(true);
-    bd.get<ViewportComponent>()->setViewport(UI_VP);
-    backdropId = bd.entity->id;
-
-    auto title = makeTTFText(ecsRef,
-        PANEL_X + PADDING, PANEL_Y + PADDING, 101.0f,
-        FONT_PATH, STEPS[currentStep].title, TITLE_SCALE,
-        {255.0f, 210.0f, 80.0f, 255.0f});
-    title.get<ViewportComponent>()->setViewport(UI_VP);
-    titleId = title.entity->id;
-
-    auto body = makeTTFText(ecsRef,
-        PANEL_X + PADDING, PANEL_Y + PADDING + 22.0f, 101.0f,
-        FONT_PATH, STEPS[currentStep].body, BODY_SCALE,
-        {210.0f, 210.0f, 210.0f, 255.0f});
-    body.get<ViewportComponent>()->setViewport(UI_VP);
-    bodyId = body.entity->id;
-
-    visible = true;
+    presentCurrentStep();
 }
 
 // ---------------------------------------------------------------------------
-// Step advancement
+// Step advancement & presentation
 // ---------------------------------------------------------------------------
 
 void TutorialSystem::advanceStep()
 {
     currentStep++;
     worldFacts->setFact("tutorial_step", currentStep);
+    presentCurrentStep();
+}
+
+void TutorialSystem::presentCurrentStep()
+{
+    if (not spotlight)
+        return;
 
     if (currentStep >= TOTAL_STEPS)
     {
-        hidePanel();
+        spotlight->hide();
         return;
     }
 
-    updateContent();
-}
+    const auto step = static_cast<TutorialStep>(currentStep);
+    const auto& def = STEPS[currentStep];
 
-void TutorialSystem::updateContent()
-{
-    auto titleEnt = ecsRef->getEntity(titleId);
-    if (titleEnt)
-        titleEnt->get<TTFText>()->setText(STEPS[currentStep].title);
+    SpotlightOverlaySystem::Target target;
+    auto arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+    bool showSkip = (step == TutorialStep::MineFirstResource);
 
-    auto bodyEnt = ecsRef->getEntity(bodyId);
-    if (bodyEnt)
-        bodyEnt->get<TTFText>()->setText(STEPS[currentStep].body);
-}
+    auto centeredScreenRect = [&](float w, float h) {
+        SpotlightOverlaySystem::Target t;
+        t.kind = SpotlightOverlaySystem::TargetKind::ScreenRect;
+        t.sx = (screenWidth - w) * 0.5f;
+        t.sy = (screenHeight - h) * 0.5f;
+        t.sw = w;
+        t.sh = h;
+        return t;
+    };
 
-void TutorialSystem::hidePanel()
-{
-    setEntityVisibility(backdropId, false);
-    setEntityVisibility(titleId, false);
-    setEntityVisibility(bodyId, false);
-    visible = false;
-}
+    auto bottomScreenRect = [&](float w, float h, float bottomMargin) {
+        SpotlightOverlaySystem::Target t;
+        t.kind = SpotlightOverlaySystem::TargetKind::ScreenRect;
+        t.sx = (screenWidth - w) * 0.5f;
+        t.sy = screenHeight - h - bottomMargin;
+        t.sw = w;
+        t.sh = h;
+        return t;
+    };
 
-void TutorialSystem::setEntityVisibility(uint64_t id, bool vis)
-{
-    if (id == 0) return;
-    auto ent = ecsRef->getEntity(id);
-    if (ent)
-        ent->get<PositionComponent>()->setVisibility(vis);
+    auto topRightRect = [&](float w, float h, float topMargin, float rightMargin) {
+        SpotlightOverlaySystem::Target t;
+        t.kind = SpotlightOverlaySystem::TargetKind::ScreenRect;
+        t.sx = screenWidth - w - rightMargin;
+        t.sy = topMargin;
+        t.sw = w;
+        t.sh = h;
+        return t;
+    };
+
+    switch (step)
+    {
+        case TutorialStep::MineFirstResource:
+        {
+            auto [gx, gy] = findNearestTerrain([](TerrainType t) {
+                return t == TerrainType::Tree || t == TerrainType::Rock;
+            });
+            if (gx >= 0)
+            {
+                target.kind = SpotlightOverlaySystem::TargetKind::WorldTile;
+                target.gridX = gx;
+                target.gridY = gy;
+                target.gridW = 1;
+                target.gridH = 1;
+            }
+            arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+            break;
+        }
+
+        case TutorialStep::OpenInventory:
+            target = centeredScreenRect(360.0f, 240.0f);
+            arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+            break;
+
+        case TutorialStep::ValidateFirstSteps:
+        case TutorialStep::ValidateStoneMasonry:
+            target = topRightRect(56.0f, 32.0f, 10.0f, 56.0f);
+            arrowSide = SpotlightOverlaySystem::ArrowSide::Bottom;
+            break;
+
+        case TutorialStep::CraftPickaxe:
+        case TutorialStep::CraftFurnace:
+            target = centeredScreenRect(360.0f, 240.0f);
+            arrowSide = SpotlightOverlaySystem::ArrowSide::Right;
+            break;
+
+        case TutorialStep::MovePickaxeToHotbar:
+        case TutorialStep::PlaceFurnaceInHotbar:
+            target = bottomScreenRect(440.0f, 56.0f, 10.0f);
+            arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+            break;
+
+        case TutorialStep::MineOre:
+        {
+            auto [gx, gy] = findNearestTerrain([](TerrainType t) {
+                return t == TerrainType::OreCoal ||
+                       t == TerrainType::OreCopper ||
+                       t == TerrainType::OreIron;
+            });
+            if (gx >= 0)
+            {
+                target.kind = SpotlightOverlaySystem::TargetKind::WorldTile;
+                target.gridX = gx;
+                target.gridY = gy;
+            }
+            arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+            break;
+        }
+
+        case TutorialStep::PlaceFurnaceOnGrid:
+            target = centeredScreenRect(420.0f, 280.0f);
+            arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+            break;
+
+        case TutorialStep::Complete:
+            spotlight->hide();
+            return;
+    }
+
+    spotlight->show(target, arrowSide, def.title, def.body, showSkip);
 }

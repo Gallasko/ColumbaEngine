@@ -10,8 +10,12 @@
 #include "inventoryui.h"
 #include "reciperegistry.h"
 #include "slotsystem.h"
+#include "tutorialevents.h"
 
 using namespace pg;
+
+class SpotlightOverlaySystem;
+class CameraSystem;
 
 // Forced early-game tutorial. State persists in WorldFacts as `tutorial_step`.
 // Each state advances on a specific event. The two ValidateMission* steps gate
@@ -48,18 +52,10 @@ class TutorialSystem : public System<Listener<PlayerGainItemEvent>,
                                       Listener<HandCraftCompletedEvent>,
                                       QueuedListener<SlotDroppedEvent>,
                                       Listener<BuildingPlacedEvent>,
-                                      Listener<AddFact>>
+                                      Listener<AddFact>,
+                                      Listener<TutorialSkipRequested>>
 {
 public:
-    static constexpr size_t UI_VP       = 2;
-    static constexpr float  PANEL_W     = 280.0f;
-    static constexpr float  PANEL_H     = 70.0f;
-    static constexpr float  PADDING     = 10.0f;
-    static constexpr float  TITLE_SCALE = 0.4f;
-    static constexpr float  BODY_SCALE  = 0.30f;
-    static constexpr float  PANEL_X     = 10.0f;
-    static constexpr float  PANEL_Y     = 10.0f;
-
     static constexpr int    TOTAL_STEPS = static_cast<int>(TutorialStep::Complete);
 
     // Item ids referenced by the advance conditions. Must match itemregistry.cpp.
@@ -71,13 +67,20 @@ public:
     static constexpr ItemId STONE_PICKAXE_ID = 29;
     static constexpr ItemId FURNACE_ID       = 25;
 
-    static constexpr const char* FONT_PATH =
-        "res/font/Inter/static/Inter_28pt-Light.ttf";
-
     TutorialSystem(WorldFacts* worldFacts,
-                   RecipeRegistry* recipeRegistry)
+                   RecipeRegistry* recipeRegistry,
+                   SpotlightOverlaySystem* spotlight,
+                   CameraSystem* cameraSystem,
+                   GridSystem* gridSystem,
+                   float screenWidth,
+                   float screenHeight)
         : worldFacts(worldFacts),
-          recipeRegistry(recipeRegistry) {}
+          recipeRegistry(recipeRegistry),
+          spotlight(spotlight),
+          cameraSystem(cameraSystem),
+          gridSystem(gridSystem),
+          screenWidth(screenWidth),
+          screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override
         { return "Tutorial System"; }
@@ -88,6 +91,7 @@ public:
     virtual void onProcessEvent(const SlotDroppedEvent& event) override;
     virtual void onEvent(const BuildingPlacedEvent& event) override;
     virtual void onEvent(const AddFact& event) override;
+    virtual void onEvent(const TutorialSkipRequested& event) override;
 
     void execute() override;
 
@@ -100,23 +104,27 @@ private:
 
     static const StepDef STEPS[];
 
-    void ensureCreated();
+    void initOnFirstTick();
     void advanceStep();
-    void updateContent();
-    void hidePanel();
-    void setEntityVisibility(uint64_t id, bool vis);
-
+    void presentCurrentStep();
     bool recipeOutputs(size_t recipeIndex, ItemId id) const;
 
-    WorldFacts*     worldFacts     = nullptr;
-    RecipeRegistry* recipeRegistry = nullptr;
+    // Scan the grid outward from the camera centre and return the closest
+    // matching tile. `match` returns true for tiles that should be considered.
+    // Falls back to (-1, -1) if nothing matches within the grid.
+    template <typename Match>
+    std::pair<int, int> findNearestTerrain(const Match& match) const;
 
-    bool created        = false;
-    bool visible        = false;
+    WorldFacts*             worldFacts     = nullptr;
+    RecipeRegistry*         recipeRegistry = nullptr;
+    SpotlightOverlaySystem* spotlight      = nullptr;
+    CameraSystem*           cameraSystem   = nullptr;
+    GridSystem*             gridSystem     = nullptr;
+
+    float screenWidth  = 0.0f;
+    float screenHeight = 0.0f;
+
+    bool initialized    = false;
     int  currentStep    = 0;
     bool pendingAdvance = false;
-
-    uint64_t backdropId = 0;
-    uint64_t titleId    = 0;
-    uint64_t bodyId     = 0;
 };

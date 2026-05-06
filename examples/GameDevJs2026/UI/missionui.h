@@ -10,6 +10,7 @@
 #include "itemregistry.h"
 #include "inventoryui.h"
 
+#include <atomic>
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
@@ -35,10 +36,23 @@ struct MissionUIOpenedEvent {};
 // detected after closing can re-arm the badge.
 struct MissionUIClosedEvent {};
 
+// Cross-system request events. External systems must send these instead of
+// calling MissionUISystem::open()/close()/toggle()/selectDepot() directly,
+// because MissionUI's task may be running concurrently. These are dispatched
+// to MissionUI as QueuedListener events, processed serially within its tick.
+struct MissionUIOpenRequest {};
+struct MissionUICloseRequest {};
+struct MissionUIToggleRequest {};
+struct MissionUISelectDepotRequest { int depotX; int depotY; };
+
 class MissionUISystem : public System<QueuedListener<OnMouseClick>,
                                        QueuedListener<OnSDLScanCode>,
-                                       Listener<OnMissionIconHoverEnter>,
-                                       Listener<OnMissionIconHoverLeave>,
+                                       QueuedListener<OnMissionIconHoverEnter>,
+                                       QueuedListener<OnMissionIconHoverLeave>,
+                                       QueuedListener<MissionUIOpenRequest>,
+                                       QueuedListener<MissionUICloseRequest>,
+                                       QueuedListener<MissionUIToggleRequest>,
+                                       QueuedListener<MissionUISelectDepotRequest>,
                                        Listener<TickEvent>,
                                        Listener<ResizeEvent>>
 {
@@ -126,8 +140,8 @@ public:
 
     virtual std::string getSystemName() const override { return "Mission UI System"; }
 
-    bool isOpen() const { return visible; }
-    bool isSelectingDepot() const { return pendingStart.active; }
+    bool isOpen() const { return visible.load(std::memory_order_acquire); }
+    bool isSelectingDepot() const { return pendingStart.active.load(std::memory_order_acquire); }
     void toggle();
     void open();
     void close();
@@ -137,8 +151,12 @@ public:
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onEvent(const TickEvent&) override;
-    virtual void onEvent(const OnMissionIconHoverEnter& event) override;
-    virtual void onEvent(const OnMissionIconHoverLeave& event) override;
+    virtual void onProcessEvent(const OnMissionIconHoverEnter& event) override;
+    virtual void onProcessEvent(const OnMissionIconHoverLeave& event) override;
+    virtual void onProcessEvent(const MissionUIOpenRequest& event) override;
+    virtual void onProcessEvent(const MissionUICloseRequest& event) override;
+    virtual void onProcessEvent(const MissionUIToggleRequest& event) override;
+    virtual void onProcessEvent(const MissionUISelectDepotRequest& event) override;
     virtual void onEvent(const ResizeEvent& event) override;
 
     void execute() override;
@@ -179,7 +197,9 @@ private:
     struct PendingStart
     {
         size_t defIndex = 0;
-        bool active = false;
+        // Atomic: read by isSelectingDepot() from other systems' tasks while
+        // the MissionUI task may be writing it.
+        std::atomic<bool> active{false};
     };
 
     void tryStartWithFirstAvailableDepot(size_t defIndex);
@@ -199,7 +219,9 @@ private:
     // item they're hovering when the mission selection changes.
     std::unordered_map<uint64_t, ItemId> iconItemMap;
 
-    bool visible = false;
+    // Atomic: read by isOpen() from other systems' tasks while the MissionUI
+    // task may be writing it during open()/close().
+    std::atomic<bool> visible{false};
     bool panelCreated = false;
     float panelH = 0.0f;
     size_t currentTab = 0;
