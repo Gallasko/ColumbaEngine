@@ -281,11 +281,8 @@ void HudBarSystem::updateMissionBadge()
     }
 
     bool pending = worldFacts->getFact<bool>("mission_attention_pending", false);
-    // Also show the badge while the tutorial is on the "open mission tab"
-    // step so it doubles as a visual ping pointing at the button.
-    bool tutorialPointsHere = (worldFacts->getFact<int>("tutorial_step", 0) == 3);
 
-    setEntityVisibility(missionBadgeId, pending or tutorialPointsHere);
+    setEntityVisibility(missionBadgeId, pending);
 }
 
 void HudBarSystem::setEntityVisibility(uint64_t id, bool vis)

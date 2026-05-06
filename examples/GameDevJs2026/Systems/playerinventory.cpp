@@ -49,7 +49,11 @@ void PlayerInventorySystem::onEvent(const PlayerGainItemEvent& event)
         return;
     }
 
-    inventory.insert(event.id, event.count, *itemRegistry, HOTBAR_START, HOTBAR_COUNT);
+    // Route to main inventory first (slots 0-19), then overflow to hotbar.
+    // Keeps the hotbar reserved for things the player explicitly equips, and
+    // makes mined/crafted items visible in the inventory grid where players
+    // expect them.
+    inventory.insert(event.id, event.count, *itemRegistry);
 
     // Fire a discovered_<name> fact on every item pickup so recipes,
     // quests and tutorial steps can gate on any item without hardcoding.

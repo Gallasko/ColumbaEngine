@@ -3,75 +3,119 @@
 #include "2D/simple2dobject.h"
 #include "UI/ttftext.h"
 
-#include <SDL2/SDL.h>
-
-// ---------------------------------------------------------------------------
-// Step definitions
-// ---------------------------------------------------------------------------
-
+// Indexed by TutorialStep. Entries past Complete are unused.
 const TutorialSystem::StepDef TutorialSystem::STEPS[] = {
-    {"Welcome!",            "Use WASD to move the camera and scroll to zoom."},
-    {"Great!",              "Click on a tree or rock to gather resources."},
-    {"Resources gathered!", "Press TAB to open your inventory."},
-    {"Inventory opened!",   "Click the mission button at the top-right to view available missions."},
-    {"Good job!",           "Complete missions to unlock crafting recipes!"},
+    {"Gather resources",     "Click a tree or rock until the bar fills to gather wood or stone."},
+    {"Open the inventory",   "Press TAB to open your inventory and crafting menu."},
+    {"Unlock the pickaxe",   "Open the mission tab and validate \"First Steps\" to unlock the Stone Pickaxe recipe."},
+    {"Craft a pickaxe",      "Use the crafting menu to build a Stone Pickaxe."},
+    {"Equip the pickaxe",    "Drag the Stone Pickaxe to a hotbar slot."},
+    {"Mine an ore",          "With the pickaxe selected, click an ore tile to mine it."},
+    {"Unlock the furnace",   "Gather 10 stone, then validate the \"Stone Masonry\" mission to unlock the Furnace recipe."},
+    {"Build a furnace",      "Craft a Furnace in the inventory's crafting menu."},
+    {"Equip the furnace",    "Drag the Furnace to a hotbar slot."},
+    {"Place the furnace",    "Select the furnace and click an empty grid tile to place it."},
+    {"Tutorial complete",    ""},
 };
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+bool TutorialSystem::recipeOutputs(size_t recipeIndex, ItemId id) const
+{
+    const Recipe& r = recipeRegistry->get(recipeIndex);
+    for (const auto& out : r.outputs)
+    {
+        if (out.id == id)
+            return true;
+    }
+    return false;
+}
 
 // ---------------------------------------------------------------------------
 // Event handlers
 // ---------------------------------------------------------------------------
 
-void TutorialSystem::onEvent(const OnSDLScanCode& event)
-{
-    if (currentStep == 0)
-    {
-        if (event.key == SDL_SCANCODE_W || event.key == SDL_SCANCODE_A ||
-            event.key == SDL_SCANCODE_S || event.key == SDL_SCANCODE_D)
-            pendingAdvance = true;
-    }
-}
-
 void TutorialSystem::onEvent(const PlayerGainItemEvent& event)
 {
-    // Step 1: gather wood or stone
-    if (currentStep == 1 && (event.id == 15 || event.id == 4))
+    const auto step = static_cast<TutorialStep>(currentStep);
+
+    if (step == TutorialStep::MineFirstResource &&
+        (event.id == WOOD_ID || event.id == STONE_ID))
+    {
         pendingAdvance = true;
+    }
+    else if (step == TutorialStep::MineOre &&
+             (event.id == IRON_ORE_ID || event.id == COPPER_ORE_ID || event.id == COAL_ID))
+    {
+        pendingAdvance = true;
+    }
 }
 
 void TutorialSystem::onEvent(const InventoryOpenedEvent&)
 {
-    if (currentStep == 2)
+    if (static_cast<TutorialStep>(currentStep) == TutorialStep::OpenInventory)
         pendingAdvance = true;
 }
 
-void TutorialSystem::onEvent(const MissionUIOpenedEvent&)
+void TutorialSystem::onEvent(const HandCraftCompletedEvent& event)
 {
-    if (currentStep == 3)
-        pendingAdvance = true;
-}
+    const auto step = static_cast<TutorialStep>(currentStep);
 
-void TutorialSystem::onEvent(const HandCraftCompletedEvent&)
-{
-    // No longer used for tutorial advancement.
-}
-
-void TutorialSystem::onEvent(const BuildingPlacedEvent&)
-{
-    // No longer used for tutorial advancement.
-}
-
-void TutorialSystem::onEvent(const TickEvent& event)
-{
-    // Auto-advance timer for steps 3 and 4
-    if (autoAdvanceTimer > 0.0f)
+    if (step == TutorialStep::CraftPickaxe &&
+        recipeOutputs(event.recipeIndex, STONE_PICKAXE_ID))
     {
-        autoAdvanceTimer -= event.tick;
-        if (autoAdvanceTimer <= 0.0f)
-        {
-            autoAdvanceTimer = -1.0f;
-            pendingAdvance = true;
-        }
+        pendingAdvance = true;
     }
+    else if (step == TutorialStep::CraftFurnace &&
+             recipeOutputs(event.recipeIndex, FURNACE_ID))
+    {
+        pendingAdvance = true;
+    }
+}
+
+void TutorialSystem::onProcessEvent(const SlotDroppedEvent& event)
+{
+    if (event.category != SlotCategory::Hotbar)
+        return;
+
+    const auto step = static_cast<TutorialStep>(currentStep);
+
+    if (step == TutorialStep::MovePickaxeToHotbar &&
+        event.item.id == STONE_PICKAXE_ID)
+    {
+        pendingAdvance = true;
+    }
+    else if (step == TutorialStep::PlaceFurnaceInHotbar &&
+             event.item.id == FURNACE_ID)
+    {
+        pendingAdvance = true;
+    }
+}
+
+void TutorialSystem::onEvent(const BuildingPlacedEvent& event)
+{
+    if (static_cast<TutorialStep>(currentStep) == TutorialStep::PlaceFurnaceOnGrid &&
+        event.tileName == "Furnace")
+    {
+        pendingAdvance = true;
+    }
+}
+
+void TutorialSystem::onEvent(const AddFact& event)
+{
+    const auto step = static_cast<TutorialStep>(currentStep);
+
+    // Mission validation always sets the completion fact to bool true via
+    // worldFacts->setFact(...). We only care about transitions to truthy.
+    if (not event.value.isTrue())
+        return;
+
+    if (step == TutorialStep::ValidateFirstSteps && event.name == "mission_tools")
+        pendingAdvance = true;
+    else if (step == TutorialStep::ValidateStoneMasonry && event.name == "mission_furnace")
+        pendingAdvance = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,12 +142,45 @@ void TutorialSystem::ensureCreated()
     if (created) return;
     created = true;
 
-    currentStep = worldFacts->getFact<int>("tutorial_step", 0);
+    int loaded = worldFacts->getFact<int>("tutorial_step", 0);
+
+    // Save migration: legacy saves used a 5-step flow. Anyone with a step value
+    // beyond the legacy total (or beyond the current Complete sentinel) is
+    // treated as already done.
+    static constexpr int LEGACY_TOTAL_STEPS = 5;
+    if (loaded >= LEGACY_TOTAL_STEPS && loaded < TOTAL_STEPS)
+    {
+        loaded = TOTAL_STEPS; // -> Complete
+        worldFacts->setFact("tutorial_step", loaded);
+    }
+    if (loaded < 0 || loaded > TOTAL_STEPS)
+        loaded = TOTAL_STEPS;
+
+    currentStep = loaded;
+
+    // Loaded facts don't re-fire AddFact, so a player who validated a mission
+    // and then quit before advancing the tutorial would be stuck on the
+    // matching Validate* step on reload. Skip past those if already met.
+    while (currentStep < TOTAL_STEPS)
+    {
+        const auto step = static_cast<TutorialStep>(currentStep);
+        bool skip = false;
+        if (step == TutorialStep::ValidateFirstSteps &&
+            worldFacts->getFact<bool>("mission_tools", false))
+            skip = true;
+        else if (step == TutorialStep::ValidateStoneMasonry &&
+                 worldFacts->getFact<bool>("mission_furnace", false))
+            skip = true;
+
+        if (not skip)
+            break;
+        ++currentStep;
+    }
+    worldFacts->setFact("tutorial_step", currentStep);
 
     if (currentStep >= TOTAL_STEPS)
         return;
 
-    // Backdrop
     auto bd = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{15.0f, 15.0f, 25.0f, 200.0f});
     auto bdPos = bd.get<PositionComponent>();
@@ -116,7 +193,6 @@ void TutorialSystem::ensureCreated()
     bd.get<ViewportComponent>()->setViewport(UI_VP);
     backdropId = bd.entity->id;
 
-    // Title text (gold)
     auto title = makeTTFText(ecsRef,
         PANEL_X + PADDING, PANEL_Y + PADDING, 101.0f,
         FONT_PATH, STEPS[currentStep].title, TITLE_SCALE,
@@ -124,7 +200,6 @@ void TutorialSystem::ensureCreated()
     title.get<ViewportComponent>()->setViewport(UI_VP);
     titleId = title.entity->id;
 
-    // Body text (light grey)
     auto body = makeTTFText(ecsRef,
         PANEL_X + PADDING, PANEL_Y + PADDING + 22.0f, 101.0f,
         FONT_PATH, STEPS[currentStep].body, BODY_SCALE,
@@ -151,11 +226,6 @@ void TutorialSystem::advanceStep()
     }
 
     updateContent();
-
-    // Step 3 (open mission tab) waits for explicit user action — no timeout.
-    // Step 4 (final "Good job!") auto-advances to dismiss the tutorial.
-    if (currentStep == 4)
-        autoAdvanceTimer = AUTO_ADVANCE_MS;
 }
 
 void TutorialSystem::updateContent()
@@ -176,10 +246,6 @@ void TutorialSystem::hidePanel()
     setEntityVisibility(bodyId, false);
     visible = false;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 void TutorialSystem::setEntityVisibility(uint64_t id, bool vis)
 {
