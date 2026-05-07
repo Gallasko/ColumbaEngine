@@ -11,12 +11,26 @@
 void HudBarSystem::init()
 {
     createButtons();
+
+    // Subscribe to ticket changes through GameDataView instead of polling
+    // playerInv->getTickets() every tick. The publisher is
+    // PlayerInventorySystem; the path is PlayerInventorySystem::TICKETS_PATH.
+    if (auto* view = ecsRef->getSystem<GameDataView>())
+    {
+        view->subscribe(PlayerInventorySystem::TICKETS_PATH,
+            [this](const ElementType& v) {
+                onTicketsChanged(static_cast<uint32_t>(v.get<size_t>()));
+            });
+
+        // Seed with the current value if the publisher already wrote it.
+        if (view->has(PlayerInventorySystem::TICKETS_PATH))
+            onTicketsChanged(static_cast<uint32_t>(view->get(PlayerInventorySystem::TICKETS_PATH).get<size_t>()));
+    }
 }
 
 void HudBarSystem::onEvent(const TickEvent&)
 {
     updateMissionButtonVisibility();
-    updateTicketDisplay();
     updateMissionBadge();
 }
 
@@ -174,18 +188,13 @@ void HudBarSystem::createTicketDisplay()
     ticketTextId = txt.entity->id;
 }
 
-void HudBarSystem::updateTicketDisplay()
+void HudBarSystem::onTicketsChanged(uint32_t newCount)
 {
-    if (not playerInv)
-        return;
-
-    uint16_t count = static_cast<uint16_t>(
-        std::min(playerInv->getTickets(), static_cast<uint32_t>(65535)));
-
     if (ticketBgId == 0)
         return;
 
-    // Show ticket display on first tick
+    uint16_t count = static_cast<uint16_t>(std::min(newCount, static_cast<uint32_t>(65535)));
+
     if (not ticketDisplayVisible)
     {
         ticketDisplayVisible = true;

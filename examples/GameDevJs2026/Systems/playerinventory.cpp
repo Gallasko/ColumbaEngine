@@ -30,11 +30,15 @@ void PlayerInventorySystem::load(const UnserializedObject& serializedString)
     }
 
     LOG_INFO("PlayerInventory", "loaded " << slots.size() << " slots, " << ticketCount << " tickets");
+
+    publishTickets();
 }
 
 void PlayerInventorySystem::init()
 {
     inventory = Inventory(NUM_SLOTS);
+
+    publishTickets();
 }
 
 void PlayerInventorySystem::onEvent(const PlayerGainItemEvent& event)
@@ -43,6 +47,7 @@ void PlayerInventorySystem::onEvent(const PlayerGainItemEvent& event)
     if (event.id == TICKET_ID)
     {
         ticketCount += event.count;
+        publishTickets();
         sendEvent(AddFact{"discovered_ticket", ElementType{true}});
         return;
     }
@@ -80,6 +85,7 @@ void PlayerInventorySystem::onEvent(const PlayerLoseItemEvent& event)
             ticketCount -= event.count;
         else
             ticketCount = 0;
+        publishTickets();
         return;
     }
     inventory.remove(event.id, event.count);

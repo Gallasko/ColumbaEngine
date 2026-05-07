@@ -271,6 +271,11 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* depotSystem = ecs.createSystem<DepotSystem>(gridSystem, &itemRegistry);
         ecs.createSystem<InserterSystem>(
             gridSystem, transportSystem, minerSystem, craftingSystem, storageSystem, depotSystem, &itemRegistry);
+        // GameDataView — engine-side key/value store that bridges game state
+        // and UI. Must exist before any system that publishes to it (player
+        // inventory, mission, etc.) so their init() can subscribe/publish.
+        ecs.createSystem<GameDataView>();
+
         auto* playerInvSystem = ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
 
         // Prefab factory registry — must come before SlotSystem so the latter can
@@ -353,7 +358,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         // OnMouseClick handler runs first — GameSystem's click-outside
         // handler then sees the post-toggle UI state and won't immediately
         // close a panel that the HUD button just opened.
-        auto* hudBar = ecs.createSystem<HudBarSystem>(playerInvSystem, worldFacts, missionSystem, screenW, screenH);
+        auto* hudBar = ecs.createSystem<HudBarSystem>(worldFacts, missionSystem, screenW, screenH);
 
         ecs.createSystem<TileInspectorSystem>(
             cameraSystem, gridSystem, hotbar, hudBar,

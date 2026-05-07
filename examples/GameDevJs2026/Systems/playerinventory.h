@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Systems/basicsystems.h"
+#include "UI/gamedataview.h"
 #include "inventory.h"
 #include "worldfacts.h"
 #include "saveserialization.h"
@@ -57,15 +58,28 @@ public:
     }
 
     uint32_t getTickets() const { return ticketCount; }
-    void addTickets(uint32_t amount) { ticketCount += amount; }
+    void addTickets(uint32_t amount)
+    {
+        ticketCount += amount;
+        publishTickets();
+    }
     bool spendTickets(uint32_t amount)
     {
         if (ticketCount < amount) return false;
         ticketCount -= amount;
+        publishTickets();
         return true;
     }
 
+    static constexpr const char* TICKETS_PATH = "player.tickets";
+
 private:
+    void publishTickets()
+    {
+        if (auto* view = ecsRef ? ecsRef->getSystem<GameDataView>() : nullptr)
+            view->set(TICKETS_PATH, static_cast<size_t>(ticketCount));
+    }
+
     ItemRegistry* itemRegistry = nullptr;
     Inventory inventory;
     uint32_t ticketCount = 0;

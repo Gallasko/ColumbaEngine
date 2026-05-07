@@ -45,11 +45,9 @@ public:
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
     static constexpr ItemId TICKET_ID = 35;
 
-    HudBarSystem(PlayerInventorySystem* playerInv, WorldFacts* worldFacts,
-                 MissionSystem* missionSystem,
+    HudBarSystem(WorldFacts* worldFacts, MissionSystem* missionSystem,
                  float screenWidth, float screenHeight)
-        : playerInv(playerInv), worldFacts(worldFacts),
-          missionSystem(missionSystem),
+        : worldFacts(worldFacts), missionSystem(missionSystem),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "HUD Bar System"; }
@@ -81,7 +79,6 @@ private:
     void createButtons();
     void updateMissionButtonVisibility();
 
-    PlayerInventorySystem* playerInv = nullptr;
     WorldFacts* worldFacts = nullptr;
     MissionSystem* missionSystem = nullptr;
     float screenWidth = 0.0f;
@@ -109,7 +106,7 @@ private:
     uint16_t lastTicketCount = 0;
 
     void createTicketDisplay();
-    void updateTicketDisplay();
+    void onTicketsChanged(uint32_t newCount);
 
     // Mission notification badge — lights up when a mission becomes
     // unlocked or a main mission's materials become satisfied. Cleared
