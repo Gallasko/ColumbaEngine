@@ -13,11 +13,19 @@ using namespace pg;
 
 class MissionSystem;
 
+// Fired synchronously by the MouseLeftClickComponent attached to each HUD
+// button. HudBarSystem listens, marks the click as a panel click (so
+// GameSystem won't close panels via outside-click) and dispatches to the
+// stored toggle callback.
+struct HudInventoryButtonClicked {};
+struct HudMissionButtonClicked   {};
+
 class HudBarSystem : public System<InitSys,
-                                    QueuedListener<OnMouseClick>,
                                     Listener<TickEvent>,
                                     Listener<MissionUIOpenedEvent>,
-                                    Listener<MissionUIClosedEvent>>
+                                    Listener<MissionUIClosedEvent>,
+                                    Listener<HudInventoryButtonClicked>,
+                                    Listener<HudMissionButtonClicked>>
 {
 public:
     static constexpr size_t UI_VP       = 2;
@@ -51,7 +59,8 @@ public:
     virtual void onEvent(const TickEvent&) override;
     virtual void onEvent(const MissionUIOpenedEvent&) override;
     virtual void onEvent(const MissionUIClosedEvent&) override;
-    virtual void onProcessEvent(const OnMouseClick& event) override;
+    virtual void onEvent(const HudInventoryButtonClicked&) override;
+    virtual void onEvent(const HudMissionButtonClicked&) override;
 
     // Set by application after GameSystem is created. These route through
     // GameSystem so it can enforce UI group exclusivity (close mission when
@@ -71,8 +80,6 @@ public:
 private:
     void createButtons();
     void updateMissionButtonVisibility();
-
-    bool isClickOnButton(size_t idx, float x, float y) const;
 
     PlayerInventorySystem* playerInv = nullptr;
     WorldFacts* worldFacts = nullptr;

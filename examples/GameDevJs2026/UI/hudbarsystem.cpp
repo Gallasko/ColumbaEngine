@@ -33,34 +33,26 @@ void HudBarSystem::onEvent(const MissionUIClosedEvent&)
     missionTabOpen = false;
 }
 
-void HudBarSystem::onProcessEvent(const OnMouseClick& event)
+void HudBarSystem::onEvent(const HudInventoryButtonClicked&)
 {
-    if (event.button != SDL_BUTTON_LEFT)
+    // The MouseLeftClickComponent fires this synchronously during click
+    // dispatch — mark the click as a panel click so GameSystem's
+    // click-outside-to-close logic skips it on the same frame.
+    ecsRef->sendEvent(PanelWasClickedEvent{});
+
+    if (inventoryToggle)
+        inventoryToggle();
+}
+
+void HudBarSystem::onEvent(const HudMissionButtonClicked&)
+{
+    if (not missionButtonVisible)
         return;
 
-    for (size_t i = 0; i < NUM_BUTTONS; ++i)
-    {
-        if (not isClickOnButton(i, event.pos.x, event.pos.y))
-            continue;
+    ecsRef->sendEvent(PanelWasClickedEvent{});
 
-        switch (i)
-        {
-            case BTN_INVENTORY:
-                if (inventoryToggle)
-                    inventoryToggle();
-                break;
-
-            case BTN_MISSIONS:
-                if (missionToggle)
-                    missionToggle();
-                break;
-
-            case BTN_SETTINGS:
-                // Placeholder — no settings panel yet
-                break;
-        }
-        return;
-    }
+    if (missionToggle)
+        missionToggle();
 }
 
 void HudBarSystem::createButtons()
@@ -99,6 +91,23 @@ void HudBarSystem::createButtons()
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         buttonBgId[i] = bg.entity->id;
 
+        // Click handler: per-button event dispatched synchronously by the
+        // engine's click system. Sent OnPress so the panel toggles before
+        // GameSystem's queued OnMouseClick handler runs.
+        if (i == BTN_INVENTORY)
+        {
+            ecsRef->attach<MouseLeftClickComponent>(bg.entity,
+                makeCallable<HudInventoryButtonClicked>(),
+                MouseStateTrigger::OnPress);
+        }
+        else if (i == BTN_MISSIONS)
+        {
+            ecsRef->attach<MouseLeftClickComponent>(bg.entity,
+                makeCallable<HudMissionButtonClicked>(),
+                MouseStateTrigger::OnPress);
+        }
+        // BTN_SETTINGS: no callback yet (placeholder).
+
         // Icon centered in button
         float iconOffset = (BUTTON_SIZE - ICON_SIZE) * 0.5f;
         auto icon = make2DTexture(ecsRef, ICON_SIZE, ICON_SIZE, ICON_TEXTURES[i]);
@@ -126,15 +135,6 @@ void HudBarSystem::setMissionButtonVisible(bool vis)
     setEntityVisibility(buttonIconId[BTN_MISSIONS], vis);
     if (not vis)
         setEntityVisibility(missionBadgeId, false);
-}
-
-bool HudBarSystem::isClickOnButton(size_t idx, float x, float y) const
-{
-    if (idx == BTN_MISSIONS and not missionButtonVisible)
-        return false;
-
-    return x >= buttonX[idx] and x <= buttonX[idx] + BUTTON_SIZE
-       and y >= buttonY[idx] and y <= buttonY[idx] + BUTTON_SIZE;
 }
 
 void HudBarSystem::createTicketDisplay()
