@@ -272,6 +272,12 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<InserterSystem>(
             gridSystem, transportSystem, minerSystem, craftingSystem, storageSystem, depotSystem, &itemRegistry);
         auto* playerInvSystem = ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
+
+        // Prefab factory registry — must come before SlotSystem so the latter can
+        // register its "Slot" prefab factory in init(). Engine-side machinery only:
+        // games register their own factories on top.
+        ecs.createSystem<PrefabFactoryRegistry>();
+
         auto* slotSystem = ecs.createSystem<SlotSystem>(&itemRegistry);
 
         // UI camera at viewport 2 — needed by hotbar, inventory panel, crafting UI, etc.

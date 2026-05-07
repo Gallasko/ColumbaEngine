@@ -1,7 +1,140 @@
 #include "slotsystem.h"
 
+EntityRef makeSlotPrefab(EntitySystem* ecs, ItemRegistry* itemRegistry, const PrefabParams& params)
+{
+    const float slotSize = getParamFloat(params, SlotPrefabKeys::SlotSize, DEFAULT_SLOT_SIZE);
+    const float itemSize = getParamFloat(params, SlotPrefabKeys::ItemSize, DEFAULT_ITEM_SIZE);
+    const constant::Vector4D bgColor = {
+        getParamFloat(params, SlotPrefabKeys::BgR, 50.0f),
+        getParamFloat(params, SlotPrefabKeys::BgG, 50.0f),
+        getParamFloat(params, SlotPrefabKeys::BgB, 60.0f),
+        getParamFloat(params, SlotPrefabKeys::BgA, 200.0f),
+    };
+
+    // Prefab entity (invisible container, takes on bg size)
+    auto slot = makeAnchoredPrefab(ecs);
+    auto prefab = slot.get<Prefab>();
+
+    // Background rect
+    auto bg = makeUiSimple2DShape(ecs, Shape2D::Square, slotSize, slotSize, bgColor);
+    bg.get<PositionComponent>()->setZ(98.0f);
+    bg.get<ViewportComponent>()->setViewport(SLOT_UI_VIEWPORT);
+    auto bgAnchor = bg.get<UiAnchor>();
+    prefab->setMainEntity(bg.entity);
+
+    // Click handler: fires SlotClickedEvent on both press and release
+    bg.attach<MouseLeftClickComponent>(
+        makeCallable<SlotClickedEvent>(slot.entity->id), MouseStateTrigger::Both);
+
+    // Item texture (centered in bg, hidden by default)
+    auto item = makeUiTexture(ecs, itemSize, itemSize, "NoneIcon");
+    item.get<PositionComponent>()->setZ(99.0f);
+    item.get<PositionComponent>()->setVisibility(false);
+    item.get<ViewportComponent>()->setViewport(SLOT_UI_VIEWPORT);
+
+    auto itemAnchor = item.get<UiAnchor>();
+    itemAnchor->centeredIn(bgAnchor);
+
+    prefab->addToPrefab(item.entity, "item");
+
+    // Count text (bottom-right of bg, hidden by default)
+    auto text = makeTTFText(ecs,
+        0.0f, 0.0f, 100.0f,
+        SLOT_FONT_PATH, "", DEFAULT_TEXT_SCALE,
+        {255.0f, 255.0f, 255.0f, 255.0f});
+    text.get<PositionComponent>()->setVisibility(false);
+    text.get<ViewportComponent>()->setViewport(SLOT_UI_VIEWPORT);
+
+    auto textAnchor = text.get<UiAnchor>();
+    textAnchor->setLeftAnchor(bgAnchor->left);
+    textAnchor->setLeftMargin(slotSize - 4.0f);
+    textAnchor->setTopAnchor(bgAnchor->top);
+    textAnchor->setTopMargin(slotSize - 4.0f);
+
+    prefab->addToPrefab(text.entity, "text");
+
+    // ---- Helpers ----
+
+    prefab->addHelper("setItem", [itemRegistry, itemSize](Prefab* self, ItemStack stack) {
+        auto itemEnt = self->getEntity("item");
+        auto textEnt = self->getEntity("text");
+
+        if (stack.isEmpty())
+        {
+            if (itemEnt)
+                itemEnt->get<PositionComponent>()->setVisibility(false);
+
+            if (textEnt)
+                textEnt->get<PositionComponent>()->setVisibility(false);
+            return;
+        }
+
+        const auto& def = itemRegistry->get(stack.id);
+
+        if (itemEnt)
+        {
+            itemEnt->get<Texture2DComponent>()->setTexture(def.textureName);
+            auto pos = itemEnt->get<PositionComponent>();
+            pos->setWidth(itemSize * def.iconWidthRatio);
+            pos->setHeight(itemSize);
+            pos->setVisibility(true);
+        }
+
+        if (textEnt)
+        {
+            if (stack.count > 1)
+            {
+                textEnt->get<TTFText>()->setText(std::to_string(stack.count));
+                textEnt->get<PositionComponent>()->setVisibility(true);
+            }
+            else
+            {
+                textEnt->get<PositionComponent>()->setVisibility(false);
+            }
+        }
+    });
+
+    prefab->addHelper("clear", [](Prefab* self) {
+        auto itemEnt = self->getEntity("item");
+        if (itemEnt)
+            itemEnt->get<PositionComponent>()->setVisibility(false);
+
+        auto textEnt = self->getEntity("text");
+        if (textEnt)
+            textEnt->get<PositionComponent>()->setVisibility(false);
+    });
+
+    return slot.entity;
+}
+
+void registerSlotFactory(PrefabFactoryRegistry* factory, ItemRegistry* itemRegistry)
+{
+    if (not factory)
+        return;
+
+    ParamSchema schema;
+    schema.entries = {
+        {SlotPrefabKeys::SlotSize, ElementType::UnionType::FLOAT, ElementType{DEFAULT_SLOT_SIZE}},
+        {SlotPrefabKeys::ItemSize, ElementType::UnionType::FLOAT, ElementType{DEFAULT_ITEM_SIZE}},
+        {SlotPrefabKeys::BgR,      ElementType::UnionType::FLOAT, ElementType{50.0f}},
+        {SlotPrefabKeys::BgG,      ElementType::UnionType::FLOAT, ElementType{50.0f}},
+        {SlotPrefabKeys::BgB,      ElementType::UnionType::FLOAT, ElementType{60.0f}},
+        {SlotPrefabKeys::BgA,      ElementType::UnionType::FLOAT, ElementType{200.0f}},
+    };
+
+    factory->registerFactory("Slot", std::move(schema),
+        [itemRegistry](EntitySystem* ecs, const PrefabParams& params) {
+            return makeSlotPrefab(ecs, itemRegistry, params);
+        });
+}
+
 void SlotSystem::init()
 {
+    // Register the Slot factory if a PrefabFactoryRegistry is available.
+    auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
+    if (factory and not factory->hasFactory("Slot"))
+        registerSlotFactory(factory, itemRegistry);
+
     // Held-item visual entities (hidden by default, follow cursor during drag)
     auto tex = make2DTexture(ecsRef, DEFAULT_ITEM_SIZE, DEFAULT_ITEM_SIZE, "NoneIcon");
     tex.get<PositionComponent>()->setZ(101.0f);
@@ -28,12 +161,25 @@ EntityRef SlotSystem::createSlot(SlotCategory category, uint8_t index,
                                  SlotFlags flags, float slotSize, float itemSize,
                                  constant::Vector4D bgColor)
 {
-    auto slot = makeUiSlot(ecsRef, itemRegistry, slotSize, itemSize, bgColor);
+    PrefabParams params = {
+        {SlotPrefabKeys::SlotSize, slotSize},
+        {SlotPrefabKeys::ItemSize, itemSize},
+        {SlotPrefabKeys::BgR,      bgColor.x},
+        {SlotPrefabKeys::BgG,      bgColor.y},
+        {SlotPrefabKeys::BgB,      bgColor.z},
+        {SlotPrefabKeys::BgA,      bgColor.w},
+    };
 
-    slot.attach<SlotComponent>(category, index, flags);
-    // createOwnedComponent<SlotComponent>(slot.entity.operator->(), category, index, flags);
+    EntityRef slotEnt;
+    auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
+    if (factory and factory->hasFactory("Slot"))
+        slotEnt = factory->build("Slot", params);
+    else
+        slotEnt = makeSlotPrefab(ecsRef, itemRegistry, params);
 
-    return slot.entity;
+    ecsRef->attach<SlotComponent>(slotEnt, category, index, flags);
+
+    return slotEnt;
 }
 
 // ---- Mouse events ----
