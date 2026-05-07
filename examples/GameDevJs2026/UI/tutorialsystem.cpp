@@ -211,12 +211,21 @@ void TutorialSystem::onEvent(const HandCraftCompletedEvent& event)
         recipeOutputs(event.recipeIndex, STONE_PICKAXE_ID))
     {
         pendingAdvance = true;
-        pulseSlotForItem(STONE_PICKAXE_ID);
     }
     else if (step == TutorialStep::CraftFurnace &&
              recipeOutputs(event.recipeIndex, FURNACE_ID))
     {
         pendingAdvance = true;
+    }
+
+    // Pulse every output of the completed craft so the player can spot where
+    // the new items landed in their inventory or hotbar — not just the
+    // tutorial-gated pickaxe.
+    if (recipeRegistry)
+    {
+        const Recipe& r = recipeRegistry->get(event.recipeIndex);
+        for (const auto& out : r.outputs)
+            pulseSlotForItem(out.id);
     }
 }
 
