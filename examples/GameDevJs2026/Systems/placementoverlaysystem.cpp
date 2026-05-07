@@ -149,7 +149,7 @@ void PlacementOverlaySystem::refreshGhostFootprint(const BuildingDef& def,
     const constant::Vector4D OK_COLOR  {60.0f, 200.0f, 60.0f, 110.0f};
     const constant::Vector4D BAD_COLOR {200.0f, 60.0f, 60.0f, 110.0f};
 
-    bool ok = checkPlacementOK(gx, gy, def);
+    auto layer = gridSystem->getBuildingLayer();
 
     int fw = def.getFootprintW();
     int fh = def.getFootprintH();
@@ -160,13 +160,27 @@ void PlacementOverlaySystem::refreshGhostFootprint(const BuildingDef& def,
         {
             if (idx >= OVERLAY_POOL_SIZE)
                 break;
+
+            int cx = gx + dx;
+            int cy = gy + dy;
+
+            // Per-cell validity: out-of-bounds, occupied, or blocking terrain
+            // are individually red; everything else is green.
+            bool cellOk = true;
+            if (not gridSystem->getGrid().isInBounds(cx, cy))
+                cellOk = false;
+            else if (not gridSystem->getCell(layer, cx, cy).tileName.empty())
+                cellOk = false;
+            else if (isBlockingTerrain(gridSystem->getTerrainAt(cx, cy)))
+                cellOk = false;
+
             auto ent = ecsRef->getEntity(overlayIds[idx]);
             if (ent)
             {
-                ent->get<Simple2DObject>()->setColors(ok ? OK_COLOR : BAD_COLOR);
+                ent->get<Simple2DObject>()->setColors(cellOk ? OK_COLOR : BAD_COLOR);
                 auto pos = ent->get<PositionComponent>();
-                pos->setX(static_cast<float>((gx + dx) * Grid::TILE_SIZE));
-                pos->setY(static_cast<float>((gy + dy) * Grid::TILE_SIZE));
+                pos->setX(static_cast<float>(cx * Grid::TILE_SIZE));
+                pos->setY(static_cast<float>(cy * Grid::TILE_SIZE));
                 pos->setVisibility(true);
             }
             ++idx;
