@@ -443,7 +443,7 @@ void TutorialSystem::presentCurrentStep()
 
         case TutorialStep::OpenInventory:
             target = centeredScreenRect(360.0f, 240.0f);
-            arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+            arrowSide = SpotlightOverlaySystem::ArrowSide::Bottom;
             break;
 
         case TutorialStep::ValidateFirstSteps:

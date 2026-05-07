@@ -364,11 +364,13 @@ void SpotlightOverlaySystem::layoutArrow(float sx, float sy, float sw, float sh,
                                          float bobOffset)
 {
     float ax = 0.0f, ay = 0.0f;
+    float rotation = 0.0f;
     switch (currentArrowSide)
     {
         case ArrowSide::Top:
             ax = sx + sw * 0.5f - ARROW_SIZE * 0.5f;
             ay = sy - ARROW_SIZE - ARROW_OFFSET - bobOffset;
+            rotation = 180.0f;
             break;
         case ArrowSide::Bottom:
             ax = sx + sw * 0.5f - ARROW_SIZE * 0.5f;
@@ -377,13 +379,23 @@ void SpotlightOverlaySystem::layoutArrow(float sx, float sy, float sw, float sh,
         case ArrowSide::Left:
             ax = sx - ARROW_SIZE - ARROW_OFFSET - bobOffset;
             ay = sy + sh * 0.5f - ARROW_SIZE * 0.5f;
+            rotation = -90.0f;
             break;
         case ArrowSide::Right:
             ax = sx + sw + ARROW_OFFSET + bobOffset;
             ay = sy + sh * 0.5f - ARROW_SIZE * 0.5f;
+            rotation = 90.0f;
             break;
     }
-    setEntityXY(arrowId, ax, ay);
+
+    auto ent = ecsRef->getEntity(arrowId);
+    if (ent)
+    {
+        auto pos = ent->get<PositionComponent>();
+        pos->setX(ax);
+        pos->setY(ay);
+        pos->setRotation(rotation);
+    }
 }
 
 // ---------------------------------------------------------------------------
