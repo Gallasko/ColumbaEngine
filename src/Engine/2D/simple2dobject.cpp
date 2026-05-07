@@ -31,6 +31,19 @@ namespace pg
         simpleShapeMaterial.setSimpleMesh({3, 2, 1, 4});
 
         materialId = masterRenderer->registerMaterial(simpleShapeMaterial);
+
+        Material triangleMaterial;
+
+        triangleMaterial.shader = masterRenderer->getShader("Triangle");
+
+        triangleMaterial.nbTextures = 0;
+
+        triangleMaterial.uniformMap.emplace("sWidth", "ScreenWidth");
+        triangleMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
+
+        triangleMaterial.setSimpleMesh({3, 2, 1, 4});
+
+        triangleMaterialId = masterRenderer->registerMaterial(triangleMaterial);
     }
 
     RenderCall Simple2DObjectSystem::createRenderCall(CompRef<Simple2DObject> obj, CompRef<PositionComponent> ui, CompRef<ViewportComponent> vp)
@@ -52,7 +65,7 @@ namespace pg
 
         call.setRenderStage(renderStage);
 
-        call.setMaterial(materialId);
+        call.setMaterial(obj->shape == Shape2D::Triangle ? triangleMaterialId : materialId);
 
         call.setViewport(vp->viewport);
 

@@ -28,6 +28,7 @@ namespace pg
         virtual RenderCall createRenderCall(CompRef<Simple2DObject> obj, CompRef<PositionComponent> ui, CompRef<ViewportComponent> vp) override;
 
         uint64_t materialId = 0;
+        uint64_t triangleMaterialId = 0;
     };
 
     template <typename Type>
