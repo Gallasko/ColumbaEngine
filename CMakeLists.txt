@@ -917,6 +917,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/UI/tooltipsystem.cpp
             examples/GameDevJs2026/UI/tutorialsystem.cpp
             examples/GameDevJs2026/UI/spotlightoverlaysystem.cpp
+            examples/GameDevJs2026/UI/tileinspectorsystem.cpp
+            examples/GameDevJs2026/Systems/placementoverlaysystem.cpp
             examples/GameDevJs2026/UI/machinedemosystem.cpp
             examples/GameDevJs2026/UI/depotui.cpp
             examples/GameDevJs2026/UI/hudbarsystem.cpp
@@ -1279,6 +1281,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/UI/tooltipsystem.cpp
             examples/GameDevJs2026/UI/tutorialsystem.cpp
             examples/GameDevJs2026/UI/spotlightoverlaysystem.cpp
+            examples/GameDevJs2026/UI/tileinspectorsystem.cpp
+            examples/GameDevJs2026/Systems/placementoverlaysystem.cpp
             examples/GameDevJs2026/UI/machinedemosystem.cpp
             examples/GameDevJs2026/UI/depotui.cpp
             examples/GameDevJs2026/UI/hudbarsystem.cpp

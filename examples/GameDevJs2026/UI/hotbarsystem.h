@@ -94,6 +94,11 @@ public:
         return (i < HOTBAR_SLOTS) ? slotEntityIds[i] : 0;
     }
 
+    // Show or hide every visual entity that makes up the hotbar (backdrop,
+    // slots, selection highlight). Used by the tutorial to progressively
+    // reveal the hotbar only at the step that introduces it.
+    void setHotbarVisible(bool vis);
+
     // Returns the ItemId at screen-space (x, y), or ITEM_NONE if not over a slot.
     ItemId itemAtPosition(float x, float y) const;
 

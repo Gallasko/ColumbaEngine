@@ -12,6 +12,21 @@ void HotbarSystem::init()
     createHotbarUI();
 }
 
+void HotbarSystem::setHotbarVisible(bool vis)
+{
+    auto setVis = [this](uint64_t id, bool v) {
+        if (id == 0) return;
+        auto ent = ecsRef->getEntity(id);
+        if (ent)
+            ent->get<PositionComponent>()->setVisibility(v);
+    };
+
+    setVis(backdropEntityId, vis);
+    setVis(highlightEntityId, vis);
+    for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
+        setVis(slotEntityIds[i], vis);
+}
+
 void HotbarSystem::onEvent(const ResizeEvent& event)
 {
     screenWidth = event.width;

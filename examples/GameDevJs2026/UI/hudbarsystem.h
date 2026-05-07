@@ -59,6 +59,11 @@ public:
     void setInventoryToggle(std::function<void()> toggle) { inventoryToggle = std::move(toggle); }
     void setMissionUIToggle(std::function<void()> toggle) { missionToggle = std::move(toggle); }
 
+    // Show or hide the mission HUD button (entities + click handling). Used
+    // by the tutorial system for progressive HUD reveal so the button only
+    // appears at the step that introduces it.
+    void setMissionButtonVisible(bool vis);
+
 private:
     void createButtons();
     void updateMissionButtonVisibility();

@@ -290,7 +290,7 @@ void TileInspectorSystem::setLine(int idx, const std::string& text,
     if (show)
     {
         txt->setText(text);
-        txt->setColor(color);
+        txt->setColors(color);
         pos->setVisibility(true);
     }
     else

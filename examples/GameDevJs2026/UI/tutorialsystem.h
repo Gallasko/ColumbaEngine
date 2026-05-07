@@ -9,6 +9,7 @@
 #include "worldfacts.h"
 #include "inventoryui.h"
 #include "hotbarsystem.h"
+#include "hudbarsystem.h"
 #include "reciperegistry.h"
 #include "slotsystem.h"
 #include "tutorialevents.h"
@@ -76,6 +77,7 @@ public:
                    PlayerInventorySystem* playerInv,
                    InventoryUISystem* inventoryUI,
                    HotbarSystem* hotbar,
+                   HudBarSystem* hudBar,
                    float screenWidth,
                    float screenHeight)
         : worldFacts(worldFacts),
@@ -86,6 +88,7 @@ public:
           playerInv(playerInv),
           inventoryUI(inventoryUI),
           hotbar(hotbar),
+          hudBar(hudBar),
           screenWidth(screenWidth),
           screenHeight(screenHeight) {}
 
@@ -114,6 +117,7 @@ private:
     void initOnFirstTick();
     void advanceStep();
     void presentCurrentStep();
+    void applyHudReveal();
     bool recipeOutputs(size_t recipeIndex, ItemId id) const;
 
     // Spawn a transient gold overlay over the inventory or hotbar slot that
@@ -135,6 +139,7 @@ private:
     PlayerInventorySystem*  playerInv      = nullptr;
     InventoryUISystem*      inventoryUI    = nullptr;
     HotbarSystem*           hotbar         = nullptr;
+    HudBarSystem*           hudBar         = nullptr;
 
     float screenWidth  = 0.0f;
     float screenHeight = 0.0f;

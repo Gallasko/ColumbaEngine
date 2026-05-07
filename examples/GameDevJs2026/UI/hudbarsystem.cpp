@@ -119,6 +119,15 @@ void HudBarSystem::updateMissionButtonVisibility()
     // Mission button is always visible.
 }
 
+void HudBarSystem::setMissionButtonVisible(bool vis)
+{
+    missionButtonVisible = vis;
+    setEntityVisibility(buttonBgId[BTN_MISSIONS],   vis);
+    setEntityVisibility(buttonIconId[BTN_MISSIONS], vis);
+    if (not vis)
+        setEntityVisibility(missionBadgeId, false);
+}
+
 bool HudBarSystem::isClickOnButton(size_t idx, float x, float y) const
 {
     if (idx == BTN_MISSIONS and not missionButtonVisible)
@@ -274,7 +283,7 @@ void HudBarSystem::updateMissionBadge()
     prevUnlockCount = currentUnlocks;
     prevCompletableCount = currentCompletable;
 
-    if (missionTabOpen)
+    if (missionTabOpen or not missionButtonVisible)
     {
         setEntityVisibility(missionBadgeId, false);
         return;

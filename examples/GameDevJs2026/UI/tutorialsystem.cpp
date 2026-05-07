@@ -267,6 +267,7 @@ void TutorialSystem::onEvent(const TutorialSkipRequested&)
         return;
     currentStep = TOTAL_STEPS;
     worldFacts->setFact("tutorial_step", currentStep);
+    applyHudReveal();
     if (spotlight)
         spotlight->hide();
 }
@@ -328,7 +329,28 @@ void TutorialSystem::initOnFirstTick()
     }
     worldFacts->setFact("tutorial_step", currentStep);
 
+    applyHudReveal();
     presentCurrentStep();
+}
+
+// Hide the hotbar and mission button while the tutorial hasn't introduced
+// them. Once the matching step is reached they stay revealed for the rest
+// of the run.
+void TutorialSystem::applyHudReveal()
+{
+    if (not hotbar or not hudBar)
+        return;
+
+    const bool tutorialDone = currentStep >= TOTAL_STEPS;
+    const bool hotbarRevealed =
+        tutorialDone or
+        currentStep >= static_cast<int>(TutorialStep::MovePickaxeToHotbar);
+    const bool missionRevealed =
+        tutorialDone or
+        currentStep >= static_cast<int>(TutorialStep::ValidateFirstSteps);
+
+    hotbar->setHotbarVisible(hotbarRevealed);
+    hudBar->setMissionButtonVisible(missionRevealed);
 }
 
 // ---------------------------------------------------------------------------
@@ -339,6 +361,7 @@ void TutorialSystem::advanceStep()
 {
     currentStep++;
     worldFacts->setFact("tutorial_step", currentStep);
+    applyHudReveal();
     presentCurrentStep();
 }
 
