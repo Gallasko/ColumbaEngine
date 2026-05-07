@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Systems/basicsystems.h"
+#include "UI/uicommand.h"
 
 #include "missionregistry.h"
 #include "depotsystem.h"
@@ -18,7 +19,7 @@ struct ActiveMission
     bool completed = false;
 };
 
-class MissionSystem : public System<Listener<TickEvent>, SaveSys>
+class MissionSystem : public System<Listener<TickEvent>, QueuedListener<UICommandEvent>, SaveSys>
 {
 public:
     static constexpr size_t DEFAULT_MAX_ACTIVE = 2;
@@ -41,6 +42,18 @@ public:
     virtual void onEvent(const TickEvent& event) override
     {
         tickAccumulator += static_cast<size_t>(event.tick);
+    }
+
+    virtual void onProcessEvent(const UICommandEvent& event) override
+    {
+        if (event.cmd.id == "mission.start")
+        {
+            size_t defIndex = event.cmd.argSize("defIndex", SIZE_MAX);
+            int depotX     = event.cmd.argInt("depotX", -1);
+            int depotY     = event.cmd.argInt("depotY", -1);
+            if (defIndex != SIZE_MAX)
+                startMission(defIndex, depotX, depotY);
+        }
     }
 
     void execute() override;

@@ -94,10 +94,12 @@ void MissionUISystem::selectDepot(int depotX, int depotY)
     pendingStart.active.store(false, std::memory_order_release);
     hideDepotSelectionPrompt();
 
-    if (missionSystem->startMission(defIndex, depotX, depotY))
-        LOG_INFO("MissionUI", "mission started at depot (" << depotX << ", " << depotY << ")");
-    else
-        LOG_INFO("MissionUI", "failed to start mission at depot (" << depotX << ", " << depotY << ")");
+    sendEvent(UICommandEvent{"mission.start", ElementMap{
+        {"defIndex", defIndex},
+        {"depotX",   depotX},
+        {"depotY",   depotY},
+    }});
+    LOG_INFO("MissionUI", "emitted mission.start at depot (" << depotX << ", " << depotY << ")");
 }
 
 void MissionUISystem::cancelDepotSelection()
