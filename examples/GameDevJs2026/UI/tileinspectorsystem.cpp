@@ -1,12 +1,14 @@
 #include "tileinspectorsystem.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/position.h"
 #include "UI/ttftext.h"
 #include "Renderer/camera.h"
 
 #include "camerasystem.h"
 #include "gridsystem.h"
 #include "hotbarsystem.h"
+#include "hudbarsystem.h"
 #include "terrain.h"
 
 #include <cstdio>
@@ -63,11 +65,36 @@ void TileInspectorSystem::init()
         return;
     created = true;
 
-    auto bd = makeSimple2DShape(ecsRef, Shape2D::Square, PANEL_W, 0.0f,
+    float panelH = PANEL_PAD * 2 + LINE_GAP * NUM_LINES;
+
+    // Backdrop anchored to the right edge of the main window and pinned to
+    // the bottom of the HUD's currency pill so it always reflows when the
+    // window resizes or the HUD changes layout.
+    auto bd = makeUiSimple2DShape(ecsRef, Shape2D::Square, PANEL_W, panelH,
         constant::Vector4D{15.0f, 15.0f, 25.0f, 220.0f});
     bd.get<PositionComponent>()->setZ(Z_BG);
     bd.get<ViewportComponent>()->setViewport(UI_VP);
     backdropId = bd.entity->id;
+
+    auto bdAnchor = bd.get<UiAnchor>();
+
+    auto windowEnt = ecsRef->getEntity("__MainWindow");
+    if (windowEnt)
+    {
+        auto windowAnchor = windowEnt->get<UiAnchor>();
+        if (windowAnchor)
+        {
+            bdAnchor->setRightAnchor(windowAnchor->right);
+            bdAnchor->setRightMargin(MARGIN_RIGHT);
+        }
+    }
+
+    if (hudBar and hudBar->getTicketDisplayEntityId() != 0)
+    {
+        bdAnchor->setTopAnchor(PosAnchor{hudBar->getTicketDisplayEntityId(),
+                                         AnchorType::Bottom});
+        bdAnchor->setTopMargin(MARGIN_TOP);
+    }
 
     for (int i = 0; i < NUM_LINES; ++i)
     {
@@ -77,37 +104,20 @@ void TileInspectorSystem::init()
         t.get<ViewportComponent>()->setViewport(UI_VP);
         t.get<PositionComponent>()->setVisibility(false);
         lineIds[i] = t.entity->id;
-    }
 
-    layoutPanel();
+        auto txtAnchor = ecsRef->attach<UiAnchor>(t.entity);
+        txtAnchor->setLeftAnchor(PosAnchor{backdropId, AnchorType::Left});
+        txtAnchor->setLeftMargin(PANEL_PAD);
+        txtAnchor->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        txtAnchor->setTopMargin(PANEL_PAD + i * LINE_GAP);
+    }
 }
 
 void TileInspectorSystem::layoutPanel()
 {
-    if (not created)
-        return;
-
-    float panelH = PANEL_PAD * 2 + LINE_GAP * NUM_LINES;
-    float panelX = screenWidth - PANEL_W - MARGIN_RIGHT;
-    float panelY = MARGIN_TOP;
-
-    auto bdEnt = ecsRef->getEntity(backdropId);
-    if (bdEnt)
-    {
-        auto pos = bdEnt->get<PositionComponent>();
-        pos->setX(panelX);
-        pos->setY(panelY);
-        pos->setHeight(panelH);
-    }
-
-    for (int i = 0; i < NUM_LINES; ++i)
-    {
-        auto ent = ecsRef->getEntity(lineIds[i]);
-        if (not ent) continue;
-        auto pos = ent->get<PositionComponent>();
-        pos->setX(panelX + PANEL_PAD);
-        pos->setY(panelY + PANEL_PAD + i * LINE_GAP);
-    }
+    // Anchored layout means we no longer need to recompute positions on
+    // resize — the anchor system handles it. Kept as a no-op for the
+    // ResizeEvent path so the existing call site stays valid.
 }
 
 // ---------------------------------------------------------------------------

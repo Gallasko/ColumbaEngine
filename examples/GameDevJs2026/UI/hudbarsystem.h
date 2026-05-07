@@ -64,6 +64,10 @@ public:
     // appears at the step that introduces it.
     void setMissionButtonVisible(bool vis);
 
+    // Entity for the ticket-currency pill, used by other UIs that want to
+    // anchor themselves directly below the currency display.
+    uint64_t getTicketDisplayEntityId() const { return ticketBgId; }
+
 private:
     void createButtons();
     void updateMissionButtonVisibility();

@@ -330,11 +330,6 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* spotlightOverlay = ecs.createSystem<SpotlightOverlaySystem>(
             cameraSystem, screenW, screenH);
 
-        ecs.createSystem<TileInspectorSystem>(
-            cameraSystem, gridSystem, hotbar,
-            &itemRegistry, &recipeRegistry,
-            screenW, screenH);
-
         ecs.createSystem<PlacementOverlaySystem>(gridSystem, hotbar);
 
         auto* machineDemo = ecs.createSystem<MachineDemoSystem>(
@@ -352,6 +347,11 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         // handler then sees the post-toggle UI state and won't immediately
         // close a panel that the HUD button just opened.
         auto* hudBar = ecs.createSystem<HudBarSystem>(playerInvSystem, worldFacts, missionSystem, screenW, screenH);
+
+        ecs.createSystem<TileInspectorSystem>(
+            cameraSystem, gridSystem, hotbar, hudBar,
+            &itemRegistry, &recipeRegistry,
+            screenW, screenH);
 
         ecs.createSystem<TutorialSystem>(
             worldFacts, &recipeRegistry, spotlightOverlay,

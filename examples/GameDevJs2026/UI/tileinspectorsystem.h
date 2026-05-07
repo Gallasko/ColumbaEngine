@@ -16,6 +16,7 @@ using namespace pg;
 class CameraSystem;
 class GridSystem;
 class HotbarSystem;
+class HudBarSystem;
 
 // Always-visible tile-info HUD panel pinned to the top-right of the game
 // scene. Shows the terrain under the mouse cursor along with what it drops,
@@ -39,8 +40,8 @@ public:
     static constexpr float LINE_GAP      = 18.0f;
     static constexpr float TITLE_SCALE   = 0.36f;
     static constexpr float BODY_SCALE    = 0.28f;
-    static constexpr float MARGIN_TOP    = 16.0f;
-    static constexpr float MARGIN_RIGHT  = 16.0f;
+    static constexpr float MARGIN_RIGHT  = 12.0f;  // gap from window's right edge
+    static constexpr float MARGIN_TOP    = 8.0f;   // gap below the currency pill
     static constexpr float Z_BG          = 94.0f;
     static constexpr float Z_TEXT        = 95.0f;
 
@@ -52,12 +53,14 @@ public:
     TileInspectorSystem(CameraSystem* cameraSystem,
                         GridSystem* gridSystem,
                         HotbarSystem* hotbar,
+                        HudBarSystem* hudBar,
                         ItemRegistry* itemRegistry,
                         RecipeRegistry* recipeRegistry,
                         float screenWidth, float screenHeight)
         : cameraSystem(cameraSystem),
           gridSystem(gridSystem),
           hotbar(hotbar),
+          hudBar(hudBar),
           itemRegistry(itemRegistry),
           recipeRegistry(recipeRegistry),
           screenWidth(screenWidth),
@@ -84,6 +87,7 @@ private:
     CameraSystem*   cameraSystem    = nullptr;
     GridSystem*     gridSystem      = nullptr;
     HotbarSystem*   hotbar          = nullptr;
+    HudBarSystem*   hudBar          = nullptr;
     ItemRegistry*   itemRegistry    = nullptr;
     RecipeRegistry* recipeRegistry  = nullptr;
 
