@@ -330,7 +330,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* spotlightOverlay = ecs.createSystem<SpotlightOverlaySystem>(
             cameraSystem, screenW, screenH);
 
-        ecs.createSystem<PlacementOverlaySystem>(gridSystem, hotbar);
+        ecs.createSystem<PlacementOverlaySystem>(
+            gridSystem, hotbar, cameraSystem, screenW, screenH);
 
         auto* machineDemo = ecs.createSystem<MachineDemoSystem>(
             &registry, &itemRegistry, screenW, screenH);

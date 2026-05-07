@@ -1,6 +1,9 @@
 #include "placementoverlaysystem.h"
 
 #include "2D/simple2dobject.h"
+#include "Renderer/camera.h"
+
+#include "camerasystem.h"
 #include "hotbarsystem.h"
 #include "terrain.h"
 
@@ -10,33 +13,36 @@ void PlacementOverlaySystem::init()
         return;
     created = true;
 
-    for (int y = 0; y < Grid::HEIGHT; ++y)
+    for (int i = 0; i < OVERLAY_POOL_SIZE; ++i)
     {
-        for (int x = 0; x < Grid::WIDTH; ++x)
-        {
-            auto sq = makeSimple2DShape(ecsRef, Shape2D::Square,
-                static_cast<float>(Grid::TILE_SIZE),
-                static_cast<float>(Grid::TILE_SIZE),
-                constant::Vector4D{60.0f, 200.0f, 60.0f, 60.0f});
-            auto pos = sq.get<PositionComponent>();
-            pos->setX(static_cast<float>(x * Grid::TILE_SIZE));
-            pos->setY(static_cast<float>(y * Grid::TILE_SIZE));
-            pos->setZ(Z_OVERLAY);
-            pos->setVisibility(false);
-            sq.get<ViewportComponent>()->setViewport(GAME_VP);
+        auto sq = makeSimple2DShape(ecsRef, Shape2D::Square,
+            static_cast<float>(Grid::TILE_SIZE),
+            static_cast<float>(Grid::TILE_SIZE),
+            constant::Vector4D{60.0f, 200.0f, 60.0f, 70.0f});
+        auto pos = sq.get<PositionComponent>();
+        pos->setX(-1000.0f);
+        pos->setY(-1000.0f);
+        pos->setZ(Z_OVERLAY);
+        pos->setVisibility(false);
+        sq.get<ViewportComponent>()->setViewport(GAME_VP);
 
-            overlayIds[y * Grid::WIDTH + x] = sq.entity->id;
-        }
+        overlayIds[i] = sq.entity->id;
     }
 }
 
 // ---------------------------------------------------------------------------
-// Per-tick: detect selection changes and refresh.
+// Mouse + tick: track cursor and reflow overlays.
 // ---------------------------------------------------------------------------
+
+void PlacementOverlaySystem::onProcessEvent(const OnSDLMouseMotion& event)
+{
+    cursorX = static_cast<float>(event.x);
+    cursorY = static_cast<float>(event.y);
+}
 
 void PlacementOverlaySystem::onEvent(const TickEvent&)
 {
-    if (not created or not hotbar)
+    if (not created or not hotbar or not cameraSystem)
         return;
 
     const BuildingDef* def = hotbar->getSelectedBuildingDef();
@@ -47,15 +53,59 @@ void PlacementOverlaySystem::onEvent(const TickEvent&)
         pendingRefresh = true;
     }
 
-    if (not pendingRefresh)
+    // No building selected — make sure the pool is hidden and bail.
+    if (not def)
+    {
+        if (pendingRefresh)
+        {
+            hideAll();
+            pendingRefresh = false;
+        }
+        return;
+    }
+
+    // Resolve mouse position to a grid cell. Hide everything if the cursor is
+    // off-grid so we don't draw stale overlays at the screen edge.
+    int gx = -1, gy = -1;
+    auto camEnt = cameraSystem->getCameraEntity();
+    if (camEnt)
+    {
+        auto cam = camEnt->get<BaseCamera2D>();
+        if (cam and cam->getWidth() > 0.0f)
+        {
+            float zoom = screenWidth / cam->getWidth();
+            float worldX = cam->x + cursorX / zoom;
+            float worldY = cam->y + cursorY / zoom;
+            auto cell = gridSystem->getGrid().worldToGrid(worldX, worldY);
+            gx = cell.first;
+            gy = cell.second;
+            if (gx < 0 or gx >= Grid::WIDTH or gy < 0 or gy >= Grid::HEIGHT)
+            {
+                gx = -1;
+                gy = -1;
+            }
+        }
+    }
+
+    if (gx < 0)
+    {
+        if (pendingRefresh or lastGhostGX != gx or lastGhostGY != gy)
+        {
+            hideAll();
+            lastGhostGX = gx;
+            lastGhostGY = gy;
+            pendingRefresh = false;
+        }
+        return;
+    }
+
+    if (gx == lastGhostGX and gy == lastGhostGY and not pendingRefresh)
         return;
 
+    lastGhostGX = gx;
+    lastGhostGY = gy;
     pendingRefresh = false;
-
-    if (not def)
-        hideAll();
-    else
-        refreshAll(def);
+    refreshGhostFootprint(*def, gx, gy);
 }
 
 void PlacementOverlaySystem::onEvent(const BuildingPlacedEvent&)
@@ -93,29 +143,48 @@ bool PlacementOverlaySystem::checkPlacementOK(int gx, int gy,
     return true;
 }
 
-void PlacementOverlaySystem::refreshAll(const BuildingDef* def)
+void PlacementOverlaySystem::refreshGhostFootprint(const BuildingDef& def,
+                                                   int gx, int gy)
 {
-    const constant::Vector4D OK_COLOR  {60.0f, 200.0f, 60.0f, 70.0f};
-    const constant::Vector4D BAD_COLOR {200.0f, 60.0f, 60.0f, 70.0f};
+    const constant::Vector4D OK_COLOR  {60.0f, 200.0f, 60.0f, 110.0f};
+    const constant::Vector4D BAD_COLOR {200.0f, 60.0f, 60.0f, 110.0f};
 
-    for (int y = 0; y < Grid::HEIGHT; ++y)
+    bool ok = checkPlacementOK(gx, gy, def);
+
+    int fw = def.getFootprintW();
+    int fh = def.getFootprintH();
+    int idx = 0;
+    for (int dy = 0; dy < fh; ++dy)
     {
-        for (int x = 0; x < Grid::WIDTH; ++x)
+        for (int dx = 0; dx < fw; ++dx)
         {
-            uint64_t id = overlayIds[y * Grid::WIDTH + x];
-            auto ent = ecsRef->getEntity(id);
-            if (not ent) continue;
-
-            bool ok = checkPlacementOK(x, y, *def);
-            ent->get<Simple2DObject>()->setColors(ok ? OK_COLOR : BAD_COLOR);
-            ent->get<PositionComponent>()->setVisibility(true);
+            if (idx >= OVERLAY_POOL_SIZE)
+                break;
+            auto ent = ecsRef->getEntity(overlayIds[idx]);
+            if (ent)
+            {
+                ent->get<Simple2DObject>()->setColors(ok ? OK_COLOR : BAD_COLOR);
+                auto pos = ent->get<PositionComponent>();
+                pos->setX(static_cast<float>((gx + dx) * Grid::TILE_SIZE));
+                pos->setY(static_cast<float>((gy + dy) * Grid::TILE_SIZE));
+                pos->setVisibility(true);
+            }
+            ++idx;
         }
+    }
+
+    // Hide unused overlays.
+    for (; idx < OVERLAY_POOL_SIZE; ++idx)
+    {
+        auto ent = ecsRef->getEntity(overlayIds[idx]);
+        if (ent)
+            ent->get<PositionComponent>()->setVisibility(false);
     }
 }
 
 void PlacementOverlaySystem::hideAll()
 {
-    for (int i = 0; i < Grid::WIDTH * Grid::HEIGHT; ++i)
+    for (int i = 0; i < OVERLAY_POOL_SIZE; ++i)
     {
         auto ent = ecsRef->getEntity(overlayIds[i]);
         if (ent)
