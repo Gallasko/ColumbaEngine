@@ -168,18 +168,32 @@ void StorageUISystem::createPanel()
     float panelW = getPanelWidth();
     float panelH = getPanelHeight();
 
-    // Backdrop
+    // Backdrop via the engine "Panel" factory. Returns a Prefab container
+    // whose size tracks the inner bg shape; positioning the container moves
+    // the whole prefab. The visible bg entity is named "bg" inside the prefab.
     {
-        auto bd = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
-        auto pos = bd.get<PositionComponent>();
-        pos->setX(panelX); pos->setY(panelY); pos->setZ(97.0f);
-        pos->setWidth(panelW); pos->setHeight(panelH);
-        bd.get<ViewportComponent>()->setViewport(UI_VP);
-        backdropEntityId = bd.entity->id;
+        auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
+        auto panelEnt = factory->build("Panel", PrefabParams{
+            {"width",    panelW},
+            {"height",   panelH},
+            {"r",         20.0f}, {"g", 20.0f}, {"b", 30.0f}, {"a", 220.0f},
+            {"z",         97.0f},
+            {"viewport", static_cast<int>(UI_VP)},
+        });
 
-        ecsRef->attach<MouseLeftClickComponent>(bd.entity,
-            makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
+        auto pos = panelEnt->get<PositionComponent>();
+        pos->setX(panelX);
+        pos->setY(panelY);
+        backdropEntityId = panelEnt->id;
+
+        // Click handler goes on the visible bg shape, not the invisible
+        // prefab container, so the click-outside-to-close logic can detect
+        // panel clicks at the right pixel area.
+        if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
+        {
+            ecsRef->attach<MouseLeftClickComponent>(bgEnt,
+                makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
+        }
     }
 
     // Title

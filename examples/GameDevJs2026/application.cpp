@@ -6,6 +6,7 @@
 #include "Loaders/Aseprite/asepriteloader.h"
 #include "Loaders/Aseprite/asepritefileatlasloader.h"
 #include "UI/ttftext.h"
+#include "UI/enginefactories.h"
 #include "gridatlas.h"
 #include "craftingsystem.h"
 #include "minersystem.h"
@@ -281,7 +282,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         // Prefab factory registry — must come before SlotSystem so the latter can
         // register its "Slot" prefab factory in init(). Engine-side machinery only:
         // games register their own factories on top.
-        ecs.createSystem<PrefabFactoryRegistry>();
+        auto* prefabFactory = ecs.createSystem<PrefabFactoryRegistry>();
+        registerEnginePrefabFactories(prefabFactory);
 
         auto* slotSystem = ecs.createSystem<SlotSystem>(&itemRegistry);
 
