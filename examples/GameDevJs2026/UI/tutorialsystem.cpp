@@ -5,7 +5,23 @@
 #include "Renderer/camera.h"
 #include "terrain.h"
 
+#include "2D/simple2dobject.h"
+#include "Systems/tween.h"
+
 #include <cmath>
+
+namespace
+{
+    // Local AbstractCallable adapter so we can pass a lambda as TweenComponent's
+    // onComplete callback. Same pattern as manualmining.cpp.
+    struct LambdaCallable : public pg::AbstractCallable
+    {
+        std::function<void()> fn;
+        LambdaCallable(std::function<void()> f) : fn(std::move(f)) {}
+        void call(pg::EntitySystem* const) noexcept override { if (fn) fn(); }
+        void serialize(pg::Archive&) const noexcept override {}
+    };
+}
 
 // Indexed by TutorialStep. Entries past Complete are unused.
 const TutorialSystem::StepDef TutorialSystem::STEPS[] = {
@@ -78,6 +94,89 @@ std::pair<int, int> TutorialSystem::findNearestTerrain(const Match& match) const
     return {bestGX, bestGY};
 }
 
+// Locate which slot (if any) holds `id` and spawn a fading gold overlay over
+// it. Pulse fades out over PULSE_MS so the player has time to glance at the
+// new item before it settles.
+void TutorialSystem::pulseSlotForItem(ItemId id)
+{
+    if (not playerInv or not inventoryUI or not hotbar)
+        return;
+
+    static constexpr size_t MAIN_SLOTS = PlayerInventorySystem::MAIN_SLOTS;
+    static constexpr size_t HOTBAR_START = PlayerInventorySystem::HOTBAR_START;
+
+    const auto& inv = playerInv->getInventory();
+    uint64_t targetSlotEntity = 0;
+
+    for (size_t i = 0; i < MAIN_SLOTS; ++i)
+    {
+        if (inv.getSlot(i).id == id)
+        {
+            targetSlotEntity = inventoryUI->getSlotEntityId(i);
+            break;
+        }
+    }
+
+    if (targetSlotEntity == 0)
+    {
+        for (size_t i = 0; i < PlayerInventorySystem::HOTBAR_COUNT; ++i)
+        {
+            if (inv.getSlot(HOTBAR_START + i).id == id)
+            {
+                targetSlotEntity = hotbar->getSlotEntityId(i);
+                break;
+            }
+        }
+    }
+
+    if (targetSlotEntity == 0)
+        return;
+
+    auto slotEnt = ecsRef->getEntity(targetSlotEntity);
+    if (not slotEnt)
+        return;
+    auto slotPos = slotEnt->get<PositionComponent>();
+    if (not slotPos)
+        return;
+
+    float sx = slotPos->getX();
+    float sy = slotPos->getY();
+    float sw = slotPos->getWidth();
+    float sh = slotPos->getHeight();
+    if (sw <= 0.0f or sh <= 0.0f)
+        return;
+
+    // Gold overlay placed above the slot's content (slot bg z=98, items z=99,
+    // text z=100) so it pulses on top.
+    auto overlay = makeSimple2DShape(ecsRef, Shape2D::Square, sw, sh,
+        constant::Vector4D{255.0f, 215.0f, 100.0f, 200.0f});
+    auto pos = overlay.get<PositionComponent>();
+    pos->setX(sx);
+    pos->setY(sy);
+    pos->setZ(101.0f);
+    overlay.get<ViewportComponent>()->setViewport(2);
+
+    constexpr float PULSE_MS = 800.0f;
+    uint64_t overlayId = overlay.entity->id;
+    auto* ecs = ecsRef;
+
+    auto onUpdate = [ecs, overlayId](const TweenValue& value) {
+        float alpha = std::get<float>(value);
+        auto ent = ecs->getEntity(overlayId);
+        if (ent)
+            ent->get<Simple2DObject>()->setOpacity(alpha);
+    };
+
+    auto onComplete = std::make_shared<LambdaCallable>([ecs, overlayId]() {
+        ecs->removeEntity(overlayId);
+    });
+
+    auto tweenEnt = ecsRef->createEntity();
+    ecsRef->_attach<TweenComponent>(tweenEnt,
+        TweenValue{200.0f}, TweenValue{0.0f}, PULSE_MS,
+        onUpdate, onComplete);
+}
+
 // ---------------------------------------------------------------------------
 // Event handlers
 // ---------------------------------------------------------------------------
@@ -112,6 +211,7 @@ void TutorialSystem::onEvent(const HandCraftCompletedEvent& event)
         recipeOutputs(event.recipeIndex, STONE_PICKAXE_ID))
     {
         pendingAdvance = true;
+        pulseSlotForItem(STONE_PICKAXE_ID);
     }
     else if (step == TutorialStep::CraftFurnace &&
              recipeOutputs(event.recipeIndex, FURNACE_ID))

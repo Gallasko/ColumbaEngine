@@ -330,7 +330,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<TutorialSystem>(
             worldFacts, &recipeRegistry, spotlightOverlay,
-            cameraSystem, gridSystem, screenW, screenH);
+            cameraSystem, gridSystem,
+            playerInvSystem, inventoryUI, hotbar,
+            screenW, screenH);
 
         auto* machineDemo = ecs.createSystem<MachineDemoSystem>(
             &registry, &itemRegistry, screenW, screenH);

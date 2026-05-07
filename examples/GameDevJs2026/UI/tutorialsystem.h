@@ -8,6 +8,7 @@
 #include "gridsystem.h"
 #include "worldfacts.h"
 #include "inventoryui.h"
+#include "hotbarsystem.h"
 #include "reciperegistry.h"
 #include "slotsystem.h"
 #include "tutorialevents.h"
@@ -72,6 +73,9 @@ public:
                    SpotlightOverlaySystem* spotlight,
                    CameraSystem* cameraSystem,
                    GridSystem* gridSystem,
+                   PlayerInventorySystem* playerInv,
+                   InventoryUISystem* inventoryUI,
+                   HotbarSystem* hotbar,
                    float screenWidth,
                    float screenHeight)
         : worldFacts(worldFacts),
@@ -79,6 +83,9 @@ public:
           spotlight(spotlight),
           cameraSystem(cameraSystem),
           gridSystem(gridSystem),
+          playerInv(playerInv),
+          inventoryUI(inventoryUI),
+          hotbar(hotbar),
           screenWidth(screenWidth),
           screenHeight(screenHeight) {}
 
@@ -109,6 +116,11 @@ private:
     void presentCurrentStep();
     bool recipeOutputs(size_t recipeIndex, ItemId id) const;
 
+    // Spawn a transient gold overlay over the inventory or hotbar slot that
+    // currently holds `id`. Tweens its opacity to 0 and self-destroys.
+    // No-op if the item isn't found in either inventory or hotbar slots.
+    void pulseSlotForItem(ItemId id);
+
     // Scan the grid outward from the camera centre and return the closest
     // matching tile. `match` returns true for tiles that should be considered.
     // Falls back to (-1, -1) if nothing matches within the grid.
@@ -120,6 +132,9 @@ private:
     SpotlightOverlaySystem* spotlight      = nullptr;
     CameraSystem*           cameraSystem   = nullptr;
     GridSystem*             gridSystem     = nullptr;
+    PlayerInventorySystem*  playerInv      = nullptr;
+    InventoryUISystem*      inventoryUI    = nullptr;
+    HotbarSystem*           hotbar         = nullptr;
 
     float screenWidth  = 0.0f;
     float screenHeight = 0.0f;

@@ -46,6 +46,14 @@ public:
     bool isOpen() const { return visible; }
     uint64_t getBackdropEntityId() const { return backdropEntityId; }
 
+    // Returns the slot prefab entity for the given main-inventory slot index
+    // (0..NUM_SLOTS-1). Used by the tutorial system for pulse-on-craft visuals.
+    uint64_t getSlotEntityId(size_t i) const
+    {
+        return (i < NUM_SLOTS) ? slotEntityIds[i] : 0;
+    }
+    static constexpr size_t getNumSlots() { return NUM_SLOTS; }
+
     // Returns the ItemId under screen-space (x,y), or ITEM_NONE if panel is
     // closed or the position is not over a non-empty slot.
     ItemId itemAtPosition(float x, float y) const;

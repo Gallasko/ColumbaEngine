@@ -216,22 +216,50 @@ void SpotlightOverlaySystem::onEvent(const ResizeEvent& event)
 
 void SpotlightOverlaySystem::onEvent(const OnMouseClick& event)
 {
-    if (not visible or not currentShowSkip)
+    if (not visible)
         return;
 
-    auto bgEnt = ecsRef->getEntity(skipBgId);
-    if (not bgEnt)
-        return;
-    auto pos = bgEnt->get<PositionComponent>();
-    float bx = pos->getX();
-    float by = pos->getY();
-    float bw = pos->getWidth();
-    float bh = pos->getHeight();
-
-    if (event.pos.x >= bx and event.pos.x <= bx + bw and
-        event.pos.y >= by and event.pos.y <= by + bh)
+    // Skip-tutorial button takes precedence — its rect lies inside the dim
+    // frame so a click on it would otherwise count as a misclick.
+    if (currentShowSkip)
     {
-        ecsRef->sendEvent(TutorialSkipRequested{});
+        auto bgEnt = ecsRef->getEntity(skipBgId);
+        if (bgEnt)
+        {
+            auto pos = bgEnt->get<PositionComponent>();
+            float bx = pos->getX();
+            float by = pos->getY();
+            float bw = pos->getWidth();
+            float bh = pos->getHeight();
+            if (event.pos.x >= bx and event.pos.x <= bx + bw and
+                event.pos.y >= by and event.pos.y <= by + bh)
+            {
+                ecsRef->sendEvent(TutorialSkipRequested{});
+                return;
+            }
+        }
+    }
+
+    // Misclick wiggle: if there's a current target and the click landed
+    // outside it (with a small forgiveness padding so border clicks count as
+    // on-target), shake the arrow.
+    if (currentTarget.kind == TargetKind::None)
+        return;
+
+    float sx, sy, sw, sh;
+    if (not resolveTargetRect(sx, sy, sw, sh))
+        return;
+
+    constexpr float MISCLICK_PADDING = 6.0f;
+    const float left   = sx - MISCLICK_PADDING;
+    const float top    = sy - MISCLICK_PADDING;
+    const float right  = sx + sw + MISCLICK_PADDING;
+    const float bottom = sy + sh + MISCLICK_PADDING;
+
+    if (event.pos.x < left or event.pos.x > right or
+        event.pos.y < top  or event.pos.y > bottom)
+    {
+        shakeTarget();
     }
 }
 

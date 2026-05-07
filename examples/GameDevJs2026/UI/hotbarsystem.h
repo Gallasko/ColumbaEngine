@@ -87,6 +87,13 @@ public:
         return mouseY > screenHeight - HOTBAR_HEIGHT;
     }
 
+    // Returns the slot prefab entity for the given hotbar slot index
+    // (0..HOTBAR_SLOTS-1). Used by the tutorial system for pulse-on-craft.
+    uint64_t getSlotEntityId(size_t i) const
+    {
+        return (i < HOTBAR_SLOTS) ? slotEntityIds[i] : 0;
+    }
+
     // Returns the ItemId at screen-space (x, y), or ITEM_NONE if not over a slot.
     ItemId itemAtPosition(float x, float y) const;
 
