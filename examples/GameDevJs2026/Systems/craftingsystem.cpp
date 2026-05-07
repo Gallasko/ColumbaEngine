@@ -4,18 +4,16 @@
 #include "worldfacts.h"
 #include "2D/texture.h"
 
-#include <cstdio>
-
 void CraftingSystem::save(Archive& archive)
 {
     serialize(archive, "machines", machines);
-    printf("CraftingSystem: saved %zu machines\n", machines.size());
+    LOG_INFO("CraftingSystem", "saved " << machines.size() << " machines");
 }
 
 void CraftingSystem::load(const UnserializedObject& serializedString)
 {
     defaultDeserialize(serializedString, "machines", machines);
-    printf("CraftingSystem: loaded %zu machines\n", machines.size());
+    LOG_INFO("CraftingSystem", "loaded " << machines.size() << " machines");
 
     // Restore runtime-only state not persisted to disk
     size_t buildingLayer = gridSystem->getBuildingLayer();

@@ -1,18 +1,16 @@
 #include "storagesystem.h"
 #include "playerinventory.h"
 
-#include <cstdio>
-
 void StorageSystem::save(Archive& archive)
 {
     serialize(archive, "storages", storages);
-    printf("StorageSystem: saved %zu storages\n", storages.size());
+    LOG_INFO("StorageSystem", "saved " << storages.size() << " storages");
 }
 
 void StorageSystem::load(const UnserializedObject& serializedString)
 {
     defaultDeserialize(serializedString, "storages", storages);
-    printf("StorageSystem: loaded %zu storages\n", storages.size());
+    LOG_INFO("StorageSystem", "loaded " << storages.size() << " storages");
 }
 
 void StorageSystem::onEvent(const BuildingPlacedEvent& event)

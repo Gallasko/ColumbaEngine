@@ -6,8 +6,6 @@
 
 #include "playerinventory.h"
 
-#include <cstdio>
-
 namespace pg
 {
     template <>
@@ -42,14 +40,14 @@ void TransportSystem::save(Archive& archive)
             if (beltGrid.get(x, y).itemId != ITEM_NONE)
                 items.push_back({x, y, beltGrid.get(x, y).itemId});
     serialize(archive, "beltItems", items);
-    printf("TransportSystem: saved %zu belt items\n", items.size());
+    LOG_INFO("TransportSystem", "saved " << items.size() << " belt items");
 }
 
 void TransportSystem::load(const UnserializedObject& serializedString)
 {
     std::vector<SavedBeltItem> items;
     defaultDeserialize(serializedString, "beltItems", items);
-    printf("TransportSystem: loaded %zu belt items\n", items.size());
+    LOG_INFO("TransportSystem", "loaded " << items.size() << " belt items");
 
     for (const auto& item : items)
         tryPlaceItem(item.x, item.y, item.itemId);

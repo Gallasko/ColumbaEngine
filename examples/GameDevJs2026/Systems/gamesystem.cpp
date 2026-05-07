@@ -9,12 +9,11 @@
 
 #include <ctime>
 #include <random>
-#include <cstdio>
 
 void GameSystem::init()
 {
-    printf("GameSystem: Grid ready (%dx%d, tile %dpx)\n",
-        Grid::WIDTH, Grid::HEIGHT, Grid::TILE_SIZE);
+    LOG_INFO("GameSystem", "Grid ready (" << Grid::WIDTH << "x" << Grid::HEIGHT
+            << ", tile " << Grid::TILE_SIZE << "px)");
 
     createCursorEntities();
 
@@ -101,7 +100,7 @@ void GameSystem::onProcessEvent(const OnSDLScanCode& event)
         if (def and def->hasDirection)
         {
             currentDirection = (currentDirection + 1) % 4;
-            printf("Direction: %s\n", directionNames[currentDirection]);
+            LOG_INFO("GameSystem", "direction: " << directionNames[currentDirection]);
             updateGhostTexture();
         }
     }

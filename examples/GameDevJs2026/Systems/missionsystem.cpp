@@ -1,7 +1,5 @@
 #include "missionsystem.h"
 
-#include <cstdio>
-
 void MissionSystem::save(Archive& archive)
 {
     serialize(archive, "maxActiveMissions", maxActiveMissions);
@@ -17,7 +15,7 @@ void MissionSystem::save(Archive& archive)
         serialize(archive, prefix + "completed", activeMissions[i].completed);
     }
 
-    printf("MissionSystem: saved %zu active missions\n", activeMissions.size());
+    LOG_INFO("MissionSystem", "saved " << activeMissions.size() << " active missions");
 }
 
 void MissionSystem::load(const UnserializedObject& serializedString)
@@ -42,7 +40,30 @@ void MissionSystem::load(const UnserializedObject& serializedString)
             activeMissions.push_back(m);
     }
 
-    printf("MissionSystem: loaded %zu active missions\n", activeMissions.size());
+    LOG_INFO("MissionSystem", "loaded " << activeMissions.size() << " active missions");
+}
+
+namespace
+{
+    // Distribute `count` of `id` into the depot's output slots (or to player on overflow).
+    // Mirrors the old "stack into existing, then fill empty, then PlayerGainItemEvent on overflow"
+    // behavior, but routed through Inventory::insert so the per-item maxStack is respected
+    // instead of the hardcoded 999 cap.
+    template <typename SendEventFn>
+    void awardReward(DepotData* depot, ItemId id, uint16_t count,
+                     const ItemRegistry& itemReg, SendEventFn&& send)
+    {
+        if (count == 0)
+            return;
+        if (not depot)
+        {
+            send(PlayerGainItemEvent{id, count});
+            return;
+        }
+        uint16_t overflow = depot->output.insert(id, count, itemReg);
+        if (overflow > 0)
+            send(PlayerGainItemEvent{id, overflow});
+    }
 }
 
 void MissionSystem::execute()
@@ -141,28 +162,9 @@ bool MissionSystem::startMission(size_t defIndex, int depotX, int depotY)
     // Check and consume robot cores (skip if cost is 0)
     if (def.robotCoreCost > 0)
     {
-        uint16_t coreCount = 0;
-        for (const auto& slot : depot->inventory.slots)
-        {
-            if (slot.id == ROBOT_CORE_ID)
-                coreCount += slot.count;
-        }
-
-        if (coreCount < def.robotCoreCost)
+        if (not depot->inventory.hasAtLeast(ROBOT_CORE_ID, def.robotCoreCost))
             return false;
-
-        uint16_t remaining = def.robotCoreCost;
-        for (auto& slot : depot->inventory.slots)
-        {
-            if (slot.id == ROBOT_CORE_ID and remaining > 0)
-            {
-                uint16_t take = std::min(slot.count, remaining);
-                slot.count -= take;
-                remaining -= take;
-                if (slot.count == 0)
-                    slot.clear();
-            }
-        }
+        depot->inventory.remove(ROBOT_CORE_ID, def.robotCoreCost);
     }
 
     ActiveMission m;
@@ -171,8 +173,8 @@ bool MissionSystem::startMission(size_t defIndex, int depotX, int depotY)
     m.depotY = depotY;
     activeMissions.push_back(m);
 
-    printf("MissionSystem: started '%s' linked to depot at (%d, %d)\n",
-           def.name.c_str(), depotX, depotY);
+    LOG_INFO("MissionSystem", "started '" << def.name << "' linked to depot at ("
+            << depotX << ", " << depotY << ")");
     return true;
 }
 
@@ -192,68 +194,26 @@ bool MissionSystem::claimMission(size_t activeIndex)
     if (def.isDeliveryMission() and def.consumeItems and depot)
     {
         for (const auto& req : def.deliveryRequirements)
-        {
-            uint16_t remaining = req.count;
-            for (auto& slot : depot->inventory.slots)
-            {
-                if (remaining == 0) break;
-                if (slot.id == req.itemId)
-                {
-                    uint16_t take = std::min(slot.count, remaining);
-                    slot.count -= take;
-                    remaining -= take;
-                    if (slot.count == 0)
-                        slot.clear();
-                }
-            }
-        }
+            depot->inventory.remove(req.itemId, req.count);
     }
 
-    // Distribute rewards: tickets go to player, other items to depot output
+    // Distribute rewards: tickets always go to player; other items to depot output (overflow → player)
     for (const auto& reward : def.rewards)
     {
-        if (reward.itemId == TICKET_ID)
+        if (reward.itemId == TICKET_ID or not itemRegistry)
         {
-            // Tickets always go to player inventory as currency
             sendEvent(PlayerGainItemEvent{reward.itemId, reward.count});
             continue;
         }
-
-        if (not depot)
-        {
-            // Depot was removed — give directly to player
-            sendEvent(PlayerGainItemEvent{reward.itemId, reward.count});
-            continue;
-        }
-
-        // Non-ticket rewards go to depot output slots
-        uint16_t left = reward.count;
-        for (auto& slot : depot->output.slots)
-        {
-            if (left == 0) break;
-            if (slot.isEmpty())
-            {
-                slot.id = reward.itemId;
-                slot.count = left;
-                left = 0;
-            }
-            else if (slot.id == reward.itemId and slot.count < 999)
-            {
-                uint16_t space = 999 - slot.count;
-                uint16_t add = std::min(left, space);
-                slot.count += add;
-                left -= add;
-            }
-        }
-        if (left > 0)
-            sendEvent(PlayerGainItemEvent{reward.itemId, left});
+        awardReward(depot, reward.itemId, reward.count, *itemRegistry,
+                    [this](const PlayerGainItemEvent& e) { sendEvent(e); });
     }
 
     // Set completion fact for tier gating
     if (not def.completionFact.empty() and worldFacts)
         worldFacts->setFact(def.completionFact, true);
 
-    printf("MissionSystem: claimed '%s'\n", def.name.c_str());
+    LOG_INFO("MissionSystem", "claimed '" << def.name << "'");
 
     // Remove from active list
     activeMissions.erase(activeMissions.begin() + static_cast<ptrdiff_t>(activeIndex));
@@ -269,58 +229,19 @@ void MissionSystem::autoClaimAndRestart(ActiveMission& m)
     if (def.isDeliveryMission() and depot)
     {
         for (const auto& req : def.deliveryRequirements)
-        {
-            uint16_t remaining = req.count;
-            for (auto& slot : depot->inventory.slots)
-            {
-                if (remaining == 0) break;
-                if (slot.id == req.itemId)
-                {
-                    uint16_t take = std::min(slot.count, remaining);
-                    slot.count -= take;
-                    remaining -= take;
-                    if (slot.count == 0)
-                        slot.clear();
-                }
-            }
-        }
+            depot->inventory.remove(req.itemId, req.count);
     }
 
     // Distribute rewards
     for (const auto& reward : def.rewards)
     {
-        if (reward.itemId == TICKET_ID)
+        if (reward.itemId == TICKET_ID or not itemRegistry)
         {
             sendEvent(PlayerGainItemEvent{reward.itemId, reward.count});
             continue;
         }
-
-        if (not depot)
-        {
-            sendEvent(PlayerGainItemEvent{reward.itemId, reward.count});
-            continue;
-        }
-
-        uint16_t left = reward.count;
-        for (auto& slot : depot->output.slots)
-        {
-            if (left == 0) break;
-            if (slot.isEmpty())
-            {
-                slot.id = reward.itemId;
-                slot.count = left;
-                left = 0;
-            }
-            else if (slot.id == reward.itemId and slot.count < 999)
-            {
-                uint16_t space = 999 - slot.count;
-                uint16_t add = std::min(left, space);
-                slot.count += add;
-                left -= add;
-            }
-        }
-        if (left > 0)
-            sendEvent(PlayerGainItemEvent{reward.itemId, left});
+        awardReward(depot, reward.itemId, reward.count, *itemRegistry,
+                    [this](const PlayerGainItemEvent& e) { sendEvent(e); });
     }
 
     // Set completion fact
@@ -331,13 +252,13 @@ void MissionSystem::autoClaimAndRestart(ActiveMission& m)
     m.elapsedMs = 0;
     m.completed = false;
 
-    printf("MissionSystem: auto-claimed '%s' (repeatable)\n", def.name.c_str());
+    LOG_INFO("MissionSystem", "auto-claimed '" << def.name << "' (repeatable)");
 }
 
 void MissionSystem::purchaseExtraSlot()
 {
     maxActiveMissions++;
-    printf("MissionSystem: max active missions increased to %zu\n", maxActiveMissions);
+    LOG_INFO("MissionSystem", "max active missions increased to " << maxActiveMissions);
 }
 
 uint16_t MissionSystem::getDeliveryCount(const ActiveMission& m, const DeliveryRequirement& req) const
@@ -345,14 +266,7 @@ uint16_t MissionSystem::getDeliveryCount(const ActiveMission& m, const DeliveryR
     DepotData* depot = depotSystem->getDepot(m.depotX, m.depotY);
     if (not depot)
         return 0;
-
-    uint16_t count = 0;
-    for (const auto& slot : depot->inventory.slots)
-    {
-        if (slot.id == req.itemId)
-            count += slot.count;
-    }
-    return std::min(count, req.count);
+    return std::min(depot->inventory.countItem(req.itemId), req.count);
 }
 
 float MissionSystem::getDeliveryProgress(const ActiveMission& m) const
@@ -418,7 +332,7 @@ bool MissionSystem::validateMainMission(size_t defIndex)
     if (not def.completionFact.empty() and worldFacts)
         worldFacts->setFact(def.completionFact, true);
 
-    printf("MissionSystem: validated main mission '%s' from player inventory\n", def.name.c_str());
+    LOG_INFO("MissionSystem", "validated main mission '" << def.name << "' from player inventory");
     return true;
 }
 

@@ -7,7 +7,6 @@
 #include "tooltipsystem.h"
 
 #include <SDL2/SDL.h>
-#include <cstdio>
 #include <algorithm>
 
 // ---------------------------------------------------------------------------
@@ -17,7 +16,7 @@
 void MissionUISystem::toggle()
 {
     bool wasVisible = visible.load(std::memory_order_acquire);
-    printf("MissionUI: toggle() — currently visible=%d\n", static_cast<int>(wasVisible));
+    LOG_INFO("MissionUI", "toggle() — currently visible=" << static_cast<int>(wasVisible));
     if (wasVisible)
         close();
     else
@@ -27,11 +26,11 @@ void MissionUISystem::toggle()
 void MissionUISystem::open()
 {
     bool wasVisible = visible.load(std::memory_order_acquire);
-    printf("MissionUI: open() entry — visible=%d, panelCreated=%d\n",
-        static_cast<int>(wasVisible), static_cast<int>(panelCreated));
+    LOG_INFO("MissionUI", "open() entry — visible=" << static_cast<int>(wasVisible)
+            << ", panelCreated=" << static_cast<int>(panelCreated));
     if (wasVisible)
     {
-        printf("MissionUI: open() early-return (already visible)\n");
+        LOG_INFO("MissionUI", "open() early-return (already visible)");
         return;
     }
     visible.store(true, std::memory_order_release);
@@ -58,32 +57,32 @@ void MissionUISystem::open()
     if (selectedDefIndex == SIZE_MAX and not filteredDefs.empty())
         selectedDefIndex = filteredDefs[0];
 
-    printf("MissionUI: open() — tab=%zu, filteredDefs=%zu, selectedDefIndex=%zu\n",
-        currentTab, filteredDefs.size(), selectedDefIndex);
+    LOG_INFO("MissionUI", "open() — tab=" << currentTab << ", filteredDefs=" << filteredDefs.size()
+            << ", selectedDefIndex=" << selectedDefIndex);
 
     refresh();
     setPanelVisibility(true);
-    printf("MissionUI: open() done\n");
+    LOG_INFO("MissionUI", "open() done");
 }
 
 void MissionUISystem::close()
 {
     bool wasVisible = visible.load(std::memory_order_acquire);
-    printf("MissionUI: close() entry — visible=%d, panelCreated=%d\n",
-        static_cast<int>(wasVisible), static_cast<int>(panelCreated));
+    LOG_INFO("MissionUI", "close() entry — visible=" << static_cast<int>(wasVisible)
+            << ", panelCreated=" << static_cast<int>(panelCreated));
     if (not wasVisible)
     {
-        printf("MissionUI: close() early-return (not visible)\n");
+        LOG_INFO("MissionUI", "close() early-return (not visible)");
         return;
     }
     visible.store(false, std::memory_order_release);
     setPanelVisibility(false);
     // Clear tooltip via event so the mutation runs on TooltipSystem's task,
     // not ours. Direct setHoveredItem() would race with TooltipSystem::tick.
-    printf("MissionUI: close() — sending tooltip clear event\n");
+    LOG_INFO("MissionUI", "close() — sending tooltip clear event");
     ecsRef->sendEvent(SetTooltipHoveredItemEvent{ITEM_NONE});
     ecsRef->sendEvent(MissionUIClosedEvent{});
-    printf("MissionUI: close() done\n");
+    LOG_INFO("MissionUI", "close() done");
 }
 
 void MissionUISystem::selectDepot(int depotX, int depotY)
@@ -96,9 +95,9 @@ void MissionUISystem::selectDepot(int depotX, int depotY)
     hideDepotSelectionPrompt();
 
     if (missionSystem->startMission(defIndex, depotX, depotY))
-        printf("MissionUI: mission started at depot (%d, %d)\n", depotX, depotY);
+        LOG_INFO("MissionUI", "mission started at depot (" << depotX << ", " << depotY << ")");
     else
-        printf("MissionUI: failed to start mission at depot (%d, %d)\n", depotX, depotY);
+        LOG_INFO("MissionUI", "failed to start mission at depot (" << depotX << ", " << depotY << ")");
 }
 
 void MissionUISystem::cancelDepotSelection()
@@ -352,9 +351,9 @@ void MissionUISystem::tryStartWithFirstAvailableDepot(size_t defIndex)
     }
 
     if (depots.empty())
-        printf("MissionUI: no depot built\n");
+        LOG_INFO("MissionUI", "no depot built");
     else
-        printf("MissionUI: no depot has enough Robot Cores (%u needed)\n", def.robotCoreCost);
+        LOG_INFO("MissionUI", "no depot has enough Robot Cores (" << def.robotCoreCost << " needed)");
 }
 
 // ---------------------------------------------------------------------------
@@ -365,14 +364,14 @@ void MissionUISystem::ensurePanelCreated()
 {
     if (panelCreated)
     {
-        printf("MissionUI: ensurePanelCreated() — already created, skipping\n");
+        LOG_INFO("MissionUI", "ensurePanelCreated() — already created, skipping");
         return;
     }
-    printf("MissionUI: ensurePanelCreated() — building panel\n");
+    LOG_INFO("MissionUI", "ensurePanelCreated() — building panel");
     createPanel();
     setPanelVisibility(false);
     panelCreated = true;
-    printf("MissionUI: ensurePanelCreated() — done, panelCreated=true\n");
+    LOG_INFO("MissionUI", "ensurePanelCreated() — done, panelCreated=true");
 }
 
 void MissionUISystem::onEvent(const ResizeEvent& event)
@@ -384,8 +383,8 @@ void MissionUISystem::onEvent(const ResizeEvent& event)
 
     bool wasOpen = visible.load(std::memory_order_acquire);
     bool wasPromptVisible = promptVisible;
-    printf("MissionUI: ResizeEvent — rebuilding panel (wasOpen=%d, wasPromptVisible=%d)\n",
-        static_cast<int>(wasOpen), static_cast<int>(wasPromptVisible));
+    LOG_INFO("MissionUI", "ResizeEvent — rebuilding panel (wasOpen=" << static_cast<int>(wasOpen)
+            << ", wasPromptVisible=" << static_cast<int>(wasPromptVisible) << ")");
 
     // Panel positions are baked in at creation time, so a window resize would
     // leave the panel offset from center. Rebuild at the new screen size.
@@ -469,8 +468,8 @@ std::vector<uint64_t> MissionUISystem::collectAllPanelEntityIds() const
 void MissionUISystem::destroyPanel()
 {
     auto ids = collectAllPanelEntityIds();
-    printf("MissionUI: destroyPanel() — removing %zu entities, iconItemMap had %zu entries\n",
-        ids.size(), iconItemMap.size());
+    LOG_INFO("MissionUI", "destroyPanel() — removing " << ids.size()
+            << " entities, iconItemMap had " << iconItemMap.size() << " entries");
     for (auto id : ids)
         ecsRef->removeEntity(id);
 
@@ -499,12 +498,12 @@ void MissionUISystem::destroyPanel()
 
     iconItemMap.clear();
     panelCreated = false;
-    printf("MissionUI: destroyPanel() done — panelCreated=false\n");
+    LOG_INFO("MissionUI", "destroyPanel() done — panelCreated=false");
 }
 
 void MissionUISystem::createPanel()
 {
-    printf("MissionUI: createPanel() entry\n");
+    LOG_INFO("MissionUI", "createPanel() entry");
     float listContentH = MAX_LIST_ROWS * (LIST_ROW_H + SEPARATOR_H);
     panelH = PADDING + TITLE_H + DIVIDER_H + std::max(listContentH, 340.0f) + PADDING;
 
@@ -617,7 +616,7 @@ void MissionUISystem::createPanel()
 
     createLeftColumn(px, contentY);
     createRightColumn(px, contentY);
-    printf("MissionUI: createPanel() done\n");
+    LOG_INFO("MissionUI", "createPanel() done");
 }
 
 void MissionUISystem::createLeftColumn(float px, float contentY)
@@ -935,8 +934,8 @@ void MissionUISystem::createRightColumn(float px, float contentY)
 
 void MissionUISystem::setPanelVisibility(bool vis)
 {
-    printf("MissionUI: setPanelVisibility(%d) — backdropId=%lu\n",
-        static_cast<int>(vis), static_cast<unsigned long>(backdropId));
+    LOG_INFO("MissionUI", "setPanelVisibility(" << static_cast<int>(vis)
+            << ") — backdropId=" << backdropId);
     // Chrome
     setEntityVisibility(backdropId, vis);
     setEntityVisibility(closeBtnBgId, vis);

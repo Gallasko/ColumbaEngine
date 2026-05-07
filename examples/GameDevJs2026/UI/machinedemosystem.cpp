@@ -7,7 +7,6 @@
 
 #include <SDL2/SDL.h>
 #include <cmath>
-#include <cstdio>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Available demos
@@ -65,7 +64,7 @@ void MachineDemoSystem::execute()
         pendingClose = false;
         open = false;
         destroyPanel();
-        printf("MachineDemoSystem: closed demo\n");
+        LOG_INFO("MachineDemoSystem", "closed demo");
     }
 
     if (pendingOpen)
@@ -81,7 +80,7 @@ void MachineDemoSystem::execute()
                 open = true;
                 tickAccumulator = 0;
                 spawnTickCounter = 0;
-                printf("MachineDemoSystem: opened demo for tileName %s\n", pendingTileName.c_str());
+                LOG_INFO("MachineDemoSystem", "opened demo for tileName " << pendingTileName);
                 break;
             }
         }

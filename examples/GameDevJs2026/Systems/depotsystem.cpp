@@ -2,18 +2,16 @@
 #include "playerinventory.h"
 #include "worldfacts.h"
 
-#include <cstdio>
-
 void DepotSystem::save(Archive& archive)
 {
     serialize(archive, "depots", depots);
-    printf("DepotSystem: saved %zu depots\n", depots.size());
+    LOG_INFO("DepotSystem", "saved " << depots.size() << " depots");
 }
 
 void DepotSystem::load(const UnserializedObject& serializedString)
 {
     defaultDeserialize(serializedString, "depots", depots);
-    printf("DepotSystem: loaded %zu depots\n", depots.size());
+    LOG_INFO("DepotSystem", "loaded " << depots.size() << " depots");
 }
 
 void DepotSystem::onEvent(const BuildingPlacedEvent& event)
@@ -40,7 +38,7 @@ void DepotSystem::registerDepot(int x, int y)
     if (depots.size() == 1)
         sendEvent(pg::AddFact{"depot_placed", pg::ElementType(true)});
 
-    printf("DepotSystem: registered depot at (%d, %d)\n", x, y);
+    LOG_INFO("DepotSystem", "registered depot at (" << x << ", " << y << ")");
 }
 
 void DepotSystem::unregisterDepot(int x, int y)
@@ -69,6 +67,6 @@ void DepotSystem::unregisterDepot(int x, int y)
         }
 
         depots.erase(it);
-        printf("DepotSystem: unregistered depot at (%d, %d)\n", x, y);
+        LOG_INFO("DepotSystem", "unregistered depot at (" << x << ", " << y << ")");
     }
 }

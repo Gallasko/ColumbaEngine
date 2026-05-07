@@ -5,18 +5,17 @@
 #include "playerinventory.h"
 
 #include <cmath>
-#include <cstdio>
 
 void InserterSystem::save(Archive& archive)
 {
     serialize(archive, "inserters", inserters);
-    printf("InserterSystem: saved %zu inserters\n", inserters.size());
+    LOG_INFO("InserterSystem", "saved " << inserters.size() << " inserters");
 }
 
 void InserterSystem::load(const UnserializedObject& serializedString)
 {
     defaultDeserialize(serializedString, "inserters", inserters);
-    printf("InserterSystem: loaded %zu inserters\n", inserters.size());
+    LOG_INFO("InserterSystem", "loaded " << inserters.size() << " inserters");
 
     size_t buildingLayer = gridSystem->getBuildingLayer();
 
@@ -46,8 +45,9 @@ void InserterSystem::load(const UnserializedObject& serializedString)
         if (ins.heldItem != ITEM_NONE)
             createHeldItemVisual(ins);
 
-        printf("InserterSystem: restored inserter at (%d, %d), dir=%u, state=%u, heldItem=%u\n",
-               ins.x, ins.y, ins.direction, static_cast<unsigned>(ins.state), ins.heldItem);
+        LOG_INFO("InserterSystem", "restored inserter at (" << ins.x << ", " << ins.y
+                << "), dir=" << ins.direction << ", state=" << static_cast<unsigned>(ins.state)
+                << ", heldItem=" << ins.heldItem);
     }
 }
 

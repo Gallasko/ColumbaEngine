@@ -6,7 +6,6 @@
 #include <SDL2/SDL.h>
 
 #include <algorithm>
-#include <cstdio>
 #include <cmath>
 
 namespace {
@@ -165,10 +164,10 @@ void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
         auto [wx, wy] = gridSystem->getGrid().gridToWorld(gx, gy);
         spawnGhostAnimation(wx, wy, itemId);
 
-        printf("Mined %s at (%d,%d) — gained %d x item %d\n",
-            terrain == TerrainType::Tree ? "tree" :
-            terrain == TerrainType::Rock ? "rock" : "ore",
-            gx, gy, count, itemId);
+        LOG_INFO("ManualMining", "mined "
+            << (terrain == TerrainType::Tree ? "tree" :
+                terrain == TerrainType::Rock ? "rock" : "ore")
+            << " at (" << gx << "," << gy << ") — gained " << count << " x item " << itemId);
 
         // Reset state (terrain stays — not depleted)
         currentHits = 0;

@@ -20,7 +20,7 @@ void AnalyticsSystem::onEvent(const OnSDLScanCode& event)
     if (event.key == SDL_SCANCODE_T)
     {
         sendToNeon("debug_test", "");
-        printf("[Analytics] debug_test event sent\n");
+        LOG_INFO("Analytics", "debug_test event sent");
     }
 }
 
@@ -48,7 +48,7 @@ void AnalyticsSystem::execute()
         world()->registerOnExitCallback([this]() { sendExitAnalytics(); });
 
         sendToNeon("session_start", "");
-        printf("[Analytics] session %s started\n", sessionId.c_str());
+        LOG_INFO("Analytics", "session " << sessionId << " started");
     }
 
 }
@@ -64,7 +64,7 @@ void AnalyticsSystem::save(pg::Archive& archive)
 void AnalyticsSystem::load(const pg::UnserializedObject& serializedString)
 {
     defaultDeserialize(serializedString, "totalPlayTimeMs", totalPlayTimeMs);
-    printf("[Analytics] loaded totalPlayTimeMs = %zu\n", totalPlayTimeMs);
+    LOG_INFO("Analytics", "loaded totalPlayTimeMs = " << totalPlayTimeMs);
 }
 
 // --- Exit callback: read save files and send to Neon ---
@@ -84,7 +84,7 @@ void AnalyticsSystem::sendExitAnalytics()
         snapshot = systemsFile.data;
 
     sendToNeon("session_end", snapshot);
-    printf("[Analytics] session_end sent (%zu bytes save snapshot)\n", snapshot.size());
+    LOG_INFO("Analytics", "session_end sent (" << snapshot.size() << " bytes save snapshot)");
 }
 
 // --- Build and send the Neon SQL query ---

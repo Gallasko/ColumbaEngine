@@ -5,8 +5,6 @@
 
 #include <SDL2/SDL.h>
 
-#include <cstdio>
-
 void ToolbarSystem::init()
 {
     createUICamera();
@@ -58,7 +56,7 @@ void ToolbarSystem::selectSlot(size_t index)
 
     selectedSlot = index;
     updateHighlight();
-    printf("Selected: %s\n", registry->get(index).name.c_str());
+    LOG_INFO("Toolbar", "selected: " << registry->get(index).name);
 }
 
 void ToolbarSystem::createUICamera()

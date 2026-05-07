@@ -4,7 +4,6 @@
 #include "2D/texture.h"
 
 #include <algorithm>
-#include <cstdio>
 
 void GridSystem::save(Archive& archive)
 {
@@ -51,8 +50,7 @@ void GridSystem::save(Archive& archive)
     }
     serialize(archive, "buildings", buildings);
 
-    printf("GridSystem: saved %zu terrain cells, %zu buildings\n",
-           terrainFlat.size(), buildings.size());
+    LOG_INFO("GridSystem", "saved " << terrainFlat.size() << " terrain cells, " << buildings.size() << " buildings");
 }
 
 void GridSystem::load(const UnserializedObject& serializedString)
@@ -66,8 +64,7 @@ void GridSystem::load(const UnserializedObject& serializedString)
     std::vector<SavedBuilding> buildings;
     defaultDeserialize(serializedString, "buildings", buildings);
 
-    printf("GridSystem: loaded %zu terrain cells, %zu buildings\n",
-           terrainFlat.size(), buildings.size());
+    LOG_INFO("GridSystem", "loaded " << terrainFlat.size() << " terrain cells, " << buildings.size() << " buildings");
 
     if (terrainFlat.size() != static_cast<size_t>(Grid::WIDTH * Grid::HEIGHT))
         return;
@@ -127,7 +124,7 @@ void GridSystem::init()
 
 void GridSystem::regenerateTerrain(uint32_t seed)
 {
-    printf("GridSystem: regenerating terrain with seed 0x%08X\n", seed);
+    LOG_INFO("GridSystem", "regenerating terrain with seed " << seed);
 
     for (uint64_t id : bgEntities)
         ecsRef->removeEntity(id);

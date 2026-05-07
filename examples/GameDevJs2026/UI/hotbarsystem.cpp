@@ -5,8 +5,6 @@
 
 #include <SDL2/SDL.h>
 
-#include <cstdio>
-
 void HotbarSystem::init()
 {
     createHotbarUI();
@@ -147,11 +145,11 @@ void HotbarSystem::selectSlot(size_t index)
     if (not item.isEmpty())
     {
         const auto& def = itemRegistry->get(item.id);
-        printf("Hotbar: selected %s (x%d)\n", def.name.c_str(), item.count);
+        LOG_INFO("Hotbar", "selected " << def.name << " (x" << item.count << ")");
     }
     else
     {
-        printf("Hotbar: selected empty slot %zu\n", index + 1);
+        LOG_INFO("Hotbar", "selected empty slot " << (index + 1));
     }
 }
 

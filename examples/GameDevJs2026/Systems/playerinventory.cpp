@@ -1,12 +1,10 @@
 #include "playerinventory.h"
 
-#include <cstdio>
-
 void PlayerInventorySystem::save(Archive& archive)
 {
     serialize(archive, "slots", inventory.slots);
     serialize(archive, "ticketCount", ticketCount);
-    printf("PlayerInventory: saved %zu slots, %u tickets\n", inventory.slots.size(), ticketCount);
+    LOG_INFO("PlayerInventory", "saved " << inventory.slots.size() << " slots, " << ticketCount << " tickets");
 }
 
 void PlayerInventorySystem::load(const UnserializedObject& serializedString)
@@ -31,7 +29,7 @@ void PlayerInventorySystem::load(const UnserializedObject& serializedString)
         }
     }
 
-    printf("PlayerInventory: loaded %zu slots, %u tickets\n", slots.size(), ticketCount);
+    LOG_INFO("PlayerInventory", "loaded " << slots.size() << " slots, " << ticketCount << " tickets");
 }
 
 void PlayerInventorySystem::init()

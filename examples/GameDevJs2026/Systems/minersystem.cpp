@@ -4,18 +4,16 @@
 #include "2D/texture.h"
 #include "playerinventory.h"
 
-#include <cstdio>
-
 void MinerSystem::save(Archive& archive)
 {
     serialize(archive, "miners", miners);
-    printf("MinerSystem: saved %zu miners\n", miners.size());
+    LOG_INFO("MinerSystem", "saved " << miners.size() << " miners");
 }
 
 void MinerSystem::load(const UnserializedObject& serializedString)
 {
     defaultDeserialize(serializedString, "miners", miners);
-    printf("MinerSystem: loaded %zu miners\n", miners.size());
+    LOG_INFO("MinerSystem", "loaded " << miners.size() << " miners");
 
     size_t buildingLayer = gridSystem->getBuildingLayer();
 
@@ -27,8 +25,8 @@ void MinerSystem::load(const UnserializedObject& serializedString)
         miner.animFrame = 0;
         miner.animElapsed = 0;
 
-        printf("MinerSystem: restored miner at (%d, %d), producedItem=%u, isMining=%d\n",
-               miner.ownerX, miner.ownerY, miner.producedItem, miner.isMining);
+        LOG_INFO("MinerSystem", "restored miner at (" << miner.ownerX << ", " << miner.ownerY
+                << "), producedItem=" << miner.producedItem << ", isMining=" << miner.isMining);
     }
 }
 
@@ -136,9 +134,9 @@ void MinerSystem::registerMiner(int x, int y)
     data.producedItem = resolveOreUnder(x, y);
 
     if (data.producedItem == ITEM_NONE)
-        printf("Miner at (%d, %d): placed off ore, idle.\n", x, y);
+        LOG_INFO("MinerSystem", "miner at (" << x << ", " << y << "): placed off ore, idle.");
     else
-        printf("Miner at (%d, %d): producing item %u.\n", x, y, data.producedItem);
+        LOG_INFO("MinerSystem", "miner at (" << x << ", " << y << "): producing item " << data.producedItem << ".");
 
     miners[machineKey(x, y)] = data;
 }
