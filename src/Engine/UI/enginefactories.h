@@ -10,6 +10,7 @@ namespace pg
      * itself has been created.
      *
      * Currently registers:
+     *   "Text"      — a single TTFText entity at (x, y, z).
      *   "Panel"     — backdrop rectangle, optionally centered in a target.
      *   "TitleBar"  — backdrop with a title text anchored top-left.
      *

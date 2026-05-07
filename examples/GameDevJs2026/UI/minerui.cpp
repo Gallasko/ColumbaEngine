@@ -167,29 +167,35 @@ void MinerUISystem::createPanel()
     float panelX = getPanelX();
     float panelY = getPanelY();
 
-    // Backdrop
-    auto backdrop = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-        constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
+    // Backdrop & title via engine factories
+    auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
+    auto panelEnt = factory->build("Panel", PrefabParams{
+        {"width", panelW}, {"height", panelH},
+        {"r", 20.0f}, {"g", 20.0f}, {"b", 30.0f}, {"a", 220.0f},
+        {"z", 97.0f},
+        {"viewport", static_cast<int>(UI_VP)},
+    });
+    {
+        auto bdPos = panelEnt->get<PositionComponent>();
+        bdPos->setX(panelX);
+        bdPos->setY(panelY);
+    }
+    backdropEntityId = panelEnt->id;
 
-    auto bdPos = backdrop.get<PositionComponent>();
-    bdPos->setX(panelX);
-    bdPos->setY(panelY);
-    bdPos->setZ(97.0f);
-    bdPos->setWidth(panelW);
-    bdPos->setHeight(panelH);
-    backdrop.get<ViewportComponent>()->setViewport(UI_VP);
-    backdropEntityId = backdrop.entity->id;
+    if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
+        ecsRef->attach<MouseLeftClickComponent>(bgEnt,
+            makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
 
-    ecsRef->attach<MouseLeftClickComponent>(backdrop.entity,
-        makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
-
-    // Title
-    auto title = makeTTFText(ecsRef,
-        panelX + PANEL_PADDING, panelY + PANEL_PADDING + 4.0f, 100.0f,
-        FONT_PATH, "Miner", TITLE_SCALE,
-        {255.0f, 255.0f, 255.0f, 255.0f});
-    title.get<ViewportComponent>()->setViewport(UI_VP);
-    titleEntityId = title.entity->id;
+    auto titleEnt = factory->build("Text", PrefabParams{
+        {"x",        panelX + PANEL_PADDING},
+        {"y",        panelY + PANEL_PADDING + 4.0f},
+        {"z",        100.0f},
+        {"font",     std::string(FONT_PATH)},
+        {"text",     std::string("Miner")},
+        {"scale",    TITLE_SCALE},
+        {"viewport", static_cast<int>(UI_VP)},
+    });
+    titleEntityId = titleEnt->id;
 
     // Output slot via SlotSystem
     float slotX = panelX + PANEL_PADDING;

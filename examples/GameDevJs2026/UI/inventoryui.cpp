@@ -159,28 +159,23 @@ void InventoryUISystem::setPanelVisibility(bool vis)
 
 void InventoryUISystem::createPanel()
 {
-    auto windowEnt = ecsRef->getEntity("__MainWindow");
-    auto windowAnchor = windowEnt->get<UiAnchor>();
-
     float panelW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
     float panelH = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
 
-    // Backdrop — centered in __MainWindow
-    auto backdrop = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-        constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
+    // Backdrop — centered in __MainWindow via the engine "Panel" factory.
+    auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
+    auto panelEnt = factory->build("Panel", PrefabParams{
+        {"width", panelW}, {"height", panelH},
+        {"r", 20.0f}, {"g", 20.0f}, {"b", 30.0f}, {"a", 220.0f},
+        {"z", 97.0f},
+        {"viewport", static_cast<int>(INV_UI_VIEWPORT)},
+        {"centerInTarget", std::string("__MainWindow")},
+    });
+    backdropEntityId = panelEnt->id;
 
-    auto bdPos = backdrop.get<PositionComponent>();
-    bdPos->setZ(97.0f);
-    bdPos->setWidth(panelW);
-    bdPos->setHeight(panelH);
-    backdrop.get<ViewportComponent>()->setViewport(INV_UI_VIEWPORT);
-    backdropEntityId = backdrop.entity->id;
-
-    ecsRef->attach<MouseLeftClickComponent>(backdrop.entity,
-        makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
-
-    auto bdAnchor = ecsRef->attach<UiAnchor>(backdrop.entity);
-    bdAnchor->centeredIn(windowAnchor);
+    if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
+        ecsRef->attach<MouseLeftClickComponent>(bgEnt,
+            makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
 
     // Horizontal layout for slot grid (fitToAxis wraps into 5-column rows)
     float contentW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING;

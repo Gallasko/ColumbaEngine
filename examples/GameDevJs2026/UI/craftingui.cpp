@@ -347,33 +347,37 @@ void CraftingUISystem::createPanel()
     float ph = getPanelHeight();
     float rowW = pw - 2 * PANEL_PADDING;
 
-    // Backdrop — anchored to inventory right + gap, vertically centered in window
-    auto backdrop = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-        constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
-    auto bdPos = backdrop.get<PositionComponent>();
-    bdPos->setZ(97.0f);
-    bdPos->setWidth(pw);
-    bdPos->setHeight(ph);
-    backdrop.get<ViewportComponent>()->setViewport(UI_VP);
-    backdropEntityId = backdrop.entity->id;
+    // Backdrop via the engine "Panel" factory — anchored to inventory's right
+    // edge + gap, vertically centered in window.
+    auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
+    auto panelEnt = factory->build("Panel", PrefabParams{
+        {"width", pw}, {"height", ph},
+        {"r", 20.0f}, {"g", 20.0f}, {"b", 30.0f}, {"a", 220.0f},
+        {"z", 97.0f},
+        {"viewport", static_cast<int>(UI_VP)},
+    });
+    backdropEntityId = panelEnt->id;
 
-    ecsRef->attach<MouseLeftClickComponent>(backdrop.entity,
-        makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
+    if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
+        ecsRef->attach<MouseLeftClickComponent>(bgEnt,
+            makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
 
-    auto bdAnchor = ecsRef->attach<UiAnchor>(backdrop.entity);
+    auto bdAnchor = panelEnt->get<UiAnchor>();
     bdAnchor->setLeftAnchor(PosAnchor{invBackdropId, AnchorType::Right});
     bdAnchor->setLeftMargin(GAP_BETWEEN_PANELS);
     bdAnchor->setVerticalCenter(PosAnchor{windowId, AnchorType::VerticalCenter});
 
-    // Title — anchored to backdrop
-    auto title = makeTTFText(ecsRef,
-        0.0f, 0.0f, 100.0f,
-        FONT_PATH, "Craft", TITLE_SCALE,
-        {255.0f, 255.0f, 255.0f, 255.0f});
-    title.get<ViewportComponent>()->setViewport(UI_VP);
-    titleEntityId = title.entity->id;
+    // Title via the engine "Text" factory — anchored to backdrop.
+    auto titleEnt = factory->build("Text", PrefabParams{
+        {"x", 0.0f}, {"y", 0.0f}, {"z", 100.0f},
+        {"font",     std::string(FONT_PATH)},
+        {"text",     std::string("Craft")},
+        {"scale",    TITLE_SCALE},
+        {"viewport", static_cast<int>(UI_VP)},
+    });
+    titleEntityId = titleEnt->id;
 
-    auto titleAnchor = ecsRef->attach<UiAnchor>(title.entity);
+    auto titleAnchor = titleEnt->get<UiAnchor>();
     titleAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
     titleAnchor->setLeftMargin(PANEL_PADDING);
     titleAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});

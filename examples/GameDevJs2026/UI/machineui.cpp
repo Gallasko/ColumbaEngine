@@ -272,28 +272,36 @@ void MachineUISystem::createPanel()
     cachedBarX    = inputColX;
     cachedBarMaxW = panelW - 2.0f * PANEL_PADDING;
 
-    // Backdrop
+    // Backdrop & title via engine factories
+    auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
     {
-        auto bd = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
-        auto pos = bd.get<PositionComponent>();
-        pos->setX(panelX); pos->setY(panelY); pos->setZ(97.0f);
-        pos->setWidth(panelW); pos->setHeight(panelH);
-        bd.get<ViewportComponent>()->setViewport(UI_VP);
-        backdropEntityId = bd.entity->id;
+        auto panelEnt = factory->build("Panel", PrefabParams{
+            {"width", panelW}, {"height", panelH},
+            {"r", 20.0f}, {"g", 20.0f}, {"b", 30.0f}, {"a", 220.0f},
+            {"z", 97.0f},
+            {"viewport", static_cast<int>(UI_VP)},
+        });
+        auto pos = panelEnt->get<PositionComponent>();
+        pos->setX(panelX); pos->setY(panelY);
+        backdropEntityId = panelEnt->id;
 
-        ecsRef->attach<MouseLeftClickComponent>(bd.entity,
-            makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
+        if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
+            ecsRef->attach<MouseLeftClickComponent>(bgEnt,
+                makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
     }
 
-    // Title
     {
-        const char* initialTitle = openMachineName.empty() ? "Machine" : openMachineName.c_str();
-        auto t = makeTTFText(ecsRef,
-            panelX + PANEL_PADDING, panelY + PANEL_PADDING + 4.0f, 100.0f,
-            FONT_PATH, initialTitle, TITLE_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        t.get<ViewportComponent>()->setViewport(UI_VP);
-        titleEntityId = t.entity->id;
+        const std::string initialTitle = openMachineName.empty() ? "Machine" : openMachineName;
+        auto titleEnt = factory->build("Text", PrefabParams{
+            {"x",        panelX + PANEL_PADDING},
+            {"y",        panelY + PANEL_PADDING + 4.0f},
+            {"z",        100.0f},
+            {"font",     std::string(FONT_PATH)},
+            {"text",     initialTitle},
+            {"scale",    TITLE_SCALE},
+            {"viewport", static_cast<int>(UI_VP)},
+        });
+        titleEntityId = titleEnt->id;
     }
 
     // Input slots via SlotSystem

@@ -81,13 +81,16 @@ namespace pg
         {
             PrefabParams merged;
             auto schemaIt = schemas.find(name);
+
             if (schemaIt != schemas.end())
             {
                 for (const auto& entry : schemaIt->second.entries)
                     merged[entry.name] = entry.defaultValue;
             }
+
             for (const auto& kv : params)
                 merged[kv.first] = kv.second;
+
             return merged;
         }
 
@@ -103,41 +106,52 @@ namespace pg
     inline float getParamFloat(const PrefabParams& p, const std::string& key, float fallback = 0.0f)
     {
         auto it = p.find(key);
-        if (it == p.end() || it->second.isEmpty())
+        if (it == p.end() or it->second.isEmpty())
             return fallback;
 
         const auto& v = it->second;
+
         switch (v.type)
         {
-            case ElementType::UnionType::FLOAT:  return v.get<float>();
-            case ElementType::UnionType::DOUBLE: return static_cast<float>(v.get<double>());
-            case ElementType::UnionType::INT:    return static_cast<float>(v.get<int>());
-            case ElementType::UnionType::SIZE_T: return static_cast<float>(v.get<size_t>());
-            default: return fallback;
+            case ElementType::UnionType::FLOAT: 
+                return v.get<float>();
+            case ElementType::UnionType::DOUBLE:
+                return static_cast<float>(v.get<double>());
+            case ElementType::UnionType::INT: 
+                return static_cast<float>(v.get<int>());
+            case ElementType::UnionType::SIZE_T: 
+                return static_cast<float>(v.get<size_t>());
+            default: 
+                return fallback;
         }
     }
 
     inline int getParamInt(const PrefabParams& p, const std::string& key, int fallback = 0)
     {
         auto it = p.find(key);
-        if (it == p.end() || it->second.isEmpty())
+        if (it == p.end() or it->second.isEmpty())
             return fallback;
 
         const auto& v = it->second;
         switch (v.type)
         {
-            case ElementType::UnionType::INT:    return v.get<int>();
-            case ElementType::UnionType::SIZE_T: return static_cast<int>(v.get<size_t>());
-            case ElementType::UnionType::FLOAT:  return static_cast<int>(v.get<float>());
-            case ElementType::UnionType::DOUBLE: return static_cast<int>(v.get<double>());
-            default: return fallback;
+            case ElementType::UnionType::INT:    
+                return v.get<int>();
+            case ElementType::UnionType::SIZE_T: 
+                return static_cast<int>(v.get<size_t>());
+            case ElementType::UnionType::FLOAT:  
+                return static_cast<int>(v.get<float>());
+            case ElementType::UnionType::DOUBLE: 
+                return static_cast<int>(v.get<double>());
+            default: 
+                return fallback;
         }
     }
 
     inline std::string getParamString(const PrefabParams& p, const std::string& key, const std::string& fallback = "")
     {
         auto it = p.find(key);
-        if (it == p.end() || it->second.isEmpty() || it->second.type != ElementType::UnionType::STRING)
+        if (it == p.end() or it->second.isEmpty() or it->second.type != ElementType::UnionType::STRING)
             return fallback;
         return it->second.get<std::string>();
     }
@@ -145,7 +159,7 @@ namespace pg
     inline bool getParamBool(const PrefabParams& p, const std::string& key, bool fallback = false)
     {
         auto it = p.find(key);
-        if (it == p.end() || it->second.isEmpty() || it->second.type != ElementType::UnionType::BOOL)
+        if (it == p.end() or it->second.isEmpty() or it->second.type != ElementType::UnionType::BOOL)
             return fallback;
         return it->second.get<bool>();
     }

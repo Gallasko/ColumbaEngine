@@ -196,13 +196,19 @@ void StorageUISystem::createPanel()
         }
     }
 
-    // Title
+    // Title via the engine "Text" factory.
     {
-        auto t = makeTTFText(ecsRef,
-            panelX + PANEL_PADDING, panelY + PANEL_PADDING + 4.0f, 100.0f,
-            FONT_PATH, "Storage", TITLE_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        t.get<ViewportComponent>()->setViewport(UI_VP);
-        titleEntityId = t.entity->id;
+        auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
+        auto titleEnt = factory->build("Text", PrefabParams{
+            {"x",        panelX + PANEL_PADDING},
+            {"y",        panelY + PANEL_PADDING + 4.0f},
+            {"z",        100.0f},
+            {"font",     std::string(FONT_PATH)},
+            {"text",     std::string("Storage")},
+            {"scale",    TITLE_SCALE},
+            {"viewport", static_cast<int>(UI_VP)},
+        });
+        titleEntityId = titleEnt->id;
     }
 
     // Slots via SlotSystem
