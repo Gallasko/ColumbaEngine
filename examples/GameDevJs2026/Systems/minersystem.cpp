@@ -32,12 +32,16 @@ void MinerSystem::load(const UnserializedObject& serializedString)
 
 void MinerSystem::onEvent(const BuildingPlacedEvent& event)
 {
+    LOG_INFO("MinerSystem", "BuildingPlacedEvent " << event.tileName << " at ("
+            << event.x << "," << event.y << ")");
     if (event.tileName == "Miner")
         registerMiner(event.x, event.y);
 }
 
 void MinerSystem::onEvent(const BuildingRemovedEvent& event)
 {
+    LOG_INFO("MinerSystem", "BuildingRemovedEvent " << event.tileName << " at ("
+            << event.x << "," << event.y << ")");
     if (event.tileName == "Miner")
         unregisterMiner(event.x, event.y);
 }
@@ -147,6 +151,8 @@ void MinerSystem::unregisterMiner(int x, int y)
     if (it != miners.end())
     {
         auto& miner = it->second;
+        LOG_INFO("MinerSystem", "unregistering miner at (" << x << "," << y
+                << "), returning output slots to player");
 
         // Return output slot items to player
         for (const auto& slot : miner.outputSlots.slots)
@@ -156,6 +162,10 @@ void MinerSystem::unregisterMiner(int x, int y)
         }
 
         miners.erase(it);
+    }
+    else
+    {
+        LOG_INFO("MinerSystem", "unregisterMiner at (" << x << "," << y << ") — not found");
     }
 }
 

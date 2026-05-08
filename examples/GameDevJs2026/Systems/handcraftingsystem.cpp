@@ -2,16 +2,27 @@
 
 void HandCraftingSystem::onEvent(const HandCraftRequest& event)
 {
+    LOG_INFO("HandCrafting", "HandCraftRequest recipeIndex=" << event.recipeIndex);
     if (activeRecipe != nullptr)
-        return; // Already crafting
+    {
+        LOG_INFO("HandCrafting", "HandCraftRequest ignored — already crafting recipeIndex=" << activeRecipeIndex);
+        return;
+    }
 
     if (event.recipeIndex >= recipeRegistry->count())
+    {
+        LOG_INFO("HandCrafting", "HandCraftRequest invalid recipeIndex=" << event.recipeIndex
+                << " (count=" << recipeRegistry->count() << ")");
         return;
+    }
 
     const Recipe& recipe = recipeRegistry->get(event.recipeIndex);
 
     if (not canCraft(recipe))
+    {
+        LOG_INFO("HandCrafting", "HandCraftRequest cannot craft recipeIndex=" << event.recipeIndex);
         return;
+    }
 
     // Consume inputs from the player inventory.
     auto& inv = playerInv->getInventory();
@@ -21,12 +32,18 @@ void HandCraftingSystem::onEvent(const HandCraftRequest& event)
     activeRecipe = &recipe;
     activeRecipeIndex = event.recipeIndex;
     progressMs = 0;
+    LOG_INFO("HandCrafting", "started craft recipeIndex=" << activeRecipeIndex
+            << " craftTimeMs=" << activeRecipe->craftTimeMs);
 }
 
 void HandCraftingSystem::onEvent(const HandCraftCancel&)
 {
+    LOG_INFO("HandCrafting", "HandCraftCancel received (active=" << (activeRecipe != nullptr) << ")");
     if (activeRecipe == nullptr)
         return;
+
+    LOG_INFO("HandCrafting", "cancelling craft recipeIndex=" << activeRecipeIndex
+            << " — refunding inputs");
 
     // Refund consumed inputs to the player.
     for (const auto& input : activeRecipe->inputs)
@@ -101,6 +118,9 @@ float HandCraftingSystem::getProgressRatio() const
 
 void HandCraftingSystem::completeCraft()
 {
+    LOG_INFO("HandCrafting", "completeCraft recipeIndex=" << activeRecipeIndex
+            << " — delivering " << activeRecipe->outputs.size() << " output(s)");
+
     // Deliver outputs into the player inventory.
     for (const auto& output : activeRecipe->outputs)
         ecsRef->sendEvent(PlayerGainItemEvent{output.id, output.count});

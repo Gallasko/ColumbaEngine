@@ -16,12 +16,16 @@ void DepotSystem::load(const UnserializedObject& serializedString)
 
 void DepotSystem::onEvent(const BuildingPlacedEvent& event)
 {
+    LOG_INFO("DepotSystem", "BuildingPlacedEvent " << event.tileName
+            << " at (" << event.x << "," << event.y << ")");
     if (event.tileName == "Depot")
         registerDepot(event.x, event.y);
 }
 
 void DepotSystem::onEvent(const BuildingRemovedEvent& event)
 {
+    LOG_INFO("DepotSystem", "BuildingRemovedEvent " << event.tileName
+            << " at (" << event.x << "," << event.y << ")");
     if (event.tileName == "Depot")
         unregisterDepot(event.x, event.y);
 }

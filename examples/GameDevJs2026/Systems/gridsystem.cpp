@@ -113,13 +113,20 @@ void GridSystem::load(const UnserializedObject& serializedString)
 
 void GridSystem::init()
 {
+    LOG_INFO("GridSystem", "init() — creating layers and generating fresh terrain");
+
     // Create default layers
     terrainLayer = grid.addLayer("terrain", 1.0f);
     buildingLayer = grid.addLayer("buildings", 2.0f);
     itemLayer = grid.addLayer("items", 3.0f);
 
+    LOG_INFO("GridSystem", "layers created: terrain=" << terrainLayer
+            << " building=" << buildingLayer << " item=" << itemLayer);
+
     // Generate fresh terrain (load() will replace it if a save exists)
     generateAndRenderTerrain();
+
+    LOG_INFO("GridSystem", "init() complete");
 }
 
 void GridSystem::regenerateTerrain(uint32_t seed)
@@ -170,10 +177,19 @@ void GridSystem::placeBuilding(size_t layer, int x, int y, const BuildingDef& de
             if (not grid.isInBounds(x + dx, y + dy) or
                 not grid.getCell(layer, x + dx, y + dy).tileName.empty() or
                 isBlockingTerrain(getTerrainAt(x + dx, y + dy)))
+            {
+                LOG_INFO("GridSystem", "placeBuilding rejected for " << def.name
+                        << " at (" << x << "," << y << ") — footprint cell ("
+                        << (x + dx) << "," << (y + dy) << ") blocked");
                 return;
+            }
 
     uint8_t actualEnterDir = (enterDir == SIZE_MAX) ? static_cast<uint8_t>(direction) : static_cast<uint8_t>(enterDir);
+    LOG_INFO("GridSystem", "placeBuilding " << def.name << " at (" << x << "," << y
+            << ") direction=" << direction << " enterDir=" << static_cast<unsigned>(actualEnterDir)
+            << " conveyorTileIndex=" << conveyorTileIndex);
     placeBuildingInternal(layer, x, y, def, direction, conveyorTileIndex, actualEnterDir);
+    LOG_INFO("GridSystem", "sending BuildingPlacedEvent (" << def.name << " at " << x << "," << y << ")");
     sendEvent(BuildingPlacedEvent{x, y, def.name});
 }
 
@@ -295,11 +311,20 @@ void GridSystem::placeBuildingInternal(size_t layer, int x, int y, const Buildin
 void GridSystem::removeBuilding(size_t layer, int x, int y)
 {
     if (not grid.isInBounds(x, y))
+    {
+        LOG_INFO("GridSystem", "removeBuilding: out of bounds (" << x << "," << y << ")");
         return;
+    }
 
     auto& cell = grid.getCell(layer, x, y);
     if (cell.tileName.empty())
+    {
+        LOG_INFO("GridSystem", "removeBuilding: empty cell (" << x << "," << y << ")");
         return;
+    }
+
+    LOG_INFO("GridSystem", "removeBuilding " << cell.tileName << " requested at (" << x << "," << y
+            << ") isOwner=" << cell.isOwner);
 
     // Find the owner cell
     int ox = cell.isOwner ? x : static_cast<int>(cell.ownerX);
@@ -336,6 +361,8 @@ void GridSystem::removeBuilding(size_t layer, int x, int y)
         }
     }
 
+    LOG_INFO("GridSystem", "sending BuildingRemovedEvent (" << savedTileName
+            << " at " << ox << "," << oy << ")");
     sendEvent(BuildingRemovedEvent{ox, oy, savedTileName});
 
     // Update adjacent belts that may now be disconnected

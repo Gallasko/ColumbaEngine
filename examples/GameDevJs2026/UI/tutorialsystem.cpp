@@ -186,15 +186,19 @@ void TutorialSystem::pulseSlotForItem(ItemId id)
 void TutorialSystem::onEvent(const PlayerGainItemEvent& event)
 {
     const auto step = static_cast<TutorialStep>(currentStep);
+    LOG_INFO("Tutorial", "PlayerGainItemEvent id=" << event.id << " count=" << event.count
+            << " step=" << currentStep);
 
     if (step == TutorialStep::MineFirstResource &&
         (event.id == WOOD_ID || event.id == STONE_ID))
     {
+        LOG_INFO("Tutorial", "MineFirstResource satisfied — pendingAdvance");
         pendingAdvance = true;
     }
     else if (step == TutorialStep::MineOre &&
              (event.id == IRON_ORE_ID || event.id == COPPER_ORE_ID || event.id == COAL_ID))
     {
+        LOG_INFO("Tutorial", "MineOre satisfied — pendingAdvance");
         pendingAdvance = true;
     }
 }
@@ -202,8 +206,10 @@ void TutorialSystem::onEvent(const PlayerGainItemEvent& event)
 void TutorialSystem::onEvent(const InventoryOpenedEvent&)
 {
     const auto step = static_cast<TutorialStep>(currentStep);
+    LOG_INFO("Tutorial", "InventoryOpenedEvent step=" << currentStep);
     if (step == TutorialStep::OpenInventory)
     {
+        LOG_INFO("Tutorial", "OpenInventory satisfied — pendingAdvance");
         pendingAdvance = true;
         return;
     }
@@ -218,6 +224,7 @@ void TutorialSystem::onEvent(const InventoryOpenedEvent&)
 void TutorialSystem::onEvent(const InventoryClosedEvent&)
 {
     const auto step = static_cast<TutorialStep>(currentStep);
+    LOG_INFO("Tutorial", "InventoryClosedEvent step=" << currentStep);
     if (step == TutorialStep::ValidateFirstSteps or
         step == TutorialStep::ValidateStoneMasonry)
         presentCurrentStep();
@@ -225,6 +232,7 @@ void TutorialSystem::onEvent(const InventoryClosedEvent&)
 
 void TutorialSystem::onEvent(const MissionUIOpenedEvent&)
 {
+    LOG_INFO("Tutorial", "MissionUIOpenedEvent step=" << currentStep);
     missionUIOpen = true;
     missionUiOpenedThisStep = true;
     const auto step = static_cast<TutorialStep>(currentStep);
@@ -235,6 +243,7 @@ void TutorialSystem::onEvent(const MissionUIOpenedEvent&)
 
 void TutorialSystem::onEvent(const MissionUIClosedEvent&)
 {
+    LOG_INFO("Tutorial", "MissionUIClosedEvent step=" << currentStep);
     missionUIOpen = false;
     const auto step = static_cast<TutorialStep>(currentStep);
     if (step == TutorialStep::ValidateFirstSteps or
@@ -245,15 +254,19 @@ void TutorialSystem::onEvent(const MissionUIClosedEvent&)
 void TutorialSystem::onEvent(const HandCraftCompletedEvent& event)
 {
     const auto step = static_cast<TutorialStep>(currentStep);
+    LOG_INFO("Tutorial", "HandCraftCompletedEvent recipeIndex=" << event.recipeIndex
+            << " step=" << currentStep);
 
     if (step == TutorialStep::CraftPickaxe &&
         recipeOutputs(event.recipeIndex, STONE_PICKAXE_ID))
     {
+        LOG_INFO("Tutorial", "CraftPickaxe satisfied — pendingAdvance");
         pendingAdvance = true;
     }
     else if (step == TutorialStep::CraftFurnace &&
              recipeOutputs(event.recipeIndex, FURNACE_ID))
     {
+        LOG_INFO("Tutorial", "CraftFurnace satisfied — pendingAdvance");
         pendingAdvance = true;
     }
 
@@ -270,6 +283,8 @@ void TutorialSystem::onEvent(const HandCraftCompletedEvent& event)
 
 void TutorialSystem::onProcessEvent(const SlotDroppedEvent& event)
 {
+    LOG_INFO("Tutorial", "SlotDroppedEvent category=" << static_cast<int>(event.category)
+            << " itemId=" << event.item.id << " step=" << currentStep);
     if (event.category != SlotCategory::Hotbar)
         return;
 
@@ -278,20 +293,25 @@ void TutorialSystem::onProcessEvent(const SlotDroppedEvent& event)
     if (step == TutorialStep::MovePickaxeToHotbar &&
         event.item.id == STONE_PICKAXE_ID)
     {
+        LOG_INFO("Tutorial", "MovePickaxeToHotbar satisfied — pendingAdvance");
         pendingAdvance = true;
     }
     else if (step == TutorialStep::PlaceFurnaceInHotbar &&
              event.item.id == FURNACE_ID)
     {
+        LOG_INFO("Tutorial", "PlaceFurnaceInHotbar satisfied — pendingAdvance");
         pendingAdvance = true;
     }
 }
 
 void TutorialSystem::onEvent(const BuildingPlacedEvent& event)
 {
+    LOG_INFO("Tutorial", "BuildingPlacedEvent " << event.tileName
+            << " at (" << event.x << "," << event.y << ") step=" << currentStep);
     if (static_cast<TutorialStep>(currentStep) == TutorialStep::PlaceFurnaceOnGrid &&
         event.tileName == "Furnace")
     {
+        LOG_INFO("Tutorial", "PlaceFurnaceOnGrid satisfied — pendingAdvance");
         pendingAdvance = true;
     }
 }
@@ -299,18 +319,26 @@ void TutorialSystem::onEvent(const BuildingPlacedEvent& event)
 void TutorialSystem::onEvent(const AddFact& event)
 {
     const auto step = static_cast<TutorialStep>(currentStep);
+    LOG_INFO("Tutorial", "AddFact name=" << event.name << " step=" << currentStep);
 
     if (not event.value.isTrue())
         return;
 
     if (step == TutorialStep::ValidateFirstSteps && event.name == "mission_tools")
+    {
+        LOG_INFO("Tutorial", "ValidateFirstSteps satisfied (mission_tools) — pendingAdvance");
         pendingAdvance = true;
+    }
     else if (step == TutorialStep::ValidateStoneMasonry && event.name == "mission_furnace")
+    {
+        LOG_INFO("Tutorial", "ValidateStoneMasonry satisfied (mission_furnace) — pendingAdvance");
         pendingAdvance = true;
+    }
 }
 
 void TutorialSystem::onEvent(const TutorialSkipRequested&)
 {
+    LOG_INFO("Tutorial", "TutorialSkipRequested received (currentStep=" << currentStep << ")");
     if (currentStep >= TOTAL_STEPS)
         return;
     currentStep = TOTAL_STEPS;
@@ -318,6 +346,7 @@ void TutorialSystem::onEvent(const TutorialSkipRequested&)
     applyHudReveal();
     if (spotlight)
         spotlight->hide();
+    LOG_INFO("Tutorial", "tutorial skipped to TOTAL_STEPS=" << TOTAL_STEPS);
 }
 
 // ---------------------------------------------------------------------------
@@ -328,12 +357,14 @@ void TutorialSystem::execute()
 {
     if (not initialized)
     {
+        LOG_INFO("Tutorial", "execute() — first tick, running initOnFirstTick()");
         initOnFirstTick();
         initialized = true;
     }
 
     if (pendingAdvance)
     {
+        LOG_INFO("Tutorial", "execute() — pendingAdvance set, advancing from step " << currentStep);
         pendingAdvance = false;
         advanceStep();
     }
@@ -408,6 +439,8 @@ void TutorialSystem::applyHudReveal()
 void TutorialSystem::advanceStep()
 {
     currentStep++;
+    LOG_INFO("Tutorial", "advanceStep — now currentStep=" << currentStep
+            << " (TOTAL_STEPS=" << TOTAL_STEPS << ")");
     missionUiOpenedThisStep = false;
     worldFacts->setFact("tutorial_step", currentStep);
     applyHudReveal();
@@ -417,13 +450,19 @@ void TutorialSystem::advanceStep()
 void TutorialSystem::presentCurrentStep()
 {
     if (not spotlight)
+    {
+        LOG_INFO("Tutorial", "presentCurrentStep — no spotlight ref, skipping");
         return;
+    }
 
     if (currentStep >= TOTAL_STEPS)
     {
+        LOG_INFO("Tutorial", "presentCurrentStep — tutorial complete, hiding spotlight");
         spotlight->hide();
         return;
     }
+
+    LOG_INFO("Tutorial", "presentCurrentStep step=" << currentStep);
 
     const auto step = static_cast<TutorialStep>(currentStep);
     const auto& def = STEPS[currentStep];

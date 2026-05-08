@@ -36,6 +36,7 @@ void PlayerInventorySystem::load(const UnserializedObject& serializedString)
 
 void PlayerInventorySystem::init()
 {
+    LOG_INFO("PlayerInventory", "init() — creating inventory with " << NUM_SLOTS << " slots");
     inventory = Inventory(NUM_SLOTS);
 
     publishTickets();
@@ -43,10 +44,13 @@ void PlayerInventorySystem::init()
 
 void PlayerInventorySystem::onEvent(const PlayerGainItemEvent& event)
 {
+    LOG_INFO("PlayerInventory", "PlayerGainItemEvent id=" << event.id << " count=" << event.count);
+
     // Tickets bypass the inventory — stored as a currency counter
     if (event.id == TICKET_ID)
     {
         ticketCount += event.count;
+        LOG_INFO("PlayerInventory", "tickets +=" << event.count << " — total=" << ticketCount);
         publishTickets();
         sendEvent(AddFact{"discovered_ticket", ElementType{true}});
         return;
@@ -79,12 +83,15 @@ void PlayerInventorySystem::onEvent(const PlayerGainItemEvent& event)
 
 void PlayerInventorySystem::onEvent(const PlayerLoseItemEvent& event)
 {
+    LOG_INFO("PlayerInventory", "PlayerLoseItemEvent id=" << event.id << " count=" << event.count);
+
     if (event.id == TICKET_ID)
     {
         if (ticketCount >= event.count)
             ticketCount -= event.count;
         else
             ticketCount = 0;
+        LOG_INFO("PlayerInventory", "tickets after lose: " << ticketCount);
         publishTickets();
         return;
     }

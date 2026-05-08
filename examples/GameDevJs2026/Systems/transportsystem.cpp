@@ -55,11 +55,15 @@ void TransportSystem::load(const UnserializedObject& serializedString)
 
 void TransportSystem::onEvent(const BuildingRemovedEvent& event)
 {
+    LOG_INFO("TransportSystem", "BuildingRemovedEvent " << event.tileName
+            << " at (" << event.x << "," << event.y << ")");
     if (event.tileName == "Conveyor")
     {
         auto& cell = beltGrid.get(event.x, event.y);
         if (cell.itemId != ITEM_NONE)
         {
+            LOG_INFO("TransportSystem", "returning belt item " << cell.itemId
+                    << " to player from (" << event.x << "," << event.y << ")");
             sendEvent(PlayerGainItemEvent{cell.itemId, 1});
         }
         destroyItemVisual(event.x, event.y);

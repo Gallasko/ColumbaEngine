@@ -10,8 +10,13 @@
 void PlacementOverlaySystem::init()
 {
     if (created)
+    {
+        LOG_INFO("PlacementOverlay", "init() called but already created — skipping");
         return;
+    }
     created = true;
+
+    LOG_INFO("PlacementOverlay", "init() — allocating overlay pool of " << OVERLAY_POOL_SIZE << " entities");
 
     for (int i = 0; i < OVERLAY_POOL_SIZE; ++i)
     {
@@ -28,6 +33,8 @@ void PlacementOverlaySystem::init()
 
         overlayIds[i] = sq.entity->id;
     }
+
+    LOG_INFO("PlacementOverlay", "init() complete — pool ready");
 }
 
 // ---------------------------------------------------------------------------
@@ -49,6 +56,8 @@ void PlacementOverlaySystem::onEvent(const TickEvent&)
 
     if (def != lastDef)
     {
+        LOG_INFO("PlacementOverlay", "selected building def changed (was " << (lastDef ? lastDef->name : "<none>")
+                << ", now " << (def ? def->name : "<none>") << ") — flagging refresh");
         lastDef = def;
         pendingRefresh = true;
     }
@@ -58,6 +67,7 @@ void PlacementOverlaySystem::onEvent(const TickEvent&)
     {
         if (pendingRefresh)
         {
+            LOG_INFO("PlacementOverlay", "no building selected and refresh pending — hiding all overlays");
             hideAll();
             pendingRefresh = false;
         }
@@ -91,6 +101,8 @@ void PlacementOverlaySystem::onEvent(const TickEvent&)
     {
         if (pendingRefresh or lastGhostGX != gx or lastGhostGY != gy)
         {
+            LOG_INFO("PlacementOverlay", "cursor off-grid (cursor=" << cursorX << "," << cursorY
+                    << ") — hiding overlays");
             hideAll();
             lastGhostGX = gx;
             lastGhostGY = gy;
@@ -102,19 +114,27 @@ void PlacementOverlaySystem::onEvent(const TickEvent&)
     if (gx == lastGhostGX and gy == lastGhostGY and not pendingRefresh)
         return;
 
+    LOG_INFO("PlacementOverlay", "ghost footprint refresh: def=" << def->name
+            << " grid=(" << gx << "," << gy << ") prev=(" << lastGhostGX << "," << lastGhostGY << ")"
+            << " pendingRefresh=" << pendingRefresh);
+
     lastGhostGX = gx;
     lastGhostGY = gy;
     pendingRefresh = false;
     refreshGhostFootprint(*def, gx, gy);
 }
 
-void PlacementOverlaySystem::onEvent(const BuildingPlacedEvent&)
+void PlacementOverlaySystem::onEvent(const BuildingPlacedEvent& event)
 {
+    LOG_INFO("PlacementOverlay", "BuildingPlacedEvent received (tile=" << event.tileName
+            << " at " << event.x << "," << event.y << ") — flagging refresh");
     pendingRefresh = true;
 }
 
-void PlacementOverlaySystem::onEvent(const BuildingRemovedEvent&)
+void PlacementOverlaySystem::onEvent(const BuildingRemovedEvent& event)
 {
+    LOG_INFO("PlacementOverlay", "BuildingRemovedEvent received (tile=" << event.tileName
+            << " at " << event.x << "," << event.y << ") — flagging refresh");
     pendingRefresh = true;
 }
 
@@ -153,6 +173,8 @@ void PlacementOverlaySystem::refreshGhostFootprint(const BuildingDef& def,
 
     int fw = def.getFootprintW();
     int fh = def.getFootprintH();
+    LOG_INFO("PlacementOverlay", "refreshGhostFootprint def=" << def.name
+            << " origin=(" << gx << "," << gy << ") footprint=" << fw << "x" << fh);
     int idx = 0;
     for (int dy = 0; dy < fh; ++dy)
     {

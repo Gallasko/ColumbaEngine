@@ -53,12 +53,16 @@ void InserterSystem::load(const UnserializedObject& serializedString)
 
 void InserterSystem::onEvent(const BuildingPlacedEvent& event)
 {
+    LOG_INFO("InserterSystem", "BuildingPlacedEvent " << event.tileName
+            << " at (" << event.x << "," << event.y << ")");
     if (event.tileName == "Inserter")
         registerInserter(event.x, event.y);
 }
 
 void InserterSystem::onEvent(const BuildingRemovedEvent& event)
 {
+    LOG_INFO("InserterSystem", "BuildingRemovedEvent " << event.tileName
+            << " at (" << event.x << "," << event.y << ")");
     if (event.tileName == "Inserter")
         unregisterInserter(event.x, event.y);
 }
@@ -99,6 +103,10 @@ void InserterSystem::registerInserter(int x, int y)
     data.direction = cell.direction;
     data.entityId = cell.entityId;
 
+    LOG_INFO("InserterSystem", "registered inserter at (" << x << "," << y
+            << ") direction=" << static_cast<unsigned>(data.direction)
+            << " entityId=" << data.entityId);
+
     inserters[machineKey(x, y)] = data;
 }
 
@@ -108,6 +116,8 @@ void InserterSystem::unregisterInserter(int x, int y)
     if (it != inserters.end())
     {
         auto& ins = it->second;
+        LOG_INFO("InserterSystem", "unregistering inserter at (" << x << "," << y
+                << ") heldItem=" << ins.heldItem);
 
         // Return held item to player
         if (ins.heldItem != ITEM_NONE)
@@ -115,6 +125,10 @@ void InserterSystem::unregisterInserter(int x, int y)
 
         destroyHeldItemVisual(ins);
         inserters.erase(it);
+    }
+    else
+    {
+        LOG_INFO("InserterSystem", "unregisterInserter at (" << x << "," << y << ") — not found");
     }
 }
 

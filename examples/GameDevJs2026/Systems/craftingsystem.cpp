@@ -40,12 +40,16 @@ void CraftingSystem::load(const UnserializedObject& serializedString)
 
 void CraftingSystem::onEvent(const BuildingPlacedEvent& event)
 {
+    LOG_INFO("CraftingSystem", "BuildingPlacedEvent " << event.tileName
+            << " at (" << event.x << "," << event.y << ")");
     if (event.tileName == "Furnace" or event.tileName == "Assembler")
         registerMachine(event.x, event.y, event.tileName);
 }
 
 void CraftingSystem::onEvent(const BuildingRemovedEvent& event)
 {
+    LOG_INFO("CraftingSystem", "BuildingRemovedEvent " << event.tileName
+            << " at (" << event.x << "," << event.y << ")");
     if (event.tileName == "Furnace" or event.tileName == "Assembler")
         unregisterMachine(event.x, event.y);
 }
@@ -110,6 +114,9 @@ void CraftingSystem::registerMachine(int x, int y, const std::string& tileName)
     const auto& cell = gridSystem->getGrid().getCell(buildingLayer, x, y);
     data.entityId = cell.entityId;
 
+    LOG_INFO("CraftingSystem", "registered machine " << tileName << " at (" << x << "," << y
+            << ") entityId=" << data.entityId);
+
     machines[machineKey(x, y)] = data;
 }
 
@@ -119,6 +126,8 @@ void CraftingSystem::unregisterMachine(int x, int y)
     if (it != machines.end())
     {
         auto& machine = it->second;
+        LOG_INFO("CraftingSystem", "unregistering machine " << machine.machineName
+                << " at (" << x << "," << y << ") — refunding inputs/outputs");
 
         // Return input slot items to player
         for (const auto& slot : machine.inputSlots.slots)
@@ -135,6 +144,10 @@ void CraftingSystem::unregisterMachine(int x, int y)
         }
 
         machines.erase(it);
+    }
+    else
+    {
+        LOG_INFO("CraftingSystem", "unregisterMachine at (" << x << "," << y << ") — not found");
     }
 }
 
