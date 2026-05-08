@@ -1,6 +1,7 @@
 #include "tooltipsystem.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/position.h"
 #include "2D/texture.h"
 #include "UI/ttftext.h"
 
@@ -72,7 +73,7 @@ void TooltipSystem::ensureCreated()
     if (created) return;
     created = true;
 
-    // Backdrop
+    // Backdrop — follows cursor; placement done in placeAt() (setX/setY).
     auto bd = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{15.0f, 15.0f, 25.0f, 230.0f});
     auto bdPos = bd.get<PositionComponent>();
@@ -82,16 +83,30 @@ void TooltipSystem::ensureCreated()
     bd.get<ViewportComponent>()->setViewport(UI_VP);
     backdropId = bd.entity->id;
 
-    // Icon
+    // Icon — anchored to backdrop top-left (X-tweak applied in showTooltip)
     auto icon = make2DTexture(ecsRef, ICON_SIZE, ICON_SIZE, "NoneIcon");
     auto iPos = icon.get<PositionComponent>();
-    iPos->setX(0.0f); iPos->setY(0.0f); iPos->setZ(104.0f);
+    iPos->setZ(104.0f);
     iPos->setVisibility(false);
     icon.get<ViewportComponent>()->setViewport(UI_VP);
     iconId = icon.entity->id;
+    {
+        auto a = ecsRef->attach<UiAnchor>(icon.entity);
+        a->setLeftAnchor(PosAnchor{backdropId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        a->setLeftMargin(PADDING);
+        a->setTopMargin(PADDING);
+    }
 
-    // Text lines
-    // Line 0 — item name (larger, white)
+    auto anchorLineToBackdrop = [this](EntityRef ent, float leftMargin, float topMargin) {
+        auto a = ecsRef->attach<UiAnchor>(ent);
+        a->setLeftAnchor(PosAnchor{backdropId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        a->setLeftMargin(leftMargin);
+        a->setTopMargin(topMargin);
+    };
+
+    // Line 0 — item name (right of icon, vertically centred with icon row)
     {
         auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
             FONT_PATH, "", NAME_SCALE,
@@ -99,52 +114,26 @@ void TooltipSystem::ensureCreated()
         t.get<ViewportComponent>()->setViewport(UI_VP);
         t.get<PositionComponent>()->setVisibility(false);
         lineIds[0] = t.entity->id;
+        anchorLineToBackdrop(t.entity,
+            PADDING + ICON_SIZE + 6.0f,
+            PADDING + (ICON_SIZE - NAME_SCALE * 48.0f) * 0.5f);
     }
-    // Line 1 — category (small, light blue-grey)
-    {
+    // Body lines 1..5 — left of panel, stacked under icon row
+    auto makeBodyLine = [this, &anchorLineToBackdrop](int i, const constant::Vector4D& color) {
         auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
-            FONT_PATH, "", BODY_SCALE,
-            {160.0f, 190.0f, 220.0f, 255.0f});
+            FONT_PATH, "", BODY_SCALE, color);
         t.get<ViewportComponent>()->setViewport(UI_VP);
         t.get<PositionComponent>()->setVisibility(false);
-        lineIds[1] = t.entity->id;
-    }
-    // Line 2 — description (small, light grey)
-    {
-        auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
-            FONT_PATH, "", BODY_SCALE,
-            {210.0f, 210.0f, 210.0f, 255.0f});
-        t.get<ViewportComponent>()->setViewport(UI_VP);
-        t.get<PositionComponent>()->setVisibility(false);
-        lineIds[2] = t.entity->id;
-    }
-    // Line 3 — source / craft header (small, gold)
-    {
-        auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
-            FONT_PATH, "", BODY_SCALE,
-            {255.0f, 210.0f, 80.0f, 255.0f});
-        t.get<ViewportComponent>()->setViewport(UI_VP);
-        t.get<PositionComponent>()->setVisibility(false);
-        lineIds[3] = t.entity->id;
-    }
-    // Line 4 — ingredients row 1 (small, light grey)
-    {
-        auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
-            FONT_PATH, "", BODY_SCALE,
-            {210.0f, 210.0f, 210.0f, 255.0f});
-        t.get<ViewportComponent>()->setViewport(UI_VP);
-        t.get<PositionComponent>()->setVisibility(false);
-        lineIds[4] = t.entity->id;
-    }
-    // Line 5 — ingredients row 2 (small, light grey)
-    {
-        auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
-            FONT_PATH, "", BODY_SCALE,
-            {210.0f, 210.0f, 210.0f, 255.0f});
-        t.get<ViewportComponent>()->setViewport(UI_VP);
-        t.get<PositionComponent>()->setVisibility(false);
-        lineIds[5] = t.entity->id;
-    }
+        lineIds[i] = t.entity->id;
+        anchorLineToBackdrop(t.entity,
+            PADDING,
+            PADDING + ICON_SIZE + 4.0f + static_cast<float>(i - 1) * LINE_H);
+    };
+    makeBodyLine(1, {160.0f, 190.0f, 220.0f, 255.0f});
+    makeBodyLine(2, {210.0f, 210.0f, 210.0f, 255.0f});
+    makeBodyLine(3, {255.0f, 210.0f,  80.0f, 255.0f});
+    makeBodyLine(4, {210.0f, 210.0f, 210.0f, 255.0f});
+    makeBodyLine(5, {210.0f, 210.0f, 210.0f, 255.0f});
 }
 
 // ---------------------------------------------------------------------------
@@ -228,51 +217,25 @@ float TooltipSystem::computeHeight(int numBodyLines) const
 
 void TooltipSystem::placeAt(float tx, float ty, float h, int numBodyLines)
 {
-    // Backdrop
+    // Backdrop position is screen-clamped against the cursor; children follow
+    // via anchors set up in ensureCreated().
+    auto ent = ecsRef->getEntity(backdropId);
+    if (ent)
     {
-        auto ent = ecsRef->getEntity(backdropId);
-        if (ent)
-        {
-            ent->get<PositionComponent>()->setX(tx);
-            ent->get<PositionComponent>()->setY(ty);
-            ent->get<PositionComponent>()->setWidth(TOOLTIP_W);
-            ent->get<PositionComponent>()->setHeight(h);
-        }
+        auto pos = ent->get<PositionComponent>();
+        pos->setX(tx);
+        pos->setY(ty);
+        pos->setWidth(TOOLTIP_W);
+        pos->setHeight(h);
     }
 
-    // Icon (top-left with padding)
+    // Adjust icon's leftMargin to account for the per-item icon width
+    // (anchor was set up with PADDING; centre the visible icon in ICON_SIZE).
+    if (auto iEnt = ecsRef->getEntity(iconId))
     {
-        auto ent = ecsRef->getEntity(iconId);
-        if (ent)
-        {
-            float iconX = tx + PADDING;
-            float iconY = ty + PADDING;
-            float iconW = ent->get<PositionComponent>()->getWidth();
-            ent->get<PositionComponent>()->setX(iconX + (ICON_SIZE - iconW) * 0.5f);
-            ent->get<PositionComponent>()->setY(iconY);
-        }
-    }
-
-    // Line 0 (name) — to the right of icon, vertically centred with icon
-    {
-        auto ent = ecsRef->getEntity(lineIds[0]);
-        if (ent)
-        {
-            ent->get<PositionComponent>()->setX(tx + PADDING + ICON_SIZE + 6.0f);
-            ent->get<PositionComponent>()->setY(ty + PADDING + (ICON_SIZE - NAME_SCALE * 48.0f) * 0.5f);
-        }
-    }
-
-    // Body lines (1-5) below the icon row
-    float bodyStartY = ty + PADDING + ICON_SIZE + 4.0f;
-    for (int i = 1; i < NUM_LINES; ++i)
-    {
-        auto ent = ecsRef->getEntity(lineIds[i]);
-        if (ent)
-        {
-            ent->get<PositionComponent>()->setX(tx + PADDING);
-            ent->get<PositionComponent>()->setY(bodyStartY + static_cast<float>(i - 1) * LINE_H);
-        }
+        float iconW = iEnt->get<PositionComponent>()->getWidth();
+        if (auto a = iEnt->get<UiAnchor>())
+            a->setLeftMargin(PADDING + (ICON_SIZE - iconW) * 0.5f);
     }
 
     (void)numBodyLines;

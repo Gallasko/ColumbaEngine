@@ -3,6 +3,7 @@
 #include "machinedemosystem.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/position.h"
 #include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
@@ -165,39 +166,28 @@ void MachineUISystem::onProcessEvent(const OnMouseClick& event)
     if (not visible or event.button != SDL_BUTTON_LEFT)
         return;
 
-    // Check "?" demo button click
+    // Check "?" demo button click — read live position from the button entity
+    // (anchors have resolved by the time clicks land on a visible panel).
     if (machineDemo and demoBtnBgEntityId != 0)
     {
-        float btnSize = 20.0f;
-        float btnX = getPanelX() + getPanelWidth() - PANEL_PADDING - btnSize;
-        float btnY = getPanelY() + PANEL_PADDING;
-        if (event.pos.x >= btnX and event.pos.x <= btnX + btnSize
-            and event.pos.y >= btnY and event.pos.y <= btnY + btnSize)
+        auto btnEnt = ecsRef->getEntity(demoBtnBgEntityId);
+        if (btnEnt)
         {
-            std::string name = openMachineName;
-            close();
-            machineDemo->openDemo(name);
-            return;
+            auto pos = btnEnt->get<PositionComponent>();
+            float btnX = pos->getX();
+            float btnY = pos->getY();
+            float btnW = pos->getWidth();
+            float btnH = pos->getHeight();
+            if (event.pos.x >= btnX and event.pos.x <= btnX + btnW
+                and event.pos.y >= btnY and event.pos.y <= btnY + btnH)
+            {
+                std::string name = openMachineName;
+                close();
+                machineDemo->openDemo(name);
+                return;
+            }
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// Layout
-// ---------------------------------------------------------------------------
-
-float MachineUISystem::getPanelX() const
-{
-    float invW = InventoryUISystem::COLS * InventoryUISystem::SLOT_SIZE
-               + (InventoryUISystem::COLS - 1) * InventoryUISystem::SLOT_SPACING
-               + 2.0f * InventoryUISystem::PANEL_PADDING;
-    float invX = (screenWidth - invW) * 0.5f;
-    return invX - GAP_BETWEEN_PANELS - getPanelWidth();
-}
-
-float MachineUISystem::getPanelY() const
-{
-    return (screenHeight - getPanelHeight()) * 0.5f;
 }
 
 // ---------------------------------------------------------------------------
@@ -250,29 +240,30 @@ void MachineUISystem::updateForMachineType()
 
 void MachineUISystem::createPanel()
 {
-    float panelX = getPanelX();
-    float panelY = getPanelY();
-    float panelW = getPanelWidth();
-    float panelH = getPanelHeight();
+    const float panelW = getPanelWidth();
+    const float panelH = getPanelHeight();
 
-    // Input column starts at panelX + PANEL_PADDING
-    float inputColX = panelX + PANEL_PADDING;
-    // Output column starts after input column + arrow gap
-    float outputColX = inputColX + SLOT_SIZE + ARROW_GAP;
+    // Per-row offsets within the panel (used as anchor margins)
+    const float inputColLeft  = PANEL_PADDING;
+    const float outputColLeft = PANEL_PADDING + SLOT_SIZE + ARROW_GAP;
+    const float slotsTop      = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
+    const float inputSlot0Top = slotsTop;
+    const float inputSlot1Top = slotsTop + SLOT_SIZE + SLOT_SPACING;
+    const float outputSlotTop = slotsTop + (SLOT_SIZE + SLOT_SPACING) * 0.5f;
+    const float barTop        = slotsTop + 2.0f * SLOT_SIZE + SLOT_SPACING + GAP_AFTER_SLOTS;
 
-    float slotsStartY = panelY + PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
-
-    float inputSlot0Y = slotsStartY;
-    float inputSlot1Y = slotsStartY + SLOT_SIZE + SLOT_SPACING;
-    // Output slot is vertically centred between the two input rows
-    float outputSlotY = slotsStartY + (SLOT_SIZE + SLOT_SPACING) * 0.5f;
-
-    float barY = slotsStartY + 2.0f * SLOT_SIZE + SLOT_SPACING + GAP_AFTER_SLOTS;
-
-    cachedBarX    = inputColX;
     cachedBarMaxW = panelW - 2.0f * PANEL_PADDING;
 
-    // Backdrop & title via engine factories
+    // Anchor target: machine panel sits left of the inventory panel.
+    uint64_t anchorTargetId = 0;
+    if (inventoryUI)
+        anchorTargetId = inventoryUI->getBackdropEntityId();
+    if (anchorTargetId == 0)
+    {
+        auto windowEnt = ecsRef->getEntity("__MainWindow");
+        if (windowEnt) anchorTargetId = windowEnt->id;
+    }
+
     auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
     {
         auto panelEnt = factory->build("Panel", PrefabParams{
@@ -281,9 +272,12 @@ void MachineUISystem::createPanel()
             {"z", 97.0f},
             {"viewport", static_cast<int>(UI_VP)},
         });
-        auto pos = panelEnt->get<PositionComponent>();
-        pos->setX(panelX); pos->setY(panelY);
         backdropEntityId = panelEnt->id;
+
+        auto a = panelEnt->get<UiAnchor>();
+        a->setRightAnchor(PosAnchor{anchorTargetId, AnchorType::Left});
+        a->setRightMargin(GAP_BETWEEN_PANELS);
+        a->setVerticalCenter(PosAnchor{anchorTargetId, AnchorType::VerticalCenter});
 
         if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
             ecsRef->attach<MouseLeftClickComponent>(bgEnt,
@@ -293,8 +287,7 @@ void MachineUISystem::createPanel()
     {
         const std::string initialTitle = openMachineName.empty() ? "Machine" : openMachineName;
         auto titleEnt = factory->build("Text", PrefabParams{
-            {"x",        panelX + PANEL_PADDING},
-            {"y",        panelY + PANEL_PADDING + 4.0f},
+            {"x", 0.0f}, {"y", 0.0f},
             {"z",        100.0f},
             {"font",     std::string(FONT_PATH)},
             {"text",     initialTitle},
@@ -302,31 +295,40 @@ void MachineUISystem::createPanel()
             {"viewport", static_cast<int>(UI_VP)},
         });
         titleEntityId = titleEnt->id;
+        auto a = ecsRef->attach<UiAnchor>(titleEnt);
+        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        a->setLeftMargin(PANEL_PADDING);
+        a->setTopMargin(PANEL_PADDING + 4.0f);
     }
 
-    // Input slots via SlotSystem
+    // Input slots
     {
-        float inputSlotYs[2] = {inputSlot0Y, inputSlot1Y};
+        const float inputSlotTops[2] = {inputSlot0Top, inputSlot1Top};
         for (int i = 0; i < 2; ++i)
         {
             auto slotRef = slotSystem->createSlot(
                 SlotCategory::Input, static_cast<uint8_t>(i));
             inputSlotEntityIds[i] = slotRef.id;
 
-            auto pos = slotRef.get<PositionComponent>();
-            pos->setX(inputColX);
-            pos->setY(inputSlotYs[i]);
+            auto a = slotRef.get<UiAnchor>();
+            a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+            a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+            a->setLeftMargin(inputColLeft);
+            a->setTopMargin(inputSlotTops[i]);
         }
     }
 
-    // Output slot via SlotSystem
+    // Output slot
     {
         auto slotRef = slotSystem->createSlot(SlotCategory::Output, 0);
         outputSlotEntityId = slotRef.id;
 
-        auto pos = slotRef.get<PositionComponent>();
-        pos->setX(outputColX);
-        pos->setY(outputSlotY);
+        auto a = slotRef.get<UiAnchor>();
+        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        a->setLeftMargin(outputColLeft);
+        a->setTopMargin(outputSlotTop);
     }
 
     // Progress bar background
@@ -334,10 +336,16 @@ void MachineUISystem::createPanel()
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{40.0f, 40.0f, 50.0f, 200.0f});
         auto pos = bg.get<PositionComponent>();
-        pos->setX(cachedBarX); pos->setY(barY); pos->setZ(98.0f);
+        pos->setZ(98.0f);
         pos->setWidth(cachedBarMaxW); pos->setHeight(PROGRESS_H);
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         progressBgEntityId = bg.entity->id;
+
+        auto a = ecsRef->attach<UiAnchor>(bg.entity);
+        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        a->setLeftMargin(PANEL_PADDING);
+        a->setTopMargin(barTop);
     }
 
     // Progress bar fill
@@ -345,30 +353,45 @@ void MachineUISystem::createPanel()
         auto fill = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{80.0f, 200.0f, 80.0f, 255.0f});
         auto pos = fill.get<PositionComponent>();
-        pos->setX(cachedBarX); pos->setY(barY); pos->setZ(99.0f);
+        pos->setZ(99.0f);
         pos->setWidth(0.0f); pos->setHeight(PROGRESS_H);
         fill.get<ViewportComponent>()->setViewport(UI_VP);
         progressFillEntityId = fill.entity->id;
+
+        auto a = ecsRef->attach<UiAnchor>(fill.entity);
+        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        a->setLeftMargin(PANEL_PADDING);
+        a->setTopMargin(barTop);
     }
 
     // "?" demo button (top-right of panel)
     {
-        float btnSize = 20.0f;
-        float btnX = panelX + panelW - PANEL_PADDING - btnSize;
-        float btnY = panelY + PANEL_PADDING;
+        const float btnSize = 20.0f;
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{60.0f, 60.0f, 100.0f, 220.0f});
         auto pos = bg.get<PositionComponent>();
-        pos->setX(btnX); pos->setY(btnY); pos->setZ(100.0f);
+        pos->setZ(100.0f);
         pos->setWidth(btnSize); pos->setHeight(btnSize);
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         demoBtnBgEntityId = bg.entity->id;
 
-        auto txt = makeTTFText(ecsRef,
-            btnX + 5.0f, btnY + 2.0f, 101.0f,
+        auto a = ecsRef->attach<UiAnchor>(bg.entity);
+        a->setRightAnchor(PosAnchor{backdropEntityId, AnchorType::Right});
+        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        a->setRightMargin(PANEL_PADDING);
+        a->setTopMargin(PANEL_PADDING);
+
+        auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 101.0f,
             FONT_PATH, "?", 0.35f, {255.0f, 255.0f, 255.0f, 255.0f});
         txt.get<ViewportComponent>()->setViewport(UI_VP);
         demoBtnTextEntityId = txt.entity->id;
+
+        auto ta = ecsRef->attach<UiAnchor>(txt.entity);
+        ta->setLeftAnchor(PosAnchor{demoBtnBgEntityId, AnchorType::Left});
+        ta->setTopAnchor(PosAnchor{demoBtnBgEntityId, AnchorType::Top});
+        ta->setLeftMargin(5.0f);
+        ta->setTopMargin(2.0f);
     }
 }
 

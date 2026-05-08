@@ -91,10 +91,6 @@ private:
     bool missionButtonVisible = true;
     bool ticketDisplayVisible = false;
 
-    // Cached positions (top-left of each button)
-    float buttonX[NUM_BUTTONS] = {};
-    float buttonY[NUM_BUTTONS] = {};
-
     // Entity IDs
     uint64_t buttonBgId[NUM_BUTTONS]   = {};
     uint64_t buttonIconId[NUM_BUTTONS] = {};

@@ -67,8 +67,6 @@ private:
     float getPanelWidth() const  { return COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2.0f * PANEL_PADDING; }
     float getPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
                                         + ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + PANEL_PADDING; }
-    float getPanelX() const;
-    float getPanelY() const;
 
     void ensurePanelCreated();
     void setPanelVisibility(bool vis);

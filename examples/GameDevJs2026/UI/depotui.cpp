@@ -2,9 +2,24 @@
 #include "craftingui.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/position.h"
 #include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
+
+namespace
+{
+    // Hit-test against a button entity's resolved position+size.
+    bool hitButtonEntity(pg::EntitySystem* ecs, uint64_t id, float mx, float my)
+    {
+        if (id == 0) return false;
+        auto ent = ecs->getEntity(id);
+        if (not ent) return false;
+        auto pos = ent->get<pg::PositionComponent>();
+        return mx >= pos->getX() and mx <= pos->getX() + pos->getWidth()
+           and my >= pos->getY() and my <= pos->getY() + pos->getHeight();
+    }
+}
 
 // ---------------------------------------------------------------------------
 // open / close
@@ -169,8 +184,7 @@ void DepotUISystem::onProcessEvent(const OnMouseClick& event)
     // Mission section: CLAIM button for active mission
     if (missionSystem->hasActiveMissionAtDepot(openDepotX, openDepotY))
     {
-        if (mx >= claimBtnX and mx <= claimBtnX + BTN_W
-            and my >= claimBtnY and my <= claimBtnY + BTN_H)
+        if (hitButtonEntity(ecsRef, activeMissionClaimBtnBgId, mx, my))
         {
             size_t idx = missionSystem->getActiveMissionIndexForDepot(openDepotX, openDepotY);
 
@@ -197,8 +211,7 @@ void DepotUISystem::onProcessEvent(const OnMouseClick& event)
             if (row.bgId == 0)
                 continue;
 
-            if (mx >= row.btnX and mx <= row.btnX + BTN_W
-                and my >= row.btnY and my <= row.btnY + BTN_H)
+            if (hitButtonEntity(ecsRef, row.btnBgId, mx, my))
             {
                 if (missionSystem->canStartMission(row.defIndex))
                 {
@@ -210,40 +223,6 @@ void DepotUISystem::onProcessEvent(const OnMouseClick& event)
             }
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// Layout
-// ---------------------------------------------------------------------------
-
-float DepotUISystem::getPanelX() const
-{
-    float invW = InventoryUISystem::COLS * InventoryUISystem::SLOT_SIZE
-               + (InventoryUISystem::COLS - 1) * InventoryUISystem::SLOT_SPACING
-               + 2.0f * InventoryUISystem::PANEL_PADDING;
-    float invX = (screenWidth - invW) * 0.5f;
-
-    return invX - GAP_BETWEEN_PANELS - getPanelWidth();
-}
-
-float DepotUISystem::getPanelY() const
-{
-    return (screenHeight - getPanelHeight()) * 0.5f;
-}
-
-float DepotUISystem::getMissionPanelX() const
-{
-    float invW = InventoryUISystem::COLS * InventoryUISystem::SLOT_SIZE
-               + (InventoryUISystem::COLS - 1) * InventoryUISystem::SLOT_SPACING
-               + 2.0f * InventoryUISystem::PANEL_PADDING;
-    float invX = (screenWidth - invW) * 0.5f;
-
-    return invX + invW + GAP_BETWEEN_PANELS;
-}
-
-float DepotUISystem::getMissionPanelY() const
-{
-    return (screenHeight - getMissionPanelHeight()) * 0.5f;
 }
 
 // ---------------------------------------------------------------------------
@@ -305,14 +284,24 @@ void DepotUISystem::setPanelVisibility(bool vis)
 
 void DepotUISystem::createPanel()
 {
-    float panelX = getPanelX();
-    float panelY = getPanelY();
-    float panelW = getPanelWidth();
-    float panelH = getPanelHeight();
+    const float panelW = getPanelWidth();
+    const float panelH = getPanelHeight();
 
-    float slotsStartY = panelY + PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
+    const float slotsTop  = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
+    const float outputTop = slotsTop + ROWS * (SLOT_SIZE + SLOT_SPACING) + SECTION_GAP;
+    const float outputSlotsTop = outputTop + TITLE_H + GAP_AFTER_TITLE;
 
-    // Backdrop & title via engine factories
+    // Anchor target: depot panel sits left of the inventory panel.
+    uint64_t invPanelId = 0;
+    if (inventoryUI)
+        invPanelId = inventoryUI->getBackdropEntityId();
+    uint64_t leftAnchorTargetId = invPanelId;
+    if (leftAnchorTargetId == 0)
+    {
+        auto windowEnt = ecsRef->getEntity("__MainWindow");
+        if (windowEnt) leftAnchorTargetId = windowEnt->id;
+    }
+
     auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
     {
         auto panelEnt = factory->build("Panel", PrefabParams{
@@ -321,9 +310,12 @@ void DepotUISystem::createPanel()
             {"z", 97.0f},
             {"viewport", static_cast<int>(UI_VP)},
         });
-        auto pos = panelEnt->get<PositionComponent>();
-        pos->setX(panelX); pos->setY(panelY);
         backdropEntityId = panelEnt->id;
+
+        auto a = panelEnt->get<UiAnchor>();
+        a->setRightAnchor(PosAnchor{leftAnchorTargetId, AnchorType::Left});
+        a->setRightMargin(GAP_BETWEEN_PANELS);
+        a->setVerticalCenter(PosAnchor{leftAnchorTargetId, AnchorType::VerticalCenter});
 
         if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
             ecsRef->attach<MouseLeftClickComponent>(bgEnt,
@@ -332,8 +324,7 @@ void DepotUISystem::createPanel()
 
     {
         auto titleEnt = factory->build("Text", PrefabParams{
-            {"x",        panelX + PANEL_PADDING},
-            {"y",        panelY + PANEL_PADDING + 4.0f},
+            {"x", 0.0f}, {"y", 0.0f},
             {"z",        100.0f},
             {"font",     std::string(FONT_PATH)},
             {"text",     std::string("Depot")},
@@ -341,48 +332,50 @@ void DepotUISystem::createPanel()
             {"viewport", static_cast<int>(UI_VP)},
         });
         titleEntityId = titleEnt->id;
+
+        auto a = ecsRef->attach<UiAnchor>(titleEnt);
+        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        a->setLeftMargin(PANEL_PADDING);
+        a->setTopMargin(PANEL_PADDING + 4.0f);
     }
 
-    // Input slots via SlotSystem
+    // Input slots
     for (size_t i = 0; i < NUM_SLOTS; ++i)
     {
         size_t col = i % COLS;
         size_t row = i / COLS;
 
-        float sx = panelX + PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
-        float sy = slotsStartY + row * (SLOT_SIZE + SLOT_SPACING);
-
         auto slotRef = slotSystem->createSlot(
             SlotCategory::Input, static_cast<uint8_t>(i));
         inputSlotEntityIds[i] = slotRef.id;
 
-        auto pos = slotRef.get<PositionComponent>();
-        pos->setX(sx);
-        pos->setY(sy);
+        auto a = slotRef.get<UiAnchor>();
+        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        a->setLeftMargin(PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING));
+        a->setTopMargin(slotsTop + row * (SLOT_SIZE + SLOT_SPACING));
     }
-
-    // --- Output section ---
-    float outputStartY = slotsStartY + ROWS * (SLOT_SIZE + SLOT_SPACING) + SECTION_GAP;
 
     // Output title
     {
-        auto t = makeTTFText(ecsRef,
-            panelX + PANEL_PADDING, outputStartY + 4.0f, 100.0f,
+        auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_PATH, "Output", TITLE_SCALE, {180.0f, 180.0f, 200.0f, 255.0f});
         t.get<ViewportComponent>()->setViewport(UI_VP);
         outputTitleEntityId = t.entity->id;
+
+        auto a = ecsRef->attach<UiAnchor>(t.entity);
+        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        a->setLeftMargin(PANEL_PADDING);
+        a->setTopMargin(outputTop + 4.0f);
     }
 
-    float outputSlotsStartY = outputStartY + TITLE_H + GAP_AFTER_TITLE;
-
-    // Output slots via SlotSystem (OutputOnly — pick up only, no dropping)
+    // Output slots (OutputOnly — pick up only, no dropping)
     for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
     {
         size_t col = i % COLS;
         size_t row = i / COLS;
-
-        float sx = panelX + PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
-        float sy = outputSlotsStartY + row * (SLOT_SIZE + SLOT_SPACING);
 
         auto slotRef = slotSystem->createSlot(
             SlotCategory::Output, static_cast<uint8_t>(i),
@@ -391,25 +384,34 @@ void DepotUISystem::createPanel()
             {45.0f, 55.0f, 50.0f, 200.0f});
         outputSlotEntityIds[i] = slotRef.id;
 
-        auto pos = slotRef.get<PositionComponent>();
-        pos->setX(sx);
-        pos->setY(sy);
+        auto a = slotRef.get<UiAnchor>();
+        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        a->setLeftMargin(PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING));
+        a->setTopMargin(outputSlotsTop + row * (SLOT_SIZE + SLOT_SPACING));
     }
 
     // --- Mission panel (RIGHT of inventory) ---
     {
-        float rightX = getMissionPanelX();
-        float rightY = getMissionPanelY();
-        float rightW = getMissionPanelWidth();
-        float rightH = getMissionPanelHeight();
+        const float rightW = getMissionPanelWidth();
+        const float rightH = getMissionPanelHeight();
+
+        // Anchor target: prefer inventory panel, else depot's own backdrop, else main window.
+        uint64_t rightAnchorId = invPanelId;
+        if (rightAnchorId == 0) rightAnchorId = leftAnchorTargetId;
 
         auto bd = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
         auto pos = bd.get<PositionComponent>();
-        pos->setX(rightX); pos->setY(rightY); pos->setZ(97.0f);
+        pos->setZ(97.0f);
         pos->setWidth(rightW); pos->setHeight(rightH);
         bd.get<ViewportComponent>()->setViewport(UI_VP);
         missionPanelBackdropId = bd.entity->id;
+
+        auto a = ecsRef->attach<UiAnchor>(bd.entity);
+        a->setLeftAnchor(PosAnchor{rightAnchorId, AnchorType::Right});
+        a->setLeftMargin(GAP_BETWEEN_PANELS);
+        a->setVerticalCenter(PosAnchor{rightAnchorId, AnchorType::VerticalCenter});
 
         ecsRef->attach<MouseLeftClickComponent>(bd.entity,
             makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
@@ -466,130 +468,173 @@ void DepotUISystem::syncSlotToDepot(size_t slotIndex, bool isInput)
 
 void DepotUISystem::createMissionSection()
 {
-    float panelX = getMissionPanelX();
-    float panelW = getMissionPanelWidth();
-    float curY = getMissionPanelY() + PANEL_PADDING;
+    const float panelW = getMissionPanelWidth();
+    const float pbW = panelW - 2.0f * PANEL_PADDING;
+    const uint64_t parentId = missionPanelBackdropId;
 
-    // Section title
+    auto anchorTo = [&](EntityRef ent,
+                        AnchorType hSide, float hMargin,
+                        float topMargin) {
+        auto a = ecsRef->attach<UiAnchor>(ent);
+        if (hSide == AnchorType::Left) {
+            a->setLeftAnchor(PosAnchor{parentId, AnchorType::Left});
+            a->setLeftMargin(hMargin);
+        } else {
+            a->setRightAnchor(PosAnchor{parentId, AnchorType::Right});
+            a->setRightMargin(hMargin);
+        }
+        a->setTopAnchor(PosAnchor{parentId, AnchorType::Top});
+        a->setTopMargin(topMargin);
+    };
+
+    // Section title — top-left of mission panel
     {
-        auto t = makeTTFText(ecsRef,
-            panelX + PANEL_PADDING, curY + 4.0f, 100.0f,
+        auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_PATH, "Mission", TITLE_SCALE, {180.0f, 180.0f, 200.0f, 255.0f});
         t.get<ViewportComponent>()->setViewport(UI_VP);
         missionSectionTitleId = t.entity->id;
+        anchorTo(t.entity, AnchorType::Left, PANEL_PADDING,
+                 PANEL_PADDING + 4.0f);
     }
-    curY += TITLE_H + GAP_AFTER_TITLE;
 
-    // Active mission entities (initially hidden)
+    const float curYBase = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
+
+    // Active mission name
     {
-        auto name = makeTTFText(ecsRef, panelX + PANEL_PADDING + 2.0f, curY + 2.0f, 100.0f,
+        auto name = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
         name.get<ViewportComponent>()->setViewport(UI_VP);
         name.get<PositionComponent>()->setVisibility(false);
         activeMissionNameId = name.entity->id;
+        anchorTo(name.entity, AnchorType::Left, PANEL_PADDING + 2.0f,
+                 curYBase + 2.0f);
     }
 
-    float pbX = panelX + PANEL_PADDING;
-    float pbY = curY + MISSION_ROW_H;
-    float pbW = panelW - 2.0f * PANEL_PADDING;
+    const float pbY = curYBase + MISSION_ROW_H;
 
+    // Active mission progress bar background
     {
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
         auto pos = bg.get<PositionComponent>();
-        pos->setX(pbX); pos->setY(pbY); pos->setZ(98.5f);
+        pos->setZ(98.5f);
         pos->setWidth(pbW); pos->setHeight(PROGRESS_H);
         pos->setVisibility(false);
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         activeMissionProgressBgId = bg.entity->id;
+        anchorTo(bg.entity, AnchorType::Left, PANEL_PADDING,
+                 pbY);
     }
+    // Active mission progress bar fill
     {
         auto fill = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{80.0f, 160.0f, 80.0f, 220.0f});
         auto pos = fill.get<PositionComponent>();
-        pos->setX(pbX); pos->setY(pbY); pos->setZ(98.6f);
+        pos->setZ(98.6f);
         pos->setWidth(0.0f); pos->setHeight(PROGRESS_H);
         pos->setVisibility(false);
         fill.get<ViewportComponent>()->setViewport(UI_VP);
         activeMissionProgressFillId = fill.entity->id;
+        anchorTo(fill.entity, AnchorType::Left, PANEL_PADDING,
+                 pbY);
     }
+    // Active mission status text
     {
-        auto status = makeTTFText(ecsRef, pbX, pbY + PROGRESS_H + 2.0f, 100.0f,
+        auto status = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {180.0f, 180.0f, 180.0f, 255.0f});
         status.get<ViewportComponent>()->setViewport(UI_VP);
         status.get<PositionComponent>()->setVisibility(false);
         activeMissionStatusId = status.entity->id;
+        anchorTo(status.entity, AnchorType::Left, PANEL_PADDING,
+                 pbY + PROGRESS_H + 2.0f);
     }
 
-    // CLAIM button for active mission
-    float claimX = panelX + panelW - PANEL_PADDING - BTN_W;
-    float claimY = pbY + PROGRESS_H + 2.0f;
-    claimBtnX = claimX;
-    claimBtnY = claimY;
-
+    // CLAIM button for active mission — anchored to right side of panel
     {
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{60.0f, 100.0f, 180.0f, 200.0f});
         auto pos = bg.get<PositionComponent>();
-        pos->setX(claimX); pos->setY(claimY); pos->setZ(99.0f);
+        pos->setZ(99.0f);
         pos->setWidth(BTN_W); pos->setHeight(BTN_H);
         pos->setVisibility(false);
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         activeMissionClaimBtnBgId = bg.entity->id;
+        anchorTo(bg.entity, AnchorType::Right, PANEL_PADDING,
+                 pbY + PROGRESS_H + 2.0f);
     }
     {
-        auto txt = makeTTFText(ecsRef, claimX + 4.0f, claimY + 3.0f, 100.0f,
+        auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_PATH, "CLAIM", BTN_TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
         txt.get<ViewportComponent>()->setViewport(UI_VP);
         txt.get<PositionComponent>()->setVisibility(false);
         activeMissionClaimBtnTextId = txt.entity->id;
+        // Anchor to the claim button bg (left+top with small inset)
+        auto a = ecsRef->attach<UiAnchor>(txt.entity);
+        a->setLeftAnchor(PosAnchor{activeMissionClaimBtnBgId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{activeMissionClaimBtnBgId, AnchorType::Top});
+        a->setLeftMargin(4.0f);
+        a->setTopMargin(3.0f);
     }
 
     // Available mission rows (initially hidden)
     for (size_t i = 0; i < MAX_MISSION_ROWS; ++i)
     {
-        float rowY = curY + i * (MISSION_ROW_H + MISSION_ROW_GAP);
+        const float rowTopMargin = curYBase + i * (MISSION_ROW_H + MISSION_ROW_GAP);
         auto& row = missionRows[i];
 
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{35.0f, 35.0f, 45.0f, 180.0f});
-        auto pos = bg.get<PositionComponent>();
-        pos->setX(panelX + PANEL_PADDING); pos->setY(rowY); pos->setZ(98.0f);
-        pos->setWidth(panelW - 2.0f * PANEL_PADDING); pos->setHeight(MISSION_ROW_H);
-        pos->setVisibility(false);
-        bg.get<ViewportComponent>()->setViewport(UI_VP);
-        row.bgId = bg.entity->id;
+        {
+            auto pos = bg.get<PositionComponent>();
+            pos->setZ(98.0f);
+            pos->setWidth(pbW); pos->setHeight(MISSION_ROW_H);
+            pos->setVisibility(false);
+            bg.get<ViewportComponent>()->setViewport(UI_VP);
+            row.bgId = bg.entity->id;
+            anchorTo(bg.entity, AnchorType::Left, PANEL_PADDING,
+                     rowTopMargin);
+        }
 
-        auto name = makeTTFText(ecsRef, panelX + PANEL_PADDING + 2.0f, rowY + 4.0f, 100.0f,
+        auto name = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
         name.get<ViewportComponent>()->setViewport(UI_VP);
         name.get<PositionComponent>()->setVisibility(false);
         row.nameId = name.entity->id;
+        anchorTo(name.entity, AnchorType::Left, PANEL_PADDING + 2.0f,
+                 rowTopMargin + 4.0f);
 
-        auto info = makeTTFText(ecsRef, panelX + PANEL_PADDING + 2.0f, rowY + 14.0f, 100.0f,
+        auto info = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_PATH, "", 0.2f, {150.0f, 150.0f, 170.0f, 255.0f});
         info.get<ViewportComponent>()->setViewport(UI_VP);
         info.get<PositionComponent>()->setVisibility(false);
         row.infoId = info.entity->id;
-
-        float bx = panelX + panelW - PANEL_PADDING - BTN_W;
-        row.btnX = bx;
-        row.btnY = rowY + 2.0f;
+        anchorTo(info.entity, AnchorType::Left, PANEL_PADDING + 2.0f,
+                 rowTopMargin + 14.0f);
 
         auto btnBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{60.0f, 120.0f, 60.0f, 200.0f});
-        auto bpos = btnBg.get<PositionComponent>();
-        bpos->setX(bx); bpos->setY(row.btnY); bpos->setZ(99.0f);
-        bpos->setWidth(BTN_W); bpos->setHeight(BTN_H);
-        bpos->setVisibility(false);
-        btnBg.get<ViewportComponent>()->setViewport(UI_VP);
-        row.btnBgId = btnBg.entity->id;
+        {
+            auto bpos = btnBg.get<PositionComponent>();
+            bpos->setZ(99.0f);
+            bpos->setWidth(BTN_W); bpos->setHeight(BTN_H);
+            bpos->setVisibility(false);
+            btnBg.get<ViewportComponent>()->setViewport(UI_VP);
+            row.btnBgId = btnBg.entity->id;
+            anchorTo(btnBg.entity, AnchorType::Right, PANEL_PADDING,
+                     rowTopMargin + 2.0f);
+        }
 
-        auto btnTxt = makeTTFText(ecsRef, bx + 6.0f, row.btnY + 3.0f, 100.0f,
+        auto btnTxt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_PATH, "START", BTN_TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
         btnTxt.get<ViewportComponent>()->setViewport(UI_VP);
         btnTxt.get<PositionComponent>()->setVisibility(false);
         row.btnTextId = btnTxt.entity->id;
+        // Anchor to its row button bg
+        auto a = ecsRef->attach<UiAnchor>(btnTxt.entity);
+        a->setLeftAnchor(PosAnchor{row.btnBgId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{row.btnBgId, AnchorType::Top});
+        a->setLeftMargin(6.0f);
+        a->setTopMargin(3.0f);
     }
 }
 

@@ -1,6 +1,7 @@
 #include "spotlightoverlaysystem.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/position.h"
 #include "UI/ttftext.h"
 #include "Renderer/camera.h"
 
@@ -41,6 +42,9 @@ void SpotlightOverlaySystem::init()
         arrowId = arrow.entity->id;
     }
 
+    auto windowEnt = ecsRef->getEntity("__MainWindow");
+    uint64_t windowId = windowEnt ? windowEnt->id : 0;
+
     // Corner objective panel — pinned to the bottom-left of the screen.
     {
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square,
@@ -52,12 +56,28 @@ void SpotlightOverlaySystem::init()
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         cornerBgId = bg.entity->id;
 
+        auto a = ecsRef->attach<UiAnchor>(bg.entity);
+        if (windowId != 0)
+        {
+            a->setLeftAnchor(PosAnchor{windowId, AnchorType::Left});
+            a->setBottomAnchor(PosAnchor{windowId, AnchorType::Bottom});
+            a->setLeftMargin(16.0f);
+            a->setBottomMargin(16.0f);
+        }
+
         auto title = makeTTFText(ecsRef, 0.0f, 0.0f, CORNER_TEXT_Z,
             FONT_PATH, "", TITLE_SCALE,
             constant::Vector4D{255.0f, 210.0f, 80.0f, 255.0f});
         title.get<ViewportComponent>()->setViewport(UI_VP);
         title.get<PositionComponent>()->setVisibility(false);
         cornerTitleId = title.entity->id;
+        {
+            auto ta = ecsRef->attach<UiAnchor>(title.entity);
+            ta->setLeftAnchor(PosAnchor{cornerBgId, AnchorType::Left});
+            ta->setTopAnchor(PosAnchor{cornerBgId, AnchorType::Top});
+            ta->setLeftMargin(CORNER_PAD);
+            ta->setTopMargin(CORNER_PAD);
+        }
 
         auto body = makeTTFText(ecsRef, 0.0f, 0.0f, CORNER_TEXT_Z,
             FONT_PATH, "", BODY_SCALE,
@@ -65,8 +85,16 @@ void SpotlightOverlaySystem::init()
         body.get<ViewportComponent>()->setViewport(UI_VP);
         body.get<PositionComponent>()->setVisibility(false);
         cornerBodyId = body.entity->id;
+        {
+            auto ba = ecsRef->attach<UiAnchor>(body.entity);
+            ba->setLeftAnchor(PosAnchor{cornerBgId, AnchorType::Left});
+            ba->setTopAnchor(PosAnchor{cornerBgId, AnchorType::Top});
+            ba->setLeftMargin(CORNER_PAD);
+            ba->setTopMargin(CORNER_PAD + 22.0f);
+        }
     }
 
+    // Skip button — top-right of the corner panel
     {
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square,
             SKIP_W, SKIP_H,
@@ -77,12 +105,24 @@ void SpotlightOverlaySystem::init()
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         skipBgId = bg.entity->id;
 
+        auto a = ecsRef->attach<UiAnchor>(bg.entity);
+        a->setRightAnchor(PosAnchor{cornerBgId, AnchorType::Right});
+        a->setTopAnchor(PosAnchor{cornerBgId, AnchorType::Top});
+        a->setRightMargin(CORNER_PAD);
+        a->setTopMargin(CORNER_PAD);
+
         auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, SKIP_TEXT_Z,
             FONT_PATH, "Skip Tutorial", SKIP_TEXT_SCALE,
             constant::Vector4D{220.0f, 220.0f, 220.0f, 255.0f});
         txt.get<ViewportComponent>()->setViewport(UI_VP);
         txt.get<PositionComponent>()->setVisibility(false);
         skipTextId = txt.entity->id;
+
+        auto ta = ecsRef->attach<UiAnchor>(txt.entity);
+        ta->setLeftAnchor(PosAnchor{skipBgId, AnchorType::Left});
+        ta->setTopAnchor(PosAnchor{skipBgId, AnchorType::Top});
+        ta->setLeftMargin(8.0f);
+        ta->setTopMargin(4.0f);
     }
 }
 
@@ -114,19 +154,8 @@ void SpotlightOverlaySystem::show(const Target& target,
     if (bodyEnt)
         bodyEnt->get<TTFText>()->setText(body);
 
-    // Position corner panel at bottom-left.
-    float cornerX = 16.0f;
-    float cornerY = screenHeight - CORNER_H - 16.0f;
-    setEntityXY(cornerBgId, cornerX, cornerY);
-    setEntityXY(cornerTitleId, cornerX + CORNER_PAD, cornerY + CORNER_PAD);
-    setEntityXY(cornerBodyId, cornerX + CORNER_PAD, cornerY + CORNER_PAD + 22.0f);
-
-    // Skip button sits inside the corner panel, top-right corner.
-    float skipX = cornerX + CORNER_W - SKIP_W - CORNER_PAD;
-    float skipY = cornerY + CORNER_PAD;
-    setEntityXY(skipBgId, skipX, skipY);
-    setEntityXY(skipTextId, skipX + 8.0f, skipY + 4.0f);
-
+    // Corner panel, title/body and skip button are anchored to __MainWindow
+    // bottom-left in init() — no per-show reposition needed.
     setEntityVisibility(cornerBgId, true);
     setEntityVisibility(cornerTitleId, true);
     setEntityVisibility(cornerBodyId, true);
@@ -197,21 +226,7 @@ void SpotlightOverlaySystem::onEvent(const ResizeEvent& event)
 {
     screenWidth = event.width;
     screenHeight = event.height;
-
-    if (visible)
-    {
-        // Reposition corner panel to new screen size.
-        float cornerX = 16.0f;
-        float cornerY = screenHeight - CORNER_H - 16.0f;
-        setEntityXY(cornerBgId, cornerX, cornerY);
-        setEntityXY(cornerTitleId, cornerX + CORNER_PAD, cornerY + CORNER_PAD);
-        setEntityXY(cornerBodyId, cornerX + CORNER_PAD, cornerY + CORNER_PAD + 22.0f);
-
-        float skipX = cornerX + CORNER_W - SKIP_W - CORNER_PAD;
-        float skipY = cornerY + CORNER_PAD;
-        setEntityXY(skipBgId, skipX, skipY);
-        setEntityXY(skipTextId, skipX + 8.0f, skipY + 4.0f);
-    }
+    // Anchors handle corner-panel and skip-button reposition automatically.
 }
 
 void SpotlightOverlaySystem::onEvent(const OnMouseClick& event)

@@ -2,6 +2,7 @@
 #include "inventoryui.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/position.h"
 #include "2D/texture.h"
 #include "UI/ttftext.h"
 
@@ -139,11 +140,25 @@ float MachineDemoSystem::panelH() const
 
 float MachineDemoSystem::panelX() const
 {
+    // Read live position from the anchored backdrop (anchors resolve before
+    // simulation tick code reads these values).
+    if (backdropId != 0)
+    {
+        auto ent = ecsRef->getEntity(backdropId);
+        if (ent)
+            return ent->get<PositionComponent>()->getX();
+    }
     return (screenW - panelW()) * 0.5f;
 }
 
 float MachineDemoSystem::panelY() const
 {
+    if (backdropId != 0)
+    {
+        auto ent = ecsRef->getEntity(backdropId);
+        if (ent)
+            return ent->get<PositionComponent>()->getY();
+    }
     return (screenH - panelH()) * 0.5f;
 }
 
@@ -164,15 +179,14 @@ void MachineDemoSystem::createPanel()
 
     float pw = panelW();
     float ph = panelH();
-    float px = panelX();
-    float py = panelY();
 
-    // Backdrop
+    auto windowEnt = ecsRef->getEntity("__MainWindow");
+    uint64_t windowId = windowEnt ? windowEnt->id : 0;
+
+    // Backdrop — centered on __MainWindow
     auto bd = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         {20.0f, 20.0f, 30.0f, 230.0f});
     auto bdPos = bd.get<PositionComponent>();
-    bdPos->setX(px);
-    bdPos->setY(py);
     bdPos->setZ(195.0f);
     bdPos->setWidth(pw);
     bdPos->setHeight(ph);
@@ -180,45 +194,74 @@ void MachineDemoSystem::createPanel()
     bd.get<ViewportComponent>()->setViewport(UI_VP);
     backdropId = bd.entity->id;
 
+    auto bdAnchor = ecsRef->attach<UiAnchor>(bd.entity);
+    if (windowId != 0)
+    {
+        bdAnchor->setHorizontalCenter(PosAnchor{windowId, AnchorType::HorizontalCenter});
+        bdAnchor->setVerticalCenter(PosAnchor{windowId, AnchorType::VerticalCenter});
+    }
+
     ecsRef->attach<MouseLeftClickComponent>(bd.entity,
         makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
 
     // Title
-    auto title = makeTTFText(ecsRef,
-        px + PADDING, py + PADDING, 198.0f,
+    auto title = makeTTFText(ecsRef, 0.0f, 0.0f, 198.0f,
         FONT_PATH, currentScenario.title, TITLE_SCALE,
         {255.0f, 210.0f, 80.0f, 255.0f});
     title.get<ViewportComponent>()->setViewport(UI_VP);
     titleId = title.entity->id;
+    {
+        auto a = ecsRef->attach<UiAnchor>(title.entity);
+        a->setLeftAnchor(PosAnchor{backdropId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        a->setLeftMargin(PADDING);
+        a->setTopMargin(PADDING);
+    }
 
     // Description
-    auto desc = makeTTFText(ecsRef,
-        px + PADDING, py + PADDING + 22.0f, 198.0f,
+    auto desc = makeTTFText(ecsRef, 0.0f, 0.0f, 198.0f,
         FONT_PATH, currentScenario.description, DESC_SCALE,
         {210.0f, 210.0f, 210.0f, 255.0f});
     desc.get<ViewportComponent>()->setViewport(UI_VP);
     descId = desc.entity->id;
+    {
+        auto a = ecsRef->attach<UiAnchor>(desc.entity);
+        a->setLeftAnchor(PosAnchor{backdropId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        a->setLeftMargin(PADDING);
+        a->setTopMargin(PADDING + 22.0f);
+    }
 
-    // Close button background
+    // Close button background — top-right of backdrop
     auto closeBtn = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         {180.0f, 60.0f, 60.0f, 220.0f});
     auto cbPos = closeBtn.get<PositionComponent>();
-    cbPos->setX(px + pw - CLOSE_BTN_SIZE - 4.0f);
-    cbPos->setY(py + 4.0f);
     cbPos->setZ(199.0f);
     cbPos->setWidth(CLOSE_BTN_SIZE);
     cbPos->setHeight(CLOSE_BTN_SIZE);
     cbPos->setVisibility(true);
     closeBtn.get<ViewportComponent>()->setViewport(UI_VP);
     closeBtnId = closeBtn.entity->id;
+    {
+        auto a = ecsRef->attach<UiAnchor>(closeBtn.entity);
+        a->setRightAnchor(PosAnchor{backdropId, AnchorType::Right});
+        a->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        a->setRightMargin(4.0f);
+        a->setTopMargin(4.0f);
+    }
 
     // Close button text "X"
-    auto closeTxt = makeTTFText(ecsRef,
-        px + pw - CLOSE_BTN_SIZE + 2.0f, py + 6.0f, 199.0f,
-        FONT_PATH, "X", 0.35f,
-        {255.0f, 255.0f, 255.0f, 255.0f});
+    auto closeTxt = makeTTFText(ecsRef, 0.0f, 0.0f, 199.0f,
+        FONT_PATH, "X", 0.35f, {255.0f, 255.0f, 255.0f, 255.0f});
     closeTxt.get<ViewportComponent>()->setViewport(UI_VP);
     closeBtnTextId = closeTxt.entity->id;
+    {
+        auto a = ecsRef->attach<UiAnchor>(closeTxt.entity);
+        a->setLeftAnchor(PosAnchor{closeBtnId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{closeBtnId, AnchorType::Top});
+        a->setLeftMargin(2.0f);
+        a->setTopMargin(2.0f);
+    }
 
     panelCreated = true;
 }
@@ -827,10 +870,12 @@ void MachineDemoSystem::freeItem(int index)
 
 bool MachineDemoSystem::isClickOnCloseBtn(float x, float y) const
 {
-    float bx = panelX() + panelW() - CLOSE_BTN_SIZE - 4.0f;
-    float by = panelY() + 4.0f;
-    return x >= bx && x <= bx + CLOSE_BTN_SIZE &&
-           y >= by && y <= by + CLOSE_BTN_SIZE;
+    if (closeBtnId == 0) return false;
+    auto ent = ecsRef->getEntity(closeBtnId);
+    if (not ent) return false;
+    auto pos = ent->get<PositionComponent>();
+    return x >= pos->getX() && x <= pos->getX() + pos->getWidth()
+        && y >= pos->getY() && y <= pos->getY() + pos->getHeight();
 }
 
 

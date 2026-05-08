@@ -6,6 +6,7 @@
 #include "terrain.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/position.h"
 #include "Systems/tween.h"
 
 #include <cmath>
@@ -139,22 +140,23 @@ void TutorialSystem::pulseSlotForItem(ItemId id)
     if (not slotPos)
         return;
 
-    float sx = slotPos->getX();
-    float sy = slotPos->getY();
     float sw = slotPos->getWidth();
     float sh = slotPos->getHeight();
     if (sw <= 0.0f or sh <= 0.0f)
         return;
 
     // Gold overlay placed above the slot's content (slot bg z=98, items z=99,
-    // text z=100) so it pulses on top.
+    // text z=100) so it pulses on top. Anchored to fill the slot via UiAnchor.
     auto overlay = makeSimple2DShape(ecsRef, Shape2D::Square, sw, sh,
         constant::Vector4D{255.0f, 215.0f, 100.0f, 200.0f});
     auto pos = overlay.get<PositionComponent>();
-    pos->setX(sx);
-    pos->setY(sy);
     pos->setZ(101.0f);
     overlay.get<ViewportComponent>()->setViewport(2);
+    if (auto slotAnchor = slotEnt->get<UiAnchor>())
+    {
+        auto a = ecsRef->attach<UiAnchor>(overlay.entity);
+        a->fillIn(slotAnchor);
+    }
 
     constexpr float PULSE_MS = 800.0f;
     uint64_t overlayId = overlay.entity->id;

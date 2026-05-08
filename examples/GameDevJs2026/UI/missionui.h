@@ -164,9 +164,6 @@ public:
     void setTooltipSystem(TooltipSystem* tooltip) { tooltipSystem = tooltip; }
 
 private:
-    float getPanelX() const { return (screenWidth - PANEL_W) * 0.5f; }
-    float getPanelY() const { return (screenHeight - panelH) * 0.5f; }
-
     void ensurePanelCreated();
     void createPanel();
     void createLeftColumn(float px, float contentY);
@@ -242,7 +239,6 @@ private:
     {
         uint64_t bgId = 0;
         uint64_t textId = 0;
-        float x = 0, y = 0, w = 0, h = 0;
     };
     TabButton tabButtons[NUM_TABS] = {};
 
@@ -256,7 +252,6 @@ private:
         uint64_t goPillBgId = 0;
         uint64_t goPillTextId = 0;
         uint64_t separatorId = 0;
-        float rowX = 0, rowY = 0, rowW = 0;
     };
     ListRow listRows[MAX_LIST_ROWS] = {};
 
@@ -298,7 +293,6 @@ private:
     // Action button
     uint64_t actionBtnBgId = 0;
     uint64_t actionBtnTextId = 0;
-    float actionBtnX = 0, actionBtnY = 0, actionBtnW = 0;
 
     // Shop section (tab 2)
     uint64_t shopLabelId = 0;

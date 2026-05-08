@@ -3,6 +3,7 @@
 #include "missionsystem.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/position.h"
 #include "2D/texture.h"
 #include "UI/ttftext.h"
 
@@ -82,32 +83,34 @@ void HudBarSystem::createButtons()
         "PixelwoodIcons.36",   // Settings / gear
     };
 
-    float totalWidth = NUM_BUTTONS * BUTTON_SIZE + (NUM_BUTTONS - 1) * BUTTON_GAP;
-    float startX = screenWidth - MARGIN_RIGHT - totalWidth;
-    float startY = MARGIN_TOP;
+    auto windowEnt = ecsRef->getEntity("__MainWindow");
+    uint64_t windowId = windowEnt ? windowEnt->id : 0;
 
     for (size_t i = 0; i < NUM_BUTTONS; ++i)
     {
-        float bx = startX + i * (BUTTON_SIZE + BUTTON_GAP);
-        float by = startY;
-        buttonX[i] = bx;
-        buttonY[i] = by;
+        // Right-anchored: button[N-1] sits at MARGIN_RIGHT, others stack to the left
+        float rightMargin = MARGIN_RIGHT
+                          + static_cast<float>(NUM_BUTTONS - 1 - i) * (BUTTON_SIZE + BUTTON_GAP);
 
         // Button background
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{40.0f, 40.0f, 50.0f, 180.0f});
         auto bgPos = bg.get<PositionComponent>();
-        bgPos->setX(bx);
-        bgPos->setY(by);
         bgPos->setZ(95.0f);
         bgPos->setWidth(BUTTON_SIZE);
         bgPos->setHeight(BUTTON_SIZE);
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         buttonBgId[i] = bg.entity->id;
 
-        // Click handler: per-button event dispatched synchronously by the
-        // engine's click system. Sent OnPress so the panel toggles before
-        // GameSystem's queued OnMouseClick handler runs.
+        auto bgA = ecsRef->attach<UiAnchor>(bg.entity);
+        if (windowId != 0)
+        {
+            bgA->setRightAnchor(PosAnchor{windowId, AnchorType::Right});
+            bgA->setTopAnchor(PosAnchor{windowId, AnchorType::Top});
+            bgA->setRightMargin(rightMargin);
+            bgA->setTopMargin(MARGIN_TOP);
+        }
+
         if (i == BTN_INVENTORY)
         {
             ecsRef->attach<MouseLeftClickComponent>(bg.entity,
@@ -122,15 +125,15 @@ void HudBarSystem::createButtons()
         }
         // BTN_SETTINGS: no callback yet (placeholder).
 
-        // Icon centered in button
-        float iconOffset = (BUTTON_SIZE - ICON_SIZE) * 0.5f;
+        // Icon — centered in button via anchor
         auto icon = make2DTexture(ecsRef, ICON_SIZE, ICON_SIZE, ICON_TEXTURES[i]);
-        auto iconPos = icon.get<PositionComponent>();
-        iconPos->setX(bx + iconOffset);
-        iconPos->setY(by + iconOffset);
-        iconPos->setZ(96.0f);
+        icon.get<PositionComponent>()->setZ(96.0f);
         icon.get<ViewportComponent>()->setViewport(UI_VP);
         buttonIconId[i] = icon.entity->id;
+
+        auto iA = ecsRef->attach<UiAnchor>(icon.entity);
+        iA->setHorizontalCenter(PosAnchor{buttonBgId[i], AnchorType::HorizontalCenter});
+        iA->setVerticalCenter(PosAnchor{buttonBgId[i], AnchorType::VerticalCenter});
     }
 
     createTicketDisplay();
@@ -153,39 +156,51 @@ void HudBarSystem::setMissionButtonVisible(bool vis)
 
 void HudBarSystem::createTicketDisplay()
 {
-    // Position below the mission button
-    float cx = buttonX[BTN_MISSIONS];
-    float cy = buttonY[BTN_MISSIONS] + BUTTON_SIZE + 6.0f;
-
-    // Background pill
+    // Background pill — anchored below the mission button (left edge offset by -4)
     auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{30.0f, 30.0f, 40.0f, 180.0f});
     auto bgPos = bg.get<PositionComponent>();
-    bgPos->setX(cx - 4.0f);
-    bgPos->setY(cy);
     bgPos->setZ(95.0f);
     bgPos->setWidth(BUTTON_SIZE + 8.0f);
     bgPos->setHeight(20.0f);
     bgPos->setVisibility(false);
     bg.get<ViewportComponent>()->setViewport(UI_VP);
     ticketBgId = bg.entity->id;
+    {
+        auto a = ecsRef->attach<UiAnchor>(bg.entity);
+        a->setLeftAnchor(PosAnchor{buttonBgId[BTN_MISSIONS], AnchorType::Left});
+        a->setLeftMargin(-4.0f);
+        a->setTopAnchor(PosAnchor{buttonBgId[BTN_MISSIONS], AnchorType::Bottom});
+        a->setTopMargin(6.0f);
+    }
 
-    // Ticket icon (small)
+    // Ticket icon — anchored to ticket bg
     auto icon = make2DTexture(ecsRef, 14.0f, 14.0f, "PixelwoodIcons.103");
-    auto iconPos = icon.get<PositionComponent>();
-    iconPos->setX(cx);
-    iconPos->setY(cy + 3.0f);
-    iconPos->setZ(96.0f);
-    iconPos->setVisibility(false);
+    icon.get<PositionComponent>()->setZ(96.0f);
+    icon.get<PositionComponent>()->setVisibility(false);
     icon.get<ViewportComponent>()->setViewport(UI_VP);
     ticketIconId = icon.entity->id;
+    {
+        auto a = ecsRef->attach<UiAnchor>(icon.entity);
+        a->setLeftAnchor(PosAnchor{ticketBgId, AnchorType::Left});
+        a->setLeftMargin(4.0f);
+        a->setTopAnchor(PosAnchor{ticketBgId, AnchorType::Top});
+        a->setTopMargin(3.0f);
+    }
 
-    // Count text
-    auto txt = makeTTFText(ecsRef, cx + 16.0f, cy + 2.0f, 97.0f,
+    // Count text — anchored to ticket bg, after the icon
+    auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 97.0f,
         FONT_PATH, "0", TEXT_SCALE, {255.0f, 220.0f, 100.0f, 255.0f});
     txt.get<PositionComponent>()->setVisibility(false);
     txt.get<ViewportComponent>()->setViewport(UI_VP);
     ticketTextId = txt.entity->id;
+    {
+        auto a = ecsRef->attach<UiAnchor>(txt.entity);
+        a->setLeftAnchor(PosAnchor{ticketBgId, AnchorType::Left});
+        a->setLeftMargin(20.0f);
+        a->setTopAnchor(PosAnchor{ticketBgId, AnchorType::Top});
+        a->setTopMargin(2.0f);
+    }
 }
 
 void HudBarSystem::onTicketsChanged(uint32_t newCount)
@@ -221,20 +236,21 @@ void HudBarSystem::onTicketsChanged(uint32_t newCount)
 void HudBarSystem::createMissionBadge()
 {
     // Small red square at the top-right corner of the mission button.
-    float bx = buttonX[BTN_MISSIONS] + BUTTON_SIZE - MISSION_BADGE_SIZE - 2.0f;
-    float by = buttonY[BTN_MISSIONS] + 2.0f;
-
     auto badge = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{220.0f, 60.0f, 60.0f, 255.0f});
     auto pos = badge.get<PositionComponent>();
-    pos->setX(bx);
-    pos->setY(by);
     pos->setZ(97.0f);
     pos->setWidth(MISSION_BADGE_SIZE);
     pos->setHeight(MISSION_BADGE_SIZE);
     pos->setVisibility(false);
     badge.get<ViewportComponent>()->setViewport(UI_VP);
     missionBadgeId = badge.entity->id;
+
+    auto a = ecsRef->attach<UiAnchor>(badge.entity);
+    a->setRightAnchor(PosAnchor{buttonBgId[BTN_MISSIONS], AnchorType::Right});
+    a->setRightMargin(2.0f);
+    a->setTopAnchor(PosAnchor{buttonBgId[BTN_MISSIONS], AnchorType::Top});
+    a->setTopMargin(2.0f);
 }
 
 int HudBarSystem::countUnlockedMissions() const

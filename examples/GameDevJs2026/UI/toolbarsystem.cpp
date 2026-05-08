@@ -2,6 +2,7 @@
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
+#include "2D/position.h"
 
 #include <SDL2/SDL.h>
 
@@ -71,64 +72,76 @@ void ToolbarSystem::createUICamera()
 
 void ToolbarSystem::createToolbarUI()
 {
-    // Backdrop bar at bottom of screen
+    auto windowEnt = ecsRef->getEntity("__MainWindow");
+    auto windowId = windowEnt->id;
+
+    // Backdrop: anchored to __MainWindow — fills width, sticks to bottom
     auto backdrop = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{30.0f, 30.0f, 40.0f, 200.0f});
 
     auto backdropPos = backdrop.get<PositionComponent>();
-    backdropPos->setX(0.0f);
-    backdropPos->setY(screenHeight - TOOLBAR_HEIGHT);
-    backdropPos->setZ(0.9f);
-    backdropPos->setWidth(screenWidth);
+    backdropPos->setZ(90.f);
     backdropPos->setHeight(TOOLBAR_HEIGHT);
     backdrop.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
+    backdropEntityId = backdrop.entity->id;
 
-    // Create slots centered horizontally
+    auto bdAnchor = ecsRef->attach<UiAnchor>(backdrop.entity);
+    bdAnchor->setLeftAnchor(PosAnchor{windowId, AnchorType::Left});
+    bdAnchor->setRightAnchor(PosAnchor{windowId, AnchorType::Right});
+    bdAnchor->setBottomAnchor(PosAnchor{windowId, AnchorType::Bottom});
+
+    // Invisible container — horizontally centered in backdrop, slot row top-aligned with padding
     float totalSlotsWidth = registry->count() * SLOT_SIZE + (registry->count() - 1) * SLOT_SPACING;
-    float startX = (screenWidth - totalSlotsWidth) * 0.5f;
-    float slotY = screenHeight - TOOLBAR_HEIGHT + SLOT_PADDING;
+    auto container = ecsRef->createEntity();
+    auto containerPos = ecsRef->attach<PositionComponent>(container);
+    containerPos->setWidth(totalSlotsWidth);
+    containerPos->setHeight(SLOT_SIZE);
+    containerEntityId = container->id;
 
+    auto cAnchor = ecsRef->attach<UiAnchor>(container);
+    cAnchor->setHorizontalCenter(PosAnchor{backdropEntityId, AnchorType::HorizontalCenter});
+    cAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+    cAnchor->setTopMargin(SLOT_PADDING);
+
+    // Slots — anchored to container with per-index leftMargin
     for (size_t i = 0; i < registry->count(); ++i)
     {
         const auto& def = registry->get(i);
-        float slotX = startX + i * (SLOT_SIZE + SLOT_SPACING);
+        float slotLeftMargin = static_cast<float>(i) * (SLOT_SIZE + SLOT_SPACING);
 
         uint64_t slotId = 0;
+        EntityRef slotEntity;
 
         if (not def.textureName.empty())
         {
-            // Textured slot (use first frame of first direction)
             std::string texName = def.textureName + ".0";
             auto slot = make2DTexture(ecsRef, SLOT_SIZE, SLOT_SIZE, texName);
-
-            auto pos = slot.get<PositionComponent>();
-            pos->setX(slotX);
-            pos->setY(slotY);
-            pos->setZ(0.95f);
+            slot.get<PositionComponent>()->setZ(95.f);
             slot.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
-
             slotId = slot.entity->id;
+            slotEntity = slot.entity;
         }
         else
         {
-            // Colored square slot
             auto slot = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, def.color);
-
             auto pos = slot.get<PositionComponent>();
-            pos->setX(slotX);
-            pos->setY(slotY);
-            pos->setZ(0.95f);
+            pos->setZ(95.f);
             pos->setWidth(SLOT_SIZE);
             pos->setHeight(SLOT_SIZE);
             slot.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
-
             slotId = slot.entity->id;
+            slotEntity = slot.entity;
         }
+
+        auto anchor = ecsRef->attach<UiAnchor>(slotEntity);
+        anchor->setLeftAnchor(PosAnchor{containerEntityId, AnchorType::Left});
+        anchor->setLeftMargin(slotLeftMargin);
+        anchor->setTopAnchor(PosAnchor{containerEntityId, AnchorType::Top});
 
         slotEntityIds.push_back(slotId);
     }
 
-    // Selection highlight overlay
+    // Selection highlight overlay — anchored to selected slot in updateHighlight()
     auto highlight = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{255.0f, 255.0f, 255.0f, 60.0f});
 
@@ -137,6 +150,7 @@ void ToolbarSystem::createToolbarUI()
     hlPos->setWidth(SLOT_SIZE + 4.0f);
     hlPos->setHeight(SLOT_SIZE + 4.0f);
     highlight.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
+    ecsRef->attach<UiAnchor>(highlight.entity);
 
     highlightEntityId = highlight.entity->id;
     updateHighlight();
@@ -147,16 +161,17 @@ void ToolbarSystem::updateHighlight()
     if (selectedSlot >= slotEntityIds.size())
         return;
 
-    auto slotEnt = ecsRef->getEntity(slotEntityIds[selectedSlot]);
     auto hlEnt = ecsRef->getEntity(highlightEntityId);
-
-    if (not slotEnt or not hlEnt)
+    if (not hlEnt)
         return;
 
-    auto slotPos = slotEnt->get<PositionComponent>();
-    auto hlPos = hlEnt->get<PositionComponent>();
+    auto hlAnchor = hlEnt->get<UiAnchor>();
+    if (not hlAnchor)
+        hlAnchor = ecsRef->attach<UiAnchor>(hlEnt);
 
-    // Center highlight around the slot
-    hlPos->setX(slotPos->getX() - 2.0f);
-    hlPos->setY(slotPos->getY() - 2.0f);
+    hlAnchor->clearAnchors();
+    hlAnchor->setLeftAnchor(PosAnchor{slotEntityIds[selectedSlot], AnchorType::Left});
+    hlAnchor->setLeftMargin(-2.0f);
+    hlAnchor->setTopAnchor(PosAnchor{slotEntityIds[selectedSlot], AnchorType::Top});
+    hlAnchor->setTopMargin(-2.0f);
 }

@@ -89,16 +89,12 @@ private:
                                         + SECTION_GAP + TITLE_H + GAP_AFTER_TITLE
                                         + ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING
                                         + PANEL_PADDING; }
-    float getPanelX() const;
-    float getPanelY() const;
 
     // Mission panel (RIGHT of inventory)
     float getMissionPanelWidth() const  { return getPanelWidth(); }
     float getMissionPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
                                               + MAX_MISSION_ROWS * (MISSION_ROW_H + MISSION_ROW_GAP)
                                               + PANEL_PADDING; }
-    float getMissionPanelX() const;
-    float getMissionPanelY() const;
 
     void ensurePanelCreated();
     void setPanelVisibility(bool vis);
@@ -150,7 +146,6 @@ private:
     uint64_t activeMissionStatusId = 0;
     uint64_t activeMissionClaimBtnBgId = 0;
     uint64_t activeMissionClaimBtnTextId = 0;
-    float claimBtnX = 0, claimBtnY = 0;
 
     // Available mission rows (when no active mission)
     struct MissionRow
@@ -160,7 +155,6 @@ private:
         uint64_t infoId = 0;
         uint64_t btnBgId = 0;
         uint64_t btnTextId = 0;
-        float btnX = 0, btnY = 0;
         size_t defIndex = 0;
     };
     MissionRow missionRows[MAX_MISSION_ROWS] = {};

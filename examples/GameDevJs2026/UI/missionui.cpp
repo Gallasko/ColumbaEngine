@@ -1,6 +1,7 @@
 #include "missionui.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/position.h"
 #include "2D/texture.h"
 #include "UI/ttftext.h"
 
@@ -8,6 +9,20 @@
 
 #include <SDL2/SDL.h>
 #include <algorithm>
+
+namespace
+{
+    // Hit-test against an entity's resolved position+size.
+    bool hitEntity(pg::EntitySystem* ecs, uint64_t id, float mx, float my)
+    {
+        if (id == 0) return false;
+        auto ent = ecs->getEntity(id);
+        if (not ent) return false;
+        auto pos = ent->get<pg::PositionComponent>();
+        return mx >= pos->getX() and mx <= pos->getX() + pos->getWidth()
+           and my >= pos->getY() and my <= pos->getY() + pos->getHeight();
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Toggle / Open / Close
@@ -179,13 +194,9 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
 
     float mx = event.pos.x;
     float my = event.pos.y;
-    float px = getPanelX();
-    float py = getPanelY();
 
-    // Close button (vertically centered in title bar)
-    float cbOffY = (TITLE_H - CLOSE_SIZE) * 0.5f;
-    if (isClickInRect(mx, my, px + PANEL_W - PADDING - CLOSE_SIZE, py + PADDING + cbOffY,
-                      CLOSE_SIZE, CLOSE_SIZE))
+    // Close button
+    if (hitEntity(ecsRef, closeBtnBgId, mx, my))
     {
         close();
         return;
@@ -194,8 +205,7 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
     // Tab clicks (pill backgrounds)
     for (size_t t = 0; t < NUM_TABS; ++t)
     {
-        if (isClickInRect(mx, my, tabButtons[t].x, tabButtons[t].y,
-                          tabButtons[t].w, tabButtons[t].h))
+        if (hitEntity(ecsRef, tabButtons[t].bgId, mx, my))
         {
             switchTab(t);
             return;
@@ -205,8 +215,7 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
     // Left column: row clicks
     for (size_t i = 0; i < MAX_LIST_ROWS and i < filteredDefs.size(); ++i)
     {
-        if (isClickInRect(mx, my, listRows[i].rowX, listRows[i].rowY,
-                          listRows[i].rowW, LIST_ROW_H))
+        if (hitEntity(ecsRef, listRows[i].bgId, mx, my))
         {
             selectMission(filteredDefs[i]);
             return;
@@ -214,7 +223,7 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
     }
 
     // Right column: action button click
-    if (isClickInRect(mx, my, actionBtnX, actionBtnY, actionBtnW, ACTION_BTN_H))
+    if (hitEntity(ecsRef, actionBtnBgId, mx, my))
     {
         if (currentTab == 2)
         {
@@ -380,26 +389,7 @@ void MissionUISystem::onEvent(const ResizeEvent& event)
 {
     screenWidth = event.width;
     screenHeight = event.height;
-    if (not panelCreated)
-        return;
-
-    bool wasOpen = visible.load(std::memory_order_acquire);
-    bool wasPromptVisible = promptVisible;
-    LOG_INFO("MissionUI", "ResizeEvent — rebuilding panel (wasOpen=" << static_cast<int>(wasOpen)
-            << ", wasPromptVisible=" << static_cast<int>(wasPromptVisible) << ")");
-
-    // Panel positions are baked in at creation time, so a window resize would
-    // leave the panel offset from center. Rebuild at the new screen size.
-    destroyPanel();
-
-    if (wasOpen)
-    {
-        ensurePanelCreated();
-        setPanelVisibility(true);
-        refresh();
-        if (wasPromptVisible)
-            showDepotSelectionPrompt();
-    }
+    // Anchors handle reposition automatically; no panel rebuild needed.
 }
 
 std::vector<uint64_t> MissionUISystem::collectAllPanelEntityIds() const
@@ -493,7 +483,6 @@ void MissionUISystem::destroyPanel()
     unlockLabelId = 0;
     detailProgressBgId = detailProgressFillId = detailProgressTextId = 0;
     actionBtnBgId = actionBtnTextId = 0;
-    actionBtnX = actionBtnY = actionBtnW = 0.0f;
     shopLabelId = shopCostTextId = 0;
     promptBgId = promptTextId = 0;
     promptVisible = false;
@@ -509,51 +498,58 @@ void MissionUISystem::createPanel()
     float listContentH = MAX_LIST_ROWS * (LIST_ROW_H + SEPARATOR_H);
     panelH = PADDING + TITLE_H + DIVIDER_H + std::max(listContentH, 340.0f) + PADDING;
 
-    float px = getPanelX();
-    float py = getPanelY();
+    auto windowEnt = ecsRef->getEntity("__MainWindow");
+    uint64_t windowId = windowEnt ? windowEnt->id : 0;
 
-    // --- Backdrop ---
+    // --- Backdrop — anchored to __MainWindow center ---
     {
         auto bd = makeRoundedRect2DShape(ecsRef, 8.0f, PANEL_W, panelH, C::BG);
         auto pos = bd.get<PositionComponent>();
-        pos->setX(px); pos->setY(py); pos->setZ(97.0f);
+        pos->setZ(97.0f);
         bd.get<ViewportComponent>()->setViewport(UI_VP);
         backdropId = bd.entity->id;
+
+        auto a = ecsRef->attach<UiAnchor>(bd.entity);
+        if (windowId != 0)
+        {
+            a->setHorizontalCenter(PosAnchor{windowId, AnchorType::HorizontalCenter});
+            a->setVerticalCenter(PosAnchor{windowId, AnchorType::VerticalCenter});
+        }
 
         ecsRef->attach<MouseLeftClickComponent>(bd.entity,
             makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
     }
 
-    float curY = py + PADDING;
+    // Y-offset within the panel, used as topMargin when anchoring children
+    float curOff = PADDING;
 
     // --- Tab bar (left-aligned pill tabs, replaces title) ---
     {
         static const char* TAB_LABELS[NUM_TABS] = {"Main", "Missions", "Shop"};
         float charW = 6.0f;
-        float tabPadH = 12.0f;  // horizontal padding inside pill
-        float tabGap = 6.0f;    // gap between pills
+        float tabPadH = 12.0f;
+        float tabGap = 6.0f;
         float tabH = TITLE_H;
         float tabRad = 5.0f;
-        float tabOffY = 0.0f;
 
-        float tx = px + PADDING;
+        float tabLeftOff = PADDING;
 
         for (size_t t = 0; t < NUM_TABS; ++t)
         {
             float labelW = strlen(TAB_LABELS[t]) * charW;
             float pillW = labelW + tabPadH * 2.0f;
 
-            tabButtons[t].x = tx;
-            tabButtons[t].y = curY + tabOffY;
-            tabButtons[t].w = pillW;
-            tabButtons[t].h = tabH;
-
             auto bg = makeRoundedRect2DShape(ecsRef, tabRad, pillW, tabH,
                 (t == currentTab) ? C::SELECTED : C::PANEL);
-            auto bgPos = bg.get<PositionComponent>();
-            bgPos->setX(tx); bgPos->setY(curY + tabOffY); bgPos->setZ(99.0f);
+            bg.get<PositionComponent>()->setZ(99.0f);
             bg.get<ViewportComponent>()->setViewport(UI_VP);
             tabButtons[t].bgId = bg.entity->id;
+
+            auto bgA = ecsRef->attach<UiAnchor>(bg.entity);
+            bgA->setLeftAnchor(PosAnchor{backdropId, AnchorType::Left});
+            bgA->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+            bgA->setLeftMargin(tabLeftOff);
+            bgA->setTopMargin(curOff);
 
             auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
                 FONT_MEDIUM, TAB_LABELS[t], SCALE_LIST,
@@ -565,20 +561,24 @@ void MissionUISystem::createPanel()
             txtAnchor->setHorizontalCenter(PosAnchor{tabButtons[t].bgId, AnchorType::HorizontalCenter});
             txtAnchor->setVerticalCenter(PosAnchor{tabButtons[t].bgId, AnchorType::VerticalCenter});
 
-            tx += pillW + tabGap;
+            tabLeftOff += pillW + tabGap;
         }
     }
 
-    // --- Close button (vertically centered in title bar) ---
+    // --- Close button (vertically centered in title bar, top-right) ---
     {
-        float cbx = px + PANEL_W - PADDING - CLOSE_SIZE;
         float cbOffY = (TITLE_H - CLOSE_SIZE) * 0.5f;
         auto bg = makeRoundedRect2DShape(ecsRef, 4.0f, CLOSE_SIZE, CLOSE_SIZE,
             {180.0f, 60.0f, 60.0f, 255.0f});
-        auto pos = bg.get<PositionComponent>();
-        pos->setX(cbx); pos->setY(curY + cbOffY); pos->setZ(99.0f);
+        bg.get<PositionComponent>()->setZ(99.0f);
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         closeBtnBgId = bg.entity->id;
+
+        auto a = ecsRef->attach<UiAnchor>(bg.entity);
+        a->setRightAnchor(PosAnchor{backdropId, AnchorType::Right});
+        a->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        a->setRightMargin(PADDING);
+        a->setTopMargin(curOff + cbOffY);
 
         auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_BOLD, "X", SCALE_TAB, C::WHITE);
@@ -589,151 +589,181 @@ void MissionUISystem::createPanel()
         txtAnchor->setHorizontalCenter(PosAnchor{closeBtnBgId, AnchorType::HorizontalCenter});
         txtAnchor->setVerticalCenter(PosAnchor{closeBtnBgId, AnchorType::VerticalCenter});
     }
-    curY += TITLE_H + 2.0f;
+    curOff += TITLE_H + 2.0f;
 
     // --- Horizontal divider ---
     {
         auto div = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, C::DIVIDER);
         auto pos = div.get<PositionComponent>();
-        pos->setX(px + PADDING); pos->setY(curY); pos->setZ(99.0f);
+        pos->setZ(99.0f);
         pos->setWidth(PANEL_W - 2 * PADDING); pos->setHeight(DIVIDER_H);
         div.get<ViewportComponent>()->setViewport(UI_VP);
         topDividerId = div.entity->id;
-    }
-    curY += DIVIDER_H;
 
-    float contentY = curY;
+        auto a = ecsRef->attach<UiAnchor>(div.entity);
+        a->setLeftAnchor(PosAnchor{backdropId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        a->setLeftMargin(PADDING);
+        a->setTopMargin(curOff);
+    }
+    curOff += DIVIDER_H;
+
+    float contentOff = curOff;
 
     // --- Vertical column divider ---
     {
-        float divX = px + LEFT_W;
-        float divH = panelH - (contentY - py) - PADDING;
+        float divH = panelH - contentOff - PADDING;
         auto div = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, C::DIVIDER);
         auto pos = div.get<PositionComponent>();
-        pos->setX(divX); pos->setY(contentY); pos->setZ(99.0f);
+        pos->setZ(99.0f);
         pos->setWidth(1.0f); pos->setHeight(divH);
         div.get<ViewportComponent>()->setViewport(UI_VP);
         columnDividerId = div.entity->id;
+
+        auto a = ecsRef->attach<UiAnchor>(div.entity);
+        a->setLeftAnchor(PosAnchor{backdropId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        a->setLeftMargin(LEFT_W);
+        a->setTopMargin(contentOff);
     }
 
-    createLeftColumn(px, contentY);
-    createRightColumn(px, contentY);
+    createLeftColumn(0.0f, contentOff);
+    createRightColumn(0.0f, contentOff);
     LOG_INFO("MissionUI", "createPanel() done");
 }
 
-void MissionUISystem::createLeftColumn(float px, float contentY)
+void MissionUISystem::createLeftColumn(float /*px*/, float contentOff)
 {
-    float colX = px;
-    float rowW = LEFT_W;
+    // px argument is unused; layout is panel-relative (anchored to backdrop).
+    const float colLeft = 0.0f;       // left of panel
+    const float rowW    = LEFT_W;
+
+    auto anchorAt = [this](EntityRef ent, float leftMargin, float topMargin) {
+        auto a = ecsRef->attach<UiAnchor>(ent);
+        a->setLeftAnchor(PosAnchor{backdropId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        a->setLeftMargin(leftMargin);
+        a->setTopMargin(topMargin);
+    };
 
     for (size_t i = 0; i < MAX_LIST_ROWS; ++i)
     {
-        float rowY = contentY + i * (LIST_ROW_H + SEPARATOR_H);
+        float rowOffY = contentOff + i * (LIST_ROW_H + SEPARATOR_H);
         auto& row = listRows[i];
-        row.rowX = colX;
-        row.rowY = rowY;
-        row.rowW = rowW;
 
         // Row background
         {
             auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, C::TRANSPARENT);
             auto pos = bg.get<PositionComponent>();
-            pos->setX(colX); pos->setY(rowY); pos->setZ(98.0f);
+            pos->setZ(98.0f);
             pos->setWidth(rowW); pos->setHeight(LIST_ROW_H);
             bg.get<ViewportComponent>()->setViewport(UI_VP);
             row.bgId = bg.entity->id;
+            anchorAt(bg.entity, colLeft, rowOffY);
         }
 
-        // Status square (border = outer rect)
-        float sqX = colX + PADDING;
-        float sqY = rowY + (LIST_ROW_H - STATUS_SQ_SIZE) * 0.5f;
+        // Status square (border)
+        float sqOffX = colLeft + PADDING;
+        float sqOffY = rowOffY + (LIST_ROW_H - STATUS_SQ_SIZE) * 0.5f;
         {
             auto sq = makeRoundedRect2DShape(ecsRef, STATUS_SQ_RAD, STATUS_SQ_SIZE, STATUS_SQ_SIZE, C::TEXT_DIM);
-            auto pos = sq.get<PositionComponent>();
-            pos->setX(sqX); pos->setY(sqY); pos->setZ(99.0f);
+            sq.get<PositionComponent>()->setZ(99.0f);
             sq.get<ViewportComponent>()->setViewport(UI_VP);
             row.statusBorderId = sq.entity->id;
+            anchorAt(sq.entity, sqOffX, sqOffY);
         }
 
-        // Status square (fill = inner rect)
-        // Todo buggy af, so currently not visible
+        // Status square (fill, inset)
         {
             float inset = 2.0f;
             auto sq = makeRoundedRect2DShape(ecsRef, STATUS_SQ_RAD,
                 STATUS_SQ_SIZE - 2 * inset, STATUS_SQ_SIZE - 2 * inset, C::BG);
-            auto pos = sq.get<PositionComponent>();
-            pos->setX(sqX + inset); pos->setY(sqY + inset); pos->setZ(86.0f);
+            sq.get<PositionComponent>()->setZ(86.0f);
             sq.get<ViewportComponent>()->setViewport(UI_VP);
             row.statusFillId = sq.entity->id;
+            anchorAt(sq.entity, sqOffX + inset, sqOffY + inset);
         }
 
         // Mission name
         {
-            float nameX = colX + PADDING + STATUS_SQ_SIZE + 8.0f;
-            auto name = makeTTFText(ecsRef, nameX, rowY + 8.0f, 100.0f,
+            auto name = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
                 FONT_LIGHT, "", SCALE_LIST, C::TEXT);
             name.get<ViewportComponent>()->setViewport(UI_VP);
             row.nameId = name.entity->id;
+            anchorAt(name.entity, colLeft + PADDING + STATUS_SQ_SIZE + 8.0f, rowOffY + 8.0f);
         }
 
         // GO pill
+        float pillOffX = colLeft + rowW - PADDING - GO_PILL_W;
+        float pillOffY = rowOffY + (LIST_ROW_H - GO_PILL_H) * 0.5f;
         {
-            float pillX = colX + rowW - PADDING - GO_PILL_W;
-            float pillY = rowY + (LIST_ROW_H - GO_PILL_H) * 0.5f;
             auto pill = makeRoundedRect2DShape(ecsRef, GO_PILL_RAD, GO_PILL_W, GO_PILL_H, C::ACCENT);
             auto pos = pill.get<PositionComponent>();
-            pos->setX(pillX); pos->setY(pillY); pos->setZ(99.0f);
+            pos->setZ(99.0f);
             pos->setVisibility(false);
             pill.get<ViewportComponent>()->setViewport(UI_VP);
             row.goPillBgId = pill.entity->id;
+            anchorAt(pill.entity, pillOffX, pillOffY);
 
-            auto txt = makeTTFText(ecsRef, pillX + 8.0f, pillY + 2.0f, 100.0f,
+            auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
                 FONT_BOLD, "GO", SCALE_PILL, C::WHITE);
             txt.get<PositionComponent>()->setVisibility(false);
             txt.get<ViewportComponent>()->setViewport(UI_VP);
             row.goPillTextId = txt.entity->id;
+            anchorAt(txt.entity, pillOffX + 8.0f, pillOffY + 2.0f);
         }
 
         // Separator line
         {
-            float sepY = rowY + LIST_ROW_H;
             auto sep = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, C::DIVIDER);
             auto pos = sep.get<PositionComponent>();
-            pos->setX(colX + PADDING); pos->setY(sepY); pos->setZ(99.0f);
+            pos->setZ(99.0f);
             pos->setWidth(rowW - PADDING); pos->setHeight(SEPARATOR_H);
             sep.get<ViewportComponent>()->setViewport(UI_VP);
             row.separatorId = sep.entity->id;
+            anchorAt(sep.entity, colLeft + PADDING, rowOffY + LIST_ROW_H);
         }
     }
 }
 
-void MissionUISystem::createRightColumn(float px, float contentY)
+void MissionUISystem::createRightColumn(float /*px*/, float contentOff)
 {
-    float colX = px + LEFT_W + DETAIL_PAD;
-    float colW = RIGHT_W - 2 * DETAIL_PAD;
-    float curY = contentY + DETAIL_PAD;
+    // px is unused; layout is panel-relative (anchored to backdrop).
+    const float colOff = LEFT_W + DETAIL_PAD;        // x-offset of right col within panel
+    const float colW   = RIGHT_W - 2 * DETAIL_PAD;
+    float curOff = contentOff + DETAIL_PAD;
+
+    auto anchorAt = [this](EntityRef ent, float leftMargin, float topMargin) {
+        auto a = ecsRef->attach<UiAnchor>(ent);
+        a->setLeftAnchor(PosAnchor{backdropId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        a->setLeftMargin(leftMargin);
+        a->setTopMargin(topMargin);
+    };
 
     // "MISSION" label
     {
-        auto lbl = makeTTFText(ecsRef, colX, curY, 100.0f,
+        auto lbl = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_MEDIUM, "MISSION", SCALE_LABEL, C::TEXT_DIM);
         lbl.get<ViewportComponent>()->setViewport(UI_VP);
         detailMissionLabelId = lbl.entity->id;
+        anchorAt(lbl.entity, colOff, curOff);
     }
-    curY += 18.0f;
+    curOff += 18.0f;
 
     // Mission name (large display)
     {
-        auto name = makeTTFText(ecsRef, colX, curY, 100.0f,
+        auto name = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_BOLD, "", SCALE_DISPLAY, C::TEXT);
         name.get<ViewportComponent>()->setViewport(UI_VP);
         detailNameId = name.entity->id;
+        anchorAt(name.entity, colOff, curOff);
     }
-    curY += 28.0f;
+    curOff += 28.0f;
 
     // Description — anchored left+right to backdrop so width follows column
     {
-        auto desc = makeTTFText(ecsRef, 0.0f, curY, 100.0f,
+        auto desc = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_LIGHT, "", SCALE_BODY, C::TEXT_DIM);
         desc.get<ViewportComponent>()->setViewport(UI_VP);
         desc.entity->get<TTFText>()->setWrap(true);
@@ -744,180 +774,182 @@ void MissionUISystem::createRightColumn(float px, float contentY)
         anchor->setLeftMargin(LEFT_W + DETAIL_PAD);
         anchor->setRightAnchor(PosAnchor{backdropId, AnchorType::Right});
         anchor->setRightMargin(DETAIL_PAD);
+        anchor->setTopAnchor(PosAnchor{backdropId, AnchorType::Top});
+        anchor->setTopMargin(curOff);
     }
-    curY += 44.0f;
+    curOff += 44.0f;
 
     // --- Cost block ---
     {
-        // "COST" label
-        auto lbl = makeTTFText(ecsRef, colX, curY, 100.0f,
+        auto lbl = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_MEDIUM, "COST", SCALE_LABEL, C::TEXT_DIM);
         lbl.get<ViewportComponent>()->setViewport(UI_VP);
         costLabelId = lbl.entity->id;
-        curY += 16.0f;
+        anchorAt(lbl.entity, colOff, curOff);
+        curOff += 16.0f;
 
-        // Outer border rect (1px, dim)
         auto outer = makeRoundedRect2DShape(ecsRef, BLOCK_RADIUS, colW, BLOCK_H, C::COST_BRD);
-        auto opos = outer.get<PositionComponent>();
-        opos->setX(colX); opos->setY(curY); opos->setZ(98.0f);
+        outer.get<PositionComponent>()->setZ(98.0f);
         outer.get<ViewportComponent>()->setViewport(UI_VP);
         costBlockBorderId = outer.entity->id;
+        anchorAt(outer.entity, colOff, curOff);
 
-        // Inner fill rect
         auto inner = makeRoundedRect2DShape(ecsRef, BLOCK_RADIUS - 1.0f,
             colW - 2 * COST_BORDER, BLOCK_H - 2 * COST_BORDER, C::BLOCK_FILL);
-        auto ipos = inner.get<PositionComponent>();
-        ipos->setX(colX + COST_BORDER); ipos->setY(curY + COST_BORDER); ipos->setZ(99.0f);
+        inner.get<PositionComponent>()->setZ(99.0f);
         inner.get<ViewportComponent>()->setViewport(UI_VP);
         costBlockFillId = inner.entity->id;
+        anchorAt(inner.entity, colOff + COST_BORDER, curOff + COST_BORDER);
 
-        // Cost items (icon + count)
-        float itemX = colX + 12.0f;
-        float itemY = curY + (BLOCK_H - ICON_SIZE) * 0.5f;
+        float itemOffX = colOff + 12.0f;
+        float itemOffY = curOff + (BLOCK_H - ICON_SIZE) * 0.5f;
         for (size_t r = 0; r < MAX_COST_ITEMS; ++r)
         {
-            float rx = itemX + r * 70.0f;
+            float rOff = itemOffX + r * 70.0f;
 
             auto icon = make2DTexture(ecsRef, ICON_SIZE, ICON_SIZE, "Items.0");
             auto iconPos = icon.get<PositionComponent>();
-            iconPos->setX(rx); iconPos->setY(itemY); iconPos->setZ(99.0f);
+            iconPos->setZ(99.0f);
             iconPos->setVisibility(false);
             icon.get<ViewportComponent>()->setViewport(UI_VP);
             costItems[r].iconId = icon.entity->id;
+            anchorAt(icon.entity, rOff, itemOffY);
 
             ecsRef->attach<MouseEnterComponent>(icon.entity,
                 makeCallable<OnMissionIconHoverEnter>(OnMissionIconHoverEnter{icon.entity->id}));
             ecsRef->attach<MouseLeaveComponent>(icon.entity,
                 makeCallable<OnMissionIconHoverLeave>(OnMissionIconHoverLeave{icon.entity->id}));
 
-            auto cnt = makeTTFText(ecsRef, rx + ICON_SIZE + 4.0f, curY + 14.0f, 100.0f,
+            auto cnt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
                 FONT_MEDIUM, "", SCALE_NUM, C::TEXT);
             cnt.get<PositionComponent>()->setVisibility(false);
             cnt.get<ViewportComponent>()->setViewport(UI_VP);
             costItems[r].countTextId = cnt.entity->id;
+            anchorAt(cnt.entity, rOff + ICON_SIZE + 4.0f, curOff + 14.0f);
         }
     }
-    curY += BLOCK_H + 12.0f;
+    curOff += BLOCK_H + 12.0f;
 
     // --- Reward block ---
     {
-        // "REWARD" label
-        auto lbl = makeTTFText(ecsRef, colX, curY, 100.0f,
+        auto lbl = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_MEDIUM, "REWARD", SCALE_LABEL, C::TEXT_DIM);
         lbl.get<ViewportComponent>()->setViewport(UI_VP);
         rewardLabelId = lbl.entity->id;
-        curY += 16.0f;
+        anchorAt(lbl.entity, colOff, curOff);
+        curOff += 16.0f;
 
-        // Outer border rect (2px, brighter)
         auto outer = makeRoundedRect2DShape(ecsRef, BLOCK_RADIUS, colW, BLOCK_H, C::REWARD_BRD);
-        auto opos = outer.get<PositionComponent>();
-        opos->setX(colX); opos->setY(curY); opos->setZ(98.0f);
+        outer.get<PositionComponent>()->setZ(98.0f);
         outer.get<ViewportComponent>()->setViewport(UI_VP);
         rewardBlockBorderId = outer.entity->id;
+        anchorAt(outer.entity, colOff, curOff);
 
-        // Inner fill rect (slightly brighter to pop)
         constant::Vector4D rewardFill = {48.0f, 52.0f, 60.0f, 255.0f};
         auto inner = makeRoundedRect2DShape(ecsRef, BLOCK_RADIUS - 1.0f,
             colW - 2 * REWARD_BORDER, BLOCK_H - 2 * REWARD_BORDER, rewardFill);
-        auto ipos = inner.get<PositionComponent>();
-        ipos->setX(colX + REWARD_BORDER); ipos->setY(curY + REWARD_BORDER); ipos->setZ(99.0f);
+        inner.get<PositionComponent>()->setZ(99.0f);
         inner.get<ViewportComponent>()->setViewport(UI_VP);
         rewardBlockFillId = inner.entity->id;
+        anchorAt(inner.entity, colOff + REWARD_BORDER, curOff + REWARD_BORDER);
 
-        // Reward items (icon + count)
-        float itemX = colX + 12.0f;
-        float itemY = curY + (BLOCK_H - ICON_SIZE) * 0.5f;
+        float itemOffX = colOff + 12.0f;
+        float itemOffY = curOff + (BLOCK_H - ICON_SIZE) * 0.5f;
         for (size_t r = 0; r < MAX_REWARD_ITEMS; ++r)
         {
-            float rx = itemX + r * 70.0f;
+            float rOff = itemOffX + r * 70.0f;
 
             auto icon = make2DTexture(ecsRef, ICON_SIZE, ICON_SIZE, "Items.0");
             auto iconPos = icon.get<PositionComponent>();
-            iconPos->setX(rx); iconPos->setY(itemY); iconPos->setZ(99.0f);
+            iconPos->setZ(99.0f);
             iconPos->setVisibility(false);
             icon.get<ViewportComponent>()->setViewport(UI_VP);
             rewardItems[r].iconId = icon.entity->id;
+            anchorAt(icon.entity, rOff, itemOffY);
 
             ecsRef->attach<MouseEnterComponent>(icon.entity,
                 makeCallable<OnMissionIconHoverEnter>(OnMissionIconHoverEnter{icon.entity->id}));
             ecsRef->attach<MouseLeaveComponent>(icon.entity,
                 makeCallable<OnMissionIconHoverLeave>(OnMissionIconHoverLeave{icon.entity->id}));
 
-            auto cnt = makeTTFText(ecsRef, rx + ICON_SIZE + 4.0f, curY + 14.0f, 100.0f,
+            auto cnt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
                 FONT_MEDIUM, "", SCALE_NUM, C::TEXT);
             cnt.get<PositionComponent>()->setVisibility(false);
             cnt.get<ViewportComponent>()->setViewport(UI_VP);
             rewardItems[r].countTextId = cnt.entity->id;
+            anchorAt(cnt.entity, rOff + ICON_SIZE + 4.0f, curOff + 14.0f);
         }
     }
-    curY += BLOCK_H + 8.0f;
+    curOff += BLOCK_H + 8.0f;
 
     // --- Unlock label ---
     {
-        auto lbl = makeTTFText(ecsRef, colX, curY, 100.0f,
+        auto lbl = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_MEDIUM, "", SCALE_BODY, C::ACCENT);
         lbl.get<PositionComponent>()->setVisibility(false);
         lbl.get<ViewportComponent>()->setViewport(UI_VP);
         unlockLabelId = lbl.entity->id;
+        anchorAt(lbl.entity, colOff, curOff);
     }
-    curY += 22.0f;
+    curOff += 22.0f;
 
     // --- Progress bar (for active endgame missions) ---
     {
         auto pbBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
         auto pbPos = pbBg.get<PositionComponent>();
-        pbPos->setX(colX); pbPos->setY(curY); pbPos->setZ(98.0f);
+        pbPos->setZ(98.0f);
         pbPos->setWidth(colW); pbPos->setHeight(PROGRESS_H);
         pbPos->setVisibility(false);
         pbBg.get<ViewportComponent>()->setViewport(UI_VP);
         detailProgressBgId = pbBg.entity->id;
+        anchorAt(pbBg.entity, colOff, curOff);
 
         auto pbFill = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{80.0f, 160.0f, 80.0f, 220.0f});
         auto pfPos = pbFill.get<PositionComponent>();
-        pfPos->setX(colX); pfPos->setY(curY); pfPos->setZ(99.0f);
+        pfPos->setZ(99.0f);
         pfPos->setWidth(0.0f); pfPos->setHeight(PROGRESS_H);
         pfPos->setVisibility(false);
         pbFill.get<ViewportComponent>()->setViewport(UI_VP);
         detailProgressFillId = pbFill.entity->id;
+        anchorAt(pbFill.entity, colOff, curOff);
 
-        auto pTxt = makeTTFText(ecsRef, colX + colW + 6.0f, curY - 2.0f, 100.0f,
+        auto pTxt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_MEDIUM, "", SCALE_NUM, C::TEXT_DIM);
         pTxt.get<PositionComponent>()->setVisibility(false);
         pTxt.get<ViewportComponent>()->setViewport(UI_VP);
         detailProgressTextId = pTxt.entity->id;
+        anchorAt(pTxt.entity, colOff + colW + 6.0f, curOff - 2.0f);
     }
-    curY += PROGRESS_H + 12.0f;
+    curOff += PROGRESS_H + 12.0f;
 
     // --- Shop section labels (tab 2 only, positioned in detail area) ---
     {
-        auto lbl = makeTTFText(ecsRef, colX, contentY + DETAIL_PAD + 46.0f, 100.0f,
+        auto lbl = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_LIGHT, "", SCALE_BODY, C::TEXT_DIM);
         lbl.get<PositionComponent>()->setVisibility(false);
         lbl.get<ViewportComponent>()->setViewport(UI_VP);
         shopCostTextId = lbl.entity->id;
+        anchorAt(lbl.entity, colOff, contentOff + DETAIL_PAD + 46.0f);
 
-        auto shopName = makeTTFText(ecsRef, colX, contentY + DETAIL_PAD + 18.0f, 100.0f,
+        auto shopName = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_BOLD, "Extra Mission Slot", SCALE_DISPLAY, C::TEXT);
         shopName.get<PositionComponent>()->setVisibility(false);
         shopName.get<ViewportComponent>()->setViewport(UI_VP);
         shopLabelId = shopName.entity->id;
+        anchorAt(shopName.entity, colOff, contentOff + DETAIL_PAD + 18.0f);
     }
 
     // --- Action button (full-width at bottom of detail pane) ---
     {
-        float py2 = getPanelY();
-        float btnY = py2 + panelH - PADDING - ACTION_BTN_H;
-        actionBtnX = colX;
-        actionBtnY = btnY;
-        actionBtnW = colW;
+        float btnTopOff = panelH - PADDING - ACTION_BTN_H;
 
         auto bg = makeRoundedRect2DShape(ecsRef, ACTION_BTN_RAD, colW, ACTION_BTN_H, C::ACCENT);
-        auto pos = bg.get<PositionComponent>();
-        pos->setX(colX); pos->setY(btnY); pos->setZ(99.0f);
+        bg.get<PositionComponent>()->setZ(99.0f);
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         actionBtnBgId = bg.entity->id;
+        anchorAt(bg.entity, colOff, btnTopOff);
 
         auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_BOLD, "Start Mission", SCALE_BTN, C::WHITE);
@@ -1443,22 +1475,38 @@ void MissionUISystem::showDepotSelectionPrompt()
 {
     if (promptBgId == 0)
     {
-        float bannerW = 300.0f;
-        float bannerH = 32.0f;
-        float bx = (screenWidth - bannerW) * 0.5f;
-        float by = 80.0f;
+        const float bannerW = 300.0f;
+        const float bannerH = 32.0f;
+        const float bannerTopMargin = 80.0f;
+
+        auto windowEnt = ecsRef->getEntity("__MainWindow");
+        uint64_t windowId = windowEnt ? windowEnt->id : 0;
 
         auto bg = makeRoundedRect2DShape(ecsRef, 6.0f, bannerW, bannerH, C::BG);
         auto pos = bg.get<PositionComponent>();
-        pos->setX(bx); pos->setY(by); pos->setZ(101.0f);
+        pos->setZ(101.0f);
         bg.get<ViewportComponent>()->setViewport(UI_VP);
         promptBgId = bg.entity->id;
 
-        auto txt = makeTTFText(ecsRef, bx + 16.0f, by + 6.0f, 102.0f,
+        auto bgA = ecsRef->attach<UiAnchor>(bg.entity);
+        if (windowId != 0)
+        {
+            bgA->setHorizontalCenter(PosAnchor{windowId, AnchorType::HorizontalCenter});
+            bgA->setTopAnchor(PosAnchor{windowId, AnchorType::Top});
+            bgA->setTopMargin(bannerTopMargin);
+        }
+
+        auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 102.0f,
             FONT_MEDIUM, "Click a depot to start mission", SCALE_BODY,
             C::ACCENT);
         txt.get<ViewportComponent>()->setViewport(UI_VP);
         promptTextId = txt.entity->id;
+
+        auto txtA = ecsRef->attach<UiAnchor>(txt.entity);
+        txtA->setLeftAnchor(PosAnchor{promptBgId, AnchorType::Left});
+        txtA->setTopAnchor(PosAnchor{promptBgId, AnchorType::Top});
+        txtA->setLeftMargin(16.0f);
+        txtA->setTopMargin(6.0f);
     }
 
     setEntityVisibility(promptBgId, true);

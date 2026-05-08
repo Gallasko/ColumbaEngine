@@ -81,8 +81,6 @@ private:
     float getPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
                                         + 2.0f * SLOT_SIZE + SLOT_SPACING + GAP_AFTER_SLOTS
                                         + PROGRESS_H + PANEL_PADDING; }
-    float getPanelX() const;
-    float getPanelY() const;
 
     void ensurePanelCreated();
     void setPanelVisibility(bool vis);
@@ -123,6 +121,5 @@ private:
     uint64_t demoBtnBgEntityId    = 0;
     uint64_t demoBtnTextEntityId  = 0;
 
-    float cachedBarX    = 0.0f;
     float cachedBarMaxW = 0.0f;
 };

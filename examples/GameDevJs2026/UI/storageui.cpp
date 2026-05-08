@@ -1,6 +1,7 @@
 #include "storageui.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/position.h"
 #include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
@@ -117,25 +118,6 @@ void StorageUISystem::onProcessEvent(const SlotDroppedEvent& event)
 }
 
 // ---------------------------------------------------------------------------
-// Layout
-// ---------------------------------------------------------------------------
-
-float StorageUISystem::getPanelX() const
-{
-    float invW = InventoryUISystem::COLS * InventoryUISystem::SLOT_SIZE
-               + (InventoryUISystem::COLS - 1) * InventoryUISystem::SLOT_SPACING
-               + 2.0f * InventoryUISystem::PANEL_PADDING;
-    float invX = (screenWidth - invW) * 0.5f;
-
-    return invX - GAP_BETWEEN_PANELS - getPanelWidth();
-}
-
-float StorageUISystem::getPanelY() const
-{
-    return (screenHeight - getPanelHeight()) * 0.5f;
-}
-
-// ---------------------------------------------------------------------------
 // Panel creation
 // ---------------------------------------------------------------------------
 
@@ -163,16 +145,22 @@ void StorageUISystem::setPanelVisibility(bool vis)
 
 void StorageUISystem::createPanel()
 {
-    float panelX = getPanelX();
-    float panelY = getPanelY();
-    float panelW = getPanelWidth();
-    float panelH = getPanelHeight();
+    const float panelW = getPanelWidth();
+    const float panelH = getPanelHeight();
 
-    // Backdrop via the engine "Panel" factory. Returns a Prefab container
-    // whose size tracks the inner bg shape; positioning the container moves
-    // the whole prefab. The visible bg entity is named "bg" inside the prefab.
+    // Anchor target: storage panel sits left of the inventory panel, vertically
+    // centred against it (or against __MainWindow as fallback).
+    uint64_t anchorTargetId = 0;
+    if (inventoryUI)
+        anchorTargetId = inventoryUI->getBackdropEntityId();
+    if (anchorTargetId == 0)
     {
-        auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
+        auto windowEnt = ecsRef->getEntity("__MainWindow");
+        if (windowEnt) anchorTargetId = windowEnt->id;
+    }
+
+    auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
+    {
         auto panelEnt = factory->build("Panel", PrefabParams{
             {"width",    panelW},
             {"height",   panelH},
@@ -180,15 +168,13 @@ void StorageUISystem::createPanel()
             {"z",         97.0f},
             {"viewport", static_cast<int>(UI_VP)},
         });
-
-        auto pos = panelEnt->get<PositionComponent>();
-        pos->setX(panelX);
-        pos->setY(panelY);
         backdropEntityId = panelEnt->id;
 
-        // Click handler goes on the visible bg shape, not the invisible
-        // prefab container, so the click-outside-to-close logic can detect
-        // panel clicks at the right pixel area.
+        auto a = panelEnt->get<UiAnchor>();
+        a->setRightAnchor(PosAnchor{anchorTargetId, AnchorType::Left});
+        a->setRightMargin(GAP_BETWEEN_PANELS);
+        a->setVerticalCenter(PosAnchor{anchorTargetId, AnchorType::VerticalCenter});
+
         if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
         {
             ecsRef->attach<MouseLeftClickComponent>(bgEnt,
@@ -196,12 +182,9 @@ void StorageUISystem::createPanel()
         }
     }
 
-    // Title via the engine "Text" factory.
     {
-        auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
         auto titleEnt = factory->build("Text", PrefabParams{
-            {"x",        panelX + PANEL_PADDING},
-            {"y",        panelY + PANEL_PADDING + 4.0f},
+            {"x", 0.0f}, {"y", 0.0f},
             {"z",        100.0f},
             {"font",     std::string(FONT_PATH)},
             {"text",     std::string("Storage")},
@@ -209,11 +192,15 @@ void StorageUISystem::createPanel()
             {"viewport", static_cast<int>(UI_VP)},
         });
         titleEntityId = titleEnt->id;
+
+        auto a = ecsRef->attach<UiAnchor>(titleEnt);
+        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        a->setLeftMargin(PANEL_PADDING);
+        a->setTopMargin(PANEL_PADDING + 4.0f);
     }
 
-    // Slots via SlotSystem
-    float slotsStartY = panelY + PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
-
+    // Slots via SlotSystem (UiAnchor auto-attached by createSlot)
     for (size_t i = 0; i < NUM_SLOTS; ++i)
     {
         auto slotRef = slotSystem->createSlot(
@@ -222,12 +209,13 @@ void StorageUISystem::createPanel()
 
         size_t col = i % COLS;
         size_t row = i / COLS;
-        float sx = panelX + PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
-        float sy = slotsStartY + row * (SLOT_SIZE + SLOT_SPACING);
 
-        auto pos = slotRef.get<PositionComponent>();
-        pos->setX(sx);
-        pos->setY(sy);
+        auto a = slotRef.get<UiAnchor>();
+        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        a->setLeftMargin(PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING));
+        a->setTopMargin(PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
+                       + row * (SLOT_SIZE + SLOT_SPACING));
     }
 }
 

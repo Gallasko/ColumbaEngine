@@ -58,9 +58,6 @@ public:
     virtual void onEvent(const InventoryClosedEvent&) override;
 
 private:
-    float getPanelX() const;
-    float getPanelY() const;
-
     void ensurePanelCreated();
     void setPanelVisibility(bool vis);
     void createPanel();
