@@ -394,12 +394,12 @@ void SpotlightOverlaySystem::layoutArrow(float sx, float sy, float sw, float sh,
         case ArrowSide::Left:
             ax = sx - ARROW_SIZE - ARROW_OFFSET - bobOffset;
             ay = sy + sh * 0.5f - ARROW_SIZE * 0.5f;
-            rotation = -90.0f;
+            rotation = 90.0f;
             break;
         case ArrowSide::Right:
             ax = sx + sw + ARROW_OFFSET + bobOffset;
             ay = sy + sh * 0.5f - ARROW_SIZE * 0.5f;
-            rotation = 90.0f;
+            rotation = -90.0f;
             break;
     }
 

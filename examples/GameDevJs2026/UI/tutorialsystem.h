@@ -8,6 +8,7 @@
 #include "gridsystem.h"
 #include "worldfacts.h"
 #include "inventoryui.h"
+#include "missionui.h"
 #include "hotbarsystem.h"
 #include "hudbarsystem.h"
 #include "reciperegistry.h"
@@ -51,6 +52,9 @@ enum class TutorialStep : int
 
 class TutorialSystem : public System<Listener<PlayerGainItemEvent>,
                                       Listener<InventoryOpenedEvent>,
+                                      Listener<InventoryClosedEvent>,
+                                      Listener<MissionUIOpenedEvent>,
+                                      Listener<MissionUIClosedEvent>,
                                       Listener<HandCraftCompletedEvent>,
                                       QueuedListener<SlotDroppedEvent>,
                                       Listener<BuildingPlacedEvent>,
@@ -97,6 +101,9 @@ public:
 
     virtual void onEvent(const PlayerGainItemEvent& event) override;
     virtual void onEvent(const InventoryOpenedEvent& event) override;
+    virtual void onEvent(const InventoryClosedEvent& event) override;
+    virtual void onEvent(const MissionUIOpenedEvent& event) override;
+    virtual void onEvent(const MissionUIClosedEvent& event) override;
     virtual void onEvent(const HandCraftCompletedEvent& event) override;
     virtual void onProcessEvent(const SlotDroppedEvent& event) override;
     virtual void onEvent(const BuildingPlacedEvent& event) override;
@@ -147,4 +154,17 @@ private:
     bool initialized    = false;
     int  currentStep    = 0;
     bool pendingAdvance = false;
+
+    // Mirrors MissionUISystem visibility for the ValidateFirstSteps /
+    // ValidateStoneMasonry sub-state machine. Updated from MissionUI*Event;
+    // tutorial doesn't hold a pointer to MissionUISystem to keep dependencies
+    // one-directional.
+    bool missionUIOpen  = false;
+
+    // Set the first time MissionUIOpened fires during the current step.
+    // While true on a ValidateMission step the spotlight stays hidden even
+    // after the player closes the panel — guidance shouldn't flap back on
+    // before the player has had a chance to act in the mission UI. Reset
+    // by advanceStep() on every transition.
+    bool missionUiOpenedThisStep = false;
 };

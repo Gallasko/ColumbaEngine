@@ -174,8 +174,11 @@ void InventoryUISystem::createPanel()
     backdropEntityId = panelEnt->id;
 
     if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
+    {
         ecsRef->attach<MouseLeftClickComponent>(bgEnt,
             makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
+        ecsRef->attach<EntityName>(bgEnt, "InventoryPanel");
+    }
 
     // Horizontal layout for slot grid (fitToAxis wraps into 5-column rows)
     float contentW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING;

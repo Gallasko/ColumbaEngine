@@ -116,12 +116,14 @@ void HudBarSystem::createButtons()
             ecsRef->attach<MouseLeftClickComponent>(bg.entity,
                 makeCallable<HudInventoryButtonClicked>(),
                 MouseStateTrigger::OnPress);
+            ecsRef->attach<EntityName>(bg.entity, "HudInventoryButton");
         }
         else if (i == BTN_MISSIONS)
         {
             ecsRef->attach<MouseLeftClickComponent>(bg.entity,
                 makeCallable<HudMissionButtonClicked>(),
                 MouseStateTrigger::OnPress);
+            ecsRef->attach<EntityName>(bg.entity, "HudMissionButton");
         }
         // BTN_SETTINGS: no callback yet (placeholder).
 
@@ -314,9 +316,13 @@ void HudBarSystem::updateMissionBadge()
         return;
     }
 
+    // Badge stays lit while there's a completable main mission, even after
+    // the player has opened (and closed) the tab — the action is still
+    // pending until they actually validate it. Unlock notifications are the
+    // one-shot kind cleared by opening the tab.
     bool pending = worldFacts->getFact<bool>("mission_attention_pending", false);
 
-    setEntityVisibility(missionBadgeId, pending);
+    setEntityVisibility(missionBadgeId, pending or currentCompletable > 0);
 }
 
 void HudBarSystem::setEntityVisibility(uint64_t id, bool vis)

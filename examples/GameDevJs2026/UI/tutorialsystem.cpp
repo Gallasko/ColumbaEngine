@@ -27,8 +27,8 @@ namespace
 // Indexed by TutorialStep. Entries past Complete are unused.
 const TutorialSystem::StepDef TutorialSystem::STEPS[] = {
     {"Gather resources",     "Click a tree or rock until the bar fills to gather wood or stone."},
-    {"Open the inventory",   "Press TAB to open your inventory and crafting menu."},
-    {"Unlock the pickaxe",   "Open the mission tab and validate \"First Steps\" to unlock the Stone Pickaxe recipe."},
+    {"Open the inventory",   "Click the inventory button to open your inventory and crafting menu."},
+    {"Open the missions",    "Open the mission tab and validate \"First Steps\" to unlock the Stone Pickaxe recipe."},
     {"Craft a pickaxe",      "Use the crafting menu to build a Stone Pickaxe."},
     {"Equip the pickaxe",    "Drag the Stone Pickaxe to a hotbar slot."},
     {"Mine an ore",          "With the pickaxe selected, click an ore tile to mine it."},
@@ -201,8 +201,45 @@ void TutorialSystem::onEvent(const PlayerGainItemEvent& event)
 
 void TutorialSystem::onEvent(const InventoryOpenedEvent&)
 {
-    if (static_cast<TutorialStep>(currentStep) == TutorialStep::OpenInventory)
+    const auto step = static_cast<TutorialStep>(currentStep);
+    if (step == TutorialStep::OpenInventory)
+    {
         pendingAdvance = true;
+        return;
+    }
+
+    // ValidateFirstSteps/StoneMasonry: opening the inventory mid-step swaps
+    // the spotlight to "close it" guidance.
+    if (step == TutorialStep::ValidateFirstSteps or
+        step == TutorialStep::ValidateStoneMasonry)
+        presentCurrentStep();
+}
+
+void TutorialSystem::onEvent(const InventoryClosedEvent&)
+{
+    const auto step = static_cast<TutorialStep>(currentStep);
+    if (step == TutorialStep::ValidateFirstSteps or
+        step == TutorialStep::ValidateStoneMasonry)
+        presentCurrentStep();
+}
+
+void TutorialSystem::onEvent(const MissionUIOpenedEvent&)
+{
+    missionUIOpen = true;
+    missionUiOpenedThisStep = true;
+    const auto step = static_cast<TutorialStep>(currentStep);
+    if (step == TutorialStep::ValidateFirstSteps or
+        step == TutorialStep::ValidateStoneMasonry)
+        presentCurrentStep();
+}
+
+void TutorialSystem::onEvent(const MissionUIClosedEvent&)
+{
+    missionUIOpen = false;
+    const auto step = static_cast<TutorialStep>(currentStep);
+    if (step == TutorialStep::ValidateFirstSteps or
+        step == TutorialStep::ValidateStoneMasonry)
+        presentCurrentStep();
 }
 
 void TutorialSystem::onEvent(const HandCraftCompletedEvent& event)
@@ -371,6 +408,7 @@ void TutorialSystem::applyHudReveal()
 void TutorialSystem::advanceStep()
 {
     currentStep++;
+    missionUiOpenedThisStep = false;
     worldFacts->setFact("tutorial_step", currentStep);
     applyHudReveal();
     presentCurrentStep();
@@ -393,6 +431,8 @@ void TutorialSystem::presentCurrentStep()
     SpotlightOverlaySystem::Target target;
     auto arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
     bool showSkip = (step == TutorialStep::MineFirstResource);
+    std::string title = def.title;
+    std::string body  = def.body;
 
     auto centeredScreenRect = [&](float w, float h) {
         SpotlightOverlaySystem::Target t;
@@ -414,13 +454,14 @@ void TutorialSystem::presentCurrentStep()
         return t;
     };
 
-    auto topRightRect = [&](float w, float h, float topMargin, float rightMargin) {
+    auto namedUiTarget = [&](const char* name) {
         SpotlightOverlaySystem::Target t;
-        t.kind = SpotlightOverlaySystem::TargetKind::ScreenRect;
-        t.sx = screenWidth - w - rightMargin;
-        t.sy = topMargin;
-        t.sw = w;
-        t.sh = h;
+        auto ent = ecsRef->getEntity(name);
+        if (ent)
+        {
+            t.kind = SpotlightOverlaySystem::TargetKind::UiEntity;
+            t.entityId = ent->id;
+        }
         return t;
     };
 
@@ -444,15 +485,39 @@ void TutorialSystem::presentCurrentStep()
         }
 
         case TutorialStep::OpenInventory:
-            target = centeredScreenRect(360.0f, 240.0f);
-            arrowSide = SpotlightOverlaySystem::ArrowSide::Bottom;
+            // HUD inventory button is in the top-right corner; arrow points
+            // from the left so it doesn't run off-screen.
+            target = namedUiTarget("HudInventoryButton");
+            arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
             break;
 
         case TutorialStep::ValidateFirstSteps:
         case TutorialStep::ValidateStoneMasonry:
-            target = topRightRect(56.0f, 32.0f, 10.0f, 56.0f);
-            arrowSide = SpotlightOverlaySystem::ArrowSide::Bottom;
+        {
+            // Sub-state machine: once the player has opened the mission tab
+            // even once during this step we drop the dim/arrow but leave the
+            // corner panel up so the objective text remains visible until
+            // they actually validate. Target::None skips the dim+arrow.
+            if (missionUIOpen or missionUiOpenedThisStep)
+                break;
+
+            // Inventory left open from the previous step (or re-opened by
+            // the player). Guide them to close it before pointing at the
+            // mission button — the mission UI auto-closes inventory anyway,
+            // but the redirect makes the next action obvious.
+            if (inventoryUI and inventoryUI->isOpen())
+            {
+                target = namedUiTarget("InventoryPanel");
+                arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+                title = "Close the inventory";
+                body  = "You don't have what you need yet — close the inventory and check the mission tab.";
+                break;
+            }
+
+            target = namedUiTarget("HudMissionButton");
+            arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
             break;
+        }
 
         case TutorialStep::CraftPickaxe:
         case TutorialStep::CraftFurnace:
@@ -493,5 +558,5 @@ void TutorialSystem::presentCurrentStep()
             return;
     }
 
-    spotlight->show(target, arrowSide, def.title, def.body, showSkip);
+    spotlight->show(target, arrowSide, title, body, showSkip);
 }
