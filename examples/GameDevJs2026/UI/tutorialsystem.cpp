@@ -444,16 +444,6 @@ void TutorialSystem::presentCurrentStep()
         return t;
     };
 
-    auto bottomScreenRect = [&](float w, float h, float bottomMargin) {
-        SpotlightOverlaySystem::Target t;
-        t.kind = SpotlightOverlaySystem::TargetKind::ScreenRect;
-        t.sx = (screenWidth - w) * 0.5f;
-        t.sy = screenHeight - h - bottomMargin;
-        t.sw = w;
-        t.sh = h;
-        return t;
-    };
-
     auto namedUiTarget = [&](const char* name) {
         SpotlightOverlaySystem::Target t;
         auto ent = ecsRef->getEntity(name);
@@ -521,15 +511,42 @@ void TutorialSystem::presentCurrentStep()
 
         case TutorialStep::CraftPickaxe:
         case TutorialStep::CraftFurnace:
-            target = centeredScreenRect(360.0f, 240.0f);
-            arrowSide = SpotlightOverlaySystem::ArrowSide::Right;
+            target = namedUiTarget("CraftingPanel");
+            arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
             break;
 
         case TutorialStep::MovePickaxeToHotbar:
         case TutorialStep::PlaceFurnaceInHotbar:
-            target = bottomScreenRect(440.0f, 56.0f, 10.0f);
+        {
+            // Span the dim cutout from the inventory panel down to the
+            // hotbar so the player can see both the source and destination,
+            // then point the arrow at a specific hotbar slot to make the
+            // drag direction obvious.
+            auto invEnt  = ecsRef->getEntity("InventoryPanel");
+            uint64_t slotId = hotbar ? hotbar->getSlotEntityId(0) : 0;
+            auto slotEnt = (slotId != 0) ? ecsRef->getEntity(slotId) : nullptr;
+
+            if (invEnt and slotEnt)
+            {
+                auto invPos  = invEnt->get<PositionComponent>();
+                auto slotPos = slotEnt->get<PositionComponent>();
+                float left   = std::min(invPos->getX(), slotPos->getX());
+                float top    = std::min(invPos->getY(), slotPos->getY());
+                float right  = std::max(invPos->getX() + invPos->getWidth(),
+                                        slotPos->getX() + slotPos->getWidth());
+                float bottom = std::max(invPos->getY() + invPos->getHeight(),
+                                        slotPos->getY() + slotPos->getHeight());
+
+                target.kind = SpotlightOverlaySystem::TargetKind::ScreenRect;
+                target.sx = left;
+                target.sy = top;
+                target.sw = right - left;
+                target.sh = bottom - top;
+                target.arrowEntityId = slotId;
+            }
             arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
             break;
+        }
 
         case TutorialStep::MineOre:
         {

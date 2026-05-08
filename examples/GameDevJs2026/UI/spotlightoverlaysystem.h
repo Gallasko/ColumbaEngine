@@ -89,6 +89,13 @@ public:
 
         // UiEntity
         uint64_t entityId = 0;
+
+        // Optional override for arrow placement. When non-zero, the arrow
+        // points at this entity's rect instead of the spotlight cutout — used
+        // when the dim cutout spans a large region (e.g. inventory + hotbar)
+        // but the actionable element is just one part of it (e.g. a single
+        // hotbar slot).
+        uint64_t arrowEntityId = 0;
     };
 
     SpotlightOverlaySystem(CameraSystem* cameraSystem,
@@ -128,6 +135,10 @@ private:
     // Returns false if the target is None or invalid (entity destroyed,
     // off-screen world tile clipped, etc.).
     bool resolveTargetRect(float& sx, float& sy, float& sw, float& sh) const;
+
+    // Resolve the rect the arrow should anchor to. Falls back to the main
+    // target rect when no override entity is set.
+    bool resolveArrowRect(float& sx, float& sy, float& sw, float& sh) const;
 
     // Reposition all frame rects so that they cover the screen except for
     // the target rect (`sx, sy, sw, sh`).

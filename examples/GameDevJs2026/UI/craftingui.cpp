@@ -359,8 +359,11 @@ void CraftingUISystem::createPanel()
     backdropEntityId = panelEnt->id;
 
     if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
+    {
         ecsRef->attach<MouseLeftClickComponent>(bgEnt,
             makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
+        ecsRef->attach<EntityName>(bgEnt, "CraftingPanel");
+    }
 
     auto bdAnchor = panelEnt->get<UiAnchor>();
     bdAnchor->setLeftAnchor(PosAnchor{invBackdropId, AnchorType::Right});

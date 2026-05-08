@@ -171,7 +171,10 @@ void SpotlightOverlaySystem::show(const Target& target,
     if (resolveTargetRect(sx, sy, sw, sh))
     {
         layoutDimFrames(sx, sy, sw, sh);
-        layoutArrow(sx, sy, sw, sh, 0.0f);
+
+        float ax, ay, aw, ah;
+        if (resolveArrowRect(ax, ay, aw, ah))
+            layoutArrow(ax, ay, aw, ah, 0.0f);
     }
 }
 
@@ -219,7 +222,10 @@ void SpotlightOverlaySystem::onEvent(const TickEvent& event)
     float shake = 0.0f;
     if (shakeRemainingMs > 0.0f)
         shake = std::sin(bobAccumMs * 0.05f) * 4.0f;
-    layoutArrow(sx, sy, sw, sh, bob + shake);
+
+    float ax, ay, aw, ah;
+    if (resolveArrowRect(ax, ay, aw, ah))
+        layoutArrow(ax, ay, aw, ah, bob + shake);
 }
 
 void SpotlightOverlaySystem::onEvent(const ResizeEvent& event)
@@ -341,6 +347,28 @@ bool SpotlightOverlaySystem::resolveTargetRect(float& sx, float& sy,
         }
     }
     return false;
+}
+
+bool SpotlightOverlaySystem::resolveArrowRect(float& sx, float& sy,
+                                               float& sw, float& sh) const
+{
+    if (currentTarget.arrowEntityId != 0)
+    {
+        auto ent = ecsRef->getEntity(currentTarget.arrowEntityId);
+        if (ent)
+        {
+            if (auto pos = ent->get<PositionComponent>())
+            {
+                sx = pos->getX();
+                sy = pos->getY();
+                sw = pos->getWidth();
+                sh = pos->getHeight();
+                if (sw > 0.0f and sh > 0.0f)
+                    return true;
+            }
+        }
+    }
+    return resolveTargetRect(sx, sy, sw, sh);
 }
 
 // ---------------------------------------------------------------------------
