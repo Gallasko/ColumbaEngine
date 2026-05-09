@@ -600,37 +600,36 @@ void TutorialSystem::presentCurrentStep()
         {
             // Span the dim cutout to cover the inventory panel and the full
             // hotbar row (first slot through last slot), so the player can
-            // see both the source and destination. Arrow points at the first
-            // hotbar slot to make the drag direction obvious.
+            // see both the source and destination. Hotbar slot positions are
+            // derived from HotbarSystem layout constants rather than read
+            // from slot entities — for the pickaxe step the hotbar is being
+            // revealed for the first time, and slot anchors may not have
+            // resolved yet when the spotlight rect is computed.
+            const float totalSlotsW = static_cast<float>(HOTBAR_SLOTS) * HotbarSystem::SLOT_SIZE
+                                    + static_cast<float>(HOTBAR_SLOTS - 1) * HotbarSystem::SLOT_SPACING;
+            const float hotbarLeft   = (screenWidth - totalSlotsW) * 0.5f;
+            const float hotbarRight  = hotbarLeft + totalSlotsW;
+            const float hotbarTop    = screenHeight - HotbarSystem::HOTBAR_HEIGHT
+                                     + HotbarSystem::SLOT_PADDING;
+            const float hotbarBottom = hotbarTop + HotbarSystem::SLOT_SIZE;
+
             auto invEnt = ecsRef->getEntity("InventoryPanel");
-
-            uint64_t firstSlotId = hotbar ? hotbar->getSlotEntityId(0) : 0;
-            uint64_t lastSlotId  = hotbar ? hotbar->getSlotEntityId(HOTBAR_SLOTS - 1) : 0;
-            auto firstSlotEnt = (firstSlotId != 0) ? ecsRef->getEntity(firstSlotId) : nullptr;
-            auto lastSlotEnt  = (lastSlotId  != 0) ? ecsRef->getEntity(lastSlotId)  : nullptr;
-
-            if (invEnt and firstSlotEnt and lastSlotEnt)
+            if (invEnt)
             {
-                auto invPos   = invEnt->get<PositionComponent>();
-                auto firstPos = firstSlotEnt->get<PositionComponent>();
-                auto lastPos  = lastSlotEnt->get<PositionComponent>();
-
-                float left   = std::min(invPos->getX(), firstPos->getX());
-                float right  = std::max(invPos->getX() + invPos->getWidth(),
-                                        lastPos->getX()  + lastPos->getWidth());
-                float top    = std::min({invPos->getY(),
-                                         firstPos->getY(),
-                                         lastPos->getY()});
-                float bottom = std::max({invPos->getY()   + invPos->getHeight(),
-                                         firstPos->getY() + firstPos->getHeight(),
-                                         lastPos->getY()  + lastPos->getHeight()});
+                auto invPos = invEnt->get<PositionComponent>();
+                float left   = std::min(invPos->getX(), hotbarLeft);
+                float right  = std::max(invPos->getX() + invPos->getWidth(), hotbarRight);
+                float top    = std::min(invPos->getY(), hotbarTop);
+                float bottom = std::max(invPos->getY() + invPos->getHeight(), hotbarBottom);
 
                 target.kind = SpotlightOverlaySystem::TargetKind::ScreenRect;
                 target.sx = left;
                 target.sy = top;
                 target.sw = right - left;
                 target.sh = bottom - top;
-                target.arrowEntityId = firstSlotId;
+                // Arrow target left as 0 (no entity) — the spotlight system
+                // falls back to the rect's geometry, which is reliable since
+                // we computed it from screen math.
             }
             arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
             break;
@@ -654,6 +653,11 @@ void TutorialSystem::presentCurrentStep()
         }
 
         case TutorialStep::PlaceFurnaceOnGrid:
+            // Auto-select the hotbar slot containing the furnace so the
+            // player's next click places it without first having to scroll
+            // the hotbar selection.
+            if (hotbar)
+                hotbar->selectSlotForItem(FURNACE_ID);
             target = centeredScreenRect(420.0f, 280.0f);
             arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
             break;

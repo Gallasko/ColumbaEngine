@@ -114,6 +114,11 @@ public:
         return playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + index);
     }
 
+    // Select the first hotbar slot containing the given item id. Returns true
+    // if a slot was found and selected (or already selected). Used by the
+    // tutorial to auto-equip the furnace before the place-furnace step.
+    bool selectSlotForItem(ItemId id);
+
 private:
     void selectSlot(size_t index);
     void createHotbarUI();

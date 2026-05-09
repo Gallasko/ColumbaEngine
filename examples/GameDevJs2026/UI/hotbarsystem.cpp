@@ -153,6 +153,22 @@ void HotbarSystem::selectSlot(size_t index)
     }
 }
 
+bool HotbarSystem::selectSlotForItem(ItemId id)
+{
+    if (id == ITEM_NONE)
+        return false;
+    for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
+    {
+        const auto& stack = playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + i);
+        if (not stack.isEmpty() and stack.id == id)
+        {
+            selectSlot(i);
+            return true;
+        }
+    }
+    return false;
+}
+
 void HotbarSystem::consumeSelectedItem(uint16_t count)
 {
     auto& slot = playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + selectedSlot);
