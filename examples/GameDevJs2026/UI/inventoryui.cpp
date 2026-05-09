@@ -23,6 +23,8 @@ ItemId InventoryUISystem::itemAtPosition(float x, float y) const
             continue;
 
         auto pos = ent->get<PositionComponent>();
+        if (not pos)
+            continue;
 
         if (x >= pos->x and x <= pos->x + SLOT_SIZE and
             y >= pos->y and y <= pos->y + SLOT_SIZE)
@@ -153,7 +155,10 @@ void InventoryUISystem::setPanelVisibility(bool vis)
     {
         auto ent = ecsRef->getEntity(slotEntityIds[i]);
         if (ent)
-            ent->get<PositionComponent>()->setVisibility(vis);
+        {
+            if (auto pos = ent->get<PositionComponent>())
+                pos->setVisibility(vis);
+        }
     }
 }
 
@@ -233,5 +238,8 @@ void InventoryUISystem::setEntityVisibility(uint64_t id, bool vis)
 
     auto ent = ecsRef->getEntity(id);
     if (ent)
-        ent->get<PositionComponent>()->setVisibility(vis);
+    {
+        if (auto pos = ent->get<PositionComponent>())
+            pos->setVisibility(vis);
+    }
 }

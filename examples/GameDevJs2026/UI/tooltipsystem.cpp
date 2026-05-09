@@ -153,9 +153,13 @@ void TooltipSystem::showTooltip(ItemId id)
         if (ent)
         {
             float iconW = ICON_SIZE * def.iconWidthRatio;
-            ent->get<Texture2DComponent>()->setTexture(def.textureName);
-            ent->get<PositionComponent>()->setWidth(iconW);
-            ent->get<PositionComponent>()->setHeight(ICON_SIZE);
+            if (auto tex = ent->get<Texture2DComponent>())
+                tex->setTexture(def.textureName);
+            if (auto pos = ent->get<PositionComponent>())
+            {
+                pos->setWidth(iconW);
+                pos->setHeight(ICON_SIZE);
+            }
         }
     }
 
@@ -222,20 +226,25 @@ void TooltipSystem::placeAt(float tx, float ty, float h, int numBodyLines)
     auto ent = ecsRef->getEntity(backdropId);
     if (ent)
     {
-        auto pos = ent->get<PositionComponent>();
-        pos->setX(tx);
-        pos->setY(ty);
-        pos->setWidth(TOOLTIP_W);
-        pos->setHeight(h);
+        if (auto pos = ent->get<PositionComponent>())
+        {
+            pos->setX(tx);
+            pos->setY(ty);
+            pos->setWidth(TOOLTIP_W);
+            pos->setHeight(h);
+        }
     }
 
     // Adjust icon's leftMargin to account for the per-item icon width
     // (anchor was set up with PADDING; centre the visible icon in ICON_SIZE).
     if (auto iEnt = ecsRef->getEntity(iconId))
     {
-        float iconW = iEnt->get<PositionComponent>()->getWidth();
-        if (auto a = iEnt->get<UiAnchor>())
-            a->setLeftMargin(PADDING + (ICON_SIZE - iconW) * 0.5f);
+        if (auto iPos = iEnt->get<PositionComponent>())
+        {
+            float iconW = iPos->getWidth();
+            if (auto a = iEnt->get<UiAnchor>())
+                a->setLeftMargin(PADDING + (ICON_SIZE - iconW) * 0.5f);
+        }
     }
 
     (void)numBodyLines;
@@ -384,7 +393,10 @@ void TooltipSystem::setEntityVisibility(uint64_t id, bool vis)
     if (id == 0) return;
     auto ent = ecsRef->getEntity(id);
     if (ent)
-        ent->get<PositionComponent>()->setVisibility(vis);
+    {
+        if (auto pos = ent->get<PositionComponent>())
+            pos->setVisibility(vis);
+    }
 }
 
 void TooltipSystem::setLine(int lineIdx, const std::string& text,
@@ -396,8 +408,11 @@ void TooltipSystem::setLine(int lineIdx, const std::string& text,
     auto ent = ecsRef->getEntity(id);
     if (not ent) return;
 
-    auto ttf = ent->get<TTFText>();
-    ttf->setText(text);
-    ttf->colors = colour;
-    ent->get<PositionComponent>()->setVisibility(vis);
+    if (auto ttf = ent->get<TTFText>())
+    {
+        ttf->setText(text);
+        ttf->colors = colour;
+    }
+    if (auto pos = ent->get<PositionComponent>())
+        pos->setVisibility(vis);
 }

@@ -502,9 +502,11 @@ void GameSystem::updateCursorPosition()
         auto cursorEnt = ecsRef->getEntity(cursorEntityId);
         if (cursorEnt)
         {
-            auto pos = cursorEnt->get<PositionComponent>();
-            pos->setX(wx);
-            pos->setY(wy);
+            if (auto pos = cursorEnt->get<PositionComponent>())
+            {
+                pos->setX(wx);
+                pos->setY(wy);
+            }
         }
 
         // Update ghost position (hidden during line drag, or when no building selected)
@@ -514,13 +516,15 @@ void GameSystem::updateCursorPosition()
             auto ghostEnt = ecsRef->getEntity(ghostEntityId);
             if (ghostEnt)
             {
-                auto pos = ghostEnt->get<PositionComponent>();
-                float ghostOffset = (def->name == "Inserter")
-                    ? -static_cast<float>(Grid::TILE_SIZE) : 0.0f;
-                float overflowOffset = def->hasOverflow()
-                    ? -static_cast<float>(Grid::TILE_SIZE * def->overflowH()) : 0.0f;
-                pos->setX(wx + ghostOffset);
-                pos->setY(wy + ghostOffset + overflowOffset);
+                if (auto pos = ghostEnt->get<PositionComponent>())
+                {
+                    float ghostOffset = (def->name == "Inserter")
+                        ? -static_cast<float>(Grid::TILE_SIZE) : 0.0f;
+                    float overflowOffset = def->hasOverflow()
+                        ? -static_cast<float>(Grid::TILE_SIZE * def->overflowH()) : 0.0f;
+                    pos->setX(wx + ghostOffset);
+                    pos->setY(wy + ghostOffset + overflowOffset);
+                }
 
                 // Tint ghost red if placement is invalid
                 bool canPlace = canPlaceAt(gridX, gridY, *def);
@@ -530,11 +534,13 @@ void GameSystem::updateCursorPosition()
                     auto tint = canPlace
                         ? constant::Vector4D{def->color.x, def->color.y, def->color.z, 100.0f}
                         : constant::Vector4D{255.0f, 60.0f, 60.0f, 100.0f};
-                    ghostEnt->get<Simple2DObject>()->setColors(tint);
+                    if (auto shape = ghostEnt->get<Simple2DObject>())
+                        shape->setColors(tint);
                 }
                 if (ghostEnt->has<Texture2DComponent>())
                 {
-                    ghostEnt->get<Texture2DComponent>()->setOpacity(canPlace ? 0.4f : 0.15f);
+                    if (auto tex = ghostEnt->get<Texture2DComponent>())
+                        tex->setOpacity(canPlace ? 0.4f : 0.15f);
                 }
             }
         }
@@ -543,7 +549,10 @@ void GameSystem::updateCursorPosition()
             // No building selected, hide ghost
             auto ghostEnt = ecsRef->getEntity(ghostEntityId);
             if (ghostEnt)
-                ghostEnt->get<PositionComponent>()->setX(-1000.0f);
+            {
+                if (auto pos = ghostEnt->get<PositionComponent>())
+                    pos->setX(-1000.0f);
+            }
         }
     }
     else
@@ -551,13 +560,19 @@ void GameSystem::updateCursorPosition()
         // Move off-screen when out of bounds
         auto cursorEnt = ecsRef->getEntity(cursorEntityId);
         if (cursorEnt)
-            cursorEnt->get<PositionComponent>()->setX(-1000.0f);
+        {
+            if (auto pos = cursorEnt->get<PositionComponent>())
+                pos->setX(-1000.0f);
+        }
 
         if (not isDragging)
         {
             auto ghostEnt = ecsRef->getEntity(ghostEntityId);
             if (ghostEnt)
-                ghostEnt->get<PositionComponent>()->setX(-1000.0f);
+            {
+                if (auto pos = ghostEnt->get<PositionComponent>())
+                    pos->setX(-1000.0f);
+            }
         }
     }
 }
@@ -594,7 +609,8 @@ void GameSystem::updateGhostTexture()
     LOG_INFO("GameSystem", "updateGhostTexture: " << def->name << " dir=" << currentDirection
             << " tex=" << texName);
 
-    ghostEnt->get<Texture2DComponent>()->setTexture(texName);
+    if (auto tex = ghostEnt->get<Texture2DComponent>())
+        tex->setTexture(texName);
 }
 
 // --- Placement ---
@@ -808,7 +824,10 @@ void GameSystem::updateDragGhosts()
 
     auto ghostEnt = ecsRef->getEntity(ghostEntityId);
     if (ghostEnt)
-        ghostEnt->get<PositionComponent>()->setX(-1000.0f);
+    {
+        if (auto pos = ghostEnt->get<PositionComponent>())
+            pos->setX(-1000.0f);
+    }
 
     const auto* def = getSelectedBuildingDef();
     if (not def)
