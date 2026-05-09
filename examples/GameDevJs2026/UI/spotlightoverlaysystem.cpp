@@ -45,7 +45,7 @@ void SpotlightOverlaySystem::init()
     auto windowEnt = ecsRef->getEntity("__MainWindow");
     uint64_t windowId = windowEnt ? windowEnt->id : 0;
 
-    // Corner objective panel — pinned to the bottom-left of the screen.
+    // Corner objective panel — pinned to the top-left of the screen.
     {
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square,
             CORNER_W, CORNER_H,
@@ -60,9 +60,9 @@ void SpotlightOverlaySystem::init()
         if (windowId != 0)
         {
             a->setLeftAnchor(PosAnchor{windowId, AnchorType::Left});
-            a->setBottomAnchor(PosAnchor{windowId, AnchorType::Bottom});
+            a->setTopAnchor(PosAnchor{windowId, AnchorType::Top});
             a->setLeftMargin(16.0f);
-            a->setBottomMargin(16.0f);
+            a->setTopMargin(16.0f);
         }
 
         auto title = makeTTFText(ecsRef, 0.0f, 0.0f, CORNER_TEXT_Z,
@@ -84,13 +84,16 @@ void SpotlightOverlaySystem::init()
             constant::Vector4D{210.0f, 210.0f, 210.0f, 255.0f});
         body.get<ViewportComponent>()->setViewport(UI_VP);
         body.get<PositionComponent>()->setVisibility(false);
+        body.get<TTFText>()->setWrap(true);
         cornerBodyId = body.entity->id;
         {
             auto ba = ecsRef->attach<UiAnchor>(body.entity);
             ba->setLeftAnchor(PosAnchor{cornerBgId, AnchorType::Left});
             ba->setTopAnchor(PosAnchor{cornerBgId, AnchorType::Top});
+            ba->setRightAnchor(PosAnchor{cornerBgId, AnchorType::Right});
             ba->setLeftMargin(CORNER_PAD);
             ba->setTopMargin(CORNER_PAD + 22.0f);
+            ba->setRightMargin(CORNER_PAD);
         }
     }
 
@@ -321,6 +324,17 @@ bool SpotlightOverlaySystem::resolveTargetRect(float& sx, float& sy,
             float worldY = static_cast<float>(currentTarget.gridY * Grid::TILE_SIZE);
             float worldW = static_cast<float>(currentTarget.gridW * Grid::TILE_SIZE);
             float worldH = static_cast<float>(currentTarget.gridH * Grid::TILE_SIZE);
+
+            // Pad the cutout in world space so the manual-mining progress bar
+            // (drawn ~6 px above the tile, BAR_WIDTH=20 wider than the 16 px
+            // tile) is visible inside the spotlight on single-tile targets.
+            constexpr float TILE_PAD_TOP    = 10.0f;
+            constexpr float TILE_PAD_X      = 6.0f;
+            constexpr float TILE_PAD_BOTTOM = 4.0f;
+            worldX -= TILE_PAD_X;
+            worldY -= TILE_PAD_TOP;
+            worldW += TILE_PAD_X * 2.0f;
+            worldH += TILE_PAD_TOP + TILE_PAD_BOTTOM;
 
             sx = (worldX - cam->x) * zoom;
             sy = (worldY - cam->y) * zoom;

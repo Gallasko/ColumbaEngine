@@ -4,6 +4,7 @@
 #include "camerasystem.h"
 #include "Renderer/camera.h"
 #include "terrain.h"
+#include "canvasgenerator.h"
 
 #include "2D/simple2dobject.h"
 #include "2D/position.h"
@@ -214,10 +215,16 @@ void TutorialSystem::onEvent(const InventoryOpenedEvent&)
         return;
     }
 
-    // ValidateFirstSteps/StoneMasonry: opening the inventory mid-step swaps
-    // the spotlight to "close it" guidance.
+    // Steps whose spotlight target depends on inventory open/closed state
+    // need to re-render when that state changes:
+    // - ValidateFirstSteps/StoneMasonry: opening the inventory mid-step swaps
+    //   the spotlight to "close it" guidance.
+    // - CraftPickaxe/CraftFurnace: opening the inventory swaps the spotlight
+    //   from the HUD inventory button to the crafting panel.
     if (step == TutorialStep::ValidateFirstSteps or
-        step == TutorialStep::ValidateStoneMasonry)
+        step == TutorialStep::ValidateStoneMasonry or
+        step == TutorialStep::CraftPickaxe or
+        step == TutorialStep::CraftFurnace)
         presentCurrentStep();
 }
 
@@ -226,7 +233,9 @@ void TutorialSystem::onEvent(const InventoryClosedEvent&)
     const auto step = static_cast<TutorialStep>(currentStep);
     LOG_INFO("Tutorial", "InventoryClosedEvent step=" << currentStep);
     if (step == TutorialStep::ValidateFirstSteps or
-        step == TutorialStep::ValidateStoneMasonry)
+        step == TutorialStep::ValidateStoneMasonry or
+        step == TutorialStep::CraftPickaxe or
+        step == TutorialStep::CraftFurnace)
         presentCurrentStep();
 }
 
@@ -503,11 +512,29 @@ void TutorialSystem::presentCurrentStep()
             });
             if (gx >= 0)
             {
-                target.kind = SpotlightOverlaySystem::TargetKind::WorldTile;
-                target.gridX = gx;
-                target.gridY = gy;
-                target.gridW = 1;
-                target.gridH = 1;
+                // Trees occupy a 2x3 footprint of TerrainType::Tree cells —
+                // findNearestTerrain may have returned any of them, so walk
+                // up/left to the top-left cell and span the full footprint
+                // so the spotlight covers the whole tree sprite. Rocks are
+                // 1x1, no walking needed.
+                int tlx = gx;
+                int tly = gy;
+                int spanW = 1;
+                int spanH = 1;
+                if (gridSystem and gridSystem->getTerrainAt(gx, gy) == TerrainType::Tree)
+                {
+                    while (tlx > 0 and gridSystem->getTerrainAt(tlx - 1, tly) == TerrainType::Tree)
+                        --tlx;
+                    while (tly > 0 and gridSystem->getTerrainAt(tlx, tly - 1) == TerrainType::Tree)
+                        --tly;
+                    spanW = TREE_W;
+                    spanH = TREE_H;
+                }
+                target.kind  = SpotlightOverlaySystem::TargetKind::WorldTile;
+                target.gridX = tlx;
+                target.gridY = tly;
+                target.gridW = spanW;
+                target.gridH = spanH;
             }
             arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
             break;
@@ -550,38 +577,60 @@ void TutorialSystem::presentCurrentStep()
 
         case TutorialStep::CraftPickaxe:
         case TutorialStep::CraftFurnace:
-            target = namedUiTarget("CraftingPanel");
-            arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
+            // CraftingPanel is anchored to the inventory and only laid out
+            // once inventory is open. If the player has it closed, redirect
+            // the spotlight to the HUD inventory button first; switch to the
+            // crafting panel once they open it.
+            if (inventoryUI and not inventoryUI->isOpen())
+            {
+                target = namedUiTarget("HudInventoryButton");
+                arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
+                title = "Open the inventory";
+                body  = "Open your inventory to access the crafting menu.";
+            }
+            else
+            {
+                target = namedUiTarget("CraftingPanel");
+                arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
+            }
             break;
 
         case TutorialStep::MovePickaxeToHotbar:
         case TutorialStep::PlaceFurnaceInHotbar:
         {
-            // Span the dim cutout from the inventory panel down to the
-            // hotbar so the player can see both the source and destination,
-            // then point the arrow at a specific hotbar slot to make the
-            // drag direction obvious.
-            auto invEnt  = ecsRef->getEntity("InventoryPanel");
-            uint64_t slotId = hotbar ? hotbar->getSlotEntityId(0) : 0;
-            auto slotEnt = (slotId != 0) ? ecsRef->getEntity(slotId) : nullptr;
+            // Span the dim cutout to cover the inventory panel and the full
+            // hotbar row (first slot through last slot), so the player can
+            // see both the source and destination. Arrow points at the first
+            // hotbar slot to make the drag direction obvious.
+            auto invEnt = ecsRef->getEntity("InventoryPanel");
 
-            if (invEnt and slotEnt)
+            uint64_t firstSlotId = hotbar ? hotbar->getSlotEntityId(0) : 0;
+            uint64_t lastSlotId  = hotbar ? hotbar->getSlotEntityId(HOTBAR_SLOTS - 1) : 0;
+            auto firstSlotEnt = (firstSlotId != 0) ? ecsRef->getEntity(firstSlotId) : nullptr;
+            auto lastSlotEnt  = (lastSlotId  != 0) ? ecsRef->getEntity(lastSlotId)  : nullptr;
+
+            if (invEnt and firstSlotEnt and lastSlotEnt)
             {
-                auto invPos  = invEnt->get<PositionComponent>();
-                auto slotPos = slotEnt->get<PositionComponent>();
-                float left   = std::min(invPos->getX(), slotPos->getX());
-                float top    = std::min(invPos->getY(), slotPos->getY());
+                auto invPos   = invEnt->get<PositionComponent>();
+                auto firstPos = firstSlotEnt->get<PositionComponent>();
+                auto lastPos  = lastSlotEnt->get<PositionComponent>();
+
+                float left   = std::min(invPos->getX(), firstPos->getX());
                 float right  = std::max(invPos->getX() + invPos->getWidth(),
-                                        slotPos->getX() + slotPos->getWidth());
-                float bottom = std::max(invPos->getY() + invPos->getHeight(),
-                                        slotPos->getY() + slotPos->getHeight());
+                                        lastPos->getX()  + lastPos->getWidth());
+                float top    = std::min({invPos->getY(),
+                                         firstPos->getY(),
+                                         lastPos->getY()});
+                float bottom = std::max({invPos->getY()   + invPos->getHeight(),
+                                         firstPos->getY() + firstPos->getHeight(),
+                                         lastPos->getY()  + lastPos->getHeight()});
 
                 target.kind = SpotlightOverlaySystem::TargetKind::ScreenRect;
                 target.sx = left;
                 target.sy = top;
                 target.sw = right - left;
                 target.sh = bottom - top;
-                target.arrowEntityId = slotId;
+                target.arrowEntityId = firstSlotId;
             }
             arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
             break;
