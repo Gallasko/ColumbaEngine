@@ -33,13 +33,10 @@ void GameSystem::closeOtherGroup(UIPanel keep)
 {
     if (keep != UIPanel::InventoryGroup)
     {
-        // Children first so each panel's close() sees a consistent inventory
-        // state. closeInventory() fires InventoryClosedEvent which would
-        // re-close them, but doing it explicitly is safer if order changes.
-        if (depotUI    and depotUI->isOpen())    depotUI->close();
-        if (machineUI  and machineUI->isOpen())  machineUI->close();
-        if (storageUI  and storageUI->isOpen())  storageUI->close();
-        if (minerUI    and minerUI->isOpen())    minerUI->close();
+        // Close whichever per-machine UI is currently active (Furnace,
+        // Assembler, Miner, Storage, Depot, ...). The coordinator holds the
+        // mutual-exclusion invariant so we don't have to enumerate them here.
+        if (uiCoordinator) uiCoordinator->closeMachineUI();
         if (craftingUI and craftingUI->isOpen()) craftingUI->close();
         if (inventoryUI and inventoryUI->isOpen()) inventoryUI->closeInventory();
     }
@@ -92,15 +89,9 @@ void GameSystem::onProcessEvent(const OnSDLScanCode& event)
         return;
     if (inventoryUI and inventoryUI->isOpen())
         return;
-    if (minerUI and minerUI->isOpen())
-        return;
     if (craftingUI and craftingUI->isOpen())
         return;
-    if (machineUI and machineUI->isOpen())
-        return;
-    if (storageUI and storageUI->isOpen())
-        return;
-    if (depotUI and depotUI->isOpen())
+    if (uiCoordinator and uiCoordinator->isAnyOpen())
         return;
     if (missionUI and missionUI->isOpen())
         return;
@@ -149,11 +140,8 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
     }
 
     bool anyUIOpen = (inventoryUI and inventoryUI->isOpen())
-                  or (minerUI and minerUI->isOpen())
                   or (craftingUI and craftingUI->isOpen())
-                  or (machineUI and machineUI->isOpen())
-                  or (storageUI and storageUI->isOpen())
-                  or (depotUI and depotUI->isOpen())
+                  or (uiCoordinator and uiCoordinator->isAnyOpen())
                   or (missionUI and missionUI->isOpen());
 
     // Centralized click-outside-to-close for all UIs
@@ -182,79 +170,29 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
         if (isMouseOverHotbar())
             return;
 
-        // Check if clicking on a miner — open its UI
-        if (minerUI)
+        // Click on a building cell — dispatch through the machine UI
+        // coordinator. Each machine type registers its own IMachineUI and
+        // the coordinator handles inventory open/close + recipe-panel state.
         {
             auto [gx, gy] = getMouseGridPos();
             auto layer = gridSystem->getBuildingLayer();
             if (gridSystem->getGrid().isInBounds(gx, gy))
             {
                 const auto& cell = gridSystem->getCell(layer, gx, gy);
-                if (cell.tileName == "Miner")
+                int ox = cell.isOwner ? gx : static_cast<int>(cell.ownerX);
+                int oy = cell.isOwner ? gy : static_cast<int>(cell.ownerY);
+
+                // Special case: depot mission flow — route through mission UI
+                // before opening the depot panel.
+                if (cell.tileName == "Depot" and missionUI and missionUI->isSelectingDepot())
                 {
-                    minerUI->open(cell.ownerX, cell.ownerY);
+                    ecsRef->sendEvent(MissionUISelectDepotRequest{ox, oy});
                     return;
                 }
-            }
-        }
 
-        // Check if clicking on a furnace or assembler — open machine UI
-        if (machineUI)
-        {
-            auto [gx, gy] = getMouseGridPos();
-            auto layer = gridSystem->getBuildingLayer();
-            if (gridSystem->getGrid().isInBounds(gx, gy))
-            {
-                const auto& cell = gridSystem->getCell(layer, gx, gy);
-                if (cell.tileName == "Furnace" or cell.tileName == "Assembler")
-                {
-                    machineUI->open(cell.ownerX, cell.ownerY, cell.tileName);
+                if (uiCoordinator
+                    and uiCoordinator->openMachineUI(ox, oy, cell.tileName))
                     return;
-                }
-            }
-        }
-
-        // Check if clicking on a storage — open storage UI
-        if (storageUI)
-        {
-            auto [gx, gy] = getMouseGridPos();
-            auto layer = gridSystem->getBuildingLayer();
-            if (gridSystem->getGrid().isInBounds(gx, gy))
-            {
-                const auto& cell = gridSystem->getCell(layer, gx, gy);
-                if (cell.tileName == "Storage")
-                {
-                    storageUI->open(gx, gy);
-                    return;
-                }
-            }
-        }
-
-        // Check if clicking on a depot
-        {
-            auto [gx, gy] = getMouseGridPos();
-            auto layer = gridSystem->getBuildingLayer();
-            if (gridSystem->getGrid().isInBounds(gx, gy))
-            {
-                const auto& cell = gridSystem->getCell(layer, gx, gy);
-                if (cell.tileName == "Depot")
-                {
-                    int ox = cell.isOwner ? gx : static_cast<int>(cell.ownerX);
-                    int oy = cell.isOwner ? gy : static_cast<int>(cell.ownerY);
-
-                    // If mission UI is waiting for depot selection, route there
-                    if (missionUI and missionUI->isSelectingDepot())
-                    {
-                        ecsRef->sendEvent(MissionUISelectDepotRequest{ox, oy});
-                        return;
-                    }
-
-                    if (depotUI)
-                    {
-                        depotUI->open(ox, oy);
-                        return;
-                    }
-                }
             }
         }
 
@@ -298,11 +236,8 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
 void GameSystem::onProcessEvent(const OnMouseRelease& event)
 {
     if ((inventoryUI and inventoryUI->isOpen())
-     or (minerUI and minerUI->isOpen())
      or (craftingUI and craftingUI->isOpen())
-     or (machineUI and machineUI->isOpen())
-     or (storageUI and storageUI->isOpen())
-     or (depotUI and depotUI->isOpen()))
+     or (uiCoordinator and uiCoordinator->isAnyOpen()))
         return;
 
     if (event.button == SDL_BUTTON_LEFT)
@@ -323,11 +258,8 @@ void GameSystem::onProcessEvent(const OnMouseRelease& event)
 void GameSystem::onProcessEvent(const OnSDLMouseMotion& event)
 {
     if ((inventoryUI and inventoryUI->isOpen())
-     or (minerUI and minerUI->isOpen())
      or (craftingUI and craftingUI->isOpen())
-     or (machineUI and machineUI->isOpen())
-     or (storageUI and storageUI->isOpen())
-     or (depotUI and depotUI->isOpen()))
+     or (uiCoordinator and uiCoordinator->isAnyOpen()))
         return;
 
     updateCursorPosition();

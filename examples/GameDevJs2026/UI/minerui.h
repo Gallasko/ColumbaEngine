@@ -3,6 +3,7 @@
 #include "Systems/basicsystems.h"
 #include "Input/inputcomponent.h"
 
+#include "imachineui.h"
 #include "minersystem.h"
 #include "inventoryui.h"
 #include "slotsystem.h"
@@ -15,7 +16,8 @@ class MinerUISystem : public System<Listener<ResizeEvent>,
                                      QueuedListener<TickEvent>,
                                      QueuedListener<SlotPickedUpEvent>,
                                      QueuedListener<SlotDroppedEvent>,
-                                     Listener<InventoryClosedEvent>>
+                                     Listener<InventoryClosedEvent>>,
+                      public IMachineUI
 {
 public:
     static constexpr size_t UI_VP = 2;
@@ -40,10 +42,20 @@ public:
 
     virtual std::string getSystemName() const override { return "Miner UI System"; }
 
-    bool isOpen() const { return visible; }
+    // ---- IMachineUI ----
+    MachineUIDescriptor descriptor() const override
+    {
+        return {true /*requiresInventory*/, false, false};
+    }
+    bool isOpen() const override { return visible; }
+    std::string getOpenMachineName() const override { return visible ? "Miner" : std::string{}; }
+    void open(int gridX, int gridY, const std::string& /*machineName*/) override
+    {
+        open(gridX, gridY);
+    }
+    void close() override;
 
     void open(int gridX, int gridY);
-    void close();
 
     virtual void onEvent(const ResizeEvent& event) override
     {

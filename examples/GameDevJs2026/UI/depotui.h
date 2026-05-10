@@ -3,6 +3,7 @@
 #include "Systems/basicsystems.h"
 #include "Input/inputcomponent.h"
 
+#include "imachineui.h"
 #include "depotsystem.h"
 #include "inventoryui.h"
 #include "slotsystem.h"
@@ -21,7 +22,8 @@ class DepotUISystem : public System<Listener<ResizeEvent>,
                                      QueuedListener<SlotPickedUpEvent>,
                                      QueuedListener<SlotDroppedEvent>,
                                      QueuedListener<OnMouseClick>,
-                                     Listener<InventoryClosedEvent>>
+                                     Listener<InventoryClosedEvent>>,
+                      public IMachineUI
 {
 public:
     static constexpr size_t UI_VP             = 2;
@@ -64,10 +66,20 @@ public:
 
     void setCraftingUI(CraftingUISystem* ui) { craftingUI = ui; }
 
-    bool isOpen() const { return visible; }
+    // ---- IMachineUI ----
+    MachineUIDescriptor descriptor() const override
+    {
+        return {true /*requiresInventory*/, false, true /*suppressesRecipePanel*/};
+    }
+    bool isOpen() const override { return visible; }
+    std::string getOpenMachineName() const override { return visible ? "Depot" : std::string{}; }
+    void open(int gridX, int gridY, const std::string& /*machineName*/) override
+    {
+        open(gridX, gridY);
+    }
+    void close() override;
 
     void open(int gridX, int gridY);
-    void close();
 
     virtual void onEvent(const ResizeEvent& event) override
     {

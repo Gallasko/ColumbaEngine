@@ -3,6 +3,8 @@
 #include "Systems/basicsystems.h"
 #include "Input/inputcomponent.h"
 
+#include "imachineui.h"
+
 #include "craftingsystem.h"
 #include "inventoryui.h"
 #include "slotsystem.h"
@@ -13,15 +15,24 @@ using namespace pg;
 class CraftingUISystem;
 class MachineDemoSystem;
 
-// Side-panel UI for Furnace and Assembler.
-// Shows input slot(s), output slot and a crafting progress bar.
-class MachineUISystem : public System<Listener<ResizeEvent>,
-                                      QueuedListener<OnSDLScanCode>,
-                                      QueuedListener<TickEvent>,
-                                      QueuedListener<SlotPickedUpEvent>,
-                                      QueuedListener<SlotDroppedEvent>,
-                                      QueuedListener<OnMouseClick>,
-                                      Listener<InventoryClosedEvent>>
+// Shared implementation for machine UIs that follow the
+// "input slots + output slot + progress bar + right-side recipe panel"
+// shape (currently Furnace and Assembler).
+//
+// Concrete subclasses (FurnaceUI, AssemblerUI) supply numInputs and the
+// machine display name in their constructor. The base owns the panel
+// layout, slot wiring, recipe-panel callback hookup and the per-tick
+// machine sync; subclasses may override individual methods if their
+// behaviour diverges later.
+class RecipeMachineUIBase
+    : public System<Listener<ResizeEvent>,
+                    QueuedListener<OnSDLScanCode>,
+                    QueuedListener<TickEvent>,
+                    QueuedListener<SlotPickedUpEvent>,
+                    QueuedListener<SlotDroppedEvent>,
+                    QueuedListener<OnMouseClick>,
+                    Listener<InventoryClosedEvent>>,
+      public IMachineUI
 {
 public:
     static constexpr size_t UI_VP             = 2;
@@ -40,31 +51,35 @@ public:
 
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
-    MachineUISystem(CraftingSystem* craftingSystem, ItemRegistry* itemRegistry,
-                    PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
-                    SlotSystem* slotSystem,
-                    float screenWidth, float screenHeight)
-        : craftingSystem(craftingSystem), itemRegistry(itemRegistry),
+    RecipeMachineUIBase(int numInputs, std::string machineNameLabel,
+                        CraftingSystem* craftingSystem, ItemRegistry* itemRegistry,
+                        PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
+                        SlotSystem* slotSystem,
+                        float screenWidth, float screenHeight)
+        : numInputs(numInputs), machineNameLabel(std::move(machineNameLabel)),
+          craftingSystem(craftingSystem), itemRegistry(itemRegistry),
           playerInv(playerInv), inventoryUI(inventoryUI), slotSystem(slotSystem),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
-
-    virtual std::string getSystemName() const override { return "Machine UI System"; }
-
-    bool isOpen() const { return visible; }
-    const std::string& getOpenMachineName() const { return openMachineName; }
 
     void setCraftingUI(CraftingUISystem* ui) { craftingUI = ui; }
     void setMachineDemo(MachineDemoSystem* demo) { machineDemo = demo; }
 
-    void open(int gridX, int gridY, const std::string& tileName);
-    void close();
+    // ---- IMachineUI ----
+    MachineUIDescriptor descriptor() const override
+    {
+        return {true /*requiresInventory*/, true /*wantsRecipePanel*/, false};
+    }
+    void open(int gridX, int gridY, const std::string& machineName) override;
+    void close() override;
+    bool isOpen() const override { return visible; }
+    std::string getOpenMachineName() const override { return openMachineName; }
 
+    // ---- Event listeners ----
     virtual void onEvent(const ResizeEvent& event) override
     {
         screenWidth = event.width;
         screenHeight = event.height;
     }
-
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const TickEvent&) override;
     virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
@@ -72,16 +87,11 @@ public:
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
-    // Called by the machine-feed callback when the player double-clicks a recipe.
-    // Checks the player has all ingredients and moves them into the machine input slots.
+    // Called by the recipe-panel double-click. Pulls ingredients from the
+    // player into the open machine's input slots.
     void feedMachineFromPlayer(const Recipe& recipe);
 
-private:
-    float getPanelWidth() const  { return 2.0f * SLOT_SIZE + ARROW_GAP + 2.0f * PANEL_PADDING; }
-    float getPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
-                                        + 2.0f * SLOT_SIZE + SLOT_SPACING + GAP_AFTER_SLOTS
-                                        + PROGRESS_H + PANEL_PADDING; }
-
+protected:
     void ensurePanelCreated();
     void setPanelVisibility(bool vis);
     void updateForMachineType();
@@ -91,10 +101,18 @@ private:
     void syncSlotToMachine(size_t slotIndex, bool isInput);
     void refreshProgressBar();
 
-    void setEntityVisibility(uint64_t id, bool vis);
+    float getPanelWidth() const  { return 2.0f * SLOT_SIZE + ARROW_GAP + 2.0f * PANEL_PADDING; }
+    // Panel height covers the worst case (maxInputs = 2). updateForMachineType
+    // shrinks the bg for 1-input UIs.
+    float getPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
+                                        + 2.0f * SLOT_SIZE + SLOT_SPACING + GAP_AFTER_SLOTS
+                                        + PROGRESS_H + PANEL_PADDING; }
 
-    // --- Members ---
+    // Configuration (set once in constructor)
+    int numInputs;
+    std::string machineNameLabel;
 
+    // Dependencies
     CraftingSystem* craftingSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
     PlayerInventorySystem* playerInv = nullptr;
@@ -105,6 +123,7 @@ private:
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
+    // Per-open state
     bool visible = false;
     bool panelCreated = false;
     int openMachineX = -1;

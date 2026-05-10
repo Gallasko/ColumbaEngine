@@ -9,15 +9,12 @@
 #include "buildingregistry.h"
 #include "transportsystem.h"
 #include "inventoryui.h"
-#include "minerui.h"
 #include "craftingui.h"
-#include "machineui.h"
-#include "storageui.h"
-#include "depotui.h"
 #include "manualmining.h"
 #include "machinedemosystem.h"
 #include "missionui.h"
 #include "worldfacts.h"
+#include "machineuicoordinator.h"
 
 using namespace pg;
 
@@ -29,8 +26,8 @@ enum class UIPanel { None, InventoryGroup, Mission };
 class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>, Listener<PanelWasClickedEvent>>
 {
 public:
-    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, HotbarSystem* hotbar, BuildingRegistry* registry, ItemRegistry* itemRegistry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, MinerUISystem* minerUI = nullptr, CraftingUISystem* craftingUI = nullptr, ManualMiningSystem* manualMining = nullptr, MachineUISystem* machineUI = nullptr, StorageUISystem* storageUI = nullptr, DepotUISystem* depotUI = nullptr, MachineDemoSystem* machineDemo = nullptr, MissionUISystem* missionUI = nullptr, WorldFacts* worldFacts = nullptr)
-        : gridSystem(gridSystem), cameraSystem(cameraSystem), hotbar(hotbar), registry(registry), itemRegistry(itemRegistry), transportSystem(transportSystem), inventoryUI(inventoryUI), minerUI(minerUI), craftingUI(craftingUI), manualMining(manualMining), machineUI(machineUI), storageUI(storageUI), depotUI(depotUI), machineDemo(machineDemo), missionUI(missionUI), worldFacts(worldFacts) {}
+    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, HotbarSystem* hotbar, BuildingRegistry* registry, ItemRegistry* itemRegistry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, CraftingUISystem* craftingUI = nullptr, ManualMiningSystem* manualMining = nullptr, MachineUICoordinator* uiCoordinator = nullptr, MachineDemoSystem* machineDemo = nullptr, MissionUISystem* missionUI = nullptr, WorldFacts* worldFacts = nullptr)
+        : gridSystem(gridSystem), cameraSystem(cameraSystem), hotbar(hotbar), registry(registry), itemRegistry(itemRegistry), transportSystem(transportSystem), inventoryUI(inventoryUI), craftingUI(craftingUI), manualMining(manualMining), uiCoordinator(uiCoordinator), machineDemo(machineDemo), missionUI(missionUI), worldFacts(worldFacts) {}
 
     virtual std::string getSystemName() const override { return "Game System"; }
 
@@ -111,12 +108,9 @@ private:
     ItemRegistry* itemRegistry = nullptr;
     TransportSystem* transportSystem = nullptr;
     InventoryUISystem* inventoryUI = nullptr;
-    MinerUISystem* minerUI = nullptr;
     CraftingUISystem* craftingUI = nullptr;
     ManualMiningSystem* manualMining = nullptr;
-    MachineUISystem* machineUI = nullptr;
-    StorageUISystem* storageUI = nullptr;
-    DepotUISystem* depotUI = nullptr;
+    MachineUICoordinator* uiCoordinator = nullptr;
     MachineDemoSystem* machineDemo = nullptr;
     MissionUISystem* missionUI = nullptr;
     WorldFacts* worldFacts = nullptr;

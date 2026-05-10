@@ -13,7 +13,9 @@
 #include "playerinventory.h"
 #include "inventoryui.h"
 #include "minerui.h"
-#include "machineui.h"
+#include "furnaceui.h"
+#include "assemblerui.h"
+#include "machineuicoordinator.h"
 #include "insertersystem.h"
 #include "storagesystem.h"
 #include "storageui.h"
@@ -321,7 +323,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* minerUI = ecs.createSystem<MinerUISystem>(
             minerSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
 
-        auto* machineUI = ecs.createSystem<MachineUISystem>(
+        auto* furnaceUI = ecs.createSystem<FurnaceUI>(
+            craftingSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
+        auto* assemblerUI = ecs.createSystem<AssemblerUI>(
             craftingSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
 
         auto* storageUI = ecs.createSystem<StorageUISystem>(
@@ -341,8 +345,18 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             handCrafting, &recipeRegistry, &itemRegistry, playerInvSystem,
             worldFacts, inventoryUI, screenW, screenH);
 
-        machineUI->setCraftingUI(craftingUI);
+        furnaceUI->setCraftingUI(craftingUI);
+        assemblerUI->setCraftingUI(craftingUI);
         depotUI->setCraftingUI(craftingUI);
+
+        // Coordinator owns the per-machine UI registry. Adding a new machine
+        // type = implement IMachineUI + a single registerUI() call below.
+        auto* uiCoordinator = ecs.createSystem<MachineUICoordinator>(inventoryUI, craftingUI);
+        uiCoordinator->registerUI("Miner",     minerUI);
+        uiCoordinator->registerUI("Furnace",   furnaceUI);
+        uiCoordinator->registerUI("Assembler", assemblerUI);
+        uiCoordinator->registerUI("Storage",   storageUI);
+        uiCoordinator->registerUI("Depot",     depotUI);
 
         ecs.createSystem<TweenSystem>();
 
@@ -350,7 +364,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             gridSystem, cameraSystem, playerInvSystem, &itemRegistry, hotbar, screenW, screenH);
 
         auto* tooltipSystem = ecs.createSystem<TooltipSystem>(
-            inventoryUI, hotbar, machineUI, playerInvSystem,
+            inventoryUI, hotbar, uiCoordinator, playerInvSystem,
             &itemRegistry, &recipeRegistry, screenW, screenH);
 
         auto* spotlightOverlay = ecs.createSystem<SpotlightOverlaySystem>(
@@ -362,7 +376,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* machineDemo = ecs.createSystem<MachineDemoSystem>(
             &registry, &itemRegistry, screenW, screenH);
 
-        machineUI->setMachineDemo(machineDemo);
+        furnaceUI->setMachineDemo(machineDemo);
+        assemblerUI->setMachineDemo(machineDemo);
         craftingUI->setMachineDemo(machineDemo);
 
         auto* missionUI = ecs.createSystem<MissionUISystem>(
@@ -389,7 +404,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<AutoSaveSystem>();
         ecs.createSystem<AnalyticsSystem>();
 
-        auto* gameSystem = ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI, storageUI, depotUI, machineDemo, missionUI, worldFacts);
+        auto* gameSystem = ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, craftingUI, manualMining, uiCoordinator, machineDemo, missionUI, worldFacts);
 
         // Callbacks routed through GameSystem so it can enforce UI group
         // exclusivity (closing inventory/companions when mission opens, and
@@ -409,16 +424,18 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.succeed<GameSystem, InventoryUISystem>();
         ecs.succeed<GameSystem, MinerUISystem>();
         ecs.succeed<GameSystem, CraftingUISystem>();
-        ecs.succeed<GameSystem, MachineUISystem>();
+        ecs.succeed<GameSystem, FurnaceUI>();
+        ecs.succeed<GameSystem, AssemblerUI>();
         ecs.succeed<GameSystem, StorageUISystem>();
         ecs.succeed<GameSystem, DepotUISystem>();
+        ecs.succeed<GameSystem, MachineUICoordinator>();
         ecs.succeed<GameSystem, MachineDemoSystem>();
 
-        // TooltipSystem queries InventoryUI/Hotbar slot positions and
-        // MachineUI's open state every mouse-motion tick.
+        // TooltipSystem queries InventoryUI/Hotbar slot positions and the
+        // active machine UI's open state every mouse-motion tick.
         ecs.succeed<TooltipSystem, InventoryUISystem>();
         ecs.succeed<TooltipSystem, HotbarSystem>();
-        ecs.succeed<TooltipSystem, MachineUISystem>();
+        ecs.succeed<TooltipSystem, MachineUICoordinator>();
 
         // CameraSystem checks `inventoryUI->isOpen()` to disable pan while
         // a panel is up (see camerasystem.cpp).

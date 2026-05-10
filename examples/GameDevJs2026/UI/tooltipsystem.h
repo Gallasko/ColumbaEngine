@@ -6,7 +6,7 @@
 
 #include "inventoryui.h"
 #include "hotbarsystem.h"
-#include "machineui.h"
+#include "machineuicoordinator.h"
 #include "playerinventory.h"
 #include "itemregistry.h"
 #include "reciperegistry.h"
@@ -42,14 +42,14 @@ public:
     static constexpr const char* FONT_PATH =
         "res/font/Inter/static/Inter_28pt-Light.ttf";
 
-    TooltipSystem(InventoryUISystem* inventoryUI,
-                  HotbarSystem*      hotbar,
-                  MachineUISystem*   machineUI,
+    TooltipSystem(InventoryUISystem*    inventoryUI,
+                  HotbarSystem*         hotbar,
+                  MachineUICoordinator* uiCoordinator,
                   PlayerInventorySystem* playerInv,
-                  ItemRegistry*      itemRegistry,
-                  RecipeRegistry*    recipeRegistry,
+                  ItemRegistry*         itemRegistry,
+                  RecipeRegistry*       recipeRegistry,
                   float screenW, float screenH)
-        : inventoryUI(inventoryUI), hotbar(hotbar), machineUI(machineUI),
+        : inventoryUI(inventoryUI), hotbar(hotbar), uiCoordinator(uiCoordinator),
           playerInv(playerInv), itemRegistry(itemRegistry),
           recipeRegistry(recipeRegistry),
           screenWidth(screenW), screenHeight(screenH) {}
@@ -123,7 +123,7 @@ private:
 
     InventoryUISystem*    inventoryUI    = nullptr;
     HotbarSystem*         hotbar         = nullptr;
-    MachineUISystem*      machineUI      = nullptr;
+    MachineUICoordinator* uiCoordinator  = nullptr;
     PlayerInventorySystem* playerInv     = nullptr;
     ItemRegistry*         itemRegistry   = nullptr;
     RecipeRegistry*       recipeRegistry = nullptr;

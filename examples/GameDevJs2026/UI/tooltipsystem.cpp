@@ -283,8 +283,8 @@ TooltipSystem::TooltipContent TooltipSystem::buildContent(ItemId id) const
 
     // Determine preferred recipe category based on open machine UI
     std::string preferMachineName; // empty = prefer HandCraft
-    if (machineUI and machineUI->isOpen())
-        preferMachineName = machineUI->getOpenMachineName();
+    if (uiCoordinator and uiCoordinator->isAnyOpen())
+        preferMachineName = uiCoordinator->getOpenMachineName();
 
     // Search for a recipe that produces this item
     const Recipe* preferred = nullptr;

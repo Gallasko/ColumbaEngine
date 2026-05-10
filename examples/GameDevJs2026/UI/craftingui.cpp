@@ -663,14 +663,17 @@ void CraftingUISystem::rebuildVisibleRecipes()
 
     if (!activeMachineName.empty())
     {
-        // Machine mode: show all recipes for this machine type
+        // Machine mode: show recipes for this machine type, gated by unlock conditions
         RecipeCategory cat = (activeMachineName == "Furnace") ? RecipeCategory::Furnace
                                                               : RecipeCategory::Assembler;
         for (size_t i = 0; i < recipeRegistry->count(); ++i)
         {
             const Recipe& r = recipeRegistry->get(i);
-            if (r.category == cat and r.machineName == activeMachineName)
-                visibleRecipes.push_back(i);
+            if (r.category != cat or r.machineName != activeMachineName)
+                continue;
+            if (handCrafting and not handCrafting->isUnlocked(r))
+                continue;
+            visibleRecipes.push_back(i);
         }
     }
     else
