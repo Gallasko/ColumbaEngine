@@ -379,7 +379,10 @@ void SlotSystem::showHeldVisual()
     if (itemEnt)
     {
         itemEnt->get<Texture2DComponent>()->setTexture(def.textureName);
-        itemEnt->get<PositionComponent>()->setVisibility(true);
+        auto pos = itemEnt->get<PositionComponent>();
+        pos->setWidth(DEFAULT_ITEM_SIZE * def.iconWidthRatio);
+        pos->setHeight(DEFAULT_ITEM_SIZE);
+        pos->setVisibility(true);
     }
 
     auto textEnt = ecsRef->getEntity(heldTextEntityId);

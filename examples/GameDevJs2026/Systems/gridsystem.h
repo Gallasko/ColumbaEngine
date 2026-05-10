@@ -157,6 +157,14 @@ public:
 
     const BuildingRegistry* getRegistry() const { return registry; }
 
+    // Returns the overflow (top-portion) entity id for a building's main entityId,
+    // or 0 if the building has no overflow split.
+    uint64_t getOverflowEntityFor(uint64_t mainEntityId) const
+    {
+        auto it = overflowEntities.find(mainEntityId);
+        return it == overflowEntities.end() ? 0 : it->second;
+    }
+
     // Check if the neighbor in direction checkDir from (x,y) is connectable.
     // For belt neighbors: checks if the neighbor connects on the side facing us
     // (using both enter and exit directions to handle corners correctly).

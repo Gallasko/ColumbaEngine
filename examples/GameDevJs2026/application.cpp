@@ -92,26 +92,26 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "",
             std::make_unique<AsepriteFileAtlasLoader>(minerMining));
 
-        // Load furnace idle sprite atlas (single frame 32x48)
+        // Load furnace idle sprite atlas (single frame 32x64, top 16px transparent to align with active animation)
         window.masterRenderer->registerAtlasTexture(
             "Stone_Furnace",
             "res/ext/Structures & Machines/Stone_Furnace.png",
             "",
-            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 48, 32, 48, 1, 1));
+            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 64, 32, 64, 1, 1));
 
-        // Furnace split sub-atlases (2x3 visual, 2x2 footprint)
+        // Furnace split sub-atlases (2x4 visual, 2x2 footprint)
         // Base: bottom 32px (2 tile rows — the footprint)
         window.masterRenderer->registerAtlasTexture(
             "Stone_Furnace_base",
             "res/ext/Structures & Machines/Stone_Furnace.png",
             "",
-            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 48, 32, 32, 1, 1, 0, 16));
-        // Overflow: top 16px (1 tile row — chimney)
+            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 64, 32, 32, 1, 1, 0, 32));
+        // Overflow: top 32px (2 tile rows — empty padding + chimney)
         window.masterRenderer->registerAtlasTexture(
             "Stone_Furnace_overflow",
             "res/ext/Structures & Machines/Stone_Furnace.png",
             "",
-            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 48, 32, 16, 1, 1, 0, 0));
+            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 64, 32, 32, 1, 1, 0, 0));
 
         // Load furnace active animation atlas (3 frames of 32x64 in a 96x64 strip)
         window.masterRenderer->registerAtlasTexture(
@@ -119,6 +119,19 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "res/ext/Structures & Machines/Stone_Furnace_Active.png",
             "",
             std::make_unique<GridAtlas>("Stone_Furnace_Active.png", 96, 64, 32, 64, 3, 3));
+
+        // Active split sub-atlases (3 frames each), so the placed furnace's split base/overflow entities
+        // can each animate without resizing.
+        window.masterRenderer->registerAtlasTexture(
+            "Stone_Furnace_Active_base",
+            "res/ext/Structures & Machines/Stone_Furnace_Active.png",
+            "",
+            std::make_unique<GridAtlas>("Stone_Furnace_Active.png", 96, 64, 32, 32, 3, 3, 0, 32));
+        window.masterRenderer->registerAtlasTexture(
+            "Stone_Furnace_Active_overflow",
+            "res/ext/Structures & Machines/Stone_Furnace_Active.png",
+            "",
+            std::make_unique<GridAtlas>("Stone_Furnace_Active.png", 96, 64, 32, 32, 3, 3, 0, 0));
 
         // Load assembler idle sprite atlas (single frame 32x48)
         window.masterRenderer->registerAtlasTexture(

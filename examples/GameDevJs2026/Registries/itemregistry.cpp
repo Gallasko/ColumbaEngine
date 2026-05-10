@@ -49,7 +49,7 @@ ItemRegistry createDefaultItemRegistry()
 
     // Buildings (IDs 24-28) — placeable from hotbar, linked to BuildingDef by name
     reg.addItem({0, "Conveyor Belt", "Conveyor_Belt.152", ItemCategory::Building, 100, "Conveyor",  0, 1.0f, 1.0f,      "Moves items automatically from one place to another."});
-    reg.addItem({0, "Furnace",       "Stone_Furnace.0",        ItemCategory::Building, 50, "Furnace",   0, 1.0f, 2.0f/3.0f, "Smelts ores into plates using heat."});
+    reg.addItem({0, "Furnace",       "Stone_Furnace.0",        ItemCategory::Building, 50, "Furnace",   0, 1.0f, 1.0f/2.0f, "Smelts ores into plates using heat."});
     reg.addItem({0, "Assembler",     "Assembler_Machine_1.0",  ItemCategory::Building, 50, "Assembler", 0, 1.0f, 2.0f/3.0f, "Automates crafting of intermediate goods."});
     reg.addItem({0, "Miner",         "Miner_Machine_1.0",      ItemCategory::Building, 50, "Miner",     0, 1.0f, 1.0f,      "Automatically mines the terrain beneath it."});
     reg.addItem({0, "Inserter",      "Robotic_Arms_1.0",       ItemCategory::Building, 50, "Inserter",  0, 1.0f, 1.0f,      "Transfers items between machines and belts."});

@@ -4,6 +4,36 @@
 #include "worldfacts.h"
 #include "2D/texture.h"
 
+namespace
+{
+    // Furnace renders as two entities (base + chimney overflow). Swapping textures
+    // for both keeps the split assets in sync with the unified 32x64 sprite.
+    void setFurnaceTextures(EntitySystem* ecs, GridSystem* gridSystem,
+                            uint64_t baseId, bool active, size_t frame)
+    {
+        auto baseEnt = ecs->getEntity(baseId);
+        if (baseEnt and baseEnt->has<Texture2DComponent>())
+        {
+            std::string tex = active
+                ? "Stone_Furnace_Active_base." + std::to_string(frame)
+                : "Stone_Furnace_base.0";
+            baseEnt->get<Texture2DComponent>()->setTexture(tex);
+        }
+
+        uint64_t ovId = gridSystem ? gridSystem->getOverflowEntityFor(baseId) : 0;
+        if (ovId == 0)
+            return;
+        auto ovEnt = ecs->getEntity(ovId);
+        if (ovEnt and ovEnt->has<Texture2DComponent>())
+        {
+            std::string tex = active
+                ? "Stone_Furnace_Active_overflow." + std::to_string(frame)
+                : "Stone_Furnace_overflow.0";
+            ovEnt->get<Texture2DComponent>()->setTexture(tex);
+        }
+    }
+}
+
 void CraftingSystem::save(Archive& archive)
 {
     serialize(archive, "machines", machines);
@@ -24,17 +54,8 @@ void CraftingSystem::load(const UnserializedObject& serializedString)
         machine.animFrame = 0;
         machine.isCrafting = (machine.currentRecipe != nullptr);
 
-        // Furnace active sprite is 64px tall; restore correct size after load
         if (machine.machineName == "Furnace" and machine.isCrafting)
-        {
-            auto ent = ecsRef->getEntity(machine.entityId);
-            if (ent)
-            {
-                auto pos = ent->get<PositionComponent>();
-                pos->setY(pos->getY() - 16.0f);
-                pos->setHeight(64.0f);
-            }
-        }
+            setFurnaceTextures(ecsRef, gridSystem, machine.entityId, true, 0);
     }
 }
 
@@ -72,14 +93,16 @@ void CraftingSystem::execute()
 
             machine.animFrame = (machine.animFrame + 1) % numFrames;
 
-            auto ent = ecsRef->getEntity(machine.entityId);
-            if (ent and ent->has<Texture2DComponent>())
+            if (machine.machineName == "Furnace")
             {
-                std::string atlas = (machine.machineName == "Furnace")
-                    ? "Stone_Furnace_Active"
-                    : "Assembler_Machine_1_Running";
-                ent->get<Texture2DComponent>()->setTexture(
-                    atlas + "." + std::to_string(machine.animFrame));
+                setFurnaceTextures(ecsRef, gridSystem, machine.entityId, true, machine.animFrame);
+            }
+            else
+            {
+                auto ent = ecsRef->getEntity(machine.entityId);
+                if (ent and ent->has<Texture2DComponent>())
+                    ent->get<Texture2DComponent>()->setTexture(
+                        "Assembler_Machine_1_Running." + std::to_string(machine.animFrame));
             }
         }
     }
@@ -207,20 +230,15 @@ void CraftingSystem::craftTick()
                     machine.isCrafting = true;
                     machine.animFrame = 0;
 
-                    auto ent = ecsRef->getEntity(machine.entityId);
-                    if (ent and ent->has<Texture2DComponent>())
+                    if (machine.machineName == "Furnace")
                     {
-                        std::string atlas = (machine.machineName == "Furnace")
-                            ? "Stone_Furnace_Active"
-                            : "Assembler_Machine_1_Running";
-                        ent->get<Texture2DComponent>()->setTexture(atlas + ".0");
+                        setFurnaceTextures(ecsRef, gridSystem, machine.entityId, true, 0);
                     }
-                    // Furnace active sprite is 32x64 (grows upward by 16px)
-                    if (machine.machineName == "Furnace" and ent)
+                    else
                     {
-                        auto pos = ent->get<PositionComponent>();
-                        pos->setY(pos->getY() - 16.0f);
-                        pos->setHeight(64.0f);
+                        auto ent = ecsRef->getEntity(machine.entityId);
+                        if (ent and ent->has<Texture2DComponent>())
+                            ent->get<Texture2DComponent>()->setTexture("Assembler_Machine_1_Running.0");
                     }
                 }
             }
@@ -272,20 +290,15 @@ void CraftingSystem::craftTick()
                     machine.isCrafting = false;
                     machine.animFrame = 0;
 
-                    auto ent = ecsRef->getEntity(machine.entityId);
-                    if (ent and ent->has<Texture2DComponent>())
+                    if (machine.machineName == "Furnace")
                     {
-                        std::string idle = (machine.machineName == "Furnace")
-                            ? "Stone_Furnace.0"
-                            : "Assembler_Machine_1.0";
-                        ent->get<Texture2DComponent>()->setTexture(idle);
+                        setFurnaceTextures(ecsRef, gridSystem, machine.entityId, false, 0);
                     }
-                    // Restore furnace to idle size (32x48)
-                    if (machine.machineName == "Furnace" and ent)
+                    else
                     {
-                        auto pos = ent->get<PositionComponent>();
-                        pos->setY(pos->getY() + 16.0f);
-                        pos->setHeight(48.0f);
+                        auto ent = ecsRef->getEntity(machine.entityId);
+                        if (ent and ent->has<Texture2DComponent>())
+                            ent->get<Texture2DComponent>()->setTexture("Assembler_Machine_1.0");
                     }
                 }
                 // else: output full, craft stalls — isCrafting stays true, animation continues

@@ -16,12 +16,12 @@ BuildingRegistry createDefaultBuildingRegistry()
         true                                           // isAnimated
     });
 
-    // Slot 1: Furnace (2x3 visual, 2x2 footprint at bottom)
+    // Slot 1: Furnace (2x4 visual, 2x2 footprint at bottom)
     reg.addBuilding({
         "Furnace",
         "Stone_Furnace",                               // idle atlas
         {200.0f, 100.0f, 60.0f, 255.0f},
-        2, 3,                                          // 2x3 visual (32x48 sprite)
+        2, 4,                                          // 2x4 visual (32x64 sprite, matches active animation)
         0, 2,                                          // footprint: 2x2 (bottom 2 rows)
         PlacementMode::ClickToPlace,
         false,
