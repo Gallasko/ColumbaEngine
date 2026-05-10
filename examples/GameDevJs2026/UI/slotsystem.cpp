@@ -22,9 +22,9 @@ EntityRef makeSlotPrefab(EntitySystem* ecs, ItemRegistry* itemRegistry, const Pr
     auto bgAnchor = bg.get<UiAnchor>();
     prefab->setMainEntity(bg.entity);
 
-    // Click handler: fires SlotClickedEvent on both press and release
+    // Click handler: fires SlotClickedEvent on press only (click-to-grab / click-to-drop)
     bg.attach<MouseLeftClickComponent>(
-        makeCallable<SlotClickedEvent>(slot.entity->id), MouseStateTrigger::Both);
+        makeCallable<SlotClickedEvent>(slot.entity->id), MouseStateTrigger::OnPress);
 
     // Item texture (centered in bg, hidden by default)
     auto item = makeUiTexture(ecs, itemSize, itemSize, "NoneIcon");
