@@ -10,14 +10,9 @@
 class FurnaceUI : public RecipeMachineUIBase
 {
 public:
-    FurnaceUI(CraftingSystem* craftingSystem, ItemRegistry* itemRegistry,
-              PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
-              SlotSystem* slotSystem,
-              float screenWidth, float screenHeight)
+    FurnaceUI(ItemRegistry* itemRegistry, float screenWidth, float screenHeight)
         : RecipeMachineUIBase(/*numInputs=*/1, "Furnace",
-                              craftingSystem, itemRegistry,
-                              playerInv, inventoryUI, slotSystem,
-                              screenWidth, screenHeight) {}
+                              itemRegistry, screenWidth, screenHeight) {}
 
     std::string getSystemName() const override { return "Furnace UI System"; }
 };

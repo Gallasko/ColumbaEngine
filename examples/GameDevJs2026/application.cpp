@@ -323,10 +323,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* minerUI = ecs.createSystem<MinerUISystem>(
             minerSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
 
-        auto* furnaceUI = ecs.createSystem<FurnaceUI>(
-            craftingSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
-        auto* assemblerUI = ecs.createSystem<AssemblerUI>(
-            craftingSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
+        auto* furnaceUI   = ecs.createSystem<FurnaceUI>(&itemRegistry, screenW, screenH);
+        auto* assemblerUI = ecs.createSystem<AssemblerUI>(&itemRegistry, screenW, screenH);
 
         auto* storageUI = ecs.createSystem<StorageUISystem>(
             storageSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
@@ -345,8 +343,6 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             handCrafting, &recipeRegistry, &itemRegistry, playerInvSystem,
             worldFacts, inventoryUI, screenW, screenH);
 
-        furnaceUI->setCraftingUI(craftingUI);
-        assemblerUI->setCraftingUI(craftingUI);
         depotUI->setCraftingUI(craftingUI);
 
         // Coordinator owns the per-machine UI registry. Adding a new machine
@@ -376,8 +372,6 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* machineDemo = ecs.createSystem<MachineDemoSystem>(
             &registry, &itemRegistry, screenW, screenH);
 
-        furnaceUI->setMachineDemo(machineDemo);
-        assemblerUI->setMachineDemo(machineDemo);
         craftingUI->setMachineDemo(machineDemo);
 
         auto* missionUI = ecs.createSystem<MissionUISystem>(

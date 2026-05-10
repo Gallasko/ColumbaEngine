@@ -24,16 +24,16 @@ void RecipeMachineUIBase::open(int gridX, int gridY, const std::string& machineN
     visible = true;
 
     // Switch the recipe panel into machine mode for this machine.
-    if (craftingUI)
+    if (auto* craftingUI = ecsRef->getSystem<CraftingUISystem>())
     {
-        MachineData* machine = craftingSystem->getMachine(gridX, gridY);
+        MachineData* machine = ecsRef->getSystem<CraftingSystem>()->getMachine(gridX, gridY);
         const Recipe* locked = machine ? machine->lockedRecipe : nullptr;
 
         craftingUI->setMachineFeedCallback([this](const Recipe& recipe) {
             feedMachineFromPlayer(recipe);
         });
         craftingUI->setMachineSelectCallback([this](const Recipe& recipe) {
-            MachineData* m = craftingSystem->getMachine(openMachineX, openMachineY);
+            MachineData* m = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY);
             if (m)
                 m->lockedRecipe = &recipe;
         });
@@ -53,11 +53,12 @@ void RecipeMachineUIBase::close()
     if (not visible)
         return;
 
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     if (slotSystem->hasHeldItem())
         slotSystem->cancelHeld();
 
     // Sync all slots back to machine
-    MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
+    MachineData* machine = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY);
     if (machine)
     {
         for (int i = 0; i < numInputs; ++i)
@@ -65,7 +66,7 @@ void RecipeMachineUIBase::close()
         syncSlotToMachine(0, false);
     }
 
-    if (craftingUI)
+    if (auto* craftingUI = ecsRef->getSystem<CraftingUISystem>())
     {
         craftingUI->setMachineFeedCallback(nullptr);
         craftingUI->setMachineSelectCallback(nullptr);
@@ -78,6 +79,7 @@ void RecipeMachineUIBase::close()
     openMachineY = -1;
     openMachineName.clear();
 
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
     if (inventoryUI and inventoryUI->isOpen())
         inventoryUI->closeInventory();
 }
@@ -105,7 +107,7 @@ void RecipeMachineUIBase::onProcessEvent(const TickEvent&)
     if (not visible)
         return;
 
-    MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
+    MachineData* machine = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY);
     if (not machine)
     {
         close();
@@ -156,14 +158,14 @@ void RecipeMachineUIBase::onProcessEvent(const OnMouseClick& event)
         return;
 
     // "?" demo button click — read live position from the button entity.
-    if (machineDemo and demoBtnBgEntityId != 0)
+    if (demoBtnBgEntityId != 0)
     {
         if (pg_machineui::hitButtonEntity(ecsRef, demoBtnBgEntityId,
                                           event.pos.x, event.pos.y))
         {
             std::string name = openMachineName;
             close();
-            machineDemo->openDemo(name);
+            ecsRef->getSystem<MachineDemoSystem>()->openDemo(name);
         }
     }
 }
@@ -267,7 +269,7 @@ void RecipeMachineUIBase::createPanel()
 
     cachedBarMaxW = panelW - 2.0f * PANEL_PADDING;
 
-    uint64_t anchorTargetId = pg_machineui::resolveLeftPanelAnchor(ecsRef, inventoryUI);
+    uint64_t anchorTargetId = pg_machineui::resolveLeftPanelAnchor(ecsRef, ecsRef->getSystem<InventoryUISystem>());
 
     auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
     {
@@ -306,6 +308,8 @@ void RecipeMachineUIBase::createPanel()
         a->setLeftMargin(PANEL_PADDING);
         a->setTopMargin(PANEL_PADDING + 4.0f);
     }
+
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
 
     // Always create both input slot anchors (slot 1 is hidden for 1-input
     // machines via updateForMachineType).
@@ -406,10 +410,11 @@ void RecipeMachineUIBase::createPanel()
 
 void RecipeMachineUIBase::syncAllSlots()
 {
-    MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
+    MachineData* machine = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY);
     if (not machine)
         return;
 
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     for (int i = 0; i < numInputs; ++i)
         slotSystem->syncSlotVisual(inputSlotEntityIds[i],
             machine->inputSlots.getSlot(static_cast<size_t>(i)));
@@ -419,10 +424,11 @@ void RecipeMachineUIBase::syncAllSlots()
 
 void RecipeMachineUIBase::syncSlotToMachine(size_t slotIndex, bool isInput)
 {
-    MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
+    MachineData* machine = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY);
     if (not machine)
         return;
 
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     if (isInput)
     {
         auto* sc = slotSystem->getSlotComponent(inputSlotEntityIds[slotIndex]);
@@ -439,7 +445,7 @@ void RecipeMachineUIBase::syncSlotToMachine(size_t slotIndex, bool isInput)
 
 void RecipeMachineUIBase::refreshProgressBar()
 {
-    MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
+    MachineData* machine = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY);
     if (not machine)
         return;
 
@@ -463,10 +469,11 @@ void RecipeMachineUIBase::refreshProgressBar()
 
 void RecipeMachineUIBase::feedMachineFromPlayer(const Recipe& recipe)
 {
-    MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
+    MachineData* machine = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY);
     if (not machine)
         return;
 
+    auto* playerInv = ecsRef->getSystem<PlayerInventorySystem>();
     for (const auto& ing : recipe.inputs)
         if (not playerInv->hasItem(ing.id, ing.count))
             return;
@@ -478,6 +485,6 @@ void RecipeMachineUIBase::feedMachineFromPlayer(const Recipe& recipe)
     }
 
     syncAllSlots();
-    if (inventoryUI)
+    if (auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>())
         inventoryUI->refreshAllSlots();
 }

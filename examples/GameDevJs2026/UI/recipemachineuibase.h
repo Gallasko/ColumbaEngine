@@ -52,17 +52,11 @@ public:
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
     RecipeMachineUIBase(int numInputs, std::string machineNameLabel,
-                        CraftingSystem* craftingSystem, ItemRegistry* itemRegistry,
-                        PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
-                        SlotSystem* slotSystem,
+                        ItemRegistry* itemRegistry,
                         float screenWidth, float screenHeight)
         : numInputs(numInputs), machineNameLabel(std::move(machineNameLabel)),
-          craftingSystem(craftingSystem), itemRegistry(itemRegistry),
-          playerInv(playerInv), inventoryUI(inventoryUI), slotSystem(slotSystem),
+          itemRegistry(itemRegistry),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
-
-    void setCraftingUI(CraftingUISystem* ui) { craftingUI = ui; }
-    void setMachineDemo(MachineDemoSystem* demo) { machineDemo = demo; }
 
     // ---- IMachineUI ----
     MachineUIDescriptor descriptor() const override
@@ -113,13 +107,7 @@ protected:
     std::string machineNameLabel;
 
     // Dependencies
-    CraftingSystem* craftingSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
-    PlayerInventorySystem* playerInv = nullptr;
-    InventoryUISystem* inventoryUI = nullptr;
-    SlotSystem* slotSystem = nullptr;
-    CraftingUISystem* craftingUI = nullptr;
-    MachineDemoSystem* machineDemo = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 

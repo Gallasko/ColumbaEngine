@@ -10,14 +10,9 @@
 class AssemblerUI : public RecipeMachineUIBase
 {
 public:
-    AssemblerUI(CraftingSystem* craftingSystem, ItemRegistry* itemRegistry,
-                PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
-                SlotSystem* slotSystem,
-                float screenWidth, float screenHeight)
+    AssemblerUI(ItemRegistry* itemRegistry, float screenWidth, float screenHeight)
         : RecipeMachineUIBase(/*numInputs=*/2, "Assembler",
-                              craftingSystem, itemRegistry,
-                              playerInv, inventoryUI, slotSystem,
-                              screenWidth, screenHeight) {}
+                              itemRegistry, screenWidth, screenHeight) {}
 
     std::string getSystemName() const override { return "Assembler UI System"; }
 };
