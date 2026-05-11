@@ -70,6 +70,7 @@ void CameraSystem::onEvent(const OnSDLMouseWheel& event)
 
     // Don't zoom terrain when the inventory/crafting panel is open —
     // the wheel event should go to the crafting list scroll instead.
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
     if (inventoryUI and inventoryUI->isOpen())
         return;
 

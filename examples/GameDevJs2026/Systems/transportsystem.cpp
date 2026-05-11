@@ -82,6 +82,7 @@ void TransportSystem::execute()
 
 bool TransportSystem::tryPlaceItem(int x, int y, ItemId id)
 {
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     if (not gridSystem->getGrid().isInBounds(x, y)) return false;
 
     auto& cell = beltGrid.get(x, y);
@@ -98,7 +99,7 @@ bool TransportSystem::tryPlaceItem(int x, int y, ItemId id)
 
 ItemId TransportSystem::tryTakeItem(int x, int y)
 {
-    if (not gridSystem->getGrid().isInBounds(x, y)) return ITEM_NONE;
+    if (not ecsRef->getSystem<GridSystem>()->getGrid().isInBounds(x, y)) return ITEM_NONE;
 
     auto& cell = beltGrid.get(x, y);
     if (cell.itemId == ITEM_NONE) return ITEM_NONE;
@@ -111,6 +112,7 @@ ItemId TransportSystem::tryTakeItem(int x, int y)
 
 void TransportSystem::transportTick()
 {
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     size_t buildingLayer = gridSystem->getBuildingLayer();
     const auto& grid = gridSystem->getGrid();
 
@@ -384,6 +386,7 @@ void TransportSystem::transportTick()
 
 void TransportSystem::createItemVisual(int x, int y, ItemId id)
 {
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     const auto& def = itemRegistry->get(id);
     auto [worldX, worldY] = gridSystem->getGrid().gridToWorld(x, y);
     float z = gridSystem->getGrid().getLayer(gridSystem->getItemLayer()).zIndex;
@@ -446,7 +449,7 @@ void TransportSystem::moveItemVisual(int fromX, int fromY, int toX, int toY)
         {
             float itemSize = static_cast<float>(Grid::TILE_SIZE) * 0.6f;
             float offset = (Grid::TILE_SIZE - itemSize) * 0.5f;
-            auto [worldX, worldY] = gridSystem->getGrid().gridToWorld(toX, toY);
+            auto [worldX, worldY] = ecsRef->getSystem<GridSystem>()->getGrid().gridToWorld(toX, toY);
             auto pos = ent->get<PositionComponent>();
             pos->setX(worldX + offset);
             pos->setY(worldY + offset + ITEM_Y_OFFSET);

@@ -25,7 +25,7 @@ void HandCraftingSystem::onEvent(const HandCraftRequest& event)
     }
 
     // Consume inputs from the player inventory.
-    auto& inv = playerInv->getInventory();
+    auto& inv = ecsRef->getSystem<PlayerInventorySystem>()->getInventory();
     for (const auto& input : recipe.inputs)
         inv.remove(input.id, input.count);
 
@@ -80,7 +80,7 @@ bool HandCraftingSystem::canCraft(const Recipe& recipe) const
     if (not isUnlocked(recipe))
         return false;
 
-    const auto& inv = playerInv->getInventory();
+    const auto& inv = ecsRef->getSystem<PlayerInventorySystem>()->getInventory();
     for (const auto& input : recipe.inputs)
     {
         if (not inv.hasAtLeast(input.id, input.count))
@@ -94,6 +94,7 @@ bool HandCraftingSystem::isUnlocked(const Recipe& recipe) const
     if (recipe.unlockConditions.empty())
         return true;
 
+    auto* worldFacts = ecsRef->getSystem<pg::WorldFacts>();
     if (worldFacts == nullptr)
         return true;
 

@@ -31,12 +31,9 @@ class ManualMiningSystem : public System<InitSys,
                                           QueuedListener<OnMouseClick>>
 {
 public:
-    ManualMiningSystem(GridSystem* gridSystem, CameraSystem* cameraSystem,
-                       PlayerInventorySystem* playerInv, ItemRegistry* itemRegistry,
-                       HotbarSystem* hotbar,
+    ManualMiningSystem(ItemRegistry* itemRegistry,
                        float screenWidth, float screenHeight)
-        : gridSystem(gridSystem), cameraSystem(cameraSystem),
-          playerInv(playerInv), itemRegistry(itemRegistry), hotbar(hotbar),
+        : itemRegistry(itemRegistry),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Manual Mining System"; }
@@ -121,11 +118,7 @@ private:
     uint64_t errorTweenEntityId = 0;
 
     // Dependencies
-    GridSystem* gridSystem = nullptr;
-    CameraSystem* cameraSystem = nullptr;
-    PlayerInventorySystem* playerInv = nullptr;
     ItemRegistry* itemRegistry = nullptr;
-    HotbarSystem* hotbar = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
     float hotbarHeight = 48.0f;

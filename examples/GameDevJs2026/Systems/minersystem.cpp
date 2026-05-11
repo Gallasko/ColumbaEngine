@@ -15,6 +15,7 @@ void MinerSystem::load(const UnserializedObject& serializedString)
     defaultDeserialize(serializedString, "miners", miners);
     LOG_INFO("MinerSystem", "loaded " << miners.size() << " miners");
 
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     size_t buildingLayer = gridSystem->getBuildingLayer();
 
     for (auto& [key, miner] : miners)
@@ -93,6 +94,7 @@ ItemId MinerSystem::resolveOreUnder(int ownerX, int ownerY) const
     };
     int counts[4] = {0, 0, 0, 0};
 
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     for (int dy = 0; dy < H; ++dy)
     {
         for (int dx = 0; dx < W; ++dx)
@@ -127,6 +129,7 @@ ItemId MinerSystem::resolveOreUnder(int ownerX, int ownerY) const
 
 void MinerSystem::registerMiner(int x, int y)
 {
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     size_t buildingLayer = gridSystem->getBuildingLayer();
     const auto& cell = gridSystem->getGrid().getCell(buildingLayer, x, y);
 

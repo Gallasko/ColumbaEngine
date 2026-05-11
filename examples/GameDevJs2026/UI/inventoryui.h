@@ -33,10 +33,9 @@ public:
 
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
-    InventoryUISystem(PlayerInventorySystem* playerInv, ItemRegistry* itemRegistry,
-                      SlotSystem* slotSystem,
+    InventoryUISystem(ItemRegistry* itemRegistry,
                       float screenWidth, float screenHeight)
-        : playerInv(playerInv), itemRegistry(itemRegistry), slotSystem(slotSystem),
+        : itemRegistry(itemRegistry),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Inventory UI System"; }
@@ -60,7 +59,7 @@ public:
 
     // --- Held Item Support (delegates to SlotSystem) ---
 
-    bool hasHeldItem() const { return slotSystem->hasHeldItem(); }
+    bool hasHeldItem() const { return ecsRef->getSystem<SlotSystem>()->hasHeldItem(); }
     void cancelHeld();
 
     // --- Event Handlers ---
@@ -106,9 +105,7 @@ private:
 
     // --- Members ---
 
-    PlayerInventorySystem* playerInv = nullptr;
     ItemRegistry* itemRegistry = nullptr;
-    SlotSystem* slotSystem = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 

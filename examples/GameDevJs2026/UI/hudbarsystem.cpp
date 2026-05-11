@@ -38,7 +38,7 @@ void HudBarSystem::onEvent(const TickEvent&)
 void HudBarSystem::onEvent(const MissionUIOpenedEvent&)
 {
     missionTabOpen = true;
-    if (worldFacts)
+    if (auto* worldFacts = ecsRef->getSystem<WorldFacts>())
         worldFacts->setFact("mission_attention_pending", false);
     setEntityVisibility(missionBadgeId, false);
 }
@@ -257,6 +257,7 @@ void HudBarSystem::createMissionBadge()
 
 int HudBarSystem::countUnlockedMissions() const
 {
+    auto* missionSystem = ecsRef->getSystem<MissionSystem>();
     if (not missionSystem)
         return 0;
     const auto& defs = missionSystem->getDefs();
@@ -269,6 +270,7 @@ int HudBarSystem::countUnlockedMissions() const
 
 int HudBarSystem::countCompletableMainMissions() const
 {
+    auto* missionSystem = ecsRef->getSystem<MissionSystem>();
     if (not missionSystem)
         return 0;
     const auto& defs = missionSystem->getDefs();
@@ -281,6 +283,8 @@ int HudBarSystem::countCompletableMainMissions() const
 
 void HudBarSystem::updateMissionBadge()
 {
+    auto* missionSystem = ecsRef->getSystem<MissionSystem>();
+    auto* worldFacts   = ecsRef->getSystem<WorldFacts>();
     if (missionBadgeId == 0 or not missionSystem or not worldFacts)
         return;
 

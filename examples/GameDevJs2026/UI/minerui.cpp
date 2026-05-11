@@ -15,15 +15,16 @@ void MinerUISystem::open(int gridX, int gridY)
     openMinerY = gridY;
     visible = true;
 
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
     if (inventoryUI and not inventoryUI->isOpen())
         inventoryUI->openInventory();
 
     ensurePanelCreated();
     setPanelVisibility(true);
 
-    MinerData* miner = minerSystem->getMiner(openMinerX, openMinerY);
+    MinerData* miner = ecsRef->getSystem<MinerSystem>()->getMiner(openMinerX, openMinerY);
     if (miner)
-        slotSystem->syncSlotVisual(slotEntityId, miner->outputSlots.getSlot(0));
+        ecsRef->getSystem<SlotSystem>()->syncSlotVisual(slotEntityId, miner->outputSlots.getSlot(0));
 }
 
 void MinerUISystem::close()
@@ -31,11 +32,12 @@ void MinerUISystem::close()
     if (not visible)
         return;
 
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     if (slotSystem->hasHeldItem())
         slotSystem->cancelHeld();
 
     // Sync slot back to miner
-    MinerData* miner = minerSystem->getMiner(openMinerX, openMinerY);
+    MinerData* miner = ecsRef->getSystem<MinerSystem>()->getMiner(openMinerX, openMinerY);
     if (miner)
     {
         auto* sc = slotSystem->getSlotComponent(slotEntityId);
@@ -48,6 +50,7 @@ void MinerUISystem::close()
     openMinerX = -1;
     openMinerY = -1;
 
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
     if (inventoryUI and inventoryUI->isOpen())
         inventoryUI->closeInventory();
 }
@@ -72,14 +75,14 @@ void MinerUISystem::onProcessEvent(const TickEvent&)
     if (not visible)
         return;
 
-    MinerData* miner = minerSystem->getMiner(openMinerX, openMinerY);
+    MinerData* miner = ecsRef->getSystem<MinerSystem>()->getMiner(openMinerX, openMinerY);
     if (not miner)
     {
         close();
         return;
     }
 
-    slotSystem->syncSlotVisual(slotEntityId, miner->outputSlots.getSlot(0));
+    ecsRef->getSystem<SlotSystem>()->syncSlotVisual(slotEntityId, miner->outputSlots.getSlot(0));
     refreshProgressBar();
 }
 
@@ -88,10 +91,10 @@ void MinerUISystem::onProcessEvent(const SlotPickedUpEvent& event)
     if (not visible or event.slotEntityId != slotEntityId)
         return;
 
-    MinerData* miner = minerSystem->getMiner(openMinerX, openMinerY);
+    MinerData* miner = ecsRef->getSystem<MinerSystem>()->getMiner(openMinerX, openMinerY);
     if (miner)
     {
-        auto* sc = slotSystem->getSlotComponent(slotEntityId);
+        auto* sc = ecsRef->getSystem<SlotSystem>()->getSlotComponent(slotEntityId);
         if (sc)
             miner->outputSlots.getSlot(0) = sc->stack;
     }
@@ -102,10 +105,10 @@ void MinerUISystem::onProcessEvent(const SlotDroppedEvent& event)
     if (not visible or event.slotEntityId != slotEntityId)
         return;
 
-    MinerData* miner = minerSystem->getMiner(openMinerX, openMinerY);
+    MinerData* miner = ecsRef->getSystem<MinerSystem>()->getMiner(openMinerX, openMinerY);
     if (miner)
     {
-        auto* sc = slotSystem->getSlotComponent(slotEntityId);
+        auto* sc = ecsRef->getSystem<SlotSystem>()->getSlotComponent(slotEntityId);
         if (sc)
             miner->outputSlots.getSlot(0) = sc->stack;
     }
@@ -147,7 +150,7 @@ void MinerUISystem::createPanel()
     // centred against it. Falls back to centring in __MainWindow if inventoryUI
     // hasn't created its panel yet.
     uint64_t anchorTargetId = 0;
-    if (inventoryUI)
+    if (auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>())
         anchorTargetId = inventoryUI->getBackdropEntityId();
     if (anchorTargetId == 0)
     {
@@ -193,7 +196,7 @@ void MinerUISystem::createPanel()
     }
 
     // Output slot via SlotSystem (UiAnchor auto-attached)
-    auto slotRef = slotSystem->createSlot(SlotCategory::Output, 0);
+    auto slotRef = ecsRef->getSystem<SlotSystem>()->createSlot(SlotCategory::Output, 0);
     slotEntityId = slotRef.id;
     {
         auto a = slotRef.get<UiAnchor>();
@@ -242,7 +245,7 @@ void MinerUISystem::createPanel()
 
 void MinerUISystem::refreshProgressBar()
 {
-    MinerData* miner = minerSystem->getMiner(openMinerX, openMinerY);
+    MinerData* miner = ecsRef->getSystem<MinerSystem>()->getMiner(openMinerX, openMinerY);
     if (not miner)
         return;
 

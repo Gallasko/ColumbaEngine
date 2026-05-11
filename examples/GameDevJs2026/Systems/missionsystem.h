@@ -26,10 +26,8 @@ public:
     static constexpr ItemId ROBOT_CORE_ID = 33;
     static constexpr ItemId TICKET_ID = 35;
 
-    MissionSystem(MissionRegistry* missionRegistry, DepotSystem* depotSystem, WorldFacts* worldFacts,
-                  PlayerInventorySystem* playerInv = nullptr, ItemRegistry* itemRegistry = nullptr)
-        : missionRegistry(missionRegistry), depotSystem(depotSystem), worldFacts(worldFacts),
-          playerInv(playerInv), itemRegistry(itemRegistry)
+    MissionSystem(MissionRegistry* missionRegistry, ItemRegistry* itemRegistry = nullptr)
+        : missionRegistry(missionRegistry), itemRegistry(itemRegistry)
     {
     }
 
@@ -90,9 +88,6 @@ private:
     void autoClaimAndRestart(ActiveMission& m);
 
     MissionRegistry* missionRegistry = nullptr;
-    DepotSystem* depotSystem = nullptr;
-    WorldFacts* worldFacts = nullptr;
-    PlayerInventorySystem* playerInv = nullptr;
     ItemRegistry* itemRegistry = nullptr;
 
     std::vector<ActiveMission> activeMissions;

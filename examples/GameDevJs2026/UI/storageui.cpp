@@ -19,6 +19,7 @@ void StorageUISystem::open(int gridX, int gridY)
     openStorageY = gridY;
     visible = true;
 
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
     if (inventoryUI and not inventoryUI->isOpen())
         inventoryUI->openInventory();
 
@@ -32,11 +33,12 @@ void StorageUISystem::close()
     if (not visible)
         return;
 
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     if (slotSystem->hasHeldItem())
         slotSystem->cancelHeld();
 
     // Sync all slots back to storage before closing
-    StorageData* storage = storageSystem->getStorage(openStorageX, openStorageY);
+    StorageData* storage = ecsRef->getSystem<StorageSystem>()->getStorage(openStorageX, openStorageY);
     if (storage)
     {
         for (size_t i = 0; i < NUM_SLOTS; ++i)
@@ -49,6 +51,7 @@ void StorageUISystem::close()
     openStorageY = -1;
 
     // Close the companion inventory (cascades to crafting).
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
     if (inventoryUI and inventoryUI->isOpen())
         inventoryUI->closeInventory();
 }
@@ -77,7 +80,7 @@ void StorageUISystem::onProcessEvent(const TickEvent&)
     if (not visible)
         return;
 
-    StorageData* storage = storageSystem->getStorage(openStorageX, openStorageY);
+    StorageData* storage = ecsRef->getSystem<StorageSystem>()->getStorage(openStorageX, openStorageY);
     if (not storage)
     {
         close();
@@ -151,7 +154,7 @@ void StorageUISystem::createPanel()
     // Anchor target: storage panel sits left of the inventory panel, vertically
     // centred against it (or against __MainWindow as fallback).
     uint64_t anchorTargetId = 0;
-    if (inventoryUI)
+    if (auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>())
         anchorTargetId = inventoryUI->getBackdropEntityId();
     if (anchorTargetId == 0)
     {
@@ -201,6 +204,7 @@ void StorageUISystem::createPanel()
     }
 
     // Slots via SlotSystem (UiAnchor auto-attached by createSlot)
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     for (size_t i = 0; i < NUM_SLOTS; ++i)
     {
         auto slotRef = slotSystem->createSlot(
@@ -225,21 +229,22 @@ void StorageUISystem::createPanel()
 
 void StorageUISystem::syncAllSlots()
 {
-    StorageData* storage = storageSystem->getStorage(openStorageX, openStorageY);
+    StorageData* storage = ecsRef->getSystem<StorageSystem>()->getStorage(openStorageX, openStorageY);
     if (not storage)
         return;
 
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     for (size_t i = 0; i < NUM_SLOTS; ++i)
         slotSystem->syncSlotVisual(slotEntityIds[i], storage->inventory.getSlot(i));
 }
 
 void StorageUISystem::syncSlotToStorage(size_t slotIndex)
 {
-    StorageData* storage = storageSystem->getStorage(openStorageX, openStorageY);
+    StorageData* storage = ecsRef->getSystem<StorageSystem>()->getStorage(openStorageX, openStorageY);
     if (not storage)
         return;
 
-    auto* sc = slotSystem->getSlotComponent(slotEntityIds[slotIndex]);
+    auto* sc = ecsRef->getSystem<SlotSystem>()->getSlotComponent(slotEntityIds[slotIndex]);
     if (sc)
         storage->inventory.getSlot(slotIndex) = sc->stack;
 }

@@ -17,6 +17,7 @@ void InserterSystem::load(const UnserializedObject& serializedString)
     defaultDeserialize(serializedString, "inserters", inserters);
     LOG_INFO("InserterSystem", "loaded " << inserters.size() << " inserters");
 
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     size_t buildingLayer = gridSystem->getBuildingLayer();
 
     for (auto& [key, ins] : inserters)
@@ -94,6 +95,7 @@ size_t InserterSystem::getSpriteFrame(uint8_t direction, size_t animFrame, bool 
 
 void InserterSystem::registerInserter(int x, int y)
 {
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     size_t buildingLayer = gridSystem->getBuildingLayer();
     const auto& cell = gridSystem->getGrid().getCell(buildingLayer, x, y);
 
@@ -134,6 +136,7 @@ void InserterSystem::unregisterInserter(int x, int y)
 
 void InserterSystem::inserterTick()
 {
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     for (auto& [key, ins] : inserters)
     {
         switch (ins.state)
@@ -222,6 +225,7 @@ bool InserterSystem::tryPickup(InserterData& ins)
     int pickupX = ins.x - DIR_DX[ins.direction];
     int pickupY = ins.y - DIR_DY[ins.direction];
 
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     if (not gridSystem->getGrid().isInBounds(pickupX, pickupY))
         return false;
 
@@ -234,7 +238,7 @@ bool InserterSystem::tryPickup(InserterData& ins)
     // Pick from belt
     if (cell.tileName == "Conveyor")
     {
-        ItemId item = transportSystem->tryTakeItem(pickupX, pickupY);
+        ItemId item = ecsRef->getSystem<TransportSystem>()->tryTakeItem(pickupX, pickupY);
         if (item != ITEM_NONE)
         {
             ins.heldItem = item;
@@ -248,7 +252,7 @@ bool InserterSystem::tryPickup(InserterData& ins)
     {
         int ox = cell.isOwner ? pickupX : static_cast<int>(cell.ownerX);
         int oy = cell.isOwner ? pickupY : static_cast<int>(cell.ownerY);
-        MinerData* miner = minerSystem->getMiner(ox, oy);
+        MinerData* miner = ecsRef->getSystem<MinerSystem>()->getMiner(ox, oy);
         if (miner)
         {
             for (auto& slot : miner->outputSlots.slots)
@@ -270,7 +274,7 @@ bool InserterSystem::tryPickup(InserterData& ins)
     {
         int ox = cell.isOwner ? pickupX : static_cast<int>(cell.ownerX);
         int oy = cell.isOwner ? pickupY : static_cast<int>(cell.ownerY);
-        MachineData* machine = craftingSystem->getMachine(ox, oy);
+        MachineData* machine = ecsRef->getSystem<CraftingSystem>()->getMachine(ox, oy);
         if (machine)
         {
             for (auto& slot : machine->outputSlots.slots)
@@ -290,7 +294,7 @@ bool InserterSystem::tryPickup(InserterData& ins)
     // Pick from storage
     if (cell.tileName == "Storage")
     {
-        StorageData* storage = storageSystem->getStorage(pickupX, pickupY);
+        StorageData* storage = ecsRef->getSystem<StorageSystem>()->getStorage(pickupX, pickupY);
         if (storage)
         {
             for (auto& slot : storage->inventory.slots)
@@ -312,7 +316,7 @@ bool InserterSystem::tryPickup(InserterData& ins)
     {
         int ox = cell.isOwner ? pickupX : static_cast<int>(cell.ownerX);
         int oy = cell.isOwner ? pickupY : static_cast<int>(cell.ownerY);
-        DepotData* depot = depotSystem->getDepot(ox, oy);
+        DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(ox, oy);
         if (depot)
         {
             for (auto& slot : depot->inventory.slots)
@@ -337,6 +341,7 @@ bool InserterSystem::tryDrop(InserterData& ins)
     int dropX = ins.x + DIR_DX[ins.direction];
     int dropY = ins.y + DIR_DY[ins.direction];
 
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     if (not gridSystem->getGrid().isInBounds(dropX, dropY))
         return false;
 
@@ -349,7 +354,7 @@ bool InserterSystem::tryDrop(InserterData& ins)
     // Drop onto belt
     if (cell.tileName == "Conveyor")
     {
-        if (transportSystem->tryPlaceItem(dropX, dropY, ins.heldItem))
+        if (ecsRef->getSystem<TransportSystem>()->tryPlaceItem(dropX, dropY, ins.heldItem))
         {
             ins.heldItem = ITEM_NONE;
             return true;
@@ -362,7 +367,7 @@ bool InserterSystem::tryDrop(InserterData& ins)
     {
         int ox = cell.isOwner ? dropX : static_cast<int>(cell.ownerX);
         int oy = cell.isOwner ? dropY : static_cast<int>(cell.ownerY);
-        MachineData* machine = craftingSystem->getMachine(ox, oy);
+        MachineData* machine = ecsRef->getSystem<CraftingSystem>()->getMachine(ox, oy);
         if (machine and machine->inputSlots.canAccept(ins.heldItem, *itemRegistry))
         {
             machine->inputSlots.insert(ins.heldItem, 1, *itemRegistry);
@@ -375,7 +380,7 @@ bool InserterSystem::tryDrop(InserterData& ins)
     // Drop into storage
     if (cell.tileName == "Storage")
     {
-        StorageData* storage = storageSystem->getStorage(dropX, dropY);
+        StorageData* storage = ecsRef->getSystem<StorageSystem>()->getStorage(dropX, dropY);
         if (storage and storage->inventory.canAccept(ins.heldItem, *itemRegistry))
         {
             storage->inventory.insert(ins.heldItem, 1, *itemRegistry);
@@ -390,7 +395,7 @@ bool InserterSystem::tryDrop(InserterData& ins)
     {
         int ox = cell.isOwner ? dropX : static_cast<int>(cell.ownerX);
         int oy = cell.isOwner ? dropY : static_cast<int>(cell.ownerY);
-        DepotData* depot = depotSystem->getDepot(ox, oy);
+        DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(ox, oy);
         if (depot and depot->inventory.canAccept(ins.heldItem, *itemRegistry))
         {
             depot->inventory.insert(ins.heldItem, 1, *itemRegistry);
@@ -422,6 +427,7 @@ void InserterSystem::createHeldItemVisual(InserterData& ins)
         return;
 
     const auto& itemDef = itemRegistry->get(ins.heldItem);
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     float z = gridSystem->getGrid().getLayer(gridSystem->getItemLayer()).zIndex + 0.1f;
     float itemSize = static_cast<float>(Grid::TILE_SIZE) * 0.5f;
 
@@ -450,6 +456,7 @@ void InserterSystem::updateHeldItemPosition(InserterData& ins)
     float halfTile = static_cast<float>(Grid::TILE_SIZE) * 0.5f;
 
     // Arc center = inserter cell center
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     auto [iwx, iwy] = gridSystem->getGrid().gridToWorld(ins.x, ins.y);
     float cx = iwx + halfTile;
     float cy = iwy + halfTile;

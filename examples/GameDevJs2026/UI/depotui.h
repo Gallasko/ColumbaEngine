@@ -53,18 +53,12 @@ public:
 
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
-    DepotUISystem(DepotSystem* depotSystem, ItemRegistry* itemRegistry,
-                  PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
-                  SlotSystem* slotSystem, MissionSystem* missionSystem,
+    DepotUISystem(ItemRegistry* itemRegistry,
                   float screenWidth, float screenHeight)
-        : depotSystem(depotSystem), itemRegistry(itemRegistry),
-          playerInv(playerInv), inventoryUI(inventoryUI), slotSystem(slotSystem),
-          missionSystem(missionSystem),
+        : itemRegistry(itemRegistry),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Depot UI System"; }
-
-    void setCraftingUI(CraftingUISystem* ui) { craftingUI = ui; }
 
     // ---- IMachineUI ----
     MachineUIDescriptor descriptor() const override
@@ -124,13 +118,7 @@ private:
 
     // --- Members ---
 
-    DepotSystem* depotSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
-    PlayerInventorySystem* playerInv = nullptr;
-    InventoryUISystem* inventoryUI = nullptr;
-    SlotSystem* slotSystem = nullptr;
-    MissionSystem* missionSystem = nullptr;
-    CraftingUISystem* craftingUI = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 

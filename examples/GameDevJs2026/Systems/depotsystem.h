@@ -20,8 +20,8 @@ class DepotSystem : public System<Listener<BuildingPlacedEvent>,
                                    SaveSys>
 {
 public:
-    DepotSystem(GridSystem* gridSystem, ItemRegistry* itemRegistry)
-        : gridSystem(gridSystem), itemRegistry(itemRegistry) {}
+    DepotSystem(ItemRegistry* itemRegistry)
+        : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Depot System"; }
 
@@ -46,7 +46,6 @@ private:
     void registerDepot(int x, int y);
     void unregisterDepot(int x, int y);
 
-    GridSystem* gridSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
 
     std::unordered_map<uint32_t, DepotData> depots;

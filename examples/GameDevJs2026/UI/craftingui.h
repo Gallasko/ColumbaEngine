@@ -72,19 +72,12 @@ public:
 
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
-    CraftingUISystem(HandCraftingSystem* handCrafting,
-                     RecipeRegistry* recipeRegistry,
+    CraftingUISystem(RecipeRegistry* recipeRegistry,
                      ItemRegistry* itemRegistry,
-                     PlayerInventorySystem* playerInv,
-                     pg::WorldFacts* worldFacts,
-                     InventoryUISystem* inventoryUI,
                      float screenWidth, float screenHeight)
-        : handCrafting(handCrafting), recipeRegistry(recipeRegistry),
-          itemRegistry(itemRegistry), playerInv(playerInv),
-          worldFacts(worldFacts), inventoryUI(inventoryUI),
+        : recipeRegistry(recipeRegistry),
+          itemRegistry(itemRegistry),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
-
-    void setMachineDemo(MachineDemoSystem* demo) { machineDemo = demo; }
 
     virtual std::string getSystemName() const override { return "Crafting UI System"; }
 
@@ -200,12 +193,8 @@ private:
 
     // --- Members -------------------------------------------------------
 
-    HandCraftingSystem* handCrafting = nullptr;
     RecipeRegistry* recipeRegistry = nullptr;
     ItemRegistry* itemRegistry = nullptr;
-    PlayerInventorySystem* playerInv = nullptr;
-    pg::WorldFacts* worldFacts = nullptr;
-    InventoryUISystem* inventoryUI = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
@@ -247,8 +236,6 @@ private:
     uint64_t cancelButtonBgEntityId = 0;
     uint64_t cancelButtonTextEntityId = 0;
     uint64_t recipeLayoutEntityId = 0;
-
-    MachineDemoSystem* machineDemo = nullptr;
 
     // Machine-mode double-click to feed
     std::function<void(const Recipe&)> machineFeedCallback;

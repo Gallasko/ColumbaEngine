@@ -29,7 +29,7 @@ ItemId InventoryUISystem::itemAtPosition(float x, float y) const
         if (x >= pos->x and x <= pos->x + SLOT_SIZE and
             y >= pos->y and y <= pos->y + SLOT_SIZE)
         {
-            const auto& stack = playerInv->getInventory().getSlot(i);
+            const auto& stack = ecsRef->getSystem<PlayerInventorySystem>()->getInventory().getSlot(i);
 
             return stack.isEmpty() ? ITEM_NONE : stack.id;
         }
@@ -101,6 +101,7 @@ void InventoryUISystem::closeInventory()
     if (not visible)
         return;
 
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     if (slotSystem->hasHeldItem())
         slotSystem->cancelHeld();
 
@@ -115,7 +116,7 @@ void InventoryUISystem::closeInventory()
 
 void InventoryUISystem::cancelHeld()
 {
-    slotSystem->cancelHeld();
+    ecsRef->getSystem<SlotSystem>()->cancelHeld();
 
     // After cancelHeld, sync all inventory slots to capture returned items
     for (size_t i = 0; i < NUM_SLOTS; ++i)
@@ -200,6 +201,7 @@ void InventoryUISystem::createPanel()
     layoutAnchor->setTopMargin(PANEL_PADDING);
 
     // Slots via SlotSystem
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     for (size_t i = 0; i < NUM_SLOTS; ++i)
     {
         auto slotRef = slotSystem->createSlot(
@@ -216,15 +218,17 @@ void InventoryUISystem::createPanel()
 
 void InventoryUISystem::syncAllSlots()
 {
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
+    auto* playerInv  = ecsRef->getSystem<PlayerInventorySystem>();
     for (size_t i = 0; i < NUM_SLOTS; ++i)
         slotSystem->syncSlotVisual(slotEntityIds[i], playerInv->getInventory().getSlot(i));
 }
 
 void InventoryUISystem::syncSlotToInventory(size_t index)
 {
-    auto* sc = slotSystem->getSlotComponent(slotEntityIds[index]);
+    auto* sc = ecsRef->getSystem<SlotSystem>()->getSlotComponent(slotEntityIds[index]);
     if (sc)
-        playerInv->getInventory().getSlot(index) = sc->stack;
+        ecsRef->getSystem<PlayerInventorySystem>()->getInventory().getSlot(index) = sc->stack;
 }
 
 // ---------------------------------------------------------------------------

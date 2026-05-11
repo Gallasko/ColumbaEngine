@@ -46,6 +46,7 @@ void CraftingSystem::load(const UnserializedObject& serializedString)
     LOG_INFO("CraftingSystem", "loaded " << machines.size() << " machines");
 
     // Restore runtime-only state not persisted to disk
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     size_t buildingLayer = gridSystem->getBuildingLayer();
     for (auto& [key, machine] : machines)
     {
@@ -95,7 +96,7 @@ void CraftingSystem::execute()
 
             if (machine.machineName == "Furnace")
             {
-                setFurnaceTextures(ecsRef, gridSystem, machine.entityId, true, machine.animFrame);
+                setFurnaceTextures(ecsRef, ecsRef->getSystem<GridSystem>(), machine.entityId, true, machine.animFrame);
             }
             else
             {
@@ -133,6 +134,7 @@ void CraftingSystem::registerMachine(int x, int y, const std::string& tileName)
     }
 
     // Capture entity spawned by GridSystem for texture swapping
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     size_t buildingLayer = gridSystem->getBuildingLayer();
     const auto& cell = gridSystem->getGrid().getCell(buildingLayer, x, y);
     data.entityId = cell.entityId;
@@ -176,6 +178,8 @@ void CraftingSystem::unregisterMachine(int x, int y)
 
 void CraftingSystem::craftTick()
 {
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
+    auto* worldFacts = ecsRef->getSystem<pg::WorldFacts>();
     size_t buildingLayer = gridSystem->getBuildingLayer();
     const auto& grid = gridSystem->getGrid();
 
@@ -310,7 +314,8 @@ void CraftingSystem::craftTick()
 
 void CraftingSystem::pullFromBelts(MachineData& machine, const Grid& grid, size_t buildingLayer)
 {
-    const BuildingDef* def = gridSystem->getRegistry()->findByName(machine.machineName);
+    auto* transportSystem = ecsRef->getSystem<TransportSystem>();
+    const BuildingDef* def = ecsRef->getSystem<GridSystem>()->getRegistry()->findByName(machine.machineName);
     int w = def ? def->getFootprintW() : 1;
     int h = def ? def->getFootprintH() : 1;
 

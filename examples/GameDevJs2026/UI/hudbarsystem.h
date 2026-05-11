@@ -45,10 +45,8 @@ public:
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
     static constexpr ItemId TICKET_ID = 35;
 
-    HudBarSystem(WorldFacts* worldFacts, MissionSystem* missionSystem,
-                 float screenWidth, float screenHeight)
-        : worldFacts(worldFacts), missionSystem(missionSystem),
-          screenWidth(screenWidth), screenHeight(screenHeight) {}
+    HudBarSystem(float screenWidth, float screenHeight)
+        : screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "HUD Bar System"; }
 
@@ -79,8 +77,6 @@ private:
     void createButtons();
     void updateMissionButtonVisibility();
 
-    WorldFacts* worldFacts = nullptr;
-    MissionSystem* missionSystem = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 

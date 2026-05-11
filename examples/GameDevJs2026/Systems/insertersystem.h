@@ -49,14 +49,8 @@ public:
     // Pickup is behind the arm (opposite of direction)
     static constexpr size_t PICKUP_FRAME[4] = {0, 2, 4, 6}; // RIGHT, DOWN, LEFT, UP
 
-    InserterSystem(GridSystem* gridSystem, TransportSystem* transportSystem,
-                   MinerSystem* minerSystem, CraftingSystem* craftingSystem,
-                   StorageSystem* storageSystem, DepotSystem* depotSystem,
-                   ItemRegistry* itemRegistry)
-        : gridSystem(gridSystem), transportSystem(transportSystem),
-          minerSystem(minerSystem), craftingSystem(craftingSystem),
-          storageSystem(storageSystem), depotSystem(depotSystem),
-          itemRegistry(itemRegistry) {}
+    InserterSystem(ItemRegistry* itemRegistry)
+        : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Inserter System"; }
 
@@ -99,12 +93,6 @@ private:
 
     // --- Members ---
 
-    GridSystem* gridSystem = nullptr;
-    TransportSystem* transportSystem = nullptr;
-    MinerSystem* minerSystem = nullptr;
-    CraftingSystem* craftingSystem = nullptr;
-    StorageSystem* storageSystem = nullptr;
-    DepotSystem* depotSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
 
     std::unordered_map<uint32_t, InserterData> inserters;

@@ -39,8 +39,8 @@ public:
     static constexpr size_t ANIM_FRAME_DURATION_MS = 200;
     static constexpr size_t NUM_ANIM_FRAMES = 4;
 
-    MinerSystem(GridSystem* gridSystem, TransportSystem* transportSystem, ItemRegistry* itemRegistry)
-        : gridSystem(gridSystem), transportSystem(transportSystem), itemRegistry(itemRegistry) {}
+    MinerSystem(ItemRegistry* itemRegistry)
+        : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Miner System"; }
 
@@ -75,8 +75,6 @@ private:
     void unregisterMiner(int x, int y);
     void mineTick();
 
-    GridSystem* gridSystem = nullptr;
-    TransportSystem* transportSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
 
     std::unordered_map<uint32_t, MinerData> miners;

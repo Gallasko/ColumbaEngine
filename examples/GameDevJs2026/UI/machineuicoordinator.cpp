@@ -17,15 +17,19 @@ bool MachineUICoordinator::openMachineUI(int gridX, int gridY, const std::string
 
     const MachineUIDescriptor desc = ui->descriptor();
 
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
     if (desc.requiresInventory and inventoryUI and not inventoryUI->isOpen())
         inventoryUI->openInventory();
 
-    if (desc.suppressesRecipePanel and craftingUI)
+    if (desc.suppressesRecipePanel)
     {
-        craftingUI->setSuppressed(true);
-        if (craftingUI->isOpen())
-            craftingUI->close();
-        suppressedRecipePanel = true;
+        if (auto* craftingUI = ecsRef->getSystem<CraftingUISystem>())
+        {
+            craftingUI->setSuppressed(true);
+            if (craftingUI->isOpen())
+                craftingUI->close();
+            suppressedRecipePanel = true;
+        }
     }
 
     activeUI = ui;
@@ -45,9 +49,10 @@ void MachineUICoordinator::closeMachineUI()
 
     prev->close();
 
-    if (suppressedRecipePanel and craftingUI)
+    if (suppressedRecipePanel)
     {
-        craftingUI->setSuppressed(false);
+        if (auto* craftingUI = ecsRef->getSystem<CraftingUISystem>())
+            craftingUI->setSuppressed(false);
         suppressedRecipePanel = false;
     }
 }

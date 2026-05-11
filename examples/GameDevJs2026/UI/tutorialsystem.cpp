@@ -58,6 +58,8 @@ bool TutorialSystem::recipeOutputs(size_t recipeIndex, ItemId id) const
 template <typename Match>
 std::pair<int, int> TutorialSystem::findNearestTerrain(const Match& match) const
 {
+    auto* gridSystem   = ecsRef->getSystem<GridSystem>();
+    auto* cameraSystem = ecsRef->getSystem<CameraSystem>();
     if (not gridSystem or not cameraSystem)
         return {-1, -1};
 
@@ -101,6 +103,9 @@ std::pair<int, int> TutorialSystem::findNearestTerrain(const Match& match) const
 // new item before it settles.
 void TutorialSystem::pulseSlotForItem(ItemId id)
 {
+    auto* playerInv   = ecsRef->getSystem<PlayerInventorySystem>();
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
+    auto* hotbar      = ecsRef->getSystem<HotbarSystem>();
     if (not playerInv or not inventoryUI or not hotbar)
         return;
 
@@ -351,9 +356,9 @@ void TutorialSystem::onEvent(const TutorialSkipRequested&)
     if (currentStep >= TOTAL_STEPS)
         return;
     currentStep = TOTAL_STEPS;
-    worldFacts->setFact("tutorial_step", currentStep);
+    ecsRef->getSystem<WorldFacts>()->setFact("tutorial_step", currentStep);
     applyHudReveal();
-    if (spotlight)
+    if (auto* spotlight = ecsRef->getSystem<SpotlightOverlaySystem>())
         spotlight->hide();
     LOG_INFO("Tutorial", "tutorial skipped to TOTAL_STEPS=" << TOTAL_STEPS);
 }
@@ -381,6 +386,7 @@ void TutorialSystem::execute()
 
 void TutorialSystem::initOnFirstTick()
 {
+    auto* worldFacts = ecsRef->getSystem<WorldFacts>();
     int loaded = worldFacts->getFact<int>("tutorial_step", 0);
 
     // Save migration: legacy saves used a 5-step flow. Anyone with a step value
@@ -426,6 +432,8 @@ void TutorialSystem::initOnFirstTick()
 // of the run.
 void TutorialSystem::applyHudReveal()
 {
+    auto* hotbar = ecsRef->getSystem<HotbarSystem>();
+    auto* hudBar = ecsRef->getSystem<HudBarSystem>();
     if (not hotbar or not hudBar)
         return;
 
@@ -451,13 +459,17 @@ void TutorialSystem::advanceStep()
     LOG_INFO("Tutorial", "advanceStep — now currentStep=" << currentStep
             << " (TOTAL_STEPS=" << TOTAL_STEPS << ")");
     missionUiOpenedThisStep = false;
-    worldFacts->setFact("tutorial_step", currentStep);
+    ecsRef->getSystem<WorldFacts>()->setFact("tutorial_step", currentStep);
     applyHudReveal();
     presentCurrentStep();
 }
 
 void TutorialSystem::presentCurrentStep()
 {
+    auto* spotlight   = ecsRef->getSystem<SpotlightOverlaySystem>();
+    auto* gridSystem  = ecsRef->getSystem<GridSystem>();
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
+    auto* hotbar      = ecsRef->getSystem<HotbarSystem>();
     if (not spotlight)
     {
         LOG_INFO("Tutorial", "presentCurrentStep — no spotlight ref, skipping");

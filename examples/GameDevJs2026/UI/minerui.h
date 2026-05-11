@@ -32,12 +32,9 @@ public:
 
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
-    MinerUISystem(MinerSystem* minerSystem, ItemRegistry* itemRegistry,
-                  PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
-                  SlotSystem* slotSystem,
+    MinerUISystem(ItemRegistry* itemRegistry,
                   float screenWidth, float screenHeight)
-        : minerSystem(minerSystem), itemRegistry(itemRegistry),
-          playerInv(playerInv), inventoryUI(inventoryUI), slotSystem(slotSystem),
+        : itemRegistry(itemRegistry),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Miner UI System"; }
@@ -79,11 +76,7 @@ private:
 
     // --- Members ---
 
-    MinerSystem* minerSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
-    PlayerInventorySystem* playerInv = nullptr;
-    InventoryUISystem* inventoryUI = nullptr;
-    SlotSystem* slotSystem = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 

@@ -28,9 +28,7 @@ using namespace pg;
 class MachineUICoordinator : public System<Listener<InventoryClosedEvent>>
 {
 public:
-    MachineUICoordinator(InventoryUISystem* inventoryUI,
-                         CraftingUISystem*  craftingUI)
-        : inventoryUI(inventoryUI), craftingUI(craftingUI) {}
+    MachineUICoordinator() {}
 
     std::string getSystemName() const override { return "Machine UI Coordinator"; }
 
@@ -60,9 +58,6 @@ public:
     }
 
 private:
-    InventoryUISystem* inventoryUI = nullptr;
-    CraftingUISystem*  craftingUI  = nullptr;
-
     std::unordered_map<std::string, IMachineUI*> registry;
     IMachineUI* activeUI = nullptr;
 

@@ -57,7 +57,7 @@ void CraftingUISystem::onEvent(const HandCraftCompletedEvent&)
         refreshRows();
         refreshProgressBar();
     }
-    if (inventoryUI)
+    if (auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>())
         inventoryUI->refreshAllSlots();
 }
 
@@ -115,27 +115,30 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
     }
 
     // Per-row "?" demo button click (hand-craft mode)
-    if (activeMachineName.empty() and machineDemo)
+    if (activeMachineName.empty())
     {
-        for (size_t i = 0; i < visibleRecipes.size(); ++i)
+        if (auto* machineDemo = ecsRef->getSystem<MachineDemoSystem>())
         {
-            size_t recipeIdx = visibleRecipes[i];
-            auto demoEnt = ecsRef->getEntity(rowVisuals[recipeIdx].demoBtnEntityId);
-            if (not demoEnt) continue;
-            auto demoPos = demoEnt->get<PositionComponent>();
-            if (not demoPos->isVisible()) continue;
-            // Hit area slightly larger than the "?" text
-            if (isPointInRect(x, y, demoPos->getX() - 4.0f, demoPos->getY(),
-                              20.0f, ROW_HEIGHT))
+            for (size_t i = 0; i < visibleRecipes.size(); ++i)
             {
-                const Recipe& recipe = recipeRegistry->get(recipeIdx);
-                if (not recipe.outputs.empty())
+                size_t recipeIdx = visibleRecipes[i];
+                auto demoEnt = ecsRef->getEntity(rowVisuals[recipeIdx].demoBtnEntityId);
+                if (not demoEnt) continue;
+                auto demoPos = demoEnt->get<PositionComponent>();
+                if (not demoPos->isVisible()) continue;
+                // Hit area slightly larger than the "?" text
+                if (isPointInRect(x, y, demoPos->getX() - 4.0f, demoPos->getY(),
+                                  20.0f, ROW_HEIGHT))
                 {
-                    std::string buildName = itemRegistry->get(recipe.outputs.front().id).buildingName;
-                    if (!buildName.empty())
+                    const Recipe& recipe = recipeRegistry->get(recipeIdx);
+                    if (not recipe.outputs.empty())
                     {
-                        machineDemo->openDemo(buildName);
-                        return;
+                        std::string buildName = itemRegistry->get(recipe.outputs.front().id).buildingName;
+                        if (!buildName.empty())
+                        {
+                            machineDemo->openDemo(buildName);
+                            return;
+                        }
                     }
                 }
             }
@@ -341,7 +344,7 @@ void CraftingUISystem::createPanel()
 {
     auto windowEnt = ecsRef->getEntity("__MainWindow");
     auto windowId  = windowEnt->id;
-    uint64_t invBackdropId = inventoryUI->getBackdropEntityId();
+    uint64_t invBackdropId = ecsRef->getSystem<InventoryUISystem>()->getBackdropEntityId();
 
     float pw = PANEL_WIDTH;
     float ph = getPanelHeight();
@@ -661,6 +664,8 @@ void CraftingUISystem::rebuildVisibleRecipes()
 {
     visibleRecipes.clear();
 
+    auto* handCrafting = ecsRef->getSystem<HandCraftingSystem>();
+
     if (!activeMachineName.empty())
     {
         // Machine mode: show recipes for this machine type, gated by unlock conditions
@@ -771,6 +776,9 @@ void CraftingUISystem::refreshRows()
         return;
     if (prevSelected != selectedIndex)
         ensureSelectionVisible();
+
+    auto* handCrafting = ecsRef->getSystem<HandCraftingSystem>();
+    auto* machineDemo  = ecsRef->getSystem<MachineDemoSystem>();
 
     for (size_t visIdx = 0; visIdx < visibleRecipes.size(); ++visIdx)
     {
@@ -893,6 +901,7 @@ void CraftingUISystem::refreshProgressBar()
         return;
     auto barBgEnt = ecsRef->getEntity(progressBgEntityId);
     float barMaxW = barBgEnt ? barBgEnt->get<PositionComponent>()->getWidth() : 0.0f;
+    auto* handCrafting = ecsRef->getSystem<HandCraftingSystem>();
     float ratio = handCrafting ? handCrafting->getProgressRatio() : 0.0f;
     fillEnt->get<PositionComponent>()->setWidth(barMaxW * ratio);
 }
@@ -969,6 +978,7 @@ void CraftingUISystem::requestCraft()
 {
     if (visibleRecipes.empty() or selectedIndex >= visibleRecipes.size())
         return;
+    auto* handCrafting = ecsRef->getSystem<HandCraftingSystem>();
     if (handCrafting->isActive())
         return;
     size_t recipeIdx = visibleRecipes[selectedIndex];

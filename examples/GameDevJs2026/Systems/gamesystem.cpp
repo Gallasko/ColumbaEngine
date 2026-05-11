@@ -18,7 +18,7 @@ void GameSystem::init()
     createCursorEntities();
 
     // Sync manual mining enabled state with initial hotbar selection
-    if (manualMining)
+    if (auto* manualMining = ecsRef->getSystem<ManualMiningSystem>())
     {
         LOG_INFO("GameSystem", "init() syncing manual mining: enabled=" << (not hasBuildingSelected()));
         manualMining->setEnabled(not hasBuildingSelected());
@@ -36,21 +36,25 @@ void GameSystem::closeOtherGroup(UIPanel keep)
         // Close whichever per-machine UI is currently active (Furnace,
         // Assembler, Miner, Storage, Depot, ...). The coordinator holds the
         // mutual-exclusion invariant so we don't have to enumerate them here.
-        if (uiCoordinator) uiCoordinator->closeMachineUI();
-        if (craftingUI and craftingUI->isOpen()) craftingUI->close();
-        if (inventoryUI and inventoryUI->isOpen()) inventoryUI->closeInventory();
+        if (auto* uiCoordinator = ecsRef->getSystem<MachineUICoordinator>())
+            uiCoordinator->closeMachineUI();
+        if (auto* craftingUI = ecsRef->getSystem<CraftingUISystem>(); craftingUI and craftingUI->isOpen())
+            craftingUI->close();
+        if (auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>(); inventoryUI and inventoryUI->isOpen())
+            inventoryUI->closeInventory();
     }
     if (keep != UIPanel::Mission)
     {
         // Event-driven: MissionUI's task processes the close on its own tick,
         // avoiding a race with MissionUI's execute() / refresh().
-        if (missionUI and missionUI->isOpen())
+        if (auto* missionUI = ecsRef->getSystem<MissionUISystem>(); missionUI and missionUI->isOpen())
             ecsRef->sendEvent(MissionUICloseRequest{});
     }
 }
 
 void GameSystem::toggleInventoryFromHud()
 {
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
     if (not inventoryUI)
         return;
     if (inventoryUI->isOpen())
@@ -68,6 +72,7 @@ void GameSystem::toggleInventoryFromHud()
 
 void GameSystem::toggleMissionFromHud()
 {
+    auto* missionUI = ecsRef->getSystem<MissionUISystem>();
     if (not missionUI)
         return;
     if (missionUI->isOpen())
@@ -85,15 +90,15 @@ void GameSystem::toggleMissionFromHud()
 
 void GameSystem::onProcessEvent(const OnSDLScanCode& event)
 {
-    if (machineDemo and machineDemo->isOpen())
+    if (auto* machineDemo = ecsRef->getSystem<MachineDemoSystem>(); machineDemo and machineDemo->isOpen())
         return;
-    if (inventoryUI and inventoryUI->isOpen())
+    if (auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>(); inventoryUI and inventoryUI->isOpen())
         return;
-    if (craftingUI and craftingUI->isOpen())
+    if (auto* craftingUI = ecsRef->getSystem<CraftingUISystem>(); craftingUI and craftingUI->isOpen())
         return;
-    if (uiCoordinator and uiCoordinator->isAnyOpen())
+    if (auto* uiCoordinator = ecsRef->getSystem<MachineUICoordinator>(); uiCoordinator and uiCoordinator->isAnyOpen())
         return;
-    if (missionUI and missionUI->isOpen())
+    if (auto* missionUI = ecsRef->getSystem<MissionUISystem>(); missionUI and missionUI->isOpen())
         return;
 
     if (event.key == SDL_SCANCODE_R)
@@ -115,13 +120,16 @@ void GameSystem::onProcessEvent(const OnSDLScanCode& event)
     // Debug: T rerolls the canvas with a fresh seed so we can eyeball
     // different procgen outputs. Player-placed buildings are preserved;
     // only terrain entities are destroyed and regenerated.
-    if (event.key == SDL_SCANCODE_T and gridSystem)
+    if (event.key == SDL_SCANCODE_T)
     {
-        std::random_device rd;
-        uint32_t newSeed = rd();
-        if (newSeed == 0) newSeed = static_cast<uint32_t>(std::time(nullptr));
-        LOG_INFO("GameSystem", "debug key T — regenerating terrain with seed " << newSeed);
-        gridSystem->regenerateTerrain(newSeed);
+        if (auto* gridSystem = ecsRef->getSystem<GridSystem>())
+        {
+            std::random_device rd;
+            uint32_t newSeed = rd();
+            if (newSeed == 0) newSeed = static_cast<uint32_t>(std::time(nullptr));
+            LOG_INFO("GameSystem", "debug key T — regenerating terrain with seed " << newSeed);
+            gridSystem->regenerateTerrain(newSeed);
+        }
     }
 }
 
@@ -132,6 +140,14 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
 
     LOG_INFO("GameSystem", "OnMouseClick button=" << static_cast<int>(event.button)
             << " pos=(" << event.pos.x << "," << event.pos.y << ") clickedOnPanel=" << clickedOnPanel);
+
+    auto* machineDemo   = ecsRef->getSystem<MachineDemoSystem>();
+    auto* inventoryUI   = ecsRef->getSystem<InventoryUISystem>();
+    auto* craftingUI    = ecsRef->getSystem<CraftingUISystem>();
+    auto* uiCoordinator = ecsRef->getSystem<MachineUICoordinator>();
+    auto* missionUI     = ecsRef->getSystem<MissionUISystem>();
+    auto* gridSystem    = ecsRef->getSystem<GridSystem>();
+    auto* hotbar        = ecsRef->getSystem<HotbarSystem>();
 
     if (machineDemo and machineDemo->isOpen())
     {
@@ -235,6 +251,9 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
 
 void GameSystem::onProcessEvent(const OnMouseRelease& event)
 {
+    auto* inventoryUI   = ecsRef->getSystem<InventoryUISystem>();
+    auto* craftingUI    = ecsRef->getSystem<CraftingUISystem>();
+    auto* uiCoordinator = ecsRef->getSystem<MachineUICoordinator>();
     if ((inventoryUI and inventoryUI->isOpen())
      or (craftingUI and craftingUI->isOpen())
      or (uiCoordinator and uiCoordinator->isAnyOpen()))
@@ -257,6 +276,9 @@ void GameSystem::onProcessEvent(const OnMouseRelease& event)
 
 void GameSystem::onProcessEvent(const OnSDLMouseMotion& event)
 {
+    auto* inventoryUI   = ecsRef->getSystem<InventoryUISystem>();
+    auto* craftingUI    = ecsRef->getSystem<CraftingUISystem>();
+    auto* uiCoordinator = ecsRef->getSystem<MachineUICoordinator>();
     if ((inventoryUI and inventoryUI->isOpen())
      or (craftingUI and craftingUI->isOpen())
      or (uiCoordinator and uiCoordinator->isAnyOpen()))
@@ -285,7 +307,7 @@ void GameSystem::onProcessEvent(const OnSDLMouseMotion& event)
         rebuildGhostForSelectedBuilding();
 
         // Update mining system: enabled when no building is selected
-        if (manualMining)
+        if (auto* manualMining = ecsRef->getSystem<ManualMiningSystem>())
         {
             LOG_INFO("GameSystem", "manualMining enabled=" << (currentDef == nullptr));
             manualMining->setEnabled(currentDef == nullptr);
@@ -419,6 +441,8 @@ void GameSystem::rebuildGhostForSelectedBuilding()
 
 void GameSystem::updateCursorPosition()
 {
+    auto* cameraSystem = ecsRef->getSystem<CameraSystem>();
+    auto* gridSystem   = ecsRef->getSystem<GridSystem>();
     float mouseX = cameraSystem->getLastMouseX();
     float mouseY = cameraSystem->getLastMouseY();
 
@@ -549,6 +573,7 @@ void GameSystem::updateGhostTexture()
 
 bool GameSystem::canPlaceAt(int gx, int gy, const BuildingDef& def) const
 {
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     auto layer = gridSystem->getBuildingLayer();
     for (int dy = 0; dy < def.getFootprintH(); ++dy)
         for (int dx = 0; dx < def.getFootprintW(); ++dx)
@@ -566,6 +591,8 @@ bool GameSystem::canPlaceAt(int gx, int gy, const BuildingDef& def) const
 
 std::pair<int, int> GameSystem::getMouseGridPos() const
 {
+    auto* cameraSystem = ecsRef->getSystem<CameraSystem>();
+    auto* gridSystem   = ecsRef->getSystem<GridSystem>();
     float mouseX = cameraSystem->getLastMouseX();
     float mouseY = cameraSystem->getLastMouseY();
     auto worldPos = cameraSystem->screenToWorld(mouseX, mouseY);
@@ -577,6 +604,9 @@ void GameSystem::placeAtMouse()
     const auto* def = getSelectedBuildingDef();
     if (not def)
         return;
+
+    auto* hotbar     = ecsRef->getSystem<HotbarSystem>();
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
 
     // Check if hotbar slot has items remaining
     const auto& item = hotbar->getSelectedItem();
@@ -614,6 +644,7 @@ void GameSystem::placeAtMouse()
 void GameSystem::removeAtMouse()
 {
     auto [gridX, gridY] = getMouseGridPos();
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     if (not gridSystem->getGrid().isInBounds(gridX, gridY))
     {
         LOG_INFO("GameSystem", "removeAtMouse: out of bounds (" << gridX << "," << gridY << ")");
@@ -648,9 +679,10 @@ void GameSystem::removeAtMouse()
 
 bool GameSystem::isMouseOverHotbar() const
 {
+    auto* hotbar = ecsRef->getSystem<HotbarSystem>();
     if (not hotbar)
         return false;
-    float mouseY = cameraSystem->getLastMouseY();
+    float mouseY = ecsRef->getSystem<CameraSystem>()->getLastMouseY();
     return hotbar->isMouseOverHotbar(mouseY);
 }
 
@@ -682,7 +714,7 @@ size_t GameSystem::resolveTileIndex(uint8_t enterDir, uint8_t exitDir) const
 void GameSystem::updateDragPathWithMouse()
 {
     auto [cx, cy] = getMouseGridPos();
-    if (not gridSystem->getGrid().isInBounds(cx, cy))
+    if (not ecsRef->getSystem<GridSystem>()->getGrid().isInBounds(cx, cy))
         return;
 
     if (dragPath.empty())
@@ -765,6 +797,7 @@ void GameSystem::updateDragGhosts()
     if (not def)
         return;
 
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     auto& grid = gridSystem->getGrid();
 
     for (size_t i = 0; i < dragPath.size(); ++i)
@@ -848,6 +881,8 @@ void GameSystem::commitDragPath()
     LOG_INFO("GameSystem", "commitDragPath: " << dragPath.size() << " cell(s) to commit");
     clearDragGhosts();
 
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
+    auto* hotbar     = ecsRef->getSystem<HotbarSystem>();
     auto layer = gridSystem->getBuildingLayer();
     const auto* def = getSelectedBuildingDef();
     if (not def)

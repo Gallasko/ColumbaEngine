@@ -98,10 +98,8 @@ public:
         uint64_t arrowEntityId = 0;
     };
 
-    SpotlightOverlaySystem(CameraSystem* cameraSystem,
-                           float screenWidth, float screenHeight)
-        : cameraSystem(cameraSystem),
-          screenWidth(screenWidth),
+    SpotlightOverlaySystem(float screenWidth, float screenHeight)
+        : screenWidth(screenWidth),
           screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override
@@ -150,7 +148,6 @@ private:
     void setEntityXY(uint64_t id, float x, float y);
     void setEntityWH(uint64_t id, float w, float h);
 
-    CameraSystem* cameraSystem = nullptr;
     float screenWidth;
     float screenHeight;
 

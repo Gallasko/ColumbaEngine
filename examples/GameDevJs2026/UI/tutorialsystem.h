@@ -73,26 +73,10 @@ public:
     static constexpr ItemId STONE_PICKAXE_ID = 29;
     static constexpr ItemId FURNACE_ID       = 25;
 
-    TutorialSystem(WorldFacts* worldFacts,
-                   RecipeRegistry* recipeRegistry,
-                   SpotlightOverlaySystem* spotlight,
-                   CameraSystem* cameraSystem,
-                   GridSystem* gridSystem,
-                   PlayerInventorySystem* playerInv,
-                   InventoryUISystem* inventoryUI,
-                   HotbarSystem* hotbar,
-                   HudBarSystem* hudBar,
+    TutorialSystem(RecipeRegistry* recipeRegistry,
                    float screenWidth,
                    float screenHeight)
-        : worldFacts(worldFacts),
-          recipeRegistry(recipeRegistry),
-          spotlight(spotlight),
-          cameraSystem(cameraSystem),
-          gridSystem(gridSystem),
-          playerInv(playerInv),
-          inventoryUI(inventoryUI),
-          hotbar(hotbar),
-          hudBar(hudBar),
+        : recipeRegistry(recipeRegistry),
           screenWidth(screenWidth),
           screenHeight(screenHeight) {}
 
@@ -138,15 +122,7 @@ private:
     template <typename Match>
     std::pair<int, int> findNearestTerrain(const Match& match) const;
 
-    WorldFacts*             worldFacts     = nullptr;
     RecipeRegistry*         recipeRegistry = nullptr;
-    SpotlightOverlaySystem* spotlight      = nullptr;
-    CameraSystem*           cameraSystem   = nullptr;
-    GridSystem*             gridSystem     = nullptr;
-    PlayerInventorySystem*  playerInv      = nullptr;
-    InventoryUISystem*      inventoryUI    = nullptr;
-    HotbarSystem*           hotbar         = nullptr;
-    HudBarSystem*           hudBar         = nullptr;
 
     float screenWidth  = 0.0f;
     float screenHeight = 0.0f;

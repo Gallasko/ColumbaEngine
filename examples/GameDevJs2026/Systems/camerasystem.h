@@ -31,7 +31,6 @@ public:
     CameraSystem(MasterRenderer* masterRenderer, float screenWidth, float screenHeight)
         : masterRenderer(masterRenderer), baseWidth(screenWidth), baseHeight(screenHeight) {}
 
-    void setInventoryUI(InventoryUISystem* inv) { inventoryUI = inv; }
     void setUiCameraEntity(EntityRef entity) { uiCameraEntity = entity; }
 
     virtual std::string getSystemName() const override { return "Camera System"; }
@@ -85,6 +84,5 @@ private:
     bool moveLeft = false;
     bool moveRight = false;
 
-    InventoryUISystem* inventoryUI = nullptr;
     EntityRef uiCameraEntity;
 };

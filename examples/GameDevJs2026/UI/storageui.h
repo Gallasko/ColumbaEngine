@@ -38,12 +38,9 @@ public:
 
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
-    StorageUISystem(StorageSystem* storageSystem, ItemRegistry* itemRegistry,
-                    PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
-                    SlotSystem* slotSystem,
+    StorageUISystem(ItemRegistry* itemRegistry,
                     float screenWidth, float screenHeight)
-        : storageSystem(storageSystem), itemRegistry(itemRegistry),
-          playerInv(playerInv), inventoryUI(inventoryUI), slotSystem(slotSystem),
+        : itemRegistry(itemRegistry),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Storage UI System"; }
@@ -91,11 +88,7 @@ private:
 
     // --- Members ---
 
-    StorageSystem* storageSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
-    PlayerInventorySystem* playerInv = nullptr;
-    InventoryUISystem* inventoryUI = nullptr;
-    SlotSystem* slotSystem = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 

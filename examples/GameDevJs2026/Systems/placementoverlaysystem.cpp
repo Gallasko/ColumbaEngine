@@ -49,7 +49,13 @@ void PlacementOverlaySystem::onProcessEvent(const OnSDLMouseMotion& event)
 
 void PlacementOverlaySystem::onEvent(const TickEvent&)
 {
-    if (not created or not hotbar or not cameraSystem)
+    if (not created)
+        return;
+
+    auto* hotbar       = ecsRef->getSystem<HotbarSystem>();
+    auto* cameraSystem = ecsRef->getSystem<CameraSystem>();
+    auto* gridSystem   = ecsRef->getSystem<GridSystem>();
+    if (not hotbar or not cameraSystem or not gridSystem)
         return;
 
     const BuildingDef* def = hotbar->getSelectedBuildingDef();
@@ -145,6 +151,7 @@ void PlacementOverlaySystem::onEvent(const BuildingRemovedEvent& event)
 bool PlacementOverlaySystem::checkPlacementOK(int gx, int gy,
                                               const BuildingDef& def) const
 {
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     auto layer = gridSystem->getBuildingLayer();
     for (int dy = 0; dy < def.getFootprintH(); ++dy)
     {
@@ -169,6 +176,7 @@ void PlacementOverlaySystem::refreshGhostFootprint(const BuildingDef& def,
     const constant::Vector4D OK_COLOR  {60.0f, 200.0f, 60.0f, 110.0f};
     const constant::Vector4D BAD_COLOR {200.0f, 60.0f, 60.0f, 110.0f};
 
+    auto* gridSystem = ecsRef->getSystem<GridSystem>();
     auto layer = gridSystem->getBuildingLayer();
 
     int fw = def.getFootprintW();

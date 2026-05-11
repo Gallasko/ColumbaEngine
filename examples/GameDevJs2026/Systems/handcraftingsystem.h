@@ -36,12 +36,10 @@ class HandCraftingSystem : public System<InitSys,
 public:
     static constexpr size_t TICK_RESOLUTION_MS = 100;
 
-    HandCraftingSystem(PlayerInventorySystem* playerInv,
-                       ItemRegistry* itemRegistry,
-                       RecipeRegistry* recipeRegistry,
-                       pg::WorldFacts* worldFacts)
-        : playerInv(playerInv), itemRegistry(itemRegistry),
-          recipeRegistry(recipeRegistry), worldFacts(worldFacts) {}
+    HandCraftingSystem(ItemRegistry* itemRegistry,
+                       RecipeRegistry* recipeRegistry)
+        : itemRegistry(itemRegistry),
+          recipeRegistry(recipeRegistry) {}
 
     virtual std::string getSystemName() const override { return "Hand Crafting System"; }
 
@@ -77,10 +75,8 @@ public:
 private:
     void completeCraft();
 
-    PlayerInventorySystem* playerInv = nullptr;
     ItemRegistry* itemRegistry = nullptr;
     RecipeRegistry* recipeRegistry = nullptr;
-    pg::WorldFacts* worldFacts = nullptr;
 
     const Recipe* activeRecipe = nullptr;
     size_t activeRecipeIndex = SIZE_MAX;

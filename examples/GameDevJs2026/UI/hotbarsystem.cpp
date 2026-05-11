@@ -57,6 +57,7 @@ void HotbarSystem::onEvent(const PlayerLoseItemEvent& /*event*/)
 void HotbarSystem::onEvent(const InventoryOpenedEvent&)
 {
     // Enable drag-drop on hotbar slots
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
     {
         auto* sc = slotSystem->getSlotComponent(slotEntityIds[i]);
@@ -68,6 +69,8 @@ void HotbarSystem::onEvent(const InventoryOpenedEvent&)
 void HotbarSystem::onEvent(const InventoryClosedEvent&)
 {
     // Switch to selection-only mode and sync backing data
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
+    auto* playerInv  = ecsRef->getSystem<PlayerInventorySystem>();
     for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
     {
         auto* sc = slotSystem->getSlotComponent(slotEntityIds[i]);
@@ -85,6 +88,7 @@ void HotbarSystem::onProcessEvent(const SlotClickedEvent& event)
     {
         if (event.entityId == slotEntityIds[i])
         {
+            auto* slotSystem = ecsRef->getSystem<SlotSystem>();
             auto* sc = slotSystem->getSlotComponent(slotEntityIds[i]);
 
             if (sc and sc->isNoPickUp() and not slotSystem->hasHeldItem())
@@ -126,7 +130,7 @@ ItemId HotbarSystem::itemAtPosition(float x, float y) const
     if (idx < 0)
         return ITEM_NONE;
 
-    const auto& stack = playerInv->getInventory()
+    const auto& stack = ecsRef->getSystem<PlayerInventorySystem>()->getInventory()
         .getSlot(PlayerInventorySystem::HOTBAR_START + static_cast<size_t>(idx));
 
     return stack.isEmpty() ? ITEM_NONE : stack.id;
@@ -157,6 +161,7 @@ bool HotbarSystem::selectSlotForItem(ItemId id)
 {
     if (id == ITEM_NONE)
         return false;
+    auto* playerInv = ecsRef->getSystem<PlayerInventorySystem>();
     for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
     {
         const auto& stack = playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + i);
@@ -171,6 +176,7 @@ bool HotbarSystem::selectSlotForItem(ItemId id)
 
 void HotbarSystem::consumeSelectedItem(uint16_t count)
 {
+    auto* playerInv = ecsRef->getSystem<PlayerInventorySystem>();
     auto& slot = playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + selectedSlot);
 
     if (slot.isEmpty())
@@ -181,7 +187,7 @@ void HotbarSystem::consumeSelectedItem(uint16_t count)
     else
         slot.count -= count;
 
-    slotSystem->syncSlotVisual(slotEntityIds[selectedSlot], slot);
+    ecsRef->getSystem<SlotSystem>()->syncSlotVisual(slotEntityIds[selectedSlot], slot);
 }
 
 void HotbarSystem::createHotbarUI()
@@ -218,6 +224,7 @@ void HotbarSystem::createHotbarUI()
     cAnchor->setTopMargin(SLOT_PADDING);
 
     // Slots via SlotSystem — NoPickUp by default (inventory starts closed)
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
     {
         float slotLeftMargin = static_cast<float>(i) * (SLOT_SIZE + SLOT_SPACING);
@@ -278,6 +285,8 @@ void HotbarSystem::refreshAllSlots()
 
 void HotbarSystem::syncAllSlots()
 {
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
+    auto* playerInv  = ecsRef->getSystem<PlayerInventorySystem>();
     for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
     {
         const auto& stack = playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + i);
@@ -287,9 +296,9 @@ void HotbarSystem::syncAllSlots()
 
 void HotbarSystem::syncSlotToInventory(size_t index)
 {
-    auto* sc = slotSystem->getSlotComponent(slotEntityIds[index]);
+    auto* sc = ecsRef->getSystem<SlotSystem>()->getSlotComponent(slotEntityIds[index]);
     if (sc)
-        playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + index) = sc->stack;
+        ecsRef->getSystem<PlayerInventorySystem>()->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + index) = sc->stack;
 }
 
 int HotbarSystem::slotAtPosition(float x, float y) const

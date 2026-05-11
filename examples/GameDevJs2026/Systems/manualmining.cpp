@@ -42,6 +42,7 @@ void ManualMiningSystem::onEvent(const InventoryClosedEvent&)
 
 uint8_t ManualMiningSystem::getEquippedToolTier() const
 {
+    auto* hotbar = ecsRef->getSystem<HotbarSystem>();
     if (not hotbar)
         return 0;
     const auto& item = hotbar->getSelectedItem();
@@ -52,6 +53,7 @@ uint8_t ManualMiningSystem::getEquippedToolTier() const
 
 float ManualMiningSystem::getEquippedMiningSpeed() const
 {
+    auto* hotbar = ecsRef->getSystem<HotbarSystem>();
     if (not hotbar)
         return 1.0f;
     const auto& item = hotbar->getSelectedItem();
@@ -100,6 +102,9 @@ void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
     // Skip clicks on hotbar area
     if (event.pos.y > screenHeight - hotbarHeight)
         return;
+
+    auto* cameraSystem = ecsRef->getSystem<CameraSystem>();
+    auto* gridSystem   = ecsRef->getSystem<GridSystem>();
 
     auto worldPos = cameraSystem->screenToWorld(event.pos.x, event.pos.y);
     auto [gx, gy] = gridSystem->getGrid().worldToGrid(worldPos.x, worldPos.y);
@@ -223,7 +228,7 @@ void ManualMiningSystem::updateProgressBar()
     if (targetGridX < 0 or targetGridY < 0)
         return;
 
-    auto [wx, wy] = gridSystem->getGrid().gridToWorld(targetGridX, targetGridY);
+    auto [wx, wy] = ecsRef->getSystem<GridSystem>()->getGrid().gridToWorld(targetGridX, targetGridY);
 
     // Center the bar above the tile
     float tileSize = static_cast<float>(Grid::TILE_SIZE);
@@ -368,7 +373,7 @@ void ManualMiningSystem::playWrongTierAnimation(int gx, int gy)
 {
     cancelErrorAnimation();
 
-    auto [wx, wy] = gridSystem->getGrid().gridToWorld(gx, gy);
+    auto [wx, wy] = ecsRef->getSystem<GridSystem>()->getGrid().gridToWorld(gx, gy);
     float tileSize = static_cast<float>(Grid::TILE_SIZE);
     float barX = wx + (tileSize - BAR_WIDTH) * 0.5f;
     float barY = wy + BAR_OFFSET_Y;

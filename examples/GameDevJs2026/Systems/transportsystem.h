@@ -35,8 +35,8 @@ class TransportSystem : public System<Listener<TickEvent>, Listener<BuildingRemo
 public:
     static constexpr size_t TRANSPORT_TICK_MS = 250;
 
-    TransportSystem(GridSystem* gridSystem, ItemRegistry* itemRegistry)
-        : gridSystem(gridSystem), itemRegistry(itemRegistry) {}
+    TransportSystem(ItemRegistry* itemRegistry)
+        : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Transport System"; }
 
@@ -59,7 +59,7 @@ public:
 
     ItemId peekItem(int x, int y) const
     {
-        if (not gridSystem->getGrid().isInBounds(x, y)) return ITEM_NONE;
+        if (not ecsRef->getSystem<GridSystem>()->getGrid().isInBounds(x, y)) return ITEM_NONE;
         return beltGrid.get(x, y).itemId;
     }
 
@@ -91,7 +91,6 @@ private:
     void destroyItemVisual(int x, int y);
     void moveItemVisual(int fromX, int fromY, int toX, int toY);
 
-    GridSystem* gridSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
 
     BeltItemGrid beltGrid;

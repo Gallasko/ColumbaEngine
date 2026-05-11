@@ -19,8 +19,8 @@ class StorageSystem : public System<Listener<BuildingPlacedEvent>,
                                      SaveSys>
 {
 public:
-    StorageSystem(GridSystem* gridSystem, ItemRegistry* itemRegistry)
-        : gridSystem(gridSystem), itemRegistry(itemRegistry) {}
+    StorageSystem(ItemRegistry* itemRegistry)
+        : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Storage System"; }
 
@@ -41,7 +41,6 @@ private:
     void registerStorage(int x, int y);
     void unregisterStorage(int x, int y);
 
-    GridSystem* gridSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
 
     std::unordered_map<uint32_t, StorageData> storages;

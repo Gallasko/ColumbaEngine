@@ -131,11 +131,9 @@ public:
         static inline const constant::Vector4D TRANSPARENT= {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
-    MissionUISystem(MissionSystem* missionSystem, DepotSystem* depotSystem,
-                    PlayerInventorySystem* playerInv, ItemRegistry* itemRegistry,
+    MissionUISystem(ItemRegistry* itemRegistry,
                     float screenWidth, float screenHeight)
-        : missionSystem(missionSystem), depotSystem(depotSystem),
-          playerInv(playerInv), itemRegistry(itemRegistry),
+        : itemRegistry(itemRegistry),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Mission UI System"; }
@@ -160,8 +158,6 @@ public:
     virtual void onEvent(const ResizeEvent& event) override;
 
     void execute() override;
-
-    void setTooltipSystem(TooltipSystem* tooltip) { tooltipSystem = tooltip; }
 
 private:
     void ensurePanelCreated();
@@ -204,11 +200,7 @@ private:
     void hideDepotSelectionPrompt();
 
     // --- Members ---
-    MissionSystem* missionSystem = nullptr;
-    DepotSystem* depotSystem = nullptr;
-    PlayerInventorySystem* playerInv = nullptr;
     ItemRegistry* itemRegistry = nullptr;
-    TooltipSystem* tooltipSystem = nullptr;
     float screenWidth, screenHeight;
 
     // Icon entity id → currently-displayed ItemId for cost & reward icons.

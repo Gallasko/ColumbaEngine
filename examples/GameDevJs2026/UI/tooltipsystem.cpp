@@ -18,9 +18,9 @@ void TooltipSystem::onProcessEvent(const OnSDLMouseMotion& event)
     cursorY = static_cast<float>(event.y);
 
     // Determine what item (if any) is under the cursor
-    ItemId id = inventoryUI->itemAtPosition(cursorX, cursorY);
+    ItemId id = ecsRef->getSystem<InventoryUISystem>()->itemAtPosition(cursorX, cursorY);
     if (id == ITEM_NONE)
-        id = hotbar->itemAtPosition(cursorX, cursorY);
+        id = ecsRef->getSystem<HotbarSystem>()->itemAtPosition(cursorX, cursorY);
 
     if (id != hoveredItem)
     {
@@ -283,6 +283,7 @@ TooltipSystem::TooltipContent TooltipSystem::buildContent(ItemId id) const
 
     // Determine preferred recipe category based on open machine UI
     std::string preferMachineName; // empty = prefer HandCraft
+    auto* uiCoordinator = ecsRef->getSystem<MachineUICoordinator>();
     if (uiCoordinator and uiCoordinator->isAnyOpen())
         preferMachineName = uiCoordinator->getOpenMachineName();
 

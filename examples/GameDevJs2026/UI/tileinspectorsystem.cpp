@@ -89,7 +89,8 @@ void TileInspectorSystem::init()
         }
     }
 
-    if (hudBar and hudBar->getTicketDisplayEntityId() != 0)
+    if (auto* hudBar = ecsRef->getSystem<HudBarSystem>();
+        hudBar and hudBar->getTicketDisplayEntityId() != 0)
     {
         bdAnchor->setTopAnchor(PosAnchor{hudBar->getTicketDisplayEntityId(),
                                          AnchorType::Bottom});
@@ -132,7 +133,12 @@ void TileInspectorSystem::onProcessEvent(const OnSDLMouseMotion& event)
 
 void TileInspectorSystem::onEvent(const TickEvent&)
 {
-    if (not created or not cameraSystem or not gridSystem)
+    if (not created)
+        return;
+
+    auto* cameraSystem = ecsRef->getSystem<CameraSystem>();
+    auto* gridSystem   = ecsRef->getSystem<GridSystem>();
+    if (not cameraSystem or not gridSystem)
         return;
 
     int gx = -1;
@@ -197,7 +203,7 @@ void TileInspectorSystem::rebuildContent(int gx, int gy)
         return;
     }
 
-    TerrainType t = gridSystem->getTerrainAt(gx, gy);
+    TerrainType t = ecsRef->getSystem<GridSystem>()->getTerrainAt(gx, gy);
     const constant::Vector4D titleColor{255.0f, 235.0f, 180.0f, 255.0f};
     const constant::Vector4D bodyColor {210.0f, 210.0f, 210.0f, 255.0f};
     const constant::Vector4D dimColor  {150.0f, 150.0f, 160.0f, 255.0f};
@@ -225,7 +231,7 @@ void TileInspectorSystem::rebuildContent(int gx, int gy)
     {
         const uint8_t reqTier = terrainTier(t);
         uint8_t equippedTier = 0;
-        if (hotbar)
+        if (auto* hotbar = ecsRef->getSystem<HotbarSystem>())
         {
             const auto& sel = hotbar->getSelectedItem();
             if (not sel.isEmpty())

@@ -40,12 +40,8 @@ public:
     static constexpr size_t FURNACE_ANIM_FRAMES    = 3;
     static constexpr size_t ASSEMBLER_ANIM_FRAMES  = 4;
 
-    CraftingSystem(GridSystem* gridSystem, TransportSystem* transportSystem,
-                   ItemRegistry* itemRegistry, RecipeRegistry* recipeRegistry,
-                   pg::WorldFacts* worldFacts = nullptr)
-        : gridSystem(gridSystem), transportSystem(transportSystem),
-          itemRegistry(itemRegistry), recipeRegistry(recipeRegistry),
-          worldFacts(worldFacts) {}
+    CraftingSystem(ItemRegistry* itemRegistry, RecipeRegistry* recipeRegistry)
+        : itemRegistry(itemRegistry), recipeRegistry(recipeRegistry) {}
 
     virtual std::string getSystemName() const override { return "Crafting System"; }
 
@@ -79,11 +75,8 @@ private:
     // Pull items from belts that point INTO the machine
     void pullFromBelts(MachineData& machine, const Grid& grid, size_t buildingLayer);
 
-    GridSystem* gridSystem = nullptr;
-    TransportSystem* transportSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
     RecipeRegistry* recipeRegistry = nullptr;
-    pg::WorldFacts* worldFacts = nullptr;
 
     std::unordered_map<uint32_t, MachineData> machines;
     size_t tickAccumulator = 0;

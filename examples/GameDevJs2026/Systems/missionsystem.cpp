@@ -127,6 +127,7 @@ bool MissionSystem::isMissionUnlocked(size_t defIndex) const
     if (def.unlockFact.empty())
         return true;
 
+    auto* worldFacts = ecsRef->getSystem<WorldFacts>();
     return worldFacts and worldFacts->getFact<bool>(def.unlockFact);
 }
 
@@ -153,7 +154,7 @@ bool MissionSystem::startMission(size_t defIndex, int depotX, int depotY)
     const auto& def = missionRegistry->get(defIndex);
 
     // Find depot — block if depot already has an active mission
-    DepotData* depot = depotSystem->getDepot(depotX, depotY);
+    DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(depotX, depotY);
     if (not depot)
         return false;
     if (hasActiveMissionAtDepot(depotX, depotY))
@@ -190,7 +191,7 @@ bool MissionSystem::claimMission(size_t activeIndex)
     const auto& def = missionRegistry->get(m.defIndex);
 
     // For delivery missions, consume required items from depot (unless flagged to keep)
-    DepotData* depot = depotSystem->getDepot(m.depotX, m.depotY);
+    DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(m.depotX, m.depotY);
     if (def.isDeliveryMission() and def.consumeItems and depot)
     {
         for (const auto& req : def.deliveryRequirements)
@@ -210,6 +211,7 @@ bool MissionSystem::claimMission(size_t activeIndex)
     }
 
     // Set completion fact for tier gating
+    auto* worldFacts = ecsRef->getSystem<WorldFacts>();
     if (not def.completionFact.empty() and worldFacts)
         worldFacts->setFact(def.completionFact, true);
 
@@ -225,7 +227,7 @@ void MissionSystem::autoClaimAndRestart(ActiveMission& m)
     const auto& def = missionRegistry->get(m.defIndex);
 
     // Consume delivered items from depot
-    DepotData* depot = depotSystem->getDepot(m.depotX, m.depotY);
+    DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(m.depotX, m.depotY);
     if (def.isDeliveryMission() and depot)
     {
         for (const auto& req : def.deliveryRequirements)
@@ -245,6 +247,7 @@ void MissionSystem::autoClaimAndRestart(ActiveMission& m)
     }
 
     // Set completion fact
+    auto* worldFacts = ecsRef->getSystem<WorldFacts>();
     if (not def.completionFact.empty() and worldFacts)
         worldFacts->setFact(def.completionFact, true);
 
@@ -263,7 +266,7 @@ void MissionSystem::purchaseExtraSlot()
 
 uint16_t MissionSystem::getDeliveryCount(const ActiveMission& m, const DeliveryRequirement& req) const
 {
-    DepotData* depot = depotSystem->getDepot(m.depotX, m.depotY);
+    DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(m.depotX, m.depotY);
     if (not depot)
         return 0;
     return std::min(depot->inventory.countItem(req.itemId), req.count);
@@ -291,6 +294,7 @@ float MissionSystem::getDeliveryProgress(const ActiveMission& m) const
 
 bool MissionSystem::canValidateMainMission(size_t defIndex) const
 {
+    auto* playerInv = ecsRef->getSystem<PlayerInventorySystem>();
     if (defIndex >= missionRegistry->count() or not playerInv)
         return false;
 
@@ -320,6 +324,7 @@ bool MissionSystem::validateMainMission(size_t defIndex)
     // Consume items from player inventory (unless flagged to keep)
     if (def.consumeItems)
     {
+        auto* playerInv = ecsRef->getSystem<PlayerInventorySystem>();
         for (const auto& req : def.deliveryRequirements)
             playerInv->getInventory().remove(req.itemId, req.count);
     }
@@ -329,6 +334,7 @@ bool MissionSystem::validateMainMission(size_t defIndex)
         sendEvent(PlayerGainItemEvent{reward.itemId, reward.count});
 
     // Set completion fact
+    auto* worldFacts = ecsRef->getSystem<WorldFacts>();
     if (not def.completionFact.empty() and worldFacts)
         worldFacts->setFact(def.completionFact, true);
 
@@ -343,6 +349,7 @@ bool MissionSystem::isMissionCompleted(size_t defIndex) const
     const auto& def = missionRegistry->get(defIndex);
     if (def.completionFact.empty())
         return false;
+    auto* worldFacts = ecsRef->getSystem<WorldFacts>();
     return worldFacts and worldFacts->getFact<bool>(def.completionFact);
 }
 

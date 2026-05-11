@@ -279,14 +279,12 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* worldFacts = ecs.createSystem<WorldFacts>();
 
         // Inventory and crafting systems (must come after GridSystem)
-        auto* transportSystem = ecs.createSystem<TransportSystem>(gridSystem, &itemRegistry);
-        auto* craftingSystem = ecs.createSystem<CraftingSystem>(
-            gridSystem, transportSystem, &itemRegistry, &recipeRegistry, worldFacts);
-        auto* minerSystem = ecs.createSystem<MinerSystem>(gridSystem, transportSystem, &itemRegistry);
-        auto* storageSystem = ecs.createSystem<StorageSystem>(gridSystem, &itemRegistry);
-        auto* depotSystem = ecs.createSystem<DepotSystem>(gridSystem, &itemRegistry);
-        ecs.createSystem<InserterSystem>(
-            gridSystem, transportSystem, minerSystem, craftingSystem, storageSystem, depotSystem, &itemRegistry);
+        auto* transportSystem = ecs.createSystem<TransportSystem>(&itemRegistry);
+        auto* craftingSystem = ecs.createSystem<CraftingSystem>(&itemRegistry, &recipeRegistry);
+        auto* minerSystem = ecs.createSystem<MinerSystem>(&itemRegistry);
+        auto* storageSystem = ecs.createSystem<StorageSystem>(&itemRegistry);
+        auto* depotSystem = ecs.createSystem<DepotSystem>(&itemRegistry);
+        ecs.createSystem<InserterSystem>(&itemRegistry);
         // GameDataView — engine-side key/value store that bridges game state
         // and UI. Must exist before any system that publishes to it (player
         // inventory, mission, etc.) so their init() can subscribe/publish.
@@ -312,42 +310,29 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         }
         cameraSystem->setUiCameraEntity(uiCam);
 
-        auto* hotbar = ecs.createSystem<HotbarSystem>(
-            playerInvSystem, &itemRegistry, &registry, slotSystem, screenW, screenH);
+        ecs.createSystem<HotbarSystem>(&itemRegistry, &registry, screenW, screenH);
 
-        auto* inventoryUI = ecs.createSystem<InventoryUISystem>(
-            playerInvSystem, &itemRegistry, slotSystem, screenW, screenH);
+        ecs.createSystem<InventoryUISystem>(&itemRegistry, screenW, screenH);
 
-        cameraSystem->setInventoryUI(inventoryUI);
-
-        auto* minerUI = ecs.createSystem<MinerUISystem>(
-            minerSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
+        auto* minerUI = ecs.createSystem<MinerUISystem>(&itemRegistry, screenW, screenH);
 
         auto* furnaceUI   = ecs.createSystem<FurnaceUI>(&itemRegistry, screenW, screenH);
         auto* assemblerUI = ecs.createSystem<AssemblerUI>(&itemRegistry, screenW, screenH);
 
-        auto* storageUI = ecs.createSystem<StorageUISystem>(
-            storageSystem, &itemRegistry, playerInvSystem, inventoryUI, slotSystem, screenW, screenH);
+        auto* storageUI = ecs.createSystem<StorageUISystem>(&itemRegistry, screenW, screenH);
 
         // MissionSystem must exist before DepotUI (depot panel shows mission section)
-        auto* missionSystem = ecs.createSystem<MissionSystem>(&missionRegistry, depotSystem, worldFacts, playerInvSystem, &itemRegistry);
+        ecs.createSystem<MissionSystem>(&missionRegistry, &itemRegistry);
 
-        auto* depotUI = ecs.createSystem<DepotUISystem>(
-            depotSystem, &itemRegistry, playerInvSystem, inventoryUI,
-            slotSystem, missionSystem, screenW, screenH);
+        auto* depotUI = ecs.createSystem<DepotUISystem>(&itemRegistry, screenW, screenH);
 
-        auto* handCrafting = ecs.createSystem<HandCraftingSystem>(
-            playerInvSystem, &itemRegistry, &recipeRegistry, worldFacts);
+        ecs.createSystem<HandCraftingSystem>(&itemRegistry, &recipeRegistry);
 
-        auto* craftingUI = ecs.createSystem<CraftingUISystem>(
-            handCrafting, &recipeRegistry, &itemRegistry, playerInvSystem,
-            worldFacts, inventoryUI, screenW, screenH);
-
-        depotUI->setCraftingUI(craftingUI);
+        ecs.createSystem<CraftingUISystem>(&recipeRegistry, &itemRegistry, screenW, screenH);
 
         // Coordinator owns the per-machine UI registry. Adding a new machine
         // type = implement IMachineUI + a single registerUI() call below.
-        auto* uiCoordinator = ecs.createSystem<MachineUICoordinator>(inventoryUI, craftingUI);
+        auto* uiCoordinator = ecs.createSystem<MachineUICoordinator>();
         uiCoordinator->registerUI("Miner",     minerUI);
         uiCoordinator->registerUI("Furnace",   furnaceUI);
         uiCoordinator->registerUI("Assembler", assemblerUI);
@@ -356,49 +341,32 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<TweenSystem>();
 
-        auto* manualMining = ecs.createSystem<ManualMiningSystem>(
-            gridSystem, cameraSystem, playerInvSystem, &itemRegistry, hotbar, screenW, screenH);
+        ecs.createSystem<ManualMiningSystem>(&itemRegistry, screenW, screenH);
 
-        auto* tooltipSystem = ecs.createSystem<TooltipSystem>(
-            inventoryUI, hotbar, uiCoordinator, playerInvSystem,
-            &itemRegistry, &recipeRegistry, screenW, screenH);
+        ecs.createSystem<TooltipSystem>(&itemRegistry, &recipeRegistry, screenW, screenH);
 
-        auto* spotlightOverlay = ecs.createSystem<SpotlightOverlaySystem>(
-            cameraSystem, screenW, screenH);
+        ecs.createSystem<SpotlightOverlaySystem>(screenW, screenH);
 
-        ecs.createSystem<PlacementOverlaySystem>(
-            gridSystem, hotbar, cameraSystem, screenW, screenH);
+        ecs.createSystem<PlacementOverlaySystem>(screenW, screenH);
 
-        auto* machineDemo = ecs.createSystem<MachineDemoSystem>(
-            &registry, &itemRegistry, screenW, screenH);
+        ecs.createSystem<MachineDemoSystem>(&registry, &itemRegistry, screenW, screenH);
 
-        craftingUI->setMachineDemo(machineDemo);
-
-        auto* missionUI = ecs.createSystem<MissionUISystem>(
-            missionSystem, depotSystem, playerInvSystem, &itemRegistry, screenW, screenH);
-        missionUI->setTooltipSystem(tooltipSystem);
+        ecs.createSystem<MissionUISystem>(&itemRegistry, screenW, screenH);
 
         // HudBar must be created BEFORE GameSystem so that its queued
         // OnMouseClick handler runs first — GameSystem's click-outside
         // handler then sees the post-toggle UI state and won't immediately
         // close a panel that the HUD button just opened.
-        auto* hudBar = ecs.createSystem<HudBarSystem>(worldFacts, missionSystem, screenW, screenH);
+        auto* hudBar = ecs.createSystem<HudBarSystem>(screenW, screenH);
 
-        ecs.createSystem<TileInspectorSystem>(
-            cameraSystem, gridSystem, hotbar, hudBar,
-            &itemRegistry, &recipeRegistry,
-            screenW, screenH);
+        ecs.createSystem<TileInspectorSystem>(&itemRegistry, &recipeRegistry, screenW, screenH);
 
-        ecs.createSystem<TutorialSystem>(
-            worldFacts, &recipeRegistry, spotlightOverlay,
-            cameraSystem, gridSystem,
-            playerInvSystem, inventoryUI, hotbar, hudBar,
-            screenW, screenH);
+        ecs.createSystem<TutorialSystem>(&recipeRegistry, screenW, screenH);
 
         ecs.createSystem<AutoSaveSystem>();
         ecs.createSystem<AnalyticsSystem>();
 
-        auto* gameSystem = ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, craftingUI, manualMining, uiCoordinator, machineDemo, missionUI, worldFacts);
+        auto* gameSystem = ecs.createSystem<GameSystem>(&registry, &itemRegistry);
 
         // Callbacks routed through GameSystem so it can enforce UI group
         // exclusivity (closing inventory/companions when mission opens, and

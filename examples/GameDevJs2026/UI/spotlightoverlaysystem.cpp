@@ -308,6 +308,7 @@ bool SpotlightOverlaySystem::resolveTargetRect(float& sx, float& sy,
 
         case TargetKind::WorldTile:
         {
+            auto* cameraSystem = ecsRef->getSystem<CameraSystem>();
             if (not cameraSystem)
                 return false;
             auto camEnt = cameraSystem->getCameraEntity();

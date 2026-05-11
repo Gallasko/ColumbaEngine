@@ -26,8 +26,8 @@ enum class UIPanel { None, InventoryGroup, Mission };
 class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>, Listener<PanelWasClickedEvent>>
 {
 public:
-    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, HotbarSystem* hotbar, BuildingRegistry* registry, ItemRegistry* itemRegistry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, CraftingUISystem* craftingUI = nullptr, ManualMiningSystem* manualMining = nullptr, MachineUICoordinator* uiCoordinator = nullptr, MachineDemoSystem* machineDemo = nullptr, MissionUISystem* missionUI = nullptr, WorldFacts* worldFacts = nullptr)
-        : gridSystem(gridSystem), cameraSystem(cameraSystem), hotbar(hotbar), registry(registry), itemRegistry(itemRegistry), transportSystem(transportSystem), inventoryUI(inventoryUI), craftingUI(craftingUI), manualMining(manualMining), uiCoordinator(uiCoordinator), machineDemo(machineDemo), missionUI(missionUI), worldFacts(worldFacts) {}
+    GameSystem(BuildingRegistry* registry, ItemRegistry* itemRegistry)
+        : registry(registry), itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Game System"; }
 
@@ -69,6 +69,7 @@ private:
     // Returns the BuildingDef for the current hotbar selection, or nullptr
     const BuildingDef* getSelectedBuildingDef() const
     {
+        auto* hotbar = ecsRef->getSystem<HotbarSystem>();
         return hotbar ? hotbar->getSelectedBuildingDef() : nullptr;
     }
 
@@ -101,19 +102,8 @@ private:
 
     // --- Members ---
 
-    GridSystem* gridSystem = nullptr;
-    CameraSystem* cameraSystem = nullptr;
-    HotbarSystem* hotbar = nullptr;
     BuildingRegistry* registry = nullptr;
     ItemRegistry* itemRegistry = nullptr;
-    TransportSystem* transportSystem = nullptr;
-    InventoryUISystem* inventoryUI = nullptr;
-    CraftingUISystem* craftingUI = nullptr;
-    ManualMiningSystem* manualMining = nullptr;
-    MachineUICoordinator* uiCoordinator = nullptr;
-    MachineDemoSystem* machineDemo = nullptr;
-    MissionUISystem* missionUI = nullptr;
-    WorldFacts* worldFacts = nullptr;
 
     bool panelClickedThisFrame = false;
     size_t currentDirection = 0; // 0=Right, 1=Down, 2=Left, 3=Up

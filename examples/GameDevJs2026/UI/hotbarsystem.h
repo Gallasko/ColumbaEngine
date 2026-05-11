@@ -36,11 +36,9 @@ public:
 
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
-    HotbarSystem(PlayerInventorySystem* playerInv, ItemRegistry* itemRegistry,
-                 BuildingRegistry* buildingRegistry, SlotSystem* slotSystem,
+    HotbarSystem(ItemRegistry* itemRegistry, BuildingRegistry* buildingRegistry,
                  float screenWidth, float screenHeight)
-        : playerInv(playerInv), itemRegistry(itemRegistry),
-          buildingRegistry(buildingRegistry), slotSystem(slotSystem),
+        : itemRegistry(itemRegistry), buildingRegistry(buildingRegistry),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Hotbar System"; }
@@ -63,7 +61,7 @@ public:
 
     const ItemStack& getSelectedItem() const
     {
-        return playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + selectedSlot);
+        return ecsRef->getSystem<PlayerInventorySystem>()->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + selectedSlot);
     }
 
     // Returns the BuildingDef for the selected item, or nullptr if not a building
@@ -111,7 +109,7 @@ public:
     // Drag-swap: called by external code for cross-panel transfers
     ItemStack& getHotbarSlot(size_t index)
     {
-        return playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + index);
+        return ecsRef->getSystem<PlayerInventorySystem>()->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + index);
     }
 
     // Select the first hotbar slot containing the given item id. Returns true
@@ -129,10 +127,8 @@ private:
     int slotAtPosition(float x, float y) const;
 
     // Members
-    PlayerInventorySystem* playerInv = nullptr;
     ItemRegistry* itemRegistry = nullptr;
     BuildingRegistry* buildingRegistry = nullptr;
-    SlotSystem* slotSystem = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 

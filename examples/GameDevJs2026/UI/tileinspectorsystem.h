@@ -50,18 +50,10 @@ public:
     static constexpr const char* FONT_PATH =
         "res/font/Inter/static/Inter_28pt-Light.ttf";
 
-    TileInspectorSystem(CameraSystem* cameraSystem,
-                        GridSystem* gridSystem,
-                        HotbarSystem* hotbar,
-                        HudBarSystem* hudBar,
-                        ItemRegistry* itemRegistry,
+    TileInspectorSystem(ItemRegistry* itemRegistry,
                         RecipeRegistry* recipeRegistry,
                         float screenWidth, float screenHeight)
-        : cameraSystem(cameraSystem),
-          gridSystem(gridSystem),
-          hotbar(hotbar),
-          hudBar(hudBar),
-          itemRegistry(itemRegistry),
+        : itemRegistry(itemRegistry),
           recipeRegistry(recipeRegistry),
           screenWidth(screenWidth),
           screenHeight(screenHeight) {}
@@ -84,10 +76,6 @@ private:
     void setLine(int idx, const std::string& text,
                  const constant::Vector4D& color, bool show);
 
-    CameraSystem*   cameraSystem    = nullptr;
-    GridSystem*     gridSystem      = nullptr;
-    HotbarSystem*   hotbar          = nullptr;
-    HudBarSystem*   hudBar          = nullptr;
     ItemRegistry*   itemRegistry    = nullptr;
     RecipeRegistry* recipeRegistry  = nullptr;
 

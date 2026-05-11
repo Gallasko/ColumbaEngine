@@ -60,6 +60,7 @@ void MissionUISystem::open()
         filteredDefs.clear();
 
     selectedDefIndex = SIZE_MAX;
+    auto* missionSystem = ecsRef->getSystem<MissionSystem>();
     for (size_t i = 0; i < filteredDefs.size(); ++i)
     {
         if (missionSystem->isMissionUnlocked(filteredDefs[i]) and
@@ -225,10 +226,12 @@ void MissionUISystem::onProcessEvent(const OnMouseClick& event)
     // Right column: action button click
     if (hitEntity(ecsRef, actionBtnBgId, mx, my))
     {
+        auto* missionSystem = ecsRef->getSystem<MissionSystem>();
         if (currentTab == 2)
         {
             // Shop buy
             uint32_t cost = static_cast<uint32_t>(missionSystem->getExtraSlotCost());
+            auto* playerInv = ecsRef->getSystem<PlayerInventorySystem>();
             if (playerInv and playerInv->spendTickets(cost))
                 missionSystem->purchaseExtraSlot();
             return;
@@ -295,6 +298,7 @@ void MissionUISystem::switchTab(size_t tab)
 
     // Auto-select first actionable mission
     selectedDefIndex = SIZE_MAX;
+    auto* missionSystem = ecsRef->getSystem<MissionSystem>();
     for (size_t i = 0; i < filteredDefs.size(); ++i)
     {
         if (missionSystem->isMissionUnlocked(filteredDefs[i]) and
@@ -322,7 +326,7 @@ void MissionUISystem::selectMission(size_t defIndex)
 std::vector<size_t> MissionUISystem::getFilteredDefs(MissionCategory cat) const
 {
     std::vector<size_t> result;
-    const auto& defs = missionSystem->getDefs();
+    const auto& defs = ecsRef->getSystem<MissionSystem>()->getDefs();
     for (size_t i = 0; i < defs.size(); ++i)
     {
         if (defs[i].category == cat)
@@ -337,6 +341,8 @@ std::vector<size_t> MissionUISystem::getFilteredDefs(MissionCategory cat) const
 
 void MissionUISystem::tryStartWithFirstAvailableDepot(size_t defIndex)
 {
+    auto* missionSystem = ecsRef->getSystem<MissionSystem>();
+    auto* depotSystem   = ecsRef->getSystem<DepotSystem>();
     const auto& def = missionSystem->getDefs()[defIndex];
     const auto& depots = depotSystem->getAllDepots();
 
@@ -1058,6 +1064,7 @@ void MissionUISystem::refresh()
 
 void MissionUISystem::refreshLeftColumn()
 {
+    auto* missionSystem = ecsRef->getSystem<MissionSystem>();
     const auto& defs = missionSystem->getDefs();
     bool isShopTab = (currentTab == 2);
 
@@ -1184,6 +1191,7 @@ void MissionUISystem::refreshRightColumn()
 {
     iconItemMap.clear();
 
+    auto* missionSystem = ecsRef->getSystem<MissionSystem>();
     const auto& defs = missionSystem->getDefs();
     const auto& active = missionSystem->getActive();
     bool isShopTab = (currentTab == 2);

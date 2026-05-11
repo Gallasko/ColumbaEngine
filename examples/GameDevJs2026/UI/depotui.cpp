@@ -35,6 +35,9 @@ void DepotUISystem::open(int gridX, int gridY)
     visible = true;
     depotDataSeenThisOpen = false;
 
+    auto* craftingUI  = ecsRef->getSystem<CraftingUISystem>();
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
+
     // Suppress crafting UI BEFORE opening inventory (prevents auto-open via InventoryOpenedEvent)
     if (craftingUI)
         craftingUI->setSuppressed(true);
@@ -56,11 +59,12 @@ void DepotUISystem::close()
     if (not visible)
         return;
 
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     if (slotSystem->hasHeldItem())
         slotSystem->cancelHeld();
 
     // Sync all slots back to depot
-    DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
+    DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(openDepotX, openDepotY);
     if (depot)
     {
         for (size_t i = 0; i < NUM_SLOTS; ++i)
@@ -75,13 +79,14 @@ void DepotUISystem::close()
     openDepotY = -1;
     depotDataSeenThisOpen = false;
 
-    if (craftingUI)
+    if (auto* craftingUI = ecsRef->getSystem<CraftingUISystem>())
         craftingUI->setSuppressed(false);
 
     // Close the companion inventory we opened in open(). closeInventory is
     // idempotent and cascades to crafting via InventoryClosedEvent. The
     // visible-guard at the top of this function prevents the cascade from
     // re-entering close().
+    auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>();
     if (inventoryUI and inventoryUI->isOpen())
         inventoryUI->closeInventory();
 }
@@ -107,7 +112,7 @@ void DepotUISystem::onProcessEvent(const TickEvent&)
 {
     if (not visible) return;
 
-    DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
+    DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(openDepotX, openDepotY);
     if (not depot)
     {
         // Auto-close on missing data is intended to handle "depot destroyed
@@ -180,6 +185,8 @@ void DepotUISystem::onProcessEvent(const OnMouseClick& event)
 
     float mx = event.pos.x;
     float my = event.pos.y;
+
+    auto* missionSystem = ecsRef->getSystem<MissionSystem>();
 
     // Mission section: CLAIM button for active mission
     if (missionSystem->hasActiveMissionAtDepot(openDepotX, openDepotY))
@@ -293,7 +300,7 @@ void DepotUISystem::createPanel()
 
     // Anchor target: depot panel sits left of the inventory panel.
     uint64_t invPanelId = 0;
-    if (inventoryUI)
+    if (auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>())
         invPanelId = inventoryUI->getBackdropEntityId();
     uint64_t leftAnchorTargetId = invPanelId;
     if (leftAnchorTargetId == 0)
@@ -341,6 +348,7 @@ void DepotUISystem::createPanel()
     }
 
     // Input slots
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     for (size_t i = 0; i < NUM_SLOTS; ++i)
     {
         size_t col = i % COLS;
@@ -425,10 +433,11 @@ void DepotUISystem::createPanel()
 
 void DepotUISystem::syncAllSlots()
 {
-    DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
+    DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(openDepotX, openDepotY);
 
     if (depot)
     {
+        auto* slotSystem = ecsRef->getSystem<SlotSystem>();
         for (size_t i = 0; i < NUM_SLOTS; ++i)
             slotSystem->syncSlotVisual(inputSlotEntityIds[i], depot->inventory.getSlot(i));
 
@@ -436,7 +445,7 @@ void DepotUISystem::syncAllSlots()
             slotSystem->syncSlotVisual(outputSlotEntityIds[i], depot->output.getSlot(i));
     }
 
-    // Mission section is queried via missionSystem by depot coords, so it
+    // Mission section is queried via MissionSystem by depot coords, so it
     // works even if depot data isn't registered yet (e.g. first frame after
     // placement, before BuildingPlacedEvent has been dispatched).
     refreshMissionSection();
@@ -444,10 +453,11 @@ void DepotUISystem::syncAllSlots()
 
 void DepotUISystem::syncSlotToDepot(size_t slotIndex, bool isInput)
 {
-    DepotData* depot = depotSystem->getDepot(openDepotX, openDepotY);
+    DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(openDepotX, openDepotY);
     if (not depot)
         return;
 
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     if (isInput)
     {
         auto* sc = slotSystem->getSlotComponent(inputSlotEntityIds[slotIndex]);
@@ -640,6 +650,7 @@ void DepotUISystem::createMissionSection()
 
 void DepotUISystem::refreshMissionSection()
 {
+    auto* missionSystem = ecsRef->getSystem<MissionSystem>();
     if (not missionSystem)
         return;
 

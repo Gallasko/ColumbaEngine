@@ -36,12 +36,8 @@ public:
     static constexpr int MAX_FOOTPRINT_SIDE = 4;
     static constexpr int OVERLAY_POOL_SIZE  = MAX_FOOTPRINT_SIDE * MAX_FOOTPRINT_SIDE;
 
-    PlacementOverlaySystem(GridSystem* gridSystem, HotbarSystem* hotbar,
-                           CameraSystem* cameraSystem,
-                           float screenWidth, float screenHeight)
-        : gridSystem(gridSystem), hotbar(hotbar),
-          cameraSystem(cameraSystem),
-          screenWidth(screenWidth), screenHeight(screenHeight) {}
+    PlacementOverlaySystem(float screenWidth, float screenHeight)
+        : screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override
         { return "Placement Overlay System"; }
@@ -59,10 +55,6 @@ private:
     bool checkPlacementOK(int gx, int gy, const BuildingDef& def) const;
     void refreshGhostFootprint(const BuildingDef& def, int gx, int gy);
     void hideAll();
-
-    GridSystem*   gridSystem   = nullptr;
-    HotbarSystem* hotbar       = nullptr;
-    CameraSystem* cameraSystem = nullptr;
 
     float screenWidth  = 0.0f;
     float screenHeight = 0.0f;
