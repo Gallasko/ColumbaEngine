@@ -6,8 +6,10 @@
 #include "UI/ttftext.h"
 #include "UI/prefab.h"
 #include "UI/prefabfactory.h"
+#include "Systems/coresystems.h"
 
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 
@@ -122,23 +124,53 @@ namespace
         }
     }
 
-    void applyAnchorsToEntity(EntityRef ent, const NodeSpec& node,
+    // Three-tier resolution: explicit id -> local sibling scope -> global EntityNameSystem.
+    EntityRef resolveByIdOrName(EntitySystem* ecs, _unique_id targetId, const std::string& targetName,
+                                const std::unordered_map<std::string, EntityRef>& scope)
+    {
+        if (targetId != 0)
+            return ecs->getEntity(targetId);
+
+        if (not targetName.empty())
+        {
+            auto it = scope.find(targetName);
+            if (it != scope.end())
+                return it->second;
+
+            if (auto* names = ecs->getSystem<EntityNameSystem>())
+            {
+                const _unique_id id = names->getEntityId(targetName);
+                if (id != 0)
+                    return ecs->getEntity(id);
+            }
+        }
+
+        return EntityRef{};
+    }
+
+    void applyAnchorsToEntity(EntityRef ent,
+                              const std::vector<AnchorSpec>&   anchors,
+                              const std::vector<CenterInSpec>& centerIn,
                               std::unordered_map<std::string, EntityRef>& nameToEntity)
     {
         if (not ent or not ent->has<UiAnchor>())
             return;
 
+        auto* ecs = ent.ecsRef;
         auto anchor = ent->get<UiAnchor>();
 
-        for (const auto& a : node.anchors)
+        for (const auto& a : anchors)
         {
-            auto it = nameToEntity.find(a.target);
-            if (it == nameToEntity.end())
+            // Empty target (no id, no name) means the caller left this anchor unspecified — skip silently.
+            if (a.targetId == 0 and a.target.empty())
+                continue;
+
+            EntityRef target = resolveByIdOrName(ecs, a.targetId, a.target, nameToEntity);
+            if (not target)
             {
-                LOG_ERROR("Prefab Builder", "Anchor target not found: '" << a.target << "'");
+                LOG_ERROR("Prefab Builder", "Anchor target not found: id=" << a.targetId << " name='" << a.target << "'");
                 continue;
             }
-            auto target = it->second;
             if (not target->has<UiAnchor>())
                 continue;
 
@@ -175,17 +207,17 @@ namespace
             }
         }
 
-        for (const auto& c : node.centerIn)
+        for (const auto& c : centerIn)
         {
-            auto it = nameToEntity.find(c.target);
+            if (c.targetId == 0 and c.target.empty())
+                continue;
 
-            if (it == nameToEntity.end())
+            EntityRef target = resolveByIdOrName(ecs, c.targetId, c.target, nameToEntity);
+            if (not target)
             {
-                LOG_ERROR("Prefab Builder", "centeredIn target not found: '" << c.target << "'");
+                LOG_ERROR("Prefab Builder", "centeredIn target not found: id=" << c.targetId << " name='" << c.target << "'");
                 continue;
             }
-
-            auto target = it->second;
             if (target->has<UiAnchor>())
                 anchor->centeredIn(target->get<UiAnchor>());
         }
@@ -238,28 +270,65 @@ EntityRef buildPrefab(EntitySystem* ecs, const PrefabSpec& spec)
         }
     }
 
-    std::vector<std::pair<EntityRef, const NodeSpec*>> built;
+    struct BuiltChild
+    {
+        EntityRef ent;
+        const std::vector<AnchorSpec>*   anchors;
+        const std::vector<CenterInSpec>* centerIn;
+    };
+    std::vector<BuiltChild> built;
     built.reserve(spec.children.size());
+
+    auto registerNamed = [&](EntityRef ent, const std::string& name) {
+        if (name == RESERVED_MAIN or name == RESERVED_PARENT)
+        {
+            LOG_ERROR("Prefab Builder", "Reserved name used for child: '" << name << "'");
+            prefab->addToPrefab(ent);
+            return;
+        }
+        if (not name.empty())
+        {
+            if (nameToEntity.count(name))
+                LOG_ERROR("Prefab Builder", "Name collision: '" << name << "'");
+            prefab->addToPrefab(ent, name);
+            nameToEntity[name] = ent;
+        }
+        else
+        {
+            prefab->addToPrefab(ent);
+        }
+    };
 
     for (const auto& child : spec.children)
     {
-        auto ent = buildNode(ecs, child);
-        if (not ent)
-            continue;
+        std::visit([&](const auto& c) {
+            using T = std::decay_t<decltype(c)>;
+            EntityRef ent;
+            if constexpr (std::is_same_v<T, NodeSpec>)
+            {
+                ent = buildNode(ecs, c);
+            }
+            else  // PrefabSpec
+            {
+                ent = buildPrefab(ecs, c);
+            }
+            if (not ent)
+                return;
 
-        prefab->addToPrefab(ent, child.name);
-
-        if (not child.name.empty())
-            nameToEntity[child.name] = ent;
-
-        built.push_back({ent, &child});
+            registerNamed(ent, c.name);
+            built.push_back({ent, &c.anchors, &c.centerIn});
+        }, child);
     }
 
     if (mainEnt)
-        applyAnchorsToEntity(mainEnt, spec.mainNode, nameToEntity);
+        applyAnchorsToEntity(mainEnt, spec.mainNode.anchors, spec.mainNode.centerIn, nameToEntity);
 
-    for (auto& kv : built)
-        applyAnchorsToEntity(kv.first, *kv.second, nameToEntity);
+    for (auto& b : built)
+        applyAnchorsToEntity(b.ent, *b.anchors, *b.centerIn, nameToEntity);
+
+    // Root-level anchors / centerIn — applied to the container itself. Targets are looked up
+    // first in the local scope (the prefab's own named children), then in the global EntityNameSystem.
+    applyAnchorsToEntity(container.entity, spec.anchors, spec.centerIn, nameToEntity);
 
     return container.entity;
 }
