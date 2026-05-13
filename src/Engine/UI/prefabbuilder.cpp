@@ -114,13 +114,15 @@ namespace
     {
         switch (side)
         {
-            case AnchorType::Top:    return a->top;
-            case AnchorType::Bottom: return a->bottom;
-            case AnchorType::Left:   return a->left;
-            case AnchorType::Right:  return a->right;
-            case AnchorType::Width:  return PosAnchor{id, AnchorType::Width};
-            case AnchorType::Height: return PosAnchor{id, AnchorType::Height};
-            default:                 return PosAnchor{};
+            case AnchorType::Top:              return a->top;
+            case AnchorType::Bottom:           return a->bottom;
+            case AnchorType::Left:             return a->left;
+            case AnchorType::Right:            return a->right;
+            case AnchorType::Width:            return PosAnchor{id, AnchorType::Width};
+            case AnchorType::Height:           return PosAnchor{id, AnchorType::Height};
+            case AnchorType::VerticalCenter:   return PosAnchor{id, AnchorType::VerticalCenter};
+            case AnchorType::HorizontalCenter: return PosAnchor{id, AnchorType::HorizontalCenter};
+            default:                           return PosAnchor{};
         }
     }
 
@@ -149,8 +151,7 @@ namespace
     }
 
     void applyAnchorsToEntity(EntityRef ent,
-                              const std::vector<AnchorSpec>&   anchors,
-                              const std::vector<CenterInSpec>& centerIn,
+                              const std::vector<AnchorSpec>& anchors,
                               std::unordered_map<std::string, EntityRef>& nameToEntity)
     {
         if (not ent or not ent->has<UiAnchor>())
@@ -161,7 +162,7 @@ namespace
 
         for (const auto& a : anchors)
         {
-            // Empty target (no id, no name) means the caller left this anchor unspecified — skip silently.
+            // Empty target (no id, no name) means the anchor is unspecified — skip silently.
             if (a.targetId == 0 and a.target.empty())
                 continue;
 
@@ -202,24 +203,15 @@ namespace
                 case AnchorType::Height:
                     anchor->setHeightConstrain(PosConstrain{target->id, AnchorType::Height});
                     break;
+                case AnchorType::VerticalCenter:
+                    anchor->setVerticalCenter(pa);
+                    break;
+                case AnchorType::HorizontalCenter:
+                    anchor->setHorizontalCenter(pa);
+                    break;
                 default:
                     break;
             }
-        }
-
-        for (const auto& c : centerIn)
-        {
-            if (c.targetId == 0 and c.target.empty())
-                continue;
-
-            EntityRef target = resolveByIdOrName(ecs, c.targetId, c.target, nameToEntity);
-            if (not target)
-            {
-                LOG_ERROR("Prefab Builder", "centeredIn target not found: id=" << c.targetId << " name='" << c.target << "'");
-                continue;
-            }
-            if (target->has<UiAnchor>())
-                anchor->centeredIn(target->get<UiAnchor>());
         }
     }
 }
@@ -273,8 +265,7 @@ EntityRef buildPrefab(EntitySystem* ecs, const PrefabSpec& spec)
     struct BuiltChild
     {
         EntityRef ent;
-        const std::vector<AnchorSpec>*   anchors;
-        const std::vector<CenterInSpec>* centerIn;
+        const std::vector<AnchorSpec>* anchors;
     };
     std::vector<BuiltChild> built;
     built.reserve(spec.children.size());
@@ -316,19 +307,19 @@ EntityRef buildPrefab(EntitySystem* ecs, const PrefabSpec& spec)
                 return;
 
             registerNamed(ent, c.name);
-            built.push_back({ent, &c.anchors, &c.centerIn});
+            built.push_back({ent, &c.anchors});
         }, child);
     }
 
     if (mainEnt)
-        applyAnchorsToEntity(mainEnt, spec.mainNode.anchors, spec.mainNode.centerIn, nameToEntity);
+        applyAnchorsToEntity(mainEnt, spec.mainNode.anchors, nameToEntity);
 
     for (auto& b : built)
-        applyAnchorsToEntity(b.ent, *b.anchors, *b.centerIn, nameToEntity);
+        applyAnchorsToEntity(b.ent, *b.anchors, nameToEntity);
 
-    // Root-level anchors / centerIn — applied to the container itself. Targets are looked up
-    // first in the local scope (the prefab's own named children), then in the global EntityNameSystem.
-    applyAnchorsToEntity(container.entity, spec.anchors, spec.centerIn, nameToEntity);
+    // Root-level anchors — applied to the container itself. Targets are looked up first in
+    // the local scope (the prefab's own named children), then in the global EntityNameSystem.
+    applyAnchorsToEntity(container.entity, spec.anchors, nameToEntity);
 
     return container.entity;
 }

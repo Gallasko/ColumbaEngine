@@ -290,8 +290,7 @@ namespace pg
             spec.mainNode = shapeNode("bg", 100.0f, 60.0f);
 
             NodeSpec dot = shapeNode("dot", 10.0f, 10.0f);
-            CenterInSpec center; center.target = "main";
-            dot.centerIn = {center};
+            dot.anchors = centerInAnchors("main");
             spec.children.push_back(dot);
 
             auto container = buildPrefab(&ecs, spec);
