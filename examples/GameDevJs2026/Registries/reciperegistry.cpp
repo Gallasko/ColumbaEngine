@@ -18,6 +18,7 @@ const Recipe* RecipeRegistry::findMatchingRecipe(const std::string& machineName,
     {
         if (recipe.machineName != machineName)
             continue;
+
         if (recipe.category == RecipeCategory::HandCraft or
             recipe.category == RecipeCategory::AutoCrafter)
             continue;
@@ -34,6 +35,7 @@ const Recipe* RecipeRegistry::findMatchingRecipe(const std::string& machineName,
                     break;
                 }
             }
+
             if (not unlocked)
                 continue;
         }
@@ -47,6 +49,7 @@ const Recipe* RecipeRegistry::findMatchingRecipe(const std::string& machineName,
                 break;
             }
         }
+
         if (allSatisfied)
             return &recipe;
     }

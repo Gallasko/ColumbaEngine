@@ -24,8 +24,7 @@ class MachineDemoSystem;
 // layout, slot wiring, recipe-panel callback hookup and the per-tick
 // machine sync; subclasses may override individual methods if their
 // behaviour diverges later.
-class RecipeMachineUIBase
-    : public System<Listener<ResizeEvent>,
+class RecipeMachineUIBase : public System<Listener<ResizeEvent>,
                     QueuedListener<OnSDLScanCode>,
                     QueuedListener<TickEvent>,
                     QueuedListener<SlotPickedUpEvent>,
@@ -63,6 +62,7 @@ public:
     {
         return {true /*requiresInventory*/, true /*wantsRecipePanel*/, false};
     }
+
     void open(int gridX, int gridY, const std::string& machineName) override;
     void close() override;
     bool isOpen() const override { return visible; }
@@ -74,6 +74,7 @@ public:
         screenWidth = event.width;
         screenHeight = event.height;
     }
+
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const TickEvent&) override;
     virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
@@ -98,9 +99,9 @@ protected:
     float getPanelWidth() const  { return 2.0f * SLOT_SIZE + ARROW_GAP + 2.0f * PANEL_PADDING; }
     // Panel height covers the worst case (maxInputs = 2). updateForMachineType
     // shrinks the bg for 1-input UIs.
-    float getPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
-                                        + 2.0f * SLOT_SIZE + SLOT_SPACING + GAP_AFTER_SLOTS
-                                        + PROGRESS_H + PANEL_PADDING; }
+    float getPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE +
+                                          2.0f * SLOT_SIZE + SLOT_SPACING + GAP_AFTER_SLOTS +
+                                          PROGRESS_H + PANEL_PADDING; }
 
     // Configuration (set once in constructor)
     int numInputs;

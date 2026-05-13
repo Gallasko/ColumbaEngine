@@ -62,6 +62,7 @@ struct ItemRegistry : public pg::Registry<ItemDef, ItemId>
             if (entry.buildingName == name)
                 return &entry;
         }
+
         return nullptr;
     }
 };

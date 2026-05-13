@@ -8,8 +8,7 @@ struct Inventory
 {
     std::vector<ItemStack> slots;
 
-    explicit Inventory(size_t numSlots = 0)
-        : slots(numSlots) {}
+    explicit Inventory(size_t numSlots = 0) : slots(numSlots) {}
 
     size_t size() const { return slots.size(); }
 

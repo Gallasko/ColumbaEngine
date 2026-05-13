@@ -123,12 +123,15 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
             {
                 size_t recipeIdx = visibleRecipes[i];
                 auto demoEnt = ecsRef->getEntity(rowVisuals[recipeIdx].demoBtnEntityId);
-                if (not demoEnt) continue;
+                if (not demoEnt)
+                    continue;
+
                 auto demoPos = demoEnt->get<PositionComponent>();
-                if (not demoPos->isVisible()) continue;
+                if (not demoPos->isVisible())
+                    continue;
+
                 // Hit area slightly larger than the "?" text
-                if (isPointInRect(x, y, demoPos->getX() - 4.0f, demoPos->getY(),
-                                  20.0f, ROW_HEIGHT))
+                if (isPointInRect(x, y, demoPos->getX() - 4.0f, demoPos->getY(), 20.0f, ROW_HEIGHT))
                 {
                     const Recipe& recipe = recipeRegistry->get(recipeIdx);
                     if (not recipe.outputs.empty())
@@ -737,7 +740,8 @@ void CraftingUISystem::moveSelection(int delta)
         return;
 
     int s = static_cast<int>(selectedIndex) + delta;
-    if (s < 0) s = 0;
+    if (s < 0)
+        s = 0;
     if (s >= static_cast<int>(visibleRecipes.size()))
         s = static_cast<int>(visibleRecipes.size()) - 1;
     selectedIndex = static_cast<size_t>(s);
@@ -752,7 +756,8 @@ void CraftingUISystem::ensureSelectionVisible()
         return;
 
     auto layoutEnt = ecsRef->getEntity(recipeLayoutEntityId);
-    if (not layoutEnt) return;
+    if (not layoutEnt)
+        return;
     auto vLayout = layoutEnt->get<VerticalLayout>();
 
     float viewH = VISIBLE_ROWS * ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_SPACING;
@@ -899,6 +904,7 @@ void CraftingUISystem::refreshProgressBar()
     auto fillEnt = ecsRef->getEntity(progressFillEntityId);
     if (not fillEnt)
         return;
+
     auto barBgEnt = ecsRef->getEntity(progressBgEntityId);
     float barMaxW = barBgEnt ? barBgEnt->get<PositionComponent>()->getWidth() : 0.0f;
     auto* handCrafting = ecsRef->getSystem<HandCraftingSystem>();
@@ -945,7 +951,8 @@ int CraftingUISystem::tabAtPosition(float x, float y) const
     for (size_t i = 0; i < TAB_COUNT; ++i)
     {
         auto tabEnt = ecsRef->getEntity(tabVisuals[i].bgEntityId);
-        if (not tabEnt) continue;
+        if (not tabEnt)
+            continue;
         auto pos = tabEnt->get<PositionComponent>();
         float tx = pos->getX();
         float ty = pos->getY();
@@ -953,6 +960,7 @@ int CraftingUISystem::tabAtPosition(float x, float y) const
         if (x >= tx and x <= tx + tw and y >= ty and y <= ty + TAB_ROW_H)
             return static_cast<int>(i);
     }
+
     return -1;
 }
 
@@ -978,13 +986,16 @@ void CraftingUISystem::requestCraft()
 {
     if (visibleRecipes.empty() or selectedIndex >= visibleRecipes.size())
         return;
+
     auto* handCrafting = ecsRef->getSystem<HandCraftingSystem>();
     if (handCrafting->isActive())
         return;
+
     size_t recipeIdx = visibleRecipes[selectedIndex];
     const Recipe& recipe = recipeRegistry->get(recipeIdx);
     if (not handCrafting->canCraft(recipe))
         return;
+
     ecsRef->sendEvent(HandCraftRequest{recipeIdx});
 }
 
@@ -994,19 +1005,26 @@ int CraftingUISystem::rowAtPosition(float x, float y) const
     {
         size_t recipeIdx = visibleRecipes[i];
         auto rowEnt = ecsRef->getEntity(rowVisuals[recipeIdx].bgEntityId);
-        if (not rowEnt) continue;
+        if (not rowEnt)
+            continue;
+
         auto pos = rowEnt->get<PositionComponent>();
-        if (not pos->isObservable()) continue;
+        if (not pos->isObservable())
+            continue;
+
         if (x >= pos->x and x <= pos->x + pos->width and
             y >= pos->y and y <= pos->y + ROW_HEIGHT)
             return static_cast<int>(i);
     }
+
     return -1;
 }
 
 void CraftingUISystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
+
     auto ent = ecsRef->getEntity(id);
     if (ent)
         ent->get<PositionComponent>()->setVisibility(vis);

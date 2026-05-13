@@ -178,6 +178,7 @@ void RecipeMachineUIBase::ensurePanelCreated()
 {
     if (panelCreated)
         return;
+
     createPanel();
     setPanelVisibility(false);
     panelCreated = true;
@@ -233,9 +234,7 @@ void RecipeMachineUIBase::updateForMachineType()
 
     // Output: centred between two inputs for 2-input machines, top-aligned
     // with the single input for 1-input machines.
-    const float outputSlotTop = (numInputs == 2)
-        ? slotsTop + (SLOT_SIZE + SLOT_SPACING) * 0.5f
-        : slotsTop;
+    const float outputSlotTop = (numInputs == 2) ? slotsTop + (SLOT_SIZE + SLOT_SPACING) * 0.5f : slotsTop;
     if (auto outEnt = ecsRef->getEntity(outputSlotEntityId))
         outEnt->get<UiAnchor>()->setTopMargin(outputSlotTop);
 
@@ -249,6 +248,7 @@ void RecipeMachineUIBase::updateForMachineType()
     if (numInputs < 2)
     {
         auto slot1Ent = ecsRef->getEntity(inputSlotEntityIds[1]);
+
         if (slot1Ent)
             slot1Ent->get<PositionComponent>()->setVisibility(false);
     }
@@ -287,8 +287,7 @@ void RecipeMachineUIBase::createPanel()
         a->setVerticalCenter(PosAnchor{anchorTargetId, AnchorType::VerticalCenter});
 
         if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
-            ecsRef->attach<MouseLeftClickComponent>(bgEnt,
-                makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
+            ecsRef->attach<MouseLeftClickComponent>(bgEnt, makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
     }
 
     {
@@ -301,6 +300,7 @@ void RecipeMachineUIBase::createPanel()
             {"scale",    TITLE_SCALE},
             {"viewport", static_cast<int>(UI_VP)},
         });
+
         titleEntityId = titleEnt->id;
         auto a = ecsRef->attach<UiAnchor>(titleEnt);
         a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
@@ -317,8 +317,7 @@ void RecipeMachineUIBase::createPanel()
         const float inputSlotTops[2] = {inputSlot0Top, inputSlot1Top};
         for (int i = 0; i < 2; ++i)
         {
-            auto slotRef = slotSystem->createSlot(
-                SlotCategory::Input, static_cast<uint8_t>(i));
+            auto slotRef = slotSystem->createSlot(SlotCategory::Input, static_cast<uint8_t>(i));
             inputSlotEntityIds[i] = slotRef.id;
 
             auto a = slotRef.get<UiAnchor>();
@@ -452,8 +451,7 @@ void RecipeMachineUIBase::refreshProgressBar()
     float progress = 0.0f;
     if (machine->currentRecipe and machine->currentRecipe->craftTimeMs > 0)
     {
-        progress = static_cast<float>(machine->craftProgress)
-                 / static_cast<float>(machine->currentRecipe->craftTimeMs);
+        progress = static_cast<float>(machine->craftProgress) / static_cast<float>(machine->currentRecipe->craftTimeMs);
         if (progress > 1.0f)
             progress = 1.0f;
     }

@@ -95,10 +95,7 @@ namespace pg
         bool check(const std::unordered_map<std::string, ElementType>& map) const;
     };
 
-    struct WorldFacts : public System<Listener<AddFact>,
-                                      Listener<RemoveFact>,
-                                      Listener<IncreaseFact>,
-                                      SaveSys>
+    struct WorldFacts : public System<Listener<AddFact>, Listener<RemoveFact>, Listener<IncreaseFact>, SaveSys>
     {
         virtual std::string getSystemName() const override { return "WorldFacts"; }
 

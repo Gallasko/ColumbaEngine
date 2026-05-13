@@ -23,13 +23,17 @@ namespace pg
     ItemStack deserialize(const UnserializedObject& s)
     {
         ItemStack result;
-        if (s.isNull()) return result;
+        if (s.isNull())
+            return result;
 
         unsigned int id = 0, count = 0;
+
         defaultDeserialize(s, "id", id);
         defaultDeserialize(s, "count", count);
+
         result.id = static_cast<ItemId>(id);
         result.count = static_cast<uint16_t>(count);
+
         return result;
     }
 
@@ -47,8 +51,12 @@ namespace pg
     Inventory deserialize(const UnserializedObject& s)
     {
         Inventory result;
-        if (s.isNull()) return result;
+
+        if (s.isNull())
+            return result;
+
         defaultDeserialize(s, "slots", result.slots);
+
         return result;
     }
 
@@ -58,12 +66,14 @@ namespace pg
     void serialize(Archive& archive, const SavedBuilding& value)
     {
         archive.startSerialization(SavedBuilding::getType());
+
         serialize(archive, "x", value.x);
         serialize(archive, "y", value.y);
         serialize(archive, "tileName", value.tileName);
         serialize(archive, "direction", static_cast<unsigned int>(value.direction));
         serialize(archive, "enterDirection", static_cast<unsigned int>(value.enterDirection));
         serialize(archive, "conveyorTileIndex", value.conveyorTileIndex);
+
         archive.endSerialization();
     }
 
@@ -71,7 +81,8 @@ namespace pg
     SavedBuilding deserialize(const UnserializedObject& s)
     {
         SavedBuilding result;
-        if (s.isNull()) return result;
+        if (s.isNull())
+            return result;
 
         defaultDeserialize(s, "x", result.x);
         defaultDeserialize(s, "y", result.y);
@@ -79,6 +90,7 @@ namespace pg
         defaultDeserialize(s, "tileName", result.tileName);
 
         unsigned int dir = 0, enterDir = 0;
+
         defaultDeserialize(s, "direction", dir);
         defaultDeserialize(s, "enterDirection", enterDir);
         result.direction = static_cast<uint8_t>(dir);
@@ -94,12 +106,14 @@ namespace pg
     void serialize(Archive& archive, const MachineData& value)
     {
         archive.startSerialization("MachineData");
+
         serialize(archive, "ownerX", value.ownerX);
         serialize(archive, "ownerY", value.ownerY);
         serialize(archive, "machineName", value.machineName);
         serialize(archive, "inputSlots", value.inputSlots);
         serialize(archive, "outputSlots", value.outputSlots);
         serialize(archive, "craftProgress", value.craftProgress);
+
         archive.endSerialization();
     }
 
@@ -107,7 +121,8 @@ namespace pg
     MachineData deserialize(const UnserializedObject& s)
     {
         MachineData result;
-        if (s.isNull()) return result;
+        if (s.isNull())
+            return result;
 
         defaultDeserialize(s, "ownerX", result.ownerX);
         defaultDeserialize(s, "ownerY", result.ownerY);
@@ -127,11 +142,13 @@ namespace pg
     void serialize(Archive& archive, const MinerData& value)
     {
         archive.startSerialization("MinerData");
+
         serialize(archive, "ownerX", value.ownerX);
         serialize(archive, "ownerY", value.ownerY);
         serialize(archive, "outputSlots", value.outputSlots);
         serialize(archive, "mineProgress", value.mineProgress);
         serialize(archive, "isMining", value.isMining);
+
         archive.endSerialization();
     }
 
@@ -139,7 +156,8 @@ namespace pg
     MinerData deserialize(const UnserializedObject& s)
     {
         MinerData result;
-        if (s.isNull()) return result;
+        if (s.isNull())
+            return result;
 
         defaultDeserialize(s, "ownerX", result.ownerX);
         defaultDeserialize(s, "ownerY", result.ownerY);
@@ -156,12 +174,14 @@ namespace pg
     void serialize(Archive& archive, const InserterData& value)
     {
         archive.startSerialization("InserterData");
+
         serialize(archive, "x", value.x);
         serialize(archive, "y", value.y);
         serialize(archive, "direction", static_cast<unsigned int>(value.direction));
         serialize(archive, "state", static_cast<unsigned int>(value.state));
         serialize(archive, "heldItem", static_cast<unsigned int>(value.heldItem));
         serialize(archive, "animFrame", value.animFrame);
+
         archive.endSerialization();
     }
 
@@ -169,15 +189,18 @@ namespace pg
     InserterData deserialize(const UnserializedObject& s)
     {
         InserterData result;
-        if (s.isNull()) return result;
+        if (s.isNull())
+            return result;
 
         defaultDeserialize(s, "x", result.x);
         defaultDeserialize(s, "y", result.y);
 
         unsigned int dir = 0, state = 0, heldItem = 0;
+
         defaultDeserialize(s, "direction", dir);
         defaultDeserialize(s, "state", state);
         defaultDeserialize(s, "heldItem", heldItem);
+
         result.direction = static_cast<uint8_t>(dir);
         result.state = static_cast<InserterState>(state);
         result.heldItem = static_cast<ItemId>(heldItem);
@@ -193,9 +216,11 @@ namespace pg
     void serialize(Archive& archive, const StorageData& value)
     {
         archive.startSerialization("StorageData");
+
         serialize(archive, "ownerX", value.ownerX);
         serialize(archive, "ownerY", value.ownerY);
         serialize(archive, "inventory", value.inventory);
+
         archive.endSerialization();
     }
 
@@ -203,7 +228,8 @@ namespace pg
     StorageData deserialize(const UnserializedObject& s)
     {
         StorageData result;
-        if (s.isNull()) return result;
+        if (s.isNull())
+            return result;
 
         defaultDeserialize(s, "ownerX", result.ownerX);
         defaultDeserialize(s, "ownerY", result.ownerY);
@@ -218,10 +244,12 @@ namespace pg
     void serialize(Archive& archive, const DepotData& value)
     {
         archive.startSerialization("DepotData");
+
         serialize(archive, "ownerX", value.ownerX);
         serialize(archive, "ownerY", value.ownerY);
         serialize(archive, "inventory", value.inventory);
         serialize(archive, "output", value.output);
+
         archive.endSerialization();
     }
 
@@ -229,7 +257,8 @@ namespace pg
     DepotData deserialize(const UnserializedObject& s)
     {
         DepotData result;
-        if (s.isNull()) return result;
+        if (s.isNull())
+            return result;
 
         defaultDeserialize(s, "ownerX", result.ownerX);
         defaultDeserialize(s, "ownerY", result.ownerY);
@@ -251,7 +280,9 @@ namespace pg
     TerrainType deserialize(const UnserializedObject& s)
     {
         unsigned int val = 0;
+
         val = deserialize<unsigned int>(s);
+
         return static_cast<TerrainType>(val);
     }
 }
