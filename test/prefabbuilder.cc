@@ -9,6 +9,7 @@
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
 #include "ECS/entitysystem.h"
+#include "Systems/coresystems.h"
 
 #include "mocklogger.h"
 
@@ -545,6 +546,325 @@ namespace pg
 
             EXPECT_FLOAT_EQ(containerPos->width,  120.0f);
             EXPECT_FLOAT_EQ(containerPos->height,  40.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // Nested PrefabSpec as a child: a complete sub-tree dropped into the outer spec's
+        // children list. The nested container entity is registered by name on the outer Prefab
+        // and can be anchored to like any other named child.
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, nested_prefab_registers_as_named_child_of_outer)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec inner;
+            inner.mainNode = shapeNode("innerBg", 40.0f, 30.0f);
+            inner.name     = "machineA";
+
+            PrefabSpec outer;
+            outer.mainNode = shapeNode("outerBg", 200.0f, 100.0f);
+            outer.children.push_back(std::move(inner));
+
+            auto container = buildPrefab(&ecs, outer);
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            auto prefab = container->get<Prefab>();
+            auto machineEnt = prefab->getEntity("machineA");
+            ASSERT_FALSE(machineEnt.empty());
+            EXPECT_TRUE(machineEnt->has<Prefab>());
+            EXPECT_TRUE(machineEnt->has<UiAnchor>());
+            EXPECT_TRUE(machineEnt->has<PositionComponent>());
+
+            // The nested container adopts its own mainNode's size.
+            auto machinePos = machineEnt->get<PositionComponent>();
+            EXPECT_FLOAT_EQ(machinePos->width,  40.0f);
+            EXPECT_FLOAT_EQ(machinePos->height, 30.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, outer_leaf_can_anchor_to_nested_prefab_sibling)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec inner;
+            inner.mainNode = shapeNode("innerBg", 50.0f, 20.0f);
+            inner.name     = "header";
+            // Anchor the nested container to the outer main entity's top-left so it has a fixed position.
+            inner.anchors  = {
+                AnchorSpec{"main", AnchorType::Top,  0.0f},
+                AnchorSpec{"main", AnchorType::Left, 0.0f},
+            };
+
+            NodeSpec body = shapeNode("body", 50.0f, 30.0f);
+            // body anchored just below the nested header: body.top = header.bottom.
+            body.anchors = {
+                AnchorSpec{"header", AnchorType::Top, AnchorType::Bottom, 0.0f},
+                AnchorSpec{"header", AnchorType::Left, AnchorType::Left, 0.0f},
+            };
+
+            PrefabSpec outer;
+            outer.mainNode = shapeNode("outerBg", 100.0f, 100.0f);
+            outer.children.push_back(std::move(inner));
+            outer.children.push_back(body);
+
+            auto container = buildPrefab(&ecs, outer);
+            auto containerPos = container->get<PositionComponent>();
+            containerPos->setX(5.0f);
+            containerPos->setY(7.0f);
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            auto prefab = container->get<Prefab>();
+            auto headerPos = prefab->getEntity("header")->get<PositionComponent>();
+            auto bodyPos   = prefab->getEntity("body")->get<PositionComponent>();
+
+            // header sits at the outer main's top-left, which == container position.
+            EXPECT_FLOAT_EQ(headerPos->x, 5.0f);
+            EXPECT_FLOAT_EQ(headerPos->y, 7.0f);
+
+            // body anchored to header.bottom (header.y + header.height = 7 + 20 = 27).
+            EXPECT_FLOAT_EQ(bodyPos->x, headerPos->x);
+            EXPECT_FLOAT_EQ(bodyPos->y, headerPos->y + headerPos->height);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, nested_prefab_centerInAnchors_helper_centers_on_outer_main)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec inner;
+            inner.mainNode = shapeNode("innerBg", 20.0f, 20.0f);
+            inner.name     = "blob";
+            inner.anchors  = centerInAnchors("main");
+
+            PrefabSpec outer;
+            outer.mainNode = shapeNode("outerBg", 100.0f, 80.0f);
+            outer.children.push_back(std::move(inner));
+
+            auto container = buildPrefab(&ecs, outer);
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            auto prefab = container->get<Prefab>();
+            auto outerBg = prefab->getEntity("outerBg")->get<PositionComponent>();
+            auto blob    = prefab->getEntity("blob")->get<PositionComponent>();
+
+            EXPECT_FLOAT_EQ(blob->x + blob->width  / 2.0f, outerBg->x + outerBg->width  / 2.0f);
+            EXPECT_FLOAT_EQ(blob->y + blob->height / 2.0f, outerBg->y + outerBg->height / 2.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // Inner names do not leak into outer lookup: each buildPrefab call has its own scope.
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, inner_prefab_names_stay_scoped)
+        {
+            MockLogger<TerminalSink> logger;
+
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec inner;
+            inner.mainNode = shapeNode("inside", 10.0f, 10.0f);
+            inner.name     = "nested";
+
+            PrefabSpec outer;
+            outer.mainNode = shapeNode("outerBg", 50.0f, 50.0f);
+            outer.children.push_back(std::move(inner));
+
+            auto container = buildPrefab(&ecs, outer);
+            ecs.executeOnce();
+
+            auto prefab = container->get<Prefab>();
+            // "nested" is the outer-visible handle for the inner container.
+            EXPECT_FALSE(prefab->getEntity("nested").empty());
+            // "inside" was the inner main's name — must NOT bubble up to the outer prefab.
+            EXPECT_TRUE(prefab->getEntity("inside").empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, two_levels_deep_nesting_resolves)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec c;
+            c.mainNode = shapeNode("cBg", 8.0f, 8.0f);
+            c.name     = "C";
+
+            PrefabSpec b;
+            b.mainNode = shapeNode("bBg", 30.0f, 30.0f);
+            b.name     = "B";
+            b.children.push_back(std::move(c));
+
+            PrefabSpec a;
+            a.mainNode = shapeNode("aBg", 80.0f, 80.0f);
+            a.children.push_back(std::move(b));
+
+            auto container = buildPrefab(&ecs, a);
+            ecs.executeOnce();
+
+            auto outer = container->get<Prefab>();
+            auto bEnt  = outer->getEntity("B");
+            ASSERT_FALSE(bEnt.empty());
+            ASSERT_TRUE(bEnt->has<Prefab>());
+
+            auto cEnt = bEnt->get<Prefab>()->getEntity("C");
+            ASSERT_FALSE(cEnt.empty());
+            EXPECT_TRUE(cEnt->has<Prefab>());
+
+            // Outer can't see C — only B.
+            EXPECT_TRUE(outer->getEntity("C").empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // AnchorSpec.targetId resolves the anchor by entity id, bypassing the name map entirely.
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, root_anchor_resolves_via_targetId)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            // An entity outside the prefab — only the id ties it to the spec.
+            auto external = makeUiSimple2DShape(&ecs, Shape2D::Square, 40.0f, 30.0f);
+            external.get<PositionComponent>()->setX(100.0f);
+            external.get<PositionComponent>()->setY(50.0f);
+
+            PrefabSpec spec;
+            spec.mainNode = shapeNode("bg", 20.0f, 20.0f);
+            spec.anchors  = {
+                AnchorSpec{external.entity.id, AnchorType::Top,  AnchorType::Bottom, 0.0f},
+                AnchorSpec{external.entity.id, AnchorType::Left, AnchorType::Left,   0.0f},
+            };
+
+            auto container = buildPrefab(&ecs, spec);
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            auto bg = container->get<Prefab>()->getEntity("bg")->get<PositionComponent>();
+            // bg follows the container, which is anchored to external.bottom / external.left.
+            EXPECT_FLOAT_EQ(bg->x, 100.0f);                      // external.left
+            EXPECT_FLOAT_EQ(bg->y, 50.0f + 30.0f);               // external.bottom = y + height
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // Anchor resolution falls through to EntityNameSystem when the target name is not in the
+        // prefab's local sibling scope.
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, root_anchor_resolves_via_entityname_system)
+        {
+            EntitySystem ecs;
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<PrefabSystem>();
+            ecs.createSystem<PrefabFactoryRegistry>();
+            ecs.createSystem<EntityNameSystem>();
+            ecs.succeed<PositionComponentSystem, PrefabSystem>();
+
+            auto external = makeUiSimple2DShape(&ecs, Shape2D::Square, 40.0f, 30.0f);
+            external.get<PositionComponent>()->setX(200.0f);
+            external.get<PositionComponent>()->setY(80.0f);
+            ecs.attach<EntityName>(external.entity, std::string("globalAnchor"));
+
+            PrefabSpec spec;
+            spec.mainNode = shapeNode("bg", 20.0f, 20.0f);
+            // No targetId; name should resolve through EntityNameSystem.
+            spec.anchors  = {
+                AnchorSpec{std::string("globalAnchor"), AnchorType::Top,  AnchorType::Top,  0.0f},
+                AnchorSpec{std::string("globalAnchor"), AnchorType::Left, AnchorType::Left, 0.0f},
+            };
+
+            auto container = buildPrefab(&ecs, spec);
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            auto bg = container->get<Prefab>()->getEntity("bg")->get<PositionComponent>();
+            EXPECT_FLOAT_EQ(bg->x, 200.0f);
+            EXPECT_FLOAT_EQ(bg->y, 80.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // targetId wins over target when both are set (explicit-form precedence).
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, targetId_overrides_target_name)
+        {
+            MockLogger<TerminalSink> logger;
+
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            auto byId = makeUiSimple2DShape(&ecs, Shape2D::Square, 10.0f, 10.0f);
+            byId.get<PositionComponent>()->setX(500.0f);
+            byId.get<PositionComponent>()->setY(0.0f);
+
+            PrefabSpec spec;
+            spec.mainNode = shapeNode("bg", 20.0f, 20.0f);
+
+            // target = "main" would normally resolve to the prefab's own main entity at (0,0).
+            // Setting targetId to the external entity must override that.
+            AnchorSpec a;
+            a.target     = "main";
+            a.targetId   = byId.entity.id;
+            a.side       = AnchorType::Left;
+            a.targetSide = AnchorType::Left;
+            spec.anchors = {a};
+
+            auto container = buildPrefab(&ecs, spec);
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            auto bg = container->get<Prefab>()->getEntity("bg")->get<PositionComponent>();
+            EXPECT_FLOAT_EQ(bg->x, 500.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, reserved_name_on_nested_prefab_is_refused)
+        {
+            MockLogger<TerminalSink> logger;
+
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec inner;
+            inner.mainNode = shapeNode("inside", 10.0f, 10.0f);
+            inner.name     = "main";   // reserved
+
+            PrefabSpec outer;
+            outer.mainNode = shapeNode("outerBg", 50.0f, 50.0f);
+            outer.children.push_back(std::move(inner));
+
+            auto container = buildPrefab(&ecs, outer);
+            ecs.executeOnce();
+
+            // "main" resolves to the OUTER prefab's main entity, not the nested one.
+            auto mainEnt = container->get<Prefab>()->getEntity("MainEntity");
+            ASSERT_FALSE(mainEnt.empty());
+            EXPECT_FALSE(mainEnt->has<Prefab>());  // outer main is a Shape2D, not a sub-prefab
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // Empty anchor (no id, no name) is skipped silently with no log spam.
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, empty_anchor_target_is_skipped)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec spec;
+            spec.mainNode = shapeNode("bg", 10.0f, 10.0f);
+            AnchorSpec a;  // default-constructed: target empty, targetId 0
+            a.side = AnchorType::Top;
+            spec.anchors = {a};
+
+            auto container = buildPrefab(&ecs, spec);
+            ecs.executeOnce();
+
+            // No assertion on position; the test passes if the build did not crash and the
+            // empty anchor was treated as a no-op.
+            EXPECT_FALSE(container.empty());
         }
     }
 }

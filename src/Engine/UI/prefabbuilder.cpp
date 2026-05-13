@@ -120,8 +120,8 @@ namespace
             case AnchorType::Right:            return a->right;
             case AnchorType::Width:            return PosAnchor{id, AnchorType::Width};
             case AnchorType::Height:           return PosAnchor{id, AnchorType::Height};
-            case AnchorType::VerticalCenter:   return PosAnchor{id, AnchorType::VerticalCenter};
-            case AnchorType::HorizontalCenter: return PosAnchor{id, AnchorType::HorizontalCenter};
+            case AnchorType::VerticalCenter:   return a->verticalCenter;
+            case AnchorType::HorizontalCenter: return a->horizontalCenter;
             default:                           return PosAnchor{};
         }
     }
