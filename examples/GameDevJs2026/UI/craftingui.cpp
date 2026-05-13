@@ -17,12 +17,15 @@ static std::string stripCraftingPrefix(const std::string& name)
     static const char* prefixes[] = {
         "Hand-Smelt ", "Hand-Craft ", "Smelt ", "Make ", "Craft "
     };
+
     for (const char* p : prefixes)
     {
         size_t len = std::strlen(p);
-        if (name.size() > len && name.compare(0, len, p) == 0)
+
+        if (name.size() > len and name.compare(0, len, p) == 0)
             return name.substr(len);
     }
+
     return name;
 }
 
@@ -57,6 +60,7 @@ void CraftingUISystem::onEvent(const HandCraftCompletedEvent&)
         refreshRows();
         refreshProgressBar();
     }
+
     if (auto* inventoryUI = ecsRef->getSystem<InventoryUISystem>())
         inventoryUI->refreshAllSlots();
 }

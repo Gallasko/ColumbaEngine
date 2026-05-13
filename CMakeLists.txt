@@ -1318,6 +1318,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/interpreter.cc
             test/layout.cc
             test/prefab.cc
+            test/prefabbuilder.cc
             test/network.cc
             # test/mock2dsimpleshape.h
             # test/simple2dobject.cc

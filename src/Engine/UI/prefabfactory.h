@@ -27,7 +27,7 @@ namespace pg
 
     using PrefabFactoryFn = std::function<EntityRef(EntitySystem*, const PrefabParams&)>;
 
-    class PrefabFactoryRegistry : public System<>
+    class PrefabFactoryRegistry : public System<StoragePolicy>
     {
     public:
         virtual std::string getSystemName() const override { return "Prefab Factory Registry"; }
@@ -64,8 +64,10 @@ namespace pg
         {
             std::vector<std::string> names;
             names.reserve(factories.size());
+
             for (const auto& kv : factories)
                 names.push_back(kv.first);
+
             return names;
         }
 
@@ -113,15 +115,15 @@ namespace pg
 
         switch (v.type)
         {
-            case ElementType::UnionType::FLOAT: 
+            case ElementType::UnionType::FLOAT:
                 return v.get<float>();
             case ElementType::UnionType::DOUBLE:
                 return static_cast<float>(v.get<double>());
-            case ElementType::UnionType::INT: 
+            case ElementType::UnionType::INT:
                 return static_cast<float>(v.get<int>());
-            case ElementType::UnionType::SIZE_T: 
+            case ElementType::UnionType::SIZE_T:
                 return static_cast<float>(v.get<size_t>());
-            default: 
+            default:
                 return fallback;
         }
     }
@@ -135,15 +137,15 @@ namespace pg
         const auto& v = it->second;
         switch (v.type)
         {
-            case ElementType::UnionType::INT:    
+            case ElementType::UnionType::INT:
                 return v.get<int>();
-            case ElementType::UnionType::SIZE_T: 
+            case ElementType::UnionType::SIZE_T:
                 return static_cast<int>(v.get<size_t>());
-            case ElementType::UnionType::FLOAT:  
+            case ElementType::UnionType::FLOAT:
                 return static_cast<int>(v.get<float>());
-            case ElementType::UnionType::DOUBLE: 
+            case ElementType::UnionType::DOUBLE:
                 return static_cast<int>(v.get<double>());
-            default: 
+            default:
                 return fallback;
         }
     }
@@ -153,6 +155,7 @@ namespace pg
         auto it = p.find(key);
         if (it == p.end() or it->second.isEmpty() or it->second.type != ElementType::UnionType::STRING)
             return fallback;
+
         return it->second.get<std::string>();
     }
 
@@ -161,6 +164,7 @@ namespace pg
         auto it = p.find(key);
         if (it == p.end() or it->second.isEmpty() or it->second.type != ElementType::UnionType::BOOL)
             return fallback;
+
         return it->second.get<bool>();
     }
 }

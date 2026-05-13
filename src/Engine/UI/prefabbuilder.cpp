@@ -21,7 +21,8 @@ namespace
 
     Shape2D shapeFromString(const std::string& s)
     {
-        if (s == "Circle") return Shape2D::Circle;
+        if (s == "Circle")
+            return Shape2D::Circle;
         return Shape2D::Square;
     }
 
@@ -43,9 +44,12 @@ namespace
 
         auto pos = ent->get<PositionComponent>();
 
-        if (hasParam(p, "x")) pos->setX(getParamFloat(p, "x"));
-        if (hasParam(p, "y")) pos->setY(getParamFloat(p, "y"));
-        if (hasParam(p, "z")) pos->setZ(getParamFloat(p, "z"));
+        if (hasParam(p, "x"))
+            pos->setX(getParamFloat(p, "x"));
+        if (hasParam(p, "y"))
+            pos->setY(getParamFloat(p, "y"));
+        if (hasParam(p, "z"))
+            pos->setZ(getParamFloat(p, "z"));
         if (hasParam(p, "visibility"))
             pos->setVisibility(getParamBool(p, "visibility", true));
 
@@ -94,11 +98,13 @@ namespace
     EntityRef invokeFactory(EntitySystem* ecs, std::string_view factoryName, const ElementMap& p)
     {
         auto* registry = ecs->getSystem<PrefabFactoryRegistry>();
+
         if (not registry)
         {
             LOG_ERROR("Prefab Builder", "No PrefabFactoryRegistry available to invoke factory: " << factoryName);
             return EntityRef{};
         }
+
         return registry->build(std::string(factoryName), p);
     }
 
@@ -144,19 +150,19 @@ namespace
             {
                 case AnchorType::Top:
                     anchor->setTopAnchor(pa);
-                    if (a.margin != 0.0f) anchor->setTopMargin(a.margin);
+                    anchor->setTopMargin(a.margin);
                     break;
                 case AnchorType::Bottom:
                     anchor->setBottomAnchor(pa);
-                    if (a.margin != 0.0f) anchor->setBottomMargin(a.margin);
+                    anchor->setBottomMargin(a.margin);
                     break;
                 case AnchorType::Left:
                     anchor->setLeftAnchor(pa);
-                    if (a.margin != 0.0f) anchor->setLeftMargin(a.margin);
+                    anchor->setLeftMargin(a.margin);
                     break;
                 case AnchorType::Right:
                     anchor->setRightAnchor(pa);
-                    if (a.margin != 0.0f) anchor->setRightMargin(a.margin);
+                    anchor->setRightMargin(a.margin);
                     break;
                 case AnchorType::Width:
                     anchor->setWidthConstrain(PosConstrain{target->id, AnchorType::Width});
@@ -172,11 +178,13 @@ namespace
         for (const auto& c : node.centerIn)
         {
             auto it = nameToEntity.find(c.target);
+
             if (it == nameToEntity.end())
             {
                 LOG_ERROR("Prefab Builder", "centeredIn target not found: '" << c.target << "'");
                 continue;
             }
+
             auto target = it->second;
             if (target->has<UiAnchor>())
                 anchor->centeredIn(target->get<UiAnchor>());
@@ -194,9 +202,12 @@ EntityRef buildNode(EntitySystem* ecs, const NodeSpec& spec)
             spec.props);
     }
 
-    if (spec.kind == "Shape2D") return makeShape2D(ecs, spec.props);
-    if (spec.kind == "TTFText") return makeText(ecs, spec.props);
-    if (spec.kind == "Texture") return makeTextureNode(ecs, spec.props);
+    if (spec.kind == "Shape2D")
+        return makeShape2D(ecs, spec.props);
+    if (spec.kind == "TTFText")
+        return makeText(ecs, spec.props);
+    if (spec.kind == "Texture")
+        return makeTextureNode(ecs, spec.props);
 
     LOG_ERROR("Prefab Builder", "Unknown node kind: '" << spec.kind << "'");
     return EntityRef{};

@@ -31,6 +31,10 @@ namespace pg
 
     struct AnchorSpec
     {
+        AnchorSpec() = default;
+        AnchorSpec(const std::string& target, AnchorType side, float margin) : target(target), side(side), margin(margin) {}
+        AnchorSpec(const std::string& target, AnchorType side, AnchorType targetSide = AnchorType::None, float margin = 0.0f) : target(target), side(side), targetSide(targetSide), margin(margin) {}
+
         std::string target;            // "main", "parent", or another node's `name`
         AnchorType  side       = AnchorType::None;  // which side of THIS node to anchor
         AnchorType  targetSide = AnchorType::None;  // which side of `target` to anchor to (defaults to `side`)

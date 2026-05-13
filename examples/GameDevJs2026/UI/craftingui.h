@@ -224,6 +224,7 @@ private:
         uint64_t bgEntityId   = 0;
         uint64_t textEntityId = 0;
     };
+
     std::array<TabVisual, TAB_COUNT> tabVisuals = {};
     CraftTab activeTab = CraftTab::All;
 
@@ -241,6 +242,7 @@ private:
     std::function<void(const Recipe&)> machineFeedCallback;
     // Machine-mode single-click to lock recipe
     std::function<void(const Recipe&)> machineSelectCallback;
+
     uint32_t lastClickTime   = 0;
     int      lastClickRowAbs = -1;
 };

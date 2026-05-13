@@ -215,8 +215,7 @@ void RecipeMachineUIBase::updateForMachineType()
     // Resize the backdrop + reflow slots based on the actual numInputs so
     // the panel doesn't leave dead space below the input column.
     const float slotsTop   = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
-    const float slotsAreaH = numInputs * SLOT_SIZE
-                           + (numInputs - 1) * SLOT_SPACING;
+    const float slotsAreaH = numInputs * SLOT_SIZE + (numInputs - 1) * SLOT_SPACING;
     const float barTop     = slotsTop + slotsAreaH + GAP_AFTER_SLOTS;
     const float panelH     = barTop + PROGRESS_H + PANEL_PADDING;
 
@@ -241,6 +240,7 @@ void RecipeMachineUIBase::updateForMachineType()
     // Progress bar
     if (auto barBgEnt = ecsRef->getEntity(progressBgEntityId))
         barBgEnt->get<UiAnchor>()->setTopMargin(barTop);
+
     if (auto barFillEnt = ecsRef->getEntity(progressFillEntityId))
         barFillEnt->get<UiAnchor>()->setTopMargin(barTop);
 
