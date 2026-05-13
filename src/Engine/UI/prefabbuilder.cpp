@@ -265,7 +265,9 @@ EntityRef buildPrefab(EntitySystem* ecs, const PrefabSpec& spec)
     struct BuiltChild
     {
         EntityRef ent;
-        const std::vector<AnchorSpec>* anchors;
+        // Anchors are owned by value (not a pointer into the spec) so the flow pass below
+        // can swap in synthesised anchors for children whose user-supplied list was empty.
+        std::vector<AnchorSpec> anchors;
     };
     std::vector<BuiltChild> built;
     built.reserve(spec.children.size());
@@ -307,15 +309,67 @@ EntityRef buildPrefab(EntitySystem* ecs, const PrefabSpec& spec)
                 return;
 
             registerNamed(ent, c.name);
-            built.push_back({ent, &c.anchors});
+            built.push_back({ent, c.anchors});   // copy user anchors (small vectors)
         }, child);
+    }
+
+    // Flow synthesis: for each child whose user anchor list is empty, auto-generate the
+    // top-left + chain anchors based on the parent's flow direction. Children with any
+    // user anchors are transparent to the flow — the chain skips them.
+    //
+    // The first in-flow child anchors to `main` on both axes (with `padding`). Subsequent
+    // in-flow children chain BOTH axes from the previous in-flow sibling — cross-axis from
+    // its leading edge (no margin), main-axis from its trailing edge (+ `spacing`).
+    //
+    // Chaining cross-axis through the previous sibling (instead of always to `main`) keeps
+    // the dependency graph linear (a -> main, b -> a, c -> b, ...). That guarantees the
+    // position system processes flow children in declaration order — `parentalMap[main]`
+    // stays small, so its (unordered) iteration order can't reverse the chain — and it
+    // makes hidden flow children collapse: subsequent children float left/up into the gap.
+    if (spec.flow != Flow::None and mainEnt)
+    {
+        EntityRef prevFlow{};
+        for (auto& b : built)
+        {
+            if (not b.anchors.empty())
+                continue;
+
+            if (spec.flow == Flow::Horizontal)
+            {
+                if (prevFlow)
+                {
+                    b.anchors.emplace_back(prevFlow.id, AnchorType::Top,  AnchorType::Top,   0.0f);
+                    b.anchors.emplace_back(prevFlow.id, AnchorType::Left, AnchorType::Right, spec.spacing);
+                }
+                else
+                {
+                    b.anchors.emplace_back(std::string(RESERVED_MAIN), AnchorType::Top,  spec.padding);
+                    b.anchors.emplace_back(std::string(RESERVED_MAIN), AnchorType::Left, spec.padding);
+                }
+            }
+            else  // Flow::Vertical
+            {
+                if (prevFlow)
+                {
+                    b.anchors.emplace_back(prevFlow.id, AnchorType::Left, AnchorType::Left,   0.0f);
+                    b.anchors.emplace_back(prevFlow.id, AnchorType::Top,  AnchorType::Bottom, spec.spacing);
+                }
+                else
+                {
+                    b.anchors.emplace_back(std::string(RESERVED_MAIN), AnchorType::Left, spec.padding);
+                    b.anchors.emplace_back(std::string(RESERVED_MAIN), AnchorType::Top,  spec.padding);
+                }
+            }
+
+            prevFlow = b.ent;
+        }
     }
 
     if (mainEnt)
         applyAnchorsToEntity(mainEnt, spec.mainNode.anchors, nameToEntity);
 
     for (auto& b : built)
-        applyAnchorsToEntity(b.ent, *b.anchors, nameToEntity);
+        applyAnchorsToEntity(b.ent, b.anchors, nameToEntity);
 
     // Root-level anchors — applied to the container itself. Targets are looked up first in
     // the local scope (the prefab's own named children), then in the global EntityNameSystem.

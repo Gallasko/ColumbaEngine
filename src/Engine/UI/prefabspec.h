@@ -73,12 +73,39 @@ namespace pg
         std::vector<AnchorSpec> anchors;
     };
 
+    /**
+     * Build-time anchor sugar for the "row of widgets" / "column of rows" pattern.
+     *
+     * When a PrefabSpec sets `flow` to Horizontal or Vertical, every child whose
+     * `anchors` vector is empty has anchors auto-generated:
+     *   - cross-axis anchored to `main` with `padding`
+     *   - main-axis anchored to either `main` (first in-flow child) or the
+     *     previous in-flow sibling (via targetId) with `spacing`
+     *
+     * Children that set ANY anchor of their own are skipped entirely by the
+     * flow and are transparent to the chain — the next in-flow child still
+     * chains from the previous in-flow sibling, not the manually anchored one.
+     *
+     * For runtime-reactive layouts (children added/removed, sizes changing)
+     * use HorizontalLayout / VerticalLayout instead — those reflow each tick.
+     */
+    enum class Flow
+    {
+        None,
+        Horizontal,
+        Vertical,
+    };
+
     struct PrefabSpec
     {
         NodeSpec mainNode;                                          // becomes the prefab's MainEntity
         std::string name;                                           // optional; positions the prefab in its parent's name scope
         std::vector<AnchorSpec> anchors;                            // applied to the prefab container itself
         std::vector<std::variant<NodeSpec, PrefabSpec>> children;   // leaf nodes and nested sub-prefabs, in declaration order
+
+        Flow  flow    = Flow::None;     // when non-None, auto-anchors children with empty anchor lists
+        float padding = 0.0f;            // distance between parent edge and first/each child (both axes)
+        float spacing = 0.0f;            // gap between adjacent in-flow children on the main axis
     };
 
     // One-line helper for the common "center this entity on target" pattern.

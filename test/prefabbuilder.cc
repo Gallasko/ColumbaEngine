@@ -866,5 +866,208 @@ namespace pg
             // empty anchor was treated as a no-op.
             EXPECT_FALSE(container.empty());
         }
+
+        // ----------------------------------------------------------------------------------------
+        // Flow: PrefabSpec::flow auto-anchors children with empty user-anchors.
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, horizontal_flow_chains_children_left_to_right)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec spec;
+            spec.mainNode = shapeNode("bg", 400.0f, 50.0f);
+            spec.flow     = Flow::Horizontal;
+            spec.padding  = 3.0f;
+            spec.spacing  = 5.0f;
+            spec.children.push_back(shapeNode("a", 40.0f, 20.0f));
+            spec.children.push_back(shapeNode("b", 30.0f, 20.0f));
+            spec.children.push_back(shapeNode("c", 25.0f, 20.0f));
+
+            auto container = buildPrefab(&ecs, spec);
+            auto cPos = container->get<PositionComponent>();
+            cPos->setX(10.0f);
+            cPos->setY(20.0f);
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            auto prefab = container->get<Prefab>();
+            auto a = prefab->getEntity("a")->get<PositionComponent>();
+            auto b = prefab->getEntity("b")->get<PositionComponent>();
+            auto c = prefab->getEntity("c")->get<PositionComponent>();
+
+            // Cross-axis: each child sits at main.top + padding.
+            EXPECT_FLOAT_EQ(a->y, 20.0f + 3.0f);
+            EXPECT_FLOAT_EQ(b->y, 20.0f + 3.0f);
+            EXPECT_FLOAT_EQ(c->y, 20.0f + 3.0f);
+
+            // Main-axis: first at main.left + padding, then chained off previous .right + spacing.
+            EXPECT_FLOAT_EQ(a->x, 10.0f + 3.0f);
+            EXPECT_FLOAT_EQ(b->x, a->x + a->width + 5.0f);
+            EXPECT_FLOAT_EQ(c->x, b->x + b->width + 5.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, vertical_flow_chains_children_top_to_bottom)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec spec;
+            spec.mainNode = shapeNode("bg", 80.0f, 400.0f);
+            spec.flow     = Flow::Vertical;
+            spec.padding  = 2.0f;
+            spec.spacing  = 4.0f;
+            spec.children.push_back(shapeNode("row1", 60.0f, 30.0f));
+            spec.children.push_back(shapeNode("row2", 60.0f, 15.0f));
+            spec.children.push_back(shapeNode("row3", 60.0f, 22.0f));
+
+            auto container = buildPrefab(&ecs, spec);
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            auto prefab = container->get<Prefab>();
+            auto r1 = prefab->getEntity("row1")->get<PositionComponent>();
+            auto r2 = prefab->getEntity("row2")->get<PositionComponent>();
+            auto r3 = prefab->getEntity("row3")->get<PositionComponent>();
+
+            // Cross-axis: each row sits at main.left + padding.
+            EXPECT_FLOAT_EQ(r1->x, 2.0f);
+            EXPECT_FLOAT_EQ(r2->x, 2.0f);
+            EXPECT_FLOAT_EQ(r3->x, 2.0f);
+
+            // Main-axis: first at main.top + padding, then chained off previous .bottom + spacing.
+            EXPECT_FLOAT_EQ(r1->y, 2.0f);
+            EXPECT_FLOAT_EQ(r2->y, r1->y + r1->height + 4.0f);
+            EXPECT_FLOAT_EQ(r3->y, r2->y + r2->height + 4.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, flow_none_preserves_current_behaviour)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec spec;
+            spec.mainNode = shapeNode("bg", 100.0f, 100.0f);
+            spec.flow     = Flow::None;       // default; spelled out for clarity
+            spec.padding  = 99.0f;            // ignored when flow == None
+            spec.spacing  = 99.0f;
+            spec.children.push_back(shapeNode("a", 10.0f, 10.0f));
+            spec.children.push_back(shapeNode("b", 10.0f, 10.0f));
+
+            auto container = buildPrefab(&ecs, spec);
+            ecs.executeOnce();
+
+            auto prefab = container->get<Prefab>();
+            auto a = prefab->getEntity("a")->get<PositionComponent>();
+            auto b = prefab->getEntity("b")->get<PositionComponent>();
+
+            // Without flow, no anchors are synthesised — children sit at (0, 0).
+            EXPECT_FLOAT_EQ(a->x, 0.0f);
+            EXPECT_FLOAT_EQ(a->y, 0.0f);
+            EXPECT_FLOAT_EQ(b->x, 0.0f);
+            EXPECT_FLOAT_EQ(b->y, 0.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // Manually anchored children are transparent to the flow: the chain continues from
+        // the previous IN-FLOW sibling, skipping the manual one (matches CSS "out of flow").
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, manual_anchor_child_is_transparent_to_flow_chain)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec spec;
+            spec.mainNode = shapeNode("bg", 400.0f, 50.0f);
+            spec.flow     = Flow::Horizontal;
+            spec.padding  = 0.0f;
+            spec.spacing  = 0.0f;
+
+            spec.children.push_back(shapeNode("flowA", 20.0f, 20.0f));   // in flow
+
+            // Manually anchored: stuck to main.right; must NOT break the chain.
+            NodeSpec manual = shapeNode("manual", 8.0f, 8.0f);
+            manual.anchors = {
+                AnchorSpec{std::string("main"), AnchorType::Right, AnchorType::Right, 0.0f},
+                AnchorSpec{std::string("main"), AnchorType::Top,   0.0f},
+            };
+            spec.children.push_back(manual);
+
+            spec.children.push_back(shapeNode("flowB", 30.0f, 20.0f));   // chain off flowA, not manual
+
+            auto container = buildPrefab(&ecs, spec);
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            auto prefab = container->get<Prefab>();
+            auto a = prefab->getEntity("flowA")->get<PositionComponent>();
+            auto b = prefab->getEntity("flowB")->get<PositionComponent>();
+
+            // flowB should sit immediately right of flowA (chain skips manual).
+            EXPECT_FLOAT_EQ(b->x, a->x + a->width);
+            EXPECT_FLOAT_EQ(b->y, a->y);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // Single flow child still gets the first-child anchors.
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, single_flow_child_anchors_to_main_top_left)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec spec;
+            spec.mainNode = shapeNode("bg", 100.0f, 100.0f);
+            spec.flow     = Flow::Horizontal;
+            spec.padding  = 7.0f;
+            spec.children.push_back(shapeNode("only", 10.0f, 10.0f));
+
+            auto container = buildPrefab(&ecs, spec);
+            ecs.executeOnce();
+
+            auto only = container->get<Prefab>()->getEntity("only")->get<PositionComponent>();
+            EXPECT_FLOAT_EQ(only->x, 7.0f);
+            EXPECT_FLOAT_EQ(only->y, 7.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // Nested PrefabSpec children participate in flow just like NodeSpec children.
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, nested_prefabspec_participates_in_outer_flow)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            PrefabSpec inner;
+            inner.mainNode = shapeNode("innerBg", 40.0f, 20.0f);
+            inner.name     = "nested";
+            // inner.anchors deliberately empty — so the OUTER flow controls its placement.
+
+            PrefabSpec outer;
+            outer.mainNode = shapeNode("outerBg", 200.0f, 50.0f);
+            outer.flow     = Flow::Horizontal;
+            outer.padding  = 1.0f;
+            outer.spacing  = 2.0f;
+            outer.children.push_back(shapeNode("leaf1", 30.0f, 20.0f));
+            outer.children.push_back(std::move(inner));
+            outer.children.push_back(shapeNode("leaf2", 15.0f, 20.0f));
+
+            auto container = buildPrefab(&ecs, outer);
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            auto prefab = container->get<Prefab>();
+            auto leaf1  = prefab->getEntity("leaf1")->get<PositionComponent>();
+            auto nested = prefab->getEntity("nested")->get<PositionComponent>();
+            auto leaf2  = prefab->getEntity("leaf2")->get<PositionComponent>();
+
+            // leaf1 -> main.left + padding; nested -> leaf1.right + spacing; leaf2 -> nested.right + spacing.
+            EXPECT_FLOAT_EQ(leaf1->x,  1.0f);
+            EXPECT_FLOAT_EQ(nested->x, leaf1->x + leaf1->width + 2.0f);
+            EXPECT_FLOAT_EQ(leaf2->x,  nested->x + nested->width + 2.0f);
+        }
     }
 }
