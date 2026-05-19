@@ -817,17 +817,17 @@ namespace pg
 
                     switch(value.type)
                     {
-                        case ElementType::UnionType::FLOAT:
+                        case UnionType::FLOAT:
                             shaderProgram->setUniformValue(uniform.first, value.get<float>());
                             break;
-                        case ElementType::UnionType::INT:
-                        case ElementType::UnionType::SIZE_T:
+                        case UnionType::INT:
+                        case UnionType::SIZE_T:
                             shaderProgram->setUniformValue(uniform.first, value.get<int>());
                             break;
-                        case ElementType::UnionType::BOOL:
+                        case UnionType::BOOL:
                             shaderProgram->setUniformValue(uniform.first, value.get<bool>());
                             break;
-                        case ElementType::UnionType::STRING:
+                        case UnionType::STRING:
                         default:
                         {
                             LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());

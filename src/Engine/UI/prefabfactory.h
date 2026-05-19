@@ -15,11 +15,41 @@ namespace pg
 
     struct ParamSchema
     {
+        enum class Requirement
+        {
+            Optional,
+            Required,
+        };
+
         struct Entry
         {
+            // Basic constructors
+            Entry(const std::string& name, int defaultValue, Requirement requirement = Requirement::Required)
+                : name(name), type(UnionType::INT), defaultValue(defaultValue), requirement(requirement) {}
+
+            Entry(const std::string& name, float defaultValue, Requirement requirement = Requirement::Required)
+                : name(name), type(UnionType::FLOAT), defaultValue(defaultValue), requirement(requirement) {}
+
+            Entry(const std::string& name, double defaultValue, Requirement requirement = Requirement::Required)
+                : name(name), type(UnionType::DOUBLE), defaultValue(defaultValue), requirement(requirement) {}
+
+            Entry(const std::string& name, size_t defaultValue, Requirement requirement = Requirement::Required)
+                : name(name), type(UnionType::SIZE_T), defaultValue(defaultValue), requirement(requirement) {}
+
+            Entry(const std::string& name, bool defaultValue, Requirement requirement = Requirement::Required)
+                : name(name), type(UnionType::BOOL), defaultValue(defaultValue), requirement(requirement) {}
+
+            Entry(const std::string& name, const std::string& defaultValue, Requirement requirement = Requirement::Required)
+                : name(name), type(UnionType::STRING), defaultValue(defaultValue), requirement(requirement) {}
+
+            // Constructors for values with no default
+            Entry(const std::string& name, UnionType type, Requirement requirement = Requirement::Required)
+                : name(name), type(type), requirement(requirement) {}
+
             std::string name;
-            ElementType::UnionType type;
+            UnionType type;
             ElementType defaultValue;
+            Requirement requirement = Requirement::Required;
         };
 
         std::vector<Entry> entries;
@@ -115,13 +145,13 @@ namespace pg
 
         switch (v.type)
         {
-            case ElementType::UnionType::FLOAT:
+            case UnionType::FLOAT:
                 return v.get<float>();
-            case ElementType::UnionType::DOUBLE:
+            case UnionType::DOUBLE:
                 return static_cast<float>(v.get<double>());
-            case ElementType::UnionType::INT:
+            case UnionType::INT:
                 return static_cast<float>(v.get<int>());
-            case ElementType::UnionType::SIZE_T:
+            case UnionType::SIZE_T:
                 return static_cast<float>(v.get<size_t>());
             default:
                 return fallback;
@@ -137,13 +167,13 @@ namespace pg
         const auto& v = it->second;
         switch (v.type)
         {
-            case ElementType::UnionType::INT:
+            case UnionType::INT:
                 return v.get<int>();
-            case ElementType::UnionType::SIZE_T:
+            case UnionType::SIZE_T:
                 return static_cast<int>(v.get<size_t>());
-            case ElementType::UnionType::FLOAT:
+            case UnionType::FLOAT:
                 return static_cast<int>(v.get<float>());
-            case ElementType::UnionType::DOUBLE:
+            case UnionType::DOUBLE:
                 return static_cast<int>(v.get<double>());
             default:
                 return fallback;
@@ -153,7 +183,7 @@ namespace pg
     inline std::string getParamString(const PrefabParams& p, const std::string& key, const std::string& fallback = "")
     {
         auto it = p.find(key);
-        if (it == p.end() or it->second.isEmpty() or it->second.type != ElementType::UnionType::STRING)
+        if (it == p.end() or it->second.isEmpty() or it->second.type != UnionType::STRING)
             return fallback;
 
         return it->second.get<std::string>();
@@ -162,7 +192,7 @@ namespace pg
     inline bool getParamBool(const PrefabParams& p, const std::string& key, bool fallback = false)
     {
         auto it = p.find(key);
-        if (it == p.end() or it->second.isEmpty() or it->second.type != ElementType::UnionType::BOOL)
+        if (it == p.end() or it->second.isEmpty() or it->second.type != UnionType::BOOL)
             return fallback;
 
         return it->second.get<bool>();

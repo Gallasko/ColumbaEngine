@@ -11,6 +11,16 @@ namespace pg
     template<typename T>
     void serialize(Archive& archive, const T& element);
 
+    enum class UnionType
+    {
+        FLOAT,
+        DOUBLE,
+        INT,
+        SIZE_T,
+        STRING,
+        BOOL
+    };
+
     // Todo add a none type
 
     /**
@@ -52,17 +62,6 @@ namespace pg
             std::string s;  ///< String representation of the element type.
             bool b;         ///< Bool representation of the element type.
             // Big Int bi;
-        };
-
-    public:
-        enum class UnionType
-        {
-            FLOAT,
-            DOUBLE,
-            INT,
-            SIZE_T,
-            STRING,
-            BOOL
         };
 
     public:
@@ -350,7 +349,7 @@ namespace pg
                 data.s.~basic_string();
         }
 
-        std::string enumTypeToString(const ElementType::UnionType& type) const;
+        std::string enumTypeToString(const UnionType& type) const;
 
         explicit operator float() const;
         explicit operator double() const;

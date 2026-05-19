@@ -545,17 +545,17 @@ namespace pg
     {
         if (element.isBool())
             return makeBoolValue(element.get<bool>());
-        else if (element.type == ElementType::UnionType::INT)
+        else if (element.type == UnionType::INT)
         {
             int intVal = element.get<int>();
             return makeIntValue(static_cast<int64_t>(intVal));
         }
-        else if (element.type == ElementType::UnionType::FLOAT)
+        else if (element.type == UnionType::FLOAT)
         {
             float floatVal = element.get<float>();
             return makeDoubleValue(static_cast<double>(floatVal));
         }
-        else if (element.type == ElementType::UnionType::DOUBLE)
+        else if (element.type == UnionType::DOUBLE)
         {
             double doubleVal = element.get<double>();
             return makeDoubleValue(doubleVal);

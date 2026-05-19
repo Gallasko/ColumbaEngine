@@ -355,8 +355,8 @@ namespace pg
 
             ParamSchema schema;
             schema.entries = {
-                {"label", ElementType::UnionType::STRING, ElementType{std::string("default")}},
-                {"size",  ElementType::UnionType::FLOAT,  ElementType{24.0f}},
+                {"label", "default"},
+                {"size",  24.0f},
             };
 
             registry->registerFactory("Tag", std::move(schema),
@@ -434,8 +434,8 @@ namespace pg
 
             ParamSchema schema;
             schema.entries = {
-                {"width",  ElementType::UnionType::FLOAT, ElementType{77.0f}},
-                {"height", ElementType::UnionType::FLOAT, ElementType{33.0f}},
+                {"width",  77.0f},
+                {"height", 33.0f},
             };
 
             registry->registerFactory("Slab", std::move(schema),
@@ -478,7 +478,7 @@ namespace pg
             bool factoryCalled = false;
             ParamSchema schema;
             schema.entries = {
-                {"label", ElementType::UnionType::STRING, ElementType{std::string("def")}},
+                {"label", "def"},
             };
 
             registry->registerFactory("Pill", std::move(schema),

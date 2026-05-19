@@ -109,8 +109,9 @@ namespace
         if (hasParam(p, "viewport"))
             label.props["viewport"] = getParamInt(p, "viewport");
 
-        AnchorSpec leftAnchor; leftAnchor.target = "main"; leftAnchor.side = AnchorType::Left; leftAnchor.margin = padding;
-        AnchorSpec topAnchor;  topAnchor.target  = "main"; topAnchor.side  = AnchorType::Top;  topAnchor.margin  = padding;
+        AnchorSpec leftAnchor{"main", AnchorType::Left, padding};
+        AnchorSpec topAnchor{"main", AnchorType::Top, padding};
+
         label.anchors = {leftAnchor, topAnchor};
 
         spec.children.push_back(label);
@@ -127,16 +128,16 @@ void registerEnginePrefabFactories(PrefabFactoryRegistry* registry)
     {
         ParamSchema schema;
         schema.entries = {
-            {"shape",          ElementType::UnionType::STRING, ElementType{std::string("Square")}},
-            {"width",          ElementType::UnionType::FLOAT,  ElementType{100.0f}},
-            {"height",         ElementType::UnionType::FLOAT,  ElementType{100.0f}},
-            {"r",              ElementType::UnionType::FLOAT,  ElementType{ 20.0f}},
-            {"g",              ElementType::UnionType::FLOAT,  ElementType{ 20.0f}},
-            {"b",              ElementType::UnionType::FLOAT,  ElementType{ 30.0f}},
-            {"a",              ElementType::UnionType::FLOAT,  ElementType{220.0f}},
-            {"z",              ElementType::UnionType::FLOAT,  ElementType{ 97.0f}},
-            {"viewport",       ElementType::UnionType::INT,    ElementType{0}},
-            {"centerInTarget", ElementType::UnionType::STRING, ElementType{std::string("")}},
+            {"shape",          "Square"},
+            {"width",          100.0f},
+            {"height",         100.0f},
+            {"r",              20.0f},
+            {"g",              20.0f},
+            {"b",              30.0f},
+            {"a",              220.0f},
+            {"z",              97.0f},
+            {"viewport",       0,   ParamSchema::Requirement::Optional},
+            {"centerInTarget", "",  ParamSchema::Requirement::Optional},
         };
         registry->registerFactory("Panel", std::move(schema), buildPanel);
     }
@@ -144,17 +145,18 @@ void registerEnginePrefabFactories(PrefabFactoryRegistry* registry)
     {
         ParamSchema schema;
         schema.entries = {
-            {"x",        ElementType::UnionType::FLOAT,  ElementType{0.0f}},
-            {"y",        ElementType::UnionType::FLOAT,  ElementType{0.0f}},
-            {"z",        ElementType::UnionType::FLOAT,  ElementType{100.0f}},
-            {"text",     ElementType::UnionType::STRING, ElementType{std::string("")}},
-            {"font",     ElementType::UnionType::STRING, ElementType{std::string("")}},
-            {"scale",    ElementType::UnionType::FLOAT,  ElementType{1.0f}},
-            {"r",        ElementType::UnionType::FLOAT,  ElementType{255.0f}},
-            {"g",        ElementType::UnionType::FLOAT,  ElementType{255.0f}},
-            {"b",        ElementType::UnionType::FLOAT,  ElementType{255.0f}},
-            {"a",        ElementType::UnionType::FLOAT,  ElementType{255.0f}},
-            {"viewport", ElementType::UnionType::INT,    ElementType{0}},
+            {"x",           0.0f},
+            {"y",           0.0f},
+            {"z",           100.0f},
+            {"text",        ""},
+            {"font",        ""},
+            {"scale",       1.0f},
+            {"r",           255.0f},
+            {"g",           255.0f},
+            {"b",           255.0f},
+            {"a",           255.0f},
+            {"viewport",    0, ParamSchema::Requirement::Optional},
+            {"visibility",  true, ParamSchema::Requirement::Optional},
         };
         registry->registerFactory("Text", std::move(schema), buildText);
     }
@@ -162,22 +164,22 @@ void registerEnginePrefabFactories(PrefabFactoryRegistry* registry)
     {
         ParamSchema schema;
         schema.entries = {
-            {"width",    ElementType::UnionType::FLOAT,  ElementType{200.0f}},
-            {"height",   ElementType::UnionType::FLOAT,  ElementType{ 32.0f}},
-            {"text",     ElementType::UnionType::STRING, ElementType{std::string("")}},
-            {"font",     ElementType::UnionType::STRING, ElementType{std::string("")}},
-            {"scale",    ElementType::UnionType::FLOAT,  ElementType{1.0f}},
-            {"padding",  ElementType::UnionType::FLOAT,  ElementType{8.0f}},
-            {"r",        ElementType::UnionType::FLOAT,  ElementType{ 20.0f}},
-            {"g",        ElementType::UnionType::FLOAT,  ElementType{ 20.0f}},
-            {"b",        ElementType::UnionType::FLOAT,  ElementType{ 30.0f}},
-            {"a",        ElementType::UnionType::FLOAT,  ElementType{220.0f}},
-            {"textR",    ElementType::UnionType::FLOAT,  ElementType{255.0f}},
-            {"textG",    ElementType::UnionType::FLOAT,  ElementType{255.0f}},
-            {"textB",    ElementType::UnionType::FLOAT,  ElementType{255.0f}},
-            {"textA",    ElementType::UnionType::FLOAT,  ElementType{255.0f}},
-            {"z",        ElementType::UnionType::FLOAT,  ElementType{ 97.0f}},
-            {"viewport", ElementType::UnionType::INT,    ElementType{0}},
+            {"width",    200.0f},
+            {"height",   32.0f},
+            {"text",     ""},
+            {"font",     ""},
+            {"scale",    1.0f},
+            {"padding",  8.0f},
+            {"r",        20.0f},
+            {"g",        20.0f},
+            {"b",        30.0f},
+            {"a",        220.0f},
+            {"textR",    255.0f},
+            {"textG",    255.0f},
+            {"textB",    255.0f},
+            {"textA",    255.0f},
+            {"z",        97.0f},
+            {"viewport", 0, ParamSchema::Requirement::Optional},
         };
         registry->registerFactory("TitleBar", std::move(schema), buildTitleBar);
     }

@@ -114,12 +114,12 @@ void registerSlotFactory(PrefabFactoryRegistry* factory, ItemRegistry* itemRegis
 
     ParamSchema schema;
     schema.entries = {
-        {SlotPrefabKeys::SlotSize, ElementType::UnionType::FLOAT, ElementType{DEFAULT_SLOT_SIZE}},
-        {SlotPrefabKeys::ItemSize, ElementType::UnionType::FLOAT, ElementType{DEFAULT_ITEM_SIZE}},
-        {SlotPrefabKeys::BgR,      ElementType::UnionType::FLOAT, ElementType{50.0f}},
-        {SlotPrefabKeys::BgG,      ElementType::UnionType::FLOAT, ElementType{50.0f}},
-        {SlotPrefabKeys::BgB,      ElementType::UnionType::FLOAT, ElementType{60.0f}},
-        {SlotPrefabKeys::BgA,      ElementType::UnionType::FLOAT, ElementType{200.0f}},
+        {SlotPrefabKeys::SlotSize, DEFAULT_SLOT_SIZE},
+        {SlotPrefabKeys::ItemSize, DEFAULT_ITEM_SIZE},
+        {SlotPrefabKeys::BgR,      50.0f},
+        {SlotPrefabKeys::BgG,      50.0f},
+        {SlotPrefabKeys::BgB,      60.0f},
+        {SlotPrefabKeys::BgA,      200.0f},
     };
 
     factory->registerFactory("Slot", std::move(schema),
