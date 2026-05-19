@@ -325,7 +325,12 @@ namespace pg
 
         inline bool isEmpty() const { return emptyFlag; }
 
-        explicit operator bool() const;
+        operator bool() const;
+        operator float() const;
+        operator double() const;
+        operator int() const;
+        operator size_t() const;
+        operator std::string() const;
 
     private:
         friend void serialize<>(Archive& archive, const ElementType& element);
@@ -350,12 +355,6 @@ namespace pg
         }
 
         std::string enumTypeToString(const UnionType& type) const;
-
-        explicit operator float() const;
-        explicit operator double() const;
-        explicit operator int() const;
-        explicit operator size_t() const;
-        explicit operator std::string() const;
 
         U data;
 

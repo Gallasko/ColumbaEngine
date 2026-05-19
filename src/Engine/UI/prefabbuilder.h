@@ -6,18 +6,23 @@
 namespace pg
 {
     /**
-     * Materialise a PrefabSpec into a live ECS prefab entity.
+     * Materialise a NodeSpec into a live ECS entity.
      *
-     *   - Wraps the tree in a Prefab + UiAnchor + Position container.
-     *   - Realises each node via its `kind` (see prefabspec.h).
-     *   - Resolves anchor targets by name. Reserved names: "main" (the
-     *     prefab's main entity) and "parent" (the prefab container itself).
-     *   - Names with empty strings are not registered and cannot be referenced.
+     * Single entry point for the unified spec. Dispatches by `kind`:
+     *   - Primitive kinds (Shape2D / TTFText / Texture / Factory:*) with no children
+     *     produce a leaf entity directly.
+     *   - Primitive kinds with children are wrapped in a Prefab + UiAnchor + Position
+     *     container; the leaf becomes the mainEntity, children sit alongside as
+     *     anchored siblings (with optional Flow-synthesised default anchors).
+     *   - Layout kinds (Layout:Horizontal / Layout:Vertical) produce a single
+     *     entity with the layout component attached; children are registered via
+     *     `layout->addEntity(...)` and reflow at runtime.
+     *   - Empty kind ("") + children produces a bare container prefab with no
+     *     mainEntity — useful for grouping entities without a backdrop.
      *
-     * Returns the prefab container entity. Call `prefabRef->get<Prefab>()` to
-     * walk children, register helpers, or look up named entities.
+     * Returns the produced entity (container for prefabs, layout entity for layouts,
+     * leaf entity for primitives). For composite results, call `entity->get<Prefab>()`
+     * to walk children, or use the layout component's API.
      */
-    EntityRef buildPrefab(EntitySystem* ecs, const PrefabSpec& spec);
-
     EntityRef buildNode(EntitySystem* ecs, const NodeSpec& spec);
 }

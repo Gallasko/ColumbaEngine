@@ -42,6 +42,9 @@ namespace pg
             Entry(const std::string& name, const std::string& defaultValue, Requirement requirement = Requirement::Required)
                 : name(name), type(UnionType::STRING), defaultValue(defaultValue), requirement(requirement) {}
 
+            Entry(const std::string& name, const char* defaultValue, Requirement requirement = Requirement::Required)
+                : name(name), type(UnionType::STRING), defaultValue(std::string(defaultValue)), requirement(requirement) {}
+
             // Constructors for values with no default
             Entry(const std::string& name, UnionType type, Requirement requirement = Requirement::Required)
                 : name(name), type(type), requirement(requirement) {}
@@ -133,6 +136,15 @@ namespace pg
     inline bool hasParam(const PrefabParams& p, const std::string& key)
     {
         return p.find(key) != p.end();
+    }
+
+    inline ElementType getParam(const PrefabParams& p, const std::string& key, ElementType fallback = 0.0f)
+    {
+        auto it = p.find(key);
+        if (it == p.end() or it->second.isEmpty())
+            return fallback;
+
+        return it->second;
     }
 
     inline float getParamFloat(const PrefabParams& p, const std::string& key, float fallback = 0.0f)

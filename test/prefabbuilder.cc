@@ -6,6 +6,7 @@
 #include "UI/prefabspec.h"
 #include "UI/prefabbuilder.h"
 #include "UI/prefabfactory.h"
+#include "UI/sizer.h"
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
 #include "ECS/entitysystem.h"
@@ -48,6 +49,7 @@ namespace pg
                 };
                 return n;
             }
+
         }
 
         // ----------------------------------------------------------------------------------------
@@ -152,10 +154,11 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 100.0f, 80.0f);
+            NodeSpec spec;
+            spec.kind = "Prefab";
+            spec.children.push_back(shapeNode("bg", 100.0f, 80.0f));
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
 
             ASSERT_FALSE(container.empty());
             EXPECT_TRUE(container->has<Prefab>());
@@ -182,14 +185,14 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 100.0f, 80.0f);
+            NodeSpec spec;
+            spec = shapeNode("bg", 100.0f, 80.0f);
             spec.children.push_back(shapeNode("left",  10.0f, 10.0f));
             spec.children.push_back(shapeNode("right", 10.0f, 10.0f));
             // An unnamed child is added to the prefab but cannot be looked up by name.
             spec.children.push_back(shapeNode("", 5.0f, 5.0f));
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
 
             ecs.executeOnce();
 
@@ -215,8 +218,8 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 200.0f, 100.0f);
+            NodeSpec spec;
+            spec = shapeNode("bg", 200.0f, 100.0f);
 
             // Icon: anchored top-left of "main" with margins (15, 10).
             NodeSpec icon = shapeNode("icon", 20.0f, 20.0f);
@@ -235,7 +238,7 @@ namespace pg
             badge.anchors = {leftToIconRight, topToIcon};
             spec.children.push_back(badge);
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
             auto containerPos = container->get<PositionComponent>();
 
             // Move the container into a non-zero spot so the assertions are not all zeros.
@@ -287,14 +290,14 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 100.0f, 60.0f);
+            NodeSpec spec;
+            spec = shapeNode("bg", 100.0f, 60.0f);
 
             NodeSpec dot = shapeNode("dot", 10.0f, 10.0f);
             dot.anchors = centerInAnchors("main");
             spec.children.push_back(dot);
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
 
             ecs.executeOnce();
             ecs.executeOnce();
@@ -316,15 +319,15 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 50.0f, 50.0f);
+            NodeSpec spec;
+            spec = shapeNode("bg", 50.0f, 50.0f);
 
             NodeSpec ghost = shapeNode("ghost", 10.0f, 10.0f);
             AnchorSpec dangling; dangling.target = "doesNotExist"; dangling.side = AnchorType::Top;
             ghost.anchors = {dangling};
             spec.children.push_back(ghost);
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
             ASSERT_FALSE(container.empty());
 
             ecs.executeOnce();
@@ -521,12 +524,16 @@ namespace pg
                     return cl.entity;
                 });
 
-            PrefabSpec spec;
-            spec.mainNode.kind  = "Factory:Card";
-            spec.mainNode.name  = "card";
-            spec.mainNode.props = {{"width", 120.0f}, {"height", 40.0f}};
+            NodeSpec cardSpec;
+            cardSpec.kind  = "Factory:Card";
+            cardSpec.name  = "card";
+            cardSpec.props = {{"width", 120.0f}, {"height", 40.0f}};
 
-            auto container = buildPrefab(&ecs, spec);
+            NodeSpec spec;
+            spec.kind = "Prefab";
+            spec.children.push_back(std::move(cardSpec));
+
+            auto container = buildNode(&ecs, spec);
             auto containerPos = container->get<PositionComponent>();
             containerPos->setX(8.0f);
             containerPos->setY(4.0f);
@@ -549,7 +556,7 @@ namespace pg
         }
 
         // ----------------------------------------------------------------------------------------
-        // Nested PrefabSpec as a child: a complete sub-tree dropped into the outer spec's
+        // Nested NodeSpec as a child: a complete sub-tree dropped into the outer spec's
         // children list. The nested container entity is registered by name on the outer Prefab
         // and can be anchored to like any other named child.
         // ----------------------------------------------------------------------------------------
@@ -558,15 +565,17 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec inner;
-            inner.mainNode = shapeNode("innerBg", 40.0f, 30.0f);
-            inner.name     = "machineA";
+            // inner is itself a Prefab (so machineEnt->has<Prefab>() holds), with its own bg.
+            NodeSpec inner;
+            inner.kind = "Prefab";
+            inner.name = "machineA";
+            inner.children.push_back(shapeNode("innerBg", 40.0f, 30.0f));
 
-            PrefabSpec outer;
-            outer.mainNode = shapeNode("outerBg", 200.0f, 100.0f);
+            NodeSpec outer;
+            outer = shapeNode("outerBg", 200.0f, 100.0f);
             outer.children.push_back(std::move(inner));
 
-            auto container = buildPrefab(&ecs, outer);
+            auto container = buildNode(&ecs, outer);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -589,8 +598,8 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec inner;
-            inner.mainNode = shapeNode("innerBg", 50.0f, 20.0f);
+            NodeSpec inner;
+            inner = shapeNode("innerBg", 50.0f, 20.0f);
             inner.name     = "header";
             // Anchor the nested container to the outer main entity's top-left so it has a fixed position.
             inner.anchors  = {
@@ -605,12 +614,12 @@ namespace pg
                 AnchorSpec{"header", AnchorType::Left, AnchorType::Left, 0.0f},
             };
 
-            PrefabSpec outer;
-            outer.mainNode = shapeNode("outerBg", 100.0f, 100.0f);
+            NodeSpec outer;
+            outer = shapeNode("outerBg", 100.0f, 100.0f);
             outer.children.push_back(std::move(inner));
             outer.children.push_back(body);
 
-            auto container = buildPrefab(&ecs, outer);
+            auto container = buildNode(&ecs, outer);
             auto containerPos = container->get<PositionComponent>();
             containerPos->setX(5.0f);
             containerPos->setY(7.0f);
@@ -637,16 +646,16 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec inner;
-            inner.mainNode = shapeNode("innerBg", 20.0f, 20.0f);
+            NodeSpec inner;
+            inner = shapeNode("innerBg", 20.0f, 20.0f);
             inner.name     = "blob";
             inner.anchors  = centerInAnchors("main");
 
-            PrefabSpec outer;
-            outer.mainNode = shapeNode("outerBg", 100.0f, 80.0f);
+            NodeSpec outer;
+            outer = shapeNode("outerBg", 100.0f, 80.0f);
             outer.children.push_back(std::move(inner));
 
-            auto container = buildPrefab(&ecs, outer);
+            auto container = buildNode(&ecs, outer);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -668,15 +677,15 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec inner;
-            inner.mainNode = shapeNode("inside", 10.0f, 10.0f);
+            NodeSpec inner;
+            inner = shapeNode("inside", 10.0f, 10.0f);
             inner.name     = "nested";
 
-            PrefabSpec outer;
-            outer.mainNode = shapeNode("outerBg", 50.0f, 50.0f);
+            NodeSpec outer;
+            outer = shapeNode("outerBg", 50.0f, 50.0f);
             outer.children.push_back(std::move(inner));
 
-            auto container = buildPrefab(&ecs, outer);
+            auto container = buildNode(&ecs, outer);
             ecs.executeOnce();
 
             auto prefab = container->get<Prefab>();
@@ -692,20 +701,22 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec c;
-            c.mainNode = shapeNode("cBg", 8.0f, 8.0f);
-            c.name     = "C";
+            // c is its own Prefab (so we can probe cEnt->has<Prefab>() below).
+            NodeSpec c;
+            c.kind = "Prefab";
+            c.name = "C";
+            c.children.push_back(shapeNode("cBg", 8.0f, 8.0f));
 
-            PrefabSpec b;
-            b.mainNode = shapeNode("bBg", 30.0f, 30.0f);
-            b.name     = "B";
+            NodeSpec b;
+            b = shapeNode("bBg", 30.0f, 30.0f);
+            b.name = "B";
             b.children.push_back(std::move(c));
 
-            PrefabSpec a;
-            a.mainNode = shapeNode("aBg", 80.0f, 80.0f);
+            NodeSpec a;
+            a = shapeNode("aBg", 80.0f, 80.0f);
             a.children.push_back(std::move(b));
 
-            auto container = buildPrefab(&ecs, a);
+            auto container = buildNode(&ecs, a);
             ecs.executeOnce();
 
             auto outer = container->get<Prefab>();
@@ -734,14 +745,15 @@ namespace pg
             external.get<PositionComponent>()->setX(100.0f);
             external.get<PositionComponent>()->setY(50.0f);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 20.0f, 20.0f);
+            NodeSpec spec;
+            spec.kind = "Prefab";
+            spec.children.push_back(shapeNode("bg", 20.0f, 20.0f));
             spec.anchors  = {
                 AnchorSpec{external.entity.id, AnchorType::Top,  AnchorType::Bottom, 0.0f},
                 AnchorSpec{external.entity.id, AnchorType::Left, AnchorType::Left,   0.0f},
             };
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -769,15 +781,16 @@ namespace pg
             external.get<PositionComponent>()->setY(80.0f);
             ecs.attach<EntityName>(external.entity, std::string("globalAnchor"));
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 20.0f, 20.0f);
+            NodeSpec spec;
+            spec.kind = "Prefab";
+            spec.children.push_back(shapeNode("bg", 20.0f, 20.0f));
             // No targetId; name should resolve through EntityNameSystem.
             spec.anchors  = {
                 AnchorSpec{std::string("globalAnchor"), AnchorType::Top,  AnchorType::Top,  0.0f},
                 AnchorSpec{std::string("globalAnchor"), AnchorType::Left, AnchorType::Left, 0.0f},
             };
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -800,8 +813,9 @@ namespace pg
             byId.get<PositionComponent>()->setX(500.0f);
             byId.get<PositionComponent>()->setY(0.0f);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 20.0f, 20.0f);
+            NodeSpec spec;
+            spec.kind = "Prefab";
+            spec.children.push_back(shapeNode("bg", 20.0f, 20.0f));
 
             // target = "main" would normally resolve to the prefab's own main entity at (0,0).
             // Setting targetId to the external entity must override that.
@@ -812,7 +826,7 @@ namespace pg
             a.targetSide = AnchorType::Left;
             spec.anchors = {a};
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -828,15 +842,15 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec inner;
-            inner.mainNode = shapeNode("inside", 10.0f, 10.0f);
+            NodeSpec inner;
+            inner = shapeNode("inside", 10.0f, 10.0f);
             inner.name     = "main";   // reserved
 
-            PrefabSpec outer;
-            outer.mainNode = shapeNode("outerBg", 50.0f, 50.0f);
+            NodeSpec outer;
+            outer = shapeNode("outerBg", 50.0f, 50.0f);
             outer.children.push_back(std::move(inner));
 
-            auto container = buildPrefab(&ecs, outer);
+            auto container = buildNode(&ecs, outer);
             ecs.executeOnce();
 
             // "main" resolves to the OUTER prefab's main entity, not the nested one.
@@ -853,13 +867,13 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 10.0f, 10.0f);
+            NodeSpec spec;
+            spec = shapeNode("bg", 10.0f, 10.0f);
             AnchorSpec a;  // default-constructed: target empty, targetId 0
             a.side = AnchorType::Top;
             spec.anchors = {a};
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
             ecs.executeOnce();
 
             // No assertion on position; the test passes if the build did not crash and the
@@ -875,8 +889,8 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 400.0f, 50.0f);
+            NodeSpec spec;
+            spec = shapeNode("bg", 400.0f, 50.0f);
             spec.flow     = Flow::Horizontal;
             spec.padding  = 3.0f;
             spec.spacing  = 5.0f;
@@ -884,7 +898,7 @@ namespace pg
             spec.children.push_back(shapeNode("b", 30.0f, 20.0f));
             spec.children.push_back(shapeNode("c", 25.0f, 20.0f));
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
             auto cPos = container->get<PositionComponent>();
             cPos->setX(10.0f);
             cPos->setY(20.0f);
@@ -914,8 +928,8 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 80.0f, 400.0f);
+            NodeSpec spec;
+            spec = shapeNode("bg", 80.0f, 400.0f);
             spec.flow     = Flow::Vertical;
             spec.padding  = 2.0f;
             spec.spacing  = 4.0f;
@@ -923,7 +937,7 @@ namespace pg
             spec.children.push_back(shapeNode("row2", 60.0f, 15.0f));
             spec.children.push_back(shapeNode("row3", 60.0f, 22.0f));
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -949,15 +963,15 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 100.0f, 100.0f);
+            NodeSpec spec;
+            spec = shapeNode("bg", 100.0f, 100.0f);
             spec.flow     = Flow::None;       // default; spelled out for clarity
             spec.padding  = 99.0f;            // ignored when flow == None
             spec.spacing  = 99.0f;
             spec.children.push_back(shapeNode("a", 10.0f, 10.0f));
             spec.children.push_back(shapeNode("b", 10.0f, 10.0f));
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
             ecs.executeOnce();
 
             auto prefab = container->get<Prefab>();
@@ -980,8 +994,8 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 400.0f, 50.0f);
+            NodeSpec spec;
+            spec = shapeNode("bg", 400.0f, 50.0f);
             spec.flow     = Flow::Horizontal;
             spec.padding  = 0.0f;
             spec.spacing  = 0.0f;
@@ -998,7 +1012,7 @@ namespace pg
 
             spec.children.push_back(shapeNode("flowB", 30.0f, 20.0f));   // chain off flowA, not manual
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -1019,13 +1033,13 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec spec;
-            spec.mainNode = shapeNode("bg", 100.0f, 100.0f);
+            NodeSpec spec;
+            spec = shapeNode("bg", 100.0f, 100.0f);
             spec.flow     = Flow::Horizontal;
             spec.padding  = 7.0f;
             spec.children.push_back(shapeNode("only", 10.0f, 10.0f));
 
-            auto container = buildPrefab(&ecs, spec);
+            auto container = buildNode(&ecs, spec);
             ecs.executeOnce();
 
             auto only = container->get<Prefab>()->getEntity("only")->get<PositionComponent>();
@@ -1034,20 +1048,20 @@ namespace pg
         }
 
         // ----------------------------------------------------------------------------------------
-        // Nested PrefabSpec children participate in flow just like NodeSpec children.
+        // Nested NodeSpec children participate in flow just like NodeSpec children.
         // ----------------------------------------------------------------------------------------
         TEST(prefab_builder_test, nested_prefabspec_participates_in_outer_flow)
         {
             EntitySystem ecs;
             bootstrap(ecs);
 
-            PrefabSpec inner;
-            inner.mainNode = shapeNode("innerBg", 40.0f, 20.0f);
+            NodeSpec inner;
+            inner = shapeNode("innerBg", 40.0f, 20.0f);
             inner.name     = "nested";
             // inner.anchors deliberately empty — so the OUTER flow controls its placement.
 
-            PrefabSpec outer;
-            outer.mainNode = shapeNode("outerBg", 200.0f, 50.0f);
+            NodeSpec outer;
+            outer = shapeNode("outerBg", 200.0f, 50.0f);
             outer.flow     = Flow::Horizontal;
             outer.padding  = 1.0f;
             outer.spacing  = 2.0f;
@@ -1055,7 +1069,7 @@ namespace pg
             outer.children.push_back(std::move(inner));
             outer.children.push_back(shapeNode("leaf2", 15.0f, 20.0f));
 
-            auto container = buildPrefab(&ecs, outer);
+            auto container = buildNode(&ecs, outer);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -1068,6 +1082,162 @@ namespace pg
             EXPECT_FLOAT_EQ(leaf1->x,  1.0f);
             EXPECT_FLOAT_EQ(nested->x, leaf1->x + leaf1->width + 2.0f);
             EXPECT_FLOAT_EQ(leaf2->x,  nested->x + nested->width + 2.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // Layout kind: produces a layout entity, children added via addEntity. The runtime
+        // LayoutSystem positions them — flow synthesis is NOT applied.
+        // ----------------------------------------------------------------------------------------
+        namespace
+        {
+            void bootstrapWithLayout(EntitySystem& ecs)
+            {
+                ecs.createSystem<PositionComponentSystem>();
+                ecs.createSystem<PrefabSystem>();
+                ecs.createSystem<PrefabFactoryRegistry>();
+                ecs.createSystem<LayoutSystem>();
+                ecs.succeed<PositionComponentSystem, PrefabSystem>();
+                ecs.succeed<PositionComponentSystem, LayoutSystem>();
+            }
+        }
+
+        TEST(prefab_builder_test, layout_horizontal_produces_layout_entity_with_children)
+        {
+            EntitySystem ecs;
+            bootstrapWithLayout(ecs);
+
+            NodeSpec spec;
+            spec.kind  = "Layout:Horizontal";
+            spec.props = {
+                {"x",       0.0f},
+                {"y",       0.0f},
+                {"width",   300.0f},
+                {"height",  50.0f},
+                {"spacing", 5},
+            };
+            spec.children.push_back(shapeNode("a", 30.0f, 20.0f));
+            spec.children.push_back(shapeNode("b", 40.0f, 20.0f));
+            spec.children.push_back(shapeNode("c", 25.0f, 20.0f));
+
+            auto layoutEnt = buildNode(&ecs, spec);
+            ASSERT_FALSE(layoutEnt.empty());
+            ASSERT_TRUE(layoutEnt->has<HorizontalLayout>());
+
+            auto layout = layoutEnt->get<HorizontalLayout>();
+            EXPECT_EQ(layout->spacing, 5u);
+
+            // addEntity is event-driven — tick once for AddLayoutElementEvent to be processed,
+            // then again so the LayoutSystem repositions everything.
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            EXPECT_EQ(layout->entities.size(), 3u);
+
+            // LayoutSystem positions children left-to-right with the configured spacing.
+            // a at 0, b at a.right + spacing, c at b.right + spacing.
+            auto aPos = layout->entities[0]->get<PositionComponent>();
+            auto bPos = layout->entities[1]->get<PositionComponent>();
+            auto cPos = layout->entities[2]->get<PositionComponent>();
+            EXPECT_FLOAT_EQ(aPos->x, 0.0f);
+            EXPECT_FLOAT_EQ(bPos->x, aPos->x + aPos->width + 5.0f);
+            EXPECT_FLOAT_EQ(cPos->x, bPos->x + bPos->width + 5.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, layout_vertical_produces_layout_entity_with_children)
+        {
+            EntitySystem ecs;
+            bootstrapWithLayout(ecs);
+
+            NodeSpec spec;
+            spec.kind  = "Layout:Vertical";
+            spec.props = {{"width", 80.0f}, {"height", 300.0f}, {"spacing", 4}};
+            spec.children.push_back(shapeNode("r1", 60.0f, 25.0f));
+            spec.children.push_back(shapeNode("r2", 60.0f, 25.0f));
+
+            auto layoutEnt = buildNode(&ecs, spec);
+            ASSERT_FALSE(layoutEnt.empty());
+            ASSERT_TRUE(layoutEnt->has<VerticalLayout>());
+
+            auto layout = layoutEnt->get<VerticalLayout>();
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            EXPECT_EQ(layout->entities.size(), 2u);
+
+            auto r1Pos = layout->entities[0]->get<PositionComponent>();
+            auto r2Pos = layout->entities[1]->get<PositionComponent>();
+            EXPECT_FLOAT_EQ(r1Pos->y, 0.0f);
+            EXPECT_FLOAT_EQ(r2Pos->y, r1Pos->y + r1Pos->height + 4.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, layout_props_carry_to_layout_component)
+        {
+            EntitySystem ecs;
+            bootstrapWithLayout(ecs);
+
+            NodeSpec spec;
+            spec.kind  = "Layout:Horizontal";
+            spec.props = {
+                {"width",      200.0f},
+                {"height",     60.0f},
+                {"spacing",    7},
+                {"fitToAxis",  true},
+                {"spaced",     false},
+                {"stickToEnd", true},
+            };
+
+            auto layoutEnt = buildNode(&ecs, spec);
+            ASSERT_FALSE(layoutEnt.empty());
+
+            auto layout = layoutEnt->get<HorizontalLayout>();
+            EXPECT_EQ(layout->spacing,   7u);
+            EXPECT_TRUE(layout->fitToAxis);
+            EXPECT_FALSE(layout->spaced);
+            EXPECT_TRUE(layout->stickToEnd);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // Layout nested inside a Prefab: outer prefab has a backdrop + a layout as a sibling.
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_builder_test, layout_nested_inside_prefab)
+        {
+            EntitySystem ecs;
+            bootstrapWithLayout(ecs);
+
+            NodeSpec row;
+            row.kind  = "Layout:Horizontal";
+            row.name  = "row";
+            row.props = {{"spacing", 3}};
+            row.anchors = {
+                AnchorSpec{"main", AnchorType::Top,  4.0f},
+                AnchorSpec{"main", AnchorType::Left, 4.0f},
+            };
+            row.children.push_back(shapeNode("btn1", 20.0f, 20.0f));
+            row.children.push_back(shapeNode("btn2", 20.0f, 20.0f));
+
+            NodeSpec outer = shapeNode("bg", 200.0f, 60.0f);
+            outer.children.push_back(std::move(row));
+
+            auto container = buildNode(&ecs, outer);
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            auto prefab = container->get<Prefab>();
+            auto rowEnt = prefab->getEntity("row");
+            ASSERT_FALSE(rowEnt.empty());
+            ASSERT_TRUE(rowEnt->has<HorizontalLayout>());
+
+            // Layout addEntity is event-driven; the previous two ticks should have processed it.
+            EXPECT_EQ(rowEnt->get<HorizontalLayout>()->entities.size(), 2u);
+
+            // The layout entity itself is positioned by its own anchors (main.top+4, main.left+4),
+            // and the LayoutSystem positions its children within.
+            auto rowPos = rowEnt->get<PositionComponent>();
+            EXPECT_FLOAT_EQ(rowPos->x, 4.0f);
+            EXPECT_FLOAT_EQ(rowPos->y, 4.0f);
         }
     }
 }

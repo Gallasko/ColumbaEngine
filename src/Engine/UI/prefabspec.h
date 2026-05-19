@@ -4,51 +4,76 @@
 #include "2D/position.h"
 
 #include <string>
-#include <variant>
 #include <vector>
 
 namespace pg
 {
     /**
-     * Declarative description of a UI prefab tree. Built at runtime by
-     * buildPrefab(). The structure is intentionally JSON-shaped: every field is
-     * either a primitive, a string, an `ElementType`, or a vector of one of the
-     * above. No code, no closures, no type-erased payloads. This is what an
-     * editor will eventually round-trip.
+     * Declarative description of a UI tree. Built at runtime by `buildNode()`.
      *
-     * Composition model:
-     *   - A PrefabSpec produces a Prefab entity wrapping a tree of children.
-     *   - `mainNode` is the visually-dominant node (e.g. background); the
-     *     PrefabSystem auto-anchors the prefab container to its size+position.
-     *   - `children` are additional entities. Each entry is either a leaf
-     *     NodeSpec or a nested PrefabSpec sub-tree (composition is recursive).
-     *   - Each child can anchor to `mainNode` (target = "main"), to the prefab
-     *     itself (target = "parent"), or to any sibling by name.
-     *   - PrefabSpec itself also carries `name` and `anchors` so a PrefabSpec
-     *     value can be dropped directly into another PrefabSpec's `children`
-     *     and behave like any other child.
-     *   - `kind` selects how a NodeSpec is realised:
-     *       "Shape2D"          -> makeUiSimple2DShape
-     *       "TTFText"          -> makeTTFText
-     *       "Texture"          -> makeUiTexture
-     *       "Factory:<name>"   -> PrefabFactoryRegistry::build(<name>, props)
+     * One struct, one entry point. A `NodeSpec` can be:
+     *   - A primitive leaf  (`kind = "Shape2D" | "TTFText" | "Texture" | "Factory:<name>"`)
+     *   - A composite       (any leaf kind + non-empty `children`): the leaf becomes the
+     *                       prefab's mainEntity and children sit alongside in a prefab container.
+     *   - A layout          (`kind = "Layout:Horizontal" | "Layout:Vertical"`): produces a
+     *                       single entity with HorizontalLayout / VerticalLayout attached;
+     *                       children are added via the layout (reflowed at runtime by LayoutSystem).
+     *   - A bare container  (`kind = ""` + children): a prefab container with no mainEntity
+     *                       and no backdrop — useful for "just group these entities together".
+     *
+     * `kind` dispatch:
+     *   "Shape2D"          -> makeUiSimple2DShape
+     *   "TTFText"          -> makeTTFText
+     *   "Texture"          -> makeUiTexture
+     *   "Factory:<name>"   -> PrefabFactoryRegistry::build(<name>, props)
+     *   "Layout:Horizontal" / "Layout:Vertical" -> makeHorizontal/VerticalLayout, children added via layout->addEntity
+     *   "Prefab"           -> ALWAYS wraps in a Prefab container, even with zero children.
+     *                         When non-empty, children[0] becomes the mainEntity (auto-anchored
+     *                         to the container top-left, container size constrained to it) and
+     *                         children[1..] become anchored siblings. Use this when you want a
+     *                         Prefab wrapper but don't need its leaf to carry kind-specific
+     *                         visuals (e.g. the engine's "Panel" factory).
+     *   ""                 -> no leaf entity; only meaningful when `children` is non-empty
+     *
+     * Wrapping rules:
+     *   - Leaf kind + children non-empty: shorthand. Leaf becomes mainEntity, children are siblings.
+     *   - kind == "Prefab": canonical wrap. children[0] is mainEntity, rest are siblings.
+     *   - Leaf kind + empty children: just the leaf entity, no wrap.
      *
      * Anchor sides (`AnchorSpec::side`):
-     *   - Top / Bottom / Left / Right       -> cardinal anchors with margin
+     *   - Top / Bottom / Left / Right       -> cardinal anchor with margin
      *   - Width / Height                    -> size constrain to target
      *   - VerticalCenter / HorizontalCenter -> center this node on target axis
-     *     (use both sides to fully center an entity inside another)
+     *     (combine both to fully center; see `centerInAnchors()` below)
      *
-     * Anchor resolution (three-tier, applied uniformly to root, nested, and
-     * leaf anchors):
-     *   1. AnchorSpec::targetId  != 0 -> look up entity by id directly.
-     *   2. AnchorSpec::target    in the prefab's local name map (siblings +
-     *                            "main" + "parent") -> use it.
-     *   3. AnchorSpec::target    in the global EntityNameSystem -> use it.
-     *   4. otherwise             -> skip (empty target) or log error.
+     * Anchor target resolution (three-tier, applied uniformly to root and children):
+     *   1. AnchorSpec::targetId != 0 -> look up entity by id directly.
+     *   2. AnchorSpec::target found in the local sibling/main/parent map -> use it.
+     *   3. AnchorSpec::target found in the global EntityNameSystem -> use it.
+     *   4. otherwise -> skip (empty target) or log + skip (non-empty target).
+     *
+     * Flow synthesis (build-time anchor sugar for "row of widgets" / "column of rows"):
+     *   - `flow != None` auto-anchors children whose `anchors` is empty.
+     *   - Children with any user-anchor are transparent to the chain (CSS `position: absolute`).
+     *   - `padding` separates first child from `main`; `spacing` separates adjacent in-flow siblings.
+     *   - For runtime-reactive layouts (children appearing/disappearing, size-dependent reflow,
+     *     scroll), use the `Layout:Horizontal` / `Layout:Vertical` kinds instead — those produce
+     *     a real LayoutSystem entity rather than baked anchors.
+     *
+     * `name` semantics:
+     *   - When the node is nested as a child, `name` registers the produced entity in the
+     *     PARENT prefab's child map (so siblings can anchor to it by name).
+     *   - When the node also has its own children (prefab wrapping), the leaf (mainEntity) is
+     *     additionally registered under the same `name` inside this node's own Prefab — so
+     *     `parentPrefab->getEntity("bg")` returns the leaf, matching the old PrefabSpec idiom.
      */
 
-    struct PrefabSpec;  // forward declaration for recursive variant
+    enum class Flow
+    {
+        None,
+        Horizontal,
+        Vertical,
+    };
 
     struct AnchorSpec
     {
@@ -58,8 +83,8 @@ namespace pg
         AnchorSpec(_unique_id targetId, AnchorType side, float margin) : targetId(targetId), side(side), margin(margin) {}
         AnchorSpec(_unique_id targetId, AnchorType side, AnchorType targetSide = AnchorType::None, float margin = 0.0f) : targetId(targetId), side(side), targetSide(targetSide), margin(margin) {}
 
-        std::string target;            // "main", "parent", another node's `name`, or a globally-named entity
-        _unique_id  targetId   = 0;    // when non-zero, bypasses name lookup and resolves the entity directly
+        std::string target;            // "main", "parent", a sibling's `name`, or a globally-named entity
+        _unique_id  targetId   = 0;    // when non-zero, bypasses name lookup
         AnchorType  side       = AnchorType::None;  // which side of THIS node to anchor (Top/Bottom/Left/Right/Width/Height/VerticalCenter/HorizontalCenter)
         AnchorType  targetSide = AnchorType::None;  // which side of `target` to anchor to (defaults to `side`)
         float       margin     = 0.0f;
@@ -67,51 +92,21 @@ namespace pg
 
     struct NodeSpec
     {
-        std::string kind;              // see kind dispatch above
-        ElementMap  props;             // editor-introspectable parameters
-        std::string name;              // optional, enables anchor lookup from siblings
-        std::vector<AnchorSpec> anchors;
+        std::string kind;                       // see kind dispatch above
+        ElementMap  props;                      // editor-introspectable parameters for the leaf
+        std::string name;                       // optional; see name semantics above
+        std::vector<AnchorSpec> anchors;        // applied to THIS node's produced entity
+        std::vector<NodeSpec>   children;       // recursive composition
+
+        Flow  flow    = Flow::None;             // build-time anchor sugar for children with empty anchors
+        float padding = 0.0f;                   // first in-flow child distance from `main`
+        float spacing = 0.0f;                   // gap between adjacent in-flow children
     };
 
-    /**
-     * Build-time anchor sugar for the "row of widgets" / "column of rows" pattern.
-     *
-     * When a PrefabSpec sets `flow` to Horizontal or Vertical, every child whose
-     * `anchors` vector is empty has anchors auto-generated:
-     *   - cross-axis anchored to `main` with `padding`
-     *   - main-axis anchored to either `main` (first in-flow child) or the
-     *     previous in-flow sibling (via targetId) with `spacing`
-     *
-     * Children that set ANY anchor of their own are skipped entirely by the
-     * flow and are transparent to the chain — the next in-flow child still
-     * chains from the previous in-flow sibling, not the manually anchored one.
-     *
-     * For runtime-reactive layouts (children added/removed, sizes changing)
-     * use HorizontalLayout / VerticalLayout instead — those reflow each tick.
-     */
-    enum class Flow
-    {
-        None,
-        Horizontal,
-        Vertical,
-    };
-
-    struct PrefabSpec
-    {
-        NodeSpec mainNode;                                          // becomes the prefab's MainEntity
-        std::string name;                                           // optional; positions the prefab in its parent's name scope
-        std::vector<AnchorSpec> anchors;                            // applied to the prefab container itself
-        std::vector<std::variant<NodeSpec, PrefabSpec>> children;   // leaf nodes and nested sub-prefabs, in declaration order
-
-        Flow  flow    = Flow::None;     // when non-None, auto-anchors children with empty anchor lists
-        float padding = 0.0f;            // distance between parent edge and first/each child (both axes)
-        float spacing = 0.0f;            // gap between adjacent in-flow children on the main axis
-    };
-
-    // One-line helper for the common "center this entity on target" pattern.
-    // Expands to two AnchorSpecs (vertical + horizontal). Usage:
+    // Helper: returns the pair of anchors needed to fully center the entity on `target`.
+    // Use as:
     //   node.anchors = centerInAnchors("main");
-    //   spec.anchors = centerInAnchors(existingEnt->id);
+    //   node.anchors = centerInAnchors(existingEnt->id);
     inline std::vector<AnchorSpec> centerInAnchors(const std::string& target)
     {
         return {
