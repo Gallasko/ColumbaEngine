@@ -11,34 +11,25 @@ namespace pg
     /**
      * Declarative description of a UI tree. Built at runtime by `buildNode()`.
      *
-     * One struct, one entry point. A `NodeSpec` can be:
-     *   - A primitive leaf  (`kind = "Shape2D" | "TTFText" | "Texture" | "Factory:<name>"`)
-     *   - A composite       (any leaf kind + non-empty `children`): the leaf becomes the
-     *                       prefab's mainEntity and children sit alongside in a prefab container.
-     *   - A layout          (`kind = "Layout:Horizontal" | "Layout:Vertical"`): produces a
-     *                       single entity with HorizontalLayout / VerticalLayout attached;
-     *                       children are added via the layout (reflowed at runtime by LayoutSystem).
-     *   - A bare container  (`kind = ""` + children): a prefab container with no mainEntity
-     *                       and no backdrop — useful for "just group these entities together".
+     * One rule:
+     *   - `kind == "Layout:Horizontal" | "Layout:Vertical"` produces a layout entity; children
+     *     are added via `addEntity` and the runtime LayoutSystem reflows them.
+     *   - Every other kind ALWAYS produces a Prefab container. The kind drives what becomes the
+     *     container's mainEntity:
+     *       * non-empty kind -> looked up in `PrefabFactoryRegistry` (built-ins like `Shape2D`,
+     *         `TTFText`, `Texture` are registered at engine init alongside user factories like
+     *         `Panel`, `Slot`, etc.). The factory's returned entity is the mainEntity.
+     *       * empty kind     -> no mainEntity; `children` are all siblings of a bare container.
+     *     `children` are realised recursively (each becomes its own wrap unless it's a layout)
+     *     and anchored as siblings of the mainEntity inside this prefab.
      *
-     * `kind` dispatch:
-     *   "Shape2D"          -> makeUiSimple2DShape
-     *   "TTFText"          -> makeTTFText
-     *   "Texture"          -> makeUiTexture
-     *   "Factory:<name>"   -> PrefabFactoryRegistry::build(<name>, props)
-     *   "Layout:Horizontal" / "Layout:Vertical" -> makeHorizontal/VerticalLayout, children added via layout->addEntity
-     *   "Prefab"           -> ALWAYS wraps in a Prefab container, even with zero children.
-     *                         When non-empty, children[0] becomes the mainEntity (auto-anchored
-     *                         to the container top-left, container size constrained to it) and
-     *                         children[1..] become anchored siblings. Use this when you want a
-     *                         Prefab wrapper but don't need its leaf to carry kind-specific
-     *                         visuals (e.g. the engine's "Panel" factory).
-     *   ""                 -> no leaf entity; only meaningful when `children` is non-empty
-     *
-     * Wrapping rules:
-     *   - Leaf kind + children non-empty: shorthand. Leaf becomes mainEntity, children are siblings.
-     *   - kind == "Prefab": canonical wrap. children[0] is mainEntity, rest are siblings.
-     *   - Leaf kind + empty children: just the leaf entity, no wrap.
+     * Name resolution (sibling/parent anchor scope):
+     *   Each child registers under `name` in its parent's name map. The stored entity is the
+     *   child's mainEntity (unwrapped from its Prefab container) so that
+     *   `parent->get<Prefab>()->getEntity("bg")->get<Simple2DObject>()` works ergonomically.
+     *   Anchoring a sibling to `"bg"` resolves to the leaf — geometrically identical to
+     *   targeting the wrap (the leaf is auto-anchored top-left and width/height-constrained
+     *   to its wrap container).
      *
      * Anchor sides (`AnchorSpec::side`):
      *   - Top / Bottom / Left / Right       -> cardinal anchor with margin
@@ -59,13 +50,6 @@ namespace pg
      *   - For runtime-reactive layouts (children appearing/disappearing, size-dependent reflow,
      *     scroll), use the `Layout:Horizontal` / `Layout:Vertical` kinds instead — those produce
      *     a real LayoutSystem entity rather than baked anchors.
-     *
-     * `name` semantics:
-     *   - When the node is nested as a child, `name` registers the produced entity in the
-     *     PARENT prefab's child map (so siblings can anchor to it by name).
-     *   - When the node also has its own children (prefab wrapping), the leaf (mainEntity) is
-     *     additionally registered under the same `name` inside this node's own Prefab — so
-     *     `parentPrefab->getEntity("bg")` returns the leaf, matching the old PrefabSpec idiom.
      */
 
     enum class Flow

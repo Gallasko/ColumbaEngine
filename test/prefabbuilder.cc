@@ -6,6 +6,7 @@
 #include "UI/prefabspec.h"
 #include "UI/prefabbuilder.h"
 #include "UI/prefabfactory.h"
+#include "UI/enginefactories.h"
 #include "UI/sizer.h"
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
@@ -21,14 +22,16 @@ namespace pg
         namespace
         {
             // Spin up the minimum set of systems the builder needs: position resolves
-            // anchors, prefab system handles SetMainEntityEvent. No render systems are
-            // required because Simple2DObject / Texture2DComponent are plain components.
+            // anchors, prefab system handles SetMainEntityEvent, the factory registry holds
+            // the built-in primitive factories (Shape2D / TTFText / Texture). No render systems
+            // are required because Simple2DObject / Texture2DComponent are plain components.
             void bootstrap(EntitySystem& ecs)
             {
                 ecs.createSystem<PositionComponentSystem>();
                 ecs.createSystem<PrefabSystem>();
-                ecs.createSystem<PrefabFactoryRegistry>();
+                auto* registry = ecs.createSystem<PrefabFactoryRegistry>();
                 ecs.succeed<PositionComponentSystem, PrefabSystem>();
+                registerEnginePrefabFactories(registry);
             }
 
             NodeSpec shapeNode(const std::string& name, float w, float h,
@@ -53,16 +56,18 @@ namespace pg
         }
 
         // ----------------------------------------------------------------------------------------
-        // buildNode: individual node realisation
+        // Built-in primitive factories — tested directly via the registry so we probe the
+        // realised leaf in isolation, without the Prefab wrap that `buildNode` always adds.
         // ----------------------------------------------------------------------------------------
-        TEST(prefab_builder_test, build_shape2d_node_attaches_expected_components)
+        TEST(prefab_builder_test, primitive_shape2d_factory_attaches_expected_components)
         {
             EntitySystem ecs;
             bootstrap(ecs);
 
-            NodeSpec spec;
-            spec.kind = "Shape2D";
-            spec.props = {
+            auto* registry = ecs.getSystem<PrefabFactoryRegistry>();
+            ASSERT_NE(registry, nullptr);
+
+            PrefabParams props = {
                 {"shape",  std::string("Circle")},
                 {"width",  64.0f},
                 {"height", 32.0f},
@@ -75,7 +80,7 @@ namespace pg
                 {"a",     200.0f},
             };
 
-            auto ent = buildNode(&ecs, spec);
+            auto ent = registry->build("Shape2D", props);
 
             ASSERT_FALSE(ent.empty());
             EXPECT_TRUE(ent->has<PositionComponent>());
@@ -99,14 +104,15 @@ namespace pg
         }
 
         // ----------------------------------------------------------------------------------------
-        TEST(prefab_builder_test, build_texture_node_attaches_expected_components)
+        TEST(prefab_builder_test, primitive_texture_factory_attaches_expected_components)
         {
             EntitySystem ecs;
             bootstrap(ecs);
 
-            NodeSpec spec;
-            spec.kind = "Texture";
-            spec.props = {
+            auto* registry = ecs.getSystem<PrefabFactoryRegistry>();
+            ASSERT_NE(registry, nullptr);
+
+            PrefabParams props = {
                 {"texture", std::string("MyTex")},
                 {"width",   48.0f},
                 {"height",  16.0f},
@@ -114,7 +120,7 @@ namespace pg
                 {"y",        7.0f},
             };
 
-            auto ent = buildNode(&ecs, spec);
+            auto ent = registry->build("Texture", props);
 
             ASSERT_FALSE(ent.empty());
             EXPECT_TRUE(ent->has<PositionComponent>());
@@ -139,11 +145,15 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
+            // Unknown kind: realiseLeaf returns empty -> the Prefab wrap has no mainEntity.
+            // The container is still produced (always-wrap rule) but contains no leaf.
             NodeSpec spec;
             spec.kind = "TotallyMadeUp";
 
             auto ent = buildNode(&ecs, spec);
-            EXPECT_TRUE(ent.empty());
+            ASSERT_FALSE(ent.empty());
+            EXPECT_TRUE(ent->has<Prefab>());
+            EXPECT_TRUE(ent->get<Prefab>()->getEntity("MainEntity").empty());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -154,9 +164,9 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            NodeSpec spec;
-            spec.kind = "Prefab";
-            spec.children.push_back(shapeNode("bg", 100.0f, 80.0f));
+            // Always-wrap: a single Shape2D NodeSpec produces a Prefab container with the
+            // Shape2D as mainEntity (and registered under the spec's name).
+            NodeSpec spec = shapeNode("bg", 100.0f, 80.0f);
 
             auto container = buildNode(&ecs, spec);
 
@@ -468,9 +478,10 @@ namespace pg
         }
 
         // ----------------------------------------------------------------------------------------
-        // buildNode dispatches "Factory:<name>" through the registry.
+        // buildNode looks up every kind in the registry — no `Factory:` prefix needed.
+        // The result is always wrapped in a Prefab container (per the always-wrap rule).
         // ----------------------------------------------------------------------------------------
-        TEST(prefab_builder_test, build_node_dispatches_factory_prefix_to_registry)
+        TEST(prefab_builder_test, build_node_dispatches_kind_to_registry)
         {
             EntitySystem ecs;
             bootstrap(ecs);
@@ -493,15 +504,19 @@ namespace pg
                 });
 
             NodeSpec spec;
-            spec.kind  = "Factory:Pill";
+            spec.kind  = "Pill";
             spec.props = {{"label", std::string("hello")}};
 
             auto ent = buildNode(&ecs, spec);
 
             EXPECT_TRUE(factoryCalled);
             ASSERT_FALSE(ent.empty());
-            EXPECT_TRUE(ent->has<Simple2DObject>());
-            EXPECT_EQ(ent->get<Simple2DObject>()->shape, Shape2D::Circle);
+            // ent is the Prefab wrap; the factory-produced leaf is the mainEntity inside.
+            EXPECT_TRUE(ent->has<Prefab>());
+            auto leaf = ent->get<Prefab>()->getEntity("MainEntity");
+            ASSERT_FALSE(leaf.empty());
+            EXPECT_TRUE(leaf->has<Simple2DObject>());
+            EXPECT_EQ(leaf->get<Simple2DObject>()->shape, Shape2D::Circle);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -524,14 +539,12 @@ namespace pg
                     return cl.entity;
                 });
 
-            NodeSpec cardSpec;
-            cardSpec.kind  = "Factory:Card";
-            cardSpec.name  = "card";
-            cardSpec.props = {{"width", 120.0f}, {"height", 40.0f}};
-
+            // Always-wrap: `kind="Card"` realises the leaf via the registry and `buildNode`
+            // wraps it in a Prefab. The leaf is exposed under spec.name ("card") inside.
             NodeSpec spec;
-            spec.kind = "Prefab";
-            spec.children.push_back(std::move(cardSpec));
+            spec.kind  = "Card";
+            spec.name  = "card";
+            spec.props = {{"width", 120.0f}, {"height", 40.0f}};
 
             auto container = buildNode(&ecs, spec);
             auto containerPos = container->get<PositionComponent>();
@@ -565,14 +578,13 @@ namespace pg
             EntitySystem ecs;
             bootstrap(ecs);
 
-            // inner is itself a Prefab (so machineEnt->has<Prefab>() holds), with its own bg.
-            NodeSpec inner;
-            inner.kind = "Prefab";
-            inner.name = "machineA";
-            inner.children.push_back(shapeNode("innerBg", 40.0f, 30.0f));
+            // inner is a Shape2D NodeSpec; under always-wrap, buildNode wraps it. The OUTER prefab
+            // exposes the inner LEAF (unwrapped) under inner.name, so `getEntity("machineA")`
+            // returns the Shape2D leaf — not the wrap container.
+            NodeSpec inner = shapeNode("innerBg", 40.0f, 30.0f);
+            inner.name = "machineA";   // override outer-scope name
 
-            NodeSpec outer;
-            outer = shapeNode("outerBg", 200.0f, 100.0f);
+            NodeSpec outer = shapeNode("outerBg", 200.0f, 100.0f);
             outer.children.push_back(std::move(inner));
 
             auto container = buildNode(&ecs, outer);
@@ -582,11 +594,11 @@ namespace pg
             auto prefab = container->get<Prefab>();
             auto machineEnt = prefab->getEntity("machineA");
             ASSERT_FALSE(machineEnt.empty());
-            EXPECT_TRUE(machineEnt->has<Prefab>());
+            EXPECT_TRUE(machineEnt->has<Simple2DObject>());  // it's the inner Shape2D leaf
             EXPECT_TRUE(machineEnt->has<UiAnchor>());
             EXPECT_TRUE(machineEnt->has<PositionComponent>());
 
-            // The nested container adopts its own mainNode's size.
+            // The inner leaf has the configured size.
             auto machinePos = machineEnt->get<PositionComponent>();
             EXPECT_FLOAT_EQ(machinePos->width,  40.0f);
             EXPECT_FLOAT_EQ(machinePos->height, 30.0f);
@@ -696,40 +708,38 @@ namespace pg
         }
 
         // ----------------------------------------------------------------------------------------
-        TEST(prefab_builder_test, two_levels_deep_nesting_resolves)
+        TEST(prefab_builder_test, two_levels_deep_nesting_keeps_inner_names_scoped)
         {
             EntitySystem ecs;
             bootstrap(ecs);
 
-            // c is its own Prefab (so we can probe cEnt->has<Prefab>() below).
-            NodeSpec c;
-            c.kind = "Prefab";
+            // A nested structure A > B > C. Under always-wrap the parent's name map exposes the
+            // inner LEAF of each child, so `outer->getEntity("B")` returns B's leaf (a Shape2D).
+            // The structural wrap is in childrenIds but not addressable by name; the point of
+            // this test is the scope isolation — "C" must not bubble up to A.
+            NodeSpec c = shapeNode("cBg", 8.0f, 8.0f);
             c.name = "C";
-            c.children.push_back(shapeNode("cBg", 8.0f, 8.0f));
 
-            NodeSpec b;
-            b = shapeNode("bBg", 30.0f, 30.0f);
+            NodeSpec b = shapeNode("bBg", 30.0f, 30.0f);
             b.name = "B";
             b.children.push_back(std::move(c));
 
-            NodeSpec a;
-            a = shapeNode("aBg", 80.0f, 80.0f);
+            NodeSpec a = shapeNode("aBg", 80.0f, 80.0f);
             a.children.push_back(std::move(b));
 
             auto container = buildNode(&ecs, a);
             ecs.executeOnce();
 
             auto outer = container->get<Prefab>();
-            auto bEnt  = outer->getEntity("B");
-            ASSERT_FALSE(bEnt.empty());
-            ASSERT_TRUE(bEnt->has<Prefab>());
 
-            auto cEnt = bEnt->get<Prefab>()->getEntity("C");
-            ASSERT_FALSE(cEnt.empty());
-            EXPECT_TRUE(cEnt->has<Prefab>());
+            // outer can see B (the leaf, registered under "B").
+            EXPECT_FALSE(outer->getEntity("B").empty());
 
-            // Outer can't see C — only B.
+            // outer can NOT see C — it lives in B's own inner name map, not outer's.
             EXPECT_TRUE(outer->getEntity("C").empty());
+
+            // outer's own mainEntity exposed under "aBg".
+            EXPECT_FALSE(outer->getEntity("aBg").empty());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -745,9 +755,7 @@ namespace pg
             external.get<PositionComponent>()->setX(100.0f);
             external.get<PositionComponent>()->setY(50.0f);
 
-            NodeSpec spec;
-            spec.kind = "Prefab";
-            spec.children.push_back(shapeNode("bg", 20.0f, 20.0f));
+            NodeSpec spec = shapeNode("bg", 20.0f, 20.0f);
             spec.anchors  = {
                 AnchorSpec{external.entity.id, AnchorType::Top,  AnchorType::Bottom, 0.0f},
                 AnchorSpec{external.entity.id, AnchorType::Left, AnchorType::Left,   0.0f},
@@ -772,18 +780,17 @@ namespace pg
             EntitySystem ecs;
             ecs.createSystem<PositionComponentSystem>();
             ecs.createSystem<PrefabSystem>();
-            ecs.createSystem<PrefabFactoryRegistry>();
+            auto* registry = ecs.createSystem<PrefabFactoryRegistry>();
             ecs.createSystem<EntityNameSystem>();
             ecs.succeed<PositionComponentSystem, PrefabSystem>();
+            registerEnginePrefabFactories(registry);
 
             auto external = makeUiSimple2DShape(&ecs, Shape2D::Square, 40.0f, 30.0f);
             external.get<PositionComponent>()->setX(200.0f);
             external.get<PositionComponent>()->setY(80.0f);
             ecs.attach<EntityName>(external.entity, std::string("globalAnchor"));
 
-            NodeSpec spec;
-            spec.kind = "Prefab";
-            spec.children.push_back(shapeNode("bg", 20.0f, 20.0f));
+            NodeSpec spec = shapeNode("bg", 20.0f, 20.0f);
             // No targetId; name should resolve through EntityNameSystem.
             spec.anchors  = {
                 AnchorSpec{std::string("globalAnchor"), AnchorType::Top,  AnchorType::Top,  0.0f},
@@ -813,9 +820,7 @@ namespace pg
             byId.get<PositionComponent>()->setX(500.0f);
             byId.get<PositionComponent>()->setY(0.0f);
 
-            NodeSpec spec;
-            spec.kind = "Prefab";
-            spec.children.push_back(shapeNode("bg", 20.0f, 20.0f));
+            NodeSpec spec = shapeNode("bg", 20.0f, 20.0f);
 
             // target = "main" would normally resolve to the prefab's own main entity at (0,0).
             // Setting targetId to the external entity must override that.

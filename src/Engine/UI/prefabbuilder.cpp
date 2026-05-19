@@ -1,9 +1,6 @@
 #include "prefabbuilder.h"
 
 #include "ECS/entitysystem.h"
-#include "2D/simple2dobject.h"
-#include "2D/texture.h"
-#include "UI/ttftext.h"
 #include "UI/prefab.h"
 #include "UI/prefabfactory.h"
 #include "UI/sizer.h"
@@ -17,103 +14,14 @@ namespace pg
 {
 namespace
 {
-    constexpr std::string_view FACTORY_PREFIX = "Factory:";
     constexpr std::string_view LAYOUT_PREFIX  = "Layout:";
     constexpr const char*      RESERVED_MAIN   = "main";
     constexpr const char*      RESERVED_PARENT = "parent";
+    constexpr const char*      MAIN_ENTITY_KEY = "MainEntity";
 
     bool startsWith(const std::string& s, std::string_view prefix)
     {
         return s.size() >= prefix.size() and std::string_view(s).substr(0, prefix.size()) == prefix;
-    }
-
-    Shape2D shapeFromString(const std::string& s)
-    {
-        if (s == "Circle")
-            return Shape2D::Circle;
-        return Shape2D::Square;
-    }
-
-    constant::Vector4D readColor(const ElementMap& p,
-        constant::Vector4D fallback = {255.0f, 255.0f, 255.0f, 255.0f})
-    {
-        return {
-            getParamFloat(p, "r", fallback.x),
-            getParamFloat(p, "g", fallback.y),
-            getParamFloat(p, "b", fallback.z),
-            getParamFloat(p, "a", fallback.w),
-        };
-    }
-
-    void applyShared(EntityRef ent, const ElementMap& p)
-    {
-        if (not ent or not ent->has<PositionComponent>())
-            return;
-
-        auto pos = ent->get<PositionComponent>();
-
-        if (hasParam(p, "x"))
-            pos->setX(getParam(p, "x"));
-        if (hasParam(p, "y"))
-            pos->setY(getParam(p, "y"));
-        if (hasParam(p, "z"))
-            pos->setZ(getParam(p, "z"));
-        if (hasParam(p, "visibility"))
-            pos->setVisibility(getParam(p, "visibility", true));
-
-        if (ent->has<ViewportComponent>() and hasParam(p, "viewport"))
-            ent->get<ViewportComponent>()->setViewport(static_cast<size_t>(getParam(p, "viewport")));
-    }
-
-    EntityRef makeShape2D(EntitySystem* ecs, const ElementMap& p)
-    {
-        const Shape2D shape = shapeFromString(getParam(p, "shape", "Square"));
-        const float w = getParam(p, "width",  0.0f);
-        const float h = getParam(p, "height", 0.0f);
-        const auto color = readColor(p);
-        auto cl = makeUiSimple2DShape(ecs, shape, w, h, color);
-        applyShared(cl.entity, p);
-        return cl.entity;
-    }
-
-    EntityRef makeText(EntitySystem* ecs, const ElementMap& p)
-    {
-        const std::string font = getParam(p, "font");
-        const std::string text = getParam(p, "text");
-        const float scale = getParam(p, "scale", 1.0f);
-        const float x = getParam(p, "x", 0.0f);
-        const float y = getParam(p, "y", 0.0f);
-        const float z = getParam(p, "z", 0.0f);
-        const auto color = readColor(p);
-        auto cl = makeTTFText(ecs, x, y, z, font, text, scale, color);
-        if (hasParam(p, "viewport"))
-            cl.get<ViewportComponent>()->setViewport(getParam(p, "viewport"));
-        if (hasParam(p, "visibility"))
-            cl.get<PositionComponent>()->setVisibility(getParam(p, "visibility", true));
-        return cl.entity;
-    }
-
-    EntityRef makeTextureNode(EntitySystem* ecs, const ElementMap& p)
-    {
-        const std::string texName = getParam(p, "texture", "NoneIcon");
-        const float w = getParam(p, "width",  0.0f);
-        const float h = getParam(p, "height", 0.0f);
-        auto cl = makeUiTexture(ecs, w, h, texName);
-        applyShared(cl.entity, p);
-        return cl.entity;
-    }
-
-    EntityRef invokeFactory(EntitySystem* ecs, std::string_view factoryName, const ElementMap& p)
-    {
-        auto* registry = ecs->getSystem<PrefabFactoryRegistry>();
-
-        if (not registry)
-        {
-            LOG_ERROR("Prefab Builder", "No PrefabFactoryRegistry available to invoke factory: " << factoryName);
-            return EntityRef{};
-        }
-
-        return registry->build(std::string(factoryName), p);
     }
 
     PosAnchor pickSide(UiAnchor* a, _unique_id id, AnchorType side)
@@ -221,29 +129,37 @@ namespace
         }
     }
 
-    // Realise the leaf entity for a primitive `kind`. Returns empty for kind=="" (no leaf).
+    // Realise the leaf entity by looking up the kind in the PrefabFactoryRegistry. Built-in
+    // primitives (Shape2D / TTFText / Texture) are registered alongside user factories — there
+    // is no separate hardcoded dispatch. Returns empty if kind is empty or unknown.
     EntityRef realiseLeaf(EntitySystem* ecs, const NodeSpec& spec)
     {
         if (spec.kind.empty())
             return EntityRef{};
 
-        if (startsWith(spec.kind, FACTORY_PREFIX))
-            return invokeFactory(ecs,
-                std::string_view(spec.kind).substr(FACTORY_PREFIX.size()),
-                spec.props);
+        auto* registry = ecs->getSystem<PrefabFactoryRegistry>();
+        if (not registry)
+        {
+            LOG_ERROR("Prefab Builder", "No PrefabFactoryRegistry available to realise kind: " << spec.kind);
+            return EntityRef{};
+        }
+        return registry->build(spec.kind, spec.props);
+    }
 
-        if (spec.kind == "Shape2D") return makeShape2D(ecs, spec.props);
-        if (spec.kind == "TTFText") return makeText(ecs, spec.props);
-        if (spec.kind == "Texture") return makeTextureNode(ecs, spec.props);
-
-        LOG_ERROR("Prefab Builder", "Unknown node kind: '" << spec.kind << "'");
-        return EntityRef{};
+    // For a child that was itself wrapped in a Prefab, look up its inner mainEntity so the
+    // parent's name map exposes the leaf (not the wrap). Falls back to the entity itself when
+    // there's no mainEntity (e.g. layouts or empty-kind wraps).
+    EntityRef unwrapToMain(EntityRef ent)
+    {
+        if (not ent or not ent->has<Prefab>())
+            return ent;
+        auto inner = ent->get<Prefab>()->getEntity(MAIN_ENTITY_KEY);
+        return inner ? inner : ent;
     }
 
     // Forward declaration — recursive entry.
     EntityRef buildNodeImpl(EntitySystem* ecs, const NodeSpec& spec, bool applyOwnAnchors);
 
-    // Configure layout knobs from props.
     template<typename LayoutComp>
     void configureLayout(LayoutComp* layout, const ElementMap& p)
     {
@@ -272,7 +188,7 @@ namespace
         if (orient == "Horizontal")
         {
             auto cl = makeHorizontalLayout(ecs, x, y, w, h, scrollable);
-            HorizontalLayout* layoutPtr = cl.get<HorizontalLayout>();   // implicit CompRef -> T*
+            HorizontalLayout* layoutPtr = cl.get<HorizontalLayout>();
             configureLayout(layoutPtr, spec.props);
             layoutEnt = cl.entity;
         }
@@ -294,13 +210,10 @@ namespace
         if (hasParam(spec.props, "visibility"))
             layoutEnt->get<PositionComponent>()->setVisibility(getParam(spec.props, "visibility", true));
 
-        // Local scope so this layout's own spec.anchors can reference its children.
         std::unordered_map<std::string, EntityRef> nameToEntity;
         nameToEntity[RESERVED_PARENT] = layoutEnt;
-        nameToEntity[RESERVED_MAIN]   = layoutEnt;   // for layouts, "main" == "parent" (no separate leaf)
+        nameToEntity[RESERVED_MAIN]   = layoutEnt;   // for layouts, "main" == "parent"
 
-        // Build children and register them via the layout's addEntity (NOT anchored to siblings —
-        // the LayoutSystem reflows them each tick based on the layout's orientation/spacing/etc.).
         for (const auto& child : spec.children)
         {
             EntityRef childEnt = buildNodeImpl(ecs, child, /*applyOwnAnchors=*/false);
@@ -308,7 +221,7 @@ namespace
                 continue;
 
             if (not child.name.empty())
-                nameToEntity[child.name] = childEnt;
+                nameToEntity[child.name] = unwrapToMain(childEnt);
 
             if (orient == "Horizontal")
                 layoutEnt->get<HorizontalLayout>()->addEntity(childEnt);
@@ -322,12 +235,9 @@ namespace
         return layoutEnt;
     }
 
-    // Wrap `leafEnt` (the mainEntity, may be empty) in a Prefab container, then build/register
-    // spec.children[siblingStartIdx..] as siblings. `mainName` is the name to register the leaf
-    // under inside the Prefab (use spec.name for leaf-kind shorthand, children[0].name for
-    // kind="Prefab" canonical).
-    EntityRef buildPrefabWrapping(EntitySystem* ecs, const NodeSpec& spec, EntityRef leafEnt,
-                                  const std::string& mainName, size_t siblingStartIdx, bool applyOwnAnchors)
+    // Always-wrap path. `leafEnt` is the entity produced by `realiseLeaf(spec)` (may be empty
+    // if kind=="" — then the wrap has no mainEntity, just children as siblings).
+    EntityRef buildPrefabWrapping(EntitySystem* ecs, const NodeSpec& spec, EntityRef leafEnt, bool applyOwnAnchors)
     {
         auto container = makeAnchoredPrefab(ecs);
         auto prefab = container.get<Prefab>();
@@ -342,12 +252,12 @@ namespace
             prefab->setMainEntity(leafEnt);
             nameToEntity[RESERVED_MAIN] = leafEnt;
 
-            // Also expose the leaf under its name so `container->get<Prefab>()->getEntity(name)`
-            // returns the leaf.
-            if (not mainName.empty())
+            // Expose the leaf under spec.name so `container->get<Prefab>()->getEntity(spec.name)`
+            // returns the leaf directly.
+            if (not spec.name.empty())
             {
-                prefab->addToPrefab(leafEnt, mainName);
-                nameToEntity[mainName] = leafEnt;
+                prefab->addToPrefab(leafEnt, spec.name);
+                nameToEntity[spec.name] = leafEnt;
             }
         }
         else
@@ -357,41 +267,40 @@ namespace
             nameToEntity[RESERVED_MAIN] = container.entity;
         }
 
-        // Track each built child + its anchor list (anchors are applied AFTER all children are
-        // built so that anchors can reference siblings declared later in `spec.children`).
         struct BuiltChild
         {
-            EntityRef ent;
-            // Owned by value so the flow pass below can swap in synthesised anchors for children
-            // whose user-supplied anchor list was empty.
+            EntityRef wrap;    // structural entity returned by buildNodeImpl (Prefab container or layout)
             std::vector<AnchorSpec> anchors;
         };
         std::vector<BuiltChild> built;
         built.reserve(spec.children.size());
 
-        auto registerNamed = [&](EntityRef ent, const std::string& name) {
+        // Register a built child: the wrap goes into the parent prefab's childrenIds for
+        // cleanup/visibility propagation; the inner leaf is exposed under `name` in both
+        // `namedChildrenIds` and the local `nameToEntity` for ergonomic access by callers.
+        auto registerNamed = [&](EntityRef wrap, const std::string& name) {
             if (name == RESERVED_MAIN or name == RESERVED_PARENT)
             {
                 LOG_ERROR("Prefab Builder", "Reserved name used for child: '" << name << "'");
-                prefab->addToPrefab(ent);
+                prefab->addToPrefab(wrap);
                 return;
             }
-            if (not name.empty())
-            {
-                if (nameToEntity.count(name))
-                    LOG_ERROR("Prefab Builder", "Name collision: '" << name << "'");
-                prefab->addToPrefab(ent, name);
-                nameToEntity[name] = ent;
-            }
-            else
-            {
-                prefab->addToPrefab(ent);
-            }
+
+            prefab->addToPrefab(wrap);  // wrap tracked in childrenIds
+
+            if (name.empty())
+                return;
+
+            if (nameToEntity.count(name))
+                LOG_ERROR("Prefab Builder", "Name collision: '" << name << "'");
+
+            EntityRef leaf = unwrapToMain(wrap);
+            prefab->namedChildrenIds[name] = leaf;
+            nameToEntity[name] = leaf;
         };
 
-        for (size_t i = siblingStartIdx; i < spec.children.size(); ++i)
+        for (const auto& child : spec.children)
         {
-            const auto& child = spec.children[i];
             EntityRef ent = buildNodeImpl(ecs, child, /*applyOwnAnchors=*/false);
             if (not ent)
                 continue;
@@ -400,10 +309,8 @@ namespace
             built.push_back({ent, child.anchors});
         }
 
-        // Flow synthesis — auto-anchor children with empty user-anchor lists. Children with any
-        // user anchors are transparent to the chain. Cross-axis chains through the previous
-        // in-flow sibling (not always to `main`) so the dependency graph stays linear, which keeps
-        // the PositionSystem resolution order deterministic and lets hidden flow children collapse.
+        // Flow synthesis — auto-anchor children with empty user-anchor lists. See prefabspec.h
+        // doc comment for the rule (chains both axes through previous sibling for linear deps).
         if (spec.flow != Flow::None and leafEnt)
         {
             EntityRef prevFlow{};
@@ -439,16 +346,17 @@ namespace
                     }
                 }
 
-                prevFlow = b.ent;
+                prevFlow = b.wrap;
             }
         }
 
-        // Apply child anchors (user-provided OR flow-synthesised) using local scope.
+        // Apply child anchors (user-provided OR flow-synthesised) to the WRAP entities; targets
+        // resolve via nameToEntity (sibling names map to inner leaves; geometrically equivalent).
         for (auto& b : built)
-            applyAnchorsToEntity(b.ent, b.anchors, nameToEntity);
+            applyAnchorsToEntity(b.wrap, b.anchors, nameToEntity);
 
-        // Apply this node's own anchors to the container — top-level only; for nested cases
-        // the parent applies them using ITS scope (siblings of this node).
+        // Apply this node's own anchors to the container — top-level only; nested cases let the
+        // parent apply them using ITS scope.
         if (applyOwnAnchors)
             applyAnchorsToEntity(container.entity, spec.anchors, nameToEntity);
 
@@ -461,41 +369,9 @@ namespace
         if (startsWith(spec.kind, LAYOUT_PREFIX))
             return buildLayoutNode(ecs, spec, applyOwnAnchors);
 
-        // Canonical wrap: kind="Prefab" always produces a Prefab container, regardless of
-        // children count. children[0] (if present) becomes the mainEntity; rest are siblings.
-        if (spec.kind == "Prefab")
-        {
-            EntityRef leafEnt;
-            std::string mainName;
-            size_t siblingStartIdx = 0;
-            if (not spec.children.empty())
-            {
-                const auto& mainChild = spec.children[0];
-                leafEnt = buildNodeImpl(ecs, mainChild, /*applyOwnAnchors=*/false);
-                mainName = mainChild.name;
-                siblingStartIdx = 1;
-            }
-            return buildPrefabWrapping(ecs, spec, leafEnt, mainName, siblingStartIdx, applyOwnAnchors);
-        }
-
-        // Primitive realisation (may be empty if kind=="").
+        // Everything else: realise the kind's leaf (may be empty for kind=="") and wrap it.
         EntityRef leaf = realiseLeaf(ecs, spec);
-
-        if (spec.children.empty())
-        {
-            // Pure leaf — anchors applied here only for top-level. Nested leaves get their anchors
-            // applied by the parent prefab's `applyAnchorsToEntity` pass using the parent's scope.
-            if (applyOwnAnchors and leaf)
-            {
-                std::unordered_map<std::string, EntityRef> emptyScope;
-                applyAnchorsToEntity(leaf, spec.anchors, emptyScope);
-            }
-            return leaf;
-        }
-
-        // Shorthand wrap: leaf-kind + children -> wrap with leaf as mainEntity, all children siblings.
-        // `leaf` may be empty (kind=="" -> bare container with children).
-        return buildPrefabWrapping(ecs, spec, leaf, spec.name, /*siblingStartIdx=*/0, applyOwnAnchors);
+        return buildPrefabWrapping(ecs, spec, leaf, applyOwnAnchors);
     }
 }
 
