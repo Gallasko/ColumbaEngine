@@ -149,11 +149,20 @@ namespace
     // For a child that was itself wrapped in a Prefab, look up its inner mainEntity so the
     // parent's name map exposes the leaf (not the wrap). Falls back to the entity itself when
     // there's no mainEntity (e.g. layouts or empty-kind wraps).
+    //
+    // Only unwraps "trivial" wraps — those whose Prefab contains nothing but the mainEntity.
+    // Composite wraps (mainEntity + sibling children) are kept whole so callers can traverse
+    // the sub-tree via `wrap->get<Prefab>()->getEntity("childName")`. This makes nested-prefab
+    // access work both ways: shapeNode("bg") in a parent exposes bg's Simple2DObject directly,
+    // while a kind=Shape2D + children composite exposes its inner namedChildren via the wrap.
     EntityRef unwrapToMain(EntityRef ent)
     {
         if (not ent or not ent->has<Prefab>())
             return ent;
-        auto inner = ent->get<Prefab>()->getEntity(MAIN_ENTITY_KEY);
+        auto p = ent->get<Prefab>();
+        if (p->childrenIds.size() != 1)
+            return ent;
+        auto inner = p->getEntity(MAIN_ENTITY_KEY);
         return inner ? inner : ent;
     }
 

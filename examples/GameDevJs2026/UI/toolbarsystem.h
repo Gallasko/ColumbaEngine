@@ -50,8 +50,10 @@ private:
 
     EntityRef uiCameraEntity;
     size_t selectedSlot = 0;
-    std::vector<uint64_t> slotEntityIds;
-    uint64_t highlightEntityId = 0;
-    uint64_t backdropEntityId = 0;
-    uint64_t containerEntityId = 0;
+
+    // Direct EntityRef handles populated post-build by walking the prefab tree. Saves a
+    // hash-map lookup on every access compared to storing _unique_id and re-resolving.
+    EntityRef backdrop;
+    EntityRef highlight;
+    std::vector<EntityRef> slots;
 };

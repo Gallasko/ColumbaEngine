@@ -1,7 +1,9 @@
 #include "toolbarsystem.h"
 
+#include "UI/prefabspec.h"
+#include "UI/prefabbuilder.h"
+#include "UI/prefab.h"
 #include "2D/simple2dobject.h"
-#include "2D/texture.h"
 #include "2D/position.h"
 
 #include <SDL2/SDL.h>
@@ -73,105 +75,133 @@ void ToolbarSystem::createUICamera()
 void ToolbarSystem::createToolbarUI()
 {
     auto windowEnt = ecsRef->getEntity("__MainWindow");
-    auto windowId = windowEnt->id;
+    const auto windowId = windowEnt->id;
+    const float totalSlotsWidth = registry->count() * SLOT_SIZE + (registry->count() - 1) * SLOT_SPACING;
 
-    // Backdrop: anchored to __MainWindow — fills width, sticks to bottom
-    auto backdrop = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-        constant::Vector4D{30.0f, 30.0f, 40.0f, 200.0f});
+    // ----- Spec: backdrop containing a flow-row of slots, horizontally centered. -----
+    //
+    // The outer NodeSpec is the backdrop (Shape2D). Always-wrap turns it into a Prefab
+    // container so we can address its named children. The middle child is an invisible
+    // Shape2D that horizontally-centers in the backdrop and uses Flow::Horizontal to
+    // chain the slots without manual leftMargin math.
+    NodeSpec spec;
+    spec.kind  = "Shape2D";
+    spec.name  = "backdrop";
+    spec.props = {
+        {"width",    0.0f},
+        {"height",   TOOLBAR_HEIGHT},
+        {"r",        30.0f},
+        {"g",        30.0f},
+        {"b",        40.0f},
+        {"a",        200.0f},
+        {"z",        90.0f},
+        {"viewport", static_cast<int>(UI_VIEWPORT)},
+    };
+    spec.anchors = {
+        AnchorSpec{windowId, AnchorType::Left,   AnchorType::Left,   0.0f},
+        AnchorSpec{windowId, AnchorType::Right,  AnchorType::Right,  0.0f},
+        AnchorSpec{windowId, AnchorType::Bottom, AnchorType::Bottom, 0.0f},
+    };
 
-    auto backdropPos = backdrop.get<PositionComponent>();
-    backdropPos->setZ(90.f);
-    backdropPos->setHeight(TOOLBAR_HEIGHT);
-    backdrop.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
-    backdropEntityId = backdrop.entity->id;
+    // Slot row: invisible Shape2D sized to the row width, centered horizontally on backdrop.
+    NodeSpec slotRow;
+    slotRow.kind  = "Shape2D";
+    slotRow.name  = "slotRow";
+    slotRow.props = {
+        {"width",  totalSlotsWidth},
+        {"height", SLOT_SIZE},
+        {"a",      0.0f},                                // invisible
+        {"viewport", static_cast<int>(UI_VIEWPORT)},
+    };
+    slotRow.anchors = {
+        AnchorSpec{"main", AnchorType::HorizontalCenter, AnchorType::HorizontalCenter, 0.0f},
+        AnchorSpec{"main", AnchorType::Top, SLOT_PADDING},
+    };
+    slotRow.flow    = Flow::Horizontal;
+    slotRow.spacing = SLOT_SPACING;
 
-    auto bdAnchor = ecsRef->attach<UiAnchor>(backdrop.entity);
-    bdAnchor->setLeftAnchor(PosAnchor{windowId, AnchorType::Left});
-    bdAnchor->setRightAnchor(PosAnchor{windowId, AnchorType::Right});
-    bdAnchor->setBottomAnchor(PosAnchor{windowId, AnchorType::Bottom});
-
-    // Invisible container — horizontally centered in backdrop, slot row top-aligned with padding
-    float totalSlotsWidth = registry->count() * SLOT_SIZE + (registry->count() - 1) * SLOT_SPACING;
-    auto container = ecsRef->createEntity();
-    auto containerPos = ecsRef->attach<PositionComponent>(container);
-    containerPos->setWidth(totalSlotsWidth);
-    containerPos->setHeight(SLOT_SIZE);
-    containerEntityId = container->id;
-
-    auto cAnchor = ecsRef->attach<UiAnchor>(container);
-    cAnchor->setHorizontalCenter(PosAnchor{backdropEntityId, AnchorType::HorizontalCenter});
-    cAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
-    cAnchor->setTopMargin(SLOT_PADDING);
-
-    // Slots — anchored to container with per-index leftMargin
     for (size_t i = 0; i < registry->count(); ++i)
     {
         const auto& def = registry->get(i);
-        float slotLeftMargin = static_cast<float>(i) * (SLOT_SIZE + SLOT_SPACING);
-
-        uint64_t slotId = 0;
-        EntityRef slotEntity;
+        NodeSpec slot;
+        slot.name = "slot" + std::to_string(i);
 
         if (not def.textureName.empty())
         {
-            std::string texName = def.textureName + ".0";
-            auto slot = make2DTexture(ecsRef, SLOT_SIZE, SLOT_SIZE, texName);
-            slot.get<PositionComponent>()->setZ(95.f);
-            slot.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
-            slotId = slot.entity->id;
-            slotEntity = slot.entity;
+            slot.kind  = "Texture";
+            slot.props = {
+                {"texture",  def.textureName + ".0"},
+                {"width",    SLOT_SIZE},
+                {"height",   SLOT_SIZE},
+                {"z",        95.0f},
+                {"viewport", static_cast<int>(UI_VIEWPORT)},
+            };
         }
         else
         {
-            auto slot = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, def.color);
-            auto pos = slot.get<PositionComponent>();
-            pos->setZ(95.f);
-            pos->setWidth(SLOT_SIZE);
-            pos->setHeight(SLOT_SIZE);
-            slot.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
-            slotId = slot.entity->id;
-            slotEntity = slot.entity;
+            slot.kind  = "Shape2D";
+            slot.props = {
+                {"width",    SLOT_SIZE},
+                {"height",   SLOT_SIZE},
+                {"r",        def.color.x},
+                {"g",        def.color.y},
+                {"b",        def.color.z},
+                {"a",        def.color.w},
+                {"z",        95.0f},
+                {"viewport", static_cast<int>(UI_VIEWPORT)},
+            };
         }
-
-        auto anchor = ecsRef->attach<UiAnchor>(slotEntity);
-        anchor->setLeftAnchor(PosAnchor{containerEntityId, AnchorType::Left});
-        anchor->setLeftMargin(slotLeftMargin);
-        anchor->setTopAnchor(PosAnchor{containerEntityId, AnchorType::Top});
-
-        slotEntityIds.push_back(slotId);
+        slotRow.children.push_back(std::move(slot));
     }
+    spec.children.push_back(std::move(slotRow));
 
-    // Selection highlight overlay — anchored to selected slot in updateHighlight()
-    auto highlight = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-        constant::Vector4D{255.0f, 255.0f, 255.0f, 60.0f});
+    // Selection highlight: an invisible-by-default white overlay. Its anchors are set
+    // dynamically in updateHighlight() based on the currently selected slot.
+    NodeSpec highlightSpec;
+    highlightSpec.kind  = "Shape2D";
+    highlightSpec.name  = "highlight";
+    highlightSpec.props = {
+        {"width",    SLOT_SIZE + 4.0f},
+        {"height",   SLOT_SIZE + 4.0f},
+        {"r",        255.0f},
+        {"g",        255.0f},
+        {"b",        255.0f},
+        {"a",        60.0f},
+        {"z",        0.96f},
+        {"viewport", static_cast<int>(UI_VIEWPORT)},
+    };
+    spec.children.push_back(std::move(highlightSpec));
 
-    auto hlPos = highlight.get<PositionComponent>();
-    hlPos->setZ(0.96f);
-    hlPos->setWidth(SLOT_SIZE + 4.0f);
-    hlPos->setHeight(SLOT_SIZE + 4.0f);
-    highlight.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
-    ecsRef->attach<UiAnchor>(highlight.entity);
+    // ----- Build. The returned wrap is the toolbar root. -----
+    backdrop = buildNode(ecsRef, spec);
+    auto backdropPrefab = backdrop->get<Prefab>();
 
-    highlightEntityId = highlight.entity->id;
+    // The composite "slotRow" child is non-trivial (it has slot siblings), so its wrap is
+    // kept whole — we drill in to grab each slot's EntityRef.
+    auto slotRowEnt = backdropPrefab->getEntity("slotRow");
+    auto slotRowPrefab = slotRowEnt->get<Prefab>();
+
+    slots.clear();
+    slots.reserve(registry->count());
+    for (size_t i = 0; i < registry->count(); ++i)
+        slots.push_back(slotRowPrefab->getEntity("slot" + std::to_string(i)));
+
+    highlight = backdropPrefab->getEntity("highlight");
     updateHighlight();
 }
 
 void ToolbarSystem::updateHighlight()
 {
-    if (selectedSlot >= slotEntityIds.size())
+    if (selectedSlot >= slots.size() or not highlight)
         return;
 
-    auto hlEnt = ecsRef->getEntity(highlightEntityId);
-    if (not hlEnt)
-        return;
-
-    auto hlAnchor = hlEnt->get<UiAnchor>();
+    auto hlAnchor = highlight->get<UiAnchor>();
     if (not hlAnchor)
-        hlAnchor = ecsRef->attach<UiAnchor>(hlEnt);
+        hlAnchor = ecsRef->attach<UiAnchor>(highlight);
 
     hlAnchor->clearAnchors();
-    hlAnchor->setLeftAnchor(PosAnchor{slotEntityIds[selectedSlot], AnchorType::Left});
+    hlAnchor->setLeftAnchor(PosAnchor{slots[selectedSlot].id, AnchorType::Left});
     hlAnchor->setLeftMargin(-2.0f);
-    hlAnchor->setTopAnchor(PosAnchor{slotEntityIds[selectedSlot], AnchorType::Top});
+    hlAnchor->setTopAnchor(PosAnchor{slots[selectedSlot].id, AnchorType::Top});
     hlAnchor->setTopMargin(-2.0f);
 }
