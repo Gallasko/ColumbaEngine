@@ -119,15 +119,17 @@ protected:
     int openMachineY = -1;
     std::string openMachineName;
 
-    // Entity IDs
-    uint64_t backdropEntityId     = 0;
-    uint64_t titleEntityId        = 0;
-    uint64_t inputSlotEntityIds[2]  = {0, 0};
-    uint64_t outputSlotEntityId   = 0;
-    uint64_t progressBgEntityId   = 0;
-    uint64_t progressFillEntityId = 0;
-    uint64_t demoBtnBgEntityId    = 0;
-    uint64_t demoBtnTextEntityId  = 0;
+    // Entity handles populated post-build by walking the prefab tree. Saves a per-access
+    // hash-map lookup compared to storing _unique_id and re-resolving via ecs->getEntity.
+    EntityRef backdrop;          // outer Prefab wrap returned by buildNode (carries UiAnchor)
+    EntityRef bgLeaf;            // inner Shape2D backdrop — what other entities anchor to
+    EntityRef title;
+    EntityRef inputSlots[2];
+    EntityRef outputSlot;
+    EntityRef progressBg;
+    EntityRef progressFill;
+    EntityRef demoBtnBg;
+    EntityRef demoBtnText;
 
     float cachedBarMaxW = 0.0f;
 };

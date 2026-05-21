@@ -3,6 +3,9 @@
 #include "machinedemosystem.h"
 #include "machineuihelpers.h"
 
+#include "UI/prefabspec.h"
+#include "UI/prefabbuilder.h"
+#include "UI/prefab.h"
 #include "2D/simple2dobject.h"
 #include "2D/position.h"
 #include "UI/ttftext.h"
@@ -125,13 +128,13 @@ void RecipeMachineUIBase::onProcessEvent(const SlotPickedUpEvent& event)
 
     for (int i = 0; i < numInputs; ++i)
     {
-        if (event.slotEntityId == inputSlotEntityIds[i])
+        if (event.slotEntityId == inputSlots[i].id)
         {
             syncSlotToMachine(static_cast<size_t>(i), true);
             return;
         }
     }
-    if (event.slotEntityId == outputSlotEntityId)
+    if (event.slotEntityId == outputSlot.id)
         syncSlotToMachine(0, false);
 }
 
@@ -142,13 +145,13 @@ void RecipeMachineUIBase::onProcessEvent(const SlotDroppedEvent& event)
 
     for (int i = 0; i < numInputs; ++i)
     {
-        if (event.slotEntityId == inputSlotEntityIds[i])
+        if (event.slotEntityId == inputSlots[i].id)
         {
             syncSlotToMachine(static_cast<size_t>(i), true);
             return;
         }
     }
-    if (event.slotEntityId == outputSlotEntityId)
+    if (event.slotEntityId == outputSlot.id)
         syncSlotToMachine(0, false);
 }
 
@@ -158,15 +161,11 @@ void RecipeMachineUIBase::onProcessEvent(const OnMouseClick& event)
         return;
 
     // "?" demo button click — read live position from the button entity.
-    if (demoBtnBgEntityId != 0)
+    if (demoBtnBg and pg_machineui::hitButtonEntity(ecsRef, demoBtnBg.id, event.pos.x, event.pos.y))
     {
-        if (pg_machineui::hitButtonEntity(ecsRef, demoBtnBgEntityId,
-                                          event.pos.x, event.pos.y))
-        {
-            std::string name = openMachineName;
-            close();
-            ecsRef->getSystem<MachineDemoSystem>()->openDemo(name);
-        }
+        std::string name = openMachineName;
+        close();
+        ecsRef->getSystem<MachineDemoSystem>()->openDemo(name);
     }
 }
 
@@ -186,221 +185,264 @@ void RecipeMachineUIBase::ensurePanelCreated()
 
 void RecipeMachineUIBase::setPanelVisibility(bool vis)
 {
-    pg_machineui::setEntityVisibility(ecsRef, backdropEntityId,     vis);
-    pg_machineui::setEntityVisibility(ecsRef, titleEntityId,        vis);
-    pg_machineui::setEntityVisibility(ecsRef, progressBgEntityId,   vis);
-    pg_machineui::setEntityVisibility(ecsRef, progressFillEntityId, vis);
-    pg_machineui::setEntityVisibility(ecsRef, demoBtnBgEntityId,    vis);
-    pg_machineui::setEntityVisibility(ecsRef, demoBtnTextEntityId,  vis);
-
-    for (int i = 0; i < numInputs; ++i)
-    {
-        auto ent = ecsRef->getEntity(inputSlotEntityIds[i]);
-        if (ent)
-            ent->get<PositionComponent>()->setVisibility(vis);
-    }
-
-    auto outEnt = ecsRef->getEntity(outputSlotEntityId);
-    if (outEnt)
-        outEnt->get<PositionComponent>()->setVisibility(vis);
+    // Everything (slots included) lives inside the prefab tree now, so PrefabSystem's
+    // observable-cascade carries the visibility down from the backdrop leaf.
+    if (bgLeaf)
+        bgLeaf->get<PositionComponent>()->setVisibility(vis);
 }
 
 void RecipeMachineUIBase::updateForMachineType()
 {
-    // Update title
-    auto titleEnt = ecsRef->getEntity(titleEntityId);
-    if (titleEnt and titleEnt->has<TTFText>())
-        titleEnt->get<TTFText>()->setText(openMachineName.c_str());
-
-    // Resize the backdrop + reflow slots based on the actual numInputs so
-    // the panel doesn't leave dead space below the input column.
-    const float slotsTop   = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
-    const float slotsAreaH = numInputs * SLOT_SIZE + (numInputs - 1) * SLOT_SPACING;
-    const float barTop     = slotsTop + slotsAreaH + GAP_AFTER_SLOTS;
-    const float panelH     = barTop + PROGRESS_H + PANEL_PADDING;
-
-    // Resize backdrop bg
-    auto panelEnt = ecsRef->getEntity(backdropEntityId);
-    if (panelEnt and panelEnt->has<Prefab>())
-    {
-        if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
-            bgEnt->get<PositionComponent>()->setHeight(panelH);
-    }
-
-    // Input slot 0 always at top of slot area.
-    if (auto slot0Ent = ecsRef->getEntity(inputSlotEntityIds[0]))
-        slot0Ent->get<UiAnchor>()->setTopMargin(slotsTop);
-
-    // Output: centred between two inputs for 2-input machines, top-aligned
-    // with the single input for 1-input machines.
-    const float outputSlotTop = (numInputs == 2) ? slotsTop + (SLOT_SIZE + SLOT_SPACING) * 0.5f : slotsTop;
-    if (auto outEnt = ecsRef->getEntity(outputSlotEntityId))
-        outEnt->get<UiAnchor>()->setTopMargin(outputSlotTop);
-
-    // Progress bar
-    if (auto barBgEnt = ecsRef->getEntity(progressBgEntityId))
-        barBgEnt->get<UiAnchor>()->setTopMargin(barTop);
-
-    if (auto barFillEnt = ecsRef->getEntity(progressFillEntityId))
-        barFillEnt->get<UiAnchor>()->setTopMargin(barTop);
-
-    // Hide unused input slot for 1-input machines
-    if (numInputs < 2)
-    {
-        auto slot1Ent = ecsRef->getEntity(inputSlotEntityIds[1]);
-
-        if (slot1Ent)
-            slot1Ent->get<PositionComponent>()->setVisibility(false);
-    }
+    // The spec is built with this instance's `numInputs` baked in, so layout values are
+    // already correct. The only per-open thing that changes is the title text.
+    if (title and title->has<TTFText>())
+        title->get<TTFText>()->setText(openMachineName.c_str());
 }
 
 void RecipeMachineUIBase::createPanel()
 {
-    const float panelW = getPanelWidth();
-    const float panelH = getPanelHeight();
-
+    // ---- Precompute layout values (depend on this instance's numInputs) ----
+    const int   n         = numInputs;
+    const float panelW    = getPanelWidth();
+    const float slotsTop  = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
+    const float slotsH    = n * SLOT_SIZE + (n - 1) * SLOT_SPACING;
+    const float barTop    = slotsTop + slotsH + GAP_AFTER_SLOTS;
+    const float panelH    = barTop + PROGRESS_H + PANEL_PADDING;
     const float inputColLeft  = PANEL_PADDING;
     const float outputColLeft = PANEL_PADDING + SLOT_SIZE + ARROW_GAP;
-    const float slotsTop      = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
-    const float inputSlot0Top = slotsTop;
-    const float inputSlot1Top = slotsTop + SLOT_SIZE + SLOT_SPACING;
-    const float outputSlotTop = slotsTop + (SLOT_SIZE + SLOT_SPACING) * 0.5f;
-    const float barTop        = slotsTop + 2.0f * SLOT_SIZE + SLOT_SPACING + GAP_AFTER_SLOTS;
-
+    const float outputSlotTop = (n == 2) ? slotsTop + (SLOT_SIZE + SLOT_SPACING) * 0.5f : slotsTop;
     cachedBarMaxW = panelW - 2.0f * PANEL_PADDING;
 
-    uint64_t anchorTargetId = pg_machineui::resolveLeftPanelAnchor(ecsRef, ecsRef->getSystem<InventoryUISystem>());
+    const uint64_t anchorTargetId = pg_machineui::resolveLeftPanelAnchor(ecsRef, ecsRef->getSystem<InventoryUISystem>());
+    const std::string initialTitle = openMachineName.empty() ? machineNameLabel : openMachineName;
 
-    auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
+    // ---- Build the static structure declaratively. ----
+    //
+    // Outer NodeSpec is the backdrop (Shape2D). Always-wrap turns it into a Prefab container
+    // so children can be addressed by name post-build. Sibling structure inside the backdrop:
+    //
+    //   bg (Shape2D, the leaf -> this node's mainEntity)
+    //   ├── title         (TTFText)
+    //   ├── inputSlot0    (Slot factory — produces SlotComponent-bearing entity)
+    //   ├── inputSlot1    (Slot factory — same)
+    //   ├── outputSlot    (Slot factory — same)
+    //   ├── progressBg    (Shape2D)
+    //   ├── progressFill  (Shape2D, width=0 initially, updated per tick)
+    //   └── demoBtnBg     (Shape2D + child demoBtnText) — composite, exposes as wrap
+    //
+    // The Slot factory accepts category/index/flags via params, so slots come out of the
+    // spec fully-functional (SlotComponent attached) — no post-build attach step needed.
+    NodeSpec spec;
+    spec.kind = "Shape2D";
+    spec.name = "bg";
+    spec.props = {
+        {"width",    panelW},
+        {"height",   panelH},
+        {"r",        20.0f}, {"g", 20.0f}, {"b", 30.0f}, {"a", 220.0f},
+        {"z",        97.0f},
+        {"viewport", static_cast<int>(UI_VP)},
+    };
+    spec.anchors = {
+        AnchorSpec{anchorTargetId, AnchorType::Right,          AnchorType::Left,           GAP_BETWEEN_PANELS},
+        AnchorSpec{anchorTargetId, AnchorType::VerticalCenter, AnchorType::VerticalCenter, 0.0f},
+    };
+
     {
-        auto panelEnt = factory->build("Panel", PrefabParams{
-            {"width", panelW}, {"height", panelH},
-            {"r", 20.0f}, {"g", 20.0f}, {"b", 30.0f}, {"a", 220.0f},
-            {"z", 97.0f},
-            {"viewport", static_cast<int>(UI_VP)},
-        });
-        backdropEntityId = panelEnt->id;
-
-        auto a = panelEnt->get<UiAnchor>();
-        a->setRightAnchor(PosAnchor{anchorTargetId, AnchorType::Left});
-        a->setRightMargin(GAP_BETWEEN_PANELS);
-        a->setVerticalCenter(PosAnchor{anchorTargetId, AnchorType::VerticalCenter});
-
-        if (auto bgEnt = panelEnt->get<Prefab>()->getEntity("bg"))
-            ecsRef->attach<MouseLeftClickComponent>(bgEnt, makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
-    }
-
-    {
-        const std::string initialTitle = openMachineName.empty() ? machineNameLabel : openMachineName;
-        auto titleEnt = factory->build("Text", PrefabParams{
-            {"x", 0.0f}, {"y", 0.0f},
+        NodeSpec t;
+        t.kind = "TTFText";
+        t.name = "title";
+        t.props = {
             {"z",        100.0f},
             {"font",     std::string(FONT_PATH)},
             {"text",     initialTitle},
             {"scale",    TITLE_SCALE},
             {"viewport", static_cast<int>(UI_VP)},
-        });
-
-        titleEntityId = titleEnt->id;
-        auto a = ecsRef->attach<UiAnchor>(titleEnt);
-        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
-        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
-        a->setLeftMargin(PANEL_PADDING);
-        a->setTopMargin(PANEL_PADDING + 4.0f);
+        };
+        t.anchors = {
+            AnchorSpec{"main", AnchorType::Left, PANEL_PADDING},
+            AnchorSpec{"main", AnchorType::Top,  PANEL_PADDING + 4.0f},
+        };
+        spec.children.push_back(std::move(t));
     }
 
-    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
+    // ---- Slots — both input slots (slot 1 hidden below for 1-input machines) and output. ----
+    // The Slot factory attaches SlotComponent when `category` is supplied, so these come out
+    // of buildNode ready to use.
+    const float inputSlotTops[2] = {slotsTop, slotsTop + SLOT_SIZE + SLOT_SPACING};
 
-    // Always create both input slot anchors (slot 1 is hidden for 1-input
-    // machines via updateForMachineType).
+    auto makeInputSlotNode = [&](int idx) {
+        NodeSpec slot;
+        slot.kind = "Slot";
+        slot.name = (idx == 0) ? "inputSlot0" : "inputSlot1";
+        slot.props = {
+            {SlotPrefabKeys::SlotSize, SLOT_SIZE},
+            {SlotPrefabKeys::ItemSize, ITEM_SIZE},
+            {SlotPrefabKeys::Category, std::string("Input")},
+            {SlotPrefabKeys::Index,    idx},
+        };
+
+        slot.anchors = {
+            AnchorSpec{"main", AnchorType::Left, inputColLeft},
+            AnchorSpec{"main", AnchorType::Top,  inputSlotTops[idx]},
+        };
+
+        return slot;
+    };
+
+    spec.children.push_back(makeInputSlotNode(0));
+    spec.children.push_back(makeInputSlotNode(1));
+
     {
-        const float inputSlotTops[2] = {inputSlot0Top, inputSlot1Top};
-        for (int i = 0; i < 2; ++i)
-        {
-            auto slotRef = slotSystem->createSlot(SlotCategory::Input, static_cast<uint8_t>(i));
-            inputSlotEntityIds[i] = slotRef.id;
+        NodeSpec slot;
+        slot.kind = "Slot";
+        slot.name = "outputSlot";
+        slot.props = {
+            {SlotPrefabKeys::SlotSize, SLOT_SIZE},
+            {SlotPrefabKeys::ItemSize, ITEM_SIZE},
+            {SlotPrefabKeys::Category, std::string("Output")},
+            {SlotPrefabKeys::Index,    0},
+        };
 
-            auto a = slotRef.get<UiAnchor>();
-            a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
-            a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
-            a->setLeftMargin(inputColLeft);
-            a->setTopMargin(inputSlotTops[i]);
-        }
+        slot.anchors = {
+            AnchorSpec{"main", AnchorType::Left, outputColLeft},
+            AnchorSpec{"main", AnchorType::Top,  outputSlotTop},
+        };
+
+        spec.children.push_back(std::move(slot));
     }
 
     {
-        auto slotRef = slotSystem->createSlot(SlotCategory::Output, 0);
-        outputSlotEntityId = slotRef.id;
+        NodeSpec bg;
+        bg.kind = "Shape2D";
+        bg.name = "progressBg";
+        bg.props = {
+            {"width",    cachedBarMaxW},
+            {"height",   PROGRESS_H},
+            {"r",        40.0f}, {"g", 40.0f}, {"b", 50.0f}, {"a", 200.0f},
+            {"z",        98.0f},
+            {"viewport", static_cast<int>(UI_VP)},
+        };
 
-        auto a = slotRef.get<UiAnchor>();
-        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
-        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
-        a->setLeftMargin(outputColLeft);
-        a->setTopMargin(outputSlotTop);
+        bg.anchors = {
+            AnchorSpec{"main", AnchorType::Left, PANEL_PADDING},
+            AnchorSpec{"main", AnchorType::Top,  barTop},
+        };
+
+        spec.children.push_back(std::move(bg));
     }
 
-    // Progress bar background
     {
-        auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{40.0f, 40.0f, 50.0f, 200.0f});
-        auto pos = bg.get<PositionComponent>();
-        pos->setZ(98.0f);
-        pos->setWidth(cachedBarMaxW); pos->setHeight(PROGRESS_H);
-        bg.get<ViewportComponent>()->setViewport(UI_VP);
-        progressBgEntityId = bg.entity->id;
+        NodeSpec fill;
+        fill.kind = "Shape2D";
+        fill.name = "progressFill";
+        fill.props = {
+            {"width",    0.0f},
+            {"height",   PROGRESS_H},
+            {"r",        80.0f}, {"g", 200.0f}, {"b", 80.0f}, {"a", 255.0f},
+            {"z",        99.0f},
+            {"viewport", static_cast<int>(UI_VP)},
+        };
 
-        auto a = ecsRef->attach<UiAnchor>(bg.entity);
-        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
-        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
-        a->setLeftMargin(PANEL_PADDING);
-        a->setTopMargin(barTop);
+        fill.anchors = {
+            AnchorSpec{"main", AnchorType::Left, PANEL_PADDING},
+            AnchorSpec{"main", AnchorType::Top,  barTop},
+        };
+
+        spec.children.push_back(std::move(fill));
     }
 
-    // Progress bar fill
     {
-        auto fill = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{80.0f, 200.0f, 80.0f, 255.0f});
-        auto pos = fill.get<PositionComponent>();
-        pos->setZ(99.0f);
-        pos->setWidth(0.0f); pos->setHeight(PROGRESS_H);
-        fill.get<ViewportComponent>()->setViewport(UI_VP);
-        progressFillEntityId = fill.entity->id;
+        // The "?" demo button: a small Shape2D with a TTFText child. Because the button has a
+        // child, its wrap is composite and stays addressable via `getEntity("demoBtnBg")`.
+        NodeSpec btn;
+        btn.kind = "Shape2D";
+        btn.name = "demoBtnBg";
+        btn.props = {
+            {"width",    20.0f},
+            {"height",   20.0f},
+            {"r",        60.0f}, {"g", 60.0f}, {"b", 100.0f}, {"a", 220.0f},
+            {"z",        100.0f},
+            {"viewport", static_cast<int>(UI_VP)},
+        };
 
-        auto a = ecsRef->attach<UiAnchor>(fill.entity);
-        a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
-        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
-        a->setLeftMargin(PANEL_PADDING);
-        a->setTopMargin(barTop);
+        btn.anchors = {
+            AnchorSpec{"main", AnchorType::Right, AnchorType::Right, PANEL_PADDING},
+            AnchorSpec{"main", AnchorType::Top,   PANEL_PADDING},
+        };
+
+        NodeSpec txt;
+        txt.kind = "TTFText";
+        txt.name = "demoBtnText";
+        txt.props = {
+            {"z",        101.0f},
+            {"font",     std::string(FONT_PATH)},
+            {"text",     std::string("?")},
+            {"scale",    0.35f},
+            {"r",        255.0f}, {"g", 255.0f}, {"b", 255.0f}, {"a", 255.0f},
+            {"viewport", static_cast<int>(UI_VP)},
+        };
+
+        // Anchors against this button's own "main" = the demoBtn Shape2D leaf.
+        txt.anchors = {
+            AnchorSpec{"main", AnchorType::Left, 5.0f},
+            AnchorSpec{"main", AnchorType::Top,  2.0f},
+        };
+
+        btn.children.push_back(std::move(txt));
+
+        spec.children.push_back(std::move(btn));
     }
 
-    // "?" demo button (top-right of panel)
+    backdrop = buildNode(ecsRef, spec);
+    auto prefab = backdrop->get<Prefab>();
+
+    // ---- Cache leaf handles ----
+    bgLeaf       = prefab->getEntity("bg");           // outer's mainEntity (Shape2D leaf)
+    title        = prefab->getEntity("title");
+    progressBg   = prefab->getEntity("progressBg");
+    progressFill = prefab->getEntity("progressFill");
+    demoBtnBg    = prefab->getEntity("demoBtnBg");    // composite wrap (has demoBtnText child)
+    if (demoBtnBg and demoBtnBg->has<Prefab>())
+        demoBtnText = demoBtnBg->get<Prefab>()->getEntity("demoBtnText");
+
+    // ---- DEBUG: diagnostic logs for panel-placement issue ----
+    // Hypothesis: `anchorTargetId` resolves to an entity without `UiAnchor` (e.g. __MainWindow
+    // fallback), so the wrap's spec.anchors are silently skipped, leaving wrap at (0,0). That
+    // would explain children appearing at (0+margin, 0+margin).
     {
-        const float btnSize = 20.0f;
-        auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-            constant::Vector4D{60.0f, 60.0f, 100.0f, 220.0f});
-        auto pos = bg.get<PositionComponent>();
-        pos->setZ(100.0f);
-        pos->setWidth(btnSize); pos->setHeight(btnSize);
-        bg.get<ViewportComponent>()->setViewport(UI_VP);
-        demoBtnBgEntityId = bg.entity->id;
+        auto targetEnt = ecsRef->getEntity(anchorTargetId);
+        LOG_INFO("RecipeMachineUI",
+            "createPanel: anchorTargetId=" << anchorTargetId
+            << " targetExists=" << (targetEnt ? 1 : 0)
+            << " targetHasUiAnchor=" << (targetEnt and targetEnt->has<UiAnchor>() ? 1 : 0)
+            << " backdrop.id=" << backdrop.id
+            << " backdropHasUiAnchor=" << (backdrop->has<UiAnchor>() ? 1 : 0)
+            << " backdropHasPrefab="   << (backdrop->has<Prefab>()   ? 1 : 0)
+            << " bgLeaf.id=" << bgLeaf.id
+            << " bgLeafHasPrefab="     << (bgLeaf and bgLeaf->has<Prefab>() ? 1 : 0));
 
-        auto a = ecsRef->attach<UiAnchor>(bg.entity);
-        a->setRightAnchor(PosAnchor{backdropEntityId, AnchorType::Right});
-        a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
-        a->setRightMargin(PANEL_PADDING);
-        a->setTopMargin(PANEL_PADDING);
-
-        auto txt = makeTTFText(ecsRef, 0.0f, 0.0f, 101.0f,
-            FONT_PATH, "?", 0.35f, {255.0f, 255.0f, 255.0f, 255.0f});
-        txt.get<ViewportComponent>()->setViewport(UI_VP);
-        demoBtnTextEntityId = txt.entity->id;
-
-        auto ta = ecsRef->attach<UiAnchor>(txt.entity);
-        ta->setLeftAnchor(PosAnchor{demoBtnBgEntityId, AnchorType::Left});
-        ta->setTopAnchor(PosAnchor{demoBtnBgEntityId, AnchorType::Top});
-        ta->setLeftMargin(5.0f);
-        ta->setTopMargin(2.0f);
+        auto bp = backdrop->get<PositionComponent>();
+        auto bg = bgLeaf->get<PositionComponent>();
+        LOG_INFO("RecipeMachineUI",
+            "createPanel (post-build, pre-tick): backdrop=("
+            << bp->x << "," << bp->y << "," << bp->width << "," << bp->height << ")"
+            << " bgLeaf=("
+            << (bg ? bg->x : -1) << "," << (bg ? bg->y : -1) << ","
+            << (bg ? bg->width : -1) << "," << (bg ? bg->height : -1) << ")");
     }
+
+    // ---- Pre-existing panel-wide click absorber ----
+    if (bgLeaf)
+        ecsRef->attach<MouseLeftClickComponent>(bgLeaf, makeCallable<PanelWasClickedEvent>(), MouseStateTrigger::OnPress);
+
+    // ---- Slot handles (slots were built by the Slot factory inside the NodeSpec tree) ----
+    inputSlots[0] = prefab->getEntity("inputSlot0");
+    inputSlots[1] = prefab->getEntity("inputSlot1");
+    outputSlot   = prefab->getEntity("outputSlot");
+
+    // Hide unused input slot for 1-input machines (separate from panel-wide visibility).
+    if (n < 2 and inputSlots[1])
+        inputSlots[1]->get<PositionComponent>()->setVisibility(false);
 }
 
 // ---------------------------------------------------------------------------
@@ -415,10 +457,10 @@ void RecipeMachineUIBase::syncAllSlots()
 
     auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     for (int i = 0; i < numInputs; ++i)
-        slotSystem->syncSlotVisual(inputSlotEntityIds[i],
+        slotSystem->syncSlotVisual(inputSlots[i].id,
             machine->inputSlots.getSlot(static_cast<size_t>(i)));
 
-    slotSystem->syncSlotVisual(outputSlotEntityId, machine->outputSlots.getSlot(0));
+    slotSystem->syncSlotVisual(outputSlot.id, machine->outputSlots.getSlot(0));
 }
 
 void RecipeMachineUIBase::syncSlotToMachine(size_t slotIndex, bool isInput)
@@ -430,13 +472,13 @@ void RecipeMachineUIBase::syncSlotToMachine(size_t slotIndex, bool isInput)
     auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     if (isInput)
     {
-        auto* sc = slotSystem->getSlotComponent(inputSlotEntityIds[slotIndex]);
+        auto* sc = slotSystem->getSlotComponent(inputSlots[slotIndex].id);
         if (sc)
             machine->inputSlots.getSlot(slotIndex) = sc->stack;
     }
     else
     {
-        auto* sc = slotSystem->getSlotComponent(outputSlotEntityId);
+        auto* sc = slotSystem->getSlotComponent(outputSlot.id);
         if (sc)
             machine->outputSlots.getSlot(0) = sc->stack;
     }
@@ -456,9 +498,8 @@ void RecipeMachineUIBase::refreshProgressBar()
             progress = 1.0f;
     }
 
-    auto fillEnt = ecsRef->getEntity(progressFillEntityId);
-    if (fillEnt)
-        fillEnt->get<PositionComponent>()->setWidth(cachedBarMaxW * progress);
+    if (progressFill)
+        progressFill->get<PositionComponent>()->setWidth(cachedBarMaxW * progress);
 }
 
 // ---------------------------------------------------------------------------

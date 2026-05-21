@@ -16,7 +16,9 @@ namespace pg_machineui
     {
         if (id == 0)
             return;
+
         auto ent = ecs->getEntity(id);
+
         if (ent)
             ent->get<pg::PositionComponent>()->setVisibility(vis);
     }
@@ -25,7 +27,9 @@ namespace pg_machineui
     {
         if (id == 0)
             return;
+
         auto ent = ecs->getEntity(id);
+
         if (ent and ent->has<pg::TTFText>())
             ent->get<pg::TTFText>()->setText(text);
     }
@@ -34,10 +38,14 @@ namespace pg_machineui
     {
         if (id == 0)
             return false;
+
         auto ent = ecs->getEntity(id);
+
         if (not ent)
             return false;
+
         auto pos = ent->get<pg::PositionComponent>();
+
         return mx >= pos->getX() and mx <= pos->getX() + pos->getWidth()
             and my >= pos->getY() and my <= pos->getY() + pos->getHeight();
     }
@@ -50,11 +58,15 @@ namespace pg_machineui
         uint64_t target = 0;
         if (inventoryUI)
             target = inventoryUI->getBackdropEntityId();
+
         if (target == 0)
         {
             auto windowEnt = ecs->getEntity("__MainWindow");
-            if (windowEnt) target = windowEnt->id;
+
+            if (windowEnt)
+                target = windowEnt->id;
         }
+
         return target;
     }
 }
