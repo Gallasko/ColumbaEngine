@@ -1,5 +1,25 @@
 #include "slotsystem.h"
 
+SlotCategory parseSlotCategory(const std::string& s)
+{
+    if (s == "Input")   return SlotCategory::Input;
+    if (s == "Output")  return SlotCategory::Output;
+    if (s == "Hotbar")  return SlotCategory::Hotbar;
+    return SlotCategory::PlayerInventory;
+}
+
+const char* slotCategoryToString(SlotCategory cat)
+{
+    switch (cat)
+    {
+        case SlotCategory::Input:           return "Input";
+        case SlotCategory::Output:          return "Output";
+        case SlotCategory::Hotbar:          return "Hotbar";
+        case SlotCategory::PlayerInventory: return "PlayerInventory";
+    }
+    return "PlayerInventory";
+}
+
 EntityRef makeSlotPrefab(EntitySystem* ecs, ItemRegistry* itemRegistry, const PrefabParams& params)
 {
     const float slotSize = getParamFloat(params, SlotPrefabKeys::SlotSize, DEFAULT_SLOT_SIZE);
@@ -104,6 +124,18 @@ EntityRef makeSlotPrefab(EntitySystem* ecs, ItemRegistry* itemRegistry, const Pr
             textEnt->get<PositionComponent>()->setVisibility(false);
     });
 
+    // If the caller supplied a category, attach SlotComponent so the result is a
+    // fully-functional slot (game identity included). Otherwise leave it as a pure
+    // visual prefab — callers can attach SlotComponent themselves.
+    const std::string categoryStr = getParamString(params, SlotPrefabKeys::Category);
+    if (not categoryStr.empty())
+    {
+        const SlotCategory category = parseSlotCategory(categoryStr);
+        const uint8_t  index = static_cast<uint8_t>(getParamInt(params, SlotPrefabKeys::Index, 0));
+        const SlotFlags flags = static_cast<SlotFlags>(getParamInt(params, SlotPrefabKeys::Flags, 0));
+        ecs->attach<SlotComponent>(slot.entity, category, index, flags);
+    }
+
     return slot.entity;
 }
 
@@ -120,6 +152,11 @@ void registerSlotFactory(PrefabFactoryRegistry* factory, ItemRegistry* itemRegis
         {SlotPrefabKeys::BgG,      50.0f},
         {SlotPrefabKeys::BgB,      60.0f},
         {SlotPrefabKeys::BgA,      200.0f},
+        // Game-identity params: when category is empty the factory skips the
+        // SlotComponent attach and returns a pure visual prefab (back-compat).
+        {SlotPrefabKeys::Category, std::string{""}},
+        {SlotPrefabKeys::Index,    0},
+        {SlotPrefabKeys::Flags,    0},
     };
 
     factory->registerFactory("Slot", std::move(schema),
@@ -161,6 +198,9 @@ EntityRef SlotSystem::createSlot(SlotCategory category, uint8_t index,
                                  SlotFlags flags, float slotSize, float itemSize,
                                  constant::Vector4D bgColor)
 {
+    // Push the game identity through params so makeSlotPrefab attaches SlotComponent
+    // itself. Same effect whether we go through the registered factory or the direct
+    // fallback (both paths route through makeSlotPrefab).
     PrefabParams params = {
         {SlotPrefabKeys::SlotSize, slotSize},
         {SlotPrefabKeys::ItemSize, itemSize},
@@ -168,18 +208,16 @@ EntityRef SlotSystem::createSlot(SlotCategory category, uint8_t index,
         {SlotPrefabKeys::BgG,      bgColor.y},
         {SlotPrefabKeys::BgB,      bgColor.z},
         {SlotPrefabKeys::BgA,      bgColor.w},
+        {SlotPrefabKeys::Category, std::string(slotCategoryToString(category))},
+        {SlotPrefabKeys::Index,    static_cast<int>(index)},
+        {SlotPrefabKeys::Flags,    static_cast<int>(flags)},
     };
 
-    EntityRef slotEnt;
     auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
     if (factory and factory->hasFactory("Slot"))
-        slotEnt = factory->build("Slot", params);
-    else
-        slotEnt = makeSlotPrefab(ecsRef, itemRegistry, params);
+        return factory->build("Slot", params);
 
-    ecsRef->attach<SlotComponent>(slotEnt, category, index, flags);
-
-    return slotEnt;
+    return makeSlotPrefab(ecsRef, itemRegistry, params);
 }
 
 // ---- Mouse events ----

@@ -54,15 +54,20 @@ struct SlotDroppedEvent
 // The Slot prefab is registered with PrefabFactoryRegistry under the name "Slot"
 // during SlotSystem::init(). Build it via:
 //
-//   factory->build("Slot", { {"slotSize", 40.0f}, {"itemSize", 28.0f}, ... });
+//   factory->build("Slot", { {"slotSize", 40.0f}, {"itemSize", 28.0f},
+//                            {"category", "Input"}, {"index", 0}, {"flags", 0} });
 //
 // Param keys (all optional, defaults applied by the registry's schema):
 //   "slotSize" : float
 //   "itemSize" : float
 //   "bgR", "bgG", "bgB", "bgA" : float (0-255)
-//
-// SlotComponent is attached separately by SlotSystem::createSlot — the factory
-// produces a pure visual prefab with no game-specific data.
+//   "category" : string — "Input" | "Output" | "Hotbar" | "PlayerInventory"
+//                When non-empty, the factory attaches a SlotComponent with the
+//                given category/index/flags. When empty (default), the factory
+//                returns a pure visual prefab with no game-specific identity —
+//                callers can attach SlotComponent themselves.
+//   "index"    : int — slot index within its category (default 0)
+//   "flags"    : int — SlotFlags bitfield (default 0 = None)
 
 namespace SlotPrefabKeys
 {
@@ -72,7 +77,15 @@ namespace SlotPrefabKeys
     inline constexpr const char* BgG      = "bgG";
     inline constexpr const char* BgB      = "bgB";
     inline constexpr const char* BgA      = "bgA";
+    inline constexpr const char* Category = "category";
+    inline constexpr const char* Index    = "index";
+    inline constexpr const char* Flags    = "flags";
 }
+
+// String <-> SlotCategory conversions. Used by both the Slot factory (parses param
+// strings into enum values) and by callers building factory params from enum state.
+SlotCategory parseSlotCategory(const std::string& s);
+const char* slotCategoryToString(SlotCategory cat);
 
 EntityRef makeSlotPrefab(EntitySystem* ecs, ItemRegistry* itemRegistry, const PrefabParams& params);
 
