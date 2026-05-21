@@ -23,29 +23,33 @@ namespace pg
 
         struct Entry
         {
-            // Basic constructors
-            Entry(const std::string& name, int defaultValue, Requirement requirement = Requirement::Required)
+            // Basic constructors — entries with a default value are Optional by default
+            // (the default value is the fallback when the caller omits the param). Pass
+            // `Requirement::Required` explicitly to force the caller to provide the param
+            // anyway (the default then acts only as a type/value placeholder).
+            Entry(const std::string& name, int defaultValue, Requirement requirement = Requirement::Optional)
                 : name(name), type(UnionType::INT), defaultValue(defaultValue), requirement(requirement) {}
 
-            Entry(const std::string& name, float defaultValue, Requirement requirement = Requirement::Required)
+            Entry(const std::string& name, float defaultValue, Requirement requirement = Requirement::Optional)
                 : name(name), type(UnionType::FLOAT), defaultValue(defaultValue), requirement(requirement) {}
 
-            Entry(const std::string& name, double defaultValue, Requirement requirement = Requirement::Required)
+            Entry(const std::string& name, double defaultValue, Requirement requirement = Requirement::Optional)
                 : name(name), type(UnionType::DOUBLE), defaultValue(defaultValue), requirement(requirement) {}
 
-            Entry(const std::string& name, size_t defaultValue, Requirement requirement = Requirement::Required)
+            Entry(const std::string& name, size_t defaultValue, Requirement requirement = Requirement::Optional)
                 : name(name), type(UnionType::SIZE_T), defaultValue(defaultValue), requirement(requirement) {}
 
-            Entry(const std::string& name, bool defaultValue, Requirement requirement = Requirement::Required)
+            Entry(const std::string& name, bool defaultValue, Requirement requirement = Requirement::Optional)
                 : name(name), type(UnionType::BOOL), defaultValue(defaultValue), requirement(requirement) {}
 
-            Entry(const std::string& name, const std::string& defaultValue, Requirement requirement = Requirement::Required)
+            Entry(const std::string& name, const std::string& defaultValue, Requirement requirement = Requirement::Optional)
                 : name(name), type(UnionType::STRING), defaultValue(defaultValue), requirement(requirement) {}
 
-            Entry(const std::string& name, const char* defaultValue, Requirement requirement = Requirement::Required)
+            Entry(const std::string& name, const char* defaultValue, Requirement requirement = Requirement::Optional)
                 : name(name), type(UnionType::STRING), defaultValue(std::string(defaultValue)), requirement(requirement) {}
 
-            // Constructors for values with no default
+            // Constructors for values with NO default — these are Required by default; the
+            // caller MUST provide the param in their PrefabParams list or the build fails.
             Entry(const std::string& name, UnionType type, Requirement requirement = Requirement::Required)
                 : name(name), type(type), requirement(requirement) {}
 
@@ -84,6 +88,31 @@ namespace pg
                 LOG_ERROR("Prefab Factory Registry", "No factory registered with name: " << name);
                 return EntityRef{};
             }
+
+            // Enforce required params: every entry marked `Required` in the schema must be
+            // present in the caller's `params` map. Schema defaults do NOT satisfy a Required
+            // entry — the contract is that the caller explicitly opts in.
+
+            bool allRequiredParamsPresent = true;
+
+            auto schemaIt = schemas.find(name);
+            if (schemaIt != schemas.end())
+            {
+                for (const auto& entry : schemaIt->second.entries)
+                {
+                    if (entry.requirement == ParamSchema::Requirement::Required and
+                        params.find(entry.name) == params.end())
+                    {
+                        LOG_ERROR("Prefab Factory Registry",
+                            "Factory '" << name << "' missing required parameter: '" << entry.name << "'");
+
+                        allRequiredParamsPresent = false;
+                    }
+                }
+            }
+
+            if (not allRequiredParamsPresent)
+                return EntityRef{};
 
             return it->second(this->ecsRef, mergeWithDefaults(name, params));
         }

@@ -143,6 +143,7 @@ namespace
             LOG_ERROR("Prefab Builder", "No PrefabFactoryRegistry available to realise kind: " << spec.kind);
             return EntityRef{};
         }
+
         return registry->build(spec.kind, spec.props);
     }
 
@@ -160,8 +161,10 @@ namespace
         if (not ent or not ent->has<Prefab>())
             return ent;
         auto p = ent->get<Prefab>();
+
         if (p->childrenIds.size() != 1)
             return ent;
+
         auto inner = p->getEntity(MAIN_ENTITY_KEY);
         return inner ? inner : ent;
     }
