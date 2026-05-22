@@ -140,7 +140,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         TEST(prefab_builder_test, build_unknown_kind_returns_empty)
         {
-            MockLogger<TerminalSink> logger;
+            // MockLogger<TerminalSink> logger;
 
             EntitySystem ecs;
             bootstrap(ecs);
@@ -324,7 +324,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         TEST(prefab_builder_test, anchor_target_missing_is_skipped_without_throwing)
         {
-            MockLogger<TerminalSink> logger;
+            // MockLogger<TerminalSink> logger;
 
             EntitySystem ecs;
             bootstrap(ecs);
@@ -424,7 +424,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         TEST(prefab_builder_test, factory_missing_returns_empty_entity)
         {
-            MockLogger<TerminalSink> logger;
+            // MockLogger<TerminalSink> logger;
 
             EntitySystem ecs;
             bootstrap(ecs);
@@ -684,7 +684,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         TEST(prefab_builder_test, inner_prefab_names_stay_scoped)
         {
-            MockLogger<TerminalSink> logger;
+            // MockLogger<TerminalSink> logger;
 
             EntitySystem ecs;
             bootstrap(ecs);
@@ -811,7 +811,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         TEST(prefab_builder_test, targetId_overrides_target_name)
         {
-            MockLogger<TerminalSink> logger;
+            // MockLogger<TerminalSink> logger;
 
             EntitySystem ecs;
             bootstrap(ecs);
@@ -842,7 +842,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         TEST(prefab_builder_test, reserved_name_on_nested_prefab_is_refused)
         {
-            MockLogger<TerminalSink> logger;
+            // MockLogger<TerminalSink> logger;
 
             EntitySystem ecs;
             bootstrap(ecs);
