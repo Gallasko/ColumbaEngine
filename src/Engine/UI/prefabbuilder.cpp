@@ -284,6 +284,7 @@ namespace
             EntityRef wrap;    // structural entity returned by buildNodeImpl (Prefab container or layout)
             std::vector<AnchorSpec> anchors;
         };
+
         std::vector<BuiltChild> built;
         built.reserve(spec.children.size());
 

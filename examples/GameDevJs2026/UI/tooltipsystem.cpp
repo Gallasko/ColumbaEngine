@@ -70,7 +70,8 @@ void TooltipSystem::onProcessEvent(const TickEvent&)
 
 void TooltipSystem::ensureCreated()
 {
-    if (created) return;
+    if (created)
+        return;
     created = true;
 
     // Backdrop — follows cursor; placement done in placeAt() (setX/setY).

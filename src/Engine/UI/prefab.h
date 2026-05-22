@@ -65,6 +65,8 @@ namespace pg
 
         void setMainEntity(EntityRef entity)
         {
+            addToPrefab(entity, "MainEntity");
+
             ecsRef->sendEvent(SetMainEntityEvent{id, entity->id}, true);
         }
 
@@ -163,10 +165,6 @@ namespace pg
             entAnchor->setTopAnchor(PosAnchor{prefabAnchor->entityId, AnchorType::Top});
             entAnchor->setLeftAnchor(PosAnchor{prefabAnchor->entityId, AnchorType::Left});
             entAnchor->setZConstrain(PosConstrain{event.prefabId, AnchorType::Z});
-
-            auto prefab = prefabEnt->get<Prefab>();
-
-            prefab->addToPrefab(ent, "MainEntity");
         }
 
         virtual void execute() override

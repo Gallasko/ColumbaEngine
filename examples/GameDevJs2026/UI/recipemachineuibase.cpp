@@ -145,8 +145,12 @@ void RecipeMachineUIBase::setPanelVisibility(bool vis)
 {
     // Everything (slots included) lives inside the prefab tree now, so PrefabSystem's
     // observable-cascade carries the visibility down from the backdrop leaf.
-    if (bgLeaf)
-        bgLeaf->get<PositionComponent>()->setVisibility(vis);
+
+    if (backdrop)
+    {
+        auto prefab = backdrop->get<PositionComponent>();
+        prefab->setVisibility(vis);
+    }
 }
 
 void RecipeMachineUIBase::updateForMachineType()

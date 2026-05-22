@@ -1,5 +1,8 @@
 #include "slotsystem.h"
 
+#include "UI/prefabspec.h"
+#include "UI/prefabbuilder.h"
+
 static inline void notifyChange(SlotComponent* slot)
 {
     if (slot and slot->onChange)
@@ -30,54 +33,67 @@ EntityRef makeSlotPrefab(EntitySystem* ecs, ItemRegistry* itemRegistry, const Pr
 {
     const float slotSize = getParamFloat(params, SlotPrefabKeys::SlotSize, DEFAULT_SLOT_SIZE);
     const float itemSize = getParamFloat(params, SlotPrefabKeys::ItemSize, DEFAULT_ITEM_SIZE);
-    const constant::Vector4D bgColor = {
-        getParamFloat(params, SlotPrefabKeys::BgR, 50.0f),
-        getParamFloat(params, SlotPrefabKeys::BgG, 50.0f),
-        getParamFloat(params, SlotPrefabKeys::BgB, 60.0f),
-        getParamFloat(params, SlotPrefabKeys::BgA, 200.0f),
+
+    NodeSpec spec;
+    spec.kind = "Shape2D";
+    spec.name = "bg";
+    spec.props = {
+        {"width",    slotSize},
+        {"height",   slotSize},
+        {"r",        getParamFloat(params, SlotPrefabKeys::BgR, 50.0f)},
+        {"g",        getParamFloat(params, SlotPrefabKeys::BgG, 50.0f)},
+        {"b",        getParamFloat(params, SlotPrefabKeys::BgB, 60.0f)},
+        {"a",        getParamFloat(params, SlotPrefabKeys::BgA, 200.0f)},
+        {"z",        98.0f},
+        {"viewport", static_cast<int>(SLOT_UI_VIEWPORT)},
     };
 
-    // Prefab entity (invisible container, takes on bg size)
-    auto slot = makeAnchoredPrefab(ecs);
-    auto prefab = slot.get<Prefab>();
+    {
+        NodeSpec item;
+        item.kind = "Texture";
+        item.name = "item";
+        item.props = {
+            {"texture",    std::string("NoneIcon")},
+            {"width",      itemSize},
+            {"height",     itemSize},
+            {"z",          99.0f},
+            {"viewport",   static_cast<int>(SLOT_UI_VIEWPORT)},
+            {"visibility", false},
+        };
+        item.anchors = centerInAnchors("main");
+        spec.children.push_back(std::move(item));
+    }
 
-    // Background rect
-    auto bg = makeUiSimple2DShape(ecs, Shape2D::Square, slotSize, slotSize, bgColor);
-    bg.get<PositionComponent>()->setZ(98.0f);
-    bg.get<ViewportComponent>()->setViewport(SLOT_UI_VIEWPORT);
-    auto bgAnchor = bg.get<UiAnchor>();
-    prefab->setMainEntity(bg.entity);
+    {
+        NodeSpec text;
+        text.kind = "TTFText";
+        text.name = "text";
+        text.props = {
+            {"font",       std::string(SLOT_FONT_PATH)},
+            {"text",       std::string("")},
+            {"scale",      DEFAULT_TEXT_SCALE},
+            {"r",          255.0f},
+            {"g",          255.0f},
+            {"b",          255.0f},
+            {"a",          255.0f},
+            {"z",          100.0f},
+            {"viewport",   static_cast<int>(SLOT_UI_VIEWPORT)},
+            {"visibility", false},
+        };
+        text.anchors = {
+            AnchorSpec{"main", AnchorType::Left, slotSize - 4.0f},
+            AnchorSpec{"main", AnchorType::Top,  slotSize - 4.0f},
+        };
+        spec.children.push_back(std::move(text));
+    }
+
+    EntityRef slot = buildNode(ecs, spec);
+    auto prefab = slot->get<Prefab>();
+    EntityRef bg = prefab->getEntity("bg");
 
     // Click handler: fires SlotClickedEvent on press only (click-to-grab / click-to-drop)
-    bg.attach<MouseLeftClickComponent>(
-        makeCallable<SlotClickedEvent>(slot.entity->id), MouseStateTrigger::OnPress);
-
-    // Item texture (centered in bg, hidden by default)
-    auto item = makeUiTexture(ecs, itemSize, itemSize, "NoneIcon");
-    item.get<PositionComponent>()->setZ(99.0f);
-    item.get<PositionComponent>()->setVisibility(false);
-    item.get<ViewportComponent>()->setViewport(SLOT_UI_VIEWPORT);
-
-    auto itemAnchor = item.get<UiAnchor>();
-    itemAnchor->centeredIn(bgAnchor);
-
-    prefab->addToPrefab(item.entity, "item");
-
-    // Count text (bottom-right of bg, hidden by default)
-    auto text = makeTTFText(ecs,
-        0.0f, 0.0f, 100.0f,
-        SLOT_FONT_PATH, "", DEFAULT_TEXT_SCALE,
-        {255.0f, 255.0f, 255.0f, 255.0f});
-    text.get<PositionComponent>()->setVisibility(false);
-    text.get<ViewportComponent>()->setViewport(SLOT_UI_VIEWPORT);
-
-    auto textAnchor = text.get<UiAnchor>();
-    textAnchor->setLeftAnchor(bgAnchor->left);
-    textAnchor->setLeftMargin(slotSize - 4.0f);
-    textAnchor->setTopAnchor(bgAnchor->top);
-    textAnchor->setTopMargin(slotSize - 4.0f);
-
-    prefab->addToPrefab(text.entity, "text");
+    ecs->attach<MouseLeftClickComponent>(bg,
+        makeCallable<SlotClickedEvent>(slot->id), MouseStateTrigger::OnPress);
 
     // ---- Helpers ----
 
@@ -139,10 +155,10 @@ EntityRef makeSlotPrefab(EntitySystem* ecs, ItemRegistry* itemRegistry, const Pr
         const SlotCategory category = parseSlotCategory(categoryStr);
         const uint8_t  index = static_cast<uint8_t>(getParamInt(params, SlotPrefabKeys::Index, 0));
         const SlotFlags flags = static_cast<SlotFlags>(getParamInt(params, SlotPrefabKeys::Flags, 0));
-        ecs->attach<SlotComponent>(slot.entity, category, index, flags);
+        ecs->attach<SlotComponent>(slot, category, index, flags);
     }
 
-    return slot.entity;
+    return slot;
 }
 
 void registerSlotFactory(PrefabFactoryRegistry* factory, ItemRegistry* itemRegistry)
