@@ -60,15 +60,6 @@ void RecipeMachineUIBase::close()
     if (slotSystem->hasHeldItem())
         slotSystem->cancelHeld();
 
-    // Sync all slots back to machine
-    MachineData* machine = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY);
-    if (machine)
-    {
-        for (int i = 0; i < numInputs; ++i)
-            syncSlotToMachine(static_cast<size_t>(i), true);
-        syncSlotToMachine(0, false);
-    }
-
     if (auto* craftingUI = ecsRef->getSystem<CraftingUISystem>())
     {
         craftingUI->setMachineFeedCallback(nullptr);
@@ -95,6 +86,7 @@ void RecipeMachineUIBase::onProcessEvent(const OnSDLScanCode& event)
 {
     if (not visible)
         return;
+
     if (event.key == SDL_SCANCODE_ESCAPE)
         close();
 }
@@ -119,40 +111,6 @@ void RecipeMachineUIBase::onProcessEvent(const TickEvent&)
 
     syncAllSlots();
     refreshProgressBar();
-}
-
-void RecipeMachineUIBase::onProcessEvent(const SlotPickedUpEvent& event)
-{
-    if (not visible)
-        return;
-
-    for (int i = 0; i < numInputs; ++i)
-    {
-        if (event.slotEntityId == inputSlots[i].id)
-        {
-            syncSlotToMachine(static_cast<size_t>(i), true);
-            return;
-        }
-    }
-    if (event.slotEntityId == outputSlot.id)
-        syncSlotToMachine(0, false);
-}
-
-void RecipeMachineUIBase::onProcessEvent(const SlotDroppedEvent& event)
-{
-    if (not visible)
-        return;
-
-    for (int i = 0; i < numInputs; ++i)
-    {
-        if (event.slotEntityId == inputSlots[i].id)
-        {
-            syncSlotToMachine(static_cast<size_t>(i), true);
-            return;
-        }
-    }
-    if (event.slotEntityId == outputSlot.id)
-        syncSlotToMachine(0, false);
 }
 
 void RecipeMachineUIBase::onProcessEvent(const OnMouseClick& event)
@@ -242,6 +200,7 @@ void RecipeMachineUIBase::createPanel()
         {"z",        97.0f},
         {"viewport", static_cast<int>(UI_VP)},
     };
+
     spec.anchors = {
         AnchorSpec{anchorTargetId, AnchorType::Right,          AnchorType::Left,           GAP_BETWEEN_PANELS},
         AnchorSpec{anchorTargetId, AnchorType::VerticalCenter, AnchorType::VerticalCenter, 0.0f},
@@ -402,6 +361,7 @@ void RecipeMachineUIBase::createPanel()
     progressBg   = prefab->getEntity("progressBg");
     progressFill = prefab->getEntity("progressFill");
     demoBtnBg    = prefab->getEntity("demoBtnBg");    // composite wrap (has demoBtnText child)
+
     if (demoBtnBg and demoBtnBg->has<Prefab>())
         demoBtnText = demoBtnBg->get<Prefab>()->getEntity("demoBtnText");
 
@@ -438,7 +398,29 @@ void RecipeMachineUIBase::createPanel()
     // ---- Slot handles (slots were built by the Slot factory inside the NodeSpec tree) ----
     inputSlots[0] = prefab->getEntity("inputSlot0");
     inputSlots[1] = prefab->getEntity("inputSlot1");
-    outputSlot   = prefab->getEntity("outputSlot");
+    outputSlot    = prefab->getEntity("outputSlot");
+
+    // Bind write-back callbacks once. Lambdas re-resolve the machine via the panel's
+    // (openMachineX, openMachineY) members each call, so they survive across reopens
+    // and tolerate the machine being destroyed (lookup returns null).
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
+    for (int i = 0; i < n; ++i)
+    {
+        if (not inputSlots[i])
+            continue;
+
+        slotSystem->bindSlotChange(inputSlots[i].id, [this, i](const ItemStack& s) {
+            if (auto* m = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY))
+                m->inputSlots.getSlot(static_cast<size_t>(i)) = s;
+        });
+    }
+    if (outputSlot)
+    {
+        slotSystem->bindSlotChange(outputSlot.id, [this](const ItemStack& s) {
+            if (auto* m = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY))
+                m->outputSlots.getSlot(0) = s;
+        });
+    }
 
     // Hide unused input slot for 1-input machines (separate from panel-wide visibility).
     if (n < 2 and inputSlots[1])
@@ -457,31 +439,9 @@ void RecipeMachineUIBase::syncAllSlots()
 
     auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     for (int i = 0; i < numInputs; ++i)
-        slotSystem->syncSlotVisual(inputSlots[i].id,
-            machine->inputSlots.getSlot(static_cast<size_t>(i)));
+        slotSystem->syncSlotVisual(inputSlots[i].id, machine->inputSlots.getSlot(static_cast<size_t>(i)));
 
     slotSystem->syncSlotVisual(outputSlot.id, machine->outputSlots.getSlot(0));
-}
-
-void RecipeMachineUIBase::syncSlotToMachine(size_t slotIndex, bool isInput)
-{
-    MachineData* machine = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY);
-    if (not machine)
-        return;
-
-    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
-    if (isInput)
-    {
-        auto* sc = slotSystem->getSlotComponent(inputSlots[slotIndex].id);
-        if (sc)
-            machine->inputSlots.getSlot(slotIndex) = sc->stack;
-    }
-    else
-    {
-        auto* sc = slotSystem->getSlotComponent(outputSlot.id);
-        if (sc)
-            machine->outputSlots.getSlot(0) = sc->stack;
-    }
 }
 
 void RecipeMachineUIBase::refreshProgressBar()

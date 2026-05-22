@@ -14,8 +14,6 @@ using namespace pg;
 class MinerUISystem : public System<Listener<ResizeEvent>,
                                      QueuedListener<OnSDLScanCode>,
                                      QueuedListener<TickEvent>,
-                                     QueuedListener<SlotPickedUpEvent>,
-                                     QueuedListener<SlotDroppedEvent>,
                                      Listener<InventoryClosedEvent>>,
                       public IMachineUI
 {
@@ -62,8 +60,6 @@ public:
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const TickEvent&) override;
-    virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
-    virtual void onProcessEvent(const SlotDroppedEvent& event) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
 private:

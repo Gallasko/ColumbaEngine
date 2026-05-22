@@ -63,16 +63,6 @@ void DepotUISystem::close()
     if (slotSystem->hasHeldItem())
         slotSystem->cancelHeld();
 
-    // Sync all slots back to depot
-    DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(openDepotX, openDepotY);
-    if (depot)
-    {
-        for (size_t i = 0; i < NUM_SLOTS; ++i)
-            syncSlotToDepot(i, true);
-        for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
-            syncSlotToDepot(i, false);
-    }
-
     setPanelVisibility(false);
     visible = false;
     openDepotX = -1;
@@ -128,54 +118,6 @@ void DepotUISystem::onProcessEvent(const TickEvent&)
 
     depotDataSeenThisOpen = true;
     syncAllSlots();
-}
-
-void DepotUISystem::onProcessEvent(const SlotPickedUpEvent& event)
-{
-    if (not visible)
-        return;
-
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-    {
-        if (event.slotEntityId == inputSlotEntityIds[i])
-        {
-            syncSlotToDepot(i, true);
-            return;
-        }
-    }
-
-    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
-    {
-        if (event.slotEntityId == outputSlotEntityIds[i])
-        {
-            syncSlotToDepot(i, false);
-            return;
-        }
-    }
-}
-
-void DepotUISystem::onProcessEvent(const SlotDroppedEvent& event)
-{
-    if (not visible)
-        return;
-
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-    {
-        if (event.slotEntityId == inputSlotEntityIds[i])
-        {
-            syncSlotToDepot(i, true);
-            return;
-        }
-    }
-
-    for (size_t i = 0; i < NUM_OUTPUT_SLOTS; ++i)
-    {
-        if (event.slotEntityId == outputSlotEntityIds[i])
-        {
-            syncSlotToDepot(i, false);
-            return;
-        }
-    }
 }
 
 void DepotUISystem::onProcessEvent(const OnMouseClick& event)
@@ -358,6 +300,11 @@ void DepotUISystem::createPanel()
             SlotCategory::Input, static_cast<uint8_t>(i));
         inputSlotEntityIds[i] = slotRef.id;
 
+        slotSystem->bindSlotChange(slotRef.id, [this, i](const ItemStack& s) {
+            if (auto* d = ecsRef->getSystem<DepotSystem>()->getDepot(openDepotX, openDepotY))
+                d->inventory.getSlot(i) = s;
+        });
+
         auto a = slotRef.get<UiAnchor>();
         a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
         a->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
@@ -391,6 +338,11 @@ void DepotUISystem::createPanel()
             DEFAULT_SLOT_SIZE, DEFAULT_ITEM_SIZE,
             {45.0f, 55.0f, 50.0f, 200.0f});
         outputSlotEntityIds[i] = slotRef.id;
+
+        slotSystem->bindSlotChange(slotRef.id, [this, i](const ItemStack& s) {
+            if (auto* d = ecsRef->getSystem<DepotSystem>()->getDepot(openDepotX, openDepotY))
+                d->output.getSlot(i) = s;
+        });
 
         auto a = slotRef.get<UiAnchor>();
         a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
@@ -449,27 +401,6 @@ void DepotUISystem::syncAllSlots()
     // works even if depot data isn't registered yet (e.g. first frame after
     // placement, before BuildingPlacedEvent has been dispatched).
     refreshMissionSection();
-}
-
-void DepotUISystem::syncSlotToDepot(size_t slotIndex, bool isInput)
-{
-    DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(openDepotX, openDepotY);
-    if (not depot)
-        return;
-
-    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
-    if (isInput)
-    {
-        auto* sc = slotSystem->getSlotComponent(inputSlotEntityIds[slotIndex]);
-        if (sc)
-            depot->inventory.getSlot(slotIndex) = sc->stack;
-    }
-    else
-    {
-        auto* sc = slotSystem->getSlotComponent(outputSlotEntityIds[slotIndex]);
-        if (sc)
-            depot->output.getSlot(slotIndex) = sc->stack;
-    }
 }
 
 // ---------------------------------------------------------------------------

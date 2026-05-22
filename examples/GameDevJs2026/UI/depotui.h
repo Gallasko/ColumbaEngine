@@ -19,8 +19,6 @@ using namespace pg;
 class DepotUISystem : public System<Listener<ResizeEvent>,
                                      QueuedListener<OnSDLScanCode>,
                                      QueuedListener<TickEvent>,
-                                     QueuedListener<SlotPickedUpEvent>,
-                                     QueuedListener<SlotDroppedEvent>,
                                      QueuedListener<OnMouseClick>,
                                      Listener<InventoryClosedEvent>>,
                       public IMachineUI
@@ -83,8 +81,6 @@ public:
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const TickEvent&) override;
-    virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
-    virtual void onProcessEvent(const SlotDroppedEvent& event) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
@@ -107,7 +103,6 @@ private:
     void createPanel();
 
     void syncAllSlots();
-    void syncSlotToDepot(size_t slotIndex, bool isInput);
 
     void setEntityVisibility(uint64_t id, bool vis);
     void setEntityText(uint64_t id, const std::string& text);

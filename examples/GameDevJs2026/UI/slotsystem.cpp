@@ -1,5 +1,11 @@
 #include "slotsystem.h"
 
+static inline void notifyChange(SlotComponent* slot)
+{
+    if (slot and slot->onChange)
+        slot->onChange(slot->stack);
+}
+
 SlotCategory parseSlotCategory(const std::string& s)
 {
     if (s == "Input")   return SlotCategory::Input;
@@ -259,6 +265,7 @@ void SlotSystem::pickUpFrom(uint64_t entityId)
     heldItem = slot->stack;
     heldFromEntity = entityId;
     slot->stack.clear();
+    notifyChange(slot);
 
     auto ent = ecsRef->getEntity(entityId);
     if (ent and ent->has<Prefab>())
@@ -282,6 +289,7 @@ void SlotSystem::dropOn(uint64_t entityId)
     if (slot->isEmpty())
     {
         slot->stack = heldItem;
+        notifyChange(slot);
         if (hasPrefab)
             ent->get<Prefab>()->callHelper("setItem", slot->stack);
 
@@ -300,6 +308,7 @@ void SlotSystem::dropOn(uint64_t entityId)
         uint16_t toAdd = std::min(space, heldItem.count);
         slot->stack.count += toAdd;
         heldItem.count -= toAdd;
+        notifyChange(slot);
 
         if (hasPrefab) ent->get<Prefab>()->callHelper("setItem", slot->stack);
 
@@ -328,11 +337,13 @@ void SlotSystem::dropOn(uint64_t entityId)
 
             // Target gets the held item
             slot->stack = heldItem;
+            notifyChange(slot);
             if (hasPrefab)
                 ent->get<Prefab>()->callHelper("setItem", slot->stack);
 
             // Source gets the target's old item
             sourceSlot->stack = oldTarget;
+            notifyChange(sourceSlot);
             if (sourceEnt->has<Prefab>())
                 sourceEnt->get<Prefab>()->callHelper("setItem", sourceSlot->stack);
 
@@ -350,6 +361,7 @@ void SlotSystem::dropOn(uint64_t entityId)
             slot->stack = heldItem;
             heldItem = temp;
             heldFromEntity = entityId;
+            notifyChange(slot);
 
             if (hasPrefab)
                 ent->get<Prefab>()->callHelper("setItem", slot->stack);
@@ -372,6 +384,7 @@ void SlotSystem::cancelHeld()
         if (sourceSlot and sourceSlot->isEmpty())
         {
             sourceSlot->stack = heldItem;
+            notifyChange(sourceSlot);
 
             auto ent = ecsRef->getEntity(heldFromEntity);
             if (ent and ent->has<Prefab>())
@@ -385,6 +398,12 @@ void SlotSystem::cancelHeld()
 }
 
 // ---- External sync ----
+
+void SlotSystem::bindSlotChange(uint64_t entityId, std::function<void(const ItemStack&)> cb)
+{
+    if (auto* sc = atEntity<SlotComponent>(entityId))
+        sc->onChange = std::move(cb);
+}
 
 void SlotSystem::syncSlotVisual(uint64_t entityId, const ItemStack& newStack)
 {

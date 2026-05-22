@@ -53,36 +53,6 @@ void InventoryUISystem::onProcessEvent(const OnSDLScanCode& event)
     }
 }
 
-void InventoryUISystem::onProcessEvent(const SlotPickedUpEvent& event)
-{
-    if (not visible)
-        return;
-
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-    {
-        if (event.slotEntityId == slotEntityIds[i])
-        {
-            syncSlotToInventory(i);
-            return;
-        }
-    }
-}
-
-void InventoryUISystem::onProcessEvent(const SlotDroppedEvent& event)
-{
-    if (not visible)
-        return;
-
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-    {
-        if (event.slotEntityId == slotEntityIds[i])
-        {
-            syncSlotToInventory(i);
-            return;
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Open / Close
 // ---------------------------------------------------------------------------
@@ -105,10 +75,6 @@ void InventoryUISystem::closeInventory()
     if (slotSystem->hasHeldItem())
         slotSystem->cancelHeld();
 
-    // Sync all slots back to player inventory
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-        syncSlotToInventory(i);
-
     setPanelVisibility(false);
     visible = false;
     ecsRef->sendEvent(InventoryClosedEvent{});
@@ -117,10 +83,6 @@ void InventoryUISystem::closeInventory()
 void InventoryUISystem::cancelHeld()
 {
     ecsRef->getSystem<SlotSystem>()->cancelHeld();
-
-    // After cancelHeld, sync all inventory slots to capture returned items
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-        syncSlotToInventory(i);
 
     if (visible)
         syncAllSlots();
@@ -208,6 +170,10 @@ void InventoryUISystem::createPanel()
             SlotCategory::PlayerInventory, static_cast<uint8_t>(i));
         slotEntityIds[i] = slotRef.id;
 
+        slotSystem->bindSlotChange(slotRef.id, [this, i](const ItemStack& s) {
+            ecsRef->getSystem<PlayerInventorySystem>()->getInventory().getSlot(i) = s;
+        });
+
         hLayout->addEntity(slotRef.entity);
     }
 }
@@ -222,13 +188,6 @@ void InventoryUISystem::syncAllSlots()
     auto* playerInv  = ecsRef->getSystem<PlayerInventorySystem>();
     for (size_t i = 0; i < NUM_SLOTS; ++i)
         slotSystem->syncSlotVisual(slotEntityIds[i], playerInv->getInventory().getSlot(i));
-}
-
-void InventoryUISystem::syncSlotToInventory(size_t index)
-{
-    auto* sc = ecsRef->getSystem<SlotSystem>()->getSlotComponent(slotEntityIds[index]);
-    if (sc)
-        ecsRef->getSystem<PlayerInventorySystem>()->getInventory().getSlot(index) = sc->stack;
 }
 
 // ---------------------------------------------------------------------------

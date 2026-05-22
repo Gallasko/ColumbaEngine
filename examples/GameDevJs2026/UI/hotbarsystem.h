@@ -21,9 +21,7 @@ class HotbarSystem : public System<InitSys,
                                     Listener<PlayerLoseItemEvent>,
                                     Listener<InventoryOpenedEvent>,
                                     Listener<InventoryClosedEvent>,
-                                    QueuedListener<SlotClickedEvent>,
-                                    QueuedListener<SlotPickedUpEvent>,
-                                    QueuedListener<SlotDroppedEvent>>
+                                    QueuedListener<SlotClickedEvent>>
 {
 public:
     static constexpr float HOTBAR_HEIGHT = 48.0f;
@@ -53,8 +51,6 @@ public:
     virtual void onEvent(const InventoryOpenedEvent&) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
     virtual void onProcessEvent(const SlotClickedEvent& event) override;
-    virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
-    virtual void onProcessEvent(const SlotDroppedEvent& event) override;
 
     // Queries
     size_t getSelectedSlot() const { return selectedSlot; }
@@ -122,7 +118,6 @@ private:
     void createHotbarUI();
     void updateHighlight();
     void syncAllSlots();
-    void syncSlotToInventory(size_t index);
 
     int slotAtPosition(float x, float y) const;
 

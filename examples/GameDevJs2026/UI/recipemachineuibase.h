@@ -27,8 +27,6 @@ class MachineDemoSystem;
 class RecipeMachineUIBase : public System<Listener<ResizeEvent>,
                     QueuedListener<OnSDLScanCode>,
                     QueuedListener<TickEvent>,
-                    QueuedListener<SlotPickedUpEvent>,
-                    QueuedListener<SlotDroppedEvent>,
                     QueuedListener<OnMouseClick>,
                     Listener<InventoryClosedEvent>>,
       public IMachineUI
@@ -77,8 +75,6 @@ public:
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const TickEvent&) override;
-    virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
-    virtual void onProcessEvent(const SlotDroppedEvent& event) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
@@ -93,7 +89,6 @@ protected:
     void createPanel();
 
     void syncAllSlots();
-    void syncSlotToMachine(size_t slotIndex, bool isInput);
     void refreshProgressBar();
 
     float getPanelWidth() const  { return 2.0f * SLOT_SIZE + ARROW_GAP + 2.0f * PANEL_PADDING; }

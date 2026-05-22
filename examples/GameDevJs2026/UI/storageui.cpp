@@ -37,14 +37,6 @@ void StorageUISystem::close()
     if (slotSystem->hasHeldItem())
         slotSystem->cancelHeld();
 
-    // Sync all slots back to storage before closing
-    StorageData* storage = ecsRef->getSystem<StorageSystem>()->getStorage(openStorageX, openStorageY);
-    if (storage)
-    {
-        for (size_t i = 0; i < NUM_SLOTS; ++i)
-            syncSlotToStorage(i);
-    }
-
     setPanelVisibility(false);
     visible = false;
     openStorageX = -1;
@@ -88,36 +80,6 @@ void StorageUISystem::onProcessEvent(const TickEvent&)
     }
 
     syncAllSlots();
-}
-
-void StorageUISystem::onProcessEvent(const SlotPickedUpEvent& event)
-{
-    if (not visible)
-        return;
-
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-    {
-        if (event.slotEntityId == slotEntityIds[i])
-        {
-            syncSlotToStorage(i);
-            return;
-        }
-    }
-}
-
-void StorageUISystem::onProcessEvent(const SlotDroppedEvent& event)
-{
-    if (not visible)
-        return;
-
-    for (size_t i = 0; i < NUM_SLOTS; ++i)
-    {
-        if (event.slotEntityId == slotEntityIds[i])
-        {
-            syncSlotToStorage(i);
-            return;
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +173,11 @@ void StorageUISystem::createPanel()
             SlotCategory::Input, static_cast<uint8_t>(i));
         slotEntityIds[i] = slotRef.id;
 
+        slotSystem->bindSlotChange(slotRef.id, [this, i](const ItemStack& s) {
+            if (auto* st = ecsRef->getSystem<StorageSystem>()->getStorage(openStorageX, openStorageY))
+                st->inventory.getSlot(i) = s;
+        });
+
         size_t col = i % COLS;
         size_t row = i / COLS;
 
@@ -236,17 +203,6 @@ void StorageUISystem::syncAllSlots()
     auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     for (size_t i = 0; i < NUM_SLOTS; ++i)
         slotSystem->syncSlotVisual(slotEntityIds[i], storage->inventory.getSlot(i));
-}
-
-void StorageUISystem::syncSlotToStorage(size_t slotIndex)
-{
-    StorageData* storage = ecsRef->getSystem<StorageSystem>()->getStorage(openStorageX, openStorageY);
-    if (not storage)
-        return;
-
-    auto* sc = ecsRef->getSystem<SlotSystem>()->getSlotComponent(slotEntityIds[slotIndex]);
-    if (sc)
-        storage->inventory.getSlot(slotIndex) = sc->stack;
 }
 
 // ---------------------------------------------------------------------------

@@ -68,17 +68,13 @@ void HotbarSystem::onEvent(const InventoryOpenedEvent&)
 
 void HotbarSystem::onEvent(const InventoryClosedEvent&)
 {
-    // Switch to selection-only mode and sync backing data
+    // Switch to selection-only mode. Backing data already in sync via slot onChange.
     auto* slotSystem = ecsRef->getSystem<SlotSystem>();
-    auto* playerInv  = ecsRef->getSystem<PlayerInventorySystem>();
     for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
     {
         auto* sc = slotSystem->getSlotComponent(slotEntityIds[i]);
         if (sc)
-        {
             sc->setFlag(SlotFlags::NoPickUp);
-            playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + i) = sc->stack;
-        }
     }
 }
 
@@ -94,30 +90,6 @@ void HotbarSystem::onProcessEvent(const SlotClickedEvent& event)
             if (sc and sc->isNoPickUp() and not slotSystem->hasHeldItem())
                 selectSlot(i);
 
-            return;
-        }
-    }
-}
-
-void HotbarSystem::onProcessEvent(const SlotPickedUpEvent& event)
-{
-    for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
-    {
-        if (event.slotEntityId == slotEntityIds[i])
-        {
-            syncSlotToInventory(i);
-            return;
-        }
-    }
-}
-
-void HotbarSystem::onProcessEvent(const SlotDroppedEvent& event)
-{
-    for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
-    {
-        if (event.slotEntityId == slotEntityIds[i])
-        {
-            syncSlotToInventory(i);
             return;
         }
     }
@@ -234,6 +206,11 @@ void HotbarSystem::createHotbarUI()
             SlotFlags::NoPickUp, SLOT_SIZE, ITEM_SIZE);
         slotEntityIds[i] = slotRef.id;
 
+        slotSystem->bindSlotChange(slotRef.id, [this, i](const ItemStack& s) {
+            ecsRef->getSystem<PlayerInventorySystem>()->getInventory()
+                .getSlot(PlayerInventorySystem::HOTBAR_START + i) = s;
+        });
+
         slotRef.get<PositionComponent>()->setZ(95.f);
 
         auto anchor = slotRef.get<UiAnchor>();
@@ -292,13 +269,6 @@ void HotbarSystem::syncAllSlots()
         const auto& stack = playerInv->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + i);
         slotSystem->syncSlotVisual(slotEntityIds[i], stack);
     }
-}
-
-void HotbarSystem::syncSlotToInventory(size_t index)
-{
-    auto* sc = ecsRef->getSystem<SlotSystem>()->getSlotComponent(slotEntityIds[index]);
-    if (sc)
-        ecsRef->getSystem<PlayerInventorySystem>()->getInventory().getSlot(PlayerInventorySystem::HOTBAR_START + index) = sc->stack;
 }
 
 int HotbarSystem::slotAtPosition(float x, float y) const

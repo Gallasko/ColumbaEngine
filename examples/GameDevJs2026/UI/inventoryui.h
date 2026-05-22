@@ -16,9 +16,7 @@ struct PanelWasClickedEvent {};
 
 class InventoryUISystem : public System<InitSys,
                                         Listener<ResizeEvent>,
-                                        QueuedListener<OnSDLScanCode>,
-                                        QueuedListener<SlotPickedUpEvent>,
-                                        QueuedListener<SlotDroppedEvent>>
+                                        QueuedListener<OnSDLScanCode>>
 {
 public:
     static constexpr size_t INV_UI_VIEWPORT = 2;
@@ -74,8 +72,6 @@ public:
     }
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
-    virtual void onProcessEvent(const SlotPickedUpEvent& event) override;
-    virtual void onProcessEvent(const SlotDroppedEvent& event) override;
 
     // --- Open / Close ---
 
@@ -97,7 +93,6 @@ private:
     // --- Sync ---
 
     void syncAllSlots();
-    void syncSlotToInventory(size_t index);
 
     // --- Helpers ---
 

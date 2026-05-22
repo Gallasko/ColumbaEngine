@@ -4,6 +4,7 @@
 #include "Registries/itemregistry.h"
 
 #include <cstdint>
+#include <functional>
 
 using namespace pg;
 
@@ -49,6 +50,11 @@ struct SlotComponent : public Component
 
     // --- Behavior Flags ---
     SlotFlags flags = SlotFlags::None;
+
+    // Write-back hook. When set, SlotSystem invokes it after every mutation to
+    // `stack` from pickUpFrom/dropOn/cancelHeld so the gameplay-side backing store
+    // stays in sync without each consumer wiring SlotPickedUpEvent/SlotDroppedEvent.
+    std::function<void(const ItemStack&)> onChange;
 
     // --- Helpers ---
     bool isEmpty() const { return stack.isEmpty(); }

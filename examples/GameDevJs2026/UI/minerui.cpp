@@ -36,15 +36,6 @@ void MinerUISystem::close()
     if (slotSystem->hasHeldItem())
         slotSystem->cancelHeld();
 
-    // Sync slot back to miner
-    MinerData* miner = ecsRef->getSystem<MinerSystem>()->getMiner(openMinerX, openMinerY);
-    if (miner)
-    {
-        auto* sc = slotSystem->getSlotComponent(slotEntityId);
-        if (sc)
-            miner->outputSlots.getSlot(0) = sc->stack;
-    }
-
     setPanelVisibility(false);
     visible = false;
     openMinerX = -1;
@@ -84,34 +75,6 @@ void MinerUISystem::onProcessEvent(const TickEvent&)
 
     ecsRef->getSystem<SlotSystem>()->syncSlotVisual(slotEntityId, miner->outputSlots.getSlot(0));
     refreshProgressBar();
-}
-
-void MinerUISystem::onProcessEvent(const SlotPickedUpEvent& event)
-{
-    if (not visible or event.slotEntityId != slotEntityId)
-        return;
-
-    MinerData* miner = ecsRef->getSystem<MinerSystem>()->getMiner(openMinerX, openMinerY);
-    if (miner)
-    {
-        auto* sc = ecsRef->getSystem<SlotSystem>()->getSlotComponent(slotEntityId);
-        if (sc)
-            miner->outputSlots.getSlot(0) = sc->stack;
-    }
-}
-
-void MinerUISystem::onProcessEvent(const SlotDroppedEvent& event)
-{
-    if (not visible or event.slotEntityId != slotEntityId)
-        return;
-
-    MinerData* miner = ecsRef->getSystem<MinerSystem>()->getMiner(openMinerX, openMinerY);
-    if (miner)
-    {
-        auto* sc = ecsRef->getSystem<SlotSystem>()->getSlotComponent(slotEntityId);
-        if (sc)
-            miner->outputSlots.getSlot(0) = sc->stack;
-    }
 }
 
 void MinerUISystem::ensurePanelCreated()
@@ -196,8 +159,13 @@ void MinerUISystem::createPanel()
     }
 
     // Output slot via SlotSystem (UiAnchor auto-attached)
-    auto slotRef = ecsRef->getSystem<SlotSystem>()->createSlot(SlotCategory::Output, 0);
+    auto* slotSystem = ecsRef->getSystem<SlotSystem>();
+    auto slotRef = slotSystem->createSlot(SlotCategory::Output, 0);
     slotEntityId = slotRef.id;
+    slotSystem->bindSlotChange(slotEntityId, [this](const ItemStack& s) {
+        if (auto* m = ecsRef->getSystem<MinerSystem>()->getMiner(openMinerX, openMinerY))
+            m->outputSlots.getSlot(0) = s;
+    });
     {
         auto a = slotRef.get<UiAnchor>();
         a->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
