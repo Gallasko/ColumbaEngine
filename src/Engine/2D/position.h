@@ -86,6 +86,15 @@ namespace pg
         inline static std::string getType() { return "PosAnchor"; }
     };
 
+    // Output signal emitted by PositionComponentSystem::execute() once the anchor/constraint
+    // graph has fully settled. Listeners that need to react to *final* positions (rendering,
+    // collision, layout, inspector) should subscribe to this rather than PositionComponentChangedEvent,
+    // which is purely the *input* dirty signal from component setters / anchor setters.
+    struct PositionSettledEvent
+    {
+        _unique_id id = 0;
+    };
+
     struct ParentingEvent
     {
         _unique_id parent = 0;

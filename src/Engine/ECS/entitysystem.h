@@ -1294,8 +1294,12 @@ namespace pg
                 // rhs.initialized = true
                 // Note that it needs to make the rhs not const or we need to make the member entity mutable !
             }
-            else
+            else if (rhs.ecsRef != nullptr)
             {
+                // ecsRef set with entityId == 0 is a real anomaly — a CompRef
+                // was built pointing at no entity but tagged with an ECS. A pure
+                // default-constructed empty ref (ecsRef == nullptr) is legit and
+                // silent — code routinely holds an "unset" CompRef as a member.
                 LOG_ERROR("Comp ref", "Copy of a reference to an invalid entity(" << entityId << ")");
             }
         }

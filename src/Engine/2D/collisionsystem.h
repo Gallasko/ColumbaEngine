@@ -211,7 +211,7 @@ namespace pg
         constant::Vector2D normal;      // collision normal
     };
 
-    struct CollisionSystem : public System<Own<CollisionComponent>, Ref<PositionComponent>, QueuedListener<PositionComponentChangedEvent>, InitSys>
+    struct CollisionSystem : public System<Own<CollisionComponent>, Ref<PositionComponent>, QueuedListener<PositionSettledEvent>, InitSys>
     {
         // Todo make a ctor that load properties (pageSize, cellSi) from serialization
         CollisionSystem();
@@ -237,7 +237,7 @@ namespace pg
         // If the page or cell doesn't exist, returns an empty static set.
         const std::set<_unique_id>& getCellEntities(const PagePos& cellPos, size_t layerId) const;
 
-        virtual void onProcessEvent(const PositionComponentChangedEvent& event) override;
+        virtual void onProcessEvent(const PositionSettledEvent& event) override;
 
         virtual void execute() override;
 

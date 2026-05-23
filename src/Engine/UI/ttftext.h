@@ -16,7 +16,7 @@
 namespace pg
 {
     struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Ref<PositionComponent>,
-        Listener<PositionComponentChangedEvent>, Listener<TTFTextChangedEvent>, Listener<ViewportComponentChangedEvent>, InitSys>
+        Listener<PositionSettledEvent>, Listener<TTFTextChangedEvent>, Listener<ViewportComponentChangedEvent>, InitSys>
     {
         struct Character
         {
@@ -46,7 +46,7 @@ namespace pg
 
         virtual void init() override;
 
-        virtual void onEvent(const PositionComponentChangedEvent& event) override;
+        virtual void onEvent(const PositionSettledEvent& event) override;
         virtual void onEvent(const TTFTextChangedEvent& event) override;
         virtual void onEvent(const ViewportComponentChangedEvent& event) override;
 

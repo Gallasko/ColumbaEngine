@@ -16,7 +16,7 @@
 
 namespace pg
 {
-    struct Simple2DObjectSystem : public GenericRenderSystem<Simple2DObject, Simple2DObjectChangedEvent, PositionComponent, PositionComponentChangedEvent, ViewportComponent, ViewportComponentChangedEvent>
+    struct Simple2DObjectSystem : public GenericRenderSystem<Simple2DObject, Simple2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>
     {
         Simple2DObjectSystem(MasterRenderer* masterRenderer) : GenericRenderSystem(masterRenderer) { }
         virtual ~Simple2DObjectSystem() { }
@@ -75,7 +75,7 @@ namespace pg
     // Rounded rectangle
     // ---------------------------------------------------------------------------
 
-    struct RoundedRect2DObjectSystem : public GenericRenderSystem<RoundedRect2DObject, RoundedRect2DObjectChangedEvent, PositionComponent, PositionComponentChangedEvent, ViewportComponent, ViewportComponentChangedEvent>
+    struct RoundedRect2DObjectSystem : public GenericRenderSystem<RoundedRect2DObject, RoundedRect2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>
     {
         RoundedRect2DObjectSystem(MasterRenderer* masterRenderer) : GenericRenderSystem(masterRenderer) {}
         virtual ~RoundedRect2DObjectSystem() {}

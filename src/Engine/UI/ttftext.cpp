@@ -88,7 +88,7 @@ namespace pg
         });
     }
 
-    void TTFTextSystem::onEvent(const PositionComponentChangedEvent& event)
+    void TTFTextSystem::onEvent(const PositionSettledEvent& event)
     {
         LOG_THIS_MEMBER(DOM);
 

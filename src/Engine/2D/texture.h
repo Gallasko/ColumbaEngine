@@ -12,7 +12,7 @@
 
 namespace pg
 {
-    struct Texture2DComponentSystem : public GenericRenderSystem<Texture2DComponent, TextureChangedEvent, PositionComponent, PositionComponentChangedEvent, ViewportComponent, ViewportComponentChangedEvent>
+    struct Texture2DComponentSystem : public GenericRenderSystem<Texture2DComponent, TextureChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>
     {
         Texture2DComponentSystem(MasterRenderer* masterRenderer) : GenericRenderSystem(masterRenderer) { }
 

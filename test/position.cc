@@ -7,16 +7,29 @@
 
 namespace pg
 {
-    struct PositionTestSystem : public System<Listener<PositionComponentChangedEvent>, StoragePolicy>
+    struct PositionTestSystem : public System<Listener<PositionComponentChangedEvent>, Listener<PositionSettledEvent>, StoragePolicy>
     {
+        // PositionComponentChangedEvent is now the *input* dirty signal (from setters / anchor
+        // setters). PositionSettledEvent is the *output* signal emitted once execute() finishes
+        // the topological settle pass. The previous test suite counted both as a single number
+        // (because execute() used to re-emit PositionComponentChangedEvent); keep that contract
+        // by summing them into nbEventReceived so existing assertions stay meaningful, and
+        // expose nbSettledReceived separately for new tests that want to be precise.
         virtual void onEvent(const PositionComponentChangedEvent&) override
         {
             nbEventReceived++;
         }
 
-        inline void reset() { nbEventReceived = 0; }
+        virtual void onEvent(const PositionSettledEvent&) override
+        {
+            nbEventReceived++;
+            nbSettledReceived++;
+        }
+
+        inline void reset() { nbEventReceived = 0; nbSettledReceived = 0; }
 
         size_t nbEventReceived = 0;
+        size_t nbSettledReceived = 0;
     };
 
     void checkDefaultAnchor(CompRef<UiAnchor>& anchor, _unique_id id)
@@ -288,8 +301,12 @@ namespace pg
             EXPECT_FLOAT_EQ(pos3->y,  2.2f);
             EXPECT_FLOAT_EQ(pos3->z, -1.8f);
 
-            // We didn't change the value of the position component on the last cycle so we shouldn't receive any more events
-            EXPECT_EQ(sys->nbEventReceived, 0);
+            // We didn't change the value of the position component on the last cycle so we shouldn't
+            // receive PositionComponentChangedEvent. However, the previous executeOnce emitted a
+            // PositionSettledEvent for this entity, which is delivered to immediate Listener<>s on the
+            // *next* frame's executeOnce — that's the +1 below.
+            EXPECT_EQ(sys->nbEventReceived, 1);
+            sys->reset();
 
             // We only changed the value of X
             pos2->setX(2.0f);
@@ -304,6 +321,10 @@ namespace pg
 
             ecs.executeOnce();
 
+            // 1 PositionComponentChangedEvent from setX(2.0); setY is a no-op. Plus the
+            // PositionSettledEvent emitted by THIS executeOnce reaches the listener on the
+            // *next* tick (deferred). So nbEventReceived = 1 (PCCE) here, and a follow-up
+            // PSE will be observed next time.
             EXPECT_EQ(sys->nbEventReceived, 1);
             sys->reset();
         }
@@ -428,30 +449,30 @@ namespace pg
             EXPECT_EQ(sys->nbEventReceived, 4);
             sys->reset();
 
-            // Position system need to execute to update the anchor values
+            // Single _execute should fully settle the anchor graph (topological pass).
             posSys->_execute();
 
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
 
-            // Anchor from entity1 just changed in this execution so anchor from entity2 didn't have the chance to update
-            EXPECT_FLOAT_EQ(anchor2->left.value, 0.0f);
-            EXPECT_FLOAT_EQ(anchor2->right.value, 3.0f);
+            // entity2 is settled in the same pass because Kahn's topo order processes entity1 first.
+            EXPECT_FLOAT_EQ(anchor2->left.value, 3.5f);
+            EXPECT_FLOAT_EQ(anchor2->right.value, 6.5f);
 
-            // Here both anchor and anchor2 are changed so we send 2 events for the next cycle
+            // One PositionSettledEvent per entity that actually moved (entity1 + entity2).
             EXPECT_EQ(sys->nbEventReceived, 2);
             sys->reset();
 
             posSys->_execute();
 
+            // Nothing dirtied between the two _execute calls, so the second is a no-op:
+            // the dirty list is empty and no further work is needed.
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
-
-            // After a second system execution, anchor from entity2 should have been updated !s
             EXPECT_FLOAT_EQ(anchor2->left.value, 3.5f);
             EXPECT_FLOAT_EQ(anchor2->right.value, 6.5f);
 
-            EXPECT_EQ(sys->nbEventReceived, 1);
+            EXPECT_EQ(sys->nbEventReceived, 0);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -500,7 +521,7 @@ namespace pg
 
             EXPECT_EQ(sys->nbEventReceived, 0);
 
-            // Position system need to execute to update the anchor values
+            // Single executeOnce should fully settle the anchor graph.
             ecs.executeOnce();
 
             EXPECT_EQ(sys->nbEventReceived, 4);
@@ -509,18 +530,18 @@ namespace pg
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
 
-            // Anchor from entity1 just changed in this execution so anchor from entity2 didn't have the chance to update
-            EXPECT_FLOAT_EQ(anchor2->left.value, 0.0f);
-            EXPECT_FLOAT_EQ(anchor2->right.value, 3.0f);
+            // entity2 is now settled in the same frame as entity1 (topological pass).
+            EXPECT_FLOAT_EQ(anchor2->left.value, 3.5f);
+            EXPECT_FLOAT_EQ(anchor2->right.value, 6.5f);
 
             ecs.executeOnce();
 
+            // The two PositionSettledEvent emissions from the previous frame's _execute() are
+            // delivered to Listener<PSE> on this frame (deferred listener delivery in running ECS).
             EXPECT_EQ(sys->nbEventReceived, 2);
 
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
-
-            // After a second system execution, anchor from entity2 should have been updated !s
             EXPECT_FLOAT_EQ(anchor2->left.value, 3.5f);
             EXPECT_FLOAT_EQ(anchor2->right.value, 6.5f);
         }
@@ -557,7 +578,10 @@ namespace pg
             EXPECT_FLOAT_EQ(pos->width, 7.0f);  // 5.0 + 2.0
             EXPECT_FLOAT_EQ(pos->height, 7.0f); // 10.0 - 3.0
 
-            EXPECT_EQ(sys->nbEventReceived, 5);
+            // 4 input events (2 setters on pos2 + 2 constraint setters on anchor) plus 2
+            // PositionSettledEvent emissions from execute() — one for entity1 (anchor resolved)
+            // and one for entity2 (in the dirty set because its setters fired this frame).
+            EXPECT_EQ(sys->nbEventReceived, 6);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -764,7 +788,12 @@ namespace pg
             EXPECT_FLOAT_EQ(grandChildPos->x, 10.0f);
             EXPECT_FLOAT_EQ(grandChildPos->y, 20.0f);
 
-            EXPECT_EQ(sys->nbEventReceived, 12); // Parent, child, and grandchild updates
+            // 4 parent setters + 2 child anchor setters + 2 PositionSettled (parent+child) from
+            // first _execute + 2 grandChild anchor setters + 1 PositionSettled (grandChild) from
+            // second _execute = 11. The old multi-pass cascade produced 12 by re-emitting child
+            // on the second _execute as its own-anchor values caught up — single-pass settle
+            // removes that extra event.
+            EXPECT_EQ(sys->nbEventReceived, 11);
         }
 
         // ----------------------------------------------------------------------------------------

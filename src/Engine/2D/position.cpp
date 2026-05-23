@@ -799,18 +799,31 @@ namespace pg
         if (changedIdsList.empty())
             return;
 
+        LOG_MILE(DOM, "Settling " << changedIdsList.size() << " dirty entities");
+
+        const size_t dirtyCount = changedIdsList.size();
+
+        // Resolve entities once for the whole pass. Safe within a single execute(): no
+        // creation/deletion happens between here and the end of the function, so the
+        // CompRef/Entity pointers stay valid.
+        struct Node
+        {
+            _unique_id id;
+            CompRef<PositionComponent> pos;
+            CompRef<UiAnchor> anchor; // empty() when entity has no UiAnchor
+            size_t indeg;
+            bool processed;
+            bool changed;
+        };
+
+        std::unordered_map<_unique_id, Node> nodes;
+        nodes.reserve(dirtyCount * 2);
+
         for (const auto& id : changedIdsList)
         {
-            LOG_MILE(DOM, "Processing changed entity ID: " << id);
-
-            auto anchorChanged = false;
             auto entity = ecsRef->getEntity(id);
-
             if (not entity)
-            {
-                // LOG_WARNING(DOM, "Entity " << id << " not found");
                 continue;
-            }
 
             if (not entity->has<PositionComponent>())
             {
@@ -818,47 +831,168 @@ namespace pg
                 continue;
             }
 
-            auto pos = entity->get<PositionComponent>();
-            LOG_MILE(DOM, "Entity " << id << " position - x: " << pos->x << ", y: " << pos->y
-                        << ", width: " << pos->width << ", height: " << pos->height);
-
+            Node n;
+            n.id = id;
+            n.pos = entity->get<PositionComponent>();
             if (entity->has<UiAnchor>())
+                n.anchor = entity->get<UiAnchor>();
+            n.indeg = 0;
+            n.processed = false;
+            // Entities entered the dirty set either via a direct setter (which only fires when
+            // the value actually changed) or via parent cascade (where the anchor recompute
+            // below decides). Default to false; flip to true on actual change.
+            n.changed = false;
+            nodes.emplace(id, n);
+        }
+
+        // Compute in-degree: count of each entity's parents that are also in the dirty set.
+        // Edges come from reverseParentalMap (child -> parents).
+        for (auto& [id, node] : nodes)
+        {
+            auto it = reverseParentalMap.find(id);
+            if (it == reverseParentalMap.end())
+                continue;
+
+            for (const auto& parentId : it->second)
             {
-                LOG_MILE(DOM, "Entity " << id << " has UiAnchor, updating...");
+                if (nodes.find(parentId) != nodes.end())
+                    ++node.indeg;
+            }
+        }
 
-                auto anchor = entity->get<UiAnchor>();
+        // Kahn's algorithm: process roots first (no dirty parent), then their dependents.
+        std::vector<_unique_id> ready;
+        ready.reserve(dirtyCount);
 
-                anchorChanged = anchor->update(pos);
+        for (const auto& [id, node] : nodes)
+        {
+            if (node.indeg == 0)
+                ready.push_back(id);
+        }
 
-                // Todo check
-                // If the position component get changed by the anchor moving then we push its children to the queue for check
-                auto changed = pos->updatefromAnchor(*anchor);
+        auto processNode = [&](Node& node)
+        {
+            node.processed = true;
 
-                anchorChanged |= changed;
+            if (not node.anchor.empty())
+            {
+                // First pass: refresh own anchor values from the entity's CURRENT pos
+                // (potentially stale from last frame) and pull in fresh values from anchored
+                // parents (which are already settled because they were processed earlier in
+                // topological order).
+                bool ownMovedPre = node.anchor->update(node.pos);
 
-                LOG_MILE(DOM, "Anchor update result - anchorChanged: " << anchorChanged);
+                // Recompute pos from the now-fresh anchored references.
+                bool posMoved = node.pos->updatefromAnchor(*node.anchor);
+
+                // Second pass: if pos moved, refresh own anchor values *again* so they reflect
+                // the new pos. This is what makes single-pass settle work — descendants of this
+                // node read its own anchor values (top/left/right/...) when they're processed
+                // later in this same execute(), and they need to see post-settle state.
+                bool ownMovedPost = false;
+                if (posMoved)
+                    ownMovedPost = node.anchor->update(node.pos);
+
+                node.changed = ownMovedPre or posMoved or ownMovedPost;
             }
             else
             {
-                LOG_MILE(DOM, "Entity " << id << " has NO UiAnchor");
+                // No UiAnchor: this entity is in the dirty set because something explicitly
+                // signalled a change (setter / direct event). The setter only emits when the
+                // value really changed, so treat this as a downstream-visible change.
+                node.changed = true;
             }
+        };
 
-            // LOG_MILE(DOM, "Sending EntityChangedEvent for entity " << id);
-            // ecsRef->sendEvent(EntityChangedEvent{id});
+        size_t processedCount = 0;
 
-            // Todo remove this
-            if (anchorChanged)
+        while (not ready.empty())
+        {
+            _unique_id id = ready.back();
+            ready.pop_back();
+
+            auto& node = nodes.at(id);
+            processNode(node);
+            ++processedCount;
+
+            auto childIt = parentalMap.find(id);
+            if (childIt == parentalMap.end())
+                continue;
+
+            for (const auto& childId : childIt->second)
             {
-                LOG_MILE(DOM, "Sending PositionComponentChangedEvent for entity " << id);
-                ecsRef->sendEvent(PositionComponentChangedEvent{id});
+                auto cIt = nodes.find(childId);
+                if (cIt == nodes.end())
+                    continue;
+
+                if (--cIt->second.indeg == 0)
+                    ready.push_back(childId);
+            }
+        }
+
+        // Cycle fallback: parental graph has a cycle for these nodes. Note that a parental
+        // cycle does NOT necessarily mean a true data-flow cycle: e.g. a Prefab container
+        // constrains its size from the leaf (size flows up), while the leaf anchors its
+        // position to the container (position flows down). The two depend on each other in
+        // the graph, but on disjoint fields, so iteration converges in a handful of passes.
+        //
+        // Iterate until no node's pos actually moves (quiescence) or a hard cap fires.
+        if (processedCount < nodes.size())
+        {
+            constexpr int CYCLE_PASS_CAP = 8;
+            int passes = 0;
+            bool anyMoved = true;
+
+            while (anyMoved and passes < CYCLE_PASS_CAP)
+            {
+                anyMoved = false;
+                for (auto& [id, node] : nodes)
+                {
+                    if (node.processed)
+                        continue;
+
+                    if (node.anchor.empty())
+                    {
+                        node.changed = true;
+                        continue;
+                    }
+
+                    float oldX = node.pos->x, oldY = node.pos->y;
+                    float oldW = node.pos->width, oldH = node.pos->height;
+                    float oldZ = node.pos->z;
+
+                    node.anchor->update(node.pos);
+                    bool posMoved = node.pos->updatefromAnchor(*node.anchor);
+                    if (posMoved)
+                        node.anchor->update(node.pos);
+
+                    if (areNotAlmostEqual(oldX, node.pos->x) or areNotAlmostEqual(oldY, node.pos->y)
+                        or areNotAlmostEqual(oldW, node.pos->width) or areNotAlmostEqual(oldH, node.pos->height)
+                        or areNotAlmostEqual(oldZ, node.pos->z))
+                    {
+                        anyMoved = true;
+                        node.changed = true;
+                    }
+                }
+                ++passes;
             }
 
-            // modifiedIds.insert(id);
+            // Mark them processed and warn if we hit the cap (a true unresolvable cycle).
+            for (auto& [id, node] : nodes)
+                node.processed = true;
 
-            // if (anchorChanged)
-                // impactedIds.insert(id);
+            if (passes >= CYCLE_PASS_CAP and anyMoved)
+            {
+                LOG_WARNING(DOM, "Anchor graph cycle did not converge after "
+                            << CYCLE_PASS_CAP << " passes. Likely a real cycle — check anchor setup.");
+            }
+        }
 
-            // LOG_INFO("PositionComponentSystem", "Changed ids: " << changedIds.size() << ", modified ids: " << modifiedIds.size() << ", impacted ids: " << impactedIds.size());
+        // Emit one PositionSettledEvent per entity whose final value actually changed.
+        for (const auto& [id, node] : nodes)
+        {
+            if (node.changed)
+                ecsRef->sendEvent(PositionSettledEvent{id});
         }
 
         changedIdsList.clear();
