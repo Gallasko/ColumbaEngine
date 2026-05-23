@@ -11,7 +11,10 @@ namespace pg
 {
     struct ClearPrefabEvent { std::set<_unique_id> ids; };
 
-    struct SetMainEntityEvent { _unique_id prefabId; _unique_id entityId; };
+    // Carries EntityRef rather than ids so the handler still works when this fires
+    // for entities created during a running ECS tick (pending in cmdDispatcher,
+    // not yet in entityPool → ecsRef->getEntity(id) would return null).
+    struct SetMainEntityEvent { EntityRef prefabEnt; EntityRef ent; };
 
     struct PrefabChangedEvent { _unique_id prefabId; };
 
@@ -63,11 +66,23 @@ namespace pg
             return namedChildrenIds[name];
         }
 
-        void setMainEntity(EntityRef entity)
+        // Two-argument form: caller passes the prefab container's own EntityRef so the
+        // wiring handler doesn't need to round-trip through entityPool — important when
+        // the container itself is still pending in cmdDispatcher.
+        void setMainEntity(EntityRef self, EntityRef entity)
         {
             addToPrefab(entity, "MainEntity");
 
-            ecsRef->sendEvent(SetMainEntityEvent{id, entity->id}, true);
+            ecsRef->sendEvent(SetMainEntityEvent{self, entity}, true);
+        }
+
+        // Convenience overload for callers whose prefab entity is already flushed into
+        // entityPool (typical for non-runtime creation paths like editor / tests / init).
+        // For entities created during a running ECS tick, prefer the two-arg form so the
+        // wiring works even before the dispatcher syncs.
+        void setMainEntity(EntityRef entity)
+        {
+            setMainEntity(EntityRef{ecsRef->getEntity(id)}, entity);
         }
 
         template<typename R, typename... Args>
@@ -145,26 +160,29 @@ namespace pg
 
         virtual void onEvent(const SetMainEntityEvent& event) override
         {
-            auto prefabEnt = ecsRef->getEntity(event.prefabId);
-            auto ent = ecsRef->getEntity(event.entityId);
+            // Use the EntityRefs from the event directly — their cached Entity* is
+            // valid even while the entities are still pending in cmdDispatcher, so
+            // has<>()/get<>() find UiAnchor via pendingComponents.
+            EntityRef prefabEnt = event.prefabEnt;
+            EntityRef ent       = event.ent;
 
             // Todo support this for non anchored prefabs
 
             if (not ent or not prefabEnt or not ent->has<UiAnchor>() or not prefabEnt->has<UiAnchor>() or not prefabEnt->has<Prefab>())
             {
-                LOG_ERROR("Prefab System", "Failed to set main entity for prefab " << event.prefabId << " and entity " << event.entityId << " !");
+                LOG_ERROR("Prefab System", "Failed to set main entity for prefab " << prefabEnt.id << " and entity " << ent.id << " !");
                 return;
             }
 
             auto prefabAnchor = prefabEnt->get<UiAnchor>();
             auto entAnchor = ent->get<UiAnchor>();
 
-            prefabAnchor->setWidthConstrain(PosConstrain{event.entityId, AnchorType::Width});
-            prefabAnchor->setHeightConstrain(PosConstrain{event.entityId, AnchorType::Height});
+            prefabAnchor->setWidthConstrain(PosConstrain{ent.id, AnchorType::Width});
+            prefabAnchor->setHeightConstrain(PosConstrain{ent.id, AnchorType::Height});
 
-            entAnchor->setTopAnchor(PosAnchor{prefabAnchor->entityId, AnchorType::Top});
-            entAnchor->setLeftAnchor(PosAnchor{prefabAnchor->entityId, AnchorType::Left});
-            entAnchor->setZConstrain(PosConstrain{event.prefabId, AnchorType::Z});
+            entAnchor->setTopAnchor(PosAnchor{prefabEnt.id, AnchorType::Top});
+            entAnchor->setLeftAnchor(PosAnchor{prefabEnt.id, AnchorType::Left});
+            entAnchor->setZConstrain(PosConstrain{prefabEnt.id, AnchorType::Z});
         }
 
         virtual void execute() override

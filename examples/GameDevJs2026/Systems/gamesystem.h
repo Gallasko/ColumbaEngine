@@ -110,11 +110,16 @@ private:
     bool leftMouseDown = false;
     const BuildingDef* lastBuildingDef = nullptr; // Track for ghost rebuild
 
-    uint64_t cursorEntityId = 0;
-    uint64_t ghostEntityId = 0;
+    // Hold the EntityRef alongside the id so destruction works even when the
+    // entity is still pending in cmdDispatcher (id-based lookup misses it →
+    // orphaned entity that gets created later with no one tracking it).
+    EntityRef cursorEntity;
+    uint64_t  cursorEntityId = 0;
+    EntityRef ghostEntity;
+    uint64_t  ghostEntityId = 0;
 
     // Line-drag state
     bool isDragging = false;
     std::vector<std::pair<int, int>> dragPath;
-    std::vector<uint64_t> dragGhostEntityIds;
+    std::vector<EntityRef> dragGhostEntities;
 };

@@ -332,6 +332,7 @@ void GameSystem::createCursorEntities()
     cursorPos->setX(-1000.0f);
 
     cursor.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
+    cursorEntity   = cursor.entity;
     cursorEntityId = cursor.entity->id;
     LOG_INFO("GameSystem", "cursor entity created id=" << cursorEntityId);
 
@@ -343,13 +344,14 @@ void GameSystem::rebuildGhostForSelectedBuilding()
 {
     LOG_INFO("GameSystem", "rebuildGhostForSelectedBuilding() — current ghostEntityId=" << ghostEntityId);
 
-    // Destroy old ghost
-    if (ghostEntityId != 0)
+    // Destroy old ghost. Use the stored EntityRef rather than ecsRef->getEntity(id):
+    // if the previous ghost is still pending in cmdDispatcher (rapid hotbar swap
+    // before sync), id-based lookup misses it and the entity orphans into the pool.
+    if (ghostEntity)
     {
         LOG_INFO("GameSystem", "destroying old ghost entity id=" << ghostEntityId);
-        auto ent = ecsRef->getEntity(ghostEntityId);
-        if (ent)
-            ecsRef->removeEntity(ghostEntityId);
+        ecsRef->removeEntity(ghostEntity);
+        ghostEntity = {};
         ghostEntityId = 0;
     }
 
@@ -407,6 +409,7 @@ void GameSystem::rebuildGhostForSelectedBuilding()
         ghost.get<PositionComponent>()->setX(-1000.0f);
         ghost.get<Texture2DComponent>()->setOpacity(0.4f);
         ghost.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
+        ghostEntity   = ghost.entity;
         ghostEntityId = ghost.entity->id;
         LOG_INFO("GameSystem", "rebuildGhost: created textured ghost id=" << ghostEntityId
                 << " tex=" << texName << " size=" << ghostW << "x" << ghostH);
@@ -425,6 +428,7 @@ void GameSystem::rebuildGhostForSelectedBuilding()
         pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def->gridH));
 
         ghost.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
+        ghostEntity   = ghost.entity;
         ghostEntityId = ghost.entity->id;
         LOG_INFO("GameSystem", "rebuildGhost: created colored ghost id=" << ghostEntityId);
     }
@@ -861,19 +865,21 @@ void GameSystem::updateDragGhosts()
         ghost.get<Texture2DComponent>()->setOpacity(0.4f);
         ghost.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
 
-        dragGhostEntityIds.push_back(ghost.entity->id);
+        dragGhostEntities.push_back(ghost.entity);
     }
 }
 
 void GameSystem::clearDragGhosts()
 {
-    for (auto id : dragGhostEntityIds)
+    // Iterate EntityRefs rather than ids: if a drag-ghost is still pending in
+    // cmdDispatcher, ecsRef->getEntity(id) would miss it and removeEntity would
+    // skip the cleanup, leaking the entity once the dispatcher finally creates it.
+    for (auto& ref : dragGhostEntities)
     {
-        auto ent = ecsRef->getEntity(id);
-        if (ent)
-            ecsRef->removeEntity(id);
+        if (ref)
+            ecsRef->removeEntity(ref);
     }
-    dragGhostEntityIds.clear();
+    dragGhostEntities.clear();
 }
 
 void GameSystem::commitDragPath()

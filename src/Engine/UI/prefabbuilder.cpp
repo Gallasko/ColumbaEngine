@@ -261,7 +261,7 @@ namespace
         {
             // Wire the leaf as the prefab's mainEntity (auto-anchored top-left of container,
             // container's size constrained to leaf size — see PrefabSystem::onEvent(SetMainEntityEvent)).
-            prefab->setMainEntity(leafEnt);
+            prefab->setMainEntity(container.entity, leafEnt);
             nameToEntity[RESERVED_MAIN] = leafEnt;
 
             // Expose the leaf under spec.name so `container->get<Prefab>()->getEntity(spec.name)`

@@ -402,6 +402,15 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         // CameraSystem checks `inventoryUI->isOpen()` to disable pan while
         // a panel is up (see camerasystem.cpp).
         ecs.succeed<CameraSystem, InventoryUISystem>();
+
+        // GameSystem reads camera position / last mouse coords every motion
+        // tick (getLastMouseX/Y, screenToWorld) and grid state (getCell,
+        // gridToWorld) to position the cursor + ghost. Without these
+        // dependencies, the release optimiser can reorder reads relative to
+        // CameraSystem/GridSystem writes, producing torn state and the
+        // intermittent crashes observed in release builds.
+        ecs.succeed<GameSystem, CameraSystem>();
+        ecs.succeed<GameSystem, GridSystem>();
     });
 }
 
