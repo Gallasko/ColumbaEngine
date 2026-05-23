@@ -173,7 +173,7 @@ void StorageUISystem::createPanel()
             SlotCategory::Input, static_cast<uint8_t>(i));
         slotEntityIds[i] = slotRef.id;
 
-        slotSystem->bindSlotChange(slotRef.id, [this, i](const ItemStack& s) {
+        slotSystem->bindSlotChange(slotRef, [this, i](const ItemStack& s) {
             if (auto* st = ecsRef->getSystem<StorageSystem>()->getStorage(openStorageX, openStorageY))
                 st->inventory.getSlot(i) = s;
         });

@@ -223,9 +223,9 @@ void CraftingSystem::craftTick()
 
             if (machine.currentRecipe)
             {
-                // Consume inputs immediately
-                for (const auto& input : machine.currentRecipe->inputs)
-                    machine.inputSlots.remove(input.id, input.count);
+                // Inputs stay in the slots until the recipe completes — the
+                // visible "input present" state matches the running animation,
+                // and a stall on full output never silently eats the input.
                 machine.craftProgress = 0;
 
                 // Start animation
@@ -254,6 +254,38 @@ void CraftingSystem::craftTick()
 
             if (machine.craftProgress >= machine.currentRecipe->craftTimeMs)
             {
+                // Re-verify inputs — the player may have pulled them out of the
+                // UI slot during the craft animation. If gone, cancel cleanly.
+                bool inputsStillThere = true;
+                for (const auto& input : machine.currentRecipe->inputs)
+                {
+                    if (not machine.inputSlots.hasAtLeast(input.id, input.count))
+                    {
+                        inputsStillThere = false;
+                        break;
+                    }
+                }
+
+                if (not inputsStillThere)
+                {
+                    machine.currentRecipe = nullptr;
+                    machine.craftProgress = 0;
+                    machine.isCrafting = false;
+                    machine.animFrame = 0;
+
+                    if (machine.machineName == "Furnace")
+                    {
+                        setFurnaceTextures(ecsRef, gridSystem, machine.entityId, false, 0);
+                    }
+                    else
+                    {
+                        auto ent = ecsRef->getEntity(machine.entityId);
+                        if (ent and ent->has<Texture2DComponent>())
+                            ent->get<Texture2DComponent>()->setTexture("Assembler_Machine_1.0");
+                    }
+                    continue;
+                }
+
                 // Check if output can accept all products
                 bool canOutput = true;
                 for (const auto& output : machine.currentRecipe->outputs)
@@ -267,6 +299,10 @@ void CraftingSystem::craftTick()
 
                 if (canOutput)
                 {
+                    // Consume inputs atomically with output production.
+                    for (const auto& input : machine.currentRecipe->inputs)
+                        machine.inputSlots.remove(input.id, input.count);
+
                     for (const auto& output : machine.currentRecipe->outputs)
                     {
                         machine.outputSlots.insert(output.id, output.count, *itemRegistry);

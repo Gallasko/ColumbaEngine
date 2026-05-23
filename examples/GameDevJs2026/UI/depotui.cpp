@@ -300,7 +300,7 @@ void DepotUISystem::createPanel()
             SlotCategory::Input, static_cast<uint8_t>(i));
         inputSlotEntityIds[i] = slotRef.id;
 
-        slotSystem->bindSlotChange(slotRef.id, [this, i](const ItemStack& s) {
+        slotSystem->bindSlotChange(slotRef, [this, i](const ItemStack& s) {
             if (auto* d = ecsRef->getSystem<DepotSystem>()->getDepot(openDepotX, openDepotY))
                 d->inventory.getSlot(i) = s;
         });
@@ -339,7 +339,7 @@ void DepotUISystem::createPanel()
             {45.0f, 55.0f, 50.0f, 200.0f});
         outputSlotEntityIds[i] = slotRef.id;
 
-        slotSystem->bindSlotChange(slotRef.id, [this, i](const ItemStack& s) {
+        slotSystem->bindSlotChange(slotRef, [this, i](const ItemStack& s) {
             if (auto* d = ecsRef->getSystem<DepotSystem>()->getDepot(openDepotX, openDepotY))
                 d->output.getSlot(i) = s;
         });

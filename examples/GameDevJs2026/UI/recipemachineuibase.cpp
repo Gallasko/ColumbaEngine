@@ -264,6 +264,7 @@ void RecipeMachineUIBase::createPanel()
             {SlotPrefabKeys::ItemSize, ITEM_SIZE},
             {SlotPrefabKeys::Category, std::string("Output")},
             {SlotPrefabKeys::Index,    0},
+            {SlotPrefabKeys::Flags,    static_cast<int>(SlotFlags::OutputOnly)},
         };
 
         slot.anchors = {
@@ -413,14 +414,14 @@ void RecipeMachineUIBase::createPanel()
         if (not inputSlots[i])
             continue;
 
-        slotSystem->bindSlotChange(inputSlots[i].id, [this, i](const ItemStack& s) {
+        slotSystem->bindSlotChange(inputSlots[i], [this, i](const ItemStack& s) {
             if (auto* m = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY))
                 m->inputSlots.getSlot(static_cast<size_t>(i)) = s;
         });
     }
     if (outputSlot)
     {
-        slotSystem->bindSlotChange(outputSlot.id, [this](const ItemStack& s) {
+        slotSystem->bindSlotChange(outputSlot, [this](const ItemStack& s) {
             if (auto* m = ecsRef->getSystem<CraftingSystem>()->getMachine(openMachineX, openMachineY))
                 m->outputSlots.getSlot(0) = s;
         });

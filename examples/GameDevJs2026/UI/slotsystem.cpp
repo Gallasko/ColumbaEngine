@@ -90,10 +90,23 @@ EntityRef makeSlotPrefab(EntitySystem* ecs, ItemRegistry* itemRegistry, const Pr
     EntityRef slot = buildNode(ecs, spec);
     auto prefab = slot->get<Prefab>();
     EntityRef bg = prefab->getEntity("bg");
+    EntityRef itemEnt = prefab->getEntity("item");
+    EntityRef textEnt = prefab->getEntity("text");
 
     // Click handler: fires SlotClickedEvent on press only (click-to-grab / click-to-drop)
     ecs->attach<MouseLeftClickComponent>(bg,
         makeCallable<SlotClickedEvent>(slot->id), MouseStateTrigger::OnPress);
+
+    // PrefabSystem auto-pins each child leaf's z to its own child-wrap (z=0).
+    // Re-constrain item/text to the slot wrap's z so they always render above
+    // the bg, regardless of where the caller sets the slot wrap's z (the
+    // hotbar sets it to 95; inventory leaves it at 0).
+    if (itemEnt and itemEnt->has<UiAnchor>())
+        itemEnt->get<UiAnchor>()->setZConstrain(
+            PosConstrain{slot.id, AnchorType::Z, PosOpType::Add, 1.0f});
+    if (textEnt and textEnt->has<UiAnchor>())
+        textEnt->get<UiAnchor>()->setZConstrain(
+            PosConstrain{slot.id, AnchorType::Z, PosOpType::Add, 2.0f});
 
     // ---- Helpers ----
 
@@ -415,10 +428,16 @@ void SlotSystem::cancelHeld()
 
 // ---- External sync ----
 
-void SlotSystem::bindSlotChange(uint64_t entityId, std::function<void(const ItemStack&)> cb)
+void SlotSystem::bindSlotChange(EntityRef entity, std::function<void(const ItemStack&)> cb)
 {
-    if (auto* sc = atEntity<SlotComponent>(entityId))
-        sc->onChange = std::move(cb);
+    // Use the EntityRef's cached Entity* (operator->) rather than ecsRef->getEntity():
+    // when this is called right after the slot was created in a running ECS (lazy
+    // panel creation on first machine-UI open), both the entity and its SlotComponent
+    // are still pending in the cmdDispatcher and haven't been flushed into entityPool
+    // / the Own<> sparse set yet. ecsRef->getEntity() only checks entityPool and would
+    // return null, silently dropping the bind. The EntityRef holds the live pointer.
+    if (entity and entity->has<SlotComponent>())
+        entity->get<SlotComponent>()->onChange = std::move(cb);
 }
 
 void SlotSystem::syncSlotVisual(uint64_t entityId, const ItemStack& newStack)

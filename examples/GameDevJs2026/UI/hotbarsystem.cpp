@@ -206,7 +206,7 @@ void HotbarSystem::createHotbarUI()
             SlotFlags::NoPickUp, SLOT_SIZE, ITEM_SIZE);
         slotEntityIds[i] = slotRef.id;
 
-        slotSystem->bindSlotChange(slotRef.id, [this, i](const ItemStack& s) {
+        slotSystem->bindSlotChange(slotRef, [this, i](const ItemStack& s) {
             ecsRef->getSystem<PlayerInventorySystem>()->getInventory()
                 .getSlot(PlayerInventorySystem::HOTBAR_START + i) = s;
         });

@@ -162,7 +162,7 @@ void MinerUISystem::createPanel()
     auto* slotSystem = ecsRef->getSystem<SlotSystem>();
     auto slotRef = slotSystem->createSlot(SlotCategory::Output, 0);
     slotEntityId = slotRef.id;
-    slotSystem->bindSlotChange(slotEntityId, [this](const ItemStack& s) {
+    slotSystem->bindSlotChange(slotRef, [this](const ItemStack& s) {
         if (auto* m = ecsRef->getSystem<MinerSystem>()->getMiner(openMinerX, openMinerY))
             m->outputSlots.getSlot(0) = s;
     });

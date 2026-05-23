@@ -170,7 +170,7 @@ void InventoryUISystem::createPanel()
             SlotCategory::PlayerInventory, static_cast<uint8_t>(i));
         slotEntityIds[i] = slotRef.id;
 
-        slotSystem->bindSlotChange(slotRef.id, [this, i](const ItemStack& s) {
+        slotSystem->bindSlotChange(slotRef, [this, i](const ItemStack& s) {
             ecsRef->getSystem<PlayerInventorySystem>()->getInventory().getSlot(i) = s;
         });
 

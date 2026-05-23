@@ -123,7 +123,12 @@ public:
 
     // Bind a write-back callback so SlotSystem auto-propagates pick/drop mutations
     // into the gameplay-side store. Call once after slot creation.
-    void bindSlotChange(uint64_t entityId, std::function<void(const ItemStack&)> cb);
+    //
+    // Takes EntityRef rather than uint64_t so that callers who just created the slot
+    // can pass it directly — `ecsRef->getEntity(id)` would miss the entity while it's
+    // still pending in the cmdDispatcher (entities created during a running ECS aren't
+    // added to entityPool until the next sync), leaving onChange unbound.
+    void bindSlotChange(EntityRef entity, std::function<void(const ItemStack&)> cb);
 
     // Access a SlotComponent by entity ID (for external sync).
     SlotComponent* getSlotComponent(uint64_t entityId) { return atEntity<SlotComponent>(entityId); }
