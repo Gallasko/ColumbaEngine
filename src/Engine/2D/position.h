@@ -352,6 +352,13 @@ namespace pg
 
         virtual void onProcessEvent(const PositionComponentChangedEvent& event) override
         {
+            // Mark this entity as DIRECTLY dirty — it was the target of a setter call (or an
+            // anchor mutation). Even if its pos/anchor doesn't move during execute(), we still
+            // need to emit PositionSettledEvent for it so downstream consumers can react to
+            // non-position field changes (observable, rotation, …). Transitively-dirty
+            // descendants pushed in below stay on the "emit only if pos actually moved" path.
+            directlyChangedIds.insert(event.id);
+
             if (not changedIdsSet.count(event.id))
             {
                 changedIdsList.push_back(event.id);
@@ -369,6 +376,12 @@ namespace pg
 
         std::vector<_unique_id> changedIdsList;
         std::unordered_set<_unique_id> changedIdsSet;
+
+        // Subset of changedIdsSet that received a direct PositionComponentChangedEvent (not
+        // pulled in via pushChildrenInChange). These always emit PositionSettledEvent at the
+        // end of execute() so observable/rotation/visibility-only changes reach downstream
+        // consumers. Cleared at the end of each execute() call.
+        std::unordered_set<_unique_id> directlyChangedIds;
 
         bool updated = false;
     };

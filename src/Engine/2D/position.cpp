@@ -711,6 +711,31 @@ namespace pg
         float rightMargin = (visible ? anchor.rightMargin : 0.0f);
         float bottomMargin = (visible ? anchor.bottomMargin : 0.0f);
 
+        // Step 1: Resolve sizing constraints (z/width/height) FIRST so they're available for the
+        // anchor-based position calculations below. This eliminates the size→position lag that
+        // would otherwise force a second iteration on the Prefab-container pattern (container
+        // size from leaf via constraint, container position from its own width via right/bottom
+        // anchor: e.g. x = rightAnchor - margin - width).
+        //
+        // Precedence note: when an entity sets BOTH a top+bottom anchor pair AND a heightConstrain
+        // (or the equivalent for width), the anchor pair takes precedence — the constrain value
+        // is overridden by the anchored gap. This matches the old order's effect on the
+        // *position* (anchor-pair always set x/y first), and is the natural reading of "the
+        // anchor pair fully describes both size and position".
+        if (ecsRef)
+        {
+            if (anchor.hasZConstrain)
+                z = constrainCalculation(ecsRef, anchor.zConstrain);
+
+            if (anchor.hasWidthConstrain)
+                width = constrainCalculation(ecsRef, anchor.widthConstrain);
+
+            if (anchor.hasHeightConstrain)
+                height = constrainCalculation(ecsRef, anchor.heightConstrain);
+        }
+
+        // Step 2: Cardinal anchors. An anchor pair (top+bottom or left+right) overrides the
+        // constrain-derived size.
         if (anchor.hasTopAnchor and anchor.hasBottomAnchor)
         {
             this->height = (anchor.bottomAnchor.value - bottomMargin) - (anchor.topAnchor.value + topMargin);
@@ -749,19 +774,6 @@ namespace pg
         if (anchor.hasHorizontalCenter)
         {
             this->x = anchor.horizontalCenterAnchor.value - this->width / 2.0f;
-        }
-
-        // Cannot do constrain calculation if we don't have access to ecsRef
-        if (ecsRef)
-        {
-            if (anchor.hasZConstrain)
-                z = constrainCalculation(ecsRef, anchor.zConstrain);
-
-            if (anchor.hasWidthConstrain)
-                width = constrainCalculation(ecsRef, anchor.widthConstrain);
-
-            if (anchor.hasHeightConstrain)
-                height = constrainCalculation(ecsRef, anchor.heightConstrain);
         }
 
         return areNotAlmostEqual(oldX, x) or areNotAlmostEqual(oldY, y) or areNotAlmostEqual(oldZ, z) or areNotAlmostEqual(oldWidth, width) or areNotAlmostEqual(oldHeight, height);
@@ -838,10 +850,11 @@ namespace pg
                 n.anchor = entity->get<UiAnchor>();
             n.indeg = 0;
             n.processed = false;
-            // Entities entered the dirty set either via a direct setter (which only fires when
-            // the value actually changed) or via parent cascade (where the anchor recompute
-            // below decides). Default to false; flip to true on actual change.
-            n.changed = false;
+            // Direct PositionComponentChangedEvent targets always emit a PositionSettledEvent,
+            // even if their pos/anchor doesn't move during settle. The setter signalled a
+            // genuine change (could be observable/rotation/etc.) and downstream needs to know.
+            // Transitively-dirty entities only emit if their pos/anchor actually moves.
+            n.changed = (directlyChangedIds.count(id) > 0);
             nodes.emplace(id, n);
         }
 
@@ -893,7 +906,8 @@ namespace pg
                 if (posMoved)
                     ownMovedPost = node.anchor->update(node.pos);
 
-                node.changed = ownMovedPre or posMoved or ownMovedPost;
+                // OR into the existing flag — directly-dirty entities pre-seed it to true.
+                node.changed = node.changed or ownMovedPre or posMoved or ownMovedPost;
             }
             else
             {
@@ -939,7 +953,11 @@ namespace pg
         // Iterate until no node's pos actually moves (quiescence) or a hard cap fires.
         if (processedCount < nodes.size())
         {
-            constexpr int CYCLE_PASS_CAP = 8;
+            // Cap chosen for deeply nested prefab compositions: each prefab wrap adds one
+            // mutual-edge cycle, and the iterative pass needs ~(depth) iterations when the
+            // hash-map iteration order processes leaves before containers. 32 covers practical
+            // UI nesting comfortably while keeping a hard runtime bound.
+            constexpr int CYCLE_PASS_CAP = 32;
             int passes = 0;
             bool anyMoved = true;
 
@@ -997,6 +1015,7 @@ namespace pg
 
         changedIdsList.clear();
         changedIdsSet.clear();
+        directlyChangedIds.clear();
     }
 
     bool inBound(EntityRef entity, float x, float y)
