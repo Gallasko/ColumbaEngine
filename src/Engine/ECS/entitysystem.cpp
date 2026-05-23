@@ -74,6 +74,11 @@ namespace
 
 namespace pg
 {
+    // Storage for the BasicTask-thread marker declared in entitysystem.h.
+    // Each worker thread keeps its own copy; set to true at the start of the
+    // BasicTask iteration and false at the end.
+    thread_local bool EntitySystem::inBasicTask = false;
+
     // Pimpl implementation for taskflow to reduce header compilation time
     struct EntitySystem::TaskflowImpl
     {
@@ -126,6 +131,15 @@ namespace pg
             // So it should be safe to allow for creation and deletion of entities/components on the spot
             running = false;
 
+            // Mark this worker thread as the BasicTask thread for the duration
+            // of this iteration. sendEvent uses these flags to decide whether
+            // the direct-dispatch path is safe. inBasicTask is thread_local
+            // (only this thread sees true). basicTaskInProgress is atomic so
+            // other threads know a BasicTask iteration is currently active and
+            // must always enqueue.
+            inBasicTask = true;
+            basicTaskInProgress.store(true, std::memory_order_release);
+
 #ifdef PROFILE
             auto startTask = std::chrono::steady_clock::now();
 
@@ -153,6 +167,13 @@ namespace pg
 
             if (not stopRequested)
                 running = true;
+
+            // Clear the BasicTask markers before parallel systems start running
+            // (they might land on this same thread later). Release on the atomic
+            // so other threads observing basicTaskInProgress=false also see all
+            // listener queue mutations made above.
+            inBasicTask = false;
+            basicTaskInProgress.store(false, std::memory_order_release);
 
 #ifdef PROFILE
             PROFILE_BEGIN("SaveManager", "System");

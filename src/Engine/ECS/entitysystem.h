@@ -630,6 +630,20 @@ namespace pg
             }
         }
 
+        // Set to true on the BasicTask thread while it's draining the event
+        // dispatcher. Any sendEvent call from a *different* thread observing
+        // running==false (because BasicTask just flipped it) would otherwise
+        // race with the BasicTask thread on the listener _eventQueue pushes.
+        // thread_local ensures only the BasicTask thread itself can use the
+        // direct (no-enqueue) path while BasicTask is in progress.
+        static thread_local bool inBasicTask;
+
+        // True while a BasicTask iteration is currently executing on some
+        // worker thread. Lets sendEvent distinguish "BasicTask is mid-run on
+        // another thread → must enqueue" from "no BasicTask running yet (e.g.
+        // initial setup phase before start()) → direct dispatch is safe".
+        std::atomic<bool> basicTaskInProgress{false};
+
         template <typename Event>
         void sendEvent(const Event& event, bool isDeferred = false)
         {
@@ -638,8 +652,21 @@ namespace pg
             // Select the appropriate dispatcher based on event type
             auto& dispatcher = isDeferred ? deferredEventDispatcher : eventDispatcher;
 
+            // Direct (synchronous) path is only safe when there's no concurrent
+            // mutator on the listener queues. Two situations qualify:
+            //   1. We ARE the BasicTask thread mid-iteration (inBasicTask).
+            //   2. Initial setup phase — ECS hasn't started its loop yet, so
+            //      no BasicTask is running and we're the only thread acting.
+            // From any other thread while BasicTask is in progress we must
+            // enqueue, otherwise two threads (main SDL polling + BasicTask
+            // worker) both push into QueuedListener::_eventQueue concurrently
+            // and corrupt its underlying deque.
+            const bool canDirectDispatch =
+                (inBasicTask and not running)
+                or (not running and not basicTaskInProgress.load(std::memory_order_acquire));
+
             // Dispatch the typed C++ event
-            if (running)
+            if (not canDirectDispatch)
             {
                 dispatcher.enqueueEvent([event, this](){ LOG_THIS("ECS"); registry.processEvent(event); });
             }
@@ -654,7 +681,7 @@ namespace pg
             {
                 StandardEvent stdEvent = event.toStandardEvent();
 
-                if (running)
+                if (not canDirectDispatch)
                 {
                     dispatcher.enqueueEvent([stdEvent, this](){
                         LOG_THIS("ECS");

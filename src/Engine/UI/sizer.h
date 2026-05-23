@@ -286,6 +286,12 @@ namespace pg
          */
         void addEntity(EntityRef entity)
         {
+            if (not ecsRef)
+            {
+                LOG_ERROR("BaseLayout", "addEntity: ecsRef is null (onCreation never ran or component is dangling). id="
+                    << id << " entity.id=" << entity.id);
+                return;
+            }
             ecsRef->sendEvent(AddLayoutElementEvent{id, entity.id, orientation});
         }
 
@@ -439,8 +445,8 @@ namespace pg
         std::vector<EntityRef> entities; ///< List of child entities in this layout
         bool childrenAdded = false;    ///< Flag indicating children were added this frame
 
-        _unique_id id;                 ///< ID of the entity owning this layout
-        EntitySystem *ecsRef;          ///< Reference to the ECS system
+        _unique_id id = 0;                       ///< ID of the entity owning this layout
+        EntitySystem *ecsRef = nullptr;          ///< Reference to the ECS system (set by onCreation)
     };
 
 

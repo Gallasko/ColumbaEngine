@@ -28,3 +28,4 @@ test/pgcompiler/scripts/*compiled.pgc
 .vscode/.intellisense-cache
 graph.dot
 .wrangler
+asan/

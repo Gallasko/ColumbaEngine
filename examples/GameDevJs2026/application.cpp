@@ -3,6 +3,7 @@
 
 #include "Systems/basicsystems.h"
 #include "Renderer/camera.h"
+#include "Renderer/renderer.h"
 #include "Loaders/Aseprite/asepriteloader.h"
 #include "Loaders/Aseprite/asepritefileatlasloader.h"
 #include "UI/ttftext.h"
@@ -267,6 +268,14 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf");
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf");
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Medium.ttf");
+
+        // MasterRenderer reads TTFTextSystem's renderCallList in execute() while
+        // TTFTextSystem may be clearing/rebuilding it in its own execute() — without
+        // an ordering dep the two ECS workers race and ASan flags a heap-use-after-
+        // free on RenderCall::data. rendersystems.cpp already declares this for the
+        // other sub-renderers (Simple2D, Texture2D, ProgressBar, etc.) but
+        // TTFTextSystem is created here by the app, after that init runs.
+        ecs.succeed<MasterRenderer, TTFTextSystem>();
 
         // Camera must be created first so it exists before grid renders
         auto* cameraSystem = ecs.createSystem<CameraSystem>(

@@ -171,7 +171,7 @@ namespace pg
         *offset -= event.values.at("y").get<int>() * scrollSpeed;
 
         ecsRef->sendEvent(LayoutScrolledEvent{id});
-    };
+    }
 
     void LayoutSystem::execute()
     {
