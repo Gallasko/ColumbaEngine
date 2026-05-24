@@ -16,6 +16,8 @@
 #include "commanddispatcher.h"
 #include "savemanager.h"
 
+#include "Renderer/rendercall.h"
+
 #include <iostream>
 
 #ifdef PROFILE
@@ -252,6 +254,11 @@ namespace pg
 
             internalCreateSystem(system);
 
+            if constexpr (std::is_base_of_v<BaseAbstractRenderer, Sys>)
+            {
+                autoSucceedMasterRenderer(static_cast<BaseAbstractRenderer*>(system), system->_id);
+            }
+
             return system;
         }
 
@@ -285,6 +292,11 @@ namespace pg
             sys->addToRegistry(&registry);
 
             internalCreateSystem(sys);
+
+            if (auto* abr = dynamic_cast<BaseAbstractRenderer*>(sys))
+            {
+                autoSucceedMasterRenderer(abr, sys->_id);
+            }
 
             return sys;
         }
@@ -324,6 +336,11 @@ namespace pg
             system->addToRegistry(&registry);
 
             internalCreateSystem(system);
+
+            if constexpr (std::is_base_of_v<BaseAbstractRenderer, Sys>)
+            {
+                autoSucceedMasterRenderer(static_cast<BaseAbstractRenderer*>(system), system->_id);
+            }
 
             return sys;
         }
@@ -842,6 +859,8 @@ namespace pg
         void _deleteSystem(_unique_id id);
 
         void _succeed(_unique_id id1, _unique_id id2);
+
+        void autoSucceedMasterRenderer(BaseAbstractRenderer* abr, _unique_id subId);
 
         void addEntityToPool(Entity* entity)
         {

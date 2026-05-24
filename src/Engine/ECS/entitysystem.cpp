@@ -25,6 +25,8 @@
 
 #include "Systems/coresystems.h"
 
+#include "Renderer/renderer.h"
+
 // #include "Interpreter/interpretersystem.h"
 
 #ifdef PROFILE
@@ -1026,6 +1028,19 @@ namespace pg
         {
             LOG_ERROR("ECS", "Both systems " << sys1Id << " and " << sys2Id << " are not registered task in ecs can't reorder their task !");
         }
+    }
+
+    void EntitySystem::autoSucceedMasterRenderer(BaseAbstractRenderer* abr, _unique_id subId)
+    {
+        MasterRenderer* mr = abr->getMasterRenderer();
+
+        if (mr == nullptr or mr->_id == 0)
+        {
+            LOG_ERROR("ECS", "Sub-renderer " << subId << " created with no registered MasterRenderer; skipping auto-succeed");
+            return;
+        }
+
+        _succeed(mr->_id, subId);
     }
 
     Value ComponentSerializerRegistry::createComponentProxy(const std::string& componentName, VM* vm, void* componentPtr) const

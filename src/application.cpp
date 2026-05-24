@@ -640,7 +640,6 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
         // });
 
         // mainWindow->ecs.succeed<InspectorSystem, ListViewSystem>();
-        ecs.succeed<MasterRenderer, TTFTextSystem>();
 
         auto ent = ecs.createEntity();
 

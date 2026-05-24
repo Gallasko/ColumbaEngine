@@ -269,14 +269,6 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf");
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Medium.ttf");
 
-        // MasterRenderer reads TTFTextSystem's renderCallList in execute() while
-        // TTFTextSystem may be clearing/rebuilding it in its own execute() — without
-        // an ordering dep the two ECS workers race and ASan flags a heap-use-after-
-        // free on RenderCall::data. rendersystems.cpp already declares this for the
-        // other sub-renderers (Simple2D, Texture2D, ProgressBar, etc.) but
-        // TTFTextSystem is created here by the app, after that init runs.
-        ecs.succeed<MasterRenderer, TTFTextSystem>();
-
         // Camera must be created first so it exists before grid renders
         auto* cameraSystem = ecs.createSystem<CameraSystem>(
             window.masterRenderer, screenW, screenH);
@@ -411,6 +403,20 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         // CameraSystem checks `inventoryUI->isOpen()` to disable pan while
         // a panel is up (see camerasystem.cpp).
         ecs.succeed<CameraSystem, InventoryUISystem>();
+
+        // FurnaceUI / AssemblerUI close() mutates CraftingUISystem state
+        // directly (setMachineFeedCallback, setMachineSelectCallback,
+        // clearMachineMode → applyModeToPanel → rebuildVisibleRecipes which
+        // grows visibleRecipes). Without this ordering, the recipe-machine
+        // UIs and CraftingUISystem can both call rebuildVisibleRecipes in
+        // parallel taskflow workers, double-freeing visibleRecipes' buffer
+        // during a concurrent vector realloc (ASan: heap-double-free).
+        ecs.succeed<FurnaceUI,   CraftingUISystem>();
+        ecs.succeed<AssemblerUI, CraftingUISystem>();
+        // RecipeMachineUIBase also pokes CraftingUISystem from its
+        // open(): setMachineFeedCallback / setMachineSelectCallback /
+        // setMachineMode → rebuildVisibleRecipes. Same race shape.
+        ecs.succeed<MachineUICoordinator, CraftingUISystem>();
 
         // GameSystem reads camera position / last mouse coords every motion
         // tick (getLastMouseX/Y, screenToWorld) and grid state (getCell,

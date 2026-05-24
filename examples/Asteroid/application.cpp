@@ -169,8 +169,6 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
 
-        ecs.succeed<MasterRenderer, TTFTextSystem>();
-
         // Register custom VM modules for scripts
         ecs.registerCustomVmModule("particle", ParticleModule{&ecs});
 

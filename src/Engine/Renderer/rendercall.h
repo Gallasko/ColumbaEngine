@@ -422,6 +422,8 @@ namespace pg
 
         bool hasChanged() const { return changed; }
 
+        MasterRenderer* getMasterRenderer() const { return masterRenderer; }
+
     protected:
         MasterRenderer *masterRenderer;
 

@@ -26,11 +26,6 @@ namespace pg
         ecs->createSystem<Texture2DComponentSystem>(masterRenderer);
         ecs->createSystem<ProgressBarComponentSystem>(masterRenderer);
 
-        // Ordering: MasterRenderer runs after all sub-renderers
-        ecs->succeed<MasterRenderer, Simple2DObjectSystem>();
-        ecs->succeed<MasterRenderer, RoundedRect2DObjectSystem>();
-        ecs->succeed<MasterRenderer, Texture2DComponentSystem>();
-        ecs->succeed<MasterRenderer, ProgressBarComponentSystem>();
         ecs->succeed<MasterRenderer, PrefabSystem>();
         ecs->succeed<MasterRenderer, PositionComponentSystem>();
 

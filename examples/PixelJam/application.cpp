@@ -660,8 +660,6 @@ void initGame() {
 
     mainWindow->masterRenderer->processTextureRegister();
 
-    mainWindow->ecs->succeed<MasterRenderer, TTFTextSystem>();
-
     mainWindow->ecs->createSystem<SceneLoader>();
 
     auto aseprite_loader = mainWindow->ecs->createSystem<AsepriteLoader>();
