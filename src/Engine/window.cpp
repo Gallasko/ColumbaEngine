@@ -184,6 +184,14 @@ namespace pg
         }
 #endif
 
+        // audioSystem points to a system owned by the ECS, so closeSDLMixer
+        // MUST run before `delete ecs` (which destroys the AudioSystem).
+        // Calling it after the delete dereferences a freed object — caught
+        // by ASan as a heap-use-after-free at shutdown.
+        if (audioSystem != nullptr)
+            audioSystem->closeSDLMixer();
+        audioSystem = nullptr;
+
         delete ecs;
 
         // delete screenUi;
@@ -198,9 +206,6 @@ namespace pg
 
             delete inputHandler;
         }
-
-        if (audioSystem != nullptr)
-            audioSystem->closeSDLMixer();
 
         // LOG_INFO(DOM, "Shutting down network backend...");
         // SDLNet_Quit();
