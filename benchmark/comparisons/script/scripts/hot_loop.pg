@@ -1,16 +1,22 @@
-// hot_loop.pg — tight integer loop summing 1..count.
-// Measures interpreter dispatch + integer arithmetic, no allocation.
+// hot_loop.pg -- tight integer loop summing 1..n. The body lives in a
+// function so `sum` and `i` are LOCALS (stack slots). Top-level `var` in
+// PgScript is a global, which forces hash-table lookups every iteration
+// and defeats the bytecode optimizer; locals get the full O3 treatment.
 
-var t0 = now();
-
-var sum = 0;
-var i = 1;
-while (i <= count)
+fun hotLoop(n)
 {
-    sum = sum + i;
-    i = i + 1;
+    var sum = 0;
+    var i = 1;
+    while (i <= n)
+    {
+        sum = sum + i;
+        i = i + 1;
+    }
+    return sum;
 }
 
+var t0 = now();
+var result = hotLoop(count);
 var elapsed = now() - t0;
 
 print(elapsed);

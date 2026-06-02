@@ -1,24 +1,36 @@
 // table_lookup.pg -- N inserts of (i -> i*2) into an empty table, then N
-// sequential lookups summing the values. Tests the hash-table primitive.
-// Insert phase is outside the timed region; only lookups are measured.
+// sequential lookups summing the values. Only the lookup loop is timed,
+// and it lives in a function so the loop counter and accumulator are
+// locals (no per-iteration global hash lookups).
 
-var d = [];
-var i = 0;
-while (i < count)
+fun buildTable(n)
 {
-    d[i] = i * 2;
-    i = i + 1;
+    var d = [];
+    var i = 0;
+    while (i < n)
+    {
+        d[i] = i * 2;
+        i = i + 1;
+    }
+    return d;
 }
+
+fun sumLookup(d, n)
+{
+    var total = 0;
+    var i = 0;
+    while (i < n)
+    {
+        total = total + d[i];
+        i = i + 1;
+    }
+    return total;
+}
+
+var d = buildTable(count);
 
 var t0 = now();
-
-var total = 0;
-i = 0;
-while (i < count)
-{
-    total = total + d[i];
-    i = i + 1;
-}
-
+var total = sumLookup(d, count);
 var elapsed = now() - t0;
+
 print(elapsed);

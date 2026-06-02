@@ -17,6 +17,8 @@
  */
 
 #include "Compiler/vm.h"
+#include "Compiler/compiler_debug.h"
+#include "Compiler/object.h"
 
 // Bytecode optimization passes — replicate the O3 pipeline that
 // EntitySystem::setOptimizationPasses installs by default. Without these,
@@ -61,8 +63,10 @@ static void printValueToStdout(VM* vm, Value v)
 int main(int argc, char** argv)
 {
     std::string scriptPath;
-    int64_t     count        = 0;
-    bool        optimize     = true;  // O3 by default — match EntitySystem
+    int64_t     count         = 0;
+    bool        optimize      = true;  // O3 by default — match EntitySystem
+    bool        dumpBytecode  = false; // print disassembly for every compiled function
+    bool        debugPasses   = false; // print each pass's effect (verbose)
 
     for (int i = 1; i < argc; ++i)
     {
@@ -73,14 +77,22 @@ int main(int argc, char** argv)
             count = std::stoll(a.substr(std::strlen("--count=")));
         else if (a == "--no-opt")
             optimize = false;
+        else if (a == "--dump-bytecode")
+            dumpBytecode = true;
+        else if (a == "--debug-passes")
+            debugPasses = true;
         else if (a == "--help" || a == "-h")
         {
             std::fprintf(stderr,
-                "Usage: %s --script=PATH [--count=N] [--no-opt]\n"
+                "Usage: %s --script=PATH [--count=N] [options]\n"
                 "\n"
                 "Runs a PgScript file with the bench `now()` and `print()` natives.\n"
                 "If --count is given, the script can read it via the global `count`.\n"
-                "--no-opt disables PgScript's bytecode optimization passes.\n",
+                "\n"
+                "Options:\n"
+                "  --no-opt          disable PgScript bytecode optimization passes\n"
+                "  --dump-bytecode   disassemble every compiled function after passes\n"
+                "  --debug-passes    print disassembly after each optimization pass\n",
                 argv[0]);
             return 0;
         }
@@ -120,6 +132,12 @@ int main(int argc, char** argv)
         vm.disableBytecodeOptimization();
     }
 
+    if (debugPasses) vm.enableOptimizationDebugging();
+
+    // compiledFunctions is only populated when profiling is enabled. We
+    // need that list to disassemble each function after compilation.
+    if (dumpBytecode) vm.enableProfiling();
+
     // now() -> int64 ns since steady_clock epoch. Bench-only; not part of the
     // engine's core natives. Used by scenarios for in-script self-timing.
     vm.registerNative("now", [](VM*, int /*argCount*/, Value* /*args*/) -> Value {
@@ -139,6 +157,8 @@ int main(int argc, char** argv)
         vm.globals["count"] = makeIntValue(count);
     }
 
+    // Execution still happens with --dump-bytecode: the function pointers
+    // stored in compiledFunctions are only stable after full setup.
     InterpretResult result = vm.interpretFromFile(scriptPath);
     if (result != InterpretResult::OK)
     {
@@ -147,8 +167,21 @@ int main(int argc, char** argv)
         return 2;
     }
 
-    // __dprint accumulates into vm.testOutput; flush it to stdout so the
-    // bench harness can read the script's printed value.
-    std::fwrite(vm.testOutput.data(), 1, vm.testOutput.size(), stdout);
+    if (dumpBytecode)
+    {
+        std::fprintf(stderr, "compiledFunctions.size() = %zu\n",
+                     vm.compiledFunctions.size());
+        for (auto* func : vm.compiledFunctions)
+        {
+            if (func == nullptr) { std::fprintf(stderr, "  <null>\n"); continue; }
+            std::string name = func->name.empty() ? "<script>" : func->name;
+            std::fprintf(stderr, "  %s  chunk.code.size=%zu  decodedChunk=%p\n",
+                         name.c_str(), func->chunk.code.size(),
+                         (void*)func->decodedChunk);
+            disassembleChunk(&vm, func->chunk, name);
+            std::printf("\n");
+        }
+    }
+
     return 0;
 }
