@@ -60,19 +60,32 @@ def _pgscript_bin():
 
 
 LANGUAGES = {
+    # `opt_level` is a free-form tag written to the CSV. Comparing PgScript O3
+    # vs O0 lets us measure what the bytecode pipeline actually buys.
     "pgscript": {
         "ext": "pg",
         "cmd": lambda script, n: [_pgscript_bin(), f"--script={script}", f"--count={n}"],
+        "opt_level": "O3",
+    },
+    "pgscript-noopt": {
+        "ext": "pg",
+        "cmd": lambda script, n: [_pgscript_bin(), f"--script={script}", f"--count={n}", "--no-opt"],
+        "opt_level": "O0",
     },
     "python": {
         "ext": "py",
         "cmd": lambda script, n: ["python3", script, str(n)],
+        "opt_level": "default",
     },
-    # When lua / luajit / wren / godot get installed, just add entries here.
-    # "lua":    {"ext": "lua",  "cmd": lambda s, n: ["lua",    s, str(n)]},
-    # "luajit": {"ext": "lua",  "cmd": lambda s, n: ["luajit", s, str(n)]},
-    # "wren":   {"ext": "wren", "cmd": lambda s, n: ["wren_cli", s, str(n)]},
-    # "gdscript": {"ext": "gd", "cmd": lambda s, n: ["godot", "--headless", "--script", s, "--", str(n)]},
+    "lua": {
+        "ext": "lua",
+        "cmd": lambda script, n: ["lua", script, str(n)],
+        "opt_level": "default",
+    },
+    # Uncomment when the corresponding interpreter is installed:
+    # "luajit": {"ext": "lua", "cmd": lambda s, n: ["luajit", s, str(n)], "opt_level": "jit"},
+    # "wren":   {"ext": "wren", "cmd": lambda s, n: ["wren_cli", s, str(n)], "opt_level": "default"},
+    # "gdscript": {"ext": "gd", "cmd": lambda s, n: ["godot", "--headless", "--script", s, "--", str(n)], "opt_level": "default"},
 }
 
 SCENARIOS = ["compute_pi", "fib_recursive", "hot_loop"]
@@ -190,13 +203,14 @@ def main():
     try:
         writer = csv.writer(out)
         if not args.append:
-            writer.writerow(["language", "scenario", "count", "run_id",
+            writer.writerow(["language", "opt_level", "scenario", "count", "run_id",
                              "wall_ns", "script_ns", "peak_rss_kb"])
             out.flush()
 
         for lang in languages:
             ext = LANGUAGES[lang]["ext"]
             cmd_fn = LANGUAGES[lang]["cmd"]
+            opt_level = LANGUAGES[lang]["opt_level"]
 
             for scen in scenarios:
                 script = os.path.join(SCRIPTS_DIR, f"{scen}.{ext}")
@@ -221,7 +235,7 @@ def main():
                                   file=sys.stderr)
                             continue
                         writer.writerow([
-                            lang, scen, n, r,
+                            lang, opt_level, scen, n, r,
                             res.wall_ns,
                             res.script_ns if res.script_ns is not None else "",
                             res.peak_rss_kb,

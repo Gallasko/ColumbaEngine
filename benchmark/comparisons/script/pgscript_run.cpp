@@ -18,6 +18,21 @@
 
 #include "Compiler/vm.h"
 
+// Bytecode optimization passes — replicate the O3 pipeline that
+// EntitySystem::setOptimizationPasses installs by default. Without these,
+// PgScript runs unoptimized bytecode and the cross-language comparison is
+// unfair to itself.
+#include "Compiler/pass/basic_operator_local_indexing.h"
+#include "Compiler/pass/constant_folding.h"
+#include "Compiler/pass/constant_var_access.h"
+#include "Compiler/pass/fuse_op_pop.h"
+#include "Compiler/pass/increment_optimization_pass.h"
+#include "Compiler/pass/long_jump_optimization_pass.h"
+#include "Compiler/pass/popping_jump_pass.h"
+#include "Compiler/pass/remove_def_get_global_redunduncy.h"
+#include "Compiler/pass/remove_useless_jump_pass.h"
+#include "Compiler/pass/simplify_constant_pass.h"
+
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -46,7 +61,8 @@ static void printValueToStdout(VM* vm, Value v)
 int main(int argc, char** argv)
 {
     std::string scriptPath;
-    int64_t     count = 0;
+    int64_t     count        = 0;
+    bool        optimize     = true;  // O3 by default — match EntitySystem
 
     for (int i = 1; i < argc; ++i)
     {
@@ -55,13 +71,16 @@ int main(int argc, char** argv)
             scriptPath = a.substr(std::strlen("--script="));
         else if (a.rfind("--count=", 0) == 0)
             count = std::stoll(a.substr(std::strlen("--count=")));
+        else if (a == "--no-opt")
+            optimize = false;
         else if (a == "--help" || a == "-h")
         {
             std::fprintf(stderr,
-                "Usage: %s --script=PATH [--count=N]\n"
+                "Usage: %s --script=PATH [--count=N] [--no-opt]\n"
                 "\n"
-                "Runs a PgScript file with the bench `now()` native pre-registered.\n"
-                "If --count is given, the script can read it via the global `count`.\n",
+                "Runs a PgScript file with the bench `now()` and `print()` natives.\n"
+                "If --count is given, the script can read it via the global `count`.\n"
+                "--no-opt disables PgScript's bytecode optimization passes.\n",
                 argv[0]);
             return 0;
         }
@@ -79,6 +98,27 @@ int main(int argc, char** argv)
     }
 
     VM vm;
+
+    // Install the same O3 bytecode-optimization pipeline EntitySystem uses.
+    // Default ON — that's what real PgScript users get. --no-opt for ablation.
+    if (optimize)
+    {
+        vm.enableBytecodeOptimization();
+        vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
+        vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+        vm.addOptimizationPass(std::make_unique<PoppingJumpPass>());
+        vm.addOptimizationPass(std::make_unique<RemoveUselessJumpPass>());
+        vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
+        vm.addOptimizationPass(std::make_unique<FuseOpPop>());
+        vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
+        vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
+        vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
+        vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
+    }
+    else
+    {
+        vm.disableBytecodeOptimization();
+    }
 
     // now() -> int64 ns since steady_clock epoch. Bench-only; not part of the
     // engine's core natives. Used by scenarios for in-script self-timing.
