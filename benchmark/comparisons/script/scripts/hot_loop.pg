@@ -1,0 +1,16 @@
+// hot_loop.pg — tight integer loop summing 1..count.
+// Measures interpreter dispatch + integer arithmetic, no allocation.
+
+var t0 = now();
+
+var sum = 0;
+var i = 1;
+while (i <= count)
+{
+    sum = sum + i;
+    i = i + 1;
+}
+
+var elapsed = now() - t0;
+
+print(elapsed);

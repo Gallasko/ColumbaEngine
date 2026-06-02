@@ -1368,6 +1368,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         # Cross-engine comparison benchmarks (opt-in: -DPGE_BUILD_COMPARISON_BENCHMARKS=ON).
         if(PGE_BUILD_COMPARISON_BENCHMARKS)
             add_subdirectory(benchmark/comparisons/ecs)
+            add_subdirectory(benchmark/comparisons/script)
         endif()
 
         # ===============================================
