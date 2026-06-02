@@ -670,6 +670,18 @@ namespace pg
 
                 }
 
+                // Fast path: opcodes flagged PURE (no side effects) can't change
+                // IP or call/return, so the entire chain of opcode-equality checks
+                // below is guaranteed to miss. Skipping it eliminates ~14 host
+                // comparisons + 4 branches per dispatched opcode — the bulk of
+                // the dispatcher's per-instruction overhead for tight numeric
+                // loops where arithmetic/local-access ops dominate.
+                if (instr.isPure())
+                {
+                    instructionIndex++;
+                    continue;
+                }
+
                 // Handle control flow changes only for specific opcodes
                 OpCode opcode = static_cast<OpCode>(instr.originalOpcode);
 
