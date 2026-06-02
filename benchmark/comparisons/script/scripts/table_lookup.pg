@@ -1,0 +1,24 @@
+// table_lookup.pg -- N inserts of (i -> i*2) into an empty table, then N
+// sequential lookups summing the values. Tests the hash-table primitive.
+// Insert phase is outside the timed region; only lookups are measured.
+
+var d = [];
+var i = 0;
+while (i < count)
+{
+    d[i] = i * 2;
+    i = i + 1;
+}
+
+var t0 = now();
+
+var total = 0;
+i = 0;
+while (i < count)
+{
+    total = total + d[i];
+    i = i + 1;
+}
+
+var elapsed = now() - t0;
+print(elapsed);

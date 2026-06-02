@@ -88,11 +88,17 @@ LANGUAGES = {
     # "gdscript": {"ext": "gd", "cmd": lambda s, n: ["godot", "--headless", "--script", s, "--", str(n)], "opt_level": "default"},
 }
 
-SCENARIOS = ["compute_pi", "fib_recursive", "hot_loop"]
+SCENARIOS = [
+    "compute_pi", "fib_recursive", "hot_loop",
+    "binary_tree", "matmul", "table_lookup",
+]
 DEFAULT_COUNTS = {
-    "compute_pi":   [10_000, 100_000, 1_000_000],
+    "compute_pi":    [10_000, 100_000, 1_000_000],
     "fib_recursive": [20, 25, 28],          # exponential; fib(28) ~ 800k calls
-    "hot_loop":     [10_000, 100_000, 1_000_000],
+    "hot_loop":      [10_000, 100_000, 1_000_000],
+    "binary_tree":   [10, 14, 16],          # depth; nodes = 2^(d+1)-1
+    "matmul":        [16, 32, 64],          # matrix size n; work = n^3
+    "table_lookup":  [10_000, 100_000, 1_000_000],
 }
 
 # ----------------------------------------------------------------------

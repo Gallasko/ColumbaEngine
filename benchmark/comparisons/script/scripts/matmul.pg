@@ -1,0 +1,56 @@
+// matmul.pg -- naive O(n^3) square-matrix multiplication, flat 1-D storage
+// indexed as A[i*n + j]. `count` is the matrix size n; total work is n^3
+// multiplications.
+//
+// Exercises nested while-loops, integer index math, table indexed access,
+// and float arithmetic. Init is outside the timed region; only the multiply
+// kernel is measured.
+
+fun makeMatrix(n, offset)
+{
+    var m = [];
+    var i = 0;
+    while (i < n * n)
+    {
+        m[i] = ((i + offset) % 17) * 1.0;
+        i = i + 1;
+    }
+    return m;
+}
+
+var n = count;
+var A = makeMatrix(n, 0);
+var B = makeMatrix(n, 7);
+var C = [];
+
+// Zero-initialise C outside the timed region.
+var k0 = 0;
+while (k0 < n * n)
+{
+    C[k0] = 0.0;
+    k0 = k0 + 1;
+}
+
+var t0 = now();
+
+var i = 0;
+while (i < n)
+{
+    var j = 0;
+    while (j < n)
+    {
+        var s = 0.0;
+        var k = 0;
+        while (k < n)
+        {
+            s = s + A[i * n + k] * B[k * n + j];
+            k = k + 1;
+        }
+        C[i * n + j] = s;
+        j = j + 1;
+    }
+    i = i + 1;
+}
+
+var elapsed = now() - t0;
+print(elapsed);
