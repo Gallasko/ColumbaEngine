@@ -1438,6 +1438,13 @@ namespace pg
         vm->push(makeIntValue(value));
     }
 
+    void op_short_int_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        // Operand already pre-extracted by the chunk decoder — skip the
+        // currentFrame->ip increment that the non-decoded variant pays.
+        vm->push(makeIntValue(instr.operands.byte));
+    }
+
     void op_pop_n(VM* vm)
     {
         uint8_t count = *vm->currentFrame->ip++;

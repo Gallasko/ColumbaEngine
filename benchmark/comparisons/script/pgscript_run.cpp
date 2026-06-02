@@ -67,6 +67,7 @@ int main(int argc, char** argv)
     bool        optimize      = true;  // O3 by default — match EntitySystem
     bool        dumpBytecode  = false; // print disassembly for every compiled function
     bool        debugPasses   = false; // print each pass's effect (verbose)
+    bool        profile       = false; // enable instruction-level profiling
 
     for (int i = 1; i < argc; ++i)
     {
@@ -81,6 +82,8 @@ int main(int argc, char** argv)
             dumpBytecode = true;
         else if (a == "--debug-passes")
             debugPasses = true;
+        else if (a == "--profile")
+            profile = true;
         else if (a == "--help" || a == "-h")
         {
             std::fprintf(stderr,
@@ -92,7 +95,8 @@ int main(int argc, char** argv)
                 "Options:\n"
                 "  --no-opt          disable PgScript bytecode optimization passes\n"
                 "  --dump-bytecode   disassemble every compiled function after passes\n"
-                "  --debug-passes    print disassembly after each optimization pass\n",
+                "  --debug-passes    print disassembly after each optimization pass\n"
+                "  --profile         enable instruction profiling; print report at exit\n",
                 argv[0]);
             return 0;
         }
@@ -134,9 +138,10 @@ int main(int argc, char** argv)
 
     if (debugPasses) vm.enableOptimizationDebugging();
 
-    // compiledFunctions is only populated when profiling is enabled. We
-    // need that list to disassemble each function after compilation.
-    if (dumpBytecode) vm.enableProfiling();
+    // Enable instruction profiling for either --dump-bytecode (which uses
+    // compiledFunctions, populated only when profiling is on) or --profile
+    // (which prints the per-opcode report at exit).
+    if (dumpBytecode || profile) vm.enableProfiling();
 
     // now() -> int64 ns since steady_clock epoch. Bench-only; not part of the
     // engine's core natives. Used by scenarios for in-script self-timing.
@@ -165,6 +170,13 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "pgscript_run: interpretation failed (code %d)\n",
                      static_cast<int>(result));
         return 2;
+    }
+
+    if (profile)
+    {
+        // sortByTime=false → sort by execution count, matching how the Python
+        // analyzer reports its top opcodes. We want the count-dominant ops.
+        vm.printProfilingReport(/*sortByTime=*/false);
     }
 
     if (dumpBytecode)

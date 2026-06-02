@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "vm.h"
+#include "decoded_chunk.h"
 
 namespace pg
 {
@@ -326,6 +327,15 @@ namespace pg
         auto a = vm->peek(); \
         vm->changeTop(vm->operation(a, b)); \
         /* Escape analysis: Only release heap objects, not primitives */ \
+        if (requiresRefCount(b)) vm->releaseAndDelete(b); \
+    } \
+    void op_name##_decoded(VM* vm, const DecodedInstruction&) \
+    { \
+        /* Same body — the win is the dispatcher skipping the */ \
+        /* `currentFrame->ip = bytecodeOffset + 1` store per opcode. */ \
+        auto b = vm->pop(); \
+        auto a = vm->peek(); \
+        vm->changeTop(vm->operation(a, b)); \
         if (requiresRefCount(b)) vm->releaseAndDelete(b); \
     }
 
@@ -791,6 +801,16 @@ namespace pg
         auto result = vm->addValues(value1, value2);
 
         vm->push(result);
+    }
+
+    void op_add_ll_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        // Both local slot indices were pre-extracted at decode time. The
+        // non-decoded variant does two `*ip++` reads plus a dispatcher
+        // `currentFrame->ip` write per opcode — that all goes away here.
+        auto value1 = vm->currentFrame->slots[instr.operands.indexed.byte1];
+        auto value2 = vm->currentFrame->slots[instr.operands.indexed.byte2];
+        vm->push(vm->addValues(value1, value2));
     }
 
     void op_subtract_ll(VM* vm)

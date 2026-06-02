@@ -154,17 +154,28 @@ namespace pg
     void op_long_constant(VM* vm);
     void op_long_constant_decoded(VM* vm, const DecodedInstruction& instr);
     void op_add(VM* vm);
+    void op_add_decoded(VM* vm, const DecodedInstruction& instr);
     void op_subtract(VM* vm);
+    void op_subtract_decoded(VM* vm, const DecodedInstruction& instr);
     void op_multiply(VM* vm);
+    void op_multiply_decoded(VM* vm, const DecodedInstruction& instr);
     void op_divide(VM* vm);
+    void op_divide_decoded(VM* vm, const DecodedInstruction& instr);
     void op_modulo(VM* vm);
+    void op_modulo_decoded(VM* vm, const DecodedInstruction& instr);
     void op_negate(VM* vm);
     void op_equal(VM* vm);
+    void op_equal_decoded(VM* vm, const DecodedInstruction& instr);
     void op_not_equal(VM* vm);
+    void op_not_equal_decoded(VM* vm, const DecodedInstruction& instr);
     void op_greater(VM* vm);
+    void op_greater_decoded(VM* vm, const DecodedInstruction& instr);
     void op_greater_equal(VM* vm);
+    void op_greater_equal_decoded(VM* vm, const DecodedInstruction& instr);
     void op_less(VM* vm);
+    void op_less_decoded(VM* vm, const DecodedInstruction& instr);
     void op_less_equal(VM* vm);
+    void op_less_equal_decoded(VM* vm, const DecodedInstruction& instr);
     void op_true(VM* vm);
     void op_false(VM* vm);
     void op_not(VM* vm);
@@ -208,6 +219,7 @@ namespace pg
     void op_set_property(VM* vm);
     void op_method(VM* vm);
     void op_short_int(VM* vm);
+    void op_short_int_decoded(VM* vm, const DecodedInstruction& instr);
 
     void op_pop_n(VM* vm);
 
@@ -217,6 +229,7 @@ namespace pg
     void op_set_constant_global(VM* vm);
 
     void op_add_ll(VM* vm);
+    void op_add_ll_decoded(VM* vm, const DecodedInstruction& instr);
     void op_subtract_ll(VM* vm);
 
     void op_subtract_lc(VM* vm);

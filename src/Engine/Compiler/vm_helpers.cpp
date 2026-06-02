@@ -336,29 +336,29 @@ namespace pg
         // Pure & batchable: Constants
         register_operation(static_cast<uint8_t>(OpCode::OP_Constant), op_constant, op_constant_decoded, OpCodeInfo::PURE_BATCH);
         register_operation(static_cast<uint8_t>(OpCode::OP_LongConstant), op_long_constant, op_long_constant_decoded, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Short_Int), op_short_int, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Short_Int), op_short_int, op_short_int_decoded, OpCodeInfo::PURE_BATCH);
 
         // Pure & batchable: Arithmetic
-        register_operation(static_cast<uint8_t>(OpCode::OP_Add), op_add, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Subtract), op_subtract, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Multiply), op_multiply, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Divide), op_divide, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Modulo), op_modulo, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Add), op_add, op_add_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Subtract), op_subtract, op_subtract_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Multiply), op_multiply, op_multiply_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Divide), op_divide, op_divide_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Modulo), op_modulo, op_modulo_decoded, OpCodeInfo::PURE_BATCH);
         register_operation(static_cast<uint8_t>(OpCode::OP_Negate), op_negate, OpCodeInfo::PURE_BATCH);
 
         // Pure & batchable: Optimized arithmetic
-        register_operation(static_cast<uint8_t>(OpCode::OP_AddLL), op_add_ll, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
+        register_operation(static_cast<uint8_t>(OpCode::OP_AddLL), op_add_ll, op_add_ll_decoded, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLL), op_subtract_ll, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLC), op_subtract_lc, OpCodeInfo::PURE_BATCH);
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractCL), op_subtract_cl, OpCodeInfo::PURE_BATCH);
 
         // Pure & batchable: Comparisons
-        register_operation(static_cast<uint8_t>(OpCode::OP_Equal), op_equal, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_NotEqual), op_not_equal, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Greater), op_greater, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_GreaterEqual), op_greater_equal, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Less), op_less, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_LessEqual), op_less_equal, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Equal), op_equal, op_equal_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_NotEqual), op_not_equal, op_not_equal_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Greater), op_greater, op_greater_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_GreaterEqual), op_greater_equal, op_greater_equal_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Less), op_less, op_less_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_LessEqual), op_less_equal, op_less_equal_decoded, OpCodeInfo::PURE_BATCH);
 
         // Pure & batchable: Boolean ops
         register_operation(static_cast<uint8_t>(OpCode::OP_True), op_true, OpCodeInfo::PURE_BATCH);
