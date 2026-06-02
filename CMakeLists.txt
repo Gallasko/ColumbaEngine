@@ -11,6 +11,7 @@ option(BUILD_STATIC_LIB "Build static library only" OFF)
 option(BUILD_EXAMPLES "Build example applications" ON)
 option(USE_CCACHE "Use ccache to speed up rebuilds" ON)
 option(SKIP_COMPONENT_GENERATION "Skip regeneration of component files (use existing generated files)" OFF)
+option(PGE_BUILD_COMPARISON_BENCHMARKS "Build cross-engine comparison benchmarks (PgEngine vs EnTT/flecs/Bevy)" OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -1363,6 +1364,11 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         add_custom_command(TARGET bench PRE_BUILD
                            COMMAND ${CMAKE_COMMAND} -E copy_directory
                            ${CMAKE_SOURCE_DIR}/test/bench $<TARGET_FILE_DIR:bench>/test/bench)
+
+        # Cross-engine comparison benchmarks (opt-in: -DPGE_BUILD_COMPARISON_BENCHMARKS=ON).
+        if(PGE_BUILD_COMPARISON_BENCHMARKS)
+            add_subdirectory(benchmark/comparisons/ecs)
+        endif()
 
         # ===============================================
         # COMPILER TEST TARGET (simple script-based testbench)
