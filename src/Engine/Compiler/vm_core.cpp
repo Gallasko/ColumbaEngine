@@ -697,9 +697,16 @@ namespace pg
                 if (opcode == OpCode::OP_Long_Jump_If_False or opcode == OpCode::OP_Jump_If_False or
                     opcode == OpCode::OP_Long_Jump_If_False_Popping or opcode == OpCode::OP_Jump_If_False_Popping)
                 {
-                    // IP was modified by jump - find the new instruction index
-                    size_t currentIpOffset = currentFrame->ip - startingIp;
-                    instructionIndex = decoded->findInstructionIndex(currentIpOffset);
+                    // The conditional jump can only end in one of two places: fall through
+                    // to the next sequential instruction, or jump to the precomputed target
+                    // (already baked into instr.nextInstuctionIndex by resolveJumpTargets).
+                    // Compare ip to the fall-through bytecode offset — no hash lookup needed.
+                    const size_t fallThroughOffset = instr.bytecodeOffset + 1 + instr.operandBytes;
+                    const size_t currentIpOffset   = currentFrame->ip - startingIp;
+                    if (currentIpOffset == fallThroughOffset)
+                        instructionIndex++;
+                    else
+                        instructionIndex = instr.nextInstuctionIndex;
                     continue;
                 }
 
