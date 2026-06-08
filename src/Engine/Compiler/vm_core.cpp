@@ -851,107 +851,59 @@ namespace pg
     void op_get_local(VM* vm)
     {
         uint8_t slot = *vm->currentFrame->ip++;
+        // slot is uint8_t so it's already in 0..255. Well-formed bytecode from
+        // the compiler doesn't emit 255; assert in debug, no branch in release.
+        assert(slot < 255 and "Local variable slot out of range");
 
-        if (slot >= 255)
-        {
-            vm->runtimeError("Local variable slot out of range");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        Value value = vm->currentFrame->slots[slot];
-        // Escape analysis: Only retain heap objects, not primitives or stack values
-        if (requiresRefCount(value)) {
-            vm->push(vm->retainValue(value));
-        } else {
-            vm->push(value);  // Primitives just copied by value
-        }
+        // retainValue early-returns for primitives (no refcount needed), so
+        // unconditionally calling it avoids a duplicate requiresRefCount check
+        // on the heap path while keeping the int/double path branch-equivalent.
+        vm->push(vm->retainValue(vm->currentFrame->slots[slot]));
     }
 
     void op_get_local_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Read slot directly from pre-decoded instruction (no memory fetch!)
         uint8_t slot = instr.operands.byte;
+        assert(slot < 255 and "Local variable slot out of range");
 
-        if (slot >= 255)
-        {
-            vm->runtimeError("Local variable slot out of range");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        Value value = vm->currentFrame->slots[slot];
-        // Escape analysis: Only retain heap objects, not primitives or stack values
-        if (requiresRefCount(value)) {
-            vm->push(vm->retainValue(value));
-        } else {
-            vm->push(value);  // Primitives just copied by value
-        }
+        vm->push(vm->retainValue(vm->currentFrame->slots[slot]));
     }
 
     void op_set_local(VM* vm)
     {
         uint8_t slot = *vm->currentFrame->ip++;
-
-        if (slot >= 255)
-        {
-            vm->runtimeError("Local variable slot out of range");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
+        assert(slot < 255 and "Local variable slot out of range");
 
         Value newValue = vm->peek(0);
         Value oldValue = vm->currentFrame->slots[slot];
 
-        // Retain the new value if it's a heap object (slot now owns a reference)
-        if (requiresRefCount(newValue)) {
-            vm->currentFrame->slots[slot] = vm->retainValue(newValue);
-        } else {
-            vm->currentFrame->slots[slot] = newValue;
-        }
+        // retainValue is inline and early-returns for primitives, so the
+        // unconditional call costs the same on the int path as the explicit
+        // branch would, while saving a duplicate requiresRefCount call on
+        // the heap path.
+        vm->currentFrame->slots[slot] = vm->retainValue(newValue);
 
-        // Release old value if it's a heap object (after assignment to avoid use-after-free if old == new)
-        if (requiresRefCount(oldValue)) {
+        // releaseAndDelete is NOT inline (function call). Keep the explicit
+        // guard so the int path avoids the call entirely.
+        if (requiresRefCount(oldValue))
+        {
             vm->releaseAndDelete(oldValue);
         }
-
-        // Value oldValue = vm->currentFrame->slots[slot];
-        // // Escape analysis: Only release old value if it's a heap object
-        // if (requiresRefCount(oldValue)) {
-        //     vm->releaseAndDelete(oldValue);
-        // }
-
-        // vm->currentFrame->slots[slot] = vm->peek(0);
     }
 
     void op_set_local_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        // Read slot directly from pre-decoded instruction (no memory fetch!)
         uint8_t slot = instr.operands.byte;
-
-        if (slot >= 255)
-        {
-            vm->runtimeError("Local variable slot out of range");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
+        assert(slot < 255 and "Local variable slot out of range");
 
         Value newValue = vm->peek(0);
         Value oldValue = vm->currentFrame->slots[slot];
 
-        // Retain the new value if it's a heap object (slot now owns a reference)
-        if (requiresRefCount(newValue)) {
-            vm->currentFrame->slots[slot] = vm->retainValue(newValue);
-        } else {
-            vm->currentFrame->slots[slot] = newValue;
-        }
+        vm->currentFrame->slots[slot] = vm->retainValue(newValue);
 
-        // Release old value if it's a heap object (after assignment to avoid use-after-free if old == new)
-        if (requiresRefCount(oldValue)) {
+        if (requiresRefCount(oldValue))
+        {
             vm->releaseAndDelete(oldValue);
         }
     }
