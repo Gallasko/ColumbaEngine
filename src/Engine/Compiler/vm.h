@@ -40,6 +40,7 @@ namespace pg
     // Forward declaration for VM
     struct VM;
     struct DecodedInstruction;
+    struct DecodedChunk;
 
     // Function pointer type for operation handlers
     typedef void (*OpHandler)(VM* vm);
@@ -206,6 +207,7 @@ namespace pg
     void op_long_loop(VM* vm);
     void op_loop_decoded(VM* vm, const DecodedInstruction& instr);
     void op_call(VM* vm);
+    void op_call_decoded(VM* vm, const DecodedInstruction& instr);
     void op_invoke(VM* vm);
     void op_closure(VM* vm);
     void op_get_upvalue(VM* vm);
@@ -467,13 +469,24 @@ namespace pg
         void closeUpvalues(Value* last);
 
         bool callValue(const Value& callee, int argCount);
+
+        // Variant for the decoded execution path: parks caller's ip past
+        // the supplied call instruction so a future OP_Return can map back
+        // to the resume index. If a new frame is pushed (closure /
+        // bound-method / class-init call), updates currentFrame,
+        // currentStartingIp, currentDecoded, and nextInstructionIndex so the
+        // runDecoded dispatcher can keep going without the post-dispatch
+        // opcode ladder. Native calls leave decoded state untouched. Sets
+        // wantsLegacyFallback if the called frame has no decoded chunk.
+        bool callValueDecoded(const Value& callee, int argCount, const DecodedInstruction& callInstr);
+
         bool callMethod(Klass* receiver, const std::string& methodName, int argCount);
 
         bool call(Closure* closure, int argCount);
         bool callBound(Closure* closure, int argCount);
 
         // Reference counting methods
-        inline Value retainValue(const Value& value);   // Returns the value after retaining
+        inline const Value& retainValue(const Value& value);   // Returns the value after retaining
         inline bool releaseValue(const Value& value);   // Returns true if should delete
         void deleteValue(const Value& value);    // Actually delete the object
         inline Value trackNewValue(const Value& value); // Track newly created object with refcount=1
@@ -612,6 +625,14 @@ namespace pg
         // Cache chunk data pointer to avoid repeated vector::data() calls
         uint8_t *chunkData = nullptr;
         uint8_t *chunkDataEnd = nullptr; // Cached end pointer for fast loop exit check
+
+        // Dispatcher state for runDecoded. Decoded handlers may mutate these
+        // to direct control flow without going through the post-dispatch
+        // opcode ladder. Owned by the active runDecoded frame.
+        DecodedChunk *currentDecoded        = nullptr;
+        uint8_t      *currentStartingIp     = nullptr;
+        size_t        nextInstructionIndex  = 0;
+        bool          wantsLegacyFallback   = false;
 
         /* The stack of the VM */
         IndexableStack stack;
@@ -937,7 +958,7 @@ namespace pg
     };
 
     // Inline implementations for critical performance functions
-    inline Value VM::retainValue(const Value& v)
+    inline const Value& VM::retainValue(const Value& v)
     {
         // Fast path: primitives and doubles don't need refcounting
         if (not requiresRefCount(v))

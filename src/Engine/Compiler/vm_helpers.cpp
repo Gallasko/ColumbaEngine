@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "vm.h"
+#include "decoded_chunk.h"
 #include "ecsserialization.h"
 
 namespace pg
@@ -116,6 +117,59 @@ namespace pg
         runtimeError("Can only call functions and classes");
 
         return false;
+    }
+
+    bool VM::callValueDecoded(const Value& callee, int argCount, const DecodedInstruction& callInstr)
+    {
+        // Park caller's ip past this OP_Call BEFORE dispatching. Two reasons:
+        //   1. If callValue pushes a new frame and OP_Return later pops it,
+        //      the OP_Return ladder maps currentFrame->ip back to a decoded
+        //      index in the caller — that mapping needs ip parked at the
+        //      resume point (next instruction after the call), not at stale
+        //      data left behind by the previous legacy handler.
+        //   2. For native calls, no frame change occurs; ip stays parked at
+        //      the post-call offset. The dispatcher uses instructionIndex
+        //      for sequencing, so a stale-but-consistent ip is harmless.
+        currentFrame->ip = currentStartingIp + callInstr.bytecodeOffset
+                         + 1 + callInstr.operandBytes;
+
+        const int frameCountBefore = frameCount;
+
+        if (not callValue(callee, argCount))
+            return false;
+
+        // Native calls (and class constructors with no init) push no frame —
+        // execution stays in the current decoded chunk, so we leave the
+        // dispatcher state alone.
+        if (frameCount == frameCountBefore)
+            return true;
+
+        // A new frame was pushed. Switch dispatcher state to the callee.
+        currentFrame = &frames[frameCount - 1];
+        updateChunkCache();
+
+        currentStartingIp = currentFrame->closure->function->chunk.code.data();
+
+        DecodedChunk* newDecoded = currentFrame->closure->function->decodedChunk;
+        if (newDecoded != nullptr)
+        {
+            currentDecoded = newDecoded;
+            nextInstructionIndex = 0;
+
+            // If the callee starts mid-function (unusual, but possible for
+            // resumed frames), map the ip back to the matching decoded index.
+            if (currentFrame->ip != currentStartingIp)
+            {
+                size_t offset = currentFrame->ip - currentStartingIp;
+                nextInstructionIndex = newDecoded->findInstructionIndex(offset);
+            }
+        }
+        else
+        {
+            wantsLegacyFallback = true;
+        }
+
+        return true;
     }
 
     bool VM::callMethod(Klass* receiver, const std::string& methodName, int argCount)
@@ -389,7 +443,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Jump_If_False_Popping), op_jump_if_false_popping);
         register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump_If_False), op_long_jump_if_false);
         register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump_If_False_Popping), op_long_jump_if_false_popping);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Call), op_call);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Call), op_call, op_call_decoded, 0);
 
         // Function operations (default: no flags)
         register_operation(static_cast<uint8_t>(OpCode::OP_Invoke), op_invoke);
