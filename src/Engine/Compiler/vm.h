@@ -490,8 +490,17 @@ namespace pg
                    pools.boundMethodPool.getNbElements();
         }
 
-        // Convenience method for release + delete
-        void releaseAndDelete(const Value& value);
+        // Convenience method for release + delete. Inline: the call sites are
+        // hot (op_set_local, BINARY_OP_TEMPLATE, etc.) and the primitive path
+        // costs one releaseValue check (which itself early-returns on
+        // !requiresRefCount). deleteValue is the only non-inline body and
+        // only fires when refcount drops to zero, so leaving it out-of-line
+        // keeps the cold path from bloating the dispatcher.
+        inline void releaseAndDelete(const Value& value)
+        {
+            if (releaseValue(value))
+                deleteValue(value);
+        }
 
         // ====================================================================
         // Pool Access Helpers - Convenient wrappers for vm->pools.getXXX()

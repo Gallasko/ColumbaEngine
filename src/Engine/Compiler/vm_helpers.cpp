@@ -299,14 +299,6 @@ namespace pg
         }
     }
 
-    void VM::releaseAndDelete(const Value& value)
-    {
-        if (releaseValue(value))
-        {
-            deleteValue(value);
-        }
-    }
-
     // Function pointer dispatch implementation
     void VM::vm_return(InterpretResult result)
     {
