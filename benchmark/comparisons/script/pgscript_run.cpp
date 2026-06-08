@@ -128,11 +128,14 @@ int main(int argc, char** argv)
         vm.addOptimizationPass(std::make_unique<PoppingJumpPass>());
         vm.addOptimizationPass(std::make_unique<RemoveUselessJumpPass>());
         vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
-        vm.addOptimizationPass(std::make_unique<FuseOpPop>());
+        // Increment first: its 5-op pattern includes the trailing Set_Local +
+        // Pop, which the next pass will otherwise fuse away. Both must run
+        // before FuseOpPop coalesces the trailing Pop into a PopN.
+        vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
         vm.addOptimizationPass(std::make_unique<SetLocalPopFusionPass>());
+        vm.addOptimizationPass(std::make_unique<FuseOpPop>());
         vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
         vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
-        vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
         vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
     }
     else

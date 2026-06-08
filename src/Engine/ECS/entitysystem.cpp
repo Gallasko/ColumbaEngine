@@ -955,14 +955,23 @@ namespace pg
             vm.addOptimizationPass(std::make_unique<RemoveUselessJumpPass>());
 
             vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
-            vm.addOptimizationPass(std::make_unique<FuseOpPop>());
+
+            // Order matters for the next three:
+            //   1. IncrementOptimization matches `Get_Local + Constant + Add +
+            //      Set_Local + Pop` — needs the trailing Set_Local + Pop intact.
+            //   2. SetLocalPopFusion turns Set_Local + Pop into Set_Local_Pop,
+            //      destroying IncrementOptimization's pattern — so it must run
+            //      AFTER IncrementOptimization.
+            //   3. Both must run BEFORE FuseOpPop merges adjacent Pops into
+            //      PopN — otherwise the trailing single Pop is gone.
+            vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
             vm.addOptimizationPass(std::make_unique<SetLocalPopFusionPass>());
+
+            vm.addOptimizationPass(std::make_unique<FuseOpPop>());
 
             vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
 
             vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
-
-            vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
 
             // This doesn't work if there is a closure capturing the constant variable.
             vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());

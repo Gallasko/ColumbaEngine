@@ -38,24 +38,26 @@ namespace pg
                 return false;
             }
 
-            // Currently fuses just LessEqual — extend with Less / Greater / etc.
-            // by adding more rules in the same shape.
-            std::vector<PatternElement> pattern = {
-                PatternElement::match(OpCode::OP_Get_Local, true),
-                PatternElement::match(OpCode::OP_Get_Local, true),
-                PatternElement::match(OpCode::OP_LessEqual),
+            // Helper to register a Get_Local + Get_Local + <cmp> -> <cmp>LL rule.
+            auto addCmpLL = [rewriter](OpCode cmp, OpCode fusedLL) {
+                std::vector<PatternElement> pattern = {
+                    PatternElement::match(OpCode::OP_Get_Local, true),
+                    PatternElement::match(OpCode::OP_Get_Local, true),
+                    PatternElement::match(cmp),
+                };
+                rewriter->addAdvancedRule(pattern, [fusedLL](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
+                    std::vector<uint8_t> out;
+                    out.push_back(static_cast<uint8_t>(fusedLL));
+                    out.push_back(captured[0].operands[0]);
+                    out.push_back(captured[1].operands[0]);
+                    return out;
+                });
             };
 
-            rewriter->addAdvancedRule(pattern, [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
-                uint8_t local1 = captured[0].operands[0];
-                uint8_t local2 = captured[1].operands[0];
-
-                std::vector<uint8_t> out;
-                out.push_back(static_cast<uint8_t>(OpCode::OP_LessEqualLL));
-                out.push_back(local1);
-                out.push_back(local2);
-                return out;
-            });
+            addCmpLL(OpCode::OP_LessEqual, OpCode::OP_LessEqualLL);
+            addCmpLL(OpCode::OP_Less,      OpCode::OP_LessLL);
+            // Extend with Greater / GreaterEqual / Equal / NotEqual the same
+            // way when their _LL handlers exist.
 
             return rewriter->rewrite(chunk);
         }

@@ -243,6 +243,8 @@ namespace pg
 
     void op_less_equal_ll(VM* vm);
     void op_less_equal_ll_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_less_ll(VM* vm);
+    void op_less_ll_decoded(VM* vm, const DecodedInstruction& instr);
     void op_set_local_pop(VM* vm);
     void op_set_local_pop_decoded(VM* vm, const DecodedInstruction& instr);
 

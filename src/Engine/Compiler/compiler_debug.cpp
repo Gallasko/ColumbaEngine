@@ -475,6 +475,9 @@ namespace pg
             case OpCode::OP_LessEqualLL:
                 return twoBytesInstruction("OP_LessEqualLL", chunk, offset);
 
+            case OpCode::OP_LessLL:
+                return twoBytesInstruction("OP_LessLL", chunk, offset);
+
             case OpCode::OP_Set_Local_Pop:
                 return byteInstruction("OP_Set_Local_Pop", chunk, offset);
 
@@ -653,6 +656,7 @@ namespace pg
             case OpCode::OP_SubtractLC: return "OP_SubtractLC";
             case OpCode::OP_SubtractCL: return "OP_SubtractCL";
             case OpCode::OP_LessEqualLL: return "OP_LessEqualLL";
+            case OpCode::OP_LessLL: return "OP_LessLL";
             case OpCode::OP_Set_Local_Pop: return "OP_Set_Local_Pop";
             case OpCode::OP_Jump_If_False_Popping: return "OP_Jump_If_False_Popping";
             case OpCode::OP_Long_Jump_If_False_Popping: return "OP_Long_Jump_If_False_Popping";

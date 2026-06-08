@@ -94,6 +94,7 @@ namespace pg
         OP_SubtractCL, // SUBTRACT optimized for constant and local
 
         OP_LessEqualLL,// LessEqual optimized for two local variables (peephole)
+        OP_LessLL,     // Less       optimized for two local variables (peephole)
 
         OP_Set_Local_Pop, // Set_Local + Pop fused (assignment statement peephole)
 
@@ -392,6 +393,7 @@ namespace pg
             case OpCode::OP_SubtractLC:
             case OpCode::OP_SubtractCL:
             case OpCode::OP_LessEqualLL:
+            case OpCode::OP_LessLL:
                 return 3; // opcode + 2 byte operands (local variable indices)
 
             case OpCode::OP_Set_Local_Pop:

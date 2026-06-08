@@ -832,6 +832,24 @@ namespace pg
         vm->push(vm->lessEqualValues(v1, v2));
     }
 
+    // OP_LessLL: same shape as OP_LessEqualLL but using lessValues. Used by
+    // loop conditions of the form `while (x < y)` where both are locals.
+    void op_less_ll(VM* vm)
+    {
+        uint8_t local1 = *vm->currentFrame->ip++;
+        uint8_t local2 = *vm->currentFrame->ip++;
+        auto v1 = vm->currentFrame->slots[local1];
+        auto v2 = vm->currentFrame->slots[local2];
+        vm->push(vm->lessValues(v1, v2));
+    }
+
+    void op_less_ll_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        auto v1 = vm->currentFrame->slots[instr.operands.indexed.byte1];
+        auto v2 = vm->currentFrame->slots[instr.operands.indexed.byte2];
+        vm->push(vm->lessValues(v1, v2));
+    }
+
     void op_subtract_ll(VM* vm)
     {
         uint8_t local1 = *vm->currentFrame->ip++;

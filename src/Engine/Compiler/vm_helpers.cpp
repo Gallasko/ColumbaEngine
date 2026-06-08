@@ -353,6 +353,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractCL), op_subtract_cl, OpCodeInfo::PURE_BATCH);
         // Peephole fusions emitted by ComparisonLocalIndexingPass / SetLocalPopFusionPass
         register_operation(static_cast<uint8_t>(OpCode::OP_LessEqualLL), op_less_equal_ll, op_less_equal_ll_decoded, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
+        register_operation(static_cast<uint8_t>(OpCode::OP_LessLL), op_less_ll, op_less_ll_decoded, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Local_Pop), op_set_local_pop, op_set_local_pop_decoded, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
 
         // Pure & batchable: Comparisons
