@@ -73,33 +73,38 @@ namespace pg
     // ============================================================================
 
     /**
-     * Primary value tags (Sign bit = 0)
-     * These are the most commonly used types
+     * Primary value tags (Sign bit = 0) — ALL refcounted (heap-pool) types.
+     *
+     * Layout grouped so refcount classification is a single bit test:
+     * `requiresRefCount(v) == IS_POS_TAGGED(v)` (one mask + one compare).
+     *
+     * The 8 slots are full; if a 9th refcounted type is ever needed, one
+     * existing type must be moved out (e.g., merge FUNCTION into CLOSURE).
      */
     enum ValueTag : uint8_t
     {
-        TAG_INT       = 0,  // 48-bit signed integer
-        TAG_BOOL      = 1,  // Boolean (0 or 1)
-        TAG_STRING    = 2,  // Index into string pool
-        TAG_CLOSURE   = 3,  // Index into closure pool
-        TAG_FUNCTION  = 4,  // Index into function pool
-        TAG_UPVALUE   = 5,  // Index into upvalue pool
-        TAG_CLASS     = 6,  // Index into class pool
-        TAG_NATIVE    = 7,  // Index into native function pool
+        TAG_STRING        = 0,  // Index into string pool
+        TAG_CLOSURE       = 1,  // Index into closure pool
+        TAG_FUNCTION      = 2,  // Index into function pool
+        TAG_UPVALUE       = 3,  // Index into upvalue pool
+        TAG_CLASS         = 4,  // Index into class pool
+        TAG_INSTANCE      = 5,  // Index into instance pool
+        TAG_BOUND_METHOD  = 6,  // Index into bound method pool
+        TAG_VECTOR        = 7,  // Index into vector pool
     };
 
     /**
-     * Extended value tags (Sign bit = 1)
-     * These are less common types or reserved for future use
+     * Extended value tags (Sign bit = 1) — non-refcounted: immediates and
+     * pool-managed lifetime types (natives live until VM teardown).
      */
     enum ValueTagExt : uint8_t
     {
-        TAG_INSTANCE        = 0,  // Index into instance pool
-        TAG_BOUND_METHOD    = 1,  // Index into bound method pool
-        TAG_VECTOR          = 2,  // Index into vector pool
-        TAG_SMALL_STRING    = 3,  // Inline string (up to 5 chars)
-        TAG_CUSTOM_PTR      = 4,  // Hold a custom pointer (user-defined)
-        TAG_INTERNED_STRING = 5,  // Index into chunk's constantStrings vector (property names)
+        TAG_INT             = 0,  // 48-bit signed integer (immediate)
+        TAG_BOOL            = 1,  // Boolean (immediate)
+        TAG_NATIVE          = 2,  // Index into native function pool (pool lifetime)
+        TAG_SMALL_STRING    = 3,  // Inline string (up to 5 chars, immediate)
+        TAG_INTERNED_STRING = 4,  // Index into chunk's constantStrings vector
+        TAG_CUSTOM_PTR      = 5,  // User-defined pointer (caller-managed lifetime)
         TAG_RESERVED_6      = 6,  // Reserved for future use
         TAG_RESERVED_7      = 7,  // Reserved for future use
     };
@@ -162,17 +167,7 @@ namespace pg
         return static_cast<uint32_t>(v & INDEX_MASK);
     }
 
-    // Primary type checks
-    inline bool IS_INT(Value v)
-    {
-        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_INT;
-    }
-
-    inline bool IS_BOOL(Value v)
-    {
-        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_BOOL;
-    }
-
+    // Refcounted (sign bit = 0) — heap pool entries.
     inline bool IS_LONG_STRING(Value v)
     {
         return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_STRING;
@@ -198,25 +193,35 @@ namespace pg
         return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_CLASS;
     }
 
-    inline bool IS_NAT_FUNC(Value v)
-    {
-        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_NATIVE;
-    }
-
-    // Extended type checks
     inline bool IS_INSTANCE(Value v)
     {
-        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_INSTANCE;
+        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_INSTANCE;
     }
 
     inline bool IS_BOUND_METHOD(Value v)
     {
-        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_BOUND_METHOD;
+        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_BOUND_METHOD;
     }
 
     inline bool IS_VECTOR(Value v)
     {
-        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_VECTOR;
+        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_VECTOR;
+    }
+
+    // Non-refcounted (sign bit = 1) — immediates and pool-lifetime types.
+    inline bool IS_INT(Value v)
+    {
+        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_INT;
+    }
+
+    inline bool IS_BOOL(Value v)
+    {
+        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_BOOL;
+    }
+
+    inline bool IS_NAT_FUNC(Value v)
+    {
+        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_NATIVE;
     }
 
     inline bool IS_SMALL_STRING(Value v)
@@ -224,14 +229,14 @@ namespace pg
         return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_SMALL_STRING;
     }
 
-    inline bool IS_CUSTOM_PTR(Value v)
-    {
-        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_CUSTOM_PTR;
-    }
-
     inline bool IS_INTERNED_STRING(Value v)
     {
         return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_INTERNED_STRING;
+    }
+
+    inline bool IS_CUSTOM_PTR(Value v)
+    {
+        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_CUSTOM_PTR;
     }
 
     // Unified string check (long, small, and interned strings)
@@ -264,25 +269,26 @@ namespace pg
     /**
      * Create an integer value (47-bit signed integer)
      * Range: -70,368,744,177,664 to +70,368,744,177,663
+     * (Non-refcounted — sign bit = 1)
      */
     inline Value makeIntValue(int64_t i)
     {
         // Mask to 47 bits (preserves sign bit in bit 46)
         uint64_t index = static_cast<uint64_t>(i) & INDEX_MASK;
-        return POS_TAG_BASE | (static_cast<uint64_t>(TAG_INT) << TAG_SHIFT) | index;
+        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_INT) << TAG_SHIFT) | index;
     }
 
     /**
-     * Create a boolean value
+     * Create a boolean value (non-refcounted — sign bit = 1)
      */
     inline Value makeBoolValue(bool b)
     {
-        return POS_TAG_BASE | (static_cast<uint64_t>(TAG_BOOL) << TAG_SHIFT) |
+        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_BOOL) << TAG_SHIFT) |
                static_cast<uint64_t>(b);
     }
 
     /**
-     * Create a string value (pool index)
+     * Create a string value (pool index) — refcounted (sign bit = 0)
      */
     inline Value makeStringValue(uint32_t index)
     {
@@ -291,7 +297,7 @@ namespace pg
     }
 
     /**
-     * Create a closure value (pool index)
+     * Create a closure value (pool index) — refcounted
      */
     inline Value makeClosureValue(uint32_t index)
     {
@@ -300,7 +306,7 @@ namespace pg
     }
 
     /**
-     * Create a function value (pool index)
+     * Create a function value (pool index) — refcounted
      */
     inline Value makeFunctionValue(uint32_t index)
     {
@@ -309,7 +315,7 @@ namespace pg
     }
 
     /**
-     * Create an upvalue (pool index)
+     * Create an upvalue (pool index) — refcounted
      */
     inline Value makeUpvalueValue(uint32_t index)
     {
@@ -318,7 +324,7 @@ namespace pg
     }
 
     /**
-     * Create a class value (pool index)
+     * Create a class value (pool index) — refcounted
      */
     inline Value makeClassValue(uint32_t index)
     {
@@ -328,37 +334,39 @@ namespace pg
 
     /**
      * Create a native function value (pool index)
+     * Non-refcounted: natives are registered once at VM setup and torn down
+     * via pool destroyAll() at VM destruction. No per-value refcount path.
      */
     inline Value makeNativeFuncValue(uint32_t index)
     {
-        return POS_TAG_BASE | (static_cast<uint64_t>(TAG_NATIVE) << TAG_SHIFT) |
+        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_NATIVE) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
 
     /**
-     * Create an instance value (pool index) - uses negative tag
+     * Create an instance value (pool index) — refcounted (now sign bit = 0)
      */
     inline Value makeInstanceValue(uint32_t index)
     {
-        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_INSTANCE) << TAG_SHIFT) |
+        return POS_TAG_BASE | (static_cast<uint64_t>(TAG_INSTANCE) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
 
     /**
-     * Create a bound method value (pool index) - uses negative tag
+     * Create a bound method value (pool index) — refcounted (now sign bit = 0)
      */
     inline Value makeBoundMethodValue(uint32_t index)
     {
-        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_BOUND_METHOD) << TAG_SHIFT) |
+        return POS_TAG_BASE | (static_cast<uint64_t>(TAG_BOUND_METHOD) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
 
     /**
-     * Create a vector value (pool index) - uses negative tag
+     * Create a vector value (pool index) — refcounted (now sign bit = 0)
      */
     inline Value makeVectorValue(uint32_t index)
     {
-        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_VECTOR) << TAG_SHIFT) |
+        return POS_TAG_BASE | (static_cast<uint64_t>(TAG_VECTOR) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
 
@@ -620,22 +628,13 @@ namespace pg
      */
     inline bool requiresRefCount(Value v)
     {
-        if (not IS_TAGGED(v)) // Doubles don't need refcount
-            return false;
-
-        if (IS_INT(v) or IS_BOOL(v)) // Primitives don't need refcount
-            return false;
-
-        if (IS_SMALL_STRING(v)) // Inline strings don't need refcount
-            return false;
-
-        if (IS_INTERNED_STRING(v)) // Interned strings live in VM's constantStrings, no refcount needed
-            return false;
-
-        if (IS_CUSTOM_PTR(v)) // Custom pointers managed externally
-            return false;
-
-        return true;  // All pool-based values need refcount
+        // After the value layout was reorganised so that every refcounted
+        // type lives on the sign-bit=0 side of the NaN-boxed encoding, this
+        // collapses to a single mask + compare. Doubles fail IS_TAGGED on
+        // their own (their QNAN bits aren't fully set); non-refcounted tagged
+        // types (int, bool, native, small_string, interned_string, custom_ptr)
+        // fail because their sign bit is 1.
+        return IS_POS_TAGGED(v);
     }
 
     /**

@@ -6,7 +6,7 @@
 namespace pg
 {
 
-    Value VM::addValues(const Value a,const Value b)
+    Value VM::addValues(const Value a, const Value b)
     {
         // Fast path for integers
         if (IS_INT(a) and IS_INT(b))
@@ -24,7 +24,7 @@ namespace pg
             return FLOAT_VAL(AS_FLOAT(a) + static_cast<double>(AS_INT(b)));
 
         // Fast path for string concatenation
-        if (IS_STRING(a) && IS_STRING(b))
+        if (IS_STRING(a) and IS_STRING(b))
         {
             // Extract string content
             std::string strA = asString(a);
