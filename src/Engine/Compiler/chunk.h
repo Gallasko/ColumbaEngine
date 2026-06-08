@@ -93,6 +93,10 @@ namespace pg
         OP_SubtractLC, // SUBTRACT optimized for local and constant
         OP_SubtractCL, // SUBTRACT optimized for constant and local
 
+        OP_LessEqualLL,// LessEqual optimized for two local variables (peephole)
+
+        OP_Set_Local_Pop, // Set_Local + Pop fused (assignment statement peephole)
+
         // Control flow
         OP_Jump_If_False_Popping,      // Jump if false and pop the condition value (used for while loops, if statements)
         OP_Long_Jump_If_False_Popping, // Long jump if false and pop the condition value (for long jumps in loops/ifs)
@@ -387,7 +391,11 @@ namespace pg
             case OpCode::OP_SubtractLL:
             case OpCode::OP_SubtractLC:
             case OpCode::OP_SubtractCL:
+            case OpCode::OP_LessEqualLL:
                 return 3; // opcode + 2 byte operands (local variable indices)
+
+            case OpCode::OP_Set_Local_Pop:
+                return 2; // opcode + 1 byte (slot)
 
             case OpCode::OP_Define_Constant_Global:
             case OpCode::OP_Set_Constant_Global:

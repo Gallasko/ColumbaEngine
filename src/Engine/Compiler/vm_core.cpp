@@ -489,10 +489,12 @@ namespace pg
         if (currentFrame->closure->function->chunk.code.empty())
             return InterpretResult::OK;
 
+        auto dChunk = currentFrame->closure->function->decodedChunk;
+
         // Check if we have a pre-decoded chunk - use it for faster execution
-        if (currentFrame->closure->function->decodedChunk != nullptr)
+        if (dChunk != nullptr)
         {
-            return runDecoded();
+            return runDecoded(dChunk);
         }
 
         // Fallback: execute from bytecode (slower path)
@@ -573,17 +575,8 @@ namespace pg
     // - Direct execution from decoded instruction array
     // ============================================================================
 
-    InterpretResult VM::runDecoded()
+    InterpretResult VM::runDecoded(DecodedChunk *decoded)
     {
-        // Get the decoded chunk for the current function
-        DecodedChunk* volatile decoded = currentFrame->closure->function->decodedChunk;
-
-        if (decoded == nullptr or decoded->instructions.empty())
-        {
-            // Fallback to bytecode execution
-            return run();
-        }
-
         // Start at the beginning of decoded instructions
         // We need to map currentFrame->ip to instruction index
         size_t instructionIndex = 0;
@@ -963,6 +956,45 @@ namespace pg
         }
     }
 
+    // OP_Set_Local_Pop: peephole fusion of OP_Set_Local + OP_Pop, which the
+    // compiler emits for every assignment statement. Set_Local leaves the value
+    // on the stack (so `var x = expr` can return it); the trailing Pop drops
+    // it. Fusing into one op removes a full dispatch per assignment.
+    //
+    // Semantic difference vs Set_Local: instead of peek + leave-on-stack, we
+    // pop. The slot's old value still needs to be released; the popped new
+    // value's refcount was already incremented when it was pushed (and the
+    // slot now owns that reference), so no retain is needed — we just move it.
+    void op_set_local_pop(VM* vm)
+    {
+        uint8_t slot = *vm->currentFrame->ip++;
+
+        Value newValue = vm->pop();
+        Value oldValue = vm->currentFrame->slots[slot];
+
+        vm->currentFrame->slots[slot] = newValue;
+
+        if (requiresRefCount(oldValue))
+        {
+            vm->releaseAndDelete(oldValue);
+        }
+    }
+
+    void op_set_local_pop_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t slot = instr.operands.byte;
+
+        Value newValue = vm->pop();
+        Value oldValue = vm->currentFrame->slots[slot];
+
+        vm->currentFrame->slots[slot] = newValue;
+
+        if (requiresRefCount(oldValue))
+        {
+            vm->releaseAndDelete(oldValue);
+        }
+    }
+
     void op_return(VM* vm)
     {
 #ifdef DEBUG_CHECK_STACK
@@ -998,14 +1030,21 @@ namespace pg
         vm->updateChunkCache();
 
         // Truncate stack to the callee's stackBase position
-        // This removes the function/receiver + args + locals
-        size_t stackTruncatePosition = calleeStackBase - vm->stack.data();
-
-        while (vm->stack.size() > stackTruncatePosition)
+        // This removes the function/receiver + args + locals.
+        // Walk top-down, releasing each slot (releaseAndDelete is a no-op
+        // for primitives), then drop stack_top in one store. Saves the
+        // per-slot bounds check / size() reload that the old while-loop
+        // ran for every truncated value.
+        const size_t stackTruncatePosition = calleeStackBase - vm->stack.data();
+        Value*       slot                  = vm->stack.data() + vm->stack.size();
+        Value* const end                   = vm->stack.data() + stackTruncatePosition;
+        while (slot > end)
         {
-            auto v = vm->pop();
-            vm->releaseAndDelete(v);
+            --slot;
+            vm->releaseAndDelete(*slot);
         }
+
+        vm->stack.truncateTo(stackTruncatePosition);
 
         vm->push(value);
     }

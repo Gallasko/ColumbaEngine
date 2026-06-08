@@ -813,6 +813,25 @@ namespace pg
         vm->push(vm->addValues(value1, value2));
     }
 
+    // OP_LessEqualLL: peephole fusion of OP_Get_Local A + OP_Get_Local B + OP_LessEqual.
+    // Reads two locals directly and pushes the comparison result. No popping the
+    // pushed local copies, no addValues-style boxing — straight slot read + compare.
+    void op_less_equal_ll(VM* vm)
+    {
+        uint8_t local1 = *vm->currentFrame->ip++;
+        uint8_t local2 = *vm->currentFrame->ip++;
+        auto v1 = vm->currentFrame->slots[local1];
+        auto v2 = vm->currentFrame->slots[local2];
+        vm->push(vm->lessEqualValues(v1, v2));
+    }
+
+    void op_less_equal_ll_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        auto v1 = vm->currentFrame->slots[instr.operands.indexed.byte1];
+        auto v2 = vm->currentFrame->slots[instr.operands.indexed.byte2];
+        vm->push(vm->lessEqualValues(v1, v2));
+    }
+
     void op_subtract_ll(VM* vm)
     {
         uint8_t local1 = *vm->currentFrame->ip++;

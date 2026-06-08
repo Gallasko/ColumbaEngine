@@ -22,6 +22,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
+#include <cassert>
 #include <setjmp.h>
 
 #include "ECS/uniqueid.h"
@@ -94,29 +95,36 @@ namespace pg
         size_t stack_top = 0;
 
     public:
-        // Ultra-fast Value operations - single 64-bit MOV instruction
+        // Ultra-fast Value operations - single 64-bit MOV instruction.
+        // The bounds/empty checks are debug-only: every hot opcode pushes
+        // and pops, so the cost of an unconditional `if` was real. The
+        // compiler is told the unlikely path is unreachable in release;
+        // op_call validates stack headroom at frame entry instead.
         inline void push(Value value)  // Pass by value, not reference (64-bit fits in register)
         {
-            if (stack_top >= MAX_STACK_SIZE)
-                throw std::runtime_error("Stack overflow");
-
+            assert(stack_top < MAX_STACK_SIZE and "Stack overflow");
             stack_values[stack_top++] = value;
         }
 
         inline Value pop()
         {
-            if (stack_top == 0)
-                throw std::runtime_error("Trying to pop on an empty stack");
-
-            return stack_values[--stack_top];  // Single instruction!
+            assert(stack_top > 0 and "Trying to pop on an empty stack");
+            return stack_values[--stack_top];
         }
 
         inline void changeTop(Value value)
         {
-            if (stack_top == 0)
-                throw std::runtime_error("Trying to change top on an empty stack");
-
+            assert(stack_top > 0 and "Trying to change top on an empty stack");
             stack_values[stack_top - 1] = value;
+        }
+
+        // Bulk truncate to a given depth. Caller is responsible for
+        // releasing any refcounted Values in [newTop, stack_top) BEFORE
+        // calling this.
+        inline void truncateTo(size_t newTop)
+        {
+            assert(newTop <= stack_top);
+            stack_top = newTop;
         }
 
         inline Value& operator[](size_t index) { return stack_values[index]; }
@@ -124,9 +132,7 @@ namespace pg
 
         inline Value top() const
         {
-            if (stack_top == 0)
-                throw std::runtime_error("Stack is empty");
-
+            assert(stack_top > 0 and "Stack is empty");
             return stack_values[stack_top - 1];
         }
 
@@ -234,6 +240,11 @@ namespace pg
 
     void op_subtract_lc(VM* vm);
     void op_subtract_cl(VM* vm);
+
+    void op_less_equal_ll(VM* vm);
+    void op_less_equal_ll_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_set_local_pop(VM* vm);
+    void op_set_local_pop_decoded(VM* vm, const DecodedInstruction& instr);
 
     // Table operations
     void op_build_vector(VM* vm);
@@ -353,7 +364,7 @@ namespace pg
         InterpretResult interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount = 0);
 
         InterpretResult run();
-        InterpretResult runDecoded();  // Execute from pre-decoded chunks (faster)
+        InterpretResult runDecoded(DecodedChunk *decoded);  // Execute from pre-decoded chunks (faster)
 
         // Core Value operations for performance
         inline void push(Value value)  // Pass by value (64-bit in register)

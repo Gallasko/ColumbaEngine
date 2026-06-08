@@ -66,9 +66,11 @@ namespace
 #include "Compiler/pass/long_jump_optimization_pass.h"
 #include "Compiler/pass/popping_jump_pass.h"
 #include "Compiler/pass/basic_operator_local_indexing.h"
+#include "Compiler/pass/comparison_local_indexing.h"
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
 #include "Compiler/pass/constant_var_access.h"
 #include "Compiler/pass/fuse_op_pop.h"
+#include "Compiler/pass/set_local_pop_fusion.h"
 #include "Compiler/pass/constant_folding.h"
 #include "Compiler/pass/increment_optimization_pass.h"
 #include "Compiler/pass/simplify_constant_pass.h"
@@ -947,12 +949,14 @@ namespace pg
             vm.enableBytecodeOptimization();
 
             vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
+            vm.addOptimizationPass(std::make_unique<ComparisonLocalIndexingPass>());
             vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
             vm.addOptimizationPass(std::make_unique<PoppingJumpPass>());
             vm.addOptimizationPass(std::make_unique<RemoveUselessJumpPass>());
 
             vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
             vm.addOptimizationPass(std::make_unique<FuseOpPop>());
+            vm.addOptimizationPass(std::make_unique<SetLocalPopFusionPass>());
 
             vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
 
