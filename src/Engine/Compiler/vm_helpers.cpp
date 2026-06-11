@@ -378,7 +378,7 @@ namespace pg
     void VM::register_builtin_operations()
     {
         // Control flow (default flags: 0 - no batching, has control flow)
-        register_operation(static_cast<uint8_t>(OpCode::OP_Return), op_return);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Return), op_return, op_return_decoded, 0);
         // Pure & batchable: Constants
         register_operation(static_cast<uint8_t>(OpCode::OP_Constant), op_constant, op_constant_decoded, OpCodeInfo::PURE_BATCH);
         register_operation(static_cast<uint8_t>(OpCode::OP_LongConstant), op_long_constant, op_long_constant_decoded, OpCodeInfo::PURE_BATCH);

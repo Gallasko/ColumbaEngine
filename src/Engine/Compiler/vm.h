@@ -156,6 +156,7 @@ namespace pg
 
     // Forward declarations for operation handlers
     void op_return(VM* vm);
+    void op_return_decoded(VM* vm, const DecodedInstruction& instr);
     void op_constant(VM* vm);
     void op_constant_decoded(VM* vm, const DecodedInstruction& instr);
     void op_long_constant(VM* vm);

@@ -771,36 +771,8 @@ namespace pg
                     }
                 }
 
-                // Check for return instruction that may restore previous frame
-                if (opcode == OpCode::OP_Return)
-                {
-                    // After return, check if we've returned to a different frame
-                    // op_return has already updated currentFrame to point to the caller
-                    if (frameCount > 0 and currentFrame != frameBeforeExecution)
-                    {
-                        currentStartingIp = currentFrame->closure->function->chunk.code.data();
-                        updateChunkCache();
-
-                        // Check if the caller has a decoded chunk
-                        DecodedChunk* newDecoded = currentFrame->closure->function->decodedChunk;
-                        if (newDecoded != nullptr)
-                        {
-                            currentDecoded = newDecoded;
-
-                            // Find where we are in the caller's decoded chunk
-                            // The IP should be pointing right after the OP_Call instruction
-                            size_t bytecodeOffset = currentFrame->ip - currentStartingIp;
-                            instructionIndex = currentDecoded->findInstructionIndex(bytecodeOffset);
-                            continue;
-                        }
-                        else
-                        {
-                            return run();
-                        }
-                    }
-                    // If frameCount == 0, we've returned from the top-level script
-                    // The longjmp in op_return will have already exited
-                }
+                // OP_Return is handled by op_return_decoded (self-managing)
+                // — it never reaches this ladder.
 
                 // Normal sequential execution - just advance to next instruction
                 instructionIndex++;
@@ -1030,6 +1002,36 @@ namespace pg
         vm->stack.truncateTo(stackTruncatePosition);
 
         vm->push(value);
+    }
+
+    // op_return_decoded: self-managing decoded variant of OP_Return. Reuses
+    // op_return for the actual stack/frame work; on a non-final return,
+    // swaps the dispatcher state to the caller's decoded chunk so the
+    // runDecoded loop can keep going without the post-dispatch ladder.
+    void op_return_decoded(VM* vm, const DecodedInstruction&)
+    {
+        // Todo once all the ops are decoded modify this to directly move the ip and the chunk cache correctly in the function
+        op_return(vm);
+
+        // If we reach here, frameCount > 0 (the frameCount == 0 path inside
+        // op_return calls vm_return which longjmps out of runDecoded).
+        // op_return has already restored currentFrame and called
+        // updateChunkCache; we just need to retarget decoded-side state.
+        vm->currentStartingIp = vm->currentFrame->closure->function->chunk.code.data();
+
+        DecodedChunk* newDecoded = vm->currentFrame->closure->function->decodedChunk;
+        if (newDecoded != nullptr)
+        {
+            vm->currentDecoded = newDecoded;
+            // currentFrame->ip was parked past the OP_Call by
+            // callValueDecoded — map it back to the caller's decoded index.
+            size_t bytecodeOffset = vm->currentFrame->ip - vm->currentStartingIp;
+            vm->nextInstructionIndex = newDecoded->findInstructionIndex(bytecodeOffset);
+        }
+        else
+        {
+            vm->wantsLegacyFallback = true;
+        }
     }
 
     void op_get_global(VM* vm)
