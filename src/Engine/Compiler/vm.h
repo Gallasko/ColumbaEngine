@@ -214,6 +214,7 @@ namespace pg
     void op_call(VM* vm);
     void op_call_decoded(VM* vm, const DecodedInstruction& instr);
     void op_invoke(VM* vm);
+    void op_invoke_decoded(VM* vm, const DecodedInstruction& instr);
     void op_closure(VM* vm);
     void op_get_upvalue(VM* vm);
     void op_set_upvalue(VM* vm);
@@ -484,6 +485,19 @@ namespace pg
         // opcode ladder. Native calls leave decoded state untouched. Sets
         // wantsLegacyFallback if the called frame has no decoded chunk.
         bool callValueDecoded(const Value& callee, int argCount, const DecodedInstruction& callInstr);
+
+        // Park caller's ip past a triggering instruction (OP_Call, OP_Invoke,
+        // OP_Get/Set_Property, OP_Get/Set_Index) on the decoded path. After
+        // running the call, completeDecodedFrameSwitch() retargets dispatcher
+        // state when a new frame was pushed.
+        void parkIpForDecodedCall(const DecodedInstruction& callInstr);
+
+        // If a new frame was pushed since frameCountBefore (closure /
+        // bound-method / class-init invocation), retarget currentDecoded /
+        // currentStartingIp / nextInstructionIndex to the callee. Sets
+        // wantsLegacyFallback if the callee lacks a decoded chunk. Native
+        // calls (no frame change) leave state untouched.
+        void completeDecodedFrameSwitch(int frameCountBefore);
 
         bool callMethod(Klass* receiver, const std::string& methodName, int argCount);
 

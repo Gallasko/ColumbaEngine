@@ -734,12 +734,11 @@ namespace pg
                 }
 
                 // Check for instructions that can change frames.
-                // OP_Call is intentionally NOT in this list: op_call_decoded
-                // handles its own frame switch inline. The remaining ops
-                // (OP_Invoke, OP_Get/Set_Property, OP_Get/Set_Index) may
-                // trigger metamethod calls and still ride this fallback.
-                if (opcode == OpCode::OP_Invoke ||
-                    opcode == OpCode::OP_Get_Property || opcode == OpCode::OP_Set_Property ||
+                // OP_Call and OP_Invoke handle their own frame switch via
+                // their decoded handlers. The remaining ops
+                // (OP_Get/Set_Property, OP_Get/Set_Index) may trigger
+                // metamethod calls and still ride this fallback.
+                if (opcode == OpCode::OP_Get_Property || opcode == OpCode::OP_Set_Property ||
                     opcode == OpCode::OP_Get_Index || opcode == OpCode::OP_Set_Index)
                 {
                     // Frame changed if currentFrame is different from what it was before execution

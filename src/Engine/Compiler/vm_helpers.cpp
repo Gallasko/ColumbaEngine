@@ -119,30 +119,36 @@ namespace pg
         return false;
     }
 
+    void VM::parkIpForDecodedCall(const DecodedInstruction& callInstr)
+    {
+        currentFrame->ip = currentStartingIp + callInstr.bytecodeOffset + 1 + callInstr.operandBytes;
+    }
+
     bool VM::callValueDecoded(const Value& callee, int argCount, const DecodedInstruction& callInstr)
     {
-        // Park caller's ip past this OP_Call BEFORE dispatching. Two reasons:
-        //   1. If callValue pushes a new frame and OP_Return later pops it,
-        //      the OP_Return ladder maps currentFrame->ip back to a decoded
-        //      index in the caller — that mapping needs ip parked at the
-        //      resume point (next instruction after the call), not at stale
-        //      data left behind by the previous legacy handler.
-        //   2. For native calls, no frame change occurs; ip stays parked at
-        //      the post-call offset. The dispatcher uses instructionIndex
-        //      for sequencing, so a stale-but-consistent ip is harmless.
-        currentFrame->ip = currentStartingIp + callInstr.bytecodeOffset
-                         + 1 + callInstr.operandBytes;
+        // Park caller's ip past this OP_Call BEFORE dispatching so a future
+        // OP_Return can map ip back to the resume index in the caller's
+        // decoded chunk. For native calls, no frame change occurs and the
+        // parked ip is harmless (dispatcher tracks position via
+        // instructionIndex, not ip).
+        parkIpForDecodedCall(callInstr);
 
         const int frameCountBefore = frameCount;
 
         if (not callValue(callee, argCount))
             return false;
 
+        completeDecodedFrameSwitch(frameCountBefore);
+        return true;
+    }
+
+    void VM::completeDecodedFrameSwitch(int frameCountBefore)
+    {
         // Native calls (and class constructors with no init) push no frame —
-        // execution stays in the current decoded chunk, so we leave the
-        // dispatcher state alone.
+        // execution stays in the current decoded chunk, so leave dispatcher
+        // state alone.
         if (frameCount == frameCountBefore)
-            return true;
+            return;
 
         // A new frame was pushed. Switch dispatcher state to the callee.
         currentFrame = &frames[frameCount - 1];
@@ -168,8 +174,6 @@ namespace pg
         {
             wantsLegacyFallback = true;
         }
-
-        return true;
     }
 
     bool VM::callMethod(Klass* receiver, const std::string& methodName, int argCount)
@@ -446,7 +450,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Call), op_call, op_call_decoded, 0);
 
         // Function operations (default: no flags)
-        register_operation(static_cast<uint8_t>(OpCode::OP_Invoke), op_invoke);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Invoke), op_invoke, op_invoke_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Closure), op_closure);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Upvalue), op_get_upvalue);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Upvalue), op_set_upvalue);

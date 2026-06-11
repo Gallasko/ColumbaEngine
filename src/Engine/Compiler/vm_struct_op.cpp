@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "vm.h"
+#include "decoded_chunk.h"
 
 namespace pg
 {
@@ -46,6 +47,26 @@ namespace pg
 
         vm->currentFrame = &vm->frames[vm->frameCount - 1];
         vm->updateChunkCache();
+    }
+
+    void op_invoke_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t stringIndex = instr.operands.indexed.byte1;
+        uint8_t argCount    = instr.operands.indexed.byte2;
+
+        const std::string& methodName = vm->currentFrame->closure->function->chunk.constantStrings[stringIndex];
+
+        vm->parkIpForDecodedCall(instr);
+        const int frameCountBefore = vm->frameCount;
+
+        if (not invoke(vm, methodName, argCount))
+        {
+            vm->runtimeError("Method '" + methodName + "' not found.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->completeDecodedFrameSwitch(frameCountBefore);
     }
 
     void op_closure(VM* vm)
