@@ -69,6 +69,22 @@ namespace pg
         vm->completeDecodedFrameSwitch(frameCountBefore);
     }
 
+    // Thin decoded wrapper used by op_get_property_decoded, op_set_property_decoded,
+    // op_get_index_decoded, op_set_index_decoded. Each delegates to the legacy
+    // handler after positioning ip just past the opcode so that the legacy
+    // `*ip++` reads the operand correctly. For 0-operand ops (get/set_index),
+    // the legacy handler doesn't touch ip and it stays at the next-instruction
+    // offset — exactly where OP_Return needs it parked for the resume mapping.
+    // completeDecodedFrameSwitch then commits any frame change to dispatcher
+    // state (or is a no-op for the fast-path "field found" branches).
+    static inline void runStructOpDecoded(VM* vm, const DecodedInstruction& instr, OpHandler legacy)
+    {
+        vm->currentFrame->ip = vm->currentStartingIp + instr.bytecodeOffset + 1;
+        const int frameCountBefore = vm->frameCount;
+        legacy(vm);
+        vm->completeDecodedFrameSwitch(frameCountBefore);
+    }
+
     void op_closure(VM* vm)
     {
         uint8_t constantIndex = *vm->currentFrame->ip++;
@@ -293,6 +309,11 @@ namespace pg
         }
     }
 
+    void op_get_property_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        runStructOpDecoded(vm, instr, op_get_property);
+    }
+
     void op_set_property(VM *vm)
     {
         if (not IS_INSTANCE(vm->peek(1)))
@@ -470,6 +491,11 @@ namespace pg
         }
 
         vm->push(value);
+    }
+
+    void op_set_property_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        runStructOpDecoded(vm, instr, op_set_property);
     }
 
     void op_method(VM* vm)
@@ -892,6 +918,11 @@ namespace pg
         vm->push(BOOL_VAL(false));  // Or NIL_VAL if you have it
     }
 
+    void op_get_index_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        runStructOpDecoded(vm, instr, op_get_index);
+    }
+
     void op_set_index(VM* vm)
     {
         Value value = vm->pop();
@@ -1191,6 +1222,11 @@ namespace pg
             vm->releaseAndDelete(index);
             return;
         }
+    }
+
+    void op_set_index_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        runStructOpDecoded(vm, instr, op_set_index);
     }
 
     // ========================================================================

@@ -231,6 +231,8 @@ namespace pg
     void op_class(VM* vm);
     void op_get_property(VM* vm);
     void op_set_property(VM* vm);
+    void op_get_property_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_set_property_decoded(VM* vm, const DecodedInstruction& instr);
     void op_method(VM* vm);
     void op_short_int(VM* vm);
     void op_short_int_decoded(VM* vm, const DecodedInstruction& instr);
@@ -261,6 +263,8 @@ namespace pg
     void op_build_table(VM* vm);
     void op_get_index(VM* vm);
     void op_set_index(VM* vm);
+    void op_get_index_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_set_index_decoded(VM* vm, const DecodedInstruction& instr);
 
     // Iterator operations
     void op_get_iterator(VM* vm);

@@ -733,45 +733,10 @@ namespace pg
                     continue;
                 }
 
-                // Check for instructions that can change frames.
-                // OP_Call and OP_Invoke handle their own frame switch via
-                // their decoded handlers. The remaining ops
-                // (OP_Get/Set_Property, OP_Get/Set_Index) may trigger
-                // metamethod calls and still ride this fallback.
-                if (opcode == OpCode::OP_Get_Property || opcode == OpCode::OP_Set_Property ||
-                    opcode == OpCode::OP_Get_Index || opcode == OpCode::OP_Set_Index)
-                {
-                    // Frame changed if currentFrame is different from what it was before execution
-                    if (currentFrame != frameBeforeExecution)
-                    {
-                        // Reset starting ip pointer for new frame's function
-                        currentStartingIp = currentFrame->closure->function->chunk.code.data();
-                        updateChunkCache();
-
-                        // Switched to a different function - check if it has decoded chunk
-                        if (currentFrame->closure->function->decodedChunk != nullptr)
-                        {
-                            currentDecoded = currentFrame->closure->function->decodedChunk;
-                            instructionIndex = 0;  // Start from beginning of new function
-
-                            // If IP was set to middle of function, find the right index
-                            if (currentFrame->ip != currentStartingIp)
-                            {
-                                size_t bytecodeOffset = currentFrame->ip - currentStartingIp;
-                                instructionIndex = currentDecoded->findInstructionIndex(bytecodeOffset);
-                            }
-                            continue;
-                        }
-                        else
-                        {
-                            // New function doesn't have decoded chunk, fall back to bytecode
-                            return run();
-                        }
-                    }
-                }
-
-                // OP_Return is handled by op_return_decoded (self-managing)
-                // — it never reaches this ladder.
+                // All frame-changing ops (OP_Call, OP_Invoke,
+                // OP_Get/Set_Property, OP_Get/Set_Index) and OP_Return are
+                // self-managing via their decoded handlers — they never
+                // reach this ladder.
 
                 // Normal sequential execution - just advance to next instruction
                 instructionIndex++;

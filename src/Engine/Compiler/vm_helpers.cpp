@@ -458,8 +458,8 @@ namespace pg
 
         // Class operations (default: no flags)
         register_operation(static_cast<uint8_t>(OpCode::OP_Class), op_class);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property, op_get_property_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property, op_set_property_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method);
 
         // Increment/decrement operations (default: no flags)
@@ -478,8 +478,8 @@ namespace pg
         // Table and vector operations
         register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table);
         register_operation(static_cast<uint8_t>(OpCode::OP_Build_Vector), op_build_vector);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index, op_get_index_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index, op_set_index_decoded, 0);
 
         // Iterator operations
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Iterator), op_get_iterator);
