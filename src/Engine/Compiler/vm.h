@@ -286,6 +286,62 @@ namespace pg
     void op_less_rrr(VM* vm);
     void op_jump_if_false_r(VM* vm);
 
+    // ---------------------------------------------------------------------
+    // Decoded variants generated via runLegacyAsDecoded — see vm_binary_op.cpp,
+    // vm_struct_op.cpp, vm_core.cpp for the DECODED_VIA_LEGACY definitions.
+    // ---------------------------------------------------------------------
+    void op_negate_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_not_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_and_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_or_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_true_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_false_decoded(VM* vm, const DecodedInstruction& instr);
+
+    void op_post_incr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_incr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_post_decr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_decr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_post_incr_local_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_incr_local_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_post_decr_local_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_decr_local_decoded(VM* vm, const DecodedInstruction& instr);
+
+    void op_subtract_ll_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_subtract_lc_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_subtract_cl_decoded(VM* vm, const DecodedInstruction& instr);
+
+    void op_load_constant_r_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_move_r_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_add_rrr_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_less_rr_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_incr_r_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_less_rrr_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_jump_if_false_r_decoded(VM* vm, const DecodedInstruction& instr);
+
+    void op_closure_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_class_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_method_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_build_vector_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_build_table_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_get_iterator_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_iterator_next_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_table_size_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_table_at_decoded(VM* vm, const DecodedInstruction& instr);
+
+    void op_pop_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_pop_n_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_get_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_set_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_close_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_get_global_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_set_global_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_define_global_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_define_global_non_popping_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_get_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_set_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_debug_print_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_import_decoded(VM* vm, const DecodedInstruction& instr);
+
     struct VM
     {
         VM();
@@ -502,6 +558,14 @@ namespace pg
         // wantsLegacyFallback if the callee lacks a decoded chunk. Native
         // calls (no frame change) leave state untouched.
         void completeDecodedFrameSwitch(int frameCountBefore);
+
+        // Thin shim used by decoded handlers that just delegate to a legacy
+        // void(VM*) handler. Positions ip at the operand start so the legacy
+        // handler's *ip++ reads operands correctly, runs the handler, then
+        // commits any frame switch via completeDecodedFrameSwitch (no-op for
+        // non-frame-pushing ops). Works for variable-length operands too
+        // (e.g. OP_Closure) since the legacy body advances ip itself.
+        void runLegacyAsDecoded(const DecodedInstruction& instr, OpHandler legacy);
 
         bool callMethod(Klass* receiver, const std::string& methodName, int argCount);
 

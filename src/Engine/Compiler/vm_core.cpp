@@ -617,12 +617,12 @@ namespace pg
                 std::cout << std::endl;
                 disassembleInstruction(this, currentFrame->closure->function->chunk, instr.bytecodeOffset);
 #endif
-                // Default fall-through: decoded handlers that don't redirect
-                // leave nextInstructionIndex at this value.
+                // Default fall-through: handlers that don't redirect leave
+                // nextInstructionIndex at this value.
                 nextInstructionIndex = instructionIndex + 1;
 
-                // Execute the pre-decoded instruction
-                // The handler is already resolved, operands are already extracted
+                // Every op in the dispatch table has a decoded handler;
+                // operands are pre-extracted on the DecodedInstruction.
                 if (profiler.isEnabled())
                 {
                     const void* chunkPtr = &currentFrame->closure->function->chunk;
@@ -630,21 +630,7 @@ namespace pg
                     const std::string& opcodeName = opcodeToString(static_cast<OpCode>(instr.originalOpcode));
 
                     auto startTime = std::chrono::high_resolution_clock::now();
-
-                    // Execute handler - it will read operands from currentFrame->ip if needed
-                    if (instr.decodedHandler)
-                    {
-                        instr.decodedHandler(this, instr);
-                    }
-                    else
-                    {
-                        // Update currentFrame->ip to point past the opcode to the operands
-                        // This allows handlers that read operands via *ip++ to work correctly
-                        currentFrame->ip = currentStartingIp + instr.bytecodeOffset + 1;
-
-                        instr.handler(this);
-                    }
-
+                    instr.decodedHandler(this, instr);
                     auto endTime = std::chrono::high_resolution_clock::now();
                     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 
@@ -653,39 +639,19 @@ namespace pg
                 }
                 else
                 {
-                    // Execute handler - it will read operands from currentFrame->ip if needed
-                    if (instr.decodedHandler)
-                    {
-                        instr.decodedHandler(this, instr);
-                    }
-                    else
-                    {
-                        // Update currentFrame->ip to point past the opcode to the operands
-                        // This allows handlers that read operands via *ip++ to work correctly
-                        currentFrame->ip = currentStartingIp + instr.bytecodeOffset + 1;
-
-                        instr.handler(this);
-                    }
-
+                    instr.decodedHandler(this, instr);
                 }
 
-                // A decoded handler may have signalled that the new frame
-                // lacks a decoded chunk (e.g. op_call_decoded calling into a
-                // function that wasn't pre-decoded). Bail to the legacy
-                // bytecode interpreter for the rest of execution.
+                // A decoded handler may have signalled that a called frame
+                // lacks a decoded chunk (e.g. interpretFromBytecodeFile
+                // skips pre-decoding). Bail to the legacy bytecode
+                // interpreter for the rest of execution.
                 if (wantsLegacyFallback)
                 {
                     return run();
                 }
 
-                // Decoded handlers manage their own control flow via
-                // nextInstructionIndex (set to fall-through by default,
-                // overwritten by jumps / frame switches / returns). Legacy
-                // handlers can't modify IP for control flow — every
-                // IP-modifying op has a decoded variant — so they too just
-                // advance to the next instruction.
-                instructionIndex = instr.decodedHandler ? nextInstructionIndex
-                                                        : instructionIndex + 1;
+                instructionIndex = nextInstructionIndex;
             }
         }
 
@@ -1691,4 +1657,28 @@ namespace pg
             profiler.printBytecodeWithPerformance(funcName);
         }
     }
+
+    // ---------------------------------------------------------------------
+    // Thin decoded wrappers — delegate to legacy handlers via
+    // runLegacyAsDecoded. See vm_binary_op.cpp for the pattern.
+    // ---------------------------------------------------------------------
+    #define DECODED_VIA_LEGACY(legacy_name) \
+        void legacy_name##_decoded(VM* vm, const DecodedInstruction& instr) \
+        { vm->runLegacyAsDecoded(instr, legacy_name); }
+
+    DECODED_VIA_LEGACY(op_pop)
+    DECODED_VIA_LEGACY(op_pop_n)
+    DECODED_VIA_LEGACY(op_get_upvalue)
+    DECODED_VIA_LEGACY(op_set_upvalue)
+    DECODED_VIA_LEGACY(op_close_upvalue)
+    DECODED_VIA_LEGACY(op_get_global)
+    DECODED_VIA_LEGACY(op_set_global)
+    DECODED_VIA_LEGACY(op_define_global)
+    DECODED_VIA_LEGACY(op_define_global_non_popping)
+    DECODED_VIA_LEGACY(op_get_constant_global)
+    DECODED_VIA_LEGACY(op_set_constant_global)
+    DECODED_VIA_LEGACY(op_debug_print)
+    DECODED_VIA_LEGACY(op_import)
+
+    #undef DECODED_VIA_LEGACY
 }

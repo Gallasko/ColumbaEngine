@@ -124,6 +124,14 @@ namespace pg
         currentFrame->ip = currentStartingIp + callInstr.bytecodeOffset + 1 + callInstr.operandBytes;
     }
 
+    void VM::runLegacyAsDecoded(const DecodedInstruction& instr, OpHandler legacy)
+    {
+        currentFrame->ip = currentStartingIp + instr.bytecodeOffset + 1;
+        const int frameCountBefore = frameCount;
+        legacy(this);
+        completeDecodedFrameSwitch(frameCountBefore);
+    }
+
     bool VM::callValueDecoded(const Value& callee, int argCount, const DecodedInstruction& callInstr)
     {
         // Park caller's ip past this OP_Call BEFORE dispatching so a future
@@ -394,13 +402,13 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Multiply), op_multiply, op_multiply_decoded, OpCodeInfo::PURE_BATCH);
         register_operation(static_cast<uint8_t>(OpCode::OP_Divide), op_divide, op_divide_decoded, OpCodeInfo::PURE_BATCH);
         register_operation(static_cast<uint8_t>(OpCode::OP_Modulo), op_modulo, op_modulo_decoded, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Negate), op_negate, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Negate), op_negate, op_negate_decoded, OpCodeInfo::PURE_BATCH);
 
         // Pure & batchable: Optimized arithmetic
         register_operation(static_cast<uint8_t>(OpCode::OP_AddLL), op_add_ll, op_add_ll_decoded, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
-        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLL), op_subtract_ll, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
-        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLC), op_subtract_lc, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractCL), op_subtract_cl, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLL), op_subtract_ll, op_subtract_ll_decoded, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
+        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLC), op_subtract_lc, op_subtract_lc_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractCL), op_subtract_cl, op_subtract_cl_decoded, OpCodeInfo::PURE_BATCH);
         // Peephole fusions emitted by ComparisonLocalIndexingPass / SetLocalPopFusionPass
         register_operation(static_cast<uint8_t>(OpCode::OP_LessEqualLL), op_less_equal_ll, op_less_equal_ll_decoded, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
         register_operation(static_cast<uint8_t>(OpCode::OP_LessLL), op_less_ll, op_less_ll_decoded, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
@@ -415,28 +423,28 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_LessEqual), op_less_equal, op_less_equal_decoded, OpCodeInfo::PURE_BATCH);
 
         // Pure & batchable: Boolean ops
-        register_operation(static_cast<uint8_t>(OpCode::OP_True), op_true, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_False), op_false, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Not), op_not, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_And), op_and, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Or), op_or, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_True), op_true, op_true_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_False), op_false, op_false_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Not), op_not, op_not_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_And), op_and, op_and_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Or), op_or, op_or_decoded, OpCodeInfo::PURE_BATCH);
 
         // Pure & batchable: Stack ops
-        register_operation(static_cast<uint8_t>(OpCode::OP_Pop), op_pop, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_PopN), op_pop_n, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Pop), op_pop, op_pop_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_PopN), op_pop_n, op_pop_n_decoded, OpCodeInfo::PURE_BATCH);
 
         // Pure & batchable: Locals
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Local), op_get_local, op_get_local_decoded, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Local), op_set_local, op_set_local_decoded, OpCodeInfo::BATCHABLE | OpCodeInfo::LOCAL_ONLY);
 
         // Global variables (default: no flags)
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Global), op_get_global);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global), op_define_global);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Global), op_set_global);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global_Non_Popping), op_define_global_non_popping);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Global), op_get_global, op_get_global_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global), op_define_global, op_define_global_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Global), op_set_global, op_set_global_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global_Non_Popping), op_define_global_non_popping, op_define_global_non_popping_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Define_Constant_Global), op_define_constant_global, op_define_constant_global_decoded);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Constant_Global), op_get_constant_global);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Constant_Global), op_set_constant_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Constant_Global), op_get_constant_global, op_get_constant_global_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Constant_Global), op_set_constant_global, op_set_constant_global_decoded, 0);
 
         // Control flow (default: no flags)
         register_operation(static_cast<uint8_t>(OpCode::OP_Jump), op_jump, op_jump_decoded);
@@ -451,55 +459,54 @@ namespace pg
 
         // Function operations (default: no flags)
         register_operation(static_cast<uint8_t>(OpCode::OP_Invoke), op_invoke, op_invoke_decoded, 0);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Closure), op_closure);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Upvalue), op_get_upvalue);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Upvalue), op_set_upvalue);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Close_Upvalue), op_close_upvalue);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Closure), op_closure, op_closure_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Upvalue), op_get_upvalue, op_get_upvalue_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Upvalue), op_set_upvalue, op_set_upvalue_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Close_Upvalue), op_close_upvalue, op_close_upvalue_decoded, 0);
 
         // Class operations (default: no flags)
-        register_operation(static_cast<uint8_t>(OpCode::OP_Class), op_class);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Class), op_class, op_class_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property, op_get_property_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property, op_set_property_decoded, 0);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method, op_method_decoded, 0);
 
         // Increment/decrement operations (default: no flags)
-        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Incr_Global), op_post_incr_global);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_Global), op_incr_global);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Global), op_post_decr_global);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Global), op_decr_global);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Incr_Local), op_post_incr_local);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_Local), op_incr_local);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Local), op_post_decr_local);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Local), op_decr_local);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Incr_Global), op_post_incr_global, op_post_incr_global_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_Global), op_incr_global, op_incr_global_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Global), op_post_decr_global, op_post_decr_global_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Global), op_decr_global, op_decr_global_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Incr_Local), op_post_incr_local, op_post_incr_local_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_Local), op_incr_local, op_incr_local_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Local), op_post_decr_local, op_post_decr_local_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Local), op_decr_local, op_decr_local_decoded, 0);
 
         // Debug operations (default: no flags)
-        register_operation(static_cast<uint8_t>(OpCode::OP_Debug_Print), op_debug_print);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Debug_Print), op_debug_print, op_debug_print_decoded, 0);
 
         // Table and vector operations
-        register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Build_Vector), op_build_vector);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table, op_build_table_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Build_Vector), op_build_vector, op_build_vector_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index, op_get_index_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index, op_set_index_decoded, 0);
 
         // Iterator operations
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Iterator), op_get_iterator);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Iterator_Next), op_iterator_next);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Table_Size), op_table_size);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Table_At), op_table_at);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Iterator), op_get_iterator, op_get_iterator_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Iterator_Next), op_iterator_next, op_iterator_next_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Table_Size), op_table_size, op_table_size_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Table_At), op_table_at, op_table_at_decoded, 0);
 
         // Module operations
-        register_operation(static_cast<uint8_t>(OpCode::OP_Import), op_import);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Import), op_import, op_import_decoded, 0);
 
-        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global_Non_Popping), op_define_global_non_popping);
 
         // Register-based operations
-        register_operation(static_cast<uint8_t>(OpCode::OP_Load_Constant_R), op_load_constant_r);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Move_R), op_move_r);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Add_RRR), op_add_rrr);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Less_RR), op_less_rr);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_R), op_incr_r);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Less_RRR), op_less_rrr);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Jump_If_False_R), op_jump_if_false_r);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Load_Constant_R), op_load_constant_r, op_load_constant_r_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Move_R), op_move_r, op_move_r_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Add_RRR), op_add_rrr, op_add_rrr_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Less_RR), op_less_rr, op_less_rr_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_R), op_incr_r, op_incr_r_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Less_RRR), op_less_rrr, op_less_rrr_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Jump_If_False_R), op_jump_if_false_r, op_jump_if_false_r_decoded, 0);
     }
 
     void VM::initialize_builtin_classes()

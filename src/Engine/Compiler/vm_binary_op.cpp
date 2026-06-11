@@ -994,4 +994,43 @@ namespace pg
         }
     }
 
+    // ---------------------------------------------------------------------
+    // Thin decoded wrappers that delegate to the existing legacy handlers
+    // via runLegacyAsDecoded. The legacy bodies still read operands via
+    // *ip++; the wrapper positions ip just past the opcode first, runs the
+    // body, then commits any frame switch (no-op when no frame was pushed).
+    // ---------------------------------------------------------------------
+    #define DECODED_VIA_LEGACY(legacy_name) \
+        void legacy_name##_decoded(VM* vm, const DecodedInstruction& instr) \
+        { vm->runLegacyAsDecoded(instr, legacy_name); }
+
+    DECODED_VIA_LEGACY(op_negate)
+    DECODED_VIA_LEGACY(op_not)
+    DECODED_VIA_LEGACY(op_and)
+    DECODED_VIA_LEGACY(op_or)
+    DECODED_VIA_LEGACY(op_true)
+    DECODED_VIA_LEGACY(op_false)
+
+    DECODED_VIA_LEGACY(op_post_incr_global)
+    DECODED_VIA_LEGACY(op_incr_global)
+    DECODED_VIA_LEGACY(op_post_decr_global)
+    DECODED_VIA_LEGACY(op_decr_global)
+    DECODED_VIA_LEGACY(op_post_incr_local)
+    DECODED_VIA_LEGACY(op_incr_local)
+    DECODED_VIA_LEGACY(op_post_decr_local)
+    DECODED_VIA_LEGACY(op_decr_local)
+
+    DECODED_VIA_LEGACY(op_subtract_ll)
+    DECODED_VIA_LEGACY(op_subtract_lc)
+    DECODED_VIA_LEGACY(op_subtract_cl)
+
+    DECODED_VIA_LEGACY(op_load_constant_r)
+    DECODED_VIA_LEGACY(op_move_r)
+    DECODED_VIA_LEGACY(op_add_rrr)
+    DECODED_VIA_LEGACY(op_less_rr)
+    DECODED_VIA_LEGACY(op_incr_r)
+    DECODED_VIA_LEGACY(op_less_rrr)
+    DECODED_VIA_LEGACY(op_jump_if_false_r)
+
+    #undef DECODED_VIA_LEGACY
 }

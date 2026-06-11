@@ -69,21 +69,6 @@ namespace pg
         vm->completeDecodedFrameSwitch(frameCountBefore);
     }
 
-    // Thin decoded wrapper used by op_get_property_decoded, op_set_property_decoded,
-    // op_get_index_decoded, op_set_index_decoded. Each delegates to the legacy
-    // handler after positioning ip just past the opcode so that the legacy
-    // `*ip++` reads the operand correctly. For 0-operand ops (get/set_index),
-    // the legacy handler doesn't touch ip and it stays at the next-instruction
-    // offset — exactly where OP_Return needs it parked for the resume mapping.
-    // completeDecodedFrameSwitch then commits any frame change to dispatcher
-    // state (or is a no-op for the fast-path "field found" branches).
-    static inline void runStructOpDecoded(VM* vm, const DecodedInstruction& instr, OpHandler legacy)
-    {
-        vm->currentFrame->ip = vm->currentStartingIp + instr.bytecodeOffset + 1;
-        const int frameCountBefore = vm->frameCount;
-        legacy(vm);
-        vm->completeDecodedFrameSwitch(frameCountBefore);
-    }
 
     void op_closure(VM* vm)
     {
@@ -311,7 +296,7 @@ namespace pg
 
     void op_get_property_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        runStructOpDecoded(vm, instr, op_get_property);
+        vm->runLegacyAsDecoded(instr, op_get_property);
     }
 
     void op_set_property(VM *vm)
@@ -495,7 +480,7 @@ namespace pg
 
     void op_set_property_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        runStructOpDecoded(vm, instr, op_set_property);
+        vm->runLegacyAsDecoded(instr, op_set_property);
     }
 
     void op_method(VM* vm)
@@ -920,7 +905,7 @@ namespace pg
 
     void op_get_index_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        runStructOpDecoded(vm, instr, op_get_index);
+        vm->runLegacyAsDecoded(instr, op_get_index);
     }
 
     void op_set_index(VM* vm)
@@ -1226,7 +1211,7 @@ namespace pg
 
     void op_set_index_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        runStructOpDecoded(vm, instr, op_set_index);
+        vm->runLegacyAsDecoded(instr, op_set_index);
     }
 
     // ========================================================================
@@ -1448,4 +1433,24 @@ namespace pg
         Value keyVal = vm->createString(key);
         vm->push(keyVal);
     }
+
+    // ---------------------------------------------------------------------
+    // Thin decoded wrappers — delegate to legacy handlers via
+    // runLegacyAsDecoded. See vm_binary_op.cpp for the pattern.
+    // ---------------------------------------------------------------------
+    #define DECODED_VIA_LEGACY(legacy_name) \
+        void legacy_name##_decoded(VM* vm, const DecodedInstruction& instr) \
+        { vm->runLegacyAsDecoded(instr, legacy_name); }
+
+    DECODED_VIA_LEGACY(op_closure)
+    DECODED_VIA_LEGACY(op_class)
+    DECODED_VIA_LEGACY(op_method)
+    DECODED_VIA_LEGACY(op_build_vector)
+    DECODED_VIA_LEGACY(op_build_table)
+    DECODED_VIA_LEGACY(op_get_iterator)
+    DECODED_VIA_LEGACY(op_iterator_next)
+    DECODED_VIA_LEGACY(op_table_size)
+    DECODED_VIA_LEGACY(op_table_at)
+
+    #undef DECODED_VIA_LEGACY
 }
