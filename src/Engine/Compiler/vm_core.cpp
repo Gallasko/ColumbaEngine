@@ -621,10 +621,6 @@ namespace pg
                 // leave nextInstructionIndex at this value.
                 nextInstructionIndex = instructionIndex + 1;
 
-                // Save the current frame before executing
-                // (needed to detect frame changes from OP_Call/OP_Return)
-                CallFrame* frameBeforeExecution = currentFrame;
-
                 // Execute the pre-decoded instruction
                 // The handler is already resolved, operands are already extracted
                 if (profiler.isEnabled())
@@ -682,64 +678,14 @@ namespace pg
                     return run();
                 }
 
-                // Decoded handlers are responsible for their own control
-                // flow: they leave nextInstructionIndex at the fall-through
-                // value or overwrite it (for jumps, frame switches, etc.).
-                // Skip the legacy opcode ladder entirely.
-                if (instr.decodedHandler)
-                {
-                    instructionIndex = nextInstructionIndex;
-                    continue;
-                }
-
-                // ---- Legacy handler path: post-dispatch opcode ladder ----
-                // Fast path: opcodes flagged PURE (no side effects) can't change
-                // IP or call/return, so the entire chain of opcode-equality checks
-                // below is guaranteed to miss. Skipping it eliminates ~14 host
-                // comparisons + 4 branches per dispatched opcode — the bulk of
-                // the dispatcher's per-instruction overhead for tight numeric
-                // loops where arithmetic/local-access ops dominate.
-                if (instr.isPure())
-                {
-                    instructionIndex++;
-                    continue;
-                }
-
-                // Handle control flow changes only for specific opcodes
-                OpCode opcode = static_cast<OpCode>(instr.originalOpcode);
-
-                // Check for jump instructions that modify IP
-                if (opcode == OpCode::OP_Jump or opcode == OpCode::OP_Loop or
-                    opcode == OpCode::OP_Long_Jump or opcode == OpCode::OP_Long_Loop)
-                {
-                    // IP was modified by jump - find the new instruction index
-                    instructionIndex = instr.nextInstuctionIndex;
-                    continue;
-                }
-
-                if (opcode == OpCode::OP_Long_Jump_If_False or opcode == OpCode::OP_Jump_If_False or
-                    opcode == OpCode::OP_Long_Jump_If_False_Popping or opcode == OpCode::OP_Jump_If_False_Popping)
-                {
-                    // The conditional jump can only end in one of two places: fall through
-                    // to the next sequential instruction, or jump to the precomputed target
-                    // (already baked into instr.nextInstuctionIndex by resolveJumpTargets).
-                    // Compare ip to the fall-through bytecode offset — no hash lookup needed.
-                    const size_t fallThroughOffset = instr.bytecodeOffset + 1 + instr.operandBytes;
-                    const size_t currentIpOffset   = currentFrame->ip - currentStartingIp;
-                    if (currentIpOffset == fallThroughOffset)
-                        instructionIndex++;
-                    else
-                        instructionIndex = instr.nextInstuctionIndex;
-                    continue;
-                }
-
-                // All frame-changing ops (OP_Call, OP_Invoke,
-                // OP_Get/Set_Property, OP_Get/Set_Index) and OP_Return are
-                // self-managing via their decoded handlers — they never
-                // reach this ladder.
-
-                // Normal sequential execution - just advance to next instruction
-                instructionIndex++;
+                // Decoded handlers manage their own control flow via
+                // nextInstructionIndex (set to fall-through by default,
+                // overwritten by jumps / frame switches / returns). Legacy
+                // handlers can't modify IP for control flow — every
+                // IP-modifying op has a decoded variant — so they too just
+                // advance to the next instruction.
+                instructionIndex = instr.decodedHandler ? nextInstructionIndex
+                                                        : instructionIndex + 1;
             }
         }
 
