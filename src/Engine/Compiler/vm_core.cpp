@@ -1391,6 +1391,45 @@ namespace pg
         }
     }
 
+    // Decoded jump-if-false variants. The target index (when the condition
+    // is false) is already baked into instr.nextInstuctionIndex by
+    // resolveJumpTargets — the dispatcher pre-seeds nextInstructionIndex to
+    // the fall-through value, so we only override on the false branch.
+
+    void op_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        if (not isValueTrue(vm->peek(), vm))
+            vm->nextInstructionIndex = instr.nextInstuctionIndex;
+    }
+
+    void op_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        Value condition = vm->pop();
+
+        if (not isValueTrue(condition, vm))
+            vm->nextInstructionIndex = instr.nextInstuctionIndex;
+
+        if (requiresRefCount(condition))
+            vm->releaseAndDelete(condition);
+    }
+
+    void op_long_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        if (not isValueTrue(vm->peek()))
+            vm->nextInstructionIndex = instr.nextInstuctionIndex;
+    }
+
+    void op_long_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        Value condition = vm->pop();
+
+        if (not isValueTrue(condition))
+            vm->nextInstructionIndex = instr.nextInstuctionIndex;
+
+        if (requiresRefCount(condition))
+            vm->releaseAndDelete(condition);
+    }
+
     void op_jump(VM* vm)
     {
         uint16_t offset = (static_cast<uint16_t>(*vm->currentFrame->ip++) << 8);
