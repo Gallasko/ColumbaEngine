@@ -94,6 +94,11 @@ namespace pg
                                      // replaces N original instructions (decode-
                                      // time fusion). Resolvers skip fused entries.
 
+        // Display name for fused instructions (profiler / debugging).
+        // Points into the fusion name interner (program lifetime); nullptr
+        // for plain instructions, which use opcodeToString(originalOpcode).
+        const std::string* fusedName = nullptr;
+
         // Flag checks (matching OpCodeInfo flags)
         bool isPure() const { return (flags & 0x01) != 0; }
         bool isBatchable() const { return (flags & 0x20) != 0; }

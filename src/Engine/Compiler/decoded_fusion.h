@@ -36,6 +36,9 @@
 #include "vm.h"
 #include "decoded_chunk.h"
 
+#include <mutex>
+#include <unordered_set>
+
 namespace pg
 {
 namespace fusion
@@ -187,6 +190,48 @@ namespace fusion
     // Fused handlers
     // ------------------------------------------------------------------
 
+    // Display names for the profiler / debugging. The interner keeps the
+    // strings alive for the program's lifetime with stable addresses
+    // (unordered_set is node-based); built only at decode time.
+    inline const std::string* internFusionName(std::string name)
+    {
+        static std::mutex mutex;
+        static std::unordered_set<std::string> names;
+        std::lock_guard<std::mutex> lock(mutex);
+        return &*names.insert(std::move(name)).first;
+    }
+
+    inline char srcLetter(Src s)
+    {
+        switch (s)
+        {
+            case Src::Stack:    return 'S';
+            case Src::Local:    return 'L';
+            case Src::Const:    return 'C';
+            case Src::ShortInt: return 'I';
+        }
+        return '?';
+    }
+
+    inline const std::string* fusionName(BinOp op, Src a, Src b, Sink sink)
+    {
+        static const char* opNames[] = {
+            "None", "Add", "Subtract", "Multiply", "Divide", "Modulo",
+            "Equal", "NotEqual", "Greater", "GreaterEqual", "Less", "LessEqual",
+        };
+        static const char* sinkNames[] = { "Push", "Store", "Branch" };
+
+        std::string name = "FUSED_";
+        name += opNames[static_cast<uint8_t>(op)];
+        name += '(';
+        name += srcLetter(a);
+        name += ',';
+        name += srcLetter(b);
+        name += ")->";
+        name += sinkNames[static_cast<uint8_t>(sink)];
+        return internFusionName(std::move(name));
+    }
+
     // NOTE on read order: B is read BEFORE A. When both operands come from
     // the stack, B is the value on top (pushed last) and must be popped
     // first; for all other source kinds the order is irrelevant (reads have
@@ -197,11 +242,25 @@ namespace fusion
     const DecodedInstruction* fusedBinaryPush(VM* vm, const DecodedInstruction& instr)
     {
         Value b = readSrc<B>(vm, instr, instr.operands.indexed.byte2);
-        Value a = readSrc<A>(vm, instr, instr.operands.indexed.byte1);
-        Value r = Op::apply(vm, a, b);
-        releaseSrc<A>(vm, a);
-        releaseSrc<B>(vm, b);
-        vm->push(r);
+
+        if constexpr (A == Src::Stack)
+        {
+            // The deeper operand is the current stack top (B is inline —
+            // Stack/Stack push is the base op and never fuses). Replace it
+            // in place: changeTop releases the old top, consuming a's stack
+            // reference — no pop/push round-trip.
+            Value a = vm->peek();
+            Value r = Op::apply(vm, a, b);
+            releaseSrc<B>(vm, b);
+            vm->changeTop(r);
+        }
+        else
+        {
+            Value a = readSrc<A>(vm, instr, instr.operands.indexed.byte1);
+            Value r = Op::apply(vm, a, b);
+            releaseSrc<B>(vm, b);
+            vm->push(r);
+        }
         return &instr + 1;
     }
 

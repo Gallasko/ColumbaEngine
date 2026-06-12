@@ -86,8 +86,10 @@ def time_untraced(script_path, count, runs=3):
 #   Function            Offset  Opcode                   Count       Total (ms)     Avg (ns)       % Time
 #   ---------------------------------------------------------------
 #   hotLoop             6       OP_Get_Local             10001       0.191677       19.17          5.77      %
+# Decode-time fused superinstructions report as FUSED_… (e.g.
+# "FUSED_Less(L,L)->Branch").
 ROW_RE = re.compile(
-    r"^\s*(\S+)\s+(\d+)\s+(OP_\S+)\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*%?\s*$"
+    r"^\s*(\S+)\s+(\d+)\s+((?:OP_|FUSED_)\S+)\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*%?\s*$"
 )
 TOTAL_RE = re.compile(r"^Total instructions executed:\s+(\d+)")
 

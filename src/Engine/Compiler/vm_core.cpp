@@ -618,7 +618,11 @@ namespace pg
                 const std::string& functionName = currentFrame->closure->function->name;
                 const uint8_t opcode = meta.originalOpcode;
                 const size_t  offset = meta.bytecodeOffset;
-                const std::string& opcodeName = opcodeToString(static_cast<OpCode>(opcode));
+                // Fused instructions report their own name (FUSED_…); plain
+                // ones use the opcode name.
+                const std::string& opcodeName = (meta.fusedName != nullptr)
+                    ? *meta.fusedName
+                    : opcodeToString(static_cast<OpCode>(opcode));
 
                 auto startTime = std::chrono::high_resolution_clock::now();
                 instr = instr->decodedHandler(this, *instr);

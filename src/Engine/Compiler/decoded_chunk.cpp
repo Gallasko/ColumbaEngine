@@ -432,6 +432,7 @@ namespace pg
             size_t windowLen = 0;
             bool   hasBranch = false;
             size_t branchTarget = 0;
+            const std::string* fusedName = nullptr;
 
             // Shared tail for every binary-op shape: given the sources and
             // the index right after the op, try store consumer, then popping
@@ -447,6 +448,7 @@ namespace pg
                     and buildBinary(op, a, b, Sink::Store, sc.dst, fused))
                 {
                     windowLen = headLen + sc.len;
+                    fusedName = fusionName(op, a.kind, b.kind, Sink::Store);
                     return true;
                 }
 
@@ -457,6 +459,7 @@ namespace pg
                 {
                     windowLen = headLen + 1;
                     hasBranch = true;
+                    fusedName = fusionName(op, a.kind, b.kind, Sink::BranchIfFalse);
                     return true;
                 }
 
@@ -464,6 +467,7 @@ namespace pg
                     and buildBinary(op, a, b, Sink::Push, 0, fused))
                 {
                     windowLen = headLen;
+                    fusedName = fusionName(op, a.kind, b.kind, Sink::Push);
                     return true;
                 }
                 return false;
@@ -509,6 +513,8 @@ namespace pg
                     fused.decodedHandler = selectFusedUnary(op);
                     fused.operands.indexed.byte1 = in[i].operands.byte;
                     windowLen = 2;
+                    fusedName = internFusionName(op == UnOp::Not ? "FUSED_Not(L)->Push"
+                                                                 : "FUSED_Negate(L)->Push");
                 }
             }
 
@@ -555,6 +561,7 @@ namespace pg
                 fused.decodedHandler = op_set_local_pop_decoded;
                 fused.operands.byte = in[i].operands.byte;
                 windowLen = 2;
+                fusedName = internFusionName("FUSED_SetLocalPop");
             }
 
             // G) Short_Int slot + Post_Incr/Decr_Local → fused in-place local
@@ -574,6 +581,8 @@ namespace pg
                                                 : &fusedIncrDecrLocal<false>;
                     fused.operands.indexed.byte1 = in[i].operands.byte; // slot
                     windowLen = 2;
+                    fusedName = internFusionName(incr ? "FUSED_IncrLocal"
+                                                      : "FUSED_DecrLocal");
                 }
             }
 
@@ -586,6 +595,7 @@ namespace pg
 
                 DecodedInstructionMeta m = im[i]; // head's offset/line/opcode
                 m.fusedLength = static_cast<uint8_t>(windowLen);
+                m.fusedName   = fusedName;
 
                 if (hasBranch)
                     branchFixups.emplace_back(newIdx, branchTarget);
