@@ -1659,26 +1659,293 @@ namespace pg
     }
 
     // ---------------------------------------------------------------------
-    // Thin decoded wrappers — delegate to legacy handlers via
-    // runLegacyAsDecoded. See vm_binary_op.cpp for the pattern.
+    // Proper decoded handlers for the previously-wrapped vm_core.cpp ops.
+    // Operands come from the pre-extracted DecodedInstruction rather than
+    // *ip++; bodies otherwise mirror their legacy counterparts.
     // ---------------------------------------------------------------------
-    #define DECODED_VIA_LEGACY(legacy_name) \
-        void legacy_name##_decoded(VM* vm, const DecodedInstruction& instr) \
-        { vm->runLegacyAsDecoded(instr, legacy_name); }
 
-    DECODED_VIA_LEGACY(op_pop)
-    DECODED_VIA_LEGACY(op_pop_n)
-    DECODED_VIA_LEGACY(op_get_upvalue)
-    DECODED_VIA_LEGACY(op_set_upvalue)
-    DECODED_VIA_LEGACY(op_close_upvalue)
-    DECODED_VIA_LEGACY(op_get_global)
-    DECODED_VIA_LEGACY(op_set_global)
-    DECODED_VIA_LEGACY(op_define_global)
-    DECODED_VIA_LEGACY(op_define_global_non_popping)
-    DECODED_VIA_LEGACY(op_get_constant_global)
-    DECODED_VIA_LEGACY(op_set_constant_global)
-    DECODED_VIA_LEGACY(op_debug_print)
-    DECODED_VIA_LEGACY(op_import)
+    // Zero-operand ops: body identical to the legacy handler.
 
-    #undef DECODED_VIA_LEGACY
+    void op_pop_decoded(VM* vm, const DecodedInstruction&)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty())
+        {
+            EMIT_RUNTIME_ERROR("Nothing to pop from the stack.");
+        }
+#endif
+        auto value = vm->pop();
+        if (requiresRefCount(value))
+        {
+            vm->releaseAndDelete(value);
+        }
+    }
+
+    void op_close_upvalue_decoded(VM* vm, const DecodedInstruction&)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty())
+        {
+            vm->runtimeError("Stack underflow on closing upvalue.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        vm->closeUpvalues(&vm->stack[vm->stack.size() - 1]);
+        auto value = vm->pop();
+        vm->releaseAndDelete(value);
+    }
+
+    void op_get_global_decoded(VM* vm, const DecodedInstruction&)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty())
+        {
+            vm->runtimeError("Not enough values on stack for variable retrieval.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto nameValue = vm->peek();
+
+        if (not IS_STRING(nameValue))
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->pop();
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto name = vm->asString(nameValue);
+
+        auto it = vm->globals.find(name);
+        if (it == vm->globals.end())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->pop();
+            vm->runtimeError("Undefined global variable '" + name + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->changeTop(vm->retainValue(it->second));
+        vm->releaseAndDelete(nameValue);
+    }
+
+    void op_set_global_decoded(VM* vm, const DecodedInstruction&)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.size() < 2)
+        {
+            vm->runtimeError("Not enough values on stack for variable assignment.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto nameValue = vm->pop();
+        auto value = vm->peek();
+        auto name = vm->valueToElement(nameValue);
+
+        if (not name.isLitteral())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->releaseAndDelete(it->second);
+        it->second = vm->retainValue(value);
+        vm->releaseAndDelete(nameValue);
+    }
+
+    void op_define_global_decoded(VM* vm, const DecodedInstruction&)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.size() < 2)
+        {
+            vm->runtimeError("Not enough values on stack for variable definition.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto nameValue = vm->pop();
+        auto name = vm->valueToElement(nameValue);
+        auto value = vm->pop();
+
+        if (not name.isLitteral())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->releaseAndDelete(value);
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->globals[name.toString()] = vm->retainValue(value);
+        vm->releaseAndDelete(nameValue);
+        vm->releaseAndDelete(value);
+    }
+
+    void op_define_global_non_popping_decoded(VM* vm, const DecodedInstruction&)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.size() < 2)
+        {
+            vm->runtimeError("Not enough values on stack for variable definition.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto nameValue = vm->pop();
+        auto name = vm->valueToElement(nameValue);
+        auto value = vm->peek();
+
+        if (not name.isLitteral())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->globals[name.toString()] = vm->retainValue(value);
+        vm->releaseAndDelete(nameValue);
+    }
+
+    void op_debug_print_decoded(VM* vm, const DecodedInstruction&)
+    {
+        // Mirrors op_debug_print; the legacy body is large enough that
+        // reusing it via a single call keeps maintenance simple. There are
+        // no operands to extract, so no decoding benefit is lost.
+        op_debug_print(vm);
+    }
+
+    void op_import_decoded(VM* vm, const DecodedInstruction&)
+    {
+        // op_import builds an external VM and replays interpret — no per-
+        // instruction operands to extract; reuse the legacy body verbatim.
+        op_import(vm);
+    }
+
+    // One-byte-operand ops: operand was reading via *ip++ before; now it's
+    // pre-extracted on instr.operands.byte.
+
+    void op_pop_n_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t count = instr.operands.byte;
+
+        for (int i = 0; i < count; i++)
+        {
+            auto value = vm->pop();
+            if (requiresRefCount(value))
+            {
+                vm->releaseAndDelete(value);
+            }
+        }
+    }
+
+    void op_get_upvalue_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t slot = instr.operands.byte;
+
+        if (slot >= vm->currentFrame->closure->function->upvalueCount)
+        {
+            vm->runtimeError("Upvalue index out of bounds.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        ObjUpvalue* upvalue = vm->currentFrame->closure->upvalues[slot];
+
+        if (upvalue->location == &upvalue->closed)
+        {
+            vm->push(*upvalue->location);
+        }
+        else
+        {
+            vm->push(vm->retainValue(*upvalue->location));
+        }
+    }
+
+    void op_set_upvalue_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t slot = instr.operands.byte;
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty())
+        {
+            vm->runtimeError("Not enough values on stack for upvalue assignment.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        ObjUpvalue* upvalue = vm->currentFrame->closure->upvalues[slot];
+        upvalue->location = &vm->stack[vm->stack.size() - 1];
+    }
+
+    void op_get_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t constant = instr.operands.byte;
+        auto value = vm->currentFrame->closure->function->chunk.constants[constant];
+        auto name = vm->valueToElement(value);
+
+        if (not name.isLitteral())
+        {
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end())
+        {
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->push(vm->retainValue(it->second));
+    }
+
+    // Two-byte-operand op: operands.indexed.byte1/byte2 hold the two
+    // constant indices the legacy version read via two *ip++ reads.
+
+    void op_set_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t constant1 = instr.operands.indexed.byte1;
+        uint8_t constant2 = instr.operands.indexed.byte2;
+
+        auto value1 = vm->currentFrame->closure->function->chunk.constants[constant1];
+        auto value2 = vm->currentFrame->closure->function->chunk.constants[constant2];
+        auto name = vm->valueToElement(value2);
+
+        if (not name.isLitteral())
+        {
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end())
+        {
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->releaseAndDelete(it->second);
+        it->second = vm->retainValue(value1);
+        vm->push(vm->retainValue(value1));
+    }
 }
