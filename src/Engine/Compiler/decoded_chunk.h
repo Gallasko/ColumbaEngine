@@ -11,11 +11,12 @@ namespace pg
     struct DecodedInstruction;
 
     // Decoded handlers return the next instruction to execute. The dispatch
-    // loop is `instr = instr->decodedHandler(vm, *instr);` so the instruction
-    // pointer lives in a register, not in VM memory. Fall-through handlers
-    // return `&instr + 1` (instructions are contiguous); jumps return the
-    // pre-resolved jumpTargetPtr; error paths longjmp via vm_return and the
-    // trailing `return nullptr` is unreachable.
+    // loop is `while (instr) instr = instr->decodedHandler(vm, *instr);` so
+    // the instruction pointer lives in a register, not in VM memory.
+    // Fall-through handlers return `&instr + 1` (instructions are
+    // contiguous); jumps return the pre-resolved jumpTargetPtr; final
+    // returns / runtime errors record the result via vm_return and return
+    // nullptr to stop the loop.
     typedef const DecodedInstruction* (*OpDecodedHandler)(VM* vm, const DecodedInstruction& instr);
 
     // ============================================================================

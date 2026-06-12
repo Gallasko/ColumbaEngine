@@ -200,6 +200,7 @@ namespace pg
         {
             vm->runtimeError("Undefined property '" + nameStr + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
         }
         return &instr + 1;
     }

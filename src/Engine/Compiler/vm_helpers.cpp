@@ -323,11 +323,13 @@ namespace pg
         }
     }
 
-    // Function pointer dispatch implementation
+    // Requests dispatch-loop exit: records the result. The calling handler
+    // must `return nullptr` so the `while (instr)` loop terminates and
+    // runDecoded returns exit_result. No longjmp — nested runDecoded calls
+    // (natives re-entering the VM) each exit their own loop cleanly.
     void VM::vm_return(InterpretResult result)
     {
         exit_result = result;
-        longjmp(exit_jump, 1);
     }
 
     void VM::register_operation(uint8_t opcode, OpDecodedHandler decodedHandler, uint8_t flags)

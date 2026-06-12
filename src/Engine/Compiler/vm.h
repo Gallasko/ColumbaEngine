@@ -25,7 +25,6 @@
 #include <cstdlib>
 #include <algorithm>
 #include <cassert>
-#include <setjmp.h>
 
 #include "ECS/uniqueid.h"
 
@@ -603,8 +602,10 @@ namespace pg
 
         // Function pointer dispatch system
         static OpCodeInfo operations[256];
-        jmp_buf exit_jump;
-        InterpretResult exit_result;
+
+        // Result recorded by vm_return; the dispatch loop exits when a
+        // handler returns nullptr and runDecoded returns this value.
+        InterpretResult exit_result = InterpretResult::OK;
 
         // Pool-based memory management (replaces old pointer-based refCounts)
         VMPools pools;

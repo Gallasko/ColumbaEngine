@@ -24,7 +24,7 @@ namespace pg
     {
         vm->runtimeError("Reached end of bytecode without OP_Return.");
         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-        return nullptr; // unreachable — vm_return longjmps
+        return nullptr; // stops the dispatch loop
     }
 
     DecodedChunk* ChunkDecoder::decode(const Chunk& chunk, VM* vm)

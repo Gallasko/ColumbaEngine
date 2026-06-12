@@ -570,53 +570,54 @@ namespace pg
                   + decoded->findInstructionIndex(currentFrame->ip - startingIp);
         }
 
-        // Execute with longjmp support. The loop has no bound check: every
-        // chunk ends in OP_Return (compiler-guaranteed; the decoder appends
-        // a synthetic halt otherwise), and the final return / any runtime
-        // error exits via vm_return's longjmp.
-        if (setjmp(exit_jump) == 0)
+        // A handler that wants to stop execution (final OP_Return, runtime
+        // error, synthetic halt) calls vm_return(result) and returns
+        // nullptr; everything else returns the next instruction. The null
+        // test is a perfectly-predicted branch — no setjmp/longjmp, so
+        // nested runDecoded calls (natives re-entering the VM) each unwind
+        // their own loop cleanly.
+        exit_result = InterpretResult::OK;
+
+        while (instr)
         {
-            for (;;)
-            {
 #ifdef DEBUG_TRACE_EXECUTION
-                // Update currentFrame->ip for debug output
-                const Chunk& traceChunk = currentFrame->closure->function->chunk;
-                currentFrame->ip = const_cast<uint8_t*>(traceChunk.code.data()) + instr->bytecodeOffset;
+            // Update currentFrame->ip for debug output
+            const Chunk& traceChunk = currentFrame->closure->function->chunk;
+            currentFrame->ip = const_cast<uint8_t*>(traceChunk.code.data()) + instr->bytecodeOffset;
 
-                std::cout << "          ";
-                for (size_t i = 0; i < stack.size(); ++i)
-                {
-                    std::cout << "[";
-                    printValue(this, stack[i]);
-                    std::cout << "] ";
-                }
-                std::cout << std::endl;
-                // The synthetic halt's bytecodeOffset is one past the end.
-                if (instr->bytecodeOffset < traceChunk.code.size())
-                    disassembleInstruction(this, traceChunk, instr->bytecodeOffset);
+            std::cout << "          ";
+            for (size_t i = 0; i < stack.size(); ++i)
+            {
+                std::cout << "[";
+                printValue(this, stack[i]);
+                std::cout << "] ";
+            }
+            std::cout << std::endl;
+            // The synthetic halt's bytecodeOffset is one past the end.
+            if (instr->bytecodeOffset < traceChunk.code.size())
+                disassembleInstruction(this, traceChunk, instr->bytecodeOffset);
 #endif
-                if constexpr (ProfileEnabled)
-                {
-                    // Snapshot before dispatch: the handler may switch frames
-                    // and the call itself overwrites instr.
-                    const void* chunkPtr = &currentFrame->closure->function->chunk;
-                    const std::string& functionName = currentFrame->closure->function->name;
-                    const uint8_t opcode = instr->originalOpcode;
-                    const size_t  offset = instr->bytecodeOffset;
-                    const std::string& opcodeName = opcodeToString(static_cast<OpCode>(opcode));
+            if constexpr (ProfileEnabled)
+            {
+                // Snapshot before dispatch: the handler may switch frames
+                // and the call itself overwrites instr.
+                const void* chunkPtr = &currentFrame->closure->function->chunk;
+                const std::string& functionName = currentFrame->closure->function->name;
+                const uint8_t opcode = instr->originalOpcode;
+                const size_t  offset = instr->bytecodeOffset;
+                const std::string& opcodeName = opcodeToString(static_cast<OpCode>(opcode));
 
-                    auto startTime = std::chrono::high_resolution_clock::now();
-                    instr = instr->decodedHandler(this, *instr);
-                    auto endTime = std::chrono::high_resolution_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
+                auto startTime = std::chrono::high_resolution_clock::now();
+                instr = instr->decodedHandler(this, *instr);
+                auto endTime = std::chrono::high_resolution_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 
-                    profiler.recordInstruction(chunkPtr, functionName, offset,
-                                               opcode, opcodeName, duration);
-                }
-                else
-                {
-                    instr = instr->decodedHandler(this, *instr);
-                }
+                profiler.recordInstruction(chunkPtr, functionName, offset,
+                                           opcode, opcodeName, duration);
+            }
+            else
+            {
+                instr = instr->decodedHandler(this, *instr);
             }
         }
 
@@ -759,7 +760,7 @@ namespace pg
         vm->push(value);
 
         // If we reach here, frameCount > 0 (the frameCount == 0 path above
-        // calls vm_return which longjmps out of runDecoded). currentFrame is
+        // records the result and exits the dispatch loop). currentFrame is
         // already the caller; resume it at the captured instruction.
         return resume;
     }
