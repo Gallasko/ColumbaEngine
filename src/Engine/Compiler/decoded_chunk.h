@@ -10,8 +10,13 @@ namespace pg
     struct VM;
     struct DecodedInstruction;
 
-    typedef void (*OpHandler)(VM* vm);
-    typedef void (*OpDecodedHandler)(VM* vm, const DecodedInstruction& instr);
+    // Decoded handlers return the next instruction to execute. The dispatch
+    // loop is `instr = instr->decodedHandler(vm, *instr);` so the instruction
+    // pointer lives in a register, not in VM memory. Fall-through handlers
+    // return `&instr + 1` (instructions are contiguous); jumps return the
+    // pre-resolved jumpTargetPtr; error paths longjmp via vm_return and the
+    // trailing `return nullptr` is unreachable.
+    typedef const DecodedInstruction* (*OpDecodedHandler)(VM* vm, const DecodedInstruction& instr);
 
     // ============================================================================
     // PRE-DECODED INSTRUCTION FORMAT
@@ -23,6 +28,8 @@ namespace pg
 
     struct DecodedInstruction
     {
+        // --- Hot fields: keep handler, operands and jump target in the
+        // --- first 32 bytes so one cache line covers the dispatch path.
         OpDecodedHandler decodedHandler = nullptr; // Pre-resolved handler that receives the full instruction
 
         // Operand storage (union to save space)
@@ -47,6 +54,11 @@ namespace pg
         uint8_t originalOpcode;      // For debugging/profiling
         uint8_t operandBytes;        // Number of operand bytes
 
+        // Pre-resolved jump target (control-flow ops). Filled in by
+        // ChunkDecoder::resolveJumpTargets once the instructions vector is
+        // final; jump handlers return it directly.
+        const DecodedInstruction* jumpTargetPtr = nullptr;
+
         // Pre-computed constant pointer (for OP_Constant/OP_LongConstant)
         // This eliminates chunk.constants[index] lookup during execution
         Value* constantPtr;
@@ -61,7 +73,6 @@ namespace pg
 
         // Original bytecode offset (needed for jump target resolution)
         size_t bytecodeOffset;
-        size_t nextInstuctionIndex = 0; // Filled in during decoding for quick jump target mapping
 
         // Flag checks (matching OpCodeInfo flags)
         bool isPure() const { return (flags & 0x01) != 0; }

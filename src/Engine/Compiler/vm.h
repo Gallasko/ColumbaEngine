@@ -2,6 +2,8 @@
 
 #include "chunk.h"
 
+#include "decoded_chunk.h"
+
 #include "Interpreter/lexer.h"
 
 #include "logger.h"
@@ -31,22 +33,14 @@
 #include <iostream>
 #endif
 
-#define EMIT_RUNTIME_ERROR(msg) do {runtimeError((Strfy() << msg).getData()); return InterpretResult::RUNTIME_ERROR;} while(0);
-
 namespace pg
 {
     static constexpr size_t FRAMES_MAX = 64;
 
-    // Forward declaration for VM
+    // Forward declaration for VM. DecodedInstruction / DecodedChunk and the
+    // OpDecodedHandler typedef come from decoded_chunk.h (single source of
+    // truth for the handler calling convention).
     struct VM;
-    struct DecodedInstruction;
-    struct DecodedChunk;
-
-    // Legacy `void(VM*)` handlers still exist as internal implementations
-    // (decoded handlers delegate to them for ops with no operands to pre-
-    // extract). They are no longer wired into the dispatch table.
-    typedef void (*OpHandler)(VM* vm);
-    typedef void (*OpDecodedHandler)(VM* vm, const DecodedInstruction& instr);
 
     // Operation information structure
     struct OpCodeInfo
@@ -154,94 +148,94 @@ namespace pg
 
     // Forward declarations for the decoded operation handlers. Defined in
     // vm_core.cpp, vm_binary_op.cpp, and vm_struct_op.cpp.
-    void op_return_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_constant_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_long_constant_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_add_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_subtract_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_multiply_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_divide_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_modulo_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_equal_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_not_equal_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_greater_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_greater_equal_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_less_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_less_equal_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_get_local_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_set_local_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_long_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_long_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_jump_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_loop_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_call_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_invoke_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_get_property_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_set_property_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_short_int_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_add_ll_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_less_equal_ll_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_less_ll_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_set_local_pop_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_return_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_constant_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_long_constant_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_add_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_subtract_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_multiply_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_divide_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_modulo_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_equal_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_not_equal_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_greater_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_greater_equal_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_equal_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_local_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_local_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_long_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_long_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_jump_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_loop_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_call_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_invoke_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_property_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_property_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_short_int_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_add_ll_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_equal_ll_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_ll_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_local_pop_decoded(VM* vm, const DecodedInstruction& instr);
 
     // Table operations
-    void op_get_index_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_set_index_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_index_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_index_decoded(VM* vm, const DecodedInstruction& instr);
 
-    void op_negate_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_not_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_and_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_or_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_true_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_false_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_negate_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_not_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_and_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_or_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_true_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_false_decoded(VM* vm, const DecodedInstruction& instr);
 
-    void op_post_incr_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_incr_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_post_decr_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_decr_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_post_incr_local_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_incr_local_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_post_decr_local_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_decr_local_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_post_incr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_incr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_post_decr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_decr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_post_incr_local_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_incr_local_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_post_decr_local_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_decr_local_decoded(VM* vm, const DecodedInstruction& instr);
 
-    void op_subtract_ll_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_subtract_lc_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_subtract_cl_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_subtract_ll_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_subtract_lc_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_subtract_cl_decoded(VM* vm, const DecodedInstruction& instr);
 
-    void op_load_constant_r_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_move_r_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_add_rrr_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_less_rr_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_incr_r_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_less_rrr_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_jump_if_false_r_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_load_constant_r_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_move_r_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_add_rrr_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_rr_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_incr_r_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_rrr_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_jump_if_false_r_decoded(VM* vm, const DecodedInstruction& instr);
 
-    void op_closure_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_class_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_method_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_build_vector_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_build_table_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_get_iterator_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_iterator_next_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_table_size_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_table_at_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_closure_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_class_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_method_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_build_vector_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_build_table_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_iterator_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_iterator_next_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_table_size_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_table_at_decoded(VM* vm, const DecodedInstruction& instr);
 
-    void op_pop_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_pop_n_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_get_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_set_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_close_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_get_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_set_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_define_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_define_global_non_popping_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_get_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_set_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_debug_print_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_import_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_pop_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_pop_n_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_close_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_define_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_define_global_non_popping_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_debug_print_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_import_decoded(VM* vm, const DecodedInstruction& instr);
 
     struct VM
     {
@@ -270,6 +264,7 @@ namespace pg
             // Clear call frames to avoid dangling pointers to freed chunks
             frameCount = 0;
             currentFrame = nullptr;
+            pendingCallResume = nullptr;
 
             // Initialize function pointer dispatch table
             register_builtin_operations();
@@ -433,18 +428,12 @@ namespace pg
 
         bool callValue(const Value& callee, int argCount);
 
-        // Variant for the decoded execution path: if a new frame is pushed
-        // (closure / bound-method / class-init call), updates currentFrame,
-        // currentStartingIp, currentDecoded, and nextInstructionIndex so the
-        // runDecoded dispatcher can keep going. Native calls leave decoded
-        // state untouched.
-        bool callValueDecoded(const Value& callee, int argCount);
-
         // If a new frame was pushed since frameCountBefore (closure /
-        // bound-method / class-init invocation), retarget currentDecoded /
-        // currentStartingIp / nextInstructionIndex to the callee. Native
-        // calls (no frame change) leave state untouched.
-        void completeDecodedFrameSwitch(int frameCountBefore);
+        // bound-method / class-init invocation), return the callee's first
+        // decoded instruction; native calls (no frame change) return the
+        // caller-supplied fall-through instruction. Handlers return the
+        // result straight to the dispatch loop.
+        const DecodedInstruction* completeDecodedFrameSwitch(int frameCountBefore, const DecodedInstruction* fallThrough);
 
         bool callMethod(Klass* receiver, const std::string& methodName, int argCount);
 
@@ -588,12 +577,14 @@ namespace pg
 
         int frameCount = 0;
 
-        // Dispatcher state for runDecoded. Decoded handlers mutate these to
-        // direct control flow (jumps, frame switches, returns). Owned by
-        // the active runDecoded frame.
-        DecodedChunk *currentDecoded        = nullptr;
-        uint8_t      *currentStartingIp     = nullptr;
-        size_t        nextInstructionIndex  = 0;
+        // Resume point for the next frame push. Written once by each frame-
+        // pushing decoded handler (op_call / op_invoke / metamethod ops)
+        // right before invoking call()/callBound(), which capture it into
+        // CallFrame::callerResume. Per-instruction sequencing lives in the
+        // dispatch loop's registers, not here. Note: a native function that
+        // pushes a frame directly (without going through a decoded handler)
+        // sees a stale value — same hazard as the old nextInstructionIndex.
+        const DecodedInstruction* pendingCallResume = nullptr;
 
         /* The stack of the VM */
         IndexableStack stack;

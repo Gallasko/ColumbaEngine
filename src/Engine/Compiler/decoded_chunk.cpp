@@ -15,6 +15,18 @@ namespace pg
         }
     }
 
+    // Synthetic terminator appended by ChunkDecoder::decode when a chunk's
+    // last instruction is not OP_Return (possible for hand-crafted or
+    // corrupted bytecode files). The dispatch loop has no bounds check —
+    // it relies on every chunk ending in an instruction that never falls
+    // through — so this guarantees the invariant for untrusted input.
+    static const DecodedInstruction* op_halt_decoded(VM* vm, const DecodedInstruction&)
+    {
+        vm->runtimeError("Reached end of bytecode without OP_Return.");
+        vm->vm_return(InterpretResult::RUNTIME_ERROR);
+        return nullptr; // unreachable — vm_return longjmps
+    }
+
     DecodedChunk* ChunkDecoder::decode(const Chunk& chunk, VM* vm)
     {
         DecodedChunk* decoded = new DecodedChunk();
@@ -45,6 +57,24 @@ namespace pg
 
             decoded->instructions.push_back(instr);
             offset = nextOffset;
+            instructionIndex++;
+        }
+
+        // Guarantee the no-fall-through terminator the dispatch loop relies
+        // on. Must happen BEFORE resolveJumpTargets: push_back can
+        // reallocate the vector, which would dangle the resolved pointers.
+        if (decoded->instructions.back().originalOpcode != static_cast<uint8_t>(OpCode::OP_Return))
+        {
+            DecodedInstruction halt{};
+            halt.decodedHandler  = op_halt_decoded;
+            halt.flags           = OpCodeInfo::NO_BRANCH; // hasControlFlow() == false → skipped by resolveJumpTargets
+            halt.originalOpcode  = static_cast<uint8_t>(OpCode::OP_Return); // skipped by resolveConstantPointers
+            halt.lineNumber      = chunk.lines.empty() ? -1 : chunk.lines.back();
+            halt.bytecodeOffset  = chunk.code.size();
+            decoded->instructions.push_back(halt);
+
+            // A forward jump targeting end-of-code resolves to the halt.
+            decoded->jumpTargets[chunk.code.size()] = decoded->instructions.size() - 1;
             instructionIndex++;
         }
 
@@ -242,9 +272,11 @@ namespace pg
 
     void ChunkDecoder::resolveJumpTargets(DecodedChunk* decoded)
     {
-        // For control flow instructions (jumps and loops), resolve target instruction index
-        // This allows us to jump directly to the correct instruction in the decoded array
-        // without needing to map bytecode offsets at runtime
+        // For control flow instructions (jumps and loops), resolve the
+        // target instruction POINTER. Jump handlers return it straight to
+        // the dispatch loop — no offset mapping or indexing at runtime.
+        // The instructions vector is final at this point (decode() appends
+        // nothing after the synthetic-halt step), so the pointers are stable.
 
         for (auto& instr : decoded->instructions)
         {
@@ -292,15 +324,30 @@ namespace pg
                                                                       instr.operands.indexed.byte4);
                         break;
 
+                    case OpCode::OP_Jump_If_False_R:
+                        // Register-based conditional jump: <slot> <offset_hi> <offset_lo>
+                        targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes +
+                                               static_cast<int16_t>((instr.operands.indexed.byte2 << 8) |
+                                                                     instr.operands.indexed.byte3);
+                        break;
+
                     default:
                         continue;  // Not a control flow instruction
                 }
 
-                // Find corresponding instruction index in decoded chunk
+                // Resolve to an instruction pointer in the decoded array.
                 auto it = decoded->jumpTargets.find(targetBytecodeOffset);
                 if (it != decoded->jumpTargets.end())
                 {
-                    instr.nextInstuctionIndex = it->second;
+                    instr.jumpTargetPtr = decoded->instructions.data() + it->second;
+                }
+                else
+                {
+                    // Parity with the old index-0 fallback; a registered
+                    // control-flow op must never carry a null target.
+                    LOG_ERROR("ChunkDecoder", "Unresolved jump target at bytecode offset "
+                              << instr.bytecodeOffset << " (target " << targetBytecodeOffset << ")");
+                    instr.jumpTargetPtr = decoded->instructions.data();
                 }
             }
         }

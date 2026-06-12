@@ -550,33 +550,38 @@ namespace pg
     template <bool ProfileEnabled>
     InterpretResult VM::runDecodedImpl(DecodedChunk *decoded)
     {
-        // Per-frame execution state lives on the VM so decoded handlers can
-        // mutate it inline (e.g. op_call_decoded swaps decoded chunk and
-        // next index when it switches frames).
-        currentDecoded     = decoded;
-        currentStartingIp  = currentFrame->closure->function->chunk.code.data();
+        if (decoded == nullptr or decoded->instructions.empty())
+            return InterpretResult::OK;
 
-        // Start at the beginning of decoded instructions
-        // We need to map currentFrame->ip to instruction index
-        size_t instructionIndex = 0;
+        // The instruction pointer lives in a register: each handler returns
+        // the next instruction to execute (`&instr + 1` to fall through, a
+        // pre-resolved jumpTargetPtr to jump, the callee's first instruction
+        // on a frame push, the frame's callerResume on return). No per-
+        // instruction VM-memory traffic for sequencing.
+        const DecodedInstruction* instr = decoded->instructions.data();
 
-        // If we're resuming mid-function, find the correct instruction index
-        if (currentFrame->ip != currentStartingIp)
+        // If we're resuming mid-function (nested executeChunk entered from a
+        // native while a frame is partially executed), map ip back to the
+        // decoded instruction.
+        uint8_t* startingIp = currentFrame->closure->function->chunk.code.data();
+        if (currentFrame->ip != startingIp)
         {
-            size_t bytecodeOffset = currentFrame->ip - currentStartingIp;
-            instructionIndex = currentDecoded->findInstructionIndex(bytecodeOffset);
+            instr = decoded->instructions.data()
+                  + decoded->findInstructionIndex(currentFrame->ip - startingIp);
         }
 
-        // Execute with longjmp support
+        // Execute with longjmp support. The loop has no bound check: every
+        // chunk ends in OP_Return (compiler-guaranteed; the decoder appends
+        // a synthetic halt otherwise), and the final return / any runtime
+        // error exits via vm_return's longjmp.
         if (setjmp(exit_jump) == 0)
         {
-            while (instructionIndex < currentDecoded->instructions.size())
+            for (;;)
             {
-                const DecodedInstruction& instr = currentDecoded->instructions[instructionIndex];
-
 #ifdef DEBUG_TRACE_EXECUTION
                 // Update currentFrame->ip for debug output
-                currentFrame->ip = currentStartingIp + instr.bytecodeOffset;
+                const Chunk& traceChunk = currentFrame->closure->function->chunk;
+                currentFrame->ip = const_cast<uint8_t*>(traceChunk.code.data()) + instr->bytecodeOffset;
 
                 std::cout << "          ";
                 for (size_t i = 0; i < stack.size(); ++i)
@@ -586,34 +591,32 @@ namespace pg
                     std::cout << "] ";
                 }
                 std::cout << std::endl;
-                disassembleInstruction(this, currentFrame->closure->function->chunk, instr.bytecodeOffset);
+                // The synthetic halt's bytecodeOffset is one past the end.
+                if (instr->bytecodeOffset < traceChunk.code.size())
+                    disassembleInstruction(this, traceChunk, instr->bytecodeOffset);
 #endif
-                // Default fall-through: handlers that don't redirect leave
-                // nextInstructionIndex at this value.
-                nextInstructionIndex = instructionIndex + 1;
-
-                // Every op in the dispatch table has a decoded handler;
-                // operands are pre-extracted on the DecodedInstruction.
                 if constexpr (ProfileEnabled)
                 {
+                    // Snapshot before dispatch: the handler may switch frames
+                    // and the call itself overwrites instr.
                     const void* chunkPtr = &currentFrame->closure->function->chunk;
                     const std::string& functionName = currentFrame->closure->function->name;
-                    const std::string& opcodeName = opcodeToString(static_cast<OpCode>(instr.originalOpcode));
+                    const uint8_t opcode = instr->originalOpcode;
+                    const size_t  offset = instr->bytecodeOffset;
+                    const std::string& opcodeName = opcodeToString(static_cast<OpCode>(opcode));
 
                     auto startTime = std::chrono::high_resolution_clock::now();
-                    instr.decodedHandler(this, instr);
+                    instr = instr->decodedHandler(this, *instr);
                     auto endTime = std::chrono::high_resolution_clock::now();
                     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 
-                    profiler.recordInstruction(chunkPtr, functionName, instr.bytecodeOffset,
-                                              instr.originalOpcode, opcodeName, duration);
+                    profiler.recordInstruction(chunkPtr, functionName, offset,
+                                               opcode, opcodeName, duration);
                 }
                 else
                 {
-                    instr.decodedHandler(this, instr);
+                    instr = instr->decodedHandler(this, *instr);
                 }
-
-                instructionIndex = nextInstructionIndex;
             }
         }
 
@@ -621,19 +624,21 @@ namespace pg
     }
 
     // Operation handler implementations
-    void op_constant_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_constant_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Use pre-resolved constant pointer (no index lookup needed!)
         vm->push(*instr.constantPtr);
+        return &instr + 1;
     }
 
-    void op_long_constant_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_long_constant_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Use pre-resolved constant pointer (no index lookup needed!)
         vm->push(*instr.constantPtr);
+        return &instr + 1;
     }
 
-    void op_get_local_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_get_local_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // slot is uint8_t so it's already in 0..255. Well-formed bytecode from
         // the compiler doesn't emit 255; assert in debug, no branch in release.
@@ -644,9 +649,10 @@ namespace pg
         // unconditionally calling it avoids a duplicate requiresRefCount check
         // on the heap path while keeping the int/double path branch-equivalent.
         vm->push(vm->retainValue(vm->currentFrame->slots[slot]));
+        return &instr + 1;
     }
 
-    void op_set_local_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_set_local_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t slot = instr.operands.byte;
         assert(slot < 255 and "Local variable slot out of range");
@@ -664,6 +670,7 @@ namespace pg
         {
             vm->releaseAndDelete(oldValue);
         }
+        return &instr + 1;
     }
 
     // OP_Set_Local_Pop: peephole fusion of OP_Set_Local + OP_Pop, which the
@@ -675,7 +682,7 @@ namespace pg
     // pop. The slot's old value still needs to be released; the popped new
     // value's refcount was already incremented when it was pushed (and the
     // slot now owns that reference), so no retain is needed — we just move it.
-    void op_set_local_pop_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_set_local_pop_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t slot = instr.operands.byte;
 
@@ -688,12 +695,13 @@ namespace pg
         {
             vm->releaseAndDelete(oldValue);
         }
+        return &instr + 1;
     }
 
     // op_return_decoded: tears down the returning frame and, on a non-final
-    // return, swaps the dispatcher state to the caller's decoded chunk so
-    // the runDecoded loop can keep going without the post-dispatch ladder.
-    void op_return_decoded(VM* vm, const DecodedInstruction&)
+    // return, hands the dispatch loop the caller's resume instruction
+    // (captured at frame-push time).
+    const DecodedInstruction* op_return_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
@@ -701,13 +709,13 @@ namespace pg
             vm->runtimeError("Nothing in the stack for return.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
 
-            return;
+            return nullptr;
         }
 #endif
-        // Snapshot the resume index from the callee frame BEFORE the frame
-        // teardown below decrements frameCount and restores currentFrame to
-        // the caller.
-        const size_t resumeIndex = vm->currentFrame->callerResumeIndex;
+        // Snapshot the resume instruction from the callee frame BEFORE the
+        // frame teardown below decrements frameCount and restores
+        // currentFrame to the caller.
+        const DecodedInstruction* resume = vm->currentFrame->callerResume;
 
         auto value = vm->pop();
 
@@ -725,7 +733,7 @@ namespace pg
             vm->releaseAndDelete(finalValue);
             vm->vm_return(InterpretResult::OK);
 
-            return;
+            return nullptr;
         }
 
         // Restore previous frame
@@ -752,39 +760,44 @@ namespace pg
 
         // If we reach here, frameCount > 0 (the frameCount == 0 path above
         // calls vm_return which longjmps out of runDecoded). currentFrame is
-        // already the caller; retarget decoded-side state to it.
-        vm->currentStartingIp    = vm->currentFrame->closure->function->chunk.code.data();
-        vm->currentDecoded       = vm->currentFrame->closure->function->decodedChunk;
-        vm->nextInstructionIndex = resumeIndex;
+        // already the caller; resume it at the captured instruction.
+        return resume;
     }
 
     // op_call_decoded: self-managing decoded variant of OP_Call. Reads
     // argCount directly from the pre-decoded instruction (no *ip++).
-    // callValueDecoded handles native vs closure dispatch: native calls
-    // leave decoded state untouched, closure/bound calls swap currentDecoded
-    // / currentStartingIp / nextInstructionIndex inline.
-    void op_call_decoded(VM* vm, const DecodedInstruction& instr)
+    // Native calls fall through; closure/bound calls switch to the callee's
+    // decoded instructions via completeDecodedFrameSwitch.
+    const DecodedInstruction* op_call_decoded(VM* vm, const DecodedInstruction& instr)
     {
         int argCount = instr.operands.byte;
 
         Value function = vm->peek(argCount);
 
-        if (not vm->callValueDecoded(function, argCount))
+        // Resume point for op_return_decoded, captured into the new frame
+        // by call()/callBound() if one is pushed.
+        vm->pendingCallResume = &instr + 1;
+
+        const int frameCountBefore = vm->frameCount;
+
+        if (not vm->callValue(function, argCount))
         {
             vm->runtimeError("Cannot call function");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
+
+        return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
     }
 
-    void op_debug_print_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_debug_print_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
         {
             vm->runtimeError("Nothing to print from the stack.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto value = vm->pop();
@@ -801,7 +814,7 @@ namespace pg
                 vm->testOutput += "<script>\n";
             }
             vm->releaseAndDelete(value);
-            return;
+            return &instr + 1;
         }
 
         if (IS_CLASS(value))
@@ -816,7 +829,7 @@ namespace pg
                 vm->testOutput += "<null class>\n";
             }
             vm->releaseAndDelete(value);
-            return;
+            return &instr + 1;
         }
 
         if (IS_INSTANCE(value))
@@ -833,7 +846,7 @@ namespace pg
             }
 
             vm->releaseAndDelete(value);
-            return;
+            return &instr + 1;
         }
 
         if (IS_BOUND_METHOD(value))
@@ -850,7 +863,7 @@ namespace pg
             }
 
             vm->releaseAndDelete(value);
-            return;
+            return &instr + 1;
         }
 
         if (IS_CLOSURE(value))
@@ -867,7 +880,7 @@ namespace pg
             }
 
             vm->releaseAndDelete(value);
-            return;
+            return &instr + 1;
         }
 
         if (IS_VECTOR(value))
@@ -884,7 +897,7 @@ namespace pg
             }
 
             vm->releaseAndDelete(value);
-            return;
+            return &instr + 1;
         }
 
         // For testing: append to testOutput buffer instead of stdout
@@ -900,66 +913,75 @@ namespace pg
             vm->testOutput += elem.toString() + "\n";
         }
         vm->releaseAndDelete(value);
+        return &instr + 1;
     }
 
-    // Decoded jump-if-false variants. The target index (when the condition
-    // is false) is already baked into instr.nextInstuctionIndex by
-    // resolveJumpTargets — the dispatcher pre-seeds nextInstructionIndex to
-    // the fall-through value, so we only override on the false branch.
+    // Decoded jump-if-false variants. The false-branch target pointer is
+    // baked into instr.jumpTargetPtr by resolveJumpTargets; the true branch
+    // falls through to the next instruction.
 
-    void op_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr)
     {
         if (not isValueTrue(vm->peek(), vm))
-            vm->nextInstructionIndex = instr.nextInstuctionIndex;
+            return instr.jumpTargetPtr;
+
+        return &instr + 1;
     }
 
-    void op_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr)
     {
         Value condition = vm->pop();
 
-        if (not isValueTrue(condition, vm))
-            vm->nextInstructionIndex = instr.nextInstuctionIndex;
+        const DecodedInstruction* next =
+            isValueTrue(condition, vm) ? &instr + 1 : instr.jumpTargetPtr;
 
         if (requiresRefCount(condition))
             vm->releaseAndDelete(condition);
+
+        return next;
     }
 
-    void op_long_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_long_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr)
     {
         if (not isValueTrue(vm->peek()))
-            vm->nextInstructionIndex = instr.nextInstuctionIndex;
+            return instr.jumpTargetPtr;
+
+        return &instr + 1;
     }
 
-    void op_long_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_long_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr)
     {
         Value condition = vm->pop();
 
-        if (not isValueTrue(condition))
-            vm->nextInstructionIndex = instr.nextInstuctionIndex;
+        const DecodedInstruction* next =
+            isValueTrue(condition) ? &instr + 1 : instr.jumpTargetPtr;
 
         if (requiresRefCount(condition))
             vm->releaseAndDelete(condition);
+
+        return next;
     }
 
-    void op_jump_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_jump_decoded(VM*, const DecodedInstruction& instr)
     {
-        // Pre-resolved target index baked in by resolveJumpTargets.
-        vm->nextInstructionIndex = instr.nextInstuctionIndex;
+        // Pre-resolved target pointer baked in by resolveJumpTargets.
+        return instr.jumpTargetPtr;
     }
 
-    void op_loop_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_loop_decoded(VM*, const DecodedInstruction& instr)
     {
-        // Pre-resolved target index baked in by resolveJumpTargets.
-        vm->nextInstructionIndex = instr.nextInstuctionIndex;
+        // Pre-resolved target pointer baked in by resolveJumpTargets.
+        return instr.jumpTargetPtr;
     }
 
-    void op_short_int_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_short_int_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Operand already pre-extracted by the chunk decoder.
         vm->push(makeIntValue(instr.operands.byte));
+        return &instr + 1;
     }
 
-    void op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Read operands directly from pre-decoded instruction (no memory fetch!)
         uint8_t constant1 = instr.operands.indexed.byte1;
@@ -974,10 +996,11 @@ namespace pg
         {
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         vm->globals[name.toString()] = vm->retainValue(value1);
+        return &instr + 1;
     }
 
     // ========================================================================
@@ -986,14 +1009,14 @@ namespace pg
 
     // op_import builds an external VM and replays interpret — no per-
     // instruction operands to extract.
-    void op_import_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_import_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
         {
             vm->runtimeError("Stack underflow on import.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         // Pop the module name from the stack
@@ -1005,7 +1028,7 @@ namespace pg
             vm->releaseAndDelete(moduleNameValue);
             vm->runtimeError("Import module name must be a string.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         std::string moduleName = vm->asString(moduleNameValue);
@@ -1077,6 +1100,7 @@ namespace pg
         {
             LOG_INFO("VM", "Post-import global: " << global.first);
         }
+        return &instr + 1;
     }
 
     void VM::printAllFunctionsBytecodeWithPerformance()
@@ -1113,12 +1137,14 @@ namespace pg
 
     // Zero-operand ops: body identical to the legacy handler.
 
-    void op_pop_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_pop_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
         {
-            EMIT_RUNTIME_ERROR("Nothing to pop from the stack.");
+            vm->runtimeError("Nothing to pop from the stack.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
         }
 #endif
         auto value = vm->pop();
@@ -1126,31 +1152,33 @@ namespace pg
         {
             vm->releaseAndDelete(value);
         }
+        return &instr + 1;
     }
 
-    void op_close_upvalue_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_close_upvalue_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
         {
             vm->runtimeError("Stack underflow on closing upvalue.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         vm->closeUpvalues(&vm->stack[vm->stack.size() - 1]);
         auto value = vm->pop();
         vm->releaseAndDelete(value);
+        return &instr + 1;
     }
 
-    void op_get_global_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_get_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
         {
             vm->runtimeError("Not enough values on stack for variable retrieval.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto nameValue = vm->peek();
@@ -1161,7 +1189,7 @@ namespace pg
             vm->pop();
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto name = vm->asString(nameValue);
@@ -1173,21 +1201,22 @@ namespace pg
             vm->pop();
             vm->runtimeError("Undefined global variable '" + name + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         vm->changeTop(vm->retainValue(it->second));
         vm->releaseAndDelete(nameValue);
+        return &instr + 1;
     }
 
-    void op_set_global_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_set_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 2)
         {
             vm->runtimeError("Not enough values on stack for variable assignment.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto nameValue = vm->pop();
@@ -1199,7 +1228,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto it = vm->globals.find(name.toString());
@@ -1208,22 +1237,23 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         vm->releaseAndDelete(it->second);
         it->second = vm->retainValue(value);
         vm->releaseAndDelete(nameValue);
+        return &instr + 1;
     }
 
-    void op_define_global_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_define_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 2)
         {
             vm->runtimeError("Not enough values on stack for variable definition.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto nameValue = vm->pop();
@@ -1236,22 +1266,23 @@ namespace pg
             vm->releaseAndDelete(value);
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         vm->globals[name.toString()] = vm->retainValue(value);
         vm->releaseAndDelete(nameValue);
         vm->releaseAndDelete(value);
+        return &instr + 1;
     }
 
-    void op_define_global_non_popping_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_define_global_non_popping_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 2)
         {
             vm->runtimeError("Not enough values on stack for variable definition.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto nameValue = vm->pop();
@@ -1263,17 +1294,18 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         vm->globals[name.toString()] = vm->retainValue(value);
         vm->releaseAndDelete(nameValue);
+        return &instr + 1;
     }
 
     // One-byte-operand ops: operand was reading via *ip++ before; now it's
     // pre-extracted on instr.operands.byte.
 
-    void op_pop_n_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_pop_n_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t count = instr.operands.byte;
 
@@ -1285,9 +1317,10 @@ namespace pg
                 vm->releaseAndDelete(value);
             }
         }
+        return &instr + 1;
     }
 
-    void op_get_upvalue_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_get_upvalue_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t slot = instr.operands.byte;
 
@@ -1295,7 +1328,7 @@ namespace pg
         {
             vm->runtimeError("Upvalue index out of bounds.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         ObjUpvalue* upvalue = vm->currentFrame->closure->upvalues[slot];
@@ -1308,9 +1341,10 @@ namespace pg
         {
             vm->push(vm->retainValue(*upvalue->location));
         }
+        return &instr + 1;
     }
 
-    void op_set_upvalue_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_set_upvalue_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t slot = instr.operands.byte;
 #ifdef DEBUG_CHECK_STACK
@@ -1318,14 +1352,15 @@ namespace pg
         {
             vm->runtimeError("Not enough values on stack for upvalue assignment.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         ObjUpvalue* upvalue = vm->currentFrame->closure->upvalues[slot];
         upvalue->location = &vm->stack[vm->stack.size() - 1];
+        return &instr + 1;
     }
 
-    void op_get_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_get_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t constant = instr.operands.byte;
         auto value = vm->currentFrame->closure->function->chunk.constants[constant];
@@ -1335,7 +1370,7 @@ namespace pg
         {
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto it = vm->globals.find(name.toString());
@@ -1343,16 +1378,17 @@ namespace pg
         {
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         vm->push(vm->retainValue(it->second));
+        return &instr + 1;
     }
 
     // Two-byte-operand op: operands.indexed.byte1/byte2 hold the two
     // constant indices the legacy version read via two *ip++ reads.
 
-    void op_set_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_set_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t constant1 = instr.operands.indexed.byte1;
         uint8_t constant2 = instr.operands.indexed.byte2;
@@ -1365,7 +1401,7 @@ namespace pg
         {
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto it = vm->globals.find(name.toString());
@@ -1373,11 +1409,12 @@ namespace pg
         {
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         vm->releaseAndDelete(it->second);
         it->second = vm->retainValue(value1);
         vm->push(vm->retainValue(value1));
+        return &instr + 1;
     }
 }

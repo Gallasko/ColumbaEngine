@@ -30,21 +30,24 @@ namespace pg
         return vm->callMethod(instance->klass, name, argCount);
     }
 
-    void op_invoke_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_invoke_decoded(VM* vm, const DecodedInstruction& instr)
     {
         const uint8_t argCount = instr.operands.indexed.byte2;
         const std::string& methodName = *instr.propertyNamePtr;
 
         const int frameCountBefore = vm->frameCount;
 
+        // Resume point for op_return_decoded if invoke pushes a frame.
+        vm->pendingCallResume = &instr + 1;
+
         if (not invoke(vm, methodName, argCount))
         {
             vm->runtimeError("Method '" + methodName + "' not found.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
-        vm->completeDecodedFrameSwitch(frameCountBefore);
+        return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
     }
 
 
@@ -84,13 +87,13 @@ namespace pg
         return false;
     }
 
-    void op_get_property_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_get_property_decoded(VM* vm, const DecodedInstruction& instr)
     {
         if (not IS_INSTANCE(vm->peek(0)))
         {
             vm->runtimeError("Only instances have properties.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto* instance = vm->asInstance(vm->peek(0));
@@ -106,7 +109,7 @@ namespace pg
             auto inst = vm->pop();
             vm->releaseAndDelete(inst);
             vm->push(vm->retainValue(instance->fieldValues[fieldIt->second]));
-            return;
+            return &instr + 1;
         }
 
         // Look up __get metamethod (class method or dynamic instance field).
@@ -141,6 +144,9 @@ namespace pg
 
                 const int frameCountBefore = vm->frameCount;
 
+                // Resume point captured into the metamethod's frame.
+                vm->pendingCallResume = &instr + 1;
+
                 if (isDynamicGet)
                 {
                     // Stack rewrite: [...] [instance] [propName] →
@@ -156,7 +162,7 @@ namespace pg
                         vm->releaseAndDelete(getMethod);
                         vm->runtimeError("Cannot call __get metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
                 }
                 else
@@ -165,13 +171,12 @@ namespace pg
                     {
                         vm->runtimeError("Cannot call __get metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
                 }
 
-                // Frame was pushed — retarget dispatcher state.
-                vm->completeDecodedFrameSwitch(frameCountBefore);
-                return;
+                // Frame was pushed — continue in the metamethod.
+                return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
             }
             else // IS_NAT_FUNC(getMethod)
             {
@@ -186,7 +191,7 @@ namespace pg
                 vm->releaseAndDelete(inst);
 
                 vm->push(result);
-                return;
+                return &instr + 1;
             }
         }
 
@@ -196,15 +201,16 @@ namespace pg
             vm->runtimeError("Undefined property '" + nameStr + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
         }
+        return &instr + 1;
     }
 
-    void op_set_property_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_set_property_decoded(VM* vm, const DecodedInstruction& instr)
     {
         if (not IS_INSTANCE(vm->peek(1)))
         {
             vm->runtimeError("Only instances have fields.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto* instance = vm->asInstance(vm->peek(1));
@@ -272,6 +278,9 @@ namespace pg
 
                 const int frameCountBefore = vm->frameCount;
 
+                // Resume point captured into the metamethod's frame.
+                vm->pendingCallResume = &instr + 1;
+
                 if (isDynamicSet)
                 {
                     // Rewrite to: [...] [setMethod] [instance] [name] [value]
@@ -289,7 +298,7 @@ namespace pg
                         vm->releaseAndDelete(setMethod);
                         vm->runtimeError("Cannot call __set metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
                 }
                 else
@@ -298,12 +307,11 @@ namespace pg
                     {
                         vm->runtimeError("Cannot call __set metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
                 }
 
-                vm->completeDecodedFrameSwitch(frameCountBefore);
-                return;
+                return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
             }
             else if (IS_NAT_FUNC(setMethod))
             {
@@ -321,7 +329,7 @@ namespace pg
                 vm->releaseAndDelete(inst);
 
                 vm->push(result);
-                return;
+                return &instr + 1;
             }
         }
 
@@ -345,13 +353,14 @@ namespace pg
         }
 
         vm->push(value);
+        return &instr + 1;
     }
 
     // ========================================================================
     // Table Operations
     // ========================================================================
 
-    void op_get_index_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_get_index_decoded(VM* vm, const DecodedInstruction& instr)
     {
         Value index  = vm->pop();
         Value target = vm->pop();
@@ -365,7 +374,7 @@ namespace pg
                 vm->releaseAndDelete(target);
                 vm->runtimeError("Vector index must be an integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             ObjVector* vec = vm->asVector(target);
@@ -377,12 +386,12 @@ namespace pg
                 vm->releaseAndDelete(target);
                 vm->runtimeError("Vector index out of bounds");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             vm->releaseAndDelete(target);
             vm->push(vm->retainValue(vec->fields[idx]));
-            return;
+            return &instr + 1;
         }
 
         // String indexing.
@@ -394,7 +403,7 @@ namespace pg
                 if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
                 vm->runtimeError("String index must be an integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             std::string str = vm->asString(target);
@@ -406,13 +415,13 @@ namespace pg
                 if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
                 vm->runtimeError("String index out of bounds");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
             unsigned char ch = static_cast<unsigned char>(str[idx]);
             vm->push(vm->retainValue(vm->singleCharCache[ch]));
-            return;
+            return &instr + 1;
         }
 
         // Table / instance indexing.
@@ -422,7 +431,7 @@ namespace pg
             vm->releaseAndDelete(target);
             vm->runtimeError("Can only index vectors, strings, or tables/instances");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         ObjInstance* inst = vm->asInstance(target);
@@ -442,7 +451,7 @@ namespace pg
             vm->releaseAndDelete(target);
             vm->runtimeError("Index must be integer or string");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto fieldIt = inst->internedFields.find(key);
@@ -451,7 +460,7 @@ namespace pg
             vm->releaseAndDelete(index);
             vm->releaseAndDelete(target);
             vm->push(vm->retainValue(inst->fieldValues[fieldIt->second]));
-            return;
+            return &instr + 1;
         }
 
         // Look up __get metamethod.
@@ -490,6 +499,9 @@ namespace pg
 
                 const int frameCountBefore = vm->frameCount;
 
+                // Resume point captured into the metamethod's frame.
+                vm->pendingCallResume = &instr + 1;
+
                 if (isDynamicGet)
                 {
                     // Rewrite to [...] [getMethod] [instance] [key].
@@ -507,7 +519,7 @@ namespace pg
                         vm->releaseAndDelete(target);
                         vm->runtimeError("Cannot call __get metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
                 }
                 else
@@ -519,7 +531,7 @@ namespace pg
                         vm->releaseAndDelete(target);
                         vm->runtimeError("Cannot call __get metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
                 }
 
@@ -527,8 +539,7 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->releaseAndDelete(target);
 
-                vm->completeDecodedFrameSwitch(frameCountBefore);
-                return;
+                return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
             }
             else // IS_NAT_FUNC(getMethod)
             {
@@ -546,7 +557,7 @@ namespace pg
                 vm->releaseAndDelete(target);
 
                 vm->push(result);
-                return;
+                return &instr + 1;
             }
         }
 
@@ -554,9 +565,10 @@ namespace pg
         vm->releaseAndDelete(index);
         vm->releaseAndDelete(target);
         vm->push(BOOL_VAL(false));
+        return &instr + 1;
     }
 
-    void op_set_index_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_set_index_decoded(VM* vm, const DecodedInstruction& instr)
     {
         Value value  = vm->pop();
         Value index  = vm->pop();
@@ -568,7 +580,7 @@ namespace pg
             vm->releaseAndDelete(index);
             vm->runtimeError("Can only index vectors, tables/instances, or strings");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         // Vector indexing.
@@ -580,7 +592,7 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("Vector index must be an integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             ObjVector* vec = vm->asVector(target);
@@ -593,7 +605,7 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vec->fields.push_back(vm->retainValue(value));
                 vm->releaseAndDelete(value);
-                return;
+                return &instr + 1;
             }
 
             if (idx < 0 || idx > static_cast<int>(vec->fields.size()))
@@ -602,14 +614,14 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("Vector index out of bounds");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             vm->releaseAndDelete(index);
             vm->releaseAndDelete(vec->fields[idx]);
             vec->fields[idx] = vm->retainValue(value);
             vm->releaseAndDelete(value);
-            return;
+            return &instr + 1;
         }
 
         // Instance / table indexing.
@@ -632,7 +644,7 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("Index must be integer or string");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             vm->releaseAndDelete(index);
@@ -675,6 +687,9 @@ namespace pg
 
                     const int frameCountBefore = vm->frameCount;
 
+                    // Resume point captured into the metamethod's frame.
+                    vm->pendingCallResume = &instr + 1;
+
                     if (isDynamicSet)
                     {
                         // Rewrite to [...] [setMethod] [instance] [key] [value].
@@ -693,7 +708,7 @@ namespace pg
                             vm->releaseAndDelete(value);
                             vm->runtimeError("Cannot call __set metamethod.");
                             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                            return;
+                            return nullptr;
                         }
                     }
                     else
@@ -704,15 +719,14 @@ namespace pg
                             vm->releaseAndDelete(value);
                             vm->runtimeError("Cannot call __set metamethod.");
                             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                            return;
+                            return nullptr;
                         }
                     }
 
                     vm->releaseAndDelete(keyValue);
                     vm->releaseAndDelete(value);
 
-                    vm->completeDecodedFrameSwitch(frameCountBefore);
-                    return;
+                    return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
                 }
                 else // IS_NAT_FUNC(setMethod)
                 {
@@ -730,7 +744,7 @@ namespace pg
                     vm->releaseAndDelete(keyValue);
                     vm->releaseAndDelete(value);
                     // Note: target stays on stack (peek(0)) per op_set_index contract.
-                    return;
+                    return &instr + 1;
                 }
             }
 
@@ -750,7 +764,7 @@ namespace pg
             }
 
             vm->releaseAndDelete(value);
-            return;
+            return &instr + 1;
         }
 
         // String indexing — assign one character at idx (append allowed).
@@ -762,7 +776,7 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("String index must be integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             if (!IS_STRING(value))
@@ -771,7 +785,7 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("Can only assign string to string index");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             std::string str = vm->asString(target);
@@ -784,7 +798,7 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("String index out of range");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             std::string valueString = vm->asString(value);
@@ -794,7 +808,7 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("Can only assign single character to string index");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             if (idx == static_cast<int>(str.length()))
@@ -810,15 +824,19 @@ namespace pg
             vm->push(vm->createString(str));    // push new one
             vm->releaseAndDelete(value);
             vm->releaseAndDelete(index);
-            return;
+            return &instr + 1;
         }
+
+        // Unreachable: the type guard at the top rejects anything that is
+        // not a vector, instance, or string.
+        return &instr + 1;
     }
 
     // ========================================================================
     // Iterator Operations
     // ========================================================================
 
-    void op_get_iterator_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_get_iterator_decoded(VM* vm, const DecodedInstruction& instr)
     {
         Value tableVal = vm->peek(0);  // Don't pop, we keep table on stack
 
@@ -826,15 +844,16 @@ namespace pg
         {
             vm->runtimeError("Can only iterate over tables");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         // Create an integer to track iteration index (we'll iterate by index in fields map)
         // Push 0 as the initial iterator state
         vm->push(makeIntValue(0));
+        return &instr + 1;
     }
 
-    void op_iterator_next_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_iterator_next_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Stack layout: [table, iterator_state]
         // We need to:
@@ -850,14 +869,14 @@ namespace pg
         {
             vm->runtimeError("Invalid iterator state");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         if (!IS_INSTANCE(tableVal))
         {
             vm->runtimeError("Can only iterate over tables");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         ObjInstance* table = vm->asInstance(tableVal);
@@ -872,7 +891,7 @@ namespace pg
             // End of iteration - push false to indicate done
             // Stack remains: [table, iterator_state, false]
             vm->push(makeBoolValue(false));
-            return;
+            return &instr + 1;
         }
 
         // Get the key at the current index
@@ -899,9 +918,10 @@ namespace pg
         vm->push(keyVal);
 
         // Final stack: [table, iterator_state+1, key]
+        return &instr + 1;
     }
 
-    void op_table_size_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_table_size_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Stack: [table or vector]
         Value tableVal = vm->peek(0);
@@ -916,14 +936,14 @@ namespace pg
 
             // Push the size as an integer
             vm->push(makeIntValue(static_cast<int64_t>(vector->fields.size())));
-            return;
+            return &instr + 1;
         }
 
         if (!IS_INSTANCE(tableVal))
         {
             vm->runtimeError("Can only get size of tables or vectors");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         ObjInstance* table = vm->asInstance(tableVal);
@@ -935,9 +955,10 @@ namespace pg
         // Push the field count
         size_t totalSize = table->fieldValues.size();
         vm->push(makeIntValue(static_cast<int64_t>(totalSize)));
+        return &instr + 1;
     }
 
-    void op_table_at_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_table_at_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Stack: [table or vector, index]
         Value indexVal = vm->pop();
@@ -952,7 +973,7 @@ namespace pg
                 vm->releaseAndDelete(tableVal);
                 vm->runtimeError("Vector index must be an integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             ObjVector* vector = vm->asVector(tableVal);
@@ -965,7 +986,7 @@ namespace pg
                 vm->releaseAndDelete(tableVal);
                 vm->runtimeError("Vector index out of bounds");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             // Get the value directly
@@ -977,7 +998,7 @@ namespace pg
             // For vectors, return the value directly (not the index)
             // This is different from tables where we return the key
             vm->push(vm->retainValue(value));
-            return;
+            return &instr + 1;
         }
 
         // Handle table access (returns key at index position in map)
@@ -987,7 +1008,7 @@ namespace pg
             vm->releaseAndDelete(tableVal);
             vm->runtimeError("Can only get keys from tables or vectors");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         if (!IS_INT(indexVal))
@@ -996,7 +1017,7 @@ namespace pg
             vm->releaseAndDelete(tableVal);
             vm->runtimeError("Table index must be an integer");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         ObjInstance* table = vm->asInstance(tableVal);
@@ -1012,7 +1033,7 @@ namespace pg
             vm->releaseAndDelete(tableVal);
             vm->runtimeError("Table index out of bounds");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         // Get the key at the specified index
@@ -1032,6 +1053,7 @@ namespace pg
         // Push the key as a string
         Value keyVal = vm->createString(key);
         vm->push(keyVal);
+        return &instr + 1;
     }
 
     // ---------------------------------------------------------------------
@@ -1044,14 +1066,15 @@ namespace pg
     // constant byte.
     // ---------------------------------------------------------------------
 
-    void op_closure_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_closure_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t constantIndex = instr.operands.byte;
 
         // Variable-length upvalue payload (2 bytes per upvalue) can't be
         // pre-decoded — position ip past the opcode + constant byte so the
         // per-upvalue *ip++ reads land on the right bytes.
-        vm->currentFrame->ip = vm->currentStartingIp + instr.bytecodeOffset + 2;
+        vm->currentFrame->ip = vm->currentFrame->closure->function->chunk.code.data()
+                             + instr.bytecodeOffset + 2;
 
         auto functionValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
 
@@ -1059,7 +1082,7 @@ namespace pg
         {
             vm->runtimeError("Closure operand must be a function.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         ObjFunction* function = vm->asFunction(functionValue);
@@ -1079,9 +1102,10 @@ namespace pg
                 vm->asClosure(closure)->upvalues[i] = vm->currentFrame->closure->upvalues[index];
             }
         }
+        return &instr + 1;
     }
 
-    void op_class_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_class_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t constantIndex = instr.operands.byte;
         auto classNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
@@ -1091,15 +1115,16 @@ namespace pg
         {
             vm->runtimeError("Class name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         std::string className = classNameElem.toString();
         auto newClass = vm->createClass(className);
         vm->push(newClass);
+        return &instr + 1;
     }
 
-    void op_method_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_method_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t constantIndex = instr.operands.byte;
         auto methodNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
@@ -1109,7 +1134,7 @@ namespace pg
         {
             vm->runtimeError("Method name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         std::string methodName = methodNameElem.toString();
@@ -1121,7 +1146,7 @@ namespace pg
         {
             vm->runtimeError("Method definition must be on a class.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         Klass* klass = vm->asClass(classValue);
@@ -1130,13 +1155,14 @@ namespace pg
         {
             vm->runtimeError("Method must be a closure or native function.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         klass->methods[methodName] = methodValue;
+        return &instr + 1;
     }
 
-    void op_build_table_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_build_table_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t pairCount = instr.operands.byte;
 
@@ -1145,7 +1171,7 @@ namespace pg
         {
             vm->runtimeError("Table class not found - was initializeTableClass() called?");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         Value tableClassVal = it->second;
@@ -1153,7 +1179,7 @@ namespace pg
         {
             vm->runtimeError("Table is not a class");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         Klass* tableClass = vm->asClass(tableClassVal);
@@ -1189,7 +1215,7 @@ namespace pg
                 vm->releaseAndDelete(value);
                 vm->runtimeError("Table key must be string or integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             vm->releaseAndDelete(key);
@@ -1206,9 +1232,10 @@ namespace pg
         }
 
         vm->push(instanceVal);
+        return &instr + 1;
     }
 
-    void op_build_vector_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_build_vector_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t pairCount = instr.operands.byte;
 
@@ -1230,7 +1257,7 @@ namespace pg
                 vm->releaseAndDelete(vectorVal);
                 vm->runtimeError("Vector index must be an integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             int64_t indexInt = AS_INT(index);
@@ -1255,6 +1282,7 @@ namespace pg
         }
 
         vm->push(vectorVal);
+        return &instr + 1;
     }
 
     // Zero-operand ops: no bytecode to pre-extract, so the decoded form

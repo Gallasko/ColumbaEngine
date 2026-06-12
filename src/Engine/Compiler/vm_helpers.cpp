@@ -119,36 +119,19 @@ namespace pg
         return false;
     }
 
-    bool VM::callValueDecoded(const Value& callee, int argCount)
-    {
-        // The resume point in the caller's decoded chunk is carried by the
-        // new frame's callerResumeIndex (populated inside call() / callBound()
-        // from nextInstructionIndex). No ip parking needed.
-        const int frameCountBefore = frameCount;
-
-        if (not callValue(callee, argCount))
-            return false;
-
-        completeDecodedFrameSwitch(frameCountBefore);
-        return true;
-    }
-
-    void VM::completeDecodedFrameSwitch(int frameCountBefore)
+    const DecodedInstruction* VM::completeDecodedFrameSwitch(int frameCountBefore, const DecodedInstruction* fallThrough)
     {
         // Native calls (and class constructors with no init) push no frame —
-        // execution stays in the current decoded chunk, so leave dispatcher
-        // state alone.
+        // execution continues at the caller-supplied fall-through.
         if (frameCount == frameCountBefore)
-            return;
+            return fallThrough;
 
-        // A new frame was pushed. Switch dispatcher state to the callee.
-        // Every reachable function has a pre-decoded chunk (interpret() and
-        // executeChunk() both pre-decode). Callees always start at index 0
-        // — call()/callBound() set frame->ip = chunk.code.data().
-        currentFrame         = &frames[frameCount - 1];
-        currentStartingIp    = currentFrame->closure->function->chunk.code.data();
-        currentDecoded       = currentFrame->closure->function->decodedChunk;
-        nextInstructionIndex = 0;
+        // A new frame was pushed. Hand the dispatch loop the callee's first
+        // decoded instruction. Every reachable function has a pre-decoded
+        // chunk (interpret() and executeChunk() both pre-decode the whole
+        // function tree).
+        currentFrame = &frames[frameCount - 1];
+        return currentFrame->closure->function->decodedChunk->instructions.data();
     }
 
     bool VM::callMethod(Klass* receiver, const std::string& methodName, int argCount)
@@ -224,10 +207,9 @@ namespace pg
         // When returning, we want to truncate to the function's position (remove function + args + locals)
         frame->stackBase = frame->slots - 1;
 
-        // The dispatcher pre-seeded vm->nextInstructionIndex to the
-        // call-site's "next" index before invoking the handler that's now
-        // pushing this frame. Capture it for op_return_decoded.
-        frame->callerResumeIndex = nextInstructionIndex;
+        // The frame-pushing decoded handler stored its call-site resume
+        // pointer in pendingCallResume. Capture it for op_return_decoded.
+        frame->callerResume = pendingCallResume;
 
         return true;
     }
@@ -260,10 +242,9 @@ namespace pg
         // When returning, we want to truncate to the receiver's position (remove receiver + args + locals)
         frame->stackBase = frame->slots;
 
-        // The dispatcher pre-seeded vm->nextInstructionIndex to the
-        // call-site's "next" index before invoking the handler that's now
-        // pushing this frame. Capture it for op_return_decoded.
-        frame->callerResumeIndex = nextInstructionIndex;
+        // The frame-pushing decoded handler stored its call-site resume
+        // pointer in pendingCallResume. Capture it for op_return_decoded.
+        frame->callerResume = pendingCallResume;
 
         return true;
     }

@@ -310,24 +310,27 @@ namespace pg
         return elementToValue(elemA <= elemB);
     }
 
-    void op_true_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_true_decoded(VM* vm, const DecodedInstruction& instr)
     {
         vm->push(BOOL_VAL(true));
+        return &instr + 1;
     }
 
-    void op_false_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_false_decoded(VM* vm, const DecodedInstruction& instr)
     {
         vm->push(BOOL_VAL(false));
+        return &instr + 1;
     }
 
     #define BINARY_OP_TEMPLATE(op_name, operation) \
-    void op_name##_decoded(VM* vm, const DecodedInstruction&) \
+    const DecodedInstruction* op_name##_decoded(VM* vm, const DecodedInstruction& instr) \
     { \
         auto b = vm->pop(); \
         auto a = vm->peek(); \
         vm->changeTop(vm->operation(a, b)); \
         /* Escape analysis: Only release heap objects, not primitives */ \
         if (requiresRefCount(b)) vm->releaseAndDelete(b); \
+        return &instr + 1; \
     }
 
     BINARY_OP_TEMPLATE(op_add, addValues)
@@ -347,36 +350,38 @@ namespace pg
 
     #undef BINARY_OP_TEMPLATE
 
-    void op_negate_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_negate_decoded(VM* vm, const DecodedInstruction& instr)
     {
         if (not isValueNumber(vm->peek(0)))
         {
             vm->runtimeError("Operand after an unary (-) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto val = vm->pop();
         vm->push(vm->negateValue(val));
         vm->releaseAndDelete(val);
+        return &instr + 1;
     }
 
 
-    void op_not_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_not_decoded(VM* vm, const DecodedInstruction& instr)
     {
         if (not IS_BOOL(vm->peek(0)))
         {
             vm->runtimeError("Operand after an unary (!) must be a boolean.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto value = vm->pop();
         vm->push(BOOL_VAL(not isValueTrue(value)));
         vm->releaseAndDelete(value);
+        return &instr + 1;
     }
 
-    void op_and_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_and_decoded(VM* vm, const DecodedInstruction& instr)
     {
         vm->checkBooleanBinaryOp();
         auto b = vm->pop();
@@ -387,9 +392,10 @@ namespace pg
         vm->push(BOOL_VAL(resultA and resultB));
         vm->releaseAndDelete(a);
         vm->releaseAndDelete(b);
+        return &instr + 1;
     }
 
-    void op_or_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_or_decoded(VM* vm, const DecodedInstruction& instr)
     {
         vm->checkBooleanBinaryOp();
         auto b = vm->pop();
@@ -400,17 +406,18 @@ namespace pg
         vm->push(BOOL_VAL(resultA or resultB));
         vm->releaseAndDelete(a);
         vm->releaseAndDelete(b);
+        return &instr + 1;
     }
 
 
-    void op_post_incr_global_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_post_incr_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
         {
             vm->runtimeError("Stack underflow on post-increment.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto nameValue = vm->pop();
@@ -421,7 +428,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto it = vm->globals.find(name.toString());
@@ -430,7 +437,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         if (not isValueNumber(it->second))
@@ -438,7 +445,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Operand after an unary (++) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto newValue = vm->addValues(it->second, INT_VAL(1));
@@ -446,16 +453,17 @@ namespace pg
         it->second = vm->retainValue(newValue);
 
         vm->releaseAndDelete(nameValue);
+        return &instr + 1;
     }
 
-    void op_incr_global_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_incr_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
         {
             vm->runtimeError("Stack underflow on increment.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto nameValue = vm->pop();
@@ -466,7 +474,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto it = vm->globals.find(name.toString());
@@ -475,7 +483,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         if (not isValueNumber(it->second))
@@ -483,7 +491,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Operand after an unary (++) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto newValue = vm->addValues(it->second, INT_VAL(1));
@@ -492,16 +500,17 @@ namespace pg
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(nameValue);
+        return &instr + 1;
     }
 
-    void op_post_decr_global_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_post_decr_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
         {
             vm->runtimeError("Stack underflow on post-decrement.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto nameValue = vm->pop();
@@ -512,7 +521,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto it = vm->globals.find(name.toString());
@@ -521,7 +530,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         if (not isValueNumber(it->second))
@@ -529,7 +538,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Operand after an unary (--) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto newValue = vm->subtractValues(it->second, INT_VAL(1));
@@ -537,16 +546,17 @@ namespace pg
         it->second = vm->retainValue(newValue);
 
         vm->releaseAndDelete(nameValue);
+        return &instr + 1;
     }
 
-    void op_decr_global_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_decr_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
         {
             vm->runtimeError("Stack underflow on decrement.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto nameValue = vm->pop();
@@ -557,7 +567,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto it = vm->globals.find(name.toString());
@@ -566,7 +576,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         if (not isValueNumber(it->second))
@@ -574,7 +584,7 @@ namespace pg
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Operand after an unary (--) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto newValue = vm->subtractValues(it->second, INT_VAL(1));
@@ -583,16 +593,17 @@ namespace pg
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(nameValue);
+        return &instr + 1;
     }
 
-    void op_post_incr_local_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_post_incr_local_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
         {
             vm->runtimeError("Not enough values on stack for local post-increment.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto slot = vm->pop();
@@ -602,7 +613,7 @@ namespace pg
             vm->releaseAndDelete(slot);
             vm->runtimeError("Local variable slot must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         int index = vm->getValueAsInt(slot);
@@ -612,7 +623,7 @@ namespace pg
         {
             vm->runtimeError("Local variable index cannot be negative.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         // Calculate the absolute stack index from the frame-relative index
@@ -622,7 +633,7 @@ namespace pg
         {
             vm->runtimeError("Operand after an unary (++) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         auto& val = vm->stack[stackIndex];
@@ -632,16 +643,17 @@ namespace pg
         auto newValue = vm->addValues(val, INT_VAL(1));
         vm->releaseAndDelete(val);
         val = newValue;
+        return &instr + 1;
     }
 
-    void op_incr_local_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_incr_local_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
         {
             vm->runtimeError("Not enough values on stack for local increment.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto slot = vm->pop();
@@ -651,7 +663,7 @@ namespace pg
             vm->releaseAndDelete(slot);
             vm->runtimeError("Local variable slot must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         int index = vm->getValueAsInt(slot);
@@ -660,7 +672,7 @@ namespace pg
             vm->releaseAndDelete(slot);
             vm->runtimeError("Local variable index cannot be negative.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         if (not isValueNumber(vm->currentFrame->slots[index]))
@@ -668,7 +680,7 @@ namespace pg
             vm->releaseAndDelete(slot);
             vm->runtimeError("Operand after an unary (++) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         // Calculate the absolute stack index from the frame-relative index
@@ -680,16 +692,17 @@ namespace pg
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(slot);
+        return &instr + 1;
     }
 
-    void op_post_decr_local_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_post_decr_local_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
         {
             vm->runtimeError("Not enough values on stack for local post-decrement.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto slot = vm->pop();
@@ -699,7 +712,7 @@ namespace pg
             vm->releaseAndDelete(slot);
             vm->runtimeError("Local variable slot must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         int index = vm->getValueAsInt(slot);
@@ -708,7 +721,7 @@ namespace pg
             vm->releaseAndDelete(slot);
             vm->runtimeError("Local variable index cannot be negative.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         // Calculate the absolute stack index from the frame-relative index
@@ -719,7 +732,7 @@ namespace pg
             vm->releaseAndDelete(slot);
             vm->runtimeError("Operand after an unary (--) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         // Old value is already on the stack (from OP_Get_Local before this opcode)
@@ -729,16 +742,17 @@ namespace pg
         vm->stack[stackIndex] = newValue;
 
         vm->releaseAndDelete(slot);
+        return &instr + 1;
     }
 
-    void op_decr_local_decoded(VM* vm, const DecodedInstruction&)
+    const DecodedInstruction* op_decr_local_decoded(VM* vm, const DecodedInstruction& instr)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
         {
             vm->runtimeError("Not enough values on stack for local decrement.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 #endif
         auto slot = vm->pop();
@@ -748,7 +762,7 @@ namespace pg
             vm->releaseAndDelete(slot);
             vm->runtimeError("Local variable slot must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         int index = vm->getValueAsInt(slot);
@@ -757,7 +771,7 @@ namespace pg
             vm->releaseAndDelete(slot);
             vm->runtimeError("Local variable index cannot be negative.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         if (not isValueNumber(vm->currentFrame->slots[index]))
@@ -765,7 +779,7 @@ namespace pg
             vm->releaseAndDelete(slot);
             vm->runtimeError("Operand after an unary (--) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         // Calculate the absolute stack index from the frame-relative index
@@ -777,38 +791,42 @@ namespace pg
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(slot);
+        return &instr + 1;
     }
 
-    void op_add_ll_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_add_ll_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Both local slot indices were pre-extracted at decode time.
         auto value1 = vm->currentFrame->slots[instr.operands.indexed.byte1];
         auto value2 = vm->currentFrame->slots[instr.operands.indexed.byte2];
         vm->push(vm->addValues(value1, value2));
+        return &instr + 1;
     }
 
     // OP_LessEqualLL: peephole fusion of OP_Get_Local A + OP_Get_Local B + OP_LessEqual.
     // Reads two locals directly and pushes the comparison result. No popping the
     // pushed local copies, no addValues-style boxing — straight slot read + compare.
-    void op_less_equal_ll_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_less_equal_ll_decoded(VM* vm, const DecodedInstruction& instr)
     {
         auto v1 = vm->currentFrame->slots[instr.operands.indexed.byte1];
         auto v2 = vm->currentFrame->slots[instr.operands.indexed.byte2];
         vm->push(vm->lessEqualValues(v1, v2));
+        return &instr + 1;
     }
 
     // OP_LessLL: same shape as OP_LessEqualLL but using lessValues. Used by
     // loop conditions of the form `while (x < y)` where both are locals.
-    void op_less_ll_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_less_ll_decoded(VM* vm, const DecodedInstruction& instr)
     {
         auto v1 = vm->currentFrame->slots[instr.operands.indexed.byte1];
         auto v2 = vm->currentFrame->slots[instr.operands.indexed.byte2];
         vm->push(vm->lessValues(v1, v2));
+        return &instr + 1;
     }
 
     // Two-byte-operand subtract peephole fusions.
 
-    void op_subtract_ll_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_subtract_ll_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t local1 = instr.operands.indexed.byte1;
         uint8_t local2 = instr.operands.indexed.byte2;
@@ -817,9 +835,10 @@ namespace pg
         auto value2 = vm->currentFrame->slots[local2];
 
         vm->push(vm->subtractValues(value1, value2));
+        return &instr + 1;
     }
 
-    void op_subtract_lc_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_subtract_lc_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t local1        = instr.operands.indexed.byte1;
         uint8_t constantIndex = instr.operands.indexed.byte2;
@@ -828,9 +847,10 @@ namespace pg
         auto value2 = vm->currentFrame->closure->function->chunk.constants[constantIndex];
 
         vm->push(vm->subtractValues(value1, value2));
+        return &instr + 1;
     }
 
-    void op_subtract_cl_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_subtract_cl_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t constantIndex = instr.operands.indexed.byte1;
         uint8_t local2        = instr.operands.indexed.byte2;
@@ -839,29 +859,32 @@ namespace pg
         auto value2 = vm->currentFrame->slots[local2];
 
         vm->push(vm->subtractValues(value1, value2));
+        return &instr + 1;
     }
 
     // Register-based ops: operands are 1–3 slot indices stored in
     // instr.operands.indexed (or .byte for the single-operand op_incr_r).
 
-    void op_load_constant_r_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_load_constant_r_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t destSlot   = instr.operands.indexed.byte1;
         uint8_t constIndex = instr.operands.indexed.byte2;
 
         vm->currentFrame->slots[destSlot] =
             vm->currentFrame->closure->function->chunk.constants[constIndex];
+        return &instr + 1;
     }
 
-    void op_move_r_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_move_r_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t destSlot = instr.operands.indexed.byte1;
         uint8_t srcSlot  = instr.operands.indexed.byte2;
 
         vm->currentFrame->slots[destSlot] = vm->currentFrame->slots[srcSlot];
+        return &instr + 1;
     }
 
-    void op_add_rrr_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_add_rrr_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t destSlot = instr.operands.indexed.byte1;
         uint8_t src1Slot = instr.operands.indexed.byte2;
@@ -871,9 +894,10 @@ namespace pg
         Value b = vm->currentFrame->slots[src2Slot];
 
         vm->currentFrame->slots[destSlot] = vm->addValues(a, b);
+        return &instr + 1;
     }
 
-    void op_less_rr_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_less_rr_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t src1Slot = instr.operands.indexed.byte1;
         uint8_t src2Slot = instr.operands.indexed.byte2;
@@ -882,9 +906,10 @@ namespace pg
         Value b = vm->currentFrame->slots[src2Slot];
 
         vm->push(vm->lessValues(a, b));
+        return &instr + 1;
     }
 
-    void op_incr_r_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_incr_r_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t slot = instr.operands.byte;
         Value   val  = vm->currentFrame->slots[slot];
@@ -901,9 +926,10 @@ namespace pg
         {
             vm->currentFrame->slots[slot] = vm->addValues(val, INT_VAL(1));
         }
+        return &instr + 1;
     }
 
-    void op_less_rrr_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_less_rrr_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t destSlot = instr.operands.indexed.byte1;
         uint8_t src1Slot = instr.operands.indexed.byte2;
@@ -913,20 +939,22 @@ namespace pg
         Value b = vm->currentFrame->slots[src2Slot];
 
         vm->currentFrame->slots[destSlot] = vm->lessValues(a, b);
+        return &instr + 1;
     }
 
     // OP_Jump_If_False_R: register-based conditional jump (slot + 16-bit
-    // offset). Mirrors the pattern of op_long_jump_if_false_decoded — the
-    // precomputed false-branch target lives in instr.nextInstuctionIndex
-    // (the dispatcher pre-seeds nextInstructionIndex to fall-through).
+    // offset). The precomputed false-branch target lives in
+    // instr.jumpTargetPtr (resolved by resolveJumpTargets).
     // Note: the compiler does not currently emit this op; the handler is
     // provided for completeness.
-    void op_jump_if_false_r_decoded(VM* vm, const DecodedInstruction& instr)
+    const DecodedInstruction* op_jump_if_false_r_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t slot = instr.operands.indexed.byte1;
         Value condition = vm->currentFrame->slots[slot];
 
         if (not isValueTrue(condition, vm))
-            vm->nextInstructionIndex = instr.nextInstuctionIndex;
+            return instr.jumpTargetPtr;
+
+        return &instr + 1;
     }
 }
