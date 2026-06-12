@@ -79,7 +79,6 @@ namespace pg
 
         // Look up handler and metadata
         const OpCodeInfo& info = vm->operations[opcode];
-        instr.handler = info.handler;
         instr.decodedHandler = info.decodedHandler;
         instr.flags = info.flags;
         instr.operandBytes = info.operandBytes;
@@ -152,6 +151,24 @@ namespace pg
                     instr.operands.indexed.byte3 = chunk.code[offset + 3];
                     instr.operands.indexed.byte4 = chunk.code[offset + 4];
                 }
+                break;
+        }
+
+        // Pre-resolve property-name pointer for ops that index into
+        // chunk.constantStrings, so handlers can dereference directly
+        // instead of doing constantStrings[index] at runtime.
+        switch (static_cast<OpCode>(opcode))
+        {
+            case OpCode::OP_Get_Property:
+            case OpCode::OP_Set_Property:
+                if (instr.operands.byte < chunk.constantStrings.size())
+                    instr.propertyNamePtr = &chunk.constantStrings[instr.operands.byte];
+                break;
+            case OpCode::OP_Invoke:
+                if (instr.operands.indexed.byte1 < chunk.constantStrings.size())
+                    instr.propertyNamePtr = &chunk.constantStrings[instr.operands.indexed.byte1];
+                break;
+            default:
                 break;
         }
 

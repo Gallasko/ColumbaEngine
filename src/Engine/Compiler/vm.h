@@ -42,20 +42,20 @@ namespace pg
     struct DecodedInstruction;
     struct DecodedChunk;
 
-    // Function pointer type for operation handlers
+    // Legacy `void(VM*)` handlers still exist as internal implementations
+    // (decoded handlers delegate to them for ops with no operands to pre-
+    // extract). They are no longer wired into the dispatch table.
     typedef void (*OpHandler)(VM* vm);
     typedef void (*OpDecodedHandler)(VM* vm, const DecodedInstruction& instr);
 
     // Operation information structure
     struct OpCodeInfo
     {
-        OpHandler handler;
         OpDecodedHandler decodedHandler = nullptr;
 
-        // NEW: Metadata for pre-decoding and batching optimization
-        uint8_t flags;           // Instruction properties
-        uint8_t operandBytes;    // Number of operand bytes (0-4) - inferred from getInstructionSize if 0
-        int8_t stackEffect;      // Net stack change (-128 to +127) - not used yet
+        uint8_t flags        = 0;   // Instruction properties
+        uint8_t operandBytes = 0;   // Number of operand bytes (0-4) - inferred from getInstructionSize if 0
+        int8_t  stackEffect  = 0;   // Net stack change (-128 to +127) - not used yet
 
         // Flags for instruction properties
         static constexpr uint8_t PURE         = 0x01;  // No side effects
@@ -69,10 +69,8 @@ namespace pg
         // Common flag combinations
         static constexpr uint8_t PURE_BATCH   = PURE | BATCHABLE;  // Pure and batchable (most common)
 
-        OpCodeInfo() : handler(nullptr), flags(0), operandBytes(0), stackEffect(0) {}
-        OpCodeInfo(OpHandler h) : handler(h), flags(0), operandBytes(0), stackEffect(0) {}
-        OpCodeInfo(OpHandler h, uint8_t f) : handler(h), flags(f), operandBytes(0), stackEffect(0) {}
-        OpCodeInfo(OpHandler h, uint8_t f, OpDecodedHandler dh) : handler(h), decodedHandler(dh), flags(f), operandBytes(0), stackEffect(0) {}
+        OpCodeInfo() = default;
+        OpCodeInfo(OpDecodedHandler dh, uint8_t f = 0) : decodedHandler(dh), flags(f) {}
 
         bool isPure() const { return (flags & PURE) != 0; }
         bool isBatchable() const { return (flags & BATCHABLE) != 0; }
@@ -211,9 +209,7 @@ namespace pg
     void op_loop(VM* vm);
     void op_long_loop(VM* vm);
     void op_loop_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_call(VM* vm);
     void op_call_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_invoke(VM* vm);
     void op_invoke_decoded(VM* vm, const DecodedInstruction& instr);
     void op_closure(VM* vm);
     void op_get_upvalue(VM* vm);
@@ -229,8 +225,6 @@ namespace pg
     void op_post_decr_local(VM* vm);
     void op_decr_local(VM* vm);
     void op_class(VM* vm);
-    void op_get_property(VM* vm);
-    void op_set_property(VM* vm);
     void op_get_property_decoded(VM* vm, const DecodedInstruction& instr);
     void op_set_property_decoded(VM* vm, const DecodedInstruction& instr);
     void op_method(VM* vm);
@@ -261,8 +255,6 @@ namespace pg
     // Table operations
     void op_build_vector(VM* vm);
     void op_build_table(VM* vm);
-    void op_get_index(VM* vm);
-    void op_set_index(VM* vm);
     void op_get_index_decoded(VM* vm, const DecodedInstruction& instr);
     void op_set_index_decoded(VM* vm, const DecodedInstruction& instr);
 
@@ -287,8 +279,9 @@ namespace pg
     void op_jump_if_false_r(VM* vm);
 
     // ---------------------------------------------------------------------
-    // Decoded variants generated via runLegacyAsDecoded — see vm_binary_op.cpp,
-    // vm_struct_op.cpp, vm_core.cpp for the DECODED_VIA_LEGACY definitions.
+    // Decoded handlers for the remaining ops. Defined alongside their
+    // legacy `void(VM*)` counterparts in vm_binary_op.cpp, vm_struct_op.cpp,
+    // and vm_core.cpp.
     // ---------------------------------------------------------------------
     void op_negate_decoded(VM* vm, const DecodedInstruction& instr);
     void op_not_decoded(VM* vm, const DecodedInstruction& instr);
@@ -479,17 +472,6 @@ namespace pg
             return stack[stack.size() - 1 - distance];
         }
 
-        // Update cached chunk data pointer when switching functions
-        inline void updateChunkCache()
-        {
-            if (currentFrame and currentFrame->closure)
-            {
-                auto& chunk = currentFrame->closure->function->chunk.code;
-                chunkData = chunk.data();
-                chunkDataEnd = chunk.data() + chunk.size();
-            }
-        }
-
         inline void resetStack()
         {
             // Use VM's reference counting instead of IndexableStack's clear()
@@ -536,36 +518,18 @@ namespace pg
 
         bool callValue(const Value& callee, int argCount);
 
-        // Variant for the decoded execution path: parks caller's ip past
-        // the supplied call instruction so a future OP_Return can map back
-        // to the resume index. If a new frame is pushed (closure /
-        // bound-method / class-init call), updates currentFrame,
+        // Variant for the decoded execution path: if a new frame is pushed
+        // (closure / bound-method / class-init call), updates currentFrame,
         // currentStartingIp, currentDecoded, and nextInstructionIndex so the
-        // runDecoded dispatcher can keep going without the post-dispatch
-        // opcode ladder. Native calls leave decoded state untouched. Sets
-        // wantsLegacyFallback if the called frame has no decoded chunk.
-        bool callValueDecoded(const Value& callee, int argCount, const DecodedInstruction& callInstr);
-
-        // Park caller's ip past a triggering instruction (OP_Call, OP_Invoke,
-        // OP_Get/Set_Property, OP_Get/Set_Index) on the decoded path. After
-        // running the call, completeDecodedFrameSwitch() retargets dispatcher
-        // state when a new frame was pushed.
-        void parkIpForDecodedCall(const DecodedInstruction& callInstr);
+        // runDecoded dispatcher can keep going. Native calls leave decoded
+        // state untouched.
+        bool callValueDecoded(const Value& callee, int argCount);
 
         // If a new frame was pushed since frameCountBefore (closure /
         // bound-method / class-init invocation), retarget currentDecoded /
-        // currentStartingIp / nextInstructionIndex to the callee. Sets
-        // wantsLegacyFallback if the callee lacks a decoded chunk. Native
+        // currentStartingIp / nextInstructionIndex to the callee. Native
         // calls (no frame change) leave state untouched.
         void completeDecodedFrameSwitch(int frameCountBefore);
-
-        // Thin shim used by decoded handlers that just delegate to a legacy
-        // void(VM*) handler. Positions ip at the operand start so the legacy
-        // handler's *ip++ reads operands correctly, runs the handler, then
-        // commits any frame switch via completeDecodedFrameSwitch (no-op for
-        // non-frame-pushing ops). Works for variable-length operands too
-        // (e.g. OP_Closure) since the legacy body advances ip itself.
-        void runLegacyAsDecoded(const DecodedInstruction& instr, OpHandler legacy);
 
         bool callMethod(Klass* receiver, const std::string& methodName, int argCount);
 
@@ -709,17 +673,12 @@ namespace pg
 
         int frameCount = 0;
 
-        // Cache chunk data pointer to avoid repeated vector::data() calls
-        uint8_t *chunkData = nullptr;
-        uint8_t *chunkDataEnd = nullptr; // Cached end pointer for fast loop exit check
-
-        // Dispatcher state for runDecoded. Decoded handlers may mutate these
-        // to direct control flow without going through the post-dispatch
-        // opcode ladder. Owned by the active runDecoded frame.
+        // Dispatcher state for runDecoded. Decoded handlers mutate these to
+        // direct control flow (jumps, frame switches, returns). Owned by
+        // the active runDecoded frame.
         DecodedChunk *currentDecoded        = nullptr;
         uint8_t      *currentStartingIp     = nullptr;
         size_t        nextInstructionIndex  = 0;
-        bool          wantsLegacyFallback   = false;
 
         /* The stack of the VM */
         IndexableStack stack;
@@ -1019,9 +978,6 @@ namespace pg
             frames[0].slots = stack.data() + 1;  // Skip the closure at stack[0]
             frames[0].stackBase = stack.data();
             currentFrame = &frames[0];
-
-            // Update chunk data cache
-            updateChunkCache();
         }
 
         // Helper methods for interpreting bytecode
@@ -1031,9 +987,7 @@ namespace pg
         // Function pointer dispatch methods
         void vm_return(InterpretResult result);
         static void register_builtin_operations();
-        static void register_operation(uint8_t opcode, OpHandler handler);
-        static void register_operation(uint8_t opcode, OpHandler handler, uint8_t flags);
-        static void register_operation(uint8_t opcode, OpHandler handler, OpDecodedHandler decodedHandler, uint8_t flags = 0);
+        static void register_operation(uint8_t opcode, OpDecodedHandler decodedHandler, uint8_t flags = 0);
         void initialize_builtin_classes();
 
         std::string currentFileName;

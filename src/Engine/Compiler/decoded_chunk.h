@@ -23,8 +23,7 @@ namespace pg
 
     struct DecodedInstruction
     {
-        OpHandler handler;           // Pre-resolved function pointer
-        OpDecodedHandler decodedHandler = nullptr; // Optional handler that receives the full instruction (for complex ops)
+        OpDecodedHandler decodedHandler = nullptr; // Pre-resolved handler that receives the full instruction
 
         // Operand storage (union to save space)
         union
@@ -51,6 +50,11 @@ namespace pg
         // Pre-computed constant pointer (for OP_Constant/OP_LongConstant)
         // This eliminates chunk.constants[index] lookup during execution
         Value* constantPtr;
+
+        // Pre-resolved property name (OP_Get_Property, OP_Set_Property,
+        // OP_Invoke). Eliminates chunk.constantStrings[stringIndex] lookup
+        // at runtime, analogous to constantPtr.
+        const std::string* propertyNamePtr = nullptr;
 
         // Line number (for error reporting)
         int lineNumber;

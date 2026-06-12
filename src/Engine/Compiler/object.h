@@ -82,6 +82,14 @@ namespace pg
         uint8_t *ip;
         Value *slots;
         Value *stackBase;  // Where the caller's stack ends (position to truncate to on return)
+
+        // Decoded-instruction index in the caller's decoded chunk to
+        // resume at when this frame returns. Set at frame-push time by
+        // VM::call / VM::callBound from vm->nextInstructionIndex (the
+        // call-site's "next" index, already pre-seeded by the dispatcher).
+        // Read by op_return_decoded to avoid a runtime findInstructionIndex
+        // lookup on the return path.
+        size_t callerResumeIndex = 0;
     };
 
     // Value creation functions are now in value_nanbox.h

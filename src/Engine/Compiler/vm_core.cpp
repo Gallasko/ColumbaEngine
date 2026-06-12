@@ -314,6 +314,17 @@ namespace pg
 
     InterpretResult VM::executeChunk(ObjFunction* funcObj, int argCount)
     {
+        // Pre-decode the chunk if needed — the dispatcher only knows the
+        // decoded path, so every function reachable from here must carry a
+        // DecodedChunk. interpret() pre-decodes during compilation; the
+        // bytecode-file entry points reach executeChunk with a fresh chunk
+        // that hasn't been decoded yet.
+        if (funcObj->decodedChunk == nullptr and not funcObj->chunk.code.empty())
+        {
+            ChunkDecoder decoder;
+            funcObj->decodedChunk = decoder.decode(funcObj->chunk, this);
+        }
+
         // Create closure and set up call
         auto closureValue = createClosure(funcObj);
         Closure* closure = asClosure(closureValue);
@@ -489,79 +500,11 @@ namespace pg
         if (currentFrame->closure->function->chunk.code.empty())
             return InterpretResult::OK;
 
-        auto dChunk = currentFrame->closure->function->decodedChunk;
-
-        // Check if we have a pre-decoded chunk - use it for faster execution
-        if (dChunk != nullptr)
-        {
-            return runDecoded(dChunk);
-        }
-
-        // Fallback: execute from bytecode (slower path)
-        // Cache chunk data pointer to avoid repeated vector::data() calls
-        updateChunkCache();
-
-        // Function pointer dispatch with longjmp
-        if (setjmp(exit_jump) == 0)
-        {
-            while (true)
-            {
-                // Todo this is not needed with longjmp
-                // if (currentFrame->ip >= chunkDataEnd)
-                // {
-                //     return InterpretResult::OK;
-                // }
-
-                // Calculate instruction offset before incrementing IP
-                size_t instructionOffset = currentFrame->ip - chunkData;
-                uint8_t opcode = *currentFrame->ip++;
-
-#ifdef DEBUG_TRACE_EXECUTION
-                std::cout << "          ";
-                for (size_t i = 0; i < stack.size(); ++i)
-                {
-                    std::cout << "[";
-                    printValue(this, stack[i]);
-                    std::cout << "] ";
-                }
-                std::cout << std::endl;
-
-                // Update frame IP for debug output
-                // currentFrame->ip = ip;
-                disassembleInstruction(this, currentFrame->closure->function->chunk, instructionOffset);
-#endif
-
-                // Only measure timing if profiling is actually enabled
-                if (profiler.isEnabled())
-                {
-                    // IMPORTANT: Capture chunk pointer and function name BEFORE executing the operation
-                    // because operations like OP_Call will change currentFrame
-                    const void* chunkPtr = &currentFrame->closure->function->chunk;
-                    const std::string& functionName = currentFrame->closure->function->name;
-                    const std::string& opcodeName = opcodeToString(static_cast<OpCode>(opcode));
-
-                    auto startTime = std::chrono::high_resolution_clock::now();
-
-                    // Dispatch to operation handler
-                    operations[opcode].handler(this);
-
-                    auto endTime = std::chrono::high_resolution_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
-
-                    profiler.recordInstruction(chunkPtr, functionName, instructionOffset, opcode, opcodeName, duration);
-                }
-                else
-                {
-                    // Fast path: no profiling overhead
-                    operations[opcode].handler(this);
-                }
-
-                // Update frame IP for potential frame switches
-                // currentFrame->ip = ip;
-            }
-        }
-
-        return exit_result;
+        // Every chunk reachable here has been pre-decoded — interpret() does
+        // it during compilation, executeChunk() does it before dispatch.
+        // The legacy bytecode interpreter loop has been removed; this is now
+        // just an entry-point shim onto the decoded dispatcher.
+        return runDecoded(currentFrame->closure->function->decodedChunk);
     }
 
     // ============================================================================
@@ -577,13 +520,11 @@ namespace pg
 
     InterpretResult VM::runDecoded(DecodedChunk *decoded)
     {
-        // Promote per-frame execution state onto the VM so decoded handlers
-        // can mutate it inline (e.g. op_call_decoded swaps decoded chunk and
-        // next index when it switches frames). The post-dispatch ladder for
-        // legacy handlers reads/writes these same members.
+        // Per-frame execution state lives on the VM so decoded handlers can
+        // mutate it inline (e.g. op_call_decoded swaps decoded chunk and
+        // next index when it switches frames).
         currentDecoded     = decoded;
         currentStartingIp  = currentFrame->closure->function->chunk.code.data();
-        wantsLegacyFallback = false;
 
         // Start at the beginning of decoded instructions
         // We need to map currentFrame->ip to instruction index
@@ -640,15 +581,6 @@ namespace pg
                 else
                 {
                     instr.decodedHandler(this, instr);
-                }
-
-                // A decoded handler may have signalled that a called frame
-                // lacks a decoded chunk (e.g. interpretFromBytecodeFile
-                // skips pre-decoding). Bail to the legacy bytecode
-                // interpreter for the rest of execution.
-                if (wantsLegacyFallback)
-                {
-                    return run();
                 }
 
                 instructionIndex = nextInstructionIndex;
@@ -858,7 +790,6 @@ namespace pg
 
         // Restore previous frame
         vm->currentFrame = &vm->frames[vm->frameCount - 1];
-        vm->updateChunkCache();
 
         // Truncate stack to the callee's stackBase position
         // This removes the function/receiver + args + locals.
@@ -886,28 +817,20 @@ namespace pg
     // runDecoded loop can keep going without the post-dispatch ladder.
     void op_return_decoded(VM* vm, const DecodedInstruction&)
     {
-        // Todo once all the ops are decoded modify this to directly move the ip and the chunk cache correctly in the function
+        // Snapshot the resume index from the callee frame BEFORE op_return
+        // tears it down — op_return decrements frameCount and restores
+        // currentFrame to the caller.
+        const size_t resumeIndex = vm->currentFrame->callerResumeIndex;
+
         op_return(vm);
 
         // If we reach here, frameCount > 0 (the frameCount == 0 path inside
         // op_return calls vm_return which longjmps out of runDecoded).
-        // op_return has already restored currentFrame and called
-        // updateChunkCache; we just need to retarget decoded-side state.
-        vm->currentStartingIp = vm->currentFrame->closure->function->chunk.code.data();
-
-        DecodedChunk* newDecoded = vm->currentFrame->closure->function->decodedChunk;
-        if (newDecoded != nullptr)
-        {
-            vm->currentDecoded = newDecoded;
-            // currentFrame->ip was parked past the OP_Call by
-            // callValueDecoded — map it back to the caller's decoded index.
-            size_t bytecodeOffset = vm->currentFrame->ip - vm->currentStartingIp;
-            vm->nextInstructionIndex = newDecoded->findInstructionIndex(bytecodeOffset);
-        }
-        else
-        {
-            vm->wantsLegacyFallback = true;
-        }
+        // op_return has already restored currentFrame; retarget decoded-side
+        // state to the caller.
+        vm->currentStartingIp    = vm->currentFrame->closure->function->chunk.code.data();
+        vm->currentDecoded       = vm->currentFrame->closure->function->decodedChunk;
+        vm->nextInstructionIndex = resumeIndex;
     }
 
     void op_get_global(VM* vm)
@@ -1037,26 +960,6 @@ namespace pg
         vm->releaseAndDelete(nameValue);
     }
 
-    void op_call(VM* vm)
-    {
-        int argCount = *vm->currentFrame->ip++;
-
-        // Get the function object (at position argCount from top)
-        Value function = vm->peek(argCount);
-
-        if (not vm->callValue(function, argCount))
-        {
-            vm->runtimeError("Cannot call function");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        // Function has been called, frame is set up with stackBase pointing to where to truncate on return
-        vm->currentFrame = &vm->frames[vm->frameCount - 1];
-        vm->updateChunkCache(); // Update cached chunk data for new frame
-    }
-
     // op_call_decoded: self-managing decoded variant of OP_Call. Reads
     // argCount directly from the pre-decoded instruction (no *ip++).
     // callValueDecoded handles native vs closure dispatch: native calls
@@ -1068,7 +971,7 @@ namespace pg
 
         Value function = vm->peek(argCount);
 
-        if (not vm->callValueDecoded(function, argCount, instr))
+        if (not vm->callValueDecoded(function, argCount))
         {
             vm->runtimeError("Cannot call function");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
