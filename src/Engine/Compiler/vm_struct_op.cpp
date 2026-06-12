@@ -48,60 +48,6 @@ namespace pg
     }
 
 
-    void op_closure(VM* vm)
-    {
-        uint8_t constantIndex = *vm->currentFrame->ip++;
-
-        auto functionValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-
-        if (not IS_FUNC(functionValue))
-        {
-            vm->runtimeError("Closure operand must be a function.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        ObjFunction* function = vm->asFunction(functionValue);
-        auto closure = vm->createClosure(function);  // Already tracked in createClosure
-        vm->push(closure);
-
-        for (int i = 0; i < function->upvalueCount; i++)
-        {
-            uint8_t isLocal = *vm->currentFrame->ip++;
-            uint8_t index = *vm->currentFrame->ip++;
-            if (isLocal)
-            {
-                vm->asClosure(closure)->upvalues[i] = vm->captureUpvalue(vm->currentFrame->slots + index);
-            }
-            else
-            {
-                vm->asClosure(closure)->upvalues[i] = vm->currentFrame->closure->upvalues[index];
-            }
-        }
-    }
-
-
-    void op_class(VM* vm)
-    {
-        uint8_t constantIndex = *vm->currentFrame->ip++;
-
-        auto classNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-
-        ElementType classNameElem = vm->valueToElement(classNameValue);
-        if (not classNameElem.isLitteral())
-        {
-            vm->runtimeError("Class name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        std::string className = classNameElem.toString();
-        auto newClass = vm->createClass(className);  // Already tracked in createClass
-        vm->push(newClass);
-    }
-
     bool bindMethod(VM* vm, Klass* klass, const std::string& name)
     {
         auto methodIt = klass->methods.find(name);
@@ -401,189 +347,9 @@ namespace pg
         vm->push(value);
     }
 
-    void op_method(VM* vm)
-    {
-        uint8_t constantIndex = *vm->currentFrame->ip++;
-
-        auto methodNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        ElementType methodNameElem = vm->valueToElement(methodNameValue);
-        if (not methodNameElem.isLitteral())
-        {
-            vm->runtimeError("Method name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        std::string methodName = methodNameElem.toString();
-
-        // The class is below the method closure/native function on the stack
-        auto methodValue = vm->pop();
-        auto classValue = vm->peek();
-
-        if (not IS_CLASS(classValue))
-        {
-            vm->runtimeError("Method definition must be on a class.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        Klass* klass = vm->asClass(classValue);
-
-        // Methods can be either closures (script-defined) or native functions (C++-defined)
-        if (not IS_CLOSURE(methodValue) and not IS_NAT_FUNC(methodValue))
-        {
-            vm->runtimeError("Method must be a closure or native function.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        klass->methods[methodName] = methodValue;
-    }
-
-
     // ========================================================================
     // Table Operations
     // ========================================================================
-
-    void op_build_table(VM* vm)
-    {
-        uint8_t pairCount = *vm->currentFrame->ip++;
-
-        // Get the built-in Table class
-        auto it = vm->globals.find("__Table");
-        if (it == vm->globals.end())
-        {
-            vm->runtimeError("Table class not found - was initializeTableClass() called?");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        Value tableClassVal = it->second;
-        if (!IS_CLASS(tableClassVal))
-        {
-            vm->runtimeError("Table is not a class");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        Klass* tableClass = vm->asClass(tableClassVal);
-
-        // Create new instance of Table
-        Value instanceVal = vm->createInstance(tableClass);
-        ObjInstance* table = vm->asInstance(instanceVal);
-
-        // Pre-allocate storage
-        table->fieldValues.reserve(pairCount);
-        table->internedFields.reserve(pairCount);
-
-        // Pop pairCount key-value pairs from stack (in reverse)
-        std::vector<std::string> keys;
-        std::vector<Value> values;
-        keys.reserve(pairCount);
-        values.reserve(pairCount);
-
-        for (int i = 0; i < pairCount; i++)
-        {
-            Value key = vm->pop();
-            Value value = vm->pop();
-
-            // Convert key to string and intern
-            std::string keyStr;
-            if (IS_STRING(key))
-            {
-                keyStr = vm->asString(key);
-            }
-            else if (IS_INT(key))
-            {
-                keyStr = std::to_string(AS_INT(key));
-            }
-            else
-            {
-                vm->releaseAndDelete(key);
-                vm->releaseAndDelete(value);
-                vm->runtimeError("Table key must be string or integer");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
-            }
-
-            // Intern the key string
-            vm->releaseAndDelete(key);  // We've converted it, release original
-
-            keys.push_back(keyStr);
-            values.push_back(value);
-        }
-
-        // Insert pairs in correct order (we popped in reverse)
-        for (int i = pairCount - 1; i >= 0; i--)
-        {
-            size_t valueIndex = table->fieldValues.size();
-            table->fieldValues.push_back(vm->retainValue(values[i]));
-            table->internedFields[keys[i]] = valueIndex;  // Map key to value index
-            vm->releaseAndDelete(values[i]);  // Release our temporary reference
-        }
-
-        // Push the table instance we created
-        vm->push(instanceVal);
-    }
-
-    void op_build_vector(VM* vm)
-    {
-        uint8_t pairCount = *vm->currentFrame->ip++;
-
-        // Create new vector
-        Value vectorVal = vm->createVector();
-        ObjVector* vector = vm->asVector(vectorVal);
-
-        // Pop pairCount key-value pairs from stack (in reverse order)
-        // Stack layout: [value, index, value, index, ...]
-        std::vector<std::pair<int64_t, Value>> pairs;
-        pairs.reserve(pairCount);
-
-        for (int i = 0; i < pairCount; i++)
-        {
-            Value index = vm->pop();
-            Value value = vm->pop();
-
-            // Index must be an integer
-            if (!IS_INT(index))
-            {
-                vm->releaseAndDelete(index);
-                vm->releaseAndDelete(value);
-                // Clean up the vector we created before returning
-                vm->releaseAndDelete(vectorVal);
-                vm->runtimeError("Vector index must be an integer");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
-            }
-
-            int64_t indexInt = AS_INT(index);
-            vm->releaseAndDelete(index);  // We've extracted the int, release the value
-            pairs.push_back({indexInt, value});
-        }
-
-        // Sort pairs by index to ensure correct order
-        std::sort(pairs.begin(), pairs.end(),
-            [](const auto& a, const auto& b) { return a.first < b.first; });
-
-        // Insert values in sorted order
-        for (const auto& pair : pairs)
-        {
-            // Ensure vector is large enough
-            while (vector->fields.size() <= static_cast<size_t>(pair.first))
-            {
-                vector->fields.push_back(makeIntValue(0));  // Fill with zeros
-            }
-
-            vector->fields[pair.first] = vm->retainValue(pair.second);
-            vm->releaseAndDelete(pair.second);  // Release our temporary reference
-        }
-
-        // Push the vector we created
-        vm->push(vectorVal);
-    }
 
     void op_get_index_decoded(VM* vm, const DecodedInstruction&)
     {
@@ -1052,7 +818,7 @@ namespace pg
     // Iterator Operations
     // ========================================================================
 
-    void op_get_iterator(VM* vm)
+    void op_get_iterator_decoded(VM* vm, const DecodedInstruction&)
     {
         Value tableVal = vm->peek(0);  // Don't pop, we keep table on stack
 
@@ -1068,7 +834,7 @@ namespace pg
         vm->push(makeIntValue(0));
     }
 
-    void op_iterator_next(VM* vm)
+    void op_iterator_next_decoded(VM* vm, const DecodedInstruction&)
     {
         // Stack layout: [table, iterator_state]
         // We need to:
@@ -1135,7 +901,7 @@ namespace pg
         // Final stack: [table, iterator_state+1, key]
     }
 
-    void op_table_size(VM* vm)
+    void op_table_size_decoded(VM* vm, const DecodedInstruction&)
     {
         // Stack: [table or vector]
         Value tableVal = vm->peek(0);
@@ -1171,7 +937,7 @@ namespace pg
         vm->push(makeIntValue(static_cast<int64_t>(totalSize)));
     }
 
-    void op_table_at(VM* vm)
+    void op_table_at_decoded(VM* vm, const DecodedInstruction&)
     {
         // Stack: [table or vector, index]
         Value indexVal = vm->pop();
@@ -1494,8 +1260,4 @@ namespace pg
     // Zero-operand ops: no bytecode to pre-extract, so the decoded form
     // just delegates to the legacy body.
 
-    void op_get_iterator_decoded(VM* vm, const DecodedInstruction&) { op_get_iterator(vm); }
-    void op_iterator_next_decoded(VM* vm, const DecodedInstruction&) { op_iterator_next(vm); }
-    void op_table_size_decoded(VM* vm, const DecodedInstruction&)    { op_table_size(vm); }
-    void op_table_at_decoded(VM* vm, const DecodedInstruction&)      { op_table_at(vm); }
 }

@@ -310,32 +310,23 @@ namespace pg
         return elementToValue(elemA <= elemB);
     }
 
-    void op_true(VM* vm)
+    void op_true_decoded(VM* vm, const DecodedInstruction&)
     {
         vm->push(BOOL_VAL(true));
     }
 
-    void op_false(VM* vm)
+    void op_false_decoded(VM* vm, const DecodedInstruction&)
     {
         vm->push(BOOL_VAL(false));
     }
 
     #define BINARY_OP_TEMPLATE(op_name, operation) \
-    void op_name(VM* vm) \
+    void op_name##_decoded(VM* vm, const DecodedInstruction&) \
     { \
         auto b = vm->pop(); \
         auto a = vm->peek(); \
         vm->changeTop(vm->operation(a, b)); \
         /* Escape analysis: Only release heap objects, not primitives */ \
-        if (requiresRefCount(b)) vm->releaseAndDelete(b); \
-    } \
-    void op_name##_decoded(VM* vm, const DecodedInstruction&) \
-    { \
-        /* Same body — the win is the dispatcher skipping the */ \
-        /* `currentFrame->ip = bytecodeOffset + 1` store per opcode. */ \
-        auto b = vm->pop(); \
-        auto a = vm->peek(); \
-        vm->changeTop(vm->operation(a, b)); \
         if (requiresRefCount(b)) vm->releaseAndDelete(b); \
     }
 
@@ -356,7 +347,7 @@ namespace pg
 
     #undef BINARY_OP_TEMPLATE
 
-    void op_negate(VM* vm)
+    void op_negate_decoded(VM* vm, const DecodedInstruction&)
     {
         if (not isValueNumber(vm->peek(0)))
         {
@@ -371,7 +362,7 @@ namespace pg
     }
 
 
-    void op_not(VM* vm)
+    void op_not_decoded(VM* vm, const DecodedInstruction&)
     {
         if (not IS_BOOL(vm->peek(0)))
         {
@@ -385,7 +376,7 @@ namespace pg
         vm->releaseAndDelete(value);
     }
 
-    void op_and(VM* vm)
+    void op_and_decoded(VM* vm, const DecodedInstruction&)
     {
         vm->checkBooleanBinaryOp();
         auto b = vm->pop();
@@ -398,7 +389,7 @@ namespace pg
         vm->releaseAndDelete(b);
     }
 
-    void op_or(VM* vm)
+    void op_or_decoded(VM* vm, const DecodedInstruction&)
     {
         vm->checkBooleanBinaryOp();
         auto b = vm->pop();
@@ -412,7 +403,7 @@ namespace pg
     }
 
 
-    void op_post_incr_global(VM* vm)
+    void op_post_incr_global_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
@@ -457,7 +448,7 @@ namespace pg
         vm->releaseAndDelete(nameValue);
     }
 
-    void op_incr_global(VM* vm)
+    void op_incr_global_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
@@ -503,7 +494,7 @@ namespace pg
         vm->releaseAndDelete(nameValue);
     }
 
-    void op_post_decr_global(VM* vm)
+    void op_post_decr_global_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
@@ -548,7 +539,7 @@ namespace pg
         vm->releaseAndDelete(nameValue);
     }
 
-    void op_decr_global(VM* vm)
+    void op_decr_global_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
@@ -594,7 +585,7 @@ namespace pg
         vm->releaseAndDelete(nameValue);
     }
 
-    void op_post_incr_local(VM* vm)
+    void op_post_incr_local_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
@@ -643,7 +634,7 @@ namespace pg
         val = newValue;
     }
 
-    void op_incr_local(VM* vm)
+    void op_incr_local_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
@@ -691,7 +682,7 @@ namespace pg
         vm->releaseAndDelete(slot);
     }
 
-    void op_post_decr_local(VM* vm)
+    void op_post_decr_local_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
@@ -740,7 +731,7 @@ namespace pg
         vm->releaseAndDelete(slot);
     }
 
-    void op_decr_local(VM* vm)
+    void op_decr_local_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.size() < 1)
@@ -788,26 +779,9 @@ namespace pg
         vm->releaseAndDelete(slot);
     }
 
-    void op_add_ll(VM* vm)
-    {
-        uint8_t local1 = *vm->currentFrame->ip++;
-
-        auto value1 = vm->currentFrame->slots[local1];
-
-        uint8_t local2 = *vm->currentFrame->ip++;
-
-        auto value2 = vm->currentFrame->slots[local2];
-
-        auto result = vm->addValues(value1, value2);
-
-        vm->push(result);
-    }
-
     void op_add_ll_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        // Both local slot indices were pre-extracted at decode time. The
-        // non-decoded variant does two `*ip++` reads plus a dispatcher
-        // `currentFrame->ip` write per opcode — that all goes away here.
+        // Both local slot indices were pre-extracted at decode time.
         auto value1 = vm->currentFrame->slots[instr.operands.indexed.byte1];
         auto value2 = vm->currentFrame->slots[instr.operands.indexed.byte2];
         vm->push(vm->addValues(value1, value2));
@@ -816,15 +790,6 @@ namespace pg
     // OP_LessEqualLL: peephole fusion of OP_Get_Local A + OP_Get_Local B + OP_LessEqual.
     // Reads two locals directly and pushes the comparison result. No popping the
     // pushed local copies, no addValues-style boxing — straight slot read + compare.
-    void op_less_equal_ll(VM* vm)
-    {
-        uint8_t local1 = *vm->currentFrame->ip++;
-        uint8_t local2 = *vm->currentFrame->ip++;
-        auto v1 = vm->currentFrame->slots[local1];
-        auto v2 = vm->currentFrame->slots[local2];
-        vm->push(vm->lessEqualValues(v1, v2));
-    }
-
     void op_less_equal_ll_decoded(VM* vm, const DecodedInstruction& instr)
     {
         auto v1 = vm->currentFrame->slots[instr.operands.indexed.byte1];
@@ -834,195 +799,12 @@ namespace pg
 
     // OP_LessLL: same shape as OP_LessEqualLL but using lessValues. Used by
     // loop conditions of the form `while (x < y)` where both are locals.
-    void op_less_ll(VM* vm)
-    {
-        uint8_t local1 = *vm->currentFrame->ip++;
-        uint8_t local2 = *vm->currentFrame->ip++;
-        auto v1 = vm->currentFrame->slots[local1];
-        auto v2 = vm->currentFrame->slots[local2];
-        vm->push(vm->lessValues(v1, v2));
-    }
-
     void op_less_ll_decoded(VM* vm, const DecodedInstruction& instr)
     {
         auto v1 = vm->currentFrame->slots[instr.operands.indexed.byte1];
         auto v2 = vm->currentFrame->slots[instr.operands.indexed.byte2];
         vm->push(vm->lessValues(v1, v2));
     }
-
-    void op_subtract_ll(VM* vm)
-    {
-        uint8_t local1 = *vm->currentFrame->ip++;
-
-        auto value1 = vm->currentFrame->slots[local1];
-
-        uint8_t local2 = *vm->currentFrame->ip++;
-
-        auto value2 = vm->currentFrame->slots[local2];
-
-        auto result = vm->subtractValues(value1, value2);
-
-        vm->push(result);
-    }
-
-    void op_subtract_lc(VM* vm)
-    {
-        uint8_t local1 = *vm->currentFrame->ip++;
-
-        auto value1 = vm->currentFrame->slots[local1];
-
-        uint8_t constantIndex = *vm->currentFrame->ip++;
-
-        auto value2 = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-
-        auto result = vm->subtractValues(value1, value2);
-
-        vm->push(result);
-    }
-
-    void op_subtract_cl(VM* vm)
-    {
-        uint8_t constantIndex = *vm->currentFrame->ip++;
-
-        auto value1 = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-
-        uint8_t local2 = *vm->currentFrame->ip++;
-
-        auto value2 = vm->currentFrame->slots[local2];
-
-        auto result = vm->subtractValues(value1, value2);
-
-        vm->push(result);
-    }
-
-    // ===================================================================
-    // Register-based operations (no push/pop, direct slot manipulation)
-    // ===================================================================
-
-    void op_load_constant_r(VM* vm)
-    {
-        uint8_t destSlot = *vm->currentFrame->ip++;
-        uint8_t constIndex = *vm->currentFrame->ip++;
-
-        Value constant = vm->currentFrame->closure->function->chunk.constants[constIndex];
-
-        // Direct write to stack slot (register) - no push!
-        vm->currentFrame->slots[destSlot] = constant;
-    }
-
-    void op_move_r(VM* vm)
-    {
-        uint8_t destSlot = *vm->currentFrame->ip++;
-        uint8_t srcSlot = *vm->currentFrame->ip++;
-
-        // Direct register-to-register move - no push/pop!
-        vm->currentFrame->slots[destSlot] = vm->currentFrame->slots[srcSlot];
-    }
-
-    void op_add_rrr(VM* vm)
-    {
-        uint8_t destSlot = *vm->currentFrame->ip++;
-        uint8_t src1Slot = *vm->currentFrame->ip++;
-        uint8_t src2Slot = *vm->currentFrame->ip++;
-
-        Value a = vm->currentFrame->slots[src1Slot];
-        Value b = vm->currentFrame->slots[src2Slot];
-
-        // Direct computation and storage - no push/pop!
-        vm->currentFrame->slots[destSlot] = vm->addValues(a, b);
-    }
-
-    void op_less_rr(VM* vm)
-    {
-        uint8_t src1Slot = *vm->currentFrame->ip++;
-        uint8_t src2Slot = *vm->currentFrame->ip++;
-
-        Value a = vm->currentFrame->slots[src1Slot];
-        Value b = vm->currentFrame->slots[src2Slot];
-
-        // Comparison result pushed to stack for use by jump instructions
-        vm->push(vm->lessValues(a, b));
-    }
-
-    void op_incr_r(VM* vm)
-    {
-        uint8_t slot = *vm->currentFrame->ip++;
-
-        Value val = vm->currentFrame->slots[slot];
-
-        // Fast path for integers
-        if (IS_INT(val))
-        {
-            vm->currentFrame->slots[slot] = INT_VAL(AS_INT(val) + 1);
-        }
-        else if (IS_FLOAT(val))
-        {
-            vm->currentFrame->slots[slot] = FLOAT_VAL(AS_FLOAT(val) + 1.0);
-        }
-        else
-        {
-            // Fall back to add operation
-            vm->currentFrame->slots[slot] = vm->addValues(val, INT_VAL(1));
-        }
-    }
-
-    void op_less_rrr(VM* vm)
-    {
-        uint8_t destSlot = *vm->currentFrame->ip++;
-        uint8_t src1Slot = *vm->currentFrame->ip++;
-        uint8_t src2Slot = *vm->currentFrame->ip++;
-
-        Value a = vm->currentFrame->slots[src1Slot];
-        Value b = vm->currentFrame->slots[src2Slot];
-
-        // Direct computation and storage - no push!
-        vm->currentFrame->slots[destSlot] = vm->lessValues(a, b);
-    }
-
-    void op_jump_if_false_r(VM* vm)
-    {
-        uint8_t slot = *vm->currentFrame->ip++;
-        uint16_t offset = (*vm->currentFrame->ip++) << 8;
-        offset |= *vm->currentFrame->ip++;
-
-        Value condition = vm->currentFrame->slots[slot];
-
-        // Jump if false (doesn't pop, just reads from register)
-        if (!isValueTrue(condition, vm))
-        {
-            vm->currentFrame->ip += offset;
-        }
-    }
-
-    // ---------------------------------------------------------------------
-    // Proper decoded handlers. Zero-operand ops just delegate to the legacy
-    // body (no benefit to duplicating since there's nothing to pre-decode);
-    // multi-operand ops read from instr.operands directly instead of *ip++.
-    // ---------------------------------------------------------------------
-
-    // Zero-operand boolean / unary ops. The "operands" are on the stack;
-    // nothing to extract from bytecode, so the decoded form is just a
-    // direct call to the legacy body.
-
-    void op_negate_decoded(VM* vm, const DecodedInstruction&) { op_negate(vm); }
-    void op_not_decoded(VM* vm, const DecodedInstruction&)    { op_not(vm); }
-    void op_and_decoded(VM* vm, const DecodedInstruction&)    { op_and(vm); }
-    void op_or_decoded(VM* vm, const DecodedInstruction&)     { op_or(vm); }
-    void op_true_decoded(VM* vm, const DecodedInstruction&)   { op_true(vm); }
-    void op_false_decoded(VM* vm, const DecodedInstruction&)  { op_false(vm); }
-
-    // Increment / decrement ops also take 0 bytecode operands — the
-    // variable name (globals) or slot index (locals) is pushed on the stack
-    // by a preceding instruction. Direct delegation.
-
-    void op_post_incr_global_decoded(VM* vm, const DecodedInstruction&) { op_post_incr_global(vm); }
-    void op_incr_global_decoded(VM* vm, const DecodedInstruction&)      { op_incr_global(vm); }
-    void op_post_decr_global_decoded(VM* vm, const DecodedInstruction&) { op_post_decr_global(vm); }
-    void op_decr_global_decoded(VM* vm, const DecodedInstruction&)      { op_decr_global(vm); }
-    void op_post_incr_local_decoded(VM* vm, const DecodedInstruction&)  { op_post_incr_local(vm); }
-    void op_incr_local_decoded(VM* vm, const DecodedInstruction&)       { op_incr_local(vm); }
-    void op_post_decr_local_decoded(VM* vm, const DecodedInstruction&)  { op_post_decr_local(vm); }
-    void op_decr_local_decoded(VM* vm, const DecodedInstruction&)       { op_decr_local(vm); }
 
     // Two-byte-operand subtract peephole fusions.
 

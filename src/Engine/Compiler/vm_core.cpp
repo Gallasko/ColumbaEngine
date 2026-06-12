@@ -610,66 +610,10 @@ namespace pg
     }
 
     // Operation handler implementations
-    void op_pop(VM* vm)
-    {
-#ifdef DEBUG_CHECK_STACK
-        if (stack.empty())
-        {
-            EMIT_RUNTIME_ERROR("Nothing to pop from the stack.");
-        }
-#endif
-        auto value = vm->pop();
-        // Escape analysis: Only release heap objects, not primitives
-        if (requiresRefCount(value))
-        {
-            vm->releaseAndDelete(value);
-        }
-    }
-
-    void op_constant(VM* vm)
-    {
-        uint8_t constantIndex = *vm->currentFrame->ip++;
-
-#ifdef DEBUG_CHECK_STACK
-        if (constantIndex >= vm->currentFrame->closure->function->chunk.constants.size())
-        {
-            vm->runtimeError("Constant index out of bounds");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-#endif
-        Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-
-        vm->push(constant);  // Primitives/constants just copied
-    }
-
     void op_constant_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Use pre-resolved constant pointer (no index lookup needed!)
         vm->push(*instr.constantPtr);
-    }
-
-    void op_long_constant(VM* vm)
-    {
-        uint32_t constantIndex = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
-        constantIndex |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
-        constantIndex |= static_cast<uint32_t>(*vm->currentFrame->ip++);
-
-#ifdef DEBUG_CHECK_STACK
-        if (constantIndex >= vm->currentFrame->closure->function->chunk.constants.size()) {
-            vm->runtimeError("Long constant index out of bounds.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-#endif
-
-        Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        // Escape analysis: Constants live in bytecode chunk, don't need refcounting
-        if (requiresRefCount(constant)) {
-            vm->push(vm->retainValue(constant));
-        } else {
-            vm->push(constant);  // Primitives/constants just copied
-        }
     }
 
     void op_long_constant_decoded(VM* vm, const DecodedInstruction& instr)
@@ -678,48 +622,17 @@ namespace pg
         vm->push(*instr.constantPtr);
     }
 
-    void op_get_local(VM* vm)
+    void op_get_local_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        uint8_t slot = *vm->currentFrame->ip++;
         // slot is uint8_t so it's already in 0..255. Well-formed bytecode from
         // the compiler doesn't emit 255; assert in debug, no branch in release.
+        uint8_t slot = instr.operands.byte;
         assert(slot < 255 and "Local variable slot out of range");
 
         // retainValue early-returns for primitives (no refcount needed), so
         // unconditionally calling it avoids a duplicate requiresRefCount check
         // on the heap path while keeping the int/double path branch-equivalent.
         vm->push(vm->retainValue(vm->currentFrame->slots[slot]));
-    }
-
-    void op_get_local_decoded(VM* vm, const DecodedInstruction& instr)
-    {
-        // Read slot directly from pre-decoded instruction (no memory fetch!)
-        uint8_t slot = instr.operands.byte;
-        assert(slot < 255 and "Local variable slot out of range");
-
-        vm->push(vm->retainValue(vm->currentFrame->slots[slot]));
-    }
-
-    void op_set_local(VM* vm)
-    {
-        uint8_t slot = *vm->currentFrame->ip++;
-        assert(slot < 255 and "Local variable slot out of range");
-
-        Value newValue = vm->peek(0);
-        Value oldValue = vm->currentFrame->slots[slot];
-
-        // retainValue is inline and early-returns for primitives, so the
-        // unconditional call costs the same on the int path as the explicit
-        // branch would, while saving a duplicate requiresRefCount call on
-        // the heap path.
-        vm->currentFrame->slots[slot] = vm->retainValue(newValue);
-
-        // releaseAndDelete is NOT inline (function call). Keep the explicit
-        // guard so the int path avoids the call entirely.
-        if (requiresRefCount(oldValue))
-        {
-            vm->releaseAndDelete(oldValue);
-        }
     }
 
     void op_set_local_decoded(VM* vm, const DecodedInstruction& instr)
@@ -730,6 +643,10 @@ namespace pg
         Value newValue = vm->peek(0);
         Value oldValue = vm->currentFrame->slots[slot];
 
+        // retainValue is inline and early-returns for primitives, so the
+        // unconditional call costs the same on the int path as the explicit
+        // branch would, while saving a duplicate requiresRefCount call on
+        // the heap path.
         vm->currentFrame->slots[slot] = vm->retainValue(newValue);
 
         if (requiresRefCount(oldValue))
@@ -747,21 +664,6 @@ namespace pg
     // pop. The slot's old value still needs to be released; the popped new
     // value's refcount was already incremented when it was pushed (and the
     // slot now owns that reference), so no retain is needed — we just move it.
-    void op_set_local_pop(VM* vm)
-    {
-        uint8_t slot = *vm->currentFrame->ip++;
-
-        Value newValue = vm->pop();
-        Value oldValue = vm->currentFrame->slots[slot];
-
-        vm->currentFrame->slots[slot] = newValue;
-
-        if (requiresRefCount(oldValue))
-        {
-            vm->releaseAndDelete(oldValue);
-        }
-    }
-
     void op_set_local_pop_decoded(VM* vm, const DecodedInstruction& instr)
     {
         uint8_t slot = instr.operands.byte;
@@ -777,7 +679,10 @@ namespace pg
         }
     }
 
-    void op_return(VM* vm)
+    // op_return_decoded: tears down the returning frame and, on a non-final
+    // return, swaps the dispatcher state to the caller's decoded chunk so
+    // the runDecoded loop can keep going without the post-dispatch ladder.
+    void op_return_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
@@ -788,6 +693,11 @@ namespace pg
             return;
         }
 #endif
+        // Snapshot the resume index from the callee frame BEFORE the frame
+        // teardown below decrements frameCount and restores currentFrame to
+        // the caller.
+        const size_t resumeIndex = vm->currentFrame->callerResumeIndex;
+
         auto value = vm->pop();
 
         // Save callee's stackBase (where caller's stack ended) before we dec frame count
@@ -828,155 +738,13 @@ namespace pg
         vm->stack.truncateTo(stackTruncatePosition);
 
         vm->push(value);
-    }
 
-    // op_return_decoded: self-managing decoded variant of OP_Return. Reuses
-    // op_return for the actual stack/frame work; on a non-final return,
-    // swaps the dispatcher state to the caller's decoded chunk so the
-    // runDecoded loop can keep going without the post-dispatch ladder.
-    void op_return_decoded(VM* vm, const DecodedInstruction&)
-    {
-        // Snapshot the resume index from the callee frame BEFORE op_return
-        // tears it down — op_return decrements frameCount and restores
-        // currentFrame to the caller.
-        const size_t resumeIndex = vm->currentFrame->callerResumeIndex;
-
-        op_return(vm);
-
-        // If we reach here, frameCount > 0 (the frameCount == 0 path inside
-        // op_return calls vm_return which longjmps out of runDecoded).
-        // op_return has already restored currentFrame; retarget decoded-side
-        // state to the caller.
+        // If we reach here, frameCount > 0 (the frameCount == 0 path above
+        // calls vm_return which longjmps out of runDecoded). currentFrame is
+        // already the caller; retarget decoded-side state to it.
         vm->currentStartingIp    = vm->currentFrame->closure->function->chunk.code.data();
         vm->currentDecoded       = vm->currentFrame->closure->function->decodedChunk;
         vm->nextInstructionIndex = resumeIndex;
-    }
-
-    void op_get_global(VM* vm)
-    {
-#ifdef DEBUG_CHECK_STACK
-        if (vm->stack.empty())
-        {
-            vm->runtimeError("Not enough values on stack for variable retrieval.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-#endif
-        auto nameValue = vm->peek();  // variable name
-
-        if (not IS_STRING(nameValue))
-        {
-            vm->releaseAndDelete(nameValue);
-            vm->pop(); // Remove name from stack
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        auto name = vm->asString(nameValue);
-
-        auto it = vm->globals.find(name);
-        if (it == vm->globals.end())
-        {
-            vm->releaseAndDelete(nameValue);
-            vm->pop(); // Remove name from stack
-            vm->runtimeError("Undefined global variable '" + name + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        vm->changeTop(vm->retainValue(it->second)); // Retain because stack becomes an owner
-        vm->releaseAndDelete(nameValue);
-    }
-
-    void op_set_global(VM* vm)
-    {
-#ifdef DEBUG_CHECK_STACK
-        if (vm->stack.size() < 2)
-        {
-            vm->runtimeError("Not enough values on stack for variable assignment.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-#endif
-        auto nameValue = vm->pop();
-        auto value = vm->peek();
-        auto name = vm->valueToElement(nameValue);
-
-        if (not name.isLitteral())
-        {
-            vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        auto it = vm->globals.find(name.toString());
-        if (it == vm->globals.end())
-        {
-            vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        vm->releaseAndDelete(it->second);
-        it->second = vm->retainValue(value);
-        vm->releaseAndDelete(nameValue);
-    }
-
-    void op_define_global(VM* vm)
-    {
-#ifdef DEBUG_CHECK_STACK
-        if (vm->stack.size() < 2)
-        {
-            vm->runtimeError("Not enough values on stack for variable definition.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-#endif
-        auto nameValue = vm->pop();  // variable name
-        auto name = vm->valueToElement(nameValue);
-        auto value = vm->pop(); // variable value
-
-        if (not name.isLitteral())
-        {
-            vm->releaseAndDelete(nameValue);
-            vm->releaseAndDelete(value);
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        vm->globals[name.toString()] = vm->retainValue(value);
-        vm->releaseAndDelete(nameValue);
-        vm->releaseAndDelete(value);
-    }
-
-    void op_define_global_non_popping(VM* vm)
-    {
-#ifdef DEBUG_CHECK_STACK
-        if (vm->stack.size() < 2)
-        {
-            vm->runtimeError("Not enough values on stack for variable definition.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-#endif
-        auto nameValue = vm->pop();  // variable name
-        auto name = vm->valueToElement(nameValue);
-        auto value = vm->peek(); // variable value
-
-        if (not name.isLitteral())
-        {
-            vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        vm->globals[name.toString()] = vm->retainValue(value);
-        vm->releaseAndDelete(nameValue);
     }
 
     // op_call_decoded: self-managing decoded variant of OP_Call. Reads
@@ -998,7 +766,7 @@ namespace pg
         }
     }
 
-    void op_debug_print(VM* vm)
+    void op_debug_print_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
@@ -1123,72 +891,6 @@ namespace pg
         vm->releaseAndDelete(value);
     }
 
-    void op_jump_if_false(VM* vm)
-    {
-        uint16_t offset = (static_cast<uint16_t>(*vm->currentFrame->ip++) << 8);
-        offset |= static_cast<uint16_t>(*vm->currentFrame->ip++);
-
-        Value condition = vm->peek();
-
-        if (not isValueTrue(condition, vm))  // Pass VM for proper string evaluation
-        {
-            vm->currentFrame->ip += offset;
-        }
-    }
-
-    void op_jump_if_false_popping(VM* vm)
-    {
-        uint16_t offset = (static_cast<uint16_t>(*vm->currentFrame->ip++) << 8);
-        offset |= static_cast<uint16_t>(*vm->currentFrame->ip++);
-
-        Value condition = vm->pop();
-
-        if (not isValueTrue(condition, vm))  // Pass VM for proper string evaluation
-        {
-            vm->currentFrame->ip += offset;
-        }
-
-        if (requiresRefCount(condition))
-        {
-            vm->releaseAndDelete(condition);
-        }
-    }
-
-    void op_long_jump_if_false(VM* vm)
-    {
-        uint32_t offset = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 24);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
-        offset |= static_cast<uint32_t>(*vm->currentFrame->ip++);
-
-        Value condition = vm->peek();
-
-        if (not isValueTrue(condition))
-        {
-            vm->currentFrame->ip += offset;
-        }
-    }
-
-    void op_long_jump_if_false_popping(VM* vm)
-    {
-        uint32_t offset = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 24);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
-        offset |= static_cast<uint32_t>(*vm->currentFrame->ip++);
-
-        Value condition = vm->pop();
-
-        if (not isValueTrue(condition))
-        {
-            vm->currentFrame->ip += offset;
-        }
-
-        if (requiresRefCount(condition))
-        {
-            vm->releaseAndDelete(condition);
-        }
-    }
-
     // Decoded jump-if-false variants. The target index (when the condition
     // is false) is already baked into instr.nextInstuctionIndex by
     // resolveJumpTargets — the dispatcher pre-seeds nextInstructionIndex to
@@ -1228,46 +930,10 @@ namespace pg
             vm->releaseAndDelete(condition);
     }
 
-    void op_jump(VM* vm)
-    {
-        uint16_t offset = (static_cast<uint16_t>(*vm->currentFrame->ip++) << 8);
-        offset |= static_cast<uint16_t>(*vm->currentFrame->ip++);
-
-        vm->currentFrame->ip += offset;
-    }
-
-    void op_long_jump(VM* vm)
-    {
-        uint32_t offset = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 24);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
-        offset |= static_cast<uint32_t>(*vm->currentFrame->ip++);
-
-        vm->currentFrame->ip += offset;
-    }
-
     void op_jump_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Pre-resolved target index baked in by resolveJumpTargets.
         vm->nextInstructionIndex = instr.nextInstuctionIndex;
-    }
-
-    void op_loop(VM* vm)
-    {
-        uint16_t offset = (static_cast<uint16_t>(*vm->currentFrame->ip++) << 8);
-        offset |= static_cast<uint16_t>(*vm->currentFrame->ip++);
-
-        vm->currentFrame->ip -= offset;
-    }
-
-    void op_long_loop(VM* vm)
-    {
-        uint32_t offset = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 24);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
-        offset |= static_cast<uint32_t>(*vm->currentFrame->ip++);
-
-        vm->currentFrame->ip -= offset;
     }
 
     void op_loop_decoded(VM* vm, const DecodedInstruction& instr)
@@ -1276,109 +942,10 @@ namespace pg
         vm->nextInstructionIndex = instr.nextInstuctionIndex;
     }
 
-    void op_get_upvalue(VM* vm)
-    {
-        uint8_t slot = *vm->currentFrame->ip++;
-
-        if (slot >= vm->currentFrame->closure->function->upvalueCount)
-        {
-            vm->runtimeError("Upvalue index out of bounds.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        ObjUpvalue* upvalue = vm->currentFrame->closure->upvalues[slot];
-
-        // Check if upvalue is closed (location points to &closed)
-        if (upvalue->location == &upvalue->closed)
-        {
-            // For closed upvalues, just copy the value - don't retain it
-            // The value is owned by the upvalue object itself
-            vm->push(*upvalue->location);
-        } else
-        {
-            // For open upvalues, retain the value since it's on the stack
-            vm->push(vm->retainValue(*upvalue->location));
-        }
-    }
-
-    void op_set_upvalue(VM* vm)
-    {
-        uint8_t slot = *vm->currentFrame->ip++;
-#ifdef DEBUG_CHECK_STACK
-        if (vm->stack.empty())
-        {
-            vm->runtimeError("Not enough values on stack for upvalue assignment.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-#endif
-        ObjUpvalue* upvalue = vm->currentFrame->closure->upvalues[slot];
-        upvalue->location = &vm->stack[vm->stack.size() - 1 - 0];
-    }
-
-    void op_close_upvalue(VM* vm)
-    {
-#ifdef DEBUG_CHECK_STACK
-        if (vm->stack.empty())
-        {
-            vm->runtimeError("Stack underflow on closing upvalue.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-#endif
-        vm->closeUpvalues(&vm->stack[vm->stack.size() - 1]);
-        auto value = vm->pop();
-        vm->releaseAndDelete(value);
-    }
-
-    void op_short_int(VM* vm)
-    {
-        uint8_t value = *vm->currentFrame->ip++;
-
-        vm->push(makeIntValue(value));
-    }
-
     void op_short_int_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        // Operand already pre-extracted by the chunk decoder — skip the
-        // currentFrame->ip increment that the non-decoded variant pays.
+        // Operand already pre-extracted by the chunk decoder.
         vm->push(makeIntValue(instr.operands.byte));
-    }
-
-    void op_pop_n(VM* vm)
-    {
-        uint8_t count = *vm->currentFrame->ip++;
-
-        for (int i = 0; i < count; i++)
-        {
-            auto value = vm->pop();
-
-            if (requiresRefCount(value)) {
-                vm->releaseAndDelete(value);
-            }
-        }
-    }
-
-    void op_define_constant_global(VM* vm)
-    {
-        uint8_t constant1 = *vm->currentFrame->ip++;
-
-        auto value1 = vm->currentFrame->closure->function->chunk.constants[constant1];
-
-        uint8_t constant2 = *vm->currentFrame->ip++;
-
-        auto value2 = vm->currentFrame->closure->function->chunk.constants[constant2];
-        auto name = vm->valueToElement(value2);
-
-        if (not name.isLitteral())
-        {
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        vm->globals[name.toString()] = vm->retainValue(value1);
     }
 
     void op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
@@ -1402,66 +969,13 @@ namespace pg
         vm->globals[name.toString()] = vm->retainValue(value1);
     }
 
-    void op_get_constant_global(VM* vm)
-    {
-        uint8_t constant = *vm->currentFrame->ip++;
-        auto value = vm->currentFrame->closure->function->chunk.constants[constant];
-        auto name = vm->valueToElement(value);
-
-        if (not name.isLitteral())
-        {
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        auto it = vm->globals.find(name.toString());
-        if (it == vm->globals.end())
-        {
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        vm->push(vm->retainValue(it->second)); // Retain because stack becomes an owner
-    }
-
-    void op_set_constant_global(VM* vm)
-    {
-        uint8_t constant1 = *vm->currentFrame->ip++;
-
-        auto value1 = vm->currentFrame->closure->function->chunk.constants[constant1];
-
-        uint8_t constant2 = *vm->currentFrame->ip++;
-
-        auto value2 = vm->currentFrame->closure->function->chunk.constants[constant2];
-        auto name = vm->valueToElement(value2);
-
-        if (not name.isLitteral())
-        {
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        auto it = vm->globals.find(name.toString());
-        if (it == vm->globals.end())
-        {
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        vm->releaseAndDelete(it->second);
-        it->second = vm->retainValue(value1);
-        vm->push(vm->retainValue(value1));
-    }
-
     // ========================================================================
     // Module Operations
     // ========================================================================
 
-    void op_import(VM* vm)
+    // op_import builds an external VM and replays interpret — no per-
+    // instruction operands to extract.
+    void op_import_decoded(VM* vm, const DecodedInstruction&)
     {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty())
@@ -1743,21 +1257,6 @@ namespace pg
 
         vm->globals[name.toString()] = vm->retainValue(value);
         vm->releaseAndDelete(nameValue);
-    }
-
-    void op_debug_print_decoded(VM* vm, const DecodedInstruction&)
-    {
-        // Mirrors op_debug_print; the legacy body is large enough that
-        // reusing it via a single call keeps maintenance simple. There are
-        // no operands to extract, so no decoding benefit is lost.
-        op_debug_print(vm);
-    }
-
-    void op_import_decoded(VM* vm, const DecodedInstruction&)
-    {
-        // op_import builds an external VM and replays interpret — no per-
-        // instruction operands to extract; reuse the legacy body verbatim.
-        op_import(vm);
     }
 
     // One-byte-operand ops: operand was reading via *ip++ before; now it's

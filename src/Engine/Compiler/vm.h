@@ -152,137 +152,45 @@ namespace pg
         }
     };
 
-    // Forward declarations for operation handlers
-    void op_return(VM* vm);
+    // Forward declarations for the decoded operation handlers. Defined in
+    // vm_core.cpp, vm_binary_op.cpp, and vm_struct_op.cpp.
     void op_return_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_constant(VM* vm);
     void op_constant_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_long_constant(VM* vm);
     void op_long_constant_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_add(VM* vm);
     void op_add_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_subtract(VM* vm);
     void op_subtract_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_multiply(VM* vm);
     void op_multiply_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_divide(VM* vm);
     void op_divide_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_modulo(VM* vm);
     void op_modulo_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_negate(VM* vm);
-    void op_equal(VM* vm);
     void op_equal_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_not_equal(VM* vm);
     void op_not_equal_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_greater(VM* vm);
     void op_greater_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_greater_equal(VM* vm);
     void op_greater_equal_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_less(VM* vm);
     void op_less_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_less_equal(VM* vm);
     void op_less_equal_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_true(VM* vm);
-    void op_false(VM* vm);
-    void op_not(VM* vm);
-    void op_and(VM* vm);
-    void op_or(VM* vm);
-    void op_pop(VM* vm);
-    void op_get_local(VM* vm);
     void op_get_local_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_set_local(VM* vm);
     void op_set_local_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_get_global(VM* vm);
-    void op_define_global(VM* vm);
-    void op_set_global(VM* vm);
-    void op_jump_if_false(VM* vm);
-    void op_long_jump_if_false(VM* vm);
-    void op_jump_if_false_popping(VM* vm);
-    void op_long_jump_if_false_popping(VM* vm);
     void op_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr);
     void op_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr);
     void op_long_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr);
     void op_long_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_jump(VM* vm);
-    void op_long_jump(VM* vm);
     void op_jump_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_loop(VM* vm);
-    void op_long_loop(VM* vm);
     void op_loop_decoded(VM* vm, const DecodedInstruction& instr);
     void op_call_decoded(VM* vm, const DecodedInstruction& instr);
     void op_invoke_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_closure(VM* vm);
-    void op_get_upvalue(VM* vm);
-    void op_set_upvalue(VM* vm);
-    void op_close_upvalue(VM* vm);
-    void op_debug_print(VM* vm);
-    void op_post_incr_global(VM* vm);
-    void op_incr_global(VM* vm);
-    void op_post_decr_global(VM* vm);
-    void op_decr_global(VM* vm);
-    void op_post_incr_local(VM* vm);
-    void op_incr_local(VM* vm);
-    void op_post_decr_local(VM* vm);
-    void op_decr_local(VM* vm);
-    void op_class(VM* vm);
     void op_get_property_decoded(VM* vm, const DecodedInstruction& instr);
     void op_set_property_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_method(VM* vm);
-    void op_short_int(VM* vm);
     void op_short_int_decoded(VM* vm, const DecodedInstruction& instr);
-
-    void op_pop_n(VM* vm);
-
-    void op_define_constant_global(VM* vm);
     void op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_get_constant_global(VM* vm);
-    void op_set_constant_global(VM* vm);
-
-    void op_add_ll(VM* vm);
     void op_add_ll_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_subtract_ll(VM* vm);
-
-    void op_subtract_lc(VM* vm);
-    void op_subtract_cl(VM* vm);
-
-    void op_less_equal_ll(VM* vm);
     void op_less_equal_ll_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_less_ll(VM* vm);
     void op_less_ll_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_set_local_pop(VM* vm);
     void op_set_local_pop_decoded(VM* vm, const DecodedInstruction& instr);
 
     // Table operations
-    void op_build_vector(VM* vm);
-    void op_build_table(VM* vm);
     void op_get_index_decoded(VM* vm, const DecodedInstruction& instr);
     void op_set_index_decoded(VM* vm, const DecodedInstruction& instr);
 
-    // Iterator operations
-    void op_get_iterator(VM* vm);
-    void op_iterator_next(VM* vm);
-    void op_table_size(VM* vm);
-    void op_table_at(VM* vm);
-
-    void op_define_global_non_popping(VM *vm);
-
-    // Module operations
-    void op_import(VM* vm);
-
-    // Register-based operations
-    void op_load_constant_r(VM* vm);
-    void op_move_r(VM* vm);
-    void op_add_rrr(VM* vm);
-    void op_less_rr(VM* vm);
-    void op_incr_r(VM* vm);
-    void op_less_rrr(VM* vm);
-    void op_jump_if_false_r(VM* vm);
-
-    // ---------------------------------------------------------------------
-    // Decoded handlers for the remaining ops. Defined alongside their
-    // legacy `void(VM*)` counterparts in vm_binary_op.cpp, vm_struct_op.cpp,
-    // and vm_core.cpp.
-    // ---------------------------------------------------------------------
     void op_negate_decoded(VM* vm, const DecodedInstruction& instr);
     void op_not_decoded(VM* vm, const DecodedInstruction& instr);
     void op_and_decoded(VM* vm, const DecodedInstruction& instr);
