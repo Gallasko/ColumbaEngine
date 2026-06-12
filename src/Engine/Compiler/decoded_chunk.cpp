@@ -557,6 +557,26 @@ namespace pg
                 windowLen = 2;
             }
 
+            // G) Short_Int slot + Post_Incr/Decr_Local → fused in-place local
+            //    increment (IncrementOptimization's statement form: the slot
+            //    index round-trips through the stack today)
+            if (windowLen == 0 and i + 1 < n
+                and im[i].originalOpcode == static_cast<uint8_t>(OpCode::OP_Short_Int)
+                and windowSafe(i, 2))
+            {
+                const uint8_t next = im[i + 1].originalOpcode;
+                const bool incr = (next == static_cast<uint8_t>(OpCode::OP_Post_Incr_Local));
+                const bool decr = (next == static_cast<uint8_t>(OpCode::OP_Post_Decr_Local));
+                if (incr or decr)
+                {
+                    fused = DecodedInstruction{};
+                    fused.decodedHandler = incr ? &fusedIncrDecrLocal<true>
+                                                : &fusedIncrDecrLocal<false>;
+                    fused.operands.indexed.byte1 = in[i].operands.byte; // slot
+                    windowLen = 2;
+                }
+            }
+
             // --- Emit -------------------------------------------------------
             if (windowLen >= 2)
             {

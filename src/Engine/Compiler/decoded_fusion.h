@@ -242,6 +242,41 @@ namespace fusion
         return &instr + 1;
     }
 
+    // Statement-form local increment/decrement: fuses the
+    // [Short_Int slot][Post_Incr_Local] pair that IncrementOptimization
+    // emits for `i += 1` — the slot index goes straight into the operand
+    // byte instead of a push/pop round-trip. Mirrors op_post_incr_local's
+    // semantics (in-place update, nothing pushed).
+    template <bool Increment>
+    const DecodedInstruction* fusedIncrDecrLocal(VM* vm, const DecodedInstruction& instr)
+    {
+        const uint8_t slot = instr.operands.indexed.byte1;
+        Value& val = vm->currentFrame->slots[slot];
+
+        if (not isValueNumber(val))
+        {
+            vm->runtimeError(Increment ? "Operand after an unary (++) must be a number."
+                                       : "Operand after an unary (--) must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        // Fast paths mirror op_incr_r; fall back to the value helpers.
+        if (IS_INT(val))
+        {
+            val = INT_VAL(AS_INT(val) + (Increment ? 1 : -1));
+        }
+        else
+        {
+            Value newValue = Increment ? vm->addValues(val, INT_VAL(1))
+                                       : vm->subtractValues(val, INT_VAL(1));
+            vm->releaseAndDelete(val);
+            val = newValue;
+        }
+
+        return &instr + 1;
+    }
+
     // Unary over a local (Const/ShortInt inputs are constant-folded by the
     // bytecode passes; Stack input is the base op).
     template <UnOp U>
