@@ -1435,22 +1435,233 @@ namespace pg
     }
 
     // ---------------------------------------------------------------------
-    // Thin decoded wrappers — delegate to legacy handlers via
-    // runLegacyAsDecoded. See vm_binary_op.cpp for the pattern.
+    // Proper decoded handlers. One-byte-operand ops read from
+    // instr.operands.byte; zero-operand ops delegate directly to the legacy
+    // body (no benefit to duplicating). op_closure has a variable-length
+    // upvalue payload that can't fit in DecodedInstruction.operands, so its
+    // decoded form pre-extracts the constant index but still reads the
+    // upvalue list from bytecode via ip after positioning ip past the
+    // constant byte.
     // ---------------------------------------------------------------------
-    #define DECODED_VIA_LEGACY(legacy_name) \
-        void legacy_name##_decoded(VM* vm, const DecodedInstruction& instr) \
-        { vm->runLegacyAsDecoded(instr, legacy_name); }
 
-    DECODED_VIA_LEGACY(op_closure)
-    DECODED_VIA_LEGACY(op_class)
-    DECODED_VIA_LEGACY(op_method)
-    DECODED_VIA_LEGACY(op_build_vector)
-    DECODED_VIA_LEGACY(op_build_table)
-    DECODED_VIA_LEGACY(op_get_iterator)
-    DECODED_VIA_LEGACY(op_iterator_next)
-    DECODED_VIA_LEGACY(op_table_size)
-    DECODED_VIA_LEGACY(op_table_at)
+    void op_closure_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t constantIndex = instr.operands.byte;
 
-    #undef DECODED_VIA_LEGACY
+        // Variable-length upvalue payload (2 bytes per upvalue) can't be
+        // pre-decoded — position ip past the opcode + constant byte so the
+        // per-upvalue *ip++ reads land on the right bytes.
+        vm->currentFrame->ip = vm->currentStartingIp + instr.bytecodeOffset + 2;
+
+        auto functionValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+
+        if (not IS_FUNC(functionValue))
+        {
+            vm->runtimeError("Closure operand must be a function.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        ObjFunction* function = vm->asFunction(functionValue);
+        auto closure = vm->createClosure(function);
+        vm->push(closure);
+
+        for (int i = 0; i < function->upvalueCount; i++)
+        {
+            uint8_t isLocal = *vm->currentFrame->ip++;
+            uint8_t index = *vm->currentFrame->ip++;
+            if (isLocal)
+            {
+                vm->asClosure(closure)->upvalues[i] = vm->captureUpvalue(vm->currentFrame->slots + index);
+            }
+            else
+            {
+                vm->asClosure(closure)->upvalues[i] = vm->currentFrame->closure->upvalues[index];
+            }
+        }
+    }
+
+    void op_class_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t constantIndex = instr.operands.byte;
+        auto classNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+
+        ElementType classNameElem = vm->valueToElement(classNameValue);
+        if (not classNameElem.isLitteral())
+        {
+            vm->runtimeError("Class name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        std::string className = classNameElem.toString();
+        auto newClass = vm->createClass(className);
+        vm->push(newClass);
+    }
+
+    void op_method_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t constantIndex = instr.operands.byte;
+        auto methodNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+
+        ElementType methodNameElem = vm->valueToElement(methodNameValue);
+        if (not methodNameElem.isLitteral())
+        {
+            vm->runtimeError("Method name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        std::string methodName = methodNameElem.toString();
+
+        auto methodValue = vm->pop();
+        auto classValue = vm->peek();
+
+        if (not IS_CLASS(classValue))
+        {
+            vm->runtimeError("Method definition must be on a class.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        Klass* klass = vm->asClass(classValue);
+
+        if (not IS_CLOSURE(methodValue) and not IS_NAT_FUNC(methodValue))
+        {
+            vm->runtimeError("Method must be a closure or native function.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        klass->methods[methodName] = methodValue;
+    }
+
+    void op_build_table_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t pairCount = instr.operands.byte;
+
+        auto it = vm->globals.find("__Table");
+        if (it == vm->globals.end())
+        {
+            vm->runtimeError("Table class not found - was initializeTableClass() called?");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        Value tableClassVal = it->second;
+        if (!IS_CLASS(tableClassVal))
+        {
+            vm->runtimeError("Table is not a class");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        Klass* tableClass = vm->asClass(tableClassVal);
+
+        Value instanceVal = vm->createInstance(tableClass);
+        ObjInstance* table = vm->asInstance(instanceVal);
+
+        table->fieldValues.reserve(pairCount);
+        table->internedFields.reserve(pairCount);
+
+        std::vector<std::string> keys;
+        std::vector<Value> values;
+        keys.reserve(pairCount);
+        values.reserve(pairCount);
+
+        for (int i = 0; i < pairCount; i++)
+        {
+            Value key = vm->pop();
+            Value value = vm->pop();
+
+            std::string keyStr;
+            if (IS_STRING(key))
+            {
+                keyStr = vm->asString(key);
+            }
+            else if (IS_INT(key))
+            {
+                keyStr = std::to_string(AS_INT(key));
+            }
+            else
+            {
+                vm->releaseAndDelete(key);
+                vm->releaseAndDelete(value);
+                vm->runtimeError("Table key must be string or integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            vm->releaseAndDelete(key);
+            keys.push_back(keyStr);
+            values.push_back(value);
+        }
+
+        for (int i = pairCount - 1; i >= 0; i--)
+        {
+            size_t valueIndex = table->fieldValues.size();
+            table->fieldValues.push_back(vm->retainValue(values[i]));
+            table->internedFields[keys[i]] = valueIndex;
+            vm->releaseAndDelete(values[i]);
+        }
+
+        vm->push(instanceVal);
+    }
+
+    void op_build_vector_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t pairCount = instr.operands.byte;
+
+        Value vectorVal = vm->createVector();
+        ObjVector* vector = vm->asVector(vectorVal);
+
+        std::vector<std::pair<int64_t, Value>> pairs;
+        pairs.reserve(pairCount);
+
+        for (int i = 0; i < pairCount; i++)
+        {
+            Value index = vm->pop();
+            Value value = vm->pop();
+
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(index);
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(vectorVal);
+                vm->runtimeError("Vector index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            int64_t indexInt = AS_INT(index);
+            vm->releaseAndDelete(index);
+            pairs.push_back({indexInt, value});
+        }
+
+        std::sort(pairs.begin(), pairs.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+
+        for (const auto& pair : pairs)
+        {
+            // Pad with zeros so the value lands at its target index even
+            // when the keys aren't a contiguous 0..N-1 sequence.
+            while (vector->fields.size() <= static_cast<size_t>(pair.first))
+            {
+                vector->fields.push_back(makeIntValue(0));
+            }
+
+            vector->fields[pair.first] = vm->retainValue(pair.second);
+            vm->releaseAndDelete(pair.second);
+        }
+
+        vm->push(vectorVal);
+    }
+
+    // Zero-operand ops: no bytecode to pre-extract, so the decoded form
+    // just delegates to the legacy body.
+
+    void op_get_iterator_decoded(VM* vm, const DecodedInstruction&) { op_get_iterator(vm); }
+    void op_iterator_next_decoded(VM* vm, const DecodedInstruction&) { op_iterator_next(vm); }
+    void op_table_size_decoded(VM* vm, const DecodedInstruction&)    { op_table_size(vm); }
+    void op_table_at_decoded(VM* vm, const DecodedInstruction&)      { op_table_at(vm); }
 }
