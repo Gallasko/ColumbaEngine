@@ -995,42 +995,156 @@ namespace pg
     }
 
     // ---------------------------------------------------------------------
-    // Thin decoded wrappers that delegate to the existing legacy handlers
-    // via runLegacyAsDecoded. The legacy bodies still read operands via
-    // *ip++; the wrapper positions ip just past the opcode first, runs the
-    // body, then commits any frame switch (no-op when no frame was pushed).
+    // Proper decoded handlers. Zero-operand ops just delegate to the legacy
+    // body (no benefit to duplicating since there's nothing to pre-decode);
+    // multi-operand ops read from instr.operands directly instead of *ip++.
     // ---------------------------------------------------------------------
-    #define DECODED_VIA_LEGACY(legacy_name) \
-        void legacy_name##_decoded(VM* vm, const DecodedInstruction& instr) \
-        { vm->runLegacyAsDecoded(instr, legacy_name); }
 
-    DECODED_VIA_LEGACY(op_negate)
-    DECODED_VIA_LEGACY(op_not)
-    DECODED_VIA_LEGACY(op_and)
-    DECODED_VIA_LEGACY(op_or)
-    DECODED_VIA_LEGACY(op_true)
-    DECODED_VIA_LEGACY(op_false)
+    // Zero-operand boolean / unary ops. The "operands" are on the stack;
+    // nothing to extract from bytecode, so the decoded form is just a
+    // direct call to the legacy body.
 
-    DECODED_VIA_LEGACY(op_post_incr_global)
-    DECODED_VIA_LEGACY(op_incr_global)
-    DECODED_VIA_LEGACY(op_post_decr_global)
-    DECODED_VIA_LEGACY(op_decr_global)
-    DECODED_VIA_LEGACY(op_post_incr_local)
-    DECODED_VIA_LEGACY(op_incr_local)
-    DECODED_VIA_LEGACY(op_post_decr_local)
-    DECODED_VIA_LEGACY(op_decr_local)
+    void op_negate_decoded(VM* vm, const DecodedInstruction&) { op_negate(vm); }
+    void op_not_decoded(VM* vm, const DecodedInstruction&)    { op_not(vm); }
+    void op_and_decoded(VM* vm, const DecodedInstruction&)    { op_and(vm); }
+    void op_or_decoded(VM* vm, const DecodedInstruction&)     { op_or(vm); }
+    void op_true_decoded(VM* vm, const DecodedInstruction&)   { op_true(vm); }
+    void op_false_decoded(VM* vm, const DecodedInstruction&)  { op_false(vm); }
 
-    DECODED_VIA_LEGACY(op_subtract_ll)
-    DECODED_VIA_LEGACY(op_subtract_lc)
-    DECODED_VIA_LEGACY(op_subtract_cl)
+    // Increment / decrement ops also take 0 bytecode operands — the
+    // variable name (globals) or slot index (locals) is pushed on the stack
+    // by a preceding instruction. Direct delegation.
 
-    DECODED_VIA_LEGACY(op_load_constant_r)
-    DECODED_VIA_LEGACY(op_move_r)
-    DECODED_VIA_LEGACY(op_add_rrr)
-    DECODED_VIA_LEGACY(op_less_rr)
-    DECODED_VIA_LEGACY(op_incr_r)
-    DECODED_VIA_LEGACY(op_less_rrr)
-    DECODED_VIA_LEGACY(op_jump_if_false_r)
+    void op_post_incr_global_decoded(VM* vm, const DecodedInstruction&) { op_post_incr_global(vm); }
+    void op_incr_global_decoded(VM* vm, const DecodedInstruction&)      { op_incr_global(vm); }
+    void op_post_decr_global_decoded(VM* vm, const DecodedInstruction&) { op_post_decr_global(vm); }
+    void op_decr_global_decoded(VM* vm, const DecodedInstruction&)      { op_decr_global(vm); }
+    void op_post_incr_local_decoded(VM* vm, const DecodedInstruction&)  { op_post_incr_local(vm); }
+    void op_incr_local_decoded(VM* vm, const DecodedInstruction&)       { op_incr_local(vm); }
+    void op_post_decr_local_decoded(VM* vm, const DecodedInstruction&)  { op_post_decr_local(vm); }
+    void op_decr_local_decoded(VM* vm, const DecodedInstruction&)       { op_decr_local(vm); }
 
-    #undef DECODED_VIA_LEGACY
+    // Two-byte-operand subtract peephole fusions.
+
+    void op_subtract_ll_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t local1 = instr.operands.indexed.byte1;
+        uint8_t local2 = instr.operands.indexed.byte2;
+
+        auto value1 = vm->currentFrame->slots[local1];
+        auto value2 = vm->currentFrame->slots[local2];
+
+        vm->push(vm->subtractValues(value1, value2));
+    }
+
+    void op_subtract_lc_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t local1        = instr.operands.indexed.byte1;
+        uint8_t constantIndex = instr.operands.indexed.byte2;
+
+        auto value1 = vm->currentFrame->slots[local1];
+        auto value2 = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+
+        vm->push(vm->subtractValues(value1, value2));
+    }
+
+    void op_subtract_cl_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t constantIndex = instr.operands.indexed.byte1;
+        uint8_t local2        = instr.operands.indexed.byte2;
+
+        auto value1 = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+        auto value2 = vm->currentFrame->slots[local2];
+
+        vm->push(vm->subtractValues(value1, value2));
+    }
+
+    // Register-based ops: operands are 1–3 slot indices stored in
+    // instr.operands.indexed (or .byte for the single-operand op_incr_r).
+
+    void op_load_constant_r_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t destSlot   = instr.operands.indexed.byte1;
+        uint8_t constIndex = instr.operands.indexed.byte2;
+
+        vm->currentFrame->slots[destSlot] =
+            vm->currentFrame->closure->function->chunk.constants[constIndex];
+    }
+
+    void op_move_r_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t destSlot = instr.operands.indexed.byte1;
+        uint8_t srcSlot  = instr.operands.indexed.byte2;
+
+        vm->currentFrame->slots[destSlot] = vm->currentFrame->slots[srcSlot];
+    }
+
+    void op_add_rrr_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t destSlot = instr.operands.indexed.byte1;
+        uint8_t src1Slot = instr.operands.indexed.byte2;
+        uint8_t src2Slot = instr.operands.indexed.byte3;
+
+        Value a = vm->currentFrame->slots[src1Slot];
+        Value b = vm->currentFrame->slots[src2Slot];
+
+        vm->currentFrame->slots[destSlot] = vm->addValues(a, b);
+    }
+
+    void op_less_rr_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t src1Slot = instr.operands.indexed.byte1;
+        uint8_t src2Slot = instr.operands.indexed.byte2;
+
+        Value a = vm->currentFrame->slots[src1Slot];
+        Value b = vm->currentFrame->slots[src2Slot];
+
+        vm->push(vm->lessValues(a, b));
+    }
+
+    void op_incr_r_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t slot = instr.operands.byte;
+        Value   val  = vm->currentFrame->slots[slot];
+
+        if (IS_INT(val))
+        {
+            vm->currentFrame->slots[slot] = INT_VAL(AS_INT(val) + 1);
+        }
+        else if (IS_FLOAT(val))
+        {
+            vm->currentFrame->slots[slot] = FLOAT_VAL(AS_FLOAT(val) + 1.0);
+        }
+        else
+        {
+            vm->currentFrame->slots[slot] = vm->addValues(val, INT_VAL(1));
+        }
+    }
+
+    void op_less_rrr_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t destSlot = instr.operands.indexed.byte1;
+        uint8_t src1Slot = instr.operands.indexed.byte2;
+        uint8_t src2Slot = instr.operands.indexed.byte3;
+
+        Value a = vm->currentFrame->slots[src1Slot];
+        Value b = vm->currentFrame->slots[src2Slot];
+
+        vm->currentFrame->slots[destSlot] = vm->lessValues(a, b);
+    }
+
+    // OP_Jump_If_False_R: register-based conditional jump (slot + 16-bit
+    // offset). Mirrors the pattern of op_long_jump_if_false_decoded — the
+    // precomputed false-branch target lives in instr.nextInstuctionIndex
+    // (the dispatcher pre-seeds nextInstructionIndex to fall-through).
+    // Note: the compiler does not currently emit this op; the handler is
+    // provided for completeness.
+    void op_jump_if_false_r_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t slot = instr.operands.indexed.byte1;
+        Value condition = vm->currentFrame->slots[slot];
+
+        if (not isValueTrue(condition, vm))
+            vm->nextInstructionIndex = instr.nextInstuctionIndex;
+    }
 }
