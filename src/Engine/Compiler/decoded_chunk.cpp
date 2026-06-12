@@ -173,6 +173,25 @@ namespace pg
         }
 
         nextOffset = offset + 1 + operandBytes;
+
+        // OP_Closure carries a variable-length upvalue payload (2 bytes per
+        // upvalue) after its constant operand. The payload is read by
+        // op_closure_decoded through the frame ip, not dispatched — skip it
+        // here so its bytes aren't decoded as spurious instructions.
+        if (static_cast<OpCode>(opcode) == OpCode::OP_Closure
+            and instr.operands.byte < chunk.constants.size())
+        {
+            const Value& functionValue = chunk.constants[instr.operands.byte];
+            if (IS_FUNC(functionValue))
+            {
+                ObjFunction* function = vm->asFunction(functionValue);
+                if (function != nullptr)
+                {
+                    nextOffset += 2 * function->upvalueCount;
+                }
+            }
+        }
+
         return instr;
     }
 

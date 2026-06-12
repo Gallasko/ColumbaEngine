@@ -693,6 +693,11 @@ TEST_F(ScriptTestBench, TestClosure)
     testScript("testClosure");
 }
 
+TEST_F(ScriptTestBench, TestClosureUpvaluePayload)
+{
+    testScript("testClosureUpvaluePayload");
+}
+
 // ============================================================================
 // Classes & Objects
 // ============================================================================
