@@ -617,6 +617,11 @@ namespace pg
         PassManager passManager;
         bool enableOptimizations = true;
 
+        // Decode-time superinstruction fusion (see decoded_fusion.h). On by
+        // default — part of decoding, applies to compiled AND deserialized
+        // bytecode. Cleared together with optimizations for O0 / --no-opt.
+        bool enableDecodeFusion = true;
+
         // Bytecode profiling
         VMProfiler profiler;
 

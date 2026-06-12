@@ -119,20 +119,19 @@ int main(int argc, char** argv)
 
     // Install the same O3 bytecode-optimization pipeline EntitySystem uses.
     // Default ON — that's what real PgScript users get. --no-opt for ablation.
+    // Operand-elision specialization happens at decode time (decoded_fusion.h);
+    // the passes below are pure bytecode peepholes.
     if (optimize)
     {
         vm.enableBytecodeOptimization();
-        vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
-        vm.addOptimizationPass(std::make_unique<ComparisonLocalIndexingPass>());
+        vm.enableDecodeFusion = true;
         vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
         vm.addOptimizationPass(std::make_unique<PoppingJumpPass>());
         vm.addOptimizationPass(std::make_unique<RemoveUselessJumpPass>());
         vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
-        // Increment first: its 5-op pattern includes the trailing Set_Local +
-        // Pop, which the next pass will otherwise fuse away. Both must run
-        // before FuseOpPop coalesces the trailing Pop into a PopN.
+        // Increment must run before FuseOpPop coalesces its trailing Pop
+        // into a PopN.
         vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
-        vm.addOptimizationPass(std::make_unique<SetLocalPopFusionPass>());
         vm.addOptimizationPass(std::make_unique<FuseOpPop>());
         vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
         vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
@@ -141,6 +140,7 @@ int main(int argc, char** argv)
     else
     {
         vm.disableBytecodeOptimization();
+        vm.enableDecodeFusion = false;
     }
 
     if (debugPasses) vm.enableOptimizationDebugging();

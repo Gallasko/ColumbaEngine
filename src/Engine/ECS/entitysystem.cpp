@@ -948,24 +948,23 @@ namespace pg
         {
             vm.enableBytecodeOptimization();
 
-            vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
-            vm.addOptimizationPass(std::make_unique<ComparisonLocalIndexingPass>());
+            // Operand-elision specialization (the old BasicOperatorLocal-
+            // Indexing / ComparisonLocalIndexing / SetLocalPopFusion passes)
+            // now happens at DECODE time (decoded_fusion.h) — the bytecode
+            // stays generic. The remaining passes are genuine bytecode
+            // peepholes: jump shrinking, folding, redundancy removal.
+            vm.enableDecodeFusion = true;
+
             vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
             vm.addOptimizationPass(std::make_unique<PoppingJumpPass>());
             vm.addOptimizationPass(std::make_unique<RemoveUselessJumpPass>());
 
             vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
 
-            // Order matters for the next three:
-            //   1. IncrementOptimization matches `Get_Local + Constant + Add +
-            //      Set_Local + Pop` — needs the trailing Set_Local + Pop intact.
-            //   2. SetLocalPopFusion turns Set_Local + Pop into Set_Local_Pop,
-            //      destroying IncrementOptimization's pattern — so it must run
-            //      AFTER IncrementOptimization.
-            //   3. Both must run BEFORE FuseOpPop merges adjacent Pops into
-            //      PopN — otherwise the trailing single Pop is gone.
+            // IncrementOptimization matches `Get_Local + Constant + Add +
+            // Set_Local + Pop` — must run BEFORE FuseOpPop merges adjacent
+            // Pops into PopN, otherwise the trailing single Pop is gone.
             vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
-            vm.addOptimizationPass(std::make_unique<SetLocalPopFusionPass>());
 
             vm.addOptimizationPass(std::make_unique<FuseOpPop>());
 
@@ -979,6 +978,7 @@ namespace pg
         else if (vmOptimizationLevel == VmOptimizationLevel::O0)
         {
             vm.disableBytecodeOptimization();
+            vm.enableDecodeFusion = false;
         }
     }
 

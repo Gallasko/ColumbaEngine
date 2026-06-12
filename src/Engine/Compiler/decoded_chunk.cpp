@@ -3,9 +3,69 @@
 #include "vm.h"
 #include "logger.h"
 #include "compiler_debug.h"
+#include "decoded_fusion.h"
+
+#include <unordered_set>
 
 namespace pg
 {
+    // Computes the branch-target bytecode offset of a decoded control-flow
+    // instruction. Single source of truth shared by resolveJumpTargets and
+    // the fusion pass (a jump landing inside a fusion window forbids it).
+    // Returns false for non-branching instructions.
+    static bool branchTargetOffsetOf(const DecodedInstruction& instr,
+                                     const DecodedInstructionMeta& meta,
+                                     size_t& outOffset)
+    {
+        // Jump offsets are stored relative to the end of the instruction:
+        // target = bytecodeOffset + instructionSize + signedOffset.
+        switch (static_cast<OpCode>(meta.originalOpcode))
+        {
+            case OpCode::OP_Jump:
+            case OpCode::OP_Jump_If_False:
+            case OpCode::OP_Jump_If_False_Popping:
+                // Regular jumps use 2-byte operands (big-endian, signed)
+                outOffset = meta.bytecodeOffset + 1 + meta.operandBytes +
+                            static_cast<int16_t>((instr.operands.indexed.byte1 << 8) |
+                                                  instr.operands.indexed.byte2);
+                return true;
+
+            case OpCode::OP_Loop:
+                outOffset = meta.bytecodeOffset + 1 + meta.operandBytes -
+                            static_cast<uint16_t>((instr.operands.indexed.byte1 << 8) |
+                                                   instr.operands.indexed.byte2);
+                return true;
+
+            case OpCode::OP_Long_Jump:
+            case OpCode::OP_Long_Jump_If_False:
+            case OpCode::OP_Long_Jump_If_False_Popping:
+                // Long jumps use 4-byte operands (big-endian, signed)
+                outOffset = meta.bytecodeOffset + 1 + meta.operandBytes +
+                            static_cast<int32_t>((instr.operands.indexed.byte1 << 24) |
+                                                 (instr.operands.indexed.byte2 << 16) |
+                                                 (instr.operands.indexed.byte3 << 8)  |
+                                                  instr.operands.indexed.byte4);
+                return true;
+
+            case OpCode::OP_Long_Loop:
+                outOffset = meta.bytecodeOffset + 1 + meta.operandBytes -
+                            static_cast<uint32_t>((instr.operands.indexed.byte1 << 24) |
+                                                  (instr.operands.indexed.byte2 << 16) |
+                                                  (instr.operands.indexed.byte3 << 8)  |
+                                                   instr.operands.indexed.byte4);
+                return true;
+
+            case OpCode::OP_Jump_If_False_R:
+                // Register-based conditional jump: <slot> <offset_hi> <offset_lo>
+                outOffset = meta.bytecodeOffset + 1 + meta.operandBytes +
+                            static_cast<int16_t>((instr.operands.indexed.byte2 << 8) |
+                                                  instr.operands.indexed.byte3);
+                return true;
+
+            default:
+                return false;
+        }
+    }
     ObjFunction::~ObjFunction()
     {
         if (decodedChunk != nullptr)
@@ -86,6 +146,13 @@ namespace pg
         }
 
         decoded->totalInstructions = instructionIndex;
+
+        // Decode-time superinstruction fusion (must run before the pointer
+        // resolvers: it compacts the arrays and remaps jumpTargets).
+        if (vm != nullptr and vm->enableDecodeFusion)
+        {
+            fuseInstructions(decoded, chunk, vm);
+        }
 
         // Optimize: pre-resolve constant pointers
         resolveConstantPointers(decoded, chunk);
@@ -229,6 +296,328 @@ namespace pg
         }
     }
 
+    // ======================================================================
+    // Decode-time superinstruction fusion.
+    //
+    // Walks the decoded stream with the stack-effect classifications from
+    // decoded_fusion.h and collapses producer/op/consumer windows into one
+    // fused DecodedInstruction. The bytecode is untouched — fused handlers
+    // exist only in the decoded form. See decoded_fusion.h for the encoding
+    // contract (operand bytes, single union pointer).
+    // ======================================================================
+
+    namespace
+    {
+        // A fusable input source extracted from a producer instruction (or
+        // the stack / a legacy fused op's embedded operand).
+        struct SrcDesc
+        {
+            fusion::Src kind = fusion::Src::Stack;
+            uint8_t     byteVal = 0;     // slot index or short-int literal
+            uint32_t    constIndex = 0;  // when kind == Const
+        };
+
+        bool producerToSrc(const DecodedInstruction& instr, fusion::Producer p, SrcDesc& out)
+        {
+            switch (p)
+            {
+                case fusion::Producer::Local:
+                    out.kind = fusion::Src::Local;
+                    out.byteVal = instr.operands.byte;
+                    return true;
+                case fusion::Producer::ShortInt:
+                    out.kind = fusion::Src::ShortInt;
+                    out.byteVal = instr.operands.byte;
+                    return true;
+                case fusion::Producer::Const:
+                    out.kind = fusion::Src::Const;
+                    out.constIndex = instr.operands.byte;
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    }
+
+    void ChunkDecoder::fuseInstructions(DecodedChunk* decoded, const Chunk& chunk, VM*)
+    {
+        using namespace fusion;
+
+        const size_t n = decoded->instructions.size();
+        if (n < 2)
+            return;
+
+        const std::vector<DecodedInstruction>&     in  = decoded->instructions;
+        const std::vector<DecodedInstructionMeta>& im  = decoded->meta;
+
+        // 1. Collect the bytecode offsets that are branch targets: a jump
+        // landing INSIDE a window (anywhere but its head) forbids fusion.
+        std::unordered_set<size_t> targetOffsets;
+        for (size_t i = 0; i < n; ++i)
+        {
+            size_t target = 0;
+            if (branchTargetOffsetOf(in[i], im[i], target))
+                targetOffsets.insert(target);
+        }
+
+        auto isTarget = [&](size_t idx) {
+            return targetOffsets.find(im[idx].bytecodeOffset) != targetOffsets.end();
+        };
+        // Window [head, head+len) is safe iff no member but the head is a
+        // branch target.
+        auto windowSafe = [&](size_t head, size_t len) {
+            for (size_t k = 1; k < len; ++k)
+                if (isTarget(head + k))
+                    return false;
+            return true;
+        };
+
+        // Builds the fused instruction for (op, A, B, sink). Returns false
+        // when the combination must not fuse (selection rules, const bounds).
+        auto buildBinary = [&](BinOp op, const SrcDesc& a, const SrcDesc& b, Sink sink,
+                               uint8_t dstSlot, DecodedInstruction& out) -> bool
+        {
+            OpDecodedHandler handler = selectFusedBinary(op, a.kind, b.kind, sink);
+            if (handler == nullptr)
+                return false;
+
+            out = DecodedInstruction{};
+            out.decodedHandler = handler;
+            out.operands.indexed.byte1 = a.byteVal;
+            out.operands.indexed.byte2 = b.byteVal;
+            out.operands.indexed.byte3 = dstSlot;
+
+            const SrcDesc* constSrc = (a.kind == Src::Const) ? &a
+                                    : (b.kind == Src::Const) ? &b : nullptr;
+            if (constSrc != nullptr)
+            {
+                if (constSrc->constIndex >= chunk.constants.size())
+                    return false;
+                out.constantPtr = const_cast<Value*>(&chunk.constants[constSrc->constIndex]);
+            }
+            return true;
+        };
+
+        // A store consumer is either the fused OP_Set_Local_Pop (legacy
+        // bytecode) or the plain OP_Set_Local + OP_Pop pair the compiler
+        // emits now that the bytecode-level fusion passes are gone.
+        struct StoreConsumer { bool found = false; uint8_t dst = 0; size_t len = 0; };
+        auto storeConsumerAt = [&](size_t idx) -> StoreConsumer {
+            if (idx >= n)
+                return {};
+            if (isStoreConsumer(im[idx].originalOpcode))
+                return {true, in[idx].operands.byte, 1};
+            if (idx + 1 < n
+                and im[idx].originalOpcode == static_cast<uint8_t>(OpCode::OP_Set_Local)
+                and im[idx + 1].originalOpcode == static_cast<uint8_t>(OpCode::OP_Pop))
+                return {true, in[idx].operands.byte, 2};
+            return {};
+        };
+
+        std::vector<DecodedInstruction>     outI;
+        std::vector<DecodedInstructionMeta> outM;
+        outI.reserve(n);
+        outM.reserve(n);
+        std::vector<size_t> oldToNew(n, 0);
+
+        // Fused conditional branches record their target OFFSET here; it is
+        // converted to a pointer once the compacted arrays are final.
+        std::vector<std::pair<size_t, size_t>> branchFixups; // (newIndex, targetOffset)
+
+        size_t fusedWindows = 0;
+        size_t i = 0;
+        while (i < n)
+        {
+            DecodedInstruction fused{};
+            size_t windowLen = 0;
+            bool   hasBranch = false;
+            size_t branchTarget = 0;
+
+            // Shared tail for every binary-op shape: given the sources and
+            // the index right after the op, try store consumer, then popping
+            // conditional branch, then plain push. headLen = instructions up
+            // to and including the binary op.
+            auto tryBinary = [&](BinOp op, const SrcDesc& a, const SrcDesc& b,
+                                 size_t headLen) -> bool
+            {
+                const size_t after = i + headLen;
+
+                const StoreConsumer sc = storeConsumerAt(after);
+                if (sc.found and windowSafe(i, headLen + sc.len)
+                    and buildBinary(op, a, b, Sink::Store, sc.dst, fused))
+                {
+                    windowLen = headLen + sc.len;
+                    return true;
+                }
+
+                if (after < n and isPoppingCondBranch(im[after].originalOpcode)
+                    and windowSafe(i, headLen + 1)
+                    and branchTargetOffsetOf(in[after], im[after], branchTarget)
+                    and buildBinary(op, a, b, Sink::BranchIfFalse, 0, fused))
+                {
+                    windowLen = headLen + 1;
+                    hasBranch = true;
+                    return true;
+                }
+
+                if (headLen >= 2 and windowSafe(i, headLen)
+                    and buildBinary(op, a, b, Sink::Push, 0, fused))
+                {
+                    windowLen = headLen;
+                    return true;
+                }
+                return false;
+            };
+
+            const Producer p1 = classifyProducer(im[i].originalOpcode);
+
+            // --- Window shapes, longest head first --------------------------
+            // A) producer producer binop [consumer]
+            if (p1 != Producer::None and i + 2 < n)
+            {
+                const Producer p2 = classifyProducer(im[i + 1].originalOpcode);
+                const BinOp    op = classifyBinary(im[i + 2].originalOpcode);
+                if (p2 != Producer::None and op != BinOp::None)
+                {
+                    SrcDesc a, b;
+                    producerToSrc(in[i], p1, a);
+                    producerToSrc(in[i + 1], p2, b);
+                    tryBinary(op, a, b, 3);
+                }
+            }
+
+            // B) producer binop [consumer]  (deeper operand stays on the stack)
+            if (windowLen == 0 and p1 != Producer::None and i + 1 < n)
+            {
+                const BinOp op = classifyBinary(im[i + 1].originalOpcode);
+                if (op != BinOp::None)
+                {
+                    SrcDesc a; // Src::Stack
+                    SrcDesc b;
+                    producerToSrc(in[i], p1, b);
+                    tryBinary(op, a, b, 2);
+                }
+            }
+
+            // C) producer(Local) unary — `!flag` / `-x` over a local
+            if (windowLen == 0 and p1 == Producer::Local and i + 1 < n)
+            {
+                const UnOp op = classifyUnary(im[i + 1].originalOpcode);
+                if (op != UnOp::None and windowSafe(i, 2))
+                {
+                    fused = DecodedInstruction{};
+                    fused.decodedHandler = selectFusedUnary(op);
+                    fused.operands.indexed.byte1 = in[i].operands.byte;
+                    windowLen = 2;
+                }
+            }
+
+            // D) legacy fused binop (AddLL, LessLL, …) + consumer — lets old
+            //    serialized bytecode re-fuse its trailing store/branch.
+            if (windowLen == 0 and i + 1 < n)
+            {
+                BinOp op; Src la, lb;
+                if (classifyLegacyBinary(im[i].originalOpcode, op, la, lb))
+                {
+                    SrcDesc a, b;
+                    a.kind = la;
+                    b.kind = lb;
+                    if (la == Src::Const) a.constIndex = in[i].operands.indexed.byte1;
+                    else                  a.byteVal    = in[i].operands.indexed.byte1;
+                    if (lb == Src::Const) b.constIndex = in[i].operands.indexed.byte2;
+                    else                  b.byteVal    = in[i].operands.indexed.byte2;
+
+                    // headLen 1 = the legacy op itself; only fuse if a
+                    // consumer follows (alone it's already fused).
+                    tryBinary(op, a, b, 1);
+                }
+            }
+
+            // E) binop + consumer (both operands from the stack)
+            if (windowLen == 0)
+            {
+                const BinOp op = classifyBinary(im[i].originalOpcode);
+                if (op != BinOp::None)
+                {
+                    SrcDesc a, b; // both Src::Stack by default
+                    tryBinary(op, a, b, 1);
+                }
+            }
+
+            // F) bare Set_Local + Pop → the existing op_set_local_pop_decoded
+            //    handler (replaces the removed SetLocalPopFusion bytecode pass)
+            if (windowLen == 0 and i + 1 < n
+                and im[i].originalOpcode == static_cast<uint8_t>(OpCode::OP_Set_Local)
+                and im[i + 1].originalOpcode == static_cast<uint8_t>(OpCode::OP_Pop)
+                and windowSafe(i, 2))
+            {
+                fused = DecodedInstruction{};
+                fused.decodedHandler = op_set_local_pop_decoded;
+                fused.operands.byte = in[i].operands.byte;
+                windowLen = 2;
+            }
+
+            // --- Emit -------------------------------------------------------
+            if (windowLen >= 2)
+            {
+                const size_t newIdx = outI.size();
+                for (size_t k = 0; k < windowLen; ++k)
+                    oldToNew[i + k] = newIdx;
+
+                DecodedInstructionMeta m = im[i]; // head's offset/line/opcode
+                m.fusedLength = static_cast<uint8_t>(windowLen);
+
+                if (hasBranch)
+                    branchFixups.emplace_back(newIdx, branchTarget);
+
+                outI.push_back(fused);
+                outM.push_back(m);
+                fusedWindows++;
+                i += windowLen;
+            }
+            else
+            {
+                oldToNew[i] = outI.size();
+                outI.push_back(in[i]);
+                outM.push_back(im[i]);
+                ++i;
+            }
+        }
+
+        if (fusedWindows == 0)
+            return;
+
+        // 2. Remap the offset → index table to the compacted array (offsets
+        // of fused-away members map to their window head, which also keeps
+        // findInstructionIndex / the nested-resume path coherent).
+        for (auto& entry : decoded->jumpTargets)
+            entry.second = oldToNew[entry.second];
+
+        decoded->instructions = std::move(outI);
+        decoded->meta         = std::move(outM);
+        decoded->totalInstructions = decoded->instructions.size();
+
+        // 3. Resolve fused branch targets now that the array is final.
+        for (const auto& [newIdx, targetOffset] : branchFixups)
+        {
+            auto it = decoded->jumpTargets.find(targetOffset);
+            if (it != decoded->jumpTargets.end())
+            {
+                decoded->instructions[newIdx].jumpTargetPtr =
+                    decoded->instructions.data() + it->second;
+            }
+            else
+            {
+                LOG_ERROR("ChunkDecoder", "Unresolved fused branch target (offset "
+                          << targetOffset << ") — falling back to instruction 0");
+                decoded->instructions[newIdx].jumpTargetPtr = decoded->instructions.data();
+            }
+        }
+
+        LOG_INFO("ChunkDecoder", "Fused " << fusedWindows << " windows ("
+                 << n << " -> " << decoded->instructions.size() << " instructions)");
+    }
+
     void ChunkDecoder::analyzePureBatches(DecodedChunk*)
     {
         // TODO: Future implementation for instruction fusion
@@ -254,6 +643,12 @@ namespace pg
         for (size_t i = 0; i < decoded->instructions.size(); ++i)
         {
             DecodedInstruction& instr = decoded->instructions[i];
+
+            // Fused instructions resolved their constant pointers (if any)
+            // during fusion; their head opcode no longer describes them.
+            if (decoded->meta[i].fusedLength != 0)
+                continue;
+
             const uint8_t opcode = decoded->meta[i].originalOpcode;
 
             if (opcode == static_cast<uint8_t>(OpCode::OP_Constant))
@@ -290,75 +685,28 @@ namespace pg
             DecodedInstruction&           instr = decoded->instructions[i];
             const DecodedInstructionMeta& meta  = decoded->meta[i];
 
-            if (meta.hasControlFlow())
+            // Fused instructions resolved their branch targets (if any)
+            // during fusion.
+            if (meta.fusedLength != 0)
+                continue;
+
+            size_t targetBytecodeOffset = 0;
+            if (not branchTargetOffsetOf(instr, meta, targetBytecodeOffset))
+                continue;  // Not a control flow instruction
+
+            // Resolve to an instruction pointer in the decoded array.
+            auto it = decoded->jumpTargets.find(targetBytecodeOffset);
+            if (it != decoded->jumpTargets.end())
             {
-                size_t targetBytecodeOffset = 0;
-
-                // Determine target bytecode offset based on opcode and operands
-                // Jump offsets are stored relative to the end of the instruction
-                // So target = bytecodeOffset + instructionSize + signedOffset
-                switch (static_cast<OpCode>(meta.originalOpcode))
-                {
-                    case OpCode::OP_Jump:
-                    case OpCode::OP_Jump_If_False:
-                    case OpCode::OP_Jump_If_False_Popping:
-                        // Regular jumps use 2-byte operands (big-endian, signed)
-                        targetBytecodeOffset = meta.bytecodeOffset + 1 + meta.operandBytes +
-                                               static_cast<int16_t>((instr.operands.indexed.byte1 << 8) |
-                                                                     instr.operands.indexed.byte2);
-                        break;
-                    case OpCode::OP_Loop:
-                        // Regular loops use 2-byte operands (big-endian, signed)
-                        targetBytecodeOffset = meta.bytecodeOffset + 1 + meta.operandBytes -
-                                               static_cast<uint16_t>((instr.operands.indexed.byte1 << 8) |
-                                                                     instr.operands.indexed.byte2);
-                        break;
-
-                    case OpCode::OP_Long_Jump:
-                    case OpCode::OP_Long_Jump_If_False:
-                    case OpCode::OP_Long_Jump_If_False_Popping:
-                        // Long jumps use 4-byte operands (big-endian, signed)
-                        targetBytecodeOffset = meta.bytecodeOffset + 1 + meta.operandBytes +
-                        static_cast<int32_t>((instr.operands.indexed.byte1 << 24) |
-                                             (instr.operands.indexed.byte2 << 16) |
-                                             (instr.operands.indexed.byte3 << 8)  |
-                                              instr.operands.indexed.byte4);
-                        break;
-
-                    case OpCode::OP_Long_Loop:
-                        // Long loops use 4-byte operands (big-endian, signed)
-                        targetBytecodeOffset = meta.bytecodeOffset + 1 + meta.operandBytes -
-                                               static_cast<uint32_t>((instr.operands.indexed.byte1 << 24) |
-                                                                     (instr.operands.indexed.byte2 << 16) |
-                                                                     (instr.operands.indexed.byte3 << 8)  |
-                                                                      instr.operands.indexed.byte4);
-                        break;
-
-                    case OpCode::OP_Jump_If_False_R:
-                        // Register-based conditional jump: <slot> <offset_hi> <offset_lo>
-                        targetBytecodeOffset = meta.bytecodeOffset + 1 + meta.operandBytes +
-                                               static_cast<int16_t>((instr.operands.indexed.byte2 << 8) |
-                                                                     instr.operands.indexed.byte3);
-                        break;
-
-                    default:
-                        continue;  // Not a control flow instruction
-                }
-
-                // Resolve to an instruction pointer in the decoded array.
-                auto it = decoded->jumpTargets.find(targetBytecodeOffset);
-                if (it != decoded->jumpTargets.end())
-                {
-                    instr.jumpTargetPtr = decoded->instructions.data() + it->second;
-                }
-                else
-                {
-                    // Parity with the old index-0 fallback; a registered
-                    // control-flow op must never carry a null target.
-                    LOG_ERROR("ChunkDecoder", "Unresolved jump target at bytecode offset "
-                              << meta.bytecodeOffset << " (target " << targetBytecodeOffset << ")");
-                    instr.jumpTargetPtr = decoded->instructions.data();
-                }
+                instr.jumpTargetPtr = decoded->instructions.data() + it->second;
+            }
+            else
+            {
+                // Parity with the old index-0 fallback; a registered
+                // control-flow op must never carry a null target.
+                LOG_ERROR("ChunkDecoder", "Unresolved jump target at bytecode offset "
+                          << meta.bytecodeOffset << " (target " << targetBytecodeOffset << ")");
+                instr.jumpTargetPtr = decoded->instructions.data();
             }
         }
     }

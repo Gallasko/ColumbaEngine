@@ -87,9 +87,12 @@ namespace pg
     {
         size_t  bytecodeOffset = 0;  // Offset of the instruction in chunk.code
         int     lineNumber = -1;     // For error reporting
-        uint8_t originalOpcode = 0;  // For debugging/profiling
+        uint8_t originalOpcode = 0;  // For debugging/profiling (head opcode when fused)
         uint8_t flags = 0;           // Instruction properties (see OpCodeInfo flags)
         uint8_t operandBytes = 0;    // Number of operand bytes
+        uint8_t fusedLength = 0;     // 0 = plain decode; N = this instruction
+                                     // replaces N original instructions (decode-
+                                     // time fusion). Resolvers skip fused entries.
 
         // Flag checks (matching OpCodeInfo flags)
         bool isPure() const { return (flags & 0x01) != 0; }
@@ -195,6 +198,12 @@ namespace pg
 
         // Analyze and group pure instruction sequences
         void analyzePureBatches(DecodedChunk* decoded);
+
+        // Decode-time superinstruction fusion: collapses windows of pure
+        // producer/op/consumer instructions into single fused
+        // DecodedInstructions (specialized handlers, NO new opcodes — the
+        // bytecode is untouched). Gated by vm->enableDecodeFusion.
+        void fuseInstructions(DecodedChunk* decoded, const Chunk& chunk, VM* vm);
 
         // Build jump target map for control flow
         void buildJumpTargets(const Chunk& chunk, DecodedChunk* decoded);
