@@ -1073,9 +1073,15 @@ namespace pg
 
         // Variable-length upvalue payload (2 bytes per upvalue) can't be
         // pre-decoded — position ip past the opcode + constant byte so the
-        // per-upvalue *ip++ reads land on the right bytes.
+        // per-upvalue *ip++ reads land on the right bytes. The bytecode
+        // offset is cold metadata, looked up via the owning chunk's
+        // parallel array (this op is rare; the lookup is off the hot path).
+        const DecodedChunk* ownerDecoded = vm->currentFrame->closure->function->decodedChunk;
+        const size_t bytecodeOffset =
+            ownerDecoded->meta[&instr - ownerDecoded->instructions.data()].bytecodeOffset;
+
         vm->currentFrame->ip = vm->currentFrame->closure->function->chunk.code.data()
-                             + instr.bytecodeOffset + 2;
+                             + bytecodeOffset + 2;
 
         auto functionValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
 

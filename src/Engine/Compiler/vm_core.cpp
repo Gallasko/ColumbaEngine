@@ -581,30 +581,43 @@ namespace pg
         while (instr)
         {
 #ifdef DEBUG_TRACE_EXECUTION
-            // Update currentFrame->ip for debug output
-            const Chunk& traceChunk = currentFrame->closure->function->chunk;
-            currentFrame->ip = const_cast<uint8_t*>(traceChunk.code.data()) + instr->bytecodeOffset;
-
-            std::cout << "          ";
-            for (size_t i = 0; i < stack.size(); ++i)
+            // Cold metadata lives in the owning chunk's parallel array;
+            // currentFrame always owns the instruction being dispatched.
             {
-                std::cout << "[";
-                printValue(this, stack[i]);
-                std::cout << "] ";
+                const DecodedChunk* traceDecoded = currentFrame->closure->function->decodedChunk;
+                const size_t traceOffset =
+                    traceDecoded->meta[instr - traceDecoded->instructions.data()].bytecodeOffset;
+
+                // Update currentFrame->ip for debug output
+                const Chunk& traceChunk = currentFrame->closure->function->chunk;
+                currentFrame->ip = const_cast<uint8_t*>(traceChunk.code.data()) + traceOffset;
+
+                std::cout << "          ";
+                for (size_t i = 0; i < stack.size(); ++i)
+                {
+                    std::cout << "[";
+                    printValue(this, stack[i]);
+                    std::cout << "] ";
+                }
+                std::cout << std::endl;
+                // The synthetic halt's bytecodeOffset is one past the end.
+                if (traceOffset < traceChunk.code.size())
+                    disassembleInstruction(this, traceChunk, traceOffset);
             }
-            std::cout << std::endl;
-            // The synthetic halt's bytecodeOffset is one past the end.
-            if (instr->bytecodeOffset < traceChunk.code.size())
-                disassembleInstruction(this, traceChunk, instr->bytecodeOffset);
 #endif
             if constexpr (ProfileEnabled)
             {
                 // Snapshot before dispatch: the handler may switch frames
-                // and the call itself overwrites instr.
+                // and the call itself overwrites instr. Cold metadata comes
+                // from the owning chunk's parallel array.
+                const DecodedChunk* ownerDecoded = currentFrame->closure->function->decodedChunk;
+                const DecodedInstructionMeta& meta =
+                    ownerDecoded->meta[instr - ownerDecoded->instructions.data()];
+
                 const void* chunkPtr = &currentFrame->closure->function->chunk;
                 const std::string& functionName = currentFrame->closure->function->name;
-                const uint8_t opcode = instr->originalOpcode;
-                const size_t  offset = instr->bytecodeOffset;
+                const uint8_t opcode = meta.originalOpcode;
+                const size_t  offset = meta.bytecodeOffset;
                 const std::string& opcodeName = opcodeToString(static_cast<OpCode>(opcode));
 
                 auto startTime = std::chrono::high_resolution_clock::now();

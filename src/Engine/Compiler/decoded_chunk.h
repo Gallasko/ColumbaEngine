@@ -27,11 +27,32 @@ namespace pg
     // Goal: Eliminate instruction fetch and decode overhead at runtime.
     // ============================================================================
 
+    // Hot half of a decoded instruction: ONLY what handlers read on the
+    // dispatch path. 24 bytes — 2.6 instructions per cache line (the old
+    // combined struct was 56 bytes). Everything decode-time or debug-only
+    // lives in the parallel DecodedInstructionMeta array.
     struct DecodedInstruction
     {
-        // --- Hot fields: keep handler, operands and jump target in the
-        // --- first 32 bytes so one cache line covers the dispatch path.
         OpDecodedHandler decodedHandler = nullptr; // Pre-resolved handler that receives the full instruction
+
+        // Per-opcode pre-resolved pointer. The three uses are mutually
+        // exclusive: an op is a jump, a constant load, or a property/invoke
+        // op — never two at once.
+        union
+        {
+            // Jump target (control-flow ops). Filled by resolveJumpTargets
+            // once the instructions vector is final; jump handlers return
+            // it directly.
+            const DecodedInstruction* jumpTargetPtr = nullptr;
+
+            // Constant pointer (OP_Constant/OP_LongConstant) — eliminates
+            // the chunk.constants[index] lookup during execution.
+            Value* constantPtr;
+
+            // Property name (OP_Get_Property, OP_Set_Property, OP_Invoke)
+            // — eliminates the chunk.constantStrings[index] lookup.
+            const std::string* propertyNamePtr;
+        };
 
         // Operand storage (union to save space)
         union
@@ -49,31 +70,26 @@ namespace pg
                 uint8_t byte4;
             } indexed;
         } operands;
+    };
 
-        // Metadata for future optimizations
-        uint8_t flags;               // Instruction properties (see OpCodeInfo flags)
-        uint8_t originalOpcode;      // For debugging/profiling
-        uint8_t operandBytes;        // Number of operand bytes
+    // Dispatch reads this struct once per instruction — keep it lean. If a
+    // new field is genuinely hot, it must fit here; anything else belongs
+    // in DecodedInstructionMeta.
+    static_assert(sizeof(DecodedInstruction) == 24,
+                  "DecodedInstruction grew past 24 bytes — move cold fields to DecodedInstructionMeta");
 
-        // Pre-resolved jump target (control-flow ops). Filled in by
-        // ChunkDecoder::resolveJumpTargets once the instructions vector is
-        // final; jump handlers return it directly.
-        const DecodedInstruction* jumpTargetPtr = nullptr;
-
-        // Pre-computed constant pointer (for OP_Constant/OP_LongConstant)
-        // This eliminates chunk.constants[index] lookup during execution
-        Value* constantPtr;
-
-        // Pre-resolved property name (OP_Get_Property, OP_Set_Property,
-        // OP_Invoke). Eliminates chunk.constantStrings[stringIndex] lookup
-        // at runtime, analogous to constantPtr.
-        const std::string* propertyNamePtr = nullptr;
-
-        // Line number (for error reporting)
-        int lineNumber;
-
-        // Original bytecode offset (needed for jump target resolution)
-        size_t bytecodeOffset;
+    // Cold half: decode-time bookkeeping and debug/profiling metadata,
+    // stored in DecodedChunk::meta parallel to the instructions array
+    // (same index). Read by the decoder, the profiler/debug-trace loop
+    // variants, error reporting, and the rare op_closure handler — never
+    // on the per-instruction dispatch path.
+    struct DecodedInstructionMeta
+    {
+        size_t  bytecodeOffset = 0;  // Offset of the instruction in chunk.code
+        int     lineNumber = -1;     // For error reporting
+        uint8_t originalOpcode = 0;  // For debugging/profiling
+        uint8_t flags = 0;           // Instruction properties (see OpCodeInfo flags)
+        uint8_t operandBytes = 0;    // Number of operand bytes
 
         // Flag checks (matching OpCodeInfo flags)
         bool isPure() const { return (flags & 0x01) != 0; }
@@ -92,6 +108,10 @@ namespace pg
     {
         // Array of pre-decoded instructions (the "executable code")
         std::vector<DecodedInstruction> instructions;
+
+        // Cold metadata, parallel to `instructions` (same index). Look up
+        // an instruction's metadata via `meta[instr - instructions.data()]`.
+        std::vector<DecodedInstructionMeta> meta;
 
         // Batch metadata: groups of consecutive pure instructions
         struct PureBatch
@@ -127,11 +147,11 @@ namespace pg
                 return it->second;
             }
             // Fallback: linear search (shouldn't happen if jumpTargets is built correctly)
-            for (const auto& instr : instructions)
+            for (size_t i = 0; i < meta.size(); ++i)
             {
-                if (instr.bytecodeOffset == bytecodeOffset)
+                if (meta[i].bytecodeOffset == bytecodeOffset)
                 {
-                    return static_cast<size_t>(&instr - instructions.data());
+                    return i;
                 }
             }
             return 0;  // Last resort
@@ -162,11 +182,14 @@ namespace pg
         DecodedChunk* decode(const Chunk& chunk, VM* vm);
 
     private:
-        // Decode a single instruction at given offset
-        DecodedInstruction decodeInstruction(
+        // Decode a single instruction at given offset, filling the hot
+        // instruction and its cold metadata.
+        void decodeInstruction(
             const Chunk& chunk,
             size_t offset,
             VM* vm,
+            DecodedInstruction& instr,
+            DecodedInstructionMeta& meta,
             size_t& nextOffset  // Output: where next instruction starts
         );
 

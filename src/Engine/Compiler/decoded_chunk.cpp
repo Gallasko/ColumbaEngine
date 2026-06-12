@@ -40,6 +40,7 @@ namespace pg
 
         // Reserve space (avoid reallocations)
         decoded->instructions.reserve(chunk.code.size());
+        decoded->meta.reserve(chunk.code.size());
 
         // Decode all instructions and build jump target map
         size_t offset = 0;
@@ -53,9 +54,12 @@ namespace pg
             decoded->jumpTargets[offset] = instructionIndex;
 
             size_t nextOffset;
-            DecodedInstruction instr = decodeInstruction(chunk, offset, vm, nextOffset);
+            DecodedInstruction instr;
+            DecodedInstructionMeta meta;
+            decodeInstruction(chunk, offset, vm, instr, meta, nextOffset);
 
             decoded->instructions.push_back(instr);
+            decoded->meta.push_back(meta);
             offset = nextOffset;
             instructionIndex++;
         }
@@ -63,15 +67,18 @@ namespace pg
         // Guarantee the no-fall-through terminator the dispatch loop relies
         // on. Must happen BEFORE resolveJumpTargets: push_back can
         // reallocate the vector, which would dangle the resolved pointers.
-        if (decoded->instructions.back().originalOpcode != static_cast<uint8_t>(OpCode::OP_Return))
+        if (decoded->meta.back().originalOpcode != static_cast<uint8_t>(OpCode::OP_Return))
         {
             DecodedInstruction halt{};
-            halt.decodedHandler  = op_halt_decoded;
-            halt.flags           = OpCodeInfo::NO_BRANCH; // hasControlFlow() == false → skipped by resolveJumpTargets
-            halt.originalOpcode  = static_cast<uint8_t>(OpCode::OP_Return); // skipped by resolveConstantPointers
-            halt.lineNumber      = chunk.lines.empty() ? -1 : chunk.lines.back();
-            halt.bytecodeOffset  = chunk.code.size();
+            halt.decodedHandler = op_halt_decoded;
             decoded->instructions.push_back(halt);
+
+            DecodedInstructionMeta haltMeta{};
+            haltMeta.flags          = OpCodeInfo::NO_BRANCH; // hasControlFlow() == false → skipped by resolveJumpTargets
+            haltMeta.originalOpcode = static_cast<uint8_t>(OpCode::OP_Return); // skipped by resolveConstantPointers
+            haltMeta.lineNumber     = chunk.lines.empty() ? -1 : chunk.lines.back();
+            haltMeta.bytecodeOffset = chunk.code.size();
+            decoded->meta.push_back(haltMeta);
 
             // A forward jump targeting end-of-code resolves to the halt.
             decoded->jumpTargets[chunk.code.size()] = decoded->instructions.size() - 1;
@@ -95,33 +102,32 @@ namespace pg
         return decoded;
     }
 
-    DecodedInstruction ChunkDecoder::decodeInstruction(
+    void ChunkDecoder::decodeInstruction(
         const Chunk& chunk,
         size_t offset,
         VM* vm,
+        DecodedInstruction& instr,
+        DecodedInstructionMeta& meta,
         size_t& nextOffset)
     {
-        DecodedInstruction instr;
-
         uint8_t opcode = chunk.code[offset];
-        instr.originalOpcode = opcode;
-        instr.bytecodeOffset = offset;
+        meta.originalOpcode = opcode;
+        meta.bytecodeOffset = offset;
 
         // Look up handler and metadata
         const OpCodeInfo& info = vm->operations[opcode];
         instr.decodedHandler = info.decodedHandler;
-        instr.flags = info.flags;
-        instr.operandBytes = info.operandBytes;
-        instr.constantPtr = nullptr;
+        meta.flags = info.flags;
+        meta.operandBytes = info.operandBytes;
 
         // Get line number for error reporting
         if (offset < chunk.lines.size())
         {
-            instr.lineNumber = chunk.lines[offset];
+            meta.lineNumber = chunk.lines[offset];
         }
         else
         {
-            instr.lineNumber = -1;
+            meta.lineNumber = -1;
         }
 
         // Decode operands based on metadata
@@ -133,7 +139,7 @@ namespace pg
             // Fallback: use getInstructionSize() from chunk.h
             int totalSize = getInstructionSize(static_cast<OpCode>(opcode));
             operandBytes = (totalSize > 1) ? (totalSize - 1) : 0;
-            instr.operandBytes = operandBytes;
+            meta.operandBytes = operandBytes;
         }
 
         // Clear operands first
@@ -221,8 +227,6 @@ namespace pg
                 }
             }
         }
-
-        return instr;
     }
 
     void ChunkDecoder::analyzePureBatches(DecodedChunk*)
@@ -247,9 +251,12 @@ namespace pg
         // Turning it from: Value constant = chunk.constants[*ip++]
         // Into: Value constant = *instr.constantPtr (much faster!)
 
-        for (auto& instr : decoded->instructions)
+        for (size_t i = 0; i < decoded->instructions.size(); ++i)
         {
-            if (instr.originalOpcode == static_cast<uint8_t>(OpCode::OP_Constant))
+            DecodedInstruction& instr = decoded->instructions[i];
+            const uint8_t opcode = decoded->meta[i].originalOpcode;
+
+            if (opcode == static_cast<uint8_t>(OpCode::OP_Constant))
             {
                 uint8_t constantIndex = instr.operands.byte;
                 if (constantIndex < chunk.constants.size())
@@ -257,7 +264,7 @@ namespace pg
                     instr.constantPtr = const_cast<Value*>(&chunk.constants[constantIndex]);
                 }
             }
-            else if (instr.originalOpcode == static_cast<uint8_t>(OpCode::OP_LongConstant))
+            else if (opcode == static_cast<uint8_t>(OpCode::OP_LongConstant))
             {
                 uint32_t constantIndex = (instr.operands.indexed.byte1 << 16) |
                                         (instr.operands.indexed.byte2 << 8) |
@@ -278,28 +285,31 @@ namespace pg
         // The instructions vector is final at this point (decode() appends
         // nothing after the synthetic-halt step), so the pointers are stable.
 
-        for (auto& instr : decoded->instructions)
+        for (size_t i = 0; i < decoded->instructions.size(); ++i)
         {
-            if (instr.hasControlFlow())
+            DecodedInstruction&           instr = decoded->instructions[i];
+            const DecodedInstructionMeta& meta  = decoded->meta[i];
+
+            if (meta.hasControlFlow())
             {
                 size_t targetBytecodeOffset = 0;
 
                 // Determine target bytecode offset based on opcode and operands
                 // Jump offsets are stored relative to the end of the instruction
                 // So target = bytecodeOffset + instructionSize + signedOffset
-                switch (static_cast<OpCode>(instr.originalOpcode))
+                switch (static_cast<OpCode>(meta.originalOpcode))
                 {
                     case OpCode::OP_Jump:
                     case OpCode::OP_Jump_If_False:
                     case OpCode::OP_Jump_If_False_Popping:
                         // Regular jumps use 2-byte operands (big-endian, signed)
-                        targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes +
+                        targetBytecodeOffset = meta.bytecodeOffset + 1 + meta.operandBytes +
                                                static_cast<int16_t>((instr.operands.indexed.byte1 << 8) |
                                                                      instr.operands.indexed.byte2);
                         break;
                     case OpCode::OP_Loop:
                         // Regular loops use 2-byte operands (big-endian, signed)
-                        targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes -
+                        targetBytecodeOffset = meta.bytecodeOffset + 1 + meta.operandBytes -
                                                static_cast<uint16_t>((instr.operands.indexed.byte1 << 8) |
                                                                      instr.operands.indexed.byte2);
                         break;
@@ -308,7 +318,7 @@ namespace pg
                     case OpCode::OP_Long_Jump_If_False:
                     case OpCode::OP_Long_Jump_If_False_Popping:
                         // Long jumps use 4-byte operands (big-endian, signed)
-                        targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes +
+                        targetBytecodeOffset = meta.bytecodeOffset + 1 + meta.operandBytes +
                         static_cast<int32_t>((instr.operands.indexed.byte1 << 24) |
                                              (instr.operands.indexed.byte2 << 16) |
                                              (instr.operands.indexed.byte3 << 8)  |
@@ -317,7 +327,7 @@ namespace pg
 
                     case OpCode::OP_Long_Loop:
                         // Long loops use 4-byte operands (big-endian, signed)
-                        targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes -
+                        targetBytecodeOffset = meta.bytecodeOffset + 1 + meta.operandBytes -
                                                static_cast<uint32_t>((instr.operands.indexed.byte1 << 24) |
                                                                      (instr.operands.indexed.byte2 << 16) |
                                                                      (instr.operands.indexed.byte3 << 8)  |
@@ -326,7 +336,7 @@ namespace pg
 
                     case OpCode::OP_Jump_If_False_R:
                         // Register-based conditional jump: <slot> <offset_hi> <offset_lo>
-                        targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes +
+                        targetBytecodeOffset = meta.bytecodeOffset + 1 + meta.operandBytes +
                                                static_cast<int16_t>((instr.operands.indexed.byte2 << 8) |
                                                                      instr.operands.indexed.byte3);
                         break;
@@ -346,7 +356,7 @@ namespace pg
                     // Parity with the old index-0 fallback; a registered
                     // control-flow op must never carry a null target.
                     LOG_ERROR("ChunkDecoder", "Unresolved jump target at bytecode offset "
-                              << instr.bytecodeOffset << " (target " << targetBytecodeOffset << ")");
+                              << meta.bytecodeOffset << " (target " << targetBytecodeOffset << ")");
                     instr.jumpTargetPtr = decoded->instructions.data();
                 }
             }
