@@ -312,18 +312,37 @@ namespace pg
     // Helper methods for bytecode execution
     // ============================================================================
 
-    InterpretResult VM::executeChunk(ObjFunction* funcObj, int argCount)
+    // Pre-decode a function and every function nested in its constants —
+    // the dispatcher only knows the decoded path, so every function
+    // reachable through OP_Closure must carry a DecodedChunk before it can
+    // be called.
+    static void predecodeFunctionTree(ObjFunction* funcObj, VM* vm)
     {
-        // Pre-decode the chunk if needed — the dispatcher only knows the
-        // decoded path, so every function reachable from here must carry a
-        // DecodedChunk. interpret() pre-decodes during compilation; the
-        // bytecode-file entry points reach executeChunk with a fresh chunk
-        // that hasn't been decoded yet.
         if (funcObj->decodedChunk == nullptr and not funcObj->chunk.code.empty())
         {
             ChunkDecoder decoder;
-            funcObj->decodedChunk = decoder.decode(funcObj->chunk, this);
+            funcObj->decodedChunk = decoder.decode(funcObj->chunk, vm);
         }
+
+        for (const auto& constant : funcObj->chunk.constants)
+        {
+            if (IS_FUNC(constant))
+            {
+                ObjFunction* nested = vm->asFunction(constant);
+                if (nested != nullptr and nested->decodedChunk == nullptr)
+                {
+                    predecodeFunctionTree(nested, vm);
+                }
+            }
+        }
+    }
+
+    InterpretResult VM::executeChunk(ObjFunction* funcObj, int argCount)
+    {
+        // interpret() pre-decodes during compilation; the bytecode-file
+        // entry points reach executeChunk with a fresh chunk (and fresh
+        // nested-function constants) that haven't been decoded yet.
+        predecodeFunctionTree(funcObj, this);
 
         // Create closure and set up call
         auto closureValue = createClosure(funcObj);
