@@ -337,6 +337,13 @@ namespace pg
         InterpretResult run();
         InterpretResult runDecoded(DecodedChunk *decoded);  // Execute from pre-decoded chunks (faster)
 
+        // Hot loop compiled twice: ProfileEnabled selects at compile time
+        // whether per-instruction profiling code exists in the loop at all,
+        // so the non-profiled path carries zero profiling overhead.
+        // Defined in vm_core.cpp; only instantiated from runDecoded there.
+        template <bool ProfileEnabled>
+        InterpretResult runDecodedImpl(DecodedChunk *decoded);
+
         // Core Value operations for performance
         inline void push(Value value)  // Pass by value (64-bit in register)
         {

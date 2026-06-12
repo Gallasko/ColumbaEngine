@@ -373,7 +373,11 @@ namespace pg
                 return std::nullopt;
             }
 
-            size_t instructionSize = pg::getInstructionSize(currentOpcode);
+            // Payload-aware size: a wildcard/anyOf element that matches an
+            // OP_Closure with upvalues must account for the variable-length
+            // payload, or the rest of the pattern would be matched against
+            // payload bytes (and the rewrite would delete the wrong region).
+            size_t instructionSize = getActualInstructionSize(chunk, currentOffset);
 
             // Capture instruction if requested
             if (element.capture)
@@ -432,7 +436,16 @@ namespace pg
                 return false;
             }
 
-            currentOffset += pg::getInstructionSize(expectedOpcode);
+            // Simple rules rewrite with table sizes (getPatternByteSize), so
+            // a variable-length instruction (OP_Closure with upvalues) can't
+            // be matched safely — reject instead of desyncing into payload.
+            size_t actualSize = getActualInstructionSize(chunk, currentOffset);
+            if (actualSize != static_cast<size_t>(pg::getInstructionSize(expectedOpcode)))
+            {
+                return false;
+            }
+
+            currentOffset += actualSize;
         }
 
         return true;

@@ -539,6 +539,17 @@ namespace pg
 
     InterpretResult VM::runDecoded(DecodedChunk *decoded)
     {
+        // Branch once on the profiler flag so the hot loop below is
+        // instantiated without any profiling code when it is off (-p not set).
+        if (profiler.isEnabled())
+            return runDecodedImpl<true>(decoded);
+
+        return runDecodedImpl<false>(decoded);
+    }
+
+    template <bool ProfileEnabled>
+    InterpretResult VM::runDecodedImpl(DecodedChunk *decoded)
+    {
         // Per-frame execution state lives on the VM so decoded handlers can
         // mutate it inline (e.g. op_call_decoded swaps decoded chunk and
         // next index when it switches frames).
@@ -583,7 +594,7 @@ namespace pg
 
                 // Every op in the dispatch table has a decoded handler;
                 // operands are pre-extracted on the DecodedInstruction.
-                if (profiler.isEnabled())
+                if constexpr (ProfileEnabled)
                 {
                     const void* chunkPtr = &currentFrame->closure->function->chunk;
                     const std::string& functionName = currentFrame->closure->function->name;

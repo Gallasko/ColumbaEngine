@@ -22,7 +22,7 @@ namespace pg
         LOG_MILE("LongJumpOptimization", "Starting long jump optimization pass");
 
         // Find optimizable jumps in the current state of the chunk
-        auto candidate = findFirstOptimizableJumps(chunk);
+        auto candidate = findFirstOptimizableJumps(chunk, rewriter);
 
         if (not candidate.has_value())
         {
@@ -74,7 +74,7 @@ namespace pg
         return false;
     }
 
-    std::optional<LongJumpOptimizationPass::JumpInfo> LongJumpOptimizationPass::findFirstOptimizableJumps(const Chunk& chunk)
+    std::optional<LongJumpOptimizationPass::JumpInfo> LongJumpOptimizationPass::findFirstOptimizableJumps(const Chunk& chunk, BytecodeRewriter* rewriter)
     {
         for (size_t i = 0; i < chunk.code.size();)
         {
@@ -117,7 +117,9 @@ namespace pg
                 }
             }
 
-            i += pg::getInstructionSize(opcode);
+            // Payload-aware advance: OP_Closure carries 2 extra bytes per
+            // upvalue; the table size alone would desync into the payload.
+            i += rewriter->getActualInstructionSize(chunk, i);
         }
 
         return std::nullopt;
