@@ -166,7 +166,7 @@ int main(int argc, char** argv)
 
     if (count > 0)
     {
-        vm.globals["count"] = makeIntValue(count);
+        vm.defineGlobal("count", makeIntValue(count));
     }
 
     // Execution still happens with --dump-bytecode: the function pointers

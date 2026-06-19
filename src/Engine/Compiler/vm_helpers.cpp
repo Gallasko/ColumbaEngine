@@ -463,7 +463,7 @@ namespace pg
     {
         // Create the built-in Table class
         Value tableClass = createClass("__Table");
-        globals["__Table"] = retainValue(tableClass);
+        defineGlobal("__Table", retainValue(tableClass));
 
         // Register ComponentProxy class for zero-copy component access
         ComponentProxy::registerWithVM(this);

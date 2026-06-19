@@ -89,9 +89,10 @@ namespace pg
     VM::~VM()
     {
         // Free all Values stored in globals before destruction
-        for (auto& pair : globals)
+        for (auto& cell : globalCells)
         {
-            releaseAndDelete(pair.second);
+            if (cell.defined)
+                releaseAndDelete(cell.value);
         }
 
         // Clean up any remaining Values on the stack
@@ -1001,23 +1002,13 @@ namespace pg
 
     const DecodedInstruction* op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        // Read operands directly from pre-decoded instruction (no memory fetch!)
-        uint8_t constant1 = instr.operands.indexed.byte1;
-        uint8_t constant2 = instr.operands.indexed.byte2;
-
-        auto value1 = vm->currentFrame->closure->function->chunk.constants[constant1];
-        auto value2 = vm->currentFrame->closure->function->chunk.constants[constant2];
-
-        auto name = vm->valueToElement(value2);
-
-        if (not name.isLitteral())
-        {
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
-        }
-
-        vm->globals[name.toString()] = vm->retainValue(value1);
+        // Slot pre-resolved at decode time (operands.dword); the constant value
+        // to define is pre-resolved into constantPtr. No name lookup at runtime.
+        auto& cell = vm->globalCells[instr.operands.dword];
+        if (cell.defined)
+            vm->releaseAndDelete(cell.value);
+        cell.value = vm->retainValue(*instr.constantPtr);
+        cell.defined = true;
         return &instr + 1;
     }
 
@@ -1065,58 +1056,63 @@ namespace pg
         VM importerVm;
         importerVm.interpretFromFile(moduleName + ".pg", false, moduleName + ".pgc");
 
-        for (const auto& globalPair : importerVm.globals)
+        for (const auto& [globalName, slot] : importerVm.globalSlots)
         {
+            const VM::GlobalCell& srcCell = importerVm.globalCells[slot];
+            if (not srcCell.defined)
+                continue;
+            const Value srcValue = srcCell.value;
+
             // Skip special globals
-            if (globalPair.first == "__Table")
+            if (globalName == "__Table")
             {
                 continue;
             }
-            else if (IS_INT(globalPair.second) or IS_BOOL(globalPair.second) or IS_DOUBLE(globalPair.second))
+            else if (IS_INT(srcValue) or IS_BOOL(srcValue) or IS_DOUBLE(srcValue))
             {
-                LOG_INFO("VM", "Importing primitive global: " << globalPair.first);
+                LOG_INFO("VM", "Importing primitive global: " << globalName);
                 // Primitives can be copied directly
-                vm->globals[globalPair.first] = globalPair.second;
+                vm->defineGlobal(globalName, srcValue);
             }
-            else if (IS_FUNC(globalPair.second))
+            else if (IS_FUNC(srcValue))
             {
-                LOG_INFO("VM", "Importing function global: " << globalPair.first);
+                LOG_INFO("VM", "Importing function global: " << globalName);
                 // Functions need to be converted to closures in the current VM
-                ObjFunction* func = importerVm.asFunction(globalPair.second);
+                ObjFunction* func = importerVm.asFunction(srcValue);
                 Value closureVal = vm->createClosure(func);
-                vm->globals[globalPair.first] = closureVal;
+                vm->defineGlobal(globalName, closureVal);
             }
-            else if (IS_CLOSURE(globalPair.second))
+            else if (IS_CLOSURE(srcValue))
             {
-                LOG_INFO("VM", "Importing closure global: " << globalPair.first);
+                LOG_INFO("VM", "Importing closure global: " << globalName);
                 // Closures need to be recreated in the current VM
-                Closure* closure = importerVm.asClosure(globalPair.second);
+                Closure* closure = importerVm.asClosure(srcValue);
                 for (size_t i = 0; i < closure->upvalues.size(); i++)
                 {
                     vm->createUpvalue(closure->upvalues[i]->location);
                 }
                 Value newClosureVal = vm->createClosure(closure->function);
-                vm->globals[globalPair.first] = newClosureVal;
+                vm->defineGlobal(globalName, newClosureVal);
             }
-            else if (IS_STRING(globalPair.second))
+            else if (IS_STRING(srcValue))
             {
-                LOG_INFO("VM", "Importing string global: " << globalPair.first);
+                LOG_INFO("VM", "Importing string global: " << globalName);
                 // Strings need to be recreated in the current VM
-                std::string str = importerVm.asString(globalPair.second);
+                std::string str = importerVm.asString(srcValue);
                 Value newStrVal = vm->createString(str);
-                vm->globals[globalPair.first] = newStrVal;
+                vm->defineGlobal(globalName, newStrVal);
             }
             else
             {
-                LOG_INFO("VM", "Importing global '" << globalPair.first << "' of unsupported type: " << valueTypeName(globalPair.second));
+                LOG_INFO("VM", "Importing global '" << globalName << "' of unsupported type: " << valueTypeName(srcValue));
             }
 
-            LOG_INFO("VM", "Importing global: " << globalPair.first);
+            LOG_INFO("VM", "Importing global: " << globalName);
         }
 
-        for (auto& global : vm->globals)
+        for (const auto& [globalName, slot] : vm->globalSlots)
         {
-            LOG_INFO("VM", "Post-import global: " << global.first);
+            LOG_INFO("VM", "Post-import global: " << globalName);
         }
         return &instr + 1;
     }
@@ -1212,8 +1208,8 @@ namespace pg
 
         auto name = vm->asString(nameValue);
 
-        auto it = vm->globals.find(name);
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell(name);
+        if (cell == nullptr or not cell->defined)
         {
             vm->releaseAndDelete(nameValue);
             vm->pop();
@@ -1222,7 +1218,7 @@ namespace pg
             return nullptr;
         }
 
-        vm->changeTop(vm->retainValue(it->second));
+        vm->changeTop(vm->retainValue(cell->value));
         vm->releaseAndDelete(nameValue);
         return &instr + 1;
     }
@@ -1249,8 +1245,8 @@ namespace pg
             return nullptr;
         }
 
-        auto it = vm->globals.find(name.toString());
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell(name.toString());
+        if (cell == nullptr or not cell->defined)
         {
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
@@ -1258,8 +1254,8 @@ namespace pg
             return nullptr;
         }
 
-        vm->releaseAndDelete(it->second);
-        it->second = vm->retainValue(value);
+        vm->releaseAndDelete(cell->value);
+        cell->value = vm->retainValue(value);
         vm->releaseAndDelete(nameValue);
         return &instr + 1;
     }
@@ -1287,7 +1283,7 @@ namespace pg
             return nullptr;
         }
 
-        vm->globals[name.toString()] = vm->retainValue(value);
+        vm->defineGlobal(name.toString(), vm->retainValue(value));
         vm->releaseAndDelete(nameValue);
         vm->releaseAndDelete(value);
         return &instr + 1;
@@ -1315,7 +1311,7 @@ namespace pg
             return nullptr;
         }
 
-        vm->globals[name.toString()] = vm->retainValue(value);
+        vm->defineGlobal(name.toString(), vm->retainValue(value));
         vm->releaseAndDelete(nameValue);
         return &instr + 1;
     }
@@ -1380,26 +1376,17 @@ namespace pg
 
     const DecodedInstruction* op_get_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        uint8_t constant = instr.operands.byte;
-        auto value = vm->currentFrame->closure->function->chunk.constants[constant];
-        auto name = vm->valueToElement(value);
-
-        if (not name.isLitteral())
+        // Slot pre-resolved at decode time — a single cell index, no string work.
+        auto& cell = vm->globalCells[instr.operands.dword];
+        if (not cell.defined)
         {
-            vm->runtimeError("Global variable name must be a litteral.");
+            vm->runtimeError("Undefined global variable '"
+                             + vm->globalNameForSlot(instr.operands.dword) + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return nullptr;
         }
 
-        auto it = vm->globals.find(name.toString());
-        if (it == vm->globals.end())
-        {
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
-        }
-
-        vm->push(vm->retainValue(it->second));
+        vm->push(vm->retainValue(cell.value));
         return &instr + 1;
     }
 
@@ -1408,31 +1395,20 @@ namespace pg
 
     const DecodedInstruction* op_set_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        uint8_t constant1 = instr.operands.indexed.byte1;
-        uint8_t constant2 = instr.operands.indexed.byte2;
-
-        auto value1 = vm->currentFrame->closure->function->chunk.constants[constant1];
-        auto value2 = vm->currentFrame->closure->function->chunk.constants[constant2];
-        auto name = vm->valueToElement(value2);
-
-        if (not name.isLitteral())
+        // Slot pre-resolved at decode time; the constant value to store is in
+        // constantPtr. No name lookup at runtime.
+        auto& cell = vm->globalCells[instr.operands.dword];
+        if (not cell.defined)
         {
-            vm->runtimeError("Global variable name must be a litteral.");
+            vm->runtimeError("Undefined global variable '"
+                             + vm->globalNameForSlot(instr.operands.dword) + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return nullptr;
         }
 
-        auto it = vm->globals.find(name.toString());
-        if (it == vm->globals.end())
-        {
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
-        }
-
-        vm->releaseAndDelete(it->second);
-        it->second = vm->retainValue(value1);
-        vm->push(vm->retainValue(value1));
+        vm->releaseAndDelete(cell.value);
+        cell.value = vm->retainValue(*instr.constantPtr);
+        vm->push(vm->retainValue(*instr.constantPtr));
         return &instr + 1;
     }
 }

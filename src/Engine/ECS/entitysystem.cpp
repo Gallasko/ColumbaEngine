@@ -878,8 +878,12 @@ namespace pg
         vm.registerNative("debugGlobal", [](VM *vm, int argCount, Value*) -> Value {
             if (argCount != 0) return makeBoolValue(false);
 
-            for (const auto& [key, value] : vm->globals)
+            for (const auto& [key, slot] : vm->globalSlots)
             {
+                const VM::GlobalCell& globalCell = vm->globalCells[slot];
+                if (not globalCell.defined)
+                    continue;
+                const Value value = globalCell.value;
                 std::string valStr;
                 if (IS_STRING(value))
                     valStr = vm->asString(value);

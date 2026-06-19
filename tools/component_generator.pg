@@ -635,9 +635,9 @@ class ProxyMetadataGenerator
         else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
         {
             code += "                // Convert Vector3D to table\n"
-            code += "                auto it = vm->globals.find(\"__Table\");\n"
-            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n\n"
-            code += "                Klass* tableClass = vm->asClass(it->second);\n"
+            code += "                VM::GlobalCell* cell = vm->findGlobalCell(\"__Table\");\n"
+            code += "                if (cell == nullptr or not cell->defined) return INT_VAL(0);\n\n"
+            code += "                Klass* tableClass = vm->asClass(cell->value);\n"
             code += "                Value tableValue = vm->createInstance(tableClass);\n"
             code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
             code += "                auto vec = c->" + getterName + "();\n\n"
@@ -649,9 +649,9 @@ class ProxyMetadataGenerator
         else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
         {
             code += "                // Convert Vector4D to table\n"
-            code += "                auto it = vm->globals.find(\"__Table\");\n"
-            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n\n"
-            code += "                Klass* tableClass = vm->asClass(it->second);\n"
+            code += "                VM::GlobalCell* cell = vm->findGlobalCell(\"__Table\");\n"
+            code += "                if (cell == nullptr or not cell->defined) return INT_VAL(0);\n\n"
+            code += "                Klass* tableClass = vm->asClass(cell->value);\n"
             code += "                Value tableValue = vm->createInstance(tableClass);\n"
             code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
             code += "                auto vec = c->" + getterName + "();\n\n"

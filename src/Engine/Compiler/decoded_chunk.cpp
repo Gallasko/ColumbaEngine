@@ -160,6 +160,9 @@ namespace pg
 
         resolveJumpTargets(decoded);
 
+        // Optimize: pre-resolve constant-global ops to dense VM global slots.
+        resolveGlobalSlots(decoded, chunk, vm);
+
         // TODO Future: analyze pure batches for instruction fusion
         // This will allow us to detect patterns like GET_LOCAL + GET_LOCAL + ADD
         // and replace them with fused instructions like ADD_LL
@@ -787,6 +790,50 @@ namespace pg
                 {
                     instr.constantPtr = const_cast<Value*>(&chunk.constants[constantIndex]);
                 }
+            }
+        }
+    }
+
+    void ChunkDecoder::resolveGlobalSlots(DecodedChunk* decoded, const Chunk& chunk, VM* vm)
+    {
+        // The constant-global ops embed the name's constant index. Resolve it
+        // once here to a dense VM global slot (stored in operands.dword) so the
+        // handler is a single globalCells[] index instead of a string hash. For
+        // set/define, also pre-resolve the value constant pointer (the value is
+        // a constant; the chunk's constant storage is stable).
+        if (vm == nullptr)
+            return;
+
+        for (size_t i = 0; i < decoded->instructions.size(); ++i)
+        {
+            // Constant-global ops are never part of a fusion window.
+            if (decoded->meta[i].fusedLength != 0)
+                continue;
+
+            DecodedInstruction& instr  = decoded->instructions[i];
+            const uint8_t       opcode = decoded->meta[i].originalOpcode;
+
+            if (opcode == static_cast<uint8_t>(OpCode::OP_Get_Constant_Global))
+            {
+                const uint8_t nameIdx = instr.operands.byte;
+                if (nameIdx >= chunk.constants.size())
+                    continue;
+                const std::string name = vm->asString(chunk.constants[nameIdx], chunk);
+                instr.operands.dword = vm->globalSlot(name); // overwrites nameIdx
+            }
+            else if (opcode == static_cast<uint8_t>(OpCode::OP_Set_Constant_Global)
+                  or opcode == static_cast<uint8_t>(OpCode::OP_Define_Constant_Global))
+            {
+                // byte1 = value const idx, byte2 = name const idx. Read both
+                // before overwriting operands.dword (which aliases them).
+                const uint8_t valueIdx = instr.operands.indexed.byte1;
+                const uint8_t nameIdx  = instr.operands.indexed.byte2;
+                if (valueIdx >= chunk.constants.size() or nameIdx >= chunk.constants.size())
+                    continue;
+                const std::string name = vm->asString(chunk.constants[nameIdx], chunk);
+                const uint32_t slot = vm->globalSlot(name);
+                instr.constantPtr    = const_cast<Value*>(&chunk.constants[valueIdx]);
+                instr.operands.dword = slot;
             }
         }
     }

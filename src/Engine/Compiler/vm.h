@@ -246,12 +246,14 @@ namespace pg
         void reset()
         {
             // Free all Values stored in globals before destruction
-            for (auto& pair : globals)
+            for (auto& cell : globalCells)
             {
-                releaseAndDelete(pair.second);
+                if (cell.defined)
+                    releaseAndDelete(cell.value);
             }
 
-            globals.clear();
+            globalCells.clear();
+            globalSlots.clear();
 
             // Clean up any remaining Values on the stack
             while (not stack.empty())
@@ -588,7 +590,62 @@ namespace pg
         /* The stack of the VM */
         IndexableStack stack;
 
-        std::unordered_map<std::string, Value> globals;
+        // Global variables are stored as dense, slot-indexed cells. The hot
+        // path (constant-global ops) indexes `globalCells` directly with a slot
+        // resolved once at decode time — no string work, no hashing. The cold
+        // `globalSlots` registry maps a name (by CONTENT) to its slot and is
+        // touched only at decode time and registration. `defined` distinguishes
+        // a declared-but-unset slot (there is no nil sentinel Value).
+        struct GlobalCell
+        {
+            Value value = 0;
+            bool  defined = false;
+        };
+        std::vector<GlobalCell>                   globalCells;
+        std::unordered_map<std::string, uint32_t> globalSlots;
+
+        // Get-or-create the slot for `name`. Slots are append-only, so a
+        // returned index is stable for the VM's lifetime.
+        inline uint32_t globalSlot(const std::string& name)
+        {
+            auto it = globalSlots.find(name);
+            if (it != globalSlots.end())
+                return it->second;
+            const uint32_t slot = static_cast<uint32_t>(globalCells.size());
+            globalCells.push_back(GlobalCell{});
+            globalSlots.emplace(name, slot);
+            return slot;
+        }
+
+        // Define (or redefine) a global by name. The public, string-based entry
+        // point used by native/module registration — callers never see slots.
+        // Ownership: defineGlobal TAKES the caller's reference to `v` (it does
+        // not retain). Pass a freshly created value, or retainValue(...) a
+        // borrowed one. Any previously defined occupant is released.
+        inline void defineGlobal(const std::string& name, const Value& v)
+        {
+            GlobalCell& c = globalCells[globalSlot(name)];
+            if (c.defined)
+                releaseAndDelete(c.value);
+            c.value = v;
+            c.defined = true;
+        }
+
+        // Look up an existing global cell by name (nullptr if never declared).
+        inline GlobalCell* findGlobalCell(const std::string& name)
+        {
+            auto it = globalSlots.find(name);
+            return it == globalSlots.end() ? nullptr : &globalCells[it->second];
+        }
+
+        // Reverse map slot -> name. Cold path only (error messages); O(n).
+        inline std::string globalNameForSlot(uint32_t slot) const
+        {
+            for (const auto& [name, s] : globalSlots)
+                if (s == slot)
+                    return name;
+            return "<unknown>";
+        }
 
         // Native module registry (per VM instance)
         struct NativeModuleData
@@ -737,12 +794,12 @@ namespace pg
         void defineNative(const std::string& name, NativeFn function)
         {
             // Skip if already defined in globals
-            if (globals.find(name) != globals.end())
+            if (GlobalCell* c = findGlobalCell(name); c != nullptr and c->defined)
             {
                 return;
             }
 
-            globals[name] = createNativeFunction(function);
+            defineGlobal(name, createNativeFunction(function));
         }
 
         /**
@@ -822,9 +879,10 @@ namespace pg
             for (const auto& [name, value] : it->second.variables)
             {
                 // Skip if already defined in globals
-                if (globals.find(name) == globals.end())
+                GlobalCell* c = findGlobalCell(name);
+                if (c == nullptr or not c->defined)
                 {
-                    globals[name] = elementToValue(value);
+                    defineGlobal(name, elementToValue(value));
                 }
             }
 

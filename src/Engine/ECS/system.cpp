@@ -108,10 +108,10 @@ namespace pg
             ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
             // Create a VM table to hold system data
-            auto it = vm.globals.find("__Table");
-            if (it != vm.globals.end())
+            VM::GlobalCell* cell = vm.findGlobalCell("__Table");
+            if (cell != nullptr and cell->defined)
             {
-                Klass* tableClass = vm.asClass(it->second);
+                Klass* tableClass = vm.asClass(cell->value);
                 Value dataTableValue = vm.createInstance(tableClass);
                 ObjInstance* dataTable = vm.asInstance(dataTableValue);
 
@@ -121,7 +121,7 @@ namespace pg
                     dataTable->setField(key, vm.retainValue(vm.elementToValue(elemValue)));
                 }
 
-                vm.globals["sysData"] = dataTableValue;
+                vm.defineGlobal("sysData", dataTableValue);
             }
         }
 
@@ -138,10 +138,10 @@ namespace pg
         {
             ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
-            auto it = vm.globals.find("sysData");
-            if (it != vm.globals.end() and IS_INSTANCE(it->second))
+            VM::GlobalCell* cell = vm.findGlobalCell("sysData");
+            if (cell != nullptr and cell->defined and IS_INSTANCE(cell->value))
             {
-                ObjInstance* dataTable = vm.asInstance(it->second);
+                ObjInstance* dataTable = vm.asInstance(cell->value);
 
                 // Copy all fields from VM table back to C++ ElementMap
                 // This overwrites existing keys and adds new ones
@@ -205,7 +205,7 @@ namespace pg
 
                 // Set up event data before interpreting
                 auto value = serializeToTable(&vm, event);
-                vm.globals["event"] = value;
+                vm.defineGlobal("event", value);
 
                 auto result = interpretWithSysData(sys, vm, cachedBytecode);
 
@@ -301,7 +301,7 @@ namespace pg
                     // Add sys module for accessing system's entities by component
                     vm.addNativeModule("sys", SystemModule{this});
 
-                    vm.globals["deltaTime"] = vm.elementToValue(deltaTime);
+                    vm.defineGlobal("deltaTime", vm.elementToValue(deltaTime));
 
                     auto result = interpretWithSysData(sys, vm, cachedBytecode);
 
@@ -338,7 +338,7 @@ namespace pg
                 vm.addNativeModule("sys", SystemModule{this});
 
                 auto value = serializeToTable(&vm, event);
-                vm.globals["event"] = value;
+                vm.defineGlobal("event", value);
 
                 auto result = interpretWithSysData(sys, vm, cachedBytecode);
 

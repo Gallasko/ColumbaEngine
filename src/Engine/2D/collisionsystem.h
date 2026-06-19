@@ -430,8 +430,8 @@ namespace pg
                 Value entity2Table = serializeEntityToTable(&testVm, ecsRef, ent2);
 
                 // Pass entity table as a global to the script (like a system module)
-                testVm.globals["ent1"] = entity1Table;
-                testVm.globals["ent2"] = entity2Table;
+                testVm.defineGlobal("ent1", entity1Table);
+                testVm.defineGlobal("ent2", entity2Table);
 
                 // Compile the script once
                 testVm.interpretFromBytecodeFile(fnName);

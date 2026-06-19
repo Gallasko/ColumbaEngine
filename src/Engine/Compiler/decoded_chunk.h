@@ -217,6 +217,11 @@ namespace pg
         void resolveConstantPointers(DecodedChunk* decoded, const Chunk& chunk);
 
         void resolveJumpTargets(DecodedChunk* decoded);
+
+        // Optimize: pre-resolve constant-global ops to a dense VM global slot
+        // (and the value's constant pointer for set/define). Eliminates the
+        // per-access string copy + hash. Needs the VM for the slot registry.
+        void resolveGlobalSlots(DecodedChunk* decoded, const Chunk& chunk, VM* vm);
     };
 
 } // namespace pg

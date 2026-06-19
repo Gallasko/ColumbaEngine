@@ -431,8 +431,8 @@ namespace pg
             return nullptr;
         }
 
-        auto it = vm->globals.find(name.toString());
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell(name.toString());
+        if (cell == nullptr or not cell->defined)
         {
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
@@ -440,7 +440,7 @@ namespace pg
             return nullptr;
         }
 
-        if (not isValueNumber(it->second))
+        if (not isValueNumber(cell->value))
         {
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Operand after an unary (++) must be a number.");
@@ -448,9 +448,9 @@ namespace pg
             return nullptr;
         }
 
-        auto newValue = vm->addValues(it->second, INT_VAL(1));
-        vm->releaseAndDelete(it->second);
-        it->second = vm->retainValue(newValue);
+        auto newValue = vm->addValues(cell->value, INT_VAL(1));
+        vm->releaseAndDelete(cell->value);
+        cell->value = vm->retainValue(newValue);
 
         vm->releaseAndDelete(nameValue);
         return &instr + 1;
@@ -477,8 +477,8 @@ namespace pg
             return nullptr;
         }
 
-        auto it = vm->globals.find(name.toString());
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell(name.toString());
+        if (cell == nullptr or not cell->defined)
         {
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
@@ -486,7 +486,7 @@ namespace pg
             return nullptr;
         }
 
-        if (not isValueNumber(it->second))
+        if (not isValueNumber(cell->value))
         {
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Operand after an unary (++) must be a number.");
@@ -494,9 +494,9 @@ namespace pg
             return nullptr;
         }
 
-        auto newValue = vm->addValues(it->second, INT_VAL(1));
-        vm->releaseAndDelete(it->second);
-        it->second = vm->retainValue(newValue);
+        auto newValue = vm->addValues(cell->value, INT_VAL(1));
+        vm->releaseAndDelete(cell->value);
+        cell->value = vm->retainValue(newValue);
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(nameValue);
@@ -524,8 +524,8 @@ namespace pg
             return nullptr;
         }
 
-        auto it = vm->globals.find(name.toString());
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell(name.toString());
+        if (cell == nullptr or not cell->defined)
         {
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
@@ -533,7 +533,7 @@ namespace pg
             return nullptr;
         }
 
-        if (not isValueNumber(it->second))
+        if (not isValueNumber(cell->value))
         {
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Operand after an unary (--) must be a number.");
@@ -541,9 +541,9 @@ namespace pg
             return nullptr;
         }
 
-        auto newValue = vm->subtractValues(it->second, INT_VAL(1));
-        vm->releaseAndDelete(it->second);
-        it->second = vm->retainValue(newValue);
+        auto newValue = vm->subtractValues(cell->value, INT_VAL(1));
+        vm->releaseAndDelete(cell->value);
+        cell->value = vm->retainValue(newValue);
 
         vm->releaseAndDelete(nameValue);
         return &instr + 1;
@@ -570,8 +570,8 @@ namespace pg
             return nullptr;
         }
 
-        auto it = vm->globals.find(name.toString());
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell(name.toString());
+        if (cell == nullptr or not cell->defined)
         {
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
@@ -579,7 +579,7 @@ namespace pg
             return nullptr;
         }
 
-        if (not isValueNumber(it->second))
+        if (not isValueNumber(cell->value))
         {
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Operand after an unary (--) must be a number.");
@@ -587,9 +587,9 @@ namespace pg
             return nullptr;
         }
 
-        auto newValue = vm->subtractValues(it->second, INT_VAL(1));
-        vm->releaseAndDelete(it->second);
-        it->second = vm->retainValue(newValue);
+        auto newValue = vm->subtractValues(cell->value, INT_VAL(1));
+        vm->releaseAndDelete(cell->value);
+        cell->value = vm->retainValue(newValue);
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(nameValue);
