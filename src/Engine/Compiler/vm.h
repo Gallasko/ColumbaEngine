@@ -647,6 +647,17 @@ namespace pg
             return "<unknown>";
         }
 
+        // Emit a runtime error, stop the VM, and return the nullptr "next
+        // instruction" that breaks the dispatch loop. Lets a handler write
+        // `return vm->raiseError("...");` instead of repeating the
+        // runtimeError + vm_return + return-nullptr triple.
+        inline const DecodedInstruction* raiseError(const std::string& message)
+        {
+            runtimeError(message);
+            vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
         // Native module registry (per VM instance)
         struct NativeModuleData
         {

@@ -426,26 +426,20 @@ namespace pg
         if (not name.isLitteral())
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Global variable name must be a litteral.");
         }
 
         VM::GlobalCell* cell = vm->findGlobalCell(name.toString());
         if (cell == nullptr or not cell->defined)
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Undefined global variable '" + name.toString() + "'.");
         }
 
         if (not isValueNumber(cell->value))
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Operand after an unary (++) must be a number.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Operand after an unary (++) must be a number.");
         }
 
         auto newValue = vm->addValues(cell->value, INT_VAL(1));
@@ -472,26 +466,20 @@ namespace pg
         if (not name.isLitteral())
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Global variable name must be a litteral.");
         }
 
         VM::GlobalCell* cell = vm->findGlobalCell(name.toString());
         if (cell == nullptr or not cell->defined)
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Undefined global variable '" + name.toString() + "'.");
         }
 
         if (not isValueNumber(cell->value))
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Operand after an unary (++) must be a number.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Operand after an unary (++) must be a number.");
         }
 
         auto newValue = vm->addValues(cell->value, INT_VAL(1));
@@ -519,26 +507,20 @@ namespace pg
         if (not name.isLitteral())
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Global variable name must be a litteral.");
         }
 
         VM::GlobalCell* cell = vm->findGlobalCell(name.toString());
         if (cell == nullptr or not cell->defined)
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Undefined global variable '" + name.toString() + "'.");
         }
 
         if (not isValueNumber(cell->value))
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Operand after an unary (--) must be a number.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Operand after an unary (--) must be a number.");
         }
 
         auto newValue = vm->subtractValues(cell->value, INT_VAL(1));
@@ -565,26 +547,20 @@ namespace pg
         if (not name.isLitteral())
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Global variable name must be a litteral.");
         }
 
         VM::GlobalCell* cell = vm->findGlobalCell(name.toString());
         if (cell == nullptr or not cell->defined)
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Undefined global variable '" + name.toString() + "'.");
         }
 
         if (not isValueNumber(cell->value))
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Operand after an unary (--) must be a number.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Operand after an unary (--) must be a number.");
         }
 
         auto newValue = vm->subtractValues(cell->value, INT_VAL(1));

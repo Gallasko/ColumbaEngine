@@ -1201,9 +1201,7 @@ namespace pg
         {
             vm->releaseAndDelete(nameValue);
             vm->pop();
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Global variable name must be a litteral.");
         }
 
         auto name = vm->asString(nameValue);
@@ -1213,9 +1211,7 @@ namespace pg
         {
             vm->releaseAndDelete(nameValue);
             vm->pop();
-            vm->runtimeError("Undefined global variable '" + name + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Undefined global variable '" + name + "'.");
         }
 
         vm->changeTop(vm->retainValue(cell->value));
@@ -1240,18 +1236,14 @@ namespace pg
         if (not name.isLitteral())
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Global variable name must be a litteral.");
         }
 
         VM::GlobalCell* cell = vm->findGlobalCell(name.toString());
         if (cell == nullptr or not cell->defined)
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Undefined global variable '" + name.toString() + "'.");
         }
 
         vm->releaseAndDelete(cell->value);
@@ -1278,9 +1270,7 @@ namespace pg
         {
             vm->releaseAndDelete(nameValue);
             vm->releaseAndDelete(value);
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Global variable name must be a litteral.");
         }
 
         vm->defineGlobal(name.toString(), vm->retainValue(value));
@@ -1306,9 +1296,7 @@ namespace pg
         if (not name.isLitteral())
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Global variable name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Global variable name must be a litteral.");
         }
 
         vm->defineGlobal(name.toString(), vm->retainValue(value));
@@ -1380,10 +1368,8 @@ namespace pg
         auto& cell = vm->globalCells[instr.operands.dword];
         if (not cell.defined)
         {
-            vm->runtimeError("Undefined global variable '"
-                             + vm->globalNameForSlot(instr.operands.dword) + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Undefined global variable '"
+                                  + vm->globalNameForSlot(instr.operands.dword) + "'.");
         }
 
         vm->push(vm->retainValue(cell.value));
@@ -1400,10 +1386,8 @@ namespace pg
         auto& cell = vm->globalCells[instr.operands.dword];
         if (not cell.defined)
         {
-            vm->runtimeError("Undefined global variable '"
-                             + vm->globalNameForSlot(instr.operands.dword) + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return vm->raiseError("Undefined global variable '"
+                                  + vm->globalNameForSlot(instr.operands.dword) + "'.");
         }
 
         vm->releaseAndDelete(cell.value);
