@@ -6,6 +6,7 @@
 #include "decoded_fusion.h"
 
 #include <unordered_set>
+#include <cstdint>
 
 namespace pg
 {
@@ -455,8 +456,11 @@ namespace pg
         std::vector<size_t> oldToNew(n, 0);
 
         // Fused conditional branches record their target OFFSET here; it is
-        // converted to a pointer once the compacted arrays are final.
-        std::vector<std::pair<size_t, size_t>> branchFixups; // (newIndex, targetOffset)
+        // resolved once the compacted arrays are final. `relative` branches
+        // (a Const operand occupies the union pointer) store a 16-bit relative
+        // instruction offset in the operand bytes instead of a jumpTargetPtr.
+        struct BranchFixup { size_t newIndex; size_t targetOffset; bool relative; };
+        std::vector<BranchFixup> branchFixups;
 
         size_t fusedWindows = 0;
         size_t i = 0;
@@ -465,6 +469,7 @@ namespace pg
             DecodedInstruction fused{};
             size_t windowLen = 0;
             bool   hasBranch = false;
+            bool   branchRelative = false;
             size_t branchTarget = 0;
             const std::string* fusedName = nullptr;
 
@@ -497,13 +502,34 @@ namespace pg
 
                 if (after < n and isPoppingCondBranch(im[after].originalOpcode)
                     and windowSafe(i, headLen + 1)
-                    and branchTargetOffsetOf(in[after], im[after], branchTarget)
-                    and buildBinary(op, a, b, Sink::BranchIfFalse, 0, fused))
+                    and branchTargetOffsetOf(in[after], im[after], branchTarget))
                 {
-                    windowLen = headLen + 1;
-                    hasBranch = true;
-                    fusedName = fusionName(op, a.kind, b.kind, Sink::BranchIfFalse);
-                    return true;
+                    // A Const operand forces a relative-offset branch target
+                    // (constantPtr owns the union pointer), so only fuse when
+                    // the target is within int16 range. The pre-fusion distance
+                    // (old indices, measured from the window head i) is a safe
+                    // upper bound on the final distance — fusion only shrinks
+                    // the gap. Non-Const branches use the pointer (no limit).
+                    const bool usesConst = (a.kind == Src::Const or b.kind == Src::Const);
+                    bool encodable = true;
+                    if (usesConst)
+                    {
+                        auto it = decoded->jumpTargets.find(branchTarget);
+                        const ptrdiff_t rel = (it == decoded->jumpTargets.end())
+                            ? PTRDIFF_MAX
+                            : static_cast<ptrdiff_t>(it->second) - static_cast<ptrdiff_t>(i);
+                        encodable = (rel >= INT16_MIN and rel <= INT16_MAX);
+                    }
+
+                    if (encodable
+                        and buildBinary(op, a, b, Sink::BranchIfFalse, 0, fused))
+                    {
+                        windowLen = headLen + 1;
+                        hasBranch = true;
+                        branchRelative = usesConst;
+                        fusedName = fusionName(op, a.kind, b.kind, Sink::BranchIfFalse);
+                        return true;
+                    }
                 }
 
                 if (headLen >= 2 and windowSafe(i, headLen)
@@ -641,7 +667,7 @@ namespace pg
                 m.fusedName   = fusedName;
 
                 if (hasBranch)
-                    branchFixups.emplace_back(newIdx, branchTarget);
+                    branchFixups.push_back({newIdx, branchTarget, branchRelative});
 
                 outI.push_back(fused);
                 outM.push_back(m);
@@ -671,19 +697,39 @@ namespace pg
         decoded->totalInstructions = decoded->instructions.size();
 
         // 3. Resolve fused branch targets now that the array is final.
-        for (const auto& [newIdx, targetOffset] : branchFixups)
+        for (const auto& fx : branchFixups)
         {
-            auto it = decoded->jumpTargets.find(targetOffset);
-            if (it != decoded->jumpTargets.end())
+            DecodedInstruction& di = decoded->instructions[fx.newIndex];
+            auto it = decoded->jumpTargets.find(fx.targetOffset);
+            if (it == decoded->jumpTargets.end())
             {
-                decoded->instructions[newIdx].jumpTargetPtr =
-                    decoded->instructions.data() + it->second;
+                LOG_ERROR("ChunkDecoder", "Unresolved fused branch target (offset "
+                          << fx.targetOffset << ") — falling back to "
+                          << (fx.relative ? "fall-through" : "instruction 0"));
+                if (fx.relative)
+                {
+                    di.operands.indexed.byte3 = 1; // &instr + 1 (fall through)
+                    di.operands.indexed.byte4 = 0;
+                }
+                else
+                    di.jumpTargetPtr = decoded->instructions.data();
+                continue;
+            }
+
+            if (fx.relative)
+            {
+                // Const operand: constantPtr owns the union pointer, so store
+                // the target as a signed 16-bit relative instruction offset in
+                // operand bytes 3/4 (range guaranteed at fusion time). The
+                // separate operand union leaves constantPtr untouched.
+                const ptrdiff_t rel = static_cast<ptrdiff_t>(it->second)
+                                    - static_cast<ptrdiff_t>(fx.newIndex);
+                di.operands.indexed.byte3 = static_cast<uint8_t>(rel & 0xFF);
+                di.operands.indexed.byte4 = static_cast<uint8_t>((rel >> 8) & 0xFF);
             }
             else
             {
-                LOG_ERROR("ChunkDecoder", "Unresolved fused branch target (offset "
-                          << targetOffset << ") — falling back to instruction 0");
-                decoded->instructions[newIdx].jumpTargetPtr = decoded->instructions.data();
+                di.jumpTargetPtr = decoded->instructions.data() + it->second;
             }
         }
 

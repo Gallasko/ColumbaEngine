@@ -332,7 +332,15 @@ namespace fusion
 
     // Comparison + popping conditional jump: the condition value never
     // touches the stack (it's a primitive bool — nothing to release).
-    template <typename Op, Src A, Src B>
+    //
+    // RelTarget selects how the branch destination is encoded:
+    //   false — the pre-resolved jumpTargetPtr lives in the union pointer
+    //           (the fast default, used when neither operand is a Const).
+    //   true  — one operand is a Const, so the union pointer already holds
+    //           constantPtr; the target is instead a signed 16-bit RELATIVE
+    //           instruction offset in operand bytes 3/4, written at fixup time.
+    //           This lets `local == const` (etc.) fuse its branch as well.
+    template <typename Op, Src A, Src B, bool RelTarget = false>
     const DecodedInstruction* fusedCmpBranchIfFalse(VM* vm, const DecodedInstruction& instr)
     {
         Value b = readSrc<B>(vm, instr, instr.operands.indexed.byte2);
@@ -342,7 +350,17 @@ namespace fusion
         releaseSrc<B>(vm, b);
 
         if (not isValueTrue(r, vm))
-            return instr.jumpTargetPtr;
+        {
+            if constexpr (RelTarget)
+            {
+                const int16_t rel = static_cast<int16_t>(
+                    static_cast<uint16_t>(instr.operands.indexed.byte3)
+                    | (static_cast<uint16_t>(instr.operands.indexed.byte4) << 8));
+                return &instr + rel;
+            }
+            else
+                return instr.jumpTargetPtr;
+        }
 
         return &instr + 1;
     }
@@ -442,10 +460,16 @@ namespace fusion
                     return &fusedBinaryStore<Op, A, B>;
 
                 case Sink::BranchIfFalse:
+                    if (not comparison)
+                        return nullptr;
+                    // A single Const operand takes the union pointer for its
+                    // constantPtr, so the branch target moves to a relative
+                    // offset in the operand bytes (RelTarget=true). With no
+                    // Const, the fast pre-resolved jumpTargetPtr is used.
                     if constexpr (constCount > 0)
-                        return nullptr; // union holds the jump target
+                        return &fusedCmpBranchIfFalse<Op, A, B, true>;
                     else
-                        return comparison ? &fusedCmpBranchIfFalse<Op, A, B> : nullptr;
+                        return &fusedCmpBranchIfFalse<Op, A, B, false>;
             }
             return nullptr;
         }
