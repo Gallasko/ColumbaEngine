@@ -398,6 +398,40 @@ namespace pg
             return true;
         };
 
+        // In-place compound assignment: when the store destination is also a
+        // Local source (`x = x <op> operand`, or `x = operand <op> x` for a
+        // commutative op), collapse to a single read-modify-write handler that
+        // updates the slot in place. `outB` reports the operand source used
+        // (for the profiler name). Returns false when no in-place form applies.
+        auto buildCompound = [&](BinOp op, const SrcDesc& a, const SrcDesc& b,
+                                 uint8_t dstSlot, DecodedInstruction& out, Src& outB) -> bool
+        {
+            const SrcDesc* other = nullptr; // becomes right operand B (byte2 / const)
+            if (a.kind == Src::Local and a.byteVal == dstSlot)
+                other = &b;
+            else if (isCommutative(op) and b.kind == Src::Local and b.byteVal == dstSlot)
+                other = &a;
+            else
+                return false;
+
+            OpDecodedHandler handler = selectFusedLocalCompound(op, other->kind);
+            if (handler == nullptr)
+                return false;
+
+            out = DecodedInstruction{};
+            out.decodedHandler = handler;
+            out.operands.indexed.byte1 = dstSlot;
+            out.operands.indexed.byte2 = other->byteVal;
+            if (other->kind == Src::Const)
+            {
+                if (other->constIndex >= chunk.constants.size())
+                    return false;
+                out.constantPtr = const_cast<Value*>(&chunk.constants[other->constIndex]);
+            }
+            outB = other->kind;
+            return true;
+        };
+
         // A store consumer is either the fused OP_Set_Local_Pop (legacy
         // bytecode) or the plain OP_Set_Local + OP_Pop pair the compiler
         // emits now that the bytecode-level fusion passes are gone.
@@ -444,12 +478,21 @@ namespace pg
                 const size_t after = i + headLen;
 
                 const StoreConsumer sc = storeConsumerAt(after);
-                if (sc.found and windowSafe(i, headLen + sc.len)
-                    and buildBinary(op, a, b, Sink::Store, sc.dst, fused))
+                if (sc.found and windowSafe(i, headLen + sc.len))
                 {
-                    windowLen = headLen + sc.len;
-                    fusedName = fusionName(op, a.kind, b.kind, Sink::Store);
-                    return true;
+                    Src compoundB;
+                    if (buildCompound(op, a, b, sc.dst, fused, compoundB))
+                    {
+                        windowLen = headLen + sc.len;
+                        fusedName = compoundFusionName(op, compoundB);
+                        return true;
+                    }
+                    if (buildBinary(op, a, b, Sink::Store, sc.dst, fused))
+                    {
+                        windowLen = headLen + sc.len;
+                        fusedName = fusionName(op, a.kind, b.kind, Sink::Store);
+                        return true;
+                    }
                 }
 
                 if (after < n and isPoppingCondBranch(im[after].originalOpcode)

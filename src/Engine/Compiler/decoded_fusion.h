@@ -107,6 +107,23 @@ namespace fusion
         return op >= BinOp::Equal;
     }
 
+    // Operands may be swapped freely only for these ops — used by the in-place
+    // compound-assignment fusion to handle `x = operand <op> x`.
+    inline bool isCommutative(BinOp op)
+    {
+        return op == BinOp::Add or op == BinOp::Multiply
+            or op == BinOp::Equal or op == BinOp::NotEqual;
+    }
+
+    inline const char* binOpName(BinOp op)
+    {
+        static const char* opNames[] = {
+            "None", "Add", "Subtract", "Multiply", "Divide", "Modulo",
+            "Equal", "NotEqual", "Greater", "GreaterEqual", "Less", "LessEqual",
+        };
+        return opNames[static_cast<uint8_t>(op)];
+    }
+
     inline bool isStoreConsumer(uint8_t opcode)
     {
         return static_cast<OpCode>(opcode) == OpCode::OP_Set_Local_Pop;
@@ -215,20 +232,28 @@ namespace fusion
 
     inline const std::string* fusionName(BinOp op, Src a, Src b, Sink sink)
     {
-        static const char* opNames[] = {
-            "None", "Add", "Subtract", "Multiply", "Divide", "Modulo",
-            "Equal", "NotEqual", "Greater", "GreaterEqual", "Less", "LessEqual",
-        };
         static const char* sinkNames[] = { "Push", "Store", "Branch" };
 
         std::string name = "FUSED_";
-        name += opNames[static_cast<uint8_t>(op)];
+        name += binOpName(op);
         name += '(';
         name += srcLetter(a);
         name += ',';
         name += srcLetter(b);
         name += ")->";
         name += sinkNames[static_cast<uint8_t>(sink)];
+        return internFusionName(std::move(name));
+    }
+
+    // Name for the in-place compound assignment `local = local <op> b`: the
+    // 'L=' marks the local that is both left operand and destination.
+    inline const std::string* compoundFusionName(BinOp op, Src b)
+    {
+        std::string name = "FUSED_";
+        name += binOpName(op);
+        name += "(L=,";
+        name += srcLetter(b);
+        name += ")->Local";
         return internFusionName(std::move(name));
     }
 
@@ -281,6 +306,27 @@ namespace fusion
         if (requiresRefCount(oldValue))
             vm->releaseAndDelete(oldValue);
 
+        return &instr + 1;
+    }
+
+    // In-place compound assignment: slot = slot <op> operand.
+    // The destination local is ALSO the left operand, so it is read and written
+    // in place — no re-read of the slot as a separate store destination, no
+    // extra stack traffic. Generalizes fusedIncrDecrLocal to any binary op and
+    // any operand source. Refcount accounting matches fusedBinaryStore for the
+    // dst==srcA case: the local's old value is released once, a Stack operand is
+    // consumed once, borrowed Local/Const/ShortInt operands are no-ops.
+    template <typename Op, Src B>
+    const DecodedInstruction* fusedLocalCompound(VM* vm, const DecodedInstruction& instr)
+    {
+        const uint8_t slot = instr.operands.indexed.byte1; // local == dst == src A
+        Value& val = vm->currentFrame->slots[slot];
+        Value b = readSrc<B>(vm, instr, instr.operands.indexed.byte2);
+        Value r = Op::apply(vm, val, b); // read val BEFORE releasing it
+        releaseSrc<B>(vm, b);
+        if (requiresRefCount(val))
+            vm->releaseAndDelete(val);
+        val = r;
         return &instr + 1;
     }
 
@@ -447,6 +493,41 @@ namespace fusion
             case BinOp::GreaterEqual: return pickA<FGreaterEqual>(a, b, sink, cmp);
             case BinOp::Less:         return pickA<FLess>(a, b, sink, cmp);
             case BinOp::LessEqual:    return pickA<FLessEqual>(a, b, sink, cmp);
+            case BinOp::None:         return nullptr;
+        }
+        return nullptr;
+    }
+
+    // In-place compound assignment: only the right operand B varies (the left
+    // operand is always the destination local, encoded in byte1).
+    template <typename Op>
+    inline OpDecodedHandler pickCompoundB(Src b)
+    {
+        switch (b)
+        {
+            case Src::Stack:    return &fusedLocalCompound<Op, Src::Stack>;
+            case Src::Local:    return &fusedLocalCompound<Op, Src::Local>;
+            case Src::Const:    return &fusedLocalCompound<Op, Src::Const>;
+            case Src::ShortInt: return &fusedLocalCompound<Op, Src::ShortInt>;
+        }
+        return nullptr;
+    }
+
+    inline OpDecodedHandler selectFusedLocalCompound(BinOp op, Src b)
+    {
+        switch (op)
+        {
+            case BinOp::Add:          return pickCompoundB<FAdd>(b);
+            case BinOp::Subtract:     return pickCompoundB<FSubtract>(b);
+            case BinOp::Multiply:     return pickCompoundB<FMultiply>(b);
+            case BinOp::Divide:       return pickCompoundB<FDivide>(b);
+            case BinOp::Modulo:       return pickCompoundB<FModulo>(b);
+            case BinOp::Equal:        return pickCompoundB<FEqual>(b);
+            case BinOp::NotEqual:     return pickCompoundB<FNotEqual>(b);
+            case BinOp::Greater:      return pickCompoundB<FGreater>(b);
+            case BinOp::GreaterEqual: return pickCompoundB<FGreaterEqual>(b);
+            case BinOp::Less:         return pickCompoundB<FLess>(b);
+            case BinOp::LessEqual:    return pickCompoundB<FLessEqual>(b);
             case BinOp::None:         return nullptr;
         }
         return nullptr;
