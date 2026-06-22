@@ -168,9 +168,6 @@ namespace pg
 
     Value VM::equalsValues(const Value& a, const Value& b)
     {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) == AS_INT(b));
-
         if (IS_FLOAT(a) and IS_FLOAT(b))
             return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_FLOAT(b))));
 
@@ -180,23 +177,11 @@ namespace pg
         if (IS_FLOAT(a) and IS_INT(b))
             return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_INT(b))));
 
-        if (IS_BOOL(a) and IS_BOOL(b))
-            return BOOL_VAL(AS_BOOL(a) == AS_BOOL(b));
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot compare function Values");
-
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA == elemB);
+        return BOOL_VAL(a == b);
     }
 
     Value VM::notEqualsValues(const Value& a, const Value& b)
     {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) != AS_INT(b));
-
         if (IS_FLOAT(a) and IS_FLOAT(b))
             return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_FLOAT(b))));
 
@@ -206,16 +191,7 @@ namespace pg
         if (IS_FLOAT(a) and IS_INT(b))
             return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_INT(b))));
 
-        if (IS_BOOL(a) and IS_BOOL(b))
-            return BOOL_VAL(AS_BOOL(a) != AS_BOOL(b));
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot compare function Values");
-
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA != elemB);
+        return BOOL_VAL(a != b);
     }
 
     Value VM::greaterValues(const Value& a, const Value& b)
