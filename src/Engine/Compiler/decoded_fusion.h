@@ -349,7 +349,7 @@ namespace fusion
         releaseSrc<A>(vm, a);
         releaseSrc<B>(vm, b);
 
-        if (not isValueTrue(r, vm))
+        if (not isValueTrue(r))
         {
             if constexpr (RelTarget)
             {

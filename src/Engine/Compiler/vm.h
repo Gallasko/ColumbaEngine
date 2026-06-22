@@ -74,9 +74,9 @@ namespace pg
     // Forward declare VM for helper functions
     struct VM;
 
-    bool isValueNumber(const Value& val, VM* vm = nullptr);
+    bool isValueNumber(const Value& val);
 
-    bool isValueTrue(const Value& val, VM* vm = nullptr);
+    bool isValueTrue(const Value& val);
 
     class IndexableStack
     {

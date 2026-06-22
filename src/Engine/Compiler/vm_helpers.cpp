@@ -634,15 +634,6 @@ namespace pg
             return static_cast<int>(AS_DOUBLE(value));
         else if (IS_BOOL(value))
             return AS_BOOL(value) ? 1 : 0;
-        else if (IS_LONG_STRING(value))
-        {
-            // Should be an error or need a conversion with explicit toString
-        }
-        else if (IS_SMALL_STRING(value))
-        {
-            // Small strings don't have ElementType backing, can't extract int
-            // Fall through to error
-        }
 
         throw std::runtime_error("Value is not an integer");
     }

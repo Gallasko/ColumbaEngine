@@ -928,7 +928,7 @@ namespace pg
         uint8_t slot = instr.operands.indexed.byte1;
         Value condition = vm->currentFrame->slots[slot];
 
-        if (not isValueTrue(condition, vm))
+        if (not isValueTrue(condition))
             return instr.jumpTargetPtr;
 
         return &instr + 1;

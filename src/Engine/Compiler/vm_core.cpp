@@ -20,7 +20,7 @@ namespace pg
 {
     UniqueIdGenerator VM::globalIdGenerator;
 
-    bool isValueNumber(const Value& val, VM*)
+    bool isValueNumber(const Value& val)
     {
         if (IS_INT(val) or IS_DOUBLE(val))
             return true;
@@ -28,7 +28,7 @@ namespace pg
         return false;
     }
 
-    bool isValueTrue(const Value& val, VM* vm)
+    bool isValueTrue(const Value& val)
     {
         if (IS_BOOL(val))
             return AS_BOOL(val);
@@ -45,19 +45,7 @@ namespace pg
             return not (std::fabs(a - b) <= epsilon * std::max({1.0, std::fabs(a), std::fabs(b)}));
         }
 
-        // String objects might represent booleans - need pool access
-        if (IS_STRING(val) and vm != nullptr)
-        {
-            return true;
-        }
-
-        if (IS_CLOSURE(val) or IS_FUNC(val) or IS_NAT_FUNC(val) or
-            IS_CLASS(val) or IS_INSTANCE(val) or IS_BOUND_METHOD(val) or IS_VECTOR(val) or IS_CUSTOM_PTR(val))
-        {
-            return true; // Non-null objects are true
-        }
-
-        return false;
+        return true;
     }
 
     // Static dispatch table definition
@@ -941,7 +929,7 @@ namespace pg
 
     const DecodedInstruction* op_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        if (not isValueTrue(vm->peek(), vm))
+        if (not isValueTrue(vm->peek()))
             return instr.jumpTargetPtr;
 
         return &instr + 1;
@@ -952,7 +940,7 @@ namespace pg
         Value condition = vm->pop();
 
         const DecodedInstruction* next =
-            isValueTrue(condition, vm) ? &instr + 1 : instr.jumpTargetPtr;
+            isValueTrue(condition) ? &instr + 1 : instr.jumpTargetPtr;
 
         if (requiresRefCount(condition))
             vm->releaseAndDelete(condition);
