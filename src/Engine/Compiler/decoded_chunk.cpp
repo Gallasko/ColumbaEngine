@@ -507,16 +507,27 @@ namespace pg
                     }
                 }
 
-                if (after < n and isPoppingCondBranch(im[after].originalOpcode)
+                const bool afterFalseBranch =
+                    after < n and isPoppingCondBranch(im[after].originalOpcode);
+                const bool afterTrueBranch =
+                    after < n and isPoppingTrueCondBranch(im[after].originalOpcode);
+
+                if ((afterFalseBranch or afterTrueBranch)
                     and windowSafe(i, headLen + 1)
                     and branchTargetOffsetOf(in[after], im[after], branchTarget))
                 {
+                    // The true variant (loop-rotation bottom test) branches
+                    // BACKWARD; branchTargetOffsetOf already resolved that.
+                    const Sink branchSink = afterTrueBranch ? Sink::BranchIfTrue
+                                                            : Sink::BranchIfFalse;
+
                     // A Const operand forces a relative-offset branch target
                     // (constantPtr owns the union pointer), so only fuse when
                     // the target is within int16 range. The pre-fusion distance
                     // (old indices, measured from the window head i) is a safe
-                    // upper bound on the final distance — fusion only shrinks
-                    // the gap. Non-Const branches use the pointer (no limit).
+                    // upper bound on |distance| for both forward and backward
+                    // branches — fusion only shrinks the gap. Non-Const branches
+                    // use the pointer (no limit).
                     const bool usesConst = (a.kind == Src::Const or b.kind == Src::Const);
                     bool encodable = true;
                     if (usesConst)
@@ -529,12 +540,12 @@ namespace pg
                     }
 
                     if (encodable
-                        and buildBinary(op, a, b, Sink::BranchIfFalse, 0, fused))
+                        and buildBinary(op, a, b, branchSink, 0, fused))
                     {
                         windowLen = headLen + 1;
                         hasBranch = true;
                         branchRelative = usesConst;
-                        fusedName = fusionName(op, a.kind, b.kind, Sink::BranchIfFalse);
+                        fusedName = fusionName(op, a.kind, b.kind, branchSink);
                         return true;
                     }
                 }

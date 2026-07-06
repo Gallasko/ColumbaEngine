@@ -58,7 +58,7 @@ namespace fusion
 
     enum class UnOp : uint8_t { None, Not, Negate };
 
-    enum class Sink : uint8_t { Push, Store, BranchIfFalse };
+    enum class Sink : uint8_t { Push, Store, BranchIfFalse, BranchIfTrue };
 
     enum class Src : uint8_t { Stack, Local, Const, ShortInt };
 
@@ -136,6 +136,15 @@ namespace fusion
     {
         return static_cast<OpCode>(opcode) == OpCode::OP_Jump_If_False_Popping
             or static_cast<OpCode>(opcode) == OpCode::OP_Long_Jump_If_False_Popping;
+    }
+
+    // The backward popping branch emitted by the loop-rotation pass. Same
+    // condition-absorbing property as the false variants, but branches when the
+    // comparison is TRUE (back to the loop body).
+    inline bool isPoppingTrueCondBranch(uint8_t opcode)
+    {
+        return static_cast<OpCode>(opcode) == OpCode::OP_Jump_If_True_Popping
+            or static_cast<OpCode>(opcode) == OpCode::OP_Long_Jump_If_True_Popping;
     }
 
     // Legacy fused opcodes (still produced by old serialized bytecode):
@@ -232,7 +241,7 @@ namespace fusion
 
     inline const std::string* fusionName(BinOp op, Src a, Src b, Sink sink)
     {
-        static const char* sinkNames[] = { "Push", "Store", "Branch" };
+        static const char* sinkNames[] = { "Push", "Store", "Branch", "BranchT" };
 
         std::string name = "FUSED_";
         name += binOpName(op);
@@ -365,6 +374,35 @@ namespace fusion
         return &instr + 1;
     }
 
+    // Comparison + backward popping conditional jump (loop-rotation bottom
+    // test): identical to fusedCmpBranchIfFalse but branches when the result is
+    // TRUE, back to the loop body. The target (pointer or relative offset) is
+    // resolved to a BACKWARD destination by branchTargetOffsetOf / the fixup.
+    template <typename Op, Src A, Src B, bool RelTarget = false>
+    const DecodedInstruction* fusedCmpBranchIfTrue(VM* vm, const DecodedInstruction& instr)
+    {
+        Value b = readSrc<B>(vm, instr, instr.operands.indexed.byte2);
+        Value a = readSrc<A>(vm, instr, instr.operands.indexed.byte1);
+        Value r = Op::apply(vm, a, b);
+        releaseSrc<A>(vm, a);
+        releaseSrc<B>(vm, b);
+
+        if (isValueTrue(r))
+        {
+            if constexpr (RelTarget)
+            {
+                const int16_t rel = static_cast<int16_t>(
+                    static_cast<uint16_t>(instr.operands.indexed.byte3)
+                    | (static_cast<uint16_t>(instr.operands.indexed.byte4) << 8));
+                return &instr + rel;
+            }
+            else
+                return instr.jumpTargetPtr;
+        }
+
+        return &instr + 1;
+    }
+
     // Statement-form local increment/decrement: fuses the
     // [Short_Int slot][Post_Incr_Local] pair that IncrementOptimization
     // emits for `i += 1` — the slot index goes straight into the operand
@@ -470,6 +508,16 @@ namespace fusion
                         return &fusedCmpBranchIfFalse<Op, A, B, true>;
                     else
                         return &fusedCmpBranchIfFalse<Op, A, B, false>;
+
+                case Sink::BranchIfTrue:
+                    if (not comparison)
+                        return nullptr;
+                    // Same Const/pointer split as BranchIfFalse; the target is
+                    // backward but the encoding is identical.
+                    if constexpr (constCount > 0)
+                        return &fusedCmpBranchIfTrue<Op, A, B, true>;
+                    else
+                        return &fusedCmpBranchIfTrue<Op, A, B, false>;
             }
             return nullptr;
         }
