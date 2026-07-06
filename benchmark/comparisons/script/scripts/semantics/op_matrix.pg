@@ -1,0 +1,135 @@
+// op_matrix.pg — deterministic differential-semantics matrix for the VM's
+// binary/unary operator kernels. Run with and without --no-opt; stdout must
+// be byte-identical. Covers every BinOp × {int/int, dbl/dbl, int/dbl, dbl/int}
+// in every operand shape the optimizer treats differently:
+//   - locals inside a function  → fused handlers (decoded_fusion.h)
+//   - nested parenthesized expr → base stack/stack handlers (vm_binary_op.cpp)
+//   - comparisons as branch conditions → applyCond (no boxing) paths
+//   - compound `x = x op y`     → fusedLocalCompound
+//   - top-level globals         → global-access + base op paths
+// Error paths (div/mod by zero, function operands) live in the err_*.pg
+// scripts next to this one — they abort interpretation so they can't share
+// a script with value checks.
+
+// ---- fused paths: locals, one op per statement ----
+fun fusedPairs(ia, ib, da, db)
+{
+    print(ia + ib);  print(da + db);  print(ia + db);  print(da + ib);
+    print(ia - ib);  print(da - db);  print(ia - db);  print(da - ib);
+    print(ia * ib);  print(da * db);  print(ia * db);  print(da * ib);
+    print(ia / ib);  print(da / db);  print(ia / db);  print(da / ib);
+    print(ia % ib);
+    print(ia == ib); print(da == db); print(ia == db); print(da == ib);
+    print(ia != ib); print(da != db); print(ia != db); print(da != ib);
+    print(ia >  ib); print(da >  db); print(ia >  db); print(da >  ib);
+    print(ia >= ib); print(da >= db); print(ia >= db); print(da >= ib);
+    print(ia <  ib); print(da <  db); print(ia <  db); print(da <  ib);
+    print(ia <= ib); print(da <= db); print(ia <= db); print(da <= ib);
+}
+
+// ---- comparisons in branch position (applyCond, forward + rotated backward) ----
+fun branchCond(a, b)
+{
+    if (a == b) { print("eq"); } else { print("neq"); }
+    if (a != b) { print("ne"); } else { print("nne"); }
+    if (a <  b) { print("lt"); } else { print("nlt"); }
+    if (a <= b) { print("le"); } else { print("nle"); }
+    if (a >  b) { print("gt"); } else { print("ngt"); }
+    if (a >= b) { print("ge"); } else { print("nge"); }
+
+    var n = 0;
+    while (n < b) { n = n + 1; }
+    print(n);
+    var m = b;
+    while (m > 0) { m = m - 1; }
+    print(m);
+    var k = 0;
+    while (k != b) { k = k + 1; }
+    print(k);
+}
+
+// ---- compound in-place: x = x op y (fusedLocalCompound) ----
+fun compound(start, step, dstep)
+{
+    var x = start;
+    x = x + step;  print(x);
+    x = x - step;  print(x);
+    x = x * step;  print(x);
+    x = x / step;  print(x);
+    x = x + dstep; print(x);   // int → double promotion in place
+    x = x * dstep; print(x);
+    return x;
+}
+
+// ---- base stack/stack ops: nested exprs keep operands on the stack ----
+fun stacked(a, b, c, d)
+{
+    print((a + b) + (c + d));
+    print((a + b) - (c + d));
+    print((a + b) * (c + d));
+    print((a * b) / (c + d));
+    print((a + b) %  (c + d));
+    print((a + b) == (c + d));
+    print((a + b) != (c + d));
+    print((a + b) <  (c + d));
+    print((a + b) <= (c + d));
+    print((a + b) >  (c + d));
+    print((a + b) >= (c + d));
+}
+
+// ---- unary + incr/decr ----
+fun unaryOps(i, d)
+{
+    print(-i);
+    print(-d);
+    print(not (i == i));
+    print(not (i != i));
+    var c = i;
+    c = c + 1;  print(c);   // int increment fast path
+    c = c - 1;  print(c);
+    var e = d;
+    e = e + 1;  print(e);   // double increment slow path
+    e = e - 1;  print(e);
+}
+
+// ---- strings and bools (fallback/raw-bit paths) ----
+fun nonNumeric()
+{
+    print("a" + "b");
+    print("ab" == "ab");
+    print("ab" != "cd");
+    print(true == true);
+    print(true != false);
+    print((1 == 1) == (2 == 2));
+}
+
+fusedPairs(7, 2, 7.5, 2.5);
+fusedPairs(-7, 2, -7.5, 2.5);          // negative operands, negative int division
+fusedPairs(0, 3, 0.0, 3.0);            // zeros as left operand
+fusedPairs(2, 7, 2.5, 7.5);            // reversed magnitudes flip comparisons
+fusedPairs(5, 5, 5.0, 5.0);            // equal values hit == / <= / >= edges
+
+branchCond(3, 3);
+branchCond(2, 5);
+branchCond(5, 2);
+
+print(compound(10, 4, 0.5));
+print(compound(-3, 2, 1.5));
+
+stacked(1, 2, 3, 4);
+stacked(9, 3, 2, 1);
+
+unaryOps(41, 41.5);
+nonNumeric();
+
+// ---- same ops on top-level globals (different bytecode shape) ----
+var gA = 6;
+var gB = 4;
+var gD = 1.5;
+print(gA + gB);
+print(gA / gB);
+print(gA % gB);
+print(gA * gD);
+print(gA == gB);
+print(gA >= gB);
+print(gD < gA);

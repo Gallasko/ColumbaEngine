@@ -1,0 +1,4 @@
+// Modulo by zero must fail identically with and without opts.
+print("before");
+print(5 % 0);
+print("unreachable");

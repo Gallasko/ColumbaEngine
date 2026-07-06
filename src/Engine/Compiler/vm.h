@@ -558,13 +558,22 @@ namespace pg
         Value copyValue(const Value& value);
         int getValueAsInt(const Value& value);
 
-        // Arithmetic operations with proper reference tracking
-        Value addValues(const Value a, const Value b);
+        // Arithmetic operations with proper reference tracking.
+        // Bodies are GENERATED from /tools/vm_ops_def.pg (the typed kernel
+        // ladder); the *Tail functions hold the handwritten fallbacks
+        // (string concat, ElementType conversion, error throws).
+        Value addValues(const Value& a, const Value& b);
         Value subtractValues(const Value& a, const Value& b);
         Value multiplyValues(const Value& a, const Value& b);
         Value divideValues(const Value& a, const Value& b);
         Value moduloValues(const Value& a, const Value& b);
         Value negateValue(const Value& val);
+
+        Value addValuesTail(const Value& a, const Value& b);
+        Value subtractValuesTail(const Value& a, const Value& b);
+        Value multiplyValuesTail(const Value& a, const Value& b);
+        Value divideValuesTail(const Value& a, const Value& b);
+        Value moduloValuesTail(const Value& a, const Value& b);
 
         // Comparison operations with proper reference tracking
         Value equalsValues(const Value& a, const Value& b);
@@ -573,6 +582,11 @@ namespace pg
         Value greaterEqualValues(const Value& a, const Value& b);
         Value lessValues(const Value& a, const Value& b);
         Value lessEqualValues(const Value& a, const Value& b);
+
+        Value greaterValuesTail(const Value& a, const Value& b);
+        Value greaterEqualValuesTail(const Value& a, const Value& b);
+        Value lessValuesTail(const Value& a, const Value& b);
+        Value lessEqualValuesTail(const Value& a, const Value& b);
 
         CallFrame frames[FRAMES_MAX];
 

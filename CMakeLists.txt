@@ -404,6 +404,28 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minimal engine)")
 
     # ===============================================
+    # VM OP-KERNEL REGENERATION TARGET
+    # ===============================================
+    # Regenerates src/Engine/Compiler/generated/*.inc from the declarative
+    # kernel spec tools/vm_ops_def.pg, using the PgScript generator
+    # tools/gen_vm_ops.pg (self-hosted codegen).
+    #
+    # Deliberately NOT wired into the library dependency graph: the .inc
+    # files are inputs to ColumbaEngineMinimal, which PgCompilerBootstrap
+    # links against — auto-regeneration would be a circular dependency.
+    # Instead the generated files are committed; after editing the spec run
+    #   cmake --build <build-dir> --target GenerateVmOps
+    # then rebuild. check_vm_ops_fresh.sh guards against stale output.
+    add_custom_target(GenerateVmOps
+        COMMAND $<TARGET_FILE:PgCompilerBootstrap> gen_vm_ops.pg ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Compiler/generated
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tools
+        DEPENDS PgCompilerBootstrap
+        SOURCES tools/gen_vm_ops.pg tools/vm_ops_def.pg
+        COMMENT "Regenerating VM op kernels from tools/vm_ops_def.pg"
+        VERBATIM
+    )
+
+    # ===============================================
     # COMPONENT REGENERATION TARGET
     # ===============================================
     # Create a target to regenerate components when .pgcomp files change

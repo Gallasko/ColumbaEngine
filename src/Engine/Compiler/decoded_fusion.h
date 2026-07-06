@@ -50,12 +50,9 @@ namespace fusion
 
     enum class Producer : uint8_t { None, Local, Const, ShortInt };
 
-    enum class BinOp : uint8_t
-    {
-        None,
-        Add, Subtract, Multiply, Divide, Modulo,
-        Equal, NotEqual, Greater, GreaterEqual, Less, LessEqual,
-    };
+    // BinOp + its classification/trait tables are GENERATED from the kernel
+    // spec in /tools/vm_ops_def.pg (see ops_functors.inc note below).
+    #include "generated/ops_binop_tables.inc"
 
     enum class UnOp : uint8_t { None, Not, Negate };
 
@@ -74,25 +71,6 @@ namespace fusion
         }
     }
 
-    inline BinOp classifyBinary(uint8_t opcode)
-    {
-        switch (static_cast<OpCode>(opcode))
-        {
-            case OpCode::OP_Add:          return BinOp::Add;
-            case OpCode::OP_Subtract:     return BinOp::Subtract;
-            case OpCode::OP_Multiply:     return BinOp::Multiply;
-            case OpCode::OP_Divide:       return BinOp::Divide;
-            case OpCode::OP_Modulo:       return BinOp::Modulo;
-            case OpCode::OP_Equal:        return BinOp::Equal;
-            case OpCode::OP_NotEqual:     return BinOp::NotEqual;
-            case OpCode::OP_Greater:      return BinOp::Greater;
-            case OpCode::OP_GreaterEqual: return BinOp::GreaterEqual;
-            case OpCode::OP_Less:         return BinOp::Less;
-            case OpCode::OP_LessEqual:    return BinOp::LessEqual;
-            default:                      return BinOp::None;
-        }
-    }
-
     inline UnOp classifyUnary(uint8_t opcode)
     {
         switch (static_cast<OpCode>(opcode))
@@ -101,28 +79,6 @@ namespace fusion
             case OpCode::OP_Negate: return UnOp::Negate;
             default:                return UnOp::None;
         }
-    }
-
-    inline bool isComparison(BinOp op)
-    {
-        return op >= BinOp::Equal;
-    }
-
-    // Operands may be swapped freely only for these ops — used by the in-place
-    // compound-assignment fusion to handle `x = operand <op> x`.
-    inline bool isCommutative(BinOp op)
-    {
-        return op == BinOp::Add or op == BinOp::Multiply
-            or op == BinOp::Equal or op == BinOp::NotEqual;
-    }
-
-    inline const char* binOpName(BinOp op)
-    {
-        static const char* opNames[] = {
-            "None", "Add", "Subtract", "Multiply", "Divide", "Modulo",
-            "Equal", "NotEqual", "Greater", "GreaterEqual", "Less", "LessEqual",
-        };
-        return opNames[static_cast<uint8_t>(op)];
     }
 
     inline bool isStoreConsumer(uint8_t opcode)
@@ -183,119 +139,11 @@ namespace fusion
         #define PG_FUSION_INLINE inline
     #endif
 
-    #define PG_FUSED_ARITH(name, op, slow)                                            \
-    struct name                                                                       \
-    {                                                                                 \
-        PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)   \
-        {                                                                             \
-            if (IS_INT(a) and IS_INT(b))                                              \
-                return INT_VAL(AS_INT(a) op AS_INT(b));                               \
-            if (IS_DOUBLE(a) and IS_DOUBLE(b))                                        \
-                return FLOAT_VAL(AS_DOUBLE(a) op AS_DOUBLE(b));                       \
-            if (IS_INT(a) and IS_DOUBLE(b))                                           \
-                return FLOAT_VAL(static_cast<double>(AS_INT(a)) op AS_DOUBLE(b));     \
-            if (IS_DOUBLE(a) and IS_INT(b))                                           \
-                return FLOAT_VAL(AS_DOUBLE(a) op static_cast<double>(AS_INT(b)));     \
-            return vm->slow(a, b);                                                    \
-        }                                                                             \
-    };
-
-    #define PG_FUSED_CMP(name, op, slow)                                              \
-    struct name                                                                       \
-    {                                                                                 \
-        PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)   \
-        {                                                                             \
-            if (IS_INT(a) and IS_INT(b))                                              \
-                return BOOL_VAL(AS_INT(a) op AS_INT(b));                              \
-            if (IS_DOUBLE(a) and IS_DOUBLE(b))                                        \
-                return BOOL_VAL(AS_DOUBLE(a) op AS_DOUBLE(b));                        \
-            if (IS_INT(a) and IS_DOUBLE(b))                                           \
-                return BOOL_VAL(static_cast<double>(AS_INT(a)) op AS_DOUBLE(b));      \
-            if (IS_DOUBLE(a) and IS_INT(b))                                           \
-                return BOOL_VAL(AS_DOUBLE(a) op static_cast<double>(AS_INT(b)));      \
-            return vm->slow(a, b);                                                    \
-        }                                                                             \
-        /* Branch-sink form: the condition as a raw bool, no Value boxing. */         \
-        PG_FUSION_INLINE static bool applyCond(VM* vm, const Value& a, const Value& b)\
-        {                                                                             \
-            if (IS_INT(a) and IS_INT(b))                                              \
-                return AS_INT(a) op AS_INT(b);                                        \
-            if (IS_DOUBLE(a) and IS_DOUBLE(b))                                        \
-                return AS_DOUBLE(a) op AS_DOUBLE(b);                                  \
-            if (IS_INT(a) and IS_DOUBLE(b))                                           \
-                return static_cast<double>(AS_INT(a)) op AS_DOUBLE(b);                \
-            if (IS_DOUBLE(a) and IS_INT(b))                                           \
-                return AS_DOUBLE(a) op static_cast<double>(AS_INT(b));                \
-            return isValueTrue(vm->slow(a, b));                                       \
-        }                                                                             \
-    };
-
-    PG_FUSED_ARITH(FAdd,      +, addValues)
-    PG_FUSED_ARITH(FSubtract, -, subtractValues)
-    PG_FUSED_ARITH(FMultiply, *, multiplyValues)
-
-    PG_FUSED_CMP(FGreater,      >,  greaterValues)
-    PG_FUSED_CMP(FGreaterEqual, >=, greaterEqualValues)
-    PG_FUSED_CMP(FLess,         <,  lessValues)
-    PG_FUSED_CMP(FLessEqual,    <=, lessEqualValues)
-
-    #undef PG_FUSED_ARITH
-    #undef PG_FUSED_CMP
-
-    // Divide: an int divisor only needs the `!= 0` guard inline; double
-    // divisors keep the epsilon-vs-zero check in divideValues. Modulo stays
-    // fully out of line.
-    struct FDivide
-    {
-        PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)
-        {
-            if (IS_INT(b) and AS_INT(b) != 0)
-            {
-                if (IS_INT(a))
-                    return INT_VAL(AS_INT(a) / AS_INT(b));
-                if (IS_DOUBLE(a))
-                    return FLOAT_VAL(AS_DOUBLE(a) / static_cast<double>(AS_INT(b)));
-            }
-            return vm->divideValues(a, b);
-        }
-    };
-
-    struct FModulo       { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->moduloValues(a, b); } };
-
-    // Equality: canonical NaN-boxed ints compare as raw bits (mirrors the
-    // equalsValues fallback `a == b`). Anything involving a double keeps the
-    // epsilon semantics in equalsValues/notEqualsValues.
-    struct FEqual
-    {
-        PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)
-        {
-            if (IS_INT(a) and IS_INT(b))
-                return BOOL_VAL(a == b);
-            return vm->equalsValues(a, b);
-        }
-        PG_FUSION_INLINE static bool applyCond(VM* vm, const Value& a, const Value& b)
-        {
-            if (IS_INT(a) and IS_INT(b))
-                return a == b;
-            return isValueTrue(vm->equalsValues(a, b));
-        }
-    };
-
-    struct FNotEqual
-    {
-        PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)
-        {
-            if (IS_INT(a) and IS_INT(b))
-                return BOOL_VAL(a != b);
-            return vm->notEqualsValues(a, b);
-        }
-        PG_FUSION_INLINE static bool applyCond(VM* vm, const Value& a, const Value& b)
-        {
-            if (IS_INT(a) and IS_INT(b))
-                return a != b;
-            return isValueTrue(vm->notEqualsValues(a, b));
-        }
-    };
+    // The functor structs are GENERATED from the declarative kernel spec in
+    // /tools/vm_ops_def.pg — one entry there renders the fused fast paths,
+    // the base stack handlers and the *Values helpers, so fast and slow
+    // semantics cannot drift. Regenerate with the GenerateVmOps target.
+    #include "generated/ops_functors.inc"
 
     // applyCond for the branch-sink handlers: comparison functors provide a
     // boxing-free bool; everything else evaluates apply() and truth-tests the
@@ -686,27 +534,6 @@ namespace fusion
         return nullptr;
     }
 
-    inline OpDecodedHandler selectFusedBinary(BinOp op, Src a, Src b, Sink sink)
-    {
-        const bool cmp = isComparison(op);
-        switch (op)
-        {
-            case BinOp::Add:          return pickA<FAdd>(a, b, sink, cmp);
-            case BinOp::Subtract:     return pickA<FSubtract>(a, b, sink, cmp);
-            case BinOp::Multiply:     return pickA<FMultiply>(a, b, sink, cmp);
-            case BinOp::Divide:       return pickA<FDivide>(a, b, sink, cmp);
-            case BinOp::Modulo:       return pickA<FModulo>(a, b, sink, cmp);
-            case BinOp::Equal:        return pickA<FEqual>(a, b, sink, cmp);
-            case BinOp::NotEqual:     return pickA<FNotEqual>(a, b, sink, cmp);
-            case BinOp::Greater:      return pickA<FGreater>(a, b, sink, cmp);
-            case BinOp::GreaterEqual: return pickA<FGreaterEqual>(a, b, sink, cmp);
-            case BinOp::Less:         return pickA<FLess>(a, b, sink, cmp);
-            case BinOp::LessEqual:    return pickA<FLessEqual>(a, b, sink, cmp);
-            case BinOp::None:         return nullptr;
-        }
-        return nullptr;
-    }
-
     // In-place compound assignment: only the right operand B varies (the left
     // operand is always the destination local, encoded in byte1).
     template <typename Op>
@@ -722,25 +549,9 @@ namespace fusion
         return nullptr;
     }
 
-    inline OpDecodedHandler selectFusedLocalCompound(BinOp op, Src b)
-    {
-        switch (op)
-        {
-            case BinOp::Add:          return pickCompoundB<FAdd>(b);
-            case BinOp::Subtract:     return pickCompoundB<FSubtract>(b);
-            case BinOp::Multiply:     return pickCompoundB<FMultiply>(b);
-            case BinOp::Divide:       return pickCompoundB<FDivide>(b);
-            case BinOp::Modulo:       return pickCompoundB<FModulo>(b);
-            case BinOp::Equal:        return pickCompoundB<FEqual>(b);
-            case BinOp::NotEqual:     return pickCompoundB<FNotEqual>(b);
-            case BinOp::Greater:      return pickCompoundB<FGreater>(b);
-            case BinOp::GreaterEqual: return pickCompoundB<FGreaterEqual>(b);
-            case BinOp::Less:         return pickCompoundB<FLess>(b);
-            case BinOp::LessEqual:    return pickCompoundB<FLessEqual>(b);
-            case BinOp::None:         return nullptr;
-        }
-        return nullptr;
-    }
+    // The selection switches are GENERATED alongside the functors — a new op
+    // in the spec flows into the fusion pass with no code edits here.
+    #include "generated/ops_select.inc"
 
     inline OpDecodedHandler selectFusedUnary(UnOp op)
     {

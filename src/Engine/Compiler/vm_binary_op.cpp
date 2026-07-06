@@ -2,27 +2,20 @@
 
 #include "vm.h"
 #include "decoded_chunk.h"
+#include "decoded_fusion.h"
 
 namespace pg
 {
 
-    Value VM::addValues(const Value a, const Value b)
+    // ------------------------------------------------------------------
+    // *ValuesTail — handwritten non-numeric fallbacks. The numeric kernel
+    // ladders of the *Values helpers are GENERATED from /tools/vm_ops_def.pg
+    // (see generated/ops_values_helpers.inc, included below), so the fused
+    // fast paths and these slow paths can never drift apart.
+    // ------------------------------------------------------------------
+
+    Value VM::addValuesTail(const Value& a, const Value& b)
     {
-        // Fast path for integers
-        if (IS_INT(a) and IS_INT(b))
-            return INT_VAL(AS_INT(a) + AS_INT(b));
-
-        // Fast path for floats
-        if (IS_FLOAT(a) and IS_FLOAT(b))
-            return FLOAT_VAL(AS_FLOAT(a) + AS_FLOAT(b));
-
-        // Mixed int/float cases - promote to float
-        if (IS_INT(a) and IS_FLOAT(b))
-            return FLOAT_VAL(static_cast<double>(AS_INT(a)) + AS_FLOAT(b));
-
-        if (IS_FLOAT(a) and IS_INT(b))
-            return FLOAT_VAL(AS_FLOAT(a) + static_cast<double>(AS_INT(b)));
-
         // Fast path for string concatenation
         if (IS_STRING(a) and IS_STRING(b))
         {
@@ -43,23 +36,8 @@ namespace pg
         return elementToValue(elemA + elemB);
     }
 
-    Value VM::subtractValues(const Value& a, const Value& b)
+    Value VM::subtractValuesTail(const Value& a, const Value& b)
     {
-        // Fast path for integers
-        if (IS_INT(a) and IS_INT(b))
-            return INT_VAL(AS_INT(a) - AS_INT(b));
-
-        // Fast path for floats
-        if (IS_FLOAT(a) and IS_FLOAT(b))
-            return FLOAT_VAL(AS_FLOAT(a) - AS_FLOAT(b));
-
-        // Mixed int/float cases - promote to float
-        if (IS_INT(a) and IS_FLOAT(b))
-            return FLOAT_VAL(static_cast<double>(AS_INT(a)) - AS_FLOAT(b));
-
-        if (IS_FLOAT(a) and IS_INT(b))
-            return FLOAT_VAL(AS_FLOAT(a) - static_cast<double>(AS_INT(b)));
-
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot compare function Values");
@@ -70,23 +48,8 @@ namespace pg
         return elementToValue(elemA - elemB);
     }
 
-    Value VM::multiplyValues(const Value& a, const Value& b)
+    Value VM::multiplyValuesTail(const Value& a, const Value& b)
     {
-        // Fast path for integers
-        if (IS_INT(a) and IS_INT(b))
-            return INT_VAL(AS_INT(a) * AS_INT(b));
-
-        // Fast path for floats
-        if (IS_FLOAT(a) and IS_FLOAT(b))
-            return FLOAT_VAL(AS_FLOAT(a) * AS_FLOAT(b));
-
-        // Mixed int/float cases - promote to float
-        if (IS_INT(a) and IS_FLOAT(b))
-            return FLOAT_VAL(static_cast<double>(AS_INT(a)) * AS_FLOAT(b));
-
-        if (IS_FLOAT(a) and IS_INT(b))
-            return FLOAT_VAL(AS_FLOAT(a) * static_cast<double>(AS_INT(b)));
-
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot multiply function Values");
@@ -97,50 +60,21 @@ namespace pg
         return elementToValue(elemA * elemB);
     }
 
-    Value VM::divideValues(const Value& a, const Value& b)
+    Value VM::divideValuesTail(const Value& a, const Value& b)
     {
-        // Fast path for integers
-        if (IS_INT(a) and IS_INT(b) and AS_INT(b) != 0)
-            return INT_VAL(AS_INT(a) / AS_INT(b));
-
-        // Fast path for floats
-        if (IS_FLOAT(a) and IS_FLOAT(b) and areNotAlmostEqual(static_cast<float>(AS_FLOAT(b)), 0.0f))
-            return FLOAT_VAL(AS_FLOAT(a) / AS_FLOAT(b));
-
-        // Mixed int/float cases - promote to float
-        if (IS_INT(a) and IS_FLOAT(b) and areNotAlmostEqual(static_cast<float>(AS_FLOAT(b)), 0.0f))
-            return FLOAT_VAL(static_cast<double>(AS_INT(a)) / AS_FLOAT(b));
-
-        if (IS_FLOAT(a) and IS_INT(b) and AS_INT(b) != 0)
-            return FLOAT_VAL(AS_FLOAT(a) / static_cast<double>(AS_INT(b)));
-
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot divide function Values");
 
         // Fall back to ElementType for other complex cases
+        // (also reached for division by zero / by epsilon-zero doubles)
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA / elemB);
     }
 
-    Value VM::moduloValues(const Value& a, const Value& b)
+    Value VM::moduloValuesTail(const Value& a, const Value& b)
     {
-        // Fast path for integers
-        if (IS_INT(a) and IS_INT(b) and AS_INT(b) != 0)
-            return INT_VAL(AS_INT(a) % AS_INT(b));
-
-        // For floats, use fmod
-        if (IS_FLOAT(a) and IS_FLOAT(b) and areNotAlmostEqual(static_cast<float>(AS_FLOAT(b)), 0.0f))
-            return FLOAT_VAL(std::fmod(AS_FLOAT(a), AS_FLOAT(b)));
-
-        // Mixed int/float cases - promote to float
-        if (IS_INT(a) and IS_FLOAT(b) and areNotAlmostEqual(static_cast<float>(AS_FLOAT(b)), 0.0f))
-            return FLOAT_VAL(std::fmod(static_cast<double>(AS_INT(a)), AS_FLOAT(b)));
-
-        if (IS_FLOAT(a) and IS_INT(b) and AS_INT(b) != 0)
-            return FLOAT_VAL(std::fmod(AS_FLOAT(a), static_cast<double>(AS_INT(b))));
-
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot modulo function Values");
@@ -166,48 +100,8 @@ namespace pg
         return elementToValue(-elem);
     }
 
-    Value VM::equalsValues(const Value& a, const Value& b)
+    Value VM::greaterValuesTail(const Value& a, const Value& b)
     {
-        if (IS_FLOAT(a) and IS_FLOAT(b))
-            return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_FLOAT(b))));
-
-        if (IS_INT(a) and IS_FLOAT(b))
-            return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_INT(a)), static_cast<float>(AS_FLOAT(b))));
-
-        if (IS_FLOAT(a) and IS_INT(b))
-            return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_INT(b))));
-
-        return BOOL_VAL(a == b);
-    }
-
-    Value VM::notEqualsValues(const Value& a, const Value& b)
-    {
-        if (IS_FLOAT(a) and IS_FLOAT(b))
-            return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_FLOAT(b))));
-
-        if (IS_INT(a) and IS_FLOAT(b))
-            return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_INT(a)), static_cast<float>(AS_FLOAT(b))));
-
-        if (IS_FLOAT(a) and IS_INT(b))
-            return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_INT(b))));
-
-        return BOOL_VAL(a != b);
-    }
-
-    Value VM::greaterValues(const Value& a, const Value& b)
-    {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) > AS_INT(b));
-
-        if (IS_FLOAT(a) and IS_FLOAT(b))
-            return BOOL_VAL(AS_FLOAT(a) > AS_FLOAT(b));
-
-        if (IS_INT(a) and IS_FLOAT(b))
-            return BOOL_VAL(static_cast<double>(AS_INT(a)) > AS_FLOAT(b));
-
-        if (IS_FLOAT(a) and IS_INT(b))
-            return BOOL_VAL(AS_FLOAT(a) > static_cast<double>(AS_INT(b)));
-
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot compare function Values");
@@ -217,20 +111,8 @@ namespace pg
         return elementToValue(elemA > elemB);
     }
 
-    Value VM::greaterEqualValues(const Value& a, const Value& b)
+    Value VM::greaterEqualValuesTail(const Value& a, const Value& b)
     {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) >= AS_INT(b));
-
-        if (IS_FLOAT(a) and IS_FLOAT(b))
-            return BOOL_VAL(AS_FLOAT(a) >= AS_FLOAT(b));
-
-        if (IS_INT(a) and IS_FLOAT(b))
-            return BOOL_VAL(static_cast<double>(AS_INT(a)) >= AS_FLOAT(b));
-
-        if (IS_FLOAT(a) and IS_INT(b))
-            return BOOL_VAL(AS_FLOAT(a) >= static_cast<double>(AS_INT(b)));
-
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot compare function Values");
@@ -240,20 +122,8 @@ namespace pg
         return elementToValue(elemA >= elemB);
     }
 
-    Value VM::lessValues(const Value& a, const Value& b)
+    Value VM::lessValuesTail(const Value& a, const Value& b)
     {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) < AS_INT(b));
-
-        if (IS_FLOAT(a) and IS_FLOAT(b))
-            return BOOL_VAL(AS_FLOAT(a) < AS_FLOAT(b));
-
-        if (IS_INT(a) and IS_FLOAT(b))
-            return BOOL_VAL(static_cast<double>(AS_INT(a)) < AS_FLOAT(b));
-
-        if (IS_FLOAT(a) and IS_INT(b))
-            return BOOL_VAL(AS_FLOAT(a) < static_cast<double>(AS_INT(b)));
-
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot compare function Values");
@@ -263,20 +133,8 @@ namespace pg
         return elementToValue(elemA < elemB);
     }
 
-    Value VM::lessEqualValues(const Value& a, const Value& b)
+    Value VM::lessEqualValuesTail(const Value& a, const Value& b)
     {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) <= AS_INT(b));
-
-        if (IS_FLOAT(a) and IS_FLOAT(b))
-            return BOOL_VAL(AS_FLOAT(a) <= AS_FLOAT(b));
-
-        if (IS_INT(a) and IS_FLOAT(b))
-            return BOOL_VAL(static_cast<double>(AS_INT(a)) <= AS_FLOAT(b));
-
-        if (IS_FLOAT(a) and IS_INT(b))
-            return BOOL_VAL(AS_FLOAT(a) <= static_cast<double>(AS_INT(b)));
-
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot compare function Values");
@@ -285,6 +143,11 @@ namespace pg
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA <= elemB);
     }
+
+    // The *Values bodies themselves: GENERATED kernel ladders that fall
+    // through to the tails above (equal/notEqual end in a verbatim raw
+    // NaN-box compare instead of a tail function).
+    #include "generated/ops_values_helpers.inc"
 
     const DecodedInstruction* op_true_decoded(VM* vm, const DecodedInstruction& instr)
     {
@@ -298,33 +161,11 @@ namespace pg
         return &instr + 1;
     }
 
-    #define BINARY_OP_TEMPLATE(op_name, operation) \
-    const DecodedInstruction* op_name##_decoded(VM* vm, const DecodedInstruction& instr) \
-    { \
-        auto b = vm->pop(); \
-        auto a = vm->peek(); \
-        vm->changeTop(vm->operation(a, b)); \
-        /* Escape analysis: Only release heap objects, not primitives */ \
-        if (requiresRefCount(b)) vm->releaseAndDelete(b); \
-        return &instr + 1; \
-    }
-
-    BINARY_OP_TEMPLATE(op_add, addValues)
-    BINARY_OP_TEMPLATE(op_subtract, subtractValues)
-    BINARY_OP_TEMPLATE(op_multiply, multiplyValues)
-    BINARY_OP_TEMPLATE(op_divide, divideValues)
-    BINARY_OP_TEMPLATE(op_modulo, moduloValues)
-
-    BINARY_OP_TEMPLATE(op_equal, equalsValues)
-    BINARY_OP_TEMPLATE(op_greater, greaterValues)
-    BINARY_OP_TEMPLATE(op_less, lessValues)
-
-    // Additional comparison operations using BINARY_OP_TEMPLATE pattern
-    BINARY_OP_TEMPLATE(op_not_equal, notEqualsValues)
-    BINARY_OP_TEMPLATE(op_greater_equal, greaterEqualValues)
-    BINARY_OP_TEMPLATE(op_less_equal, lessEqualValues)
-
-    #undef BINARY_OP_TEMPLATE
+    // The base stack/stack handlers are GENERATED from the kernel spec in
+    // /tools/vm_ops_def.pg: they delegate to the same always_inline fusion
+    // functors, so the dominant int/double cases never leave the handler.
+    // Regenerate with the GenerateVmOps target.
+    #include "generated/ops_base_handlers.inc"
 
     const DecodedInstruction* op_negate_decoded(VM* vm, const DecodedInstruction& instr)
     {
