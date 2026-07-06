@@ -37,6 +37,7 @@
 #include "decoded_chunk.h"
 
 #include <mutex>
+#include <type_traits>
 #include <unordered_set>
 
 namespace pg
@@ -166,19 +167,95 @@ namespace fusion
 
     // ------------------------------------------------------------------
     // Op functors — delegate to the existing value semantics (ground truth)
+    //
+    // The int/int and double/double cases are duplicated inline: the VM
+    // helpers live in vm_binary_op.cpp, so without LTO every fused op would
+    // pay a cross-TU call plus the full type-dispatch ladder even for the
+    // dominant primitive cases. Anything else falls through to the helper,
+    // which remains the single source of truth for mixed/complex types.
     // ------------------------------------------------------------------
 
-    struct FAdd          { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->addValues(a, b); } };
-    struct FSubtract     { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->subtractValues(a, b); } };
-    struct FMultiply     { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->multiplyValues(a, b); } };
+    // The compiler sometimes outlines these small apply() bodies (isra
+    // clones), putting the call back on the hot path — force the issue.
+    #if defined(__GNUC__) or defined(__clang__)
+        #define PG_FUSION_INLINE inline __attribute__((always_inline))
+    #else
+        #define PG_FUSION_INLINE inline
+    #endif
+
+    #define PG_FUSED_ARITH(name, op, slow)                                            \
+    struct name                                                                       \
+    {                                                                                 \
+        PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)   \
+        {                                                                             \
+            if (IS_INT(a) and IS_INT(b))                                              \
+                return INT_VAL(AS_INT(a) op AS_INT(b));                               \
+            if (IS_DOUBLE(a) and IS_DOUBLE(b))                                        \
+                return FLOAT_VAL(AS_DOUBLE(a) op AS_DOUBLE(b));                       \
+            return vm->slow(a, b);                                                    \
+        }                                                                             \
+    };
+
+    #define PG_FUSED_CMP(name, op, slow)                                              \
+    struct name                                                                       \
+    {                                                                                 \
+        PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)   \
+        {                                                                             \
+            if (IS_INT(a) and IS_INT(b))                                              \
+                return BOOL_VAL(AS_INT(a) op AS_INT(b));                              \
+            if (IS_DOUBLE(a) and IS_DOUBLE(b))                                        \
+                return BOOL_VAL(AS_DOUBLE(a) op AS_DOUBLE(b));                        \
+            return vm->slow(a, b);                                                    \
+        }                                                                             \
+        /* Branch-sink form: the condition as a raw bool, no Value boxing. */         \
+        PG_FUSION_INLINE static bool applyCond(VM* vm, const Value& a, const Value& b)\
+        {                                                                             \
+            if (IS_INT(a) and IS_INT(b))                                              \
+                return AS_INT(a) op AS_INT(b);                                        \
+            if (IS_DOUBLE(a) and IS_DOUBLE(b))                                        \
+                return AS_DOUBLE(a) op AS_DOUBLE(b);                                  \
+            return isValueTrue(vm->slow(a, b));                                       \
+        }                                                                             \
+    };
+
+    PG_FUSED_ARITH(FAdd,      +, addValues)
+    PG_FUSED_ARITH(FSubtract, -, subtractValues)
+    PG_FUSED_ARITH(FMultiply, *, multiplyValues)
+
+    PG_FUSED_CMP(FGreater,      >,  greaterValues)
+    PG_FUSED_CMP(FGreaterEqual, >=, greaterEqualValues)
+    PG_FUSED_CMP(FLess,         <,  lessValues)
+    PG_FUSED_CMP(FLessEqual,    <=, lessEqualValues)
+
+    #undef PG_FUSED_ARITH
+    #undef PG_FUSED_CMP
+
+    // Divide/Modulo keep their zero-division handling in one place;
+    // Equal/NotEqual span every value kind. All stay out of line.
     struct FDivide       { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->divideValues(a, b); } };
     struct FModulo       { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->moduloValues(a, b); } };
     struct FEqual        { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->equalsValues(a, b); } };
     struct FNotEqual     { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->notEqualsValues(a, b); } };
-    struct FGreater      { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->greaterValues(a, b); } };
-    struct FGreaterEqual { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->greaterEqualValues(a, b); } };
-    struct FLess         { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->lessValues(a, b); } };
-    struct FLessEqual    { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->lessEqualValues(a, b); } };
+
+    // applyCond for the branch-sink handlers: comparison functors provide a
+    // boxing-free bool; everything else evaluates apply() and truth-tests the
+    // result, matching the original `isValueTrue(Op::apply(...))` semantics.
+    template <typename Op, typename = void>
+    struct HasApplyCond : std::false_type {};
+
+    template <typename Op>
+    struct HasApplyCond<Op, std::void_t<decltype(
+        Op::applyCond(static_cast<VM*>(nullptr), Value{}, Value{}))>>
+        : std::true_type {};
+
+    template <typename Op>
+    inline bool applyCondFast(VM* vm, const Value& a, const Value& b)
+    {
+        if constexpr (HasApplyCond<Op>::value)
+            return Op::applyCond(vm, a, b);
+        else
+            return isValueTrue(Op::apply(vm, a, b));
+    }
 
     // ------------------------------------------------------------------
     // Source readers
@@ -354,11 +431,11 @@ namespace fusion
     {
         Value b = readSrc<B>(vm, instr, instr.operands.indexed.byte2);
         Value a = readSrc<A>(vm, instr, instr.operands.indexed.byte1);
-        Value r = Op::apply(vm, a, b);
+        const bool cond = applyCondFast<Op>(vm, a, b);
         releaseSrc<A>(vm, a);
         releaseSrc<B>(vm, b);
 
-        if (not isValueTrue(r))
+        if (not cond)
         {
             if constexpr (RelTarget)
             {
@@ -383,11 +460,11 @@ namespace fusion
     {
         Value b = readSrc<B>(vm, instr, instr.operands.indexed.byte2);
         Value a = readSrc<A>(vm, instr, instr.operands.indexed.byte1);
-        Value r = Op::apply(vm, a, b);
+        const bool cond = applyCondFast<Op>(vm, a, b);
         releaseSrc<A>(vm, a);
         releaseSrc<B>(vm, b);
 
-        if (isValueTrue(r))
+        if (cond)
         {
             if constexpr (RelTarget)
             {
@@ -414,7 +491,15 @@ namespace fusion
         const uint8_t slot = instr.operands.indexed.byte1;
         Value& val = vm->currentFrame->slots[slot];
 
-        if (not isValueNumber(val))
+        // Int fast path first — the type guard is folded into it so the
+        // dominant case never leaves this function.
+        if (IS_INT(val))
+        {
+            val = INT_VAL(AS_INT(val) + (Increment ? 1 : -1));
+            return &instr + 1;
+        }
+
+        if (not IS_DOUBLE(val))
         {
             vm->runtimeError(Increment ? "Operand after an unary (++) must be a number."
                                        : "Operand after an unary (--) must be a number.");
@@ -422,18 +507,10 @@ namespace fusion
             return nullptr;
         }
 
-        // Fast paths mirror op_incr_r; fall back to the value helpers.
-        if (IS_INT(val))
-        {
-            val = INT_VAL(AS_INT(val) + (Increment ? 1 : -1));
-        }
-        else
-        {
-            Value newValue = Increment ? vm->addValues(val, INT_VAL(1))
-                                       : vm->subtractValues(val, INT_VAL(1));
-            vm->releaseAndDelete(val);
-            val = newValue;
-        }
+        Value newValue = Increment ? vm->addValues(val, INT_VAL(1))
+                                   : vm->subtractValues(val, INT_VAL(1));
+        vm->releaseAndDelete(val);
+        val = newValue;
 
         return &instr + 1;
     }
