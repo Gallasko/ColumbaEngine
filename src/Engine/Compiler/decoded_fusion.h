@@ -192,6 +192,10 @@ namespace fusion
                 return INT_VAL(AS_INT(a) op AS_INT(b));                               \
             if (IS_DOUBLE(a) and IS_DOUBLE(b))                                        \
                 return FLOAT_VAL(AS_DOUBLE(a) op AS_DOUBLE(b));                       \
+            if (IS_INT(a) and IS_DOUBLE(b))                                           \
+                return FLOAT_VAL(static_cast<double>(AS_INT(a)) op AS_DOUBLE(b));     \
+            if (IS_DOUBLE(a) and IS_INT(b))                                           \
+                return FLOAT_VAL(AS_DOUBLE(a) op static_cast<double>(AS_INT(b)));     \
             return vm->slow(a, b);                                                    \
         }                                                                             \
     };
@@ -205,6 +209,10 @@ namespace fusion
                 return BOOL_VAL(AS_INT(a) op AS_INT(b));                              \
             if (IS_DOUBLE(a) and IS_DOUBLE(b))                                        \
                 return BOOL_VAL(AS_DOUBLE(a) op AS_DOUBLE(b));                        \
+            if (IS_INT(a) and IS_DOUBLE(b))                                           \
+                return BOOL_VAL(static_cast<double>(AS_INT(a)) op AS_DOUBLE(b));      \
+            if (IS_DOUBLE(a) and IS_INT(b))                                           \
+                return BOOL_VAL(AS_DOUBLE(a) op static_cast<double>(AS_INT(b)));      \
             return vm->slow(a, b);                                                    \
         }                                                                             \
         /* Branch-sink form: the condition as a raw bool, no Value boxing. */         \
@@ -214,6 +222,10 @@ namespace fusion
                 return AS_INT(a) op AS_INT(b);                                        \
             if (IS_DOUBLE(a) and IS_DOUBLE(b))                                        \
                 return AS_DOUBLE(a) op AS_DOUBLE(b);                                  \
+            if (IS_INT(a) and IS_DOUBLE(b))                                           \
+                return static_cast<double>(AS_INT(a)) op AS_DOUBLE(b);                \
+            if (IS_DOUBLE(a) and IS_INT(b))                                           \
+                return AS_DOUBLE(a) op static_cast<double>(AS_INT(b));                \
             return isValueTrue(vm->slow(a, b));                                       \
         }                                                                             \
     };
@@ -230,12 +242,60 @@ namespace fusion
     #undef PG_FUSED_ARITH
     #undef PG_FUSED_CMP
 
-    // Divide/Modulo keep their zero-division handling in one place;
-    // Equal/NotEqual span every value kind. All stay out of line.
-    struct FDivide       { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->divideValues(a, b); } };
+    // Divide: an int divisor only needs the `!= 0` guard inline; double
+    // divisors keep the epsilon-vs-zero check in divideValues. Modulo stays
+    // fully out of line.
+    struct FDivide
+    {
+        PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)
+        {
+            if (IS_INT(b) and AS_INT(b) != 0)
+            {
+                if (IS_INT(a))
+                    return INT_VAL(AS_INT(a) / AS_INT(b));
+                if (IS_DOUBLE(a))
+                    return FLOAT_VAL(AS_DOUBLE(a) / static_cast<double>(AS_INT(b)));
+            }
+            return vm->divideValues(a, b);
+        }
+    };
+
     struct FModulo       { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->moduloValues(a, b); } };
-    struct FEqual        { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->equalsValues(a, b); } };
-    struct FNotEqual     { static Value apply(VM* vm, const Value& a, const Value& b) { return vm->notEqualsValues(a, b); } };
+
+    // Equality: canonical NaN-boxed ints compare as raw bits (mirrors the
+    // equalsValues fallback `a == b`). Anything involving a double keeps the
+    // epsilon semantics in equalsValues/notEqualsValues.
+    struct FEqual
+    {
+        PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)
+        {
+            if (IS_INT(a) and IS_INT(b))
+                return BOOL_VAL(a == b);
+            return vm->equalsValues(a, b);
+        }
+        PG_FUSION_INLINE static bool applyCond(VM* vm, const Value& a, const Value& b)
+        {
+            if (IS_INT(a) and IS_INT(b))
+                return a == b;
+            return isValueTrue(vm->equalsValues(a, b));
+        }
+    };
+
+    struct FNotEqual
+    {
+        PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)
+        {
+            if (IS_INT(a) and IS_INT(b))
+                return BOOL_VAL(a != b);
+            return vm->notEqualsValues(a, b);
+        }
+        PG_FUSION_INLINE static bool applyCond(VM* vm, const Value& a, const Value& b)
+        {
+            if (IS_INT(a) and IS_INT(b))
+                return a != b;
+            return isValueTrue(vm->notEqualsValues(a, b));
+        }
+    };
 
     // applyCond for the branch-sink handlers: comparison functors provide a
     // boxing-free bool; everything else evaluates apply() and truth-tests the
