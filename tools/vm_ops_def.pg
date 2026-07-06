@@ -56,11 +56,13 @@ fun binaryOps()
                     ["int", "dbl", "static_cast<double>($a) / $b", "areNotAlmostEqual(static_cast<float>($b), 0.0f)", "helper"]],
                 tail: "divideValuesTail" })
 
-    // Modulo stays fully out of the inline path (all kernels helper-only).
+    // Int/int modulo is hot in benchmarks (matmul init, hash patterns) and
+    // safe to inline behind the zero guard; the fmod/epsilon cases stay in
+    // the helper.
     push(ops, { name: "modulo", opcode: "OP_Modulo", kind: "arith",
                 helper: "moduloValues", commutative: false,
                 kernels: [
-                    ["int", "int", "$a % $b", "$b != 0", "helper"],
+                    ["int", "int", "$a % $b", "$b != 0", "inline"],
                     ["dbl", "dbl", "std::fmod($a, $b)", "areNotAlmostEqual(static_cast<float>($b), 0.0f)", "helper"],
                     ["int", "dbl", "std::fmod(static_cast<double>($a), $b)", "areNotAlmostEqual(static_cast<float>($b), 0.0f)", "helper"],
                     ["dbl", "int", "std::fmod($a, static_cast<double>($b))", "$b != 0", "helper"]],

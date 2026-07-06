@@ -404,18 +404,50 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minimal engine)")
 
     # ===============================================
-    # VM OP-KERNEL REGENERATION TARGET
+    # VM OP-KERNEL REGENERATION (automatic, stage-0 bootstrap)
     # ===============================================
-    # Regenerates src/Engine/Compiler/generated/*.inc from the declarative
-    # kernel spec tools/vm_ops_def.pg, using the PgScript generator
+    # src/Engine/Compiler/generated/*.inc are rendered from the declarative
+    # kernel spec tools/vm_ops_def.pg by the PgScript generator
     # tools/gen_vm_ops.pg (self-hosted codegen).
     #
-    # Deliberately NOT wired into the library dependency graph: the .inc
-    # files are inputs to ColumbaEngineMinimal, which PgCompilerBootstrap
-    # links against — auto-regeneration would be a circular dependency.
-    # Instead the generated files are committed; after editing the spec run
+    # The .inc files are inputs to ColumbaEngineMinimal, which
+    # PgCompilerBootstrap links against — so regeneration cannot depend on
+    # the PgCompilerBootstrap TARGET (circular). Classic self-hosting
+    # solution: every successful bootstrap build persists a stage-0 copy of
+    # the binary; when the spec or generator changes, a build-time rule
+    # regenerates the .inc files with that stage-0 copy BEFORE the engine
+    # libraries compile. On a clean build directory there is no stage-0 yet
+    # and the committed .inc files serve as the bootstrap seed
+    # (check_vm_ops_fresh.sh guards that seed).
+    set(VM_OPS_STAGE0 ${CMAKE_BINARY_DIR}/stage0/PgCompilerBootstrap)
+    set(VM_OPS_STAMP ${CMAKE_BINARY_DIR}/stage0/vm_ops_regen.stamp)
+
+    add_custom_command(TARGET PgCompilerBootstrap POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:PgCompilerBootstrap> ${VM_OPS_STAGE0}
+        COMMENT "Persisting stage-0 PgCompilerBootstrap for VM ops codegen"
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${VM_OPS_STAMP}
+        COMMAND ${CMAKE_COMMAND}
+                -DSTAGE0=${VM_OPS_STAGE0}
+                -DTOOLS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/tools
+                -DGEN_DIR=${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Compiler/generated
+                -DSTAMP=${VM_OPS_STAMP}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/regen_vm_ops_stage0.cmake
+        DEPENDS
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_vm_ops.pg
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/vm_ops_def.pg
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/regen_vm_ops_stage0.cmake
+        COMMENT "Checking VM op kernels against tools/vm_ops_def.pg"
+        VERBATIM
+    )
+    add_custom_target(AutoGenVmOps DEPENDS ${VM_OPS_STAMP})
+    add_dependencies(ColumbaEngineMinimal AutoGenVmOps)
+
+    # Manual force-regen (uses the freshly built bootstrap, not stage-0):
     #   cmake --build <build-dir> --target GenerateVmOps
-    # then rebuild. check_vm_ops_fresh.sh guards against stale output.
     add_custom_target(GenerateVmOps
         COMMAND $<TARGET_FILE:PgCompilerBootstrap> gen_vm_ops.pg ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Compiler/generated
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tools
@@ -540,6 +572,12 @@ target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
 # Make ColumbaEngine depend on component regeneration (native builds only)
 if(COMPONENT_DEFINITIONS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT SKIP_COMPONENT_GENERATION)
     add_dependencies(ColumbaEngine RegenerateComponents)
+endif()
+
+# VM op kernels regenerate automatically (stage-0 bootstrap) before the full
+# engine compiles too, in case ColumbaEngineMinimal isn't part of the build.
+if(TARGET AutoGenVmOps)
+    add_dependencies(ColumbaEngine AutoGenVmOps)
 endif()
 
 # Include directories - ONLY use generator expressions for proper build/install interface

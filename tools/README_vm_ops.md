@@ -21,9 +21,11 @@ drift.
 ## Workflow
 
 1. Edit `/tools/vm_ops_def.pg` (schema documented in its header).
-2. Regenerate: `cmake --build <build-dir> --target GenerateVmOps`
-   (or from `/tools`: `<build-dir>/PgCompilerBootstrap gen_vm_ops.pg ../src/Engine/Compiler/generated`)
-3. Rebuild and verify:
+2. Build. Regeneration is AUTOMATIC: the build persists a stage-0 copy of
+   `PgCompilerBootstrap` (`<build-dir>/stage0/`), and a build-time rule
+   reruns the generator with it whenever the spec or generator changed —
+   before the engine libraries compile.
+3. Verify:
    - `/benchmark/comparisons/script/check_semantics.sh` — optimized vs
      `--no-opt` differential (byte-identical stdout on the semantics scripts)
    - `/benchmark/comparisons/script/check_vm_ops_fresh.sh` — committed `.inc`
@@ -31,14 +33,23 @@ drift.
    - `/benchmark/comparisons/script/bench_pg.sh` — perf regression check
 4. Commit the spec change TOGETHER with the regenerated `.inc` files.
 
-## Why regeneration is a manual target
+Manual force-regen (uses the freshly built bootstrap, not stage-0):
+`cmake --build <build-dir> --target GenerateVmOps`, or from `/tools`:
+`<build-dir>/PgCompilerBootstrap gen_vm_ops.pg ../src/Engine/Compiler/generated`
+
+## How the bootstrap cycle is broken (stage-0)
 
 The generated files are inputs to `ColumbaEngineMinimal`, which
-`PgCompilerBootstrap` (the generator's runner) links against — auto-wiring
-generation into the dependency graph would be circular. Committed output
-breaks the cycle: clean builds (including Emscripten/no-tools) compile from
-the committed files, and `GenerateVmOps` uses the previously built bootstrap
-compiler. The freshness check catches forgotten regenerations.
+`PgCompilerBootstrap` (the generator's runner) links against — so the regen
+rule cannot depend on the `PgCompilerBootstrap` TARGET (circular). Instead,
+every successful build copies the bootstrap binary to
+`<build-dir>/stage0/PgCompilerBootstrap` (POST_BUILD), and the regen rule
+(`tools/regen_vm_ops_stage0.cmake`) runs THAT copy — a file-level dependency
+only, no cycle. On a clean build directory no stage-0 exists yet; the
+committed `.inc` files are the bootstrap seed and regen is skipped for that
+first build (the freshness check guards the seed). Because generator output
+depends only on the spec, regenerating with the previous build's compiler
+reaches a fixed point in one pass.
 
 Handwritten pieces that intentionally stay out of the generator: the generic
 fused-handler templates and pick ladder (`decoded_fusion.h`), the fusion pass

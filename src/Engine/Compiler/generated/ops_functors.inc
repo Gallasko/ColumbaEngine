@@ -71,6 +71,8 @@
     {
         PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)
         {
+            if (IS_INT(a) and IS_INT(b) and (AS_INT(b) != 0))
+                return INT_VAL(AS_INT(a) % AS_INT(b));
             return vm->moduloValues(a, b);
         }
     };
