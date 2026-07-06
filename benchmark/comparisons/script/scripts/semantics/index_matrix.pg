@@ -1,0 +1,113 @@
+// index_matrix.pg — differential-semantics matrix for indexed access
+// (vectors, strings, tables), exercising the fuseIndexedAccess shapes:
+//   Get_Local v; <index expr>; Get_Index          (read, computed index)
+//   Get_Local v; <exprs>; Set_Index; Pop          (write / append)
+// plus the bail-out paths (globals, non-whitelisted index exprs) and the
+// refcount-sensitive cases (string elements overwritten in vector slots).
+
+// matmul's makeMatrix shape: append-at-end writes with a computed index.
+fun buildVec(n, offset)
+{
+    var m = [];
+    var i = 0;
+    while (i < n)
+    {
+        m[i] = ((i + offset) % 7) * 1.0;   // append path, computed value
+        i = i + 1;
+    }
+    return m;
+}
+
+// matmul's kernel shape: reads with arithmetic index expressions.
+fun sumProducts(A, B, n)
+{
+    var s = 0.0;
+    var i = 0;
+    while (i < n)
+    {
+        var j = 0;
+        while (j < n)
+        {
+            s = s + A[i * n + j] * B[j * n + i];
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return s;
+}
+
+fun readShapes(v)
+{
+    print(v[0]);           // constant index
+    print(v[2 + 1]);       // folded/computed index
+    var k = 2;
+    print(v[k]);           // local index
+    print(v[k * 2 - 1]);   // expression index
+    print(v[-1]);          // negative index (delegate path)
+    print(v[-4]);          // negative index deeper
+    var idx = [1, 3];
+    print(v[idx[0]]);      // nested indexed index: v[idx[0]]
+    print(v[idx[0] + idx[1]]); // two nested reads in one index expr
+}
+
+fun writeShapes()
+{
+    var v = [10, 20, 30];
+    v[0] = 11;   print(v[0]);
+    var k = 1;
+    v[k] = 21;   print(v[1]);
+    v[k + 1] = 31; print(v[2]);
+    v[3] = 41;   print(v[3]);        // append at len
+    v[-1] = 42;  print(v[3]);        // negative write (last element)
+    v[0] = v[1] + v[2]; print(v[0]); // read-modify-write through indices
+
+    // refcount stress: heap strings in and out of slots
+    var s = ["aa", "bb"];
+    s[0] = "cc";        print(s[0]); // overwrite string (release old)
+    s[1] = s[0] + "dd"; print(s[1]); // computed string value
+    s[2] = s[0];        print(s[2]); // append an aliased string
+    print(s[0] + s[1] + s[2]);
+
+    // self-referential value: v2 holds itself; write through it
+    var v2 = [1, 2];
+    v2[0] = v2[1];      print(v2[0]);
+    return v;
+}
+
+fun stringAndTable()
+{
+    var str = "hello";
+    print(str[0]);
+    print(str[4]);
+    print(str[-1]);
+    var t = {};
+    t["a"] = 5;      print(t["a"]);
+    t[1] = 6;        print(t[1]);
+    var key = "a";
+    t[key] = t[key] + 1; print(t["a"]);
+}
+
+// Bail-out shapes the fusion must leave alone (still must be correct).
+var gv = [7, 8, 9];      // global target: producer is Get_Global, no fusion
+print(gv[1]);
+gv[1] = 88;
+print(gv[1]);
+
+fun bailShapes(v, flag)
+{
+    print(v[flag and 1 or 0]);       // short-circuit inside index expr
+    var i = 0;
+    print(v[i = i + 2]);             // assignment inside index expr
+    print(i);
+}
+
+var A = buildVec(9, 0);
+var B = buildVec(9, 3);
+print(A[0]); print(A[8]); print(B[0]); print(B[8]);
+print(sumProducts(A, B, 3));
+
+readShapes([5, 6, 7, 8, 9]);
+var w = writeShapes();
+print(w[0] + w[1] + w[2] + w[3]);
+stringAndTable();
+bailShapes([100, 200, 300], true);

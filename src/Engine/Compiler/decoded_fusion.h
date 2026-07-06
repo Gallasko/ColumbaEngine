@@ -166,6 +166,98 @@ namespace fusion
     }
 
     // ------------------------------------------------------------------
+    // Indexed-access fusion handlers (see ChunkDecoder::fuseIndexedAccess).
+    // The container handle comes BORROWED from a local slot: the slot's own
+    // reference keeps it alive for the handler's duration, so the original
+    // retain (at Get_Local) and release (inside Get/Set_Index) pair — plus
+    // the handle's push/pop round-trip — disappear entirely.
+    // ------------------------------------------------------------------
+
+    // Stands in for a producer (or trailing Pop) whose work is now done by a
+    // downstream fused indexed-access handler. Kept as a 1-dispatch no-op so
+    // instruction indices/branch targets stay stable (the windows here are
+    // not contiguous, unlike fuseInstructions' shapes).
+    inline const DecodedInstruction* fusedElidedProducer(VM*, const DecodedInstruction& instr)
+    {
+        return &instr + 1;
+    }
+
+    // v[i] read: vector handle from slot byte1 (borrowed), index popped from
+    // the stack. Int-index vector access is inline; every other shape
+    // (string/table target, non-int index, negative/out-of-bounds) delegates
+    // to the generic handler with an OWNED handle re-pushed underneath the
+    // index — the delegate consumes both, so refcounts balance exactly.
+    inline const DecodedInstruction* fusedGetIndexLocal(VM* vm, const DecodedInstruction& instr)
+    {
+        const Value target = vm->currentFrame->slots[instr.operands.indexed.byte1];
+        Value index = vm->pop();
+
+        if (IS_VECTOR(target) and IS_INT(index))
+        {
+            ObjVector* vec = vm->asVector(target);
+            const int64_t idx = AS_INT(index);
+            if (idx >= 0 and idx < static_cast<int64_t>(vec->fields.size()))
+            {
+                vm->push(vm->retainValue(vec->fields[idx]));
+                return &instr + 1;
+            }
+        }
+
+        vm->push(vm->retainValue(target));
+        vm->push(index);
+        return op_get_index_decoded(vm, instr);
+    }
+
+    // v[i] = x: value and index popped from the stack, vector handle from
+    // slot byte1 (borrowed). Replaces the Set_Index + trailing Pop pair (the
+    // generic Set_Index leaves the target on the stack for that Pop). The
+    // in-bounds assign and append-at-end fast paths mirror
+    // op_set_index_decoded's vector branch minus the handle traffic.
+    inline const DecodedInstruction* fusedSetIndexLocal(VM* vm, const DecodedInstruction& instr)
+    {
+        const Value target = vm->currentFrame->slots[instr.operands.indexed.byte1];
+        Value value = vm->pop();
+        Value index = vm->pop();
+
+        if (IS_VECTOR(target) and IS_INT(index))
+        {
+            ObjVector* vec = vm->asVector(target);
+            int64_t idx = AS_INT(index);
+            if (idx < 0)
+                idx += static_cast<int64_t>(vec->fields.size());
+
+            if (idx >= 0 and idx < static_cast<int64_t>(vec->fields.size()))
+            {
+                vm->releaseAndDelete(vec->fields[idx]);
+                vec->fields[idx] = vm->retainValue(value);
+                vm->releaseAndDelete(value);
+                return &instr + 1;
+            }
+            if (idx == static_cast<int64_t>(vec->fields.size()))
+            {
+                // Append-at-end (push_back behaviour), as in the generic op.
+                vec->fields.push_back(vm->retainValue(value));
+                vm->releaseAndDelete(value);
+                return &instr + 1;
+            }
+        }
+
+        // Uncommon shapes delegate; the generic handler leaves the target on
+        // the stack (its contract) — drop it here, standing in for the
+        // elided Pop.
+        vm->push(vm->retainValue(target));
+        vm->push(index);
+        vm->push(value);
+        const DecodedInstruction* next = op_set_index_decoded(vm, instr);
+        if (next == nullptr)
+            return nullptr;
+        const Value handle = vm->pop();
+        if (requiresRefCount(handle))
+            vm->releaseAndDelete(handle);
+        return next;
+    }
+
+    // ------------------------------------------------------------------
     // Source readers
     // ------------------------------------------------------------------
 

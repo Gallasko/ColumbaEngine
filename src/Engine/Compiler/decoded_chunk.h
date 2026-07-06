@@ -94,6 +94,13 @@ namespace pg
                                      // replaces N original instructions (decode-
                                      // time fusion). Resolvers skip fused entries.
 
+        // Stack effect of FUSED instructions, recorded at fusion time and
+        // consumed by the indexed-access sweep (fuseIndexedAccess). 0xFF =
+        // unknown (acts as a scan barrier). Plain instructions derive their
+        // effect from originalOpcode instead.
+        uint8_t stackPops = 0xFF;
+        uint8_t stackPushes = 0xFF;
+
         // Display name for fused instructions (profiler / debugging).
         // Points into the fusion name interner (program lifetime); nullptr
         // for plain instructions, which use opcodeToString(originalOpcode).
@@ -133,6 +140,13 @@ namespace pg
         // Jump target mapping: bytecode offset → decoded instruction index
         // Needed for control flow instructions
         std::unordered_map<size_t, size_t> jumpTargets;
+
+        // Instruction INDICES targeted by fused conditional branches (whose
+        // original opcode/operands are gone after fusion, so they can no
+        // longer be decoded via branchTargetOffsetOf). Recorded by
+        // fuseInstructions' fixup step; consumed by fuseIndexedAccess's
+        // jump-into-window safety check.
+        std::vector<size_t> fusedBranchTargets;
 
         // Back-reference to original bytecode chunk
         const Chunk* originalChunk;
@@ -209,6 +223,12 @@ namespace pg
         // DecodedInstructions (specialized handlers, NO new opcodes — the
         // bytecode is untouched). Gated by vm->enableDecodeFusion.
         void fuseInstructions(DecodedChunk* decoded, const Chunk& chunk, VM* vm);
+
+        // Second fusion sweep: indexed accesses whose target is a plain
+        // local (`v[expr]` read/write) are rewritten so the container handle
+        // is read straight from the slot (borrowed) instead of being pushed,
+        // retained and released around the index expression.
+        void fuseIndexedAccess(DecodedChunk* decoded);
 
         // Build jump target map for control flow
         void buildJumpTargets(const Chunk& chunk, DecodedChunk* decoded);

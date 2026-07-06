@@ -157,6 +157,7 @@ namespace pg
         if (vm != nullptr and vm->enableDecodeFusion)
         {
             fuseInstructions(decoded, chunk, vm);
+            fuseIndexedAccess(decoded);
         }
 
         // Optimize: pre-resolve constant pointers
@@ -479,6 +480,15 @@ namespace pg
             bool   branchRelative = false;
             size_t branchTarget = 0;
             const std::string* fusedName = nullptr;
+            // Stack effect of the fused instruction, consumed by the
+            // indexed-access sweep. 0xFF = unknown (scan barrier).
+            uint8_t winPops = 0xFF;
+            uint8_t winPushes = 0xFF;
+
+            auto stackSrcCount = [](Src a, Src b) -> uint8_t {
+                return static_cast<uint8_t>((a == Src::Stack ? 1 : 0)
+                                          + (b == Src::Stack ? 1 : 0));
+            };
 
             // Shared tail for every binary-op shape: given the sources and
             // the index right after the op, try store consumer, then popping
@@ -497,12 +507,16 @@ namespace pg
                     {
                         windowLen = headLen + sc.len;
                         fusedName = compoundFusionName(op, compoundB);
+                        winPops = (compoundB == Src::Stack) ? 1 : 0;
+                        winPushes = 0;
                         return true;
                     }
                     if (buildBinary(op, a, b, Sink::Store, sc.dst, fused))
                     {
                         windowLen = headLen + sc.len;
                         fusedName = fusionName(op, a.kind, b.kind, Sink::Store);
+                        winPops = stackSrcCount(a.kind, b.kind);
+                        winPushes = 0;
                         return true;
                     }
                 }
@@ -555,6 +569,8 @@ namespace pg
                 {
                     windowLen = headLen;
                     fusedName = fusionName(op, a.kind, b.kind, Sink::Push);
+                    winPops = stackSrcCount(a.kind, b.kind);
+                    winPushes = 1;
                     return true;
                 }
                 return false;
@@ -600,6 +616,8 @@ namespace pg
                     fused.decodedHandler = selectFusedUnary(op);
                     fused.operands.indexed.byte1 = in[i].operands.byte;
                     windowLen = 2;
+                    winPops = 0;
+                    winPushes = 1;
                     fusedName = internFusionName(op == UnOp::Not ? "FUSED_Not(L)->Push"
                                                                  : "FUSED_Negate(L)->Push");
                 }
@@ -648,6 +666,8 @@ namespace pg
                 fused.decodedHandler = op_set_local_pop_decoded;
                 fused.operands.byte = in[i].operands.byte;
                 windowLen = 2;
+                winPops = 1;
+                winPushes = 0;
                 fusedName = internFusionName("FUSED_SetLocalPop");
             }
 
@@ -668,6 +688,8 @@ namespace pg
                                                 : &fusedIncrDecrLocal<false>;
                     fused.operands.indexed.byte1 = in[i].operands.byte; // slot
                     windowLen = 2;
+                    winPops = 0;
+                    winPushes = 0;
                     fusedName = internFusionName(incr ? "FUSED_IncrLocal"
                                                       : "FUSED_DecrLocal");
                 }
@@ -683,6 +705,8 @@ namespace pg
                 DecodedInstructionMeta m = im[i]; // head's offset/line/opcode
                 m.fusedLength = static_cast<uint8_t>(windowLen);
                 m.fusedName   = fusedName;
+                m.stackPops   = winPops;
+                m.stackPushes = winPushes;
 
                 if (hasBranch)
                     branchFixups.push_back({newIdx, branchTarget, branchRelative});
@@ -749,10 +773,173 @@ namespace pg
             {
                 di.jumpTargetPtr = decoded->instructions.data() + it->second;
             }
+
+            // The branch's opcode/operands are fused away, so later passes
+            // can't recover this target — record the index explicitly.
+            decoded->fusedBranchTargets.push_back(it->second);
         }
 
         LOG_INFO("ChunkDecoder", "Fused " << fusedWindows << " windows ("
                  << n << " -> " << decoded->instructions.size() << " instructions)");
+    }
+
+    // Second fusion sweep, over the already-fused stream: indexed accesses
+    // whose TARGET is a plain local.
+    //
+    //   Get_Local v; <pure index expr>; Get_Index        → nop; expr; FUSED_GetIndex(L,S)
+    //   Get_Local v; <pure exprs>; Set_Index; Pop        → nop; exprs; FUSED_SetIndex(L,S,S); nop
+    //
+    // The container handle is then read straight from the slot (BORROWED —
+    // the slot's reference keeps it alive), eliminating a retain/release
+    // pair, the handle's push/pop round-trip and a dispatch per access.
+    //
+    // Unlike fuseInstructions' contiguous windows, the producer and the
+    // index op are separated by the index expression, so matching walks a
+    // conservative stack-depth simulation: only instructions with a known
+    // effect (whitelisted plain ops, or fused ops that recorded pops/pushes
+    // at fusion time) may sit in between, and none of them may dig below the
+    // handle's stack position. Anything else — calls, branches, stores,
+    // unknown effects, or a branch target landing inside the window — bails.
+    // Elided instructions become 1-dispatch no-ops rather than being
+    // compacted away, keeping instruction indices and resolved branch
+    // pointers stable.
+    void ChunkDecoder::fuseIndexedAccess(DecodedChunk* decoded)
+    {
+        using namespace fusion;
+
+        const size_t n = decoded->instructions.size();
+        if (n < 2)
+            return;
+
+        std::vector<DecodedInstruction>&     ins = decoded->instructions;
+        std::vector<DecodedInstructionMeta>& im  = decoded->meta;
+
+        // Branch targets: entering a window anywhere but its head would skip
+        // the elided producer.
+        std::unordered_set<size_t> targetOffsets;
+        for (size_t i = 0; i < n; ++i)
+        {
+            size_t target = 0;
+            if (branchTargetOffsetOf(ins[i], im[i], target))
+                targetOffsets.insert(target);
+        }
+        std::unordered_set<size_t> targetIndices(decoded->fusedBranchTargets.begin(),
+                                                 decoded->fusedBranchTargets.end());
+        auto isTarget = [&](size_t idx) {
+            return targetIndices.find(idx) != targetIndices.end()
+                or targetOffsets.find(im[idx].bytecodeOffset) != targetOffsets.end();
+        };
+
+        // Conservative per-instruction stack effect. Returns false for
+        // anything the scan must treat as a barrier.
+        auto effectOf = [&](size_t idx, uint8_t& pops, uint8_t& pushes) -> bool {
+            if (ins[idx].decodedHandler == &fusedElidedProducer)
+            {
+                pops = 0; pushes = 0;
+                return true;
+            }
+            if (ins[idx].decodedHandler == &fusedGetIndexLocal)
+            {
+                pops = 1; pushes = 1;
+                return true;
+            }
+            if (im[idx].fusedLength >= 2)
+            {
+                if (im[idx].stackPops == 0xFF or im[idx].stackPushes == 0xFF)
+                    return false;
+                pops = im[idx].stackPops;
+                pushes = im[idx].stackPushes;
+                return true;
+            }
+            switch (static_cast<OpCode>(im[idx].originalOpcode))
+            {
+                case OpCode::OP_Get_Local:
+                case OpCode::OP_Constant:
+                case OpCode::OP_Short_Int:
+                case OpCode::OP_True:
+                case OpCode::OP_False:
+                    pops = 0; pushes = 1;
+                    return true;
+                case OpCode::OP_Add:
+                case OpCode::OP_Subtract:
+                case OpCode::OP_Multiply:
+                case OpCode::OP_Divide:
+                case OpCode::OP_Modulo:
+                case OpCode::OP_Get_Index:
+                    pops = 2; pushes = 1;
+                    return true;
+                default:
+                    return false;
+            }
+        };
+
+        constexpr size_t MaxWindow = 24;
+        size_t rewrites = 0;
+
+        for (size_t i = 0; i + 1 < n; ++i)
+        {
+            // A plain, un-fused Get_Local producer.
+            if (im[i].fusedLength >= 2)
+                continue;
+            if (ins[i].decodedHandler != &op_get_local_decoded)
+                continue;
+
+            const uint8_t slot = ins[i].operands.byte;
+            int depth = 0; // group depth above the handle's stack position
+
+            for (size_t j = i + 1; j < n and (j - i) <= MaxWindow; ++j)
+            {
+                if (isTarget(j))
+                    break;
+
+                const bool plain = im[j].fusedLength < 2;
+                const OpCode op = static_cast<OpCode>(im[j].originalOpcode);
+
+                // Read access: the handle sits just below the index.
+                if (plain and op == OpCode::OP_Get_Index and depth == 1
+                    and ins[j].decodedHandler == &op_get_index_decoded)
+                {
+                    ins[j].decodedHandler = &fusedGetIndexLocal;
+                    ins[j].operands.indexed.byte1 = slot;
+                    im[j].fusedName = internFusionName("FUSED_GetIndex(L,S)");
+                    ins[i].decodedHandler = &fusedElidedProducer;
+                    im[i].fusedName = internFusionName("ELIDED_Producer");
+                    ++rewrites;
+                    break;
+                }
+
+                // Write access: handle below index + value; the generic
+                // Set_Index leaves the handle on the stack for the trailing
+                // Pop — both are absorbed by the fused form.
+                if (plain and op == OpCode::OP_Set_Index and depth == 2
+                    and ins[j].decodedHandler == &op_set_index_decoded
+                    and j + 1 < n
+                    and im[j + 1].fusedLength < 2
+                    and static_cast<OpCode>(im[j + 1].originalOpcode) == OpCode::OP_Pop
+                    and not isTarget(j + 1))
+                {
+                    ins[j].decodedHandler = &fusedSetIndexLocal;
+                    ins[j].operands.indexed.byte1 = slot;
+                    im[j].fusedName = internFusionName("FUSED_SetIndex(L,S,S)");
+                    ins[j + 1].decodedHandler = &fusedElidedProducer;
+                    im[j + 1].fusedName = internFusionName("ELIDED_Pop");
+                    ins[i].decodedHandler = &fusedElidedProducer;
+                    im[i].fusedName = internFusionName("ELIDED_Producer");
+                    ++rewrites;
+                    break;
+                }
+
+                uint8_t pops = 0, pushes = 0;
+                if (not effectOf(j, pops, pushes))
+                    break;
+                if (depth < static_cast<int>(pops))
+                    break; // would consume the handle (or dig below it)
+                depth += static_cast<int>(pushes) - static_cast<int>(pops);
+            }
+        }
+
+        if (rewrites > 0)
+            LOG_INFO("ChunkDecoder", "Fused " << rewrites << " local indexed accesses");
     }
 
     void ChunkDecoder::analyzePureBatches(DecodedChunk*)
