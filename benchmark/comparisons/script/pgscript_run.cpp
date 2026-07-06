@@ -36,6 +36,7 @@
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
 #include "Compiler/pass/remove_useless_jump_pass.h"
 #include "Compiler/pass/simplify_constant_pass.h"
+#include "Compiler/pass/loop_rotation_pass.h"
 
 #include <chrono>
 #include <cstdio>
@@ -136,6 +137,7 @@ int main(int argc, char** argv)
         vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
         vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
         vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
+        vm.addOptimizationPass(std::make_unique<LoopRotationPass>());
     }
     else
     {
