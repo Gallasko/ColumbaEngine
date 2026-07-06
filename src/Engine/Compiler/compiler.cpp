@@ -41,7 +41,15 @@ namespace pg
         }
 
         if (parser.hasError())
+        {
+            // Restore the enclosing compiler even on error: the static
+            // Compiler::current would otherwise keep pointing at this soon
+            // destroyed compiler, and the next compilation (any VM) would
+            // walk a dangling enclosing chain in resolveUpvalue
+            Compiler::current = enclosing;
+
             return 0x0;
+        }
 
         auto func = endCompiler();
 

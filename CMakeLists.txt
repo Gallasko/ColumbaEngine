@@ -197,6 +197,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/ECS/entitysystem_minimal.cpp
     src/Engine/ECS/group.cpp
     src/Engine/ECS/savemanager.cpp
+    src/Engine/ECS/scriptregistry.cpp
     src/Engine/ECS/sparseset.cpp
     src/Engine/ECS/standardsystem.cpp
     src/Engine/ECS/system.cpp
@@ -259,6 +260,7 @@ set(ENGINESOURCE
     src/Engine/ECS/entitysystem_full.cpp
     src/Engine/ECS/group.cpp
     src/Engine/ECS/savemanager.cpp
+    src/Engine/ECS/scriptregistry.cpp
     src/Engine/ECS/sparseset.cpp
     src/Engine/ECS/standardsystem.cpp
     src/Engine/ECS/system.cpp
@@ -1331,6 +1333,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/mocklogger.h
             test/mockloggertest.cc
             test/renderer.cc
+            test/scriptregistry.cc
             test/serialize.cc
             test/taskflow.cc
             test/uiconstanttest.cc

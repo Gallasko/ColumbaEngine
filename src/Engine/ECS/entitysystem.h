@@ -53,6 +53,7 @@ namespace pg
     class Environment;
     class ClassInstance;
     class StandardSystemImpl;
+    class ScriptRegistry;
 
     struct VM;
     typedef uint64_t Value;
@@ -823,6 +824,14 @@ namespace pg
         void setupVm(VM& vm);
 
         /**
+         * @brief Access the script registry (compiled script cache + hot reload).
+         *
+         * All system/collision scripts are loaded through this registry so
+         * they share bytecode and can be hot reloaded at runtime.
+         */
+        ScriptRegistry& scripts();
+
+        /**
          * @brief Register a custom VM module that will be added to all VMs created by this ECS
          *
          * This allows game-specific native modules to be available in all scripts (systems, events, etc.)
@@ -981,6 +990,9 @@ namespace pg
         ComponentRegistry registry;
 
         CommandDispatcher cmdDispatcher;
+
+        /** Compiled script cache + hot reload (pointer to keep the header light) */
+        std::unique_ptr<ScriptRegistry> scriptRegistry;
 
         EventDispatcher eventDispatcher;
 

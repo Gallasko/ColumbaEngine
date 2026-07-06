@@ -22,6 +22,7 @@
 #endif
 
 #include "system.h"
+#include "scriptregistry.h"
 
 #include "Systems/coresystems.h"
 
@@ -113,6 +114,7 @@ namespace pg
     // Todo better save system init
     // Maybe put the number of executors in the save file
     EntitySystem::EntitySystem(const std::string& savePath) : registry(this), cmdDispatcher(this),
+        scriptRegistry(std::make_unique<ScriptRegistry>(this)),
         saveManager(savePath), taskflowImpl(std::make_unique<TaskflowImpl>())
     {
         LOG_THIS_MEMBER(DOM);
@@ -158,6 +160,10 @@ namespace pg
             PROFILE_BEGIN("CommandDispatch", "Command");
 #endif
             cmdDispatcher.process();
+
+            // Hot reload: swap staged script bytecode while no system is
+            // executing, so no VM can be running the old version mid-swap
+            scriptRegistry->applyPendingSwaps();
 
 #ifdef PROFILE
             PROFILE_END("CommandDispatch", "Command");
@@ -752,6 +758,11 @@ namespace pg
         _systemExecutionTimes.clear();
         _systemExecutionCounts.clear();
 #endif
+    }
+
+    ScriptRegistry& EntitySystem::scripts()
+    {
+        return *scriptRegistry;
     }
 
     void EntitySystem::setupVm(VM& vm)
