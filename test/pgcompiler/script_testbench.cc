@@ -509,6 +509,16 @@ TEST_F(ScriptTestBench, WhileLoopZero)
     testScript("while_loop_zero");
 }
 
+TEST_F(ScriptTestBench, WhileAndCondition)
+{
+    testScript("while_and_condition");
+}
+
+TEST_F(ScriptTestBench, WhileNested)
+{
+    testScript("while_nested");
+}
+
 TEST_F(ScriptTestBench, ForLoop)
 {
     testScript("for_loop");

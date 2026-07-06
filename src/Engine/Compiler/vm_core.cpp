@@ -969,6 +969,36 @@ namespace pg
         return next;
     }
 
+    // Decoded jump-if-true variants used by the loop-rotation pass. The
+    // target pointer (baked in by resolveJumpTargets) is the loop body, sitting
+    // BACKWARD from this instruction; the condition is always consumed.
+
+    const DecodedInstruction* op_jump_if_true_popping_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        Value condition = vm->pop();
+
+        const DecodedInstruction* next =
+            isValueTrue(condition) ? instr.jumpTargetPtr : &instr + 1;
+
+        if (requiresRefCount(condition))
+            vm->releaseAndDelete(condition);
+
+        return next;
+    }
+
+    const DecodedInstruction* op_long_jump_if_true_popping_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        Value condition = vm->pop();
+
+        const DecodedInstruction* next =
+            isValueTrue(condition) ? instr.jumpTargetPtr : &instr + 1;
+
+        if (requiresRefCount(condition))
+            vm->releaseAndDelete(condition);
+
+        return next;
+    }
+
     const DecodedInstruction* op_jump_decoded(VM*, const DecodedInstruction& instr)
     {
         // Pre-resolved target pointer baked in by resolveJumpTargets.

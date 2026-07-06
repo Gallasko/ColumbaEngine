@@ -184,6 +184,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/pass/constant_folding.cpp
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/popping_jump_pass.cpp
+    src/Engine/Compiler/pass/loop_rotation_pass.cpp
     src/Engine/Compiler/ecsserialization.cpp
     # Minimal interpreter (only lexer and token for parsing)
     src/Engine/Interpreter/lexer.cpp
@@ -250,6 +251,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/pass/constant_folding.cpp
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/popping_jump_pass.cpp
+    src/Engine/Compiler/pass/loop_rotation_pass.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp

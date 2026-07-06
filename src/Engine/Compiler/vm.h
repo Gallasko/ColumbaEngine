@@ -167,6 +167,8 @@ namespace pg
     const DecodedInstruction* op_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_long_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_long_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_jump_if_true_popping_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_long_jump_if_true_popping_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_jump_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_loop_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_call_decoded(VM* vm, const DecodedInstruction& instr);

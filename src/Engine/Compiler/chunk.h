@@ -102,6 +102,13 @@ namespace pg
         OP_Jump_If_False_Popping,      // Jump if false and pop the condition value (used for while loops, if statements)
         OP_Long_Jump_If_False_Popping, // Long jump if false and pop the condition value (for long jumps in loops/ifs)
 
+        // Backward conditional branch used by the loop-rotation pass: pop the
+        // condition and, if true, jump BACKWARD to the loop body (like OP_Loop).
+        // Replaces the test-at-top guard + unconditional OP_Loop with a single
+        // test-at-bottom branch.
+        OP_Jump_If_True_Popping,       // Backward jump if true and pop the condition value
+        OP_Long_Jump_If_True_Popping,  // Long backward jump if true and pop the condition value
+
         // Table operations
         OP_Build_Vector,  // Create vector instance from stack key-value pairs
         OP_Build_Table,   // Create table instance from stack key-value pairs
@@ -368,12 +375,14 @@ namespace pg
 
             case OpCode::OP_Jump_If_False:
             case OpCode::OP_Jump_If_False_Popping:
+            case OpCode::OP_Jump_If_True_Popping:
             case OpCode::OP_Jump:
             case OpCode::OP_Loop:
                 return 3; // opcode + 2 byte operand
 
             case OpCode::OP_Long_Jump_If_False:
             case OpCode::OP_Long_Jump_If_False_Popping:
+            case OpCode::OP_Long_Jump_If_True_Popping:
             case OpCode::OP_Long_Jump:
             case OpCode::OP_Long_Loop:
                 return 5; // opcode + 4 byte operand

@@ -75,6 +75,7 @@ namespace
 #include "Compiler/pass/increment_optimization_pass.h"
 #include "Compiler/pass/simplify_constant_pass.h"
 #include "Compiler/pass/remove_useless_jump_pass.h"
+#include "Compiler/pass/loop_rotation_pass.h"
 
 namespace pg
 {
@@ -978,6 +979,12 @@ namespace pg
 
             // This doesn't work if there is a closure capturing the constant variable.
             vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
+
+            // Loop rotation runs LAST: it consumes the popping/shrunk jump forms
+            // and rewrites test-at-top loops (while / for-in) into test-at-bottom
+            // form, dropping the unconditional OP_Loop. No later pass observes the
+            // new OP_Jump_If_True_Popping opcode.
+            vm.addOptimizationPass(std::make_unique<LoopRotationPass>());
         }
         else if (vmOptimizationLevel == VmOptimizationLevel::O0)
         {

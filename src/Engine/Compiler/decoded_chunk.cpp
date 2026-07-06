@@ -32,6 +32,9 @@ namespace pg
                 return true;
 
             case OpCode::OP_Loop:
+            case OpCode::OP_Jump_If_True_Popping:
+                // Backward conditional/unconditional branch: unsigned distance
+                // subtracted from the end of the instruction (same as OP_Loop).
                 outOffset = meta.bytecodeOffset + 1 + meta.operandBytes -
                             static_cast<uint16_t>((instr.operands.indexed.byte1 << 8) |
                                                    instr.operands.indexed.byte2);
@@ -49,6 +52,7 @@ namespace pg
                 return true;
 
             case OpCode::OP_Long_Loop:
+            case OpCode::OP_Long_Jump_If_True_Popping:
                 outOffset = meta.bytecodeOffset + 1 + meta.operandBytes -
                             static_cast<uint32_t>((instr.operands.indexed.byte1 << 24) |
                                                   (instr.operands.indexed.byte2 << 16) |

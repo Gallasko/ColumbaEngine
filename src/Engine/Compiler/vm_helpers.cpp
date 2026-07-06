@@ -405,6 +405,8 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Jump_If_False_Popping), op_jump_if_false_popping_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump_If_False), op_long_jump_if_false_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump_If_False_Popping), op_long_jump_if_false_popping_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Jump_If_True_Popping), op_jump_if_true_popping_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump_If_True_Popping), op_long_jump_if_true_popping_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Call), op_call_decoded, 0);
 
         // Function operations (default: no flags)
