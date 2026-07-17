@@ -4,6 +4,8 @@
 #include "2D/texture.h"
 #include "playerinventory.h"
 
+using namespace pg;
+
 void MinerSystem::save(Archive& archive)
 {
     serialize(archive, "miners", miners);
@@ -122,7 +124,8 @@ ItemId MinerSystem::resolveOreUnder(int ownerX, int ownerY) const
         }
     }
 
-    if (best <= 0) return ITEM_NONE;
+    if (best <= 0)
+        return ITEM_NONE;
 
     return oreToItem(candidates[bestIdx]);
 }
@@ -219,6 +222,5 @@ void MinerSystem::mineTick()
                     ent->get<Texture2DComponent>()->setTexture("Miner_Machine_1.0");
             }
         }
-
     }
 }

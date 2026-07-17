@@ -8,8 +8,6 @@
 
 #include <array>
 
-using namespace pg;
-
 // --- Saved building entry (for GridSystem save/load) ---
 
 struct SavedBuilding

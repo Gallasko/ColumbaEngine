@@ -8,15 +8,13 @@
 #include "itemregistry.h"
 #include "slotsystem.h"
 
-using namespace pg;
-
 struct InventoryOpenedEvent {};
 struct InventoryClosedEvent {};
 struct PanelWasClickedEvent {};
 
-class InventoryUISystem : public System<InitSys,
-                                        Listener<ResizeEvent>,
-                                        QueuedListener<OnSDLScanCode>>
+class InventoryUISystem : public pg::System<pg::InitSys,
+                                        pg::Listener<pg::ResizeEvent>,
+                                        pg::QueuedListener<pg::OnSDLScanCode>>
 {
 public:
     static constexpr size_t INV_UI_VIEWPORT = 2;
@@ -62,7 +60,7 @@ public:
 
     // --- Event Handlers ---
 
-    virtual void onEvent(const ResizeEvent& event) override
+    virtual void onEvent(const pg::ResizeEvent& event) override
     {
         screenWidth = event.width;
         screenHeight = event.height;
@@ -71,7 +69,7 @@ public:
             refreshAllSlots();
     }
 
-    virtual void onProcessEvent(const OnSDLScanCode& event) override;
+    virtual void onProcessEvent(const pg::OnSDLScanCode& event) override;
 
     // --- Open / Close ---
 

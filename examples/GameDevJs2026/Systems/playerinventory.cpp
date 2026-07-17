@@ -1,5 +1,7 @@
 #include "playerinventory.h"
 
+using namespace pg;
+
 void PlayerInventorySystem::save(Archive& archive)
 {
     serialize(archive, "slots", inventory.slots);

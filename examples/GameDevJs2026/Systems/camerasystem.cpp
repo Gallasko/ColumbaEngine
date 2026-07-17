@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cmath>
 
+using namespace pg;
+
 void CameraSystem::init()
 {
     cameraEntity = ecsRef->createEntity();
@@ -131,11 +133,11 @@ void CameraSystem::onEvent(const OnSDLScanCode& event)
 {
     switch (event.key)
     {
-        case SDL_SCANCODE_W: moveUp = true; break;
-        case SDL_SCANCODE_S: moveDown = true; break;
-        case SDL_SCANCODE_A: moveLeft = true; break;
-        case SDL_SCANCODE_D: moveRight = true; break;
-        default: break;
+    case SDL_SCANCODE_W: moveUp = true; break;
+    case SDL_SCANCODE_S: moveDown = true; break;
+    case SDL_SCANCODE_A: moveLeft = true; break;
+    case SDL_SCANCODE_D: moveRight = true; break;
+    default: break;
     }
 }
 
@@ -143,11 +145,11 @@ void CameraSystem::onEvent(const OnSDLScanCodeReleased& event)
 {
     switch (event.key)
     {
-        case SDL_SCANCODE_W: moveUp = false; break;
-        case SDL_SCANCODE_S: moveDown = false; break;
-        case SDL_SCANCODE_A: moveLeft = false; break;
-        case SDL_SCANCODE_D: moveRight = false; break;
-        default: break;
+    case SDL_SCANCODE_W: moveUp = false; break;
+    case SDL_SCANCODE_S: moveDown = false; break;
+    case SDL_SCANCODE_A: moveLeft = false; break;
+    case SDL_SCANCODE_D: moveRight = false; break;
+    default: break;
     }
 }
 
@@ -160,10 +162,14 @@ void CameraSystem::execute()
     {
         float speed = panSpeed / zoomLevel * deltaTime;
 
-        if (moveUp)    cam->y -= speed;
-        if (moveDown)  cam->y += speed;
-        if (moveLeft)  cam->x -= speed;
-        if (moveRight) cam->x += speed;
+        if (moveUp)
+            cam->y -= speed;
+        if (moveDown)
+            cam->y += speed;
+        if (moveLeft)
+            cam->x -= speed;
+        if (moveRight)
+            cam->x += speed;
 
         cam->dirty = true;
     }

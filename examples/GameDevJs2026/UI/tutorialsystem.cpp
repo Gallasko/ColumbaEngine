@@ -12,6 +12,8 @@
 
 #include <cmath>
 
+using namespace pg;
+
 namespace
 {
     // Local AbstractCallable adapter so we can pass a lambda as TweenComponent's
@@ -20,7 +22,11 @@ namespace
     {
         std::function<void()> fn;
         LambdaCallable(std::function<void()> f) : fn(std::move(f)) {}
-        void call(pg::EntitySystem* const) noexcept override { if (fn) fn(); }
+        void call(pg::EntitySystem* const) noexcept override
+        {
+            if (fn)
+                fn();
+        }
         void serialize(pg::Archive&) const noexcept override {}
     };
 }
@@ -517,166 +523,166 @@ void TutorialSystem::presentCurrentStep()
 
     switch (step)
     {
-        case TutorialStep::MineFirstResource:
+    case TutorialStep::MineFirstResource:
+    {
+        auto [gx, gy] = findNearestTerrain([](TerrainType t) {
+            return t == TerrainType::Tree || t == TerrainType::Rock;
+        });
+        if (gx >= 0)
         {
-            auto [gx, gy] = findNearestTerrain([](TerrainType t) {
-                return t == TerrainType::Tree || t == TerrainType::Rock;
-            });
-            if (gx >= 0)
+            // Trees occupy a 2x3 footprint of TerrainType::Tree cells —
+            // findNearestTerrain may have returned any of them, so walk
+            // up/left to the top-left cell and span the full footprint
+            // so the spotlight covers the whole tree sprite. Rocks are
+            // 1x1, no walking needed.
+            int tlx = gx;
+            int tly = gy;
+            int spanW = 1;
+            int spanH = 1;
+            if (gridSystem and gridSystem->getTerrainAt(gx, gy) == TerrainType::Tree)
             {
-                // Trees occupy a 2x3 footprint of TerrainType::Tree cells —
-                // findNearestTerrain may have returned any of them, so walk
-                // up/left to the top-left cell and span the full footprint
-                // so the spotlight covers the whole tree sprite. Rocks are
-                // 1x1, no walking needed.
-                int tlx = gx;
-                int tly = gy;
-                int spanW = 1;
-                int spanH = 1;
-                if (gridSystem and gridSystem->getTerrainAt(gx, gy) == TerrainType::Tree)
-                {
-                    while (tlx > 0 and gridSystem->getTerrainAt(tlx - 1, tly) == TerrainType::Tree)
-                        --tlx;
-                    while (tly > 0 and gridSystem->getTerrainAt(tlx, tly - 1) == TerrainType::Tree)
-                        --tly;
-                    spanW = TREE_W;
-                    spanH = TREE_H;
-                }
-                target.kind  = SpotlightOverlaySystem::TargetKind::WorldTile;
-                target.gridX = tlx;
-                target.gridY = tly;
-                target.gridW = spanW;
-                target.gridH = spanH;
+                while (tlx > 0 and gridSystem->getTerrainAt(tlx - 1, tly) == TerrainType::Tree)
+                    --tlx;
+                while (tly > 0 and gridSystem->getTerrainAt(tlx, tly - 1) == TerrainType::Tree)
+                    --tly;
+                spanW = TREE_W;
+                spanH = TREE_H;
             }
+            target.kind  = SpotlightOverlaySystem::TargetKind::WorldTile;
+            target.gridX = tlx;
+            target.gridY = tly;
+            target.gridW = spanW;
+            target.gridH = spanH;
+        }
+        arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+        break;
+    }
+
+    case TutorialStep::OpenInventory:
+        // HUD inventory button is in the top-right corner; arrow points
+        // from the left so it doesn't run off-screen.
+        target = namedUiTarget("HudInventoryButton");
+        arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
+        break;
+
+    case TutorialStep::ValidateFirstSteps:
+    case TutorialStep::ValidateStoneMasonry:
+    {
+        // Sub-state machine: once the player has opened the mission tab
+        // even once during this step we drop the dim/arrow but leave the
+        // corner panel up so the objective text remains visible until
+        // they actually validate. Target::None skips the dim+arrow.
+        if (missionUIOpen or missionUiOpenedThisStep)
+            break;
+
+        // Inventory left open from the previous step (or re-opened by
+        // the player). Guide them to close it before pointing at the
+        // mission button — the mission UI auto-closes inventory anyway,
+        // but the redirect makes the next action obvious.
+        if (inventoryUI and inventoryUI->isOpen())
+        {
+            target = namedUiTarget("InventoryPanel");
             arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+            title = "Close the inventory";
+            body  = "You don't have what you need yet — close the inventory and check the mission tab.";
             break;
         }
 
-        case TutorialStep::OpenInventory:
-            // HUD inventory button is in the top-right corner; arrow points
-            // from the left so it doesn't run off-screen.
+        target = namedUiTarget("HudMissionButton");
+        arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
+        break;
+    }
+
+    case TutorialStep::CraftPickaxe:
+    case TutorialStep::CraftFurnace:
+        // CraftingPanel is anchored to the inventory and only laid out
+        // once inventory is open. If the player has it closed, redirect
+        // the spotlight to the HUD inventory button first; switch to the
+        // crafting panel once they open it.
+        if (inventoryUI and not inventoryUI->isOpen())
+        {
             target = namedUiTarget("HudInventoryButton");
             arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
-            break;
-
-        case TutorialStep::ValidateFirstSteps:
-        case TutorialStep::ValidateStoneMasonry:
+            title = "Open the inventory";
+            body  = "Open your inventory to access the crafting menu.";
+        }
+        else
         {
-            // Sub-state machine: once the player has opened the mission tab
-            // even once during this step we drop the dim/arrow but leave the
-            // corner panel up so the objective text remains visible until
-            // they actually validate. Target::None skips the dim+arrow.
-            if (missionUIOpen or missionUiOpenedThisStep)
-                break;
-
-            // Inventory left open from the previous step (or re-opened by
-            // the player). Guide them to close it before pointing at the
-            // mission button — the mission UI auto-closes inventory anyway,
-            // but the redirect makes the next action obvious.
-            if (inventoryUI and inventoryUI->isOpen())
-            {
-                target = namedUiTarget("InventoryPanel");
-                arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
-                title = "Close the inventory";
-                body  = "You don't have what you need yet — close the inventory and check the mission tab.";
-                break;
-            }
-
-            target = namedUiTarget("HudMissionButton");
+            target = namedUiTarget("CraftingPanel");
             arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
-            break;
         }
+        break;
 
-        case TutorialStep::CraftPickaxe:
-        case TutorialStep::CraftFurnace:
-            // CraftingPanel is anchored to the inventory and only laid out
-            // once inventory is open. If the player has it closed, redirect
-            // the spotlight to the HUD inventory button first; switch to the
-            // crafting panel once they open it.
-            if (inventoryUI and not inventoryUI->isOpen())
-            {
-                target = namedUiTarget("HudInventoryButton");
-                arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
-                title = "Open the inventory";
-                body  = "Open your inventory to access the crafting menu.";
-            }
-            else
-            {
-                target = namedUiTarget("CraftingPanel");
-                arrowSide = SpotlightOverlaySystem::ArrowSide::Left;
-            }
-            break;
+    case TutorialStep::MovePickaxeToHotbar:
+    case TutorialStep::PlaceFurnaceInHotbar:
+    {
+        // Span the dim cutout to cover the inventory panel and the full
+        // hotbar row (first slot through last slot), so the player can
+        // see both the source and destination. Hotbar slot positions are
+        // derived from HotbarSystem layout constants rather than read
+        // from slot entities — for the pickaxe step the hotbar is being
+        // revealed for the first time, and slot anchors may not have
+        // resolved yet when the spotlight rect is computed.
+        const float totalSlotsW = static_cast<float>(HOTBAR_SLOTS) * HotbarSystem::SLOT_SIZE
+                                + static_cast<float>(HOTBAR_SLOTS - 1) * HotbarSystem::SLOT_SPACING;
+        const float hotbarLeft   = (screenWidth - totalSlotsW) * 0.5f;
+        const float hotbarRight  = hotbarLeft + totalSlotsW;
+        const float hotbarTop    = screenHeight - HotbarSystem::HOTBAR_HEIGHT
+                                 + HotbarSystem::SLOT_PADDING;
+        const float hotbarBottom = hotbarTop + HotbarSystem::SLOT_SIZE;
 
-        case TutorialStep::MovePickaxeToHotbar:
-        case TutorialStep::PlaceFurnaceInHotbar:
+        auto invEnt = ecsRef->getEntity("InventoryPanel");
+        if (invEnt)
         {
-            // Span the dim cutout to cover the inventory panel and the full
-            // hotbar row (first slot through last slot), so the player can
-            // see both the source and destination. Hotbar slot positions are
-            // derived from HotbarSystem layout constants rather than read
-            // from slot entities — for the pickaxe step the hotbar is being
-            // revealed for the first time, and slot anchors may not have
-            // resolved yet when the spotlight rect is computed.
-            const float totalSlotsW = static_cast<float>(HOTBAR_SLOTS) * HotbarSystem::SLOT_SIZE
-                                    + static_cast<float>(HOTBAR_SLOTS - 1) * HotbarSystem::SLOT_SPACING;
-            const float hotbarLeft   = (screenWidth - totalSlotsW) * 0.5f;
-            const float hotbarRight  = hotbarLeft + totalSlotsW;
-            const float hotbarTop    = screenHeight - HotbarSystem::HOTBAR_HEIGHT
-                                     + HotbarSystem::SLOT_PADDING;
-            const float hotbarBottom = hotbarTop + HotbarSystem::SLOT_SIZE;
+            auto invPos = invEnt->get<PositionComponent>();
+            float left   = std::min(invPos->getX(), hotbarLeft);
+            float right  = std::max(invPos->getX() + invPos->getWidth(), hotbarRight);
+            float top    = std::min(invPos->getY(), hotbarTop);
+            float bottom = std::max(invPos->getY() + invPos->getHeight(), hotbarBottom);
 
-            auto invEnt = ecsRef->getEntity("InventoryPanel");
-            if (invEnt)
-            {
-                auto invPos = invEnt->get<PositionComponent>();
-                float left   = std::min(invPos->getX(), hotbarLeft);
-                float right  = std::max(invPos->getX() + invPos->getWidth(), hotbarRight);
-                float top    = std::min(invPos->getY(), hotbarTop);
-                float bottom = std::max(invPos->getY() + invPos->getHeight(), hotbarBottom);
-
-                target.kind = SpotlightOverlaySystem::TargetKind::ScreenRect;
-                target.sx = left;
-                target.sy = top;
-                target.sw = right - left;
-                target.sh = bottom - top;
-                // Arrow target left as 0 (no entity) — the spotlight system
-                // falls back to the rect's geometry, which is reliable since
-                // we computed it from screen math.
-            }
-            arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
-            break;
+            target.kind = SpotlightOverlaySystem::TargetKind::ScreenRect;
+            target.sx = left;
+            target.sy = top;
+            target.sw = right - left;
+            target.sh = bottom - top;
+            // Arrow target left as 0 (no entity) — the spotlight system
+            // falls back to the rect's geometry, which is reliable since
+            // we computed it from screen math.
         }
+        arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+        break;
+    }
 
-        case TutorialStep::MineOre:
+    case TutorialStep::MineOre:
+    {
+        auto [gx, gy] = findNearestTerrain([](TerrainType t) {
+            return t == TerrainType::OreCoal ||
+                   t == TerrainType::OreCopper ||
+                   t == TerrainType::OreIron;
+        });
+        if (gx >= 0)
         {
-            auto [gx, gy] = findNearestTerrain([](TerrainType t) {
-                return t == TerrainType::OreCoal ||
-                       t == TerrainType::OreCopper ||
-                       t == TerrainType::OreIron;
-            });
-            if (gx >= 0)
-            {
-                target.kind = SpotlightOverlaySystem::TargetKind::WorldTile;
-                target.gridX = gx;
-                target.gridY = gy;
-            }
-            arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
-            break;
+            target.kind = SpotlightOverlaySystem::TargetKind::WorldTile;
+            target.gridX = gx;
+            target.gridY = gy;
         }
+        arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+        break;
+    }
 
-        case TutorialStep::PlaceFurnaceOnGrid:
-            // Auto-select the hotbar slot containing the furnace so the
-            // player's next click places it without first having to scroll
-            // the hotbar selection.
-            if (hotbar)
-                hotbar->selectSlotForItem(FURNACE_ID);
-            target = centeredScreenRect(420.0f, 280.0f);
-            arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
-            break;
+    case TutorialStep::PlaceFurnaceOnGrid:
+        // Auto-select the hotbar slot containing the furnace so the
+        // player's next click places it without first having to scroll
+        // the hotbar selection.
+        if (hotbar)
+            hotbar->selectSlotForItem(FURNACE_ID);
+        target = centeredScreenRect(420.0f, 280.0f);
+        arrowSide = SpotlightOverlaySystem::ArrowSide::Top;
+        break;
 
-        case TutorialStep::Complete:
-            spotlight->hide();
-            return;
+    case TutorialStep::Complete:
+        spotlight->hide();
+        return;
     }
 
     spotlight->show(target, arrowSide, title, body, showSkip);

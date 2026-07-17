@@ -14,8 +14,6 @@
 #include "Registries/itemregistry.h"
 #include "slotcomponent.h"
 
-using namespace pg;
-
 // ---- Constants ----
 
 static constexpr size_t SLOT_UI_VIEWPORT  = 2;
@@ -30,9 +28,9 @@ static constexpr const char* SLOT_FONT_PATH =
 
 struct SlotClickedEvent
 {
-    SlotClickedEvent(_unique_id entityId) : entityId(entityId) {}
+    explicit SlotClickedEvent(pg::_unique_id entityId) : entityId(entityId) {}
 
-    _unique_id entityId;
+    pg::_unique_id entityId;
 };
 
 struct SlotPickedUpEvent
@@ -87,19 +85,19 @@ namespace SlotPrefabKeys
 SlotCategory parseSlotCategory(const std::string& s);
 const char* slotCategoryToString(SlotCategory cat);
 
-EntityRef makeSlotPrefab(EntitySystem* ecs, ItemRegistry* itemRegistry, const PrefabParams& params);
+pg::EntityRef makeSlotPrefab(pg::EntitySystem* ecs, ItemRegistry* itemRegistry, const pg::PrefabParams& params);
 
-void registerSlotFactory(PrefabFactoryRegistry* factory, ItemRegistry* itemRegistry);
+void registerSlotFactory(pg::PrefabFactoryRegistry* factory, ItemRegistry* itemRegistry);
 
 // ---- System ----
 
-class SlotSystem : public System<Own<SlotComponent>,
-                                  InitSys,
-                                  QueuedListener<SlotClickedEvent>,
-                                  QueuedListener<OnSDLMouseMotion>>
+class SlotSystem : public pg::System<pg::Own<SlotComponent>,
+                                  pg::InitSys,
+                                  pg::QueuedListener<SlotClickedEvent>,
+                                  pg::QueuedListener<pg::OnSDLMouseMotion>>
 {
 public:
-    SlotSystem(ItemRegistry* itemRegistry)
+    explicit SlotSystem(ItemRegistry* itemRegistry)
         : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Slot System"; }
@@ -108,15 +106,15 @@ public:
     void execute() override;
 
     virtual void onProcessEvent(const SlotClickedEvent& event) override;
-    virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
+    virtual void onProcessEvent(const pg::OnSDLMouseMotion& event) override;
 
     // Create a slot prefab entity with SlotComponent attached.
     // Returns the prefab entity ID. Caller positions via UiAnchor.
-    EntityRef createSlot(SlotCategory category, uint8_t index,
+    pg::EntityRef createSlot(SlotCategory category, uint8_t index,
                         SlotFlags flags = SlotFlags::None,
                         float slotSize = DEFAULT_SLOT_SIZE,
                         float itemSize = DEFAULT_ITEM_SIZE,
-                        constant::Vector4D bgColor = {50.0f, 50.0f, 60.0f, 200.0f});
+                        pg::constant::Vector4D bgColor = {50.0f, 50.0f, 60.0f, 200.0f});
 
     // Update a slot's data and visuals from backing data.
     void syncSlotVisual(uint64_t entityId, const ItemStack& newStack);
@@ -128,7 +126,7 @@ public:
     // can pass it directly — `ecsRef->getEntity(id)` would miss the entity while it's
     // still pending in the cmdDispatcher (entities created during a running ECS aren't
     // added to entityPool until the next sync), leaving onChange unbound.
-    void bindSlotChange(EntityRef entity, std::function<void(const ItemStack&)> cb);
+    void bindSlotChange(pg::EntityRef entity, std::function<void(const ItemStack&)> cb);
 
     // Access a SlotComponent by entity ID (for external sync).
     SlotComponent* getSlotComponent(uint64_t entityId) { return atEntity<SlotComponent>(entityId); }

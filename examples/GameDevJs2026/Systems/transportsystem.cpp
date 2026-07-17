@@ -6,6 +6,8 @@
 
 #include "playerinventory.h"
 
+using namespace pg;
+
 namespace pg
 {
     template <>
@@ -22,7 +24,8 @@ namespace pg
     SavedBeltItem deserialize(const UnserializedObject& s)
     {
         SavedBeltItem result;
-        if (s.isNull()) return result;
+        if (s.isNull())
+            return result;
         defaultDeserialize(s, "x", result.x);
         defaultDeserialize(s, "y", result.y);
         unsigned int itemId = 0;
@@ -83,14 +86,17 @@ void TransportSystem::execute()
 bool TransportSystem::tryPlaceItem(int x, int y, ItemId id)
 {
     auto* gridSystem = ecsRef->getSystem<GridSystem>();
-    if (not gridSystem->getGrid().isInBounds(x, y)) return false;
+    if (not gridSystem->getGrid().isInBounds(x, y))
+        return false;
 
     auto& cell = beltGrid.get(x, y);
-    if (cell.itemId != ITEM_NONE) return false;
+    if (cell.itemId != ITEM_NONE)
+        return false;
 
     const auto& buildingCell = gridSystem->getGrid().getCell(
         gridSystem->getBuildingLayer(), x, y);
-    if (buildingCell.tileName != "Conveyor") return false;
+    if (buildingCell.tileName != "Conveyor")
+        return false;
 
     cell.itemId = id;
     createItemVisual(x, y, id);
@@ -99,10 +105,12 @@ bool TransportSystem::tryPlaceItem(int x, int y, ItemId id)
 
 ItemId TransportSystem::tryTakeItem(int x, int y)
 {
-    if (not ecsRef->getSystem<GridSystem>()->getGrid().isInBounds(x, y)) return ITEM_NONE;
+    if (not ecsRef->getSystem<GridSystem>()->getGrid().isInBounds(x, y))
+        return ITEM_NONE;
 
     auto& cell = beltGrid.get(x, y);
-    if (cell.itemId == ITEM_NONE) return ITEM_NONE;
+    if (cell.itemId == ITEM_NONE)
+        return ITEM_NONE;
 
     ItemId taken = cell.itemId;
     cell.itemId = ITEM_NONE;
@@ -123,10 +131,12 @@ void TransportSystem::transportTick()
         for (int x = 0; x < Grid::WIDTH; ++x)
         {
             auto& cell = beltGrid.get(x, y);
-            if (cell.itemId == ITEM_NONE or cell.entityId == 0) continue;
+            if (cell.itemId == ITEM_NONE or cell.entityId == 0)
+                continue;
 
             auto ent = ecsRef->getEntity(cell.entityId);
-            if (not ent) continue;
+            if (not ent)
+                continue;
 
             auto [wx, wy] = grid.gridToWorld(x, y);
             float itemSize = static_cast<float>(Grid::TILE_SIZE) * 0.6f;
@@ -190,14 +200,16 @@ void TransportSystem::transportTick()
 
     for (size_t i = 0; i < moves.size(); ++i)
     {
-        if (visited[i] != 0) continue;
+        if (visited[i] != 0)
+            continue;
 
         std::vector<size_t> chain;
         size_t cur = i;
 
         while (true)
         {
-            if (visited[cur] == 2) break;
+            if (visited[cur] == 2)
+                break;
             if (visited[cur] == 1)
             {
                 // Found a cycle — mark all moves from cur onwards in the chain
@@ -213,9 +225,11 @@ void TransportSystem::transportTick()
 
             const auto& m = moves[cur];
             // Only follow through uncontested destinations
-            if (targetCount[m.toY][m.toX] > 1) break;
+            if (targetCount[m.toY][m.toX] > 1)
+                break;
             int next = moveOrigin[m.toY][m.toX];
-            if (next < 0) break;
+            if (next < 0)
+                break;
             cur = static_cast<size_t>(next);
         }
 
@@ -227,13 +241,15 @@ void TransportSystem::transportTick()
     std::vector<std::pair<size_t, uint64_t>> cycleEntityIds;
     for (size_t i = 0; i < moves.size(); ++i)
     {
-        if (not inCycle[i]) continue;
+        if (not inCycle[i])
+            continue;
         cycleEntityIds.push_back({i, beltGrid.get(moves[i].fromX, moves[i].fromY).entityId});
     }
 
     for (size_t i = 0; i < moves.size(); ++i)
     {
-        if (not inCycle[i]) continue;
+        if (not inCycle[i])
+            continue;
         beltGrid.get(moves[i].toX, moves[i].toY).itemId = moves[i].itemId;
     }
 
@@ -263,7 +279,8 @@ void TransportSystem::transportTick()
 
     for (size_t i = 0; i < moves.size(); ++i)
     {
-        if (inCycle[i]) continue;
+        if (inCycle[i])
+            continue;
 
         const auto& m = moves[i];
         if (targetCount[m.toY][m.toX] <= 1)
@@ -291,7 +308,8 @@ void TransportSystem::transportTick()
     std::vector<bool> allowed(moves.size(), false);
     for (size_t i = 0; i < moves.size(); ++i)
     {
-        if (inCycle[i]) continue;
+        if (inCycle[i])
+            continue;
         const auto& m = moves[i];
         allowed[i] = (targetCount[m.toY][m.toX] <= 1)
                   or (winnerMoveIdx[m.toY][m.toX] == static_cast<int>(i));
@@ -304,7 +322,8 @@ void TransportSystem::transportTick()
 
     for (size_t i = 0; i < moves.size(); ++i)
     {
-        if (inCycle[i] or not allowed[i] or canMove[i]) continue;
+        if (inCycle[i] or not allowed[i] or canMove[i])
+            continue;
 
         // Trace chain forward to find if it ends at a free cell
         std::vector<size_t> chain;
@@ -329,7 +348,13 @@ void TransportSystem::transportTick()
             // Detect undetected cycles (loops with a contested entry point)
             bool revisit = false;
             for (size_t idx : chain)
-                if (idx == cur) { revisit = true; break; }
+            {
+                if (idx == cur)
+                {
+                    revisit = true;
+                    break;
+                }
+            }
             if (revisit)
                 break;
 
@@ -344,7 +369,8 @@ void TransportSystem::transportTick()
 
             // Follow to the move originating from destination cell
             int next = moveOrigin[m.toY][m.toX];
-            if (next < 0) break;
+            if (next < 0)
+                break;
             cur = static_cast<size_t>(next);
         }
 
@@ -365,7 +391,8 @@ void TransportSystem::transportTick()
         progress = false;
         for (size_t i = 0; i < moves.size(); ++i)
         {
-            if (not canMove[i] or applied[i]) continue;
+            if (not canMove[i] or applied[i])
+                continue;
 
             const auto& m = moves[i];
             if (beltGrid.get(m.toX, m.toY).itemId != ITEM_NONE)

@@ -15,8 +15,6 @@
 #include <unordered_map>
 #include <vector>
 
-using namespace pg;
-
 class TooltipSystem;
 
 // Fired by MouseEnter/MouseLeave callbacks attached to mission cost/reward
@@ -45,16 +43,16 @@ struct MissionUICloseRequest {};
 struct MissionUIToggleRequest {};
 struct MissionUISelectDepotRequest { int depotX; int depotY; };
 
-class MissionUISystem : public System<QueuedListener<OnMouseClick>,
-                                       QueuedListener<OnSDLScanCode>,
-                                       QueuedListener<OnMissionIconHoverEnter>,
-                                       QueuedListener<OnMissionIconHoverLeave>,
-                                       QueuedListener<MissionUIOpenRequest>,
-                                       QueuedListener<MissionUICloseRequest>,
-                                       QueuedListener<MissionUIToggleRequest>,
-                                       QueuedListener<MissionUISelectDepotRequest>,
-                                       Listener<TickEvent>,
-                                       Listener<ResizeEvent>>
+class MissionUISystem : public pg::System<pg::QueuedListener<pg::OnMouseClick>,
+                                       pg::QueuedListener<pg::OnSDLScanCode>,
+                                       pg::QueuedListener<OnMissionIconHoverEnter>,
+                                       pg::QueuedListener<OnMissionIconHoverLeave>,
+                                       pg::QueuedListener<MissionUIOpenRequest>,
+                                       pg::QueuedListener<MissionUICloseRequest>,
+                                       pg::QueuedListener<MissionUIToggleRequest>,
+                                       pg::QueuedListener<MissionUISelectDepotRequest>,
+                                       pg::Listener<pg::TickEvent>,
+                                       pg::Listener<pg::ResizeEvent>>
 {
 public:
     static constexpr size_t UI_VP = 2;
@@ -114,21 +112,22 @@ public:
     static constexpr float SCALE_PILL    = 0.22f;
 
     // Dark color palette
-    struct C {
-        static inline const constant::Vector4D BG         = {31.0f, 34.0f, 40.0f, 240.0f};
-        static inline const constant::Vector4D PANEL      = {42.0f, 46.0f, 54.0f, 255.0f};
-        static inline const constant::Vector4D TEXT       = {214.0f, 210.0f, 196.0f, 255.0f};
-        static inline const constant::Vector4D TEXT_DIM   = {120.0f, 118.0f, 112.0f, 255.0f};
-        static inline const constant::Vector4D ACCENT     = {217.0f, 106.0f, 58.0f, 255.0f};
-        static inline const constant::Vector4D DIVIDER    = {60.0f, 63.0f, 70.0f, 255.0f};
-        static inline const constant::Vector4D SELECTED   = {55.0f, 58.0f, 68.0f, 255.0f};
-        static inline const constant::Vector4D LOCKED_BTN = {80.0f, 80.0f, 80.0f, 200.0f};
-        static inline const constant::Vector4D DONE_BTN   = {90.0f, 90.0f, 100.0f, 200.0f};
-        static inline const constant::Vector4D COST_BRD   = {80.0f, 82.0f, 90.0f, 180.0f};
-        static inline const constant::Vector4D REWARD_BRD = {140.0f, 140.0f, 150.0f, 220.0f};
-        static inline const constant::Vector4D BLOCK_FILL = {38.0f, 42.0f, 50.0f, 255.0f};
-        static inline const constant::Vector4D WHITE      = {255.0f, 255.0f, 255.0f, 255.0f};
-        static inline const constant::Vector4D TRANSPARENT= {0.0f, 0.0f, 0.0f, 0.0f};
+    struct C
+    {
+        static inline const pg::constant::Vector4D BG         = {31.0f, 34.0f, 40.0f, 240.0f};
+        static inline const pg::constant::Vector4D PANEL      = {42.0f, 46.0f, 54.0f, 255.0f};
+        static inline const pg::constant::Vector4D TEXT       = {214.0f, 210.0f, 196.0f, 255.0f};
+        static inline const pg::constant::Vector4D TEXT_DIM   = {120.0f, 118.0f, 112.0f, 255.0f};
+        static inline const pg::constant::Vector4D ACCENT     = {217.0f, 106.0f, 58.0f, 255.0f};
+        static inline const pg::constant::Vector4D DIVIDER    = {60.0f, 63.0f, 70.0f, 255.0f};
+        static inline const pg::constant::Vector4D SELECTED   = {55.0f, 58.0f, 68.0f, 255.0f};
+        static inline const pg::constant::Vector4D LOCKED_BTN = {80.0f, 80.0f, 80.0f, 200.0f};
+        static inline const pg::constant::Vector4D DONE_BTN   = {90.0f, 90.0f, 100.0f, 200.0f};
+        static inline const pg::constant::Vector4D COST_BRD   = {80.0f, 82.0f, 90.0f, 180.0f};
+        static inline const pg::constant::Vector4D REWARD_BRD = {140.0f, 140.0f, 150.0f, 220.0f};
+        static inline const pg::constant::Vector4D BLOCK_FILL = {38.0f, 42.0f, 50.0f, 255.0f};
+        static inline const pg::constant::Vector4D WHITE      = {255.0f, 255.0f, 255.0f, 255.0f};
+        static inline const pg::constant::Vector4D TRANSPARENT= {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
     MissionUISystem(ItemRegistry* itemRegistry,
@@ -146,16 +145,16 @@ public:
     void selectDepot(int depotX, int depotY);
     void cancelDepotSelection();
 
-    virtual void onProcessEvent(const OnMouseClick& event) override;
-    virtual void onProcessEvent(const OnSDLScanCode& event) override;
-    virtual void onEvent(const TickEvent&) override;
+    virtual void onProcessEvent(const pg::OnMouseClick& event) override;
+    virtual void onProcessEvent(const pg::OnSDLScanCode& event) override;
+    virtual void onEvent(const pg::TickEvent&) override;
     virtual void onProcessEvent(const OnMissionIconHoverEnter& event) override;
     virtual void onProcessEvent(const OnMissionIconHoverLeave& event) override;
     virtual void onProcessEvent(const MissionUIOpenRequest& event) override;
     virtual void onProcessEvent(const MissionUICloseRequest& event) override;
     virtual void onProcessEvent(const MissionUIToggleRequest& event) override;
     virtual void onProcessEvent(const MissionUISelectDepotRequest& event) override;
-    virtual void onEvent(const ResizeEvent& event) override;
+    virtual void onEvent(const pg::ResizeEvent& event) override;
 
     void execute() override;
 
@@ -179,8 +178,8 @@ private:
     void setEntityVisibility(uint64_t id, bool vis);
     void setEntityText(uint64_t id, const std::string& text);
     void setEntityTexture(uint64_t id, const std::string& textureName);
-    void setEntityRoundedRectColor(uint64_t id, const constant::Vector4D& color);
-    void setEntityTextColor(uint64_t id, const constant::Vector4D& color);
+    void setEntityRoundedRectColor(uint64_t id, const pg::constant::Vector4D& color);
+    void setEntityTextColor(uint64_t id, const pg::constant::Vector4D& color);
 
     bool isClickInRect(float cx, float cy, float rx, float ry, float rw, float rh) const;
 

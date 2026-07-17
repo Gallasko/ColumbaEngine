@@ -8,8 +8,6 @@
 
 #include <string>
 
-using namespace pg;
-
 // Request sent by the crafting UI when the player clicks "Craft" on a recipe.
 struct HandCraftRequest
 {
@@ -28,10 +26,10 @@ struct HandCraftCompletedEvent
 // Drives the player's single active hand-craft. Keeps a progress counter,
 // consumes inputs immediately on start, and emits the outputs when the
 // timer expires.
-class HandCraftingSystem : public System<InitSys,
-                                         Listener<TickEvent>,
-                                         Listener<HandCraftRequest>,
-                                         Listener<HandCraftCancel>>
+class HandCraftingSystem : public pg::System<pg::InitSys,
+                                             pg::Listener<pg::TickEvent>,
+                                             pg::Listener<HandCraftRequest>,
+                                             pg::Listener<HandCraftCancel>>
 {
 public:
     static constexpr size_t TICK_RESOLUTION_MS = 100;
@@ -45,7 +43,7 @@ public:
 
     void init() override {}
 
-    virtual void onEvent(const TickEvent& event) override
+    virtual void onEvent(const pg::TickEvent& event) override
     {
         tickAccumulator += static_cast<size_t>(event.tick);
     }

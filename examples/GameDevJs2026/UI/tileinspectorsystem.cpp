@@ -16,21 +16,23 @@
 #include <string>
 #include <vector>
 
+using namespace pg;
+
 namespace
 {
     const char* terrainName(TerrainType t)
     {
         switch (t)
         {
-            case TerrainType::Grass:     return "Grass";
-            case TerrainType::OreIron:   return "Iron Ore";
-            case TerrainType::OreCopper: return "Copper Ore";
-            case TerrainType::OreCoal:   return "Coal";
-            case TerrainType::OreStone:  return "Stone Ore";
-            case TerrainType::Tree:      return "Tree";
-            case TerrainType::Rock:      return "Rock";
-            case TerrainType::Water:     return "Water";
-            default:                     return "—";
+        case TerrainType::Grass:     return "Grass";
+        case TerrainType::OreIron:   return "Iron Ore";
+        case TerrainType::OreCopper: return "Copper Ore";
+        case TerrainType::OreCoal:   return "Coal";
+        case TerrainType::OreStone:  return "Stone Ore";
+        case TerrainType::Tree:      return "Tree";
+        case TerrainType::Rock:      return "Rock";
+        case TerrainType::Water:     return "Water";
+        default:                     return "—";
         }
     }
 
@@ -47,10 +49,10 @@ namespace
     {
         switch (tier)
         {
-            case 0:  return "Bare hands";
-            case 1:  return "Stone Pickaxe";
-            case 2:  return "Iron Pickaxe";
-            default: return "Unknown tool";
+        case 0:  return "Bare hands";
+        case 1:  return "Stone Pickaxe";
+        case 2:  return "Iron Pickaxe";
+        default: return "Unknown tool";
         }
     }
 }
@@ -276,7 +278,8 @@ void TileInspectorSystem::rebuildContent(int gx, int gy)
             bool first = true;
             for (const auto& m : machines)
             {
-                if (not first) line += ", ";
+                if (not first)
+                    line += ", ";
                 line += m;
                 first = false;
             }

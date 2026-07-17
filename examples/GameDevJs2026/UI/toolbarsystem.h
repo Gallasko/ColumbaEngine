@@ -7,12 +7,10 @@
 
 #include "buildingregistry.h"
 
-using namespace pg;
-
 // Viewport index for the toolbar UI camera
 inline constexpr size_t UI_VIEWPORT = 2;
 
-class ToolbarSystem : public System<InitSys, Listener<OnSDLScanCode>, QueuedListener<OnMouseClick>>
+class ToolbarSystem : public pg::System<pg::InitSys, pg::Listener<pg::OnSDLScanCode>, pg::QueuedListener<pg::OnMouseClick>>
 {
 public:
     static constexpr float TOOLBAR_HEIGHT = 48.0f;
@@ -20,15 +18,15 @@ public:
     static constexpr float SLOT_SPACING = 4.0f;
     static constexpr float SLOT_PADDING = 8.0f; // Padding from toolbar edges
 
-    ToolbarSystem(BuildingRegistry* registry, MasterRenderer* masterRenderer, float screenWidth, float screenHeight)
+    ToolbarSystem(BuildingRegistry* registry, pg::MasterRenderer* masterRenderer, float screenWidth, float screenHeight)
         : registry(registry), masterRenderer(masterRenderer), screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Toolbar System"; }
 
     void init() override;
 
-    virtual void onEvent(const OnSDLScanCode& event) override;
-    virtual void onProcessEvent(const OnMouseClick& event) override;
+    virtual void onEvent(const pg::OnSDLScanCode& event) override;
+    virtual void onProcessEvent(const pg::OnMouseClick& event) override;
 
     size_t getSelectedSlot() const { return selectedSlot; }
 
@@ -44,16 +42,16 @@ private:
     void updateHighlight();
 
     BuildingRegistry* registry = nullptr;
-    MasterRenderer* masterRenderer = nullptr;
+    pg::MasterRenderer* masterRenderer = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
-    EntityRef uiCameraEntity;
+    pg::EntityRef uiCameraEntity;
     size_t selectedSlot = 0;
 
     // Direct EntityRef handles populated post-build by walking the prefab tree. Saves a
     // hash-map lookup on every access compared to storing _unique_id and re-resolving.
-    EntityRef backdrop;
-    EntityRef highlight;
-    std::vector<EntityRef> slots;
+    pg::EntityRef backdrop;
+    pg::EntityRef highlight;
+    std::vector<pg::EntityRef> slots;
 };

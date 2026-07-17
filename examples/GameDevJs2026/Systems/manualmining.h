@@ -12,8 +12,6 @@
 #include "hotbarsystem.h"
 #include "terrain.h"
 
-using namespace pg;
-
 // Event emitted when the player finishes mining a terrain tile by hand.
 struct ManualMineCompletedEvent
 {
@@ -23,12 +21,12 @@ struct ManualMineCompletedEvent
     uint16_t count;
 };
 
-class ManualMiningSystem : public System<InitSys,
-                                          Listener<TickEvent>,
-                                          Listener<ResizeEvent>,
-                                          Listener<InventoryOpenedEvent>,
-                                          Listener<InventoryClosedEvent>,
-                                          QueuedListener<OnMouseClick>>
+class ManualMiningSystem : public pg::System<pg::InitSys,
+                                              pg::Listener<pg::TickEvent>,
+                                              pg::Listener<pg::ResizeEvent>,
+                                              pg::Listener<InventoryOpenedEvent>,
+                                              pg::Listener<InventoryClosedEvent>,
+                                              pg::QueuedListener<pg::OnMouseClick>>
 {
 public:
     ManualMiningSystem(ItemRegistry* itemRegistry,
@@ -41,15 +39,15 @@ public:
     void init() override;
     void execute() override;
 
-    virtual void onEvent(const TickEvent& event) override;
-    virtual void onEvent(const ResizeEvent& event) override
+    virtual void onEvent(const pg::TickEvent& event) override;
+    virtual void onEvent(const pg::ResizeEvent& event) override
     {
         screenWidth = event.width;
         screenHeight = event.height;
     }
     virtual void onEvent(const InventoryOpenedEvent&) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
-    virtual void onProcessEvent(const OnMouseClick& event) override;
+    virtual void onProcessEvent(const pg::OnMouseClick& event) override;
 
     // Called by GameSystem to enable/disable mining (disabled when a building is selected)
     void setEnabled(bool enabled) { miningEnabled = enabled; }

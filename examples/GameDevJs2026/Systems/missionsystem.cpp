@@ -1,5 +1,7 @@
 #include "missionsystem.h"
 
+using namespace pg;
+
 void MissionSystem::save(Archive& archive)
 {
     serialize(archive, "maxActiveMissions", maxActiveMissions);

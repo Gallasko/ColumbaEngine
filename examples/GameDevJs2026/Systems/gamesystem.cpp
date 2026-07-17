@@ -10,6 +10,8 @@
 #include <ctime>
 #include <random>
 
+using namespace pg;
+
 void GameSystem::init()
 {
     LOG_INFO("GameSystem", "init() — Grid ready (" << Grid::WIDTH << "x" << Grid::HEIGHT
@@ -126,7 +128,8 @@ void GameSystem::onProcessEvent(const OnSDLScanCode& event)
         {
             std::random_device rd;
             uint32_t newSeed = rd();
-            if (newSeed == 0) newSeed = static_cast<uint32_t>(std::time(nullptr));
+            if (newSeed == 0)
+                newSeed = static_cast<uint32_t>(std::time(nullptr));
             LOG_INFO("GameSystem", "debug key T — regenerating terrain with seed " << newSeed);
             gridSystem->regenerateTerrain(newSeed);
         }
@@ -696,10 +699,14 @@ uint8_t GameSystem::directionFromTo(int ax, int ay, int bx, int by)
 {
     int dx = bx - ax;
     int dy = by - ay;
-    if (dx > 0) return 0; // Right
-    if (dy > 0) return 1; // Down
-    if (dx < 0) return 2; // Left
-    if (dy < 0) return 3; // Up
+    if (dx > 0)
+        return 0; // Right
+    if (dy > 0)
+        return 1; // Down
+    if (dx < 0)
+        return 2; // Left
+    if (dy < 0)
+        return 3; // Up
     return 0;
 }
 

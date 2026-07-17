@@ -6,6 +6,8 @@
 
 #include <SDL2/SDL.h>
 
+using namespace pg;
+
 // ---------------------------------------------------------------------------
 // open / close
 // ---------------------------------------------------------------------------
@@ -121,7 +123,8 @@ void StorageUISystem::createPanel()
     if (anchorTargetId == 0)
     {
         auto windowEnt = ecsRef->getEntity("__MainWindow");
-        if (windowEnt) anchorTargetId = windowEnt->id;
+        if (windowEnt)
+            anchorTargetId = windowEnt->id;
     }
 
     auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();

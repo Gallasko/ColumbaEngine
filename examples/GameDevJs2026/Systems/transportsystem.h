@@ -5,8 +5,6 @@
 #include "gridsystem.h"
 #include "itemregistry.h"
 
-using namespace pg;
-
 struct BeltCell
 {
     ItemId   itemId   = ITEM_NONE;
@@ -30,21 +28,21 @@ struct SavedBeltItem
     ItemId itemId = ITEM_NONE;
 };
 
-class TransportSystem : public System<Listener<TickEvent>, Listener<BuildingRemovedEvent>, SaveSys>
+class TransportSystem : public pg::System<pg::Listener<pg::TickEvent>, pg::Listener<BuildingRemovedEvent>, pg::SaveSys>
 {
 public:
     static constexpr size_t TRANSPORT_TICK_MS = 250;
 
-    TransportSystem(ItemRegistry* itemRegistry)
+    explicit TransportSystem(ItemRegistry* itemRegistry)
         : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Transport System"; }
 
     // SaveSys
-    virtual void save(Archive& archive) override;
-    virtual void load(const UnserializedObject& serializedString) override;
+    virtual void save(pg::Archive& archive) override;
+    virtual void load(const pg::UnserializedObject& serializedString) override;
 
-    virtual void onEvent(const TickEvent& event) override
+    virtual void onEvent(const pg::TickEvent& event) override
     {
         tickAccumulator += static_cast<size_t>(event.tick);
     }
@@ -59,7 +57,8 @@ public:
 
     ItemId peekItem(int x, int y) const
     {
-        if (not ecsRef->getSystem<GridSystem>()->getGrid().isInBounds(x, y)) return ITEM_NONE;
+        if (not ecsRef->getSystem<GridSystem>()->getGrid().isInBounds(x, y))
+            return ITEM_NONE;
         return beltGrid.get(x, y).itemId;
     }
 
@@ -77,9 +76,12 @@ private:
     {
         int dx = toX - fromX;
         int dy = toY - fromY;
-        if (dx > 0) return 0;
-        if (dy > 0) return 1;
-        if (dx < 0) return 2;
+        if (dx > 0)
+            return 0;
+        if (dy > 0)
+            return 1;
+        if (dx < 0)
+            return 2;
         return 3;
     }
 
@@ -98,5 +100,4 @@ private:
 
     // Round-robin state: last travel direction served at each cell
     std::array<std::array<uint8_t, Grid::WIDTH>, Grid::HEIGHT> lastServedDir = {};
-
 };

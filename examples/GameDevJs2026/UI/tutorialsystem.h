@@ -15,8 +15,6 @@
 #include "slotsystem.h"
 #include "tutorialevents.h"
 
-using namespace pg;
-
 class SpotlightOverlaySystem;
 class CameraSystem;
 
@@ -50,16 +48,16 @@ enum class TutorialStep : int
     Complete             = 10,
 };
 
-class TutorialSystem : public System<Listener<PlayerGainItemEvent>,
-                                      Listener<InventoryOpenedEvent>,
-                                      Listener<InventoryClosedEvent>,
-                                      Listener<MissionUIOpenedEvent>,
-                                      Listener<MissionUIClosedEvent>,
-                                      Listener<HandCraftCompletedEvent>,
-                                      QueuedListener<SlotDroppedEvent>,
-                                      Listener<BuildingPlacedEvent>,
-                                      Listener<AddFact>,
-                                      Listener<TutorialSkipRequested>>
+class TutorialSystem : public pg::System<pg::Listener<PlayerGainItemEvent>,
+                                      pg::Listener<InventoryOpenedEvent>,
+                                      pg::Listener<InventoryClosedEvent>,
+                                      pg::Listener<MissionUIOpenedEvent>,
+                                      pg::Listener<MissionUIClosedEvent>,
+                                      pg::Listener<HandCraftCompletedEvent>,
+                                      pg::QueuedListener<SlotDroppedEvent>,
+                                      pg::Listener<BuildingPlacedEvent>,
+                                      pg::Listener<pg::AddFact>,
+                                      pg::Listener<TutorialSkipRequested>>
 {
 public:
     static constexpr int    TOTAL_STEPS = static_cast<int>(TutorialStep::Complete);
@@ -91,7 +89,7 @@ public:
     virtual void onEvent(const HandCraftCompletedEvent& event) override;
     virtual void onProcessEvent(const SlotDroppedEvent& event) override;
     virtual void onEvent(const BuildingPlacedEvent& event) override;
-    virtual void onEvent(const AddFact& event) override;
+    virtual void onEvent(const pg::AddFact& event) override;
     virtual void onEvent(const TutorialSkipRequested& event) override;
 
     void execute() override;

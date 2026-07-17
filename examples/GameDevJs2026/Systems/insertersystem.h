@@ -11,8 +11,6 @@
 #include "machinekey.h"
 #include "saveserialization.h"
 
-using namespace pg;
-
 enum class InserterState : uint8_t
 {
     Idle,       // At pickup position, waiting for item to grab
@@ -34,10 +32,10 @@ struct InserterData
     uint64_t heldItemEntityId = 0; // Visual entity for item being carried
 };
 
-class InserterSystem : public System<Listener<TickEvent>,
-                                      Listener<BuildingPlacedEvent>,
-                                      Listener<BuildingRemovedEvent>,
-                                      SaveSys>
+class InserterSystem : public pg::System<pg::Listener<pg::TickEvent>,
+                                          pg::Listener<BuildingPlacedEvent>,
+                                          pg::Listener<BuildingRemovedEvent>,
+                                          pg::SaveSys>
 {
 public:
     static constexpr size_t ANIM_FRAME_DURATION_MS = 100;
@@ -49,16 +47,16 @@ public:
     // Pickup is behind the arm (opposite of direction)
     static constexpr size_t PICKUP_FRAME[4] = {0, 2, 4, 6}; // RIGHT, DOWN, LEFT, UP
 
-    InserterSystem(ItemRegistry* itemRegistry)
+    explicit InserterSystem(ItemRegistry* itemRegistry)
         : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Inserter System"; }
 
     // SaveSys
-    virtual void save(Archive& archive) override;
-    virtual void load(const UnserializedObject& serializedString) override;
+    virtual void save(pg::Archive& archive) override;
+    virtual void load(const pg::UnserializedObject& serializedString) override;
 
-    virtual void onEvent(const TickEvent& event) override
+    virtual void onEvent(const pg::TickEvent& event) override
     {
         tickAccumulator += static_cast<size_t>(event.tick);
     }

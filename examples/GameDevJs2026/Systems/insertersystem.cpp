@@ -6,6 +6,8 @@
 
 #include <cmath>
 
+using namespace pg;
+
 void InserterSystem::save(Archive& archive)
 {
     serialize(archive, "inserters", inserters);
@@ -86,11 +88,9 @@ size_t InserterSystem::getSpriteFrame(uint8_t direction, size_t animFrame, bool 
         // Drop frame is (base + 4) % 8, step backward
         return (base + SWING_FRAMES - 1 - animFrame) % TOTAL_SPRITE_FRAMES;
     }
-    else
-    {
-        // Forward: from pickup to drop
-        return (base + animFrame) % TOTAL_SPRITE_FRAMES;
-    }
+
+    // Forward: from pickup to drop
+    return (base + animFrame) % TOTAL_SPRITE_FRAMES;
 }
 
 void InserterSystem::registerInserter(int x, int y)
@@ -141,81 +141,81 @@ void InserterSystem::inserterTick()
     {
         switch (ins.state)
         {
-            case InserterState::Idle:
+        case InserterState::Idle:
+        {
+            if (not ins.initialized)
             {
-                if (not ins.initialized)
+                auto ent = ecsRef->getEntity(ins.entityId);
+                if (ent)
                 {
-                    auto ent = ecsRef->getEntity(ins.entityId);
-                    if (ent)
-                    {
-                        // Resize from 16x16 to 48x48 (3 tiles), centered on cell
-                        auto pos = ent->get<PositionComponent>();
-                        float armSize = static_cast<float>(Grid::TILE_SIZE) * 3.0f;
-                        float cellOffset = static_cast<float>(Grid::TILE_SIZE);
-                        auto [wx, wy] = gridSystem->getGrid().gridToWorld(ins.x, ins.y);
-                        pos->setX(wx - cellOffset);
-                        pos->setY(wy - cellOffset);
-                        pos->setWidth(armSize);
-                        pos->setHeight(armSize);
-                        pos->setZ(pos->getZ() + 1.5f); // Above items layer (z=3.0)
+                    // Resize from 16x16 to 48x48 (3 tiles), centered on cell
+                    auto pos = ent->get<PositionComponent>();
+                    float armSize = static_cast<float>(Grid::TILE_SIZE) * 3.0f;
+                    float cellOffset = static_cast<float>(Grid::TILE_SIZE);
+                    auto [wx, wy] = gridSystem->getGrid().gridToWorld(ins.x, ins.y);
+                    pos->setX(wx - cellOffset);
+                    pos->setY(wy - cellOffset);
+                    pos->setWidth(armSize);
+                    pos->setHeight(armSize);
+                    pos->setZ(pos->getZ() + 1.5f); // Above items layer (z=3.0)
 
-                        // Set correct idle texture for this direction
-                        ent->get<Texture2DComponent>()->setTexture(
-                            "Robotic_Arms_1." + std::to_string(PICKUP_FRAME[ins.direction]));
+                    // Set correct idle texture for this direction
+                    ent->get<Texture2DComponent>()->setTexture(
+                        "Robotic_Arms_1." + std::to_string(PICKUP_FRAME[ins.direction]));
 
-                        ins.initialized = true;
-                    }
-                    break; // Skip pickup until initialized
+                    ins.initialized = true;
                 }
-
-                if (tryPickup(ins))
-                {
-                    ins.state = InserterState::Swinging;
-                    ins.animFrame = 0;
-                    updateArmTexture(ins);
-                    createHeldItemVisual(ins);
-                }
-                break;
+                break; // Skip pickup until initialized
             }
 
-            case InserterState::Swinging:
+            if (tryPickup(ins))
             {
-                if (ins.animFrame < SWING_FRAMES - 1)
-                {
-                    ins.animFrame++;
-                    updateArmTexture(ins);
-                    updateHeldItemPosition(ins);
-                }
-                else
-                {
-                    // At drop position — try to drop
-                    if (tryDrop(ins))
-                    {
-                        destroyHeldItemVisual(ins);
-                        ins.state = InserterState::Returning;
-                        ins.animFrame = 0;
-                        updateArmTexture(ins);
-                    }
-                    // else: stall at drop position until target accepts
-                }
-                break;
+                ins.state = InserterState::Swinging;
+                ins.animFrame = 0;
+                updateArmTexture(ins);
+                createHeldItemVisual(ins);
             }
+            break;
+        }
 
-            case InserterState::Returning:
+        case InserterState::Swinging:
+        {
+            if (ins.animFrame < SWING_FRAMES - 1)
             {
-                if (ins.animFrame < SWING_FRAMES - 1)
+                ins.animFrame++;
+                updateArmTexture(ins);
+                updateHeldItemPosition(ins);
+            }
+            else
+            {
+                // At drop position — try to drop
+                if (tryDrop(ins))
                 {
-                    ins.animFrame++;
-                    updateArmTexture(ins);
-                }
-                else
-                {
-                    ins.state = InserterState::Idle;
+                    destroyHeldItemVisual(ins);
+                    ins.state = InserterState::Returning;
                     ins.animFrame = 0;
                     updateArmTexture(ins);
                 }
-                break;
+                // else: stall at drop position until target accepts
             }
+            break;
+        }
+
+        case InserterState::Returning:
+        {
+            if (ins.animFrame < SWING_FRAMES - 1)
+            {
+                ins.animFrame++;
+                updateArmTexture(ins);
+            }
+            else
+            {
+                ins.state = InserterState::Idle;
+                ins.animFrame = 0;
+                updateArmTexture(ins);
+            }
+            break;
+        }
         }
     }
 }
@@ -261,7 +261,8 @@ bool InserterSystem::tryPickup(InserterData& ins)
                 {
                     ins.heldItem = slot.id;
                     slot.count -= 1;
-                    if (slot.count == 0) slot.clear();
+                    if (slot.count == 0)
+                        slot.clear();
                     return true;
                 }
             }
@@ -283,7 +284,8 @@ bool InserterSystem::tryPickup(InserterData& ins)
                 {
                     ins.heldItem = slot.id;
                     slot.count -= 1;
-                    if (slot.count == 0) slot.clear();
+                    if (slot.count == 0)
+                        slot.clear();
                     return true;
                 }
             }
@@ -303,7 +305,8 @@ bool InserterSystem::tryPickup(InserterData& ins)
                 {
                     ins.heldItem = slot.id;
                     slot.count -= 1;
-                    if (slot.count == 0) slot.clear();
+                    if (slot.count == 0)
+                        slot.clear();
                     return true;
                 }
             }
@@ -325,7 +328,8 @@ bool InserterSystem::tryPickup(InserterData& ins)
                 {
                     ins.heldItem = slot.id;
                     slot.count -= 1;
-                    if (slot.count == 0) slot.clear();
+                    if (slot.count == 0)
+                        slot.clear();
                     return true;
                 }
             }

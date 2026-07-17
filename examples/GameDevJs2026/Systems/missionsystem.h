@@ -9,8 +9,6 @@
 #include "worldfacts.h"
 #include "saveserialization.h"
 
-using namespace pg;
-
 struct ActiveMission
 {
     size_t defIndex;         // Index into MissionRegistry
@@ -19,14 +17,14 @@ struct ActiveMission
     bool completed = false;
 };
 
-class MissionSystem : public System<Listener<TickEvent>, QueuedListener<UICommandEvent>, SaveSys>
+class MissionSystem : public pg::System<pg::Listener<pg::TickEvent>, pg::QueuedListener<pg::UICommandEvent>, pg::SaveSys>
 {
 public:
     static constexpr size_t DEFAULT_MAX_ACTIVE = 2;
     static constexpr ItemId ROBOT_CORE_ID = 33;
     static constexpr ItemId TICKET_ID = 35;
 
-    MissionSystem(MissionRegistry* missionRegistry, ItemRegistry* itemRegistry = nullptr)
+    explicit MissionSystem(MissionRegistry* missionRegistry, ItemRegistry* itemRegistry = nullptr)
         : missionRegistry(missionRegistry), itemRegistry(itemRegistry)
     {
     }
@@ -34,15 +32,15 @@ public:
     virtual std::string getSystemName() const override { return "Mission System"; }
 
     // SaveSys
-    virtual void save(Archive& archive) override;
-    virtual void load(const UnserializedObject& serializedString) override;
+    virtual void save(pg::Archive& archive) override;
+    virtual void load(const pg::UnserializedObject& serializedString) override;
 
-    virtual void onEvent(const TickEvent& event) override
+    virtual void onEvent(const pg::TickEvent& event) override
     {
         tickAccumulator += static_cast<size_t>(event.tick);
     }
 
-    virtual void onProcessEvent(const UICommandEvent& event) override
+    virtual void onProcessEvent(const pg::UICommandEvent& event) override
     {
         if (event.cmd.id == "mission.start")
         {

@@ -8,12 +8,18 @@
 #include <algorithm>
 #include <cmath>
 
+using namespace pg;
+
 namespace {
     struct LambdaCallable : public pg::AbstractCallable
     {
         std::function<void()> fn;
-        LambdaCallable(std::function<void()> f) : fn(std::move(f)) {}
-        void call(pg::EntitySystem* const) noexcept override { if (fn) fn(); }
+        explicit LambdaCallable(std::function<void()> f) : fn(std::move(f)) {}
+        void call(pg::EntitySystem* const) noexcept override
+        {
+            if (fn)
+                fn();
+        }
         void serialize(pg::Archive&) const noexcept override {}
     };
 }
@@ -192,7 +198,7 @@ void ManualMiningSystem::createProgressBar()
 
     auto outlinePos = outline.get<PositionComponent>();
     outlinePos->setX(-1000.0f); // Hidden
-    outlinePos->setZ(9.f);
+    outlinePos->setZ(9.0f);
     outlinePos->setWidth(BAR_WIDTH + BAR_OUTLINE * 2.0f);
     outlinePos->setHeight(BAR_HEIGHT + BAR_OUTLINE * 2.0f);
     outline.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
@@ -204,7 +210,7 @@ void ManualMiningSystem::createProgressBar()
 
     auto bgPos = bg.get<PositionComponent>();
     bgPos->setX(-1000.0f); // Hidden
-    bgPos->setZ(10.f);
+    bgPos->setZ(10.0f);
     bgPos->setWidth(BAR_WIDTH);
     bgPos->setHeight(BAR_HEIGHT);
     bg.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
@@ -216,7 +222,7 @@ void ManualMiningSystem::createProgressBar()
 
     auto fillPos = fill.get<PositionComponent>();
     fillPos->setX(-1000.0f); // Hidden
-    fillPos->setZ(11.f);
+    fillPos->setZ(11.0f);
     fillPos->setWidth(0.0f);
     fillPos->setHeight(BAR_HEIGHT);
     fill.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
@@ -350,7 +356,7 @@ void ManualMiningSystem::createErrorBar()
 
     auto outlinePos = outline.get<PositionComponent>();
     outlinePos->setX(-1000.0f);
-    outlinePos->setZ(9.f);
+    outlinePos->setZ(9.0f);
     outlinePos->setWidth(BAR_WIDTH + BAR_OUTLINE * 2.0f);
     outlinePos->setHeight(BAR_HEIGHT + BAR_OUTLINE * 2.0f);
     outline.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
@@ -362,7 +368,7 @@ void ManualMiningSystem::createErrorBar()
 
     auto fillPos = fill.get<PositionComponent>();
     fillPos->setX(-1000.0f);
-    fillPos->setZ(11.f);
+    fillPos->setZ(11.0f);
     fillPos->setWidth(BAR_WIDTH);
     fillPos->setHeight(BAR_HEIGHT);
     fill.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);

@@ -13,8 +13,6 @@
 
 #include <cstdint>
 
-using namespace pg;
-
 // Cross-system request — sent by other systems (e.g. MissionUI's hover icons)
 // instead of calling TooltipSystem::setHoveredItem() directly. Processed as a
 // QueuedListener so the mutation runs on TooltipSystem's task, not the sender's.
@@ -24,10 +22,10 @@ struct SetTooltipHoveredItemEvent { ItemId id; };
 // The tooltip displays the item name, category, description, and how to obtain it
 // (crafting recipe or world mining source).  When the machine UI is open the
 // recipe shown is filtered to prefer that machine's recipes.
-class TooltipSystem : public System<Listener<ResizeEvent>,
-                                    QueuedListener<OnSDLMouseMotion>,
-                                    QueuedListener<SetTooltipHoveredItemEvent>,
-                                    QueuedListener<TickEvent>>
+class TooltipSystem : public pg::System<pg::Listener<pg::ResizeEvent>,
+                                    pg::QueuedListener<pg::OnSDLMouseMotion>,
+                                    pg::QueuedListener<SetTooltipHoveredItemEvent>,
+                                    pg::QueuedListener<pg::TickEvent>>
 {
 public:
     static constexpr size_t   UI_VP          = 2;
@@ -51,15 +49,15 @@ public:
 
     virtual std::string getSystemName() const override { return "Tooltip System"; }
 
-    virtual void onEvent(const ResizeEvent& event) override
+    virtual void onEvent(const pg::ResizeEvent& event) override
     {
         screenWidth = event.width;
         screenHeight = event.height;
     }
 
-    virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
+    virtual void onProcessEvent(const pg::OnSDLMouseMotion& event) override;
     virtual void onProcessEvent(const SetTooltipHoveredItemEvent& event) override;
-    virtual void onProcessEvent(const TickEvent& event) override;
+    virtual void onProcessEvent(const pg::TickEvent& event) override;
 
     // External hover signal — used by component-driven hover sources
     // (mission UI icons, etc.) that don't go through the motion-poll path.
@@ -112,7 +110,7 @@ private:
 
     // Set text + colour + visibility on a pre-created line entity.
     void setLine(int lineIdx, const std::string& text,
-                 constant::Vector4D colour, bool vis);
+                 pg::constant::Vector4D colour, bool vis);
 
     // --- Members --------------------------------------------------------
 

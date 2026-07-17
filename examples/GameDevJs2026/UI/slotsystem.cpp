@@ -3,6 +3,8 @@
 #include "UI/prefabspec.h"
 #include "UI/prefabbuilder.h"
 
+using namespace pg;
+
 static inline void notifyChange(SlotComponent* slot)
 {
     if (slot and slot->onChange)
@@ -11,9 +13,12 @@ static inline void notifyChange(SlotComponent* slot)
 
 SlotCategory parseSlotCategory(const std::string& s)
 {
-    if (s == "Input")   return SlotCategory::Input;
-    if (s == "Output")  return SlotCategory::Output;
-    if (s == "Hotbar")  return SlotCategory::Hotbar;
+    if (s == "Input")
+        return SlotCategory::Input;
+    if (s == "Output")
+        return SlotCategory::Output;
+    if (s == "Hotbar")
+        return SlotCategory::Hotbar;
     return SlotCategory::PlayerInventory;
 }
 
@@ -21,10 +26,10 @@ const char* slotCategoryToString(SlotCategory cat)
 {
     switch (cat)
     {
-        case SlotCategory::Input:           return "Input";
-        case SlotCategory::Output:          return "Output";
-        case SlotCategory::Hotbar:          return "Hotbar";
-        case SlotCategory::PlayerInventory: return "PlayerInventory";
+    case SlotCategory::Input:           return "Input";
+    case SlotCategory::Output:          return "Output";
+    case SlotCategory::Hotbar:          return "Hotbar";
+    case SlotCategory::PlayerInventory: return "PlayerInventory";
     }
     return "PlayerInventory";
 }
@@ -339,7 +344,8 @@ void SlotSystem::dropOn(uint64_t entityId)
         heldItem.count -= toAdd;
         notifyChange(slot);
 
-        if (hasPrefab) ent->get<Prefab>()->callHelper("setItem", slot->stack);
+        if (hasPrefab)
+            ent->get<Prefab>()->callHelper("setItem", slot->stack);
 
         if (heldItem.count == 0)
         {

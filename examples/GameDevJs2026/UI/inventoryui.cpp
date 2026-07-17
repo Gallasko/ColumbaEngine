@@ -6,6 +6,8 @@
 
 #include <SDL2/SDL.h>
 
+using namespace pg;
+
 void InventoryUISystem::init()
 {
     ensurePanelCreated();

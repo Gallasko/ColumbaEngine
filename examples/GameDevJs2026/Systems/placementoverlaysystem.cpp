@@ -7,6 +7,8 @@
 #include "hotbarsystem.h"
 #include "terrain.h"
 
+using namespace pg;
+
 void PlacementOverlaySystem::init()
 {
     if (created)

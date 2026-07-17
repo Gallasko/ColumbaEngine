@@ -9,8 +9,6 @@
 
 #include "tutorialevents.h"
 
-using namespace pg;
-
 class CameraSystem;
 
 // Imperative overlay used by the tutorial to focus the player on a single
@@ -23,10 +21,10 @@ class CameraSystem;
 //
 // The TutorialSystem drives it via show()/hide(); the overlay handles all
 // rendering, animation, and target tracking (camera pan, UI reflow).
-class SpotlightOverlaySystem : public System<InitSys,
-                                              Listener<TickEvent>,
-                                              Listener<ResizeEvent>,
-                                              Listener<OnMouseClick>>
+class SpotlightOverlaySystem : public pg::System<pg::InitSys,
+                                              pg::Listener<pg::TickEvent>,
+                                              pg::Listener<pg::ResizeEvent>,
+                                              pg::Listener<pg::OnMouseClick>>
 {
 public:
     static constexpr size_t UI_VP = 2;
@@ -107,9 +105,9 @@ public:
 
     void init() override;
 
-    virtual void onEvent(const TickEvent& event) override;
-    virtual void onEvent(const ResizeEvent& event) override;
-    virtual void onEvent(const OnMouseClick& event) override;
+    virtual void onEvent(const pg::TickEvent& event) override;
+    virtual void onEvent(const pg::ResizeEvent& event) override;
+    virtual void onEvent(const pg::OnMouseClick& event) override;
 
     // Show the spotlight on `target`, with `arrowSide` choosing which side of
     // the target the arrow points from. `title` and `body` populate the

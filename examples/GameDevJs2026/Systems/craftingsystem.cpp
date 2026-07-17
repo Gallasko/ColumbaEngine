@@ -4,6 +4,8 @@
 #include "worldfacts.h"
 #include "2D/texture.h"
 
+using namespace pg;
+
 namespace
 {
     // Furnace renders as two entities (base + chimney overflow). Swapping textures
@@ -201,17 +203,28 @@ void CraftingSystem::craftTick()
                 if (facts and not machine.lockedRecipe->unlockConditions.empty())
                 {
                     for (const auto& cond : machine.lockedRecipe->unlockConditions)
+                    {
                         if (not cond.check(*facts))
-                            { unlocked = false; break; }
+                        {
+                            unlocked = false;
+                            break;
+                        }
+                    }
                 }
 
                 if (unlocked)
                 {
                     bool ok = true;
                     for (const auto& input : machine.lockedRecipe->inputs)
+                    {
                         if (not machine.inputSlots.hasAtLeast(input.id, input.count))
-                            { ok = false; break; }
-                    if (ok) matched = machine.lockedRecipe;
+                        {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (ok)
+                        matched = machine.lockedRecipe;
                 }
             }
             else
@@ -344,7 +357,6 @@ void CraftingSystem::craftTick()
                 // else: output full, craft stalls — isCrafting stays true, animation continues
             }
         }
-
     }
 }
 
@@ -367,10 +379,12 @@ void CraftingSystem::pullFromBelts(MachineData& machine, const Grid& grid, size_
                 int nx = mx + DIR_DX[dir];
                 int ny = my + DIR_DY[dir];
 
-                if (not grid.isInBounds(nx, ny)) continue;
+                if (not grid.isInBounds(nx, ny))
+                    continue;
 
                 const auto& neighborCell = grid.getCell(buildingLayer, nx, ny);
-                if (neighborCell.tileName != "Conveyor") continue;
+                if (neighborCell.tileName != "Conveyor")
+                    continue;
 
                 // Belt must be pointing INTO this machine cell
                 uint8_t beltExitDir = neighborCell.direction;
@@ -381,7 +395,8 @@ void CraftingSystem::pullFromBelts(MachineData& machine, const Grid& grid, size_
                     continue;
 
                 ItemId item = transportSystem->peekItem(nx, ny);
-                if (item == ITEM_NONE) continue;
+                if (item == ITEM_NONE)
+                    continue;
 
                 if (machine.inputSlots.canAccept(item, *itemRegistry))
                 {

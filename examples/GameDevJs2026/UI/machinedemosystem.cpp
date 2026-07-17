@@ -9,6 +9,8 @@
 #include <SDL2/SDL.h>
 #include <cmath>
 
+using namespace pg;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Available demos
 // ─────────────────────────────────────────────────────────────────────────────
@@ -273,7 +275,11 @@ void MachineDemoSystem::destroyPanel()
 
     // Remove panel entities
     auto removeEntity = [this](uint64_t& id) {
-        if (id != 0) { ecsRef->removeEntity(id); id = 0; }
+        if (id != 0)
+        {
+            ecsRef->removeEntity(id);
+            id = 0;
+        }
     };
 
     removeEntity(backdropId);
@@ -549,130 +555,130 @@ void MachineDemoSystem::tickInserters()
 
         switch (ins.state)
         {
-            case DemoInserterState::Idle:
-            {
-                // Try to pick up from behind
-                int pickupX = ins.gridX - DIR_DX[ins.direction];
-                int pickupY = ins.gridY - DIR_DY[ins.direction];
+        case DemoInserterState::Idle:
+        {
+            // Try to pick up from behind
+            int pickupX = ins.gridX - DIR_DX[ins.direction];
+            int pickupY = ins.gridY - DIR_DY[ins.direction];
 
-                // Check belt at pickup position
-                int beltIdx = findBeltAt(pickupX, pickupY);
-                if (beltIdx >= 0 && belts[beltIdx].carriedItemIndex >= 0)
+            // Check belt at pickup position
+            int beltIdx = findBeltAt(pickupX, pickupY);
+            if (beltIdx >= 0 && belts[beltIdx].carriedItemIndex >= 0)
+            {
+                ins.heldItemIndex = belts[beltIdx].carriedItemIndex;
+                belts[beltIdx].carriedItemIndex = -1;
+                ins.state = DemoInserterState::Swinging;
+                ins.animFrame = 0;
+                updateInserterSprite(ins);
+            }
+            // Check machine output at pickup
+            else
+            {
+                int machIdx = findMachineAt(pickupX, pickupY);
+                if (machIdx >= 0 && machines[machIdx].outputItemIndex >= 0)
                 {
-                    ins.heldItemIndex = belts[beltIdx].carriedItemIndex;
-                    belts[beltIdx].carriedItemIndex = -1;
+                    ins.heldItemIndex = machines[machIdx].outputItemIndex;
+                    machines[machIdx].outputItemIndex = -1;
                     ins.state = DemoInserterState::Swinging;
                     ins.animFrame = 0;
                     updateInserterSprite(ins);
                 }
-                // Check machine output at pickup
-                else
-                {
-                    int machIdx = findMachineAt(pickupX, pickupY);
-                    if (machIdx >= 0 && machines[machIdx].outputItemIndex >= 0)
-                    {
-                        ins.heldItemIndex = machines[machIdx].outputItemIndex;
-                        machines[machIdx].outputItemIndex = -1;
-                        ins.state = DemoInserterState::Swinging;
-                        ins.animFrame = 0;
-                        updateInserterSprite(ins);
-                    }
-                }
-                break;
             }
+            break;
+        }
 
-            case DemoInserterState::Swinging:
+        case DemoInserterState::Swinging:
+        {
+            if (ins.animFrame < INSERTER_SWING_FRAMES - 1)
             {
-                if (ins.animFrame < INSERTER_SWING_FRAMES - 1)
+                ins.animFrame++;
+                updateInserterSprite(ins);
+
+                // Update held item position along arc
+                if (ins.heldItemIndex >= 0)
                 {
-                    ins.animFrame++;
-                    updateInserterSprite(ins);
+                    float t = static_cast<float>(ins.animFrame) / static_cast<float>(INSERTER_SWING_FRAMES - 1);
+                    float ox = gridOriginX();
+                    float oy = gridOriginY();
+                    float cx = ox + ins.gridX * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.5f;
+                    float cy = oy + ins.gridY * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.5f;
 
-                    // Update held item position along arc
-                    if (ins.heldItemIndex >= 0)
-                    {
-                        float t = static_cast<float>(ins.animFrame) / static_cast<float>(INSERTER_SWING_FRAMES - 1);
-                        float ox = gridOriginX();
-                        float oy = gridOriginY();
-                        float cx = ox + ins.gridX * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.5f;
-                        float cy = oy + ins.gridY * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.5f;
+                    int pickupX = ins.gridX - DIR_DX[ins.direction];
+                    int pickupY = ins.gridY - DIR_DY[ins.direction];
+                    float pcx = ox + pickupX * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.5f;
+                    float pcy = oy + pickupY * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.5f;
 
-                        int pickupX = ins.gridX - DIR_DX[ins.direction];
-                        int pickupY = ins.gridY - DIR_DY[ins.direction];
-                        float pcx = ox + pickupX * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.5f;
-                        float pcy = oy + pickupY * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.5f;
+                    float startAngle = std::atan2(pcy - cy, pcx - cx);
+                    float angle = startAngle + t * static_cast<float>(M_PI);
+                    float radius = DEMO_TILE_SIZE;
+                    float itemHalf = DEMO_TILE_SIZE * 0.25f;
 
-                        float startAngle = std::atan2(pcy - cy, pcx - cx);
-                        float angle = startAngle + t * static_cast<float>(M_PI);
-                        float radius = DEMO_TILE_SIZE;
-                        float itemHalf = DEMO_TILE_SIZE * 0.25f;
-
-                        items[ins.heldItemIndex].x = cx + radius * std::cos(angle) - itemHalf;
-                        items[ins.heldItemIndex].y = cy + radius * std::sin(angle) - itemHalf;
-                    }
+                    items[ins.heldItemIndex].x = cx + radius * std::cos(angle) - itemHalf;
+                    items[ins.heldItemIndex].y = cy + radius * std::sin(angle) - itemHalf;
                 }
-                else
+            }
+            else
+            {
+                // At drop position — try to drop
+                int dropX = ins.gridX + DIR_DX[ins.direction];
+                int dropY = ins.gridY + DIR_DY[ins.direction];
+
+                bool dropped = false;
+
+                // Try drop on belt
+                int beltIdx = findBeltAt(dropX, dropY);
+                if (beltIdx >= 0 && belts[beltIdx].carriedItemIndex < 0)
                 {
-                    // At drop position — try to drop
-                    int dropX = ins.gridX + DIR_DX[ins.direction];
-                    int dropY = ins.gridY + DIR_DY[ins.direction];
+                    belts[beltIdx].carriedItemIndex = ins.heldItemIndex;
+                    float ox = gridOriginX();
+                    float oy = gridOriginY();
+                    items[ins.heldItemIndex].x = ox + dropX * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.25f;
+                    items[ins.heldItemIndex].y = oy + dropY * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.25f;
+                    ins.heldItemIndex = -1;
+                    dropped = true;
+                }
 
-                    bool dropped = false;
-
-                    // Try drop on belt
-                    int beltIdx = findBeltAt(dropX, dropY);
-                    if (beltIdx >= 0 && belts[beltIdx].carriedItemIndex < 0)
+                // Try drop in machine
+                if (!dropped)
+                {
+                    int machIdx = findMachineAt(dropX, dropY);
+                    if (machIdx >= 0 && machines[machIdx].inputItemIndex < 0)
                     {
-                        belts[beltIdx].carriedItemIndex = ins.heldItemIndex;
-                        float ox = gridOriginX();
-                        float oy = gridOriginY();
-                        items[ins.heldItemIndex].x = ox + dropX * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.25f;
-                        items[ins.heldItemIndex].y = oy + dropY * DEMO_TILE_SIZE + DEMO_TILE_SIZE * 0.25f;
+                        machines[machIdx].inputItemIndex = ins.heldItemIndex;
+                        // Hide item (it's inside the machine now)
+                        items[ins.heldItemIndex].x = -100.0f;
+                        items[ins.heldItemIndex].y = -100.0f;
                         ins.heldItemIndex = -1;
                         dropped = true;
                     }
-
-                    // Try drop in machine
-                    if (!dropped)
-                    {
-                        int machIdx = findMachineAt(dropX, dropY);
-                        if (machIdx >= 0 && machines[machIdx].inputItemIndex < 0)
-                        {
-                            machines[machIdx].inputItemIndex = ins.heldItemIndex;
-                            // Hide item (it's inside the machine now)
-                            items[ins.heldItemIndex].x = -100.0f;
-                            items[ins.heldItemIndex].y = -100.0f;
-                            ins.heldItemIndex = -1;
-                            dropped = true;
-                        }
-                    }
-
-                    if (dropped)
-                    {
-                        ins.state = DemoInserterState::Returning;
-                        ins.animFrame = 0;
-                        updateInserterSprite(ins);
-                    }
-                    // else stall
                 }
-                break;
-            }
 
-            case DemoInserterState::Returning:
-            {
-                if (ins.animFrame < INSERTER_SWING_FRAMES - 1)
+                if (dropped)
                 {
-                    ins.animFrame++;
-                    updateInserterSprite(ins);
-                }
-                else
-                {
-                    ins.state = DemoInserterState::Idle;
+                    ins.state = DemoInserterState::Returning;
                     ins.animFrame = 0;
                     updateInserterSprite(ins);
                 }
-                break;
+                // else stall
             }
+            break;
+        }
+
+        case DemoInserterState::Returning:
+        {
+            if (ins.animFrame < INSERTER_SWING_FRAMES - 1)
+            {
+                ins.animFrame++;
+                updateInserterSprite(ins);
+            }
+            else
+            {
+                ins.state = DemoInserterState::Idle;
+                ins.animFrame = 0;
+                updateInserterSprite(ins);
+            }
+            break;
+        }
         }
     }
 }
@@ -870,9 +876,11 @@ void MachineDemoSystem::freeItem(int index)
 
 bool MachineDemoSystem::isClickOnCloseBtn(float x, float y) const
 {
-    if (closeBtnId == 0) return false;
+    if (closeBtnId == 0)
+        return false;
     auto ent = ecsRef->getEntity(closeBtnId);
-    if (not ent) return false;
+    if (not ent)
+        return false;
     auto pos = ent->get<PositionComponent>();
     return x >= pos->getX() && x <= pos->getX() + pos->getWidth()
         && y >= pos->getY() && y <= pos->getY() + pos->getHeight();

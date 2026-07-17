@@ -6,27 +6,25 @@
 #include "machinekey.h"
 #include "saveserialization.h"
 
-using namespace pg;
-
 struct StorageData
 {
     int ownerX = 0, ownerY = 0;
     Inventory inventory{8}; // 8 slots
 };
 
-class StorageSystem : public System<Listener<BuildingPlacedEvent>,
-                                     Listener<BuildingRemovedEvent>,
-                                     SaveSys>
+class StorageSystem : public pg::System<pg::Listener<BuildingPlacedEvent>,
+                                         pg::Listener<BuildingRemovedEvent>,
+                                         pg::SaveSys>
 {
 public:
-    StorageSystem(ItemRegistry* itemRegistry)
+    explicit StorageSystem(ItemRegistry* itemRegistry)
         : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Storage System"; }
 
     // SaveSys
-    virtual void save(Archive& archive) override;
-    virtual void load(const UnserializedObject& serializedString) override;
+    virtual void save(pg::Archive& archive) override;
+    virtual void load(const pg::UnserializedObject& serializedString) override;
 
     virtual void onEvent(const BuildingPlacedEvent& event) override;
     virtual void onEvent(const BuildingRemovedEvent& event) override;

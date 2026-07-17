@@ -10,6 +10,8 @@
 
 #include <cmath>
 
+using namespace pg;
+
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
@@ -296,70 +298,70 @@ bool SpotlightOverlaySystem::resolveTargetRect(float& sx, float& sy,
 {
     switch (currentTarget.kind)
     {
-        case TargetKind::None:
+    case TargetKind::None:
+        return false;
+
+    case TargetKind::ScreenRect:
+        sx = currentTarget.sx;
+        sy = currentTarget.sy;
+        sw = currentTarget.sw;
+        sh = currentTarget.sh;
+        return sw > 0.0f and sh > 0.0f;
+
+    case TargetKind::WorldTile:
+    {
+        auto* cameraSystem = ecsRef->getSystem<CameraSystem>();
+        if (not cameraSystem)
+            return false;
+        auto camEnt = cameraSystem->getCameraEntity();
+        if (not camEnt)
+            return false;
+        auto cam = camEnt->get<BaseCamera2D>();
+        if (not cam)
             return false;
 
-        case TargetKind::ScreenRect:
-            sx = currentTarget.sx;
-            sy = currentTarget.sy;
-            sw = currentTarget.sw;
-            sh = currentTarget.sh;
-            return sw > 0.0f and sh > 0.0f;
+        float zoom = (cam->getWidth() > 0.0f)
+            ? (screenWidth / cam->getWidth())
+            : 1.0f;
+        float worldX = static_cast<float>(currentTarget.gridX * Grid::TILE_SIZE);
+        float worldY = static_cast<float>(currentTarget.gridY * Grid::TILE_SIZE);
+        float worldW = static_cast<float>(currentTarget.gridW * Grid::TILE_SIZE);
+        float worldH = static_cast<float>(currentTarget.gridH * Grid::TILE_SIZE);
 
-        case TargetKind::WorldTile:
-        {
-            auto* cameraSystem = ecsRef->getSystem<CameraSystem>();
-            if (not cameraSystem)
-                return false;
-            auto camEnt = cameraSystem->getCameraEntity();
-            if (not camEnt)
-                return false;
-            auto cam = camEnt->get<BaseCamera2D>();
-            if (not cam)
-                return false;
+        // Pad the cutout in world space so the manual-mining progress bar
+        // (drawn ~6 px above the tile, BAR_WIDTH=20 wider than the 16 px
+        // tile) is visible inside the spotlight on single-tile targets.
+        constexpr float TILE_PAD_TOP    = 10.0f;
+        constexpr float TILE_PAD_X      = 6.0f;
+        constexpr float TILE_PAD_BOTTOM = 4.0f;
+        worldX -= TILE_PAD_X;
+        worldY -= TILE_PAD_TOP;
+        worldW += TILE_PAD_X * 2.0f;
+        worldH += TILE_PAD_TOP + TILE_PAD_BOTTOM;
 
-            float zoom = (cam->getWidth() > 0.0f)
-                ? (screenWidth / cam->getWidth())
-                : 1.0f;
-            float worldX = static_cast<float>(currentTarget.gridX * Grid::TILE_SIZE);
-            float worldY = static_cast<float>(currentTarget.gridY * Grid::TILE_SIZE);
-            float worldW = static_cast<float>(currentTarget.gridW * Grid::TILE_SIZE);
-            float worldH = static_cast<float>(currentTarget.gridH * Grid::TILE_SIZE);
+        sx = (worldX - cam->x) * zoom;
+        sy = (worldY - cam->y) * zoom;
+        sw = worldW * zoom;
+        sh = worldH * zoom;
+        return true;
+    }
 
-            // Pad the cutout in world space so the manual-mining progress bar
-            // (drawn ~6 px above the tile, BAR_WIDTH=20 wider than the 16 px
-            // tile) is visible inside the spotlight on single-tile targets.
-            constexpr float TILE_PAD_TOP    = 10.0f;
-            constexpr float TILE_PAD_X      = 6.0f;
-            constexpr float TILE_PAD_BOTTOM = 4.0f;
-            worldX -= TILE_PAD_X;
-            worldY -= TILE_PAD_TOP;
-            worldW += TILE_PAD_X * 2.0f;
-            worldH += TILE_PAD_TOP + TILE_PAD_BOTTOM;
-
-            sx = (worldX - cam->x) * zoom;
-            sy = (worldY - cam->y) * zoom;
-            sw = worldW * zoom;
-            sh = worldH * zoom;
-            return true;
-        }
-
-        case TargetKind::UiEntity:
-        {
-            if (currentTarget.entityId == 0)
-                return false;
-            auto ent = ecsRef->getEntity(currentTarget.entityId);
-            if (not ent)
-                return false;
-            auto pos = ent->get<PositionComponent>();
-            if (not pos)
-                return false;
-            sx = pos->getX();
-            sy = pos->getY();
-            sw = pos->getWidth();
-            sh = pos->getHeight();
-            return sw > 0.0f and sh > 0.0f;
-        }
+    case TargetKind::UiEntity:
+    {
+        if (currentTarget.entityId == 0)
+            return false;
+        auto ent = ecsRef->getEntity(currentTarget.entityId);
+        if (not ent)
+            return false;
+        auto pos = ent->get<PositionComponent>();
+        if (not pos)
+            return false;
+        sx = pos->getX();
+        sy = pos->getY();
+        sw = pos->getWidth();
+        sh = pos->getHeight();
+        return sw > 0.0f and sh > 0.0f;
+    }
     }
     return false;
 }
@@ -398,8 +400,10 @@ void SpotlightOverlaySystem::layoutDimFrames(float sx, float sy, float sw, float
     float ty = std::max(0.0f, sy);
     float tr = std::min(screenWidth, sx + sw);
     float tb = std::min(screenHeight, sy + sh);
-    if (tr < tx) tr = tx;
-    if (tb < ty) tb = ty;
+    if (tr < tx)
+        tr = tx;
+    if (tb < ty)
+        tb = ty;
 
     // Top frame: above the target, full width.
     setEntityXY(dimFrameIds[0], 0.0f, 0.0f);
@@ -425,25 +429,25 @@ void SpotlightOverlaySystem::layoutArrow(float sx, float sy, float sw, float sh,
     float rotation = 0.0f;
     switch (currentArrowSide)
     {
-        case ArrowSide::Top:
-            ax = sx + sw * 0.5f - ARROW_SIZE * 0.5f;
-            ay = sy - ARROW_SIZE - ARROW_OFFSET - bobOffset;
-            rotation = 180.0f;
-            break;
-        case ArrowSide::Bottom:
-            ax = sx + sw * 0.5f - ARROW_SIZE * 0.5f;
-            ay = sy + sh + ARROW_OFFSET + bobOffset;
-            break;
-        case ArrowSide::Left:
-            ax = sx - ARROW_SIZE - ARROW_OFFSET - bobOffset;
-            ay = sy + sh * 0.5f - ARROW_SIZE * 0.5f;
-            rotation = 90.0f;
-            break;
-        case ArrowSide::Right:
-            ax = sx + sw + ARROW_OFFSET + bobOffset;
-            ay = sy + sh * 0.5f - ARROW_SIZE * 0.5f;
-            rotation = -90.0f;
-            break;
+    case ArrowSide::Top:
+        ax = sx + sw * 0.5f - ARROW_SIZE * 0.5f;
+        ay = sy - ARROW_SIZE - ARROW_OFFSET - bobOffset;
+        rotation = 180.0f;
+        break;
+    case ArrowSide::Bottom:
+        ax = sx + sw * 0.5f - ARROW_SIZE * 0.5f;
+        ay = sy + sh + ARROW_OFFSET + bobOffset;
+        break;
+    case ArrowSide::Left:
+        ax = sx - ARROW_SIZE - ARROW_OFFSET - bobOffset;
+        ay = sy + sh * 0.5f - ARROW_SIZE * 0.5f;
+        rotation = 90.0f;
+        break;
+    case ArrowSide::Right:
+        ax = sx + sw + ARROW_OFFSET + bobOffset;
+        ay = sy + sh * 0.5f - ARROW_SIZE * 0.5f;
+        rotation = -90.0f;
+        break;
     }
 
     auto ent = ecsRef->getEntity(arrowId);
@@ -462,7 +466,8 @@ void SpotlightOverlaySystem::layoutArrow(float sx, float sy, float sw, float sh,
 
 void SpotlightOverlaySystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
     if (ent)
         ent->get<PositionComponent>()->setVisibility(vis);
@@ -470,7 +475,8 @@ void SpotlightOverlaySystem::setEntityVisibility(uint64_t id, bool vis)
 
 void SpotlightOverlaySystem::setEntityXY(uint64_t id, float x, float y)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
     if (ent)
     {
@@ -482,7 +488,8 @@ void SpotlightOverlaySystem::setEntityXY(uint64_t id, float x, float y)
 
 void SpotlightOverlaySystem::setEntityWH(uint64_t id, float w, float h)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
     if (ent)
     {

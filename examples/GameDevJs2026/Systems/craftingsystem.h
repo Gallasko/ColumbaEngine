@@ -9,8 +9,6 @@
 #include "saveserialization.h"
 #include "worldfacts.h"
 
-using namespace pg;
-
 struct MachineData
 {
     int ownerX, ownerY;
@@ -29,10 +27,10 @@ struct MachineData
     bool isCrafting = false;
 };
 
-class CraftingSystem : public System<Listener<TickEvent>,
-                                     Listener<BuildingPlacedEvent>,
-                                     Listener<BuildingRemovedEvent>,
-                                     SaveSys>
+class CraftingSystem : public pg::System<pg::Listener<pg::TickEvent>,
+                                         pg::Listener<BuildingPlacedEvent>,
+                                         pg::Listener<BuildingRemovedEvent>,
+                                         pg::SaveSys>
 {
 public:
     static constexpr size_t CRAFT_TICK_MS          = 250;
@@ -46,10 +44,10 @@ public:
     virtual std::string getSystemName() const override { return "Crafting System"; }
 
     // SaveSys
-    virtual void save(Archive& archive) override;
-    virtual void load(const UnserializedObject& serializedString) override;
+    virtual void save(pg::Archive& archive) override;
+    virtual void load(const pg::UnserializedObject& serializedString) override;
 
-    virtual void onEvent(const TickEvent& event) override
+    virtual void onEvent(const pg::TickEvent& event) override
     {
         tickAccumulator += static_cast<size_t>(event.tick);
         animAccumulator += static_cast<size_t>(event.tick);
@@ -81,5 +79,4 @@ private:
     std::unordered_map<uint32_t, MachineData> machines;
     size_t tickAccumulator = 0;
     size_t animAccumulator = 0;
-
 };

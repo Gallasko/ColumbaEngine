@@ -1,5 +1,4 @@
-#ifndef APPLICATION_H
-#define APPLICATION_H
+#pragma once
 
 #include "engine.h"
 #include "buildingregistry.h"
@@ -10,7 +9,7 @@
 class GameApp
 {
 public:
-    GameApp(const std::string& appName);
+    explicit GameApp(const std::string& appName);
     ~GameApp();
 
     int exec();
@@ -22,5 +21,3 @@ private:
     RecipeRegistry recipeRegistry;
     pg::Engine engine;
 };
-
-#endif

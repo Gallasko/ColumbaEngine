@@ -26,7 +26,8 @@ namespace
         // Inclusive range.
         int rangeInt(int lo, int hi)
         {
-            if (hi <= lo) return lo;
+            if (hi <= lo)
+                return lo;
             return lo + static_cast<int>(next() % static_cast<uint32_t>(hi - lo + 1));
         }
 

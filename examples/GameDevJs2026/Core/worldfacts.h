@@ -35,7 +35,7 @@ namespace pg
 
     struct IncreaseFact
     {
-        IncreaseFact(const std::string& name = "Noop") : name(name), value(1) {}
+        explicit IncreaseFact(const std::string& name = "Noop") : name(name), value(1) {}
         template <typename Type>
         IncreaseFact(const std::string& name, Type value) : name(name), value(value) {}
         IncreaseFact(const IncreaseFact& other)

@@ -7,14 +7,18 @@
 
 #include <SDL2/SDL.h>
 
+using namespace pg;
+
 namespace
 {
     // Hit-test against a button entity's resolved position+size.
     bool hitButtonEntity(pg::EntitySystem* ecs, uint64_t id, float mx, float my)
     {
-        if (id == 0) return false;
+        if (id == 0)
+            return false;
         auto ent = ecs->getEntity(id);
-        if (not ent) return false;
+        if (not ent)
+            return false;
         auto pos = ent->get<pg::PositionComponent>();
         return mx >= pos->getX() and mx <= pos->getX() + pos->getWidth()
            and my >= pos->getY() and my <= pos->getY() + pos->getHeight();
@@ -87,7 +91,8 @@ void DepotUISystem::close()
 
 void DepotUISystem::onProcessEvent(const OnSDLScanCode& event)
 {
-    if (not visible) return;
+    if (not visible)
+        return;
     if (event.key == SDL_SCANCODE_ESCAPE)
         close();
 }
@@ -100,7 +105,8 @@ void DepotUISystem::onEvent(const InventoryClosedEvent&)
 
 void DepotUISystem::onProcessEvent(const TickEvent&)
 {
-    if (not visible) return;
+    if (not visible)
+        return;
 
     DepotData* depot = ecsRef->getSystem<DepotSystem>()->getDepot(openDepotX, openDepotY);
     if (not depot)
@@ -248,7 +254,8 @@ void DepotUISystem::createPanel()
     if (leftAnchorTargetId == 0)
     {
         auto windowEnt = ecsRef->getEntity("__MainWindow");
-        if (windowEnt) leftAnchorTargetId = windowEnt->id;
+        if (windowEnt)
+            leftAnchorTargetId = windowEnt->id;
     }
 
     auto* factory = ecsRef->getSystem<PrefabFactoryRegistry>();
@@ -358,7 +365,8 @@ void DepotUISystem::createPanel()
 
         // Anchor target: prefer inventory panel, else depot's own backdrop, else main window.
         uint64_t rightAnchorId = invPanelId;
-        if (rightAnchorId == 0) rightAnchorId = leftAnchorTargetId;
+        if (rightAnchorId == 0)
+            rightAnchorId = leftAnchorTargetId;
 
         auto bd = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
@@ -417,10 +425,13 @@ void DepotUISystem::createMissionSection()
                         AnchorType hSide, float hMargin,
                         float topMargin) {
         auto a = ecsRef->attach<UiAnchor>(ent);
-        if (hSide == AnchorType::Left) {
+        if (hSide == AnchorType::Left)
+        {
             a->setLeftAnchor(PosAnchor{parentId, AnchorType::Left});
             a->setLeftMargin(hMargin);
-        } else {
+        }
+        else
+        {
             a->setRightAnchor(PosAnchor{parentId, AnchorType::Right});
             a->setRightMargin(hMargin);
         }
@@ -604,7 +615,8 @@ void DepotUISystem::refreshMissionSection()
             progress = def.durationMs > 0
                 ? static_cast<float>(activeMission->elapsedMs) / static_cast<float>(def.durationMs)
                 : 1.0f;
-        if (progress > 1.0f) progress = 1.0f;
+        if (progress > 1.0f)
+            progress = 1.0f;
 
         setEntityVisibility(activeMissionProgressBgId, true);
         setEntityVisibility(activeMissionProgressFillId, true);

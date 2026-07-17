@@ -11,6 +11,8 @@
 #include <cstring>
 #include <unordered_set>
 
+using namespace pg;
+
 // Strip common crafting prefixes from recipe names shown in the UI.
 static std::string stripCraftingPrefix(const std::string& name)
 {

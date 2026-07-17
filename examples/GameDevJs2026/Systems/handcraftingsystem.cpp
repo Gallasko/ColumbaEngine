@@ -1,5 +1,7 @@
 #include "handcraftingsystem.h"
 
+using namespace pg;
+
 void HandCraftingSystem::onEvent(const HandCraftRequest& event)
 {
     LOG_INFO("HandCrafting", "HandCraftRequest recipeIndex=" << event.recipeIndex);
@@ -112,8 +114,10 @@ float HandCraftingSystem::getProgressRatio() const
         return 0.0f;
     float ratio = static_cast<float>(progressMs)
                 / static_cast<float>(activeRecipe->craftTimeMs);
-    if (ratio < 0.0f) ratio = 0.0f;
-    if (ratio > 1.0f) ratio = 1.0f;
+    if (ratio < 0.0f)
+        ratio = 0.0f;
+    if (ratio > 1.0f)
+        ratio = 1.0f;
     return ratio;
 }
 

@@ -11,8 +11,6 @@
 #include <cstdint>
 #include <string>
 
-using namespace pg;
-
 class CameraSystem;
 class GridSystem;
 class HotbarSystem;
@@ -27,10 +25,10 @@ class HudBarSystem;
 // OnSDLMouseMotion buffers the cursor position, then a Listener<TickEvent>
 // resolves the cursor into grid coords and rebuilds the panel only when the
 // hovered cell changes.
-class TileInspectorSystem : public System<InitSys,
-                                           QueuedListener<OnSDLMouseMotion>,
-                                           Listener<TickEvent>,
-                                           Listener<ResizeEvent>>
+class TileInspectorSystem : public pg::System<pg::InitSys,
+                                           pg::QueuedListener<pg::OnSDLMouseMotion>,
+                                           pg::Listener<pg::TickEvent>,
+                                           pg::Listener<pg::ResizeEvent>>
 {
 public:
     static constexpr size_t UI_VP = 2;
@@ -63,9 +61,9 @@ public:
 
     void init() override;
 
-    virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
-    virtual void onEvent(const TickEvent& event) override;
-    virtual void onEvent(const ResizeEvent& event) override;
+    virtual void onProcessEvent(const pg::OnSDLMouseMotion& event) override;
+    virtual void onEvent(const pg::TickEvent& event) override;
+    virtual void onEvent(const pg::ResizeEvent& event) override;
 
     void execute() override {}
 
@@ -74,7 +72,7 @@ private:
     void rebuildContent(int gx, int gy);
 
     void setLine(int idx, const std::string& text,
-                 const constant::Vector4D& color, bool show);
+                 const pg::constant::Vector4D& color, bool show);
 
     ItemRegistry*   itemRegistry    = nullptr;
     RecipeRegistry* recipeRegistry  = nullptr;

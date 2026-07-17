@@ -16,14 +16,12 @@
 #include "worldfacts.h"
 #include "machineuicoordinator.h"
 
-using namespace pg;
-
 // UI exclusivity groups. The InventoryGroup (inventory + crafting + miner +
 // machine + storage + depot) panels are designed to coexist side-by-side; the
 // Mission panel is a fullscreen modal that must not overlap with them.
 enum class UIPanel { None, InventoryGroup, Mission };
 
-class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>, Listener<PanelWasClickedEvent>>
+class GameSystem : public pg::System<pg::InitSys, pg::QueuedListener<pg::OnMouseClick>, pg::QueuedListener<pg::OnMouseRelease>, pg::QueuedListener<pg::OnSDLScanCode>, pg::QueuedListener<pg::OnSDLMouseMotion>, pg::Listener<PanelWasClickedEvent>>
 {
 public:
     GameSystem(BuildingRegistry* registry, ItemRegistry* itemRegistry)
@@ -33,10 +31,10 @@ public:
 
     void init() override;
 
-    virtual void onProcessEvent(const OnSDLScanCode& event) override;
-    virtual void onProcessEvent(const OnMouseClick& event) override;
-    virtual void onProcessEvent(const OnMouseRelease& event) override;
-    virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
+    virtual void onProcessEvent(const pg::OnSDLScanCode& event) override;
+    virtual void onProcessEvent(const pg::OnMouseClick& event) override;
+    virtual void onProcessEvent(const pg::OnMouseRelease& event) override;
+    virtual void onProcessEvent(const pg::OnSDLMouseMotion& event) override;
 
     virtual void onEvent(const PanelWasClickedEvent&) override
     {
@@ -113,13 +111,13 @@ private:
     // Hold the EntityRef alongside the id so destruction works even when the
     // entity is still pending in cmdDispatcher (id-based lookup misses it →
     // orphaned entity that gets created later with no one tracking it).
-    EntityRef cursorEntity;
+    pg::EntityRef cursorEntity;
     uint64_t  cursorEntityId = 0;
-    EntityRef ghostEntity;
+    pg::EntityRef ghostEntity;
     uint64_t  ghostEntityId = 0;
 
     // Line-drag state
     bool isDragging = false;
     std::vector<std::pair<int, int>> dragPath;
-    std::vector<EntityRef> dragGhostEntities;
+    std::vector<pg::EntityRef> dragGhostEntities;
 };

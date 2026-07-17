@@ -8,8 +8,6 @@
 #include "itemregistry.h"
 #include "gridsystem.h"
 
-using namespace pg;
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Internal simulation state
 // ─────────────────────────────────────────────────────────────────────────────
@@ -56,9 +54,9 @@ struct DemoSimMachine
 // MachineDemoSystem
 // ─────────────────────────────────────────────────────────────────────────────
 
-class MachineDemoSystem : public System<Listener<TickEvent>,
-                                         QueuedListener<OnMouseClick>,
-                                         Listener<OnSDLScanCode>>
+class MachineDemoSystem : public pg::System<pg::Listener<pg::TickEvent>,
+                                         pg::QueuedListener<pg::OnMouseClick>,
+                                         pg::Listener<pg::OnSDLScanCode>>
 {
 public:
     static constexpr size_t UI_VP = 2;
@@ -91,9 +89,9 @@ public:
 
     virtual std::string getSystemName() const override { return "Machine Demo System"; }
 
-    void onEvent(const TickEvent& event) override;
-    void onEvent(const OnSDLScanCode& event) override;
-    void onProcessEvent(const OnMouseClick& event) override;
+    void onEvent(const pg::TickEvent& event) override;
+    void onEvent(const pg::OnSDLScanCode& event) override;
+    void onProcessEvent(const pg::OnMouseClick& event) override;
 
     void execute() override;
 

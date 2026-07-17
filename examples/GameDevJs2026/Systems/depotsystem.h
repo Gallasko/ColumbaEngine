@@ -6,8 +6,6 @@
 #include "machinekey.h"
 #include "saveserialization.h"
 
-using namespace pg;
-
 struct DepotData
 {
     int ownerX = 0, ownerY = 0;
@@ -15,19 +13,19 @@ struct DepotData
     Inventory output{4};    // 4 output slots (mission rewards)
 };
 
-class DepotSystem : public System<Listener<BuildingPlacedEvent>,
-                                   Listener<BuildingRemovedEvent>,
-                                   SaveSys>
+class DepotSystem : public pg::System<pg::Listener<BuildingPlacedEvent>,
+                                       pg::Listener<BuildingRemovedEvent>,
+                                       pg::SaveSys>
 {
 public:
-    DepotSystem(ItemRegistry* itemRegistry)
+    explicit DepotSystem(ItemRegistry* itemRegistry)
         : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Depot System"; }
 
     // SaveSys
-    virtual void save(Archive& archive) override;
-    virtual void load(const UnserializedObject& serializedString) override;
+    virtual void save(pg::Archive& archive) override;
+    virtual void load(const pg::UnserializedObject& serializedString) override;
 
     virtual void onEvent(const BuildingPlacedEvent& event) override;
     virtual void onEvent(const BuildingRemovedEvent& event) override;

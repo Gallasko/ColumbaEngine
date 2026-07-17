@@ -6,8 +6,6 @@
 #include "worldfacts.h"
 #include "saveserialization.h"
 
-using namespace pg;
-
 struct PlayerGainItemEvent
 {
     ItemId   id;
@@ -20,10 +18,10 @@ struct PlayerLoseItemEvent
     uint16_t count;
 };
 
-class PlayerInventorySystem : public System<InitSys,
-                                            Listener<PlayerGainItemEvent>,
-                                            Listener<PlayerLoseItemEvent>,
-                                            SaveSys>
+class PlayerInventorySystem : public pg::System<pg::InitSys,
+                                                pg::Listener<PlayerGainItemEvent>,
+                                                pg::Listener<PlayerLoseItemEvent>,
+                                                pg::SaveSys>
 {
 public:
     static constexpr size_t NUM_SLOTS = 29;
@@ -32,7 +30,7 @@ public:
     static constexpr size_t HOTBAR_COUNT = 9;
     static constexpr ItemId TICKET_ID = 35;
 
-    PlayerInventorySystem(ItemRegistry* itemRegistry)
+    explicit PlayerInventorySystem(ItemRegistry* itemRegistry)
         : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Player Inventory System"; }
@@ -40,8 +38,8 @@ public:
     void init() override;
 
     // SaveSys
-    virtual void save(Archive& archive) override;
-    virtual void load(const UnserializedObject& serializedString) override;
+    virtual void save(pg::Archive& archive) override;
+    virtual void load(const pg::UnserializedObject& serializedString) override;
 
     virtual void onEvent(const PlayerGainItemEvent& event) override;
 
@@ -65,7 +63,8 @@ public:
     }
     bool spendTickets(uint32_t amount)
     {
-        if (ticketCount < amount) return false;
+        if (ticketCount < amount)
+            return false;
         ticketCount -= amount;
         publishTickets();
         return true;
@@ -76,7 +75,7 @@ public:
 private:
     void publishTickets()
     {
-        if (auto* view = ecsRef ? ecsRef->getSystem<GameDataView>() : nullptr)
+        if (auto* view = ecsRef ? ecsRef->getSystem<pg::GameDataView>() : nullptr)
             view->set(TICKETS_PATH, static_cast<size_t>(ticketCount));
     }
 

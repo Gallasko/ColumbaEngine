@@ -9,14 +9,12 @@
 #include "slotsystem.h"
 #include "playerinventory.h"
 
-using namespace pg;
-
 // Side-panel UI for Storage (tileId 9).
 // Shows an 8-slot grid (2 columns x 4 rows) for drag-and-drop item management.
-class StorageUISystem : public System<Listener<ResizeEvent>,
-                                      QueuedListener<OnSDLScanCode>,
-                                      QueuedListener<TickEvent>,
-                                      Listener<InventoryClosedEvent>>,
+class StorageUISystem : public pg::System<pg::Listener<pg::ResizeEvent>,
+                                      pg::QueuedListener<pg::OnSDLScanCode>,
+                                      pg::QueuedListener<pg::TickEvent>,
+                                      pg::Listener<InventoryClosedEvent>>,
                         public IMachineUI
 {
 public:
@@ -58,14 +56,14 @@ public:
 
     void open(int gridX, int gridY);
 
-    virtual void onEvent(const ResizeEvent& event) override
+    virtual void onEvent(const pg::ResizeEvent& event) override
     {
         screenWidth = event.width;
         screenHeight = event.height;
     }
 
-    virtual void onProcessEvent(const OnSDLScanCode& event) override;
-    virtual void onProcessEvent(const TickEvent&) override;
+    virtual void onProcessEvent(const pg::OnSDLScanCode& event) override;
+    virtual void onProcessEvent(const pg::TickEvent&) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
 private:

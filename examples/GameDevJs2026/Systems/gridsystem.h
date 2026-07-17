@@ -10,8 +10,6 @@
 
 #include <unordered_map>
 
-using namespace pg;
-
 // Viewport index for the game camera (FollowCamera2D registers as cameraList[0] = viewport 1)
 inline constexpr size_t GAME_VIEWPORT = 1;
 
@@ -72,45 +70,57 @@ inline size_t resolveLineTileVariant(uint8_t exitDir, bool connectedBack, bool c
 {
     switch (exitDir)
     {
-        case 0: // RIGHT: _0=ender back, _1=middle, _2=ender front
-            if (connectedBack and connectedFront) return LINE_RIGHT_1;
-            if (connectedBack)                    return LINE_RIGHT_2;
-            if (connectedFront)                   return LINE_RIGHT_0;
-            return LINE_RIGHT_0; // standalone: show back ender
+    case 0: // RIGHT: _0=ender back, _1=middle, _2=ender front
+        if (connectedBack and connectedFront)
+            return LINE_RIGHT_1;
+        if (connectedBack)
+            return LINE_RIGHT_2;
+        if (connectedFront)
+            return LINE_RIGHT_0;
+        return LINE_RIGHT_0; // standalone: show back ender
 
-        case 1: // DOWN: _0=ender back, _1=middle, _2=ender front
-            if (connectedBack and connectedFront) return LINE_DOWN_1;
-            if (connectedBack)                    return LINE_DOWN_2;
-            if (connectedFront)                   return LINE_DOWN_0;
+    case 1: // DOWN: _0=ender back, _1=middle, _2=ender front
+        if (connectedBack and connectedFront)
+            return LINE_DOWN_1;
+        if (connectedBack)
+            return LINE_DOWN_2;
+        if (connectedFront)
             return LINE_DOWN_0;
+        return LINE_DOWN_0;
 
-        case 2: // LEFT (inverted): _0=ender front, _1=middle, _2=ender back
-            if (connectedBack and connectedFront) return LINE_LEFT_1;
-            if (connectedBack)                    return LINE_LEFT_0;
-            if (connectedFront)                   return LINE_LEFT_2;
-            return LINE_LEFT_2; // standalone: show back ender
+    case 2: // LEFT (inverted): _0=ender front, _1=middle, _2=ender back
+        if (connectedBack and connectedFront)
+            return LINE_LEFT_1;
+        if (connectedBack)
+            return LINE_LEFT_0;
+        if (connectedFront)
+            return LINE_LEFT_2;
+        return LINE_LEFT_2; // standalone: show back ender
 
-        case 3: // UP (inverted): _0=ender front, _1=middle, _2=ender back
-            if (connectedBack and connectedFront) return LINE_UP_1;
-            if (connectedBack)                    return LINE_UP_0;
-            if (connectedFront)                   return LINE_UP_2;
+    case 3: // UP (inverted): _0=ender front, _1=middle, _2=ender back
+        if (connectedBack and connectedFront)
+            return LINE_UP_1;
+        if (connectedBack)
             return LINE_UP_0;
+        if (connectedFront)
+            return LINE_UP_2;
+        return LINE_UP_0;
     }
     return LINE_RIGHT_1;
 }
 
-class GridSystem : public System<InitSys, Listener<TickEvent>, SaveSys>
+class GridSystem : public pg::System<pg::InitSys, pg::Listener<pg::TickEvent>, pg::SaveSys>
 {
 public:
-    GridSystem(BuildingRegistry* registry) : registry(registry) {}
+    explicit GridSystem(BuildingRegistry* registry) : registry(registry) {}
 
     virtual std::string getSystemName() const override { return "Grid System"; }
 
     void init() override;
 
     // SaveSys
-    virtual void save(Archive& archive) override;
-    virtual void load(const UnserializedObject& serializedString) override;
+    virtual void save(pg::Archive& archive) override;
+    virtual void load(const pg::UnserializedObject& serializedString) override;
 
     // Query the terrain type at a given grid cell (returns None for out-of-bounds).
     TerrainType getTerrainAt(int x, int y) const
@@ -127,7 +137,7 @@ public:
     // their own entity ids, not in bgEntities). Useful as a dev tool to eyeball seeds.
     void regenerateTerrain(uint32_t seed);
 
-    virtual void onEvent(const TickEvent& event) override
+    virtual void onEvent(const pg::TickEvent& event) override
     {
         animElapsed += event.tick;
     }

@@ -10,18 +10,16 @@
 #include "inventoryui.h"
 #include "slotsystem.h"
 
-using namespace pg;
-
 inline constexpr size_t HOTBAR_SLOTS = 9;
 
-class HotbarSystem : public System<InitSys,
-                                    Listener<OnSDLScanCode>,
-                                    Listener<ResizeEvent>,
-                                    Listener<PlayerGainItemEvent>,
-                                    Listener<PlayerLoseItemEvent>,
-                                    Listener<InventoryOpenedEvent>,
-                                    Listener<InventoryClosedEvent>,
-                                    QueuedListener<SlotClickedEvent>>
+class HotbarSystem : public pg::System<pg::InitSys,
+                                    pg::Listener<pg::OnSDLScanCode>,
+                                    pg::Listener<pg::ResizeEvent>,
+                                    pg::Listener<PlayerGainItemEvent>,
+                                    pg::Listener<PlayerLoseItemEvent>,
+                                    pg::Listener<InventoryOpenedEvent>,
+                                    pg::Listener<InventoryClosedEvent>,
+                                    pg::QueuedListener<SlotClickedEvent>>
 {
 public:
     static constexpr float HOTBAR_HEIGHT = 48.0f;
@@ -44,8 +42,8 @@ public:
     void init() override;
 
     // Event handlers
-    virtual void onEvent(const OnSDLScanCode& event) override;
-    virtual void onEvent(const ResizeEvent& event) override;
+    virtual void onEvent(const pg::OnSDLScanCode& event) override;
+    virtual void onEvent(const pg::ResizeEvent& event) override;
     virtual void onEvent(const PlayerGainItemEvent& event) override;
     virtual void onEvent(const PlayerLoseItemEvent& event) override;
     virtual void onEvent(const InventoryOpenedEvent&) override;

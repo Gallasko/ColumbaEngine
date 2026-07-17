@@ -8,8 +8,6 @@
 
 #include <cstdint>
 
-using namespace pg;
-
 class HotbarSystem;
 class CameraSystem;
 
@@ -21,11 +19,11 @@ class CameraSystem;
 // Implementation: a pool of footprint-sized overlay squares (re-positioned
 // each frame to follow the cursor) on the game viewport, hidden when no
 // building is selected.
-class PlacementOverlaySystem : public System<InitSys,
-                                              QueuedListener<OnSDLMouseMotion>,
-                                              Listener<TickEvent>,
-                                              Listener<BuildingPlacedEvent>,
-                                              Listener<BuildingRemovedEvent>>
+class PlacementOverlaySystem : public pg::System<pg::InitSys,
+                                                  pg::QueuedListener<pg::OnSDLMouseMotion>,
+                                                  pg::Listener<pg::TickEvent>,
+                                                  pg::Listener<BuildingPlacedEvent>,
+                                                  pg::Listener<BuildingRemovedEvent>>
 {
 public:
     static constexpr size_t GAME_VP = 1;
@@ -44,8 +42,8 @@ public:
 
     void init() override;
 
-    virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
-    virtual void onEvent(const TickEvent& event) override;
+    virtual void onProcessEvent(const pg::OnSDLMouseMotion& event) override;
+    virtual void onEvent(const pg::TickEvent& event) override;
     virtual void onEvent(const BuildingPlacedEvent& event) override;
     virtual void onEvent(const BuildingRemovedEvent& event) override;
 

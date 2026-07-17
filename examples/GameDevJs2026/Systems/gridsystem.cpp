@@ -5,6 +5,8 @@
 
 #include <algorithm>
 
+using namespace pg;
+
 void GridSystem::save(Archive& archive)
 {
     // Save terrain grid as flat list of uint8_t values
@@ -108,7 +110,6 @@ void GridSystem::load(const UnserializedObject& serializedString)
             placeBuildingInternal(buildingLayer, sb.x, sb.y, *def,
                                   sb.direction, sb.conveyorTileIndex, sb.enterDirection);
     }
-
 }
 
 void GridSystem::init()
@@ -614,10 +615,14 @@ uint16_t GridSystem::grassAutotileFrame(int x, int y, const RenderAsDirtGrid& re
     // there are exactly 2 ore sides they must be adjacent (forming a
     // corner). Anything else has no valid tile, so render as dirt.
     int oreSides = 0;
-    if (not hasN) ++oreSides;
-    if (not hasS) ++oreSides;
-    if (not hasW) ++oreSides;
-    if (not hasE) ++oreSides;
+    if (not hasN)
+        ++oreSides;
+    if (not hasS)
+        ++oreSides;
+    if (not hasW)
+        ++oreSides;
+    if (not hasE)
+        ++oreSides;
 
     const bool oppositeOnly = (oreSides == 2) and
         (((not hasN) and (not hasS)) or ((not hasW) and (not hasE)));
@@ -626,14 +631,20 @@ uint16_t GridSystem::grassAutotileFrame(int x, int y, const RenderAsDirtGrid& re
         return GRASS_AS_DIRT;
 
     int localRow;
-    if (not hasN and hasS)      localRow = 0;
-    else if (hasN and not hasS) localRow = 2;
-    else                        localRow = 1;
+    if (not hasN and hasS)
+        localRow = 0;
+    else if (hasN and not hasS)
+        localRow = 2;
+    else
+        localRow = 1;
 
     int localCol;
-    if (not hasW and hasE)      localCol = 0;
-    else if (hasW and not hasE) localCol = 2;
-    else                        localCol = 1;
+    if (not hasW and hasE)
+        localCol = 0;
+    else if (hasW and not hasE)
+        localCol = 2;
+    else
+        localCol = 1;
 
     // If we landed on the center cell (all 4 cardinals are grass-like),
     // check diagonals for interior-corner transitions. Priority order
@@ -654,10 +665,14 @@ uint16_t GridSystem::grassAutotileFrame(int x, int y, const RenderAsDirtGrid& re
         //   frame  4 (col 4 row 0) -> SW inner corner
         //   frame 16 (col 3 row 2) -> NW inner corner
         //   frame 15 (col 4 row 1) -> NE inner corner
-        if (not hasSE) return 3;
-        if (not hasSW) return 4;
-        if (not hasNW) return 16;
-        if (not hasNE) return 15;
+        if (not hasSE)
+            return 3;
+        if (not hasSW)
+            return 4;
+        if (not hasNW)
+            return 16;
+        if (not hasNE)
+            return 15;
 
         // Fully surrounded by grass: use the base fill tile, sprinkling in
         // rare variations so the interior doesn't look flat.
@@ -681,11 +696,21 @@ uint16_t GridSystem::oreAutotileFrame(int x, int y, TerrainType t) const
     uint16_t baseOffset;
     switch (t)
     {
-        case TerrainType::OreStone:  baseOffset = 18 * ATLAS_COLS + 0; break; // 216
-        case TerrainType::OreCoal:   baseOffset = 18 * ATLAS_COLS + 3; break; // 219
-        case TerrainType::OreIron:   baseOffset = 18 * ATLAS_COLS + 6; break; // 222
-        case TerrainType::OreCopper: baseOffset = 18 * ATLAS_COLS + 9; break; // 225
-        default:                     baseOffset = 18 * ATLAS_COLS + 6; break;
+    case TerrainType::OreStone:
+        baseOffset = 18 * ATLAS_COLS + 0; // 216
+        break;
+    case TerrainType::OreCoal:
+        baseOffset = 18 * ATLAS_COLS + 3; // 219
+        break;
+    case TerrainType::OreIron:
+        baseOffset = 18 * ATLAS_COLS + 6; // 222
+        break;
+    case TerrainType::OreCopper:
+        baseOffset = 18 * ATLAS_COLS + 9; // 225
+        break;
+    default:
+        baseOffset = 18 * ATLAS_COLS + 6;
+        break;
     }
 
     auto sameOre = [&](int nx, int ny)
@@ -705,14 +730,20 @@ uint16_t GridSystem::oreAutotileFrame(int x, int y, TerrainType t) const
     // surrounded" and "fully isolated" cases, both of which render as the
     // solid center tile).
     int localRow;
-    if (not hasN and hasS)      localRow = 0;
-    else if (hasN and not hasS) localRow = 2;
-    else                        localRow = 1;
+    if (not hasN and hasS)
+        localRow = 0;
+    else if (hasN and not hasS)
+        localRow = 2;
+    else
+        localRow = 1;
 
     int localCol;
-    if (not hasW and hasE)      localCol = 0;
-    else if (hasW and not hasE) localCol = 2;
-    else                        localCol = 1;
+    if (not hasW and hasE)
+        localCol = 0;
+    else if (hasW and not hasE)
+        localCol = 2;
+    else
+        localCol = 1;
 
     return static_cast<uint16_t>(baseOffset + localRow * ATLAS_COLS + localCol);
 }

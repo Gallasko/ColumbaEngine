@@ -9,8 +9,6 @@
 #include "machinekey.h"
 #include "saveserialization.h"
 
-using namespace pg;
-
 struct MinerData
 {
     int ownerX, ownerY;
@@ -28,10 +26,10 @@ struct MinerData
     ItemId producedItem = ITEM_NONE;
 };
 
-class MinerSystem : public System<Listener<TickEvent>,
-                                   Listener<BuildingPlacedEvent>,
-                                   Listener<BuildingRemovedEvent>,
-                                   SaveSys>
+class MinerSystem : public pg::System<pg::Listener<pg::TickEvent>,
+                                       pg::Listener<BuildingPlacedEvent>,
+                                       pg::Listener<BuildingRemovedEvent>,
+                                       pg::SaveSys>
 {
 public:
     static constexpr size_t MINE_TICK_MS = 250;
@@ -39,14 +37,14 @@ public:
     static constexpr size_t ANIM_FRAME_DURATION_MS = 200;
     static constexpr size_t NUM_ANIM_FRAMES = 4;
 
-    MinerSystem(ItemRegistry* itemRegistry)
+    explicit MinerSystem(ItemRegistry* itemRegistry)
         : itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Miner System"; }
 
     // SaveSys
-    virtual void save(Archive& archive) override;
-    virtual void load(const UnserializedObject& serializedString) override;
+    virtual void save(pg::Archive& archive) override;
+    virtual void load(const pg::UnserializedObject& serializedString) override;
 
     MinerData* getMiner(int x, int y)
     {
@@ -54,7 +52,7 @@ public:
         return it != miners.end() ? &it->second : nullptr;
     }
 
-    virtual void onEvent(const TickEvent& event) override
+    virtual void onEvent(const pg::TickEvent& event) override
     {
         tickAccumulator += static_cast<size_t>(event.tick);
         animAccumulator += static_cast<size_t>(event.tick);

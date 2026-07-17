@@ -10,8 +10,6 @@
 
 class CraftingUISystem;
 
-using namespace pg;
-
 // Centralised orchestration for every machine UI in the game. World code
 // (gamesystem.cpp) calls openMachineUI(gx, gy, tileName) — the coordinator
 // looks up the registered IMachineUI for that machine name and runs the
@@ -25,7 +23,7 @@ using namespace pg;
 //
 // Adding a new machine type = implement IMachineUI and call registerUI()
 // once during startup.
-class MachineUICoordinator : public System<Listener<InventoryClosedEvent>>
+class MachineUICoordinator : public pg::System<pg::Listener<InventoryClosedEvent>>
 {
 public:
     MachineUICoordinator() {}

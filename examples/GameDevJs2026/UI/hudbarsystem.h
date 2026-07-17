@@ -9,8 +9,6 @@
 
 #include <functional>
 
-using namespace pg;
-
 class MissionSystem;
 
 // Fired synchronously by the MouseLeftClickComponent attached to each HUD
@@ -20,12 +18,12 @@ class MissionSystem;
 struct HudInventoryButtonClicked {};
 struct HudMissionButtonClicked   {};
 
-class HudBarSystem : public System<InitSys,
-                                    Listener<TickEvent>,
-                                    Listener<MissionUIOpenedEvent>,
-                                    Listener<MissionUIClosedEvent>,
-                                    Listener<HudInventoryButtonClicked>,
-                                    Listener<HudMissionButtonClicked>>
+class HudBarSystem : public pg::System<pg::InitSys,
+                                    pg::Listener<pg::TickEvent>,
+                                    pg::Listener<MissionUIOpenedEvent>,
+                                    pg::Listener<MissionUIClosedEvent>,
+                                    pg::Listener<HudInventoryButtonClicked>,
+                                    pg::Listener<HudMissionButtonClicked>>
 {
 public:
     static constexpr size_t UI_VP       = 2;
@@ -52,7 +50,7 @@ public:
 
     void init() override;
 
-    virtual void onEvent(const TickEvent&) override;
+    virtual void onEvent(const pg::TickEvent&) override;
     virtual void onEvent(const MissionUIOpenedEvent&) override;
     virtual void onEvent(const MissionUIClosedEvent&) override;
     virtual void onEvent(const HudInventoryButtonClicked&) override;

@@ -2,6 +2,8 @@
 #include "playerinventory.h"
 #include "worldfacts.h"
 
+using namespace pg;
+
 void DepotSystem::save(Archive& archive)
 {
     serialize(archive, "depots", depots);

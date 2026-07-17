@@ -9,6 +9,8 @@
 
 #include <SDL2/SDL.h>
 
+using namespace pg;
+
 void HudBarSystem::init()
 {
     createButtons();
@@ -216,7 +218,8 @@ void HudBarSystem::onTicketsChanged(uint32_t newCount)
     {
         ticketDisplayVisible = true;
         auto setVis = [this](uint64_t id, bool vis) {
-            if (id == 0) return;
+            if (id == 0)
+                return;
             auto ent = ecsRef->getEntity(id);
             if (ent)
                 ent->get<PositionComponent>()->setVisibility(vis);

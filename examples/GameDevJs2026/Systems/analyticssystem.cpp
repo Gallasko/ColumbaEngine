@@ -6,6 +6,8 @@
 #include <cstdlib>
 #include <sstream>
 
+using namespace pg;
+
 AnalyticsSystem::AnalyticsSystem()
 {
 }
@@ -50,7 +52,6 @@ void AnalyticsSystem::execute()
         sendToNeon("session_start", "");
         LOG_INFO("Analytics", "session " << sessionId << " started");
     }
-
 }
 
 // --- SaveSys: persist cumulative play time across sessions ---

@@ -6,15 +6,13 @@
 
 #include <string>
 
-using namespace pg;
-
 // Sends play-session analytics (duration + save snapshot) to a Neon Postgres DB
 // via the browser's fetch API.  On desktop builds this is a harmless no-op.
 //
 // The system registers an exit callback on EntitySystem::forceSaveNow() so that
 // when the player closes/hides the tab, we read the freshly-written save files
 // and POST them to Neon's SQL-over-HTTP endpoint.
-struct AnalyticsSystem : public System<Listener<TickEvent>, Listener<OnSDLScanCode>, SaveSys>
+struct AnalyticsSystem : public pg::System<pg::Listener<pg::TickEvent>, pg::Listener<pg::OnSDLScanCode>, pg::SaveSys>
 {
     // Analytics proxy worker URL — the worker holds the Neon connection string.
     // Deploy the worker in analytics-worker/ and replace this URL.
@@ -26,13 +24,13 @@ struct AnalyticsSystem : public System<Listener<TickEvent>, Listener<OnSDLScanCo
 
     virtual std::string getSystemName() const override { return "Analytics"; }
 
-    virtual void onEvent(const TickEvent& event) override;
-    virtual void onEvent(const OnSDLScanCode& event) override;
+    virtual void onEvent(const pg::TickEvent& event) override;
+    virtual void onEvent(const pg::OnSDLScanCode& event) override;
     virtual void execute() override;
 
     // SaveSys — persist cumulative play time across sessions
-    virtual void save(Archive& archive) override;
-    virtual void load(const UnserializedObject& serializedString) override;
+    virtual void save(pg::Archive& archive) override;
+    virtual void load(const pg::UnserializedObject& serializedString) override;
 
     // Called by the exit callback registered on EntitySystem.
     // Reads save files from disk and sends them to Neon.

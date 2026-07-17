@@ -8,7 +8,7 @@ struct AutoSaveSystem : public pg::System<pg::Listener<pg::TickEvent>>
     // Default: 3 minutes
     static constexpr size_t DEFAULT_INTERVAL_MS = 3 * 60 * 1000;
 
-    AutoSaveSystem(size_t intervalMs = DEFAULT_INTERVAL_MS)
+    explicit AutoSaveSystem(size_t intervalMs = DEFAULT_INTERVAL_MS)
         : intervalMs(intervalMs) {}
 
     virtual std::string getSystemName() const override { return "Auto Save"; }

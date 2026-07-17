@@ -10,8 +10,6 @@
 #include "slotsystem.h"
 #include "playerinventory.h"
 
-using namespace pg;
-
 class CraftingUISystem;
 class MachineDemoSystem;
 
@@ -24,11 +22,11 @@ class MachineDemoSystem;
 // layout, slot wiring, recipe-panel callback hookup and the per-tick
 // machine sync; subclasses may override individual methods if their
 // behaviour diverges later.
-class RecipeMachineUIBase : public System<Listener<ResizeEvent>,
-                    QueuedListener<OnSDLScanCode>,
-                    QueuedListener<TickEvent>,
-                    QueuedListener<OnMouseClick>,
-                    Listener<InventoryClosedEvent>>,
+class RecipeMachineUIBase : public pg::System<pg::Listener<pg::ResizeEvent>,
+                    pg::QueuedListener<pg::OnSDLScanCode>,
+                    pg::QueuedListener<pg::TickEvent>,
+                    pg::QueuedListener<pg::OnMouseClick>,
+                    pg::Listener<InventoryClosedEvent>>,
       public IMachineUI
 {
 public:
@@ -67,15 +65,15 @@ public:
     std::string getOpenMachineName() const override { return openMachineName; }
 
     // ---- Event listeners ----
-    virtual void onEvent(const ResizeEvent& event) override
+    virtual void onEvent(const pg::ResizeEvent& event) override
     {
         screenWidth = event.width;
         screenHeight = event.height;
     }
 
-    virtual void onProcessEvent(const OnSDLScanCode& event) override;
-    virtual void onProcessEvent(const TickEvent&) override;
-    virtual void onProcessEvent(const OnMouseClick& event) override;
+    virtual void onProcessEvent(const pg::OnSDLScanCode& event) override;
+    virtual void onProcessEvent(const pg::TickEvent&) override;
+    virtual void onProcessEvent(const pg::OnMouseClick& event) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
     // Called by the recipe-panel double-click. Pulls ingredients from the
@@ -116,15 +114,15 @@ protected:
 
     // Entity handles populated post-build by walking the prefab tree. Saves a per-access
     // hash-map lookup compared to storing _unique_id and re-resolving via ecs->getEntity.
-    EntityRef backdrop;          // outer Prefab wrap returned by buildNode (carries UiAnchor)
-    EntityRef bgLeaf;            // inner Shape2D backdrop — what other entities anchor to
-    EntityRef title;
-    EntityRef inputSlots[2];
-    EntityRef outputSlot;
-    EntityRef progressBg;
-    EntityRef progressFill;
-    EntityRef demoBtnBg;
-    EntityRef demoBtnText;
+    pg::EntityRef backdrop;      // outer Prefab wrap returned by buildNode (carries UiAnchor)
+    pg::EntityRef bgLeaf;        // inner Shape2D backdrop — what other entities anchor to
+    pg::EntityRef title;
+    pg::EntityRef inputSlots[2];
+    pg::EntityRef outputSlot;
+    pg::EntityRef progressBg;
+    pg::EntityRef progressFill;
+    pg::EntityRef demoBtnBg;
+    pg::EntityRef demoBtnText;
 
     float cachedBarMaxW = 0.0f;
 };

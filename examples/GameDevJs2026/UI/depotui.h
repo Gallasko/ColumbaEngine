@@ -12,15 +12,13 @@
 
 class CraftingUISystem;
 
-using namespace pg;
-
 // Side-panel UI for Depot (tileId 10).
 // Shows a 4-slot grid (2 columns x 2 rows) for Robot Core input / reward output.
-class DepotUISystem : public System<Listener<ResizeEvent>,
-                                     QueuedListener<OnSDLScanCode>,
-                                     QueuedListener<TickEvent>,
-                                     QueuedListener<OnMouseClick>,
-                                     Listener<InventoryClosedEvent>>,
+class DepotUISystem : public pg::System<pg::Listener<pg::ResizeEvent>,
+                                     pg::QueuedListener<pg::OnSDLScanCode>,
+                                     pg::QueuedListener<pg::TickEvent>,
+                                     pg::QueuedListener<pg::OnMouseClick>,
+                                     pg::Listener<InventoryClosedEvent>>,
                       public IMachineUI
 {
 public:
@@ -73,15 +71,15 @@ public:
 
     void open(int gridX, int gridY);
 
-    virtual void onEvent(const ResizeEvent& event) override
+    virtual void onEvent(const pg::ResizeEvent& event) override
     {
         screenWidth = event.width;
         screenHeight = event.height;
     }
 
-    virtual void onProcessEvent(const OnSDLScanCode& event) override;
-    virtual void onProcessEvent(const TickEvent&) override;
-    virtual void onProcessEvent(const OnMouseClick& event) override;
+    virtual void onProcessEvent(const pg::OnSDLScanCode& event) override;
+    virtual void onProcessEvent(const pg::TickEvent&) override;
+    virtual void onProcessEvent(const pg::OnMouseClick& event) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
 private:

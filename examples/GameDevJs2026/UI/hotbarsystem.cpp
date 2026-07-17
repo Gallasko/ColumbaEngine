@@ -5,6 +5,8 @@
 
 #include <SDL2/SDL.h>
 
+using namespace pg;
+
 void HotbarSystem::init()
 {
     createHotbarUI();
@@ -13,7 +15,8 @@ void HotbarSystem::init()
 void HotbarSystem::setHotbarVisible(bool vis)
 {
     auto setVis = [this](uint64_t id, bool v) {
-        if (id == 0) return;
+        if (id == 0)
+            return;
         auto ent = ecsRef->getEntity(id);
         if (ent)
             ent->get<PositionComponent>()->setVisibility(v);
@@ -172,7 +175,7 @@ void HotbarSystem::createHotbarUI()
         constant::Vector4D{30.0f, 30.0f, 40.0f, 200.0f});
 
     auto backdropPos = backdrop.get<PositionComponent>();
-    backdropPos->setZ(90.f);
+    backdropPos->setZ(90.0f);
     backdropPos->setHeight(HOTBAR_HEIGHT);
     backdrop.get<ViewportComponent>()->setViewport(UI_VP);
     backdropEntityId = backdrop.entity->id;
@@ -211,7 +214,7 @@ void HotbarSystem::createHotbarUI()
                 .getSlot(PlayerInventorySystem::HOTBAR_START + i) = s;
         });
 
-        slotRef.get<PositionComponent>()->setZ(95.f);
+        slotRef.get<PositionComponent>()->setZ(95.0f);
 
         auto anchor = slotRef.get<UiAnchor>();
         anchor->setLeftAnchor(PosAnchor{containerEntityId, AnchorType::Left});
@@ -224,7 +227,7 @@ void HotbarSystem::createHotbarUI()
         constant::Vector4D{255.0f, 255.0f, 255.0f, 60.0f});
 
     auto hlPos = highlight.get<PositionComponent>();
-    hlPos->setZ(98.f);
+    hlPos->setZ(98.0f);
     hlPos->setWidth(SLOT_SIZE + 4.0f);
     hlPos->setHeight(SLOT_SIZE + 4.0f);
     highlight.get<ViewportComponent>()->setViewport(UI_VP);

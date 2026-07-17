@@ -14,20 +14,18 @@
 
 class MachineDemoSystem;
 
-using namespace pg;
-
 // Docked side-panel (right of the inventory) that lists the player's
 // unlocked hand-craft recipes, lets them pick one, and shows a progress
 // bar while a craft is in-flight.
 // In machine mode (setMachineMode) it shows that machine's recipes instead.
-class CraftingUISystem : public System<InitSys,
-                                       Listener<ResizeEvent>,
-                                       QueuedListener<OnSDLScanCode>,
-                                       QueuedListener<OnMouseClick>,
-                                       QueuedListener<TickEvent>,
-                                       Listener<HandCraftCompletedEvent>,
-                                       Listener<InventoryOpenedEvent>,
-                                       Listener<InventoryClosedEvent>>
+class CraftingUISystem : public pg::System<pg::InitSys,
+                                       pg::Listener<pg::ResizeEvent>,
+                                       pg::QueuedListener<pg::OnSDLScanCode>,
+                                       pg::QueuedListener<pg::OnMouseClick>,
+                                       pg::QueuedListener<pg::TickEvent>,
+                                       pg::Listener<HandCraftCompletedEvent>,
+                                       pg::Listener<InventoryOpenedEvent>,
+                                       pg::Listener<InventoryClosedEvent>>
 {
 public:
     static constexpr size_t UI_VP = 2;
@@ -55,10 +53,10 @@ public:
         Tools,
         Machines,
         Misc,
-        COUNT
+        Count
     };
 
-    static constexpr size_t TAB_COUNT      = static_cast<size_t>(CraftTab::COUNT);
+    static constexpr size_t TAB_COUNT      = static_cast<size_t>(CraftTab::Count);
     static constexpr float  TAB_ROW_H      = 20.0f;
     static constexpr float  TAB_GAP        = 2.0f;
     static constexpr float  GAP_AFTER_TABS = 6.0f;
@@ -112,7 +110,7 @@ public:
 
     // --- Resize -------------------------------------------------------
 
-    virtual void onEvent(const ResizeEvent& event) override
+    virtual void onEvent(const pg::ResizeEvent& event) override
     {
         screenWidth = event.width;
         screenHeight = event.height;
@@ -120,12 +118,12 @@ public:
 
     // --- Inventory sync ------------------------------------------------
 
-    virtual void onProcessEvent(const TickEvent&) override;
+    virtual void onProcessEvent(const pg::TickEvent&) override;
     virtual void onEvent(const HandCraftCompletedEvent&) override;
     virtual void onEvent(const InventoryOpenedEvent&) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
-    virtual void onProcessEvent(const OnSDLScanCode& event) override;
-    virtual void onProcessEvent(const OnMouseClick& event) override;
+    virtual void onProcessEvent(const pg::OnSDLScanCode& event) override;
+    virtual void onProcessEvent(const pg::OnMouseClick& event) override;
 
 private:
     // --- Layout --------------------------------------------------------

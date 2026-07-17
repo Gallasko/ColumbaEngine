@@ -41,11 +41,11 @@ inline ItemId oreToItem(TerrainType t)
 {
     switch (t)
     {
-        case TerrainType::OreIron:   return 1;
-        case TerrainType::OreCopper: return 2;
-        case TerrainType::OreCoal:   return 3;
-        case TerrainType::OreStone:  return 4;
-        default:                     return ITEM_NONE;
+    case TerrainType::OreIron:   return 1;
+    case TerrainType::OreCopper: return 2;
+    case TerrainType::OreCoal:   return 3;
+    case TerrainType::OreStone:  return 4;
+    default:                     return ITEM_NONE;
     }
 }
 
@@ -61,13 +61,13 @@ inline ItemId terrainToItem(TerrainType t)
 {
     switch (t)
     {
-        case TerrainType::OreIron:   return 1;   // Iron Ore
-        case TerrainType::OreCopper: return 2;   // Copper Ore
-        case TerrainType::OreCoal:   return 3;   // Coal
-        case TerrainType::OreStone:  return 4;   // Stone
-        case TerrainType::Tree:      return 15;  // Wood
-        case TerrainType::Rock:      return 4;   // Stone
-        default:                     return ITEM_NONE;
+    case TerrainType::OreIron:   return 1;   // Iron Ore
+    case TerrainType::OreCopper: return 2;   // Copper Ore
+    case TerrainType::OreCoal:   return 3;   // Coal
+    case TerrainType::OreStone:  return 4;   // Stone
+    case TerrainType::Tree:      return 15;  // Wood
+    case TerrainType::Rock:      return 4;   // Stone
+    default:                     return ITEM_NONE;
     }
 }
 
@@ -77,13 +77,13 @@ inline uint8_t terrainTier(TerrainType t)
 {
     switch (t)
     {
-        case TerrainType::Tree:      return 0;
-        case TerrainType::Rock:      return 0;
-        case TerrainType::OreStone:  return 0;
-        case TerrainType::OreCoal:   return 1;
-        case TerrainType::OreCopper: return 1;
-        case TerrainType::OreIron:   return 1;
-        default:                     return 0;
+    case TerrainType::Tree:      return 0;
+    case TerrainType::Rock:      return 0;
+    case TerrainType::OreStone:  return 0;
+    case TerrainType::OreCoal:   return 1;
+    case TerrainType::OreCopper: return 1;
+    case TerrainType::OreIron:   return 1;
+    default:                     return 0;
     }
 }
 
@@ -92,12 +92,12 @@ inline int terrainHitsRequired(TerrainType t)
 {
     switch (t)
     {
-        case TerrainType::Tree:      return 5;
-        case TerrainType::Rock:      return 3;
-        case TerrainType::OreIron:   return 6;
-        case TerrainType::OreCopper: return 6;
-        case TerrainType::OreCoal:   return 4;
-        case TerrainType::OreStone:  return 4;
-        default:                     return 0;
+    case TerrainType::Tree:      return 5;
+    case TerrainType::Rock:      return 3;
+    case TerrainType::OreIron:   return 6;
+    case TerrainType::OreCopper: return 6;
+    case TerrainType::OreCoal:   return 4;
+    case TerrainType::OreStone:  return 4;
+    default:                     return 0;
     }
 }

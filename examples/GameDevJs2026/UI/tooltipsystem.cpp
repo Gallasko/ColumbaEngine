@@ -8,6 +8,8 @@
 #include <SDL2/SDL.h>
 #include <cstdio>   // snprintf
 
+using namespace pg;
+
 // ---------------------------------------------------------------------------
 // Event handlers
 // ---------------------------------------------------------------------------
@@ -180,11 +182,16 @@ void TooltipSystem::showTooltip(ItemId id)
 
     // Count visible body lines (lines 1-5)
     int numBody = 0;
-    if (not c.categoryLine.empty()) ++numBody;
-    if (not c.descLine.empty())     ++numBody;
-    if (not c.sourceLine.empty())   ++numBody;
-    if (not c.ingrLine1.empty())    ++numBody;
-    if (not c.ingrLine2.empty())    ++numBody;
+    if (not c.categoryLine.empty())
+        ++numBody;
+    if (not c.descLine.empty())
+        ++numBody;
+    if (not c.sourceLine.empty())
+        ++numBody;
+    if (not c.ingrLine1.empty())
+        ++numBody;
+    if (not c.ingrLine2.empty())
+        ++numBody;
     lastNumBodyLines = numBody;
 
     float h = computeHeight(numBody);
@@ -200,7 +207,8 @@ void TooltipSystem::showTooltip(ItemId id)
 
 void TooltipSystem::hideTooltip()
 {
-    if (not visible and not created) return;
+    if (not visible and not created)
+        return;
     setEntityVisibility(backdropId, false);
     setEntityVisibility(iconId,     false);
     for (int i = 0; i < NUM_LINES; ++i)
@@ -296,13 +304,17 @@ TooltipSystem::TooltipContent TooltipSystem::buildContent(ItemId id) const
     {
         for (const auto& out : recipe.outputs)
         {
-            if (out.id != id) continue;
+            if (out.id != id)
+                continue;
 
             if (preferMachineName.empty())
             {
                 // Hand-craft mode: prefer HandCraft, fall back to anything
                 if (recipe.category == RecipeCategory::HandCraft)
-                    { preferred = &recipe; break; }
+                {
+                    preferred = &recipe;
+                    break;
+                }
                 else if (not fallback)
                     fallback = &recipe;
             }
@@ -310,12 +322,16 @@ TooltipSystem::TooltipContent TooltipSystem::buildContent(ItemId id) const
             {
                 // Machine mode: prefer the open machine's recipe
                 if (recipe.machineName == preferMachineName)
-                    { preferred = &recipe; break; }
+                {
+                    preferred = &recipe;
+                    break;
+                }
                 else if (not fallback)
                     fallback = &recipe;
             }
         }
-        if (preferred) break;
+        if (preferred)
+            break;
     }
 
     const Recipe* recipe = preferred ? preferred : fallback;
@@ -333,7 +349,8 @@ TooltipSystem::TooltipContent TooltipSystem::buildContent(ItemId id) const
         std::string ingrStr;
         for (size_t i = 0; i < recipe->inputs.size(); ++i)
         {
-            if (i > 0) ingrStr += "  +  ";
+            if (i > 0)
+                ingrStr += "  +  ";
             const auto& ing = recipe->inputs[i];
             char ibuf[48];
             std::snprintf(ibuf, sizeof(ibuf), "%ux %s",
@@ -382,7 +399,8 @@ const char* TooltipSystem::categoryName(ItemCategory cat)
 
 const char* TooltipSystem::machineLabel(const std::string& machineName)
 {
-    if (machineName.empty()) return "Hand";
+    if (machineName.empty())
+        return "Hand";
     return machineName.c_str();
 }
 
@@ -392,7 +410,8 @@ const char* TooltipSystem::machineLabel(const std::string& machineName)
 
 void TooltipSystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
     if (ent)
     {
@@ -404,11 +423,14 @@ void TooltipSystem::setEntityVisibility(uint64_t id, bool vis)
 void TooltipSystem::setLine(int lineIdx, const std::string& text,
                              constant::Vector4D colour, bool vis)
 {
-    if (lineIdx < 0 or lineIdx >= NUM_LINES) return;
+    if (lineIdx < 0 or lineIdx >= NUM_LINES)
+        return;
     uint64_t id = lineIds[lineIdx];
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
-    if (not ent) return;
+    if (not ent)
+        return;
 
     if (auto ttf = ent->get<TTFText>())
     {

@@ -1,6 +1,8 @@
 #include "storagesystem.h"
 #include "playerinventory.h"
 
+using namespace pg;
+
 void StorageSystem::save(Archive& archive)
 {
     serialize(archive, "storages", storages);

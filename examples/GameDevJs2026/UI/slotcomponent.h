@@ -6,8 +6,6 @@
 #include <cstdint>
 #include <functional>
 
-using namespace pg;
-
 enum class SlotCategory : uint8_t
 {
     PlayerInventory,
@@ -34,11 +32,11 @@ inline bool operator&(SlotFlags a, SlotFlags b)
     return (static_cast<uint8_t>(a) & static_cast<uint8_t>(b)) != 0;
 }
 
-struct SlotComponent : public Component
+struct SlotComponent : public pg::Component
 {
     SlotComponent() = default;
 
-    SlotComponent(SlotCategory category, uint8_t slotIndex = 0, SlotFlags flags = SlotFlags::None)
+    explicit SlotComponent(SlotCategory category, uint8_t slotIndex = 0, SlotFlags flags = SlotFlags::None)
         : category(category), slotIndex(slotIndex), flags(flags) {}
 
     // --- Item Data (single source of truth) ---

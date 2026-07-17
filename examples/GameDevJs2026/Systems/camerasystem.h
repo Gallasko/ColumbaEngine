@@ -8,64 +8,62 @@
 
 #include "grid.h"
 
-using namespace pg;
-
 class InventoryUISystem;
 
 // Free-roam 2D camera using BaseCamera2D directly.
 // BaseCamera2D::x/y = top-left of viewport in world space.
 // We control x/y/width/height directly — no FollowCamera2D.
 
-class CameraSystem : public System<
-    InitSys,
-    Listener<TickEvent>,
-    Listener<ResizeEvent>,
-    Listener<OnSDLMouseWheel>,
-    Listener<OnSDLMouseMotion>,
-    Listener<OnSDLScanCode>,
-    Listener<OnSDLScanCodeReleased>,
-    Listener<OnMouseClick>,
-    Listener<OnMouseRelease>>
+class CameraSystem : public pg::System<
+    pg::InitSys,
+    pg::Listener<pg::TickEvent>,
+    pg::Listener<pg::ResizeEvent>,
+    pg::Listener<pg::OnSDLMouseWheel>,
+    pg::Listener<pg::OnSDLMouseMotion>,
+    pg::Listener<pg::OnSDLScanCode>,
+    pg::Listener<pg::OnSDLScanCodeReleased>,
+    pg::Listener<pg::OnMouseClick>,
+    pg::Listener<pg::OnMouseRelease>>
 {
 public:
-    CameraSystem(MasterRenderer* masterRenderer, float screenWidth, float screenHeight)
+    CameraSystem(pg::MasterRenderer* masterRenderer, float screenWidth, float screenHeight)
         : masterRenderer(masterRenderer), baseWidth(screenWidth), baseHeight(screenHeight) {}
 
-    void setUiCameraEntity(EntityRef entity) { uiCameraEntity = entity; }
+    void setUiCameraEntity(pg::EntityRef entity) { uiCameraEntity = entity; }
 
     virtual std::string getSystemName() const override { return "Camera System"; }
 
     void init() override;
 
-    virtual void onEvent(const TickEvent& event) override
+    virtual void onEvent(const pg::TickEvent& event) override
     {
         deltaTime += event.tick / 1000.0f;
     }
 
-    virtual void onEvent(const ResizeEvent& event) override;
-    virtual void onEvent(const OnSDLMouseWheel& event) override;
-    virtual void onEvent(const OnSDLMouseMotion& event) override;
-    virtual void onEvent(const OnMouseClick& event) override;
-    virtual void onEvent(const OnMouseRelease& event) override;
-    virtual void onEvent(const OnSDLScanCode& event) override;
-    virtual void onEvent(const OnSDLScanCodeReleased& event) override;
+    virtual void onEvent(const pg::ResizeEvent& event) override;
+    virtual void onEvent(const pg::OnSDLMouseWheel& event) override;
+    virtual void onEvent(const pg::OnSDLMouseMotion& event) override;
+    virtual void onEvent(const pg::OnMouseClick& event) override;
+    virtual void onEvent(const pg::OnMouseRelease& event) override;
+    virtual void onEvent(const pg::OnSDLScanCode& event) override;
+    virtual void onEvent(const pg::OnSDLScanCodeReleased& event) override;
 
     void execute() override;
 
     // Custom screenToWorld that accounts for zoom
     // (engine's version has width cancel out, ignoring zoom)
-    constant::Vector2D screenToWorld(float screenX, float screenY);
+    pg::constant::Vector2D screenToWorld(float screenX, float screenY);
 
-    EntityRef getCameraEntity() const { return cameraEntity; }
+    pg::EntityRef getCameraEntity() const { return cameraEntity; }
     float getLastMouseX() const { return lastMouseX; }
     float getLastMouseY() const { return lastMouseY; }
     float getScreenWidth() const { return baseWidth; }
     float getScreenHeight() const { return baseHeight; }
 
 private:
-    MasterRenderer* masterRenderer = nullptr;
-    EntityRef cameraEntity;
-    BaseCamera2D* cam = nullptr;
+    pg::MasterRenderer* masterRenderer = nullptr;
+    pg::EntityRef cameraEntity;
+    pg::BaseCamera2D* cam = nullptr;
 
     float baseWidth;
     float baseHeight;
@@ -84,5 +82,5 @@ private:
     bool moveLeft = false;
     bool moveRight = false;
 
-    EntityRef uiCameraEntity;
+    pg::EntityRef uiCameraEntity;
 };

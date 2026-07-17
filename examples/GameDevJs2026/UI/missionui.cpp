@@ -10,14 +10,18 @@
 #include <SDL2/SDL.h>
 #include <algorithm>
 
+using namespace pg;
+
 namespace
 {
     // Hit-test against an entity's resolved position+size.
     bool hitEntity(pg::EntitySystem* ecs, uint64_t id, float mx, float my)
     {
-        if (id == 0) return false;
+        if (id == 0)
+            return false;
         auto ent = ecs->getEntity(id);
-        if (not ent) return false;
+        if (not ent)
+            return false;
         auto pos = ent->get<pg::PositionComponent>();
         return mx >= pos->getX() and mx <= pos->getX() + pos->getWidth()
            and my >= pos->getY() and my <= pos->getY() + pos->getHeight();
@@ -401,7 +405,10 @@ void MissionUISystem::onEvent(const ResizeEvent& event)
 std::vector<uint64_t> MissionUISystem::collectAllPanelEntityIds() const
 {
     std::vector<uint64_t> ids;
-    auto add = [&ids](uint64_t id) { if (id != 0) ids.push_back(id); };
+    auto add = [&ids](uint64_t id) {
+        if (id != 0)
+            ids.push_back(id);
+    };
 
     add(backdropId);
     add(closeBtnBgId);
@@ -483,9 +490,11 @@ void MissionUISystem::destroyPanel()
 
     detailMissionLabelId = detailNameId = detailDescId = 0;
     costLabelId = costBlockBorderId = costBlockFillId = 0;
-    for (auto& c : costItems) c = {};
+    for (auto& c : costItems)
+        c = {};
     rewardLabelId = rewardBlockBorderId = rewardBlockFillId = 0;
-    for (auto& r : rewardItems) r = {};
+    for (auto& r : rewardItems)
+        r = {};
     unlockLabelId = 0;
     detailProgressBgId = detailProgressFillId = detailProgressTextId = 0;
     actionBtnBgId = actionBtnTextId = 0;
@@ -1401,7 +1410,8 @@ void MissionUISystem::refreshRightColumn()
             progress = def.durationMs > 0
                 ? static_cast<float>(m.elapsedMs) / static_cast<float>(def.durationMs)
                 : 1.0f;
-        if (progress > 1.0f) progress = 1.0f;
+        if (progress > 1.0f)
+            progress = 1.0f;
 
         float colW = RIGHT_W - 2 * DETAIL_PAD;
         auto fillEnt = ecsRef->getEntity(detailProgressFillId);
@@ -1537,7 +1547,8 @@ void MissionUISystem::hideDepotSelectionPrompt()
 
 void MissionUISystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
     if (ent)
         ent->get<PositionComponent>()->setVisibility(vis);
@@ -1545,7 +1556,8 @@ void MissionUISystem::setEntityVisibility(uint64_t id, bool vis)
 
 void MissionUISystem::setEntityText(uint64_t id, const std::string& text)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
     if (ent and ent->has<TTFText>())
         ent->get<TTFText>()->setText(text);
@@ -1553,7 +1565,8 @@ void MissionUISystem::setEntityText(uint64_t id, const std::string& text)
 
 void MissionUISystem::setEntityTexture(uint64_t id, const std::string& textureName)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
     if (ent and ent->has<Texture2DComponent>())
         ent->get<Texture2DComponent>()->setTexture(textureName);
@@ -1561,7 +1574,8 @@ void MissionUISystem::setEntityTexture(uint64_t id, const std::string& textureNa
 
 void MissionUISystem::setEntityRoundedRectColor(uint64_t id, const constant::Vector4D& color)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
     if (ent and ent->has<RoundedRect2DObject>())
         ent->get<RoundedRect2DObject>()->setColors(color);
@@ -1569,7 +1583,8 @@ void MissionUISystem::setEntityRoundedRectColor(uint64_t id, const constant::Vec
 
 void MissionUISystem::setEntityTextColor(uint64_t id, const constant::Vector4D& color)
 {
-    if (id == 0) return;
+    if (id == 0)
+        return;
     auto ent = ecsRef->getEntity(id);
     if (ent and ent->has<TTFText>())
         ent->get<TTFText>()->setColors(color);
