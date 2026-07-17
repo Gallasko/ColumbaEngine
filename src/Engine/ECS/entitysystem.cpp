@@ -26,7 +26,9 @@
 
 #include "Systems/coresystems.h"
 
+#ifndef PG_MINIMAL_BUILD
 #include "Renderer/renderer.h"
+#endif // PG_MINIMAL_BUILD
 
 // #include "Interpreter/interpretersystem.h"
 
@@ -1067,6 +1069,7 @@ namespace pg
 
     void EntitySystem::autoSucceedMasterRenderer(BaseAbstractRenderer* abr, _unique_id subId)
     {
+#ifndef PG_MINIMAL_BUILD
         MasterRenderer* mr = abr->getMasterRenderer();
 
         if (mr == nullptr or mr->_id == 0)
@@ -1076,6 +1079,11 @@ namespace pg
         }
 
         _succeed(mr->_id, subId);
+#else
+        // The minimal engine has no renderer; nothing to succeed.
+        (void) abr;
+        (void) subId;
+#endif // PG_MINIMAL_BUILD
     }
 
     Value ComponentSerializerRegistry::createComponentProxy(const std::string& componentName, VM* vm, void* componentPtr) const

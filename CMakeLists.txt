@@ -511,14 +511,30 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
             COMMENT "All components up to date"
         )
 
+        # Refresh the committed component seed (src/Engine/Components/generated),
+        # the base used by CI and Emscripten builds that cannot run the bootstrap.
+        # Run after changing a .pgcomp file or the generator, then commit the result:
+        #   cmake --build . --target SnapshotComponents
+        add_custom_target(SnapshotComponents
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${GENERATED_COMPONENTS_DIR}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/generated
+            DEPENDS ${ALL_GENERATED_FILES}
+            COMMENT "Snapshotting generated components into src/Engine/Components/generated"
+            VERBATIM
+        )
+
         message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
         message(STATUS "  Components will regenerate only when .pgcomp files change")
         message(STATUS "  Manual regeneration: cmake --build . --target RegenerateComponents")
     endif()
 else()
     if(NOT PREGENERATED_COMPONENTS_DIR)
-        message(STATUS "Emscripten build: skipping component generation")
-        message(STATUS "  Use -DPREGENERATED_COMPONENTS_DIR=<native-build-dir>/generated/Components")
+        # No native build available to generate from: fall back to the committed
+        # component seed, kept fresh via the SnapshotComponents target.
+        set(GENERATED_COMPONENTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/generated")
+        message(STATUS "Emscripten build: using committed generated components from ${GENERATED_COMPONENTS_DIR}")
+        message(STATUS "  Override with -DPREGENERATED_COMPONENTS_DIR=<native-build-dir>/generated/Components")
     endif()
 endif()
 

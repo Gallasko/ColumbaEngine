@@ -1,0 +1,79 @@
+name: Regenerate Generated Sources
+
+# Rebuilds the committed generated-code seeds when their inputs change:
+#   - src/Engine/Components/generated/  (from src/Engine/Components/*.pgcomp
+#     via tools/component_generator.pg, snapshotted by SnapshotComponents)
+#   - src/Engine/Compiler/generated/    (from tools/vm_ops_def.pg via
+#     tools/gen_vm_ops.pg, regenerated in place by the stage-0 bootstrap)
+# Any drift is committed back with [skip ci].
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'src/Engine/Components/*.pgcomp'
+      - 'tools/component_generator.pg'
+      - 'tools/gen_vm_ops.pg'
+      - 'tools/vm_ops_def.pg'
+      - '.github/workflows/regen_generated.yml'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for pushing commits
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ccache git \
+            libgl1-mesa-dev libglu1-mesa-dev \
+            libx11-dev libxrandr-dev libxi-dev libxinerama-dev libxcursor-dev libxss-dev libxxf86vm-dev \
+            libsdl2-dev libsdl2-ttf-dev libsdl2-mixer-dev \
+            libglew-dev libfreetype6-dev
+
+      - name: Configure with CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+
+      - name: Regenerate components
+        run: |
+          cd build
+          # SnapshotComponents chains: ColumbaEngineMinimal -> PgCompilerBootstrap
+          # -> component generation -> seed snapshot
+          cmake --build . --target SnapshotComponents -- -j$(nproc || echo 2)
+
+      - name: Regenerate VM ops
+        run: |
+          cd build
+          # On a fresh build dir AutoGenVmOps has no stage-0 bootstrap and keeps
+          # the committed .inc files; GenerateVmOps regenerates them for real
+          # with the bootstrap that was just built.
+          cmake --build . --target GenerateVmOps -- -j$(nproc || echo 2)
+
+      - name: Check for drift
+        id: check_changes
+        run: |
+          git add -N src/Engine/Components/generated src/Engine/Compiler/generated
+          git diff --exit-code --stat \
+            src/Engine/Components/generated \
+            src/Engine/Compiler/generated || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push if changed
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add src/Engine/Components/generated src/Engine/Compiler/generated
+          git commit -m "chore: Regenerate component and VM op seeds [skip ci]" || exit 0
+          git push
