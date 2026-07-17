@@ -9,7 +9,8 @@
 #include <cstdint>
 
 class HotbarSystem;
-class CameraSystem;
+namespace pg { class CameraSystem; }
+using pg::CameraSystem;
 
 // When the player has a building selected in the hotbar, tints the grid
 // cell(s) under the ghost preview green (placeable) or red (blocked).

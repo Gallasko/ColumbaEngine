@@ -9,7 +9,8 @@
 
 #include "tutorialevents.h"
 
-class CameraSystem;
+namespace pg { class CameraSystem; }
+using pg::CameraSystem;
 
 // Imperative overlay used by the tutorial to focus the player on a single
 // target (a world tile, a UI element, or a fixed screen rect). Renders:

@@ -11,7 +11,8 @@
 #include <cstdint>
 #include <string>
 
-class CameraSystem;
+namespace pg { class CameraSystem; }
+using pg::CameraSystem;
 class GridSystem;
 class HotbarSystem;
 class HudBarSystem;

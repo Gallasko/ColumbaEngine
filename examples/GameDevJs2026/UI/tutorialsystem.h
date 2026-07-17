@@ -16,7 +16,8 @@
 #include "tutorialevents.h"
 
 class SpotlightOverlaySystem;
-class CameraSystem;
+namespace pg { class CameraSystem; }
+using pg::CameraSystem;
 
 // Forced early-game tutorial. State persists in WorldFacts as `tutorial_step`.
 // Each state advances on a specific event. The two ValidateMission* steps gate
