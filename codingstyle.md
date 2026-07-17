@@ -122,7 +122,7 @@ Always use "std::", never use "using namespace std;".
 Do not use using-directives (e.g. using namespace foo). Do not use inline namespaces.  
 Namespaces should have unique names based on the project name, and possibly its path.   
 Unnamed namespaces are allowed.  
-Dont use indentations for namespaces, except for unnamed namespaces.  
+Indent the contents of namespaces (named and unnamed) by one level, like any other block.  
 Place "{" at the next line of the namespace name.  
 Prefer :: prefix (refers to the global namespace).  
 
@@ -639,7 +639,7 @@ public:
   typedef std::vector<Teacher*> Teachers; // Good
   const Teachers& getTeachers();
 private:
-  Teachers m_teachers;
+  Teachers teachers;
 };
 ```
 The `typedef` makes it easier to read and makes future possible modifications to what is a collection of Teachers easier (for instance, changing `std::vector<>` to `std::list<>`)
@@ -688,9 +688,9 @@ Single character variable names are only okay for counters and temporaries, wher
 int integralValue;
 
 // private class members:
-Timepoint m_startMark;
-bool m_bPaused;
-const bool m_cbDebug;
+Timepoint startMark;
+bool paused;
+const bool debug;
 
 // Useful Flag
 bool a; // Bad, prefer to use:
@@ -796,13 +796,13 @@ Composition:
 ```
 Class Manager // The Manager object is composed as an Employee and a Person. 
 { 
-   private m_Title;
-   private m_Employee;
+   private title;
+   private employee;
    ...
    public Manager(Person p, Employee e)
    {
-      m_Title = e.Title;
-      m_Employee = e;
+      title = e.Title;
+      employee = e;
       ...
    }
 }
@@ -812,17 +812,18 @@ Use multiple inheritance only when at most one of the base classes has an implem
 Be careful about the diamond problem of inheritance
 
 ## Class Data Members  
-Data members of classes, both static and non-static, are named like ordinary nonmember variables, but with a leading "m_".  
+Data members of classes, both static and non-static, are named like ordinary nonmember variables (lowerCamelCase), with no prefix.  
+A leading or trailing underscore (`_id`, `handlers_`) is allowed when needed to disambiguate a member from an accessor or a constructor parameter of the same name.  
 ```
 	private:
 		/** The timepoint stored when the timer was paused last time */
-		timepoint m_PausedMark;
+		timepoint pausedMark;
 
 		/**  Is timer running */
-		bool m_Running;
+		bool running;
 
 		/** Is timer paused */
-		bool m_Paused;
+		bool paused;
 ```
 
 ## Function Names  
@@ -832,6 +833,8 @@ Use lowerCamelCase
     /** Set duration elapsed when the timer was running and not paused **/
     void setTotalRunning(const Duration& duration);
 ```
+
+Exception: VM opcode handlers and interpreter built-in registration functions in the Compiler subsystem (e.g. `op_add_ll_decoded`, `register_builtin_operations`, `initialize_builtin_classes`) deliberately use snake_case to visually mark the interpreter hot path. Keep that convention there; do not spread it outside the VM/interpreter code.
 
 One of the reasons for this is the range-based for-loop (since C++11). If you want to make your class work with the range-for, you have to define functions called begin and end for that class. The names must be exactly begin and end, so e.g. Begin and End are not supported.   
 
@@ -960,7 +963,7 @@ Use getters and setters
 class BadClass
 {
 public:
-    int m_nbRead; // Bad
+    int nbRead; // Bad
 };
 
 // Good
@@ -968,14 +971,14 @@ class GoodClass
 {
 public:
     /** Get the number of read */
-    int getNbRead() { return m_nbRead; }
+    int getNbRead() { return nbRead; }
 
     /** Set the number of read */
-    void setNbRead(int nbRead) { m_nbRead = nbRead; }
+    void setNbRead(int newNbRead) { nbRead = newNbRead; }
 
 private:
     /** Number of read of this class */
-    int m_nbRead;
+    int nbRead;
 }
 ```
 
@@ -1163,7 +1166,7 @@ Use parentheses in "return expr;" only where you would use them in `x = expr;`.
 // Good:
 return (some_long_condition and
         another_condition);
-return (now() - m_StartMark);
+return (now() - startMark);
 return defaultDuration;
 
 // Bad:
@@ -1251,7 +1254,7 @@ Always check whether a preprocessor variable is defined before probing its value
     // Public members
     private:
         /** The duration elapsed when the timer was running and not paused */
-        duration m_TotalRunning;
+        duration totalRunning;
     };
 ```
 
@@ -1259,15 +1262,15 @@ Always check whether a preprocessor variable is defined before probing its value
 Prefer constructor initializer lists be all on one line when everything fits on one line.  When the list spans multiple lines, put each member on its own line and align them:  
 ```
 // When everything fits on one line:
-MyClass::MyClass(int var) : m_someVar(var)
+MyClass::MyClass(int var) : someVar(var)
 {
     doSomething();
 }
 
 // When the list spans multiple lines, put each member on its own line and align them:
 MyClass::MyClass(int var) :
-    m_someVar(var),        // 4 space indent
-    m_otherVar(var + 1)    // lined up
+    someVar(var),        // 4 space indent
+    otherVar(var + 1)    // lined up
 {  
   doSomething();
 }
@@ -1275,20 +1278,19 @@ MyClass::MyClass(int var) :
 ```
 
 ## Namespace Formatting  
-The contents of namespaces are not indented.  
-Named namespaces do not add an extra level of indentation.
-At the closing bracket of a named namespace, comment the name of the closed namespace
-Unnamed namespaces add an extra level of indentation.
+The contents of a namespace are indented one level, like any other block.  
+Nested namespaces (named or unnamed) each add one more level of indentation.  
+A `// namespace <name>` comment on the closing bracket is optional, but encouraged for long namespaces.
 ```
 namespace foo
 {
-namespace bar
-{
-    namespace
+    namespace bar
     {
-    }
-} // namespace foo
-} // namespace bar
+        namespace
+        {
+        }
+    } // namespace bar (optional comment)
+}
 ```
 
 ## Anonymous Namespaces
@@ -1442,7 +1444,7 @@ for (int i = 0; i < nbTables); ++i)
     /** Is timer paused **/
     inline const bool isPaused() const
     { 
-        return m_paused; 
+        return paused; 
     }
 ```
 If "is" not appropriate use has/an/should e.t.c.  
@@ -1812,7 +1814,7 @@ if (condition)
 Be careful about your accessors. Always provide the const version, the non-const version is optional. Return by value should be avoided as you will copy the content of your object.
 ```
 inline int count() const { return count_; } // Ok, int is small type
-inline MyType getData() { return m_data; } // Bad, m_data is big struct
+inline MyType getData() { return data; } // Bad, data is big struct
 inline MyType const & MyClass::getMyType() const { return mMyType; } // Ok, uses reference
 ```
 ## Singleton pattern  

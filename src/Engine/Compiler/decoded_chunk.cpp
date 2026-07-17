@@ -71,6 +71,7 @@ namespace pg
                 return false;
         }
     }
+
     ObjFunction::~ObjFunction()
     {
         if (decodedChunk != nullptr)
