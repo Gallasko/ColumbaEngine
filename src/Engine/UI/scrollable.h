@@ -4,7 +4,7 @@
 
 #include "2D/position.h"
 
-#include "Input/inputcomponent.h"
+#include "Input/sdlevents.h"
 
 namespace pg {
 

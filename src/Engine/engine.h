@@ -16,6 +16,8 @@
 #include <atomic>
 #include <thread>
 
+#include "Versioning/versionmanager.h"
+
 namespace pg
 {
     // Forward declarations
@@ -30,6 +32,9 @@ namespace pg
         bool fullscreen = false;
         std::string saveFolder = "save";
         std::string saveSystemFile = "system.sz";
+        std::string manifestPath = "manifest.json";
+        bool autoWipeSaveOnMajorBump = true;
+        bool autoRunMigrations = true;
         bool vsync = true;
         int targetFPS = 60;
         bool autoStartECS = true;  // If false, ECS must be started manually via getECS()->start()
@@ -53,6 +58,9 @@ namespace pg
         const EngineConfig& getConfig() const { return config; }
         const std::string& getAppName() const { return appName; }
 
+        VersionManager& getVersionManager() { return versionManager; }
+        const VersionManager& getVersionManager() const { return versionManager; }
+
         bool isWindowReady() const { return windowReady.load(); }
         bool isECSReady() const { return ecsReady.load(); }
         bool isFullyInitialized() const { return initialized; }
@@ -67,6 +75,7 @@ namespace pg
         std::atomic<bool> ecsReady{false};
         bool initialized = false;
         std::string savePath;
+        VersionManager versionManager;
 
 #ifdef __EMSCRIPTEN__
         std::thread* initThread = nullptr;

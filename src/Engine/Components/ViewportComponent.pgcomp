@@ -1,0 +1,12 @@
+name: ViewportComponent
+namespace: pg
+base_class: Component
+
+fields:
+  - name: viewport
+    type: size_t
+    default: 0
+    setter: event
+
+events:
+  - ViewportComponentChangedEvent

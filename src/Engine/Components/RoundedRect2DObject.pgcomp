@@ -3,8 +3,6 @@ namespace: pg
 base_class: Component
 
 includes:
-  - "ECS/system.h"
-  - "ECS/entitysystem.h"
   - "pgconstant.h"
 
 fields:
@@ -18,18 +16,17 @@ fields:
     default: "{255.0f, 255.0f, 255.0f, 255.0f}"
     setter: event
 
-  - name: viewport
-    type: size_t
-    default: 0
-    setter: event
-
 constructors:
   - params: [cornerRadius]
   - params: [cornerRadius, colors]
     defaults: {colors: "{255.0f, 255.0f, 255.0f, 255.0f}"}
 
 methods:
-  - "void setOpacity(float alpha) { colors.w = alpha; if (ecsRef) ecsRef->sendEvent(RoundedRect2DObjectChangedEvent{entityId}); }"
+  - definition: "void setOpacity(float alpha) {
+    colors.w = alpha;
+    if (ecsRef)
+        ecsRef->sendEvent(RoundedRect2DObjectChangedEvent{entityId});
+}"
 
 events:
   - RoundedRect2DObjectChangedEvent

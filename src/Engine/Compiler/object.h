@@ -76,12 +76,21 @@ namespace pg
 
     // Value type checking and extraction macros are now in value_nanbox.h
 
+    struct DecodedInstruction;
+
     struct CallFrame
     {
         Closure *closure;
         uint8_t *ip;
         Value *slots;
         Value *stackBase;  // Where the caller's stack ends (position to truncate to on return)
+
+        // Decoded instruction in the caller's decoded chunk to resume at
+        // when this frame returns. Set at frame-push time by VM::call /
+        // VM::callBound from vm->pendingCallResume (written by the frame-
+        // pushing decoded handler). Returned by op_return_decoded straight
+        // to the dispatch loop.
+        const DecodedInstruction* callerResume = nullptr;
     };
 
     // Value creation functions are now in value_nanbox.h

@@ -5,6 +5,8 @@
 
 #include "renderer.h"
 
+#include "ECS/entitysystem.h"
+
 #include <filesystem>
 namespace fs = std::filesystem;
 
@@ -114,6 +116,33 @@ namespace pg
     MasterRenderer::~MasterRenderer()
     {
         LOG_THIS_MEMBER(DOM);
+    }
+
+    void MasterRenderer::queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback)
+    {
+        if (ecsRef->isRunning())
+            textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback});
+        else
+            registerTexture(name, callback);
+    }
+
+    void MasterRenderer::processCameraRegister()
+    {
+        for (auto id : cameraRegisterQueue)
+        {
+            auto* camera = ecsRef->getComponent<BaseCamera2D>(id);
+
+            if (not camera)
+            {
+                LOG_MILE("Renderer", "Camera " << id << " not found");
+                continue;
+            }
+
+            cameraList.push_back(camera);
+            ++nbCamera;
+        }
+
+        cameraRegisterQueue.clear();
     }
 
     void MasterRenderer::onEvent(const OnSDLScanCode&)
@@ -604,16 +633,13 @@ namespace pg
 
     void MasterRenderer::setState(const OpenGLState& state)
     {
+        // Scissor
         if (currentState.scissorEnabled != state.scissorEnabled)
         {
             if (state.scissorEnabled)
-            {
                 glEnable(GL_SCISSOR_TEST);
-            }
             else
-            {
                 glDisable(GL_SCISSOR_TEST);
-            }
         }
 
         if (currentState.scissorBound != state.scissorBound)
@@ -623,6 +649,34 @@ namespace pg
 
             //glScissor defined the box from the bottom left corner (x, y, w, h);
             glScissor(state.scissorBound.x, (screenHeight - state.scissorBound.w) - state.scissorBound.y, state.scissorBound.z, state.scissorBound.w);
+        }
+
+        // Depth test
+        if (currentState.depthTestEnabled != state.depthTestEnabled)
+        {
+            if (state.depthTestEnabled)
+                glEnable(GL_DEPTH_TEST);
+            else
+                glDisable(GL_DEPTH_TEST);
+        }
+
+        if (currentState.depthFunc != state.depthFunc)
+        {
+            glDepthFunc(static_cast<GLenum>(state.depthFunc));
+        }
+
+        // Blend
+        if (currentState.blendEnabled != state.blendEnabled)
+        {
+            if (state.blendEnabled)
+                glEnable(GL_BLEND);
+            else
+                glDisable(GL_BLEND);
+        }
+
+        if (currentState.blendSrc != state.blendSrc or currentState.blendDst != state.blendDst)
+        {
+            glBlendFunc(static_cast<GLenum>(state.blendSrc), static_cast<GLenum>(state.blendDst));
         }
 
         currentState = state;
@@ -674,6 +728,7 @@ namespace pg
 
         if (viewport == 0)
         {
+            projection = camera.getProjectionMatrix();
             view = camera.getViewMatrix();
         }
         else
@@ -686,10 +741,28 @@ namespace pg
             }
             else
             {
+                projection = cameraList[cameraIndex]->getProjectionMatrix();
                 view = cameraList[cameraIndex]->getViewMatrix();
+            }
+        }
 
-                // Todo fix this
-                // projection = cameraList[cameraIndex]->getProjectionMatrix();
+        // Todo make the scale matrix be calculated when the width/height are getting changed
+
+        // For 2D camera viewports, use the camera's viewport dimensions for zoom support
+        float effectiveWidth = static_cast<float>(screenWidth);
+        float effectiveHeight = static_cast<float>(screenHeight);
+
+        if (viewport > 0)
+        {
+            int camIdx = viewport - 1;
+
+            if (camIdx >= 0 and static_cast<size_t>(camIdx) < cameraList.size())
+            {
+                float camW = cameraList[camIdx]->getWidth();
+                float camH = cameraList[camIdx]->getHeight();
+
+                if (camW > 0.0f) effectiveWidth = camW;
+                if (camH > 0.0f) effectiveHeight = camH;
             }
         }
 
@@ -710,7 +783,7 @@ namespace pg
         glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 scale = glm::mat4(1.0f);
 
-        scale = glm::scale(scale, glm::vec3(2.0f / screenWidth, 2.0f / screenHeight, 1.0f));
+        scale = glm::scale(scale, glm::vec3(2.0f / effectiveWidth, 2.0f / effectiveHeight, 1.0f));
 
         // Todo create a uniform feeder
 
@@ -744,17 +817,17 @@ namespace pg
 
                     switch(value.type)
                     {
-                        case ElementType::UnionType::FLOAT:
+                        case UnionType::FLOAT:
                             shaderProgram->setUniformValue(uniform.first, value.get<float>());
                             break;
-                        case ElementType::UnionType::INT:
-                        case ElementType::UnionType::SIZE_T:
+                        case UnionType::INT:
+                        case UnionType::SIZE_T:
                             shaderProgram->setUniformValue(uniform.first, value.get<int>());
                             break;
-                        case ElementType::UnionType::BOOL:
+                        case UnionType::BOOL:
                             shaderProgram->setUniformValue(uniform.first, value.get<bool>());
                             break;
-                        case ElementType::UnionType::STRING:
+                        case UnionType::STRING:
                         default:
                         {
                             LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());
@@ -768,6 +841,10 @@ namespace pg
         shaderProgram->setUniformValue("model", model);
         shaderProgram->setUniformValue("scale", scale);
         shaderProgram->setUniformValue("view", view);
+
+        // Override sWidth/sHeight with camera viewport dimensions for zoom support
+        shaderProgram->setUniformValue("sWidth", effectiveWidth);
+        shaderProgram->setUniformValue("sHeight", effectiveHeight);
 
         if (not call.mesh)
         {

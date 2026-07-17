@@ -1,0 +1,108 @@
+// vm_ops_def.pg — declarative spec for the VM's binary operator kernels.
+// Consumed by gen_vm_ops.pg (run it via PgCompiler/PgCompilerBootstrap) to
+// generate the fusion functors, base stack handlers, *Values helper bodies
+// and fusion selection tables. ONE entry here is the single source of truth
+// for an operator's typed semantics — fast and slow paths render from it.
+//
+// Op entry fields:
+//   name        base identifier: functor = F + Capitalized(name),
+//               BinOp enum = Capitalized(name), handler = op_<snake>_decoded
+//   opcode      the base OpCode this op decodes from (selection tables)
+//   kind        "arith" (result boxes INT_VAL/FLOAT_VAL) or
+//               "cmp"   (result boxes BOOL_VAL; a raw-bool applyCond is
+//                        also generated for branch sinks — no boxing)
+//   helper      the VM::*Values slow-path function (single source of truth
+//               for types not covered by kernels)
+//   commutative used by the fusion pass to match `x = b op x` compounds
+//   op          shorthand: derives the 4 numeric kernels
+//               (int/int, dbl/dbl, int/dbl promote, dbl/int promote), inline
+//   kernels     explicit list, mutually exclusive with `op`
+//   tail        handwritten fallback function for the generated helper body
+//               (step 5); tailExpr = verbatim return expression instead
+//
+// Kernel tuple: [typeA, typeB, expr, guard, where]
+//   typeA/typeB "int" | "dbl" | "rawint"  (rawint: $a/$b are the BOXED
+//               values — canonical NaN-boxed int bit-compare)
+//   expr        C++ over $a/$b (unboxed reads substituted; raw for rawint)
+//   guard       extra C++ condition over $a/$b, "" for none
+//   where       "inline" → functor + base handler + helper
+//               "helper" → helper body only (epsilon/error-prone cases kept
+//                          out of the hot inline path)
+
+fun binaryOps()
+{
+    var ops = []
+
+    push(ops, { name: "add", opcode: "OP_Add", kind: "arith", op: "+",
+                helper: "addValues", commutative: true,
+                tail: "addValuesTail" })
+
+    push(ops, { name: "subtract", opcode: "OP_Subtract", kind: "arith", op: "-",
+                helper: "subtractValues", commutative: false,
+                tail: "subtractValuesTail" })
+
+    push(ops, { name: "multiply", opcode: "OP_Multiply", kind: "arith", op: "*",
+                helper: "multiplyValues", commutative: true,
+                tail: "multiplyValuesTail" })
+
+    // Int divisors only need the `!= 0` guard inline; double divisors keep
+    // the epsilon-vs-zero check in the helper.
+    push(ops, { name: "divide", opcode: "OP_Divide", kind: "arith",
+                helper: "divideValues", commutative: false,
+                kernels: [
+                    ["int", "int", "$a / $b", "$b != 0", "inline"],
+                    ["dbl", "int", "$a / static_cast<double>($b)", "$b != 0", "inline"],
+                    ["dbl", "dbl", "$a / $b", "areNotAlmostEqual(static_cast<float>($b), 0.0f)", "helper"],
+                    ["int", "dbl", "static_cast<double>($a) / $b", "areNotAlmostEqual(static_cast<float>($b), 0.0f)", "helper"]],
+                tail: "divideValuesTail" })
+
+    // Int/int modulo is hot in benchmarks (matmul init, hash patterns) and
+    // safe to inline behind the zero guard; the fmod/epsilon cases stay in
+    // the helper.
+    push(ops, { name: "modulo", opcode: "OP_Modulo", kind: "arith",
+                helper: "moduloValues", commutative: false,
+                kernels: [
+                    ["int", "int", "$a % $b", "$b != 0", "inline"],
+                    ["dbl", "dbl", "std::fmod($a, $b)", "areNotAlmostEqual(static_cast<float>($b), 0.0f)", "helper"],
+                    ["int", "dbl", "std::fmod(static_cast<double>($a), $b)", "areNotAlmostEqual(static_cast<float>($b), 0.0f)", "helper"],
+                    ["dbl", "int", "std::fmod($a, static_cast<double>($b))", "$b != 0", "helper"]],
+                tail: "moduloValuesTail" })
+
+    // Equality: canonical NaN-boxed ints compare as raw bits; anything
+    // involving a double keeps the epsilon semantics, helper-only.
+    push(ops, { name: "equal", opcode: "OP_Equal", kind: "cmp",
+                helper: "equalsValues", commutative: true,
+                kernels: [
+                    ["rawint", "rawint", "$a == $b", "", "inline"],
+                    ["dbl", "dbl", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
+                    ["int", "dbl", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
+                    ["dbl", "int", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"]],
+                tailExpr: "BOOL_VAL(a == b)" })
+
+    push(ops, { name: "notEqual", opcode: "OP_NotEqual", kind: "cmp",
+                helper: "notEqualsValues", commutative: true,
+                kernels: [
+                    ["rawint", "rawint", "$a != $b", "", "inline"],
+                    ["dbl", "dbl", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
+                    ["int", "dbl", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
+                    ["dbl", "int", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"]],
+                tailExpr: "BOOL_VAL(a != b)" })
+
+    push(ops, { name: "greater", opcode: "OP_Greater", kind: "cmp", op: ">",
+                helper: "greaterValues", commutative: false,
+                tail: "greaterValuesTail" })
+
+    push(ops, { name: "greaterEqual", opcode: "OP_GreaterEqual", kind: "cmp", op: ">=",
+                helper: "greaterEqualValues", commutative: false,
+                tail: "greaterEqualValuesTail" })
+
+    push(ops, { name: "less", opcode: "OP_Less", kind: "cmp", op: "<",
+                helper: "lessValues", commutative: false,
+                tail: "lessValuesTail" })
+
+    push(ops, { name: "lessEqual", opcode: "OP_LessEqual", kind: "cmp", op: "<=",
+                helper: "lessEqualValues", commutative: false,
+                tail: "lessEqualValuesTail" })
+
+    return ops
+}

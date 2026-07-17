@@ -10,6 +10,9 @@
 
 #include "logger.h"
 
+// Todo
+// Add an OnDelta caps that actually does all the listening to TickEvent and accumulation (like the standard sys)
+
 namespace tf
 {
     // Forward declaration
@@ -176,6 +179,7 @@ namespace pg
                           const std::string& initScriptPath,
                           _S_EventMap eventMap,
                           _S_EventScriptMap eventScriptMap,
+                          _S_EventScriptMap deferredEventScriptMap,
                           _S_ExecuteCallback executeCb,
                           const std::string& executeScriptPath,
                           _S_SaveCallback saveCb,
@@ -186,6 +190,7 @@ namespace pg
                           systemName(name), ownedComponents(componentNames), defaultComponentValues(defaultComponentValues),
                           initCallback(initCb), initScript(initScriptPath),
                           eventCallbackList(eventMap), eventScriptCallbackList(eventScriptMap),
+                          deferredEventScriptCallbackList(deferredEventScriptMap),
                           executeCallback(executeCb), executeScript(executeScriptPath),
                           saveCallback(saveCb), loadCallback(loadCb), firstLoadCallback(firstLoadCb),
                           deltaCallback(deltaCb), deltaScript(deltaScriptPath)
@@ -198,6 +203,11 @@ namespace pg
             for (auto [key, _] : eventScriptMap)
             {
                 listenedEvents.insert(key);
+            }
+
+            for (auto [key, _] : deferredEventScriptMap)
+            {
+                listenedDeferredEvents.insert(key);
             }
 
             handle._internalSystemPtr = this;
@@ -225,6 +235,13 @@ namespace pg
         {
             LOG_THIS_MEMBER("StandardSystemImpl");
 
+            // Deferred events are queued and processed later during _execute()
+            if (listenedDeferredEvents.count(event.name))
+            {
+                _deferredEventQueue.push(event);
+                return;
+            }
+
             // Call user event callback
             auto it = eventCallbackList.find(event.name);
 
@@ -238,6 +255,18 @@ namespace pg
             if (it2 != eventCompiledScriptCallbackList.end())
             {
                 it2->second(&handle, event);
+            }
+        }
+
+        void onProcessEvent(const StandardEvent& event)
+        {
+            LOG_THIS_MEMBER("StandardSystemImpl");
+
+            auto it = deferredEventCompiledScriptCallbackList.find(event.name);
+
+            if (it != deferredEventCompiledScriptCallbackList.end())
+            {
+                it->second(&handle, event);
             }
         }
 
@@ -375,6 +404,7 @@ namespace pg
     private:
         std::string systemName;
         std::set<std::string> listenedEvents;
+        std::set<std::string> listenedDeferredEvents;
         std::vector<std::string> ownedComponents;
         std::unordered_map<std::string, ElementMap> defaultComponentValues;
         std::unordered_map<std::string, Own<StandardComponent>*> componentOwners;
@@ -390,6 +420,10 @@ namespace pg
         _S_EventMap eventCallbackList;
         _S_EventScriptMap eventScriptCallbackList;
         _S_EventMap eventCompiledScriptCallbackList;
+
+        _S_EventScriptMap deferredEventScriptCallbackList;
+        _S_EventMap deferredEventCompiledScriptCallbackList;
+        std::queue<StandardEvent> _deferredEventQueue;
 
         _S_ExecuteCallback executeCallback;
         std::string executeScript;
@@ -409,48 +443,39 @@ namespace pg
     template <typename... Comps>
     struct System;
 
-    template <typename Sys>
-    void registerComponents(Sys*, ComponentRegistry*) { LOG_THIS("System"); }
+    // ---------------------------------------------------------------
+    // Single-dispatch helpers for registerComponents (C++17 fold)
+    // ---------------------------------------------------------------
 
-    template <typename Comp, typename... Comps, typename Sys>
-    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<Own<Comp>>&, const Comps&... comps)
+    template <typename Comp, typename Sys>
+    void registerOneComponent(Sys *system, ComponentRegistry *registry, const tag<Own<Comp>>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Registering an own to '" << typeid(Comp).name() << "' to the system.");
-
         static_cast<Own<Comp>*>(system)->setRegistry(registry);
-        registerComponents(system, registry, comps...);
     }
 
-    template <typename Comp, typename... Comps, typename Sys>
-    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<Ref<Comp>>&, const Comps&... comps)
+    template <typename Comp, typename Sys>
+    void registerOneComponent(Sys *system, ComponentRegistry *registry, const tag<Ref<Comp>>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Registering a ref to '" << typeid(Comp).name() << "' to the system.");
-
         static_cast<Ref<Comp>*>(system)->setRegistry(registry);
-        registerComponents(system, registry, comps...);
     }
 
-    template <typename Event, typename... Comps, typename Sys>
-    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<Listener<Event>>&, const Comps&... comps)
+    template <typename Event, typename Sys>
+    void registerOneComponent(Sys *system, ComponentRegistry *registry, const tag<Listener<Event>>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Registering a listener to event '" << typeid(Event).name() << "' to the system.");
-
         static_cast<Listener<Event>*>(system)->setRegistry(registry);
         system->_listenerEventNames.push_back(std::string("L:") + typeid(Event).name());
-        registerComponents(system, registry, comps...);
     }
 
-    template <typename Event, typename... Comps, typename Sys>
-    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<QueuedListener<Event>>&, const Comps&... comps)
+    template <typename Event, typename Sys>
+    void registerOneComponent(Sys *system, ComponentRegistry *registry, const tag<QueuedListener<Event>>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Registering a queue listener to event '" << typeid(Event).name() << "' to the system.");
 
         system->_executionQueue.emplace_back([system]() {
@@ -467,94 +492,60 @@ namespace pg
 
         static_cast<QueuedListener<Event>*>(system)->setRegistry(registry);
         system->_listenerEventNames.push_back(std::string("Q:") + typeid(Event).name());
-        registerComponents(system, registry, comps...);
     }
 
-    template <typename... Comps, typename Sys>
-    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<StoragePolicy>&, const Comps&... comps)
+    template <typename Sys>
+    void registerOneComponent(Sys *system, ComponentRegistry *, const tag<StoragePolicy>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Registering the system as a storage one");
-
         if (system->executionPolicy != ExecutionPolicy::Sequential)
-        {
             LOG_ERROR("System", "Trying to set two different execution policies !");
-        }
-
         system->setPolicy(ExecutionPolicy::Storage);
-
-        registerComponents(system, registry, comps...);
     }
 
-    template <typename... Comps, typename Sys>
-    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<ManualPolicy>&, const Comps&... comps)
+    template <typename Sys>
+    void registerOneComponent(Sys *system, ComponentRegistry *, const tag<ManualPolicy>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Registering the system as a manual one");
-
         if (system->executionPolicy != ExecutionPolicy::Sequential)
-        {
             LOG_ERROR("System", "Trying to set two different execution policies !");
-        }
-
         system->setPolicy(ExecutionPolicy::Manual);
-
-        registerComponents(system, registry, comps...);
     }
 
-    template <typename... Comps, typename Sys>
-    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<ParallelPolicy>&, const Comps&... comps)
+    template <typename Sys>
+    void registerOneComponent(Sys *system, ComponentRegistry *, const tag<ParallelPolicy>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Registering the system as a parallel one");
-
         if (system->executionPolicy != ExecutionPolicy::Sequential)
-        {
             LOG_ERROR("System", "Trying to set two different execution policies !");
-        }
-
         system->setPolicy(ExecutionPolicy::Parallel);
-
-        registerComponents(system, registry, comps...);
     }
 
-    template <typename... Comps, typename Sys>
-    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<IndependentPolicy>&, const Comps&... comps)
+    template <typename Sys>
+    void registerOneComponent(Sys *system, ComponentRegistry *, const tag<IndependentPolicy>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Registering the system as a independent one");
-
         if (system->executionPolicy != ExecutionPolicy::Sequential)
-        {
             LOG_ERROR("System", "Trying to set two different execution policies !");
-        }
-
         system->setPolicy(ExecutionPolicy::Independent);
-
-        registerComponents(system, registry, comps...);
     }
 
-    template <typename... Comps, typename Sys>
-    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<InitSys>&, const Comps&... comps)
+    template <typename Sys>
+    void registerOneComponent(Sys *system, ComponentRegistry *, const tag<InitSys>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Running init");
-
         system->init();
-
-        registerComponents(system, registry, comps...);
     }
 
-    template <typename... Comps, typename Sys>
-    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<SaveSys>&, const Comps&... comps)
+    template <typename Sys>
+    void registerOneComponent(Sys *system, ComponentRegistry *registry, const tag<SaveSys>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Loading system data...");
 
         auto name = system->__name;
@@ -578,31 +569,33 @@ namespace pg
         {
             LOG_ERROR("System", "Trying to load an unnamed system: " << typeid(Sys).name());
         }
+    }
 
-        registerComponents(system, registry, comps...);
+    // Fold-expression wrapper: one instantiation instead of N recursive ones
+    template <typename Sys, typename... Comps>
+    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<Comps>&... comps)
+    {
+        (void)system; (void)registry;
+        (registerOneComponent(system, registry, comps), ...);
+    }
+
+    // ---------------------------------------------------------------
+    // Single-dispatch helpers for unregisterComponents (C++17 fold)
+    // ---------------------------------------------------------------
+
+    template <typename Comp, typename Sys>
+    void unregisterOneComponent(Sys *system, ComponentRegistry *registry, const tag<Own<Comp>>&)
+    {
+        LOG_THIS("System");
+        LOG_INFO("System", "Unregistering an own to '" << typeid(Comp).name() << "' to the system.");
+        // Todo also remove any group that is dependant to this owner
+        static_cast<Own<Comp>*>(system)->unsetRegistry(registry);
     }
 
     template <typename Sys>
-    void unregisterComponents(Sys*, ComponentRegistry*) { LOG_THIS("System"); }
-
-    template <typename Comp, typename... Comps, typename Sys>
-    void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<Own<Comp>>&, const Comps&... comps)
+    void unregisterOneComponent(Sys *system, ComponentRegistry *registry, const tag<SaveSys>&)
     {
         LOG_THIS("System");
-
-        LOG_INFO("System", "Unregistering an own to '" << typeid(Comp).name() << "' to the system.");
-
-        // Todo also remove any group that is dependant to this owner
-
-        static_cast<Own<Comp>*>(system)->unsetRegistry(registry);
-        unregisterComponents(system, registry, comps...);
-    }
-
-    template <typename... Comps, typename Sys>
-    void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<SaveSys>&, const Comps&... comps)
-    {
-        LOG_THIS("System");
-
         LOG_INFO("System", "Saving system data...");
 
         auto name = system->__name;
@@ -610,47 +603,44 @@ namespace pg
         if (name != "UnNamed")
         {
             registry->saveSystem(name);
-
             registry->unregisterSystemSave(name);
         }
         else
         {
             LOG_ERROR("System", "Trying to save an unnamed system: " << typeid(Sys).name());
         }
-
-        unregisterComponents(system, registry, comps...);
     }
 
-    template <typename Event, typename... Comps, typename Sys>
-    void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<Listener<Event>>&, const Comps&... comps)
+    template <typename Event, typename Sys>
+    void unregisterOneComponent(Sys *system, ComponentRegistry *registry, const tag<Listener<Event>>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Unregistering a listener to event '" << typeid(Event).name() << "' to the system.");
-
         static_cast<Listener<Event>*>(system)->unsetRegistry(registry);
-        unregisterComponents(system, registry, comps...);
     }
 
-    template <typename Event, typename... Comps, typename Sys>
-    void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<QueuedListener<Event>>&, const Comps&... comps)
+    template <typename Event, typename Sys>
+    void unregisterOneComponent(Sys *system, ComponentRegistry *registry, const tag<QueuedListener<Event>>&)
     {
         LOG_THIS("System");
-
         LOG_INFO("System", "Unregistering a listener to event '" << typeid(Event).name() << "' to the system.");
-
         static_cast<QueuedListener<Event>*>(system)->unsetRegistry(registry);
-        unregisterComponents(system, registry, comps...);
     }
 
-    template <typename Comp, typename... Comps, typename Sys>
-    void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<Comp>&, const Comps&... comps)
+    // Catch-all for tags that don't need unregistration (Ref, policies, InitSys, etc.)
+    template <typename Comp, typename Sys>
+    void unregisterOneComponent(Sys *, ComponentRegistry *, const tag<Comp>&)
     {
         LOG_THIS("System");
-
         LOG_MILE("System", "Unregister is not needed for: " << typeid(Comp).name());
+    }
 
-        unregisterComponents(system, registry, comps...);
+    // Fold-expression wrapper: one instantiation instead of N recursive ones
+    template <typename Sys, typename... Comps>
+    void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<Comps>&... comps)
+    {
+        (void)system; (void)registry;
+        (unregisterOneComponent(system, registry, comps), ...);
     }
 
     template <typename... Comps>
@@ -810,6 +800,7 @@ namespace pg
                 return nullptr;
             }
 
+            // Todo remove this as those are just used for debug and log, but still polutes the system with registry stuff
             // Track this group type once (viewGroup() calls us on every execute, so deduplicate)
             const char* groupTypeName = typeid(Group<Type, Types...>).name();
             bool alreadyTracked = false;

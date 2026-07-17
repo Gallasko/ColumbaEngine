@@ -22,6 +22,8 @@
 #include <GL/gl.h>
 #endif
 
+#include <ECS/entityref.h>
+
 namespace pg
 {
     // Forward declarations
@@ -32,7 +34,6 @@ namespace pg
     class MasterRenderer;
     struct AudioSystem;
     using _unique_id = uint64_t;
-    struct EntityRef;
     template<typename T> struct CompRef;
     struct Point2D;
 
@@ -56,6 +57,20 @@ namespace pg
         inline bool requestQuit() const { return needToQuit; }
 
         const Input * getInputHandler() const { return inputHandler; }
+
+        // Hide + pin the cursor to the window center (manual relative-mouse
+        // mode that works on WSL where SDL_SetRelativeMouseMode is unreliable).
+        // Call with false to restore the system cursor in place.
+        void setCursorLocked(bool locked);
+
+        // Current window size in pixels. Exposed so input/look controllers
+        // can do edge-based cursor recentering without re-querying SDL.
+        int getWidth()  const { return width; }
+        int getHeight() const { return height; }
+
+        // Toggle between windowed and borderless-fullscreen (desktop
+        // resolution). Bound to F10 in processEvents.
+        void toggleFullscreen();
 
     public:
         EntitySystem* ecs;
@@ -83,7 +98,7 @@ namespace pg
         Input *inputHandler = nullptr;
         AudioSystem *audioSystem = nullptr;
 
-        EntityRef* screenEntity;
+        EntityRef screenEntity;
         // CompRef<UiComponent>* screenUi;
 
         Point2D* mousePos;

@@ -1,0 +1,11 @@
+// while loop with a compound (and) condition — exercises the loop-rotation
+// pass moving a condition block that itself contains short-circuit jumps.
+var i = 0;
+var j = 10;
+while (i < 5 and j > 6) {
+    __dprint(i);
+    __dprint(j);
+    i = i + 1;
+    j = j - 1;
+}
+__dprint("done");

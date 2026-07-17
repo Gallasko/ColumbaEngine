@@ -38,19 +38,7 @@ if (sysData["reasonTextId"] != 0)
     sysData["reasonTextId"] = 0
 }
 
-// Clear all asteroids
-var asteroids = getEntities("Asteroid")
-for (var asteroid : asteroids)
-{
-    removeEntity(asteroid.__entityId)
-}
-
-// Clear all bullets
-var bullets = getEntities("Bullet")
-for (var bullet : bullets)
-{
-    removeEntity(bullet.__entityId)
-}
+logInfo("Removed restart text")
 
 // Reset game over state
 sysData["isGameOver"] = false

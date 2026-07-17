@@ -1,0 +1,11 @@
+// Out-of-bounds vector read (through the fused local-target path) must fail
+// identically with and without opts.
+fun f()
+{
+    var v = [1, 2, 3];
+    var i = 5;
+    print("before");
+    print(v[i + 2]);
+    print("unreachable");
+}
+f();

@@ -18,11 +18,17 @@ CMakeCache.txt
 /clang*
 save/*
 res/**/*.pgc
+res/ext/*
 profile_data.csv
 global.sz
 *.generated.*
 *.serialization.cpp
-src/**/temp.pgc
+temp.pgc
 test/pgcompiler/scripts/*compiled.pgc
 .vscode/.intellisense-cache
 graph.dot
+.wrangler
+asan/
+# Committed component seed: base files for CI / Emscripten builds that cannot run the bootstrap
+!src/Engine/Components/generated/*.generated.*
+!src/Engine/Components/generated/*.serialization.cpp

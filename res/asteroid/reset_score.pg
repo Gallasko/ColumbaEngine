@@ -6,14 +6,16 @@ logInfo("Resetting score...")
 // Reset score to 0
 sysData["score"] = 0
 
+logInfo(sysData["scoreTextId"])
+
 // Update score display
 if (sysData["scoreTextId"] != 0)
 {
     var scoreText = getEntity(sysData["scoreTextId"])
-    if (scoreText != 0)
-    {
-        scoreText["TTFText"].text = "Score: 0"
-    }
+
+    logInfo(scoreText)
+
+    scoreText["TTFText"].text = "Score: 0"
 }
 
 logInfo("Score reset to 0")

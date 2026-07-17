@@ -3,6 +3,8 @@
 
 #include "ttftext.h"
 
+#include "ECS/entitysystem.h"
+
 #ifdef __EMSCRIPTEN__
 #define GL_GLEXT_PROTOTYPES 1
 #include <emscripten.h>
@@ -52,17 +54,18 @@ namespace pg
 
         baseMaterialPreset.setSimpleMesh({3, 2, 1, 1, 3, 1, 4});
 
-        auto group = registerGroup<PositionComponent, TTFText>();
+        auto group = registerGroup<PositionComponent, TTFText, ViewportComponent>();
 
         group->addOnGroup([this](EntityRef entity) {
             LOG_MILE(DOM, "Add entity " << entity->id << " to ui - ttf group !");
 
             auto ui = entity->get<PositionComponent>();
             auto obj = entity->get<TTFText>();
+            size_t viewport = entity->has<ViewportComponent>() ? entity->get<ViewportComponent>()->viewport : 0;
 
             if (ui and obj)
             {
-                entityGlyphTemplates[entity->id] = buildGlyphTemplates(ui, obj);
+                entityGlyphTemplates[entity->id] = buildGlyphTemplates(ui, obj, viewport);
                 entityRenderCalls[entity->id] = createRenderCall(ui, entityGlyphTemplates[entity->id]);
                 entitiesInRenderGroup.push_back(entity->id);
                 std::sort(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end());
@@ -85,7 +88,7 @@ namespace pg
         });
     }
 
-    void TTFTextSystem::onEvent(const PositionComponentChangedEvent& event)
+    void TTFTextSystem::onEvent(const PositionSettledEvent& event)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -101,6 +104,17 @@ namespace pg
         LOG_THIS_MEMBER(DOM);
 
         // Full rebuild needed; remove from position-only set to avoid redundant work.
+        positionUpdateSet.erase(event.id);
+        textContentUpdateSet.insert(event.id);
+
+        changed = true;
+    }
+
+    void TTFTextSystem::onEvent(const ViewportComponentChangedEvent& event)
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        // Viewport changed — needs full rebuild to update glyph viewport values.
         positionUpdateSet.erase(event.id);
         textContentUpdateSet.insert(event.id);
 
@@ -142,9 +156,9 @@ namespace pg
                 }
 
                 // If the glyph won't fit in the current row, move to next row.
-                if (currentX + face->glyph->bitmap.width > atlasWidth) {
+                if (currentX + face->glyph->bitmap.width + 2 > atlasWidth) {
                     currentX = 0;
-                    currentY += rowHeight;
+                    currentY += rowHeight + 2;
                     rowHeight = 0;
                 }
 
@@ -177,8 +191,8 @@ namespace pg
 
                 charactersMap[texName][c] = character;
 
-                // Update currentX and rowHeight.
-                currentX += face->glyph->bitmap.width;
+                // Update currentX and rowHeight (2px padding to prevent mipmap bleeding).
+                currentX += face->glyph->bitmap.width + 2;
                 if (static_cast<int>(face->glyph->bitmap.rows) > rowHeight)
                     rowHeight = face->glyph->bitmap.rows;
             }
@@ -205,7 +219,8 @@ namespace pg
             // Set texture parameters.
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glGenerateMipmap(GL_TEXTURE_2D);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
             // Save atlasTexture in your renderer/material preset.
@@ -273,10 +288,11 @@ namespace pg
 
             auto ui = entity->get<PositionComponent>();
             auto obj = entity->get<TTFText>();
+            size_t viewport = entity->has<ViewportComponent>() ? entity->get<ViewportComponent>()->viewport : 0;
 
             LOG_MILE(DOM, "Full rebuild entity " << entityId << ", with text: " << obj->text);
 
-            entityGlyphTemplates[entityId] = buildGlyphTemplates(ui, obj);
+            entityGlyphTemplates[entityId] = buildGlyphTemplates(ui, obj, viewport);
             entityRenderCalls[entityId] = createRenderCall(ui, entityGlyphTemplates[entityId]);
         }
 
@@ -347,7 +363,7 @@ namespace pg
         return width;
     }
 
-    std::vector<TTFTextSystem::GlyphRenderData> TTFTextSystem::buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
+    std::vector<TTFTextSystem::GlyphRenderData> TTFTextSystem::buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj, size_t viewport)
     {
         std::vector<GlyphRenderData> glyphs;
 
@@ -356,7 +372,6 @@ namespace pg
         float startX = ui->x;
         float startY = ui->y;
         float scale = obj->scale;
-        size_t viewport = obj->viewport;
         bool wrap = obj->wrap;
         std::string fontPath = obj->fontPath;
         size_t materialId = getMaterialId(fontPath);

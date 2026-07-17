@@ -211,5 +211,30 @@
                 "program": "${workspaceFolder}/debug/GameOff.exe"
             }
         },
+        {
+            "name": "GameDevJs",
+            "type": "cppdbg",
+            "request": "launch",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb",
+                "program": "${workspaceFolder}/build/GameDevJs2026"
+            },
+            "osx": {
+                "MIMode": "lldb",
+                "miDebuggerPath": "lldb-mi",
+                "program": "${workspaceFolder}/debug/main"
+            },
+            "windows": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb.exe",
+                "program": "${workspaceFolder}/debug/GameOff.exe"
+            }
+        },
     ]
 }

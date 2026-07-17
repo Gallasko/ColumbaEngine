@@ -93,9 +93,21 @@ namespace pg
         OP_SubtractLC, // SUBTRACT optimized for local and constant
         OP_SubtractCL, // SUBTRACT optimized for constant and local
 
+        OP_LessEqualLL,// LessEqual optimized for two local variables (peephole)
+        OP_LessLL,     // Less       optimized for two local variables (peephole)
+
+        OP_Set_Local_Pop, // Set_Local + Pop fused (assignment statement peephole)
+
         // Control flow
         OP_Jump_If_False_Popping,      // Jump if false and pop the condition value (used for while loops, if statements)
         OP_Long_Jump_If_False_Popping, // Long jump if false and pop the condition value (for long jumps in loops/ifs)
+
+        // Backward conditional branch used by the loop-rotation pass: pop the
+        // condition and, if true, jump BACKWARD to the loop body (like OP_Loop).
+        // Replaces the test-at-top guard + unconditional OP_Loop with a single
+        // test-at-bottom branch.
+        OP_Jump_If_True_Popping,       // Backward jump if true and pop the condition value
+        OP_Long_Jump_If_True_Popping,  // Long backward jump if true and pop the condition value
 
         // Table operations
         OP_Build_Vector,  // Create vector instance from stack key-value pairs
@@ -363,12 +375,14 @@ namespace pg
 
             case OpCode::OP_Jump_If_False:
             case OpCode::OP_Jump_If_False_Popping:
+            case OpCode::OP_Jump_If_True_Popping:
             case OpCode::OP_Jump:
             case OpCode::OP_Loop:
                 return 3; // opcode + 2 byte operand
 
             case OpCode::OP_Long_Jump_If_False:
             case OpCode::OP_Long_Jump_If_False_Popping:
+            case OpCode::OP_Long_Jump_If_True_Popping:
             case OpCode::OP_Long_Jump:
             case OpCode::OP_Long_Loop:
                 return 5; // opcode + 4 byte operand
@@ -387,7 +401,12 @@ namespace pg
             case OpCode::OP_SubtractLL:
             case OpCode::OP_SubtractLC:
             case OpCode::OP_SubtractCL:
+            case OpCode::OP_LessEqualLL:
+            case OpCode::OP_LessLL:
                 return 3; // opcode + 2 byte operands (local variable indices)
+
+            case OpCode::OP_Set_Local_Pop:
+                return 2; // opcode + 1 byte (slot)
 
             case OpCode::OP_Define_Constant_Global:
             case OpCode::OP_Set_Constant_Global:

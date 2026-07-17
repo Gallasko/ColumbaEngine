@@ -115,6 +115,7 @@ namespace pg
         // Scripts overload
         StandardSystemBuilder& onInit(const std::string& scriptName);
         StandardSystemBuilder& onEvent(const std::string& eventName, const std::string& scriptName);
+        StandardSystemBuilder& onProcessEvent(const std::string& eventName, const std::string& scriptName);
         StandardSystemBuilder& onExecute(const std::string& scriptName);
         StandardSystemBuilder& onDelta(const std::string& scriptName);
 
@@ -135,6 +136,7 @@ namespace pg
 
             _S_EventMap eventCallbackList;
             _S_EventScriptMap scriptEventCallbackList;
+            _S_EventScriptMap deferredScriptEventCallbackList;
 
             _S_ExecuteCallback executeCallback;
             std::string executeScript;

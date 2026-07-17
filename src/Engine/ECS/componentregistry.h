@@ -489,6 +489,14 @@ namespace pg
             }
         }
 
+        /** Clear all serialized system data (e.g. on major version bump).
+         *  Clears in-memory map and flushes the empty state to disk. */
+        void clearSystemSaveData()
+        {
+            systemSerializer.clear();
+            systemSerializer.save();
+        }
+
         bool loadSystem(std::function<void(const UnserializedObject&)> f, const std::string& objectName)
         {
             const auto& map = systemSerializer.getSerializedMap();
@@ -721,6 +729,7 @@ namespace pg
             auto comp = components.addComponent(entity, std::forward<Args>(args)...);
 
             entity->componentList.insert(_componentId);
+            entity->pendingComponents[_componentId] = comp;
 
             // Call the on component creation callbacks to register the component in potential groups
             for (const auto& callback : onComponentCreation)
@@ -747,6 +756,8 @@ namespace pg
 
             if (it != entity->componentList.end())
                 entity->componentList.erase(it);
+
+            entity->pendingComponents.erase(_componentId);
 
             // Remove the component from the sparse set
             if (components.has(entity->id))
@@ -806,6 +817,8 @@ namespace pg
 
         // Todo always check if the component was not initialized in between calls to make sure to update the correct one
         Comp* operator->();
+
+        Comp* operator->() const;
 
         operator Comp*();
 
@@ -1018,6 +1031,7 @@ namespace pg
             }
 
             entity->componentList.insert(_componentId);
+            entity->pendingComponents[_componentId] = comp;
 
             for (const auto& callback : onComponentCreation)
                 callback.second(entity);
@@ -1036,6 +1050,8 @@ namespace pg
 
             if (it != entity->componentList.end())
                 entity->componentList.erase(it);
+
+            entity->pendingComponents.erase(_componentId);
 
             if (components.has(entity->id))
                 components.removeComponent(entity);

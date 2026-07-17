@@ -1,0 +1,26 @@
+// compute_pi.pg — Leibniz series approximation of pi.
+// Reads `count` (iterations) from the global passed by pgscript_run.
+// Prints self-measured elapsed ns as the last stdout line.
+
+fun computePi(iterations)
+{
+    var pi = 0;
+    var i = 0;
+    while (i < iterations)
+    {
+        var term = 1.0 / (2 * i + 1);
+        var even = i - (i / 2) * 2;
+        if (even == 0)
+            pi = pi + term;
+        if (even == 1)
+            pi = pi - term;
+        i = i + 1;
+    }
+    return 4 * pi;
+}
+
+var t0 = now();
+var result = computePi(count);
+var elapsed = now() - t0;
+
+print(elapsed);

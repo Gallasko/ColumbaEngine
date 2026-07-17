@@ -218,7 +218,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
         // Todo O3 optimization breaks the event system for some reason
-        ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
+        ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
 
         ecs.registerSystem(createEventNotificationSystem());
 

@@ -85,7 +85,7 @@ Value setupVm(VM& vm, EntitySystem* ecsRef, Entity* entity)
 
     // Pass entity table as a global to the script (like a system module)
     LOG_INFO("Example", "Adding entity as global 'playerEntity' to script...");
-    vm.globals["playerEntity"] = entityTable;
+    vm.defineGlobal("playerEntity", entityTable);
 
     vm.registerNative("logInfo", [](VM* vm, int argCount, Value* args) -> Value {
         if (argCount != 1) return makeBoolValue(false);

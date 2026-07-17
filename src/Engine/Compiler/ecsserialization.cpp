@@ -348,13 +348,13 @@ namespace pg
         ecsRef->getComponentRegistry()->serializeComponentFromEntity(archive, entity, componentId);
 
         // Get the Table class
-        auto it = vm->globals.find("__Table");
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
+        if (cell == nullptr or not cell->defined)
         {
             throw std::runtime_error("Table class not found in VM globals");
         }
 
-        Klass* tableClass = vm->asClass(it->second);
+        Klass* tableClass = vm->asClass(cell->value);
 
         // Create the table instance
         Value tableValue = vm->createInstance(tableClass);
@@ -405,13 +405,13 @@ namespace pg
     Value serializeEntityToTable(VM* vm, EntitySystem* ecsRef, Entity* entity)
     {
         // Get the Table class
-        auto it = vm->globals.find("__Table");
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
+        if (cell == nullptr or not cell->defined)
         {
             throw std::runtime_error("Table class not found in VM globals");
         }
 
-        Klass* tableClass = vm->asClass(it->second);
+        Klass* tableClass = vm->asClass(cell->value);
 
         // Create the entity table
         Value entityTableValue = vm->createInstance(tableClass);
@@ -670,13 +670,13 @@ namespace pg
     Value serializeEntitiesToTable(VM* vm, EntitySystem* ecsRef, const std::vector<Entity*>& entities)
     {
         // Get the Table class
-        auto it = vm->globals.find("__Table");
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
+        if (cell == nullptr or not cell->defined)
         {
             throw std::runtime_error("Table class not found in VM globals");
         }
 
-        Klass* tableClass = vm->asClass(it->second);
+        Klass* tableClass = vm->asClass(cell->value);
 
         // Create the entities table
         Value entitiesTableValue = vm->createInstance(tableClass);
@@ -887,7 +887,7 @@ namespace pg
         });
 
         // Store the ComponentProxy class in globals
-        vm->globals["ComponentProxy"] = vm->retainValue(klassValue);
+        vm->defineGlobal("ComponentProxy", vm->retainValue(klassValue));
 
         // Register StandardComponent proxy metadata with dynamic property access.
         // This allows any StandardComponent (regardless of its runtime typeName) to be
@@ -914,13 +914,13 @@ namespace pg
     Value ComponentProxy::createProxy(VM* vm, const std::string& typeName, void* componentPtr)
     {
         // Get the ComponentProxy class
-        auto it = vm->globals.find("ComponentProxy");
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell("ComponentProxy");
+        if (cell == nullptr or not cell->defined)
         {
             throw std::runtime_error("ComponentProxy class not registered with VM");
         }
 
-        Klass* proxyClass = vm->asClass(it->second);
+        Klass* proxyClass = vm->asClass(cell->value);
 
         // Create a new proxy instance
         Value proxyInstance = vm->createInstance(proxyClass);

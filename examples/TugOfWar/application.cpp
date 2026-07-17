@@ -271,8 +271,6 @@ void initGame() {
 
     mainWindow->masterRenderer->processTextureRegister();
 
-    mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
-
     // mainWindow->ecs.createSystem<FlagSystem>();
     // mainWindow->ecs.registerFlagComponent<InstaFlag>();
     // mainWindow->ecs.registerFlagComponent<TikTokFlag>();

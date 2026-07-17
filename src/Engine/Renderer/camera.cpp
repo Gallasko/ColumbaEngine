@@ -10,6 +10,8 @@ namespace pg
 
     const glm::mat4& BaseCamera2D::getProjectionMatrix()
     {
+        // 2D shaders handle their own pixel-to-NDC conversion internally,
+        // so the projection matrix stays as identity for 2D cameras.
         return projectionMatrix;
     }
 
@@ -48,8 +50,6 @@ namespace pg
         viewMatrix[3][0] = -realX * 2.0f / width;
         viewMatrix[3][1] =  realY * 2.0f / height;
         viewMatrix[3][2] = -2;
-
-        projectionMatrix = getProjectionMatrix();
 
         dirty = false;
     }
@@ -100,6 +100,17 @@ namespace pg
         position.x = x;
         position.y = y;
         position.z = z;
+    }
+
+    const glm::mat4& Camera::getProjectionMatrix()
+    {
+        if (projDirty)
+        {
+            projectionMatrix = glm::perspective(glm::radians(fovDegrees), aspectRatio, nearPlane, farPlane);
+            projDirty = false;
+        }
+
+        return projectionMatrix;
     }
 
     glm::mat4 Camera::getViewMatrix()
@@ -155,11 +166,15 @@ namespace pg
 
     void Camera::updateCameraVectors()
     {
-        // Calculate the new Front vector
-        glm::vec3 front;
-        front.x = (cos(glm::radians(yaw)) * cos(glm::radians(pitch)));
-        front.y = (sin(glm::radians(pitch)));
-        front.z = (sin(glm::radians(yaw)) * cos(glm::radians(pitch)));
+        // Calculate the new Front vector. Note: writes to the member
+        // `front` directly — a previous version declared a local
+        // `glm::vec3 front;` here which shadowed the member, leaving
+        // `this->front` stuck at its constructor value (0,0,-1) while
+        // only `right`/`up` tracked yaw/pitch. That caused the view to
+        // roll around the forward axis instead of actually pitching/yawing.
+        front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+        front.y = sin(glm::radians(pitch));
+        front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
         front = glm::normalize(front);
         // Also re-calculate the Right and Up vector
         // Normalize the vectors, because their length gets closer to 0 the more you look up or down which results in slower movement.

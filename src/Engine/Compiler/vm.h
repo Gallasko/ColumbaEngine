@@ -2,6 +2,8 @@
 
 #include "chunk.h"
 
+#include "decoded_chunk.h"
+
 #include "Interpreter/lexer.h"
 
 #include "logger.h"
@@ -22,7 +24,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
-#include <setjmp.h>
+#include <cassert>
 
 #include "ECS/uniqueid.h"
 
@@ -30,30 +32,23 @@
 #include <iostream>
 #endif
 
-#define EMIT_RUNTIME_ERROR(msg) do {runtimeError((Strfy() << msg).getData()); return InterpretResult::RUNTIME_ERROR;} while(0);
-
 namespace pg
 {
     static constexpr size_t FRAMES_MAX = 64;
 
-    // Forward declaration for VM
+    // Forward declaration for VM. DecodedInstruction / DecodedChunk and the
+    // OpDecodedHandler typedef come from decoded_chunk.h (single source of
+    // truth for the handler calling convention).
     struct VM;
-    struct DecodedInstruction;
-
-    // Function pointer type for operation handlers
-    typedef void (*OpHandler)(VM* vm);
-    typedef void (*OpDecodedHandler)(VM* vm, const DecodedInstruction& instr);
 
     // Operation information structure
     struct OpCodeInfo
     {
-        OpHandler handler;
         OpDecodedHandler decodedHandler = nullptr;
 
-        // NEW: Metadata for pre-decoding and batching optimization
-        uint8_t flags;           // Instruction properties
-        uint8_t operandBytes;    // Number of operand bytes (0-4) - inferred from getInstructionSize if 0
-        int8_t stackEffect;      // Net stack change (-128 to +127) - not used yet
+        uint8_t flags        = 0;   // Instruction properties
+        uint8_t operandBytes = 0;   // Number of operand bytes (0-4) - inferred from getInstructionSize if 0
+        int8_t  stackEffect  = 0;   // Net stack change (-128 to +127) - not used yet
 
         // Flags for instruction properties
         static constexpr uint8_t PURE         = 0x01;  // No side effects
@@ -67,10 +62,8 @@ namespace pg
         // Common flag combinations
         static constexpr uint8_t PURE_BATCH   = PURE | BATCHABLE;  // Pure and batchable (most common)
 
-        OpCodeInfo() : handler(nullptr), flags(0), operandBytes(0), stackEffect(0) {}
-        OpCodeInfo(OpHandler h) : handler(h), flags(0), operandBytes(0), stackEffect(0) {}
-        OpCodeInfo(OpHandler h, uint8_t f) : handler(h), flags(f), operandBytes(0), stackEffect(0) {}
-        OpCodeInfo(OpHandler h, uint8_t f, OpDecodedHandler dh) : handler(h), decodedHandler(dh), flags(f), operandBytes(0), stackEffect(0) {}
+        OpCodeInfo() = default;
+        OpCodeInfo(OpDecodedHandler dh, uint8_t f = 0) : decodedHandler(dh), flags(f) {}
 
         bool isPure() const { return (flags & PURE) != 0; }
         bool isBatchable() const { return (flags & BATCHABLE) != 0; }
@@ -81,9 +74,9 @@ namespace pg
     // Forward declare VM for helper functions
     struct VM;
 
-    bool isValueNumber(const Value& val, VM* vm = nullptr);
+    bool isValueNumber(const Value& val);
 
-    bool isValueTrue(const Value& val, VM* vm = nullptr);
+    bool isValueTrue(const Value& val);
 
     class IndexableStack
     {
@@ -94,29 +87,36 @@ namespace pg
         size_t stack_top = 0;
 
     public:
-        // Ultra-fast Value operations - single 64-bit MOV instruction
+        // Ultra-fast Value operations - single 64-bit MOV instruction.
+        // The bounds/empty checks are debug-only: every hot opcode pushes
+        // and pops, so the cost of an unconditional `if` was real. The
+        // compiler is told the unlikely path is unreachable in release;
+        // op_call validates stack headroom at frame entry instead.
         inline void push(Value value)  // Pass by value, not reference (64-bit fits in register)
         {
-            if (stack_top >= MAX_STACK_SIZE)
-                throw std::runtime_error("Stack overflow");
-
+            assert(stack_top < MAX_STACK_SIZE and "Stack overflow");
             stack_values[stack_top++] = value;
         }
 
         inline Value pop()
         {
-            if (stack_top == 0)
-                throw std::runtime_error("Trying to pop on an empty stack");
-
-            return stack_values[--stack_top];  // Single instruction!
+            assert(stack_top > 0 and "Trying to pop on an empty stack");
+            return stack_values[--stack_top];
         }
 
         inline void changeTop(Value value)
         {
-            if (stack_top == 0)
-                throw std::runtime_error("Trying to change top on an empty stack");
-
+            assert(stack_top > 0 and "Trying to change top on an empty stack");
             stack_values[stack_top - 1] = value;
+        }
+
+        // Bulk truncate to a given depth. Caller is responsible for
+        // releasing any refcounted Values in [newTop, stack_top) BEFORE
+        // calling this.
+        inline void truncateTo(size_t newTop)
+        {
+            assert(newTop <= stack_top);
+            stack_top = newTop;
         }
 
         inline Value& operator[](size_t index) { return stack_values[index]; }
@@ -124,9 +124,7 @@ namespace pg
 
         inline Value top() const
         {
-            if (stack_top == 0)
-                throw std::runtime_error("Stack is empty");
-
+            assert(stack_top > 0 and "Stack is empty");
             return stack_values[stack_top - 1];
         }
 
@@ -147,106 +145,98 @@ namespace pg
         }
     };
 
-    // Forward declarations for operation handlers
-    void op_return(VM* vm);
-    void op_constant(VM* vm);
-    void op_constant_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_long_constant(VM* vm);
-    void op_long_constant_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_add(VM* vm);
-    void op_subtract(VM* vm);
-    void op_multiply(VM* vm);
-    void op_divide(VM* vm);
-    void op_modulo(VM* vm);
-    void op_negate(VM* vm);
-    void op_equal(VM* vm);
-    void op_not_equal(VM* vm);
-    void op_greater(VM* vm);
-    void op_greater_equal(VM* vm);
-    void op_less(VM* vm);
-    void op_less_equal(VM* vm);
-    void op_true(VM* vm);
-    void op_false(VM* vm);
-    void op_not(VM* vm);
-    void op_and(VM* vm);
-    void op_or(VM* vm);
-    void op_pop(VM* vm);
-    void op_get_local(VM* vm);
-    void op_get_local_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_set_local(VM* vm);
-    void op_set_local_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_get_global(VM* vm);
-    void op_define_global(VM* vm);
-    void op_set_global(VM* vm);
-    void op_jump_if_false(VM* vm);
-    void op_long_jump_if_false(VM* vm);
-    void op_jump_if_false_popping(VM* vm);
-    void op_long_jump_if_false_popping(VM* vm);
-    void op_jump(VM* vm);
-    void op_long_jump(VM* vm);
-    void op_jump_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_loop(VM* vm);
-    void op_long_loop(VM* vm);
-    void op_loop_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_call(VM* vm);
-    void op_invoke(VM* vm);
-    void op_closure(VM* vm);
-    void op_get_upvalue(VM* vm);
-    void op_set_upvalue(VM* vm);
-    void op_close_upvalue(VM* vm);
-    void op_debug_print(VM* vm);
-    void op_post_incr_global(VM* vm);
-    void op_incr_global(VM* vm);
-    void op_post_decr_global(VM* vm);
-    void op_decr_global(VM* vm);
-    void op_post_incr_local(VM* vm);
-    void op_incr_local(VM* vm);
-    void op_post_decr_local(VM* vm);
-    void op_decr_local(VM* vm);
-    void op_class(VM* vm);
-    void op_get_property(VM* vm);
-    void op_set_property(VM* vm);
-    void op_method(VM* vm);
-    void op_short_int(VM* vm);
-
-    void op_pop_n(VM* vm);
-
-    void op_define_constant_global(VM* vm);
-    void op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
-    void op_get_constant_global(VM* vm);
-    void op_set_constant_global(VM* vm);
-
-    void op_add_ll(VM* vm);
-    void op_subtract_ll(VM* vm);
-
-    void op_subtract_lc(VM* vm);
-    void op_subtract_cl(VM* vm);
+    // Forward declarations for the decoded operation handlers. Defined in
+    // vm_core.cpp, vm_binary_op.cpp, and vm_struct_op.cpp.
+    const DecodedInstruction* op_return_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_constant_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_long_constant_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_add_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_subtract_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_multiply_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_divide_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_modulo_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_equal_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_not_equal_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_greater_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_greater_equal_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_equal_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_local_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_local_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_long_jump_if_false_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_long_jump_if_false_popping_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_jump_if_true_popping_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_long_jump_if_true_popping_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_jump_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_loop_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_call_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_invoke_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_property_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_property_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_short_int_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_add_ll_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_equal_ll_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_ll_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_local_pop_decoded(VM* vm, const DecodedInstruction& instr);
 
     // Table operations
-    void op_build_vector(VM* vm);
-    void op_build_table(VM* vm);
-    void op_get_index(VM* vm);
-    void op_set_index(VM* vm);
+    const DecodedInstruction* op_get_index_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_index_decoded(VM* vm, const DecodedInstruction& instr);
 
-    // Iterator operations
-    void op_get_iterator(VM* vm);
-    void op_iterator_next(VM* vm);
-    void op_table_size(VM* vm);
-    void op_table_at(VM* vm);
+    const DecodedInstruction* op_negate_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_not_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_and_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_or_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_true_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_false_decoded(VM* vm, const DecodedInstruction& instr);
 
-    void op_define_global_non_popping(VM *vm);
+    const DecodedInstruction* op_post_incr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_incr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_post_decr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_decr_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_post_incr_local_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_incr_local_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_post_decr_local_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_decr_local_decoded(VM* vm, const DecodedInstruction& instr);
 
-    // Module operations
-    void op_import(VM* vm);
+    const DecodedInstruction* op_subtract_ll_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_subtract_lc_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_subtract_cl_decoded(VM* vm, const DecodedInstruction& instr);
 
-    // Register-based operations
-    void op_load_constant_r(VM* vm);
-    void op_move_r(VM* vm);
-    void op_add_rrr(VM* vm);
-    void op_less_rr(VM* vm);
-    void op_incr_r(VM* vm);
-    void op_less_rrr(VM* vm);
-    void op_jump_if_false_r(VM* vm);
+    const DecodedInstruction* op_load_constant_r_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_move_r_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_add_rrr_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_rr_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_incr_r_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_less_rrr_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_jump_if_false_r_decoded(VM* vm, const DecodedInstruction& instr);
+
+    const DecodedInstruction* op_closure_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_class_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_method_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_build_vector_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_build_table_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_iterator_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_iterator_next_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_table_size_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_table_at_decoded(VM* vm, const DecodedInstruction& instr);
+
+    const DecodedInstruction* op_pop_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_pop_n_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_close_upvalue_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_define_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_define_global_non_popping_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_get_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_set_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_debug_print_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_import_decoded(VM* vm, const DecodedInstruction& instr);
 
     struct VM
     {
@@ -258,12 +248,14 @@ namespace pg
         void reset()
         {
             // Free all Values stored in globals before destruction
-            for (auto& pair : globals)
+            for (auto& cell : globalCells)
             {
-                releaseAndDelete(pair.second);
+                if (cell.defined)
+                    releaseAndDelete(cell.value);
             }
 
-            globals.clear();
+            globalCells.clear();
+            globalSlots.clear();
 
             // Clean up any remaining Values on the stack
             while (not stack.empty())
@@ -275,6 +267,7 @@ namespace pg
             // Clear call frames to avoid dangling pointers to freed chunks
             frameCount = 0;
             currentFrame = nullptr;
+            pendingCallResume = nullptr;
 
             // Initialize function pointer dispatch table
             register_builtin_operations();
@@ -340,7 +333,14 @@ namespace pg
         InterpretResult interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount = 0);
 
         InterpretResult run();
-        InterpretResult runDecoded();  // Execute from pre-decoded chunks (faster)
+        InterpretResult runDecoded(DecodedChunk *decoded);  // Execute from pre-decoded chunks (faster)
+
+        // Hot loop compiled twice: ProfileEnabled selects at compile time
+        // whether per-instruction profiling code exists in the loop at all,
+        // so the non-profiled path carries zero profiling overhead.
+        // Defined in vm_core.cpp; only instantiated from runDecoded there.
+        template <bool ProfileEnabled>
+        InterpretResult runDecodedImpl(DecodedChunk *decoded);
 
         // Core Value operations for performance
         inline void push(Value value)  // Pass by value (64-bit in register)
@@ -383,17 +383,6 @@ namespace pg
                 throw std::runtime_error("Trying to peek too far in the stack");
 #endif
             return stack[stack.size() - 1 - distance];
-        }
-
-        // Update cached chunk data pointer when switching functions
-        inline void updateChunkCache()
-        {
-            if (currentFrame and currentFrame->closure)
-            {
-                auto& chunk = currentFrame->closure->function->chunk.code;
-                chunkData = chunk.data();
-                chunkDataEnd = chunk.data() + chunk.size();
-            }
         }
 
         inline void resetStack()
@@ -441,13 +430,21 @@ namespace pg
         void closeUpvalues(Value* last);
 
         bool callValue(const Value& callee, int argCount);
+
+        // If a new frame was pushed since frameCountBefore (closure /
+        // bound-method / class-init invocation), return the callee's first
+        // decoded instruction; native calls (no frame change) return the
+        // caller-supplied fall-through instruction. Handlers return the
+        // result straight to the dispatch loop.
+        const DecodedInstruction* completeDecodedFrameSwitch(int frameCountBefore, const DecodedInstruction* fallThrough);
+
         bool callMethod(Klass* receiver, const std::string& methodName, int argCount);
 
         bool call(Closure* closure, int argCount);
         bool callBound(Closure* closure, int argCount);
 
         // Reference counting methods
-        inline Value retainValue(const Value& value);   // Returns the value after retaining
+        inline const Value& retainValue(const Value& value);   // Returns the value after retaining
         inline bool releaseValue(const Value& value);   // Returns true if should delete
         void deleteValue(const Value& value);    // Actually delete the object
         inline Value trackNewValue(const Value& value); // Track newly created object with refcount=1
@@ -464,8 +461,17 @@ namespace pg
                    pools.boundMethodPool.getNbElements();
         }
 
-        // Convenience method for release + delete
-        void releaseAndDelete(const Value& value);
+        // Convenience method for release + delete. Inline: the call sites are
+        // hot (op_set_local, BINARY_OP_TEMPLATE, etc.) and the primitive path
+        // costs one releaseValue check (which itself early-returns on
+        // !requiresRefCount). deleteValue is the only non-inline body and
+        // only fires when refcount drops to zero, so leaving it out-of-line
+        // keeps the cold path from bloating the dispatcher.
+        inline void releaseAndDelete(const Value& value)
+        {
+            if (releaseValue(value))
+                deleteValue(value);
+        }
 
         // ====================================================================
         // Pool Access Helpers - Convenient wrappers for vm->pools.getXXX()
@@ -552,13 +558,22 @@ namespace pg
         Value copyValue(const Value& value);
         int getValueAsInt(const Value& value);
 
-        // Arithmetic operations with proper reference tracking
-        Value addValues(const Value a, const Value b);
+        // Arithmetic operations with proper reference tracking.
+        // Bodies are GENERATED from /tools/vm_ops_def.pg (the typed kernel
+        // ladder); the *Tail functions hold the handwritten fallbacks
+        // (string concat, ElementType conversion, error throws).
+        Value addValues(const Value& a, const Value& b);
         Value subtractValues(const Value& a, const Value& b);
         Value multiplyValues(const Value& a, const Value& b);
         Value divideValues(const Value& a, const Value& b);
         Value moduloValues(const Value& a, const Value& b);
         Value negateValue(const Value& val);
+
+        Value addValuesTail(const Value& a, const Value& b);
+        Value subtractValuesTail(const Value& a, const Value& b);
+        Value multiplyValuesTail(const Value& a, const Value& b);
+        Value divideValuesTail(const Value& a, const Value& b);
+        Value moduloValuesTail(const Value& a, const Value& b);
 
         // Comparison operations with proper reference tracking
         Value equalsValues(const Value& a, const Value& b);
@@ -568,20 +583,96 @@ namespace pg
         Value lessValues(const Value& a, const Value& b);
         Value lessEqualValues(const Value& a, const Value& b);
 
+        Value greaterValuesTail(const Value& a, const Value& b);
+        Value greaterEqualValuesTail(const Value& a, const Value& b);
+        Value lessValuesTail(const Value& a, const Value& b);
+        Value lessEqualValuesTail(const Value& a, const Value& b);
+
         CallFrame frames[FRAMES_MAX];
 
         CallFrame *currentFrame = nullptr;
 
         int frameCount = 0;
 
-        // Cache chunk data pointer to avoid repeated vector::data() calls
-        uint8_t *chunkData = nullptr;
-        uint8_t *chunkDataEnd = nullptr; // Cached end pointer for fast loop exit check
+        // Resume point for the next frame push. Written once by each frame-
+        // pushing decoded handler (op_call / op_invoke / metamethod ops)
+        // right before invoking call()/callBound(), which capture it into
+        // CallFrame::callerResume. Per-instruction sequencing lives in the
+        // dispatch loop's registers, not here. Note: a native function that
+        // pushes a frame directly (without going through a decoded handler)
+        // sees a stale value — same hazard as the old nextInstructionIndex.
+        const DecodedInstruction* pendingCallResume = nullptr;
 
         /* The stack of the VM */
         IndexableStack stack;
 
-        std::unordered_map<std::string, Value> globals;
+        // Global variables are stored as dense, slot-indexed cells. The hot
+        // path (constant-global ops) indexes `globalCells` directly with a slot
+        // resolved once at decode time — no string work, no hashing. The cold
+        // `globalSlots` registry maps a name (by CONTENT) to its slot and is
+        // touched only at decode time and registration. `defined` distinguishes
+        // a declared-but-unset slot (there is no nil sentinel Value).
+        struct GlobalCell
+        {
+            Value value = 0;
+            bool  defined = false;
+        };
+        std::vector<GlobalCell>                   globalCells;
+        std::unordered_map<std::string, uint32_t> globalSlots;
+
+        // Get-or-create the slot for `name`. Slots are append-only, so a
+        // returned index is stable for the VM's lifetime.
+        inline uint32_t globalSlot(const std::string& name)
+        {
+            auto it = globalSlots.find(name);
+            if (it != globalSlots.end())
+                return it->second;
+            const uint32_t slot = static_cast<uint32_t>(globalCells.size());
+            globalCells.push_back(GlobalCell{});
+            globalSlots.emplace(name, slot);
+            return slot;
+        }
+
+        // Define (or redefine) a global by name. The public, string-based entry
+        // point used by native/module registration — callers never see slots.
+        // Ownership: defineGlobal TAKES the caller's reference to `v` (it does
+        // not retain). Pass a freshly created value, or retainValue(...) a
+        // borrowed one. Any previously defined occupant is released.
+        inline void defineGlobal(const std::string& name, const Value& v)
+        {
+            GlobalCell& c = globalCells[globalSlot(name)];
+            if (c.defined)
+                releaseAndDelete(c.value);
+            c.value = v;
+            c.defined = true;
+        }
+
+        // Look up an existing global cell by name (nullptr if never declared).
+        inline GlobalCell* findGlobalCell(const std::string& name)
+        {
+            auto it = globalSlots.find(name);
+            return it == globalSlots.end() ? nullptr : &globalCells[it->second];
+        }
+
+        // Reverse map slot -> name. Cold path only (error messages); O(n).
+        inline std::string globalNameForSlot(uint32_t slot) const
+        {
+            for (const auto& [name, s] : globalSlots)
+                if (s == slot)
+                    return name;
+            return "<unknown>";
+        }
+
+        // Emit a runtime error, stop the VM, and return the nullptr "next
+        // instruction" that breaks the dispatch loop. Lets a handler write
+        // `return vm->raiseError("...");` instead of repeating the
+        // runtimeError + vm_return + return-nullptr triple.
+        inline const DecodedInstruction* raiseError(const std::string& message)
+        {
+            runtimeError(message);
+            vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
 
         // Native module registry (per VM instance)
         struct NativeModuleData
@@ -595,8 +686,10 @@ namespace pg
 
         // Function pointer dispatch system
         static OpCodeInfo operations[256];
-        jmp_buf exit_jump;
-        InterpretResult exit_result;
+
+        // Result recorded by vm_return; the dispatch loop exits when a
+        // handler returns nullptr and runDecoded returns this value.
+        InterpretResult exit_result = InterpretResult::OK;
 
         // Pool-based memory management (replaces old pointer-based refCounts)
         VMPools pools;
@@ -607,6 +700,11 @@ namespace pg
         // Bytecode optimization
         PassManager passManager;
         bool enableOptimizations = true;
+
+        // Decode-time superinstruction fusion (see decoded_fusion.h). On by
+        // default — part of decoding, applies to compiled AND deserialized
+        // bytecode. Cleared together with optimizations for O0 / --no-opt.
+        bool enableDecodeFusion = true;
 
         // Bytecode profiling
         VMProfiler profiler;
@@ -723,12 +821,12 @@ namespace pg
         void defineNative(const std::string& name, NativeFn function)
         {
             // Skip if already defined in globals
-            if (globals.find(name) != globals.end())
+            if (GlobalCell* c = findGlobalCell(name); c != nullptr and c->defined)
             {
                 return;
             }
 
-            globals[name] = createNativeFunction(function);
+            defineGlobal(name, createNativeFunction(function));
         }
 
         /**
@@ -808,9 +906,10 @@ namespace pg
             for (const auto& [name, value] : it->second.variables)
             {
                 // Skip if already defined in globals
-                if (globals.find(name) == globals.end())
+                GlobalCell* c = findGlobalCell(name);
+                if (c == nullptr or not c->defined)
                 {
-                    globals[name] = elementToValue(value);
+                    defineGlobal(name, elementToValue(value));
                 }
             }
 
@@ -876,9 +975,6 @@ namespace pg
             frames[0].slots = stack.data() + 1;  // Skip the closure at stack[0]
             frames[0].stackBase = stack.data();
             currentFrame = &frames[0];
-
-            // Update chunk data cache
-            updateChunkCache();
         }
 
         // Helper methods for interpreting bytecode
@@ -888,9 +984,7 @@ namespace pg
         // Function pointer dispatch methods
         void vm_return(InterpretResult result);
         static void register_builtin_operations();
-        static void register_operation(uint8_t opcode, OpHandler handler);
-        static void register_operation(uint8_t opcode, OpHandler handler, uint8_t flags);
-        static void register_operation(uint8_t opcode, OpHandler handler, OpDecodedHandler decodedHandler, uint8_t flags = 0);
+        static void register_operation(uint8_t opcode, OpDecodedHandler decodedHandler, uint8_t flags = 0);
         void initialize_builtin_classes();
 
         std::string currentFileName;
@@ -902,7 +996,7 @@ namespace pg
     };
 
     // Inline implementations for critical performance functions
-    inline Value VM::retainValue(const Value& v)
+    inline const Value& VM::retainValue(const Value& v)
     {
         // Fast path: primitives and doubles don't need refcounting
         if (not requiresRefCount(v))

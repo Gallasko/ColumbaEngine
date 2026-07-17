@@ -5,7 +5,6 @@ base_class: Component
 
 includes:
   - <string>
-  - "ECS/system.h"
   - "pgconstant.h"
 
 fields:
@@ -67,11 +66,6 @@ fields:
   - name: spacing
     type: float
     default: 0.0f
-    setter: event
-
-  - name: viewport
-    type: size_t
-    default: 0
     setter: event
 
   - name: changed

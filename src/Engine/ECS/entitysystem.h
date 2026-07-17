@@ -16,6 +16,8 @@
 #include "commanddispatcher.h"
 #include "savemanager.h"
 
+#include "Renderer/rendercall.h"
+
 #include <iostream>
 
 #ifdef PROFILE
@@ -51,6 +53,7 @@ namespace pg
     class Environment;
     class ClassInstance;
     class StandardSystemImpl;
+    class ScriptRegistry;
 
     struct VM;
     typedef uint64_t Value;
@@ -252,6 +255,11 @@ namespace pg
 
             internalCreateSystem(system);
 
+            if constexpr (std::is_base_of_v<BaseAbstractRenderer, Sys>)
+            {
+                autoSucceedMasterRenderer(static_cast<BaseAbstractRenderer*>(system), system->_id);
+            }
+
             return system;
         }
 
@@ -285,6 +293,11 @@ namespace pg
             sys->addToRegistry(&registry);
 
             internalCreateSystem(sys);
+
+            if (auto* abr = dynamic_cast<BaseAbstractRenderer*>(sys))
+            {
+                autoSucceedMasterRenderer(abr, sys->_id);
+            }
 
             return sys;
         }
@@ -325,6 +338,11 @@ namespace pg
 
             internalCreateSystem(system);
 
+            if constexpr (std::is_base_of_v<BaseAbstractRenderer, Sys>)
+            {
+                autoSucceedMasterRenderer(static_cast<BaseAbstractRenderer*>(system), system->_id);
+            }
+
             return sys;
         }
 
@@ -344,6 +362,38 @@ namespace pg
             LOG_THIS_MEMBER("ECS");
 
             _unique_id sys1Id = registry.getTypeId<SysAfter>();
+            _unique_id sys2Id = registry.getTypeId<SysBefore>();
+
+            _succeed(sys1Id, sys2Id);
+        }
+
+        void succeed(const std::string& sysAfter, const std::string& sysBefore)
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            _unique_id sys1Id = registry.getTypeId(sysAfter);
+            _unique_id sys2Id = registry.getTypeId(sysBefore);
+
+            _succeed(sys1Id, sys2Id);
+        }
+
+        template <typename SysAfter>
+        void succeed(const std::string& sysBefore)
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            _unique_id sys1Id = registry.getTypeId<SysAfter>();
+            _unique_id sys2Id = registry.getTypeId(sysBefore);
+
+            _succeed(sys1Id, sys2Id);
+        }
+
+        template <typename SysBefore>
+        void precede(const std::string& sysAfter)
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            _unique_id sys1Id = registry.getTypeId(sysAfter);
             _unique_id sys2Id = registry.getTypeId<SysBefore>();
 
             _succeed(sys1Id, sys2Id);
@@ -456,6 +506,9 @@ namespace pg
                 if (running)
                 {
                     component = cmdDispatcher.attachComp<Type>(entity, std::forward<Args>(args)...);
+
+                    // Register in pending map for immediate access via get()
+                    entity.entity->pendingComponents[getId<Type>()] = component;
                 }
                 else
                 {
@@ -490,6 +543,9 @@ namespace pg
                 if (running)
                 {
                     component = cmdDispatcher.attachComp<Type>(entity, std::forward<Args>(args)...);
+
+                    // Register in pending map for immediate access via get()
+                    entity.entity->pendingComponents[getId<Type>()] = component;
                 }
                 else
                 {
@@ -522,6 +578,9 @@ namespace pg
                 if (running)
                 {
                     component = cmdDispatcher.attachComp<StandardComponent>(entity, compName, std::forward<Args>(args)...);
+
+                    // Register in pending map for immediate access via get()
+                    entity.entity->pendingComponents[registry.retrieveStandardComponent(compName)->getId()] = component;
                 }
                 else
                 {
@@ -589,6 +648,20 @@ namespace pg
             }
         }
 
+        // Set to true on the BasicTask thread while it's draining the event
+        // dispatcher. Any sendEvent call from a *different* thread observing
+        // running==false (because BasicTask just flipped it) would otherwise
+        // race with the BasicTask thread on the listener _eventQueue pushes.
+        // thread_local ensures only the BasicTask thread itself can use the
+        // direct (no-enqueue) path while BasicTask is in progress.
+        static thread_local bool inBasicTask;
+
+        // True while a BasicTask iteration is currently executing on some
+        // worker thread. Lets sendEvent distinguish "BasicTask is mid-run on
+        // another thread → must enqueue" from "no BasicTask running yet (e.g.
+        // initial setup phase before start()) → direct dispatch is safe".
+        std::atomic<bool> basicTaskInProgress{false};
+
         template <typename Event>
         void sendEvent(const Event& event, bool isDeferred = false)
         {
@@ -597,8 +670,21 @@ namespace pg
             // Select the appropriate dispatcher based on event type
             auto& dispatcher = isDeferred ? deferredEventDispatcher : eventDispatcher;
 
+            // Direct (synchronous) path is only safe when there's no concurrent
+            // mutator on the listener queues. Two situations qualify:
+            //   1. We ARE the BasicTask thread mid-iteration (inBasicTask).
+            //   2. Initial setup phase — ECS hasn't started its loop yet, so
+            //      no BasicTask is running and we're the only thread acting.
+            // From any other thread while BasicTask is in progress we must
+            // enqueue, otherwise two threads (main SDL polling + BasicTask
+            // worker) both push into QueuedListener::_eventQueue concurrently
+            // and corrupt its underlying deque.
+            const bool canDirectDispatch =
+                (inBasicTask and not running)
+                or (not running and not basicTaskInProgress.load(std::memory_order_acquire));
+
             // Dispatch the typed C++ event
-            if (running)
+            if (not canDirectDispatch)
             {
                 dispatcher.enqueueEvent([event, this](){ LOG_THIS("ECS"); registry.processEvent(event); });
             }
@@ -613,7 +699,7 @@ namespace pg
             {
                 StandardEvent stdEvent = event.toStandardEvent();
 
-                if (running)
+                if (not canDirectDispatch)
                 {
                     dispatcher.enqueueEvent([stdEvent, this](){
                         LOG_THIS("ECS");
@@ -696,12 +782,27 @@ namespace pg
 
         inline ElementType getSavedData(const std::string& id) const { return saveManager.getValue(id); }
 
+        SaveManager& getSaveManager() { return saveManager; }
+
+        /** Clear all save data (simple key-value store AND system serialized data). */
+        void clearAllSaveData()
+        {
+            saveManager.clearSaveData();
+            registry.clearSystemSaveData();
+        }
+
+        /** Register a callback invoked after forceSaveNow() writes data to disk. */
+        void registerOnExitCallback(std::function<void()> cb) { onExitCallbacks.push_back(std::move(cb)); }
+
         /** Force an immediate save (used by browser lifecycle events in Emscripten). */
         inline void forceSaveNow()
         {
             saveManager.forceSave();
 
             registry.saveAllSystems();
+
+            for (auto& cb : onExitCallbacks)
+                cb();
         }
 
         inline bool isRunning() const { return running; }
@@ -721,6 +822,14 @@ namespace pg
         }
 
         void setupVm(VM& vm);
+
+        /**
+         * @brief Access the script registry (compiled script cache + hot reload).
+         *
+         * All system/collision scripts are loaded through this registry so
+         * they share bytecode and can be hot reloaded at runtime.
+         */
+        ScriptRegistry& scripts();
 
         /**
          * @brief Register a custom VM module that will be added to all VMs created by this ECS
@@ -759,6 +868,8 @@ namespace pg
         void _deleteSystem(_unique_id id);
 
         void _succeed(_unique_id id1, _unique_id id2);
+
+        void autoSucceedMasterRenderer(BaseAbstractRenderer* abr, _unique_id subId);
 
         void addEntityToPool(Entity* entity)
         {
@@ -867,8 +978,8 @@ namespace pg
             }
         }
 
-        bool running = false;
-        bool stopRequested = false;
+        std::atomic<bool> running{false};
+        std::atomic<bool> stopRequested{false};
 
         VmOptimizationLevel vmOptimizationLevel = VmOptimizationLevel::O3;
 
@@ -879,6 +990,9 @@ namespace pg
         ComponentRegistry registry;
 
         CommandDispatcher cmdDispatcher;
+
+        /** Compiled script cache + hot reload (pointer to keep the header light) */
+        std::unique_ptr<ScriptRegistry> scriptRegistry;
 
         EventDispatcher eventDispatcher;
 
@@ -901,6 +1015,9 @@ namespace pg
 
         /** Custom VM modules to be added to all VMs created by this ECS */
         std::vector<std::function<void(VM&)>> customVmModules;
+
+        /** Callbacks invoked after forceSaveNow() (e.g. analytics). */
+        std::vector<std::function<void()>> onExitCallbacks;
     };
 
     template <typename Comp>
@@ -965,19 +1082,28 @@ namespace pg
             return CompRef<Comp>();
         }
 
-        // Todo add a fast path here
+        auto ent = ecsRef->getEntity(id);
+        auto initialized = id != 0 and ent;
 
         const auto& componentId = ecsRef->getId<Comp>();
 
+        // Fast path: entity is fully initialized, return the cached pointer directly without any lookup
+        if (initialized)
+            return CompRef<Comp>(static_cast<Comp*>(pendingComponents[componentId]), id, ecsRef, true);
+
+        // Normal path: component is flushed and lives in the sparse set pool
         const auto& it = componentList.find(componentId);
 
         if (it != componentList.end())
         {
-            auto ent = ecsRef->getEntity(id);
-            auto initialized = id != 0 and ent;
-
-            // Todo add memoisation if we run into performance issues here
             return CompRef<Comp>(ecsRef->registry.retrieve<Comp>()->getComponent(id), id, ecsRef, initialized);
+        }
+
+        // Deferred path: component was attached while ECS is running but not yet flushed
+        const auto pending = pendingComponents.find(componentId);
+        if (pending != pendingComponents.end())
+        {
+            return CompRef<Comp>(static_cast<Comp*>(pending->second), id, ecsRef, false);
         }
 
         LOG_ERROR("Entity", "Entity doesn't have component: " << componentId);
@@ -1226,8 +1352,12 @@ namespace pg
                 // rhs.initialized = true
                 // Note that it needs to make the rhs not const or we need to make the member entity mutable !
             }
-            else
+            else if (rhs.ecsRef != nullptr)
             {
+                // ecsRef set with entityId == 0 is a real anomaly — a CompRef
+                // was built pointing at no entity but tagged with an ECS. A pure
+                // default-constructed empty ref (ecsRef == nullptr) is legit and
+                // silent — code routinely holds an "unset" CompRef as a member.
                 LOG_ERROR("Comp ref", "Copy of a reference to an invalid entity(" << entityId << ")");
             }
         }
@@ -1251,6 +1381,20 @@ namespace pg
             }
 
            return component;
+        }
+    }
+
+    template <typename Comp>
+    Comp* CompRef<Comp>::operator->() const
+    {
+        if (initialized)
+            return component;
+        else
+        {
+            // Try to find the component in the ecs to update this ref
+            auto comp = ecsRef->getComponent<Comp>(entityId);
+
+            return comp;
         }
     }
 

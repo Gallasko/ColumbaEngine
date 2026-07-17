@@ -53,7 +53,7 @@ namespace pg
 
     private:
         // Find all long jump candidates that can be optimized to short jumps
-        std::optional<JumpInfo> findFirstOptimizableJumps(const Chunk& chunk);
+        std::optional<JumpInfo> findFirstOptimizableJumps(const Chunk& chunk, BytecodeRewriter* rewriter);
 
         // Helper methods
         uint32_t extractLongJumpOffset(const Chunk& chunk, size_t offset);

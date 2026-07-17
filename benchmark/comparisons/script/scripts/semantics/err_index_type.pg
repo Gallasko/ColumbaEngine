@@ -1,0 +1,9 @@
+// Non-integer vector index must fail identically with and without opts.
+fun f()
+{
+    var v = [1, 2, 3];
+    print("before");
+    v[1.5] = 9;
+    print("unreachable");
+}
+f();

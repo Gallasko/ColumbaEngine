@@ -1,0 +1,12 @@
+// Nested while loops — exercises rotating the inner loop first, then the
+// outer loop whose body now contains an already-rotated inner loop.
+var a = 0;
+while (a < 3) {
+    var b = 0;
+    while (b < 2) {
+        __dprint(a * 10 + b);
+        b = b + 1;
+    }
+    a = a + 1;
+}
+__dprint("done");

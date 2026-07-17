@@ -107,6 +107,9 @@ namespace pg
         {
             // MockLogger<TerminalSink> logger;
 
+            // Benchmark script execution (including serialization in getEntities)
+            auto start = std::chrono::high_resolution_clock::now();
+
             EntitySystem ecs("benchmark_script");
             VM vm;
             ecs.setupVm(vm);
@@ -136,9 +139,6 @@ namespace pg
 
                 entity->attach("Test");
             }
-
-            // Benchmark script execution (including serialization in getEntities)
-            auto start = std::chrono::high_resolution_clock::now();
 
             ecs.executeOnce();
 
@@ -191,6 +191,9 @@ namespace pg
                 }
             };
 
+            // Benchmark script execution (including serialization in getEntities)
+            auto start = std::chrono::high_resolution_clock::now();
+
             EntitySystem ecs("benchmark_script");
             VM vm;
             ecs.setupVm(vm);
@@ -214,9 +217,6 @@ namespace pg
 
                 entity->attach<Test>();
             }
-
-            // Benchmark script execution (including serialization in getEntities)
-            auto start = std::chrono::high_resolution_clock::now();
 
             ecs.executeOnce();
 

@@ -182,13 +182,11 @@ namespace pg
             followCam->targetX = pos->x + pos->width * 0.5f - followCam->viewportWidth  * 0.5f;
             followCam->targetY = pos->y + pos->height * 0.5f - followCam->viewportHeight * 0.5f;
 
-            cam->width = followCam->viewportWidth;
-            cam->height = followCam->viewportHeight;
+            cam->setWidth(followCam->viewportWidth);
+            cam->setHeight(followCam->viewportHeight);
 
-            cam->nearPlane = followCam->nearPlane;
-            cam->farPlane = followCam->farPlane;
-
-            cam->dirty = true;
+            cam->setNearPlane(followCam->nearPlane);
+            cam->setFarPlane(followCam->farPlane);
         }
 
         virtual void onEvent(const TickEvent& event) override

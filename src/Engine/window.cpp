@@ -10,51 +10,40 @@
 #include "ECS/entitysystem.h"
 #include "ECS/loggersystem.h"
 #include "ECS/ecsmodule.h"
-#include "Input/inputcomponent.h"
 
 #include "Renderer/renderer.h"
-#include "Renderer/renderermodule.h"
 
 #include "Input/input.h"
+#include "Input/inputcomponent.h"
 #include "Input/inputmodule.h"
 
-#include "UI/uisystem.h"
 #include "UI/focusable.h"
-#include "UI/progressbar.h"
-#include "UI/textinput.h"
-#include "UI/sentencesystem.h"
 
 #ifdef PROFILE
 #include "Profiler/profiler.h"
 #endif
-#include "UI/listview.h"
-#include "UI/prefab.h"
-#include "UI/sizer.h"
-#include "UI/animation.h"
-#include "UI/namedanchor.h"
 
 #include "2D/position.h"
-#include "2D/simple2dobject.h"
-#include "2D/texture.h"
-
-#include "Scene/scenemanager.h"
 
 #include "Interpreter/pginterpreter.h"
 #include "Interpreter/systemfunction.h"
 
+#include "Systems/coresystems.h"
 #include "Systems/coremodule.h"
 #include "Systems/logmodule.h"
-#include "Systems/oneventcomponent.h"
 #include "Systems/shape2Dmodule.h"
 #include "Systems/timemodule.h"
-#include "Systems/sentencemodule.h"
 #include "Systems/texture2Dmodule.h"
 #include "Systems/scenemodule.h"
 
 #include "Audio/audiosystem.h"
 #include "Audio/audiomodule.h"
 
-// #include "GameElements/Systems/basicsystems.h"
+#include "Init/coresystems.h"
+#include "Init/rendersystems.h"
+#include "Init/inputsystems.h"
+#include "Init/uisystems.h"
+#include "Init/audiosystems.h"
 
 #include "logger.h"
 #include "serialization.h"
@@ -140,7 +129,6 @@ namespace pg
     Window::Window(const std::string &title, const std::string& savePath) : title(title)
     {
         ecs = new EntitySystem(savePath);
-        screenEntity = nullptr;
         // screenUi = nullptr;
         mousePos = new Point2D();
         terminalSink = new std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
@@ -196,9 +184,16 @@ namespace pg
         }
 #endif
 
+        // audioSystem points to a system owned by the ECS, so closeSDLMixer
+        // MUST run before `delete ecs` (which destroys the AudioSystem).
+        // Calling it after the delete dereferences a freed object — caught
+        // by ASan as a heap-use-after-free at shutdown.
+        if (audioSystem != nullptr)
+            audioSystem->closeSDLMixer();
+        audioSystem = nullptr;
+
         delete ecs;
 
-        delete screenEntity;
         // delete screenUi;
         delete mousePos;
         delete static_cast<std::shared_ptr<pg::Logger::LogSink>*>(terminalSink);
@@ -212,13 +207,16 @@ namespace pg
             delete inputHandler;
         }
 
-        if (audioSystem != nullptr)
-            audioSystem->closeSDLMixer();
-
         // LOG_INFO(DOM, "Shutting down network backend...");
         // SDLNet_Quit();
 
+#ifndef PG_WSL
+        SDL_GL_MakeCurrent(window, NULL);
         SDL_GL_DeleteContext(context);
+#else
+        // In WSL, OpenGL context creation fails, so we skip context cleanup to avoid errors.
+        LOG_WARNING(DOM, "Skipping OpenGL context cleanup due to WSL compatibility issues");
+#endif
         SDL_DestroyWindow(window);
         SDL_Quit();
 
@@ -352,8 +350,9 @@ namespace pg
         LOG_INFO(DOM, "Enable depth testing");
         glEnable(GL_ALPHA_TEST);
         LOG_INFO(DOM, "Enable alpha testing");
+        // Blend is now managed per-draw-call via OpenGLState (default: on, SrcAlpha/OneMinusSrcAlpha).
+        // The initial GL state must match OpenGLState defaults so the first setState() diff is correct.
         glEnable(GL_BLEND);
-        LOG_INFO(DOM, "Enable blending");
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         LOG_INFO(DOM, "GL functions set");
 
@@ -388,104 +387,15 @@ namespace pg
 
         // glViewport(0, 0, width, height);
 
-        ecs->createSystem<EntityNameSystem>();
+        registerCoreSystems(ecs);
 
-        ecs->createSystem<TickingSystem>();
+        masterRenderer = registerRenderSystems(ecs, interpreter, width, height);
 
-        ecs->createSystem<TimerSystem>();
+        registerUiSystems(ecs);
 
-        ecs->createSystem<TerminalLogSystem>();
+        registerInputSystems(ecs, inputHandler);
 
-        ecs->createSystem<FocusableSystem>();
-
-        // [Start] Master render definition
-
-        masterRenderer = ecs->createSystem<MasterRenderer>("res/None.png");
-        interpreter->addSystemModule("renderer", RendererModule{masterRenderer});
-
-        // Configure the master renderer system
-        interpreter->interpretFromFile("res/setupRenderer.pg");
-
-        masterRenderer->setWindowSize(width, height);
-
-        // [End] Master render definition
-
-        ecs->createSystem<OnEventComponentSystem>();
-
-        // ecs->createSystem<UiComponentSystem>();
-
-        ecs->createSystem<PositionComponentSystem>();
-        ecs->createSystem<NamedUiAnchorSystem>();
-
-        ecs->createSystem<Simple2DObjectSystem>(masterRenderer);
-
-        ecs->createSystem<RoundedRect2DObjectSystem>(masterRenderer);
-
-        ecs->createSystem<Texture2DComponentSystem>(masterRenderer);
-
-        ecs->createSystem<ProgressBarComponentSystem>(masterRenderer);
-
-        // ecs->createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
-
-        ecs->createSystem<AnimationPositionSystem>();
-
-        // Todo fix for emscripten
-        audioSystem = ecs->createSystem<AudioSystem>();
-
-        // ecs->createSystem<FpsSystem>();
-
-        ecs->createSystem<MouseClickSystem>(inputHandler);
-
-        ecs->createSystem<MouseLeaveClickSystem>(inputHandler);
-
-        ecs->createSystem<MouseWheelSystem>(inputHandler);
-
-        ecs->createSystem<MouseHoverSystem>();
-
-        ecs->createSystem<TextInputSystem>(inputHandler);
-
-        ecs->createSystem<SceneElementSystem>();
-
-        ecs->createSystem<PrefabSystem>();
-
-        ecs->createSystem<LayoutSystem>();
-
-        ecs->createSystem<ListViewSystem>();
-
-        // Ecs task scheduling
-
-        ecs->succeed<TickingSystem, PgInterpreter>();
-
-        ecs->succeed<TimerSystem, TickingSystem>();
-
-        ecs->succeed<MouseClickSystem, TickingSystem>();
-
-        // ecs->succeed<UiComponentSystem, PrefabSystem>();
-        // ecs->succeed<UiComponentSystem, MouseClickSystem>();
-
-        ecs->succeed<LayoutSystem, PrefabSystem>();
-
-        ecs->succeed<PositionComponentSystem, PrefabSystem>();
-        ecs->succeed<PositionComponentSystem, NamedUiAnchorSystem>();
-        ecs->succeed<PositionComponentSystem, ProgressBarComponentSystem>();
-        ecs->succeed<PositionComponentSystem, ListViewSystem>();
-        ecs->succeed<PositionComponentSystem, LayoutSystem>();
-        ecs->succeed<PositionComponentSystem, TextInputComponent>();
-
-        ecs->succeed<AnimationPositionSystem, PositionComponentSystem>();
-
-        // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
-        ecs->succeed<MasterRenderer, Simple2DObjectSystem>();
-        ecs->succeed<MasterRenderer, RoundedRect2DObjectSystem>();
-        ecs->succeed<MasterRenderer, Texture2DComponentSystem>();
-        // ecs->succeed<MasterRenderer, SentenceSystem>();
-        ecs->succeed<MasterRenderer, ProgressBarComponentSystem>();
-        ecs->succeed<MasterRenderer, PrefabSystem>();
-
-        // ecs->succeed<MasterRenderer, UiComponentSystem>();
-        ecs->succeed<MasterRenderer, PositionComponentSystem>();
-
-        ecs->succeed<SceneElementSystem, MasterRenderer>();
+        audioSystem = registerAudioSystem(ecs);
 
         // Script to configure all the users systems
         interpreter->interpretFromFile("res/sysRegister.pg");
@@ -493,8 +403,8 @@ namespace pg
         // // Log taskflow for this window
         // ecs->dumbTaskflow();
 
-        delete screenEntity;
-        screenEntity = new EntityRef(ecs->createEntity());
+
+        screenEntity = ecs->createEntity();
         // Todo remove this
         // delete screenUi;
         // screenUi = new CompRef<UiComponent>(ecs->attach<UiComponent>(*screenEntity));
@@ -502,20 +412,20 @@ namespace pg
         // (*screenUi)->height = height;
         // (*screenUi)->setZ(-1);
 
-        auto screenPos = ecs->attach<PositionComponent>(*screenEntity);
+        auto screenPos = ecs->attach<PositionComponent>(screenEntity);
         screenPos->setWidth(width);
         screenPos->setHeight(height);
         screenPos->setZ(-1);
 
-        ecs->attach<UiAnchor>(*screenEntity);
+        ecs->attach<UiAnchor>(screenEntity);
 
-        ecs->attach<FocusableComponent>(*screenEntity);
+        ecs->attach<FocusableComponent>(screenEntity);
 
-        ecs->attach<MouseLeftClickComponent>(*screenEntity, makeCallable<OnFocus>(screenEntity->id));
+        ecs->attach<MouseLeftClickComponent>(screenEntity, makeCallable<OnFocus>(screenEntity->id));
 
         // (*screenUi)->update();
 
-        ecs->attach<EntityName>(*screenEntity, "__MainWindow");
+        ecs->attach<EntityName>(screenEntity, "__MainWindow");
 
         return true;
     }
@@ -561,6 +471,13 @@ namespace pg
 
             case SDL_KEYDOWN:
                 LOG_MILE(DOM, "Key pressed : " << event.key.keysym.scancode);
+                // Todo make the key configurable
+                // F9 toggles borderless fullscreen. Gated on key.repeat == 0
+                // so holding the key doesn't spam the toggle at key-repeat rate.
+                if (event.key.keysym.scancode == SDL_SCANCODE_F9 and event.key.repeat == 0)
+                {
+                    toggleFullscreen();
+                }
                 inputHandler->registerKeyInput(event.key.keysym.scancode, Input::InputState::KEYPRESSED);
                 ecs->sendEvent(OnSDLScanCode{event.key.keysym.scancode, event.key.keysym.mod});
                 break;
@@ -577,9 +494,14 @@ namespace pg
             case SDL_MOUSEMOTION:
             {
                 Point2D currentPos {static_cast<float>(event.motion.x), static_cast<float>(event.motion.y)};
-                Point2D mouseDelta {(mousePos->x - currentPos.x) * xSensitivity, (currentPos.y - mousePos->y) * ySensitivity};
+                Point2D mouseDelta {(currentPos.x - mousePos->x) * xSensitivity, (currentPos.y - mousePos->y) * ySensitivity};
 
                 inputHandler->registerMouseMove(currentPos, mouseDelta);
+
+                // Forward the raw SDL motion (including xrel/yrel) so FPS-style
+                // look controllers can consume the delta directly without
+                // racing the main-thread input reset that zeroes mouseDelta.
+                ecs->sendEvent(OnSDLMouseMotion{event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel});
 
                 *mousePos = currentPos;
                 break;
@@ -652,6 +574,53 @@ namespace pg
         // }
 
         ecs->sendEvent(ResizeEvent{static_cast<float>(width), static_cast<float>(height)});
+    }
+
+    void Window::setCursorLocked(bool locked)
+    {
+        if (not window)
+            return;
+
+        if (locked)
+        {
+            SDL_ShowCursor(SDL_DISABLE);
+
+            // Use SDL_GetWindowSize rather than the cached width/height so we
+            // stay correct after a resize even if the cache is stale.
+            int w = 0, h = 0;
+            SDL_GetWindowSize(window, &w, &h);
+
+            const int cx = w / 2;
+            const int cy = h / 2;
+
+            SDL_WarpMouseInWindow(window, cx, cy);
+
+            // Keep the engine's own mousePos cache in sync so the next
+            // SDL_MOUSEMOTION delta computed in processEvents() is relative
+            // to the center, not to the stale pre-warp position.
+            if (mousePos)
+                *mousePos = Point2D{static_cast<float>(cx), static_cast<float>(cy)};
+        }
+        else
+        {
+            SDL_ShowCursor(SDL_ENABLE);
+        }
+    }
+
+    void Window::toggleFullscreen()
+    {
+        if (not window)
+            return;
+
+        const Uint32 flags = SDL_GetWindowFlags(window);
+        const bool currentlyFullscreen = (flags & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0;
+
+        // SDL_WINDOW_FULLSCREEN_DESKTOP is a superset of SDL_WINDOW_FULLSCREEN
+        // in terms of flag bits, so the check above catches both.
+        if (SDL_SetWindowFullscreen(window, currentlyFullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP) != 0)
+        {
+            LOG_ERROR(DOM, "SDL_SetWindowFullscreen failed: " << SDL_GetError());
+        }
     }
 
     void Window::render()

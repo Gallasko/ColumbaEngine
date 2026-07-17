@@ -80,6 +80,10 @@ namespace pg
 
     namespace
     {
+        size_t getViewport(const CompRef<ViewportComponent>& vp)
+        {
+            return vp.empty() ? 0 : vp->viewport;
+        }
     }
 
     template<>
@@ -109,18 +113,22 @@ namespace pg
             auto pos = entity->get<PositionComponent>();
             auto mouse = entity->get<MouseLeftClickComponent>();
 
+            CompRef<ViewportComponent> vp;
+            if (entity->has<ViewportComponent>())
+                vp = entity->get<ViewportComponent>();
+
             if (mouse->trigger == MouseStateTrigger::OnPress)
             {
-                mouseLeftAreaPressHolder.emplace(entity->id, entity, pos);
+                mouseLeftAreaPressHolder.emplace(entity->id, entity, pos, vp);
             }
             else if (mouse->trigger == MouseStateTrigger::OnRelease)
             {
-                mouseLeftAreaReleaseHolder.emplace(entity->id, entity, pos);
+                mouseLeftAreaReleaseHolder.emplace(entity->id, entity, pos, vp);
             }
             else
             {
-                mouseLeftAreaPressHolder.emplace(entity->id, entity, pos);
-                mouseLeftAreaReleaseHolder.emplace(entity->id, entity, pos);
+                mouseLeftAreaPressHolder.emplace(entity->id, entity, pos, vp);
+                mouseLeftAreaReleaseHolder.emplace(entity->id, entity, pos, vp);
             }
         });
 
@@ -150,18 +158,22 @@ namespace pg
             auto pos = entity->get<PositionComponent>();
             auto mouse = entity->get<MouseRightClickComponent>();
 
+            CompRef<ViewportComponent> vp;
+            if (entity->has<ViewportComponent>())
+                vp = entity->get<ViewportComponent>();
+
             if (mouse->trigger == MouseStateTrigger::OnPress)
             {
-                mouseRightAreaPressHolder.emplace(entity->id, entity, pos);
+                mouseRightAreaPressHolder.emplace(entity->id, entity, pos, vp);
             }
             else if (mouse->trigger == MouseStateTrigger::OnRelease)
             {
-                mouseRightAreaReleaseHolder.emplace(entity->id, entity, pos);
+                mouseRightAreaReleaseHolder.emplace(entity->id, entity, pos, vp);
             }
             else
             {
-                mouseRightAreaPressHolder.emplace(entity->id, entity, pos);
-                mouseRightAreaReleaseHolder.emplace(entity->id, entity, pos);
+                mouseRightAreaPressHolder.emplace(entity->id, entity, pos, vp);
+                mouseRightAreaReleaseHolder.emplace(entity->id, entity, pos, vp);
             }
         });
 
@@ -192,6 +204,7 @@ namespace pg
 
     void MouseClickSystem::handleClick(const MouseButton& button, const std::set<MouseAreaZ, std::greater<>>& pressAreas, const std::set<MouseAreaZ, std::greater<>>& releaseAreas)
     {
+        size_t highestViewport = 0;
         int highestZ = INT_MIN;
         const auto& mousePos = inputHandler->getMousePos();
 
@@ -207,27 +220,31 @@ namespace pg
             if (not pressedList[button])
             {
                 ecsRef->sendEvent(OnMouseClick{mousePos, button});
-            }
 
-            // Todo check if this should not be in a if (not pressedList[button]) statment
-            for (const auto& mouseArea : pressAreas)
-            {
-                auto pos = mouseArea.pos;
-
-                if (pos->z < highestZ)
-                    break;
-
-                if (inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
+                for (const auto& mouseArea : pressAreas)
                 {
-                    highestZ = pos->z;
+                    auto pos = mouseArea.pos;
+                    auto areaVp = getViewport(mouseArea.vp);
 
-                    callCallback(button, mouseArea.id);
+                    if (areaVp < highestViewport)
+                        break;
+                    if (areaVp == highestViewport and pos->z < highestZ)
+                        break;
+
+                    if (inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
+                    {
+                        highestViewport = areaVp;
+                        highestZ = pos->z;
+
+                        callCallback(button, mouseArea.id);
+                    }
                 }
             }
 
             pressedList[button] = true;
         }
 
+        highestViewport = 0;
         highestZ = INT_MIN;
 
         if (not inputHandler->isButtonPressed(button))
@@ -239,12 +256,16 @@ namespace pg
                 for (const auto& mouseArea : releaseAreas)
                 {
                     auto pos = mouseArea.pos;
+                    auto areaVp = getViewport(mouseArea.vp);
 
-                    if (pos->z < highestZ)
+                    if (areaVp < highestViewport)
+                        break;
+                    if (areaVp == highestViewport and pos->z < highestZ)
                         break;
 
                     if (inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
                     {
+                        highestViewport = areaVp;
                         highestZ = pos->z;
 
                         callCallback(button, mouseArea.id);
@@ -278,18 +299,23 @@ namespace pg
 
     void MouseWheelSystem::onEvent(const OnSDLMouseWheel& event)
     {
+        size_t highestViewport = 0;
         int highestZ = INT_MIN;
         const auto& mousePos = inputHandler->getMousePos();
 
         for (const auto& mouseArea : mouseAreaHolder)
         {
             auto pos = mouseArea.pos;
+            auto areaVp = getViewport(mouseArea.vp);
 
-            if (pos->z < highestZ)
+            if (areaVp < highestViewport)
+                break;
+            if (areaVp == highestViewport and pos->z < highestZ)
                 break;
 
             if (inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
             {
+                highestViewport = areaVp;
                 highestZ = pos->z;
 
                 auto comp = static_cast<Own<MouseWheelComponent>*>(this)->getComponent(mouseArea.id);
@@ -306,6 +332,12 @@ namespace pg
 
     bool operator<(MouseAreaZ lhs, MouseAreaZ rhs)
     {
+        const auto lhsVp = getViewport(lhs.vp);
+        const auto rhsVp = getViewport(rhs.vp);
+
+        if (lhsVp != rhsVp)
+            return lhsVp < rhsVp;
+
         const auto& z = lhs.pos->z;
         const auto& rhsZ = rhs.pos->z;
 
@@ -317,6 +349,12 @@ namespace pg
 
     bool operator>(MouseAreaZ lhs, MouseAreaZ rhs)
     {
+        const auto lhsVp = getViewport(lhs.vp);
+        const auto rhsVp = getViewport(rhs.vp);
+
+        if (lhsVp != rhsVp)
+            return lhsVp > rhsVp;
+
         const auto& z = lhs.pos->z;
         const auto& rhsZ = rhs.pos->z;
 

@@ -1,0 +1,36 @@
+// Exposes the OP_Closure variable-length payload in the chunk decoder.
+// The decoder must skip 2 bytes per upvalue after OP_Closure; if it
+// doesn't, the payload bytes are decoded as spurious instructions.
+
+// Case 1: isLocal=0 capture (two-level capture chain). The payload byte 0
+// decodes as a spurious OP_Return, ending middle() right after the inner
+// closure is created — inner() and the 999 print never run.
+fun outer() {
+    var a = 10;
+    fun middle() {
+        fun inner() {
+            __dprint(a);
+        }
+        inner();
+        __dprint(999);
+    }
+    middle();
+    __dprint(777);
+}
+
+outer();
+
+// Case 2: isLocal=1 capture. The payload (1, slot) decodes as a spurious
+// OP_Constant push, which occupies the stack position the compiler
+// assigned to the next local — `after` then reads garbage.
+fun shifted() {
+    var before = 1;
+    fun cap() {
+        __dprint(before);
+    }
+    var after = 2;
+    __dprint(after);
+    cap();
+}
+
+shifted();

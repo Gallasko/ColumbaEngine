@@ -3,10 +3,6 @@ namespace: pg
 base_class: Component
 
 includes:
-  - <unordered_map>
-  - "logger.h"
-  - "2D/position.h"
-  - "Renderer/renderer.h"
   - "pgconstant.h"
 
 enums:
@@ -24,11 +20,6 @@ fields:
     default: "{255.0f, 255.0f, 255.0f, 255.0f}"
     setter: event
 
-  - name: viewport
-    type: size_t
-    default: 0
-    setter: event
-
 constructors:
   - params: [shape]
   - params: [shape, colors]
@@ -37,4 +28,10 @@ events:
   - Simple2DObjectChangedEvent
 
 methods:
-  - "void setOpacity(float alpha) { colors.w = alpha; if (ecsRef) { ecsRef->sendEvent(Simple2DObjectChangedEvent{entityId}); } }"
+  - definition: "void setOpacity(float alpha) {
+    colors.w = alpha;
+    if (ecsRef)
+    {
+        ecsRef->sendEvent(Simple2DObjectChangedEvent{entityId});
+    }
+}"

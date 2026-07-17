@@ -105,20 +105,20 @@ class HeaderGenerator
         // Header guard
         code += "#pragma once\n\n"
 
-        // Includes
+        // Includes (ECS/component.h is always needed for Component base class)
+        code += "#include \"ECS/component.h\"\n"
         if (contain(schema, "includes") and typeOf(schema["includes"]) == "array")
         {
             for (var i = 0; i < len(schema["includes"]); i = i + 1)
             {
                 code += "#include " + schema["includes"][i] + "\n"
             }
-
-            if (contain(schema, "enums") and typeOf(schema["enums"]) == "array" and len(schema["enums"]) > 0)
-            {
-                code += "#include \"Helpers/helpers.h\"\n"
-            }
-            code += "\n"
         }
+        if (contain(schema, "enums") and typeOf(schema["enums"]) == "array" and len(schema["enums"]) > 0)
+        {
+            code += "#include \"Helpers/helpers.h\"\n"
+        }
+        code += "\n"
 
         // Namespace
         if (contain(schema, "namespace"))
@@ -399,13 +399,33 @@ class HeaderGenerator
 
         code += "\n"
 
-        // Custom methods (inline implementations)
+        // Custom methods
         if (contain(schema, "methods") and typeOf(schema["methods"]) == "array")
         {
             for (var i = 0; i < len(schema["methods"]); i = i + 1)
             {
                 var method = schema["methods"][i]
-                code += "    " + method + "\n"
+                if (typeOf(method) == "string")
+                {
+                    // Inline method - emit as-is in header
+                    code += "    " + method + "\n"
+                }
+                else if (typeOf(method) == "table" and contain(method, "definition"))
+                {
+                    // Definition method - emit declaration only in header, body goes to .cpp
+                    var fullDef = method["definition"]
+                    var bracePos = indexOf(fullDef, "{")
+                    if (bracePos >= 0)
+                    {
+                        var decl = trim(substring(fullDef, 0, bracePos))
+                        code += "    " + decl + ";\n"
+                    }
+                    else
+                    {
+                        // No body found, treat as declaration
+                        code += "    " + fullDef + "\n"
+                    }
+                }
             }
             code += "\n"
         }
@@ -615,9 +635,9 @@ class ProxyMetadataGenerator
         else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
         {
             code += "                // Convert Vector3D to table\n"
-            code += "                auto it = vm->globals.find(\"__Table\");\n"
-            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n\n"
-            code += "                Klass* tableClass = vm->asClass(it->second);\n"
+            code += "                VM::GlobalCell* cell = vm->findGlobalCell(\"__Table\");\n"
+            code += "                if (cell == nullptr or not cell->defined) return INT_VAL(0);\n\n"
+            code += "                Klass* tableClass = vm->asClass(cell->value);\n"
             code += "                Value tableValue = vm->createInstance(tableClass);\n"
             code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
             code += "                auto vec = c->" + getterName + "();\n\n"
@@ -629,9 +649,9 @@ class ProxyMetadataGenerator
         else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
         {
             code += "                // Convert Vector4D to table\n"
-            code += "                auto it = vm->globals.find(\"__Table\");\n"
-            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n\n"
-            code += "                Klass* tableClass = vm->asClass(it->second);\n"
+            code += "                VM::GlobalCell* cell = vm->findGlobalCell(\"__Table\");\n"
+            code += "                if (cell == nullptr or not cell->defined) return INT_VAL(0);\n\n"
+            code += "                Klass* tableClass = vm->asClass(cell->value);\n"
             code += "                Value tableValue = vm->createInstance(tableClass);\n"
             code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
             code += "                auto vec = c->" + getterName + "();\n\n"
@@ -1192,7 +1212,17 @@ class CppGenerator
         // Include the header
         code += "#include \"stdafx.h\"\n\n"
         code += "#include \"" + schema.name + ".generated.h\"\n\n"
-        code += "#include \"ECS/entitysystem.h\"\n\n"
+        code += "#include \"ECS/entitysystem.h\"\n"
+
+        // Additional cpp-only includes
+        if (contain(schema, "cpp_includes") and typeOf(schema["cpp_includes"]) == "array")
+        {
+            for (var i = 0; i < len(schema["cpp_includes"]); i = i + 1)
+            {
+                code += "#include " + schema["cpp_includes"][i] + "\n"
+            }
+        }
+        code += "\n"
 
         // Namespace
         if (contain(schema, "namespace"))
@@ -1320,6 +1350,44 @@ class CppGenerator
                     }
 
                     code += "}\n\n"
+                }
+            }
+        }
+
+        // Method definitions (from 'definition' entries in methods)
+        if (contain(schema, "methods") and typeOf(schema["methods"]) == "array")
+        {
+            for (var i = 0; i < len(schema["methods"]); i = i + 1)
+            {
+                var method = schema["methods"][i]
+                if (typeOf(method) == "table" and contain(method, "definition"))
+                {
+                    var fullDef = method["definition"]
+                    var bracePos = indexOf(fullDef, "{")
+                    if (bracePos >= 0)
+                    {
+                        var decl = trim(substring(fullDef, 0, bracePos))
+                        var body = substring(fullDef, bracePos)
+
+                        // Qualify the method name with the struct name
+                        // Find ( to locate where the method name ends
+                        var parenPos = indexOf(decl, "(")
+                        if (parenPos >= 0)
+                        {
+                            // Search backwards from ( to find method name start
+                            var pos = parenPos - 1
+                            while (pos >= 0 and charAt(decl, pos) == " ")
+                            {
+                                pos = pos - 1
+                            }
+                            while (pos > 0 and charAt(decl, pos - 1) != " ")
+                            {
+                                pos = pos - 1
+                            }
+                            var qualifiedDecl = substring(decl, 0, pos) + schema.name + "::" + substring(decl, pos)
+                            code += qualifiedDecl + "\n" + body + "\n\n"
+                        }
+                    }
                 }
             }
         }

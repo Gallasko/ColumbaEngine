@@ -99,8 +99,6 @@ void initGame() {
     mainWindow->ecs->createSystem<EnemySpawnerSystem>();
 
     mainWindow->ecs->succeed<MasterRenderer, MainCameraShake>();
-    mainWindow->ecs->succeed<MasterRenderer, TexturedRibbonComponentSystem>();
-    mainWindow->ecs->succeed<MasterRenderer, PolygonComponentSystem>();
 
     mainWindow->ecs->createSystem<PointAggregator>();
 

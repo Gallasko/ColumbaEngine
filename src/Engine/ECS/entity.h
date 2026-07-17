@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_set>
+#include <unordered_map>
 #include <algorithm>
 
 #include "entityref.h"
@@ -47,7 +48,15 @@ namespace pg
 
         inline bool has(const _unique_id& otherId) const noexcept
         {
-            return componentList.find(otherId) != componentList.end();
+            // Also check pendingComponents so that components attached during a running ECS
+            // tick are visible to has<>() the same way they are to get<>(). Without this,
+            // a sequence like `attach<UiAnchor>(e); e->has<UiAnchor>()` returns false while
+            // running (the attach is queued through the cmdDispatcher and only committed at
+            // the next sync point), breaking any caller that uses has<>() as a guard before
+            // setting up anchors / wiring a Prefab — e.g. applyAnchorsToEntity and
+            // PrefabSystem::onEvent(SetMainEntityEvent).
+            return componentList.find(otherId) != componentList.end()
+                or pendingComponents.find(otherId) != pendingComponents.end();
         }
 
         template <typename Comp>
@@ -75,6 +84,10 @@ namespace pg
         // Todo make this mutable because it is only used for memoisation purposes
         // std::unordered_map<_unique_id, Entity*> componentList;
         std::unordered_set<_unique_id> componentList;
+
+        // Components that have been attached while the ECS is running but not yet flushed
+        // Maps component type id -> raw pointer to the heap-allocated pending component
+        std::unordered_map<_unique_id, void*> pendingComponents;
 
         //Todo overload operator delete to call ecsRef->deleteEntity(this);
 

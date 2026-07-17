@@ -21,6 +21,8 @@ player["PositionComponent"].rotation = 0.0
 
 sysData["playerId"] = player.__entityId
 
+logInfo("Player respawned with ID: " + toString(player.__entityId))
+
 // // Attach Player component with physics variables
 // player.attachComp("Player",
 //     "vx", 0.0,

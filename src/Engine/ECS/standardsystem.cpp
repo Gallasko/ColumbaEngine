@@ -254,6 +254,13 @@ namespace pg
         return *this;
     }
 
+    StandardSystemBuilder& StandardSystemBuilder::onProcessEvent(const std::string& eventName, const std::string& scriptName)
+    {
+        data.deferredScriptEventCallbackList[eventName] = scriptName;
+
+        return *this;
+    }
+
     StandardSystemBuilder& StandardSystemBuilder::onExecute(const std::string& scriptName)
     {
         data.executeScript = scriptName;
@@ -280,6 +287,7 @@ namespace pg
             data.initScript,
             data.eventCallbackList,
             data.scriptEventCallbackList,
+            data.deferredScriptEventCallbackList,
             data.executeCallback,
             data.executeScript,
             data.saveCallback,

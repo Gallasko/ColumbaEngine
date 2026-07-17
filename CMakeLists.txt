@@ -11,6 +11,7 @@ option(BUILD_STATIC_LIB "Build static library only" OFF)
 option(BUILD_EXAMPLES "Build example applications" ON)
 option(USE_CCACHE "Use ccache to speed up rebuilds" ON)
 option(SKIP_COMPONENT_GENERATION "Skip regeneration of component files (use existing generated files)" OFF)
+option(PGE_BUILD_COMPARISON_BENCHMARKS "Build cross-engine comparison benchmarks (PgEngine vs EnTT/flecs/Bevy)" OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -24,6 +25,12 @@ if(USE_CCACHE)
         message(STATUS "Enabling ccache to speed up rebuilds")
         set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
         set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+
+        # ccache + GCC/MinGW PCH need extra sloppiness, otherwise PCH-built TUs
+        # always miss the cache. These settings are safe for normal builds and
+        # are required for the PCH on ColumbaEngine to actually pay off.
+        # See: https://ccache.dev/manual/latest.html#_precompiled_headers
+        set(ENV{CCACHE_SLOPPINESS} "pch_defines,time_macros,include_file_mtime,include_file_ctime")
     else()
         message(WARNING "ccache requested but not found - install with: sudo apt install ccache")
     endif()
@@ -93,6 +100,13 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
         if (${ENABLE_TIME_TRACE} AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-trace")
+        endif()
+
+        # Detect WSL
+        execute_process(COMMAND grep -qi microsoft /proc/version RESULT_VARIABLE IS_WSL)
+        if(IS_WSL EQUAL 0)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPG_WSL")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPG_WSL")
         endif()
     endif()
 
@@ -170,6 +184,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/pass/constant_folding.cpp
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/popping_jump_pass.cpp
+    src/Engine/Compiler/pass/loop_rotation_pass.cpp
     src/Engine/Compiler/ecsserialization.cpp
     # Minimal interpreter (only lexer and token for parsing)
     src/Engine/Interpreter/lexer.cpp
@@ -182,6 +197,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/ECS/entitysystem_minimal.cpp
     src/Engine/ECS/group.cpp
     src/Engine/ECS/savemanager.cpp
+    src/Engine/ECS/scriptregistry.cpp
     src/Engine/ECS/sparseset.cpp
     src/Engine/ECS/standardsystem.cpp
     src/Engine/ECS/system.cpp
@@ -196,6 +212,9 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Profiler/profiler.cpp
     # Core systems (provides EntityName component)
     src/Engine/Systems/coresystems.cpp
+    # Versioning
+    src/Engine/Versioning/manifest.cpp
+    src/Engine/Versioning/versionmanager.cpp
 )
 
 # Full engine source files
@@ -203,6 +222,8 @@ set(ENGINESOURCE
     src/Engine/engine.cpp
     src/Engine/window.cpp
     src/Engine/configuration.cpp
+    src/Engine/Versioning/manifest.cpp
+    src/Engine/Versioning/versionmanager.cpp
     src/Engine/logger.cpp
     src/Engine/serialization.cpp
     src/Engine/2D/animator2d.cpp
@@ -231,6 +252,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/pass/constant_folding.cpp
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/popping_jump_pass.cpp
+    src/Engine/Compiler/pass/loop_rotation_pass.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
@@ -238,6 +260,7 @@ set(ENGINESOURCE
     src/Engine/ECS/entitysystem_full.cpp
     src/Engine/ECS/group.cpp
     src/Engine/ECS/savemanager.cpp
+    src/Engine/ECS/scriptregistry.cpp
     src/Engine/ECS/sparseset.cpp
     src/Engine/ECS/standardsystem.cpp
     src/Engine/ECS/system.cpp
@@ -246,6 +269,11 @@ set(ENGINESOURCE
     src/Engine/Files/filemanager.cpp
     src/Engine/Files/fileparser.cpp
     src/Engine/Profiler/profiler.cpp
+    src/Engine/Init/coresystems.cpp
+    src/Engine/Init/rendersystems.cpp
+    src/Engine/Init/inputsystems.cpp
+    src/Engine/Init/uisystems.cpp
+    src/Engine/Init/audiosystems.cpp
     src/Engine/Helpers/fsm.cpp
     src/Engine/Helpers/openglobject.cpp
     src/Engine/Helpers/tinyfiledialogs.cpp
@@ -288,6 +316,8 @@ set(ENGINESOURCE
     src/Engine/UI/focusable.cpp
     src/Engine/UI/listview.cpp
     src/Engine/UI/namedanchor.cpp
+    src/Engine/UI/prefabbuilder.cpp
+    src/Engine/UI/enginefactories.cpp
     src/Engine/UI/progressbar.cpp
     src/Engine/UI/scrollable.cpp
     src/Engine/UI/sentencesystem.cpp
@@ -310,6 +340,18 @@ file(GLOB COMPONENT_DEFINITIONS
 )
 
 # Note: ColumbaEngine library will be created AFTER component generation
+
+# Output generated files into the build directory instead of the source tree
+# Use -DPREGENERATED_COMPONENTS_DIR=<path> to point to an existing generated dir
+# (e.g. from a native build) instead of generating locally.
+set(PREGENERATED_COMPONENTS_DIR "" CACHE PATH "Path to pre-generated component files (e.g. from a native build)")
+if(PREGENERATED_COMPONENTS_DIR)
+    set(GENERATED_COMPONENTS_DIR "${PREGENERATED_COMPONENTS_DIR}")
+    message(STATUS "Using pre-generated components from: ${GENERATED_COMPONENTS_DIR}")
+else()
+    set(GENERATED_COMPONENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/Components")
+    file(MAKE_DIRECTORY ${GENERATED_COMPONENTS_DIR})
+endif()
 
 # ===============================================
 # MINIMAL ENGINE LIBRARY + BOOTSTRAP COMPILER
@@ -362,6 +404,60 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minimal engine)")
 
     # ===============================================
+    # VM OP-KERNEL REGENERATION (automatic, stage-0 bootstrap)
+    # ===============================================
+    # src/Engine/Compiler/generated/*.inc are rendered from the declarative
+    # kernel spec tools/vm_ops_def.pg by the PgScript generator
+    # tools/gen_vm_ops.pg (self-hosted codegen).
+    #
+    # The .inc files are inputs to ColumbaEngineMinimal, which
+    # PgCompilerBootstrap links against — so regeneration cannot depend on
+    # the PgCompilerBootstrap TARGET (circular). Classic self-hosting
+    # solution: every successful bootstrap build persists a stage-0 copy of
+    # the binary; when the spec or generator changes, a build-time rule
+    # regenerates the .inc files with that stage-0 copy BEFORE the engine
+    # libraries compile. On a clean build directory there is no stage-0 yet
+    # and the committed .inc files serve as the bootstrap seed
+    # (check_vm_ops_fresh.sh guards that seed).
+    set(VM_OPS_STAGE0 ${CMAKE_BINARY_DIR}/stage0/PgCompilerBootstrap)
+    set(VM_OPS_STAMP ${CMAKE_BINARY_DIR}/stage0/vm_ops_regen.stamp)
+
+    add_custom_command(TARGET PgCompilerBootstrap POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:PgCompilerBootstrap> ${VM_OPS_STAGE0}
+        COMMENT "Persisting stage-0 PgCompilerBootstrap for VM ops codegen"
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${VM_OPS_STAMP}
+        COMMAND ${CMAKE_COMMAND}
+                -DSTAGE0=${VM_OPS_STAGE0}
+                -DTOOLS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/tools
+                -DGEN_DIR=${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Compiler/generated
+                -DSTAMP=${VM_OPS_STAMP}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/regen_vm_ops_stage0.cmake
+        DEPENDS
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_vm_ops.pg
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/vm_ops_def.pg
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/regen_vm_ops_stage0.cmake
+        COMMENT "Checking VM op kernels against tools/vm_ops_def.pg"
+        VERBATIM
+    )
+    add_custom_target(AutoGenVmOps DEPENDS ${VM_OPS_STAMP})
+    add_dependencies(ColumbaEngineMinimal AutoGenVmOps)
+
+    # Manual force-regen (uses the freshly built bootstrap, not stage-0):
+    #   cmake --build <build-dir> --target GenerateVmOps
+    add_custom_target(GenerateVmOps
+        COMMAND $<TARGET_FILE:PgCompilerBootstrap> gen_vm_ops.pg ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Compiler/generated
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tools
+        DEPENDS PgCompilerBootstrap
+        SOURCES tools/gen_vm_ops.pg tools/vm_ops_def.pg
+        COMMENT "Regenerating VM op kernels from tools/vm_ops_def.pg"
+        VERBATIM
+    )
+
+    # ===============================================
     # COMPONENT REGENERATION TARGET
     # ===============================================
     # Create a target to regenerate components when .pgcomp files change
@@ -374,10 +470,10 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
             get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
 
-            # Define the output files
-            set(GENERATED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.h")
-            set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp")
-            set(GENERATED_SER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp")
+            # Define the output files (in build directory)
+            set(GENERATED_HEADER "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.generated.h")
+            set(GENERATED_CPP "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.generated.cpp")
+            set(GENERATED_SER "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.serialization.cpp")
 
             # Add custom command that only runs when inputs change
             add_custom_command(
@@ -390,7 +486,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
                     PgCompilerBootstrap
                     ${COMP_DEF}
                     ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components
+                WORKING_DIRECTORY ${GENERATED_COMPONENTS_DIR}
                 COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
                 VERBATIM
             )
@@ -415,12 +511,31 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
             COMMENT "All components up to date"
         )
 
+        # Refresh the committed component seed (src/Engine/Components/generated),
+        # the base used by CI and Emscripten builds that cannot run the bootstrap.
+        # Run after changing a .pgcomp file or the generator, then commit the result:
+        #   cmake --build . --target SnapshotComponents
+        add_custom_target(SnapshotComponents
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${GENERATED_COMPONENTS_DIR}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/generated
+            DEPENDS ${ALL_GENERATED_FILES}
+            COMMENT "Snapshotting generated components into src/Engine/Components/generated"
+            VERBATIM
+        )
+
         message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
         message(STATUS "  Components will regenerate only when .pgcomp files change")
         message(STATUS "  Manual regeneration: cmake --build . --target RegenerateComponents")
     endif()
 else()
-    message(STATUS "Emscripten build: skipping bootstrap compiler and component regeneration (using pre-generated files)")
+    if(NOT PREGENERATED_COMPONENTS_DIR)
+        # No native build available to generate from: fall back to the committed
+        # component seed, kept fresh via the SnapshotComponents target.
+        set(GENERATED_COMPONENTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/generated")
+        message(STATUS "Emscripten build: using committed generated components from ${GENERATED_COMPONENTS_DIR}")
+        message(STATUS "  Override with -DPREGENERATED_COMPONENTS_DIR=<native-build-dir>/generated/Components")
+    endif()
 endif()
 
 # ===============================================
@@ -432,8 +547,8 @@ if(COMPONENT_DEFINITIONS)
     foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
         get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
         list(APPEND GENERATED_COMPONENT_SOURCES
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp"
+            "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.generated.cpp"
+            "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.serialization.cpp"
         )
     endforeach()
 
@@ -444,17 +559,41 @@ endif()
 # Create the full engine library with generated components
 add_library(ColumbaEngine STATIC ${ENGINESOURCE} ${GENERATED_COMPONENT_SOURCES})
 
-# Todo find why the pch doesn't work on windows
-if(MINGW)
-    set_target_properties(ColumbaEngine PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
-endif()
-
 # Set precompiled headers - but don't make them public for consumers
+# PCH is enabled on all platforms including MinGW. If you hit PCH-related
+# build errors on MinGW, the most common cause is ccache: make sure
+# CCACHE_SLOPPINESS includes pch_defines,time_macros (configured above).
 target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
+
+# # Unity build: batch source files together to share template instantiations
+# # and reduce redundant header parsing. Combined with PCH this is the biggest
+# # clean win for full-rebuild times.
+# #
+# # Batch size note: this engine has very heavy ECS templates (entitysystem.h,
+# # System<...> instantiations, taskflow). On 32-bit MinGW, cc1plus has a
+# # ~2 GB address-space limit and silently dies when a unity TU instantiates
+# # too many template specializations at once. Keep the batch size small —
+# # 4 is a safe value that still gives most of the unity-build benefit.
+# # 64-bit toolchains (msys2 mingw-w64, clang) can handle much larger batches.
+# #
+# # If you hit anonymous-namespace symbol clashes (e.g. multiple
+# # `static const char* DOM` in the same batch), either rename the offending
+# # symbol to be file-unique or set UNITY_BUILD_MODE to GROUP and audit the
+# # groupings manually.
+# set_target_properties(ColumbaEngine PROPERTIES
+#     UNITY_BUILD ON
+#     UNITY_BUILD_BATCH_SIZE 4
+# )
 
 # Make ColumbaEngine depend on component regeneration (native builds only)
 if(COMPONENT_DEFINITIONS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT SKIP_COMPONENT_GENERATION)
     add_dependencies(ColumbaEngine RegenerateComponents)
+endif()
+
+# VM op kernels regenerate automatically (stage-0 bootstrap) before the full
+# engine compiles too, in case ColumbaEngineMinimal isn't part of the build.
+if(TARGET AutoGenVmOps)
+    add_dependencies(ColumbaEngine AutoGenVmOps)
 endif()
 
 # Include directories - ONLY use generator expressions for proper build/install interface
@@ -464,6 +603,9 @@ target_include_directories(ColumbaEngine PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLTF_DIR}/include>
+    # Generated components (resolves "Components/X.generated.h" includes)
+    $<BUILD_INTERFACE:${GENERATED_COMPONENTS_DIR}/..>
+    $<BUILD_INTERFACE:${GENERATED_COMPONENTS_DIR}>
     $<INSTALL_INTERFACE:include/ColumbaEngine>
     $<INSTALL_INTERFACE:include/ColumbaEngine/GameElements>
     $<INSTALL_INTERFACE:include/glm>
@@ -793,6 +935,91 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(VoxelTest examples/VoxelTest/main.cpp)
+
+        target_include_directories(VoxelTest PUBLIC examples/VoxelTest)
+
+        target_sources(VoxelTest PRIVATE
+            examples/VoxelTest/application.cpp
+            examples/VoxelTest/cubemesh.cpp
+            examples/VoxelTest/voxelrenderer.cpp
+            examples/VoxelTest/camera3dcontroller.cpp
+            examples/VoxelTest/camera3dcontrollereditor.cpp
+            examples/VoxelTest/editorsystem.cpp
+            examples/VoxelTest/editorui.cpp
+            examples/VoxelTest/voxelserializer.cpp
+        )
+
+        target_link_libraries(VoxelTest PRIVATE ColumbaEngine)
+
+        set_target_properties(VoxelTest
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
+
+        add_executable(GameDevJs2026 examples/GameDevJs2026/main.cpp)
+
+        target_include_directories(GameDevJs2026 PUBLIC
+            examples/GameDevJs2026
+            examples/GameDevJs2026/Core
+            examples/GameDevJs2026/Registries
+            examples/GameDevJs2026/Systems
+            examples/GameDevJs2026/UI
+        )
+
+        target_sources(GameDevJs2026 PRIVATE
+            examples/GameDevJs2026/application.cpp
+            examples/GameDevJs2026/Core/gridatlas.cpp
+            examples/GameDevJs2026/Core/canvasgenerator.cpp
+            examples/GameDevJs2026/Core/worldfacts.cpp
+            examples/GameDevJs2026/Core/saveserialization.cpp
+            examples/GameDevJs2026/Registries/inventory.cpp
+            examples/GameDevJs2026/Registries/itemregistry.cpp
+            examples/GameDevJs2026/Registries/buildingregistry.cpp
+            examples/GameDevJs2026/Registries/reciperegistry.cpp
+            examples/GameDevJs2026/Registries/missionregistry.cpp
+            examples/GameDevJs2026/Systems/camerasystem.cpp
+            examples/GameDevJs2026/Systems/gridsystem.cpp
+            examples/GameDevJs2026/Systems/gamesystem.cpp
+            examples/GameDevJs2026/Systems/minersystem.cpp
+            examples/GameDevJs2026/Systems/transportsystem.cpp
+            examples/GameDevJs2026/Systems/insertersystem.cpp
+            examples/GameDevJs2026/Systems/craftingsystem.cpp
+            examples/GameDevJs2026/Systems/storagesystem.cpp
+            examples/GameDevJs2026/Systems/handcraftingsystem.cpp
+            examples/GameDevJs2026/Systems/playerinventory.cpp
+            examples/GameDevJs2026/Systems/manualmining.cpp
+            examples/GameDevJs2026/Systems/depotsystem.cpp
+            examples/GameDevJs2026/UI/hotbarsystem.cpp
+            examples/GameDevJs2026/UI/inventoryui.cpp
+            examples/GameDevJs2026/UI/minerui.cpp
+            examples/GameDevJs2026/UI/craftingui.cpp
+            examples/GameDevJs2026/UI/recipemachineuibase.cpp
+            examples/GameDevJs2026/UI/machineuicoordinator.cpp
+            examples/GameDevJs2026/UI/storageui.cpp
+            examples/GameDevJs2026/UI/tooltipsystem.cpp
+            examples/GameDevJs2026/UI/tutorialsystem.cpp
+            examples/GameDevJs2026/UI/spotlightoverlaysystem.cpp
+            examples/GameDevJs2026/UI/tileinspectorsystem.cpp
+            examples/GameDevJs2026/Systems/placementoverlaysystem.cpp
+            examples/GameDevJs2026/UI/machinedemosystem.cpp
+            examples/GameDevJs2026/UI/depotui.cpp
+            examples/GameDevJs2026/UI/hudbarsystem.cpp
+            examples/GameDevJs2026/Systems/missionsystem.cpp
+            examples/GameDevJs2026/Systems/analyticssystem.cpp
+            examples/GameDevJs2026/UI/missionui.cpp
+            examples/GameDevJs2026/UI/slotsystem.cpp
+        )
+
+        target_link_libraries(GameDevJs2026 PRIVATE ColumbaEngine)
+
+        set_target_properties(GameDevJs2026
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
+
     else()
         add_executable(ColumbaEngineEditor src/main.cpp)
 
@@ -975,6 +1202,25 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(VoxelTest examples/VoxelTest/main.cpp)
+
+        target_include_directories(VoxelTest PUBLIC examples/VoxelTest)
+
+        target_sources(VoxelTest PRIVATE
+            examples/VoxelTest/application.cpp
+            examples/VoxelTest/cubemesh.cpp
+            examples/VoxelTest/voxelrenderer.cpp
+            examples/VoxelTest/camera3dcontroller.cpp
+            examples/VoxelTest/camera3dcontrollereditor.cpp
+            examples/VoxelTest/editorsystem.cpp
+            examples/VoxelTest/editorui.cpp
+            examples/VoxelTest/voxelserializer.cpp
+        )
+
+        target_link_libraries(VoxelTest PRIVATE ColumbaEngine)
+
+        ###
+
         add_executable(PgInterpreter examples/PgInterpreter/main.cpp)
 
         target_include_directories(PgInterpreter PUBLIC examples/PgInterpreter)
@@ -984,6 +1230,23 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         target_link_libraries(PgInterpreter PRIVATE ColumbaEngine)
+
+        ###
+
+        add_executable(AtlasPicker examples/AtlasPicker/main.cpp)
+
+        target_include_directories(AtlasPicker PUBLIC
+            examples/AtlasPicker
+            examples/GameDevJs2026/Core
+        )
+
+        target_sources(AtlasPicker PRIVATE
+            examples/AtlasPicker/application.cpp
+            examples/AtlasPicker/atlaspickersystem.cpp
+            examples/GameDevJs2026/Core/gridatlas.cpp
+        )
+
+        target_link_libraries(AtlasPicker PRIVATE ColumbaEngine)
 
         ###
 
@@ -1058,6 +1321,64 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_link_libraries(EcsSerializationExample PRIVATE ColumbaEngine)
 
+        ###
+
+        add_executable(GameDevJs2026 examples/GameDevJs2026/main.cpp)
+
+        target_include_directories(GameDevJs2026 PUBLIC
+            examples/GameDevJs2026
+            examples/GameDevJs2026/Core
+            examples/GameDevJs2026/Registries
+            examples/GameDevJs2026/Systems
+            examples/GameDevJs2026/UI
+        )
+
+        target_sources(GameDevJs2026 PRIVATE
+            examples/GameDevJs2026/application.cpp
+            examples/GameDevJs2026/Core/gridatlas.cpp
+            examples/GameDevJs2026/Core/canvasgenerator.cpp
+            examples/GameDevJs2026/Core/worldfacts.cpp
+            examples/GameDevJs2026/Core/saveserialization.cpp
+            examples/GameDevJs2026/Registries/inventory.cpp
+            examples/GameDevJs2026/Registries/itemregistry.cpp
+            examples/GameDevJs2026/Registries/buildingregistry.cpp
+            examples/GameDevJs2026/Registries/reciperegistry.cpp
+            examples/GameDevJs2026/Registries/missionregistry.cpp
+            examples/GameDevJs2026/Systems/camerasystem.cpp
+            examples/GameDevJs2026/Systems/gridsystem.cpp
+            examples/GameDevJs2026/Systems/gamesystem.cpp
+            examples/GameDevJs2026/Systems/minersystem.cpp
+            examples/GameDevJs2026/Systems/transportsystem.cpp
+            examples/GameDevJs2026/Systems/insertersystem.cpp
+            examples/GameDevJs2026/Systems/craftingsystem.cpp
+            examples/GameDevJs2026/Systems/storagesystem.cpp
+            examples/GameDevJs2026/Systems/handcraftingsystem.cpp
+            examples/GameDevJs2026/Systems/playerinventory.cpp
+            examples/GameDevJs2026/Systems/manualmining.cpp
+            examples/GameDevJs2026/Systems/depotsystem.cpp
+            examples/GameDevJs2026/UI/hotbarsystem.cpp
+            examples/GameDevJs2026/UI/inventoryui.cpp
+            examples/GameDevJs2026/UI/minerui.cpp
+            examples/GameDevJs2026/UI/craftingui.cpp
+            examples/GameDevJs2026/UI/recipemachineuibase.cpp
+            examples/GameDevJs2026/UI/machineuicoordinator.cpp
+            examples/GameDevJs2026/UI/storageui.cpp
+            examples/GameDevJs2026/UI/tooltipsystem.cpp
+            examples/GameDevJs2026/UI/tutorialsystem.cpp
+            examples/GameDevJs2026/UI/spotlightoverlaysystem.cpp
+            examples/GameDevJs2026/UI/tileinspectorsystem.cpp
+            examples/GameDevJs2026/Systems/placementoverlaysystem.cpp
+            examples/GameDevJs2026/UI/machinedemosystem.cpp
+            examples/GameDevJs2026/UI/depotui.cpp
+            examples/GameDevJs2026/UI/hudbarsystem.cpp
+            examples/GameDevJs2026/Systems/missionsystem.cpp
+            examples/GameDevJs2026/Systems/analyticssystem.cpp
+            examples/GameDevJs2026/UI/missionui.cpp
+            examples/GameDevJs2026/UI/slotsystem.cpp
+        )
+
+        target_link_libraries(GameDevJs2026 PRIVATE ColumbaEngine)
+
         # Only build tests if not building static lib only
         enable_testing()
 
@@ -1078,6 +1399,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/interpreter.cc
             test/layout.cc
             test/prefab.cc
+            test/prefabbuilder.cc
             test/network.cc
             # test/mock2dsimpleshape.h
             # test/simple2dobject.cc
@@ -1087,10 +1409,13 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/mocklogger.h
             test/mockloggertest.cc
             test/renderer.cc
+            test/scriptregistry.cc
             test/serialize.cc
             test/taskflow.cc
             test/uiconstanttest.cc
             test/uisystemtest.cc
+            test/semanticversion.cc
+            test/manifest.cc
         )
 
         target_link_libraries(t1 PRIVATE gtest gtest_main ColumbaEngine)
@@ -1120,6 +1445,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         add_custom_command(TARGET bench PRE_BUILD
                            COMMAND ${CMAKE_COMMAND} -E copy_directory
                            ${CMAKE_SOURCE_DIR}/test/bench $<TARGET_FILE_DIR:bench>/test/bench)
+
+        # Cross-engine comparison benchmarks (opt-in: -DPGE_BUILD_COMPARISON_BENCHMARKS=ON).
+        if(PGE_BUILD_COMPARISON_BENCHMARKS)
+            add_subdirectory(benchmark/comparisons/ecs)
+            add_subdirectory(benchmark/comparisons/script)
+        endif()
 
         # ===============================================
         # COMPILER TEST TARGET (simple script-based testbench)

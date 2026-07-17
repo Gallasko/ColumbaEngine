@@ -4,7 +4,6 @@ base_class: Component
 
 includes:
   - <string>
-  - "ECS/system.h"
   - "pgconstant.h"
 
 fields:
@@ -48,18 +47,12 @@ fields:
     default: 0.0f
     setter: event
 
-  - name: viewport
-    type: size_t
-    default: 0
-    setter: event
-
 methods:
   - "void setTexture(const std::string& textureName);"
   - "void setOverlappingColor(const constant::Vector3D& color, float ratio);"
 
 constructors:
-  - params: [textureName, viewport]
-    defaults: {viewport: 0}
+  - params: [textureName]
 
 events:
   - TextureChangedEvent
