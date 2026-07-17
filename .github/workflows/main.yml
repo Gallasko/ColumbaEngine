@@ -11,6 +11,11 @@ jobs:
   build-and-test:
     runs-on: ${{ matrix.os }}
 
+    env:
+      # PCH-built TUs always miss the ccache without this (CMakeLists sets it
+      # only for the configure process, not the build). See CMakeLists.txt.
+      CCACHE_SLOPPINESS: pch_defines,time_macros,include_file_mtime,include_file_ctime
+
     strategy:
       fail-fast: false
       matrix:
@@ -68,7 +73,16 @@ jobs:
         if: matrix.os == 'windows-latest' && matrix.compiler == 'msvc'
         uses: ilammy/msvc-dev-cmd@v1
 
-      # Clean build directory to avoid stale cache issues
+      # Restores the compiler cache BEFORE the build and saves it after; the
+      # CMakeLists auto-detects ccache on PATH and wires it as compiler launcher.
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-${{ matrix.compiler }}
+          max-size: 1G
+
+      # Clean build directory to avoid stale cache issues (cheap: object
+      # compilation is served from ccache, only configure + link rerun)
       - name: Clean build directory
         shell: bash
         run: |
@@ -98,23 +112,6 @@ jobs:
               -DCMAKE_BUILD_TYPE=Release \
               ..
           fi
-
-      - name: Cache ccache
-        uses: actions/cache@v3
-        with:
-          path: ~/.ccache
-          key: ${{ runner.os }}-ccache-${{ matrix.compiler }}-${{ hashFiles('**/CMakeLists.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-${{ matrix.compiler }}-
-
-      # Remove or update the CMake build cache to use new cache keys
-      - name: Cache CMake build
-        uses: actions/cache@v3
-        with:
-          path: build
-          key: columbaengine-${{ runner.os }}-cmake-${{ matrix.compiler }}-${{ hashFiles('**/CMakeLists.txt') }}
-          restore-keys: |
-            columbaengine-${{ runner.os }}-cmake-${{ matrix.compiler }}-
 
       - name: Verify SDL2 installation (Linux only)
         if: matrix.os == 'ubuntu-latest'

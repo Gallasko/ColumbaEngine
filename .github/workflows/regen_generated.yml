@@ -24,11 +24,22 @@ jobs:
     permissions:
       contents: write  # Required for pushing commits
 
+    env:
+      CCACHE_SLOPPINESS: pch_defines,time_macros,include_file_mtime,include_file_ctime
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same cache key as the Linux gcc CI job: both compile the same
+      # minimal-engine/bootstrap objects, so they share one warm cache.
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: Linux-gcc
+          max-size: 1G
 
       - name: Install prerequisites
         run: |
