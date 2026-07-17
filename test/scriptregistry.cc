@@ -37,7 +37,16 @@ namespace pg
             protected:
                 void SetUp() override
                 {
-                    dir = fs::temp_directory_path() / "pg_scriptregistry_test";
+                    // One directory per test: ctest runs each test in its own
+                    // process, possibly in parallel, so a shared directory
+                    // would be wiped by another test's TearDown mid-run.
+                    const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+
+                    dir = fs::temp_directory_path() / (std::string("pg_scriptregistry_test_") + info->name());
+
+                    std::error_code ec;
+                    fs::remove_all(dir, ec);
+
                     fs::create_directories(dir);
                 }
 

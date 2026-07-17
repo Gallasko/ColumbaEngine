@@ -17,18 +17,36 @@ namespace pg
     {
         namespace
         {
-            const std::string TEMP_MANIFEST = "tmpManifestTest.json";
+            // Per-test file names: ctest runs each test in its own process,
+            // possibly in parallel, from the same working directory — shared
+            // file names would let one test delete another's files mid-run.
+            std::string testFileName(const std::string& prefix, const std::string& extension)
+            {
+                const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+
+                return prefix + "_" + info->test_suite_name() + "_" + info->name() + extension;
+            }
+
+            std::string tempManifestPath()
+            {
+                return testFileName("tmpManifestTest", ".json");
+            }
+
+            std::string tempSavePath()
+            {
+                return testFileName("tmpMigrationSave", ".dat");
+            }
 
             void writeManifestFile(const std::string& content)
             {
                 TextFile file;
-                file.filepath = TEMP_MANIFEST;
+                file.filepath = tempManifestPath();
                 UniversalFileAccessor::writeToFile(file, content, true);
             }
 
             void cleanupManifestFile()
             {
-                fs::remove(TEMP_MANIFEST);
+                fs::remove(tempManifestPath());
             }
         }
 
@@ -73,7 +91,7 @@ namespace pg
             })");
 
             Manifest m;
-            bool result = m.loadFromFile(TEMP_MANIFEST);
+            bool result = m.loadFromFile(tempManifestPath());
 
             EXPECT_TRUE(result);
             EXPECT_TRUE(m.isLoaded());
@@ -116,7 +134,7 @@ namespace pg
             writeManifestFile("");
 
             Manifest m;
-            bool result = m.loadFromFile(TEMP_MANIFEST);
+            bool result = m.loadFromFile(tempManifestPath());
 
             EXPECT_FALSE(result);
             EXPECT_FALSE(m.isLoaded());
@@ -136,7 +154,7 @@ namespace pg
             writeManifestFile("{ this is not valid json }");
 
             Manifest m;
-            bool result = m.loadFromFile(TEMP_MANIFEST);
+            bool result = m.loadFromFile(tempManifestPath());
 
             EXPECT_FALSE(result);
             EXPECT_FALSE(m.isLoaded());
@@ -157,7 +175,7 @@ namespace pg
             writeManifestFile(R"({"description": "no version here"})");
 
             Manifest m;
-            bool result = m.loadFromFile(TEMP_MANIFEST);
+            bool result = m.loadFromFile(tempManifestPath());
 
             EXPECT_TRUE(result);
             EXPECT_TRUE(m.isLoaded());
@@ -178,7 +196,7 @@ namespace pg
             writeManifestFile(R"({"version": "not_a_version"})");
 
             Manifest m;
-            bool result = m.loadFromFile(TEMP_MANIFEST);
+            bool result = m.loadFromFile(tempManifestPath());
 
             EXPECT_FALSE(result);
             EXPECT_FALSE(m.isLoaded());
@@ -198,7 +216,7 @@ namespace pg
             writeManifestFile(R"({"version": "1.0.0", "description": "test"})");
 
             Manifest m;
-            bool result = m.loadFromFile(TEMP_MANIFEST);
+            bool result = m.loadFromFile(tempManifestPath());
 
             EXPECT_TRUE(result);
             EXPECT_TRUE(m.isLoaded());
@@ -218,12 +236,12 @@ namespace pg
             writeManifestFile(R"({"version": "1.0.0", "description": "first"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             EXPECT_EQ(m.getDescription(), "first");
 
             writeManifestFile(R"({"version": "2.0.0", "description": "second"})");
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             EXPECT_EQ(m.getVersion(), SemanticVersion(2, 0, 0));
             EXPECT_EQ(m.getDescription(), "second");
@@ -242,7 +260,7 @@ namespace pg
             writeManifestFile(R"({"version": "3.0.0", "description": "loaded"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
             EXPECT_TRUE(m.isLoaded());
             EXPECT_EQ(m.getVersion(), SemanticVersion(3, 0, 0));
 
@@ -271,7 +289,7 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.checkVersion(SemanticVersion(0, 0, 0));
 
@@ -296,7 +314,7 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.checkVersion("");
 
@@ -318,7 +336,7 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.checkVersion(SemanticVersion(2, 0, 0));
 
@@ -343,7 +361,7 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.checkVersion(SemanticVersion(1, 5, 3));
 
@@ -368,7 +386,7 @@ namespace pg
             writeManifestFile(R"({"version": "1.3.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.checkVersion(SemanticVersion(1, 2, 0));
 
@@ -390,7 +408,7 @@ namespace pg
             writeManifestFile(R"({"version": "1.2.5"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.checkVersion(SemanticVersion(1, 2, 3));
 
@@ -412,7 +430,7 @@ namespace pg
             writeManifestFile(R"({"version": "1.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.checkVersion(SemanticVersion(2, 0, 0));
 
@@ -445,7 +463,7 @@ namespace pg
             })");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.checkVersion(SemanticVersion(1, 1, 0));
 
@@ -478,7 +496,7 @@ namespace pg
             })");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto* entry = m.getChangelogForVersion(SemanticVersion(1, 1, 0));
 
@@ -506,7 +524,7 @@ namespace pg
             })");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto* entry = m.getChangelogForVersion(SemanticVersion(9, 9, 9));
 
@@ -534,7 +552,7 @@ namespace pg
             })");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.getChangelogBetween(SemanticVersion(1, 0, 0), SemanticVersion(2, 0, 0));
 
@@ -566,7 +584,7 @@ namespace pg
             })");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.getChangelogBetween(SemanticVersion(1, 1, 0), SemanticVersion(1, 2, 0));
 
@@ -593,7 +611,7 @@ namespace pg
             })");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.getChangelogBetween(SemanticVersion(2, 0, 0), SemanticVersion(3, 0, 0));
 
@@ -621,7 +639,7 @@ namespace pg
             })");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             auto result = m.getChangelogBetween(SemanticVersion(1, 0, 0), SemanticVersion(2, 0, 0));
 
@@ -648,15 +666,15 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
-            SaveManager saveManager("tmpMigrationSave.dat");
+            SaveManager saveManager(tempSavePath());
             size_t count = m.runMigrations(SemanticVersion(1, 0, 0), saveManager);
 
             EXPECT_EQ(count, 0u);
 
             cleanupManifestFile();
-            fs::remove("tmpMigrationSave.dat");
+            fs::remove(tempSavePath());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -670,21 +688,21 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             bool called = false;
             m.registerMigration(SemanticVersion(1, 5, 0), [&called](SaveManager&) {
                 called = true;
             });
 
-            SaveManager saveManager("tmpMigrationSave.dat");
+            SaveManager saveManager(tempSavePath());
             size_t count = m.runMigrations(SemanticVersion(1, 0, 0), saveManager);
 
             EXPECT_EQ(count, 1u);
             EXPECT_TRUE(called);
 
             cleanupManifestFile();
-            fs::remove("tmpMigrationSave.dat");
+            fs::remove(tempSavePath());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -698,21 +716,21 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             bool called = false;
             m.registerMigration(SemanticVersion(0, 5, 0), [&called](SaveManager&) {
                 called = true;
             });
 
-            SaveManager saveManager("tmpMigrationSave.dat");
+            SaveManager saveManager(tempSavePath());
             size_t count = m.runMigrations(SemanticVersion(1, 0, 0), saveManager);
 
             EXPECT_EQ(count, 0u);
             EXPECT_FALSE(called);
 
             cleanupManifestFile();
-            fs::remove("tmpMigrationSave.dat");
+            fs::remove(tempSavePath());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -726,21 +744,21 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             bool called = false;
             m.registerMigration(SemanticVersion(3, 0, 0), [&called](SaveManager&) {
                 called = true;
             });
 
-            SaveManager saveManager("tmpMigrationSave.dat");
+            SaveManager saveManager(tempSavePath());
             size_t count = m.runMigrations(SemanticVersion(1, 0, 0), saveManager);
 
             EXPECT_EQ(count, 0u);
             EXPECT_FALSE(called);
 
             cleanupManifestFile();
-            fs::remove("tmpMigrationSave.dat");
+            fs::remove(tempSavePath());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -754,14 +772,14 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             bool called = false;
             m.registerMigration(SemanticVersion(1, 0, 0), [&called](SaveManager&) {
                 called = true;
             });
 
-            SaveManager saveManager("tmpMigrationSave.dat");
+            SaveManager saveManager(tempSavePath());
             // targetVersion (1.0.0) is NOT > oldVersion (1.0.0), so it should be skipped
             size_t count = m.runMigrations(SemanticVersion(1, 0, 0), saveManager);
 
@@ -769,7 +787,7 @@ namespace pg
             EXPECT_FALSE(called);
 
             cleanupManifestFile();
-            fs::remove("tmpMigrationSave.dat");
+            fs::remove(tempSavePath());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -783,14 +801,14 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             bool called = false;
             m.registerMigration(SemanticVersion(2, 0, 0), [&called](SaveManager&) {
                 called = true;
             });
 
-            SaveManager saveManager("tmpMigrationSave.dat");
+            SaveManager saveManager(tempSavePath());
             // targetVersion (2.0.0) <= version (2.0.0), so it should run
             size_t count = m.runMigrations(SemanticVersion(1, 0, 0), saveManager);
 
@@ -798,7 +816,7 @@ namespace pg
             EXPECT_TRUE(called);
 
             cleanupManifestFile();
-            fs::remove("tmpMigrationSave.dat");
+            fs::remove(tempSavePath());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -812,7 +830,7 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             std::vector<std::string> order;
             m.registerMigration(SemanticVersion(1, 2, 0), [&order](SaveManager&) {
@@ -825,7 +843,7 @@ namespace pg
                 order.push_back("1.1.0");
             });
 
-            SaveManager saveManager("tmpMigrationSave.dat");
+            SaveManager saveManager(tempSavePath());
             size_t count = m.runMigrations(SemanticVersion(1, 0, 0), saveManager);
 
             EXPECT_EQ(count, 3u);
@@ -836,7 +854,7 @@ namespace pg
             EXPECT_EQ(order[2], "1.5.0");
 
             cleanupManifestFile();
-            fs::remove("tmpMigrationSave.dat");
+            fs::remove(tempSavePath());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -850,7 +868,7 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             int callCount = 0;
             m.registerMigration(SemanticVersion(1, 5, 0), [&callCount](SaveManager&) {
@@ -860,14 +878,14 @@ namespace pg
                 callCount++;
             });
 
-            SaveManager saveManager("tmpMigrationSave.dat");
+            SaveManager saveManager(tempSavePath());
             size_t count = m.runMigrations(SemanticVersion(1, 0, 0), saveManager);
 
             EXPECT_EQ(count, 2u);
             EXPECT_EQ(callCount, 2);
 
             cleanupManifestFile();
-            fs::remove("tmpMigrationSave.dat");
+            fs::remove(tempSavePath());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -881,21 +899,21 @@ namespace pg
             writeManifestFile(R"({"version": "2.0.0"})");
 
             Manifest m;
-            m.loadFromFile(TEMP_MANIFEST);
+            m.loadFromFile(tempManifestPath());
 
             bool called = false;
             m.registerMigration("1.5.0", [&called](SaveManager&) {
                 called = true;
             });
 
-            SaveManager saveManager("tmpMigrationSave.dat");
+            SaveManager saveManager(tempSavePath());
             size_t count = m.runMigrations(SemanticVersion(1, 0, 0), saveManager);
 
             EXPECT_EQ(count, 1u);
             EXPECT_TRUE(called);
 
             cleanupManifestFile();
-            fs::remove("tmpMigrationSave.dat");
+            fs::remove(tempSavePath());
         }
     }
 }

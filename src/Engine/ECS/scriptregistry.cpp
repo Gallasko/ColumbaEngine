@@ -100,15 +100,17 @@ namespace pg
 
     std::string ScriptRegistry::compile(const std::string& sourcePath, const std::string& compiledPath, StandardSystemImpl* sysCtx)
     {
-        VM compiler;
-        ecsRef->setupVm(compiler);
+        // The VM embeds a multi-megabyte value stack, which overflows the
+        // 1 MB default thread stack on Windows — it must live on the heap.
+        auto compiler = std::make_unique<VM>();
+        ecsRef->setupVm(*compiler);
 
         if (sysCtx)
         {
-            compiler.addNativeModule("sys", SystemModule{sysCtx});
+            compiler->addNativeModule("sys", SystemModule{sysCtx});
         }
 
-        auto result = compiler.interpretFromFile(sourcePath, true, compiledPath);
+        auto result = compiler->interpretFromFile(sourcePath, true, compiledPath);
 
         if (result != InterpretResult::OK)
         {
