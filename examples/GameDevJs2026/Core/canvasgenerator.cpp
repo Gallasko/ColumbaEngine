@@ -1,44 +1,15 @@
 #include "canvasgenerator.h"
 
+#include "Maths/randomnumbergenerator.h"
+
 #include <algorithm>
 #include <cmath>
 
 namespace
 {
-    // Tiny local xorshift32 RNG. Intentionally not using pg::RandomNumberGenerator
-    // (a global singleton) so canvas generation is isolated and reproducible.
-    struct XorShift32
-    {
-        uint32_t state;
+    using pg::LocalRng;
 
-        explicit XorShift32(uint32_t seed) : state(seed ? seed : 0x1u) {}
-
-        uint32_t next()
-        {
-            uint32_t x = state;
-            x ^= x << 13;
-            x ^= x >> 17;
-            x ^= x << 5;
-            state = x;
-            return x;
-        }
-
-        // Inclusive range.
-        int rangeInt(int lo, int hi)
-        {
-            if (hi <= lo)
-                return lo;
-            return lo + static_cast<int>(next() % static_cast<uint32_t>(hi - lo + 1));
-        }
-
-        // [0, 1)
-        float unitFloat()
-        {
-            return (next() & 0xFFFFFFu) / static_cast<float>(0x1000000);
-        }
-    };
-
-    void paintBlob(TerrainGrid& terrain, const OrePatch& patch, XorShift32& rng)
+    void paintBlob(TerrainGrid& terrain, const OrePatch& patch, LocalRng& rng)
     {
         const float r = static_cast<float>(patch.radius);
         const int minX = std::max(0, patch.centerX - patch.radius - 1);
@@ -129,7 +100,7 @@ namespace canvasgen_detail
 CanvasGenResult CanvasGenerator::generate(const GenerationParams& params)
 {
     CanvasGenResult result;
-    XorShift32 rng(params.seed);
+    LocalRng rng(params.seed);
 
     // 1. Fill with grass.
     for (int y = 0; y < GridLayer::HEIGHT; ++y)

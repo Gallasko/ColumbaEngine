@@ -292,6 +292,7 @@ set(ENGINESOURCE
     src/Engine/Interpreter/token.cpp
     src/Engine/Interpreter/valuable.cpp
     src/Engine/Loaders/atlasloader.cpp
+    src/Engine/Loaders/gridatlasloader.cpp
     src/Engine/Loaders/Aseprite/asepritefile.cpp
     src/Engine/Loaders/Aseprite/asepritefileatlasloader.cpp
     src/Engine/Loaders/Aseprite/asepriteloader.cpp
@@ -970,8 +971,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_sources(GameDevJs2026 PRIVATE
             examples/GameDevJs2026/application.cpp
-            examples/GameDevJs2026/Core/gridatlas.cpp
-            examples/GameDevJs2026/Core/canvasgenerator.cpp
+                        examples/GameDevJs2026/Core/canvasgenerator.cpp
             examples/GameDevJs2026/Core/worldfacts.cpp
             examples/GameDevJs2026/Core/saveserialization.cpp
             examples/GameDevJs2026/Registries/inventory.cpp
@@ -1243,7 +1243,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_sources(AtlasPicker PRIVATE
             examples/AtlasPicker/application.cpp
             examples/AtlasPicker/atlaspickersystem.cpp
-            examples/GameDevJs2026/Core/gridatlas.cpp
         )
 
         target_link_libraries(AtlasPicker PRIVATE ColumbaEngine)
@@ -1335,8 +1334,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_sources(GameDevJs2026 PRIVATE
             examples/GameDevJs2026/application.cpp
-            examples/GameDevJs2026/Core/gridatlas.cpp
-            examples/GameDevJs2026/Core/canvasgenerator.cpp
+                        examples/GameDevJs2026/Core/canvasgenerator.cpp
             examples/GameDevJs2026/Core/worldfacts.cpp
             examples/GameDevJs2026/Core/saveserialization.cpp
             examples/GameDevJs2026/Registries/inventory.cpp

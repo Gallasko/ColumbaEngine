@@ -3,6 +3,7 @@
 #include "ECS/entitysystem.h"
 #include "2D/position.h"
 #include "UI/ttftext.h"
+#include "UI/utils.h"
 
 #include "inventoryui.h"
 
@@ -14,13 +15,7 @@ namespace pg_machineui
 {
     inline void setEntityVisibility(pg::EntitySystem* ecs, uint64_t id, bool vis)
     {
-        if (id == 0)
-            return;
-
-        auto ent = ecs->getEntity(id);
-
-        if (ent)
-            ent->get<pg::PositionComponent>()->setVisibility(vis);
+        pg::setEntityVisibility(ecs, id, vis);
     }
 
     inline void setEntityText(pg::EntitySystem* ecs, uint64_t id, const std::string& text)

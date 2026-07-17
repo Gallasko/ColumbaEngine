@@ -3,6 +3,7 @@
 #include "2D/simple2dobject.h"
 #include "2D/position.h"
 #include "UI/ttftext.h"
+#include "UI/utils.h"
 
 #include <SDL2/SDL.h>
 
@@ -214,9 +215,5 @@ void StorageUISystem::syncAllSlots()
 
 void StorageUISystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0)
-        return;
-    auto ent = ecsRef->getEntity(id);
-    if (ent)
-        ent->get<PositionComponent>()->setVisibility(vis);
+    pg::setEntityVisibility(ecsRef, id, vis);
 }

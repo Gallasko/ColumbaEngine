@@ -4,6 +4,7 @@
 #include "2D/position.h"
 #include "2D/texture.h"
 #include "UI/ttftext.h"
+#include "UI/utils.h"
 
 #include <SDL2/SDL.h>
 #include <cstdio>   // snprintf
@@ -410,14 +411,7 @@ const char* TooltipSystem::machineLabel(const std::string& machineName)
 
 void TooltipSystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0)
-        return;
-    auto ent = ecsRef->getEntity(id);
-    if (ent)
-    {
-        if (auto pos = ent->get<PositionComponent>())
-            pos->setVisibility(vis);
-    }
+    pg::setEntityVisibility(ecsRef, id, vis);
 }
 
 void TooltipSystem::setLine(int lineIdx, const std::string& text,

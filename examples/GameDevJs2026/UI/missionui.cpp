@@ -4,6 +4,7 @@
 #include "2D/position.h"
 #include "2D/texture.h"
 #include "UI/ttftext.h"
+#include "UI/utils.h"
 
 #include "tooltipsystem.h"
 
@@ -1547,11 +1548,7 @@ void MissionUISystem::hideDepotSelectionPrompt()
 
 void MissionUISystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0)
-        return;
-    auto ent = ecsRef->getEntity(id);
-    if (ent)
-        ent->get<PositionComponent>()->setVisibility(vis);
+    pg::setEntityVisibility(ecsRef, id, vis);
 }
 
 void MissionUISystem::setEntityText(uint64_t id, const std::string& text)

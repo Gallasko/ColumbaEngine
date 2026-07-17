@@ -9,6 +9,18 @@
 
 namespace pg
 {
+    /// Toggles an entity's PositionComponent visibility. No-op if id is 0 or the entity is missing.
+    inline void setEntityVisibility(EntitySystem* ecs, uint64_t id, bool vis)
+    {
+        if (id == 0)
+            return;
+
+        auto ent = ecs->getEntity(id);
+
+        if (ent)
+            ent->get<PositionComponent>()->setVisibility(vis);
+    }
+
     /// Creates a 1‑entity prefab that draws a hollow rectangle by
     /// composing four thin rect shapes.  You can then toggle
     /// prefab.get<Prefab>()->setVisibility(true/false).

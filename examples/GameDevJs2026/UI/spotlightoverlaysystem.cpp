@@ -3,6 +3,7 @@
 #include "2D/simple2dobject.h"
 #include "2D/position.h"
 #include "UI/ttftext.h"
+#include "UI/utils.h"
 #include "Renderer/camera.h"
 
 #include "camerasystem.h"
@@ -466,11 +467,7 @@ void SpotlightOverlaySystem::layoutArrow(float sx, float sy, float sw, float sh,
 
 void SpotlightOverlaySystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0)
-        return;
-    auto ent = ecsRef->getEntity(id);
-    if (ent)
-        ent->get<PositionComponent>()->setVisibility(vis);
+    pg::setEntityVisibility(ecsRef, id, vis);
 }
 
 void SpotlightOverlaySystem::setEntityXY(uint64_t id, float x, float y)

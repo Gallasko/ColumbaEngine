@@ -3,7 +3,7 @@
 
 #include "Renderer/camera.h"
 #include "UI/ttftext.h"
-#include "gridatlas.h"
+#include "Loaders/gridatlasloader.h"
 #include "atlaspickersystem.h"
 
 #include "Helpers/tinyfiledialogs.h"
@@ -104,7 +104,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             atlasName.c_str(),
             atlasImagePath.c_str(),
             "",
-            std::make_unique<GridAtlas>(atlasImageFile,
+            std::make_unique<GridAtlasLoader>(atlasImageFile,
                                         static_cast<unsigned int>(atlasW),
                                         static_cast<unsigned int>(atlasH),
                                         tileW, tileH, cols, count));

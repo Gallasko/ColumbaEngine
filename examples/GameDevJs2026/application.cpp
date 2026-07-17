@@ -8,7 +8,7 @@
 #include "Loaders/Aseprite/asepritefileatlasloader.h"
 #include "UI/ttftext.h"
 #include "UI/enginefactories.h"
-#include "gridatlas.h"
+#include "Loaders/gridatlasloader.h"
 #include "craftingsystem.h"
 #include "minersystem.h"
 #include "playerinventory.h"
@@ -100,7 +100,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "Stone_Furnace",
             "res/ext/Structures & Machines/Stone_Furnace.png",
             "",
-            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 64, 32, 64, 1, 1));
+            std::make_unique<GridAtlasLoader>("Stone_Furnace.png", 32, 64, 32, 64, 1, 1));
 
         // Furnace split sub-atlases (2x4 visual, 2x2 footprint)
         // Base: bottom 32px (2 tile rows — the footprint)
@@ -108,20 +108,20 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "Stone_Furnace_base",
             "res/ext/Structures & Machines/Stone_Furnace.png",
             "",
-            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 64, 32, 32, 1, 1, 0, 32));
+            std::make_unique<GridAtlasLoader>("Stone_Furnace.png", 32, 64, 32, 32, 1, 1, 0, 32));
         // Overflow: top 32px (2 tile rows — empty padding + chimney)
         window.masterRenderer->registerAtlasTexture(
             "Stone_Furnace_overflow",
             "res/ext/Structures & Machines/Stone_Furnace.png",
             "",
-            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 64, 32, 32, 1, 1, 0, 0));
+            std::make_unique<GridAtlasLoader>("Stone_Furnace.png", 32, 64, 32, 32, 1, 1, 0, 0));
 
         // Load furnace active animation atlas (3 frames of 32x64 in a 96x64 strip)
         window.masterRenderer->registerAtlasTexture(
             "Stone_Furnace_Active",
             "res/ext/Structures & Machines/Stone_Furnace_Active.png",
             "",
-            std::make_unique<GridAtlas>("Stone_Furnace_Active.png", 96, 64, 32, 64, 3, 3));
+            std::make_unique<GridAtlasLoader>("Stone_Furnace_Active.png", 96, 64, 32, 64, 3, 3));
 
         // Active split sub-atlases (3 frames each), so the placed furnace's split base/overflow entities
         // can each animate without resizing.
@@ -129,54 +129,54 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "Stone_Furnace_Active_base",
             "res/ext/Structures & Machines/Stone_Furnace_Active.png",
             "",
-            std::make_unique<GridAtlas>("Stone_Furnace_Active.png", 96, 64, 32, 32, 3, 3, 0, 32));
+            std::make_unique<GridAtlasLoader>("Stone_Furnace_Active.png", 96, 64, 32, 32, 3, 3, 0, 32));
         window.masterRenderer->registerAtlasTexture(
             "Stone_Furnace_Active_overflow",
             "res/ext/Structures & Machines/Stone_Furnace_Active.png",
             "",
-            std::make_unique<GridAtlas>("Stone_Furnace_Active.png", 96, 64, 32, 32, 3, 3, 0, 0));
+            std::make_unique<GridAtlasLoader>("Stone_Furnace_Active.png", 96, 64, 32, 32, 3, 3, 0, 0));
 
         // Load assembler idle sprite atlas (single frame 32x48)
         window.masterRenderer->registerAtlasTexture(
             "Assembler_Machine_1",
             "res/ext/Structures & Machines/Assembler_Machine_1.png",
             "",
-            std::make_unique<GridAtlas>("Assembler_Machine_1.png", 32, 48, 32, 48, 1, 1));
+            std::make_unique<GridAtlasLoader>("Assembler_Machine_1.png", 32, 48, 32, 48, 1, 1));
 
         // Load assembler running animation atlas (4 frames of 32x48 in a 128x48 strip)
         window.masterRenderer->registerAtlasTexture(
             "Assembler_Machine_1_Running",
             "res/ext/Structures & Machines/Assembler_Machine_1_Running.png",
             "",
-            std::make_unique<GridAtlas>("Assembler_Machine_1_Running.png", 128, 48, 32, 48, 4, 4));
+            std::make_unique<GridAtlasLoader>("Assembler_Machine_1_Running.png", 128, 48, 32, 48, 4, 4));
 
         // Load assembler 4 idle sprite (used as depot building texture)
         window.masterRenderer->registerAtlasTexture(
             "Assembler_Machine_4",
             "res/ext/Structures & Machines/Assembler_Machine_4.png",
             "",
-            std::make_unique<GridAtlas>("Assembler_Machine_4.png", 32, 48, 32, 48, 1, 1));
+            std::make_unique<GridAtlasLoader>("Assembler_Machine_4.png", 32, 48, 32, 48, 1, 1));
 
         // Load item icons as a grid atlas (5 cols × 5 rows of 16×16 icons, 23 used)
         window.masterRenderer->registerAtlasTexture(
             "Items",
             "res/ext/Item Icons/Items.png",
             "",
-            std::make_unique<GridAtlas>("Items.png", 80, 80, 16, 16, 5, 23));
+            std::make_unique<GridAtlasLoader>("Items.png", 80, 80, 16, 16, 5, 23));
 
         // Load robotic arm sprite sheet (8 frames of 48x48 in a 384x48 strip)
         window.masterRenderer->registerAtlasTexture(
             "Robotic_Arms_1",
             "res/ext/Automation Components/Robotic_Arms_1.png",
             "",
-            std::make_unique<GridAtlas>("Robotic_Arms_1.png", 384, 48, 48, 48, 8, 8));
+            std::make_unique<GridAtlasLoader>("Robotic_Arms_1.png", 384, 48, 48, 48, 8, 8));
 
         // Load crate sprite (16x16 single frame) for storage building
         window.masterRenderer->registerAtlasTexture(
             "Crate",
             "res/ext/Automation Components/Crate.png",
             "",
-            std::make_unique<GridAtlas>("Crate.png", 16, 16, 16, 16, 1, 1));
+            std::make_unique<GridAtlasLoader>("Crate.png", 16, 16, 16, 16, 1, 1));
 
         // Environment tilesets for procedurally generated canvases.
         // Single-tile bases used as-is; multi-tile tilesets are 3x3 where frame 4 is the center.
@@ -184,13 +184,13 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "Ground",
             "res/ext/Tileset & Environment/Ground_Tile.png",
             "",
-            std::make_unique<GridAtlas>("Ground_Tile.png", 16, 16, 16, 16, 1, 1));
+            std::make_unique<GridAtlasLoader>("Ground_Tile.png", 16, 16, 16, 16, 1, 1));
 
         window.masterRenderer->registerAtlasTexture(
             "Grass_Tileset",
             "res/ext/Tileset & Environment/Grass_Tileset.png",
             "",
-            std::make_unique<GridAtlas>("Grass_Tileset.png", 80, 48, 16, 16, 5, 15));
+            std::make_unique<GridAtlasLoader>("Grass_Tileset.png", 80, 48, 16, 16, 5, 15));
 
         // Multi-terrain environment tileset: 12 cols x 21 rows of 16x16 frames.
         // Frame layout is row-major (frame i -> col i%12, row i/12). The first
@@ -200,44 +200,44 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "Environment_Tileset",
             "res/ext/Tileset & Environment/Environment_Tileset.png",
             "",
-            std::make_unique<GridAtlas>("Environment_Tileset.png", 192, 336, 16, 16, 12, 252));
+            std::make_unique<GridAtlasLoader>("Environment_Tileset.png", 192, 336, 16, 16, 12, 252));
 
         window.masterRenderer->registerAtlasTexture(
             "Iron_Ore_Tiles",
             "res/ext/Tileset & Environment/Iron_Ore_Tiles.png",
             "",
-            std::make_unique<GridAtlas>("Iron_Ore_Tiles.png", 48, 48, 16, 16, 3, 9));
+            std::make_unique<GridAtlasLoader>("Iron_Ore_Tiles.png", 48, 48, 16, 16, 3, 9));
 
         window.masterRenderer->registerAtlasTexture(
             "Coal_Tiles",
             "res/ext/Tileset & Environment/Coal_Tiles.png",
             "",
-            std::make_unique<GridAtlas>("Coal_Tiles.png", 48, 48, 16, 16, 3, 9));
+            std::make_unique<GridAtlasLoader>("Coal_Tiles.png", 48, 48, 16, 16, 3, 9));
 
         window.masterRenderer->registerAtlasTexture(
             "Rock_Tiles",
             "res/ext/Tileset & Environment/Rock_Tiles.png",
             "",
-            std::make_unique<GridAtlas>("Rock_Tiles.png", 48, 48, 16, 16, 3, 9));
+            std::make_unique<GridAtlasLoader>("Rock_Tiles.png", 48, 48, 16, 16, 3, 9));
 
         window.masterRenderer->registerAtlasTexture(
             "Copper_Rock",
             "res/ext/Tileset & Environment/Copper_Rock.png",
             "",
-            std::make_unique<GridAtlas>("Copper_Rock.png", 16, 16, 16, 16, 1, 1));
+            std::make_unique<GridAtlasLoader>("Copper_Rock.png", 16, 16, 16, 16, 1, 1));
 
         window.masterRenderer->registerAtlasTexture(
             "Rock_Tile",
             "res/ext/Tileset & Environment/Rock_Tile.png",
             "",
-            std::make_unique<GridAtlas>("Rock_Tile.png", 16, 16, 16, 16, 1, 1));
+            std::make_unique<GridAtlasLoader>("Rock_Tile.png", 16, 16, 16, 16, 1, 1));
 
         // Tree sprite: 32x48 single image; treated as a 1x1 atlas of a 32x48 frame.
         window.masterRenderer->registerAtlasTexture(
             "Tree",
             "res/ext/Tileset & Environment/Tree.png",
             "",
-            std::make_unique<GridAtlas>("Tree.png", 32, 48, 32, 48, 1, 1));
+            std::make_unique<GridAtlasLoader>("Tree.png", 32, 48, 32, 48, 1, 1));
 
         // Tree split sub-atlases (2x3 visual, 2x2 footprint)
         // Base: bottom 32px (2 tile rows)
@@ -245,20 +245,20 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "Tree_base",
             "res/ext/Tileset & Environment/Tree.png",
             "",
-            std::make_unique<GridAtlas>("Tree.png", 32, 48, 32, 32, 1, 1, 0, 16));
+            std::make_unique<GridAtlasLoader>("Tree.png", 32, 48, 32, 32, 1, 1, 0, 16));
         // Overflow: top 16px (1 tile row)
         window.masterRenderer->registerAtlasTexture(
             "Tree_overflow",
             "res/ext/Tileset & Environment/Tree.png",
             "",
-            std::make_unique<GridAtlas>("Tree.png", 32, 48, 32, 16, 1, 1, 0, 0));
+            std::make_unique<GridAtlasLoader>("Tree.png", 32, 48, 32, 16, 1, 1, 0, 0));
 
         // Pixelwood Valley icon pack: 21 cols × 15 rows of 16×16 icons (315 total)
         window.masterRenderer->registerAtlasTexture(
             "PixelwoodIcons",
             "res/ext/Pixelwood Valley Icon Pack 1.0/1.0/Items 16x16.png",
             "",
-            std::make_unique<GridAtlas>("Items 16x16.png", 336, 240, 16, 16, 21, 315));
+            std::make_unique<GridAtlasLoader>("Items 16x16.png", 336, 240, 16, 16, 21, 315));
 
         float screenW = static_cast<float>(config.width);
         float screenH = static_cast<float>(config.height);

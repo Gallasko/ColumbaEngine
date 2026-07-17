@@ -3,6 +3,7 @@
 #include "2D/simple2dobject.h"
 #include "UI/sizer.h"
 #include "2D/position.h"
+#include "UI/utils.h"
 
 #include <SDL2/SDL.h>
 
@@ -198,13 +199,5 @@ void InventoryUISystem::syncAllSlots()
 
 void InventoryUISystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0)
-        return;
-
-    auto ent = ecsRef->getEntity(id);
-    if (ent)
-    {
-        if (auto pos = ent->get<PositionComponent>())
-            pos->setVisibility(vis);
-    }
+    pg::setEntityVisibility(ecsRef, id, vis);
 }

@@ -6,6 +6,7 @@
 #include "2D/position.h"
 #include "2D/texture.h"
 #include "UI/ttftext.h"
+#include "UI/utils.h"
 
 #include <SDL2/SDL.h>
 
@@ -334,9 +335,5 @@ void HudBarSystem::updateMissionBadge()
 
 void HudBarSystem::setEntityVisibility(uint64_t id, bool vis)
 {
-    if (id == 0)
-        return;
-    auto ent = ecsRef->getEntity(id);
-    if (ent)
-        ent->get<PositionComponent>()->setVisibility(vis);
+    pg::setEntityVisibility(ecsRef, id, vis);
 }
