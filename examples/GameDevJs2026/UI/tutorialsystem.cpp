@@ -1,7 +1,7 @@
 #include "tutorialsystem.h"
 
 #include "spotlightoverlaysystem.h"
-#include "camerasystem.h"
+#include "2D/camerasystem.h"
 #include "Renderer/camera.h"
 #include "terrain.h"
 #include "canvasgenerator.h"

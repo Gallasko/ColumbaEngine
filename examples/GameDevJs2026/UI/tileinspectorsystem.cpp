@@ -5,7 +5,7 @@
 #include "UI/ttftext.h"
 #include "Renderer/camera.h"
 
-#include "camerasystem.h"
+#include "2D/camerasystem.h"
 #include "gridsystem.h"
 #include "hotbarsystem.h"
 #include "hudbarsystem.h"

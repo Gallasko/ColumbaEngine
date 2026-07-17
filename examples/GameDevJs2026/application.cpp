@@ -35,7 +35,7 @@
 #include "spotlightoverlaysystem.h"
 #include "tileinspectorsystem.h"
 #include "placementoverlaysystem.h"
-#include "autosavesystem.h"
+#include "Systems/autosavesystem.h"
 #include "analyticssystem.h"
 #include "machinedemosystem.h"
 #include "hudbarsystem.h"
@@ -271,7 +271,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         // Camera must be created first so it exists before grid renders
         auto* cameraSystem = ecs.createSystem<CameraSystem>(
-            window.masterRenderer, screenW, screenH);
+            window.masterRenderer, screenW, screenH,
+            Grid::WIDTH * Grid::TILE_SIZE * 0.5f, Grid::HEIGHT * Grid::TILE_SIZE * 0.5f);
 
         auto* gridSystem = ecs.createSystem<GridSystem>(&registry);
 
@@ -313,7 +314,11 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<HotbarSystem>(&itemRegistry, &registry, screenW, screenH);
 
-        ecs.createSystem<InventoryUISystem>(&itemRegistry, screenW, screenH);
+        auto* inventoryUISystem = ecs.createSystem<InventoryUISystem>(&itemRegistry, screenW, screenH);
+
+        // CameraSystem suppresses zoom while the inventory/crafting panel is open —
+        // the wheel event should go to the crafting list scroll instead.
+        cameraSystem->shouldSuppressZoom = [inventoryUISystem]() { return inventoryUISystem->isOpen(); };
 
         auto* minerUI = ecs.createSystem<MinerUISystem>(&itemRegistry, screenW, screenH);
 
@@ -400,8 +405,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.succeed<TooltipSystem, HotbarSystem>();
         ecs.succeed<TooltipSystem, MachineUICoordinator>();
 
-        // CameraSystem checks `inventoryUI->isOpen()` to disable pan while
-        // a panel is up (see camerasystem.cpp).
+        // CameraSystem calls shouldSuppressZoom() (wired to inventoryUI->isOpen())
+        // to disable zoom while a panel is up.
         ecs.succeed<CameraSystem, InventoryUISystem>();
 
         // FurnaceUI / AssemblerUI close() mutates CraftingUISystem state

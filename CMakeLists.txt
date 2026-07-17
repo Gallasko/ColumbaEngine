@@ -228,6 +228,7 @@ set(ENGINESOURCE
     src/Engine/serialization.cpp
     src/Engine/2D/animator2d.cpp
     src/Engine/2D/camera2d.cpp
+    src/Engine/2D/camerasystem.cpp
     src/Engine/2D/collisionsystem.cpp
     src/Engine/2D/position.cpp
     src/Engine/2D/simple2dobject.cpp
@@ -310,6 +311,7 @@ set(ENGINESOURCE
     src/Engine/Scene/scenemanager.cpp
     src/Engine/Shader/shader.cpp
     src/Engine/Systems/coresystems.cpp
+    src/Engine/Systems/factsystem.cpp
     src/Engine/Systems/oneventcomponent.cpp
     src/Engine/Systems/positionmodule.cpp
     src/Engine/Systems/uimodule.cpp
@@ -972,15 +974,13 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_sources(GameDevJs2026 PRIVATE
             examples/GameDevJs2026/application.cpp
                         examples/GameDevJs2026/Core/canvasgenerator.cpp
-            examples/GameDevJs2026/Core/worldfacts.cpp
-            examples/GameDevJs2026/Core/saveserialization.cpp
+                        examples/GameDevJs2026/Core/saveserialization.cpp
             examples/GameDevJs2026/Registries/inventory.cpp
             examples/GameDevJs2026/Registries/itemregistry.cpp
             examples/GameDevJs2026/Registries/buildingregistry.cpp
             examples/GameDevJs2026/Registries/reciperegistry.cpp
             examples/GameDevJs2026/Registries/missionregistry.cpp
-            examples/GameDevJs2026/Systems/camerasystem.cpp
-            examples/GameDevJs2026/Systems/gridsystem.cpp
+                        examples/GameDevJs2026/Systems/gridsystem.cpp
             examples/GameDevJs2026/Systems/gamesystem.cpp
             examples/GameDevJs2026/Systems/minersystem.cpp
             examples/GameDevJs2026/Systems/transportsystem.cpp
@@ -1335,15 +1335,13 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_sources(GameDevJs2026 PRIVATE
             examples/GameDevJs2026/application.cpp
                         examples/GameDevJs2026/Core/canvasgenerator.cpp
-            examples/GameDevJs2026/Core/worldfacts.cpp
-            examples/GameDevJs2026/Core/saveserialization.cpp
+                        examples/GameDevJs2026/Core/saveserialization.cpp
             examples/GameDevJs2026/Registries/inventory.cpp
             examples/GameDevJs2026/Registries/itemregistry.cpp
             examples/GameDevJs2026/Registries/buildingregistry.cpp
             examples/GameDevJs2026/Registries/reciperegistry.cpp
             examples/GameDevJs2026/Registries/missionregistry.cpp
-            examples/GameDevJs2026/Systems/camerasystem.cpp
-            examples/GameDevJs2026/Systems/gridsystem.cpp
+                        examples/GameDevJs2026/Systems/gridsystem.cpp
             examples/GameDevJs2026/Systems/gamesystem.cpp
             examples/GameDevJs2026/Systems/minersystem.cpp
             examples/GameDevJs2026/Systems/transportsystem.cpp

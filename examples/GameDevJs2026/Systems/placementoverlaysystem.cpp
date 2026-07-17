@@ -3,7 +3,7 @@
 #include "2D/simple2dobject.h"
 #include "Renderer/camera.h"
 
-#include "camerasystem.h"
+#include "2D/camerasystem.h"
 #include "hotbarsystem.h"
 #include "terrain.h"
 

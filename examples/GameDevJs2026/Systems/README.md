@@ -2,7 +2,6 @@
 
 ECS gameplay systems that drive the simulation: grid state, input, mining, transport, crafting, and the player's own inventory.
 
-- `camerasystem.h` / `.cpp` — free-roam 2D camera (pan/zoom/WASD)
 - `gridsystem.h` / `.cpp` — authoritative grid state, building placement, conveyor animation, terrain render
 - `gamesystem.h` / `.cpp` — mouse/keyboard input, ghost cursor, line-drag belt placement
 - `minersystem.h` / `.cpp` — miners: timed ore production into 1-slot output inventory

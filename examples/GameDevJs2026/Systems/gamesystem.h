@@ -4,7 +4,7 @@
 #include "Input/inputcomponent.h"
 
 #include "gridsystem.h"
-#include "camerasystem.h"
+#include "2D/camerasystem.h"
 #include "hotbarsystem.h"
 #include "buildingregistry.h"
 #include "transportsystem.h"
