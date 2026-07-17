@@ -1,0 +1,4 @@
+// Integer division by zero must fail identically with and without opts.
+print("before");
+print(1 / 0);
+print("unreachable");

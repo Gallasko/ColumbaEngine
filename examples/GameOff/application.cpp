@@ -486,8 +486,6 @@ void initGame()
 
     mainWindow->ecs->createSystem<FightSystem>();
 
-    mainWindow->ecs->succeed<MasterRenderer, TTFTextSystem>();
-
     auto pDatas = mainWindow->ecs->createSystem<PassiveDatabase>();
 
     pDatas->storePassive(BurnPassive{});

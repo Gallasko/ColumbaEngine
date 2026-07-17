@@ -1,0 +1,61 @@
+#pragma once
+
+#include "inventory.h"
+#include "worldfacts.h"
+
+#include <string>
+#include <vector>
+
+#include "Helpers/registry.h"
+
+struct RecipeIngredient
+{
+    ItemId   id;
+    uint16_t count;
+};
+
+// Where a recipe is crafted. Each recipe belongs to exactly one category,
+// which controls *who* can select it:
+//  - HandCraft:  Player-driven, triggered from the inventory UI.
+//  - Furnace:    Auto-matched by the Furnace machine (tileId 5).
+//  - Assembler:  Auto-matched by the Assembler machine (tileId 6).
+//  - AutoCrafter: Player-configurable auto machine (future).
+enum class RecipeCategory : uint8_t
+{
+    HandCraft,
+    Furnace,
+    Assembler,
+    AutoCrafter
+};
+
+struct Recipe
+{
+    std::string name;
+    std::string machineName;        // Name of the machine ("Furnace", "Assembler"). Empty for HandCraft/AutoCrafter.
+    std::vector<RecipeIngredient> inputs;
+    std::vector<RecipeIngredient> outputs;
+    size_t      craftTimeMs = 2000;
+
+    RecipeCategory category = RecipeCategory::HandCraft;
+
+    // All checkers must pass against the current fact map for this recipe to
+    // be visible/usable. Empty = always unlocked.
+    std::vector<pg::FactChecker> unlockConditions;
+};
+
+struct RecipeRegistry : public pg::Registry<Recipe>
+{
+    void addRecipe(const Recipe& recipe) { add(recipe); }
+
+    std::vector<const Recipe*> getRecipesForMachine(const std::string& machineName) const;
+
+    // Find the first recipe whose inputs are satisfiable by the given inventory.
+    // Only machine-category recipes are considered here — hand-craft recipes
+    // are driven separately by HandCraftingSystem.
+    // If facts is provided, recipes with unlockConditions are checked against it.
+    const Recipe* findMatchingRecipe(const std::string& machineName,
+                                     const Inventory& inputSlots,
+                                     const std::unordered_map<std::string, pg::ElementType>* facts = nullptr) const;
+};
+
+RecipeRegistry createDefaultRecipeRegistry();

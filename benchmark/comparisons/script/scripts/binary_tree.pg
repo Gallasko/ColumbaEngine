@@ -1,0 +1,34 @@
+// binary_tree.pg -- build a balanced binary tree of depth `count`, then
+// recursively count its nodes. Exercises object allocation, pointer-field
+// reads, and recursion. Each node stores its own depth so leaves can be
+// detected with int==int (PgScript runtime errors on instance==int and on
+// reads of unset class fields, so a sentinel field is the safe path).
+// The Python and Lua versions store the same field for apples-to-apples.
+
+class Node {}
+
+fun makeNode(depth)
+{
+    var n = Node();
+    n.d = depth;
+    if (depth > 0)
+    {
+        n.left = makeNode(depth - 1);
+        n.right = makeNode(depth - 1);
+    }
+    return n;
+}
+
+fun countNodes(node)
+{
+    if (node.d == 0)
+        return 1;
+    return 1 + countNodes(node.left) + countNodes(node.right);
+}
+
+var t0 = now();
+var root = makeNode(count);
+var total = countNodes(root);
+var elapsed = now() - t0;
+
+print(elapsed);

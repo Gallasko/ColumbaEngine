@@ -25,7 +25,12 @@ namespace pg
         void onEnter() { if (enterCallback) enterCallback(*this); }
         void onExit() { if (exitCallback) exitCallback(*this); }
 
-        void onEvent(const StandardEvent& event) { eventCallbacks[event.name](event, *this); }
+        void onEvent(const StandardEvent& event)
+        {
+            auto it = eventCallbacks.find(event.name);
+            if (it != eventCallbacks.end())
+                it->second(event, *this);
+        }
 
         void setEnterScript(const std::string& script);
         void setExitScript(const std::string& script);

@@ -82,6 +82,9 @@ namespace pg
 
         ElementType getValue(const std::string& id) const;
 
+        /** Clear all save data (e.g. on major version bump). */
+        void clearSaveData() { currentSave.data.elements.clear(); needSave = true; }
+
         /** Force an immediate save regardless of the needSave flag (e.g. on page hide/close). */
         void forceSave();
 

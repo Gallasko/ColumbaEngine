@@ -346,6 +346,7 @@ namespace pg
         size_t currentOffset = offset;
         std::vector<CapturedInstruction> captured;
         size_t totalPatternSize = 0;
+        bool   firstElement     = true;
 
         for (const auto& element : pattern)
         {
@@ -354,10 +355,15 @@ namespace pg
                 return std::nullopt;
             }
 
-            if (jumpTargets.find(currentOffset) != jumpTargets.end())
+            // A jump landing AT the start of the pattern is fine — execution
+            // will run the fused replacement, which is semantically equivalent.
+            // But a jump landing INSIDE the pattern (between elements 2..N)
+            // would skip into the middle of a fused op — unsafe, must reject.
+            if (not firstElement and jumpTargets.find(currentOffset) != jumpTargets.end())
             {
                 return std::nullopt;
             }
+            firstElement = false;
 
             OpCode currentOpcode = static_cast<OpCode>(chunk.code[currentOffset]);
 
@@ -367,7 +373,11 @@ namespace pg
                 return std::nullopt;
             }
 
-            size_t instructionSize = pg::getInstructionSize(currentOpcode);
+            // Payload-aware size: a wildcard/anyOf element that matches an
+            // OP_Closure with upvalues must account for the variable-length
+            // payload, or the rest of the pattern would be matched against
+            // payload bytes (and the rewrite would delete the wrong region).
+            size_t instructionSize = getActualInstructionSize(chunk, currentOffset);
 
             // Capture instruction if requested
             if (element.capture)
@@ -403,6 +413,7 @@ namespace pg
         }
 
         size_t currentOffset = offset;
+        bool   firstElement  = true;
 
         for (OpCode expectedOpcode : pattern)
         {
@@ -411,17 +422,30 @@ namespace pg
                 return false;
             }
 
-            if (jumpTargets.find(currentOffset) != jumpTargets.end())
+            // See matchesAdvancedPattern: only reject if the jump target is
+            // INSIDE the pattern (would land mid-fused-op). A target AT the
+            // pattern start is safe — equivalent execution.
+            if (not firstElement and jumpTargets.find(currentOffset) != jumpTargets.end())
             {
                 return false;
             }
+            firstElement = false;
 
             if (static_cast<OpCode>(chunk.code[currentOffset]) != expectedOpcode)
             {
                 return false;
             }
 
-            currentOffset += pg::getInstructionSize(expectedOpcode);
+            // Simple rules rewrite with table sizes (getPatternByteSize), so
+            // a variable-length instruction (OP_Closure with upvalues) can't
+            // be matched safely — reject instead of desyncing into payload.
+            size_t actualSize = getActualInstructionSize(chunk, currentOffset);
+            if (actualSize != static_cast<size_t>(pg::getInstructionSize(expectedOpcode)))
+            {
+                return false;
+            }
+
+            currentOffset += actualSize;
         }
 
         return true;
@@ -609,6 +633,15 @@ namespace pg
         LOG_MILE("BytecodeRewriter", "Adjusting jump offsets BEFORE rewrite: at " << rewriteIndex
                  << ", size=" << rewriteSize << ", delta=" << sizeDelta);
 
+        // True when the rewrite is fusing a pattern whose first instruction
+        // is the landing point of a backward jump. In that narrow case the
+        // target offset stays at rewriteIndex (the fused op starts there) but
+        // the jump position moved by sizeDelta, so we still need to adjust
+        // the encoded distance. Unrelated backward jumps that happen to land
+        // at rewriteIndex without the rewriter intentionally matching at a
+        // jump target are not adjusted here.
+        const bool rewriteIsAtJumpTarget = (jumpTargets.find(rewriteIndex) != jumpTargets.end());
+
         for (size_t i = 0; i < chunk.code.size();)
         {
             OpCode opcode = static_cast<OpCode>(chunk.code[i]);
@@ -628,12 +661,29 @@ namespace pg
 
                 if (opcode == OpCode::OP_Loop or opcode == OpCode::OP_Long_Loop)
                 {
-                    // Backward jump: adjust ONLY if target < rewriteIndex < jump
+                    // Backward jump: adjust ONLY if target < rewriteIndex < jump.
+                    //
+                    // Special case: target == rewriteIndex is also adjusted, but
+                    // ONLY when the rewrite happens AT a jump target (i.e., the
+                    // first instruction of the fused pattern is the jump's
+                    // landing point). In that case the target offset doesn't
+                    // move but the jump position does, so the encoded distance
+                    // must shrink by sizeDelta. For unrelated backward jumps
+                    // whose target coincidentally lands at rewriteIndex without
+                    // the rewriter intentionally matching at a jump target,
+                    // staying strict avoids corrupting their offsets.
                     needsAdjustment = (currentTarget < rewriteIndex and i > rewriteIndex);
+                    if (not needsAdjustment
+                        and currentTarget == rewriteIndex
+                        and i > rewriteIndex
+                        and rewriteIsAtJumpTarget)
+                    {
+                        needsAdjustment = true;
+                    }
                 }
                 else
                 {
-                    // Forward jump: adjust ONLY if jump < rewriteIndex < target
+                    // Forward jump: adjust ONLY if jump < rewriteIndex < target.
                     needsAdjustment = (i < rewriteIndex and currentTarget > rewriteIndex);
                 }
 

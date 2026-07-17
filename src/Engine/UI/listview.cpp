@@ -69,7 +69,7 @@ namespace pg
             }
         }
 
-    };
+    }
 
     void ListView::removeEntity(EntityRef /* entity */)
     {

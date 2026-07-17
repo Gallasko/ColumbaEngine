@@ -22,8 +22,11 @@
 #endif
 
 #include "system.h"
+#include "scriptregistry.h"
 
 #include "Systems/coresystems.h"
+
+#include "Renderer/renderer.h"
 
 // #include "Interpreter/interpretersystem.h"
 
@@ -64,16 +67,24 @@ namespace
 #include "Compiler/pass/long_jump_optimization_pass.h"
 #include "Compiler/pass/popping_jump_pass.h"
 #include "Compiler/pass/basic_operator_local_indexing.h"
+#include "Compiler/pass/comparison_local_indexing.h"
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
 #include "Compiler/pass/constant_var_access.h"
 #include "Compiler/pass/fuse_op_pop.h"
+#include "Compiler/pass/set_local_pop_fusion.h"
 #include "Compiler/pass/constant_folding.h"
 #include "Compiler/pass/increment_optimization_pass.h"
 #include "Compiler/pass/simplify_constant_pass.h"
 #include "Compiler/pass/remove_useless_jump_pass.h"
+#include "Compiler/pass/loop_rotation_pass.h"
 
 namespace pg
 {
+    // Storage for the BasicTask-thread marker declared in entitysystem.h.
+    // Each worker thread keeps its own copy; set to true at the start of the
+    // BasicTask iteration and false at the end.
+    thread_local bool EntitySystem::inBasicTask = false;
+
     // Pimpl implementation for taskflow to reduce header compilation time
     struct EntitySystem::TaskflowImpl
     {
@@ -103,6 +114,7 @@ namespace pg
     // Todo better save system init
     // Maybe put the number of executors in the save file
     EntitySystem::EntitySystem(const std::string& savePath) : registry(this), cmdDispatcher(this),
+        scriptRegistry(std::make_unique<ScriptRegistry>(this)),
         saveManager(savePath), taskflowImpl(std::make_unique<TaskflowImpl>())
     {
         LOG_THIS_MEMBER(DOM);
@@ -126,6 +138,15 @@ namespace pg
             // So it should be safe to allow for creation and deletion of entities/components on the spot
             running = false;
 
+            // Mark this worker thread as the BasicTask thread for the duration
+            // of this iteration. sendEvent uses these flags to decide whether
+            // the direct-dispatch path is safe. inBasicTask is thread_local
+            // (only this thread sees true). basicTaskInProgress is atomic so
+            // other threads know a BasicTask iteration is currently active and
+            // must always enqueue.
+            inBasicTask = true;
+            basicTaskInProgress.store(true, std::memory_order_release);
+
 #ifdef PROFILE
             auto startTask = std::chrono::steady_clock::now();
 
@@ -140,6 +161,10 @@ namespace pg
 #endif
             cmdDispatcher.process();
 
+            // Hot reload: swap staged script bytecode while no system is
+            // executing, so no VM can be running the old version mid-swap
+            scriptRegistry->applyPendingSwaps();
+
 #ifdef PROFILE
             PROFILE_END("CommandDispatch", "Command");
 
@@ -153,6 +178,13 @@ namespace pg
 
             if (not stopRequested)
                 running = true;
+
+            // Clear the BasicTask markers before parallel systems start running
+            // (they might land on this same thread later). Release on the atomic
+            // so other threads observing basicTaskInProgress=false also see all
+            // listener queue mutations made above.
+            inBasicTask = false;
+            basicTaskInProgress.store(false, std::memory_order_release);
 
 #ifdef PROFILE
             PROFILE_BEGIN("SaveManager", "System");
@@ -728,6 +760,11 @@ namespace pg
 #endif
     }
 
+    ScriptRegistry& EntitySystem::scripts()
+    {
+        return *scriptRegistry;
+    }
+
     void EntitySystem::setupVm(VM& vm)
     {
         LOG_THIS_MEMBER("ECS");
@@ -853,8 +890,12 @@ namespace pg
         vm.registerNative("debugGlobal", [](VM *vm, int argCount, Value*) -> Value {
             if (argCount != 0) return makeBoolValue(false);
 
-            for (const auto& [key, value] : vm->globals)
+            for (const auto& [key, slot] : vm->globalSlots)
             {
+                const VM::GlobalCell& globalCell = vm->globalCells[slot];
+                if (not globalCell.defined)
+                    continue;
+                const Value value = globalCell.value;
                 std::string valStr;
                 if (IS_STRING(value))
                     valStr = vm->asString(value);
@@ -923,26 +964,43 @@ namespace pg
         {
             vm.enableBytecodeOptimization();
 
-            vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
+            // Operand-elision specialization (the old BasicOperatorLocal-
+            // Indexing / ComparisonLocalIndexing / SetLocalPopFusion passes)
+            // now happens at DECODE time (decoded_fusion.h) — the bytecode
+            // stays generic. The remaining passes are genuine bytecode
+            // peepholes: jump shrinking, folding, redundancy removal.
+            vm.enableDecodeFusion = true;
+
             vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
             vm.addOptimizationPass(std::make_unique<PoppingJumpPass>());
             vm.addOptimizationPass(std::make_unique<RemoveUselessJumpPass>());
 
             vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
+
+            // IncrementOptimization matches `Get_Local + Constant + Add +
+            // Set_Local + Pop` — must run BEFORE FuseOpPop merges adjacent
+            // Pops into PopN, otherwise the trailing single Pop is gone.
+            vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
+
             vm.addOptimizationPass(std::make_unique<FuseOpPop>());
 
             vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
 
             vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
 
-            vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
-
             // This doesn't work if there is a closure capturing the constant variable.
             vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
+
+            // Loop rotation runs LAST: it consumes the popping/shrunk jump forms
+            // and rewrites test-at-top loops (while / for-in) into test-at-bottom
+            // form, dropping the unconditional OP_Loop. No later pass observes the
+            // new OP_Jump_If_True_Popping opcode.
+            vm.addOptimizationPass(std::make_unique<LoopRotationPass>());
         }
         else if (vmOptimizationLevel == VmOptimizationLevel::O0)
         {
             vm.disableBytecodeOptimization();
+            vm.enableDecodeFusion = false;
         }
     }
 
@@ -1005,6 +1063,19 @@ namespace pg
         {
             LOG_ERROR("ECS", "Both systems " << sys1Id << " and " << sys2Id << " are not registered task in ecs can't reorder their task !");
         }
+    }
+
+    void EntitySystem::autoSucceedMasterRenderer(BaseAbstractRenderer* abr, _unique_id subId)
+    {
+        MasterRenderer* mr = abr->getMasterRenderer();
+
+        if (mr == nullptr or mr->_id == 0)
+        {
+            LOG_ERROR("ECS", "Sub-renderer " << subId << " created with no registered MasterRenderer; skipping auto-succeed");
+            return;
+        }
+
+        _succeed(mr->_id, subId);
     }
 
     Value ComponentSerializerRegistry::createComponentProxy(const std::string& componentName, VM* vm, void* componentPtr) const

@@ -1,0 +1,15 @@
+// fib_recursive.pg — naive recursive Fibonacci, measures function-call overhead.
+// `count` is the n in fib(n). fib(30) does ~1.6M calls.
+
+fun fib(n)
+{
+    if (n < 2)
+        return n;
+    return fib(n - 2) + fib(n - 1);
+}
+
+var t0 = now();
+var result = fib(count);
+var elapsed = now() - t0;
+
+print(elapsed);

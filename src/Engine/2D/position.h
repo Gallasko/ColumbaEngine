@@ -86,6 +86,15 @@ namespace pg
         inline static std::string getType() { return "PosAnchor"; }
     };
 
+    // Output signal emitted by PositionComponentSystem::execute() once the anchor/constraint
+    // graph has fully settled. Listeners that need to react to *final* positions (rendering,
+    // collision, layout, inspector) should subscribe to this rather than PositionComponentChangedEvent,
+    // which is purely the *input* dirty signal from component setters / anchor setters.
+    struct PositionSettledEvent
+    {
+        _unique_id id = 0;
+    };
+
     struct ParentingEvent
     {
         _unique_id parent = 0;
@@ -338,26 +347,41 @@ namespace pg
 
             reverseParentalMap.erase(event.id);
 
-            pushChildrenInChange(changedIds, event.id);
+            pushChildrenInChange(changedIdsList, changedIdsSet, event.id);
         }
 
         virtual void onProcessEvent(const PositionComponentChangedEvent& event) override
         {
-            if (not changedIds.count(event.id))
+            // Mark this entity as DIRECTLY dirty — it was the target of a setter call (or an
+            // anchor mutation). Even if its pos/anchor doesn't move during execute(), we still
+            // need to emit PositionSettledEvent for it so downstream consumers can react to
+            // non-position field changes (observable, rotation, …). Transitively-dirty
+            // descendants pushed in below stay on the "emit only if pos actually moved" path.
+            directlyChangedIds.insert(event.id);
+
+            if (not changedIdsSet.count(event.id))
             {
-                changedIds.insert(event.id);
-                pushChildrenInChange(changedIds, event.id);
+                changedIdsList.push_back(event.id);
+                changedIdsSet.insert(event.id);
+                pushChildrenInChange(changedIdsList, changedIdsSet, event.id);
             }
         }
 
-        void pushChildrenInChange(std::unordered_set<_unique_id>& set, _unique_id parentId);
+        void pushChildrenInChange(std::vector<_unique_id>& list, std::unordered_set<_unique_id>& set, _unique_id parentId);
 
         virtual void execute() override;
 
         std::unordered_map<_unique_id, std::unordered_set<_unique_id>> parentalMap;
         std::unordered_map<_unique_id, std::unordered_set<_unique_id>> reverseParentalMap;
 
-        std::unordered_set<_unique_id> changedIds;
+        std::vector<_unique_id> changedIdsList;
+        std::unordered_set<_unique_id> changedIdsSet;
+
+        // Subset of changedIdsSet that received a direct PositionComponentChangedEvent (not
+        // pulled in via pushChildrenInChange). These always emit PositionSettledEvent at the
+        // end of execute() so observable/rotation/visibility-only changes reach downstream
+        // consumers. Cleared at the end of each execute() call.
+        std::unordered_set<_unique_id> directlyChangedIds;
 
         bool updated = false;
     };

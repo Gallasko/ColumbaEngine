@@ -190,7 +190,6 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto ttfSys = ecs.createSystem<TTFTextSystem>(window.masterRenderer);
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Regular.ttf",  "regular");
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-SemiBold.ttf", "semibold");
-        ecs.succeed<MasterRenderer, TTFTextSystem>();
 
         // Build the panel
         ecs.createSystem<PanelWithInputs>();

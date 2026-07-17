@@ -546,8 +546,6 @@ void initGame() {
 
     // mainWindow->masterRenderer->processTextureRegister();
 
-    mainWindow->ecs->succeed<MasterRenderer, TTFTextSystem>();
-
     mainWindow->ecs->createSystem<TextHandlingSys>();
 
     mainWindow->ecs->dumbTaskflow();

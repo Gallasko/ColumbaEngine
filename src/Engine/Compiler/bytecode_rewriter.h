@@ -182,6 +182,12 @@ namespace pg
 
         size_t getActualInstructionSize(const Chunk& chunk, size_t offset) const;
 
+        // Prime the internal jumpTargets set from the current chunk. Passes
+        // that call rewriteAtRaw/removeInstructions directly (instead of going
+        // through rewrite()) need this so the backward-jump-lands-on-rewrite
+        // special case in adjustJumpOffsetsBeforeRewrite fires correctly.
+        void refreshJumpTargets(const Chunk& chunk) { collectJumpTargets(chunk); }
+
     private:
         void collectJumpTargets(const Chunk& chunk);
 

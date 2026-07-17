@@ -9,7 +9,6 @@
 
 #include "Helpers/openglobject.h"
 
-#include "Compiler/ecsserialization.h"
 
 namespace pg
 {
@@ -80,7 +79,7 @@ namespace pg
         atlasMaterialPreset.setSimpleMesh({3, 2, 1, 4, 1, 3, 1});
     }
 
-    RenderCall Texture2DComponentSystem::createRenderCall(CompRef<Texture2DComponent> obj, CompRef<PositionComponent> ui)
+    RenderCall Texture2DComponentSystem::createRenderCall(CompRef<Texture2DComponent> obj, CompRef<PositionComponent> ui, CompRef<ViewportComponent> vp)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -90,7 +89,7 @@ namespace pg
 
         call.setRenderStage(renderStage);
 
-        call.setViewport(obj->viewport);
+        call.setViewport(vp->viewport);
 
         auto textureName = split(obj->textureName, '.');
 

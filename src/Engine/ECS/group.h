@@ -205,7 +205,7 @@ namespace pg
         }
 
         template <typename Comp>
-        void checkGroupTypeExistence()
+        void checkOneGroupType()
         {
             if (not registry->hasTypeId<Comp>())
             {
@@ -216,11 +216,10 @@ namespace pg
             }
         }
 
-        template <typename Comp, typename Comp2, typename... Comps>
+        template <typename... Comps>
         void checkGroupTypeExistence()
         {
-            checkGroupTypeExistence<Comp>();
-            checkGroupTypeExistence<Comp2, Comps...>();
+            (checkOneGroupType<Comps>(), ...);
         }
 
         void process();
@@ -237,7 +236,7 @@ namespace pg
         inline void addEventToSet(Set setN);
 
         template <typename Set>
-        inline void populateList(SetHolder<Type, Types...> **list, size_t index, Set setN)
+        inline void populateOne(SetHolder<Type, Types...> **list, size_t index, Set setN)
         {
             LOG_THIS_MEMBER("Ecs Group");
 
@@ -248,18 +247,11 @@ namespace pg
             addInList(list, index, setN->components);
         }
 
-        template <typename Set, typename... Sets>
-        inline void populateList(SetHolder<Type, Types...> **list, size_t index, Set setN, Sets... sets)
+        template <typename... Sets>
+        inline void populateList(SetHolder<Type, Types...> **list, size_t startIndex, Sets... sets)
         {
-            LOG_THIS_MEMBER("Ecs Group");
-
-            addEventToSet(setN);
-
-            compIdList.emplace(setN->getId());
-
-            addInList(list, index, setN->components);
-
-            populateList(list, index + 1, sets...);
+            size_t index = startIndex;
+            (populateOne(list, index++, sets), ...);
         }
 
         inline bool isEntityInGroup(EntityRef entity) const

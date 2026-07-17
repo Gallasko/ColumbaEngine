@@ -48,7 +48,15 @@ namespace pg
 
         inline bool has(const _unique_id& otherId) const noexcept
         {
-            return componentList.find(otherId) != componentList.end();
+            // Also check pendingComponents so that components attached during a running ECS
+            // tick are visible to has<>() the same way they are to get<>(). Without this,
+            // a sequence like `attach<UiAnchor>(e); e->has<UiAnchor>()` returns false while
+            // running (the attach is queued through the cmdDispatcher and only committed at
+            // the next sync point), breaking any caller that uses has<>() as a guard before
+            // setting up anchors / wiring a Prefab — e.g. applyAnchorsToEntity and
+            // PrefabSystem::onEvent(SetMainEntityEvent).
+            return componentList.find(otherId) != componentList.end()
+                or pendingComponents.find(otherId) != pendingComponents.end();
         }
 
         template <typename Comp>

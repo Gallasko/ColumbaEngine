@@ -406,7 +406,7 @@ namespace pg
                 return makeBoolValue(true);
             });
 
-            vm->globals["__StandardSysClass"] = vm->retainValue(klass);
+            vm->defineGlobal("__StandardSysClass", vm->retainValue(klass));
 
             LOG_MILE("EcsCompiledModule", "__StandardSysClass registered in VM globals");
         }
@@ -709,13 +709,13 @@ namespace pg
                 auto systemName = vm->asString(args[0]);
 
                 // Get the StandardSysClass
-                auto it = vm->globals.find("__StandardSysClass");
-                if (it == vm->globals.end())
+                VM::GlobalCell* cell = vm->findGlobalCell("__StandardSysClass");
+                if (cell == nullptr or not cell->defined)
                 {
                     throw std::runtime_error("Standard sys class not found in VM globals");
                 }
 
-                Klass* standardSysKlass = vm->asClass(it->second);
+                Klass* standardSysKlass = vm->asClass(cell->value);
 
                 // Create instance of __StandardSysClass
                 auto inst = vm->createInstance(standardSysKlass);

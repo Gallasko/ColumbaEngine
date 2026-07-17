@@ -1,0 +1,299 @@
+#pragma once
+
+#include "Systems/basicsystems.h"
+#include "Input/inputcomponent.h"
+#include "ECS/entitysystem_fwd.h"
+
+#include "missionsystem.h"
+#include "depotsystem.h"
+#include "playerinventory.h"
+#include "itemregistry.h"
+#include "inventoryui.h"
+
+#include <atomic>
+#include <cstdint>
+#include <unordered_map>
+#include <vector>
+
+class TooltipSystem;
+
+// Fired by MouseEnter/MouseLeave callbacks attached to mission cost/reward
+// icon entities.  The payload carries the icon's entity id; the current
+// ItemId is resolved via MissionUISystem's iconItemMap (kept in sync as
+// the right-pane refreshes).
+struct OnMissionIconHoverEnter { uint64_t iconEntityId; };
+struct OnMissionIconHoverLeave { uint64_t iconEntityId; };
+
+// Fired by MissionUISystem::open() exactly once per closed→open transition.
+// Used by TutorialSystem to advance the "open mission tab" step and by
+// HudBarSystem to clear the unread-mission badge.
+struct MissionUIOpenedEvent {};
+
+// Fired by MissionUISystem::close() exactly once per open→closed transition.
+// HudBar uses it to flip its "missionTabOpen" tracking off so transitions
+// detected after closing can re-arm the badge.
+struct MissionUIClosedEvent {};
+
+// Cross-system request events. External systems must send these instead of
+// calling MissionUISystem::open()/close()/toggle()/selectDepot() directly,
+// because MissionUI's task may be running concurrently. These are dispatched
+// to MissionUI as QueuedListener events, processed serially within its tick.
+struct MissionUIOpenRequest {};
+struct MissionUICloseRequest {};
+struct MissionUIToggleRequest {};
+struct MissionUISelectDepotRequest { int depotX; int depotY; };
+
+class MissionUISystem : public pg::System<pg::QueuedListener<pg::OnMouseClick>,
+                                       pg::QueuedListener<pg::OnSDLScanCode>,
+                                       pg::QueuedListener<OnMissionIconHoverEnter>,
+                                       pg::QueuedListener<OnMissionIconHoverLeave>,
+                                       pg::QueuedListener<MissionUIOpenRequest>,
+                                       pg::QueuedListener<MissionUICloseRequest>,
+                                       pg::QueuedListener<MissionUIToggleRequest>,
+                                       pg::QueuedListener<MissionUISelectDepotRequest>,
+                                       pg::Listener<pg::TickEvent>,
+                                       pg::Listener<pg::ResizeEvent>>
+{
+public:
+    static constexpr size_t UI_VP = 2;
+
+    // --- Layout constants ---
+    static constexpr float PANEL_W         = 600.0f;
+    static constexpr float LEFT_RATIO      = 0.35f;
+    static constexpr float LEFT_W          = PANEL_W * LEFT_RATIO;
+    static constexpr float RIGHT_W         = PANEL_W * (1.0f - LEFT_RATIO);
+    static constexpr float PADDING         = 14.0f;
+    static constexpr float DIVIDER_H       = 2.0f;
+
+    // Top chrome
+    static constexpr float TITLE_H         = 30.0f;
+    static constexpr float CLOSE_SIZE      = 24.0f;
+
+    // Left column (mission list)
+    static constexpr float LIST_ROW_H      = 32.0f;
+    static constexpr float STATUS_SQ_SIZE  = 12.0f;
+    static constexpr float STATUS_SQ_RAD   = 2.0f;
+    static constexpr float GO_PILL_W       = 36.0f;
+    static constexpr float GO_PILL_H       = 18.0f;
+    static constexpr float GO_PILL_RAD     = 9.0f;
+    static constexpr float SEPARATOR_H     = 1.0f;
+
+    // Right column (detail pane)
+    static constexpr float DETAIL_PAD      = 16.0f;
+    static constexpr float BLOCK_RADIUS    = 6.0f;
+    static constexpr float COST_BORDER     = 1.0f;
+    static constexpr float REWARD_BORDER   = 2.0f;
+    static constexpr float BLOCK_H         = 44.0f;
+    static constexpr float ICON_SIZE       = 20.0f;
+    static constexpr float ACTION_BTN_H    = 36.0f;
+    static constexpr float ACTION_BTN_RAD  = 6.0f;
+    static constexpr float PROGRESS_H      = 10.0f;
+
+    // Limits
+    static constexpr size_t MAX_LIST_ROWS    = 12;
+    static constexpr size_t MAX_COST_ITEMS   = 3;
+    static constexpr size_t MAX_REWARD_ITEMS = 4;
+    static constexpr size_t NUM_TABS         = 3;
+
+    // Font paths
+    static constexpr const char* FONT_LIGHT  = "res/font/Inter/static/Inter_28pt-Light.ttf";
+    static constexpr const char* FONT_MEDIUM = "res/font/Inter/static/Inter_28pt-Medium.ttf";
+    static constexpr const char* FONT_BOLD   = "res/font/Inter/static/Inter_28pt-Bold.ttf";
+
+    // Font scales
+    static constexpr float SCALE_TITLE   = 0.45f;
+    static constexpr float SCALE_DISPLAY = 0.42f;
+    static constexpr float SCALE_BODY    = 0.28f;
+    static constexpr float SCALE_LABEL   = 0.24f;
+    static constexpr float SCALE_LIST    = 0.28f;
+    static constexpr float SCALE_TAB     = 0.26f;
+    static constexpr float SCALE_BTN     = 0.30f;
+    static constexpr float SCALE_NUM     = 0.26f;
+    static constexpr float SCALE_PILL    = 0.22f;
+
+    // Dark color palette
+    struct C
+    {
+        static inline const pg::constant::Vector4D BG         = {31.0f, 34.0f, 40.0f, 240.0f};
+        static inline const pg::constant::Vector4D PANEL      = {42.0f, 46.0f, 54.0f, 255.0f};
+        static inline const pg::constant::Vector4D TEXT       = {214.0f, 210.0f, 196.0f, 255.0f};
+        static inline const pg::constant::Vector4D TEXT_DIM   = {120.0f, 118.0f, 112.0f, 255.0f};
+        static inline const pg::constant::Vector4D ACCENT     = {217.0f, 106.0f, 58.0f, 255.0f};
+        static inline const pg::constant::Vector4D DIVIDER    = {60.0f, 63.0f, 70.0f, 255.0f};
+        static inline const pg::constant::Vector4D SELECTED   = {55.0f, 58.0f, 68.0f, 255.0f};
+        static inline const pg::constant::Vector4D LOCKED_BTN = {80.0f, 80.0f, 80.0f, 200.0f};
+        static inline const pg::constant::Vector4D DONE_BTN   = {90.0f, 90.0f, 100.0f, 200.0f};
+        static inline const pg::constant::Vector4D COST_BRD   = {80.0f, 82.0f, 90.0f, 180.0f};
+        static inline const pg::constant::Vector4D REWARD_BRD = {140.0f, 140.0f, 150.0f, 220.0f};
+        static inline const pg::constant::Vector4D BLOCK_FILL = {38.0f, 42.0f, 50.0f, 255.0f};
+        static inline const pg::constant::Vector4D WHITE      = {255.0f, 255.0f, 255.0f, 255.0f};
+        static inline const pg::constant::Vector4D TRANSPARENT= {0.0f, 0.0f, 0.0f, 0.0f};
+    };
+
+    MissionUISystem(ItemRegistry* itemRegistry,
+                    float screenWidth, float screenHeight)
+        : itemRegistry(itemRegistry),
+          screenWidth(screenWidth), screenHeight(screenHeight) {}
+
+    virtual std::string getSystemName() const override { return "Mission UI System"; }
+
+    bool isOpen() const { return visible.load(std::memory_order_acquire); }
+    bool isSelectingDepot() const { return pendingStart.active.load(std::memory_order_acquire); }
+    void toggle();
+    void open();
+    void close();
+    void selectDepot(int depotX, int depotY);
+    void cancelDepotSelection();
+
+    virtual void onProcessEvent(const pg::OnMouseClick& event) override;
+    virtual void onProcessEvent(const pg::OnSDLScanCode& event) override;
+    virtual void onEvent(const pg::TickEvent&) override;
+    virtual void onProcessEvent(const OnMissionIconHoverEnter& event) override;
+    virtual void onProcessEvent(const OnMissionIconHoverLeave& event) override;
+    virtual void onProcessEvent(const MissionUIOpenRequest& event) override;
+    virtual void onProcessEvent(const MissionUICloseRequest& event) override;
+    virtual void onProcessEvent(const MissionUIToggleRequest& event) override;
+    virtual void onProcessEvent(const MissionUISelectDepotRequest& event) override;
+    virtual void onEvent(const pg::ResizeEvent& event) override;
+
+    void execute() override;
+
+private:
+    void ensurePanelCreated();
+    void createPanel();
+    void createLeftColumn(float px, float contentY);
+    void createRightColumn(float px, float contentY);
+    void setPanelVisibility(bool vis);
+
+    // Tear down the panel and reset all entity-id fields. Used on resize so
+    // the next ensurePanelCreated() rebuilds at the new screen size.
+    void destroyPanel();
+    std::vector<uint64_t> collectAllPanelEntityIds() const;
+    void refresh();
+    void refreshLeftColumn();
+    void refreshRightColumn();
+    void switchTab(size_t tab);
+    void selectMission(size_t defIndex);
+
+    void setEntityVisibility(uint64_t id, bool vis);
+    void setEntityText(uint64_t id, const std::string& text);
+    void setEntityTexture(uint64_t id, const std::string& textureName);
+    void setEntityRoundedRectColor(uint64_t id, const pg::constant::Vector4D& color);
+    void setEntityTextColor(uint64_t id, const pg::constant::Vector4D& color);
+
+    bool isClickInRect(float cx, float cy, float rx, float ry, float rw, float rh) const;
+
+    std::vector<size_t> getFilteredDefs(MissionCategory cat) const;
+
+    // --- Depot selection ---
+    struct PendingStart
+    {
+        size_t defIndex = 0;
+        // Atomic: read by isSelectingDepot() from other systems' tasks while
+        // the MissionUI task may be writing it.
+        std::atomic<bool> active{false};
+    };
+
+    void tryStartWithFirstAvailableDepot(size_t defIndex);
+    void showDepotSelectionPrompt();
+    void hideDepotSelectionPrompt();
+
+    // --- Members ---
+    ItemRegistry* itemRegistry = nullptr;
+    float screenWidth, screenHeight;
+
+    // Icon entity id → currently-displayed ItemId for cost & reward icons.
+    // Updated in refreshRightColumn so hover callbacks can resolve which
+    // item they're hovering when the mission selection changes.
+    std::unordered_map<uint64_t, ItemId> iconItemMap;
+
+    // Atomic: read by isOpen() from other systems' tasks while the MissionUI
+    // task may be writing it during open()/close().
+    std::atomic<bool> visible{false};
+    bool panelCreated = false;
+    float panelH = 0.0f;
+    size_t currentTab = 0;
+    size_t selectedDefIndex = SIZE_MAX;
+
+    PendingStart pendingStart;
+
+    // --- Entity IDs: Panel chrome ---
+    uint64_t backdropId = 0;
+    uint64_t titleTextId = 0;
+    uint64_t closeBtnBgId = 0;
+    uint64_t closeBtnTextId = 0;
+    uint64_t topDividerId = 0;
+    uint64_t columnDividerId = 0;
+
+    // Tab bar
+    struct TabButton
+    {
+        uint64_t bgId = 0;
+        uint64_t textId = 0;
+    };
+    TabButton tabButtons[NUM_TABS] = {};
+
+    // --- Left column (mission list) ---
+    struct ListRow
+    {
+        uint64_t bgId = 0;
+        uint64_t statusBorderId = 0;
+        uint64_t statusFillId = 0;
+        uint64_t nameId = 0;
+        uint64_t goPillBgId = 0;
+        uint64_t goPillTextId = 0;
+        uint64_t separatorId = 0;
+    };
+    ListRow listRows[MAX_LIST_ROWS] = {};
+
+    // --- Right column (detail pane) ---
+    uint64_t detailMissionLabelId = 0;
+    uint64_t detailNameId = 0;
+    uint64_t detailDescId = 0;
+
+    // Cost block
+    uint64_t costLabelId = 0;
+    uint64_t costBlockBorderId = 0;
+    uint64_t costBlockFillId = 0;
+    struct CostDisplay
+    {
+        uint64_t iconId = 0;
+        uint64_t countTextId = 0;
+    };
+    CostDisplay costItems[MAX_COST_ITEMS] = {};
+
+    // Reward block
+    uint64_t rewardLabelId = 0;
+    uint64_t rewardBlockBorderId = 0;
+    uint64_t rewardBlockFillId = 0;
+    struct RewardDisplay
+    {
+        uint64_t iconId = 0;
+        uint64_t countTextId = 0;
+    };
+    RewardDisplay rewardItems[MAX_REWARD_ITEMS] = {};
+
+    // Unlock label
+    uint64_t unlockLabelId = 0;
+
+    // Progress bar (for active endgame missions)
+    uint64_t detailProgressBgId = 0;
+    uint64_t detailProgressFillId = 0;
+    uint64_t detailProgressTextId = 0;
+
+    // Action button
+    uint64_t actionBtnBgId = 0;
+    uint64_t actionBtnTextId = 0;
+
+    // Shop section (tab 2)
+    uint64_t shopLabelId = 0;
+    uint64_t shopCostTextId = 0;
+
+    // Depot selection prompt
+    uint64_t promptBgId = 0;
+    uint64_t promptTextId = 0;
+    bool promptVisible = false;
+
+    // Cached filtered def indices
+    std::vector<size_t> filteredDefs;
+};

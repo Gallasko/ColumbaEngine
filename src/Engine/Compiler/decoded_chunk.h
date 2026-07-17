@@ -10,8 +10,14 @@ namespace pg
     struct VM;
     struct DecodedInstruction;
 
-    typedef void (*OpHandler)(VM* vm);
-    typedef void (*OpDecodedHandler)(VM* vm, const DecodedInstruction& instr);
+    // Decoded handlers return the next instruction to execute. The dispatch
+    // loop is `while (instr) instr = instr->decodedHandler(vm, *instr);` so
+    // the instruction pointer lives in a register, not in VM memory.
+    // Fall-through handlers return `&instr + 1` (instructions are
+    // contiguous); jumps return the pre-resolved jumpTargetPtr; final
+    // returns / runtime errors record the result via vm_return and return
+    // nullptr to stop the loop.
+    typedef const DecodedInstruction* (*OpDecodedHandler)(VM* vm, const DecodedInstruction& instr);
 
     // ============================================================================
     // PRE-DECODED INSTRUCTION FORMAT
@@ -21,10 +27,32 @@ namespace pg
     // Goal: Eliminate instruction fetch and decode overhead at runtime.
     // ============================================================================
 
+    // Hot half of a decoded instruction: ONLY what handlers read on the
+    // dispatch path. 24 bytes — 2.6 instructions per cache line (the old
+    // combined struct was 56 bytes). Everything decode-time or debug-only
+    // lives in the parallel DecodedInstructionMeta array.
     struct DecodedInstruction
     {
-        OpHandler handler;           // Pre-resolved function pointer
-        OpDecodedHandler decodedHandler = nullptr; // Optional handler that receives the full instruction (for complex ops)
+        OpDecodedHandler decodedHandler = nullptr; // Pre-resolved handler that receives the full instruction
+
+        // Per-opcode pre-resolved pointer. The three uses are mutually
+        // exclusive: an op is a jump, a constant load, or a property/invoke
+        // op — never two at once.
+        union
+        {
+            // Jump target (control-flow ops). Filled by resolveJumpTargets
+            // once the instructions vector is final; jump handlers return
+            // it directly.
+            const DecodedInstruction* jumpTargetPtr = nullptr;
+
+            // Constant pointer (OP_Constant/OP_LongConstant) — eliminates
+            // the chunk.constants[index] lookup during execution.
+            Value* constantPtr;
+
+            // Property name (OP_Get_Property, OP_Set_Property, OP_Invoke)
+            // — eliminates the chunk.constantStrings[index] lookup.
+            const std::string* propertyNamePtr;
+        };
 
         // Operand storage (union to save space)
         union
@@ -42,22 +70,41 @@ namespace pg
                 uint8_t byte4;
             } indexed;
         } operands;
+    };
 
-        // Metadata for future optimizations
-        uint8_t flags;               // Instruction properties (see OpCodeInfo flags)
-        uint8_t originalOpcode;      // For debugging/profiling
-        uint8_t operandBytes;        // Number of operand bytes
+    // Dispatch reads this struct once per instruction — keep it lean. If a
+    // new field is genuinely hot, it must fit here; anything else belongs
+    // in DecodedInstructionMeta.
+    static_assert(sizeof(DecodedInstruction) == 24,
+                  "DecodedInstruction grew past 24 bytes — move cold fields to DecodedInstructionMeta");
 
-        // Pre-computed constant pointer (for OP_Constant/OP_LongConstant)
-        // This eliminates chunk.constants[index] lookup during execution
-        Value* constantPtr;
+    // Cold half: decode-time bookkeeping and debug/profiling metadata,
+    // stored in DecodedChunk::meta parallel to the instructions array
+    // (same index). Read by the decoder, the profiler/debug-trace loop
+    // variants, error reporting, and the rare op_closure handler — never
+    // on the per-instruction dispatch path.
+    struct DecodedInstructionMeta
+    {
+        size_t  bytecodeOffset = 0;  // Offset of the instruction in chunk.code
+        int     lineNumber = -1;     // For error reporting
+        uint8_t originalOpcode = 0;  // For debugging/profiling (head opcode when fused)
+        uint8_t flags = 0;           // Instruction properties (see OpCodeInfo flags)
+        uint8_t operandBytes = 0;    // Number of operand bytes
+        uint8_t fusedLength = 0;     // 0 = plain decode; N = this instruction
+                                     // replaces N original instructions (decode-
+                                     // time fusion). Resolvers skip fused entries.
 
-        // Line number (for error reporting)
-        int lineNumber;
+        // Stack effect of FUSED instructions, recorded at fusion time and
+        // consumed by the indexed-access sweep (fuseIndexedAccess). 0xFF =
+        // unknown (acts as a scan barrier). Plain instructions derive their
+        // effect from originalOpcode instead.
+        uint8_t stackPops = 0xFF;
+        uint8_t stackPushes = 0xFF;
 
-        // Original bytecode offset (needed for jump target resolution)
-        size_t bytecodeOffset;
-        size_t nextInstuctionIndex = 0; // Filled in during decoding for quick jump target mapping
+        // Display name for fused instructions (profiler / debugging).
+        // Points into the fusion name interner (program lifetime); nullptr
+        // for plain instructions, which use opcodeToString(originalOpcode).
+        const std::string* fusedName = nullptr;
 
         // Flag checks (matching OpCodeInfo flags)
         bool isPure() const { return (flags & 0x01) != 0; }
@@ -77,6 +124,10 @@ namespace pg
         // Array of pre-decoded instructions (the "executable code")
         std::vector<DecodedInstruction> instructions;
 
+        // Cold metadata, parallel to `instructions` (same index). Look up
+        // an instruction's metadata via `meta[instr - instructions.data()]`.
+        std::vector<DecodedInstructionMeta> meta;
+
         // Batch metadata: groups of consecutive pure instructions
         struct PureBatch
         {
@@ -89,6 +140,13 @@ namespace pg
         // Jump target mapping: bytecode offset → decoded instruction index
         // Needed for control flow instructions
         std::unordered_map<size_t, size_t> jumpTargets;
+
+        // Instruction INDICES targeted by fused conditional branches (whose
+        // original opcode/operands are gone after fusion, so they can no
+        // longer be decoded via branchTargetOffsetOf). Recorded by
+        // fuseInstructions' fixup step; consumed by fuseIndexedAccess's
+        // jump-into-window safety check.
+        std::vector<size_t> fusedBranchTargets;
 
         // Back-reference to original bytecode chunk
         const Chunk* originalChunk;
@@ -111,11 +169,11 @@ namespace pg
                 return it->second;
             }
             // Fallback: linear search (shouldn't happen if jumpTargets is built correctly)
-            for (const auto& instr : instructions)
+            for (size_t i = 0; i < meta.size(); ++i)
             {
-                if (instr.bytecodeOffset == bytecodeOffset)
+                if (meta[i].bytecodeOffset == bytecodeOffset)
                 {
-                    return static_cast<size_t>(&instr - instructions.data());
+                    return i;
                 }
             }
             return 0;  // Last resort
@@ -146,16 +204,31 @@ namespace pg
         DecodedChunk* decode(const Chunk& chunk, VM* vm);
 
     private:
-        // Decode a single instruction at given offset
-        DecodedInstruction decodeInstruction(
+        // Decode a single instruction at given offset, filling the hot
+        // instruction and its cold metadata.
+        void decodeInstruction(
             const Chunk& chunk,
             size_t offset,
             VM* vm,
+            DecodedInstruction& instr,
+            DecodedInstructionMeta& meta,
             size_t& nextOffset  // Output: where next instruction starts
         );
 
         // Analyze and group pure instruction sequences
         void analyzePureBatches(DecodedChunk* decoded);
+
+        // Decode-time superinstruction fusion: collapses windows of pure
+        // producer/op/consumer instructions into single fused
+        // DecodedInstructions (specialized handlers, NO new opcodes — the
+        // bytecode is untouched). Gated by vm->enableDecodeFusion.
+        void fuseInstructions(DecodedChunk* decoded, const Chunk& chunk, VM* vm);
+
+        // Second fusion sweep: indexed accesses whose target is a plain
+        // local (`v[expr]` read/write) are rewritten so the container handle
+        // is read straight from the slot (borrowed) instead of being pushed,
+        // retained and released around the index expression.
+        void fuseIndexedAccess(DecodedChunk* decoded);
 
         // Build jump target map for control flow
         void buildJumpTargets(const Chunk& chunk, DecodedChunk* decoded);
@@ -164,6 +237,11 @@ namespace pg
         void resolveConstantPointers(DecodedChunk* decoded, const Chunk& chunk);
 
         void resolveJumpTargets(DecodedChunk* decoded);
+
+        // Optimize: pre-resolve constant-global ops to a dense VM global slot
+        // (and the value's constant pointer for set/define). Eliminates the
+        // per-access string copy + hash. Needs the VM for the slot registry.
+        void resolveGlobalSlots(DecodedChunk* decoded, const Chunk& chunk, VM* vm);
     };
 
 } // namespace pg

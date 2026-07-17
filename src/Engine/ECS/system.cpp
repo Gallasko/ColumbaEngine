@@ -1,6 +1,7 @@
 #include "system.h"
 
 #include "entitysystem.h"
+#include "scriptregistry.h"
 
 #include "Compiler/vm.h"
 #include "Compiler/ecsserialization.h"
@@ -12,81 +13,6 @@
 
 namespace pg
 {
-    // Todo move this in a vm helper header
-    bool checkCompiledScript(EntitySystem* ecsRef, std::string& scriptName, StandardSystemImpl* systemImpl = nullptr)
-    {
-        if (scriptName.size() >= 3 && scriptName.substr(scriptName.size() - 3) == ".pg")
-        {
-            // Compile .pg script and cache to .pgc
-            VM compiler;
-            ecsRef->setupVm(compiler);
-
-            // Add sys module if we have a system context
-            if (systemImpl)
-            {
-                compiler.addNativeModule("sys", SystemModule{systemImpl});
-            }
-
-            auto result = compiler.interpretFromFile(scriptName, true, scriptName + "c");
-
-            if (result != InterpretResult::OK)
-            {
-                LOG_ERROR("CollisionHandleScript", "Failed to compile script: " << scriptName);
-            }
-
-            scriptName += "c";
-
-            return true;
-        }
-        else if (scriptName.size() >= 4 && scriptName.substr(scriptName.size() - 4) == ".pgc")
-        {
-            LOG_MILE("CollisionHandleScript", "Loading precompiled script: " << scriptName);
-
-            return true;
-        }
-        else
-        {
-            LOG_ERROR("CollisionHandleScript", "Invalid script file extension. Must be .pg or .pgc: " << scriptName);
-        }
-
-        return false;
-    }
-
-    std::vector<char> getCachedScript(EntitySystem* ecsRef, std::string& scriptName, StandardSystemImpl* systemImpl = nullptr)
-    {
-        if (not checkCompiledScript(ecsRef, scriptName, systemImpl))
-        {
-            LOG_ERROR("StandardSystemImpl", "Cannot compile or open the script: " << scriptName);
-            return {};
-        }
-
-        // Read the bytecode file once into memory
-        std::ifstream file(scriptName, std::ios::binary);
-        if (not file)
-        {
-            LOG_ERROR("StandardSystemImpl", "Failed to open bytecode file: " << scriptName);
-            return {};
-        }
-
-        // Get file size and read entire file
-        file.seekg(0, std::ios::end);
-        size_t fileSize = file.tellg();
-        file.seekg(0, std::ios::beg);
-
-        std::vector<char> cachedBytecode(fileSize);
-        file.read(cachedBytecode.data(), fileSize);
-
-        if (not file)
-        {
-            LOG_ERROR("StandardSystemImpl", "Failed to read bytecode file: " << scriptName);
-            return {};
-        }
-
-        LOG_MILE("StandardSystemImpl", "Cached bytecode " << scriptName << " (" << fileSize << " bytes)");
-
-        return cachedBytecode;
-    }
-
     InterpretResult interpretWithSysData(StandardSystemHandle* sys, VM& vm, const std::vector<char>& cachedBytecode)
     {
         // ========================================================================
@@ -108,10 +34,10 @@ namespace pg
             ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
             // Create a VM table to hold system data
-            auto it = vm.globals.find("__Table");
-            if (it != vm.globals.end())
+            VM::GlobalCell* cell = vm.findGlobalCell("__Table");
+            if (cell != nullptr and cell->defined)
             {
-                Klass* tableClass = vm.asClass(it->second);
+                Klass* tableClass = vm.asClass(cell->value);
                 Value dataTableValue = vm.createInstance(tableClass);
                 ObjInstance* dataTable = vm.asInstance(dataTableValue);
 
@@ -121,7 +47,7 @@ namespace pg
                     dataTable->setField(key, vm.retainValue(vm.elementToValue(elemValue)));
                 }
 
-                vm.globals["sysData"] = dataTableValue;
+                vm.defineGlobal("sysData", dataTableValue);
             }
         }
 
@@ -138,10 +64,10 @@ namespace pg
         {
             ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
-            auto it = vm.globals.find("sysData");
-            if (it != vm.globals.end() and IS_INSTANCE(it->second))
+            VM::GlobalCell* cell = vm.findGlobalCell("sysData");
+            if (cell != nullptr and cell->defined and IS_INSTANCE(cell->value))
             {
-                ObjInstance* dataTable = vm.asInstance(it->second);
+                ObjInstance* dataTable = vm.asInstance(cell->value);
 
                 // Copy all fields from VM table back to C++ ElementMap
                 // This overwrites existing keys and adds new ones
@@ -185,16 +111,22 @@ namespace pg
 
         for (auto [eventName, scriptName] : eventScriptCallbackList)
         {
-            auto cachedBytecode = getCachedScript(ecsRef, scriptName, this);
+            auto script = ecsRef->scripts().load(scriptName, this);
 
-            if (cachedBytecode.empty())
+            if (not script)
                 continue;
 
             // Create a copy of scriptName for lambda capture (structured bindings can't be captured)
             std::string capturedScriptName = scriptName;
 
-            // Register the event handler with cached bytecode (captured by value)
-            eventCompiledScriptCallbackList.emplace(eventName, [this, cachedBytecode, capturedScriptName](StandardSystemHandle* sys, const StandardEvent& event) {
+            // Register the event handler with the shared script handle (hot reloadable)
+            eventCompiledScriptCallbackList.emplace(eventName, [this, script, capturedScriptName](StandardSystemHandle* sys, const StandardEvent& event) {
+                // Pin this run's version of the bytecode
+                auto code = script->bytecode();
+
+                if (not code)
+                    return;
+
                 auto ecsRef = sys->getWorld();
 
                 VM vm;
@@ -205,9 +137,9 @@ namespace pg
 
                 // Set up event data before interpreting
                 auto value = serializeToTable(&vm, event);
-                vm.globals["event"] = value;
+                vm.defineGlobal("event", value);
 
-                auto result = interpretWithSysData(sys, vm, cachedBytecode);
+                auto result = interpretWithSysData(sys, vm, *code);
 
                 if (result != InterpretResult::OK)
                 {
@@ -221,22 +153,28 @@ namespace pg
         // Compile and cache init script if provided
         if (not initScript.empty())
         {
-            auto cachedBytecode = getCachedScript(ecsRef, initScript);
+            auto script = ecsRef->scripts().load(initScript);
 
-            if (cachedBytecode.empty())
+            if (not script)
             {
                 LOG_ERROR("StandardSystemImpl", "Cannot compile or open the init script: " << initScript);
             }
             else
             {
-                // Register the init handler with cached bytecode (captured by value)
-                compiledInitScriptCallback = [cachedBytecode, scriptName = initScript](StandardSystemHandle* sys) {
+                // Register the init handler with the shared script handle
+                compiledInitScriptCallback = [script, scriptName = initScript](StandardSystemHandle* sys) {
+                    // Pin this run's version of the bytecode
+                    auto code = script->bytecode();
+
+                    if (not code)
+                        return;
+
                     auto ecsRef = sys->getWorld();
 
                     VM vm;
                     ecsRef->setupVm(vm);
 
-                    auto result = interpretWithSysData(sys, vm, cachedBytecode);
+                    auto result = interpretWithSysData(sys, vm, *code);
 
                     if (result != InterpretResult::OK)
                     {
@@ -251,16 +189,22 @@ namespace pg
         // Compile and cache execute script if provided
         if (not executeScript.empty())
         {
-            auto cachedBytecode = getCachedScript(ecsRef, executeScript, this);
+            auto script = ecsRef->scripts().load(executeScript, this);
 
-            if (cachedBytecode.empty())
+            if (not script)
             {
                 LOG_ERROR("StandardSystemImpl", "Cannot compile or open the execute script: " << executeScript);
             }
             else
             {
-                // Register the execute handler with cached bytecode (captured by value)
-                compiledExecuteScriptCallback = [this, cachedBytecode, scriptName = executeScript](StandardSystemHandle* sys) {
+                // Register the execute handler with the shared script handle (hot reloadable)
+                compiledExecuteScriptCallback = [this, script, scriptName = executeScript](StandardSystemHandle* sys) {
+                    // Pin this run's version of the bytecode
+                    auto code = script->bytecode();
+
+                    if (not code)
+                        return;
+
                     auto ecsRef = sys->getWorld();
 
                     VM vm;
@@ -269,7 +213,7 @@ namespace pg
                     // Add sys module for accessing system's entities by component
                     vm.addNativeModule("sys", SystemModule{this});
 
-                    auto result = interpretWithSysData(sys, vm, cachedBytecode);
+                    auto result = interpretWithSysData(sys, vm, *code);
 
                     if (result != InterpretResult::OK)
                     {
@@ -283,16 +227,22 @@ namespace pg
 
         if (not deltaScript.empty())
         {
-            auto cachedBytecode = getCachedScript(ecsRef, deltaScript, this);
+            auto script = ecsRef->scripts().load(deltaScript, this);
 
-            if (cachedBytecode.empty())
+            if (not script)
             {
                 LOG_ERROR("StandardSystemImpl", "Cannot compile or open the execute script: " << deltaScript);
             }
             else
             {
-                // Register the deltaTime handler with cached bytecode (captured by value)
-                compiledDeltaScriptCallback = [this, cachedBytecode, scriptName = deltaScript](StandardSystemHandle* sys, float deltaTime) {
+                // Register the deltaTime handler with the shared script handle (hot reloadable)
+                compiledDeltaScriptCallback = [this, script, scriptName = deltaScript](StandardSystemHandle* sys, float deltaTime) {
+                    // Pin this run's version of the bytecode
+                    auto code = script->bytecode();
+
+                    if (not code)
+                        return;
+
                     auto ecsRef = sys->getWorld();
 
                     VM vm;
@@ -301,9 +251,9 @@ namespace pg
                     // Add sys module for accessing system's entities by component
                     vm.addNativeModule("sys", SystemModule{this});
 
-                    vm.globals["deltaTime"] = vm.elementToValue(deltaTime);
+                    vm.defineGlobal("deltaTime", vm.elementToValue(deltaTime));
 
-                    auto result = interpretWithSysData(sys, vm, cachedBytecode);
+                    auto result = interpretWithSysData(sys, vm, *code);
 
                     if (result != InterpretResult::OK)
                     {
@@ -322,14 +272,20 @@ namespace pg
 
         for (auto [eventName, scriptName] : deferredEventScriptCallbackList)
         {
-            auto cachedBytecode = getCachedScript(ecsRef, scriptName, this);
+            auto script = ecsRef->scripts().load(scriptName, this);
 
-            if (cachedBytecode.empty())
+            if (not script)
                 continue;
 
             std::string capturedScriptName = scriptName;
 
-            deferredEventCompiledScriptCallbackList.emplace(eventName, [this, cachedBytecode, capturedScriptName](StandardSystemHandle* sys, const StandardEvent& event) {
+            deferredEventCompiledScriptCallbackList.emplace(eventName, [this, script, capturedScriptName](StandardSystemHandle* sys, const StandardEvent& event) {
+                // Pin this run's version of the bytecode
+                auto code = script->bytecode();
+
+                if (not code)
+                    return;
+
                 auto ecsRef = sys->getWorld();
 
                 VM vm;
@@ -338,9 +294,9 @@ namespace pg
                 vm.addNativeModule("sys", SystemModule{this});
 
                 auto value = serializeToTable(&vm, event);
-                vm.globals["event"] = value;
+                vm.defineGlobal("event", value);
 
-                auto result = interpretWithSysData(sys, vm, cachedBytecode);
+                auto result = interpretWithSysData(sys, vm, *code);
 
                 if (result != InterpretResult::OK)
                 {
@@ -387,6 +343,14 @@ namespace pg
     void StandardSystemImpl::removeFromRegistry()
     {
         LOG_THIS_MEMBER("StandardSystemImpl");
+
+        // The script registry keeps this system as a compile context for hot
+        // reloads; clear it so a reload after our destruction can't use a
+        // dangling pointer
+        if (ecsRef)
+        {
+            ecsRef->scripts().onSystemRemoved(this);
+        }
 
         // Unregister all components
         if (registry)

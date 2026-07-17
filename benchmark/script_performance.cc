@@ -36,7 +36,7 @@ namespace pg
             // If count is provided, add it as a global variable
             if (count > 0)
             {
-                vm.globals["count"] = makeIntValue(count);
+                vm.defineGlobal("count", makeIntValue(count));
             }
 
             // Measure execution time
@@ -164,7 +164,7 @@ namespace pg
                 ecs.setupVm(vm);
 
                 // Pass count to script
-                vm.globals["count"] = makeIntValue(count);
+                vm.defineGlobal("count", makeIntValue(count));
 
                 auto start = std::chrono::high_resolution_clock::now();
 

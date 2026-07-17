@@ -2,7 +2,9 @@
 
 #include "ECS/system.h"
 
-#include "2D/texture.h"
+#include "ECS/entitysystem.h"
+
+#include "2D/position.h"
 
 namespace pg
 {
@@ -156,6 +158,38 @@ namespace pg
     };
 
     /**
+     * @brief Event to set and configure a vertical scroll bar for a layout.
+     *
+     * Attaches the scroll bar entity to the layout, positions it at the right edge,
+     * and sets up drag interaction (focus + mouse move tracking) so the user can
+     * click and drag the scroll bar thumb to scroll the content.
+     *
+     * @see LayoutSystem::onProcessEvent(const SetVerticalScrollBarEvent&)
+     * @see BaseLayout::setVerticalScrollBar()
+     */
+    struct SetVerticalScrollBarEvent
+    {
+        _unique_id layoutId;     ///< ID of the layout entity
+        _unique_id scrollBarId;  ///< ID of the scroll bar entity
+    };
+
+    /**
+     * @brief Event to set and configure a horizontal scroll bar for a layout.
+     *
+     * Attaches the scroll bar entity to the layout, positions it at the bottom edge,
+     * and sets up drag interaction (focus + mouse move tracking) so the user can
+     * click and drag the scroll bar thumb to scroll the content.
+     *
+     * @see LayoutSystem::onProcessEvent(const SetHorizontalScrollBarEvent&)
+     * @see BaseLayout::setHorizontalScrollBar()
+     */
+    struct SetHorizontalScrollBarEvent
+    {
+        _unique_id layoutId;     ///< ID of the layout entity
+        _unique_id scrollBarId;  ///< ID of the scroll bar entity
+    };
+
+    /**
      * @brief Counts the number of visible elements in a layout.
      *
      * Iterates through all entities in the layout and counts those that have
@@ -252,6 +286,12 @@ namespace pg
          */
         void addEntity(EntityRef entity)
         {
+            if (not ecsRef)
+            {
+                LOG_ERROR("BaseLayout", "addEntity: ecsRef is null (onCreation never ran or component is dangling). id="
+                    << id << " entity.id=" << entity.id);
+                return;
+            }
             ecsRef->sendEvent(AddLayoutElementEvent{id, entity.id, orientation});
         }
 
@@ -324,6 +364,38 @@ namespace pg
         }
 
         /**
+         * @brief Sets and configures a vertical scroll bar for this layout.
+         *
+         * The scroll bar entity will be positioned at the right edge of the layout,
+         * its thumb height will be proportional to the visible/content ratio,
+         * and drag interaction will be enabled so the user can scroll by dragging.
+         *
+         * @param scrollBar The scroll bar entity (must have PositionComponent)
+         * @see SetVerticalScrollBarEvent
+         */
+        void setVerticalScrollBar(EntityRef scrollBar)
+        {
+            verticalScrollBar = scrollBar;
+            ecsRef->sendEvent(SetVerticalScrollBarEvent{id, scrollBar.id});
+        }
+
+        /**
+         * @brief Sets and configures a horizontal scroll bar for this layout.
+         *
+         * The scroll bar entity will be positioned at the bottom edge of the layout,
+         * its thumb width will be proportional to the visible/content ratio,
+         * and drag interaction will be enabled so the user can scroll by dragging.
+         *
+         * @param scrollBar The scroll bar entity (must have PositionComponent)
+         * @see SetHorizontalScrollBarEvent
+         */
+        void setHorizontalScrollBar(EntityRef scrollBar)
+        {
+            horizontalScrollBar = scrollBar;
+            ecsRef->sendEvent(SetHorizontalScrollBarEvent{id, scrollBar.id});
+        }
+
+        /**
          * @brief Removes and destroys all entities in this layout.
          *
          * This is a batch operation that efficiently clears all child entities.
@@ -373,8 +445,8 @@ namespace pg
         std::vector<EntityRef> entities; ///< List of child entities in this layout
         bool childrenAdded = false;    ///< Flag indicating children were added this frame
 
-        _unique_id id;                 ///< ID of the entity owning this layout
-        EntitySystem *ecsRef;          ///< Reference to the ECS system
+        _unique_id id = 0;                       ///< ID of the entity owning this layout
+        EntitySystem *ecsRef = nullptr;          ///< Reference to the ECS system (set by onCreation)
     };
 
 
@@ -472,6 +544,8 @@ namespace pg
         QueuedListener<RemoveLayoutElementAtEvent>,
         QueuedListener<ClearLayoutEvent>,
         QueuedListener<UpdateLayoutScrollable>,
+        QueuedListener<SetVerticalScrollBarEvent>,
+        QueuedListener<SetHorizontalScrollBarEvent>,
         Own<HorizontalLayout>,
         Own<VerticalLayout>,
         InitSys>
@@ -594,6 +668,30 @@ namespace pg
          * @see UpdateLayoutScrollable
          */
         virtual void onProcessEvent(const UpdateLayoutScrollable& event) override;
+
+        /**
+         * @brief Processes requests to set a vertical scroll bar on a layout.
+         *
+         * Attaches focus, click, and mouse move components to the scroll bar entity
+         * so it can be dragged to scroll the layout content. Queues a layout update
+         * to position the scroll bar at the right edge.
+         *
+         * @param event Event containing layout ID and scroll bar entity ID
+         * @see SetVerticalScrollBarEvent
+         */
+        virtual void onProcessEvent(const SetVerticalScrollBarEvent& event) override;
+
+        /**
+         * @brief Processes requests to set a horizontal scroll bar on a layout.
+         *
+         * Attaches focus, click, and mouse move components to the scroll bar entity
+         * so it can be dragged to scroll the layout content. Queues a layout update
+         * to position the scroll bar at the bottom edge.
+         *
+         * @param event Event containing layout ID and scroll bar entity ID
+         * @see SetHorizontalScrollBarEvent
+         */
+        virtual void onProcessEvent(const SetHorizontalScrollBarEvent& event) override;
 
         /**
          * @brief Main execution loop for layout updates.
@@ -795,6 +893,19 @@ namespace pg
          *          Modifications should be tested thoroughly.
          */
         void layoutWithSpacing(EntityRef viewEnt, BaseLayout* view);
+
+        /**
+         * @brief Sets up drag interaction on a scroll bar entity.
+         *
+         * Attaches FocusableComponent, MouseLeftClickComponent, and OnEventComponent
+         * to the scroll bar entity so that clicking and dragging it updates the
+         * layout's scroll offset.
+         *
+         * @param scrollBarEntity The scroll bar entity to set up
+         * @param layoutId ID of the layout entity this scroll bar belongs to
+         * @param isVertical True for vertical scroll bar, false for horizontal
+         */
+        void setupScrollBarInteraction(EntityRef scrollBarEntity, _unique_id layoutId, bool isVertical);
 
         std::set<EntityRef> layoutUpdate;    ///< Layouts that need position recalculation this frame
         std::unordered_map<_unique_id, _unique_id> entitiesInLayout; ///< Optimization: tracks which entities are in layouts

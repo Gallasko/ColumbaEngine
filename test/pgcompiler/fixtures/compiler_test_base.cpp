@@ -120,11 +120,13 @@ void CompilerTestBase::resetVM() {
     // Clean up stack first
     vm.stack.clear();  // This already frees Values properly
     
-    // Properly free globals 
-    for (auto& pair : vm.globals) {
-        freeValue(pair.second);
+    // Properly free globals
+    for (auto& cell : vm.globalCells) {
+        if (cell.defined)
+            freeValue(cell.value);
     }
-    vm.globals.clear();
+    vm.globalCells.clear();
+    vm.globalSlots.clear();
     
     vm.testOutput.clear();
     vm.ip = 0;

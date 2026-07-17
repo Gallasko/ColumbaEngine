@@ -2,7 +2,7 @@
 
 #include "Interpreter/pginterpreter.h"
 
-#include "inputcomponent.h"
+#include "Input/sdlevents.h"
 
 #include "Systems/oneventcomponent.h"
 

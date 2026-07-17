@@ -18,31 +18,31 @@ namespace pg
         return os << value.toString();
     }
 
-    Strfy& operator<<(Strfy& os, const ElementType::UnionType& value)
+    Strfy& operator<<(Strfy& os, const UnionType& value)
     {
         switch(value)
         {
-        case ElementType::UnionType::FLOAT:
+        case UnionType::FLOAT:
             return os << "float";
             break;
 
-        case ElementType::UnionType::DOUBLE:
+        case UnionType::DOUBLE:
             return os << "double";
             break;
 
-        case ElementType::UnionType::INT:
+        case UnionType::INT:
             return os << "int";
             break;
 
-        case ElementType::UnionType::SIZE_T:
+        case UnionType::SIZE_T:
             return os << "size_t";
             break;
 
-        case ElementType::UnionType::STRING:
+        case UnionType::STRING:
             return os << "string";
             break;
 
-        case ElementType::UnionType::BOOL:
+        case UnionType::BOOL:
             return os << "boolean";
             break;
 
@@ -63,32 +63,32 @@ namespace pg
 
         switch(element.type)
         {
-        case ElementType::UnionType::FLOAT:
+        case UnionType::FLOAT:
             serialize(archive, "type", element.enumTypeToString(element.type));
             serialize(archive, "data", element.data.f);
             break;
 
-        case ElementType::UnionType::DOUBLE:
+        case UnionType::DOUBLE:
             serialize(archive, "type", element.enumTypeToString(element.type));
             serialize(archive, "data", element.data.d);
             break;
 
-        case ElementType::UnionType::INT:
+        case UnionType::INT:
             serialize(archive, "type", element.enumTypeToString(element.type));
             serialize(archive, "data", element.data.i);
             break;
 
-        case ElementType::UnionType::SIZE_T:
+        case UnionType::SIZE_T:
             serialize(archive, "type", element.enumTypeToString(element.type));
             serialize(archive, "data", element.data.l);
             break;
 
-        case ElementType::UnionType::STRING:
+        case UnionType::STRING:
             serialize(archive, "type", element.enumTypeToString(element.type));
             serialize(archive, "data", element.data.s);
             break;
 
-        case ElementType::UnionType::BOOL:
+        case UnionType::BOOL:
             serialize(archive, "type", element.enumTypeToString(element.type));
             serialize(archive, "data", element.data.b);
             break;
@@ -806,12 +806,12 @@ namespace pg
     {
         switch(type)
         {
-            case UnionType::FLOAT:  return std::to_string(get<float>()); break;
-            case UnionType::DOUBLE: return std::to_string(get<double>()); break;
-            case UnionType::INT:    return std::to_string(get<int>()); break;
-            case UnionType::SIZE_T: return std::to_string(get<size_t>()); break;
-            case UnionType::STRING: return get<std::string>(); break;
-            case UnionType::BOOL:   return get<bool>() ? "true" : "false"; break;
+            case UnionType::FLOAT:  return std::to_string(get<float>());
+            case UnionType::DOUBLE: return std::to_string(get<double>());
+            case UnionType::INT:    return std::to_string(get<int>());
+            case UnionType::SIZE_T: return std::to_string(get<size_t>());
+            case UnionType::STRING: return get<std::string>();
+            case UnionType::BOOL:   return get<bool>() ? "true" : "false";
 
             default:
                 LOG_ERROR(DOM, "Error in casting type to string");
@@ -820,16 +820,16 @@ namespace pg
         }
     }
 
-    std::string ElementType::enumTypeToString(const ElementType::UnionType& type) const
+    std::string ElementType::enumTypeToString(const UnionType& type) const
     {
         switch(type)
         {
-            case UnionType::FLOAT:  return "float"; break;
-            case UnionType::DOUBLE: return "double"; break;
-            case UnionType::INT:    return "int"; break;
-            case UnionType::SIZE_T: return "size_t"; break;
-            case UnionType::STRING: return "string"; break;
-            case UnionType::BOOL:   return "bool"; break;
+            case UnionType::FLOAT:  return "float";
+            case UnionType::DOUBLE: return "double";
+            case UnionType::INT:    return "int";
+            case UnionType::SIZE_T: return "size_t";
+            case UnionType::STRING: return "string";
+            case UnionType::BOOL:   return "bool";
             default:
                 LOG_ERROR(DOM, "Error in casting type to a string");
                 return "int";

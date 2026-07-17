@@ -1,0 +1,3 @@
+raw/
+*.csv
+!summary/**/*.csv

@@ -1,0 +1,19 @@
+[package]
+name = "bevy_ecs_bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "bevy_ecs_bench"
+path = "src/main.rs"
+
+[dependencies]
+# bevy_ecs only — we don't need the full Bevy engine for ECS benches.
+bevy_ecs = "0.15"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+debug = false

@@ -257,7 +257,13 @@ InterpretResult VMTestFixture::executeChunkWithoutReturn() {
                     freeValue(value);
                     return InterpretResult::RUNTIME_ERROR;
                 }
-                vm.globals[name.toString()] = value;
+                {
+                    auto& cell = vm.globalCells[vm.globalSlot(name.toString())];
+                    if (cell.defined)
+                        freeValue(cell.value);
+                    cell.value = value;
+                    cell.defined = true;
+                }
                 freeValue(nameValue);
                 break;
             }
@@ -271,12 +277,12 @@ InterpretResult VMTestFixture::executeChunkWithoutReturn() {
                     freeValue(nameValue);
                     return InterpretResult::RUNTIME_ERROR;
                 }
-                auto it = vm.globals.find(name.toString());
-                if (it == vm.globals.end()) {
+                VM::GlobalCell* cell = vm.findGlobalCell(name.toString());
+                if (cell == nullptr or not cell->defined) {
                     freeValue(nameValue);
                     return InterpretResult::RUNTIME_ERROR;
                 }
-                vm.push(copyValue(it->second));  // Push a copy to avoid double-free
+                vm.push(copyValue(cell->value));  // Push a copy to avoid double-free
                 freeValue(nameValue);
                 break;
             }
@@ -292,15 +298,15 @@ InterpretResult VMTestFixture::executeChunkWithoutReturn() {
                     freeValue(value);
                     return InterpretResult::RUNTIME_ERROR;
                 }
-                auto it = vm.globals.find(name.toString());
-                if (it == vm.globals.end()) {
+                VM::GlobalCell* cell = vm.findGlobalCell(name.toString());
+                if (cell == nullptr or not cell->defined) {
                     freeValue(nameValue);
                     freeValue(value);
                     return InterpretResult::RUNTIME_ERROR;
                 }
                 // Free the old value that was stored
-                freeValue(it->second);
-                it->second = value;
+                freeValue(cell->value);
+                cell->value = value;
                 vm.push(copyValue(value));  // Push a copy to avoid double-free
                 freeValue(nameValue);
                 break;
@@ -451,27 +457,34 @@ Chunk VMTestFixture::buildSetGlobalChunk(const std::string& name, const ElementT
 }
 
 void VMTestFixture::defineGlobal(const std::string& name, const ElementType& value) {
-    vm.globals[name] = elementToValue(value);
+    auto& cell = vm.globalCells[vm.globalSlot(name)];
+    if (cell.defined)
+        freeValue(cell.value);
+    cell.value = elementToValue(value);
+    cell.defined = true;
 }
 
 bool VMTestFixture::hasGlobal(const std::string& name) const {
-    return vm.globals.find(name) != vm.globals.end();
+    auto it = vm.globalSlots.find(name);
+    return it != vm.globalSlots.end() and vm.globalCells[it->second].defined;
 }
 
 ElementType VMTestFixture::getGlobal(const std::string& name) const {
-    auto it = vm.globals.find(name);
-    if (it != vm.globals.end()) {
-        return valueToElement(it->second);
+    auto it = vm.globalSlots.find(name);
+    if (it != vm.globalSlots.end() and vm.globalCells[it->second].defined) {
+        return valueToElement(vm.globalCells[it->second].value);
     }
     throw std::runtime_error("Global variable not found: " + name);
 }
 
 void VMTestFixture::clearGlobals() {
-    // Free all stored Values before clearing the map
-    for (auto& pair : vm.globals) {
-        freeValue(pair.second);
+    // Free all stored Values before clearing the cells
+    for (auto& cell : vm.globalCells) {
+        if (cell.defined)
+            freeValue(cell.value);
     }
-    vm.globals.clear();
+    vm.globalCells.clear();
+    vm.globalSlots.clear();
 }
 
 

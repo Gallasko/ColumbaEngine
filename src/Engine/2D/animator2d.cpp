@@ -14,12 +14,12 @@ namespace pg
 
         for (const auto& anim : frames)
         {
-            keypoints.push_back({cumulativeAnimationDuration, {anim.textureName, 1}});
+            keypoints.push_back({cumulativeAnimationDuration, {anim.textureName}});
 
             cumulativeAnimationDuration += anim.durationInMilliseconds;
         }
 
-        keypoints.push_back({cumulativeAnimationDuration, {frames.back().textureName, 1}});
+        keypoints.push_back({cumulativeAnimationDuration, {frames.back().textureName}});
 
         return keypoints;
     }

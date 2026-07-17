@@ -14,6 +14,8 @@
 #include "Compiler/ecsserialization.h"
 #include "Compiler/vm.h"
 
+#include "ECS/scriptregistry.h"
+
 namespace pg
 {
     struct AABB
@@ -211,7 +213,7 @@ namespace pg
         constant::Vector2D normal;      // collision normal
     };
 
-    struct CollisionSystem : public System<Own<CollisionComponent>, Ref<PositionComponent>, QueuedListener<PositionComponentChangedEvent>, InitSys>
+    struct CollisionSystem : public System<Own<CollisionComponent>, Ref<PositionComponent>, QueuedListener<PositionSettledEvent>, InitSys>
     {
         // Todo make a ctor that load properties (pageSize, cellSi) from serialization
         CollisionSystem();
@@ -237,7 +239,7 @@ namespace pg
         // If the page or cell doesn't exist, returns an empty static set.
         const std::set<_unique_id>& getCellEntities(const PagePos& cellPos, size_t layerId) const;
 
-        virtual void onProcessEvent(const PositionComponentChangedEvent& event) override;
+        virtual void onProcessEvent(const PositionSettledEvent& event) override;
 
         virtual void execute() override;
 
@@ -377,35 +379,11 @@ namespace pg
             std::function<bool(Entity*)> filterEnt1 = [](Entity*) { return true; },
             std::function<bool(Entity*)> filterEnt2 = [](Entity*) { return true; }) : ecsRef(ecsRef), fnName(fnName), filterEnt1(filterEnt1), filterEnt2(filterEnt2)
         {
-            ecsRef->setupVm(vm);
-
-            // Check file extension and compile/load accordingly
-            if (fnName.size() >= 3 && fnName.substr(fnName.size() - 3) == ".pg")
-            {
-                // Compile .pg script and cache to .pgc
-                VM compiler;
-                ecsRef->setupVm(compiler);
-
-                auto result = compiler.interpretFromFile(fnName, true, fnName + "c");
-
-                if (result != InterpretResult::OK)
-                {
-                    LOG_ERROR("CollisionHandleScript", "Failed to compile script: " << fnName);
-                }
-
-                this->fnName += "c";
-            }
-            else if (fnName.size() >= 4 && fnName.substr(fnName.size() - 4) == ".pgc")
-            {
-                LOG_MILE("CollisionHandleScript", "Loading precompiled script: " << fnName);
-            }
-            else
-            {
-                LOG_ERROR("CollisionHandleScript", "Invalid script file extension. Must be .pg or .pgc: " << fnName);
-            }
+            script = ecsRef->scripts().load(fnName);
         }
 
-        CollisionHandleScript(const CollisionHandleScript& other) : fnName(other.fnName) {}
+        CollisionHandleScript(const CollisionHandleScript& other) : ecsRef(other.ecsRef), fnName(other.fnName),
+            script(other.script), filterEnt1(other.filterEnt1), filterEnt2(other.filterEnt2) {}
 
         virtual void tryInvoke(EntitySystem* ecs, _unique_id id1, _unique_id id2) override
         {
@@ -418,11 +396,19 @@ namespace pg
                 return;
             }
 
+            if (not script)
+                return;
+
             bool trigger = (filterEnt1(ent1) and filterEnt2(ent2)) or (filterEnt1(ent2) and filterEnt2(ent1));
 
             if (trigger)
             {
-                // vm.reset();
+                // Pin this run's version of the bytecode (hot reloadable)
+                auto code = script->bytecode();
+
+                if (not code)
+                    return;
+
                 VM testVm;
                 ecsRef->setupVm(testVm);
 
@@ -430,11 +416,10 @@ namespace pg
                 Value entity2Table = serializeEntityToTable(&testVm, ecsRef, ent2);
 
                 // Pass entity table as a global to the script (like a system module)
-                testVm.globals["ent1"] = entity1Table;
-                testVm.globals["ent2"] = entity2Table;
+                testVm.defineGlobal("ent1", entity1Table);
+                testVm.defineGlobal("ent2", entity2Table);
 
-                // Compile the script once
-                testVm.interpretFromBytecodeFile(fnName);
+                testVm.interpretFromCachedBytecode(*code);
             }
         }
 
@@ -445,7 +430,7 @@ namespace pg
 
         EntitySystem* ecsRef;
         std::string fnName;
-        VM vm;
+        std::shared_ptr<ScriptHandle> script;
 
         std::function<bool(Entity*)> filterEnt1;
         std::function<bool(Entity*)> filterEnt2;

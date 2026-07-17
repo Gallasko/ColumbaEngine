@@ -1,0 +1,154 @@
+#pragma once
+
+#include "Systems/basicsystems.h"
+#include "Input/inputcomponent.h"
+
+#include "imachineui.h"
+#include "depotsystem.h"
+#include "inventoryui.h"
+#include "slotsystem.h"
+#include "playerinventory.h"
+#include "missionsystem.h"
+
+class CraftingUISystem;
+
+// Side-panel UI for Depot (tileId 10).
+// Shows a 4-slot grid (2 columns x 2 rows) for Robot Core input / reward output.
+class DepotUISystem : public pg::System<pg::Listener<pg::ResizeEvent>,
+                                     pg::QueuedListener<pg::OnSDLScanCode>,
+                                     pg::QueuedListener<pg::TickEvent>,
+                                     pg::QueuedListener<pg::OnMouseClick>,
+                                     pg::Listener<InventoryClosedEvent>>,
+                      public IMachineUI
+{
+public:
+    static constexpr size_t UI_VP             = 2;
+    static constexpr size_t NUM_SLOTS         = 4;  // Input slots
+    static constexpr size_t NUM_OUTPUT_SLOTS  = 4;  // Output slots
+    static constexpr size_t COLS              = 2;
+    static constexpr size_t ROWS              = 2;
+    static constexpr float SLOT_SIZE          = 40.0f;
+    static constexpr float ITEM_SIZE          = 28.0f;
+    static constexpr float PANEL_PADDING      = 12.0f;
+    static constexpr float SLOT_SPACING       = 4.0f;
+    static constexpr float GAP_AFTER_TITLE    = 6.0f;
+    static constexpr float SECTION_GAP        = 8.0f;
+    static constexpr float TITLE_H            = 20.0f;
+    static constexpr float TEXT_SCALE         = 0.3f;
+    static constexpr float TITLE_SCALE        = 0.4f;
+    static constexpr float GAP_BETWEEN_PANELS = 8.0f;
+
+    // Mission section layout
+    static constexpr float MISSION_ROW_H   = 24.0f;
+    static constexpr float MISSION_ROW_GAP = 3.0f;
+    static constexpr size_t MAX_MISSION_ROWS = 5;
+    static constexpr float BTN_W           = 50.0f;
+    static constexpr float BTN_H           = 20.0f;
+    static constexpr float BTN_TEXT_SCALE  = 0.25f;
+    static constexpr float PROGRESS_H      = 8.0f;
+
+    static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
+
+    DepotUISystem(ItemRegistry* itemRegistry,
+                  float screenWidth, float screenHeight)
+        : itemRegistry(itemRegistry),
+          screenWidth(screenWidth), screenHeight(screenHeight) {}
+
+    virtual std::string getSystemName() const override { return "Depot UI System"; }
+
+    // ---- IMachineUI ----
+    MachineUIDescriptor descriptor() const override
+    {
+        return {true /*requiresInventory*/, false, true /*suppressesRecipePanel*/};
+    }
+    bool isOpen() const override { return visible; }
+    std::string getOpenMachineName() const override { return visible ? "Depot" : std::string{}; }
+    void open(int gridX, int gridY, const std::string& /*machineName*/) override
+    {
+        open(gridX, gridY);
+    }
+    void close() override;
+
+    void open(int gridX, int gridY);
+
+    virtual void onEvent(const pg::ResizeEvent& event) override
+    {
+        screenWidth = event.width;
+        screenHeight = event.height;
+    }
+
+    virtual void onProcessEvent(const pg::OnSDLScanCode& event) override;
+    virtual void onProcessEvent(const pg::TickEvent&) override;
+    virtual void onProcessEvent(const pg::OnMouseClick& event) override;
+    virtual void onEvent(const InventoryClosedEvent&) override;
+
+private:
+    float getPanelWidth() const  { return COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2.0f * PANEL_PADDING; }
+    float getPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
+                                        + ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING
+                                        + SECTION_GAP + TITLE_H + GAP_AFTER_TITLE
+                                        + ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING
+                                        + PANEL_PADDING; }
+
+    // Mission panel (RIGHT of inventory)
+    float getMissionPanelWidth() const  { return getPanelWidth(); }
+    float getMissionPanelHeight() const { return PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
+                                              + MAX_MISSION_ROWS * (MISSION_ROW_H + MISSION_ROW_GAP)
+                                              + PANEL_PADDING; }
+
+    void ensurePanelCreated();
+    void setPanelVisibility(bool vis);
+    void createPanel();
+
+    void syncAllSlots();
+
+    void setEntityVisibility(uint64_t id, bool vis);
+    void setEntityText(uint64_t id, const std::string& text);
+
+    // Mission section
+    void createMissionSection();
+    void refreshMissionSection();
+
+    // --- Members ---
+
+    ItemRegistry* itemRegistry = nullptr;
+    float screenWidth = 0.0f;
+    float screenHeight = 0.0f;
+
+    bool visible = false;
+    bool panelCreated = false;
+    bool depotDataSeenThisOpen = false;
+    int openDepotX = -1;
+    int openDepotY = -1;
+
+    // Entity IDs
+    uint64_t backdropEntityId = 0;
+    uint64_t titleEntityId    = 0;
+    uint64_t inputSlotEntityIds[NUM_SLOTS]       = {};
+    uint64_t outputTitleEntityId = 0;
+    uint64_t outputSlotEntityIds[NUM_OUTPUT_SLOTS] = {};
+
+    // Mission panel (right side)
+    uint64_t missionPanelBackdropId = 0;
+    uint64_t missionSectionTitleId = 0;
+
+    // Active mission display (when depot has an active mission)
+    uint64_t activeMissionNameId = 0;
+    uint64_t activeMissionProgressBgId = 0;
+    uint64_t activeMissionProgressFillId = 0;
+    uint64_t activeMissionStatusId = 0;
+    uint64_t activeMissionClaimBtnBgId = 0;
+    uint64_t activeMissionClaimBtnTextId = 0;
+
+    // Available mission rows (when no active mission)
+    struct MissionRow
+    {
+        uint64_t bgId = 0;
+        uint64_t nameId = 0;
+        uint64_t infoId = 0;
+        uint64_t btnBgId = 0;
+        uint64_t btnTextId = 0;
+        size_t defIndex = 0;
+    };
+    MissionRow missionRows[MAX_MISSION_ROWS] = {};
+};

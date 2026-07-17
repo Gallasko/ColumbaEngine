@@ -11,6 +11,16 @@ namespace pg
     template<typename T>
     void serialize(Archive& archive, const T& element);
 
+    enum class UnionType
+    {
+        FLOAT,
+        DOUBLE,
+        INT,
+        SIZE_T,
+        STRING,
+        BOOL
+    };
+
     // Todo add a none type
 
     /**
@@ -52,17 +62,6 @@ namespace pg
             std::string s;  ///< String representation of the element type.
             bool b;         ///< Bool representation of the element type.
             // Big Int bi;
-        };
-
-    public:
-        enum class UnionType
-        {
-            FLOAT,
-            DOUBLE,
-            INT,
-            SIZE_T,
-            STRING,
-            BOOL
         };
 
     public:
@@ -326,7 +325,12 @@ namespace pg
 
         inline bool isEmpty() const { return emptyFlag; }
 
-        explicit operator bool() const;
+        operator bool() const;
+        operator float() const;
+        operator double() const;
+        operator int() const;
+        operator size_t() const;
+        operator std::string() const;
 
     private:
         friend void serialize<>(Archive& archive, const ElementType& element);
@@ -350,13 +354,7 @@ namespace pg
                 data.s.~basic_string();
         }
 
-        std::string enumTypeToString(const ElementType::UnionType& type) const;
-
-        explicit operator float() const;
-        explicit operator double() const;
-        explicit operator int() const;
-        explicit operator size_t() const;
-        explicit operator std::string() const;
+        std::string enumTypeToString(const UnionType& type) const;
 
         U data;
 
@@ -365,8 +363,16 @@ namespace pg
 
     typedef std::unordered_map<std::string, ElementType> ElementMap;
 
-    // Declare the ElementType serialize specialization here so it is visible
-    // wherever ElementType is used, preventing the generic no-op from being instantiated first.
+    // Declare the ElementType serialize/deserialize specializations here so they are visible
+    // wherever ElementType is used, preventing the generic templates from being instantiated first.
     template <>
     void serialize(Archive& archive, const ElementType& element);
+
+    class UnserializedObject;
+
+    template <typename Type>
+    Type deserialize(const UnserializedObject& serializedString);
+
+    template <>
+    ElementType deserialize(const UnserializedObject& serializedString);
 }

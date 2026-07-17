@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "description": "Factory automation game for GameDevJs 2026",
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "changes": [
+        "Initial release",
+        "Core factory building mechanics",
+        "Mining, smelting, and crafting systems"
+      ]
+    }
+  ]
+}

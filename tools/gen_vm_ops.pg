@@ -1,0 +1,559 @@
+// gen_vm_ops.pg — vmgen-style generator for the VM's typed operator kernels.
+// Reads the declarative spec in vm_ops_def.pg and emits C++ .inc files so the
+// fusion functors, base stack handlers and *Values helpers all render from
+// ONE kernel table (see the spec header for the schema).
+//
+// Usage:  PgCompilerBootstrap tools/gen_vm_ops.pg <output-dir>
+//         (run from the tools/ directory so `import "vm_ops_def"` resolves)
+//
+// Emits:  ops_functors.inc      — functor structs (decoded_fusion.h)
+//         ops_binop_tables.inc  — BinOp enum, classification + trait tables
+//         ops_select.inc        — fused-handler selection switches
+
+import "string"
+import "file"
+import "algorithm"
+
+import "vm_ops_def"
+
+// ============================================================================
+// Kernel expansion and validation
+// ============================================================================
+
+// Expand the `op: "+"` shorthand into the 4 explicit numeric kernels
+// (int/int, dbl/dbl and the two int<->double promotions), all inline.
+fun expandKernels(op)
+{
+    if (contain(op, "kernels"))
+    {
+        return op["kernels"]
+    }
+
+    var sym = op["op"]
+    var kernels = []
+    push(kernels, ["int", "int", "$a " + sym + " $b", "", "inline"])
+    push(kernels, ["dbl", "dbl", "$a " + sym + " $b", "", "inline"])
+    push(kernels, ["int", "dbl", "static_cast<double>($a) " + sym + " $b", "", "inline"])
+    push(kernels, ["dbl", "int", "$a " + sym + " static_cast<double>($b)", "", "inline"])
+    return kernels
+}
+
+fun validateOps(ops)
+{
+    var seen = {}
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        var op = ops[i]
+        var name = op["name"]
+
+        if (contain(seen, name))
+        {
+            log("ERROR: duplicate op name: " + name)
+            return false
+        }
+        seen[name] = true
+
+        if (op["kind"] != "arith" and op["kind"] != "cmp")
+        {
+            log("ERROR: op '" + name + "' has invalid kind: " + op["kind"])
+            return false
+        }
+
+        if (contain(op, "kernels") and contain(op, "op"))
+        {
+            log("ERROR: op '" + name + "' has both `op` shorthand and explicit kernels")
+            return false
+        }
+        if (not contain(op, "kernels") and not contain(op, "op"))
+        {
+            log("ERROR: op '" + name + "' has neither `op` shorthand nor kernels")
+            return false
+        }
+
+        var kernels = expandKernels(op)
+        for (var k = 0; k < len(kernels); k = k + 1)
+        {
+            var kernel = kernels[k]
+            if (len(kernel) != 5)
+            {
+                log("ERROR: op '" + name + "' kernel " + toString(k) + " must have 5 entries")
+                return false
+            }
+            for (var t = 0; t < 2; t = t + 1)
+            {
+                var ty = kernel[t]
+                if (ty != "int" and ty != "dbl" and ty != "rawint")
+                {
+                    log("ERROR: op '" + name + "' kernel " + toString(k) + " has invalid type: " + ty)
+                    return false
+                }
+            }
+            if (kernel[4] != "inline" and kernel[4] != "helper")
+            {
+                log("ERROR: op '" + name + "' kernel " + toString(k) + " has invalid `where`: " + kernel[4])
+                return false
+            }
+        }
+    }
+    return true
+}
+
+// ============================================================================
+// C++ rendering helpers
+// ============================================================================
+
+// Type guard for one operand: int/rawint -> IS_INT, dbl -> IS_DOUBLE.
+fun typeCond(ty, v)
+{
+    if (ty == "dbl")
+    {
+        return "IS_DOUBLE(" + v + ")"
+    }
+    return "IS_INT(" + v + ")"
+}
+
+// Unboxed read for one operand; rawint kernels see the boxed value itself.
+fun typeRead(ty, v)
+{
+    if (ty == "int")
+    {
+        return "AS_INT(" + v + ")"
+    }
+    if (ty == "dbl")
+    {
+        return "AS_DOUBLE(" + v + ")"
+    }
+    return v
+}
+
+// Substitute the $a/$b placeholders with this kernel's operand reads.
+fun substKernel(expr, ta, tb)
+{
+    var out = replace(expr, "$a", typeRead(ta, "a"))
+    return replace(out, "$b", typeRead(tb, "b"))
+}
+
+// The `if (...)` condition for a kernel: both type guards + optional guard.
+fun kernelCond(kernel)
+{
+    var cond = typeCond(kernel[0], "a") + " and " + typeCond(kernel[1], "b")
+    if (kernel[3] != "")
+    {
+        cond += " and (" + substKernel(kernel[3], kernel[0], kernel[1]) + ")"
+    }
+    return cond
+}
+
+// Box a kernel's result expression according to the op kind.
+fun boxResult(op, kernel, expr)
+{
+    if (op["kind"] == "cmp")
+    {
+        return "BOOL_VAL(" + expr + ")"
+    }
+    if (kernel[0] == "int" and kernel[1] == "int")
+    {
+        return "INT_VAL(" + expr + ")"
+    }
+    return "FLOAT_VAL(" + expr + ")"
+}
+
+fun functorName(op)
+{
+    return "F" + capitalize(op["name"])
+}
+
+// Kernels with the requested placement ("inline" or "helper"); "all" for both.
+fun kernelsWhere(op, where)
+{
+    var out = []
+    var kernels = expandKernels(op)
+    for (var i = 0; i < len(kernels); i = i + 1)
+    {
+        if (where == "all" or kernels[i][4] == where)
+        {
+            push(out, kernels[i])
+        }
+    }
+    return out
+}
+
+// ============================================================================
+// ops_functors.inc — fusion functor structs (decoded_fusion.h)
+// ============================================================================
+
+fun banner(what)
+{
+    var code = ""
+    code += "// GENERATED by tools/gen_vm_ops.pg from tools/vm_ops_def.pg — DO NOT EDIT.\n"
+    code += "// Regenerate with:  cmake --build <build-dir> --target GenerateVmOps\n"
+    code += "// " + what + "\n"
+    code += "\n"
+    return code
+}
+
+fun renderApply(op, indent)
+{
+    var code = ""
+    code += indent + "PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)\n"
+    code += indent + "{\n"
+
+    var kernels = kernelsWhere(op, "inline")
+    for (var i = 0; i < len(kernels); i = i + 1)
+    {
+        var kernel = kernels[i]
+        var expr = substKernel(kernel[2], kernel[0], kernel[1])
+        code += indent + "    if (" + kernelCond(kernel) + ")\n"
+        code += indent + "        return " + boxResult(op, kernel, expr) + ";\n"
+    }
+
+    code += indent + "    return vm->" + op["helper"] + "(a, b);\n"
+    code += indent + "}\n"
+    return code
+}
+
+fun renderApplyCond(op, indent)
+{
+    var code = ""
+    code += indent + "// Branch-sink form: the condition as a raw bool, no Value boxing.\n"
+    code += indent + "PG_FUSION_INLINE static bool applyCond(VM* vm, const Value& a, const Value& b)\n"
+    code += indent + "{\n"
+
+    var kernels = kernelsWhere(op, "inline")
+    for (var i = 0; i < len(kernels); i = i + 1)
+    {
+        var kernel = kernels[i]
+        var expr = substKernel(kernel[2], kernel[0], kernel[1])
+        code += indent + "    if (" + kernelCond(kernel) + ")\n"
+        code += indent + "        return " + expr + ";\n"
+    }
+
+    code += indent + "    return isValueTrue(vm->" + op["helper"] + "(a, b));\n"
+    code += indent + "}\n"
+    return code
+}
+
+fun renderFunctor(op)
+{
+    var name = functorName(op)
+    var traits = op["kind"]
+    if (op["commutative"])
+    {
+        traits += ", commutative"
+    }
+
+    var code = ""
+    code += "    // op: " + op["name"] + " (" + traits + "; helper: " + op["helper"] + ")\n"
+    code += "    struct " + name + "\n"
+    code += "    {\n"
+    code += renderApply(op, "        ")
+    if (op["kind"] == "cmp")
+    {
+        code += "\n"
+        code += renderApplyCond(op, "        ")
+    }
+    code += "    };\n"
+    code += "\n"
+    return code
+}
+
+fun renderFunctorsFile(ops)
+{
+    var code = banner("Fusion functors: typed inline kernels + *Values fallback, one per BinOp.")
+
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        code += renderFunctor(ops[i])
+    }
+
+    code += "    // Schema safety net: a generator bug that changes a signature must fail\n"
+    code += "    // here, not by silently falling back to the non-applyCond path.\n"
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        var name = functorName(ops[i])
+        code += "    static_assert(std::is_invocable_r_v<Value, decltype(&" + name + "::apply), VM*, const Value&, const Value&>,\n"
+        code += "                  \"generated functor " + name + "::apply has the wrong signature\");\n"
+        if (ops[i]["kind"] == "cmp")
+        {
+            code += "    static_assert(std::is_invocable_r_v<bool, decltype(&" + name + "::applyCond), VM*, const Value&, const Value&>,\n"
+            code += "                  \"generated functor " + name + "::applyCond has the wrong signature\");\n"
+        }
+    }
+
+    return code
+}
+
+// ============================================================================
+// ops_binop_tables.inc — BinOp enum, opcode classification and trait tables
+// (included near the top of decoded_fusion.h, before the functors)
+// ============================================================================
+
+fun enumName(op)
+{
+    return capitalize(op["name"])
+}
+
+fun renderBinopTablesFile(ops)
+{
+    var code = banner("BinOp enum, opcode classification and per-op trait tables.")
+
+    code += "    enum class BinOp : uint8_t\n"
+    code += "    {\n"
+    code += "        None,\n"
+    var names = ""
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        names += enumName(ops[i]) + ", "
+    }
+    code += "        " + trim(names) + "\n"
+    code += "    };\n"
+    code += "\n"
+
+    code += "    inline BinOp classifyBinary(uint8_t opcode)\n"
+    code += "    {\n"
+    code += "        switch (static_cast<OpCode>(opcode))\n"
+    code += "        {\n"
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        code += "            case OpCode::" + ops[i]["opcode"] + ": return BinOp::" + enumName(ops[i]) + ";\n"
+    }
+    code += "            default: return BinOp::None;\n"
+    code += "        }\n"
+    code += "    }\n"
+    code += "\n"
+
+    code += "    inline bool isComparison(BinOp op)\n"
+    code += "    {\n"
+    code += "        switch (op)\n"
+    code += "        {\n"
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        if (ops[i]["kind"] == "cmp")
+        {
+            code += "            case BinOp::" + enumName(ops[i]) + ":\n"
+        }
+    }
+    code += "                return true;\n"
+    code += "            default: return false;\n"
+    code += "        }\n"
+    code += "    }\n"
+    code += "\n"
+
+    code += "    // Operands may be swapped freely only for these ops — used by the in-place\n"
+    code += "    // compound-assignment fusion to handle `x = operand <op> x`.\n"
+    code += "    inline bool isCommutative(BinOp op)\n"
+    code += "    {\n"
+    code += "        switch (op)\n"
+    code += "        {\n"
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        if (ops[i]["commutative"])
+        {
+            code += "            case BinOp::" + enumName(ops[i]) + ":\n"
+        }
+    }
+    code += "                return true;\n"
+    code += "            default: return false;\n"
+    code += "        }\n"
+    code += "    }\n"
+    code += "\n"
+
+    code += "    // Display names, indexed by BinOp value (profiler/disassembly strings).\n"
+    code += "    inline const char* binOpName(BinOp op)\n"
+    code += "    {\n"
+    code += "        static const char* opNames[] = {\n"
+    var nameRow = "            \"None\", "
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        nameRow += "\"" + enumName(ops[i]) + "\", "
+    }
+    code += nameRow + "\n"
+    code += "        };\n"
+    code += "        return opNames[static_cast<uint8_t>(op)];\n"
+    code += "    }\n"
+
+    return code
+}
+
+// ============================================================================
+// ops_select.inc — fused-handler selection switches
+// (included after the pickA/pickCompoundB template ladder)
+// ============================================================================
+
+fun renderSelectFile(ops)
+{
+    var code = banner("Fused-handler selection: BinOp -> pick ladder dispatch.")
+
+    code += "    inline OpDecodedHandler selectFusedBinary(BinOp op, Src a, Src b, Sink sink)\n"
+    code += "    {\n"
+    code += "        const bool cmp = isComparison(op);\n"
+    code += "        switch (op)\n"
+    code += "        {\n"
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        code += "            case BinOp::" + enumName(ops[i]) + ": return pickA<" + functorName(ops[i]) + ">(a, b, sink, cmp);\n"
+    }
+    code += "            case BinOp::None: return nullptr;\n"
+    code += "        }\n"
+    code += "        return nullptr;\n"
+    code += "    }\n"
+    code += "\n"
+
+    code += "    inline OpDecodedHandler selectFusedLocalCompound(BinOp op, Src b)\n"
+    code += "    {\n"
+    code += "        switch (op)\n"
+    code += "        {\n"
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        code += "            case BinOp::" + enumName(ops[i]) + ": return pickCompoundB<" + functorName(ops[i]) + ">(b);\n"
+    }
+    code += "            case BinOp::None: return nullptr;\n"
+    code += "        }\n"
+    code += "        return nullptr;\n"
+    code += "    }\n"
+
+    return code
+}
+
+// ============================================================================
+// ops_base_handlers.inc — base stack/stack op handlers (vm_binary_op.cpp)
+// ============================================================================
+
+// "greaterEqual" -> "greater_equal" (handler symbol derivation)
+fun snakeCase(name)
+{
+    var out = ""
+    for (var i = 0; i < strlen(name); i = i + 1)
+    {
+        var c = charAt(name, i)
+        var lower = toLowerCase(c)
+        if (c != lower)
+        {
+            out += "_" + lower
+        }
+        else
+        {
+            out += c
+        }
+    }
+    return out
+}
+
+fun handlerName(op)
+{
+    return "op_" + snakeCase(op["name"]) + "_decoded"
+}
+
+fun renderBaseHandlersFile(ops)
+{
+    var code = banner("Base stack/stack handlers: shared functors give them the same inline kernels as the fused paths.")
+
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        var op = ops[i]
+        code += "    const DecodedInstruction* " + handlerName(op) + "(VM* vm, const DecodedInstruction& instr)\n"
+        code += "    {\n"
+        code += "        auto b = vm->pop();\n"
+        code += "        auto a = vm->peek();\n"
+        code += "        vm->changeTop(fusion::" + functorName(op) + "::apply(vm, a, b));\n"
+        code += "        // Escape analysis: only release heap objects, not primitives\n"
+        code += "        if (requiresRefCount(b)) vm->releaseAndDelete(b);\n"
+        code += "        return &instr + 1;\n"
+        code += "    }\n"
+        code += "\n"
+    }
+
+    return code
+}
+
+// ============================================================================
+// ops_values_helpers.inc — VM::*Values slow-path bodies (vm_binary_op.cpp)
+// ALL kernels (inline + helper placement) followed by the handwritten tail,
+// which keeps the non-mechanical cases (string concat, ElementType fallback,
+// error throws) in ordinary C++.
+// ============================================================================
+
+fun renderValuesHelpersFile(ops)
+{
+    var code = banner("VM::*Values helper bodies: full kernel ladder + handwritten tail.")
+
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        var op = ops[i]
+        code += "    Value VM::" + op["helper"] + "(const Value& a, const Value& b)\n"
+        code += "    {\n"
+
+        var kernels = kernelsWhere(op, "all")
+        for (var k = 0; k < len(kernels); k = k + 1)
+        {
+            var kernel = kernels[k]
+            var expr = substKernel(kernel[2], kernel[0], kernel[1])
+            code += "        if (" + kernelCond(kernel) + ")\n"
+            code += "            return " + boxResult(op, kernel, expr) + ";\n"
+        }
+
+        if (contain(op, "tailExpr"))
+        {
+            code += "        return " + op["tailExpr"] + ";\n"
+        }
+        else
+        {
+            code += "        return " + op["tail"] + "(a, b);\n"
+        }
+        code += "    }\n"
+        code += "\n"
+    }
+
+    return code
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+fun main()
+{
+    log("VM ops generator starting...")
+
+    if (getArgCount() < 3)
+    {
+        log("Usage: PgCompiler gen_vm_ops.pg <output-dir>")
+        return
+    }
+
+    var outDir = getArg(2)
+    log("Output directory: " + outDir)
+
+    var ops = binaryOps()
+    log("Loaded " + toString(len(ops)) + " binary op specs")
+
+    if (not validateOps(ops))
+    {
+        log("ERROR: spec validation failed — nothing written")
+        return
+    }
+
+    var functorsFile = outDir + "/ops_functors.inc"
+    writeFile(functorsFile, renderFunctorsFile(ops))
+    log("Generated: " + functorsFile)
+
+    var tablesFile = outDir + "/ops_binop_tables.inc"
+    writeFile(tablesFile, renderBinopTablesFile(ops))
+    log("Generated: " + tablesFile)
+
+    var selectFile = outDir + "/ops_select.inc"
+    writeFile(selectFile, renderSelectFile(ops))
+    log("Generated: " + selectFile)
+
+    var handlersFile = outDir + "/ops_base_handlers.inc"
+    writeFile(handlersFile, renderBaseHandlersFile(ops))
+    log("Generated: " + handlersFile)
+
+    var helpersFile = outDir + "/ops_values_helpers.inc"
+    writeFile(helpersFile, renderValuesHelpersFile(ops))
+    log("Generated: " + helpersFile)
+
+    log("VM ops generation complete!")
+}
+
+main()

@@ -1,12 +1,14 @@
 #pragma once
 
 #include "input.h"
+#include "Input/sdlevents.h"
 
 #include "pgconstant.h"
 
 #include "ECS/system.h"
 #include "ECS/callable.h"
 #include "2D/position.h"
+#include "Components/ViewportComponent.generated.h"
 
 #include <functional>
 #include <memory>
@@ -98,91 +100,17 @@ namespace pg
         CallablePtr callback;
     };
 
-    struct OnMouseMove
-    {
-        Point2D pos;
-        Input *inputHandler;
-
-        STANDARD_EVENT_CONVERTIBLE(OnMouseMove)
-    };
-
-    /**
-     * Raw SDL mouse motion event, forwarded verbatim from the SDL event loop.
-     * `xrel`/`yrel` are SDL's authoritative relative motion and are reliable
-     * in both normal and relative-mouse-mode (SDL_SetRelativeMouseMode), which
-     * makes this event the right signal for FPS-style look controllers.
-     * Unlike `OnMouseMove` (position-based), this is not derived from UI
-     * hover tracking and does not race with the main-thread input reset.
-     */
-    struct OnSDLMouseMotion
-    {
-        Sint32 x;
-        Sint32 y;
-        Sint32 xrel;
-        Sint32 yrel;
-    };
-
-    struct OnSDLTextInput
-    {
-        std::string text;
-
-        STANDARD_EVENT_CONVERTIBLE(OnSDLTextInput)
-    };
-
-    struct OnSDLScanCode
-    {
-        SDL_Scancode key;
-        Uint16 mod;
-
-        STANDARD_EVENT_CONVERTIBLE(OnSDLScanCode)
-    };
-
-    struct OnSDLScanCodeReleased
-    {
-        SDL_Scancode key;
-        Uint16 mod;
-
-        STANDARD_EVENT_CONVERTIBLE(OnSDLScanCodeReleased)
-    };
-
-    struct OnSDLMouseWheel
-    {
-        Sint32 x;
-        Sint32 y;
-
-        STANDARD_EVENT_CONVERTIBLE(OnSDLMouseWheel)
-    };
-
-    struct OnSDLGamepadPressed
-    {
-        int id;
-
-        unsigned int button;
-    };
-
-    struct OnSDLGamepadReleased
-    {
-        int id;
-
-        unsigned int button;
-    };
-
-    struct OnSDLGamepadAxisChanged
-    {
-        int id;
-
-        unsigned int axis;
-
-        int value;
-    };
+    // SDL event structs are defined in the lightweight sdlevents.h header
+    // to avoid pulling heavy system templates into files that only need events.
 
     struct MouseAreaZ
     {
-        MouseAreaZ(_unique_id id, EntityRef ui, CompRef<PositionComponent> pos) : id(id), ui(ui), pos(pos) { LOG_THIS_MEMBER("MouseArea"); }
+        MouseAreaZ(_unique_id id, EntityRef ui, CompRef<PositionComponent> pos, CompRef<ViewportComponent> vp = {}) : id(id), ui(ui), pos(pos), vp(vp) { LOG_THIS_MEMBER("MouseArea"); }
 
         _unique_id id;
         EntityRef ui;
         CompRef<PositionComponent> pos;
+        CompRef<ViewportComponent> vp;
     };
 
     struct MouseClickSystem : public System<Own<MouseLeftClickComponent>, Own<MouseRightClickComponent>, InitSys>
@@ -224,7 +152,11 @@ namespace pg
             group->addOnGroup([this](EntityRef entity) {
                 LOG_MILE("MouseLeaveClickSystem", "Add entity " << entity->id << " to ui - mouse leave click group !");
 
-                mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>());
+                CompRef<ViewportComponent> vp;
+                if (entity->has<ViewportComponent>())
+                    vp = entity->get<ViewportComponent>();
+
+                mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>(), vp);
             });
 
             group->removeOfGroup([this](EntitySystem*, _unique_id id) {
@@ -275,7 +207,11 @@ namespace pg
             group->addOnGroup([this](EntityRef entity) {
                 LOG_MILE("MouseWheelSystem", "Add entity " << entity->id << " to ui - mouse wheel group !");
 
-                mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>());
+                CompRef<ViewportComponent> vp;
+                if (entity->has<ViewportComponent>())
+                    vp = entity->get<ViewportComponent>();
+
+                mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>(), vp);
             });
 
             group->removeOfGroup([this](EntitySystem*, _unique_id id) {

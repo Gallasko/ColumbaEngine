@@ -42,7 +42,7 @@ class YamlParser
                 {
                     log("  -> array item")
                     // Array item - save previous item if exists
-                    if (contain(currentItem, "name") or contain(currentItem, "params"))
+                    if (contain(currentItem, "name") or contain(currentItem, "params") or contain(currentItem, "definition"))
                     {
                         push(currentArray, currentItem)
                     }
@@ -61,7 +61,48 @@ class YamlParser
                         var parts = this.splitFirst(afterDash, ":")
                         var key = trim(parts[0])
                         var value = trim(parts[1])
-                        currentItem[key] = this.parseValue(value)
+
+                        // Check for multi-line string value (starts with " but doesn't end with ")
+                        var startsWithQuote = len(value) > 0 and substring(value, 0, 1) == "\""
+                        var endsWithQuote = len(value) > 0 and substring(value, len(value) - 1, len(value)) == "\""
+
+                        if (startsWithQuote and not endsWithQuote)
+                        {
+                            // Multi-line string - accumulate lines until closing quote
+                            var multiLineValue = substring(value, 1, len(value))
+
+                            var j = i + 1
+                            while (j < len(lines))
+                            {
+                                var nextLine = lines[j]
+                                var trimmedNext = trim(nextLine)
+
+                                var lineEndsWithQuote = len(trimmedNext) > 0 and substring(trimmedNext, len(trimmedNext) - 1, len(trimmedNext)) == "\""
+
+                                if (lineEndsWithQuote)
+                                {
+                                    var quotePos = len(nextLine) - 1
+                                    while (quotePos >= 0 and substring(nextLine, quotePos, quotePos + 1) != "\"")
+                                    {
+                                        quotePos = quotePos - 1
+                                    }
+                                    multiLineValue = multiLineValue + "\n" + substring(nextLine, 0, quotePos)
+                                    break
+                                }
+                                else
+                                {
+                                    multiLineValue = multiLineValue + "\n" + nextLine
+                                }
+                                j = j + 1
+                            }
+
+                            i = j
+                            currentItem[key] = this.escapeQuotesInMultiline(multiLineValue)
+                        }
+                        else
+                        {
+                            currentItem[key] = this.parseValue(value)
+                        }
                     }
                     else if (len(afterDash) > 0)
                     {
@@ -96,10 +137,10 @@ class YamlParser
                         {
                             log("  -> section start: " + key)
                             // Start of array or object section
-                            if (len(currentArray) > 0 or contain(currentItem, "name") or contain(currentItem, "params"))
+                            if (len(currentArray) > 0 or contain(currentItem, "name") or contain(currentItem, "params") or contain(currentItem, "definition"))
                             {
                                 // Save previous array
-                                if (contain(currentItem, "name") or contain(currentItem, "params"))
+                                if (contain(currentItem, "name") or contain(currentItem, "params") or contain(currentItem, "definition"))
                                 {
                                     push(currentArray, currentItem)
                                     currentItem = {}
@@ -196,7 +237,7 @@ class YamlParser
         }
 
         // Save last item/array
-        if (contain(currentItem, "name") or contain(currentItem, "params"))
+        if (contain(currentItem, "name") or contain(currentItem, "params") or contain(currentItem, "definition"))
         {
             push(currentArray, currentItem)
         }

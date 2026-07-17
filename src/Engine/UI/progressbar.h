@@ -22,56 +22,15 @@ namespace pg
         ProgressBarComponent(const ProgressBarComponent &rhs) : emptyTextureName(rhs.emptyTextureName), fullTextureName(rhs.fullTextureName), entityId(rhs.entityId), ecsRef(rhs.ecsRef), percent(rhs.percent), direction(rhs.direction) { }
         virtual ~ProgressBarComponent() {}
 
-        ProgressBarComponent& operator=(const ProgressBarComponent& other)
-        {
-            emptyTextureName = other.emptyTextureName;
-            fullTextureName = other.fullTextureName;
+        ProgressBarComponent& operator=(const ProgressBarComponent& other);
 
-            percent = other.percent;
-            direction = other.direction;
-
-            if (ecsRef)
-            {
-                ecsRef->sendEvent(EntityChangedEvent{entityId});
-            }
-
-            return *this;
-        }
-
-        virtual void onCreation(EntityRef entity) override
-        {
-            ecsRef = entity->world();
-
-            entityId = entity->id;
-        }
+        virtual void onCreation(EntityRef entity) override;
 
         inline static std::string getType() { return "ProgressBarComponent"; }
 
-        void setFillPercent(float percent)
-        {
-            if (areNotAlmostEqual(this->percent, percent))
-            {
-                this->percent = percent;
+        void setFillPercent(float percent);
 
-                if (ecsRef)
-                {
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
-
-        void setFillDirection(const ProgressBarFillDirection& direction)
-        {
-            if (this->direction != direction)
-            {
-                this->direction = direction;
-
-                if (ecsRef)
-                {
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
+        void setFillDirection(const ProgressBarFillDirection& direction);
 
         // Todo make those private
         std::string emptyTextureName;

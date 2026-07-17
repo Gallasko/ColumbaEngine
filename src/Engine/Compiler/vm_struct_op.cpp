@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "vm.h"
+#include "decoded_chunk.h"
 
 namespace pg
 {
@@ -29,78 +30,26 @@ namespace pg
         return vm->callMethod(instance->klass, name, argCount);
     }
 
-    void op_invoke(VM* vm)
+    const DecodedInstruction* op_invoke_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        uint8_t stringIndex = *vm->currentFrame->ip++;
-        uint8_t argCount = *vm->currentFrame->ip++;
+        const uint8_t argCount = instr.operands.indexed.byte2;
+        const std::string& methodName = *instr.propertyNamePtr;
 
-        // Get method name from current chunk's constantStrings
-        const std::string& methodName = vm->currentFrame->closure->function->chunk.constantStrings[stringIndex];
+        const int frameCountBefore = vm->frameCount;
+
+        // Resume point for op_return_decoded if invoke pushes a frame.
+        vm->pendingCallResume = &instr + 1;
 
         if (not invoke(vm, methodName, argCount))
         {
             vm->runtimeError("Method '" + methodName + "' not found.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
-        vm->currentFrame = &vm->frames[vm->frameCount - 1];
-        vm->updateChunkCache();
+        return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
     }
 
-    void op_closure(VM* vm)
-    {
-        uint8_t constantIndex = *vm->currentFrame->ip++;
-
-        auto functionValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-
-        if (not IS_FUNC(functionValue))
-        {
-            vm->runtimeError("Closure operand must be a function.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        ObjFunction* function = vm->asFunction(functionValue);
-        auto closure = vm->createClosure(function);  // Already tracked in createClosure
-        vm->push(closure);
-
-        for (int i = 0; i < function->upvalueCount; i++)
-        {
-            uint8_t isLocal = *vm->currentFrame->ip++;
-            uint8_t index = *vm->currentFrame->ip++;
-            if (isLocal)
-            {
-                vm->asClosure(closure)->upvalues[i] = vm->captureUpvalue(vm->currentFrame->slots + index);
-            }
-            else
-            {
-                vm->asClosure(closure)->upvalues[i] = vm->currentFrame->closure->upvalues[index];
-            }
-        }
-    }
-
-
-    void op_class(VM* vm)
-    {
-        uint8_t constantIndex = *vm->currentFrame->ip++;
-
-        auto classNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-
-        ElementType classNameElem = vm->valueToElement(classNameValue);
-        if (not classNameElem.isLitteral())
-        {
-            vm->runtimeError("Class name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        std::string className = classNameElem.toString();
-        auto newClass = vm->createClass(className);  // Already tracked in createClass
-        vm->push(newClass);
-    }
 
     bool bindMethod(VM* vm, Klass* klass, const std::string& name)
     {
@@ -138,39 +87,36 @@ namespace pg
         return false;
     }
 
-    void op_get_property(VM* vm)
+    const DecodedInstruction* op_get_property_decoded(VM* vm, const DecodedInstruction& instr)
     {
         if (not IS_INSTANCE(vm->peek(0)))
         {
             vm->runtimeError("Only instances have properties.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
+            return nullptr;
         }
 
         auto* instance = vm->asInstance(vm->peek(0));
 
+        // Property name pre-resolved at decode time — no chunk.constantStrings
+        // lookup, no *ip++.
+        const std::string& nameStr = *instr.propertyNamePtr;
 
-        uint8_t stringIndex = *vm->currentFrame->ip++;
-        // Get property name from current chunk's constantStrings
-        const std::string& nameStr = vm->currentFrame->closure->function->chunk.constantStrings[stringIndex];
-
-        // Try to find field (direct string lookup, O(1) average case)
+        // Field-found branch (no frame change).
         auto fieldIt = instance->internedFields.find(nameStr);
         if (fieldIt != instance->internedFields.end())
         {
-            auto inst = vm->pop(); // Remove the instance from the stack
+            auto inst = vm->pop();
             vm->releaseAndDelete(inst);
             vm->push(vm->retainValue(instance->fieldValues[fieldIt->second]));
-            return;
+            return &instr + 1;
         }
 
-        // Check for __get metamethod in class methods OR instance fields
+        // Look up __get metamethod (class method or dynamic instance field).
         Value getMethod;
         bool hasGetMethod = false;
         bool isDynamicGet = false;
 
-        // First check class methods
         auto getMetaIt = instance->klass->methods.find("__get");
         if (getMetaIt != instance->klass->methods.end())
         {
@@ -179,11 +125,10 @@ namespace pg
         }
         else
         {
-            // Also check instance fields for __get (for dynamic metamethods)
-            auto fieldIt = instance->internedFields.find("__get");
-            if (fieldIt != instance->internedFields.end())
+            auto dynIt = instance->internedFields.find("__get");
+            if (dynIt != instance->internedFields.end())
             {
-                getMethod = instance->fieldValues[fieldIt->second];
+                getMethod = instance->fieldValues[dynIt->second];
                 hasGetMethod = true;
                 isDynamicGet = true;
             }
@@ -191,123 +136,104 @@ namespace pg
 
         if (hasGetMethod and (IS_CLOSURE(getMethod) or IS_NAT_FUNC(getMethod)))
         {
-            // Call __get(instance, propertyName)
-            // Create a real string Value for the metamethod
             Value nameValue = vm->createString(nameStr);
 
             if (IS_CLOSURE(getMethod))
             {
-                // Push property name as argument
                 vm->push(nameValue);
+
+                const int frameCountBefore = vm->frameCount;
+
+                // Resume point captured into the metamethod's frame.
+                vm->pendingCallResume = &instr + 1;
 
                 if (isDynamicGet)
                 {
-                    // For dynamic __get (stored in instance field), we need to set up the stack as:
-                    // [...] [getMethod] [instance] [propertyName]
-                    // Currently stack is: [...] [instance] [propertyName]
-
-                    // We need to insert the getMethod closure before the arguments
-                    // Pop the arguments temporarily
-                    Value propName = vm->pop();  // propertyName
-                    Value inst = vm->pop();      // instance
-
-                    // Push in correct order: getMethod, instance, propertyName
+                    // Stack rewrite: [...] [instance] [propName] →
+                    //                [...] [getMethod] [instance] [propName]
+                    Value propName = vm->pop();
+                    Value inst     = vm->pop();
                     vm->push(vm->retainValue(getMethod));
                     vm->push(inst);
                     vm->push(propName);
 
-                    // Call the __get method as a closure with stack [getMethod, inst, propName]
                     if (not vm->call(vm->asClosure(getMethod), 2))
                     {
                         vm->releaseAndDelete(getMethod);
                         vm->runtimeError("Cannot call __get metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
-
                 }
                 else
                 {
-                    // Call the __get method as a bound method (instance is already on stack)
                     if (not vm->callBound(vm->asClosure(getMethod), 1))
                     {
                         vm->runtimeError("Cannot call __get metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
                 }
 
-                // No need to pop the values as callValue handles that
-
-                // Function has been called, frame is set up with stackBase pointing to where to truncate on return
-                vm->currentFrame = &vm->frames[vm->frameCount - 1];
-                vm->updateChunkCache(); // Update cached chunk data for new frame
-                return;
+                // Frame was pushed — continue in the metamethod.
+                return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
             }
-            else if (IS_NAT_FUNC(getMethod))
+            else // IS_NAT_FUNC(getMethod)
             {
                 auto* native = vm->asNativeFunc(getMethod);
 
-                // Call native __get(instance, propertyName)
-                // Stack: [instance] -> args[0]=instance, args[1]=propertyName
-                vm->push(nameValue);  // Push property name
+                vm->push(nameValue);
                 Value result = native->function(vm, 2, vm->stack.data() + vm->stack.size() - 2);
 
-                // Remove arguments from stack
                 auto propName = vm->pop();
-                auto inst = vm->pop();
+                auto inst     = vm->pop();
                 vm->releaseAndDelete(propName);
                 vm->releaseAndDelete(inst);
 
                 vm->push(result);
-                return;
+                return &instr + 1;
             }
         }
 
-        // Try to find a method in the class
+        // Fallback: bind a regular method by name.
         if (not bindMethod(vm, instance->klass, nameStr))
         {
             vm->runtimeError("Undefined property '" + nameStr + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
         }
+        return &instr + 1;
     }
 
-    void op_set_property(VM *vm)
+    const DecodedInstruction* op_set_property_decoded(VM* vm, const DecodedInstruction& instr)
     {
         if (not IS_INSTANCE(vm->peek(1)))
         {
             vm->runtimeError("Only instances have fields.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
+            return nullptr;
         }
 
         auto* instance = vm->asInstance(vm->peek(1));
 
-        uint8_t stringIndex = *vm->currentFrame->ip++;
-        // Get property name from current chunk's constantStrings
-        const std::string& nameStr = vm->currentFrame->closure->function->chunk.constantStrings[stringIndex];
+        // Property name pre-resolved at decode time — no chunk.constantStrings
+        // lookup, no *ip++.
+        const std::string& nameStr = *instr.propertyNamePtr;
 
-        // IMPORTANT: Fields starting with '__' (double underscore) are treated as "internal"
-        // and bypass metamethods. This prevents infinite recursion when metamethods like
-        // __set need to actually store data in internal fields.
-        bool isInternalField = (nameStr.length() >= 2 and nameStr[0] == '_' and nameStr[1] == '_');
-
-        // Also check if we're accessing from within a bound method of the same instance
+        // Fields starting with '__' bypass metamethods to allow metamethod
+        // implementations to write through to internal storage without
+        // re-triggering themselves.
+        bool isInternalField  = (nameStr.length() >= 2 and nameStr[0] == '_' and nameStr[1] == '_');
         bool isInternalAccess = isInternalField;
 
         if (not isInternalAccess and vm->frameCount > 1)
         {
-            // Check if current frame is a bound method call
-            // In callBound(), stackBase is set to slots (see vm_helpers.cpp:222)
-            bool isBoundMethodContext = (vm->currentFrame->stackBase == vm->currentFrame->slots);
-
+            // Bound-method-on-self check: in callBound, stackBase == slots.
+            const bool isBoundMethodContext = (vm->currentFrame->stackBase == vm->currentFrame->slots);
             if (isBoundMethodContext)
             {
-                Value currentReceiver = vm->currentFrame->slots[0];
+                Value currentReceiver  = vm->currentFrame->slots[0];
                 Value accessedInstance = vm->peek(1);
-
-                // Only bypass if we're accessing the same instance that's the receiver
                 if (IS_INSTANCE(currentReceiver) and currentReceiver == accessedInstance)
                 {
                     isInternalAccess = true;
@@ -315,15 +241,13 @@ namespace pg
             }
         }
 
-        // Check for __set metamethod in class methods OR instance fields
+        // Look up __set metamethod (class method or dynamic instance field).
         Value setMethod;
         bool hasSetMethod = false;
         bool isDynamicSet = false;
 
-        // Only check for metamethods if this is NOT an internal access
         if (not isInternalAccess)
         {
-            // First check class methods
             auto setMetaIt = instance->klass->methods.find("__set");
             if (setMetaIt != instance->klass->methods.end())
             {
@@ -332,11 +256,10 @@ namespace pg
             }
             else
             {
-                // Also check instance fields for __set (for dynamic metamethods)
-                auto fieldIt = instance->internedFields.find("__set");
-                if (fieldIt != instance->internedFields.end())
+                auto dynIt = instance->internedFields.find("__set");
+                if (dynIt != instance->internedFields.end())
                 {
-                    setMethod = instance->fieldValues[fieldIt->second];
+                    setMethod = instance->fieldValues[dynIt->second];
                     hasSetMethod = true;
                     isDynamicSet = true;
                 }
@@ -345,302 +268,105 @@ namespace pg
 
         if (hasSetMethod)
         {
-            // Call __set(instance, propertyName, value)
-            // Create a real string Value for the metamethod
             Value nameValue = vm->createString(nameStr);
 
             if (IS_CLOSURE(setMethod))
             {
-                // Stack is currently: [instance, value]
-                Value value = vm->pop();     // Pop value
-                // instance is still on stack
+                // Stack: [instance, value] → [instance, name, value]
+                Value value = vm->pop();
+                vm->push(nameValue);
+                vm->push(value);
 
-                vm->push(nameValue);  // Push property name
-                vm->push(value);      // Push value
+                const int frameCountBefore = vm->frameCount;
+
+                // Resume point captured into the metamethod's frame.
+                vm->pendingCallResume = &instr + 1;
 
                 if (isDynamicSet)
                 {
-                    // For dynamic __set (instance field), we need to set up the stack as:
-                    // [...] [setMethod] [instance] [propertyName] [value]
-                    // Currently stack is: [...] [instance] [propertyName] [value]
+                    // Rewrite to: [...] [setMethod] [instance] [name] [value]
+                    Value val      = vm->pop();
+                    Value propName = vm->pop();
+                    Value inst     = vm->pop();
 
-                    // Pop the arguments temporarily
-                    Value val = vm->pop();       // value
-                    Value propName = vm->pop();  // propertyName
-                    Value inst = vm->pop();      // instance
-
-                    // Push in correct order: setMethod, instance, propertyName, value
                     vm->push(vm->retainValue(setMethod));
                     vm->push(inst);
                     vm->push(propName);
                     vm->push(val);
 
-                    // For dynamic __set (instance field), call with 3 args: [instance, propertyName, value]
                     if (not vm->call(vm->asClosure(setMethod), 3))
                     {
                         vm->releaseAndDelete(setMethod);
                         vm->runtimeError("Cannot call __set metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
                 }
                 else
                 {
-                    // For class method __set, call as bound method with 2 args: [propertyName, value]
                     if (not vm->callBound(vm->asClosure(setMethod), 2))
                     {
-                    vm->runtimeError("Cannot call __set metamethod.");
+                        vm->runtimeError("Cannot call __set metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
                 }
 
-                // Function has been called, frame is set up
-                vm->currentFrame = &vm->frames[vm->frameCount - 1];
-                vm->updateChunkCache();
-                return;
+                return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
             }
             else if (IS_NAT_FUNC(setMethod))
             {
                 auto* native = vm->asNativeFunc(setMethod);
 
-                // Stack: [instance, value]
-                // Call native __set(instance, propertyName, value)
-                Value value = vm->pop();  // Pop value temporarily
+                Value value = vm->pop();
+                vm->push(nameValue);
+                vm->push(value);
 
-                vm->push(nameValue);  // Push property name
-                vm->push(value);      // Push value
-
-                // Now stack: [instance, propertyName, value]
-                // Call with args[0]=instance, args[1]=propertyName, args[2]=value
                 Value result = native->function(vm, 3, vm->stack.data() + vm->stack.size() - 3);
 
-                // Clean up stack: remove [propertyName, value]
                 vm->pop(); // value
-                vm->pop(); // propertyName
-                auto inst = vm->pop(); // instance
+                vm->pop(); // name
+                auto inst = vm->pop();
                 vm->releaseAndDelete(inst);
 
-                vm->push(result); // Push result (usually the value that was set)
-                return;
+                vm->push(result);
+                return &instr + 1;
             }
         }
 
-        // No __set metamethod, do normal field assignment
-        auto value = vm->pop(); // Value to set
-        auto inst = vm->pop(); // Instance
+        // Plain field assignment (no metamethod).
+        auto value = vm->pop();
+        auto inst  = vm->pop();
         vm->releaseAndDelete(inst);
 
-        // Check if field exists
         auto fieldIt = instance->internedFields.find(nameStr);
         if (fieldIt != instance->internedFields.end())
         {
-            // Update existing field
             size_t valueIndex = fieldIt->second;
             vm->releaseAndDelete(instance->fieldValues[valueIndex]);
             instance->fieldValues[valueIndex] = vm->retainValue(value);
         }
         else
         {
-            // New field - add to storage
             size_t newIndex = instance->fieldValues.size();
             instance->fieldValues.push_back(vm->retainValue(value));
             instance->internedFields[nameStr] = newIndex;
         }
 
         vm->push(value);
+        return &instr + 1;
     }
-
-    void op_method(VM* vm)
-    {
-        uint8_t constantIndex = *vm->currentFrame->ip++;
-
-        auto methodNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        ElementType methodNameElem = vm->valueToElement(methodNameValue);
-        if (not methodNameElem.isLitteral())
-        {
-            vm->runtimeError("Method name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        std::string methodName = methodNameElem.toString();
-
-        // The class is below the method closure/native function on the stack
-        auto methodValue = vm->pop();
-        auto classValue = vm->peek();
-
-        if (not IS_CLASS(classValue))
-        {
-            vm->runtimeError("Method definition must be on a class.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        Klass* klass = vm->asClass(classValue);
-
-        // Methods can be either closures (script-defined) or native functions (C++-defined)
-        if (not IS_CLOSURE(methodValue) and not IS_NAT_FUNC(methodValue))
-        {
-            vm->runtimeError("Method must be a closure or native function.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        klass->methods[methodName] = methodValue;
-    }
-
 
     // ========================================================================
     // Table Operations
     // ========================================================================
 
-    void op_build_table(VM* vm)
+    const DecodedInstruction* op_get_index_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        uint8_t pairCount = *vm->currentFrame->ip++;
-
-        // Get the built-in Table class
-        auto it = vm->globals.find("__Table");
-        if (it == vm->globals.end())
-        {
-            vm->runtimeError("Table class not found - was initializeTableClass() called?");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        Value tableClassVal = it->second;
-        if (!IS_CLASS(tableClassVal))
-        {
-            vm->runtimeError("Table is not a class");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
-        }
-
-        Klass* tableClass = vm->asClass(tableClassVal);
-
-        // Create new instance of Table
-        Value instanceVal = vm->createInstance(tableClass);
-        ObjInstance* table = vm->asInstance(instanceVal);
-
-        // Pre-allocate storage
-        table->fieldValues.reserve(pairCount);
-        table->internedFields.reserve(pairCount);
-
-        // Pop pairCount key-value pairs from stack (in reverse)
-        std::vector<std::string> keys;
-        std::vector<Value> values;
-        keys.reserve(pairCount);
-        values.reserve(pairCount);
-
-        for (int i = 0; i < pairCount; i++)
-        {
-            Value key = vm->pop();
-            Value value = vm->pop();
-
-            // Convert key to string and intern
-            std::string keyStr;
-            if (IS_STRING(key))
-            {
-                keyStr = vm->asString(key);
-            }
-            else if (IS_INT(key))
-            {
-                keyStr = std::to_string(AS_INT(key));
-            }
-            else
-            {
-                vm->releaseAndDelete(key);
-                vm->releaseAndDelete(value);
-                vm->runtimeError("Table key must be string or integer");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
-            }
-
-            // Intern the key string
-            vm->releaseAndDelete(key);  // We've converted it, release original
-
-            keys.push_back(keyStr);
-            values.push_back(value);
-        }
-
-        // Insert pairs in correct order (we popped in reverse)
-        for (int i = pairCount - 1; i >= 0; i--)
-        {
-            size_t valueIndex = table->fieldValues.size();
-            table->fieldValues.push_back(vm->retainValue(values[i]));
-            table->internedFields[keys[i]] = valueIndex;  // Map key to value index
-            vm->releaseAndDelete(values[i]);  // Release our temporary reference
-        }
-
-        // Push the table instance we created
-        vm->push(instanceVal);
-    }
-
-    void op_build_vector(VM* vm)
-    {
-        uint8_t pairCount = *vm->currentFrame->ip++;
-
-        // Create new vector
-        Value vectorVal = vm->createVector();
-        ObjVector* vector = vm->asVector(vectorVal);
-
-        // Pop pairCount key-value pairs from stack (in reverse order)
-        // Stack layout: [value, index, value, index, ...]
-        std::vector<std::pair<int64_t, Value>> pairs;
-        pairs.reserve(pairCount);
-
-        for (int i = 0; i < pairCount; i++)
-        {
-            Value index = vm->pop();
-            Value value = vm->pop();
-
-            // Index must be an integer
-            if (!IS_INT(index))
-            {
-                vm->releaseAndDelete(index);
-                vm->releaseAndDelete(value);
-                // Clean up the vector we created before returning
-                vm->releaseAndDelete(vectorVal);
-                vm->runtimeError("Vector index must be an integer");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
-            }
-
-            int64_t indexInt = AS_INT(index);
-            vm->releaseAndDelete(index);  // We've extracted the int, release the value
-            pairs.push_back({indexInt, value});
-        }
-
-        // Sort pairs by index to ensure correct order
-        std::sort(pairs.begin(), pairs.end(),
-            [](const auto& a, const auto& b) { return a.first < b.first; });
-
-        // Insert values in sorted order
-        for (const auto& pair : pairs)
-        {
-            // Ensure vector is large enough
-            while (vector->fields.size() <= static_cast<size_t>(pair.first))
-            {
-                vector->fields.push_back(makeIntValue(0));  // Fill with zeros
-            }
-
-            vector->fields[pair.first] = vm->retainValue(pair.second);
-            vm->releaseAndDelete(pair.second);  // Release our temporary reference
-        }
-
-        // Push the vector we created
-        vm->push(vectorVal);
-    }
-
-    void op_get_index(VM* vm)
-    {
-        Value index = vm->pop();
+        Value index  = vm->pop();
         Value target = vm->pop();
 
-        // Handle vector indexing
+        // Vector indexing.
         if (IS_VECTOR(target))
         {
             if (!IS_INT(index))
@@ -649,34 +375,27 @@ namespace pg
                 vm->releaseAndDelete(target);
                 vm->runtimeError("Vector index must be an integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             ObjVector* vec = vm->asVector(target);
             int idx = AS_INT(index);
-
-            // Handle negative indices (Python-style)
-            if (idx < 0)
-            {
-                idx = static_cast<int>(vec->fields.size()) + idx;
-            }
+            if (idx < 0) idx = static_cast<int>(vec->fields.size()) + idx;
 
             if (idx < 0 || idx >= static_cast<int>(vec->fields.size()))
             {
                 vm->releaseAndDelete(target);
                 vm->runtimeError("Vector index out of bounds");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             vm->releaseAndDelete(target);
-
-            // Return the value at the index
             vm->push(vm->retainValue(vec->fields[idx]));
-            return;
+            return &instr + 1;
         }
 
-        // Handle string indexing (both long and small strings)
+        // String indexing.
         if (IS_STRING(target))
         {
             if (!IS_INT(index))
@@ -685,48 +404,39 @@ namespace pg
                 if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
                 vm->runtimeError("String index must be an integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             std::string str = vm->asString(target);
-
             int idx = AS_INT(index);
-
-            // Handle negative indices (Python-style)
-            if (idx < 0)
-            {
-                idx = static_cast<int>(str.length()) + idx;
-            }
+            if (idx < 0) idx = static_cast<int>(str.length()) + idx;
 
             if (idx < 0 || idx >= static_cast<int>(str.length()))
             {
                 if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
                 vm->runtimeError("String index out of bounds");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
-
-            // Return single character as a string using cached value
             unsigned char ch = static_cast<unsigned char>(str[idx]);
             vm->push(vm->retainValue(vm->singleCharCache[ch]));
-            return;
+            return &instr + 1;
         }
 
-        // Handle table/instance indexing
+        // Table / instance indexing.
         if (!IS_INSTANCE(target))
         {
             vm->releaseAndDelete(index);
             vm->releaseAndDelete(target);
             vm->runtimeError("Can only index vectors, strings, or tables/instances");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         ObjInstance* inst = vm->asInstance(target);
 
-        // Convert index to string key
         std::string key;
         if (IS_INT(index))
         {
@@ -742,27 +452,25 @@ namespace pg
             vm->releaseAndDelete(target);
             vm->runtimeError("Index must be integer or string");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
-        // Look up field
         auto fieldIt = inst->internedFields.find(key);
         if (fieldIt != inst->internedFields.end())
         {
             vm->releaseAndDelete(index);
             vm->releaseAndDelete(target);
             vm->push(vm->retainValue(inst->fieldValues[fieldIt->second]));
-            return;
+            return &instr + 1;
         }
 
-        // Check for __get metamethod in class methods OR instance fields
+        // Look up __get metamethod.
         Value getMethod;
         bool hasGetMethod = false;
         bool isDynamicGet = false;
 
         if (inst->klass)
         {
-            // First check class methods
             auto getMetaIt = inst->klass->methods.find("__get");
             if (getMetaIt != inst->klass->methods.end())
             {
@@ -771,11 +479,10 @@ namespace pg
             }
             else
             {
-                // Also check instance fields for __get
-                auto fieldIt = inst->internedFields.find("__get");
-                if (fieldIt != inst->internedFields.end())
+                auto dynIt = inst->internedFields.find("__get");
+                if (dynIt != inst->internedFields.end())
                 {
-                    getMethod = inst->fieldValues[fieldIt->second];
+                    getMethod = inst->fieldValues[dynIt->second];
                     hasGetMethod = true;
                     isDynamicGet = true;
                 }
@@ -788,26 +495,23 @@ namespace pg
 
             if (IS_CLOSURE(getMethod))
             {
-                // Push for closure call
-                vm->push(target);   // Push instance
-                vm->push(keyValue); // Push key
+                vm->push(target);
+                vm->push(keyValue);
+
+                const int frameCountBefore = vm->frameCount;
+
+                // Resume point captured into the metamethod's frame.
+                vm->pendingCallResume = &instr + 1;
 
                 if (isDynamicGet)
                 {
-                    // For dynamic __get (instance field), we need to set up the stack as:
-                    // [...] [getMethod] [instance] [key]
-                    // Currently stack is: [...] [instance] [key]
-
-                    // Pop arguments temporarily
-                    Value key = vm->pop();  // key
-                    Value inst = vm->pop(); // instance
-
-                    // Push in correct order: getMethod, instance, key
+                    // Rewrite to [...] [getMethod] [instance] [key].
+                    Value k    = vm->pop();
+                    Value inst = vm->pop();
                     vm->push(vm->retainValue(getMethod));
                     vm->push(inst);
-                    vm->push(key);
+                    vm->push(k);
 
-                    // Dynamic __get: call with 2 args [instance, key]
                     if (not vm->call(vm->asClosure(getMethod), 2))
                     {
                         vm->releaseAndDelete(getMethod);
@@ -816,12 +520,11 @@ namespace pg
                         vm->releaseAndDelete(target);
                         vm->runtimeError("Cannot call __get metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
                 }
                 else
                 {
-                    // Class method __get: call as bound method with 1 arg [key]
                     if (not vm->callBound(vm->asClosure(getMethod), 1))
                     {
                         vm->releaseAndDelete(keyValue);
@@ -829,31 +532,25 @@ namespace pg
                         vm->releaseAndDelete(target);
                         vm->runtimeError("Cannot call __get metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                        return;
+                        return nullptr;
                     }
                 }
 
-                // Clean up
                 vm->releaseAndDelete(keyValue);
                 vm->releaseAndDelete(index);
                 vm->releaseAndDelete(target);
 
-                // Frame is set up
-                vm->currentFrame = &vm->frames[vm->frameCount - 1];
-                vm->updateChunkCache();
-                return;
+                return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
             }
-            else if (IS_NAT_FUNC(getMethod))
+            else // IS_NAT_FUNC(getMethod)
             {
                 auto* native = vm->asNativeFunc(getMethod);
 
-                // Native functions always get explicit args: [instance, key]
-                vm->push(target);   // Push instance
-                vm->push(keyValue); // Push key as string
+                vm->push(target);
+                vm->push(keyValue);
 
                 Value result = native->function(vm, 2, vm->stack.data() + vm->stack.size() - 2);
 
-                // Clean up stack
                 vm->pop(); // keyValue
                 vm->pop(); // target
                 vm->releaseAndDelete(keyValue);
@@ -861,21 +558,22 @@ namespace pg
                 vm->releaseAndDelete(target);
 
                 vm->push(result);
-                return;
+                return &instr + 1;
             }
         }
 
-        // Property not found and no __get metamethod
+        // No metamethod, no field — soft-fail by pushing false.
         vm->releaseAndDelete(index);
         vm->releaseAndDelete(target);
-        vm->push(BOOL_VAL(false));  // Or NIL_VAL if you have it
+        vm->push(BOOL_VAL(false));
+        return &instr + 1;
     }
 
-    void op_set_index(VM* vm)
+    const DecodedInstruction* op_set_index_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        Value value = vm->pop();
-        Value index = vm->pop();
-        Value target = vm->peek(0); // Keep target on stack
+        Value value  = vm->pop();
+        Value index  = vm->pop();
+        Value target = vm->peek(0);  // keep target on stack per op_set_index contract
 
         if (!IS_INSTANCE(target) && !IS_STRING(target) && !IS_VECTOR(target))
         {
@@ -883,10 +581,10 @@ namespace pg
             vm->releaseAndDelete(index);
             vm->runtimeError("Can only index vectors, tables/instances, or strings");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
-        // Handle vector indexing
+        // Vector indexing.
         if (IS_VECTOR(target))
         {
             if (!IS_INT(index))
@@ -895,25 +593,20 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("Vector index must be an integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             ObjVector* vec = vm->asVector(target);
             int idx = AS_INT(index);
+            if (idx < 0) idx = static_cast<int>(vec->fields.size()) + idx;
 
-            // Handle negative indices (Python-style)
-            if (idx < 0)
-            {
-                idx = static_cast<int>(vec->fields.size()) + idx;
-            }
-
-            // Allow setting at the very end to push back
+            // Append-at-end is allowed (push_back behaviour).
             if (idx == static_cast<int>(vec->fields.size()))
             {
                 vm->releaseAndDelete(index);
                 vec->fields.push_back(vm->retainValue(value));
                 vm->releaseAndDelete(value);
-                return;
+                return &instr + 1;
             }
 
             if (idx < 0 || idx > static_cast<int>(vec->fields.size()))
@@ -922,26 +615,21 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("Vector index out of bounds");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             vm->releaseAndDelete(index);
-
-            // Release old value at this index
             vm->releaseAndDelete(vec->fields[idx]);
-
-            // Store new value
             vec->fields[idx] = vm->retainValue(value);
-            vm->releaseAndDelete(value);  // Release our reference (vector now owns it)
-            return;
+            vm->releaseAndDelete(value);
+            return &instr + 1;
         }
 
-        // Handle instance/table indexing (most common case)
+        // Instance / table indexing.
         if (IS_INSTANCE(target))
         {
             ObjInstance* inst = vm->asInstance(target);
 
-            // Convert index to string key
             std::string key;
             if (IS_INT(index))
             {
@@ -957,40 +645,34 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("Index must be integer or string");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             vm->releaseAndDelete(index);
 
-            // IMPORTANT: Fields starting with '__' (double underscore) are treated as "internal"
-            // and bypass metamethods. This prevents infinite recursion when metamethods like
-            // __set need to actually store data in internal fields.
-            bool isInternalField = (key.length() >= 2 and key[0] == '_' and key[1] == '_');
+            // Fields starting with '__' bypass metamethods (prevents
+            // metamethod implementations from re-triggering themselves).
+            const bool isInternalField =
+                (key.length() >= 2 and key[0] == '_' and key[1] == '_');
 
-            // Check for __set metamethod in class methods OR instance fields
+            // Look up __set metamethod.
             Value setMethod;
             bool hasSetMethod = false;
             bool isDynamicSet = false;
 
-            // Only check for metamethods if this is NOT an internal field
             if (not isInternalField and inst->klass)
             {
-                // First check class methods
                 auto setMetaIt = inst->klass->methods.find("__set");
                 if (setMetaIt != inst->klass->methods.end())
                 {
                     setMethod = setMetaIt->second;
                     hasSetMethod = true;
                 }
-                else
+                else if (inst->hasField("__set"))
                 {
-                    // Also check instance fields for __set
-                    if (inst->hasField("__set"))
-                    {
-                        setMethod = inst->getField("__set");
-                        hasSetMethod = true;
-                        isDynamicSet = true;
-                    }
+                    setMethod = inst->getField("__set");
+                    hasSetMethod = true;
+                    isDynamicSet = true;
                 }
             }
 
@@ -1000,29 +682,26 @@ namespace pg
 
                 if (IS_CLOSURE(setMethod))
                 {
-                    // Push for closure call
-                    vm->push(target);    // Push instance
-                    vm->push(keyValue);  // Push key
-                    vm->push(value);     // Push value
+                    vm->push(target);
+                    vm->push(keyValue);
+                    vm->push(value);
+
+                    const int frameCountBefore = vm->frameCount;
+
+                    // Resume point captured into the metamethod's frame.
+                    vm->pendingCallResume = &instr + 1;
 
                     if (isDynamicSet)
                     {
-                        // For dynamic __set (instance field), we need to set up the stack as:
-                        // [...] [setMethod] [instance] [key] [value]
-                        // Currently stack is: [...] [instance] [key] [value]
-
-                        // Pop arguments temporarily
-                        Value val = vm->pop();  // value
-                        Value key = vm->pop();  // key
-                        Value inst = vm->pop(); // instance
-
-                        // Push in correct order: setMethod, instance, key, value
+                        // Rewrite to [...] [setMethod] [instance] [key] [value].
+                        Value val  = vm->pop();
+                        Value k    = vm->pop();
+                        Value inst2 = vm->pop();
                         vm->push(vm->retainValue(setMethod));
-                        vm->push(inst);
-                        vm->push(key);
+                        vm->push(inst2);
+                        vm->push(k);
                         vm->push(val);
 
-                        // Dynamic __set: call with 3 args [instance, key, value]
                         if (not vm->call(vm->asClosure(setMethod), 3))
                         {
                             vm->releaseAndDelete(setMethod);
@@ -1030,76 +709,66 @@ namespace pg
                             vm->releaseAndDelete(value);
                             vm->runtimeError("Cannot call __set metamethod.");
                             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                            return;
+                            return nullptr;
                         }
                     }
                     else
                     {
-                        // Class method __set: call as bound method with 2 args [key, value]
                         if (not vm->callBound(vm->asClosure(setMethod), 2))
                         {
                             vm->releaseAndDelete(keyValue);
                             vm->releaseAndDelete(value);
                             vm->runtimeError("Cannot call __set metamethod.");
                             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                            return;
+                            return nullptr;
                         }
                     }
 
-                    // Clean up
                     vm->releaseAndDelete(keyValue);
                     vm->releaseAndDelete(value);
 
-                    // Frame is set up
-                    vm->currentFrame = &vm->frames[vm->frameCount - 1];
-                    vm->updateChunkCache();
-                    return;
+                    return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
                 }
-                else if (IS_NAT_FUNC(setMethod))
+                else // IS_NAT_FUNC(setMethod)
                 {
                     auto* native = vm->asNativeFunc(setMethod);
 
-                    // Native functions always get explicit args: [instance, key, value]
-                    vm->push(target);    // Push instance
-                    vm->push(keyValue);  // Push key as string
-                    vm->push(value);     // Push value
+                    vm->push(target);
+                    vm->push(keyValue);
+                    vm->push(value);
 
                     native->function(vm, 3, vm->stack.data() + vm->stack.size() - 3);
 
-                    // Clean up stack
                     vm->pop(); // value
                     vm->pop(); // keyValue
                     vm->pop(); // target
                     vm->releaseAndDelete(keyValue);
                     vm->releaseAndDelete(value);
-
-                    // Note: target stays on stack (peek(0)) as per op_set_index contract
-                    return;
+                    // Note: target stays on stack (peek(0)) per op_set_index contract.
+                    return &instr + 1;
                 }
             }
 
-            // No __set metamethod, do normal field assignment
+            // Plain field assignment.
             auto fieldIt = inst->internedFields.find(key);
             if (fieldIt != inst->internedFields.end())
             {
-                // Update existing field
                 size_t valueIndex = fieldIt->second;
                 vm->releaseAndDelete(inst->fieldValues[valueIndex]);
                 inst->fieldValues[valueIndex] = vm->retainValue(value);
             }
             else
             {
-                // New field - add to storage
                 size_t newIndex = inst->fieldValues.size();
                 inst->fieldValues.push_back(vm->retainValue(value));
                 inst->internedFields[key] = newIndex;
             }
 
-            vm->releaseAndDelete(value);  // Release our reference (field now owns it)
-            return;
+            vm->releaseAndDelete(value);
+            return &instr + 1;
         }
 
-        // Handle string indexing
+        // String indexing — assign one character at idx (append allowed).
         if (IS_STRING(target))
         {
             if (!IS_INT(index))
@@ -1108,7 +777,7 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("String index must be integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             if (!IS_STRING(value))
@@ -1117,66 +786,58 @@ namespace pg
                 vm->releaseAndDelete(index);
                 vm->runtimeError("Can only assign string to string index");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             std::string str = vm->asString(target);
             int idx = AS_INT(index);
+            if (idx < 0) idx = static_cast<int>(str.length()) + idx;
 
-            // Handle negative indices (Python-style)
-            if (idx < 0)
-            {
-                idx = static_cast<int>(str.length()) + idx;
-            }
-
-            // Allow appending at the end (idx == str.length())
             if (idx < 0 || idx > static_cast<int>(str.length()))
             {
                 vm->releaseAndDelete(value);
                 vm->releaseAndDelete(index);
                 vm->runtimeError("String index out of range");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             std::string valueString = vm->asString(value);
-
-            // Can only set a single character
             if (valueString.length() != 1)
             {
                 vm->releaseAndDelete(value);
                 vm->releaseAndDelete(index);
                 vm->runtimeError("Can only assign single character to string index");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
-            // If appending at the end, append the character
             if (idx == static_cast<int>(str.length()))
             {
                 str += valueString[0];
             }
             else
             {
-                // Modify the string at the index
                 str[idx] = valueString[0];
             }
 
-            // Create a new string with the modified content and replace on stack
-            vm->pop(); // Remove old string
-            vm->push(vm->createString(str));
-
+            vm->pop();                          // remove old string
+            vm->push(vm->createString(str));    // push new one
             vm->releaseAndDelete(value);
             vm->releaseAndDelete(index);
-            return;
+            return &instr + 1;
         }
+
+        // Unreachable: the type guard at the top rejects anything that is
+        // not a vector, instance, or string.
+        return &instr + 1;
     }
 
     // ========================================================================
     // Iterator Operations
     // ========================================================================
 
-    void op_get_iterator(VM* vm)
+    const DecodedInstruction* op_get_iterator_decoded(VM* vm, const DecodedInstruction& instr)
     {
         Value tableVal = vm->peek(0);  // Don't pop, we keep table on stack
 
@@ -1184,15 +845,16 @@ namespace pg
         {
             vm->runtimeError("Can only iterate over tables");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         // Create an integer to track iteration index (we'll iterate by index in fields map)
         // Push 0 as the initial iterator state
         vm->push(makeIntValue(0));
+        return &instr + 1;
     }
 
-    void op_iterator_next(VM* vm)
+    const DecodedInstruction* op_iterator_next_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Stack layout: [table, iterator_state]
         // We need to:
@@ -1208,14 +870,14 @@ namespace pg
         {
             vm->runtimeError("Invalid iterator state");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         if (!IS_INSTANCE(tableVal))
         {
             vm->runtimeError("Can only iterate over tables");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         ObjInstance* table = vm->asInstance(tableVal);
@@ -1230,7 +892,7 @@ namespace pg
             // End of iteration - push false to indicate done
             // Stack remains: [table, iterator_state, false]
             vm->push(makeBoolValue(false));
-            return;
+            return &instr + 1;
         }
 
         // Get the key at the current index
@@ -1257,9 +919,10 @@ namespace pg
         vm->push(keyVal);
 
         // Final stack: [table, iterator_state+1, key]
+        return &instr + 1;
     }
 
-    void op_table_size(VM* vm)
+    const DecodedInstruction* op_table_size_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Stack: [table or vector]
         Value tableVal = vm->peek(0);
@@ -1274,14 +937,14 @@ namespace pg
 
             // Push the size as an integer
             vm->push(makeIntValue(static_cast<int64_t>(vector->fields.size())));
-            return;
+            return &instr + 1;
         }
 
         if (!IS_INSTANCE(tableVal))
         {
             vm->runtimeError("Can only get size of tables or vectors");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         ObjInstance* table = vm->asInstance(tableVal);
@@ -1293,9 +956,10 @@ namespace pg
         // Push the field count
         size_t totalSize = table->fieldValues.size();
         vm->push(makeIntValue(static_cast<int64_t>(totalSize)));
+        return &instr + 1;
     }
 
-    void op_table_at(VM* vm)
+    const DecodedInstruction* op_table_at_decoded(VM* vm, const DecodedInstruction& instr)
     {
         // Stack: [table or vector, index]
         Value indexVal = vm->pop();
@@ -1310,7 +974,7 @@ namespace pg
                 vm->releaseAndDelete(tableVal);
                 vm->runtimeError("Vector index must be an integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             ObjVector* vector = vm->asVector(tableVal);
@@ -1323,7 +987,7 @@ namespace pg
                 vm->releaseAndDelete(tableVal);
                 vm->runtimeError("Vector index out of bounds");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
+                return nullptr;
             }
 
             // Get the value directly
@@ -1335,7 +999,7 @@ namespace pg
             // For vectors, return the value directly (not the index)
             // This is different from tables where we return the key
             vm->push(vm->retainValue(value));
-            return;
+            return &instr + 1;
         }
 
         // Handle table access (returns key at index position in map)
@@ -1345,7 +1009,7 @@ namespace pg
             vm->releaseAndDelete(tableVal);
             vm->runtimeError("Can only get keys from tables or vectors");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         if (!IS_INT(indexVal))
@@ -1354,7 +1018,7 @@ namespace pg
             vm->releaseAndDelete(tableVal);
             vm->runtimeError("Table index must be an integer");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         ObjInstance* table = vm->asInstance(tableVal);
@@ -1370,7 +1034,7 @@ namespace pg
             vm->releaseAndDelete(tableVal);
             vm->runtimeError("Table index out of bounds");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return;
+            return nullptr;
         }
 
         // Get the key at the specified index
@@ -1390,5 +1054,245 @@ namespace pg
         // Push the key as a string
         Value keyVal = vm->createString(key);
         vm->push(keyVal);
+        return &instr + 1;
     }
+
+    // ---------------------------------------------------------------------
+    // Proper decoded handlers. One-byte-operand ops read from
+    // instr.operands.byte; zero-operand ops delegate directly to the legacy
+    // body (no benefit to duplicating). op_closure has a variable-length
+    // upvalue payload that can't fit in DecodedInstruction.operands, so its
+    // decoded form pre-extracts the constant index but still reads the
+    // upvalue list from bytecode via ip after positioning ip past the
+    // constant byte.
+    // ---------------------------------------------------------------------
+
+    const DecodedInstruction* op_closure_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t constantIndex = instr.operands.byte;
+
+        // Variable-length upvalue payload (2 bytes per upvalue) can't be
+        // pre-decoded — position ip past the opcode + constant byte so the
+        // per-upvalue *ip++ reads land on the right bytes. The bytecode
+        // offset is cold metadata, looked up via the owning chunk's
+        // parallel array (this op is rare; the lookup is off the hot path).
+        const DecodedChunk* ownerDecoded = vm->currentFrame->closure->function->decodedChunk;
+        const size_t bytecodeOffset =
+            ownerDecoded->meta[&instr - ownerDecoded->instructions.data()].bytecodeOffset;
+
+        vm->currentFrame->ip = vm->currentFrame->closure->function->chunk.code.data()
+                             + bytecodeOffset + 2;
+
+        auto functionValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+
+        if (not IS_FUNC(functionValue))
+        {
+            vm->runtimeError("Closure operand must be a function.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        ObjFunction* function = vm->asFunction(functionValue);
+        auto closure = vm->createClosure(function);
+        vm->push(closure);
+
+        for (int i = 0; i < function->upvalueCount; i++)
+        {
+            uint8_t isLocal = *vm->currentFrame->ip++;
+            uint8_t index = *vm->currentFrame->ip++;
+            if (isLocal)
+            {
+                vm->asClosure(closure)->upvalues[i] = vm->captureUpvalue(vm->currentFrame->slots + index);
+            }
+            else
+            {
+                vm->asClosure(closure)->upvalues[i] = vm->currentFrame->closure->upvalues[index];
+            }
+        }
+        return &instr + 1;
+    }
+
+    const DecodedInstruction* op_class_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t constantIndex = instr.operands.byte;
+        auto classNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+
+        ElementType classNameElem = vm->valueToElement(classNameValue);
+        if (not classNameElem.isLitteral())
+        {
+            vm->runtimeError("Class name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        std::string className = classNameElem.toString();
+        auto newClass = vm->createClass(className);
+        vm->push(newClass);
+        return &instr + 1;
+    }
+
+    const DecodedInstruction* op_method_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t constantIndex = instr.operands.byte;
+        auto methodNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+
+        ElementType methodNameElem = vm->valueToElement(methodNameValue);
+        if (not methodNameElem.isLitteral())
+        {
+            vm->runtimeError("Method name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        std::string methodName = methodNameElem.toString();
+
+        auto methodValue = vm->pop();
+        auto classValue = vm->peek();
+
+        if (not IS_CLASS(classValue))
+        {
+            vm->runtimeError("Method definition must be on a class.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        Klass* klass = vm->asClass(classValue);
+
+        if (not IS_CLOSURE(methodValue) and not IS_NAT_FUNC(methodValue))
+        {
+            vm->runtimeError("Method must be a closure or native function.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        klass->methods[methodName] = methodValue;
+        return &instr + 1;
+    }
+
+    const DecodedInstruction* op_build_table_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t pairCount = instr.operands.byte;
+
+        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
+        if (cell == nullptr or not cell->defined)
+        {
+            vm->runtimeError("Table class not found - was initializeTableClass() called?");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        Value tableClassVal = cell->value;
+        if (!IS_CLASS(tableClassVal))
+        {
+            vm->runtimeError("Table is not a class");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        Klass* tableClass = vm->asClass(tableClassVal);
+
+        Value instanceVal = vm->createInstance(tableClass);
+        ObjInstance* table = vm->asInstance(instanceVal);
+
+        table->fieldValues.reserve(pairCount);
+        table->internedFields.reserve(pairCount);
+
+        std::vector<std::string> keys;
+        std::vector<Value> values;
+        keys.reserve(pairCount);
+        values.reserve(pairCount);
+
+        for (int i = 0; i < pairCount; i++)
+        {
+            Value key = vm->pop();
+            Value value = vm->pop();
+
+            std::string keyStr;
+            if (IS_STRING(key))
+            {
+                keyStr = vm->asString(key);
+            }
+            else if (IS_INT(key))
+            {
+                keyStr = std::to_string(AS_INT(key));
+            }
+            else
+            {
+                vm->releaseAndDelete(key);
+                vm->releaseAndDelete(value);
+                vm->runtimeError("Table key must be string or integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return nullptr;
+            }
+
+            vm->releaseAndDelete(key);
+            keys.push_back(keyStr);
+            values.push_back(value);
+        }
+
+        for (int i = pairCount - 1; i >= 0; i--)
+        {
+            size_t valueIndex = table->fieldValues.size();
+            table->fieldValues.push_back(vm->retainValue(values[i]));
+            table->internedFields[keys[i]] = valueIndex;
+            vm->releaseAndDelete(values[i]);
+        }
+
+        vm->push(instanceVal);
+        return &instr + 1;
+    }
+
+    const DecodedInstruction* op_build_vector_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        uint8_t pairCount = instr.operands.byte;
+
+        Value vectorVal = vm->createVector();
+        ObjVector* vector = vm->asVector(vectorVal);
+
+        std::vector<std::pair<int64_t, Value>> pairs;
+        pairs.reserve(pairCount);
+
+        for (int i = 0; i < pairCount; i++)
+        {
+            Value index = vm->pop();
+            Value value = vm->pop();
+
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(index);
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(vectorVal);
+                vm->runtimeError("Vector index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return nullptr;
+            }
+
+            int64_t indexInt = AS_INT(index);
+            vm->releaseAndDelete(index);
+            pairs.push_back({indexInt, value});
+        }
+
+        std::sort(pairs.begin(), pairs.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+
+        for (const auto& pair : pairs)
+        {
+            // Pad with zeros so the value lands at its target index even
+            // when the keys aren't a contiguous 0..N-1 sequence.
+            while (vector->fields.size() <= static_cast<size_t>(pair.first))
+            {
+                vector->fields.push_back(makeIntValue(0));
+            }
+
+            vector->fields[pair.first] = vm->retainValue(pair.second);
+            vm->releaseAndDelete(pair.second);
+        }
+
+        vm->push(vectorVal);
+        return &instr + 1;
+    }
+
+    // Zero-operand ops: no bytecode to pre-extract, so the decoded form
+    // just delegates to the legacy body.
+
 }

@@ -1,0 +1,7 @@
+name = "analytics-proxy"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# The Neon connection string is stored as a secret, not here.
+# Set it with: wrangler secret put NEON_CONN
+# Then paste your connection string when prompted.

@@ -489,6 +489,14 @@ namespace pg
             }
         }
 
+        /** Clear all serialized system data (e.g. on major version bump).
+         *  Clears in-memory map and flushes the empty state to disk. */
+        void clearSystemSaveData()
+        {
+            systemSerializer.clear();
+            systemSerializer.save();
+        }
+
         bool loadSystem(std::function<void(const UnserializedObject&)> f, const std::string& objectName)
         {
             const auto& map = systemSerializer.getSerializedMap();
@@ -809,6 +817,8 @@ namespace pg
 
         // Todo always check if the component was not initialized in between calls to make sure to update the correct one
         Comp* operator->();
+
+        Comp* operator->() const;
 
         operator Comp*();
 

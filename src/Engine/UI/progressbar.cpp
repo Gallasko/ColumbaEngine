@@ -2,6 +2,7 @@
 
 #include "progressbar.h"
 
+#include "ECS/entitysystem.h"
 #include "Helpers/helpers.h"
 
 namespace pg
@@ -17,6 +18,55 @@ namespace pg
         };
 
         const static std::unordered_map<std::string, ProgressBarFillDirection> stringToDirection = invertMap(directionToString);
+    }
+
+    ProgressBarComponent& ProgressBarComponent::operator=(const ProgressBarComponent& other)
+    {
+        emptyTextureName = other.emptyTextureName;
+        fullTextureName = other.fullTextureName;
+
+        percent = other.percent;
+        direction = other.direction;
+
+        if (ecsRef)
+        {
+            ecsRef->sendEvent(EntityChangedEvent{entityId});
+        }
+
+        return *this;
+    }
+
+    void ProgressBarComponent::onCreation(EntityRef entity)
+    {
+        ecsRef = entity->world();
+
+        entityId = entity->id;
+    }
+
+    void ProgressBarComponent::setFillPercent(float percent)
+    {
+        if (areNotAlmostEqual(this->percent, percent))
+        {
+            this->percent = percent;
+
+            if (ecsRef)
+            {
+                ecsRef->sendEvent(EntityChangedEvent{entityId});
+            }
+        }
+    }
+
+    void ProgressBarComponent::setFillDirection(const ProgressBarFillDirection& direction)
+    {
+        if (this->direction != direction)
+        {
+            this->direction = direction;
+
+            if (ecsRef)
+            {
+                ecsRef->sendEvent(EntityChangedEvent{entityId});
+            }
+        }
     }
 
     template <>

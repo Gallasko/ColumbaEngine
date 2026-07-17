@@ -1,14 +1,12 @@
 #include "stdafx.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-
 #include "simple2dobject.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 
 #include "logger.h"
 
-#include "Helpers/openglobject.h"
+#include "Renderer/renderer.h"
 
 namespace pg
 {
@@ -33,9 +31,22 @@ namespace pg
         simpleShapeMaterial.setSimpleMesh({3, 2, 1, 4});
 
         materialId = masterRenderer->registerMaterial(simpleShapeMaterial);
+
+        Material triangleMaterial;
+
+        triangleMaterial.shader = masterRenderer->getShader("Triangle");
+
+        triangleMaterial.nbTextures = 0;
+
+        triangleMaterial.uniformMap.emplace("sWidth", "ScreenWidth");
+        triangleMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
+
+        triangleMaterial.setSimpleMesh({3, 2, 1, 4});
+
+        triangleMaterialId = masterRenderer->registerMaterial(triangleMaterial);
     }
 
-    RenderCall Simple2DObjectSystem::createRenderCall(CompRef<Simple2DObject> obj, CompRef<PositionComponent> ui)
+    RenderCall Simple2DObjectSystem::createRenderCall(CompRef<Simple2DObject> obj, CompRef<PositionComponent> ui, CompRef<ViewportComponent> vp)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -54,9 +65,9 @@ namespace pg
 
         call.setRenderStage(renderStage);
 
-        call.setMaterial(materialId);
+        call.setMaterial(obj->shape == Shape2D::Triangle ? triangleMaterialId : materialId);
 
-        call.setViewport(obj->viewport);
+        call.setViewport(vp->viewport);
 
         call.data.resize(10);
 
@@ -97,7 +108,7 @@ namespace pg
         materialId = masterRenderer->registerMaterial(mat);
     }
 
-    RenderCall RoundedRect2DObjectSystem::createRenderCall(CompRef<RoundedRect2DObject> obj, CompRef<PositionComponent> ui)
+    RenderCall RoundedRect2DObjectSystem::createRenderCall(CompRef<RoundedRect2DObject> obj, CompRef<PositionComponent> ui, CompRef<ViewportComponent> vp)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -111,7 +122,7 @@ namespace pg
 
         call.setMaterial(materialId);
 
-        call.setViewport(obj->viewport);
+        call.setViewport(vp->viewport);
 
         // 11 floats: x, y, z, width, height, rotation, r, g, b, a, cornerRadius
         call.data.resize(11);

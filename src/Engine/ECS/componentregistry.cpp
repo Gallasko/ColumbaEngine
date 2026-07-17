@@ -187,8 +187,12 @@ namespace pg
                 // rhs.initialized = true
                 // Note that it needs to make the rhs not const or we need to make the member entity mutable !
             }
-            else
+            else if (rhs.ecsRef != nullptr)
             {
+                // ecsRef set with entityId == 0 is a real anomaly. A purely
+                // default-constructed empty ref (ecsRef == nullptr) is legit
+                // and stays silent — empty CompRefs are routinely held as
+                // members and copied around.
                 LOG_ERROR("Comp ref", "Copy of a reference to an invalid entity");
             }
         }

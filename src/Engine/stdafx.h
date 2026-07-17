@@ -28,6 +28,7 @@
 #include "Maths/geometry.h"
 
 #include "ECS/entitysystem_fwd.h"
+#include "ECS/system.h"
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"

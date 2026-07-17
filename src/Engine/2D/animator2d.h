@@ -82,7 +82,7 @@ namespace pg
 
         // Todo need to make some guard to avoid sending the event if the comp value didn't change
         void overrideViewport(size_t index)
-        { 
+        {
             overrideViewportFlag = true;
             overrideViewportIndex = index;
 
@@ -90,7 +90,7 @@ namespace pg
         }
 
         void clearOverrideViewport()
-        { 
+        {
             overrideViewportFlag = false;
 
             ecsRef->sendEvent(OverrideTexture2DAnimationEvent{id});
@@ -162,7 +162,7 @@ namespace pg
                 return;
 
             auto anim = ent->get<Texture2DAnimationComponent>();
-            
+
             anim->keypoints = event.keypoints;
             anim->startId = -1;
             anim->elapsedTime = 0;
@@ -178,16 +178,17 @@ namespace pg
                 return;
 
             auto anim = ent->get<Texture2DAnimationComponent>();
-            
+
             if (anim->startId < 0 or static_cast<size_t>(anim->startId) >= anim->keypoints.size())
                 return;
 
             auto tex = ent->get<Texture2DComponent>();
 
-            if (anim->overrideViewportFlag)
-                tex->setViewport(anim->overrideViewportIndex);
-            else
-                tex->setViewport(anim->keypoints.at(anim->startId).component.viewport);
+            if (anim->overrideViewportFlag and ent->has<ViewportComponent>())
+            {
+                auto vp = ent->get<ViewportComponent>();
+                vp->setViewport(anim->overrideViewportIndex);
+            }
 
             if (anim->overrideColorFlag)
                 tex->setOverlappingColor(anim->overrideColorValue, anim->colorRatio);
@@ -232,13 +233,14 @@ namespace pg
                 {
                     anim->startId++;
                     auto tex = elem->get<Texture2DComponent>();
+                    auto ent = elem->entity;
 
                     // *tex = anim->keypoints.at(anim->startId).component;
                     *tex.component = anim->keypoints.at(anim->startId).component;
                     // tex->setTexture(anim->keypoints.at(anim->startId).component.textureName);
 
-                    if (anim->overrideViewportFlag)
-                        tex.component->setViewport(anim->overrideViewportIndex);
+                    if (anim->overrideViewportFlag and ent->has<ViewportComponent>())
+                        ent->get<ViewportComponent>()->setViewport(anim->overrideViewportIndex);
 
                     if (anim->overrideColorFlag)
                         tex.component->setOverlappingColor(anim->overrideColorValue, anim->colorRatio);

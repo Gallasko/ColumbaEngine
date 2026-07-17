@@ -3,7 +3,8 @@
     "allow": [
       "Bash(xargs grep:*)",
       "Bash(grep -n \"__dprint\" /x/Document/GitHub/PgEngine/src/Engine/Compiler/*.cpp)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(make -j8 GameDevJs2026)"
     ]
   }
 }

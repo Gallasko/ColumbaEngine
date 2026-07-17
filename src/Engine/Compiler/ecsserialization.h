@@ -890,13 +890,13 @@ namespace pg
     Value serializeToTable(VM* vm, const Type& component)
     {
         // Get the Table class
-        auto it = vm->globals.find("__Table");
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
+        if (cell == nullptr or not cell->defined)
         {
             throw std::runtime_error("Table class not found in VM globals");
         }
 
-        Klass* tableClass = vm->asClass(it->second);
+        Klass* tableClass = vm->asClass(cell->value);
 
         // Create an Archive and serialize the component
         InspectorArchive archive;
@@ -948,13 +948,13 @@ namespace pg
     inline Value serializeToTableBasic(VM* vm, const StandardComponent& component)
     {
         // Get the Table class
-        auto it = vm->globals.find("__Table");
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
+        if (cell == nullptr or not cell->defined)
         {
             throw std::runtime_error("Table class not found in VM globals");
         }
 
-        Klass* tableClass = vm->asClass(it->second);
+        Klass* tableClass = vm->asClass(cell->value);
 
         // Create an Archive and serialize the component
         InspectorArchive archive;
@@ -1086,13 +1086,13 @@ namespace pg
     Value serializeEntityToTable(VM* vm, EntitySystem*, const CompList<Comps...>& compList)
     {
         // Get the Table class
-        auto it = vm->globals.find("__Table");
-        if (it == vm->globals.end())
+        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
+        if (cell == nullptr or not cell->defined)
         {
             throw std::runtime_error("Table class not found in VM globals");
         }
 
-        Klass* tableClass = vm->asClass(it->second);
+        Klass* tableClass = vm->asClass(cell->value);
 
         // Create the entity table
         Value entityTableValue = vm->createInstance(tableClass);

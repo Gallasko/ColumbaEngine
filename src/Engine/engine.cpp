@@ -29,6 +29,20 @@ Engine::~Engine()
 {
     LOG_THIS_MEMBER(DOM);
 
+    if (mainWindow and mainWindow->ecs)
+    {
+        LOG_INFO(DOM, "Stopping ECS before engine teardown...");
+        try
+        {
+            mainWindow->ecs->stop();
+            LOG_INFO(DOM, "ECS stopped cleanly");
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR(DOM, "Exception during ECS stop: " << e.what());
+        }
+    }
+
     if (mainWindow)
     {
         delete mainWindow;
@@ -50,6 +64,8 @@ Engine::~Engine()
         delete initThread;
     }
 #endif
+
+    LOG_INFO(DOM, "Engine destroyed");
 }
 
 std::string Engine::constructSavePath() const
@@ -119,6 +135,29 @@ void Engine::initializeECS()
     try
     {
         mainWindow->initEngine();
+
+        // Version check: load manifest and compare against saved version
+        auto versionResult = versionManager.initialize(
+            config.manifestPath, *mainWindow->ecs,
+            config.autoWipeSaveOnMajorBump, config.autoRunMigrations);
+
+        if (versionResult.isMajorBump)
+        {
+            printf("Major version bump: save wiped (%s -> %s)\n",
+                   versionResult.oldVersion.toString().c_str(),
+                   versionResult.newVersion.toString().c_str());
+        }
+        else if (versionResult.isNewInstall)
+        {
+            printf("New install: version %s\n",
+                   versionResult.newVersion.toString().c_str());
+        }
+        else if (!versionResult.isSameVersion)
+        {
+            printf("Version updated: %s -> %s\n",
+                   versionResult.oldVersion.toString().c_str(),
+                   versionResult.newVersion.toString().c_str());
+        }
 
         printf("Config: %dx%d\n", config.width, config.height);
 

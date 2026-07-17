@@ -67,7 +67,6 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.succeed<Camera3DControllerEditor, EditorSystem>();
         ecs.succeed<EditorUISystem, EditorSystem>();
         ecs.succeed<MasterRenderer, Camera3DControllerEditor>();
-        ecs.succeed<MasterRenderer, VoxelRenderSystem>();
         ecs.succeed<MasterRenderer, EditorUISystem>();
 
         // Build the initial floor on y=0
