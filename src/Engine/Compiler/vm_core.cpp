@@ -6,6 +6,8 @@
 
 #include "compiler.h"
 
+#include "ast/ast_compiler.h"
+
 #include "compiler_debug.h"
 
 #include <chrono>
@@ -136,11 +138,16 @@ namespace pg
 
         // Todo change this
         // Reset the compiler state before compiling a new chunk
+        // Both front-ends must outlive run(): their parsers own the compiled
+        // function values (allocatedFunction) until the end of this call
         Compiler compiler(this);
+        AstCompiler astCompiler(this);
 
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-        auto function = compiler.compile(tokens);
+        const bool useAstFrontEnd = frontEnd == FrontEnd::Ast;
+
+        auto function = useAstFrontEnd ? astCompiler.compile(tokens) : compiler.compile(tokens);
 
         if (function == 0x0)
             return InterpretResult::COMPILE_ERROR;
@@ -164,7 +171,7 @@ namespace pg
         // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
 
         // Apply bytecode optimizations and store functions for profiling
-        for (auto f : compiler.parser.allocatedFunction)
+        for (auto f : useAstFrontEnd ? astCompiler.allocatedFunctions() : compiler.parser.allocatedFunction)
         {
             auto *func = asFunction(f);
 

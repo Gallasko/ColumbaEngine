@@ -1,5 +1,7 @@
 #pragma once
 
+#include "frontend.h"
+
 #include "chunk.h"
 
 #include "decoded_chunk.h"
@@ -696,6 +698,13 @@ namespace pg
 
         // Test output buffer for __dprint (used in tests)
         std::string testOutput;
+
+        // Compiler front-end selection (see frontend.h)
+        using FrontEnd = ScriptFrontEnd;
+
+        FrontEnd frontEnd = FrontEnd::Pratt;
+
+        inline void setFrontEnd(FrontEnd fe) { frontEnd = fe; }
 
         // Bytecode optimization
         PassManager passManager;

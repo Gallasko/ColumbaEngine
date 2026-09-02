@@ -33,6 +33,12 @@ namespace pg
         };
 
     public:
+        // Keep the base-class defaults visible for the node overloads this
+        // visitor does not override (For/ForIn/Index resolve through their
+        // desugared form via the Visitor defaults)
+        using Visitor::visit;
+        using Visitor::visitStatement;
+
         VisitorResolver() : Visitor() {}
         
         virtual std::shared_ptr<Valuable> visit(BinaryExpression *expr) override;
@@ -49,6 +55,10 @@ namespace pg
         virtual std::shared_ptr<Valuable> visit(CallExpression *expr) override;
         virtual std::shared_ptr<Valuable> visit(Get *expr) override;
         virtual std::shared_ptr<Valuable> visit(Set *expr) override;
+        virtual std::shared_ptr<Valuable> visit(AnonymousFunction *expr) override;
+        // IndexGet / IndexSet use the Visitor base default (resolve through the
+        // desugared 'at'/'set' call chain; children are shared with the
+        // structured form so both stay resolved)
 
         virtual void visitStatement(ExpressionStatement *stmt) override;
         virtual void visitStatement(VariableStatement *stmt) override;
@@ -59,6 +69,11 @@ namespace pg
         virtual void visitStatement(WhileStatement *stmt) override;
         virtual void visitStatement(ReturnStatement *stmt) override;
         virtual void visitStatement(ImportStatement *stmt) override;
+        // ForStatement / ForInStatement use the Visitor base default (resolve
+        // through the desugared while-loop form)
+        virtual void visitStatement(BreakStatement *stmt) override;
+        virtual void visitStatement(ContinueStatement *stmt) override;
+        virtual void visitStatement(DPrintStatement *stmt) override;
 
         inline const std::unordered_map<Expression*, unsigned int>& getLocals() const noexcept { return locals; }
 

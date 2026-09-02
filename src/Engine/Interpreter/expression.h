@@ -11,6 +11,7 @@ namespace pg
     // Forward declarations
     class Visitor;
     class Valuable;
+    class Statement;
 
     /**
      * @class Expression
@@ -35,6 +36,9 @@ namespace pg
     {
         ExprPtr key;
         ExprPtr value;
+
+        /** True when the entry was written as 'key: value' (explicit keys emit as string constants on the VM side) */
+        bool explicitKey = false;
     };
 
     struct BinaryExpression : public Expression
@@ -151,6 +155,84 @@ namespace pg
         ExprPtr self;
         Token squareBracket;
         std::queue<ListElement> entries;
+
+        /** True when the literal was written with braces '{...}' (always a table on the VM side) */
+        bool braceForm = false;
+
+        /** True when at least one entry used an explicit 'key: value' form */
+        bool hasExplicitKeys = false;
+    };
+
+    /**
+     * Anonymous function expression: fun(params) { body }
+     *
+     * Only supported by the bytecode front-end; the tree-walking interpreter
+     * predates this syntax and never executes it.
+     */
+    struct AnonymousFunction : public Expression
+    {
+        AnonymousFunction(const Token& token, const std::queue<ExprPtr>& parameters, std::shared_ptr<Statement> body) : Expression(), token(token), parameters(parameters), body(body) {}
+        ~AnonymousFunction() {}
+
+        virtual std::shared_ptr<Valuable> accept(Visitor* visitor) override;
+        virtual std::string prettyPrint() const override { auto p = parameters; std::string res = ""; while (p.size() > 0) { res += p.front()->prettyPrint() + ", "; p.pop(); } return "Anonymous function with parameters: " + res; }
+        virtual std::string getName() const override { return "fun"; }
+        virtual std::string getType() const override { return "AnonymousFunction"; }
+
+        Token token;
+        std::queue<ExprPtr> parameters;
+        std::shared_ptr<Statement> body;
+    };
+
+    /**
+     * Subscript read: object[index]
+     *
+     * The structured fields are used by the bytecode front-end; 'desugared'
+     * holds the equivalent 'object.at(index)' call chain executed by the
+     * tree-walking interpreter and resolved by the resolver (children are
+     * shared between both forms).
+     */
+    struct IndexGet : public Expression
+    {
+        IndexGet(ExprPtr object, ExprPtr index, const Token& bracket) : Expression(), object(object), index(index), bracket(bracket) {}
+        ~IndexGet() {}
+
+        virtual std::shared_ptr<Valuable> accept(Visitor* visitor) override;
+        virtual std::string prettyPrint() const override { return "Index get: " + object->prettyPrint() + "[" + index->prettyPrint() + "]"; }
+        virtual std::string getName() const override { return "IndexGet"; }
+        virtual std::string getType() const override { return "IndexGet"; }
+
+        ExprPtr object;
+        ExprPtr index;
+        Token bracket;
+
+        /** Equivalent 'object.at(index)' call for the tree-walking path */
+        ExprPtr desugared;
+    };
+
+    /**
+     * Subscript write: object[index] = value
+     *
+     * Same structured/desugared split as IndexGet; 'desugared' holds the
+     * equivalent 'object.set(index, value)' call chain.
+     */
+    struct IndexSet : public Expression
+    {
+        IndexSet(ExprPtr object, ExprPtr index, ExprPtr value, const Token& bracket) : Expression(), object(object), index(index), value(value), bracket(bracket) {}
+        ~IndexSet() {}
+
+        virtual std::shared_ptr<Valuable> accept(Visitor* visitor) override;
+        virtual std::string prettyPrint() const override { return "Index set: " + object->prettyPrint() + "[" + index->prettyPrint() + "] = " + value->prettyPrint(); }
+        virtual std::string getName() const override { return "IndexSet"; }
+        virtual std::string getType() const override { return "IndexSet"; }
+
+        ExprPtr object;
+        ExprPtr index;
+        ExprPtr value;
+        Token bracket;
+
+        /** Equivalent 'object.set(index, value)' call for the tree-walking path */
+        ExprPtr desugared;
     };
 
     struct This : public Expression

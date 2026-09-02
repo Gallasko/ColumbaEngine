@@ -940,6 +940,10 @@ namespace pg
 
         setOptimizationPasses(vm);
 
+        // Compiler front-end choice (Pratt vs AST) propagates to every VM
+        // this ECS creates, including ScriptRegistry compilations
+        vm.setFrontEnd(vmFrontEnd);
+
         // Todo add a flag to enable this
         // vm.enableOptimizationDebugging();
 

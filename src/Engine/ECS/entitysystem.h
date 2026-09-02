@@ -18,6 +18,8 @@
 
 #include "Renderer/rendercall.h"
 
+#include "Compiler/frontend.h"
+
 #include <iostream>
 
 #ifdef PROFILE
@@ -821,6 +823,18 @@ namespace pg
             vmOptimizationLevel = level;
         }
 
+        /**
+         * @brief Select the compiler front-end (Pratt or AST) used by every
+         * VM this ECS sets up, including ScriptRegistry compilations.
+         *
+         * Both front-ends produce the same bytecode representation; they stay
+         * selectable until benchmarks decide a winner.
+         */
+        inline void setVMFrontEnd(const ScriptFrontEnd& fe)
+        {
+            vmFrontEnd = fe;
+        }
+
         void setupVm(VM& vm);
 
         /**
@@ -982,6 +996,8 @@ namespace pg
         std::atomic<bool> stopRequested{false};
 
         VmOptimizationLevel vmOptimizationLevel = VmOptimizationLevel::O3;
+
+        ScriptFrontEnd vmFrontEnd = ScriptFrontEnd::Pratt;
 
         /** Track the number of executed taskflows (for debug purposes) */
         size_t currentNbOfExecution = 0;

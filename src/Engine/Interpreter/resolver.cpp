@@ -153,6 +153,33 @@ namespace pg
         return nullptr;
     }
 
+    std::shared_ptr<Valuable> VisitorResolver::visit(AnonymousFunction *expr)
+    {
+        FunctionType enclosingFunction = currentFunction;
+        currentFunction = FunctionType::FUNCTION;
+
+        scopes.push(std::unordered_map<std::string, bool>());
+
+        auto temp = expr->parameters;
+
+        while (temp.size() > 0)
+        {
+            auto paramName = temp.front()->getName();
+            declare(paramName);
+            define(paramName);
+
+            temp.pop();
+        }
+
+        expr->body->accept(this);
+
+        scopes.pop();
+
+        currentFunction = enclosingFunction;
+
+        return nullptr;
+    }
+
     void VisitorResolver::visitStatement(ExpressionStatement *stmt)
     {
         stmt->expr->accept(this);
@@ -260,6 +287,21 @@ namespace pg
                 tmpImports.pop();
             }
         }
+    }
+
+    void VisitorResolver::visitStatement(BreakStatement*)
+    {
+        // Nothing to resolve; loop-context validation happens in the bytecode emitter
+    }
+
+    void VisitorResolver::visitStatement(ContinueStatement*)
+    {
+        // Nothing to resolve; loop-context validation happens in the bytecode emitter
+    }
+
+    void VisitorResolver::visitStatement(DPrintStatement *stmt)
+    {
+        stmt->expr->accept(this);
     }
 
     void VisitorResolver::declare(const std::string& name)

@@ -4,6 +4,7 @@
 #include <queue>
 #include <unordered_map>
 #include <string>
+#include <stdexcept>
 
 #include "expression.h"
 #include "statement.h"
@@ -33,6 +34,15 @@ namespace pg
         virtual std::shared_ptr<Valuable> visit(Get *expr) = 0;
         virtual std::shared_ptr<Valuable> visit(Set *expr) = 0;
 
+        // Newer AST nodes (bytecode front-end parity). Defaults either execute
+        // the node's pre-built desugared form (built by the parser, children
+        // shared with the structured form) or throw for visitors that predate
+        // the syntax. Only visitors that care (e.g. the bytecode emitter)
+        // override these.
+        virtual std::shared_ptr<Valuable> visit(AnonymousFunction *expr) { throw std::runtime_error("Anonymous functions are not supported by this visitor (line " + std::to_string(expr->token.line) + ")"); }
+        virtual std::shared_ptr<Valuable> visit(IndexGet *expr) { if (expr->desugared) return expr->desugared->accept(this); throw std::runtime_error("IndexGet without desugared form"); }
+        virtual std::shared_ptr<Valuable> visit(IndexSet *expr) { if (expr->desugared) return expr->desugared->accept(this); throw std::runtime_error("IndexSet without desugared form"); }
+
         virtual void visitStatement(ExpressionStatement *stmt) = 0;
         virtual void visitStatement(VariableStatement *stmt) = 0;
         virtual void visitStatement(FunctionStatement *stmt) = 0;
@@ -42,6 +52,12 @@ namespace pg
         virtual void visitStatement(WhileStatement *stmt) = 0;
         virtual void visitStatement(ReturnStatement *stmt) = 0;
         virtual void visitStatement(ImportStatement *stmt) = 0;
+
+        virtual void visitStatement(ForStatement *stmt) { if (stmt->desugared) { stmt->desugared->accept(this); return; } throw std::runtime_error("ForStatement without desugared form"); }
+        virtual void visitStatement(ForInStatement *stmt) { if (stmt->desugared) { stmt->desugared->accept(this); return; } throw std::runtime_error("ForInStatement without desugared form"); }
+        virtual void visitStatement(BreakStatement *stmt) { throw std::runtime_error("'break' is not supported by this visitor (line " + std::to_string(stmt->token.line) + ")"); }
+        virtual void visitStatement(ContinueStatement *stmt) { throw std::runtime_error("'continue' is not supported by this visitor (line " + std::to_string(stmt->token.line) + ")"); }
+        virtual void visitStatement(DPrintStatement *stmt) { throw std::runtime_error("'__dprint' is not supported by this visitor (line " + std::to_string(stmt->token.line) + ")"); }
 
     protected:
         std::shared_ptr<Environment> env;
@@ -58,6 +74,12 @@ namespace pg
     friend class SysModule;
     friend class VisitorReference;
     public:
+        // Keep the base-class defaults visible for the node overloads this
+        // visitor does not override (For/ForIn/Index/etc. run their desugared
+        // form through the Visitor defaults)
+        using Visitor::visit;
+        using Visitor::visitStatement;
+
         VisitorInterpreter(PgInterpreter *interpreter, std::shared_ptr<Environment> environment, const std::unordered_map<Expression*, unsigned int>& localsList, const std::string& scriptName) : Visitor(environment), localsList(localsList), interpreter(interpreter), scriptName(scriptName) {}
 
         virtual ~VisitorInterpreter() {}

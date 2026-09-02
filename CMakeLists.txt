@@ -186,10 +186,16 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/popping_jump_pass.cpp
     src/Engine/Compiler/pass/loop_rotation_pass.cpp
+    src/Engine/Compiler/ast/ast_compiler.cpp
     src/Engine/Compiler/ecsserialization.cpp
-    # Minimal interpreter (only lexer and token for parsing)
+    # Minimal interpreter (lexer/token + the AST front-end shared with the
+    # bytecode compiler; the tree-walking runtime itself is excluded)
     src/Engine/Interpreter/lexer.cpp
     src/Engine/Interpreter/token.cpp
+    src/Engine/Interpreter/expression.cpp
+    src/Engine/Interpreter/statement.cpp
+    src/Engine/Interpreter/parser.cpp
+    src/Engine/Interpreter/resolver.cpp
     # ECS system (needed for module registration and VM integration)
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
@@ -255,6 +261,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/popping_jump_pass.cpp
     src/Engine/Compiler/pass/loop_rotation_pass.cpp
+    src/Engine/Compiler/ast/ast_compiler.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
@@ -1436,6 +1443,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             benchmark/memorypool.cc
             benchmark/serialization.cc
             benchmark/script_performance.cc
+            benchmark/frontend_comparison.cc
             benchmark/ecs_performance.cc
         )
 
@@ -1444,6 +1452,11 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         add_custom_command(TARGET bench PRE_BUILD
                            COMMAND ${CMAKE_COMMAND} -E copy_directory
                            ${CMAKE_SOURCE_DIR}/test/bench $<TARGET_FILE_DIR:bench>/test/bench)
+
+        # Script corpus for the front-end comparison benchmark
+        add_custom_command(TARGET bench PRE_BUILD
+                           COMMAND ${CMAKE_COMMAND} -E copy_directory
+                           ${CMAKE_SOURCE_DIR}/test/pgcompiler/scripts $<TARGET_FILE_DIR:bench>/test/pgcompiler/scripts)
 
         # Cross-engine comparison benchmarks (opt-in: -DPGE_BUILD_COMPARISON_BENCHMARKS=ON).
         if(PGE_BUILD_COMPARISON_BENCHMARKS)
@@ -1459,6 +1472,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         add_executable(test_compiler test/pgcompiler/script_testbench.cc)
 
         target_sources(test_compiler PRIVATE
+            test/pgcompiler/ast_parser_parity.cc
+            test/pgcompiler/differential_testbench.cc
             test/pgcompiler/unit/test_vm_memory.cc
             test/pgcompiler/unit/test_register_ops.cc
             test/pgcompiler/unit/test_bytecode_rewriter.cc
