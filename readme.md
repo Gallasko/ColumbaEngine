@@ -1,6 +1,6 @@
 # ColumbaEngine
 
-[![CI](https://github.com/Gallasko/PgEngine/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/Gallasko/PgEngine/actions/workflows/main.yml) [![Documentation Status](https://readthedocs.org/projects/columbaengine/badge/?version=latest)](https://columbaengine.readthedocs.io/en/latest/?badge=latest) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/Gallasko/ColumbaEngine/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/Gallasko/ColumbaEngine/actions/workflows/main.yml) [![Documentation Status](https://readthedocs.org/projects/columbaengine/badge/?version=latest)](https://columbaengine.readthedocs.io/en/latest/?badge=latest) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Website:** [columbaengine.org](https://columbaengine.org/) | **Discord:** [Join our community](https://discord.gg/un4VtehX3W)
 
@@ -16,7 +16,7 @@ ColumbaEngine is a **completely free and open source** game engine built with mo
 - **Transparent Development** - All development happens in the open with community input
 - **No Vendor Lock-in** - Your project is yours. Use any tools, modify the engine, distribute freely
 - **Modern C++17** - Clean, maintainable codebase using modern C++ best practices
-- **Built-in Editor** - Visual scene creation without external dependencies
+- **Scene Editor (early preview)** - A built-in visual editor is in active development
 - **Lightweight** - Pay only for what you use - unused systems have zero overhead
 
 ## Quick Start
@@ -102,13 +102,19 @@ Full documentation is available at: **[columbaengine.readthedocs.io](https://col
 
 ### Core Features
 - **Pure ECS Architecture** - Data-oriented design with efficient component management
-- **Complete 2D Rendering** - Production-ready 2D graphics pipeline
-- **3D Support** - Coming soon
-- **Built-in Scene Editor** - Visual scene creation and management
-- **Custom Scripting (PgScript)** - Flexible scripting language for game logic
+- **Complete 2D Rendering** - Production-ready 2D graphics pipeline (sprites, atlases, tilemaps, Aseprite import, tweens, 2D animation)
+- **UI Toolkit** - Text (TTF), buttons, text input, list views, progress bars, anchors/layout, theming
+- **Custom Scripting (PgScript)** - Flexible scripting language with a bytecode VM, optimizer, and hot reload
+- **2D Collision** - Spatial-hash broad phase, AABB narrow phase, and raycasts. By design the engine ships collision detection, not rigid-body dynamics: velocity and response stay in your game logic, where jam-sized games actually want them
 - **Pay-for-what-you-use** - No performance overhead for unused systems
 - **Event System** - Efficient inter-system communication
 - **Taskflow Integration** - Parallel system execution with profiling support
+
+### In Development (not production-ready yet)
+- **Scene Editor** - Early preview; inspector and scene save/load are being stabilized
+- **Networking** - TCP/UDP client-server with packet fragmentation works, but is not battle-tested yet
+- **Particles** - Being reworked (currently disabled)
+- **3D Support** - Camera and asset infrastructure exists; the 3D render path is on the roadmap
 
 ### Platform Support
 - Linux (Ubuntu, Fedora, Arch)
@@ -127,9 +133,22 @@ ColumbaEngine is perfect for:
 
 ## Examples & Games
 
-- **Full Tetris Clone** - Complete implementation showcasing engine capabilities
+The repository ships buildable examples (built by default, `-DBUILD_EXAMPLES=ON`). Start with the ones matching what you want to learn:
+
+| I want to learn... | Example | Build target |
+|---|---|---|
+| The smallest possible game loop | `examples/SimpleBoxBouncer` | `BoxBouncer` |
+| 2D rendering features | `examples/RenderingTest` | `RenderingTest` |
+| ECS systems & engine patterns | `examples/StandardSys` | `StandardSys` |
+| UI / text rendering | `examples/BasicTerminal` | `BasicTerminal` |
+| A blank project skeleton | `examples/EmptyAppTemplate` | `EmptyApp` |
+| A small complete game | `examples/Asteroid` | `Asteroid` |
+| A full jam game (factory/automation) | `examples/GameDevJs2026` | `GameDevJs2026` (web) |
+| PgScript scripting | `examples/PgCompiler` | `PgCompiler` |
+| Client/server networking basics | `examples/SimpleClientServer` | `SimpleClientServer` |
+
 - **Game Examples & Blog Posts** - Visit [columbaengine.org](https://columbaengine.org/) for tutorials, blog posts, and game examples
-- **More Examples** - Available at [pigeoncodeur.itch.io](https://pigeoncodeur.itch.io/)
+- **Playable Builds** - Available at [pigeoncodeur.itch.io](https://pigeoncodeur.itch.io/)
 
 ## Development
 
@@ -138,16 +157,13 @@ ColumbaEngine is perfect for:
 The installation script supports various options:
 
 ```bash
-# Install specific version
-./install-engine.sh --version v1.0.0
-
 # Custom installation directory (no sudo required)
 ./install-engine.sh --prefix ~/.local
 
 # Specify number of build jobs
 ./install-engine.sh --jobs 4
 
-# All options
+# Install a specific tag or branch (default: main)
 ./install-engine.sh --version main --prefix ~/.local --jobs 8
 ```
 
@@ -165,18 +181,29 @@ cd ~/ColumbaEngine-install/test-app
 ./ColumbaEngineTestApp
 ```
 
+### Scene Editor (early preview)
+
+Native (non-web) builds produce a `ColumbaEngineEditor` executable by default (turn it off with `-DBUILD_EDITOR=OFF`):
+
+```bash
+cd build
+./ColumbaEngineEditor
+```
+
+The editor is under active development — entity list, inspector, and scene save/load are being stabilized. Feedback and contributions are very welcome.
+
 ### Profiling
 
-Enable Taskflow profiling to analyze system scheduling:
+Enable Taskflow profiling to analyze system scheduling (works with any engine executable — here the BoxBouncer example):
 
 ```bash
 # Linux/macOS
 export TF_ENABLE_PROFILER=profile.json
-./ColumbaEngine
+./BoxBouncer
 
 # Windows PowerShell
 $env:TF_ENABLE_PROFILER="profile.json"
-.\ColumbaEngine.exe
+.\BoxBouncer.exe
 ```
 
 ## Contributing

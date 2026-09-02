@@ -1,6 +1,6 @@
 # Pure vendoring approach - everything is self-contained
 cmake_minimum_required(VERSION 3.18)
-project(ColumbaEngine VERSION 1.0)
+project(ColumbaEngine VERSION 0.9.0)
 
 # Options remain the same
 option(USE_GDB "Add -ggdb to the build" OFF)
@@ -9,6 +9,7 @@ option(PG_PROFILE "Enable the profiling of systems" OFF)
 option(ENABLE_TIME_TRACE "Add -ftime-trace to Clang builds" OFF)
 option(BUILD_STATIC_LIB "Build static library only" OFF)
 option(BUILD_EXAMPLES "Build example applications" ON)
+option(BUILD_EDITOR "Build the ColumbaEngineEditor scene editor (native builds only)" ON)
 option(USE_CCACHE "Use ccache to speed up rebuilds" ON)
 option(SKIP_COMPONENT_GENERATION "Skip regeneration of component files (use existing generated files)" OFF)
 option(PGE_BUILD_COMPARISON_BENCHMARKS "Build cross-engine comparison benchmarks (PgEngine vs EnTT/flecs/Bevy)" OFF)
@@ -1021,20 +1022,22 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         ###
 
     else()
-        add_executable(ColumbaEngineEditor src/main.cpp)
+        if (BUILD_EDITOR)
+            add_executable(ColumbaEngineEditor src/main.cpp)
 
-        target_include_directories(ColumbaEngineEditor PUBLIC src/Editor)
+            target_include_directories(ColumbaEngineEditor PUBLIC src/Editor)
 
-        target_sources(ColumbaEngineEditor PRIVATE
-            src/application.cpp
-            src/application.h
-            src/Editor/Gui/contextmenu.cpp
-            src/Editor/Gui/inspector.cpp
-            src/Editor/Gui/entitylist.cpp
-            src/Editor/Gui/projectmanager.cpp
-        )
+            target_sources(ColumbaEngineEditor PRIVATE
+                src/application.cpp
+                src/application.h
+                src/Editor/Gui/contextmenu.cpp
+                src/Editor/Gui/inspector.cpp
+                src/Editor/Gui/entitylist.cpp
+                src/Editor/Gui/projectmanager.cpp
+            )
 
-        target_link_libraries(ColumbaEngineEditor PRIVATE ColumbaEngine)
+            target_link_libraries(ColumbaEngineEditor PRIVATE ColumbaEngine)
+        endif()
 
         add_executable(GameOff examples/GameOff/main.cpp)
 
@@ -1497,9 +1500,9 @@ endif()
 # CPack configuration for creating installers
 set(CPACK_PACKAGE_NAME "ColumbaEngine")
 set(CPACK_PACKAGE_VENDOR "PigeonCodeur")
-set(CPACK_PACKAGE_VERSION_MAJOR "1")
-set(CPACK_PACKAGE_VERSION_MINOR "0")
-set(CPACK_PACKAGE_VERSION_PATCH "0")
+set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
 set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "ColumbaEngine - A modern C++ game engine")
 set(CPACK_PACKAGE_DESCRIPTION "ColumbaEngine is a feature-rich game engine with 2D/3D rendering, ECS architecture, audio system, and scripting capabilities.")

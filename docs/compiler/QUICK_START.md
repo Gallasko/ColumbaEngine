@@ -1,5 +1,13 @@
 # PgEngine Compiler Quick Start Guide
 
+## Which runtime runs my script?
+
+The engine contains two PgScript runtimes, and as a game developer you only need to care about one:
+
+**Write your game scripts for the bytecode VM.** Every documented way of loading a script into a game — `ecs.scripts().load(...)`, `StandardSystem` handlers like `.onEvent("OnMouseClick", "click.pg")` or `.onExecute("tick.pg")`, and collision handlers via `makeCollisionHandleScript(...)` — compiles your `.pg` file to `.pgc` bytecode and executes it on the register VM (`src/Engine/Compiler/vm.h`), with the full optimization pipeline available. Hot reload comes from the opt-in `ScriptWatcherSystem` (`ecs.createSystem<ScriptWatcherSystem>()`, native builds), which recompiles changed files automatically.
+
+The older tree-walking interpreter (`src/Engine/Interpreter/`) still exists for engine-internal startup scripts and the legacy `ExecuteFileScriptEvent` path. Don't target it for new game code — it is slower and not where language development happens.
+
 ## Getting Started in 5 Minutes
 
 ### 1. Hello World

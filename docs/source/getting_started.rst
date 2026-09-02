@@ -1,134 +1,124 @@
 Getting Started
 ===============
 
-.. autosummary::
-    :toctree: generated
+Welcome to **ColumbaEngine**! This guide gets you from a clean machine to a running example, then points you at the template for starting your own game.
 
-Welcome to the **ColumbaEngine** project! This guide will help you get started with setting up and using the engine. Whether you're a contributor or just interested in testing out the engine, this section will cover everything you need to know to get up and running.
+There are two ways to set up the engine:
+
+1. **The install script (recommended)** — installs the engine system-wide (or to a prefix) and generates a ready-to-build starter app.
+2. **Manual build from source** — builds the engine and all bundled examples in-tree.
 
 Prerequisites
 -------------
 
-Before you begin, ensure you have the following installed on your machine:
+- A C++17 compiler (GCC or Clang; on Windows, MinGW-64)
+- CMake 3.18+
+- Git
+- OpenGL drivers
 
-1. **C++ Compiler**
-    Make sure you have a C++17-compatible compiler installed (e.g., GCC, Clang, or MSVC).
-
-2. **CMake**
-    You'll need CMake to configure and build the engine. Download and install CMake from `https://cmake.org/download/`.
-
-3. **OpenGL**
-    ColumbaEngine uses OpenGL for rendering. Ensure your system has a compatible GPU and OpenGL drivers installed.
-
-You can install most of these dependencies using a package manager (like `apt`, `brew`, or `vcpkg`) or by following individual library instructions.
-
-Clone the Repository
---------------------
-
-Start by cloning the repository to your local machine:
+All third-party libraries (SDL2, GLEW, GLM, FreeType, Taskflow, ...) are **vendored in the repository** — you do not need to install them yourself. On Linux you only need the system development headers the vendored SDL2 builds against:
 
 .. code-block:: bash
 
-    git clone https://github.com/Gallasko/ColumbaEngine.git
+    # Ubuntu / Debian
+    sudo apt update
+    sudo apt install build-essential cmake git \
+        libgl1-mesa-dev libglu1-mesa-dev libx11-dev libxext-dev \
+        libasound2-dev libpulse-dev libudev-dev pkg-config
+
+Option 1 — Install script (recommended)
+---------------------------------------
+
+.. code-block:: bash
+
+    curl -sSL https://raw.githubusercontent.com/Gallasko/ColumbaEngine/main/scripts/install/install-engine.sh | bash
+
+The script installs dependencies for your distro (Ubuntu/Debian, Fedora, Arch), clones and builds the engine, installs it (default prefix ``/usr/local``; use ``--prefix ~/.local`` to avoid sudo), and creates a starter application in ``~/ColumbaEngine-install/test-app`` that you can build and run immediately:
+
+.. code-block:: bash
+
+    cd ~/ColumbaEngine-install/test-app
+    ./build.sh
+    cd build && ./ColumbaEngineTestApp
+
+You should see a window with a bouncing box that changes color when it hits an edge. This starter app is the recommended base for a new project — it links the installed engine with ``find_package(ColumbaEngine)``.
+
+Option 2 — Manual build from source
+-----------------------------------
+
+.. important:: Clone with ``--recursive`` — the dependencies are git submodules/vendored trees and the build will fail without them.
+
+.. code-block:: bash
+
+    git clone --recursive https://github.com/Gallasko/ColumbaEngine.git
     cd ColumbaEngine
+    mkdir build && cd build
+    cmake -DCMAKE_BUILD_TYPE=Release ..
+    cmake --build . -j$(nproc)
 
-
-Build Instructions
-------------------
-
-Using CMake
-^^^^^^^^^^^
-
-Once the repository is cloned, you can build the project with CMake:
-
-1. Create a build directory:
+This builds the engine library plus the bundled examples (``BUILD_EXAMPLES`` is ON by default). There is no single ``ColumbaEngine`` binary — run one of the example executables from the build directory instead:
 
 .. code-block:: bash
 
-    mkdir build
-    cd build
+    ./BoxBouncer        # minimal bouncing-box demo
+    ./RenderingTest     # 2D rendering feature showcase
+    ./StandardSys       # standard-system / ECS patterns demo
+    ./Asteroid          # small complete game
 
+Useful CMake options:
 
-2. Configure the project with CMake:
+- ``-DBUILD_EXAMPLES=OFF`` — build only the engine library
+- ``-DBUILD_STATIC_LIB=ON`` — build a static library (used by the installer)
+- ``-DBUILD_EDITOR=OFF`` — skip the (early-preview) scene editor, built natively as ``ColumbaEngineEditor``
+- ``-DPG_PROFILE=ON`` — enable system profiling
 
-.. code-block:: bash
+Building for the Web (Emscripten)
+---------------------------------
 
-    cmake ..
-
-This will check for all dependencies and prepare the build configuration.
-
-3. Build the project:
-
-.. code-block:: bash
-
-    cmake --build .
-
-4. Once the build process is complete, you'll have an executable located in the `build` directory.
-
-Running the Engine
-^^^^^^^^^^^^^^^^^^
-
-To run the engine, simply execute the compiled binary:
+The engine treats WebAssembly as a first-class target:
 
 .. code-block:: bash
 
-    ./ColumbaEngine
+    # Install the Emscripten SDK first: https://emscripten.org/docs/getting_started/downloads.html
+    cd ColumbaEngine
+    mkdir build-web && cd build-web
+    emcmake cmake ..
+    cmake --build . -j
+    emrun ./BoxBouncer.html
 
-This will launch the engine, and you'll be able to start testing your game projects or use the editor.
+Each example is emitted as an ``.html`` + ``.wasm`` bundle you can serve directly.
+
+Where to go next
+----------------
+
+- Follow the :doc:`tutorials` to build your first game step by step.
+- Read the `PgScript quick start <https://github.com/Gallasko/ColumbaEngine/blob/main/docs/compiler/QUICK_START.md>`_ to script game logic with hot reload.
+- Browse the ``examples/`` directory — each subfolder is a self-contained demo or game.
 
 Building the Documentation (Optional)
---------------------------------------
-
-If you're interested in contributing to the documentation or building it locally, you can do so by following these steps:
-
-1. Install **Sphinx**:
+-------------------------------------
 
 .. code-block:: bash
 
     pip install sphinx
-
-2. Navigate to the `docs` directory:
-
-.. code-block:: bash
-
     cd docs
-
-3. Build the documentation:
-
-.. code-block:: bash
-
     make html
 
-This will generate the HTML version of the documentation in the `_build/html/` directory, which you can view locally.
-
-Contributing
-------------
-
-If you'd like to contribute to **ColumbaEngine**, you're welcome to open issues, submit pull requests, or provide feedback!
-
-To get started with development, clone the repository, and make sure to follow the **contributing guidelines** outlined in the `CONTRIBUTING.md <https://github.com/Gallasko/ColumbaEngine/blob/main/CONTRIBUTING.md>`_.
+The HTML output lands in ``_build/html/``.
 
 Common Issues
 -------------
 
-1. **Missing Dependencies**
-    If you encounter issues during the build, make sure that all required dependencies (like SDL2, GLEW, Assimp, etc.) are installed. Use the package manager for your system to install them, or follow the installation instructions for each library.
+1. **Build fails with missing headers or submodule errors**
+    You almost certainly cloned without ``--recursive``. Run ``git submodule update --init --recursive`` and re-run CMake.
 
-2. **Build Failures**
-    If you run into build failures, try cleaning the build directory and running CMake again:
+2. **CMake version too old**
+    The build requires CMake 3.18+ (``cmake --version``).
 
-.. code-block:: bash
-
-    rm -rf build
-    mkdir build
-    cd build
-    cmake ..
-    cmake --build .
-
-3. **Runtime Errors**
-    If the engine fails to run, ensure that your graphics drivers and OpenGL version are up to date.
+3. **Runtime errors / black window**
+    Update your graphics drivers and check your OpenGL version.
 
 Contact and Support
 -------------------
 
-If you have questions or run into issues, feel free to open an issue on the `GitHub Issues page <https://github.com/Gallasko/ColumbaEngine/issues>`_ or reach out to the maintainers for help.
+Open an issue on the `GitHub Issues page <https://github.com/Gallasko/ColumbaEngine/issues>`_ or join the `Discord community <https://discord.gg/un4VtehX3W>`_.

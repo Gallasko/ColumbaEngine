@@ -4,18 +4,18 @@
    contain the root `toctree` directive.
 
 ColumbaEngine documentation
-======================
+===========================
 
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
+ColumbaEngine is a free and open-source C++17 game engine with a pure ECS architecture, a production-ready 2D pipeline, a hot-reloadable scripting language (PgScript), and first-class WebAssembly support.
 
+New here? Start with :doc:`getting_started`, then build your first game with :doc:`tutorials`.
 
 .. toctree::
     :maxdepth: 1
     :caption: Contents:
 
     getting_started
+    tutorials
     api/api
 
 .. toctree::
