@@ -37,7 +37,22 @@ Once the bouncing box works, replace ``src/boxbouncersystem.h`` with a new file 
 Step 1 — The paddle
 -------------------
 
-A system is a class inheriting ``System<...traits...>``. ``InitSys`` gives you an ``init()`` hook; ``Listener<TickEvent>`` delivers frame ticks. Entities are created through factory helpers — ``makeSimple2DShape`` returns a component list whose ``.entity`` you can keep as a handle.
+A system is a class inheriting ``System<...traits...>``, where each template argument is a **trait** — a capability you opt into. The engine wires up exactly the hooks you list and nothing more (this is the "pay for what you use" part of the architecture). Our declaration:
+
+.. code-block:: cpp
+
+    class BreakoutSystem : public System<InitSys, DeltaTime,
+                                         Listener<OnSDLScanCode>, Listener<OnSDLScanCodeReleased>>
+
+reads as follows:
+
+- ``InitSys`` — gives the system an ``init()`` hook, called once at ECS startup. That's where we'll create the paddle, ball, and bricks.
+- ``DeltaTime`` — gives the system an ``onExecute(float deltaTime)`` hook, called once per frame with the elapsed time in seconds. Under the hood it listens to ``TickEvent`` and accumulates ticks for you (events can arrive from other threads, so raw tick handling needs care — the trait does it correctly so you don't have to).
+- ``Listener<OnSDLScanCode>`` / ``Listener<OnSDLScanCodeReleased>`` — subscribe to key press/release; one ``onEvent`` overload each.
+
+Every system also gets an ``ecsRef`` pointer for creating entities and sending events. (Later you may also meet ``Listener<TickEvent>`` for manual tick handling — ``SimpleBoxBouncer`` shows that lower-level pattern — plus ``QueuedListener<E>``, which batches events and delivers them at a safe point, and ``SaveSys``, which adds save/load hooks.)
+
+Entities are created through factory helpers — ``makeSimple2DShape`` returns a component list whose ``.entity`` you can keep as a handle.
 
 .. code-block:: cpp
 
@@ -52,13 +67,15 @@ A system is a class inheriting ``System<...traits...>``. ``InitSys`` gives you a
 
     using namespace pg;
 
-    class BreakoutSystem : public System<InitSys, Listener<TickEvent>,
+    class BreakoutSystem : public System<InitSys, DeltaTime,
                                          Listener<OnSDLScanCode>, Listener<OnSDLScanCodeReleased>>
     {
     public:
         BreakoutSystem(float width, float height) : screenWidth(width), screenHeight(height) {}
 
         virtual std::string getSystemName() const override { return "Breakout System"; }
+
+        void onExecute(float) override {}   // required by DeltaTime; filled in next step
 
         void init() override
         {
@@ -90,45 +107,40 @@ Key events arrive as ``OnSDLScanCode`` (press) and ``OnSDLScanCodeReleased`` (re
     // add to the class:
     virtual void onEvent(const OnSDLScanCode& event) override
     {
-        if (event.key == SDL_SCANCODE_LEFT)  movingLeft = true;
-        if (event.key == SDL_SCANCODE_RIGHT) movingRight = true;
+        if (event.key == SDL_SCANCODE_LEFT)
+            movingLeft = true;
+
+        if (event.key == SDL_SCANCODE_RIGHT)
+            movingRight = true;
     }
 
     virtual void onEvent(const OnSDLScanCodeReleased& event) override
     {
-        if (event.key == SDL_SCANCODE_LEFT)  movingLeft = false;
-        if (event.key == SDL_SCANCODE_RIGHT) movingRight = false;
+        if (event.key == SDL_SCANCODE_LEFT)
+            movingLeft = false;
+
+        if (event.key == SDL_SCANCODE_RIGHT)
+            movingRight = false;
     }
 
-    virtual void onEvent(const TickEvent& event) override
+    void onExecute(float deltaTime) override
     {
-        deltaTime += event.tick / 1000.0f;
-    }
-
-    void execute() override
-    {
-        if (deltaTime == 0.0f)
-            return;
-
         auto pos = paddle->get<PositionComponent>();
 
         if (movingLeft)  pos->setX(std::max(0.0f, pos->x - paddleSpeed * deltaTime));
         if (movingRight) pos->setX(std::min(screenWidth - pos->width, pos->x + paddleSpeed * deltaTime));
-
-        deltaTime = 0.0f;
     }
 
     // members:
     bool movingLeft = false, movingRight = false;
     float paddleSpeed = 420.0f;
-    float deltaTime = 0.0f;
 
-The tick/execute split matters: events can arrive on other threads, so you accumulate in ``onEvent`` and mutate the world in ``execute()``, exactly like ``SimpleBoxBouncer`` does.
+Note the split: key events only *record* state, and the world is mutated in ``onExecute``, which the scheduler calls at a safe point once per frame with the elapsed seconds. The ``DeltaTime`` trait handles the tick accumulation and reset behind the scenes.
 
 Step 3 — The ball
 -----------------
 
-Create the ball in ``init()`` and bounce it off walls and the paddle in ``execute()``. An AABB overlap test is four comparisons — collision *response* deliberately lives in your game logic in this engine (the built-in ``CollisionSystem`` gives you broad-phase, layers, and raycasts when a game outgrows this; see ``examples/Asteroid``).
+Create the ball in ``init()`` and bounce it off walls and the paddle in ``onExecute()``. An AABB overlap test is four comparisons — collision *response* deliberately lives in your game logic in this engine (the built-in ``CollisionSystem`` gives you broad-phase, layers, and raycasts when a game outgrows this; see ``examples/Asteroid``).
 
 .. code-block:: cpp
 
@@ -146,7 +158,7 @@ Create the ball in ``init()`` and bounce it off walls and the paddle in ``execut
            and a->y < b->y + b->height and a->y + a->height > b->y;
     }
 
-    // in execute(), after the paddle movement:
+    // in onExecute(), after the paddle movement:
     auto bpos = ball->get<PositionComponent>();
 
     float x = bpos->x + ballVelX * deltaTime;
@@ -195,7 +207,7 @@ A grid of colored shapes, each kept as an ``EntityRef``. On hit, delete the enti
         }
     }
 
-    // in execute(), after the paddle bounce:
+    // in onExecute(), after the paddle bounce:
     for (auto it = bricks.begin(); it != bricks.end(); ++it)
     {
         auto brickPos = (*it)->get<PositionComponent>();
