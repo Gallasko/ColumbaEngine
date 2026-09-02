@@ -510,15 +510,17 @@ fun myFunc() {
 **Solution**: Add semicolons (or newlines) after statements
 ```javascript
 var x = 10  // OK
-var y = 20  // OK
+var y = 20; // OK
+var z = 30; var w = 40; // OK
+var h = 2 var i = 24 // NOT OK a ; is missing it should be `var h = 2; var i = 24`
 ```
 
 ## Next Steps
 
 - Read the [Full Compiler Documentation](COMPILER_OVERVIEW.md)
 - Check out [Example Scripts](../../examples/)
-- Learn about [ECS Integration](../ecs/ECS_SCRIPTING.md)
-- Explore [Advanced Features](ADVANCED_FEATURES.md)
+- Learn about ECS integration from C++: the [StandardSystem guides](../STANDARD_SYSTEM_INDEX.md)
+- Explore the VM internals and optimizer: [vm_internals](https://columbaengine.readthedocs.io/en/latest/script/vm_internals.html) and [optimizer](https://columbaengine.readthedocs.io/en/latest/script/optimizer.html)
 
 ## Getting Help
 

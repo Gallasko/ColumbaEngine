@@ -100,8 +100,8 @@ Building the Documentation (Optional)
 
 .. code-block:: bash
 
-    pip install sphinx
     cd docs
+    pip install -r requirements.txt
     make html
 
 The HTML output lands in ``_build/html/``.

@@ -16,6 +16,7 @@ New here? Start with :doc:`getting_started`, then build your first game with :do
 
     getting_started
     tutorials
+    modules/index
     api/api
 
 .. toctree::

@@ -1,19 +1,19 @@
 Project API Documentation
 =========================
 
-This section provides an overview of the complete project API, organized by category. Each category contains detailed documentation for its specific components and systems. Use the links below to navigate to the API reference for each area:
-
-- **UI API:**
-    Contains documentation for all UI-related components (e.g., PositionComponent, UiAnchor, MouseLeftClickComponent) and their associated systems.
+This section provides the API reference, organized by category:
 
 - **ECS API:**
-    Covers the core Entity-Component-System framework, including entities, component management, system execution, and event handling.
+    The core Entity-Component-System framework — ``EntitySystem``, system traits, entity/component handles.
 
-- **Interpreter API:**
-    Provides details on the custom scripting interpreter, including language syntax, parsing, and runtime execution.
+- **UI API:**
+    UI-related components (e.g., PositionComponent, UiAnchor, TTFText) and their associated systems.
+
+For the scripting language (PgScript) reference, see the *Script Language* section of the documentation.
 
 .. toctree::
     :maxdepth: 2
     :caption: API Categories
 
+    ecs/index
     ui/index
