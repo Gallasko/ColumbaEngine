@@ -36,6 +36,7 @@ namespace pg
             // Add new field
             size_t index = fieldValues.size();
             fieldValues.push_back(value);
+            fieldNames.push_back(name);
             internedFields[name] = index;
         }
     }

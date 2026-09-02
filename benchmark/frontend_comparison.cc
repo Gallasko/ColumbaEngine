@@ -3,14 +3,19 @@
  * @brief Benchmark: Pratt front-end vs AST front-end
  *
  * Runs the same scripts through both compiler front-ends and reports
- * compile time and total run time per front-end. This is the data that
- * decides which front-end survives long-term.
+ * compile time and execution time per front-end, scaled over increasing
+ * workload counts like the ScriptPerformance benchmarks. This is the data
+ * that decides which front-end survives long-term.
+ *
+ * Reading the output: ratios are Ast/Pratt, so > 1.00 means the AST
+ * front-end is slower on that metric, < 1.00 means it is faster.
  */
 
 #include "gtest/gtest.h"
 
 #include <chrono>
 #include <filesystem>
+#include <functional>
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -20,16 +25,20 @@
 
 #include "../test/mocklogger.h"
 
+#include "2D/position.h"
+
 namespace pg
 {
     namespace benchmark
     {
         namespace
         {
+            constexpr int REPETITIONS = 3; // best-of-N to reduce noise
+
             struct FrontendTiming
             {
                 int64_t compileUs = -1;
-                int64_t totalUs = -1;
+                int64_t execUs = -1;
                 bool ok = false;
             };
 
@@ -38,11 +47,16 @@ namespace pg
                 return fe == ScriptFrontEnd::Ast ? "Ast" : "Pratt";
             }
 
+            /** Optional per-benchmark ECS preparation (e.g. component systems a script needs) */
+            using EcsSetup = std::function<void(EntitySystem&)>;
+
             /**
-             * Time one script with one front-end: compile-only pass first,
-             * then a full run, both on fresh O3-configured VMs.
+             * Time one script with one front-end on a fresh O3-configured VM:
+             * compile-only pass, then a full run; execution time is the
+             * difference. Best of REPETITIONS runs per metric.
              */
-            FrontendTiming timeFrontEnd(const std::string& scriptPath, ScriptFrontEnd frontEnd, int count)
+            FrontendTiming timeFrontEnd(const std::string& scriptPath, ScriptFrontEnd frontEnd, int count,
+                                        const EcsSetup& setupEcs = nullptr)
             {
                 FrontendTiming timing;
 
@@ -50,94 +64,175 @@ namespace pg
                 ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
                 ecs.setVMFrontEnd(frontEnd);
 
-                // Compile-only timing
+                if (setupEcs)
+                    setupEcs(ecs);
+
+                int64_t bestCompile = -1;
+                int64_t bestTotal = -1;
+
+                for (int rep = 0; rep < REPETITIONS; rep++)
                 {
-                    VM vm;
-                    ecs.setupVm(vm);
+                    // Compile-only timing
+                    {
+                        VM vm;
+                        ecs.setupVm(vm);
 
-                    if (count > 0)
-                        vm.defineGlobal("count", makeIntValue(count));
+                        if (count > 0)
+                            vm.defineGlobal("count", makeIntValue(count));
 
-                    auto start = std::chrono::high_resolution_clock::now();
-                    auto result = vm.interpretFromFile(scriptPath, true);
-                    auto end = std::chrono::high_resolution_clock::now();
+                        auto start = std::chrono::high_resolution_clock::now();
+                        auto result = vm.interpretFromFile(scriptPath, true);
+                        auto end = std::chrono::high_resolution_clock::now();
 
-                    if (result != InterpretResult::OK)
-                        return timing;
+                        if (result != InterpretResult::OK)
+                            return timing;
 
-                    timing.compileUs = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                        auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+                        if (bestCompile < 0 or us < bestCompile)
+                            bestCompile = us;
+                    }
+
+                    // Full compile + run timing
+                    {
+                        VM vm;
+                        ecs.setupVm(vm);
+
+                        if (count > 0)
+                            vm.defineGlobal("count", makeIntValue(count));
+
+                        auto start = std::chrono::high_resolution_clock::now();
+                        auto result = vm.interpretFromFile(scriptPath);
+                        auto end = std::chrono::high_resolution_clock::now();
+
+                        if (result != InterpretResult::OK)
+                            return timing;
+
+                        auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+                        if (bestTotal < 0 or us < bestTotal)
+                            bestTotal = us;
+                    }
                 }
 
-                // Full compile + run timing
-                {
-                    VM vm;
-                    ecs.setupVm(vm);
-
-                    if (count > 0)
-                        vm.defineGlobal("count", makeIntValue(count));
-
-                    auto start = std::chrono::high_resolution_clock::now();
-                    auto result = vm.interpretFromFile(scriptPath);
-                    auto end = std::chrono::high_resolution_clock::now();
-
-                    if (result != InterpretResult::OK)
-                        return timing;
-
-                    timing.totalUs = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-                }
-
+                timing.compileUs = bestCompile;
+                timing.execUs = bestTotal > bestCompile ? bestTotal - bestCompile : 0;
                 timing.ok = true;
 
                 return timing;
             }
 
-            void compareOnScript(const std::string& name, const std::string& scriptPath, int count = -1)
+            double ratio(int64_t ast, int64_t pratt)
             {
+                return pratt > 0 ? static_cast<double>(ast) / static_cast<double>(pratt) : 0.0;
+            }
+
+            /**
+             * Compare both front-ends on one script over increasing counts,
+             * ScriptPerformance-style.
+             */
+            void runScaledComparison(const std::string& name, const std::string& scriptPath,
+                                     const std::vector<int>& counts, const EcsSetup& setupEcs = nullptr)
+            {
+                std::cout << "\n=== " << name << " (Pratt vs Ast, O3) ===" << std::endl;
+
                 if (not std::filesystem::exists(scriptPath))
                 {
-                    std::cout << "  " << name << ": script not found (" << scriptPath << "), skipped" << std::endl;
+                    std::cout << "  script not found (" << scriptPath << "), skipped" << std::endl;
                     return;
                 }
 
-                auto pratt = timeFrontEnd(scriptPath, ScriptFrontEnd::Pratt, count);
-                auto ast = timeFrontEnd(scriptPath, ScriptFrontEnd::Ast, count);
+                // Compile time does not depend on count - measure once
+                auto prattRef = timeFrontEnd(scriptPath, ScriptFrontEnd::Pratt, counts.empty() ? -1 : counts.front(), setupEcs);
+                auto astRef = timeFrontEnd(scriptPath, ScriptFrontEnd::Ast, counts.empty() ? -1 : counts.front(), setupEcs);
 
-                std::cout << "  " << std::left << std::setw(36) << name;
-
-                if (not pratt.ok or not ast.ok)
+                if (not prattRef.ok or not astRef.ok)
                 {
-                    std::cout << (pratt.ok ? "" : " [Pratt FAILED]") << (ast.ok ? "" : " [Ast FAILED]") << std::endl;
+                    std::cout << (prattRef.ok ? "" : "  [Pratt FAILED]") << (astRef.ok ? "" : "  [Ast FAILED]") << std::endl;
                     return;
                 }
 
-                auto ratio = [](int64_t a, int64_t b) -> double
-                {
-                    return b > 0 ? static_cast<double>(a) / static_cast<double>(b) : 0.0;
-                };
+                std::cout << "  compile: Pratt " << prattRef.compileUs << " us, Ast " << astRef.compileUs
+                          << " us (x" << std::fixed << std::setprecision(2)
+                          << ratio(astRef.compileUs, prattRef.compileUs) << ")" << std::endl;
 
-                std::cout << " compile P/A: " << std::setw(7) << pratt.compileUs << " / "
-                          << std::setw(7) << ast.compileUs << " us"
-                          << " (x" << std::fixed << std::setprecision(2) << ratio(ast.compileUs, pratt.compileUs) << ")"
-                          << " | total P/A: " << std::setw(8) << pratt.totalUs << " / "
-                          << std::setw(8) << ast.totalUs << " us"
-                          << " (x" << ratio(ast.totalUs, pratt.totalUs) << ")"
-                          << std::endl;
+                for (int count : counts)
+                {
+                    auto pratt = timeFrontEnd(scriptPath, ScriptFrontEnd::Pratt, count, setupEcs);
+                    auto ast = timeFrontEnd(scriptPath, ScriptFrontEnd::Ast, count, setupEcs);
+
+                    if (not pratt.ok or not ast.ok)
+                    {
+                        std::cout << "  Count " << count
+                                  << (pratt.ok ? "" : " [Pratt FAILED]") << (ast.ok ? "" : " [Ast FAILED]") << std::endl;
+                        continue;
+                    }
+
+                    std::cout << "  Count " << std::left << std::setw(7) << count
+                              << " exec: Pratt " << std::setw(8) << pratt.execUs << " us, Ast "
+                              << std::setw(8) << ast.execUs << " us (x"
+                              << std::fixed << std::setprecision(2) << ratio(ast.execUs, pratt.execUs) << ")";
+
+                    if (count > 0 and pratt.execUs > 0)
+                    {
+                        std::cout << "  [" << std::setprecision(3)
+                                  << pratt.execUs / static_cast<double>(count) << " vs "
+                                  << ast.execUs / static_cast<double>(count) << " us/item]";
+                    }
+
+                    std::cout << std::endl;
+                }
             }
+
+            // Same counts as the ScriptPerformance scaled benchmarks
+            const std::vector<int> smallCounts = {100, 500, 1000, 2000, 5000};
+            const std::vector<int> largeCounts = {1000, 5000, 10000, 25000, 50000};
         }
 
-        TEST(FrontendComparison, BenchScripts)
+        TEST(FrontendComparison, RawIteration)
         {
-            std::cout << "\n=== Front-end comparison (Pratt vs Ast), O3, bench scripts ===" << std::endl;
-            std::cout << "  ratios are Ast/Pratt: > 1.0 means the AST front-end is slower" << std::endl;
+            runScaledComparison("Raw Iteration (Vector Access)",
+                                "test/bench/bench_01_raw_iteration.pg", largeCounts);
+        }
 
-            const int count = 100000;
+        TEST(FrontendComparison, TablePropertyAccess)
+        {
+            runScaledComparison("Table Property Access",
+                                "test/bench/bench_02_table_property_access.pg", largeCounts);
+        }
 
-            compareOnScript("raw_iteration", "test/bench/bench_01_raw_iteration.pg", count);
-            compareOnScript("table_property_access", "test/bench/bench_02_table_property_access.pg", count);
-            compareOnScript("struct_with_metamethods", "test/bench/bench_03_struct_with_metamethods.pg", count);
-            compareOnScript("foreach_iteration", "test/bench/bench_04_foreach_iteration.pg", count);
-            compareOnScript("vector_foreach", "test/bench/bench_05_vector_foreach.pg", count);
-            compareOnScript("native_metamethod", "test/bench/bench_06_native_metamethod.pg", count);
+        TEST(FrontendComparison, ScriptMetamethods)
+        {
+            runScaledComparison("Script Metamethods (__get/__set)",
+                                "test/bench/bench_03_struct_with_metamethods.pg", largeCounts);
+        }
+
+        TEST(FrontendComparison, ForeachTable)
+        {
+            // Linear since the O(1) OP_Table_At fix (fieldNames slot->name
+            // vector); a flat us/item across this sweep proves it stays that way
+            runScaledComparison("Foreach Iteration (Table)",
+                                "test/bench/bench_04_foreach_iteration.pg", largeCounts);
+        }
+
+        TEST(FrontendComparison, ForeachVector)
+        {
+            runScaledComparison("Foreach Iteration (Vector)",
+                                "test/bench/bench_05_vector_foreach.pg", largeCounts);
+        }
+
+        TEST(FrontendComparison, NativeMetamethods)
+        {
+            // bench_06 attaches real Position components; without this system
+            // registered, attachComp("Position", ...) crashes (same setup as
+            // ScriptPerformance.NativeMetamethods)
+            auto setupEcs = [](EntitySystem& ecs)
+            {
+                ecs.createSystem<PositionComponentSystem>();
+            };
+
+            runScaledComparison("Native Metamethods (Component Proxies)",
+                                "test/bench/bench_06_native_metamethod.pg", smallCounts, setupEcs);
         }
 
         TEST(FrontendComparison, CompileTimeOverCorpus)
@@ -154,7 +249,6 @@ namespace pg
 
             for (auto frontEnd : {ScriptFrontEnd::Pratt, ScriptFrontEnd::Ast})
             {
-                int64_t totalUs = 0;
                 size_t compiled = 0, failed = 0;
 
                 auto start = std::chrono::high_resolution_clock::now();
@@ -179,7 +273,7 @@ namespace pg
                 }
 
                 auto end = std::chrono::high_resolution_clock::now();
-                totalUs = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                auto totalUs = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
                 std::cout << "  " << std::left << std::setw(6) << frontEndName(frontEnd)
                           << ": " << totalUs << " us for " << compiled << " scripts ("

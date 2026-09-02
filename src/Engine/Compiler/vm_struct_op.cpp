@@ -350,6 +350,7 @@ namespace pg
         {
             size_t newIndex = instance->fieldValues.size();
             instance->fieldValues.push_back(vm->retainValue(value));
+            instance->fieldNames.push_back(nameStr);
             instance->internedFields[nameStr] = newIndex;
         }
 
@@ -761,6 +762,7 @@ namespace pg
             {
                 size_t newIndex = inst->fieldValues.size();
                 inst->fieldValues.push_back(vm->retainValue(value));
+                inst->fieldNames.push_back(key);
                 inst->internedFields[key] = newIndex;
             }
 
@@ -1037,16 +1039,11 @@ namespace pg
             return nullptr;
         }
 
-        // Get the key at the specified index
-        std::string key;
-        for (const auto& pair : table->internedFields)
-        {
-            if (pair.second == static_cast<size_t>(index))
-            {
-                key = pair.first;  // pair.first is the string key
-                break;
-            }
-        }
+        // Get the key at the specified index: fieldNames is the slot->name
+        // mapping kept parallel to fieldValues, making this O(1) instead of
+        // scanning internedFields (which made every for-in over a table
+        // quadratic in the table size)
+        const std::string& key = table->fieldNames[index];
 
         vm->releaseAndDelete(indexVal);
         vm->releaseAndDelete(tableVal);
@@ -1234,6 +1231,7 @@ namespace pg
         {
             size_t valueIndex = table->fieldValues.size();
             table->fieldValues.push_back(vm->retainValue(values[i]));
+            table->fieldNames.push_back(keys[i]);
             table->internedFields[keys[i]] = valueIndex;
             vm->releaseAndDelete(values[i]);
         }

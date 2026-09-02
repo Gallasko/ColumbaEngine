@@ -126,8 +126,13 @@ namespace pg
         // Interned field storage:
         // - fieldValues: Values in insertion order
         // - internedFields: Maps property name -> index in fieldValues
+        // - fieldNames: slot -> property name, parallel to fieldValues, so
+        //   positional access (OP_Table_At, the for-in protocol) is O(1)
+        //   instead of scanning internedFields. Fields are append-only, so
+        //   every fieldValues.push_back must push the name here too.
         std::vector<Value> fieldValues;
         std::unordered_map<std::string, size_t> internedFields;
+        std::vector<std::string> fieldNames;
 
         // Helper to set a field value (creates or updates)
         void setField(const std::string& name, Value value, VM *vm = nullptr, bool deleteOld = false);
