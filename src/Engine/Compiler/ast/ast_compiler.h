@@ -91,11 +91,8 @@ namespace pg
         virtual void visitStatement(DPrintStatement* stmt) override;
 
     private:
-        /** The emission backend: the root compiler's embedded CParser */
-        CParser& emitter() { return root.parser; }
-
         /** Set the line reported for subsequently emitted bytecode */
-        void setLine(const Token& token) { emitter().previousToken = token; }
+        void setLine(const Token& token) { root.parser.previousToken = token; }
 
         void error(const Token& token, const std::string& message);
 

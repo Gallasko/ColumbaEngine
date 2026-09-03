@@ -80,7 +80,7 @@ namespace pg
     void AstCompiler::error(const Token& token, const std::string& message)
     {
         hadError = true;
-        emitter().errorAt(token, message);
+        root.parser.errorAt(token, message);
     }
 
     int AstCompiler::internString(const std::string& name, const Token& token)
@@ -110,18 +110,18 @@ namespace pg
 
         if (arg != -1)
         {
-            emitter().writeByte(OpCode::OP_Get_Local);
-            emitter().writeByte(static_cast<uint8_t>(arg));
+            root.parser.writeByte(OpCode::OP_Get_Local);
+            root.parser.writeByte(static_cast<uint8_t>(arg));
         }
         else if ((arg = Compiler::current->resolveUpvalue(name)) != -1)
         {
-            emitter().writeByte(OpCode::OP_Get_Upvalue);
-            emitter().writeByte(static_cast<uint8_t>(arg));
+            root.parser.writeByte(OpCode::OP_Get_Upvalue);
+            root.parser.writeByte(static_cast<uint8_t>(arg));
         }
         else
         {
-            emitter().writeConstant(name.text);
-            emitter().writeByte(OpCode::OP_Get_Global);
+            root.parser.writeConstant(name.text);
+            root.parser.writeByte(OpCode::OP_Get_Global);
         }
     }
 
@@ -182,16 +182,16 @@ namespace pg
 
         auto function = compiler.endCompiler();
 
-        emitter().allocatedFunction.push_back(function);
+        root.parser.allocatedFunction.push_back(function);
 
         setLine(token);
-        emitter().writeByte(OpCode::OP_Closure);
-        emitter().writeByte(Compiler::current->getCurrentChunk().addConstantIndex(function));
+        root.parser.writeByte(OpCode::OP_Closure);
+        root.parser.writeByte(Compiler::current->getCurrentChunk().addConstantIndex(function));
 
         for (int i = 0; i < vm->asFunction(function)->upvalueCount; i++)
         {
-            emitter().writeByte(compiler.upvalues[i].isLocal ? 1 : 0);
-            emitter().writeByte(compiler.upvalues[i].index);
+            root.parser.writeByte(compiler.upvalues[i].isLocal ? 1 : 0);
+            root.parser.writeByte(compiler.upvalues[i].index);
         }
     }
 
@@ -199,14 +199,12 @@ namespace pg
     {
         LoopContext& loop = Compiler::current->loopContexts.back();
 
-        for (int i = Compiler::current->localCount - 1;
-             i >= 0 and Compiler::current->locals[i].depth > loop.scopeDepth;
-             i--)
+        for (int i = Compiler::current->localCount - 1; i >= 0 and Compiler::current->locals[i].depth > loop.scopeDepth; i--)
         {
             if (Compiler::current->locals[i].isCaptured)
-                emitter().writeByte(OpCode::OP_Close_Upvalue);
+                root.parser.writeByte(OpCode::OP_Close_Upvalue);
             else
-                emitter().writeByte(OpCode::OP_Pop);
+                root.parser.writeByte(OpCode::OP_Pop);
         }
     }
 
@@ -223,17 +221,49 @@ namespace pg
 
         switch (expr->op.type)
         {
-            case TokenType::PLUS:       emitter().writeByte(OpCode::OP_Add); break;
-            case TokenType::MINUS:      emitter().writeByte(OpCode::OP_Subtract); break;
-            case TokenType::STAR:       emitter().writeByte(OpCode::OP_Multiply); break;
-            case TokenType::SLASH:      emitter().writeByte(OpCode::OP_Divide); break;
-            case TokenType::MOD:        emitter().writeByte(OpCode::OP_Modulo); break;
-            case TokenType::EQUALEQUAL: emitter().writeByte(OpCode::OP_Equal); break;
-            case TokenType::NOTEQUAL:   emitter().writeByte(OpCode::OP_NotEqual); break;
-            case TokenType::INF:        emitter().writeByte(OpCode::OP_Less); break;
-            case TokenType::INFEQUAL:   emitter().writeByte(OpCode::OP_LessEqual); break;
-            case TokenType::SUP:        emitter().writeByte(OpCode::OP_Greater); break;
-            case TokenType::SUPEQUAL:   emitter().writeByte(OpCode::OP_GreaterEqual); break;
+            case TokenType::PLUS:
+                root.parser.writeByte(OpCode::OP_Add);
+                break;
+
+            case TokenType::MINUS:
+                root.parser.writeByte(OpCode::OP_Subtract);
+                break;
+
+            case TokenType::STAR:
+                root.parser.writeByte(OpCode::OP_Multiply);
+                break;
+
+            case TokenType::SLASH:
+                root.parser.writeByte(OpCode::OP_Divide);
+                break;
+
+            case TokenType::MOD:
+                root.parser.writeByte(OpCode::OP_Modulo);
+                break;
+
+            case TokenType::EQUALEQUAL:
+                root.parser.writeByte(OpCode::OP_Equal);
+                break;
+
+            case TokenType::NOTEQUAL:
+                root.parser.writeByte(OpCode::OP_NotEqual);
+                break;
+
+            case TokenType::INF:
+                root.parser.writeByte(OpCode::OP_Less);
+                break;
+
+            case TokenType::INFEQUAL:
+                root.parser.writeByte(OpCode::OP_LessEqual);
+                break;
+
+            case TokenType::SUP:
+                root.parser.writeByte(OpCode::OP_Greater);
+                break;
+
+            case TokenType::SUPEQUAL:
+                root.parser.writeByte(OpCode::OP_GreaterEqual);
+                break;
 
             default:
                 error(expr->op, "Unknown binary operator '" + expr->op.text + "'.");
@@ -252,24 +282,24 @@ namespace pg
         if (expr->op.type == TokenType::LOGICAND)
         {
             // Mirror andOp: short-circuit when the left operand is false
-            int endJump = emitter().emitJump(OpCode::OP_Long_Jump_If_False);
+            int endJump = root.parser.emitJump(OpCode::OP_Long_Jump_If_False);
 
-            emitter().writeByte(OpCode::OP_Pop);
+            root.parser.writeByte(OpCode::OP_Pop);
             expr->rightExpr->accept(this);
 
-            emitter().patchJump(endJump);
+            root.parser.patchJump(endJump);
         }
         else if (expr->op.type == TokenType::LOGICOR)
         {
             // Mirror orOp: short-circuit when the left operand is true
-            int elseJump = emitter().emitJump(OpCode::OP_Long_Jump_If_False);
-            int endJump = emitter().emitJump(OpCode::OP_Long_Jump);
+            int elseJump = root.parser.emitJump(OpCode::OP_Long_Jump_If_False);
+            int endJump = root.parser.emitJump(OpCode::OP_Long_Jump);
 
-            emitter().patchJump(elseJump);
-            emitter().writeByte(OpCode::OP_Pop);
+            root.parser.patchJump(elseJump);
+            root.parser.writeByte(OpCode::OP_Pop);
 
             expr->rightExpr->accept(this);
-            emitter().patchJump(endJump);
+            root.parser.patchJump(endJump);
         }
         else
         {
@@ -287,8 +317,12 @@ namespace pg
 
         switch (expr->op.type)
         {
-            case TokenType::MINUS: emitter().writeByte(OpCode::OP_Negate); break;
-            case TokenType::NOT:   emitter().writeByte(OpCode::OP_Not); break;
+            case TokenType::MINUS:
+                root.parser.writeByte(OpCode::OP_Negate);
+                break;
+            case TokenType::NOT:
+                root.parser.writeByte(OpCode::OP_Not);
+                break;
 
             default:
                 error(expr->op, "Unknown unary operator '" + expr->op.text + "'.");
@@ -329,8 +363,8 @@ namespace pg
             identifier = ElementType(varToken.text);
         }
 
-        emitter().writeConstant(identifier);
-        emitter().writeByte(op);
+        root.parser.writeConstant(identifier);
+        root.parser.writeByte(op);
 
         return nullptr;
     }
@@ -355,26 +389,26 @@ namespace pg
 
         if (arg != -1)
         {
-            emitter().writeByte(OpCode::OP_Get_Local);
-            emitter().writeByte(static_cast<uint8_t>(arg));
-            emitter().writeConstant(ElementType(arg));
-            emitter().writeByte(increment ? OpCode::OP_Post_Incr_Local : OpCode::OP_Post_Decr_Local);
+            root.parser.writeByte(OpCode::OP_Get_Local);
+            root.parser.writeByte(static_cast<uint8_t>(arg));
+            root.parser.writeConstant(ElementType(arg));
+            root.parser.writeByte(increment ? OpCode::OP_Post_Incr_Local : OpCode::OP_Post_Decr_Local);
         }
         else if ((arg = Compiler::current->resolveUpvalue(varToken)) != -1)
         {
             // Bug-compatible with variable(): upvalues reuse the local
             // post-increment op with the upvalue index as operand
-            emitter().writeByte(OpCode::OP_Get_Upvalue);
-            emitter().writeByte(static_cast<uint8_t>(arg));
-            emitter().writeConstant(ElementType(arg));
-            emitter().writeByte(increment ? OpCode::OP_Post_Incr_Local : OpCode::OP_Post_Decr_Local);
+            root.parser.writeByte(OpCode::OP_Get_Upvalue);
+            root.parser.writeByte(static_cast<uint8_t>(arg));
+            root.parser.writeConstant(ElementType(arg));
+            root.parser.writeByte(increment ? OpCode::OP_Post_Incr_Local : OpCode::OP_Post_Decr_Local);
         }
         else
         {
-            emitter().writeConstant(varToken.text);
-            emitter().writeByte(OpCode::OP_Get_Global);
-            emitter().writeConstant(varToken.text);
-            emitter().writeByte(increment ? OpCode::OP_Post_Incr_Global : OpCode::OP_Post_Decr_Global);
+            root.parser.writeConstant(varToken.text);
+            root.parser.writeByte(OpCode::OP_Get_Global);
+            root.parser.writeConstant(varToken.text);
+            root.parser.writeByte(increment ? OpCode::OP_Post_Incr_Global : OpCode::OP_Post_Decr_Global);
         }
 
         return nullptr;
@@ -390,9 +424,9 @@ namespace pg
     std::shared_ptr<Valuable> AstCompiler::visit(Atom* expr)
     {
         if (expr->value.type == UnionType::BOOL)
-            emitter().writeByte(expr->value.isTrue() ? OpCode::OP_True : OpCode::OP_False);
+            root.parser.writeByte(expr->value.isTrue() ? OpCode::OP_True : OpCode::OP_False);
         else
-            emitter().writeConstant(expr->value);
+            root.parser.writeConstant(expr->value);
 
         return nullptr;
     }
@@ -428,7 +462,7 @@ namespace pg
             {
                 if (entry.key->getType() == "Atom" or entry.key->getType() == "Var")
                 {
-                    emitter().writeConstant(entry.key->getName());
+                    root.parser.writeConstant(entry.key->getName());
                 }
                 else
                 {
@@ -438,7 +472,7 @@ namespace pg
             }
             else
             {
-                emitter().writeConstant(std::static_pointer_cast<Atom>(entry.key)->value);
+                root.parser.writeConstant(std::static_pointer_cast<Atom>(entry.key)->value);
             }
 
             count++;
@@ -446,8 +480,8 @@ namespace pg
 
         const bool buildTable = expr->braceForm or expr->hasExplicitKeys;
 
-        emitter().writeByte(buildTable ? OpCode::OP_Build_Table : OpCode::OP_Build_Vector);
-        emitter().writeByte(count);
+        root.parser.writeByte(buildTable ? OpCode::OP_Build_Table : OpCode::OP_Build_Vector);
+        root.parser.writeByte(count);
 
         return nullptr;
     }
@@ -490,16 +524,16 @@ namespace pg
             expr->expr->accept(this);
 
             setLine(expr->name);
-            emitter().writeByte(setOp);
-            emitter().writeByte(static_cast<uint8_t>(arg));
+            root.parser.writeByte(setOp);
+            root.parser.writeByte(static_cast<uint8_t>(arg));
         }
         else
         {
             expr->expr->accept(this);
 
             setLine(expr->name);
-            emitter().writeConstant(expr->name.text);
-            emitter().writeByte(OpCode::OP_Set_Global);
+            root.parser.writeConstant(expr->name.text);
+            root.parser.writeByte(OpCode::OP_Set_Global);
         }
 
         return nullptr;
@@ -549,8 +583,8 @@ namespace pg
                 return nullptr;
 
             setLine(expr->paren);
-            emitter().emitBytes(OpCode::OP_Invoke, static_cast<uint8_t>(stringIndex));
-            emitter().writeByte(static_cast<uint8_t>(argCount));
+            root.parser.emitBytes(OpCode::OP_Invoke, static_cast<uint8_t>(stringIndex));
+            root.parser.writeByte(static_cast<uint8_t>(argCount));
         }
         else
         {
@@ -562,7 +596,7 @@ namespace pg
                 return nullptr;
 
             setLine(expr->paren);
-            emitter().emitBytes(OpCode::OP_Call, static_cast<uint8_t>(argCount));
+            root.parser.emitBytes(OpCode::OP_Call, static_cast<uint8_t>(argCount));
         }
 
         return nullptr;
@@ -579,8 +613,8 @@ namespace pg
         if (stringIndex < 0)
             return nullptr;
 
-        emitter().writeByte(OpCode::OP_Get_Property);
-        emitter().writeByte(static_cast<uint8_t>(stringIndex));
+        root.parser.writeByte(OpCode::OP_Get_Property);
+        root.parser.writeByte(static_cast<uint8_t>(stringIndex));
 
         return nullptr;
     }
@@ -600,8 +634,8 @@ namespace pg
         expr->value->accept(this);
 
         setLine(expr->name);
-        emitter().writeByte(OpCode::OP_Set_Property);
-        emitter().writeByte(static_cast<uint8_t>(stringIndex));
+        root.parser.writeByte(OpCode::OP_Set_Property);
+        root.parser.writeByte(static_cast<uint8_t>(stringIndex));
 
         return nullptr;
     }
@@ -621,7 +655,7 @@ namespace pg
         expr->index->accept(this);
 
         setLine(expr->bracket);
-        emitter().writeByte(OpCode::OP_Get_Index);
+        root.parser.writeByte(OpCode::OP_Get_Index);
 
         return nullptr;
     }
@@ -633,7 +667,7 @@ namespace pg
         expr->value->accept(this);
 
         setLine(expr->bracket);
-        emitter().writeByte(OpCode::OP_Set_Index);
+        root.parser.writeByte(OpCode::OP_Set_Index);
 
         return nullptr;
     }
@@ -646,7 +680,7 @@ namespace pg
     {
         stmt->expr->accept(this);
 
-        emitter().writeByte(OpCode::OP_Pop);
+        root.parser.writeByte(OpCode::OP_Pop);
     }
 
     void AstCompiler::visitStatement(VariableStatement* stmt)
@@ -659,7 +693,7 @@ namespace pg
         if (stmt->expr)
             stmt->expr->accept(this);
         else
-            emitter().writeConstant(ElementType()); // Default initialize to 0
+            root.parser.writeConstant(ElementType()); // Default initialize to 0
 
         if (Compiler::current->scopeDepth > 0)
         {
@@ -668,8 +702,8 @@ namespace pg
         }
 
         setLine(stmt->name);
-        emitter().writeConstant(stmt->name.text);
-        emitter().writeByte(OpCode::OP_Define_Global);
+        root.parser.writeConstant(stmt->name.text);
+        root.parser.writeByte(OpCode::OP_Define_Global);
     }
 
     void AstCompiler::visitStatement(FunctionStatement* stmt)
@@ -686,8 +720,8 @@ namespace pg
         if (Compiler::current->scopeDepth == 0)
         {
             setLine(stmt->name);
-            emitter().writeConstant(stmt->name.text);
-            emitter().writeByte(OpCode::OP_Define_Global);
+            root.parser.writeConstant(stmt->name.text);
+            root.parser.writeByte(OpCode::OP_Define_Global);
         }
     }
 
@@ -697,7 +731,7 @@ namespace pg
 
         auto value = vm->createString(stmt->name.text);
         uint8_t nameConstant = Compiler::current->getCurrentChunk().addConstantIndex(value);
-        emitter().emitBytes(OpCode::OP_Class, nameConstant);
+        root.parser.emitBytes(OpCode::OP_Class, nameConstant);
 
         if (Compiler::current->scopeDepth > 0)
         {
@@ -706,8 +740,8 @@ namespace pg
         }
         else
         {
-            emitter().writeConstant(stmt->name.text);
-            emitter().writeByte(OpCode::OP_Define_Global);
+            root.parser.writeConstant(stmt->name.text);
+            root.parser.writeByte(OpCode::OP_Define_Global);
         }
 
         Compiler::ClassCompiler classCompiler;
@@ -715,7 +749,7 @@ namespace pg
 
         Compiler::current->currentClass = &classCompiler;
 
-        emitter().pushVariableInStack(stmt->name.text);
+        root.parser.pushVariableInStack(stmt->name.text);
 
         auto methods = stmt->methods;
 
@@ -730,11 +764,11 @@ namespace pg
             compileFunction(type, method->name.text, method->parameters, method->body, method->name);
 
             setLine(method->name);
-            emitter().writeByte(OpCode::OP_Method);
-            emitter().writeByte(Compiler::current->getCurrentChunk().addConstantIndex(vm->createString(method->name.text)));
+            root.parser.writeByte(OpCode::OP_Method);
+            root.parser.writeByte(Compiler::current->getCurrentChunk().addConstantIndex(vm->createString(method->name.text)));
         }
 
-        emitter().writeByte(OpCode::OP_Pop);
+        root.parser.writeByte(OpCode::OP_Pop);
 
         Compiler::current->currentClass = classCompiler.enclosing;
     }
@@ -760,20 +794,20 @@ namespace pg
     {
         stmt->condition->accept(this);
 
-        int thenJump = emitter().emitJump(OpCode::OP_Long_Jump_If_False);
-        emitter().writeByte(OpCode::OP_Pop); // Pop the condition
+        int thenJump = root.parser.emitJump(OpCode::OP_Long_Jump_If_False);
+        root.parser.writeByte(OpCode::OP_Pop); // Pop the condition
 
         stmt->thenBranch->accept(this);
 
-        int elseJump = emitter().emitJump(OpCode::OP_Long_Jump);
+        int elseJump = root.parser.emitJump(OpCode::OP_Long_Jump);
 
-        emitter().patchJump(thenJump);
-        emitter().writeByte(OpCode::OP_Pop); // Pop the condition
+        root.parser.patchJump(thenJump);
+        root.parser.writeByte(OpCode::OP_Pop); // Pop the condition
 
         if (stmt->elseBranch)
             stmt->elseBranch->accept(this);
 
-        emitter().patchJump(elseJump);
+        root.parser.patchJump(elseJump);
     }
 
     void AstCompiler::visitStatement(WhileStatement* stmt)
@@ -788,17 +822,17 @@ namespace pg
 
         stmt->condition->accept(this);
 
-        int exitJump = emitter().emitJump(OpCode::OP_Long_Jump_If_False);
-        emitter().writeByte(OpCode::OP_Pop); // Pop the condition
+        int exitJump = root.parser.emitJump(OpCode::OP_Long_Jump_If_False);
+        root.parser.writeByte(OpCode::OP_Pop); // Pop the condition
 
         stmt->body->accept(this);
-        emitter().emitLoop(loopStart);
+        root.parser.emitLoop(loopStart);
 
-        emitter().patchJump(exitJump);
-        emitter().writeByte(OpCode::OP_Pop); // Pop the condition
+        root.parser.patchJump(exitJump);
+        root.parser.writeByte(OpCode::OP_Pop); // Pop the condition
 
         for (int offset : Compiler::current->loopContexts.back().breakJumps)
-            emitter().patchJump(offset);
+            root.parser.patchJump(offset);
 
         Compiler::current->loopContexts.pop_back();
     }
@@ -809,7 +843,7 @@ namespace pg
 
         if (not stmt->value)
         {
-            emitter().emitReturn();
+            root.parser.emitReturn();
             return;
         }
 
@@ -824,15 +858,15 @@ namespace pg
             stmt->value->accept(this);
 
             setLine(stmt->name);
-            emitter().writeByte(OpCode::OP_Pop);
-            emitter().emitReturn();
+            root.parser.writeByte(OpCode::OP_Pop);
+            root.parser.emitReturn();
         }
         else
         {
             stmt->value->accept(this);
 
             setLine(stmt->name);
-            emitter().writeByte(OpCode::OP_Return);
+            root.parser.writeByte(OpCode::OP_Return);
         }
     }
 
@@ -859,7 +893,7 @@ namespace pg
             if (moduleName.size() >= 2 and moduleName.front() == '"' and moduleName.back() == '"')
                 moduleName = moduleName.substr(1, moduleName.size() - 2);
 
-            if (not emitter().parseImportFile(moduleName))
+            if (not root.parser.parseImportFile(moduleName))
             {
                 if (not vm->loadNativeModule(moduleName))
                 {
@@ -891,7 +925,7 @@ namespace pg
                 if (varStmt->expr)
                     varStmt->expr->accept(this);
                 else
-                    emitter().writeByte(OpCode::OP_False); // Mirror CParser's for-loop default init
+                    root.parser.writeByte(OpCode::OP_False); // Mirror CParser's for-loop default init
 
                 Compiler::current->markInitialized();
             }
@@ -917,40 +951,40 @@ namespace pg
         {
             stmt->condition->accept(this);
 
-            exitJump = emitter().emitJump(OpCode::OP_Long_Jump_If_False);
-            emitter().writeByte(OpCode::OP_Pop); // Pop the condition
+            exitJump = root.parser.emitJump(OpCode::OP_Long_Jump_If_False);
+            root.parser.writeByte(OpCode::OP_Pop); // Pop the condition
         }
 
         // Increment (runs after the body; jump-threaded like the Pratt front-end)
         if (stmt->increment)
         {
-            int bodyJump = emitter().emitJump(OpCode::OP_Long_Jump);
+            int bodyJump = root.parser.emitJump(OpCode::OP_Long_Jump);
             int incrementStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
 
             stmt->increment->accept(this);
-            emitter().writeByte(OpCode::OP_Pop); // Pop the increment expression result
+            root.parser.writeByte(OpCode::OP_Pop); // Pop the increment expression result
 
-            emitter().emitLoop(loopStart);
+            root.parser.emitLoop(loopStart);
             loopStart = incrementStart;
 
             // Continue must jump to the increment, not the condition
             Compiler::current->loopContexts.back().loopStart = incrementStart;
 
-            emitter().patchJump(bodyJump);
+            root.parser.patchJump(bodyJump);
         }
 
         // Body
         stmt->body->accept(this);
-        emitter().emitLoop(loopStart);
+        root.parser.emitLoop(loopStart);
 
         if (exitJump != -1)
         {
-            emitter().patchJump(exitJump);
-            emitter().writeByte(OpCode::OP_Pop); // Pop the condition
+            root.parser.patchJump(exitJump);
+            root.parser.writeByte(OpCode::OP_Pop); // Pop the condition
         }
 
         for (int offset : Compiler::current->loopContexts.back().breakJumps)
-            emitter().patchJump(offset);
+            root.parser.patchJump(offset);
 
         Compiler::current->loopContexts.pop_back();
 
@@ -979,17 +1013,17 @@ namespace pg
         Compiler::current->markInitialized();
         uint8_t tableSlot = static_cast<uint8_t>(Compiler::current->localCount - 1);
 
-        emitter().writeByte(OpCode::OP_Get_Local);
-        emitter().writeByte(tableSlot);
-        emitter().writeByte(OpCode::OP_Table_Size);
+        root.parser.writeByte(OpCode::OP_Get_Local);
+        root.parser.writeByte(tableSlot);
+        root.parser.writeByte(OpCode::OP_Table_Size);
         // Stack: [__table, size]
 
         Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__size", stmt->varName.line, 0));
         Compiler::current->markInitialized();
         uint8_t sizeSlot = static_cast<uint8_t>(Compiler::current->localCount - 1);
 
-        emitter().writeByte(OpCode::OP_Constant);
-        emitter().writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(0)));
+        root.parser.writeByte(OpCode::OP_Constant);
+        root.parser.writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(0)));
         // Stack: [__table, __size, 0]
 
         Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__i", stmt->varName.line, 0));
@@ -1005,23 +1039,23 @@ namespace pg
         });
 
         // Condition: __i < __size
-        emitter().writeByte(OpCode::OP_Get_Local);
-        emitter().writeByte(counterSlot);
-        emitter().writeByte(OpCode::OP_Get_Local);
-        emitter().writeByte(sizeSlot);
-        emitter().writeByte(OpCode::OP_Less);
+        root.parser.writeByte(OpCode::OP_Get_Local);
+        root.parser.writeByte(counterSlot);
+        root.parser.writeByte(OpCode::OP_Get_Local);
+        root.parser.writeByte(sizeSlot);
+        root.parser.writeByte(OpCode::OP_Less);
 
-        int exitJump = emitter().emitJump(OpCode::OP_Long_Jump_If_False);
-        emitter().writeByte(OpCode::OP_Pop); // Pop the condition result
+        int exitJump = root.parser.emitJump(OpCode::OP_Long_Jump_If_False);
+        root.parser.writeByte(OpCode::OP_Pop); // Pop the condition result
 
         // Iteration scope holding the key variable
         Compiler::current->beginScope();
 
-        emitter().writeByte(OpCode::OP_Get_Local);
-        emitter().writeByte(tableSlot);
-        emitter().writeByte(OpCode::OP_Get_Local);
-        emitter().writeByte(counterSlot);
-        emitter().writeByte(OpCode::OP_Table_At);
+        root.parser.writeByte(OpCode::OP_Get_Local);
+        root.parser.writeByte(tableSlot);
+        root.parser.writeByte(OpCode::OP_Get_Local);
+        root.parser.writeByte(counterSlot);
+        root.parser.writeByte(OpCode::OP_Table_At);
         // Stack: [__table, __size, __i, key]
 
         Compiler::current->addLocal(stmt->varName);
@@ -1033,22 +1067,22 @@ namespace pg
         // Stack: [__table, __size, __i]
 
         // __i++
-        emitter().writeByte(OpCode::OP_Get_Local);
-        emitter().writeByte(counterSlot);
-        emitter().writeByte(OpCode::OP_Constant);
-        emitter().writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(1)));
-        emitter().writeByte(OpCode::OP_Add);
-        emitter().writeByte(OpCode::OP_Set_Local);
-        emitter().writeByte(counterSlot);
-        emitter().writeByte(OpCode::OP_Pop); // Pop the assignment result
+        root.parser.writeByte(OpCode::OP_Get_Local);
+        root.parser.writeByte(counterSlot);
+        root.parser.writeByte(OpCode::OP_Constant);
+        root.parser.writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(1)));
+        root.parser.writeByte(OpCode::OP_Add);
+        root.parser.writeByte(OpCode::OP_Set_Local);
+        root.parser.writeByte(counterSlot);
+        root.parser.writeByte(OpCode::OP_Pop); // Pop the assignment result
 
-        emitter().emitLoop(loopStart);
+        root.parser.emitLoop(loopStart);
 
-        emitter().patchJump(exitJump);
-        emitter().writeByte(OpCode::OP_Pop); // Pop the condition result
+        root.parser.patchJump(exitJump);
+        root.parser.writeByte(OpCode::OP_Pop); // Pop the condition result
 
         for (int offset : Compiler::current->loopContexts.back().breakJumps)
-            emitter().patchJump(offset);
+            root.parser.patchJump(offset);
 
         Compiler::current->loopContexts.pop_back();
 
@@ -1067,7 +1101,7 @@ namespace pg
 
         emitLoopScopeUnwind();
 
-        int jumpOffset = emitter().emitJump(OpCode::OP_Long_Jump);
+        int jumpOffset = root.parser.emitJump(OpCode::OP_Long_Jump);
         Compiler::current->loopContexts.back().breakJumps.push_back(jumpOffset);
     }
 
@@ -1083,7 +1117,7 @@ namespace pg
 
         emitLoopScopeUnwind();
 
-        emitter().emitLoop(Compiler::current->loopContexts.back().loopStart);
+        root.parser.emitLoop(Compiler::current->loopContexts.back().loopStart);
     }
 
     void AstCompiler::visitStatement(DPrintStatement* stmt)
@@ -1091,6 +1125,6 @@ namespace pg
         stmt->expr->accept(this);
 
         setLine(stmt->token);
-        emitter().writeByte(OpCode::OP_Debug_Print);
+        root.parser.writeByte(OpCode::OP_Debug_Print);
     }
 }
