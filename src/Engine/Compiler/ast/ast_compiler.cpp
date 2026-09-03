@@ -34,8 +34,14 @@ namespace pg
             return 0x0;
         }
 
-        // AST optimization passes (entity-loop / component-access lowering)
-        // will hook in here, between parsing and emission.
+        // AST optimization passes: structure-level transformations only this
+        // front-end can do (loop-invariant hoisting; later entity-loop and
+        // component-access lowering). O0 / --no-opt disables them together
+        // with the bytecode passes.
+        if (vm->enableOptimizations)
+        {
+            vm->astPassManager.runAllPasses(vm, statements);
+        }
 
         return compileAst(std::move(statements));
     }
@@ -320,6 +326,7 @@ namespace pg
             case TokenType::MINUS:
                 root.parser.writeByte(OpCode::OP_Negate);
                 break;
+
             case TokenType::NOT:
                 root.parser.writeByte(OpCode::OP_Not);
                 break;

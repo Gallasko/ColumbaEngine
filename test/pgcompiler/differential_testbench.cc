@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 
 #include "Compiler/vm.h"
+#include "ECS/entitysystem.h"
 #include "math_module.h"
 #include "Files/filemodule.h"
 #include "Helpers/stringmodule.h"
@@ -95,10 +96,16 @@ protected:
 
     RunOutcome runWithFrontEnd(const std::string& scriptPath, ScriptFrontEnd frontEnd)
     {
+        // Full O3 configuration (bytecode passes, decode fusion, AST passes)
+        // so the differential also validates every optimization layer
+        EntitySystem ecs;
+        ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
+        ecs.setVMFrontEnd(frontEnd);
+
         VM vm;
+        ecs.setupVm(vm);
 
         registerNativeFunctions(vm);
-        vm.setFrontEnd(frontEnd);
 
         RunOutcome outcome;
         outcome.result = vm.interpretFromFile(scriptPath);

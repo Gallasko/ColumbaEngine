@@ -69,6 +69,7 @@ namespace
 #include "Compiler/pass/long_jump_optimization_pass.h"
 #include "Compiler/pass/popping_jump_pass.h"
 #include "Compiler/pass/basic_operator_local_indexing.h"
+#include "Compiler/ast/pass/loop_invariant_hoisting.h"
 #include "Compiler/pass/comparison_local_indexing.h"
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
 #include "Compiler/pass/constant_var_access.h"
@@ -1002,6 +1003,10 @@ namespace pg
             // form, dropping the unconditional OP_Loop. No later pass observes the
             // new OP_Jump_If_True_Popping opcode.
             vm.addOptimizationPass(std::make_unique<LoopRotationPass>());
+
+            // AST-level passes: only run on the AST front-end path (between
+            // parse and emission); the Pratt front-end never sees them
+            vm.addAstPass(std::make_unique<LoopInvariantHoistingPass>());
         }
         else if (vmOptimizationLevel == VmOptimizationLevel::O0)
         {

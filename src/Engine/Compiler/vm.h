@@ -2,6 +2,8 @@
 
 #include "frontend.h"
 
+#include "ast/ast_pass.h"
+
 #include "chunk.h"
 
 #include "decoded_chunk.h"
@@ -710,6 +712,10 @@ namespace pg
         PassManager passManager;
         bool enableOptimizations = true;
 
+        // AST-level optimization (runs only on the AST front-end path,
+        // between parsing and emission; see ast/ast_pass.h)
+        AstPassManager astPassManager;
+
         // Decode-time superinstruction fusion (see decoded_fusion.h). On by
         // default — part of decoding, applies to compiled AND deserialized
         // bytecode. Cleared together with optimizations for O0 / --no-opt.
@@ -788,6 +794,11 @@ namespace pg
         inline void addOptimizationPass(std::unique_ptr<BytecodePass> pass)
         {
             passManager.addPass(std::move(pass));
+        }
+
+        inline void addAstPass(std::unique_ptr<AstPass> pass)
+        {
+            astPassManager.addPass(std::move(pass));
         }
 
         inline void registerNative(const std::string& name, NativeFn function)

@@ -221,6 +221,14 @@ namespace pg
                                 "test/bench/bench_05_vector_foreach.pg", largeCounts);
         }
 
+        TEST(FrontendComparison, LoopInvariantHoisting)
+        {
+            // First AST-level optimization: the Ast column should beat Pratt
+            // here (invariant arithmetic hoisted out of the loop)
+            runScaledComparison("Loop Invariant Hoisting",
+                                "test/bench/bench_07_loop_invariant.pg", largeCounts);
+        }
+
         TEST(FrontendComparison, NativeMetamethods)
         {
             // bench_06 attaches real Position components; without this system

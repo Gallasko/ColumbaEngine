@@ -187,6 +187,8 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/pass/popping_jump_pass.cpp
     src/Engine/Compiler/pass/loop_rotation_pass.cpp
     src/Engine/Compiler/ast/ast_compiler.cpp
+    src/Engine/Compiler/ast/ast_pass.cpp
+    src/Engine/Compiler/ast/pass/loop_invariant_hoisting.cpp
     src/Engine/Compiler/ecsserialization.cpp
     # Minimal interpreter (lexer/token + the AST front-end shared with the
     # bytecode compiler; the tree-walking runtime itself is excluded)
@@ -262,6 +264,8 @@ set(ENGINESOURCE
     src/Engine/Compiler/pass/popping_jump_pass.cpp
     src/Engine/Compiler/pass/loop_rotation_pass.cpp
     src/Engine/Compiler/ast/ast_compiler.cpp
+    src/Engine/Compiler/ast/ast_pass.cpp
+    src/Engine/Compiler/ast/pass/loop_invariant_hoisting.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
@@ -1474,6 +1478,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_sources(test_compiler PRIVATE
             test/pgcompiler/ast_parser_parity.cc
             test/pgcompiler/differential_testbench.cc
+            test/pgcompiler/unit/test_ast_passes.cc
             test/pgcompiler/unit/test_vm_memory.cc
             test/pgcompiler/unit/test_register_ops.cc
             test/pgcompiler/unit/test_bytecode_rewriter.cc
