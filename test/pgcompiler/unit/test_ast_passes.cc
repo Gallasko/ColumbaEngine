@@ -2,6 +2,7 @@
 
 #include "Compiler/vm.h"
 #include "Compiler/ast/pass/loop_invariant_hoisting.h"
+#include "Compiler/ast/pass/static_loop_evaluation.h"
 
 #include "ECS/entitysystem.h"
 
@@ -16,14 +17,14 @@ namespace pg {
 namespace test {
 
 /**
- * Loop-invariant hoisting: structural checks on the transformed AST plus
- * behavioral equivalence between both front-ends with the pass active.
+ * AST pass tests: structural checks on the transformed AST plus behavioral
+ * equivalence between both front-ends with the passes active.
  */
-class LoopInvariantHoisting : public ::testing::Test
+class AstPassBase : public ::testing::Test
 {
 protected:
-    /** Parse source and run the hoisting pass; returns the printed AST */
-    std::string transform(const std::string& source, bool& changed)
+    /** Parse source, run one pass over it, and return the printed AST */
+    std::string transformWith(AstPass& pass, const std::string& source, bool& changed)
     {
         Lexer lexer;
         lexer.readFromText(source);
@@ -33,7 +34,6 @@ protected:
 
         EXPECT_FALSE(parser.hasError()) << "test source failed to parse";
 
-        LoopInvariantHoistingPass pass;
         changed = pass.runPass(nullptr, statements);
 
         std::string printed;
@@ -73,6 +73,26 @@ protected:
 
         EXPECT_EQ(prattResult, astResult);
         EXPECT_EQ(prattOut, astOut);
+    }
+};
+
+class LoopInvariantHoisting : public AstPassBase
+{
+protected:
+    std::string transform(const std::string& source, bool& changed)
+    {
+        LoopInvariantHoistingPass pass;
+        return transformWith(pass, source, changed);
+    }
+};
+
+class StaticLoopEvaluation : public AstPassBase
+{
+protected:
+    std::string transform(const std::string& source, bool& changed)
+    {
+        StaticLoopEvaluationPass pass;
+        return transformWith(pass, source, changed);
     }
 };
 
@@ -207,6 +227,125 @@ TEST_F(LoopInvariantHoisting, BehaviorUnchangedWithHoisting)
         "    total = total + (a * a)\n"
         "}\n"
         "__dprint(total)\n");
+}
+
+TEST_F(StaticLoopEvaluation, FoldsFullyStaticForLoop)
+{
+    MockLogger<TerminalSink> logger;
+
+    bool changed = false;
+    auto printed = transform(
+        "var total = 0\n"
+        "for (var i = 0; i < 10; i++) total += i;\n", changed);
+
+    EXPECT_TRUE(changed);
+    // Loop gone, final value assigned (sum 0..9 = 45)
+    EXPECT_EQ(printed.find("For statement"), std::string::npos) << printed;
+    EXPECT_NE(printed.find("45"), std::string::npos) << printed;
+}
+
+TEST_F(StaticLoopEvaluation, FoldsWhileWithOuterCounter)
+{
+    MockLogger<TerminalSink> logger;
+
+    bool changed = false;
+    auto printed = transform(
+        "var i = 0\n"
+        "var total = 0\n"
+        "while (i < 5)\n"
+        "{\n"
+        "    total = total + i * i\n"
+        "    i = i + 1\n"
+        "}\n", changed);
+
+    EXPECT_TRUE(changed);
+    EXPECT_EQ(printed.find("while statement"), std::string::npos) << printed;
+    // total = 0+1+4+9+16 = 30 and i = 5 both assigned
+    EXPECT_NE(printed.find("30"), std::string::npos) << printed;
+    EXPECT_NE(printed.find("Assign: 5"), std::string::npos) << printed;
+}
+
+TEST_F(StaticLoopEvaluation, BailsOnCallsAndUnknownVariables)
+{
+    MockLogger<TerminalSink> logger;
+
+    bool changed = false;
+
+    // Call in body
+    auto printed = transform(
+        "var total = 0\n"
+        "for (var i = 0; i < 10; i++) total += touch();\n", changed);
+
+    EXPECT_FALSE(changed);
+    EXPECT_NE(printed.find("For statement"), std::string::npos) << printed;
+
+    // Unknown loop bound (e.g. engine-provided global)
+    printed = transform(
+        "var total = 0\n"
+        "for (var i = 0; i < count; i++) total += i;\n", changed);
+
+    EXPECT_FALSE(changed);
+    EXPECT_NE(printed.find("For statement"), std::string::npos) << printed;
+
+    // __dprint inside the loop is an output side effect per iteration
+    printed = transform(
+        "var total = 0\n"
+        "for (var i = 0; i < 3; i++)\n"
+        "{\n"
+        "    __dprint(i)\n"
+        "    total += i\n"
+        "}\n", changed);
+
+    EXPECT_FALSE(changed);
+    EXPECT_NE(printed.find("For statement"), std::string::npos) << printed;
+}
+
+TEST_F(StaticLoopEvaluation, BailsOnRunawayLoops)
+{
+    MockLogger<TerminalSink> logger;
+
+    bool changed = false;
+    auto printed = transform(
+        "var i = 0\n"
+        "while (i < 100000000) i += 1;\n", changed);
+
+    // Over the step budget: left for runtime
+    EXPECT_FALSE(changed);
+    EXPECT_NE(printed.find("while statement"), std::string::npos) << printed;
+}
+
+TEST_F(StaticLoopEvaluation, BehaviorUnchangedWithFolding)
+{
+    MockLogger<TerminalSink> logger;
+
+    // The motivating example
+    expectFrontEndsAgree(
+        "var total = 0\n"
+        "for (var i = 0; i < 10; i++) total += i;\n"
+        "__dprint(total)\n");
+
+    // Nested static loops with break/continue and integer division
+    expectFrontEndsAgree(
+        "var total = 0\n"
+        "for (var i = 0; i < 20; i++)\n"
+        "{\n"
+        "    if (i % 3 == 0) { continue; }\n"
+        "    if (i > 14) { break; }\n"
+        "    total = total + i / 2\n"
+        "}\n"
+        "__dprint(total)\n");
+
+    // Folded loop feeding a later dynamic use
+    expectFrontEndsAgree(
+        "var acc = 1\n"
+        "var n = 0\n"
+        "while (n < 12)\n"
+        "{\n"
+        "    acc = acc * 2\n"
+        "    n = n + 1\n"
+        "}\n"
+        "__dprint(acc)\n"
+        "__dprint(n)\n");
 }
 
 } // namespace test

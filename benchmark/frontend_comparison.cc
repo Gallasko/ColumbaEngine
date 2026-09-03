@@ -229,6 +229,15 @@ namespace pg
                                 "test/bench/bench_07_loop_invariant.pg", largeCounts);
         }
 
+        TEST(FrontendComparison, StaticLoopEvaluation)
+        {
+            // The loop bound lives in the script source, so no count sweep:
+            // the Ast column trades compile time (compile-time interpretation
+            // of 100k iterations) for near-zero execution
+            runScaledComparison("Static Loop Evaluation",
+                                "test/bench/bench_08_static_loop.pg", {0});
+        }
+
         TEST(FrontendComparison, NativeMetamethods)
         {
             // bench_06 attaches real Position components; without this system

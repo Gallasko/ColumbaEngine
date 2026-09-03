@@ -35,12 +35,14 @@ namespace pg
 
     void AstPassManager::listPasses() const
     {
-        std::cout << "Registered AST passes (" << passes.size() << "):" << std::endl;
+        std::string message = "Registered AST passes (" + std::to_string(passes.size()) + "):";
 
         for (const auto& pass : passes)
         {
-            std::cout << "  - " << pass->getName() << std::endl;
+            message += "\n  - " + pass->getName();
         }
+
+        debugPrint(message);
     }
 
     void AstPassManager::clearPasses()
@@ -52,7 +54,7 @@ namespace pg
     {
         if (enableDebugOutput)
         {
-            std::cout << "[AstPassManager] " << message << std::endl;
+            LOG_INFO(DOM, message);
         }
     }
 }

@@ -188,7 +188,9 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/pass/loop_rotation_pass.cpp
     src/Engine/Compiler/ast/ast_compiler.cpp
     src/Engine/Compiler/ast/ast_pass.cpp
+    src/Engine/Compiler/ast/pass/ast_analysis.cpp
     src/Engine/Compiler/ast/pass/loop_invariant_hoisting.cpp
+    src/Engine/Compiler/ast/pass/static_loop_evaluation.cpp
     src/Engine/Compiler/ecsserialization.cpp
     # Minimal interpreter (lexer/token + the AST front-end shared with the
     # bytecode compiler; the tree-walking runtime itself is excluded)
@@ -265,7 +267,9 @@ set(ENGINESOURCE
     src/Engine/Compiler/pass/loop_rotation_pass.cpp
     src/Engine/Compiler/ast/ast_compiler.cpp
     src/Engine/Compiler/ast/ast_pass.cpp
+    src/Engine/Compiler/ast/pass/ast_analysis.cpp
     src/Engine/Compiler/ast/pass/loop_invariant_hoisting.cpp
+    src/Engine/Compiler/ast/pass/static_loop_evaluation.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp

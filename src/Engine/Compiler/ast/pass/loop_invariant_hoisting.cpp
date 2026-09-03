@@ -2,6 +2,8 @@
 
 #include "loop_invariant_hoisting.h"
 
+#include "ast_analysis.h"
+
 #include "Interpreter/expression.h"
 #include "Interpreter/statement.h"
 
@@ -15,194 +17,83 @@ namespace pg
 {
     namespace
     {
+        using ast::LoopFacts;
+        using ast::analyzeExpr;
+        using ast::analyzeStmt;
+
+        // Local slots are addressed with a single byte; leave headroom under
+        // the 255 limit so hidden hoist vars can never exhaust a function's
+        // slots (the emitter would silently truncate the operand otherwise)
+        constexpr int kMaxLocalSlots = 240;
+
         struct Ctx
         {
             int hoistCounter = 0;
             bool changed = false;
+
+            // Conservative count of local slots the CURRENT function may use
+            // (declarations + hidden vars added so far); hoisting stops when
+            // the budget is reached
+            int slotsUsed = 0;
         };
 
-        // ------------------------------------------------------------------
-        // Loop analysis: which names can change inside the loop, and does the
-        // loop contain calls (which make everything potentially mutable)
-        // ------------------------------------------------------------------
-
-        struct LoopFacts
-        {
-            std::set<std::string> mutated;
-            bool hasCalls = false;
-        };
-
-        void analyzeStmt(const StatementPtr& s, LoopFacts& f);
-
-        void analyzeExpr(const ExprPtr& e, LoopFacts& f)
-        {
-            if (not e)
-                return;
-
-            const auto& type = e->getType();
-
-            if (type == "BinaryExpression")
-            {
-                auto b = std::static_pointer_cast<BinaryExpression>(e);
-                analyzeExpr(b->leftExpr, f);
-                analyzeExpr(b->rightExpr, f);
-            }
-            else if (type == "LogicExpression")
-            {
-                auto l = std::static_pointer_cast<LogicExpression>(e);
-                analyzeExpr(l->leftExpr, f);
-                analyzeExpr(l->rightExpr, f);
-            }
-            else if (type == "UnaryExpression")
-            {
-                analyzeExpr(std::static_pointer_cast<UnaryExpression>(e)->expr, f);
-            }
-            else if (type == "CompoundAtom")
-            {
-                analyzeExpr(std::static_pointer_cast<CompoundAtom>(e)->expr, f);
-            }
-            else if (type == "PreFixExpression")
-            {
-                auto p = std::static_pointer_cast<PreFixExpression>(e);
-                f.mutated.insert(p->name.text);
-            }
-            else if (type == "PostFixExpression")
-            {
-                auto p = std::static_pointer_cast<PostFixExpression>(e);
-                f.mutated.insert(p->name.text);
-            }
-            else if (type == "Assign")
-            {
-                auto a = std::static_pointer_cast<Assign>(e);
-                f.mutated.insert(a->name.text);
-                analyzeExpr(a->expr, f);
-            }
-            else if (type == "CallExpression")
-            {
-                auto c = std::static_pointer_cast<CallExpression>(e);
-
-                f.hasCalls = true;
-
-                analyzeExpr(c->caller, f);
-
-                auto args = c->args;
-                while (not args.empty())
-                {
-                    analyzeExpr(args.front(), f);
-                    args.pop();
-                }
-            }
-            else if (type == "Get")
-            {
-                analyzeExpr(std::static_pointer_cast<Get>(e)->object, f);
-            }
-            else if (type == "Set")
-            {
-                auto s = std::static_pointer_cast<Set>(e);
-                analyzeExpr(s->object, f);
-                analyzeExpr(s->value, f);
-            }
-            else if (type == "IndexGet")
-            {
-                auto i = std::static_pointer_cast<IndexGet>(e);
-                analyzeExpr(i->object, f);
-                analyzeExpr(i->index, f);
-            }
-            else if (type == "IndexSet")
-            {
-                auto i = std::static_pointer_cast<IndexSet>(e);
-                analyzeExpr(i->object, f);
-                analyzeExpr(i->index, f);
-                analyzeExpr(i->value, f);
-            }
-            else if (type == "List")
-            {
-                auto entries = std::static_pointer_cast<List>(e)->entries;
-                while (not entries.empty())
-                {
-                    analyzeExpr(entries.front().key, f);
-                    analyzeExpr(entries.front().value, f);
-                    entries.pop();
-                }
-            }
-            // AnonymousFunction bodies are skipped: creating the closure runs
-            // no body code; if it gets CALLED in the loop, that call sets
-            // hasCalls and blocks hoisting anyway.
-            // Atom / Var / This: nothing to record.
-        }
-
-        void analyzeStmt(const StatementPtr& s, LoopFacts& f)
+        /**
+         * Conservative upper bound of the local slots a function body can
+         * create: every declaration counts, sibling blocks are summed even
+         * though their slots are reused, for-in adds its three hidden
+         * iteration locals plus the key variable. Nested function/class
+         * bodies have their own slot space and are excluded.
+         */
+        int countLocalSlots(const StatementPtr& s)
         {
             if (not s)
-                return;
+                return 0;
 
             const auto& type = s->getType();
 
-            if (type == "ExpressionStatement")
+            if (type == "VariableStatement")
+                return 1;
+
+            if (type == "BlockStatement")
             {
-                analyzeExpr(std::static_pointer_cast<ExpressionStatement>(s)->expr, f);
-            }
-            else if (type == "VariableStatement")
-            {
-                auto v = std::static_pointer_cast<VariableStatement>(s);
-                f.mutated.insert(v->name.text);
-                analyzeExpr(v->expr, f);
-            }
-            else if (type == "FunctionStatement")
-            {
-                // Declaration shadows the name; body only runs when called
-                f.mutated.insert(std::static_pointer_cast<FunctionStatement>(s)->name.text);
-            }
-            else if (type == "ClassStatement")
-            {
-                f.mutated.insert(std::static_pointer_cast<ClassStatement>(s)->name.text);
-            }
-            else if (type == "BlockStatement")
-            {
+                int count = 0;
+
                 auto statements = std::static_pointer_cast<BlockStatement>(s)->statements;
                 while (not statements.empty())
                 {
-                    analyzeStmt(statements.front(), f);
+                    count += countLocalSlots(statements.front());
                     statements.pop();
                 }
+
+                return count;
             }
-            else if (type == "IfStatement")
+
+            if (type == "IfStatement")
             {
                 auto i = std::static_pointer_cast<IfStatement>(s);
-                analyzeExpr(i->condition, f);
-                analyzeStmt(i->thenBranch, f);
-                analyzeStmt(i->elseBranch, f);
+                return countLocalSlots(i->thenBranch) + countLocalSlots(i->elseBranch);
             }
-            else if (type == "WhileStatement")
-            {
-                auto w = std::static_pointer_cast<WhileStatement>(s);
-                analyzeExpr(w->condition, f);
-                analyzeStmt(w->body, f);
-            }
-            else if (type == "ForStatement")
+
+            if (type == "WhileStatement")
+                return countLocalSlots(std::static_pointer_cast<WhileStatement>(s)->body);
+
+            if (type == "ForStatement")
             {
                 auto fs = std::static_pointer_cast<ForStatement>(s);
-                analyzeStmt(fs->initializer, f);
-                analyzeExpr(fs->condition, f);
-                analyzeExpr(fs->increment, f);
-                analyzeStmt(fs->body, f);
+                return countLocalSlots(fs->initializer) + countLocalSlots(fs->body);
             }
-            else if (type == "ForInStatement")
+
+            if (type == "ForInStatement")
             {
-                auto fi = std::static_pointer_cast<ForInStatement>(s);
-                f.mutated.insert(fi->varName.text);
-                analyzeExpr(fi->iterable, f);
-                analyzeStmt(fi->body, f);
+                // __table, __size, __i + the key variable
+                return 4 + countLocalSlots(std::static_pointer_cast<ForInStatement>(s)->body);
             }
-            else if (type == "ReturnStatement")
-            {
-                analyzeExpr(std::static_pointer_cast<ReturnStatement>(s)->value, f);
-            }
-            else if (type == "DPrintStatement")
-            {
-                analyzeExpr(std::static_pointer_cast<DPrintStatement>(s)->expr, f);
-            }
-            // Break / Continue / Import: nothing to record
+
+            // Local function/class declarations occupy one slot themselves
+            if (type == "FunctionStatement" or type == "ClassStatement")
+                return 1;
+
+            return 0;
         }
 
         // ------------------------------------------------------------------
@@ -644,7 +535,14 @@ namespace pg
             if (type == "AnonymousFunction")
             {
                 auto a = std::static_pointer_cast<AnonymousFunction>(e);
-                a->body = transformStatement(std::static_pointer_cast<Statement>(a->body), ctx);
+
+                // Fresh slot budget: own local slot space
+                int savedSlots = ctx.slotsUsed;
+                ctx.slotsUsed = static_cast<int>(a->parameters.size()) + countLocalSlots(a->body);
+
+                a->body = transformStatement(a->body, ctx);
+
+                ctx.slotsUsed = savedSlots;
             }
             else if (type == "BinaryExpression")
             {
@@ -759,6 +657,13 @@ namespace pg
             if (candidates.empty())
                 return s;
 
+            // Respect the enclosing function's local-slot budget: skip the
+            // hoist rather than risk exhausting the byte-addressed slots
+            if (ctx.slotsUsed + static_cast<int>(candidates.size()) > kMaxLocalSlots)
+                return s;
+
+            ctx.slotsUsed += static_cast<int>(candidates.size());
+
             // One hidden declaration per distinct invariant; '@' cannot
             // appear in a source identifier, so no user name can collide
             std::queue<StatementPtr> block;
@@ -832,7 +737,14 @@ namespace pg
             if (type == "FunctionStatement")
             {
                 auto fn = std::static_pointer_cast<FunctionStatement>(s);
+
+                // Fresh slot budget: a function has its own local slot space
+                int savedSlots = ctx.slotsUsed;
+                ctx.slotsUsed = static_cast<int>(fn->parameters.size()) + countLocalSlots(fn->body);
+
                 fn->body = transformStatement(fn->body, ctx);
+
+                ctx.slotsUsed = savedSlots;
 
                 return s;
             }
@@ -847,7 +759,14 @@ namespace pg
                     auto method = c->methods.front();
                     c->methods.pop();
 
+                    // Fresh slot budget per method (+1 for 'this')
+                    int savedSlots = ctx.slotsUsed;
+                    ctx.slotsUsed = 1 + static_cast<int>(method->parameters.size()) + countLocalSlots(method->body);
+
                     method->body = transformStatement(method->body, ctx);
+
+                    ctx.slotsUsed = savedSlots;
+
                     rebuilt.push(method);
                 }
                 c->methods = std::move(rebuilt);
@@ -909,6 +828,17 @@ namespace pg
     bool LoopInvariantHoistingPass::runPass(VM*, std::queue<StatementPtr>& statements)
     {
         Ctx ctx;
+
+        // Slot budget of the top-level script function (hidden hoist vars in
+        // wrapping blocks are locals of the script, not globals)
+        {
+            auto counting = statements;
+            while (not counting.empty())
+            {
+                ctx.slotsUsed += countLocalSlots(counting.front());
+                counting.pop();
+            }
+        }
 
         std::queue<StatementPtr> rebuilt;
 
