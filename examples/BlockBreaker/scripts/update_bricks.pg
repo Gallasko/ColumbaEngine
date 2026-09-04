@@ -1,0 +1,46 @@
+import "texture"
+import "string"
+
+// BrickSystem execute (every frame): builds the brick wall whenever the
+// "needSpawn" flag is set (by init, a cleared wall, or a game over).
+// Spawning is flag-driven instead of event-driven on purpose: an event
+// handled by this same system would run nested inside the sender script
+// and its sysData changes would be lost to the sender's write-back.
+
+if (sysData["needSpawn"] == 1)
+{
+    sysData["needSpawn"] = 0
+
+    var screenWidth = 820
+
+    var cols = 10
+    var rows = 5
+    var brickW = 72
+    var brickH = 24
+    var margin = 4
+
+    var gridW = cols * (brickW + margin) - margin
+    var offsetX = (screenWidth - gridW) / 2
+    var offsetY = 60
+
+    // One Tetris tile texture per row, top row is worth the most points
+    var rowTextures = ["Z", "L", "O", "S", "J"]
+
+    for (var row = 0; row < rows; row++)
+    {
+        for (var col = 0; col < cols; col++)
+        {
+            var brick = createTexture(rowTextures[row], brickW, brickH)
+
+            brick["PositionComponent"].x = offsetX + col * (brickW + margin)
+            brick["PositionComponent"].y = offsetY + row * (brickH + margin)
+
+            brick.attachComp("Brick", "points", (rows - row) * 10)
+            brick.attachComp("Collision")
+        }
+    }
+
+    sysData["brickCount"] = rows * cols
+
+    logInfo("BrickSystem: spawned " + toString(rows * cols) + " bricks")
+}

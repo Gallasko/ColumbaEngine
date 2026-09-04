@@ -1,8 +1,45 @@
-// BlockBreaker - game logic lives entirely in this script.
+// BlockBreaker - game logic lives entirely in PgScript.
 //
-// This file is executed once at startup by the BlockBreaker executable
-// (see application.cpp). Build the whole game from here: spawn the
-// paddle, the ball and the brick grid, then react to input and delta
-// events through systems.
+// This file is executed once at startup (see application.cpp). It registers
+// three decoupled StandardSystems that only talk through components and
+// events:
+//   - PaddleSystem: owns the "Paddle" component, spawns and moves the paddle
+//   - BallSystem:   owns the "Ball" component, ball movement, screen bounds,
+//                   lives. Ball state (vx/vy/stuck/speed) lives ON the Ball
+//                   component so collision scripts can read and write it.
+//   - BrickSystem:  owns the "Brick" component, the wall, and the score.
+//                   Destroys and scores on "BrickHit", clears and rebuilds
+//                   on "ResetWall". The wall is (re)built by its onExecute
+//                   script whenever the "needSpawn" flag is set.
+//
+// Ball/paddle and ball/brick contacts are NOT detected in these scripts:
+// entities attach a "Collision" component and the engine's CollisionSystem
+// invokes ball_paddle_collision.pg / ball_brick_collision.pg (registered in
+// application.cpp) with ent1/ent2 globals on each contact.
+//
+// Caution: a hook script must never sendEvent() an event handled by its own
+// system (directly or through a chain that loops back to it). Event handlers
+// run nested inside the sending script, and the sender's sysData write-back
+// then clobbers whatever the nested handler stored. That is why wall spawning
+// uses the needSpawn flag instead of a "SpawnWall" event, and why mutable
+// ball state lives on the Ball component (live setters) instead of sysData.
+//
+// Controls: Left/Right (or A/D) to move, Space to launch the ball.
 
-print("BlockBreaker main.pg loaded")
+import "ecs"
+
+print("BlockBreaker: registering game systems")
+
+var paddleSys = createSystem("PaddleSystem")
+
+paddleSys.ownComponent("Paddle").onInit("examples/BlockBreaker/scripts/init_paddle.pg").onDelta("examples/BlockBreaker/scripts/update_paddle.pg").build()
+
+var brickSys = createSystem("BrickSystem")
+
+brickSys.ownComponent("Brick").onInit("examples/BlockBreaker/scripts/init_bricks.pg").onExecute("examples/BlockBreaker/scripts/update_bricks.pg").onEvent("BrickHit", "examples/BlockBreaker/scripts/brick_hit.pg").onEvent("ResetWall", "examples/BlockBreaker/scripts/reset_wall.pg").build()
+
+var ballSys = createSystem("BallSystem")
+
+ballSys.ownComponent("Ball").onInit("examples/BlockBreaker/scripts/init_ball.pg").onDelta("examples/BlockBreaker/scripts/update_ball.pg").onEvent("ResetBall", "examples/BlockBreaker/scripts/reset_ball.pg").build()
+
+print("BlockBreaker: game systems registered")

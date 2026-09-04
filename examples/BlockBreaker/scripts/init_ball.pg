@@ -1,0 +1,20 @@
+import "texture"
+
+// BallSystem init: spawns the ball. All mutable ball state (velocity,
+// stuck flag, speed) lives on the "Ball" component so the collision
+// handler scripts can read and write it directly - StandardComponent
+// property writes go straight to the component, unlike sysData which is
+// only synced around script runs.
+
+logInfo("BallSystem: initializing")
+
+// Ball (reuses a Tetris tile texture loaded by res/setupRenderer.pg)
+var ball = createTexture("O", 16, 16)
+
+ball.attachComp("Ball", "vx", 0.0, "vy", 0.0, "stuck", 1, "speed", 380.0)
+ball.attachComp("Collision")
+
+sysData["ballId"] = ball.__entityId
+sysData["lives"] = 3
+
+logInfo("BallSystem: ready - Left/Right to move, Space to launch")

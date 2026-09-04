@@ -1,0 +1,57 @@
+import "ecs"
+import "math"
+import "algorithm"
+
+// Collision handler (registered in application.cpp): runs on every
+// Ball/Paddle contact reported by the CollisionSystem, with the two
+// entities exposed as ent1/ent2 (in no guaranteed order).
+// The bounce angle depends on where the ball hits the paddle.
+
+var ball = ent1
+var paddle = ent2
+
+if (contain(ent2, "Ball"))
+{
+    ball = ent2
+    paddle = ent1
+}
+
+var ballData = ball["Ball"]
+
+// The ball rides the paddle before launch: no bounce while stuck,
+// and only bounce when the ball is actually moving down.
+if (ballData.stuck == 1)
+{
+    return
+}
+
+if (ballData.vy <= 0)
+{
+    return
+}
+
+var ballPos = ball["PositionComponent"]
+var paddlePos = paddle["PositionComponent"]
+
+var ballCenter = ballPos.x + ballPos.width / 2
+var paddleCenter = paddlePos.x + paddlePos.width / 2
+
+var offsetRatio = (ballCenter - paddleCenter) / (paddlePos.width / 2)
+
+if (offsetRatio < -0.9)
+{
+    offsetRatio = -0.9
+}
+
+if (offsetRatio > 0.9)
+{
+    offsetRatio = 0.9
+}
+
+var speed = ballData.speed
+var newVX = offsetRatio * 300.0
+
+ballData.vx = newVX
+ballData.vy = -sqrt(speed * speed - newVX * newVX)
+
+ballPos.y = paddlePos.y - ballPos.height

@@ -1,0 +1,110 @@
+import "ecs"
+import "input"
+import "math"
+import "random"
+import "string"
+
+// BallSystem delta: ball movement, screen bounds and lives only.
+// Paddle and brick contacts are handled by the engine's CollisionSystem
+// through ball_paddle_collision.pg / ball_brick_collision.pg.
+
+var screenWidth = 820
+var screenHeight = 640
+
+var ball = getEntity(sysData["ballId"])
+var ballPos = ball["PositionComponent"]
+var ballData = ball["Ball"]
+
+// ---------------------------------------------------------------------------
+// Ball on the paddle: follow it, launch with Space
+// ---------------------------------------------------------------------------
+if (ballData.stuck == 1)
+{
+    var havePaddle = 0
+    var paddlePos = 0
+
+    for (var p : getEntities("Paddle"))
+    {
+        paddlePos = p["PositionComponent"]
+        havePaddle = 1
+    }
+
+    if (havePaddle == 0)
+    {
+        // Paddle not spawned yet, nothing to do
+        return
+    }
+
+    ballPos.x = paddlePos.x + (paddlePos.width - ballPos.width) / 2
+    ballPos.y = paddlePos.y - ballPos.height - 2
+
+    if (isKeyPressed(KEY_SPACE))
+    {
+        var speed = ballData.speed
+        var launchVX = randomRange(-150.0, 150.0)
+
+        ballData.vx = launchVX
+        ballData.vy = -sqrt(speed * speed - launchVX * launchVX)
+        ballData.stuck = 0
+    }
+
+    return
+}
+
+// ---------------------------------------------------------------------------
+// Movement and screen bounds
+// ---------------------------------------------------------------------------
+var vx = ballData.vx
+var vy = ballData.vy
+
+var bx = ballPos.x + vx * deltaTime
+var by = ballPos.y + vy * deltaTime
+
+// Side walls
+if (bx < 0)
+{
+    bx = 0
+    vx = -vx
+}
+
+if (bx > screenWidth - ballPos.width)
+{
+    bx = screenWidth - ballPos.width
+    vx = -vx
+}
+
+// Ceiling
+if (by < 0)
+{
+    by = 0
+    vy = -vy
+}
+
+// Floor: ball lost
+if (by > screenHeight)
+{
+    sysData["lives"] = sysData["lives"] - 1
+
+    ballData.stuck = 1
+    ballData.vx = 0.0
+    ballData.vy = 0.0
+
+    logInfo("BallSystem: ball lost, lives left: " + toString(sysData["lives"]))
+
+    if (sysData["lives"] <= 0)
+    {
+        logInfo("BallSystem: GAME OVER")
+
+        sysData["lives"] = 3
+
+        // The wall and the score belong to BrickSystem
+        sendEvent("ResetWall")
+    }
+
+    return
+}
+
+ballPos.x = bx
+ballPos.y = by
+ballData.vx = vx
+ballData.vy = vy

@@ -1,0 +1,80 @@
+import "ecs"
+import "algorithm"
+
+// Collision handler (registered in application.cpp): runs on every
+// Ball/Brick contact reported by the CollisionSystem, with the two
+// entities exposed as ent1/ent2 (in no guaranteed order).
+// Bounces the ball on the axis of least penetration and reports the hit
+// to BrickSystem - destroying and scoring the brick is its business.
+
+var ball = ent1
+var brick = ent2
+
+if (contain(ent2, "Ball"))
+{
+    ball = ent2
+    brick = ent1
+}
+
+var ballData = ball["Ball"]
+var ballPos = ball["PositionComponent"]
+var brickPos = brick["PositionComponent"]
+
+var bx = ballPos.x
+var by = ballPos.y
+
+// Re-check the overlap with current positions: when the ball touches two
+// bricks in the same frame, the first handler already bounced it away.
+if (bx >= brickPos.x + brickPos.width or bx + ballPos.width <= brickPos.x or by >= brickPos.y + brickPos.height or by + ballPos.height <= brickPos.y)
+{
+    return
+}
+
+// Penetration depth on each side of the brick
+var penLeft = bx + ballPos.width - brickPos.x
+var penRight = brickPos.x + brickPos.width - bx
+var penTop = by + ballPos.height - brickPos.y
+var penBottom = brickPos.y + brickPos.height - by
+
+var minPenX = penLeft
+
+if (penRight < penLeft)
+{
+    minPenX = penRight
+}
+
+var minPenY = penTop
+
+if (penBottom < penTop)
+{
+    minPenY = penBottom
+}
+
+if (minPenX < minPenY)
+{
+    ballData.vx = -ballData.vx
+
+    if (penLeft < penRight)
+    {
+        ballPos.x = brickPos.x - ballPos.width
+    }
+    else
+    {
+        ballPos.x = brickPos.x + brickPos.width
+    }
+}
+else
+{
+    ballData.vy = -ballData.vy
+
+    if (penTop < penBottom)
+    {
+        ballPos.y = brickPos.y - ballPos.height
+    }
+    else
+    {
+        ballPos.y = brickPos.y + brickPos.height
+    }
+}
+
+sendEvent("BrickHit", "brickId", brick.__entityId)
