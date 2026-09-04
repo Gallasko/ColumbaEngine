@@ -22,6 +22,11 @@
 
 #include <iostream>
 
+// Always included: the PROFILE_* macros are no-ops without -DPROFILE
+#include "Profiler/profiler.h"
+#include "Profiler/framelimiter.h"
+#include "Helpers/demangle.h"
+
 #ifdef PROFILE
 #include <atomic>
 #include <mutex>
@@ -30,8 +35,6 @@ extern std::mutex profileMutex;
 
 extern std::unordered_map<std::string, long long> _systemExecutionTimes;
 extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
-
-#include "Profiler/profiler.h"
 #endif
 
 namespace pg
@@ -120,7 +123,7 @@ namespace pg
         };
 
     public:
-        EntitySystem(const std::string& savePath = "save/savedata.sz");
+        EntitySystem(const std::string& savePath = "");
         ~EntitySystem();
 
         /**
@@ -723,6 +726,12 @@ namespace pg
 
         void executeAll();
 
+        /** Cap the ECS graph loop to a target FPS (0 = uncapped, the default).
+         *  Thread-safe; can be changed at runtime (e.g. from the profiler overlay). */
+        inline void setEcsTargetFPS(int fps) { ecsFrameLimiter.setTargetFPS(fps); }
+
+        inline int getEcsTargetFPS() const { return ecsFrameLimiter.getTargetFPS(); }
+
         /** Return the registry of the ECS, mainly for testing purposes */
         inline constexpr const ComponentRegistry* getComponentRegistry() const noexcept { return &registry; }
 
@@ -1040,6 +1049,9 @@ namespace pg
         /** Running thread of the ECS */
         std::thread runningThread;
 
+        /** Paces the graph loop when a target FPS is set (see setEcsTargetFPS) */
+        FrameLimiter ecsFrameLimiter;
+
         /** Pimpl for taskflow types to reduce header compilation time */
         struct TaskflowImpl;
         std::unique_ptr<TaskflowImpl> taskflowImpl;
@@ -1297,6 +1309,20 @@ namespace pg
 
         componentStorageMap.emplace(id, owner);
 
+#ifdef PROFILE
+        {
+            std::string countName;
+
+            if constexpr(HasStaticName<Type>::value)
+                countName = Type::getType();
+            else
+                countName = prettyTypeName(typeid(Type).name());
+
+            // Slot 0 of the component set is reserved, hence the -1
+            registerComponentCounter(id, countName, [owner]() { return owner->components.nbElements() - 1; });
+        }
+#endif
+
         owner->_componentId = id;
     }
 
@@ -1334,6 +1360,10 @@ namespace pg
         {
             componentStorageMap.erase(it);
         }
+
+#ifdef PROFILE
+        unregisterComponentCounter(id);
+#endif
 
         removeTypeId<Type>();
     }

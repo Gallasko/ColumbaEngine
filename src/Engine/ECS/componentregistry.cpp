@@ -155,6 +155,10 @@ namespace pg
     {
         LOG_THIS_MEMBER("Component Registry");
 
+#ifdef PROFILE
+        ProfilerStats::instance().countStandardEvent(event.name);
+#endif
+
         for (auto& eventListener : standardEventStorageMap[event.name])
         {
             eventListener.second(event);
@@ -294,6 +298,11 @@ namespace pg
         componentStorageMap.emplace(id, owner);
         standardComponentStorageMap[typeName] = owner;
 
+#ifdef PROFILE
+        // Slot 0 of the component set is reserved, hence the -1
+        registerComponentCounter(id, typeName, [owner]() { return owner->components.nbElements() - 1; });
+#endif
+
         // Set the component ID on the owner
         owner->_componentId = id;
     }
@@ -337,6 +346,10 @@ namespace pg
         {
             componentStorageMap.erase(it);
         }
+
+#ifdef PROFILE
+        unregisterComponentCounter(id);
+#endif
 
         // Remove from string-based map
         standardComponentStorageMap.erase(ownerIt);

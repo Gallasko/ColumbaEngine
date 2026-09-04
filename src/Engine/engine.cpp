@@ -4,6 +4,8 @@
 #include "window.h"
 #include "logger.h"
 #include "Systems/basicsystems.h"
+#include "Profiler/profiler.h"
+#include "Profiler/profilerstats.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -47,6 +49,20 @@ Engine::~Engine()
     {
         delete mainWindow;
     }
+
+#ifdef PROFILE
+    // Export as late as possible so the "Shutdown" scopes recorded during
+    // window/ECS teardown are part of the capture.
+    try
+    {
+        Profiler::instance().exportAllToCSV("profile_data.csv");
+        ProfilerStats::instance().exportToCSV("profile_stats.csv");
+    }
+    catch (...)
+    {
+        std::cerr << "Failed to export profiler data" << std::endl;
+    }
+#endif
 
 #ifdef __EMSCRIPTEN__
     if (initThread)
@@ -134,12 +150,20 @@ void Engine::initializeECS()
 
     try
     {
-        mainWindow->initEngine();
+        mainWindow->renderFrameLimiter.setTargetFPS(config.targetFPS);
+        mainWindow->ecs->setEcsTargetFPS(config.ecsTargetFPS);
+
+        {
+            PROFILE_SCOPE("Window::initEngine", "Init");
+            mainWindow->initEngine();
+        }
 
         // Version check: load manifest and compare against saved version
+        PROFILE_BEGIN("VersionCheck", "Init");
         auto versionResult = versionManager.initialize(
             config.manifestPath, *mainWindow->ecs,
             config.autoWipeSaveOnMajorBump, config.autoRunMigrations);
+        PROFILE_END("VersionCheck", "Init");
 
         if (versionResult.isMajorBump)
         {
@@ -164,6 +188,7 @@ void Engine::initializeECS()
         if (setup)
         {
             printf("Setting up systems...\n");
+            PROFILE_SCOPE("UserSetup", "Init");
             setup(*mainWindow->ecs, *mainWindow);
         }
         else
@@ -174,6 +199,7 @@ void Engine::initializeECS()
         if (config.autoStartECS)
         {
             printf("Starting ECS (auto-start enabled)...\n");
+            PROFILE_SCOPE("EcsStart", "Init");
             mainWindow->ecs->start();
         }
         else
@@ -210,6 +236,7 @@ void Engine::initializeECS()
         if (postInit)
         {
             printf("Running post-init...\n");
+            PROFILE_SCOPE("UserPostInit", "Init");
             postInit(*mainWindow->ecs, *mainWindow);
         }
         else
@@ -403,17 +430,37 @@ int Engine::exec()
 #else
     printf("Starting desktop build...\n");
 
-    initializeWindow();
+    PROFILE_BEGIN("EngineInit", "Init");
+
+    {
+        PROFILE_SCOPE("InitializeWindow", "Init");
+        initializeWindow();
+    }
+
     if (not mainWindow)
     {
         printf("Failed to create window on desktop\n");
         return -1;
     }
 
-    mainWindow->init(config.width, config.height, config.fullscreen);
-    initializeECS();
-    mainWindow->resize(config.width, config.height);
+    {
+        PROFILE_SCOPE("Window::init", "Init");
+        mainWindow->init(config.width, config.height, config.fullscreen);
+    }
+
+    {
+        PROFILE_SCOPE("InitializeECS", "Init");
+        initializeECS();
+    }
+
+    {
+        PROFILE_SCOPE("Resize", "Init");
+        mainWindow->resize(config.width, config.height);
+    }
+
     initialized = true;
+
+    PROFILE_END("EngineInit", "Init");
 
     printf("Desktop initialization complete\n");
 

@@ -8,6 +8,7 @@
 #include <fstream>
 #include <algorithm>
 #include <map>
+#include <atomic>
 
 namespace pg
 {
@@ -16,13 +17,14 @@ namespace pg
     {
         std::string name;
         uint64_t frameNumber;
+        uint64_t ecsPass;
         double startMs;
         double durationMs;
         std::string category;
         uint32_t threadId;
 
-        ProfileEvent(const std::string& n, uint64_t frame, double start, double dur, const std::string& cat, uint32_t tid)
-            : name(n), frameNumber(frame), startMs(start), durationMs(dur), category(cat), threadId(tid)
+        ProfileEvent(const std::string& n, uint64_t frame, uint64_t pass, double start, double dur, const std::string& cat, uint32_t tid)
+            : name(n), frameNumber(frame), ecsPass(pass), startMs(start), durationMs(dur), category(cat), threadId(tid)
         {}
     };
 
@@ -31,13 +33,14 @@ namespace pg
     {
         std::string name;
         uint64_t frameNumber;
+        uint64_t ecsPass;
         double startMs;
         double durationMs;
         std::string category;
         uint32_t threadId;
 
-        ProfileInterval(const std::string& n, uint64_t frame, double start, double dur, const std::string& cat, uint32_t tid)
-            : name(n), frameNumber(frame), startMs(start), durationMs(dur), category(cat), threadId(tid)
+        ProfileInterval(const std::string& n, uint64_t frame, uint64_t pass, double start, double dur, const std::string& cat, uint32_t tid)
+            : name(n), frameNumber(frame), ecsPass(pass), startMs(start), durationMs(dur), category(cat), threadId(tid)
         {}
     };
 
@@ -51,6 +54,7 @@ namespace pg
             std::string category;
             double startMs;
             uint64_t frameNumber;
+            uint64_t ecsPass;
         };
 
         // Completed intervals (already filtered for zero-duration)
@@ -59,6 +63,7 @@ namespace pg
         mutable std::mutex eventMutex;
 
         uint64_t currentFrame;
+        std::atomic<uint64_t> ecsPassCounter{0};
         double frameStartTime;
 
         std::chrono::steady_clock::time_point sessionStart;
@@ -80,9 +85,25 @@ namespace pg
         void recordBegin(const std::string& name, const std::string& category);
         void recordEnd(const std::string& name, const std::string& category);
 
+        // Zero-duration marker event (bypasses the minimum-duration filter)
+        void recordInstant(const std::string& name, const std::string& category);
+
+        // ECS-pass correlation: bumped once per taskflow graph iteration
+        // (from the BasicTask), stamped on every recorded event so the
+        // simulation loop and the render loop can be correlated.
+        uint64_t beginEcsPass() { return ecsPassCounter.fetch_add(1, std::memory_order_relaxed) + 1; }
+        uint64_t getCurrentEcsPass() const { return ecsPassCounter.load(std::memory_order_relaxed); }
+
         // Data access
         std::vector<ProfileInterval> computeIntervals(uint64_t startFrame, uint64_t endFrame) const;
         std::vector<ProfileInterval> computeLastFrames(size_t numFrames) const;
+
+        // Copy of all completed events starting at or after sinceMs
+        // (cheap single pass under the lock; the overlay's main query)
+        std::vector<ProfileEvent> snapshotSince(double sinceMs) const;
+
+        // Current time on the profiler's session clock, in milliseconds
+        double nowMs() const { return getCurrentTimeMs(); }
 
         // Export
         void exportToCSV(const std::string& filename, size_t numFrames = 300);

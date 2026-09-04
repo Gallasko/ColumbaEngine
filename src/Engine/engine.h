@@ -37,6 +37,11 @@ namespace pg
         bool autoRunMigrations = true;
         bool vsync = true;
         int targetFPS = 60;
+
+        /** Cap for the ECS graph loop (0 = uncapped, the default: the
+         *  simulation keeps free-running as before). The profiler overlay
+         *  can change it at runtime for readable captures. */
+        int ecsTargetFPS = 0;
         bool autoStartECS = true;  // If false, ECS must be started manually via getECS()->start()
     };
 

@@ -55,7 +55,18 @@ namespace pg
 
         std::lock_guard<std::mutex> lock(eventMutex);
         uint32_t tid = getCurrentThreadId();
-        pendingEvents[tid].push_back({name, category, getCurrentTimeMs(), currentFrame});
+        pendingEvents[tid].push_back({name, category, getCurrentTimeMs(), currentFrame, getCurrentEcsPass()});
+    }
+
+    void Profiler::recordInstant(const std::string& name, const std::string& category)
+    {
+        if (!enabled) return;
+
+        double now = getCurrentTimeMs();
+        uint32_t tid = getCurrentThreadId();
+
+        std::lock_guard<std::mutex> lock(eventMutex);
+        events.emplace_back(name, currentFrame, getCurrentEcsPass(), now, 0.0, category, tid);
     }
 
     void Profiler::recordEnd(const std::string& name, const std::string& category)
@@ -94,7 +105,7 @@ namespace pg
 
                 if (shouldStore)
                 {
-                    events.emplace_back(name, it->frameNumber, it->startMs, duration, category, tid);
+                    events.emplace_back(name, it->frameNumber, it->ecsPass, it->startMs, duration, category, tid);
                 }
 
                 // Remove the pending event
@@ -118,6 +129,7 @@ namespace pg
                 intervals.emplace_back(
                     event.name,
                     event.frameNumber,
+                    event.ecsPass,
                     event.startMs,
                     event.durationMs,
                     event.category,
@@ -136,6 +148,21 @@ namespace pg
 
         uint64_t startFrame = currentFrame > numFrames ? currentFrame - numFrames : 0;
         return computeIntervals(startFrame, currentFrame);
+    }
+
+    std::vector<ProfileEvent> Profiler::snapshotSince(double sinceMs) const
+    {
+        std::lock_guard<std::mutex> lock(eventMutex);
+
+        std::vector<ProfileEvent> snapshot;
+
+        for (const auto& event : events)
+        {
+            if (event.startMs >= sinceMs)
+                snapshot.push_back(event);
+        }
+
+        return snapshot;
     }
 
     void Profiler::exportToCSV(const std::string& filename, size_t numFrames)
@@ -158,13 +185,14 @@ namespace pg
         auto intervals = computeIntervals(startFrame, currentFrame);
 
         // Write header
-        file << "frame,name,category,start_ms,duration_ms,thread_id\n";
+        file << "frame,ecs_pass,name,category,start_ms,duration_ms,thread_id\n";
 
         // Write data
         file << std::fixed << std::setprecision(6);
         for (const auto& interval : intervals)
         {
             file << interval.frameNumber << ","
+                 << interval.ecsPass << ","
                  << "\"" << interval.name << "\","
                  << "\"" << interval.category << "\","
                  << interval.startMs << ","
@@ -195,30 +223,31 @@ namespace pg
         }
 
         // Get all frames
-        std::lock_guard<std::mutex> lock(eventMutex);
-
         uint64_t minFrame = UINT64_MAX;
         uint64_t maxFrame = 0;
 
-        for (const auto& event : events)
         {
-            if (event.frameNumber < minFrame) minFrame = event.frameNumber;
-            if (event.frameNumber > maxFrame) maxFrame = event.frameNumber;
+            std::lock_guard<std::mutex> lock(eventMutex);
+
+            for (const auto& event : events)
+            {
+                if (event.frameNumber < minFrame) minFrame = event.frameNumber;
+                if (event.frameNumber > maxFrame) maxFrame = event.frameNumber;
+            }
         }
 
-        // Release lock and compute intervals
-        eventMutex.unlock();
+        // computeIntervals takes the lock itself, so it must run unlocked
         auto intervals = computeIntervals(minFrame, maxFrame);
-        eventMutex.lock();
 
         // Write header
-        file << "frame,name,category,start_ms,duration_ms,thread_id\n";
+        file << "frame,ecs_pass,name,category,start_ms,duration_ms,thread_id\n";
 
         // Write data
         file << std::fixed << std::setprecision(6);
         for (const auto& interval : intervals)
         {
             file << interval.frameNumber << ","
+                 << interval.ecsPass << ","
                  << "\"" << interval.name << "\","
                  << "\"" << interval.category << "\","
                  << interval.startMs << ","

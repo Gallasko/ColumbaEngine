@@ -17,9 +17,7 @@
 #include "taskflow/taskflow.hpp"
 
 // For type-name demangling in dumbTaskflow()
-#if defined(__GNUC__) || defined(__clang__)
-#include <cxxabi.h>
-#endif
+#include "Helpers/demangle.h"
 
 #include "system.h"
 #include "scriptregistry.h"
@@ -139,6 +137,27 @@ namespace pg
 
             end = std::chrono::steady_clock::now();
 
+#ifdef PROFILE
+            // One taskflow graph iteration = one ECS pass. All events recorded
+            // until the next basicTask entry are stamped with this pass number.
+            auto ecsPass = Profiler::instance().beginEcsPass();
+            Profiler::instance().recordInstant("ECSPass", "Marker");
+
+            // Component pools are stable here (no system is running), so the
+            // count thunks can be read safely. Sampled at a low cadence.
+            static uint64_t componentSampleCountdown = 0;
+            if (componentSampleCountdown == 0)
+            {
+                componentSampleCountdown = 32;
+                ProfilerStats::instance().setComponentCounts(registry.getComponentCounts());
+            }
+            componentSampleCountdown--;
+
+            // Counters accumulated since the previous basicTask entry belong
+            // to the pass that just finished.
+            ProfilerStats::instance().finalizePass(ecsPass - 1, Profiler::instance().nowMs(), getNbEntities());
+#endif
+
             // During the command dispatcher no other system should be running
             // So it should be safe to allow for creation and deletion of entities/components on the spot
             running = false;
@@ -238,6 +257,8 @@ namespace pg
 
         LOG_INFO(DOM, "Deleting Ecs...");
 
+        PROFILE_SCOPE("EntitySystem::dtor", "Shutdown");
+
         stop();
 
         LOG_INFO(DOM, "Ecs stopped");
@@ -271,23 +292,8 @@ namespace pg
 
         // --- local helpers ---
 
-        // Demangle a C++ mangled type name and strip all "pg::" namespace prefixes.
         auto prettyName = [](const char* mangled) -> std::string {
-#if defined(__GNUC__) || defined(__clang__)
-            int status = 0;
-            char* buf = abi::__cxa_demangle(mangled, nullptr, nullptr, &status);
-            std::string s = (status == 0 && buf) ? buf : mangled;
-            if (buf) free(buf);
-#else
-            std::string s = mangled;
-#endif
-            std::string clean;
-            for (size_t i = 0; i < s.size(); )
-            {
-                if (s.compare(i, 4, "pg::") == 0) i += 4;
-                else clean += s[i++];
-            }
-            return clean;
+            return prettyTypeName(mangled);
         };
 
         // Decode a _listenerEventNames entry ("L:mangled" or "Q:mangled")
@@ -713,8 +719,18 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        // runs the taskflow until we stop the system
-        taskflowImpl->executor.run_until(taskflowImpl->taskflow, [&running = running](){ return not running; });
+        // Runs the taskflow until we stop the system. The predicate is
+        // evaluated between whole-graph iterations (no task is pending
+        // then), so pacing there caps the ECS loop without holding a
+        // worker mid-graph.
+        taskflowImpl->executor.run_until(taskflowImpl->taskflow, [this, &running = running]() {
+            if (not running)
+                return true;
+
+            ecsFrameLimiter.pace();
+
+            return not running.load();
+        });
     }
 
     Entity* EntitySystem::getEntity(const std::string& name) const
@@ -752,12 +768,10 @@ namespace pg
                   << " with average execution time: " << maxAvgTime << " ns" << std::endl;
 
 
-        for (const auto& event : registry.eventCountMap)
+        for (const auto& [name, count] : ProfilerStats::instance().totalEventCounts())
         {
-            std::cout << "Event ID: " << event.first << ", called: " << event.second << std::endl;
+            std::cout << "Event: " << name << ", called: " << count << std::endl;
         }
-
-        registry.eventCountMap.clear();
 
         // Optional: Reset the counters if you want per-interval reporting.
         _systemExecutionTimes.clear();

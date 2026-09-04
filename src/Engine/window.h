@@ -24,6 +24,8 @@
 
 #include <ECS/entityref.h>
 
+#include <Profiler/framelimiter.h>
+
 namespace pg
 {
     // Forward declarations
@@ -78,6 +80,10 @@ namespace pg
         PgInterpreter *interpreter = nullptr;
 
         MasterRenderer *masterRenderer = nullptr;
+
+        /** Paces the render loop when a target FPS is set (0 = uncapped).
+         *  Wired to EngineConfig::targetFPS; runtime-adjustable. */
+        FrameLimiter renderFrameLimiter;
 
     protected:
         void swapBuffer();

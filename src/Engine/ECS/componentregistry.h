@@ -19,6 +19,8 @@
 #include "component.h"
 #include "standardevent.h"
 
+#include "Profiler/profilerstats.h"
+
 namespace pg
 {
     class InputSystem;
@@ -238,7 +240,7 @@ namespace pg
             const auto& id = getTypeId<Event>();
 
 #ifdef PROFILE
-            eventCountMap[id]++;
+            ProfilerStats::instance().countEvent(id, typeid(Event).name());
 #endif
 
             for (auto& eventListener : eventStorageMap[id])
@@ -523,7 +525,41 @@ namespace pg
         mutable UniqueIdGenerator idGenerator;
 
 #ifdef PROFILE
-        std::map<_unique_id, size_t> eventCountMap;
+    public:
+        /** Register a callback returning the live instance count of a component type */
+        void registerComponentCounter(_unique_id id, const std::string& name, std::function<size_t()> counter)
+        {
+            componentCountMap[id] = std::make_pair(name, std::move(counter));
+        }
+
+        void unregisterComponentCounter(_unique_id id)
+        {
+            componentCountMap.erase(id);
+        }
+
+        /**
+         * @brief Live instance count per registered component type.
+         *
+         * Only safe to call while component pools are not mutating,
+         * i.e. from within the BasicTask.
+         */
+        std::vector<std::pair<std::string, size_t>> getComponentCounts() const
+        {
+            std::vector<std::pair<std::string, size_t>> counts;
+            counts.reserve(componentCountMap.size());
+
+            for (const auto& [id, entry] : componentCountMap)
+            {
+                counts.emplace_back(entry.first, entry.second());
+            }
+
+            return counts;
+        }
+
+    private:
+        std::unordered_map<_unique_id, std::pair<std::string, std::function<size_t()>>> componentCountMap;
+
+    public:
 #endif
 
     public:

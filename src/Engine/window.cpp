@@ -128,6 +128,8 @@ namespace pg
     // Todo better define save path
     Window::Window(const std::string &title, const std::string& savePath) : title(title)
     {
+        PROFILE_SCOPE("Window::ctor", "Init");
+
         ecs = new EntitySystem(savePath);
         // screenUi = nullptr;
         mousePos = new Point2D();
@@ -161,7 +163,10 @@ namespace pg
         interpreter->addSystemModule("audio", AudioModule{ecs});
 
         // Script to configure the logger
-        interpreter->interpretFromFile("res/logManager.pg");
+        {
+            PROFILE_SCOPE("logManager.pg", "Init");
+            interpreter->interpretFromFile("res/logManager.pg");
+        }
         // [End] Interpreter definition
 
         LOG_INFO(DOM, "Window creation done");
@@ -173,16 +178,15 @@ namespace pg
 
         LOG_INFO(DOM, "Window destruction...");
 
-        ecs->stop();
+        PROFILE_BEGIN("Window::shutdown", "Shutdown");
 
-#ifdef PROFILE
-        // Export profiling data before deleting ECS
-        try {
-            Profiler::instance().exportAllToCSV("profile_data.csv");
-        } catch (...) {
-            std::cerr << "Failed to export profiler data" << std::endl;
+        {
+            PROFILE_SCOPE("EcsStop", "Shutdown");
+            ecs->stop();
         }
-#endif
+
+        // Profiling data is exported later, in ~Engine, so that the
+        // "Shutdown" scopes recorded here are part of the capture.
 
         // audioSystem points to a system owned by the ECS, so closeSDLMixer
         // MUST run before `delete ecs` (which destroys the AudioSystem).
@@ -192,7 +196,10 @@ namespace pg
             audioSystem->closeSDLMixer();
         audioSystem = nullptr;
 
-        delete ecs;
+        {
+            PROFILE_SCOPE("EcsDelete", "Shutdown");
+            delete ecs;
+        }
 
         // delete screenUi;
         delete mousePos;
@@ -219,6 +226,8 @@ namespace pg
 #endif
         SDL_DestroyWindow(window);
         SDL_Quit();
+
+        PROFILE_END("Window::shutdown", "Shutdown");
 
         LOG_INFO(DOM, "Window destruction done");
     }
@@ -387,18 +396,36 @@ namespace pg
 
         // glViewport(0, 0, width, height);
 
-        registerCoreSystems(ecs);
+        {
+            PROFILE_SCOPE("registerCoreSystems", "Init");
+            registerCoreSystems(ecs);
+        }
 
-        masterRenderer = registerRenderSystems(ecs, interpreter, width, height);
+        {
+            PROFILE_SCOPE("registerRenderSystems", "Init");
+            masterRenderer = registerRenderSystems(ecs, interpreter, width, height);
+        }
 
-        registerUiSystems(ecs);
+        {
+            PROFILE_SCOPE("registerUiSystems", "Init");
+            registerUiSystems(ecs);
+        }
 
-        registerInputSystems(ecs, inputHandler);
+        {
+            PROFILE_SCOPE("registerInputSystems", "Init");
+            registerInputSystems(ecs, inputHandler);
+        }
 
-        audioSystem = registerAudioSystem(ecs);
+        {
+            PROFILE_SCOPE("registerAudioSystem", "Init");
+            audioSystem = registerAudioSystem(ecs);
+        }
 
         // Script to configure all the users systems
-        interpreter->interpretFromFile("res/sysRegister.pg");
+        {
+            PROFILE_SCOPE("sysRegister.pg", "Init");
+            interpreter->interpretFromFile("res/sysRegister.pg");
+        }
 
         // // Log taskflow for this window
         // ecs->dumbTaskflow();
@@ -669,6 +696,12 @@ namespace pg
         }
 
         PROFILE_FRAME_END();
+#endif
+
+#ifndef __EMSCRIPTEN__
+        // Cap the render loop to the configured target FPS
+        // (the browser's requestAnimationFrame already paces Emscripten builds)
+        renderFrameLimiter.pace();
 #endif
     }
 

@@ -221,7 +221,9 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Files/fileparser.cpp
     src/Engine/Memory/elementtype.cpp
     src/Engine/Memory/parallelfor.cpp
+    src/Engine/Helpers/demangle.cpp
     src/Engine/Profiler/profiler.cpp
+    src/Engine/Profiler/profilerstats.cpp
     # Core systems (provides EntityName component)
     src/Engine/Systems/coresystems.cpp
     # Versioning
@@ -288,11 +290,14 @@ set(ENGINESOURCE
     src/Engine/Files/filemanager.cpp
     src/Engine/Files/fileparser.cpp
     src/Engine/Profiler/profiler.cpp
+    src/Engine/Profiler/profilerstats.cpp
+    src/Engine/Profiler/profileroverlay.cpp
     src/Engine/Init/coresystems.cpp
     src/Engine/Init/rendersystems.cpp
     src/Engine/Init/inputsystems.cpp
     src/Engine/Init/uisystems.cpp
     src/Engine/Init/audiosystems.cpp
+    src/Engine/Helpers/demangle.cpp
     src/Engine/Helpers/fsm.cpp
     src/Engine/Helpers/openglobject.cpp
     src/Engine/Helpers/tinyfiledialogs.cpp
@@ -1424,6 +1429,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/collision2d.cc
             test/ecssystem.cc
             test/filemanager.cc
+            test/framelimiter.cc
+            test/profilertools.cc
             test/interpreter.cc
             test/layout.cc
             test/prefab.cc

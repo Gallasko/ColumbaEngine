@@ -10,6 +10,8 @@
 
 #include "window.h"
 
+#include "Profiler/profileroverlay.h"
+
 using namespace pg;
 
 namespace
@@ -19,9 +21,12 @@ namespace
 
 GameApp::GameApp(const std::string& appName, const std::string& scriptPath) : engine(appName)
 {
-    engine.setSetupFunction([scriptPath](EntitySystem& ecs, Window&)
+    engine.setSetupFunction([scriptPath](EntitySystem& ecs, Window& window)
     {
         LOG_INFO(DOM, "Running game script: " << scriptPath);
+
+        // Visual profiler overlay (F10). No-op unless built with PG_PROFILE=ON.
+        createProfilerOverlay(ecs, window);
 
         // Collision infrastructure: entities that attach a "Collision"
         // component are checked by the CollisionSystem, and the handlers

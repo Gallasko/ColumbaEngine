@@ -139,6 +139,8 @@ namespace pg
                 auto value = serializeToTable(&vm, event);
                 vm.defineGlobal("event", value);
 
+                PROFILE_SCOPE(capturedScriptName, "Script");
+
                 auto result = interpretWithSysData(sys, vm, *code);
 
                 if (result != InterpretResult::OK)
@@ -173,6 +175,8 @@ namespace pg
 
                     VM vm;
                     ecsRef->setupVm(vm);
+
+                    PROFILE_SCOPE(scriptName, "Script");
 
                     auto result = interpretWithSysData(sys, vm, *code);
 
@@ -213,6 +217,8 @@ namespace pg
                     // Add sys module for accessing system's entities by component
                     vm.addNativeModule("sys", SystemModule{this});
 
+                    PROFILE_SCOPE(scriptName, "Script");
+
                     auto result = interpretWithSysData(sys, vm, *code);
 
                     if (result != InterpretResult::OK)
@@ -252,6 +258,8 @@ namespace pg
                     vm.addNativeModule("sys", SystemModule{this});
 
                     vm.defineGlobal("deltaTime", vm.elementToValue(deltaTime));
+
+                    PROFILE_SCOPE(scriptName, "Script");
 
                     auto result = interpretWithSysData(sys, vm, *code);
 
@@ -295,6 +303,8 @@ namespace pg
 
                 auto value = serializeToTable(&vm, event);
                 vm.defineGlobal("event", value);
+
+                PROFILE_SCOPE(capturedScriptName, "Script");
 
                 auto result = interpretWithSysData(sys, vm, *code);
 
