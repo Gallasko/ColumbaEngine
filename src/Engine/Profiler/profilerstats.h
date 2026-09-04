@@ -46,6 +46,10 @@ namespace pg
          *  (event dispatch can happen at any call site, on any worker). */
         void countEvent(_unique_id id, const char* mangledName);
 
+        /** Same as countEvent but also returns the demangled event name
+         *  (single lock), for labelling the dispatch profiler scope. */
+        std::string countEventGetName(_unique_id id, const char* mangledName);
+
         /** Count one dispatch of a StandardEvent (identity = runtime name). */
         void countStandardEvent(const std::string& name);
 

@@ -152,6 +152,7 @@ void Engine::initializeECS()
     {
         mainWindow->renderFrameLimiter.setTargetFPS(config.targetFPS);
         mainWindow->ecs->setEcsTargetFPS(config.ecsTargetFPS);
+        mainWindow->ecs->setEcsPassesPerFrame(config.ecsPassesPerFrame);
 
         {
             PROFILE_SCOPE("Window::initEngine", "Init");

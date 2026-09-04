@@ -334,7 +334,8 @@ namespace pg
 
         InterpretResult interpretFromBytecodeFile(const std::string& filename);
 
-        InterpretResult interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount = 0);
+        /** scriptName is only used to label profiler scopes ([deserialize]/[decode]/[exec]) */
+        InterpretResult interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount = 0, const std::string& scriptName = "");
 
         InterpretResult run();
         InterpretResult runDecoded(DecodedChunk *decoded);  // Execute from pre-decoded chunks (faster)
@@ -998,7 +999,7 @@ namespace pg
         }
 
         // Helper methods for interpreting bytecode
-        InterpretResult executeChunk(ObjFunction* funcObj, int argCount);
+        InterpretResult executeChunk(ObjFunction* funcObj, int argCount, const std::string& scriptName = "");
         void cleanupFunction(ObjFunction* funcObj);
 
         // Function pointer dispatch methods

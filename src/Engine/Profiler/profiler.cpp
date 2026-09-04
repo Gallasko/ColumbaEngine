@@ -97,6 +97,12 @@ namespace pg
                     // Only store Frame events if explicitly enabled
                     shouldStore = recordFrameEvents;
                 }
+                else if (category == "Event")
+                {
+                    // Event dispatch scopes are always stored, however short,
+                    // so the timeline shows every event processed in a pass
+                    shouldStore = true;
+                }
                 else
                 {
                     // For other events, only store if duration is meaningful (>= 0.002ms = 2us)

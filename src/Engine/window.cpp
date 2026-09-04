@@ -656,6 +656,9 @@ namespace pg
         PROFILE_FRAME_BEGIN();
 #endif
 
+        // Frame-start signal for the ECS pass pacer (N passes per frame)
+        ecs->ecsPassPacer.frameStarted();
+
         currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         static auto lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 

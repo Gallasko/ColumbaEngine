@@ -18,6 +18,8 @@
 
 #include "decoded_chunk.h"
 
+#include "Profiler/profiler.h"
+
 namespace pg
 {
     UniqueIdGenerator VM::globalIdGenerator;
@@ -333,12 +335,26 @@ namespace pg
         }
     }
 
-    InterpretResult VM::executeChunk(ObjFunction* funcObj, int argCount)
+    InterpretResult VM::executeChunk(ObjFunction* funcObj, int argCount, const std::string& scriptName)
     {
+#ifdef PROFILE
+        const std::string label = scriptName.empty()
+            ? (currentFileName.empty() ? std::string("script") : currentFileName)
+            : scriptName;
+
+        PROFILE_BEGIN(label + " [decode]", "Script");
+#else
+        (void)scriptName;
+#endif
+
         // interpret() pre-decodes during compilation; the bytecode-file
         // entry points reach executeChunk with a fresh chunk (and fresh
         // nested-function constants) that haven't been decoded yet.
         predecodeFunctionTree(funcObj, this);
+
+#ifdef PROFILE
+        PROFILE_END(label + " [decode]", "Script");
+#endif
 
         // Create closure and set up call
         auto closureValue = createClosure(funcObj);
@@ -356,6 +372,10 @@ namespace pg
             // Note: preRunTime is not recorded here as it should be recorded
             // by the calling interpret method before calling executeChunk
 
+#ifdef PROFILE
+            // RAII so the scope closes even if run() throws
+            ProfileScope _execScope(label + " [exec]", "Script");
+#endif
             result = run();
         }
         catch(const std::exception& e)
@@ -455,7 +475,7 @@ namespace pg
         return result;
     }
 
-    InterpretResult VM::interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount)
+    InterpretResult VM::interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount, const std::string& scriptName)
     {
         // Record start time for pre-run profiling
         std::chrono::steady_clock::time_point interpretStart;
@@ -470,6 +490,14 @@ namespace pg
             return InterpretResult::OK;
         }
 
+        if (not scriptName.empty())
+            currentFileName = scriptName;
+
+#ifdef PROFILE
+        const std::string label = scriptName.empty() ? std::string("script") : scriptName;
+        PROFILE_BEGIN(label + " [deserialize]", "Script");
+#endif
+
         // Deserialize from cached memory (NO FILE I/O!)
         std::istringstream bytecodeStream(std::string(cachedBytecode.begin(), cachedBytecode.end()), std::ios::binary);
 
@@ -477,6 +505,9 @@ namespace pg
         if (not ChunkSerializer::deserialize(chunk, bytecodeStream, this))
         {
             LOG_ERROR("VM", "Failed to deserialize cached bytecode");
+#ifdef PROFILE
+            PROFILE_END(label + " [deserialize]", "Script");
+#endif
             return InterpretResult::COMPILE_ERROR;
         }
 
@@ -494,6 +525,10 @@ namespace pg
         ObjFunction* funcObj = asFunction(function);
         funcObj->chunk = chunk;
 
+#ifdef PROFILE
+        PROFILE_END(label + " [deserialize]", "Script");
+#endif
+
         // Record pre-run time if profiling is enabled
         if (profiler.isEnabled())
         {
@@ -502,7 +537,7 @@ namespace pg
             profiler.recordPreRunTime(duration);
         }
 
-        InterpretResult result = executeChunk(funcObj, argCount);
+        InterpretResult result = executeChunk(funcObj, argCount, scriptName);
         cleanupFunction(funcObj);
         return result;
     }

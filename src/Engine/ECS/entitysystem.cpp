@@ -722,12 +722,16 @@ namespace pg
         // Runs the taskflow until we stop the system. The predicate is
         // evaluated between whole-graph iterations (no task is pending
         // then), so pacing there caps the ECS loop without holding a
-        // worker mid-graph.
+        // worker mid-graph. The pass pacer (N passes phase-locked to the
+        // render frame) takes precedence over the free-running FPS cap.
         taskflowImpl->executor.run_until(taskflowImpl->taskflow, [this, &running = running]() {
             if (not running)
                 return true;
 
-            ecsFrameLimiter.pace();
+            if (ecsPassPacer.enabled())
+                ecsPassPacer.pace();
+            else
+                ecsFrameLimiter.pace();
 
             return not running.load();
         });

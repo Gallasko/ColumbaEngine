@@ -13,7 +13,7 @@
 
 namespace pg
 {
-    InterpretResult interpretWithSysData(StandardSystemHandle* sys, VM& vm, const std::vector<char>& cachedBytecode)
+    InterpretResult interpretWithSysData(StandardSystemHandle* sys, VM& vm, const std::vector<char>& cachedBytecode, const std::string& scriptName = "")
     {
         // ========================================================================
         // System Data Setup - Expose system's persistent data storage to scripts
@@ -52,7 +52,7 @@ namespace pg
         }
 
         // Interpret cached bytecode
-        InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0);
+        InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0, scriptName);
 
         // ========================================================================
         // System Data Synchronization - Copy script changes back to C++
@@ -127,7 +127,11 @@ namespace pg
                 if (not code)
                     return;
 
+                PROFILE_SCOPE(capturedScriptName, "Script");
+
                 auto ecsRef = sys->getWorld();
+
+                PROFILE_BEGIN(capturedScriptName + " [setup]", "Script");
 
                 VM vm;
                 ecsRef->setupVm(vm);
@@ -139,9 +143,9 @@ namespace pg
                 auto value = serializeToTable(&vm, event);
                 vm.defineGlobal("event", value);
 
-                PROFILE_SCOPE(capturedScriptName, "Script");
+                PROFILE_END(capturedScriptName + " [setup]", "Script");
 
-                auto result = interpretWithSysData(sys, vm, *code);
+                auto result = interpretWithSysData(sys, vm, *code, capturedScriptName);
 
                 if (result != InterpretResult::OK)
                 {
@@ -171,14 +175,18 @@ namespace pg
                     if (not code)
                         return;
 
+                    PROFILE_SCOPE(scriptName, "Script");
+
                     auto ecsRef = sys->getWorld();
+
+                    PROFILE_BEGIN(scriptName + " [setup]", "Script");
 
                     VM vm;
                     ecsRef->setupVm(vm);
 
-                    PROFILE_SCOPE(scriptName, "Script");
+                    PROFILE_END(scriptName + " [setup]", "Script");
 
-                    auto result = interpretWithSysData(sys, vm, *code);
+                    auto result = interpretWithSysData(sys, vm, *code, scriptName);
 
                     if (result != InterpretResult::OK)
                     {
@@ -209,7 +217,11 @@ namespace pg
                     if (not code)
                         return;
 
+                    PROFILE_SCOPE(scriptName, "Script");
+
                     auto ecsRef = sys->getWorld();
+
+                    PROFILE_BEGIN(scriptName + " [setup]", "Script");
 
                     VM vm;
                     ecsRef->setupVm(vm);
@@ -217,9 +229,9 @@ namespace pg
                     // Add sys module for accessing system's entities by component
                     vm.addNativeModule("sys", SystemModule{this});
 
-                    PROFILE_SCOPE(scriptName, "Script");
+                    PROFILE_END(scriptName + " [setup]", "Script");
 
-                    auto result = interpretWithSysData(sys, vm, *code);
+                    auto result = interpretWithSysData(sys, vm, *code, scriptName);
 
                     if (result != InterpretResult::OK)
                     {
@@ -249,7 +261,11 @@ namespace pg
                     if (not code)
                         return;
 
+                    PROFILE_SCOPE(scriptName, "Script");
+
                     auto ecsRef = sys->getWorld();
+
+                    PROFILE_BEGIN(scriptName + " [setup]", "Script");
 
                     VM vm;
                     ecsRef->setupVm(vm);
@@ -259,9 +275,9 @@ namespace pg
 
                     vm.defineGlobal("deltaTime", vm.elementToValue(deltaTime));
 
-                    PROFILE_SCOPE(scriptName, "Script");
+                    PROFILE_END(scriptName + " [setup]", "Script");
 
-                    auto result = interpretWithSysData(sys, vm, *code);
+                    auto result = interpretWithSysData(sys, vm, *code, scriptName);
 
                     if (result != InterpretResult::OK)
                     {
@@ -294,7 +310,11 @@ namespace pg
                 if (not code)
                     return;
 
+                PROFILE_SCOPE(capturedScriptName, "Script");
+
                 auto ecsRef = sys->getWorld();
+
+                PROFILE_BEGIN(capturedScriptName + " [setup]", "Script");
 
                 VM vm;
                 ecsRef->setupVm(vm);
@@ -304,9 +324,9 @@ namespace pg
                 auto value = serializeToTable(&vm, event);
                 vm.defineGlobal("event", value);
 
-                PROFILE_SCOPE(capturedScriptName, "Script");
+                PROFILE_END(capturedScriptName + " [setup]", "Script");
 
-                auto result = interpretWithSysData(sys, vm, *code);
+                auto result = interpretWithSysData(sys, vm, *code, capturedScriptName);
 
                 if (result != InterpretResult::OK)
                 {

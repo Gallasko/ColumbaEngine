@@ -19,6 +19,7 @@
 #include "component.h"
 #include "standardevent.h"
 
+#include "Profiler/profiler.h"
 #include "Profiler/profilerstats.h"
 
 namespace pg
@@ -240,7 +241,10 @@ namespace pg
             const auto& id = getTypeId<Event>();
 
 #ifdef PROFILE
-            ProfilerStats::instance().countEvent(id, typeid(Event).name());
+            // Count the dispatch and record it as a timeline scope, so every
+            // event processed (in the BasicTask drain or inline from a
+            // system) shows up nested at its dispatch site.
+            ProfileScope _eventScope(ProfilerStats::instance().countEventGetName(id, typeid(Event).name()), "Event");
 #endif
 
             for (auto& eventListener : eventStorageMap[id])

@@ -157,6 +157,7 @@ namespace pg
 
 #ifdef PROFILE
         ProfilerStats::instance().countStandardEvent(event.name);
+        ProfileScope _eventScope(event.name, "Event");
 #endif
 
         for (auto& eventListener : standardEventStorageMap[event.name])

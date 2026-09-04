@@ -727,10 +727,22 @@ namespace pg
         void executeAll();
 
         /** Cap the ECS graph loop to a target FPS (0 = uncapped, the default).
-         *  Thread-safe; can be changed at runtime (e.g. from the profiler overlay). */
+         *  Thread-safe; can be changed at runtime (e.g. from the profiler overlay).
+         *  Only used when no passes-per-frame ratio is set (see below). */
         inline void setEcsTargetFPS(int fps) { ecsFrameLimiter.setTargetFPS(fps); }
 
         inline int getEcsTargetFPS() const { return ecsFrameLimiter.getTargetFPS(); }
+
+        /** Phase-lock the ECS loop to N passes per rendered frame, spread
+         *  evenly across each frame (0 = disabled). Takes precedence over
+         *  setEcsTargetFPS. Thread-safe. */
+        inline void setEcsPassesPerFrame(int n) { ecsPassPacer.setPassesPerFrame(n); }
+
+        inline int getEcsPassesPerFrame() const { return ecsPassPacer.getPassesPerFrame(); }
+
+        /** Frame-start signal source for the pass pacer (render thread calls
+         *  frameStarted() on it once per frame) */
+        FramePassPacer ecsPassPacer;
 
         /** Return the registry of the ECS, mainly for testing purposes */
         inline constexpr const ComponentRegistry* getComponentRegistry() const noexcept { return &registry; }

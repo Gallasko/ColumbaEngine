@@ -34,6 +34,17 @@ namespace pg
         cumulativeCounts[eventName(id, mangledName)]++;
     }
 
+    std::string ProfilerStats::countEventGetName(_unique_id id, const char* mangledName)
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+
+        typedCounts[id]++;
+        const auto& name = eventName(id, mangledName);
+        cumulativeCounts[name]++;
+
+        return name;
+    }
+
     void ProfilerStats::countStandardEvent(const std::string& name)
     {
         std::lock_guard<std::mutex> lock(mtx);

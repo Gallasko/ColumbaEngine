@@ -158,7 +158,12 @@ namespace pg
         virtual void onEvent(const ProfilerOverlayFpsEvent& event) override
         {
             window->renderFrameLimiter.setTargetFPS(event.fps);
-            ecsRef->setEcsTargetFPS(event.fps);
+
+            // The ECS is phase-locked at 5 passes per rendered frame, so it
+            // follows the render rate automatically; Uncap frees both loops.
+            ecsRef->setEcsPassesPerFrame(event.fps > 0 ? 5 : 0);
+            ecsRef->setEcsTargetFPS(0);
+
             refreshControls();
         }
 
@@ -271,7 +276,7 @@ namespace pg
         y += 22.0f;
 
         fpsLabelId = makePanelText(PAD, y, ROW_SCALE, TEXT_DIM, "FPS cap:");
-        btnUncapId = makePanelText(PAD + 60.0f, y, ROW_SCALE, TEXT_SEL, "Uncap");
+        btnUncapId = makePanelText(PAD + 60.0f, y, ROW_SCALE, TEXT_DIM, "Uncap");
         btn30Id = makePanelText(PAD + 110.0f, y, ROW_SCALE, TEXT_DIM, "30");
         btn60Id = makePanelText(PAD + 140.0f, y, ROW_SCALE, TEXT_DIM, "60");
         btnCsvId = makePanelText(PAD + 200.0f, y, ROW_SCALE, TEXT_MAIN, "[Export CSV]");

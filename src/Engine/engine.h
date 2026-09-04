@@ -36,11 +36,23 @@ namespace pg
         bool autoWipeSaveOnMajorBump = true;
         bool autoRunMigrations = true;
         bool vsync = true;
+
+#ifdef PROFILE
+        /** Profiling builds default to a readable capture: 30 FPS render,
+         *  5 ECS passes phase-locked to each rendered frame. Runtime
+         *  adjustable from the profiler overlay. */
+        int targetFPS = 30;
+        int ecsPassesPerFrame = 5;
+#else
         int targetFPS = 60;
 
-        /** Cap for the ECS graph loop (0 = uncapped, the default: the
-         *  simulation keeps free-running as before). The profiler overlay
-         *  can change it at runtime for readable captures. */
+        /** Phase-lock the ECS loop to N passes per rendered frame, spread
+         *  evenly across the frame (0 = disabled). */
+        int ecsPassesPerFrame = 0;
+#endif
+
+        /** Free-running FPS cap for the ECS graph loop (0 = uncapped).
+         *  Only used when ecsPassesPerFrame is 0. */
         int ecsTargetFPS = 0;
         bool autoStartECS = true;  // If false, ECS must be started manually via getECS()->start()
     };
