@@ -20,4 +20,9 @@ namespace pg
     {
         // No additional modules in minimal build
     }
+
+    void EntitySystem::enableCollision()
+    {
+        LOG_ERROR("ECS", "enableCollision is not available in minimal builds");
+    }
 }

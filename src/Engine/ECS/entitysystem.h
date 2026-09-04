@@ -838,6 +838,21 @@ namespace pg
         void setupVm(VM& vm);
 
         /**
+         * @brief Enable 2D collision support.
+         *
+         * Registers the CollisionSystem (contact detection between entities
+         * holding a CollisionComponent) and the CollisionHandlerSystem
+         * (dispatches CollisionEvents to handlers registered through
+         * makeCollisionHandle / makeCollisionHandleScript), and orders the
+         * handler system after the detection system.
+         *
+         * Call once during setup, before the ECS starts. Subsequent calls
+         * are no-ops. Not available in minimal builds.
+         * (implemented in entitysystem_full.cpp or entitysystem_minimal.cpp)
+         */
+        void enableCollision();
+
+        /**
          * @brief Access the script registry (compiled script cache + hot reload).
          *
          * All system/collision scripts are loaded through this registry so

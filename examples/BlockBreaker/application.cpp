@@ -26,9 +26,7 @@ GameApp::GameApp(const std::string& appName, const std::string& scriptPath) : en
         // Collision infrastructure: entities that attach a "Collision"
         // component are checked by the CollisionSystem, and the handlers
         // below run a script (with ent1/ent2 globals) on each contact.
-        ecs.createSystem<CollisionSystem>();
-        ecs.createSystem<CollisionHandlerSystem>();
-        ecs.succeed<CollisionHandlerSystem, CollisionSystem>();
+        ecs.enableCollision();
 
         makeCollisionHandleScript(&ecs, "examples/BlockBreaker/scripts/ball_paddle_collision.pg",
             [](Entity* ent) { return ent->has("Ball"); },
