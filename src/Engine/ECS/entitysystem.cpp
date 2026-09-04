@@ -71,6 +71,7 @@ namespace
 #include "Compiler/pass/basic_operator_local_indexing.h"
 #include "Compiler/ast/pass/loop_invariant_hoisting.h"
 #include "Compiler/ast/pass/static_loop_evaluation.h"
+#include "Compiler/ast/pass/entity_loop_lowering.h"
 #include "Compiler/pass/comparison_local_indexing.h"
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
 #include "Compiler/pass/constant_var_access.h"
@@ -1007,8 +1008,11 @@ namespace pg
 
             // AST-level passes: only run on the AST front-end path (between
             // parse and emission); the Pratt front-end never sees them.
-            // Static evaluation runs first so fully-folded loops disappear
-            // before hoisting looks at the leftovers.
+            // Entity-loop lowering runs FIRST (it matches the pristine
+            // ForIn(getEntities(...)) shape; its call-containing output is
+            // skipped by the other passes anyway), then static evaluation so
+            // fully-folded loops disappear before hoisting sees the leftovers.
+            vm.addAstPass(std::make_unique<EntityLoopLoweringPass>());
             vm.addAstPass(std::make_unique<StaticLoopEvaluationPass>());
             vm.addAstPass(std::make_unique<LoopInvariantHoistingPass>());
         }

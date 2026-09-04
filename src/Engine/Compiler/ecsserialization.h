@@ -697,6 +697,25 @@ namespace pg
     extern Value serializeEntityToTable(VM* vm, EntitySystem* ecsRef, Entity* entity);
 
     /**
+     * @brief Serialize a FILTERED view of an entity to a VM table (lazy entity iteration)
+     *
+     * Lightweight counterpart of serializeEntityToTable used by the AST
+     * front-end's entity-loop lowering (__ecsEntityView native): only the
+     * requested component names are serialized (same resolution and
+     * serialization path, so per-field behavior is identical), and no
+     * attachComp/has native closures are attached. A deleted entity yields
+     * a table containing only "__entityId".
+     *
+     * @param vm Pointer to the VM
+     * @param ecsRef Pointer to the entity system
+     * @param entityId Id of the entity (from an __ecsEntityIds snapshot)
+     * @param componentNames Component type names to include
+     * @return Value A VM Value containing the filtered entity table
+     */
+    extern Value serializeEntityViewToTable(VM* vm, EntitySystem* ecsRef, _unique_id entityId,
+        const std::vector<std::string>& componentNames);
+
+    /**
      * @brief Deserialize a component from a VM table and attach it to an entity
      *
      * Takes a VM table (ObjInstance) representing a component and attaches it to the specified entity.
