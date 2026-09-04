@@ -1,0 +1,8 @@
+// BlockBreaker - game logic lives entirely in this script.
+//
+// This file is executed once at startup by the BlockBreaker executable
+// (see application.cpp). Build the whole game from here: spawn the
+// paddle, the ball and the brick grid, then react to input and delta
+// events through systems.
+
+print("BlockBreaker main.pg loaded")

@@ -1065,22 +1065,31 @@ namespace pg
         auto it1 = taskflowImpl->tasks.find(sys1Id);
         auto it2 = taskflowImpl->tasks.find(sys2Id);
 
+        auto getSystemNameById = [this](_unique_id id) -> std::string {
+            const auto& it = systems.find(id);
+
+            if (it != systems.end())
+                return systems.at(id)->getSystemName();
+            else
+                return "Unknown (" + std::to_string(id) + ")";
+        };
+
         if (it1 != taskflowImpl->tasks.end() and it2 != taskflowImpl->tasks.end())
         {
             it1->second.succeed(it2->second);
-            LOG_INFO("ECS", "System " << sys1Id << " will run after system " << sys2Id << " !");
+            LOG_INFO("ECS", "System " << getSystemNameById(sys1Id) << " will run after system " << getSystemNameById(sys2Id) << " !");
         }
         else if (it1 == taskflowImpl->tasks.end() and it2 != taskflowImpl->tasks.end())
         {
-            LOG_ERROR("ECS", "Systems " << sys1Id << " is not a registered task in ecs can't reorder task !");
+            LOG_ERROR("ECS", "Systems " << getSystemNameById(sys1Id) << " is not a registered task in ecs can't reorder task !");
         }
         else if (it1 != taskflowImpl->tasks.end() and it2 == taskflowImpl->tasks.end())
         {
-            LOG_ERROR("ECS", "Systems " << sys2Id << " is not a registered task in ecs can't reorder task !");
+            LOG_ERROR("ECS", "Systems " << getSystemNameById(sys2Id) << " is not a registered task in ecs can't reorder task !");
         }
         else
         {
-            LOG_ERROR("ECS", "Both systems " << sys1Id << " and " << sys2Id << " are not registered task in ecs can't reorder their task !");
+            LOG_ERROR("ECS", "Both systems " << getSystemNameById(sys1Id) << " and " << getSystemNameById(sys2Id) << " are not registered task in ecs can't reorder their task !");
         }
     }
 

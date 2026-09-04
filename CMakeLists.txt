@@ -1210,6 +1210,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(BlockBreaker examples/BlockBreaker/main.cpp)
+
+        target_include_directories(BlockBreaker PUBLIC examples/BlockBreaker)
+
+        target_sources(BlockBreaker PRIVATE
+            examples/BlockBreaker/application.cpp
+        )
+
+        target_link_libraries(BlockBreaker PRIVATE ColumbaEngine)
+
+        ###
+
         add_executable(StandardSys examples/StandardSys/main.cpp)
 
         target_include_directories(StandardSys PUBLIC examples/StandardSys)
