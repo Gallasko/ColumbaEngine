@@ -263,7 +263,7 @@ TEST_F(EntityLoopLowering, BailsOnMutatedLoopVarAndSpecialMembers)
     expectNotLowered(
         "for (var e : getEntities(\"P\"))\n"
         "{\n"
-        "    if (e.has(\"Q\")) { var q = e.Q }\n"
+        "    if (e.has(\"Q\")) { var q = e.Q; }\n"
         "}\n");
 
     // attachComp() likewise
@@ -368,7 +368,7 @@ TEST_F(EntityLoopLowering, BehaviorMatchesOnRealComponents)
         "var n = 0\n"
         "for (var e : getEntities(\"Health\"))\n"
         "{\n"
-        "    if (e.__entityId > 0) { n = n + 1 }\n"
+        "    if (e.__entityId > 0) { n = n + 1; }\n"
         "}\n"
         "__dprint(n)\n",
         "3");

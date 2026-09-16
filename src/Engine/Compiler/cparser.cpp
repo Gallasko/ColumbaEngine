@@ -1153,7 +1153,35 @@ namespace pg
                 writeByte(OpCode::OP_Pop); // Pop the condition result
                 // Stack: [__table, __size, __i]
 
-                // 5. Begin iteration scope for the key variable
+                // 5. Emit the increment before the body and jump-thread around
+                //    it so 'continue' advances __i instead of skipping it
+                //    (mirrors the C-style for loop). Without this, continue
+                //    jumps back to the condition without running __i++ and the
+                //    loop spins forever.
+                int bodyJump = emitJump(OpCode::OP_Long_Jump);
+                int incrementStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
+
+                // Increment __i: __i++
+                writeByte(OpCode::OP_Get_Local);
+                writeByte(counterSlot);
+                writeByte(OpCode::OP_Constant);
+                writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(1)));
+                writeByte(OpCode::OP_Add);
+                writeByte(OpCode::OP_Set_Local);
+                writeByte(counterSlot);
+                writeByte(OpCode::OP_Pop); // Pop the assignment result
+                // Stack: [__table, __size, __i]
+
+                // Loop back to condition check
+                emitLoop(loopStart);
+
+                // Continue must jump to the increment, not the condition
+                Compiler::current->loopContexts.back().loopStart = incrementStart;
+
+                // Body starts here
+                patchJump(bodyJump);
+
+                // 6. Begin iteration scope for the key variable
                 Compiler::current->beginScope();
 
                 // Get key at current index: var key = __table.at(__i)
@@ -1172,26 +1200,15 @@ namespace pg
                 Compiler::current->markInitialized();
                 // Stack: [__table, __size, __i, key]
 
-                // 6. Execute loop body
+                // 7. Execute loop body
                 statement();
 
-                // 7. End iteration scope - this pops the key variable
+                // 8. End iteration scope - this pops the key variable
                 Compiler::current->endScope();
                 // Stack: [__table, __size, __i]
 
-                // 8. Increment __i: __i++
-                writeByte(OpCode::OP_Get_Local);
-                writeByte(counterSlot);
-                writeByte(OpCode::OP_Constant);
-                writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(1)));
-                writeByte(OpCode::OP_Add);
-                writeByte(OpCode::OP_Set_Local);
-                writeByte(counterSlot);
-                writeByte(OpCode::OP_Pop); // Pop the assignment result
-                // Stack: [__table, __size, __i]
-
-                // 9. Loop back to condition check
-                emitLoop(loopStart);
+                // 9. Loop back to the increment (which then re-checks condition)
+                emitLoop(incrementStart);
 
                 // 10. Exit point
                 patchJump(exitJump);

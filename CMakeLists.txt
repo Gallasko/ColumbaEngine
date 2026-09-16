@@ -1506,6 +1506,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/unit/test_ast_passes.cc
             test/pgcompiler/unit/test_entity_loop_lowering.cc
             test/pgcompiler/unit/test_vm_memory.cc
+            test/pgcompiler/unit/test_vm_prepared.cc
             test/pgcompiler/unit/test_register_ops.cc
             test/pgcompiler/unit/test_bytecode_rewriter.cc
         )

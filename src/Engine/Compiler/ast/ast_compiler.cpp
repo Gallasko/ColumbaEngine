@@ -1055,6 +1055,30 @@ namespace pg
         int exitJump = root.parser.emitJump(OpCode::OP_Long_Jump_If_False);
         root.parser.writeByte(OpCode::OP_Pop); // Pop the condition result
 
+        // Emit the increment before the body and jump-thread around it so
+        // 'continue' advances the counter instead of skipping it (mirrors the
+        // C-style for loop above). Without this, continue jumps back to the
+        // condition without running __i++ and the loop spins forever.
+        int bodyJump = root.parser.emitJump(OpCode::OP_Long_Jump);
+        int incrementStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
+
+        // __i++
+        root.parser.writeByte(OpCode::OP_Get_Local);
+        root.parser.writeByte(counterSlot);
+        root.parser.writeByte(OpCode::OP_Constant);
+        root.parser.writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(1)));
+        root.parser.writeByte(OpCode::OP_Add);
+        root.parser.writeByte(OpCode::OP_Set_Local);
+        root.parser.writeByte(counterSlot);
+        root.parser.writeByte(OpCode::OP_Pop); // Pop the assignment result
+
+        root.parser.emitLoop(loopStart);
+
+        // Continue must jump to the increment, not the condition
+        Compiler::current->loopContexts.back().loopStart = incrementStart;
+
+        root.parser.patchJump(bodyJump);
+
         // Iteration scope holding the key variable
         Compiler::current->beginScope();
 
@@ -1073,17 +1097,8 @@ namespace pg
         Compiler::current->endScope();
         // Stack: [__table, __size, __i]
 
-        // __i++
-        root.parser.writeByte(OpCode::OP_Get_Local);
-        root.parser.writeByte(counterSlot);
-        root.parser.writeByte(OpCode::OP_Constant);
-        root.parser.writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(1)));
-        root.parser.writeByte(OpCode::OP_Add);
-        root.parser.writeByte(OpCode::OP_Set_Local);
-        root.parser.writeByte(counterSlot);
-        root.parser.writeByte(OpCode::OP_Pop); // Pop the assignment result
-
-        root.parser.emitLoop(loopStart);
+        // Loop back to the increment (which then re-checks the condition)
+        root.parser.emitLoop(incrementStart);
 
         root.parser.patchJump(exitJump);
         root.parser.writeByte(OpCode::OP_Pop); // Pop the condition result

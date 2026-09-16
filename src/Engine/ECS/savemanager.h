@@ -100,5 +100,7 @@ namespace pg
         bool needSave = false;
 
         Serializer serializer;
+
+        bool enabled = true;
     };
 }

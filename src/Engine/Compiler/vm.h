@@ -337,13 +337,23 @@ namespace pg
         /** scriptName is only used to label profiler scopes ([deserialize]/[decode]/[exec]) */
         InterpretResult interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount = 0, const std::string& scriptName = "");
 
+        // Deserialize cached bytecode into a function WITHOUT running it. The
+        // returned ObjFunction* is owned by this VM's function pool; release it
+        // with cleanupFunction(). Returns nullptr on empty/invalid bytecode.
+        ObjFunction* deserializeCachedBytecode(const std::vector<char>& cachedBytecode, const std::string& scriptName = "");
+
+        // Persistent-VM fast path (see vm_core.cpp for the rationale):
+        //  - prepareCachedFunction() -> deserialize + decode + freeze constants ONCE.
+        //  - runPreparedFunction()   -> execute a prepared function again, cheaply,
+        //                               with no re-deserialize / re-decode / re-freeze.
+        // The prepared function must be run only on the VM that prepared it, and
+        // released with cleanupFunction() (which frees its decoded chunk).
+        ObjFunction* prepareCachedFunction(const std::vector<char>& cachedBytecode, const std::string& scriptName = "");
+        InterpretResult runPreparedFunction(ObjFunction* funcObj, int argCount = 0, const std::string& scriptName = "");
+
         InterpretResult run();
         InterpretResult runDecoded(DecodedChunk *decoded);  // Execute from pre-decoded chunks (faster)
 
-        // Hot loop compiled twice: ProfileEnabled selects at compile time
-        // whether per-instruction profiling code exists in the loop at all,
-        // so the non-profiled path carries zero profiling overhead.
-        // Defined in vm_core.cpp; only instantiated from runDecoded there.
         template <bool ProfileEnabled>
         InterpretResult runDecodedImpl(DecodedChunk *decoded);
 
