@@ -74,7 +74,7 @@ namespace pg
             changed = true;
         });
 
-        group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
+        group->removeOfGroup([this](EntitySystem*, _unique_id id) {
             LOG_MILE(DOM, "Remove entity " << id << " of ui - ttf group !");
 
             entityRenderCalls.erase(id);
@@ -427,10 +427,10 @@ namespace pg
                     glyph.relY = (currentY - startY) - ch.bearing.y * scale + lineHeight;
                     glyph.w = ch.size.x * scale;
                     glyph.h = ch.size.y * scale;
-                    glyph.a = seg.colors.w;
-                    glyph.r = seg.colors.x;
-                    glyph.g = seg.colors.y;
-                    glyph.b = seg.colors.z;
+                    glyph.a = seg.colors.w / 255.0f;
+                    glyph.r = seg.colors.x / 255.0f;
+                    glyph.g = seg.colors.y / 255.0f;
+                    glyph.b = seg.colors.z / 255.0f;
                     glyph.uvX0 = ch.uvTopLeft.x;
                     glyph.uvY0 = ch.uvTopLeft.y;
                     glyph.uvX1 = ch.uvBottomRight.x;

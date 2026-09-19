@@ -1478,6 +1478,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/svgloader.cc
             test/iconatlas.cc
             test/iconsystem.cc
+            test/ttftext.cc
             test/scriptregistry.cc
             test/serialize.cc
             test/taskflow.cc

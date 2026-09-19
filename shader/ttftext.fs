@@ -17,6 +17,6 @@ void main()
     // Mix the pixel color with a provided mixColor.
     vec3 color = mix(pixelColor.rgb, mixColor, mixColorRatio);
 
-    // The final color uses the computed alpha.
-    FragColor = vec4(color, pixelColor.a);
+    // The final color uses the computed alpha, scaled by the requested opacity.
+    FragColor = vec4(color, pixelColor.a * opacity);
 }
