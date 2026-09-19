@@ -1036,6 +1036,56 @@ namespace pg
         return x >= pos->x and x <= pos->x + pos->width and y >= pos->y and y <= pos->y + pos->height;
     }
 
+    constant::Vector4D effectiveClipRect(const EntitySystem* ecs, _unique_id clipperId, bool& found)
+    {
+        found = false;
+        constant::Vector4D rect{0.0f, 0.0f, 0.0f, 0.0f};
+
+        _unique_id currentId = clipperId;
+
+        // Cap the walk so a ClippedTo cycle cannot hang.
+        for (int depth = 0; depth < 16 and currentId != 0; ++depth)
+        {
+            auto clipper = ecs->getEntity(currentId);
+            if (not clipper or not clipper->has<PositionComponent>())
+                break;
+
+            auto pos = clipper->get<PositionComponent>();
+            const constant::Vector4D clipperRect{pos->x, pos->y, pos->width, pos->height};
+
+            if (not found)
+            {
+                rect = clipperRect;
+                found = true;
+            }
+            else
+            {
+                const float x1 = std::max(rect.x, clipperRect.x);
+                const float y1 = std::max(rect.y, clipperRect.y);
+                const float x2 = std::min(rect.x + rect.z, clipperRect.x + clipperRect.z);
+                const float y2 = std::min(rect.y + rect.w, clipperRect.y + clipperRect.w);
+
+                const float width = x2 - x1;
+                const float height = y2 - y1;
+
+                if (width <= 0.0f or height <= 0.0f)
+                {
+                    // Empty intersection: nothing is visible through the whole chain.
+                    return constant::Vector4D{0.0f, 0.0f, 0.0f, 0.0f};
+                }
+
+                rect = constant::Vector4D{x1, y1, width, height};
+            }
+
+            if (clipper->has<ClippedTo>())
+                currentId = clipper->get<ClippedTo>()->clipperId;
+            else
+                break;
+        }
+
+        return rect;
+    }
+
     bool inClipBound(EntityRef entity, float x, float y)
     {
         // We first check if the pos is in the entity
@@ -1051,10 +1101,18 @@ namespace pg
             return inEntityBound;
         }
 
-        // If the entity is clipped to something, then we just check if the pos is also in the clipper's bound
-        auto clipper = entity->world()->getEntity(entity->get<ClippedTo>()->clipperId);
+        // Otherwise the pos must also be inside the intersection of every clipper up the chain
+        bool found = false;
+        const auto rect = effectiveClipRect(entity->world(), entity->get<ClippedTo>()->clipperId, found);
 
-        return inBound(clipper, x, y);
+        if (not found)
+            return inEntityBound;
+
+        // An empty (zero-sized) intersection clips everything away.
+        if (rect.z <= 0.0f or rect.w <= 0.0f)
+            return false;
+
+        return x >= rect.x and x <= rect.x + rect.z and y >= rect.y and y <= rect.y + rect.w;
     }
 
     // Serialize function for ResizeHandleComponent

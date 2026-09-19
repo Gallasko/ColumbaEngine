@@ -72,22 +72,15 @@ namespace pg
         {
             auto clippedTo = entity->get<ClippedTo>();
 
-            auto clippedToEntity = component.ecsRef->getEntity(clippedTo->clipperId);
+            // Intersect every clipper up the chain. An empty intersection is a valid,
+            // zero-sized scissor: a row scrolled out of a nested list draws nothing.
+            bool found = false;
+            const auto rect = effectiveClipRect(component.ecsRef, clippedTo->clipperId, found);
 
-            if (clippedToEntity and clippedToEntity->has<PositionComponent>())
+            if (found)
             {
                 state.scissorEnabled = true;
-
-                auto position = clippedToEntity->get<PositionComponent>();
-
-                float tx = position->x;
-                float ty = position->y;
-
-                float w = position->width;
-                float h = position->height;
-
-                // To get width and height you need to subtract bottom corner to the top corner
-                state.scissorBound = constant::Vector4D{tx, ty, w, h};
+                state.scissorBound = rect;
             }
         }
 

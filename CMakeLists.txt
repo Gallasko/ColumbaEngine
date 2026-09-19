@@ -1513,6 +1513,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/decoratedshapes.cc
             test/hover.cc
             test/tooltip.cc
+            test/clip.cc
             test/scriptregistry.cc
             test/serialize.cc
             test/taskflow.cc

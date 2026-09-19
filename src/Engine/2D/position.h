@@ -401,4 +401,10 @@ namespace pg
     bool inBound(EntityRef entity, float x, float y);
 
     bool inClipBound(EntityRef entity, float x, float y);
+
+    // Walks the ClippedTo chain from clipperId (clipper -> its clipper -> ...), intersecting the
+    // clippers' rectangles. Returns {x, y, width, height}; an empty intersection is {0, 0, 0, 0}
+    // with found = true. found is false only when there is no clipper at all. Capped at 16 to
+    // survive a cycle.
+    constant::Vector4D effectiveClipRect(const EntitySystem* ecs, _unique_id clipperId, bool& found);
 }
