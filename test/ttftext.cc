@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "UI/ttftext.h"
+#include "UI/utf8.h"
 
 #include "ECS/entitysystem.h"
 
@@ -231,6 +232,81 @@ namespace pg
                 const float origin = uiX + glyph.relX;
                 EXPECT_NEAR(origin, std::round(origin), 1e-4f);
             }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, utf8_decode)
+        {
+            const std::vector<uint32_t> decoded = utf8::decode("\xE2\x86\x92 \xE2\x80\x94 \xC3\x97");
+            const std::vector<uint32_t> expected = {0x2192, 0x20, 0x2014, 0x20, 0xD7};
+            EXPECT_EQ(decoded, expected);
+
+            const std::vector<uint32_t> invalid = utf8::decode("\xFF");
+            const std::vector<uint32_t> replacement = {0xFFFD};
+            EXPECT_EQ(invalid, replacement);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, arrows_have_glyphs)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            EXPECT_NE(sys->fonts.at("inter").glyph(0x2192), nullptr);
+
+            const float withArrow = sys->measureText("inter", "3 \xE2\x86\x92 4").width;
+            const float withSpace = sys->measureText("inter", "3  4").width;
+
+            EXPECT_GT(withArrow, withSpace);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, wrap_keeps_box_width)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", "one two three four five six seven eight nine ten");
+            text.get<TTFText>()->setWrap(true);
+            text.get<PositionComponent>()->setWidth(80.0f);
+
+            ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(text.get<PositionComponent>()->width, 80.0f);
+            EXPECT_LE(text.get<TTFText>()->textWidth, 80.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, atlas_overflow_is_reported)
+        {
+            MockLogger logger;
+
+            FT_Library ft;
+            ASSERT_EQ(FT_Init_FreeType(&ft), 0);
+
+            // The atlas keeps its FT_Face open, so it must be destroyed before the library.
+            {
+                FontAtlas atlas;
+                const bool built = atlas.build(ft, "fonts/Inter-Regular.ttf", 400, defaultCharset());
+
+                EXPECT_FALSE(built);
+            }
+
+            FT_Done_FreeType(ft);
         }
     }
 }

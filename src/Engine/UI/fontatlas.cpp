@@ -202,8 +202,24 @@ namespace pg
         static const std::vector<uint32_t> charset = []
         {
             std::vector<uint32_t> codepoints;
-            for (uint32_t c = 32; c <= 126; ++c)
-                codepoints.push_back(c);
+
+            auto addRange = [&codepoints](uint32_t lo, uint32_t hi)
+            {
+                for (uint32_t c = lo; c <= hi; ++c)
+                    codepoints.push_back(c);
+            };
+
+            addRange(32, 126);      // ASCII
+            addRange(160, 255);     // Latin-1 Supplement (includes U+00D7 x and U+00B7 middle dot)
+            addRange(8211, 8212);   // en dash, em dash
+            addRange(8216, 8217);   // left/right single quote
+            addRange(8220, 8221);   // left/right double quote
+            codepoints.push_back(8226);   // bullet
+            codepoints.push_back(8230);   // horizontal ellipsis
+            addRange(8592, 8595);   // left, up, right, down arrows
+            codepoints.push_back(8722);   // minus sign
+            codepoints.push_back(65533);  // replacement character
+
             return codepoints;
         }();
 

@@ -5,6 +5,8 @@
 
 #include "ECS/entitysystem.h"
 
+#include "UI/utf8.h"
+
 #ifdef __EMSCRIPTEN__
 #define GL_GLEXT_PROTOTYPES 1
 #include <emscripten.h>
@@ -282,26 +284,28 @@ namespace pg
                 continue;
             }
 
-            const std::string& s = seg.text;
+            // Decode once per segment; markup was already split off as ASCII, so the
+            // remaining bytes are text. Word boundaries stay U+0020.
+            const std::vector<uint32_t> codepoints = utf8::decode(seg.text);
 
-            for (size_t i = 0; i < s.length(); ++i)
+            for (size_t i = 0; i < codepoints.size(); ++i)
             {
-                const unsigned char byte = static_cast<unsigned char>(s[i]);
+                const uint32_t codepoint = codepoints[i];
 
-                if (byte == ' ')
+                if (codepoint == 0x20)
                 {
                     penX += spaceAdvance;
-                    prev = byte;
+                    prev = codepoint;
                     continue;
                 }
 
                 // At a word start, wrap the whole word down a line if it would overflow.
-                const bool wordStart = (i == 0) or (s[i - 1] == ' ');
+                const bool wordStart = (i == 0) or (codepoints[i - 1] == 0x20);
                 if (wrapEnabled and wordStart)
                 {
                     float wordWidth = 0.0f;
-                    for (size_t j = i; j < s.length() and s[j] != ' '; ++j)
-                        wordWidth += atlas.glyphOrNotdef(static_cast<unsigned char>(s[j])).advance * scale;
+                    for (size_t j = i; j < codepoints.size() and codepoints[j] != 0x20; ++j)
+                        wordWidth += atlas.glyphOrNotdef(codepoints[j]).advance * scale;
 
                     if (penX > 0.0f and penX + wordWidth > maxWidth)
                     {
@@ -310,8 +314,6 @@ namespace pg
                         prev = 0;
                     }
                 }
-
-                const uint32_t codepoint = static_cast<uint32_t>(byte);
 
                 // Kerning keeps sub-pixel precision on the pen; only the glyph origin snaps.
                 if (fm.hasKerning and prev != 0)
@@ -400,7 +402,11 @@ namespace pg
         if (areNotAlmostEqual(obj->textWidth, metrics.width))
         {
             obj->textWidth = metrics.width;
-            ui->setWidth(metrics.width);
+
+            // When wrapping, ui->width is the constraint and must stay put; textWidth
+            // just reports the widest line. Only unwrapped text sizes its box to fit.
+            if (not obj->wrap)
+                ui->setWidth(metrics.width);
         }
 
         if (areNotAlmostEqual(obj->textHeight, metrics.height))
