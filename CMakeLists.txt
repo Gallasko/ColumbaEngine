@@ -341,6 +341,7 @@ set(ENGINESOURCE
     src/Engine/Systems/uimodule.cpp
     src/Engine/UI/button.cpp
     src/Engine/UI/focusable.cpp
+    src/Engine/UI/iconatlas.cpp
     src/Engine/UI/listview.cpp
     src/Engine/UI/namedanchor.cpp
     src/Engine/UI/prefabbuilder.cpp
@@ -1446,6 +1447,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/mockloggertest.cc
             test/renderer.cc
             test/svgloader.cc
+            test/iconatlas.cc
             test/scriptregistry.cc
             test/serialize.cc
             test/taskflow.cc
