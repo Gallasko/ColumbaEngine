@@ -17,33 +17,39 @@ namespace pg
                 case AnchorType::Top:
                     return posComp->y;
                     break;
+
                 case AnchorType::Left:
                     return posComp->x;
                     break;
+
                 case AnchorType::Right:
                     if (posComp->visible)
                         return posComp->x + posComp->width;
                     else
                         return posComp->x;
                     break;
+
                 case AnchorType::Bottom:
                     if (posComp->visible)
                         return posComp->y + posComp->height;
                     else
                         return posComp->y;
                     break;
+
                 case AnchorType::VerticalCenter:
                     if (posComp->visible)
                         return posComp->y + posComp->height / 2.0f;
                     else
                         return posComp->y;
                     break;
+
                 case AnchorType::HorizontalCenter:
                     if (posComp->visible)
                         return posComp->x + posComp->width / 2.0f;
                     else
                         return posComp->x;
                     break;
+
                 default:
                     // Todo add support for width, height, center alignment ... to this getter
                     LOG_ERROR("UiAnchor", "Invalid anchor type, type is not yet managed");
@@ -59,6 +65,7 @@ namespace pg
             if (not entity or not entity->has<PositionComponent>())
             {
                 LOG_MILE("PosConstrain", "Entity " << constrain.id << " does not have a PositionComponent!");
+
                 return 0.0f;
             }
 
@@ -125,64 +132,6 @@ namespace pg
             return value;
         }
     }
-
-    // AnchorType to string map
-    const std::map<AnchorType, std::string> AnchorTypeToStringMap = {
-        {AnchorType::None, "None"},
-        {AnchorType::Top, "Top"},
-        {AnchorType::Right, "Right"},
-        {AnchorType::Bottom, "Bottom"},
-        {AnchorType::Left, "Left"},
-        {AnchorType::X, "X"},
-        {AnchorType::Y, "Y"},
-        {AnchorType::Z, "Z"},
-        {AnchorType::Width, "Width"},
-        {AnchorType::Height, "Height"},
-        {AnchorType::TMargin, "TMargin"},
-        {AnchorType::RMargin, "RMargin"},
-        {AnchorType::BMargin, "BMargin"},
-        {AnchorType::LMargin, "LMargin"},
-        {AnchorType::VerticalCenter, "VerticalCenter"},
-        {AnchorType::HorizontalCenter, "HorizontalCenter"}
-    };
-
-    // String to AnchorType map
-    const std::map<std::string, AnchorType> StringToAnchorTypeMap = {
-        {"None", AnchorType::None},
-        {"Top", AnchorType::Top},
-        {"Right", AnchorType::Right},
-        {"Bottom", AnchorType::Bottom},
-        {"Left", AnchorType::Left},
-        {"X", AnchorType::X},
-        {"Y", AnchorType::Y},
-        {"Z", AnchorType::Z},
-        {"Width", AnchorType::Width},
-        {"Height", AnchorType::Height},
-        {"TMargin", AnchorType::TMargin},
-        {"RMargin", AnchorType::RMargin},
-        {"BMargin", AnchorType::BMargin},
-        {"LMargin", AnchorType::LMargin},
-        {"VerticalCenter", AnchorType::VerticalCenter},
-        {"HorizontalCenter", AnchorType::HorizontalCenter}
-    };
-
-    // PosOpType to string map
-    const std::map<PosOpType, std::string> PosOpTypeToStringMap = {
-        {PosOpType::None, "None"},
-        {PosOpType::Add, "Add"},
-        {PosOpType::Sub, "Sub"},
-        {PosOpType::Mul, "Mul"},
-        {PosOpType::Div, "Div"}
-    };
-
-    // String to PosOpType map
-    const std::map<std::string, PosOpType> StringToPosOpTypeMap = {
-        {"None", PosOpType::None},
-        {"Add", PosOpType::Add},
-        {"Sub", PosOpType::Sub},
-        {"Mul", PosOpType::Mul},
-        {"Div", PosOpType::Div}
-    };
 
     // Serialize function for UiAnchor
     template <>
@@ -284,6 +233,7 @@ namespace pg
         std::string typeStr;
         defaultDeserialize(serializedString, "type", typeStr);
         data.type = StringToAnchorTypeMap.at(typeStr); // Use the map for conversion
+
         defaultDeserialize(serializedString, "value", data.value);
 
         return data;
@@ -846,8 +796,10 @@ namespace pg
             Node n;
             n.id = id;
             n.pos = entity->get<PositionComponent>();
+
             if (entity->has<UiAnchor>())
                 n.anchor = entity->get<UiAnchor>();
+
             n.indeg = 0;
             n.processed = false;
             // Direct PositionComponentChangedEvent targets always emit a PositionSettledEvent,

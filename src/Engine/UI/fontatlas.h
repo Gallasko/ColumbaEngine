@@ -61,7 +61,7 @@ namespace pg
         std::vector<unsigned char> atlasBuffer;
         std::unordered_map<uint32_t, GlyphInfo> glyphs;
         GlyphInfo notdefGlyph;                                 // fallback for missing code points
-        mutable std::unordered_map<uint64_t, float> kernCache; // (left << 32 | right) → px
+        mutable std::unordered_map<uint64_t, float> kernCache; // (left << 32 | right) -> px
         FT_Face face = nullptr;                                // kept open for kerning; freed in the destructor
     };
 

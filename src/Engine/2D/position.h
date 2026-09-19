@@ -4,6 +4,8 @@
 
 #include "pgconstant.h"
 
+#include "Helpers/helpers.h"
+
 #include "Components/PositionComponent.generated.h"
 
 namespace pg
@@ -56,13 +58,40 @@ namespace pg
         Div
     };
 
-    // AnchorType to string and string to AnchorType maps
-    extern const std::map<AnchorType, std::string> AnchorTypeToStringMap;
-    extern const std::map<std::string, AnchorType> StringToAnchorTypeMap;
+    // AnchorType to string map
+    const static std::unordered_map<AnchorType, std::string> AnchorTypeToStringMap = {
+        {AnchorType::None, "None"},
+        {AnchorType::Top, "Top"},
+        {AnchorType::Right, "Right"},
+        {AnchorType::Bottom, "Bottom"},
+        {AnchorType::Left, "Left"},
+        {AnchorType::X, "X"},
+        {AnchorType::Y, "Y"},
+        {AnchorType::Z, "Z"},
+        {AnchorType::Width, "Width"},
+        {AnchorType::Height, "Height"},
+        {AnchorType::TMargin, "TMargin"},
+        {AnchorType::RMargin, "RMargin"},
+        {AnchorType::BMargin, "BMargin"},
+        {AnchorType::LMargin, "LMargin"},
+        {AnchorType::VerticalCenter, "VerticalCenter"},
+        {AnchorType::HorizontalCenter, "HorizontalCenter"}
+    };
 
-    // PosOpType to string and string to PosOpType maps
-    extern const std::map<PosOpType, std::string> PosOpTypeToStringMap;
-    extern const std::map<std::string, PosOpType> StringToPosOpTypeMap;
+    // String to AnchorType map
+    const static auto StringToAnchorTypeMap = invertMap(AnchorTypeToStringMap);
+
+    // PosOpType to string map
+    const static std::unordered_map<PosOpType, std::string> PosOpTypeToStringMap = {
+        {PosOpType::None, "None"},
+        {PosOpType::Add, "Add"},
+        {PosOpType::Sub, "Sub"},
+        {PosOpType::Mul, "Mul"},
+        {PosOpType::Div, "Div"}
+    };
+
+    // String to PosOpType map
+    const static auto StringToPosOpTypeMap = invertMap(PosOpTypeToStringMap);
 
     // inline static std::string getType() { return "UiComponent"; }
 
