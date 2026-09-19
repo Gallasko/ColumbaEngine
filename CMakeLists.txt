@@ -932,6 +932,22 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(IconAtlasTest examples/IconAtlasTest/main.cpp)
+
+        target_include_directories(IconAtlasTest PUBLIC examples/IconAtlasTest)
+
+        target_sources(IconAtlasTest PRIVATE
+            examples/IconAtlasTest/application.cpp
+        )
+
+        target_link_libraries(IconAtlasTest PRIVATE ColumbaEngine)
+
+        set_target_properties(IconAtlasTest
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
+
         add_executable(Asteroid examples/Asteroid/main.cpp)
 
         target_include_directories(Asteroid PUBLIC examples/Asteroid)
@@ -1203,6 +1219,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         target_link_libraries(RenderingTest PRIVATE ColumbaEngine)
+
+        ###
+
+        add_executable(IconAtlasTest examples/IconAtlasTest/main.cpp)
+
+        target_include_directories(IconAtlasTest PUBLIC examples/IconAtlasTest)
+
+        target_sources(IconAtlasTest PRIVATE
+            examples/IconAtlasTest/application.cpp
+        )
+
+        target_link_libraries(IconAtlasTest PRIVATE ColumbaEngine)
 
         ###
 
