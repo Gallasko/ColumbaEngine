@@ -13,79 +13,175 @@
 
 namespace pg
 {
-    InterpretResult interpretWithSysData(StandardSystemHandle* sys, VM& vm, const std::vector<char>& cachedBytecode)
+    // ========================================================================
+    // System Data Setup - Expose system's persistent data storage to scripts
+    // ========================================================================
+    // The system data (ElementMap) is serialized to a VM table called "sysData"
+    // Scripts can read/write to this table using standard field access:
+    //   sysData.myCounter = sysData.myCounter + 1
+    //   var x = sysData.someValue
+    //
+    // After script execution, changes are copied back to C++ ElementMap
+    // This allows systems to maintain state between script invocations
+    //
+    // TODO: If immediate synchronization is needed during script execution,
+    //       consider implementing setter methods (see StandardComponent setters)
+    // Todo those setter should actually replace the setter of the __table it this case
+    // ========================================================================
+    static void pushSysData(StandardSystemHandle* sys, VM& vm)
     {
-        // ========================================================================
-        // System Data Setup - Expose system's persistent data storage to scripts
-        // ========================================================================
-        // The system data (ElementMap) is serialized to a VM table called "sysData"
-        // Scripts can read/write to this table using standard field access:
-        //   sysData.myCounter = sysData.myCounter + 1
-        //   var x = sysData.someValue
-        //
-        // After script execution, changes are copied back to C++ ElementMap
-        // This allows systems to maintain state between script invocations
-        //
-        // TODO: If immediate synchronization is needed during script execution,
-        //       consider implementing setter methods (see StandardComponent setters)
-        // ========================================================================
-        if (sys->_internalSystemPtr)
+        if (not sys->_internalSystemPtr)
+            return;
+
+        ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
+
+        // Create a VM table to hold system data
+        VM::GlobalCell* cell = vm.findGlobalCell("__Table");
+        if (cell != nullptr and cell->defined)
         {
-            ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
+            Klass* tableClass = vm.asClass(cell->value);
+            Value dataTableValue = vm.createInstance(tableClass);
+            ObjInstance* dataTable = vm.asInstance(dataTableValue);
 
-            // Create a VM table to hold system data
-            VM::GlobalCell* cell = vm.findGlobalCell("__Table");
-            if (cell != nullptr and cell->defined)
+            // Copy all C++ ElementMap entries to VM table
+            for (const auto& [key, elemValue] : sysData)
             {
-                Klass* tableClass = vm.asClass(cell->value);
-                Value dataTableValue = vm.createInstance(tableClass);
-                ObjInstance* dataTable = vm.asInstance(dataTableValue);
-
-                // Copy all C++ ElementMap entries to VM table
-                for (const auto& [key, elemValue] : sysData)
-                {
-                    dataTable->setField(key, vm.retainValue(vm.elementToValue(elemValue)));
-                }
-
-                vm.defineGlobal("sysData", dataTableValue);
+                dataTable->setField(key, vm.retainValue(vm.elementToValue(elemValue)));
             }
+
+            // Overwrites (and releases) any sysData table from a previous run.
+            vm.defineGlobal("sysData", dataTableValue);
         }
+    }
 
-        // Interpret cached bytecode
-        InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0);
+    // ========================================================================
+    // System Data Synchronization - Copy script changes back to C++
+    // ========================================================================
+    // After script execution, any changes made to the sysData table are copied
+    // back to the C++ ElementMap so they persist across script invocations.
+    // ========================================================================
+    static void pullSysData(StandardSystemHandle* sys, VM& vm, InterpretResult result)
+    {
+        if (not sys->_internalSystemPtr or result != InterpretResult::OK)
+            return;
 
-        // ========================================================================
-        // System Data Synchronization - Copy script changes back to C++
-        // ========================================================================
-        // After script execution, any changes made to sysData table are copied
-        // back to the C++ ElementMap so they persist across script invocations
-        // ========================================================================
-        if (sys->_internalSystemPtr and result == InterpretResult::OK)
+        ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
+
+        VM::GlobalCell* cell = vm.findGlobalCell("sysData");
+        if (cell != nullptr and cell->defined and IS_INSTANCE(cell->value))
         {
-            ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
+            ObjInstance* dataTable = vm.asInstance(cell->value);
 
-            VM::GlobalCell* cell = vm.findGlobalCell("sysData");
-            if (cell != nullptr and cell->defined and IS_INSTANCE(cell->value))
+            // Copy all fields from VM table back to C++ ElementMap
+            // This overwrites existing keys and adds new ones
+            for (const auto& [key, v] : dataTable->internedFields)
             {
-                ObjInstance* dataTable = vm.asInstance(cell->value);
+                auto vmValue = dataTable->fieldValues[v];
 
-                // Copy all fields from VM table back to C++ ElementMap
-                // This overwrites existing keys and adds new ones
-                for (const auto& [key, v] : dataTable->internedFields)
+                // Skip internal VM fields
+                if (key != "__className" and not key.empty())
                 {
-                    auto vmValue = dataTable->fieldValues[v];
-
-                    // Skip internal VM fields
-                    if (key != "__className" and not key.empty())
-                    {
-                        sysData[key] = vm.valueToElement(vmValue);
-                    }
+                    sysData[key] = vm.valueToElement(vmValue);
                 }
             }
         }
+    }
 
+    // Fallback path (re-entrant runs): deserialize + decode + run + cleanup on a
+    // throwaway VM, exactly as before the persistent-VM fast path existed.
+    InterpretResult interpretWithSysData(StandardSystemHandle* sys, VM& vm, const std::vector<char>& cachedBytecode, const std::string& scriptName = "")
+    {
+        pushSysData(sys, vm);
+        InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0, scriptName);
+        pullSysData(sys, vm, result);
         return result;
     }
+
+    namespace
+    {
+        // Persistent per-hook VM state. Each system hook (init / execute / delta /
+        // event) keeps its OWN long-lived VM so hooks stay isolated from each
+        // other's globals, exactly like the previous fresh-VM-per-call model —
+        // except the bytecode is deserialized + decoded + constant-frozen ONCE
+        // (prepareCachedFunction) and only executed thereafter (runPreparedFunction).
+        struct HookVmState
+        {
+            VM                     vm;
+            ObjFunction*           fn = nullptr;
+            ScriptHandle::Bytecode boundCode;   // bytecode `fn` was prepared from
+            bool                   initialized = false; // setupVm + native module done
+            bool                   busy = false;        // re-entrancy guard
+        };
+
+        struct BusyGuard
+        {
+            bool& flag;
+            explicit BusyGuard(bool& f) : flag(f) { flag = true; }
+            ~BusyGuard() { flag = false; }
+        };
+
+        // Run one hook through its persistent VM. sysModuleCtx == nullptr means
+        // "no sys module" (init-script parity). perCallSetup defines the per-run
+        // globals (deltaTime / event) and may be empty.
+        InterpretResult runHook(StandardSystemHandle* sys,
+                                HookVmState& st,
+                                StandardSystemImpl* sysModuleCtx,
+                                const ScriptHandle::Bytecode& code,
+                                const std::string& scriptName,
+                                const std::function<void(VM&)>& perCallSetup)
+        {
+            auto ecsRef = sys->getWorld();
+
+            // Re-entrancy: the persistent VM is already mid-run (e.g. a nested
+            // event handled by the same hook). Its stack/globals must not be
+            // reused, so fall back to a throwaway VM for this nested run.
+            if (st.busy)
+            {
+                VM vm;
+                ecsRef->setupVm(vm);
+                if (sysModuleCtx)
+                    vm.addNativeModule("sys", SystemModule{sysModuleCtx});
+                if (perCallSetup)
+                    perCallSetup(vm);
+                return interpretWithSysData(sys, vm, *code, scriptName);
+            }
+
+            // One-time VM setup: native modules registered once, not per frame.
+            if (not st.initialized)
+            {
+                ecsRef->setupVm(st.vm);
+                if (sysModuleCtx)
+                    st.vm.addNativeModule("sys", SystemModule{sysModuleCtx});
+                st.initialized = true;
+            }
+
+            // (Re)prepare on first use or after a hot reload (bytecode swapped).
+            if (st.fn == nullptr or st.boundCode != code)
+            {
+                if (st.fn)
+                {
+                    st.vm.cleanupFunction(st.fn);
+                    st.fn = nullptr;
+                }
+                st.fn = st.vm.prepareCachedFunction(*code, scriptName);
+                st.boundCode = code;
+            }
+
+            if (st.fn == nullptr)
+                return InterpretResult::COMPILE_ERROR;
+
+            // Per-run globals (deltaTime / event) + sysData table are allocated
+            // AFTER prepare's one-time constant freeze, so they stay ref-counted
+            // and are reclaimed each run instead of leaking as frozen constants.
+            BusyGuard guard(st.busy);
+            if (perCallSetup)
+                perCallSetup(st.vm);
+            pushSysData(sys, st.vm);
+            InterpretResult result = st.vm.runPreparedFunction(st.fn, 0, scriptName);
+            pullSysData(sys, st.vm, result);
+            return result;
+        }
+    } // namespace
 
     void StandardSystemImpl::addToRegistry(ComponentRegistry *registry)
     {
@@ -120,26 +216,20 @@ namespace pg
             std::string capturedScriptName = scriptName;
 
             // Register the event handler with the shared script handle (hot reloadable)
-            eventCompiledScriptCallbackList.emplace(eventName, [this, script, capturedScriptName](StandardSystemHandle* sys, const StandardEvent& event) {
+            auto state = std::make_shared<HookVmState>();
+            eventCompiledScriptCallbackList.emplace(eventName, [this, script, capturedScriptName, state](StandardSystemHandle* sys, const StandardEvent& event) {
                 // Pin this run's version of the bytecode
                 auto code = script->bytecode();
 
                 if (not code)
                     return;
 
-                auto ecsRef = sys->getWorld();
+                PROFILE_SCOPE(capturedScriptName, "Script");
 
-                VM vm;
-                ecsRef->setupVm(vm);
-
-                // Add sys module for accessing system's entities by component
-                vm.addNativeModule("sys", SystemModule{this});
-
-                // Set up event data before interpreting
-                auto value = serializeToTable(&vm, event);
-                vm.defineGlobal("event", value);
-
-                auto result = interpretWithSysData(sys, vm, *code);
+                auto result = runHook(sys, *state, this, code, capturedScriptName,
+                    [&event](VM& vm) {
+                        vm.defineGlobal("event", serializeToTable(&vm, event));
+                    });
 
                 if (result != InterpretResult::OK)
                 {
@@ -161,20 +251,19 @@ namespace pg
             }
             else
             {
-                // Register the init handler with the shared script handle
-                compiledInitScriptCallback = [script, scriptName = initScript](StandardSystemHandle* sys) {
+                // Register the init handler with the shared script handle.
+                // Init scripts get no "sys" module (nullptr ctx), matching prior behavior.
+                auto state = std::make_shared<HookVmState>();
+                compiledInitScriptCallback = [script, scriptName = initScript, state](StandardSystemHandle* sys) {
                     // Pin this run's version of the bytecode
                     auto code = script->bytecode();
 
                     if (not code)
                         return;
 
-                    auto ecsRef = sys->getWorld();
+                    PROFILE_SCOPE(scriptName, "Script");
 
-                    VM vm;
-                    ecsRef->setupVm(vm);
-
-                    auto result = interpretWithSysData(sys, vm, *code);
+                    auto result = runHook(sys, *state, nullptr, code, scriptName, {});
 
                     if (result != InterpretResult::OK)
                     {
@@ -198,22 +287,17 @@ namespace pg
             else
             {
                 // Register the execute handler with the shared script handle (hot reloadable)
-                compiledExecuteScriptCallback = [this, script, scriptName = executeScript](StandardSystemHandle* sys) {
+                auto state = std::make_shared<HookVmState>();
+                compiledExecuteScriptCallback = [this, script, scriptName = executeScript, state](StandardSystemHandle* sys) {
                     // Pin this run's version of the bytecode
                     auto code = script->bytecode();
 
                     if (not code)
                         return;
 
-                    auto ecsRef = sys->getWorld();
+                    PROFILE_SCOPE(scriptName, "Script");
 
-                    VM vm;
-                    ecsRef->setupVm(vm);
-
-                    // Add sys module for accessing system's entities by component
-                    vm.addNativeModule("sys", SystemModule{this});
-
-                    auto result = interpretWithSysData(sys, vm, *code);
+                    auto result = runHook(sys, *state, this, code, scriptName, {});
 
                     if (result != InterpretResult::OK)
                     {
@@ -236,24 +320,20 @@ namespace pg
             else
             {
                 // Register the deltaTime handler with the shared script handle (hot reloadable)
-                compiledDeltaScriptCallback = [this, script, scriptName = deltaScript](StandardSystemHandle* sys, float deltaTime) {
+                auto state = std::make_shared<HookVmState>();
+                compiledDeltaScriptCallback = [this, script, scriptName = deltaScript, state](StandardSystemHandle* sys, float deltaTime) {
                     // Pin this run's version of the bytecode
                     auto code = script->bytecode();
 
                     if (not code)
                         return;
 
-                    auto ecsRef = sys->getWorld();
+                    PROFILE_SCOPE(scriptName, "Script");
 
-                    VM vm;
-                    ecsRef->setupVm(vm);
-
-                    // Add sys module for accessing system's entities by component
-                    vm.addNativeModule("sys", SystemModule{this});
-
-                    vm.defineGlobal("deltaTime", vm.elementToValue(deltaTime));
-
-                    auto result = interpretWithSysData(sys, vm, *code);
+                    auto result = runHook(sys, *state, this, code, scriptName,
+                        [deltaTime](VM& vm) {
+                            vm.defineGlobal("deltaTime", vm.elementToValue(deltaTime));
+                        });
 
                     if (result != InterpretResult::OK)
                     {
@@ -279,24 +359,20 @@ namespace pg
 
             std::string capturedScriptName = scriptName;
 
-            deferredEventCompiledScriptCallbackList.emplace(eventName, [this, script, capturedScriptName](StandardSystemHandle* sys, const StandardEvent& event) {
+            auto state = std::make_shared<HookVmState>();
+            deferredEventCompiledScriptCallbackList.emplace(eventName, [this, script, capturedScriptName, state](StandardSystemHandle* sys, const StandardEvent& event) {
                 // Pin this run's version of the bytecode
                 auto code = script->bytecode();
 
                 if (not code)
                     return;
 
-                auto ecsRef = sys->getWorld();
+                PROFILE_SCOPE(capturedScriptName, "Script");
 
-                VM vm;
-                ecsRef->setupVm(vm);
-
-                vm.addNativeModule("sys", SystemModule{this});
-
-                auto value = serializeToTable(&vm, event);
-                vm.defineGlobal("event", value);
-
-                auto result = interpretWithSysData(sys, vm, *code);
+                auto result = runHook(sys, *state, this, code, capturedScriptName,
+                    [&event](VM& vm) {
+                        vm.defineGlobal("event", serializeToTable(&vm, event));
+                    });
 
                 if (result != InterpretResult::OK)
                 {

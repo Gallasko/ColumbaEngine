@@ -1,0 +1,35 @@
+import "ecs"
+import "input"
+
+// PaddleSystem delta: keyboard movement, clamped to the screen.
+
+var screenWidth = 820
+
+var paddle = getEntity(sysData["paddleId"])
+var paddlePos = paddle["PositionComponent"]
+
+var dir = 0.0
+
+if (isKeyPressed(KEY_LEFT) or isKeyPressed(KEY_A))
+{
+    dir = dir - 1.0
+}
+
+if (isKeyPressed(KEY_RIGHT) or isKeyPressed(KEY_D))
+{
+    dir = dir + 1.0
+}
+
+var px = paddlePos.x + dir * sysData["paddleSpeed"] * deltaTime
+
+if (px < 0)
+{
+    px = 0
+}
+
+if (px > screenWidth - paddlePos.width)
+{
+    px = screenWidth - paddlePos.width
+}
+
+paddlePos.x = px

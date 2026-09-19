@@ -72,6 +72,14 @@ LANGUAGES = {
         "cmd": lambda script, n: [_pgscript_bin(), f"--script={script}", f"--count={n}", "--no-opt"],
         "opt_level": "O0",
     },
+    # AST front-end (AstCompiler): same O3 pipeline plus the AST-level passes
+    # (static loop evaluation, loop-invariant hoisting). Comparing this row
+    # against plain `pgscript` isolates what the AST front-end buys.
+    "pgscript-ast": {
+        "ext": "pg",
+        "cmd": lambda script, n: [_pgscript_bin(), f"--script={script}", f"--count={n}", "--frontend=ast"],
+        "opt_level": "O3-ast",
+    },
     "python": {
         "ext": "py",
         "cmd": lambda script, n: ["python3", script, str(n)],
@@ -213,6 +221,8 @@ def main():
                              "wall_ns", "script_ns", "peak_rss_kb"])
             out.flush()
 
+        rows_per_lang = {lang: 0 for lang in languages}
+
         for lang in languages:
             ext = LANGUAGES[lang]["ext"]
             cmd_fn = LANGUAGES[lang]["cmd"]
@@ -246,12 +256,23 @@ def main():
                             res.script_ns if res.script_ns is not None else "",
                             res.peak_rss_kb,
                         ])
+                        rows_per_lang[lang] += 1
                         out.flush()
 
                     print(f"  {lang:<10} {scen:<14} n={n:<10} done", file=sys.stderr)
     finally:
         if out is not sys.stdout:
             out.close()
+
+    # A language with zero successful rows would silently vanish from the
+    # aggregated table (stale pgscript_run binary, missing interpreter, ...).
+    # Make that loud and fail the run.
+    dead = [lang for lang, rows in rows_per_lang.items() if rows == 0]
+    if dead:
+        print(f"ERROR: no successful runs for: {', '.join(dead)} "
+              f"(see FAIL lines above - stale binary or missing interpreter?)",
+              file=sys.stderr)
+        return 1
 
     return 0
 

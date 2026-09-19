@@ -1,0 +1,17 @@
+import "ecs"
+
+// BrickSystem "ResetWall" handler: full restart requested (game over).
+// Clear whatever is left of the wall, reset the score and request a
+// rebuild through the needSpawn flag (see update_bricks.pg).
+
+logInfo("BrickSystem: resetting wall and score")
+
+var leftovers = getEntities("Brick")
+
+for (var brick : leftovers)
+{
+    removeEntity(brick)
+}
+
+sysData["score"] = 0
+sysData["needSpawn"] = 1

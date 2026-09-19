@@ -1,0 +1,11 @@
+// BrickSystem init: seeds the score and requests the first wall.
+// The wall is always built by update_bricks.pg (the onExecute script) when
+// "needSpawn" is set, so every spawn goes through the same code path.
+// No sendEvent here: a nested self-handled event would have its sysData
+// changes clobbered by this script's own write-back.
+
+logInfo("BrickSystem: initializing")
+
+sysData["score"] = 0
+sysData["brickCount"] = 0
+sysData["needSpawn"] = 1

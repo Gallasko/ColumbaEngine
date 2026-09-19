@@ -101,11 +101,17 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        loadSave(savePath);
+        if (savePath == "")
+            enabled = false;
+        else
+            loadSave(savePath);
     }
 
     void SaveManager::execute()
     {
+        if (not enabled)
+            return;
+
         if (needSave)
         {
             save();
@@ -116,6 +122,9 @@ namespace pg
     void SaveManager::forceSave()
     {
         LOG_THIS_MEMBER(DOM);
+
+        if (not enabled)
+            return;
 
         save();
         needSave = false;
@@ -148,6 +157,9 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
+        if (not enabled)
+            return;
+
         auto saveFile = UniversalFileAccessor::openTextFile(savePath);
 
         SaveFile newSave;
@@ -163,6 +175,9 @@ namespace pg
 
     void SaveManager::save()
     {
+        if (not enabled)
+            return;
+
         LOG_INFO(DOM, "Saving data to disk");
 
         std::cout << "Saving data to disk..." << std::endl;

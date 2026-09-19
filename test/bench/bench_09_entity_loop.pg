@@ -1,0 +1,31 @@
+// Benchmark 9: entity iteration via getEntities (lazy-lowering target)
+//
+// Uses a script-defined StandardComponent because ecs.getEntities only
+// resolves StandardComponents (native components like Position need the
+// sys-module path). Component tables here take the full-serialization path
+// (no proxy metadata), which is exactly the materialization the AST
+// front-end's entity-loop lowering skips: it lowers this loop to lazy id
+// iteration (__ecsEntityIds/__ecsEntityView), while the Pratt front-end
+// eagerly builds every entity table up front.
+
+import "ecs"
+
+var sys = createSystem("BenchPosSys")
+sys.ownComponent("Pos").build()
+
+for (var i = 0; i < count; i = i + 1)
+{
+    var entity = createEntity()
+    entity.attachComp("Pos", "x", 100, "y", 200)
+}
+
+var total = 0
+
+for (var entity : getEntities("Pos"))
+{
+    var pos = entity.Pos
+
+    total = total + pos.x + pos.y
+}
+
+__dprint(total)

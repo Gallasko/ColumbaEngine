@@ -1,0 +1,37 @@
+import "ecs"
+import "string"
+
+// BrickSystem "BrickHit" handler: a collision reported ball contact with
+// a brick. Destroy it, add its points to the score, and detect a cleared
+// wall.
+//
+// The brick is looked up through getEntities instead of getEntity so a
+// stale event (brick already removed) is silently ignored.
+
+var targetId = event.values.brickId
+
+var bricks = getEntities("Brick")
+
+for (var brick : bricks)
+{
+    if (brick.__entityId == targetId)
+    {
+        sysData["score"] = sysData["score"] + brick["Brick"].points
+        sysData["brickCount"] = sysData["brickCount"] - 1
+
+        removeEntity(brick)
+
+        logInfo("BrickSystem: score " + toString(sysData["score"]))
+    }
+}
+
+if (sysData["brickCount"] <= 0)
+{
+    logInfo("BrickSystem: wall cleared! Score: " + toString(sysData["score"]))
+
+    // Rebuild through the needSpawn flag (see update_bricks.pg); the ball
+    // reset is a cross-system event, which is safe to send from here.
+    sysData["needSpawn"] = 1
+
+    sendEvent("ResetBall")
+}

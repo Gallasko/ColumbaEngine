@@ -1,0 +1,12 @@
+import "ecs"
+
+// BallSystem "ResetBall" handler: put the ball back on the paddle.
+// Ball state lives on the Ball component (live setters), so this is safe
+// to run even nested inside another system's event chain.
+
+for (var ball : getEntities("Ball"))
+{
+    ball["Ball"].stuck = 1
+    ball["Ball"].vx = 0.0
+    ball["Ball"].vy = 0.0
+}

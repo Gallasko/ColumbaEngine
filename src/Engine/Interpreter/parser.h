@@ -126,7 +126,8 @@ namespace pg
         std::queue<StatementPtr> block();
 
         ExprPtr finishCall(ExprPtr caller);
-        ExprPtr finishList();
+        ExprPtr finishList(bool braceForm = false);
+        ExprPtr finishAnonymousFunction();
 
         ExprPtr expression();
         ExprPtr assignment();
@@ -152,6 +153,9 @@ namespace pg
         StatementPtr ifStatement();
         StatementPtr whileStatement();
         StatementPtr returnStatement();
+        StatementPtr breakStatement();
+        StatementPtr continueStatement();
+        StatementPtr dprintStatement();
         StatementPtr blockDeclaration();
         StatementPtr importStatement();
         StatementPtr expressionStatement();

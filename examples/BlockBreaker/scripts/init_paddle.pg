@@ -1,0 +1,23 @@
+import "texture"
+
+// PaddleSystem init: spawns the paddle. The "Paddle" component tags the
+// entity so other systems and collision handlers can find it, and the
+// "Collision" component makes the engine's CollisionSystem track it.
+
+logInfo("PaddleSystem: initializing")
+
+// Engine default window size (see EngineConfig)
+var screenWidth = 820
+var screenHeight = 640
+
+// Reuses a Tetris tile texture loaded by res/setupRenderer.pg
+var paddle = createTexture("I", 120, 18)
+
+paddle["PositionComponent"].x = (screenWidth - 120) / 2
+paddle["PositionComponent"].y = screenHeight - 40
+
+paddle.attachComp("Paddle")
+paddle.attachComp("Collision")
+
+sysData["paddleId"] = paddle.__entityId
+sysData["paddleSpeed"] = 500.0

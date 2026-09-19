@@ -14,6 +14,7 @@
 #include "Helpers/randommodule.h"
 #include "Helpers/inputmodule_vm.h"
 #include "Input/inputcomponent.h"
+#include "2D/collisionsystem.h"
 #include "2D/texturemodule.h"
 #include "UI/uimodule.h"
 
@@ -42,6 +43,20 @@ namespace pg
         internalCreateSystem(system);
 
         return system;
+    }
+
+    void EntitySystem::enableCollision()
+    {
+        if (getSystem<CollisionSystem>())
+        {
+            LOG_WARNING("ECS", "enableCollision called but collision is already enabled");
+            return;
+        }
+
+        createSystem<CollisionSystem>();
+        createSystem<CollisionHandlerSystem>();
+
+        succeed<CollisionHandlerSystem, CollisionSystem>();
     }
 
     void EntitySystem::setupVmFullModules(VM& vm)

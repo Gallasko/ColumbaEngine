@@ -119,11 +119,100 @@ namespace pg
         ~ReturnStatement() {}
 
         virtual void accept(Visitor* visitor) override;
-        virtual std::string prettyPrint() const override { return "Return statement with value: " + value->prettyPrint(); }
+        virtual std::string prettyPrint() const override { return "Return statement with value: " + (value ? value->prettyPrint() : "null"); }
         virtual std::string getType() const override { return "ReturnStatement"; }
 
         Token name;
         ExprPtr value;
+    };
+
+    /**
+     * C-style for loop: for (init; condition; increment) body
+     *
+     * The structured fields are used by the bytecode front-end and its
+     * optimization passes; 'desugared' holds the equivalent while-loop form
+     * executed by the tree-walking interpreter and resolved by the resolver
+     * (children are shared pointers between both forms).
+     */
+    struct ForStatement : public Statement
+    {
+        ForStatement(StatementPtr initializer, ExprPtr condition, ExprPtr increment, StatementPtr body) : Statement(), initializer(initializer), condition(condition), increment(increment), body(body) {}
+        ~ForStatement() {}
+
+        virtual void accept(Visitor* visitor) override;
+        virtual std::string prettyPrint() const override { return "For statement with condition: " + (condition ? condition->prettyPrint() : "true") + "\n" + body->prettyPrint(); }
+        virtual std::string getType() const override { return "ForStatement"; }
+
+        StatementPtr initializer;
+        ExprPtr condition;
+        ExprPtr increment;
+        StatementPtr body;
+
+        /** Equivalent while-loop form for the tree-walking path */
+        StatementPtr desugared;
+    };
+
+    /**
+     * Range-based for loop: for (var name : iterable) body
+     *
+     * Same structured/desugared split as ForStatement; 'desugared' holds the
+     * iterator-protocol while-loop (.it()/.begin()/.current()/.next()/.end())
+     * the tree-walking interpreter executes.
+     */
+    struct ForInStatement : public Statement
+    {
+        ForInStatement(const Token& varName, StatementPtr initializer, ExprPtr iterable, StatementPtr body) : Statement(), varName(varName), initializer(initializer), iterable(iterable), body(body) {}
+        ~ForInStatement() {}
+
+        virtual void accept(Visitor* visitor) override;
+        virtual std::string prettyPrint() const override { return "ForIn statement over: " + iterable->prettyPrint() + "\n" + body->prettyPrint(); }
+        virtual std::string getType() const override { return "ForInStatement"; }
+
+        Token varName;
+        StatementPtr initializer;
+        ExprPtr iterable;
+        StatementPtr body;
+
+        /** Equivalent iterator-protocol while-loop for the tree-walking path */
+        StatementPtr desugared;
+    };
+
+    struct BreakStatement : public Statement
+    {
+        BreakStatement(const Token& token) : Statement(), token(token) {}
+        ~BreakStatement() {}
+
+        virtual void accept(Visitor* visitor) override;
+        virtual std::string prettyPrint() const override { return "Break statement"; }
+        virtual std::string getType() const override { return "BreakStatement"; }
+
+        Token token;
+    };
+
+    struct ContinueStatement : public Statement
+    {
+        ContinueStatement(const Token& token) : Statement(), token(token) {}
+        ~ContinueStatement() {}
+
+        virtual void accept(Visitor* visitor) override;
+        virtual std::string prettyPrint() const override { return "Continue statement"; }
+        virtual std::string getType() const override { return "ContinueStatement"; }
+
+        Token token;
+    };
+
+    /** __dprint(expr) debug-output statement, used by the script test benches */
+    struct DPrintStatement : public Statement
+    {
+        DPrintStatement(const Token& token, ExprPtr expr) : Statement(), token(token), expr(expr) {}
+        ~DPrintStatement() {}
+
+        virtual void accept(Visitor* visitor) override;
+        virtual std::string prettyPrint() const override { return "DPrint statement: " + expr->prettyPrint(); }
+        virtual std::string getType() const override { return "DPrintStatement"; }
+
+        Token token;
+        ExprPtr expr;
     };
 
     struct ImportStatement : public Statement

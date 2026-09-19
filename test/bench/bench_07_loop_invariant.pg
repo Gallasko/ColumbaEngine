@@ -1,0 +1,19 @@
+// Benchmark 7: loop-invariant expression in a hot loop
+// The AST front-end hoists (a * b + c * c - a) out of the loop
+// (LoopInvariantHoisting pass); the Pratt front-end re-evaluates it
+// every iteration. Direct measure of the first AST-level optimization.
+
+// var count = 100000
+
+var a = 3
+var b = 7
+var c = 11
+
+var total = 0
+
+for (var i = 0; i < count; i = i + 1)
+{
+    total = total + (a * b + c * c - a)
+}
+
+__dprint(total)

@@ -9,6 +9,18 @@ namespace pg
     namespace
     {
         const char * DOM = "Parser";
+
+        /**
+         * Build the 'object.fn(args...)' call chain equivalent to a subscript
+         * access, used as the desugared form of IndexGet ("at") and IndexSet
+         * ("set") for the tree-walking interpreter.
+         */
+        ExprPtr makeIndexProtocolCall(ExprPtr object, const Token& bracket, const std::string& fnName, std::queue<ExprPtr> args)
+        {
+            ExprPtr getter = std::make_shared<Get>(object, Token{TokenType::EXPRESSION, fnName, bracket.line, bracket.column});
+
+            return std::make_shared<CallExpression>(getter, bracket, args);
+        }
     }
 
     std::string ParseException::createErrorMessage(const Token& token, const std::string& message) const noexcept
@@ -85,21 +97,31 @@ namespace pg
         return std::make_shared<CallExpression>(caller, paren, arguments);
     }
 
-    ExprPtr Parser::finishList()
+    ExprPtr Parser::finishList(bool braceForm)
     {
         LOG_THIS_MEMBER(DOM);
 
+        const auto closeToken = braceForm ? TokenType::BCLOSE : TokenType::CCLOSE;
+
         int nbEntries = 0;
+        bool hasExplicitKeys = false;
         std::queue<ListElement> entries;
 
         ExprPtr lExpr;
         ExprPtr rExpr;
 
-        if (not check(TokenType::CCLOSE))
+        if (not check(closeToken))
         {
             do
             {
                 skipEOL();
+
+                // Allow trailing comma before the closing bracket
+                if (check(closeToken))
+                    break;
+
+                bool explicitKey = false;
+
                 lExpr = expression();
                 skipEOL();
 
@@ -109,6 +131,9 @@ namespace pg
                     skipEOL();
                     rExpr = expression();
                     skipEOL();
+
+                    hasExplicitKeys = true;
+                    explicitKey = true;
                 }
                 // Else we set the key of the value as the number of entries in the dict like so "nbEntries: value"
                 else
@@ -119,16 +144,54 @@ namespace pg
 
                 nbEntries++;
 
-                entries.push(ListElement{lExpr, rExpr});
+                entries.push(ListElement{lExpr, rExpr, explicitKey});
             } while (match(TokenType::COMMA));
         }
 
         skipEOL();
-        Token squareBracket = consume("Expect ']' after arguments", TokenType::CCLOSE);
+        Token squareBracket = braceForm ?
+            consume("Expect '}' after table values", TokenType::BCLOSE) :
+            consume("Expect ']' after arguments", TokenType::CCLOSE);
 
         auto self = std::make_shared<This>(Token{TokenType::EXPRESSION, "this", squareBracket.line, squareBracket.column});
 
-        return std::make_shared<List>(self, squareBracket, entries);
+        auto list = std::make_shared<List>(self, squareBracket, entries);
+        list->braceForm = braceForm;
+        list->hasExplicitKeys = hasExplicitKeys;
+
+        return list;
+    }
+
+    ExprPtr Parser::finishAnonymousFunction()
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        Token funToken = previousToken;
+
+        skipEOL();
+        consume("Expect '(' after 'fun'.", TokenType::PENTER);
+        skipEOL();
+
+        std::queue<ExprPtr> parameters;
+
+        if (not check(TokenType::PCLOSE))
+        {
+            do
+            {
+                skipEOL();
+                parameters.push(expression());
+                skipEOL();
+            } while (match(TokenType::COMMA));
+        }
+
+        skipEOL();
+        consume("Expect ')' after parameters", TokenType::PCLOSE);
+        skipEOL();
+        consume("Expect '{' before an anonymous function body.", TokenType::BENTER);
+
+        StatementPtr body = blockDeclaration();
+
+        return std::make_shared<AnonymousFunction>(funToken, parameters, body);
     }
 
     ExprPtr Parser::expression()
@@ -190,6 +253,21 @@ namespace pg
             {
                 auto getExpr = std::static_pointer_cast<Get>(expr);
                 return std::make_shared<Set>(getExpr->object, getExpr->name, rExpr);
+            }
+            // Check if the expression is an assignment to a subscript: object[index] = value
+            else if (expr->getType() == "IndexGet")
+            {
+                auto indexExpr = std::static_pointer_cast<IndexGet>(expr);
+
+                auto setExpr = std::make_shared<IndexSet>(indexExpr->object, indexExpr->index, rExpr, indexExpr->bracket);
+
+                std::queue<ExprPtr> args;
+                args.push(indexExpr->index);
+                args.push(rExpr);
+
+                setExpr->desugared = makeIndexProtocolCall(indexExpr->object, indexExpr->bracket, "set", args);
+
+                return setExpr;
             }
             // Check if the expression is an assignment to an array
             else if (expr->getType() == "CallExpression" and expr->getName() == "at")
@@ -431,17 +509,19 @@ namespace pg
                 auto token = previousToken;
 
                 skipEOL();
-
-                expr = std::make_shared<Get>(expr, Token{TokenType::EXPRESSION, "at", token.line, token.column});
-
+                ExprPtr index = expression();
                 skipEOL();
-                std::queue<ExprPtr> argument;
-                argument.push(expression());
 
-                skipEOL();
                 consume("Expect ']' after an Array subscript call.", TokenType::CCLOSE);
 
-                expr = std::make_shared<CallExpression>(expr, token, argument);
+                auto indexExpr = std::make_shared<IndexGet>(expr, index, token);
+
+                std::queue<ExprPtr> argument;
+                argument.push(index);
+
+                indexExpr->desugared = makeIndexProtocolCall(expr, token, "at", argument);
+
+                expr = indexExpr;
             }
             else
             {
@@ -468,6 +548,8 @@ namespace pg
 
         if (match(TokenType::TOK_THIS)) return std::make_shared<This>(previousToken);
 
+        if (match(TokenType::TOK_FUN)) return finishAnonymousFunction();
+
         if (match(TokenType::EXPRESSION)) return std::make_shared<Var>(previousToken);
 
         if (match(TokenType::PENTER))
@@ -482,6 +564,9 @@ namespace pg
         }
 
         if (match(TokenType::CENTER)) return finishList();
+
+        // Brace table literal: { key: value, ... } (always a table on the VM side)
+        if (match(TokenType::BENTER)) return finishList(true);
 
         throw ParseException(tokenList.front(), "Expected expression");
     }
@@ -517,6 +602,9 @@ namespace pg
         if (match(TokenType::TOK_FOR))       return forStatement();
         if (match(TokenType::TOK_IF))        return ifStatement();
         if (match(TokenType::TOK_WHILE))     return whileStatement();
+        if (match(TokenType::TOK_BREAK))     return breakStatement();
+        if (match(TokenType::TOK_CONTINUE))  return continueStatement();
+        if (match(TokenType::TOK_DPRINT))    return dprintStatement();
         if (match(TokenType::BENTER))    return blockDeclaration();
         if (match(TokenType::TOK_IMPORT))    return importStatement();
 
@@ -678,6 +766,10 @@ namespace pg
             consume("Expect ')' after 'for'.", TokenType::PCLOSE);
             skipEOL();
 
+            // Parse the loop body once; the same statement pointer is shared
+            // between the structured ForInStatement and its desugared form.
+            StatementPtr parsedBody = statement();
+
             std::queue<ExprPtr> emptyQueue;
 
             // Create a token for the iterator
@@ -733,7 +825,7 @@ namespace pg
 
             // Desugaring of 'range based for' into a basic while loop
 
-            StatementPtr body = statement();
+            StatementPtr body = parsedBody;
 
             // Body of the while loop
             {
@@ -768,7 +860,10 @@ namespace pg
                 body = std::make_shared<BlockStatement>(q);
             }
 
-            return body;
+            auto forInNode = std::make_shared<ForInStatement>(varToken, initializer, range, parsedBody);
+            forInNode->desugared = body;
+
+            return forInNode;
         }
         else
         {
@@ -797,9 +892,19 @@ namespace pg
             consume("Expect ')' after 'for'.", TokenType::PCLOSE);
             skipEOL();
 
-            // Desugaring of 'for' into a basic while loop
+            // Parse the loop body once; the same statement pointer is shared
+            // between the structured ForStatement and its desugared form.
+            StatementPtr parsedBody = statement();
 
-            StatementPtr body = statement();
+            // Desugaring of 'for' into a basic while loop (tree-walking path)
+
+            StatementPtr body = parsedBody;
+
+            // The structured node keeps the raw condition (null means 'no
+            // condition' and lets the bytecode emitter skip the test entirely,
+            // matching the Pratt front-end); only the desugared while loop
+            // needs an explicit 'true'.
+            ExprPtr rawCondition = condition;
 
             if (increment)
             {
@@ -824,7 +929,10 @@ namespace pg
                 body = std::make_shared<BlockStatement>(q);
             }
 
-            return body;
+            auto forNode = std::make_shared<ForStatement>(initializer, rawCondition, increment, parsedBody);
+            forNode->desugared = body;
+
+            return forNode;
         }
 
         LOG_ERROR(DOM, "Should never reach here");
@@ -884,10 +992,53 @@ namespace pg
 
         auto token = previousToken;
 
-        ExprPtr returnValue = expression();
+        ExprPtr returnValue = nullptr;
+
+        // 'return' with no value: return;
+        if (not check(TokenType::END, TokenType::EOL))
+            returnValue = expression();
 
         consume("Expected ; or end of line after a return statement.", TokenType::END, TokenType::EOL);
         return std::make_shared<ReturnStatement>(token, returnValue);
+    }
+
+    StatementPtr Parser::breakStatement()
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        auto token = previousToken;
+
+        consume("Expected ; or end of line after 'break'.", TokenType::END, TokenType::EOL);
+        return std::make_shared<BreakStatement>(token);
+    }
+
+    StatementPtr Parser::continueStatement()
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        auto token = previousToken;
+
+        consume("Expected ; or end of line after 'continue'.", TokenType::END, TokenType::EOL);
+        return std::make_shared<ContinueStatement>(token);
+    }
+
+    StatementPtr Parser::dprintStatement()
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        auto token = previousToken;
+
+        skipEOL();
+        consume("Expect '(' after '__dprint'.", TokenType::PENTER);
+        skipEOL();
+
+        ExprPtr expr = expression();
+
+        skipEOL();
+        consume("Expect ')' after expression.", TokenType::PCLOSE);
+
+        consume("Expected ; or end of line after a '__dprint' statement.", TokenType::END, TokenType::EOL);
+        return std::make_shared<DPrintStatement>(token, expr);
     }
 
     StatementPtr Parser::blockDeclaration()

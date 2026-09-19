@@ -1,0 +1,18 @@
+// Benchmark 8: fully-static loop
+// The AST front-end evaluates this whole loop at compile time
+// (StaticLoopEvaluation pass) and replaces it with the final values;
+// the Pratt front-end executes all 100k iterations at runtime.
+// The loop bound is defined in-source so the computation is fully static.
+
+var count = 100000
+
+var total = 0
+var i = 0
+
+while (i < count)
+{
+    total = total + i % 7
+    i = i + 1
+}
+
+__dprint(total)

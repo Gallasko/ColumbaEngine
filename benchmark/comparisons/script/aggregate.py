@@ -35,9 +35,10 @@ COUNTS = {
 }
 
 # Order matters: PgScript first so it's the leftmost column when present.
-LANG_ORDER = ["pgscript", "pgscript-noopt", "lua", "python"]
+LANG_ORDER = ["pgscript", "pgscript-ast", "pgscript-noopt", "lua", "python"]
 LANG_LABEL = {
     "pgscript":        "PgScript O3",
+    "pgscript-ast":    "PgScript AST",
     "pgscript-noopt":  "PgScript O0",
     "lua":             "Lua 5.4",
     "python":          "CPython",
@@ -81,6 +82,9 @@ def main():
 
     present = {k[0] for k in rows.keys()}
     langs = [l for l in LANG_ORDER if l in present]
+    # Languages in the CSV but missing from LANG_ORDER must still show up
+    # (new variants would otherwise silently vanish from the table)
+    langs += sorted(l for l in present if l not in LANG_ORDER)
     if args.lang:
         wanted = {l.strip() for l in args.lang.split(",") if l.strip()}
         langs = [l for l in langs if l in wanted]
@@ -89,7 +93,7 @@ def main():
 
     label = "WALL TIME (incl. startup)" if args.wall else "SCRIPT TIME (pure VM, in-script self-timed)"
     print(f"\n=== {label} — min of runs ===\n")
-    header = f"  {'scenario':<14} {'count':>10}   " + "  ".join(f"{LANG_LABEL[l]:>12}" for l in langs)
+    header = f"  {'scenario':<14} {'count':>10}   " + "  ".join(f"{LANG_LABEL.get(l, l):>12}" for l in langs)
     print(header)
     print("  " + "-" * (len(header) - 2))
     for s in SCENARIOS:

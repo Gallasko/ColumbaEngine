@@ -503,6 +503,72 @@ namespace pg
         return entityTableValue;
     }
 
+    Value serializeEntityViewToTable(VM* vm, EntitySystem* ecsRef, _unique_id entityId,
+        const std::vector<std::string>& componentNames)
+    {
+        // Get the Table class
+        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
+        if (cell == nullptr or not cell->defined)
+        {
+            throw std::runtime_error("Table class not found in VM globals");
+        }
+
+        Klass* tableClass = vm->asClass(cell->value);
+
+        Value entityTableValue = vm->createInstance(tableClass);
+        ObjInstance* entityTable = vm->asInstance(entityTableValue);
+
+        Value idValue = makeIntValue(static_cast<int64_t>(entityId));
+        entityTable->setField("__entityId", idValue);
+
+        Entity* entity = ecsRef->getEntity(entityId);
+
+        // Entity deleted since the id snapshot was taken: yield an id-only
+        // table (deterministic, unlike the eager path's stale proxies)
+        if (not entity)
+        {
+            return entityTableValue;
+        }
+
+        // Serialize ONLY the requested components, using the exact same
+        // resolution + serialization path as serializeEntityToTable so
+        // per-field behavior stays identical. Missing components simply
+        // leave the field absent (same "undefined property" behavior as a
+        // table that never had the field).
+        for (const auto& id : entity->componentList)
+        {
+            std::string componentTypeName = ecsRef->getComponentRegistry()->getComponentTypeName(id);
+
+            if (componentTypeName == "StandardComponent")
+            {
+                StandardComponent* standardComp = ecsRef->getComponent<StandardComponent>(entity->id);
+                if (standardComp)
+                {
+                    componentTypeName = standardComp->typeName;
+                }
+            }
+
+            bool requested = false;
+            for (const auto& name : componentNames)
+            {
+                if (name == componentTypeName)
+                {
+                    requested = true;
+                    break;
+                }
+            }
+
+            if (not requested)
+                continue;
+
+            Value componentValue = serializeComponentToTable(vm, ecsRef, entity, id);
+
+            entityTable->setField(componentTypeName, componentValue);
+        }
+
+        return entityTableValue;
+    }
+
     bool deserializeComponentFromTable(VM* vm, EntitySystem* ecsRef, EntityRef entity,
         Value componentTable, const std::string& componentTypeName)
     {

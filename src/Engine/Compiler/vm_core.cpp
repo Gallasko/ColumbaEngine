@@ -6,6 +6,8 @@
 
 #include "compiler.h"
 
+#include "ast/ast_compiler.h"
+
 #include "compiler_debug.h"
 
 #include <chrono>
@@ -15,6 +17,8 @@
 #include "chunk_serializer.h"
 
 #include "decoded_chunk.h"
+
+#include "Profiler/profiler.h"
 
 namespace pg
 {
@@ -136,11 +140,16 @@ namespace pg
 
         // Todo change this
         // Reset the compiler state before compiling a new chunk
+        // Both front-ends must outlive run(): their parsers own the compiled
+        // function values (allocatedFunction) until the end of this call
         Compiler compiler(this);
+        AstCompiler astCompiler(this);
 
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-        auto function = compiler.compile(tokens);
+        const bool useAstFrontEnd = frontEnd == FrontEnd::Ast;
+
+        auto function = useAstFrontEnd ? astCompiler.compile(tokens) : compiler.compile(tokens);
 
         if (function == 0x0)
             return InterpretResult::COMPILE_ERROR;
@@ -164,7 +173,7 @@ namespace pg
         // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
 
         // Apply bytecode optimizations and store functions for profiling
-        for (auto f : compiler.parser.allocatedFunction)
+        for (auto f : useAstFrontEnd ? astCompiler.allocatedFunctions() : compiler.parser.allocatedFunction)
         {
             auto *func = asFunction(f);
 
@@ -326,12 +335,26 @@ namespace pg
         }
     }
 
-    InterpretResult VM::executeChunk(ObjFunction* funcObj, int argCount)
+    InterpretResult VM::executeChunk(ObjFunction* funcObj, int argCount, const std::string& scriptName)
     {
+#ifdef PROFILE
+        const std::string label = scriptName.empty()
+            ? (currentFileName.empty() ? std::string("script") : currentFileName)
+            : scriptName;
+
+        PROFILE_BEGIN(label + " [decode]", "Script");
+#else
+        (void)scriptName;
+#endif
+
         // interpret() pre-decodes during compilation; the bytecode-file
         // entry points reach executeChunk with a fresh chunk (and fresh
         // nested-function constants) that haven't been decoded yet.
         predecodeFunctionTree(funcObj, this);
+
+#ifdef PROFILE
+        PROFILE_END(label + " [decode]", "Script");
+#endif
 
         // Create closure and set up call
         auto closureValue = createClosure(funcObj);
@@ -349,6 +372,10 @@ namespace pg
             // Note: preRunTime is not recorded here as it should be recorded
             // by the calling interpret method before calling executeChunk
 
+#ifdef PROFILE
+            // RAII so the scope closes even if run() throws
+            ProfileScope _execScope(label + " [exec]", "Script");
+#endif
             result = run();
         }
         catch(const std::exception& e)
@@ -448,20 +475,16 @@ namespace pg
         return result;
     }
 
-    InterpretResult VM::interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount)
+    ObjFunction* VM::deserializeCachedBytecode(const std::vector<char>& cachedBytecode, const std::string& scriptName)
     {
-        // Record start time for pre-run profiling
-        std::chrono::steady_clock::time_point interpretStart;
-        if (profiler.isEnabled())
-        {
-            interpretStart = std::chrono::steady_clock::now();
-        }
-
         if (cachedBytecode.empty())
         {
-            LOG_WARNING("VM", "Bytecode is empty, nothing to execute !");
-            return InterpretResult::OK;
+            LOG_WARNING("VM", "Bytecode is empty, nothing to load !");
+            return nullptr;
         }
+
+        if (not scriptName.empty())
+            currentFileName = scriptName;
 
         // Deserialize from cached memory (NO FILE I/O!)
         std::istringstream bytecodeStream(std::string(cachedBytecode.begin(), cachedBytecode.end()), std::ios::binary);
@@ -470,7 +493,7 @@ namespace pg
         if (not ChunkSerializer::deserialize(chunk, bytecodeStream, this))
         {
             LOG_ERROR("VM", "Failed to deserialize cached bytecode");
-            return InterpretResult::COMPILE_ERROR;
+            return nullptr;
         }
 
         // Load all native modules that were imported during compilation
@@ -487,6 +510,32 @@ namespace pg
         ObjFunction* funcObj = asFunction(function);
         funcObj->chunk = chunk;
 
+        return funcObj;
+    }
+
+    InterpretResult VM::interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount, const std::string& scriptName)
+    {
+        // Record start time for pre-run profiling
+        std::chrono::steady_clock::time_point interpretStart;
+        if (profiler.isEnabled())
+        {
+            interpretStart = std::chrono::steady_clock::now();
+        }
+
+#ifdef PROFILE
+        const std::string label = scriptName.empty() ? std::string("script") : scriptName;
+        PROFILE_BEGIN(label + " [deserialize]", "Script");
+#endif
+
+        ObjFunction* funcObj = deserializeCachedBytecode(cachedBytecode, scriptName);
+
+#ifdef PROFILE
+        PROFILE_END(label + " [deserialize]", "Script");
+#endif
+
+        if (funcObj == nullptr)
+            return cachedBytecode.empty() ? InterpretResult::OK : InterpretResult::COMPILE_ERROR;
+
         // Record pre-run time if profiling is enabled
         if (profiler.isEnabled())
         {
@@ -495,8 +544,77 @@ namespace pg
             profiler.recordPreRunTime(duration);
         }
 
-        InterpretResult result = executeChunk(funcObj, argCount);
+        InterpretResult result = executeChunk(funcObj, argCount, scriptName);
         cleanupFunction(funcObj);
+        return result;
+    }
+
+    // ------------------------------------------------------------------------
+    // Persistent-VM fast path: prepare a cached script ONCE, then run it many
+    // times without re-deserializing, re-decoding or re-freezing constants.
+    //
+    // The one-shot interpretFromCachedBytecode above pays deserialize + decode
+    // on EVERY call (the bulk of a per-frame hook's cost). For systems that run
+    // the same script every frame / event, prepareCachedFunction() does that
+    // work once on a long-lived VM and runPreparedFunction() only executes.
+    // ------------------------------------------------------------------------
+    ObjFunction* VM::prepareCachedFunction(const std::vector<char>& cachedBytecode, const std::string& scriptName)
+    {
+        ObjFunction* funcObj = deserializeCachedBytecode(cachedBytecode, scriptName);
+        if (funcObj == nullptr)
+            return nullptr;
+
+        // Decode now (not lazily on first run) so the freeze line below covers
+        // every object the script's code references as a constant.
+        predecodeFunctionTree(funcObj, this);
+
+        // Freeze the constant line ONCE. Everything allocated so far — native
+        // modules, globals, this function's constants and decoded chunk — is
+        // now treated as a non-ref-counted constant. Per-run temporaries
+        // (event / sysData / deltaTime tables) allocated by later runs stay
+        // ref-counted and are reclaimed between runs, instead of leaking as
+        // frozen constants (which is what re-freezing on every run would do).
+        pools.freezeConstantIndices();
+
+        return funcObj;
+    }
+
+    // This need prepare cached function to be called beforehand
+    InterpretResult VM::runPreparedFunction(ObjFunction* funcObj, int argCount, const std::string& scriptName)
+    {
+        // todo add a flag to see if prepare was called before this 
+        if (funcObj == nullptr)
+            return InterpretResult::COMPILE_ERROR;
+
+        if (not scriptName.empty())
+            currentFileName = scriptName;
+
+        // Like executeChunk, but WITHOUT predecode (done in prepare) and
+        // WITHOUT freezeConstantIndices (done once in prepare).
+        auto closureValue = createClosure(funcObj);
+        Closure* closure = asClosure(closureValue);
+        push(closureValue);
+        call(closure, argCount);
+
+        InterpretResult result;
+        try
+        {
+#ifdef PROFILE
+            const std::string label = scriptName.empty()
+                ? (currentFileName.empty() ? std::string("script") : currentFileName)
+                : scriptName;
+            ProfileScope _execScope(label + " [exec]", "Script");
+#endif
+            result = run();
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("VM", "Execution error: " << e.what());
+            // Keep the persistent VM usable for the next run.
+            resetStack();
+            result = InterpretResult::RUNTIME_ERROR;
+        }
+
         return result;
     }
 

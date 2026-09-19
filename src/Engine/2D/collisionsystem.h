@@ -409,6 +409,10 @@ namespace pg
                 if (not code)
                     return;
 
+                PROFILE_SCOPE(fnName, "Script");
+
+                PROFILE_BEGIN(fnName + " [setup]", "Script");
+
                 VM testVm;
                 ecsRef->setupVm(testVm);
 
@@ -419,7 +423,9 @@ namespace pg
                 testVm.defineGlobal("ent1", entity1Table);
                 testVm.defineGlobal("ent2", entity2Table);
 
-                testVm.interpretFromCachedBytecode(*code);
+                PROFILE_END(fnName + " [setup]", "Script");
+
+                testVm.interpretFromCachedBytecode(*code, 0, fnName);
             }
         }
 

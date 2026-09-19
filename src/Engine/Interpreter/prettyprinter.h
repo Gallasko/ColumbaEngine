@@ -7,6 +7,11 @@ namespace pg
     class PrinterResolver : public Visitor
     {
     public:
+        // Keep the base-class defaults visible for the node overloads this
+        // visitor does not override
+        using Visitor::visit;
+        using Visitor::visitStatement;
+
         PrinterResolver() : Visitor() {}
         
         virtual std::shared_ptr<Valuable> visit(BinaryExpression *expr) override;

@@ -20,6 +20,8 @@ save/*
 res/**/*.pgc
 res/ext/*
 profile_data.csv
+profile_stats.csv
+profile_capture_*.csv
 global.sz
 *.generated.*
 *.serialization.cpp

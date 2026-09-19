@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ColumbaEngine Profile Viewer</title>
+<style>
+/* ---------- tokens ---------- */
+:root {
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --cat-system: #2a78d6;
+  --cat-script: #1baf7a;
+  --cat-event: #eda100;
+  --cat-render: #4a3aa7;
+  --cat-init: #e87ba4;
+  --cat-other: #898781;
+  --accent: #2a78d6;
+  --drop-hi: rgba(42, 120, 214, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --cat-system: #3987e5;
+    --cat-script: #199e70;
+    --cat-event: #c98500;
+    --cat-render: #9085e9;
+    --cat-init: #d55181;
+    --cat-other: #898781;
+    --accent: #3987e5;
+    --drop-hi: rgba(57, 135, 229, 0.12);
+  }
+}
+:root[data-theme="light"] {
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e;
+  --muted: #898781; --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --cat-system: #2a78d6; --cat-script: #1baf7a; --cat-event: #eda100;
+  --cat-render: #4a3aa7; --cat-init: #e87ba4; --cat-other: #898781;
+  --accent: #2a78d6; --drop-hi: rgba(42,120,214,0.08);
+}
+:root[data-theme="dark"] {
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7;
+  --muted: #898781; --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --cat-system: #3987e5; --cat-script: #199e70; --cat-event: #c98500;
+  --cat-render: #9085e9; --cat-init: #d55181; --cat-other: #898781;
+  --accent: #3987e5; --drop-hi: rgba(57,135,229,0.12);
+}
+
+/* ---------- base ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--page);
+  color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 20px 60px; }
+
+header {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;
+  padding: 18px 0 4px;
+}
+header h1 { font-size: 17px; font-weight: 650; margin: 0; letter-spacing: 0.01em; }
+header .sub { color: var(--muted); font-size: 12px; }
+
+/* drop zone */
+#drop {
+  margin: 12px 0 20px;
+  border: 1.5px dashed var(--axis);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 22px 18px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+  cursor: pointer;
+  transition: background 120ms;
+}
+@media (prefers-reduced-motion: reduce) { #drop { transition: none; } }
+#drop.hover { background: var(--drop-hi); border-color: var(--accent); }
+#drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#drop .big { font-weight: 600; }
+#drop .hint { color: var(--muted); font-size: 12.5px; }
+#drop.loaded { padding: 10px 18px; }
+#fileStatus { color: var(--ink-2); font-size: 12.5px; }
+#fileStatus b { color: var(--ink); }
+
+/* sections */
+section { margin: 26px 0; }
+h2 {
+  font-size: 12px; font-weight: 650; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--ink-2); margin: 0 0 10px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* stat tiles */
+#tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.tile .v { font-size: 24px; font-weight: 650; line-height: 1.1; }
+.tile .u { font-size: 13px; color: var(--muted); font-weight: 400; }
+.tile .l { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
+
+/* legend */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); margin: 8px 2px 0; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+/* canvases */
+canvas { display: block; width: 100%; }
+.canvas-note { font-size: 12px; color: var(--muted); padding: 6px 12px 8px; }
+#flameCard { position: relative; }
+#flameTip, #frameTip {
+  position: absolute; pointer-events: none; z-index: 5; display: none;
+  background: var(--ink); color: var(--page);
+  font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace;
+  border-radius: 6px; padding: 6px 10px; max-width: 420px;
+  white-space: pre; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+.toolbar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  font-size: 12.5px; color: var(--ink-2);
+}
+.toolbar button {
+  font: 12.5px system-ui, sans-serif; color: var(--ink);
+  background: transparent; border: 1px solid var(--axis); border-radius: 6px;
+  padding: 3px 10px; cursor: pointer;
+}
+.toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+.toolbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.toolbar .sp { flex: 1; }
+
+/* chips */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font-size: 12px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--axis); background: transparent; color: var(--ink-2); cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* table */
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+thead th {
+  text-align: right; font-weight: 600; color: var(--ink-2); font-size: 12px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+thead th:first-child, td:first-child { text-align: left; }
+thead th.sorted { color: var(--accent); }
+tbody td {
+  padding: 5px 12px; border-bottom: 1px solid var(--grid);
+  text-align: right;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums; font-size: 12.5px;
+}
+tbody td:first-child { text-align: left; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: none; }
+td .swatch { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 8px; }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+/* bar lists */
+.barlist { padding: 10px 14px 14px; }
+.barrow { display: grid; grid-template-columns: minmax(120px, 220px) 1fr 70px; gap: 10px; align-items: center; padding: 3px 0; font-size: 12.5px; }
+.barrow .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.barrow .b { height: 14px; border-radius: 0 4px 4px 0; min-width: 2px; }
+.barrow .v { text-align: right; font-family: ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+
+.empty { color: var(--muted); font-size: 13px; padding: 18px 14px; }
+#content { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>ColumbaEngine Profile Viewer</h1>
+  <span class="sub">flame timeline &middot; frame pacing &middot; systems &middot; events &middot; entities</span>
+</header>
+
+<div id="drop" tabindex="0" role="button" aria-label="Load profile CSV files">
+  <span class="big">Drop profile CSVs here</span>
+  <span class="hint">or click to browse &mdash; accepts <span class="mono">profile_data.csv</span> / <span class="mono">profile_capture_*.csv</span> (events) and <span class="mono">*_stats.csv</span> (counters), together or separately</span>
+  <span id="fileStatus"></span>
+  <input type="file" id="fileInput" multiple accept=".csv" style="display:none">
+</div>
+
+<div id="content">
+
+<section id="tilesSec">
+  <div id="tiles"></div>
+</section>
+
+<section id="frameSec">
+  <h2>Frame time (render thread)</h2>
+  <div class="card" style="position:relative">
+    <canvas id="frameChart" height="180"></canvas>
+    <div id="frameTip"></div>
+    <div class="canvas-note">Guides at 16.7 ms (60 FPS) and 33.3 ms (30 FPS). Hover for per-frame detail.</div>
+  </div>
+</section>
+
+<section id="flameSec">
+  <h2>Timeline</h2>
+  <div class="card" id="flameCard">
+    <div class="toolbar">
+      <button id="btnFit">Fit all</button>
+      <button id="btnZoomIn" aria-label="Zoom in">+</button>
+      <button id="btnZoomOut" aria-label="Zoom out">&minus;</button>
+      <span id="flameRange" class="mono"></span>
+      <span class="sp"></span>
+      <span>drag to pan &middot; wheel to zoom &middot; hover for detail</span>
+    </div>
+    <canvas id="flame"></canvas>
+    <div id="flameTip"></div>
+  </div>
+  <div class="legend" id="flameLegend"></div>
+</section>
+
+<section id="aggSec">
+  <h2>Where the time goes</h2>
+  <div class="card">
+    <div class="toolbar">
+      <div class="chips" id="catChips"></div>
+      <span class="sp"></span>
+      <span id="aggCount"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="aggTable">
+        <thead><tr>
+          <th data-k="name">Scope</th>
+          <th data-k="count">Calls</th>
+          <th data-k="total">Total ms</th>
+          <th data-k="avg">Avg ms</th>
+          <th data-k="max">Max ms</th>
+          <th data-k="pct">% of thread</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="statsSec">
+  <div class="two-col">
+    <div>
+      <h2>Entity count over capture</h2>
+      <div class="card"><canvas id="entityChart" height="140"></canvas></div>
+      <h2 style="margin-top:20px">Component instances (last sample)</h2>
+      <div class="card"><div class="barlist" id="compBars"></div></div>
+    </div>
+    <div>
+      <h2>Events per ECS pass (average)</h2>
+      <div class="card"><div class="barlist" id="eventBars"></div></div>
+    </div>
+  </div>
+</section>
+
+</div><!-- /content -->
+
+</div>
+
+<script>
+"use strict";
+
+/* ================= palette helpers ================= */
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+const CATS = [
+  { key: "System",  label: "Systems",       varName: "--cat-system", match: c => c === "System" },
+  { key: "Script",  label: "Scripts",       varName: "--cat-script", match: c => c === "Script" },
+  { key: "Event",   label: "Events",        varName: "--cat-event",  match: c => c === "Event" || c === "Command" },
+  { key: "Render",  label: "Render/Input",  varName: "--cat-render", match: c => c === "Render" || c === "Input" || c === "Swap" || c === "GL Error Checking" || c === "Frame" },
+  { key: "Init",    label: "Init/Shutdown", varName: "--cat-init",   match: c => c === "Init" || c === "Shutdown" },
+  { key: "Other",   label: "Other",         varName: "--cat-other",  match: () => true },
+];
+
+function catOf(category) {
+  for (const c of CATS) if (c.match(category)) return c;
+  return CATS[CATS.length - 1];
+}
+
+/* stable per-name lightness jitter so neighbouring scopes are separable */
+function nameShade(base, name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  const f = 0.86 + (Math.abs(h) % 29) / 100; // 0.86 .. 1.14
+  const m = base.match(/^#(..)(..)(..)$/);
+  if (!m) return base;
+  const ch = i => Math.max(0, Math.min(255, Math.round(parseInt(m[i], 16) * f)));
+  return `rgb(${ch(1)},${ch(2)},${ch(3)})`;
+}
+
+/* ================= CSV parsing ================= */
+function parseCSV(text) {
+  // Minimal quoted-field CSV scanner; returns array of string arrays.
+  const rows = [];
+  let row = [], field = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQ = false;
+      } else field += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); field = ""; if (row.length > 1 || row[0] !== "") rows.push(row); row = []; }
+    else if (c !== "\r") field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+/* ================= data model ================= */
+const model = {
+  events: null,     // {name, cat, start, dur, end, tid, frame, pass}
+  threads: null,    // [{tid, label, lanes, maxDepth, events(sorted, with depth)}]
+  frames: null,     // [{start, dur, frame}]
+  agg: null,        // Map key -> {name, cat, count, total, max}
+  stats: null,      // {entity: [{ts, count}], events: Map, comps: Map, passes: Set}
+  tMin: 0, tMax: 1,
+  eventFileName: null, statsFileName: null,
+};
+
+function loadEventsCSV(rows) {
+  const events = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.length < 7) continue;
+    const start = +r[4], dur = +r[5];
+    events.push({
+      frame: +r[0], pass: +r[1], name: r[2], cat: r[3],
+      start, dur, end: start + dur, tid: r[6],
+    });
+  }
+
+  model.events = events;
+
+  let tMin = Infinity, tMax = -Infinity;
+  for (const e of events) { if (e.start < tMin) tMin = e.start; if (e.end > tMax) tMax = e.end; }
+  model.tMin = tMin === Infinity ? 0 : tMin;
+  model.tMax = tMax === -Infinity ? 1 : tMax;
+
+  // frames series
+  model.frames = events.filter(e => e.cat === "Frame" && e.dur > 0)
+    .sort((a, b) => a.start - b.start);
+
+  // threads, render thread first (owns Frame/Render events)
+  const byTid = new Map();
+  for (const e of events) {
+    if (!byTid.has(e.tid)) byTid.set(e.tid, []);
+    byTid.get(e.tid).push(e);
+  }
+
+  let renderTid = null;
+  for (const e of events) {
+    if (e.cat === "Frame" || e.cat === "Render") { renderTid = e.tid; break; }
+  }
+
+  const tids = [...byTid.keys()].sort((a, b) => {
+    if (a === renderTid) return -1;
+    if (b === renderTid) return 1;
+    return byTid.get(b).length - byTid.get(a).length;
+  });
+
+  model.threads = tids.map((tid, i) => {
+    const evs = byTid.get(tid).filter(e => e.cat !== "Frame" && e.cat !== "Marker");
+    evs.sort((a, b) => a.start - b.start || b.dur - a.dur);
+
+    // nesting depth via end-time stack
+    const stack = [];
+    let maxDepth = 0;
+    for (const e of evs) {
+      while (stack.length && stack[stack.length - 1] <= e.start + 1e-9) stack.pop();
+      e.depth = stack.length;
+      if (e.depth > maxDepth) maxDepth = e.depth;
+      stack.push(e.end);
+    }
+
+    return {
+      tid,
+      label: tid === renderTid ? "render thread" : "ecs worker " + i,
+      events: evs,
+      maxDepth: Math.min(maxDepth, 7),
+    };
+  }).filter(t => t.events.length > 0);
+
+  // aggregates
+  const agg = new Map();
+  for (const e of events) {
+    if (e.cat === "Frame" || e.cat === "Marker") continue;
+    const k = e.cat + " " + e.name;
+    let a = agg.get(k);
+    if (!a) { a = { name: e.name, cat: e.cat, count: 0, total: 0, max: 0 }; agg.set(k, a); }
+    a.count++; a.total += e.dur; if (e.dur > a.max) a.max = e.dur;
+  }
+  model.agg = agg;
+}
+
+function loadStatsCSV(rows) {
+  const entity = [];
+  const events = new Map(); // name -> {sum, passes:Set}
+  const comps = new Map();  // name -> latest count
+  const passes = new Set();
+  let lastEntityTs = -1;
+  let lastCompPass = -1;
+
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.length < 6) continue;
+    const pass = +r[0], ts = +r[1], ec = +r[2], kind = r[3], name = r[4], count = +r[5];
+    passes.add(pass);
+
+    if (ts !== lastEntityTs) { entity.push({ ts, count: ec }); lastEntityTs = ts; }
+
+    if (kind === "event") {
+      let a = events.get(name);
+      if (!a) { a = { sum: 0, passes: new Set() }; events.set(name, a); }
+      a.sum += count; a.passes.add(pass);
+    } else if (kind === "component") {
+      if (pass >= lastCompPass) { lastCompPass = pass; }
+      // keep the latest sample per component
+      if (!comps.has(name) || pass >= comps.get(name).pass)
+        comps.set(name, { pass, count });
+    }
+  }
+
+  entity.sort((a, b) => a.ts - b.ts);
+  model.stats = { entity, events, comps, passCount: passes.size };
+}
+
+/* ================= file loading ================= */
+const drop = document.getElementById("drop");
+const fileInput = document.getElementById("fileInput");
+const fileStatus = document.getElementById("fileStatus");
+
+drop.addEventListener("click", () => fileInput.click());
+drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("hover"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("hover"));
+drop.addEventListener("drop", e => {
+  e.preventDefault(); drop.classList.remove("hover");
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener("change", () => handleFiles(fileInput.files));
+
+function handleFiles(files) {
+  const list = [...files];
+  let pending = list.length;
+  if (!pending) return;
+  fileStatus.innerHTML = "parsing…";
+
+  for (const f of list) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result;
+      const head = text.slice(0, 200);
+      const rows = parseCSV(text);
+      if (head.startsWith("frame,ecs_pass")) {
+        loadEventsCSV(rows);
+        model.eventFileName = f.name;
+      } else if (head.startsWith("pass,timestamp_ms")) {
+        loadStatsCSV(rows);
+        model.statsFileName = f.name;
+      }
+      if (--pending === 0) renderAll();
+    };
+    reader.readAsText(f);
+  }
+}
+
+/* ================= rendering ================= */
+function fmt(n, d = 2) { return n.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d }); }
+function fmtInt(n) { return n.toLocaleString("en-US"); }
+
+function renderAll() {
+  const parts = [];
+  if (model.eventFileName) parts.push(`<b>${model.eventFileName}</b> (${fmtInt(model.events.length)} events)`);
+  if (model.statsFileName) parts.push(`<b>${model.statsFileName}</b> (${fmtInt(model.stats.passCount)} passes)`);
+  fileStatus.innerHTML = "loaded " + (parts.join(" + ") || "nothing recognizable");
+  drop.classList.add("loaded");
+  document.getElementById("content").style.display = "block";
+
+  document.getElementById("frameSec").style.display = model.frames && model.frames.length ? "" : "none";
+  document.getElementById("flameSec").style.display = model.events ? "" : "none";
+  document.getElementById("aggSec").style.display = model.events ? "" : "none";
+  document.getElementById("statsSec").style.display = model.stats ? "" : "none";
+
+  renderTiles();
+  if (model.events) { flame.fit(); renderFrameChart(); renderLegend(); renderAggTable(); }
+  if (model.stats) renderStats();
+}
+
+/* ----- stat tiles ----- */
+function renderTiles() {
+  const tiles = [];
+  if (model.events) {
+    const durS = (model.tMax - model.tMin) / 1000;
+    tiles.push(["Capture", fmt(durS, 1), "s"]);
+    let maxFrame = 0, maxPass = 0;
+    for (const e of model.events) { if (e.frame > maxFrame) maxFrame = e.frame; if (e.pass > maxPass) maxPass = e.pass; }
+    tiles.push(["Render frames", fmtInt(maxFrame), ""]);
+    if (durS > 0) tiles.push(["Avg FPS", fmt(maxFrame / durS, 1), ""]);
+    tiles.push(["ECS passes", fmtInt(maxPass), ""]);
+    if (durS > 0) tiles.push(["ECS pass rate", fmtInt(Math.round(maxPass / durS)), "/s"]);
+    tiles.push(["Scopes recorded", fmtInt(model.events.length), ""]);
+  }
+  if (model.stats && model.stats.entity.length) {
+    tiles.push(["Entities (end)", fmtInt(model.stats.entity[model.stats.entity.length - 1].count), ""]);
+  }
+  document.getElementById("tiles").innerHTML = tiles.map(([l, v, u]) =>
+    `<div class="tile"><div class="v">${v}<span class="u">${u ? " " + u : ""}</span></div><div class="l">${l}</div></div>`).join("");
+}
+
+/* ----- canvas helper ----- */
+function setupCanvas(canvas, cssHeight) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || canvas.parentElement.clientWidth;
+  canvas.style.height = cssHeight + "px";
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(cssHeight * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h: cssHeight };
+}
+
+/* ----- frame time chart ----- */
+function renderFrameChart() {
+  const canvas = document.getElementById("frameChart");
+  const { ctx, w, h } = setupCanvas(canvas, 180);
+  const frames = model.frames;
+  if (!frames.length) return;
+
+  const padL = 46, padR = 12, padT = 12, padB = 22;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+
+  const t0 = frames[0].start, t1 = frames[frames.length - 1].start;
+  let yMax = 40;
+  for (const f of frames) if (f.dur > yMax) yMax = Math.min(f.dur, 200);
+  yMax = Math.ceil(yMax / 10) * 10;
+
+  const X = t => padL + (t - t0) / Math.max(1e-9, t1 - t0) * plotW;
+  const Y = v => padT + plotH - Math.min(v, yMax) / yMax * plotH;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // grid + y labels
+  ctx.strokeStyle = cssVar("--grid"); ctx.lineWidth = 1;
+  ctx.fillStyle = cssVar("--muted");
+  ctx.font = "11px ui-monospace, Menlo, monospace";
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let v = 0; v <= yMax; v += yMax / 4) {
+    const y = Y(v) + 0.5;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.fillText(fmt(v, 0), padL - 6, y);
+  }
+
+  // 60/30 fps guides
+  for (const [ms, lbl] of [[16.7, "60"], [33.3, "30"]]) {
+    if (ms > yMax) continue;
+    const y = Y(ms) + 0.5;
+    ctx.strokeStyle = cssVar("--axis");
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.textAlign = "left";
+    ctx.fillText(lbl + " FPS", padL + 4, y - 8);
+    ctx.textAlign = "right";
+  }
+
+  // x labels (seconds)
+  ctx.textBaseline = "top"; ctx.textAlign = "center";
+  const span = t1 - t0;
+  const step = span > 30000 ? 10000 : span > 8000 ? 2000 : 1000;
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
+    ctx.fillText(fmt(t / 1000, 0) + "s", X(t), padT + plotH + 6);
+  }
+
+  // area + line
+  const line = cssVar("--cat-system");
+  ctx.beginPath();
+  frames.forEach((f, i) => { const x = X(f.start), y = Y(f.dur); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.strokeStyle = line; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.lineTo(X(t1), Y(0)); ctx.lineTo(X(t0), Y(0)); ctx.closePath();
+  ctx.globalAlpha = 0.12; ctx.fillStyle = line; ctx.fill(); ctx.globalAlpha = 1;
+
+  // hover
+  const tip = document.getElementById("frameTip");
+  canvas.onmousemove = e => {
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left;
+    // nearest frame by x
+    let lo = 0, hi = frames.length - 1;
+    const tx = t0 + (mx - padL) / plotW * (t1 - t0);
+    while (lo < hi) { const mid = (lo + hi) >> 1; frames[mid].start < tx ? lo = mid + 1 : hi = mid; }
+    const f = frames[Math.max(0, Math.min(frames.length - 1, lo))];
+    tip.style.display = "block";
+    tip.style.left = Math.min(mx + 14, r.width - 200) + "px";
+    tip.style.top = "14px";
+    tip.textContent = `frame ${f.frame}\n${fmt(f.dur)} ms  (${fmt(1000 / f.dur, 0)} FPS)\nat ${fmt(f.start / 1000, 2)} s`;
+  };
+  canvas.onmouseleave = () => { tip.style.display = "none"; };
+}
+
+/* ----- flame timeline ----- */
+const flame = (() => {
+  const canvas = document.getElementById("flame");
+  const tip = document.getElementById("flameTip");
+  const LANE_HEADER = 18, ROW_H = 15, GUTTER = 4, RULER_H = 20;
+  let view = { t0: 0, t1: 1 };
+  let layout = [];
+  let hover = null;
+
+  function totalHeight() {
+    if (!model.threads) return 120;
+    let hgt = RULER_H;
+    for (const t of model.threads) hgt += LANE_HEADER + (t.maxDepth + 1) * ROW_H + GUTTER;
+    return Math.max(120, Math.min(hgt, 560));
+  }
+
+  function draw() {
+    if (!model.threads) return;
+    const { ctx, w, h } = setupCanvas(canvas, totalHeight());
+    const span = view.t1 - view.t0;
+    const X = t => (t - view.t0) / span * w;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = "11px ui-monospace, Menlo, monospace";
+
+    // ruler
+    ctx.fillStyle = cssVar("--muted");
+    ctx.textBaseline = "top"; ctx.textAlign = "left";
+    const rulerStep = niceStep(span / 8);
+    ctx.strokeStyle = cssVar("--grid");
+    for (let t = Math.ceil(view.t0 / rulerStep) * rulerStep; t <= view.t1; t += rulerStep) {
+      const x = Math.round(X(t)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(x, RULER_H - 4); ctx.lineTo(x, h); ctx.stroke();
+      ctx.fillText(fmtTime(t), x + 3, 3);
+    }
+
+    layout = [];
+    let y = RULER_H;
+
+    for (const th of model.threads) {
+      ctx.fillStyle = cssVar("--muted");
+      ctx.fillText(th.label, 4, y + 3);
+      y += LANE_HEADER;
+
+      const evs = th.events;
+      // binary search: first event whose end could be visible
+      let lo = 0, hi = evs.length;
+      while (lo < hi) { const mid = (lo + hi) >> 1; evs[mid].start < view.t0 - 5000 ? lo = mid + 1 : hi = mid; }
+
+      for (let i = Math.max(0, lo - 200); i < evs.length; i++) {
+        const e = evs[i];
+        if (e.start > view.t1) break;
+        if (e.end < view.t0 || e.depth > 7) continue;
+
+        const x0 = Math.max(-2, X(e.start));
+        const x1 = Math.min(w + 2, X(e.end));
+        const bw = x1 - x0;
+        if (bw < 0.4) continue;
+
+        const ry = y + e.depth * ROW_H;
+        const cat = catOf(e.cat);
+        ctx.fillStyle = nameShade(cssVar(cat.varName), e.name);
+        ctx.fillRect(x0, ry, Math.max(bw, 0.6), ROW_H - 2);
+
+        if (bw > 46) {
+          ctx.fillStyle = cssVar("--surface");
+          ctx.save();
+          ctx.beginPath(); ctx.rect(x0 + 2, ry, bw - 4, ROW_H - 2); ctx.clip();
+          ctx.fillText(e.name, x0 + 4, ry + 2.5);
+          ctx.restore();
+        }
+
+        layout.push({ x0, x1, y0: ry, y1: ry + ROW_H - 2, e });
+      }
+
+      y += (th.maxDepth + 1) * ROW_H + GUTTER;
+      ctx.strokeStyle = cssVar("--border");
+      ctx.beginPath(); ctx.moveTo(0, y - GUTTER / 2 + 0.5); ctx.lineTo(w, y - GUTTER / 2 + 0.5); ctx.stroke();
+    }
+
+    document.getElementById("flameRange").textContent =
+      `${fmtTime(view.t0)} – ${fmtTime(view.t1)}  (${fmt(span, span < 10 ? 2 : 0)} ms)`;
+  }
+
+  function fmtTime(ms) { return ms >= 1000 ? fmt(ms / 1000, 2) + "s" : fmt(ms, 1) + "ms"; }
+  function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    for (const m of [1, 2, 5, 10]) if (m * p >= raw) return m * p;
+    return 10 * p;
+  }
+
+  function clampView() {
+    const total = model.tMax - model.tMin;
+    let span = Math.max(0.05, Math.min(view.t1 - view.t0, total * 1.05));
+    view.t0 = Math.max(model.tMin - total * 0.02, Math.min(view.t0, model.tMax - span * 0.5));
+    view.t1 = view.t0 + span;
+  }
+
+  // interactions
+  let dragging = null;
+  canvas.addEventListener("mousedown", e => { dragging = { x: e.clientX, t0: view.t0, t1: view.t1 }; });
+  window.addEventListener("mouseup", () => { dragging = null; });
+  window.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const w = canvas.clientWidth;
+    const dt = (dragging.x - e.clientX) / w * (dragging.t1 - dragging.t0);
+    view.t0 = dragging.t0 + dt; view.t1 = dragging.t1 + dt;
+    clampView(); requestAnimationFrame(draw);
+  });
+  canvas.addEventListener("wheel", e => {
+    e.preventDefault();
+    const r = canvas.getBoundingClientRect();
+    const fx = (e.clientX - r.left) / r.width;
+    const t = view.t0 + fx * (view.t1 - view.t0);
+    const z = e.deltaY > 0 ? 1.25 : 0.8;
+    view.t0 = t - (t - view.t0) * z;
+    view.t1 = t + (view.t1 - t) * z;
+    clampView(); requestAnimationFrame(draw);
+  }, { passive: false });
+
+  canvas.addEventListener("mousemove", e => {
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    hover = null;
+    for (let i = layout.length - 1; i >= 0; i--) {
+      const b = layout[i];
+      if (mx >= b.x0 && mx <= b.x1 && my >= b.y0 && my <= b.y1) { hover = b; break; }
+    }
+    if (hover) {
+      const ev = hover.e;
+      tip.style.display = "block";
+      tip.style.left = Math.min(mx + 16, r.width - 240) + "px";
+      tip.style.top = (my + 18) + "px";
+      tip.textContent = `${ev.name}\n${ev.cat}  ${fmt(ev.dur, 3)} ms\nstart ${fmt(ev.start / 1000, 3)} s   frame ${ev.frame}\necs pass ${ev.pass}`;
+    } else tip.style.display = "none";
+  });
+  canvas.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+
+  document.getElementById("btnFit").addEventListener("click", () => { fit(); });
+  document.getElementById("btnZoomIn").addEventListener("click", () => { zoomCenter(0.6); });
+  document.getElementById("btnZoomOut").addEventListener("click", () => { zoomCenter(1.6); });
+
+  function zoomCenter(z) {
+    const c = (view.t0 + view.t1) / 2, half = (view.t1 - view.t0) / 2 * z;
+    view.t0 = c - half; view.t1 = c + half;
+    clampView(); draw();
+  }
+
+  function fit() {
+    view.t0 = model.tMin; view.t1 = model.tMax;
+    draw();
+  }
+
+  window.addEventListener("resize", () => { if (model.threads) draw(); });
+
+  return { fit, draw };
+})();
+
+function renderLegend() {
+  document.getElementById("flameLegend").innerHTML = CATS.slice(0, 5).map(c =>
+    `<span><i style="background:var(${c.varName})"></i>${c.label}</span>`).join("");
+}
+
+/* ----- aggregate table ----- */
+const aggState = { cat: "System", sortK: "total", dir: -1 };
+
+function renderAggTable() {
+  const chips = document.getElementById("catChips");
+  const allCats = ["System", "Script", "Event", "Render", "Init", "All"];
+  chips.innerHTML = allCats.map(c =>
+    `<button class="chip" aria-pressed="${aggState.cat === c}" data-c="${c}">${c}</button>`).join("");
+  chips.querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => {
+    aggState.cat = b.dataset.c; renderAggTable();
+  }));
+
+  const rows = [];
+  const threadTotal = new Map(); // cat-group total for % column
+  for (const a of model.agg.values()) {
+    const group = catOf(a.cat).key;
+    threadTotal.set(group, (threadTotal.get(group) || 0) + a.total);
+  }
+
+  for (const a of model.agg.values()) {
+    const group = catOf(a.cat).key;
+    if (aggState.cat !== "All" && group !== aggState.cat) continue;
+    rows.push({
+      name: a.name, cat: a.cat, group,
+      count: a.count, total: a.total, max: a.max,
+      avg: a.total / a.count,
+      pct: a.total / (threadTotal.get(group) || 1) * 100,
+    });
+  }
+
+  const k = aggState.sortK, dir = aggState.dir;
+  rows.sort((x, y) => (k === "name" ? x.name.localeCompare(y.name) * dir : (x[k] - y[k]) * dir));
+
+  const shown = rows.slice(0, 100);
+  document.getElementById("aggCount").textContent =
+    rows.length > 100 ? `showing 100 of ${rows.length}` : `${rows.length} scopes`;
+
+  const tbody = document.querySelector("#aggTable tbody");
+  tbody.innerHTML = shown.map(r => {
+    const c = catOf(r.cat);
+    return `<tr><td><span class="swatch" style="background:var(${c.varName})"></span>${escapeHtml(r.name)}</td>` +
+      `<td>${fmtInt(r.count)}</td><td>${fmt(r.total, 1)}</td><td>${fmt(r.avg, 3)}</td>` +
+      `<td>${fmt(r.max, 2)}</td><td>${fmt(r.pct, 1)}</td></tr>`;
+  }).join("");
+
+  document.querySelectorAll("#aggTable thead th").forEach(th => {
+    th.classList.toggle("sorted", th.dataset.k === aggState.sortK);
+    th.onclick = () => {
+      if (aggState.sortK === th.dataset.k) aggState.dir *= -1;
+      else { aggState.sortK = th.dataset.k; aggState.dir = th.dataset.k === "name" ? 1 : -1; }
+      renderAggTable();
+    };
+  });
+}
+
+function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+/* ----- stats CSV panels ----- */
+function renderStats() {
+  const s = model.stats;
+
+  // entity chart
+  const canvas = document.getElementById("entityChart");
+  const { ctx, w, h } = setupCanvas(canvas, 140);
+  const pts = s.entity;
+  if (pts.length > 1) {
+    const padL = 42, padR = 10, padT = 10, padB = 20;
+    const plotW = w - padL - padR, plotH = h - padT - padB;
+    const t0 = pts[0].ts, t1 = pts[pts.length - 1].ts;
+    let yMax = 1;
+    for (const p of pts) if (p.count > yMax) yMax = p.count;
+    yMax = Math.ceil(yMax * 1.1);
+
+    const X = t => padL + (t - t0) / Math.max(1e-9, t1 - t0) * plotW;
+    const Y = v => padT + plotH - v / yMax * plotH;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = cssVar("--grid"); ctx.fillStyle = cssVar("--muted");
+    ctx.font = "11px ui-monospace, Menlo, monospace";
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (let i = 0; i <= 2; i++) {
+      const v = Math.round(yMax / 2 * i), y = Y(v) + 0.5;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+      ctx.fillText(fmtInt(v), padL - 6, y);
+    }
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText(fmt(t0 / 1000, 0) + "s", padL, padT + plotH + 5);
+    ctx.fillText(fmt(t1 / 1000, 0) + "s", padL + plotW, padT + plotH + 5);
+
+    const line = cssVar("--cat-script");
+    ctx.beginPath();
+    pts.forEach((p, i) => { const x = X(p.ts), y = Y(p.count); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.strokeStyle = line; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.lineTo(X(t1), Y(0)); ctx.lineTo(X(t0), Y(0)); ctx.closePath();
+    ctx.globalAlpha = 0.12; ctx.fillStyle = line; ctx.fill(); ctx.globalAlpha = 1;
+
+    // endpoint emphasis
+    const last = pts[pts.length - 1];
+    ctx.beginPath(); ctx.arc(X(last.ts), Y(last.count), 3, 0, 7); ctx.fillStyle = line; ctx.fill();
+  }
+
+  // events per pass bars
+  const evRows = [...s.events.entries()]
+    .map(([name, a]) => ({ name, avg: a.sum / Math.max(1, a.passes.size), sum: a.sum }))
+    .sort((a, b) => b.avg - a.avg).slice(0, 12);
+  const evMax = evRows.length ? evRows[0].avg : 1;
+  document.getElementById("eventBars").innerHTML = evRows.length ? evRows.map(r =>
+    `<div class="barrow"><span class="n" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>` +
+    `<span><span class="b" style="width:${Math.max(2, r.avg / evMax * 100)}%;background:var(--cat-event);display:block"></span></span>` +
+    `<span class="v">${fmt(r.avg, 2)}</span></div>`).join("")
+    : `<div class="empty">No event rows in the stats CSV.</div>`;
+
+  // component bars (latest sample)
+  const compRows = [...s.comps.entries()]
+    .map(([name, v]) => ({ name, count: v.count }))
+    .sort((a, b) => b.count - a.count).slice(0, 14);
+  const compMax = compRows.length ? compRows[0].count : 1;
+  document.getElementById("compBars").innerHTML = compRows.length ? compRows.map(r =>
+    `<div class="barrow"><span class="n" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>` +
+    `<span><span class="b" style="width:${Math.max(2, r.count / compMax * 100)}%;background:var(--cat-system);display:block"></span></span>` +
+    `<span class="v">${fmtInt(r.count)}</span></div>`).join("")
+    : `<div class="empty">No component rows in the stats CSV.</div>`;
+}
+</script>
+</body>
+</html>

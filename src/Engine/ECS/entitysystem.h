@@ -18,7 +18,14 @@
 
 #include "Renderer/rendercall.h"
 
+#include "Compiler/frontend.h"
+
 #include <iostream>
+
+// Always included: the PROFILE_* macros are no-ops without -DPROFILE
+#include "Profiler/profiler.h"
+#include "Profiler/framelimiter.h"
+#include "Helpers/demangle.h"
 
 #ifdef PROFILE
 #include <atomic>
@@ -28,8 +35,6 @@ extern std::mutex profileMutex;
 
 extern std::unordered_map<std::string, long long> _systemExecutionTimes;
 extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
-
-#include "Profiler/profiler.h"
 #endif
 
 namespace pg
@@ -118,7 +123,7 @@ namespace pg
         };
 
     public:
-        EntitySystem(const std::string& savePath = "save/savedata.sz");
+        EntitySystem(const std::string& savePath = "");
         ~EntitySystem();
 
         /**
@@ -721,6 +726,24 @@ namespace pg
 
         void executeAll();
 
+        /** Cap the ECS graph loop to a target FPS (0 = uncapped, the default).
+         *  Thread-safe; can be changed at runtime (e.g. from the profiler overlay).
+         *  Only used when no passes-per-frame ratio is set (see below). */
+        inline void setEcsTargetFPS(int fps) { ecsFrameLimiter.setTargetFPS(fps); }
+
+        inline int getEcsTargetFPS() const { return ecsFrameLimiter.getTargetFPS(); }
+
+        /** Phase-lock the ECS loop to N passes per rendered frame, spread
+         *  evenly across each frame (0 = disabled). Takes precedence over
+         *  setEcsTargetFPS. Thread-safe. */
+        inline void setEcsPassesPerFrame(int n) { ecsPassPacer.setPassesPerFrame(n); }
+
+        inline int getEcsPassesPerFrame() const { return ecsPassPacer.getPassesPerFrame(); }
+
+        /** Frame-start signal source for the pass pacer (render thread calls
+         *  frameStarted() on it once per frame) */
+        FramePassPacer ecsPassPacer;
+
         /** Return the registry of the ECS, mainly for testing purposes */
         inline constexpr const ComponentRegistry* getComponentRegistry() const noexcept { return &registry; }
 
@@ -821,7 +844,34 @@ namespace pg
             vmOptimizationLevel = level;
         }
 
+        /**
+         * @brief Select the compiler front-end (Pratt or AST) used by every
+         * VM this ECS sets up, including ScriptRegistry compilations.
+         *
+         * Both front-ends produce the same bytecode representation; they stay
+         * selectable until benchmarks decide a winner.
+         */
+        inline void setVMFrontEnd(const ScriptFrontEnd& fe)
+        {
+            vmFrontEnd = fe;
+        }
+
         void setupVm(VM& vm);
+
+        /**
+         * @brief Enable 2D collision support.
+         *
+         * Registers the CollisionSystem (contact detection between entities
+         * holding a CollisionComponent) and the CollisionHandlerSystem
+         * (dispatches CollisionEvents to handlers registered through
+         * makeCollisionHandle / makeCollisionHandleScript), and orders the
+         * handler system after the detection system.
+         *
+         * Call once during setup, before the ECS starts. Subsequent calls
+         * are no-ops. Not available in minimal builds.
+         * (implemented in entitysystem_full.cpp or entitysystem_minimal.cpp)
+         */
+        void enableCollision();
 
         /**
          * @brief Access the script registry (compiled script cache + hot reload).
@@ -983,6 +1033,8 @@ namespace pg
 
         VmOptimizationLevel vmOptimizationLevel = VmOptimizationLevel::O3;
 
+        ScriptFrontEnd vmFrontEnd = ScriptFrontEnd::Pratt;
+
         /** Track the number of executed taskflows (for debug purposes) */
         size_t currentNbOfExecution = 0;
         size_t totalNbOfExecution = 0;
@@ -1008,6 +1060,9 @@ namespace pg
 
         /** Running thread of the ECS */
         std::thread runningThread;
+
+        /** Paces the graph loop when a target FPS is set (see setEcsTargetFPS) */
+        FrameLimiter ecsFrameLimiter;
 
         /** Pimpl for taskflow types to reduce header compilation time */
         struct TaskflowImpl;
@@ -1266,6 +1321,20 @@ namespace pg
 
         componentStorageMap.emplace(id, owner);
 
+#ifdef PROFILE
+        {
+            std::string countName;
+
+            if constexpr(HasStaticName<Type>::value)
+                countName = Type::getType();
+            else
+                countName = prettyTypeName(typeid(Type).name());
+
+            // Slot 0 of the component set is reserved, hence the -1
+            registerComponentCounter(id, countName, [owner]() { return owner->components.nbElements() - 1; });
+        }
+#endif
+
         owner->_componentId = id;
     }
 
@@ -1303,6 +1372,10 @@ namespace pg
         {
             componentStorageMap.erase(it);
         }
+
+#ifdef PROFILE
+        unregisterComponentCounter(id);
+#endif
 
         removeTypeId<Type>();
     }

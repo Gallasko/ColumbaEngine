@@ -76,4 +76,19 @@ namespace pg
         return visitor->visit(this);
     }
 
+    std::shared_ptr<Valuable> AnonymousFunction::accept(Visitor* visitor)
+    {
+        return visitor->visit(this);
+    }
+
+    std::shared_ptr<Valuable> IndexGet::accept(Visitor* visitor)
+    {
+        return visitor->visit(this);
+    }
+
+    std::shared_ptr<Valuable> IndexSet::accept(Visitor* visitor)
+    {
+        return visitor->visit(this);
+    }
+
 }

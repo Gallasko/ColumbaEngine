@@ -51,4 +51,29 @@ namespace pg
         visitor->visitStatement(this);
     }
 
+    void ForStatement::accept(Visitor* visitor)
+    {
+        visitor->visitStatement(this);
+    }
+
+    void ForInStatement::accept(Visitor* visitor)
+    {
+        visitor->visitStatement(this);
+    }
+
+    void BreakStatement::accept(Visitor* visitor)
+    {
+        visitor->visitStatement(this);
+    }
+
+    void ContinueStatement::accept(Visitor* visitor)
+    {
+        visitor->visitStatement(this);
+    }
+
+    void DPrintStatement::accept(Visitor* visitor)
+    {
+        visitor->visitStatement(this);
+    }
+
 }

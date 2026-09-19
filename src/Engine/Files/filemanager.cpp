@@ -168,7 +168,7 @@ namespace pg
 
             if (not p)
             {
-                LOG_ERROR(DOM, "Couldn't open file '" << file.filepath << "' : File is unaccessible");
+                LOG_WARNING(DOM, "Couldn't open file '" << file.filepath << "' : File is unaccessible");
                 return false;
             }
             else

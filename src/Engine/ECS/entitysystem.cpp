@@ -17,9 +17,7 @@
 #include "taskflow/taskflow.hpp"
 
 // For type-name demangling in dumbTaskflow()
-#if defined(__GNUC__) || defined(__clang__)
-#include <cxxabi.h>
-#endif
+#include "Helpers/demangle.h"
 
 #include "system.h"
 #include "scriptregistry.h"
@@ -69,6 +67,9 @@ namespace
 #include "Compiler/pass/long_jump_optimization_pass.h"
 #include "Compiler/pass/popping_jump_pass.h"
 #include "Compiler/pass/basic_operator_local_indexing.h"
+#include "Compiler/ast/pass/loop_invariant_hoisting.h"
+#include "Compiler/ast/pass/static_loop_evaluation.h"
+#include "Compiler/ast/pass/entity_loop_lowering.h"
 #include "Compiler/pass/comparison_local_indexing.h"
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
 #include "Compiler/pass/constant_var_access.h"
@@ -135,6 +136,27 @@ namespace pg
             static size_t nbExecution = 0;
 
             end = std::chrono::steady_clock::now();
+
+#ifdef PROFILE
+            // One taskflow graph iteration = one ECS pass. All events recorded
+            // until the next basicTask entry are stamped with this pass number.
+            auto ecsPass = Profiler::instance().beginEcsPass();
+            Profiler::instance().recordInstant("ECSPass", "Marker");
+
+            // Component pools are stable here (no system is running), so the
+            // count thunks can be read safely. Sampled at a low cadence.
+            static uint64_t componentSampleCountdown = 0;
+            if (componentSampleCountdown == 0)
+            {
+                componentSampleCountdown = 32;
+                ProfilerStats::instance().setComponentCounts(registry.getComponentCounts());
+            }
+            componentSampleCountdown--;
+
+            // Counters accumulated since the previous basicTask entry belong
+            // to the pass that just finished.
+            ProfilerStats::instance().finalizePass(ecsPass - 1, Profiler::instance().nowMs(), getNbEntities());
+#endif
 
             // During the command dispatcher no other system should be running
             // So it should be safe to allow for creation and deletion of entities/components on the spot
@@ -235,6 +257,8 @@ namespace pg
 
         LOG_INFO(DOM, "Deleting Ecs...");
 
+        PROFILE_SCOPE("EntitySystem::dtor", "Shutdown");
+
         stop();
 
         LOG_INFO(DOM, "Ecs stopped");
@@ -268,23 +292,8 @@ namespace pg
 
         // --- local helpers ---
 
-        // Demangle a C++ mangled type name and strip all "pg::" namespace prefixes.
         auto prettyName = [](const char* mangled) -> std::string {
-#if defined(__GNUC__) || defined(__clang__)
-            int status = 0;
-            char* buf = abi::__cxa_demangle(mangled, nullptr, nullptr, &status);
-            std::string s = (status == 0 && buf) ? buf : mangled;
-            if (buf) free(buf);
-#else
-            std::string s = mangled;
-#endif
-            std::string clean;
-            for (size_t i = 0; i < s.size(); )
-            {
-                if (s.compare(i, 4, "pg::") == 0) i += 4;
-                else clean += s[i++];
-            }
-            return clean;
+            return prettyTypeName(mangled);
         };
 
         // Decode a _listenerEventNames entry ("L:mangled" or "Q:mangled")
@@ -710,8 +719,22 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        // runs the taskflow until we stop the system
-        taskflowImpl->executor.run_until(taskflowImpl->taskflow, [&running = running](){ return not running; });
+        // Runs the taskflow until we stop the system. The predicate is
+        // evaluated between whole-graph iterations (no task is pending
+        // then), so pacing there caps the ECS loop without holding a
+        // worker mid-graph. The pass pacer (N passes phase-locked to the
+        // render frame) takes precedence over the free-running FPS cap.
+        taskflowImpl->executor.run_until(taskflowImpl->taskflow, [this, &running = running]() {
+            if (not running)
+                return true;
+
+            if (ecsPassPacer.enabled())
+                ecsPassPacer.pace();
+            else
+                ecsFrameLimiter.pace();
+
+            return not running.load();
+        });
     }
 
     Entity* EntitySystem::getEntity(const std::string& name) const
@@ -749,12 +772,10 @@ namespace pg
                   << " with average execution time: " << maxAvgTime << " ns" << std::endl;
 
 
-        for (const auto& event : registry.eventCountMap)
+        for (const auto& [name, count] : ProfilerStats::instance().totalEventCounts())
         {
-            std::cout << "Event ID: " << event.first << ", called: " << event.second << std::endl;
+            std::cout << "Event: " << name << ", called: " << count << std::endl;
         }
-
-        registry.eventCountMap.clear();
 
         // Optional: Reset the counters if you want per-interval reporting.
         _systemExecutionTimes.clear();
@@ -940,6 +961,10 @@ namespace pg
 
         setOptimizationPasses(vm);
 
+        // Compiler front-end choice (Pratt vs AST) propagates to every VM
+        // this ECS creates, including ScriptRegistry compilations
+        vm.setFrontEnd(vmFrontEnd);
+
         // Todo add a flag to enable this
         // vm.enableOptimizationDebugging();
 
@@ -998,6 +1023,16 @@ namespace pg
             // form, dropping the unconditional OP_Loop. No later pass observes the
             // new OP_Jump_If_True_Popping opcode.
             vm.addOptimizationPass(std::make_unique<LoopRotationPass>());
+
+            // AST-level passes: only run on the AST front-end path (between
+            // parse and emission); the Pratt front-end never sees them.
+            // Entity-loop lowering runs FIRST (it matches the pristine
+            // ForIn(getEntities(...)) shape; its call-containing output is
+            // skipped by the other passes anyway), then static evaluation so
+            // fully-folded loops disappear before hoisting sees the leftovers.
+            vm.addAstPass(std::make_unique<EntityLoopLoweringPass>());
+            vm.addAstPass(std::make_unique<StaticLoopEvaluationPass>());
+            vm.addAstPass(std::make_unique<LoopInvariantHoistingPass>());
         }
         else if (vmOptimizationLevel == VmOptimizationLevel::O0)
         {
@@ -1048,22 +1083,31 @@ namespace pg
         auto it1 = taskflowImpl->tasks.find(sys1Id);
         auto it2 = taskflowImpl->tasks.find(sys2Id);
 
+        auto getSystemNameById = [this](_unique_id id) -> std::string {
+            const auto& it = systems.find(id);
+
+            if (it != systems.end())
+                return systems.at(id)->getSystemName();
+            else
+                return "Unknown (" + std::to_string(id) + ")";
+        };
+
         if (it1 != taskflowImpl->tasks.end() and it2 != taskflowImpl->tasks.end())
         {
             it1->second.succeed(it2->second);
-            LOG_INFO("ECS", "System " << sys1Id << " will run after system " << sys2Id << " !");
+            LOG_INFO("ECS", "System " << getSystemNameById(sys1Id) << " will run after system " << getSystemNameById(sys2Id) << " !");
         }
         else if (it1 == taskflowImpl->tasks.end() and it2 != taskflowImpl->tasks.end())
         {
-            LOG_ERROR("ECS", "Systems " << sys1Id << " is not a registered task in ecs can't reorder task !");
+            LOG_ERROR("ECS", "Systems " << getSystemNameById(sys1Id) << " is not a registered task in ecs can't reorder task !");
         }
         else if (it1 != taskflowImpl->tasks.end() and it2 == taskflowImpl->tasks.end())
         {
-            LOG_ERROR("ECS", "Systems " << sys2Id << " is not a registered task in ecs can't reorder task !");
+            LOG_ERROR("ECS", "Systems " << getSystemNameById(sys2Id) << " is not a registered task in ecs can't reorder task !");
         }
         else
         {
-            LOG_ERROR("ECS", "Both systems " << sys1Id << " and " << sys2Id << " are not registered task in ecs can't reorder their task !");
+            LOG_ERROR("ECS", "Both systems " << getSystemNameById(sys1Id) << " and " << getSystemNameById(sys2Id) << " are not registered task in ecs can't reorder their task !");
         }
     }
 

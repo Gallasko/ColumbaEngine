@@ -186,10 +186,21 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/popping_jump_pass.cpp
     src/Engine/Compiler/pass/loop_rotation_pass.cpp
+    src/Engine/Compiler/ast/ast_compiler.cpp
+    src/Engine/Compiler/ast/ast_pass.cpp
+    src/Engine/Compiler/ast/pass/ast_analysis.cpp
+    src/Engine/Compiler/ast/pass/loop_invariant_hoisting.cpp
+    src/Engine/Compiler/ast/pass/static_loop_evaluation.cpp
+    src/Engine/Compiler/ast/pass/entity_loop_lowering.cpp
     src/Engine/Compiler/ecsserialization.cpp
-    # Minimal interpreter (only lexer and token for parsing)
+    # Minimal interpreter (lexer/token + the AST front-end shared with the
+    # bytecode compiler; the tree-walking runtime itself is excluded)
     src/Engine/Interpreter/lexer.cpp
     src/Engine/Interpreter/token.cpp
+    src/Engine/Interpreter/expression.cpp
+    src/Engine/Interpreter/statement.cpp
+    src/Engine/Interpreter/parser.cpp
+    src/Engine/Interpreter/resolver.cpp
     # ECS system (needed for module registration and VM integration)
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
@@ -210,7 +221,9 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Files/fileparser.cpp
     src/Engine/Memory/elementtype.cpp
     src/Engine/Memory/parallelfor.cpp
+    src/Engine/Helpers/demangle.cpp
     src/Engine/Profiler/profiler.cpp
+    src/Engine/Profiler/profilerstats.cpp
     # Core systems (provides EntityName component)
     src/Engine/Systems/coresystems.cpp
     # Versioning
@@ -255,6 +268,12 @@ set(ENGINESOURCE
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/popping_jump_pass.cpp
     src/Engine/Compiler/pass/loop_rotation_pass.cpp
+    src/Engine/Compiler/ast/ast_compiler.cpp
+    src/Engine/Compiler/ast/ast_pass.cpp
+    src/Engine/Compiler/ast/pass/ast_analysis.cpp
+    src/Engine/Compiler/ast/pass/loop_invariant_hoisting.cpp
+    src/Engine/Compiler/ast/pass/static_loop_evaluation.cpp
+    src/Engine/Compiler/ast/pass/entity_loop_lowering.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
@@ -271,11 +290,14 @@ set(ENGINESOURCE
     src/Engine/Files/filemanager.cpp
     src/Engine/Files/fileparser.cpp
     src/Engine/Profiler/profiler.cpp
+    src/Engine/Profiler/profilerstats.cpp
+    src/Engine/Profiler/profileroverlay.cpp
     src/Engine/Init/coresystems.cpp
     src/Engine/Init/rendersystems.cpp
     src/Engine/Init/inputsystems.cpp
     src/Engine/Init/uisystems.cpp
     src/Engine/Init/audiosystems.cpp
+    src/Engine/Helpers/demangle.cpp
     src/Engine/Helpers/fsm.cpp
     src/Engine/Helpers/openglobject.cpp
     src/Engine/Helpers/tinyfiledialogs.cpp
@@ -1193,6 +1215,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(BlockBreaker examples/BlockBreaker/main.cpp)
+
+        target_include_directories(BlockBreaker PUBLIC examples/BlockBreaker)
+
+        target_sources(BlockBreaker PRIVATE
+            examples/BlockBreaker/application.cpp
+        )
+
+        target_link_libraries(BlockBreaker PRIVATE ColumbaEngine)
+
+        ###
+
         add_executable(StandardSys examples/StandardSys/main.cpp)
 
         target_include_directories(StandardSys PUBLIC examples/StandardSys)
@@ -1395,6 +1429,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/collision2d.cc
             test/ecssystem.cc
             test/filemanager.cc
+            test/framelimiter.cc
+            test/profilertools.cc
             test/interpreter.cc
             test/layout.cc
             test/prefab.cc
@@ -1436,6 +1472,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             benchmark/memorypool.cc
             benchmark/serialization.cc
             benchmark/script_performance.cc
+            benchmark/frontend_comparison.cc
             benchmark/ecs_performance.cc
         )
 
@@ -1444,6 +1481,11 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         add_custom_command(TARGET bench PRE_BUILD
                            COMMAND ${CMAKE_COMMAND} -E copy_directory
                            ${CMAKE_SOURCE_DIR}/test/bench $<TARGET_FILE_DIR:bench>/test/bench)
+
+        # Script corpus for the front-end comparison benchmark
+        add_custom_command(TARGET bench PRE_BUILD
+                           COMMAND ${CMAKE_COMMAND} -E copy_directory
+                           ${CMAKE_SOURCE_DIR}/test/pgcompiler/scripts $<TARGET_FILE_DIR:bench>/test/pgcompiler/scripts)
 
         # Cross-engine comparison benchmarks (opt-in: -DPGE_BUILD_COMPARISON_BENCHMARKS=ON).
         if(PGE_BUILD_COMPARISON_BENCHMARKS)
@@ -1459,7 +1501,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         add_executable(test_compiler test/pgcompiler/script_testbench.cc)
 
         target_sources(test_compiler PRIVATE
+            test/pgcompiler/ast_parser_parity.cc
+            test/pgcompiler/differential_testbench.cc
+            test/pgcompiler/unit/test_ast_passes.cc
+            test/pgcompiler/unit/test_entity_loop_lowering.cc
             test/pgcompiler/unit/test_vm_memory.cc
+            test/pgcompiler/unit/test_vm_prepared.cc
             test/pgcompiler/unit/test_register_ops.cc
             test/pgcompiler/unit/test_bytecode_rewriter.cc
         )

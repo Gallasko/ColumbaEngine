@@ -1,5 +1,9 @@
 #pragma once
 
+#include "frontend.h"
+
+#include "ast/ast_pass.h"
+
 #include "chunk.h"
 
 #include "decoded_chunk.h"
@@ -330,15 +334,26 @@ namespace pg
 
         InterpretResult interpretFromBytecodeFile(const std::string& filename);
 
-        InterpretResult interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount = 0);
+        /** scriptName is only used to label profiler scopes ([deserialize]/[decode]/[exec]) */
+        InterpretResult interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount = 0, const std::string& scriptName = "");
+
+        // Deserialize cached bytecode into a function WITHOUT running it. The
+        // returned ObjFunction* is owned by this VM's function pool; release it
+        // with cleanupFunction(). Returns nullptr on empty/invalid bytecode.
+        ObjFunction* deserializeCachedBytecode(const std::vector<char>& cachedBytecode, const std::string& scriptName = "");
+
+        // Persistent-VM fast path (see vm_core.cpp for the rationale):
+        //  - prepareCachedFunction() -> deserialize + decode + freeze constants ONCE.
+        //  - runPreparedFunction()   -> execute a prepared function again, cheaply,
+        //                               with no re-deserialize / re-decode / re-freeze.
+        // The prepared function must be run only on the VM that prepared it, and
+        // released with cleanupFunction() (which frees its decoded chunk).
+        ObjFunction* prepareCachedFunction(const std::vector<char>& cachedBytecode, const std::string& scriptName = "");
+        InterpretResult runPreparedFunction(ObjFunction* funcObj, int argCount = 0, const std::string& scriptName = "");
 
         InterpretResult run();
         InterpretResult runDecoded(DecodedChunk *decoded);  // Execute from pre-decoded chunks (faster)
 
-        // Hot loop compiled twice: ProfileEnabled selects at compile time
-        // whether per-instruction profiling code exists in the loop at all,
-        // so the non-profiled path carries zero profiling overhead.
-        // Defined in vm_core.cpp; only instantiated from runDecoded there.
         template <bool ProfileEnabled>
         InterpretResult runDecodedImpl(DecodedChunk *decoded);
 
@@ -697,9 +712,20 @@ namespace pg
         // Test output buffer for __dprint (used in tests)
         std::string testOutput;
 
+        // Compiler front-end selection (see frontend.h)
+        using FrontEnd = ScriptFrontEnd;
+
+        FrontEnd frontEnd = FrontEnd::Pratt;
+
+        inline void setFrontEnd(FrontEnd fe) { frontEnd = fe; }
+
         // Bytecode optimization
         PassManager passManager;
         bool enableOptimizations = true;
+
+        // AST-level optimization (runs only on the AST front-end path,
+        // between parsing and emission; see ast/ast_pass.h)
+        AstPassManager astPassManager;
 
         // Decode-time superinstruction fusion (see decoded_fusion.h). On by
         // default — part of decoding, applies to compiled AND deserialized
@@ -779,6 +805,11 @@ namespace pg
         inline void addOptimizationPass(std::unique_ptr<BytecodePass> pass)
         {
             passManager.addPass(std::move(pass));
+        }
+
+        inline void addAstPass(std::unique_ptr<AstPass> pass)
+        {
+            astPassManager.addPass(std::move(pass));
         }
 
         inline void registerNative(const std::string& name, NativeFn function)
@@ -978,7 +1009,7 @@ namespace pg
         }
 
         // Helper methods for interpreting bytecode
-        InterpretResult executeChunk(ObjFunction* funcObj, int argCount);
+        InterpretResult executeChunk(ObjFunction* funcObj, int argCount, const std::string& scriptName = "");
         void cleanupFunction(ObjFunction* funcObj);
 
         // Function pointer dispatch methods

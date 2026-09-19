@@ -38,6 +38,10 @@
 #include "Compiler/pass/simplify_constant_pass.h"
 #include "Compiler/pass/loop_rotation_pass.h"
 
+// AST-level passes (only run when --frontend=ast selects the AST front-end)
+#include "Compiler/ast/pass/static_loop_evaluation.h"
+#include "Compiler/ast/pass/loop_invariant_hoisting.h"
+
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -68,6 +72,7 @@ int main(int argc, char** argv)
     std::string scriptPath;
     int64_t     count         = 0;
     bool        optimize      = true;  // O3 by default — match EntitySystem
+    bool        useAst        = false; // compile through the AST front-end
     bool        dumpBytecode  = false; // print disassembly for every compiled function
     bool        debugPasses   = false; // print each pass's effect (verbose)
     bool        profile       = false; // enable instruction-level profiling
@@ -81,6 +86,10 @@ int main(int argc, char** argv)
             count = std::stoll(a.substr(std::strlen("--count=")));
         else if (a == "--no-opt")
             optimize = false;
+        else if (a == "--frontend=ast")
+            useAst = true;
+        else if (a == "--frontend=pratt")
+            useAst = false;
         else if (a == "--dump-bytecode")
             dumpBytecode = true;
         else if (a == "--debug-passes")
@@ -97,6 +106,8 @@ int main(int argc, char** argv)
                 "\n"
                 "Options:\n"
                 "  --no-opt          disable PgScript bytecode optimization passes\n"
+                "  --frontend=ast    compile through the AST front-end (AstCompiler)\n"
+                "  --frontend=pratt  compile through the Pratt front-end (default)\n"
                 "  --dump-bytecode   disassemble every compiled function after passes\n"
                 "  --debug-passes    print disassembly after each optimization pass\n"
                 "  --profile         enable instruction profiling; print report at exit\n",
@@ -138,12 +149,20 @@ int main(int argc, char** argv)
         vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
         vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
         vm.addOptimizationPass(std::make_unique<LoopRotationPass>());
+
+        // AST-level passes: no-ops on the Pratt path, active with
+        // --frontend=ast (same registration order as EntitySystem)
+        vm.addAstPass(std::make_unique<StaticLoopEvaluationPass>());
+        vm.addAstPass(std::make_unique<LoopInvariantHoistingPass>());
     }
     else
     {
         vm.disableBytecodeOptimization();
         vm.enableDecodeFusion = false;
     }
+
+    if (useAst)
+        vm.setFrontEnd(VM::FrontEnd::Ast);
 
     if (debugPasses) vm.enableOptimizationDebugging();
 

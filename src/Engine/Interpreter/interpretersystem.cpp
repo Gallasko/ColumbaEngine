@@ -4,6 +4,8 @@
 
 #include "scriptcallable.h"
 
+#include "Profiler/profiler.h"
+
 namespace pg
 {
     void InterpreterSystem::addToRegistry(ComponentRegistry *registry)
@@ -78,6 +80,8 @@ namespace pg
     {
         if (not executeMethod)
             return;
+
+        PROFILE_SCOPE(name, "Script");
 
         ValuableQueue emptyQueue;
 

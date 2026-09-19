@@ -789,6 +789,67 @@ namespace pg
                 return vectorValue;
             });
 
+            // Lazy entity iteration support (AST front-end entity-loop
+            // lowering): __ecsEntityIds snapshots entity ids for a component,
+            // __ecsEntityView builds a filtered per-entity table on demand.
+            // Registered beside getEntities so lowered code can only run
+            // where getEntities itself would have resolved.
+            addNativeFunction("__ecsEntityIds", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount != 1)
+                {
+                    throw std::runtime_error("getEntities expects exactly 1 argument (componentName)");
+                }
+
+                if (!IS_STRING(args[0]))
+                {
+                    throw std::runtime_error("getEntities expects a string component name");
+                }
+
+                auto componentName = vm->asString(args[0]);
+
+                auto* owner = ecsRefCopy->getComponentRegistry()->retrieveStandardComponent(componentName);
+
+                if (!owner)
+                {
+                    throw std::runtime_error("getEntities: Standard Component '" + componentName + "' not found in ECS");
+                }
+
+                Value vectorValue = vm->createVector();
+                ObjVector* vector = vm->asVector(vectorValue);
+
+                auto componentView = owner->view();
+
+                for (auto* component : componentView)
+                {
+                    vector->fields.push_back(makeIntValue(static_cast<int64_t>(component->entityId)));
+                }
+
+                return vectorValue;
+            });
+
+            addNativeFunction("__ecsEntityView", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount < 1 or !IS_INT(args[0]))
+                {
+                    throw std::runtime_error("__ecsEntityView expects an entity id followed by component names");
+                }
+
+                auto entityId = static_cast<_unique_id>(AS_INT(args[0]));
+
+                std::vector<std::string> componentNames;
+                componentNames.reserve(argCount - 1);
+
+                for (int i = 1; i < argCount; i++)
+                {
+                    if (!IS_STRING(args[i]))
+                    {
+                        throw std::runtime_error("__ecsEntityView expects string component names");
+                    }
+
+                    componentNames.push_back(vm->asString(args[i]));
+                }
+
+                return serializeEntityViewToTable(vm, ecsRefCopy, entityId, componentNames);
+            });
         }
     };
 }
