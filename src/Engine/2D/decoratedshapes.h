@@ -10,6 +10,7 @@
 
 #include "Components/HatchRect2DObject.generated.h"
 #include "Components/DottedLine2DObject.generated.h"
+#include "Components/StrokeRect2DObject.generated.h"
 #include "Components/ViewportComponent.generated.h"
 
 namespace pg
@@ -80,6 +81,41 @@ namespace pg
         auto vp = ecs->template attach<ViewportComponent>(entity);
 
         auto obj = ecs->template attach<DottedLine2DObject>(entity, colors, period, dotRadius);
+
+        return {entity, ui, anchor, vp, obj};
+    }
+
+    // ---------------------------------------------------------------------------
+    // Stroke-only rectangle (optionally doubled)
+    // ---------------------------------------------------------------------------
+
+    struct StrokeRect2DObjectSystem : public GenericRenderSystem<StrokeRect2DObject, StrokeRect2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>
+    {
+        StrokeRect2DObjectSystem(MasterRenderer* masterRenderer) : GenericRenderSystem(masterRenderer) {}
+        virtual ~StrokeRect2DObjectSystem() {}
+
+        virtual std::string getSystemName() const override { return "Stroke Rect 2D System"; }
+
+        virtual void setup() override;
+
+        virtual RenderCall createRenderCall(CompRef<StrokeRect2DObject> obj, CompRef<PositionComponent> ui, CompRef<ViewportComponent> vp) override;
+
+        uint64_t materialId = 0;
+    };
+
+    template <typename Type>
+    CompList<PositionComponent, UiAnchor, ViewportComponent, StrokeRect2DObject> makeStrokeRect2DShape(Type* ecs, float width, float height, const constant::Vector4D& colors, float strokeWidth = 1.0f, float gap = 0.0f, bool doubled = false)
+    {
+        auto entity = ecs->createEntity();
+
+        auto ui = ecs->template attach<PositionComponent>(entity);
+        ui->setWidth(width);
+        ui->setHeight(height);
+
+        auto anchor = ecs->template attach<UiAnchor>(entity);
+        auto vp = ecs->template attach<ViewportComponent>(entity);
+
+        auto obj = ecs->template attach<StrokeRect2DObject>(entity, colors, strokeWidth, gap, doubled);
 
         return {entity, ui, anchor, vp, obj};
     }

@@ -16,6 +16,7 @@ loadShader("polygonShader", "shader/polygonshader.vs", "shader/polygonshader.fs"
 loadShader("RoundedRect", "shader/roundedrect.vs", "shader/roundedrect.fs");
 loadShader("HatchRect", "shader/hatchrect.vs", "shader/hatchrect.fs");
 loadShader("DottedLine", "shader/dottedline.vs", "shader/dottedline.fs");
+loadShader("StrokeRect", "shader/strokerect.vs", "shader/strokerect.fs");
 loadShader("Triangle", "shader/triangle.vs", "shader/triangle.fs");
 loadShader("voxel3d", "shader/voxel3d.vs", "shader/voxel3d.fs");
 loadShader("editorui", "shader/editorui.vs", "shader/editorui.fs");

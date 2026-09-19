@@ -130,4 +130,64 @@ namespace pg
 
         return call;
     }
+
+    // ---------------------------------------------------------------------------
+    // StrokeRect2DObjectSystem
+    // ---------------------------------------------------------------------------
+
+    void StrokeRect2DObjectSystem::setup()
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        Material mat;
+
+        mat.shader = masterRenderer->getShader("StrokeRect");
+
+        mat.nbTextures = 0;
+
+        mat.uniformMap.emplace("sWidth", "ScreenWidth");
+        mat.uniformMap.emplace("sHeight", "ScreenHeight");
+
+        // pos(3), size(2), rotation(1), color(4), strokeWidth(1), gap(1), doubled(1), cornerRadius(1) = 14 floats
+        mat.setSimpleMesh({3, 2, 1, 4, 1, 1, 1, 1});
+
+        materialId = masterRenderer->registerMaterial(mat);
+    }
+
+    RenderCall StrokeRect2DObjectSystem::createRenderCall(CompRef<StrokeRect2DObject> obj, CompRef<PositionComponent> ui, CompRef<ViewportComponent> vp)
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        RenderCall call;
+
+        call.processPositionComponent(ui);
+
+        call.setOpacity(OpacityType::Additive);
+
+        call.setRenderStage(renderStage);
+
+        call.setMaterial(materialId);
+
+        call.setViewport(vp->viewport);
+
+        // 14 floats: x, y, z, width, height, rotation, r, g, b, a, strokeWidth, gap, doubled, cornerRadius
+        call.data.resize(14);
+
+        call.data[0]  = ui->x;
+        call.data[1]  = ui->y;
+        call.data[2]  = ui->z;
+        call.data[3]  = ui->width;
+        call.data[4]  = ui->height;
+        call.data[5]  = ui->rotation;
+        call.data[6]  = obj->colors.x;
+        call.data[7]  = obj->colors.y;
+        call.data[8]  = obj->colors.z;
+        call.data[9]  = obj->colors.w;
+        call.data[10] = obj->strokeWidth;
+        call.data[11] = obj->gap;
+        call.data[12] = obj->doubled ? 1.0f : 0.0f;
+        call.data[13] = obj->cornerRadius;
+
+        return call;
+    }
 }

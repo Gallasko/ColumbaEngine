@@ -121,5 +121,80 @@ namespace pg
             EXPECT_FLOAT_EQ(leaderPos->x,     40.0f);
             EXPECT_FLOAT_EQ(leaderPos->width, 160.0f);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(decoratedshapes_test, stroke_material_layout)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            ecs.createSystem<PositionComponentSystem>();
+            auto* sys = ecs.createSystem<StrokeRect2DObjectSystem>(&renderer);
+
+            auto shape = makeStrokeRect2DShape(&ecs, 160.0f, 90.0f, {128.0f, 106.0f, 74.0f, 255.0f});
+
+            ecs.executeOnce();
+
+            const RenderCall& call = sys->entityRenderCalls.at(shape.id);
+            ASSERT_EQ(call.data.size(), 14u);
+            EXPECT_FLOAT_EQ(call.data[10], 1.0f);
+            EXPECT_FLOAT_EQ(call.data[11], 0.0f);
+            EXPECT_FLOAT_EQ(call.data[12], 0.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(decoratedshapes_test, stroke_doubled_flag)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            ecs.createSystem<PositionComponentSystem>();
+            auto* sys = ecs.createSystem<StrokeRect2DObjectSystem>(&renderer);
+
+            auto shape = makeStrokeRect2DShape(&ecs, 50.0f, 50.0f, {138.0f, 106.0f, 22.0f, 255.0f}, 1.0f, 1.0f, true);
+
+            ecs.executeOnce();
+
+            const RenderCall& call = sys->entityRenderCalls.at(shape.id);
+            EXPECT_FLOAT_EQ(call.data[12], 1.0f);
+            EXPECT_FLOAT_EQ(call.data[11], 1.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(decoratedshapes_test, stroke_keeps_bounds)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<StrokeRect2DObjectSystem>(&renderer);
+
+            // A 200x100 parent panel.
+            auto parent = ecs.createEntity();
+            auto parentPos = ecs.attach<PositionComponent>(parent);
+            auto parentAnchor = ecs.attach<UiAnchor>(parent);
+            parentPos->setWidth(200.0f);
+            parentPos->setHeight(100.0f);
+
+            // A stroked rect filling the parent; the stroke is inset, so no size compensation.
+            auto stroke = makeStrokeRect2DShape(&ecs, 0.0f, 0.0f, {128.0f, 106.0f, 74.0f, 255.0f});
+            stroke.get<UiAnchor>()->fillIn(*parentAnchor);
+
+            for (int i = 0; i < 3; ++i)
+                ecs.executeOnce();
+
+            auto strokePos = stroke.get<PositionComponent>();
+            EXPECT_FLOAT_EQ(strokePos->width,  200.0f);
+            EXPECT_FLOAT_EQ(strokePos->height, 100.0f);
+        }
     }
 }

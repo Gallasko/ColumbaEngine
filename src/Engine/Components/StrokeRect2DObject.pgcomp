@@ -1,0 +1,47 @@
+name: StrokeRect2DObject
+namespace: pg
+base_class: Component
+
+includes:
+  - "pgconstant.h"
+
+fields:
+  - name: colors
+    type: constant::Vector4D
+    default: "{255.0f, 255.0f, 255.0f, 255.0f}"
+    setter: event
+
+  - name: strokeWidth
+    type: float
+    default: 1.0f
+    setter: event
+
+  - name: gap
+    type: float
+    default: 0.0f
+    setter: event
+
+  - name: doubled
+    type: bool
+    default: false
+    setter: event
+
+  - name: cornerRadius
+    type: float
+    default: 0.0f
+    setter: event
+
+constructors:
+  - params: [colors]
+  - params: [colors, strokeWidth]
+  - params: [colors, strokeWidth, gap, doubled]
+
+methods:
+  - definition: "void setOpacity(float alpha) {
+    colors.w = alpha;
+    if (ecsRef)
+        ecsRef->sendEvent(StrokeRect2DObjectChangedEvent{entityId});
+}"
+
+events:
+  - StrokeRect2DObjectChangedEvent
