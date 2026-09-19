@@ -92,7 +92,7 @@ namespace pg
         ~IfStatement() {}
 
         virtual void accept(Visitor* visitor) override;
-        virtual std::string prettyPrint() const override { return "If statement, with condition: " + condition->prettyPrint() + "\n" + thenBranch->prettyPrint() + "\n" + elseBranch->prettyPrint(); } 
+        virtual std::string prettyPrint() const override { return "If statement, with condition: " + (condition ? condition->prettyPrint() : "null") + "\n" + (thenBranch ? thenBranch->prettyPrint() : "null") + "\n" + (elseBranch ? elseBranch->prettyPrint() : "null"); }
         virtual std::string getType() const override { return "IfStatement"; }
 
         ExprPtr condition;
