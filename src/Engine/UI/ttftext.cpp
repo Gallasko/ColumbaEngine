@@ -270,6 +270,7 @@ namespace pg
         float penX = 0.0f;
         int lineIndex = 0;
         float maxLineWidth = 0.0f;
+        uint32_t prev = 0;   // previous code point, for kerning; 0 = start of line
 
         for (const auto& seg : segments)
         {
@@ -277,6 +278,7 @@ namespace pg
             {
                 penX = 0.0f;
                 ++lineIndex;
+                prev = 0;
                 continue;
             }
 
@@ -289,6 +291,7 @@ namespace pg
                 if (byte == ' ')
                 {
                     penX += spaceAdvance;
+                    prev = byte;
                     continue;
                 }
 
@@ -304,19 +307,26 @@ namespace pg
                     {
                         penX = 0.0f;
                         ++lineIndex;
+                        prev = 0;
                     }
                 }
 
                 const uint32_t codepoint = static_cast<uint32_t>(byte);
+
+                // Kerning keeps sub-pixel precision on the pen; only the glyph origin snaps.
+                if (fm.hasKerning and prev != 0)
+                    penX += atlas.kerning(prev, codepoint) * scale;
+
                 const GlyphInfo& glyph = atlas.glyphOrNotdef(codepoint);
 
-                const float relX = penX + glyph.bearing.x * scale;
+                const float relX = std::round(penX + glyph.bearing.x * scale);
                 const float relY = lineIndex * lineAdvance + (ascender - glyph.bearing.y) * scale;
 
                 if (emit)
                     emit(codepoint, relX, relY, glyph, seg.colors);
 
                 penX += glyph.advance * scale;
+                prev = codepoint;
 
                 if (penX > maxLineWidth)
                     maxLineWidth = penX;

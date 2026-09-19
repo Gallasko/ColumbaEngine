@@ -146,5 +146,91 @@ namespace pg
 
             EXPECT_NEAR(doubled, 2.0f * single, 0.01f);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, line_height_is_font_wide)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            const float shortGlyphs = sys->measureText("inter", "acemnorsuvwxz").height;
+            const float tallGlyphs = sys->measureText("inter", "AjgQ|").height;
+
+            EXPECT_NEAR(shortGlyphs, tallGlyphs, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, fractional_advance)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            const GlyphInfo* iGlyph = sys->fonts.at("inter").glyph('i');
+            ASSERT_NE(iGlyph, nullptr);
+
+            const float width = sys->measureText("inter", "iiiiiiiiii").width;
+
+            // Ten advances, no per-glyph truncation to whole pixels.
+            EXPECT_NEAR(width, 10.0f * iGlyph->advance, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, kerning_does_not_widen)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            const FontAtlas& atlas = sys->fonts.at("inter");
+            const GlyphInfo* a = atlas.glyph('A');
+            const GlyphInfo* v = atlas.glyph('V');
+            ASSERT_NE(a, nullptr);
+            ASSERT_NE(v, nullptr);
+
+            const float width = sys->measureText("inter", "AV").width;
+
+            // Kerning may pull the pair closer but never wider (equal with no kern table).
+            EXPECT_LE(width, a->advance + v->advance + 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, glyph_origins_are_integral)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", "Wave form Ajg");
+            ecs.executeOnce();
+
+            const float uiX = text.get<PositionComponent>()->x;
+
+            const auto& templates = sys->entityGlyphTemplates[text.id];
+            ASSERT_FALSE(templates.empty());
+
+            for (const auto& glyph : templates)
+            {
+                const float origin = uiX + glyph.relX;
+                EXPECT_NEAR(origin, std::round(origin), 1e-4f);
+            }
+        }
     }
 }
