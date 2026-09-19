@@ -25,6 +25,8 @@
 
 #include "serialization.h"
 
+#include <unordered_set>
+
 namespace pg
 {
     // Helper function to convert SDL_Scancode to friendly string
@@ -83,6 +85,18 @@ namespace pg
         size_t getViewport(const CompRef<ViewportComponent>& vp)
         {
             return vp.empty() ? 0 : vp->viewport;
+        }
+
+        // A hover component may opt out of occluding what is under it.
+        bool entityPassThrough(EntityRef entity)
+        {
+            if (entity->has<MouseEnterComponent>() and entity->get<MouseEnterComponent>()->passThrough)
+                return true;
+
+            if (entity->has<MouseLeaveComponent>() and entity->get<MouseLeaveComponent>()->passThrough)
+                return true;
+
+            return false;
         }
     }
 
@@ -362,6 +376,103 @@ namespace pg
             return lhs.id > rhs.id;
         else
             return z > rhsZ;
+    }
+
+    void MouseHoverSystem::onEvent(const OnMouseMove& event)
+    {
+        LOG_THIS_MEMBER("MouseHoverSystem");
+
+        const Point2D mousePos = event.pos;
+
+        // 1. Every hover-eligible entity currently under the cursor.
+        std::vector<MouseAreaZ> candidates;
+
+        for (const auto& [entityId, hovering] : hoverState)
+        {
+            auto entity = ecsRef->getEntity(entityId);
+
+            if (not entity or not entity->has<PositionComponent>())
+                continue;
+
+            auto pos = entity->get<PositionComponent>();
+
+            if (not pos->isRenderable())
+                continue;
+
+            if (not inClipBound(entity, mousePos.x, mousePos.y))
+                continue;
+
+            CompRef<ViewportComponent> vp;
+            if (entity->has<ViewportComponent>())
+                vp = entity->get<ViewportComponent>();
+
+            candidates.emplace_back(entityId, entity, pos, vp);
+        }
+
+        std::sort(candidates.begin(), candidates.end(), std::greater<>());
+
+        // 2. The topmost (viewport, z) among non-pass-through candidates decides
+        //    occlusion; pass-through candidates never occlude but still hover.
+        bool topFound = false;
+        size_t topViewport = 0;
+        float topZ = 0.0f;
+
+        for (const auto& area : candidates)
+        {
+            if (entityPassThrough(area.ui))
+                continue;
+
+            topViewport = getViewport(area.vp);
+            topZ = area.pos->z;
+            topFound = true;
+            break;
+        }
+
+        // 3. Build the hovered set: pass-through candidates plus the top peers.
+        std::unordered_set<_unique_id> hoveredNow;
+
+        for (const auto& area : candidates)
+        {
+            if (entityPassThrough(area.ui))
+            {
+                hoveredNow.insert(area.id);
+                continue;
+            }
+
+            if (topFound and getViewport(area.vp) == topViewport and areAlmostEqual(area.pos->z, topZ))
+                hoveredNow.insert(area.id);
+        }
+
+        // 4. Diff against the previous state, firing enter/leave callbacks.
+        std::vector<_unique_id> entered;
+        std::vector<_unique_id> left;
+
+        for (auto& [entityId, hovering] : hoverState)
+        {
+            const bool nowHovered = hoveredNow.find(entityId) != hoveredNow.end();
+
+            if (nowHovered and not hovering)
+            {
+                auto entity = ecsRef->getEntity(entityId);
+                if (entity and entity->has<MouseEnterComponent>())
+                    entity->get<MouseEnterComponent>()->callback->call(world());
+
+                hovering = true;
+                entered.push_back(entityId);
+            }
+            else if (not nowHovered and hovering)
+            {
+                auto entity = ecsRef->getEntity(entityId);
+                if (entity and entity->has<MouseLeaveComponent>())
+                    entity->get<MouseLeaveComponent>()->callback->call(world());
+
+                hovering = false;
+                left.push_back(entityId);
+            }
+        }
+
+        // 5. Announce the change for downstream consumers (tooltip service, etc.).
+        ecsRef->sendEvent(HoverChangedEvent{entered, left, mousePos});
     }
 
     // ============================================================================

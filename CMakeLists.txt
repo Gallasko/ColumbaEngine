@@ -1510,6 +1510,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/iconsystem.cc
             test/ttftext.cc
             test/decoratedshapes.cc
+            test/hover.cc
             test/scriptregistry.cc
             test/serialize.cc
             test/taskflow.cc

@@ -12,6 +12,7 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 
 namespace pg
 {
@@ -83,21 +84,37 @@ namespace pg
     };
 
     // Component that triggers a callback when the mouse enters the entity’s area.
+    // A pass-through entity is hovered when the cursor is inside it, but never
+    // occludes what is under it (it is skipped when finding the topmost entity).
     struct MouseEnterComponent : public Component
     {
         MouseEnterComponent(CallablePtr callback) : callback(callback) { }
+        MouseEnterComponent(CallablePtr callback, bool passThrough) : callback(callback), passThrough(passThrough) { }
         DEFAULT_COMPONENT_MEMBERS(MouseEnterComponent)
 
         CallablePtr callback;
+        bool passThrough = false;
     };
 
     // Component that triggers a callback when the mouse leaves the entity’s area.
     struct MouseLeaveComponent : public Component
     {
         MouseLeaveComponent(CallablePtr callback) : callback(callback) { }
+        MouseLeaveComponent(CallablePtr callback, bool passThrough) : callback(callback), passThrough(passThrough) { }
         DEFAULT_COMPONENT_MEMBERS(MouseLeaveComponent)
 
         CallablePtr callback;
+        bool passThrough = false;
+    };
+
+    // Emitted by MouseHoverSystem after each move, once the topmost-only hover
+    // diff is computed. Consumers (e.g. TooltipSystem) react to this instead of
+    // running their own hit-testing.
+    struct HoverChangedEvent
+    {
+        std::vector<_unique_id> entered;
+        std::vector<_unique_id> left;
+        Point2D pos;
     };
 
     // SDL event structs are defined in the lightweight sdlevents.h header
@@ -273,46 +290,9 @@ namespace pg
             });
         }
 
-        // Listen for mouse move events.
-        virtual void onEvent(const OnMouseMove& event) override
-        {
-            Point2D mousePos = event.pos;
-            // Iterate over all entities in our hover state.
-            for (auto& pair : hoverState)
-            {
-                _unique_id entityId = pair.first;
-                bool currentlyHovering = pair.second;
-                auto entity = ecsRef->getEntity(entityId);
-
-                if (not entity or (not entity->has<PositionComponent>()))
-                    continue;
-
-                bool inside = inClipBound(entity, mousePos.x, mousePos.y);
-
-                // If the mouse has entered and wasn't previously inside...
-                if (inside and not currentlyHovering)
-                {
-                    if (entity->has<MouseEnterComponent>())
-                    {
-                        auto comp = entity->get<MouseEnterComponent>();
-                        comp->callback->call(world());
-                    }
-
-                    pair.second = true;
-                }
-                // If the mouse was inside and now has left...
-                else if (not inside and currentlyHovering)
-                {
-                    if (entity->has<MouseLeaveComponent>())
-                    {
-                        auto comp = entity->get<MouseLeaveComponent>();
-                        comp->callback->call(world());
-                    }
-
-                    pair.second = false;
-                }
-            }
-        }
+        // Listen for mouse move events. Fires enter/leave only for the topmost
+        // entity (and its (viewport, z) peers), then emits a HoverChangedEvent.
+        virtual void onEvent(const OnMouseMove& event) override;
 
         // Map of entity id to whether the mouse is currently hovering.
         std::unordered_map<_unique_id, bool> hoverState;
