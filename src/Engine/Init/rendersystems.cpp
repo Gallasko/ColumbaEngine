@@ -26,6 +26,7 @@ namespace pg
         ecs->createSystem<Simple2DObjectSystem>(masterRenderer);
         ecs->createSystem<RoundedRect2DObjectSystem>(masterRenderer);
         ecs->createSystem<HatchRect2DObjectSystem>(masterRenderer);
+        ecs->createSystem<DottedLine2DObjectSystem>(masterRenderer);
         ecs->createSystem<Texture2DComponentSystem>(masterRenderer);
         ecs->createSystem<IconSystem>(masterRenderer);
         ecs->createSystem<ProgressBarComponentSystem>(masterRenderer);

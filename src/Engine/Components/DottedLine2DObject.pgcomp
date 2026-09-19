@@ -1,0 +1,36 @@
+name: DottedLine2DObject
+namespace: pg
+base_class: Component
+
+includes:
+  - "pgconstant.h"
+
+fields:
+  - name: colors
+    type: constant::Vector4D
+    default: "{255.0f, 255.0f, 255.0f, 255.0f}"
+    setter: event
+
+  - name: period
+    type: float
+    default: 4.0f
+    setter: event
+
+  - name: dotRadius
+    type: float
+    default: 0.75f
+    setter: event
+
+constructors:
+  - params: [colors]
+  - params: [colors, period, dotRadius]
+
+methods:
+  - definition: "void setOpacity(float alpha) {
+    colors.w = alpha;
+    if (ecsRef)
+        ecsRef->sendEvent(DottedLine2DObjectChangedEvent{entityId});
+}"
+
+events:
+  - DottedLine2DObjectChangedEvent
