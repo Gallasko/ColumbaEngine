@@ -317,6 +317,7 @@ set(ENGINESOURCE
     src/Engine/Interpreter/valuable.cpp
     src/Engine/Loaders/atlasloader.cpp
     src/Engine/Loaders/gridatlasloader.cpp
+    src/Engine/Loaders/svgloader.cpp
     src/Engine/Loaders/Aseprite/asepritefile.cpp
     src/Engine/Loaders/Aseprite/asepritefileatlasloader.cpp
     src/Engine/Loaders/Aseprite/asepriteloader.cpp
@@ -1444,6 +1445,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/mocklogger.h
             test/mockloggertest.cc
             test/renderer.cc
+            test/svgloader.cc
             test/scriptregistry.cc
             test/serialize.cc
             test/taskflow.cc
@@ -1505,6 +1507,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/differential_testbench.cc
             test/pgcompiler/unit/test_ast_passes.cc
             test/pgcompiler/unit/test_entity_loop_lowering.cc
+            test/pgcompiler/unit/test_loop_control_flow.cc
             test/pgcompiler/unit/test_vm_memory.cc
             test/pgcompiler/unit/test_vm_prepared.cc
             test/pgcompiler/unit/test_register_ops.cc
