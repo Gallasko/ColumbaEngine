@@ -6,6 +6,7 @@
 #include "Renderer/renderer.h"
 #include "Renderer/renderermodule.h"
 #include "2D/simple2dobject.h"
+#include "2D/decoratedshapes.h"
 #include "2D/texture.h"
 #include "2D/position.h"
 #include "UI/progressbar.h"
@@ -24,6 +25,7 @@ namespace pg
 
         ecs->createSystem<Simple2DObjectSystem>(masterRenderer);
         ecs->createSystem<RoundedRect2DObjectSystem>(masterRenderer);
+        ecs->createSystem<HatchRect2DObjectSystem>(masterRenderer);
         ecs->createSystem<Texture2DComponentSystem>(masterRenderer);
         ecs->createSystem<IconSystem>(masterRenderer);
         ecs->createSystem<ProgressBarComponentSystem>(masterRenderer);

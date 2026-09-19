@@ -244,6 +244,7 @@ set(ENGINESOURCE
     src/Engine/2D/camera2d.cpp
     src/Engine/2D/camerasystem.cpp
     src/Engine/2D/collisionsystem.cpp
+    src/Engine/2D/decoratedshapes.cpp
     src/Engine/2D/position.cpp
     src/Engine/2D/simple2dobject.cpp
     src/Engine/2D/texture.cpp
@@ -1480,6 +1481,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/iconatlas.cc
             test/iconsystem.cc
             test/ttftext.cc
+            test/decoratedshapes.cc
             test/scriptregistry.cc
             test/serialize.cc
             test/taskflow.cc

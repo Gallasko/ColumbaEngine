@@ -1,0 +1,46 @@
+name: HatchRect2DObject
+namespace: pg
+base_class: Component
+
+includes:
+  - "pgconstant.h"
+
+fields:
+  - name: colors
+    type: constant::Vector4D
+    default: "{255.0f, 255.0f, 255.0f, 255.0f}"
+    setter: event
+
+  - name: spacing
+    type: float
+    default: 6.0f
+    setter: event
+
+  - name: lineWidth
+    type: float
+    default: 2.0f
+    setter: event
+
+  - name: angle
+    type: float
+    default: 45.0f
+    setter: event
+
+  - name: cornerRadius
+    type: float
+    default: 0.0f
+    setter: event
+
+constructors:
+  - params: [colors]
+  - params: [colors, spacing, lineWidth]
+
+methods:
+  - definition: "void setOpacity(float alpha) {
+    colors.w = alpha;
+    if (ecsRef)
+        ecsRef->sendEvent(HatchRect2DObjectChangedEvent{entityId});
+}"
+
+events:
+  - HatchRect2DObjectChangedEvent
