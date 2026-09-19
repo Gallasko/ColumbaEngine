@@ -950,6 +950,22 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(ShapesTest examples/ShapesTest/main.cpp)
+
+        target_include_directories(ShapesTest PUBLIC examples/ShapesTest)
+
+        target_sources(ShapesTest PRIVATE
+            examples/ShapesTest/application.cpp
+        )
+
+        target_link_libraries(ShapesTest PRIVATE ColumbaEngine)
+
+        set_target_properties(ShapesTest
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
+
         add_executable(Asteroid examples/Asteroid/main.cpp)
 
         target_include_directories(Asteroid PUBLIC examples/Asteroid)
@@ -1233,6 +1249,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         target_link_libraries(IconAtlasTest PRIVATE ColumbaEngine)
+
+        ###
+
+        add_executable(ShapesTest examples/ShapesTest/main.cpp)
+
+        target_include_directories(ShapesTest PUBLIC examples/ShapesTest)
+
+        target_sources(ShapesTest PRIVATE
+            examples/ShapesTest/application.cpp
+        )
+
+        target_link_libraries(ShapesTest PRIVATE ColumbaEngine)
 
         ###
 
