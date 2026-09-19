@@ -1,0 +1,31 @@
+name: IconComponent
+shortname: Icon
+namespace: pg
+base_class: Component
+
+includes:
+  - <string>
+  - "pgconstant.h"
+
+fields:
+  - name: iconSet
+    type: string
+    default: ""
+    setter: event
+
+  - name: iconName
+    type: string
+    default: ""
+    setter: event
+
+  - name: colors
+    type: constant::Vector4D
+    default: "{255.0f, 255.0f, 255.0f, 255.0f}"
+    setter: event
+
+constructors:
+  - params: [iconSet, iconName]
+  - params: [iconSet, iconName, colors]
+
+events:
+  - IconChangedEvent
