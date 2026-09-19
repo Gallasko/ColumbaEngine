@@ -341,6 +341,7 @@ set(ENGINESOURCE
     src/Engine/Systems/uimodule.cpp
     src/Engine/UI/button.cpp
     src/Engine/UI/focusable.cpp
+    src/Engine/UI/fontatlas.cpp
     src/Engine/UI/iconatlas.cpp
     src/Engine/UI/iconsystem.cpp
     src/Engine/UI/listview.cpp

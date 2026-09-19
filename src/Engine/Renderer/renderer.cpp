@@ -120,7 +120,10 @@ namespace pg
 
     void MasterRenderer::queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback)
     {
-        if (ecsRef->isRunning())
+        // A standalone renderer (no ECS, as in headless tests) has no GL context and
+        // no render pass to run the callback, so defer instead of dereferencing ecsRef
+        // or uploading immediately. Real setup (attached, not yet running) still uploads.
+        if (not ecsRef or ecsRef->isRunning())
             textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback});
         else
             registerTexture(name, callback);

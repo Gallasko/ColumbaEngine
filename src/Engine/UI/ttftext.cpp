@@ -28,9 +28,6 @@ namespace pg
     namespace
     {
         constexpr const char * const DOM = "TTFText System";
-
-        constexpr float ATLAS_WIDTH = 1024.0f;
-        constexpr float ATLAS_HEIGHT = 1024.0f;
     }
 
     TTFTextSystem::TTFTextSystem(MasterRenderer *renderer) : AbstractRenderer(renderer, RenderStage::Render)
@@ -123,81 +120,24 @@ namespace pg
 
     void TTFTextSystem::registerFont(const std::string& fontPath, const std::string& fontName, int size)
     {
-        auto f = [fontPath, fontName, size, this](size_t oldId)
+        const std::string alias = (fontName == "" ? fontPath : fontName);
+
+        // FreeType work is synchronous and CPU-only, so glyphs and metrics are
+        // available before the first frame; only the GL upload stays deferred.
+        FontAtlas atlas;
+        if (not atlas.build(ft, fontPath, size, defaultCharset()))
         {
-            // Initialize and load a font face.
-            FT_Face face;
-            if (FT_New_Face(ft, fontPath.c_str(), 0, &face)) {
-                LOG_ERROR("TTFText", "Failed to load font");
-                return OpenGLTexture{};
-            }
+            LOG_ERROR(DOM, "Failed to build font atlas for: " << fontPath);
+            return;
+        }
 
-            FT_Set_Pixel_Sizes(face, 0, size);
+        fonts[alias] = std::move(atlas);
 
-            // glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // disable byte-alignment restriction
+        // Copy the atlas bytes into the upload lambda; the atlas itself stays on the CPU for measuring.
+        std::vector<unsigned char> atlasBuffer = fonts[alias].buffer();
 
-            // Define atlas size (for now, fixed).
-            const int atlasWidth = ATLAS_WIDTH;
-            const int atlasHeight = ATLAS_HEIGHT;
-            std::vector<unsigned char> atlasBuffer(atlasWidth * atlasHeight, 0);
-
-            // Simple rectangle packing initializations.
-            int currentX = 0;
-            int currentY = 0;
-            int rowHeight = 0;
-
-            auto texName = (fontName == "" ? fontPath : fontName);
-
-            // For each glyph in the chosen character set:
-            for (unsigned char c = 32; c < 127; c++) {
-                if (FT_Load_Char(face, c, FT_LOAD_RENDER)) {
-                    LOG_ERROR("TTFText", "Failed to load Glyph for: " << c);
-                    continue;
-                }
-
-                // If the glyph won't fit in the current row, move to next row.
-                if (currentX + face->glyph->bitmap.width + 2 > atlasWidth) {
-                    currentX = 0;
-                    currentY += rowHeight + 2;
-                    rowHeight = 0;
-                }
-
-                if (currentY + face->glyph->bitmap.rows > atlasHeight) {
-                    LOG_ERROR("TTFText", "Atlas size exceeded!");
-                    break;
-                }
-
-                // Copy glyph bitmap into the atlas buffer at position (currentX, currentY).
-                for (size_t y = 0; y < face->glyph->bitmap.rows; y++) {
-                    for (size_t x = 0; x < face->glyph->bitmap.width; x++) {
-                        int atlasIndex = (currentY + y) * atlasWidth + (currentX + x);
-                        atlasBuffer[atlasIndex] = face->glyph->bitmap.buffer[y * face->glyph->bitmap.width + x];
-                    }
-                }
-
-                // Store glyph info including UVs in charactersMap.
-                Character character;
-                character.size = glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows);
-                character.bearing = glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top);
-                character.advance = face->glyph->advance.x;
-                // Compute UV coordinates.
-                float u1 = float(currentX) / atlasWidth;
-                float v1 = float(currentY) / atlasHeight;
-                float u2 = float(currentX + face->glyph->bitmap.width) / atlasWidth;
-                float v2 = float(currentY + face->glyph->bitmap.rows) / atlasHeight;
-
-                character.uvTopLeft = glm::vec2(u1, v1);
-                character.uvBottomRight = glm::vec2(u2, v2);
-
-                charactersMap[texName][c] = character;
-
-                // Update currentX and rowHeight (2px padding to prevent mipmap bleeding).
-                currentX += face->glyph->bitmap.width + 2;
-                if (static_cast<int>(face->glyph->bitmap.rows) > rowHeight)
-                    rowHeight = face->glyph->bitmap.rows;
-            }
-
-            // Now upload 'atlasBuffer' to OpenGL as a texture.
+        auto f = [atlasBuffer](size_t oldId) -> OpenGLTexture
+        {
             unsigned int texture;
             if (oldId)
             {
@@ -210,32 +150,25 @@ namespace pg
                 glBindTexture(GL_TEXTURE_2D, texture);
             }
 
-            // glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlasWidth, atlasHeight, 0, GL_RED, GL_UNSIGNED_BYTE, atlasBuffer.data());
 #ifdef __EMSCRIPTEN__
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, atlasWidth, atlasHeight, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, atlasBuffer.data());
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, FontAtlas::Width, FontAtlas::Height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, atlasBuffer.data());
 #else
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlasWidth, atlasHeight, 0, GL_RED, GL_UNSIGNED_BYTE, atlasBuffer.data());
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, FontAtlas::Width, FontAtlas::Height, 0, GL_RED, GL_UNSIGNED_BYTE, atlasBuffer.data());
 #endif
-            // Set texture parameters.
+            // Text is drawn at its rasterised size, so no mipmaps (mipmaps blurred it).
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glGenerateMipmap(GL_TEXTURE_2D);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-            // Save atlasTexture in your renderer/material preset.
-            // Free up the font face if necessary.
-            FT_Done_Face(face);
-
             OpenGLTexture fontTexture;
-
             fontTexture.id = texture;
             fontTexture.transparent = true;
 
             return fontTexture;
         };
 
-        auto textureName = "TTFText_" + (fontName == "" ? fontPath : fontName);
+        const std::string textureName = "TTFText_" + alias;
 
         LOG_INFO(DOM, "Registering texture: " << textureName);
 
@@ -324,139 +257,146 @@ namespace pg
         finishChanges();
     }
 
-    // Helper: Computes the maximum line height based on the font's glyph heights.
-    float TTFTextSystem::computeLineHeight(const std::string& text, const std::string& fontPath, float scale)
+    TextMetrics TTFTextSystem::layoutText(const FontAtlas& atlas, const std::vector<TTFText>& segments, float scale, float maxWidth, float spacing, const GlyphEmitter& emit) const
     {
-        float lineHeight = 0.0f;
+        const FontMetrics& fm = atlas.metrics();
 
-        for (char c : text)
+        const float lineAdvance = fm.lineHeight * scale + spacing;
+        const float ascender = fm.ascender;
+        const float spaceAdvance = atlas.glyphOrNotdef(0x20).advance * scale;
+
+        const bool wrapEnabled = maxWidth > 0.0f;
+
+        float penX = 0.0f;
+        int lineIndex = 0;
+        float maxLineWidth = 0.0f;
+
+        for (const auto& seg : segments)
         {
-            Character ch = charactersMap[fontPath][c];
-            float chHeight = ch.size.y * scale;
+            if (seg.text == "\n")
+            {
+                penX = 0.0f;
+                ++lineIndex;
+                continue;
+            }
 
-            if (chHeight > lineHeight)
-                lineHeight = chHeight;
+            const std::string& s = seg.text;
+
+            for (size_t i = 0; i < s.length(); ++i)
+            {
+                const unsigned char byte = static_cast<unsigned char>(s[i]);
+
+                if (byte == ' ')
+                {
+                    penX += spaceAdvance;
+                    continue;
+                }
+
+                // At a word start, wrap the whole word down a line if it would overflow.
+                const bool wordStart = (i == 0) or (s[i - 1] == ' ');
+                if (wrapEnabled and wordStart)
+                {
+                    float wordWidth = 0.0f;
+                    for (size_t j = i; j < s.length() and s[j] != ' '; ++j)
+                        wordWidth += atlas.glyphOrNotdef(static_cast<unsigned char>(s[j])).advance * scale;
+
+                    if (penX > 0.0f and penX + wordWidth > maxWidth)
+                    {
+                        penX = 0.0f;
+                        ++lineIndex;
+                    }
+                }
+
+                const uint32_t codepoint = static_cast<uint32_t>(byte);
+                const GlyphInfo& glyph = atlas.glyphOrNotdef(codepoint);
+
+                const float relX = penX + glyph.bearing.x * scale;
+                const float relY = lineIndex * lineAdvance + (ascender - glyph.bearing.y) * scale;
+
+                if (emit)
+                    emit(codepoint, relX, relY, glyph, seg.colors);
+
+                penX += glyph.advance * scale;
+
+                if (penX > maxLineWidth)
+                    maxLineWidth = penX;
+            }
         }
 
-        return lineHeight;
+        TextMetrics metrics;
+        metrics.width = maxLineWidth;
+        metrics.lineHeight = fm.lineHeight * scale;
+        metrics.ascender = ascender * scale;
+        metrics.lineCount = lineIndex + 1;
+        metrics.height = metrics.lineCount * (metrics.lineHeight + spacing);
+
+        return metrics;
     }
 
-    // Helper: Returns the advance (width) for a single glyph.
-    float TTFTextSystem::getGlyphAdvance(char c, const std::string& fontPath, float scale)
+    TextMetrics TTFTextSystem::measureText(const std::string& font, const std::string& text, float scale, float maxWidth, float spacing) const
     {
-        Character ch = charactersMap[fontPath][c];
+        auto it = fonts.find(font);
+        if (it == fonts.end())
+            return TextMetrics{};
 
-        // Right-shift advance by 6 to convert from 1/64 pixels to pixels.
-        return (ch.advance >> 6) * scale;
-    }
+        TTFText temp;
+        temp.text = text;
+        temp.colors = constant::Vector4D{255.0f, 255.0f, 255.0f, 255.0f};
 
-    // Helper: Computes the total width of a word.
-    float TTFTextSystem::computeWordWidth(const std::string& word, const std::string& fontPath, float scale)
-    {
-        float width = 0.0f;
+        std::vector<TTFText> segments = parseFormattedText(temp);
 
-        for (char c : word)
-        {
-            width += getGlyphAdvance(c, fontPath, scale);
-        }
-
-        return width;
+        return layoutText(it->second, segments, scale, maxWidth, spacing, nullptr);
     }
 
     std::vector<TTFTextSystem::GlyphRenderData> TTFTextSystem::buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj, size_t viewport)
     {
         std::vector<GlyphRenderData> glyphs;
 
+        auto fontIt = fonts.find(obj->fontPath);
+        if (fontIt == fonts.end())
+            return glyphs;
+
+        const FontAtlas& atlas = fontIt->second;
+
         std::vector<TTFText> segments = parseFormattedText(*obj);
 
-        float startX = ui->x;
-        float startY = ui->y;
-        float scale = obj->scale;
-        bool wrap = obj->wrap;
-        std::string fontPath = obj->fontPath;
-        size_t materialId = getMaterialId(fontPath);
+        const float scale = obj->scale;
+        const float maxWidth = obj->wrap ? ui->width : 0.0f;
+        const size_t materialId = getMaterialId(obj->fontPath);
 
-        float lineHeight = computeLineHeight(obj->text, fontPath, scale) + obj->spacing;
-        float maxWidth = (ui->width > 0) ? ui->width : 10000.0f;
-
-        float currentX = startX;
-        float currentY = startY;
-
-        for (const auto& seg : segments)
+        auto emit = [&](uint32_t, float relX, float relY, const GlyphInfo& glyph, const constant::Vector4D& color)
         {
-            if (seg.text == "\n")
-            {
-                currentY += lineHeight;
-                currentX = startX;
-                continue;
-            }
+            GlyphRenderData glyphData;
+            glyphData.relX = relX;
+            glyphData.relY = relY;
+            glyphData.w = glyph.size.x * scale;
+            glyphData.h = glyph.size.y * scale;
+            glyphData.a = color.w / 255.0f;
+            glyphData.r = color.x / 255.0f;
+            glyphData.g = color.y / 255.0f;
+            glyphData.b = color.z / 255.0f;
+            glyphData.uvX0 = glyph.uvTopLeft.x;
+            glyphData.uvY0 = glyph.uvTopLeft.y;
+            glyphData.uvX1 = glyph.uvBottomRight.x;
+            glyphData.uvY1 = glyph.uvBottomRight.y;
+            glyphData.materialId = materialId;
+            glyphData.viewport = viewport;
 
-            for (size_t charIndex = 0; charIndex < seg.text.length(); charIndex++)
-            {
-                char c = seg.text[charIndex];
+            glyphs.push_back(glyphData);
+        };
 
-                if (c == ' ')
-                {
-                    currentX += getGlyphAdvance(' ', fontPath, scale);
-                }
-                else
-                {
-                    if (charIndex == 0 || seg.text[charIndex - 1] == ' ')
-                    {
-                        std::string currentWord;
-                        size_t wordEnd = charIndex;
-                        while (wordEnd < seg.text.length() && seg.text[wordEnd] != ' ')
-                        {
-                            currentWord += seg.text[wordEnd];
-                            wordEnd++;
-                        }
+        TextMetrics metrics = layoutText(atlas, segments, scale, maxWidth, obj->spacing, emit);
 
-                        float wordWidth = computeWordWidth(currentWord, fontPath, scale);
-
-                        if (wrap && (currentX - startX + wordWidth > maxWidth))
-                        {
-                            currentY += lineHeight;
-                            currentX = startX;
-                        }
-                    }
-
-                    Character ch = charactersMap[fontPath][c];
-
-                    GlyphRenderData glyph;
-                    glyph.relX = (currentX - startX) + ch.bearing.x * scale;
-                    glyph.relY = (currentY - startY) - ch.bearing.y * scale + lineHeight;
-                    glyph.w = ch.size.x * scale;
-                    glyph.h = ch.size.y * scale;
-                    glyph.a = seg.colors.w / 255.0f;
-                    glyph.r = seg.colors.x / 255.0f;
-                    glyph.g = seg.colors.y / 255.0f;
-                    glyph.b = seg.colors.z / 255.0f;
-                    glyph.uvX0 = ch.uvTopLeft.x;
-                    glyph.uvY0 = ch.uvTopLeft.y;
-                    glyph.uvX1 = ch.uvBottomRight.x;
-                    glyph.uvY1 = ch.uvBottomRight.y;
-                    glyph.materialId = materialId;
-                    glyph.viewport = viewport;
-
-                    glyphs.push_back(glyph);
-                    currentX += getGlyphAdvance(c, fontPath, scale);
-                }
-            }
+        if (areNotAlmostEqual(obj->textWidth, metrics.width))
+        {
+            obj->textWidth = metrics.width;
+            ui->setWidth(metrics.width);
         }
 
-        float totalWidth = currentX - startX;
-        float totalHeight = (currentY - startY) + lineHeight;
-
-        if (areNotAlmostEqual(obj->textWidth, totalWidth))
+        if (areNotAlmostEqual(obj->textHeight, metrics.height))
         {
-            obj->textWidth = totalWidth;
-            ui->setWidth(totalWidth);
-        }
-
-        if (areNotAlmostEqual(obj->textHeight, totalHeight))
-        {
-            obj->textHeight = totalHeight;
-            ui->setHeight(totalHeight);
+            obj->textHeight = metrics.height;
+            ui->setHeight(metrics.height);
         }
 
         return glyphs;
@@ -511,7 +451,7 @@ namespace pg
 
     // Parses inline formatting commands (such as \n for newline and \c{r,g,b,a} for color changes)
     // and returns a vector of TTFText segments (each segment is a copy of the original, with its text and color set).
-    std::vector<TTFText> TTFTextSystem::parseFormattedText(const TTFText& original)
+    std::vector<TTFText> TTFTextSystem::parseFormattedText(const TTFText& original) const
     {
         std::vector<TTFText> segments;
         std::string currentSegment;

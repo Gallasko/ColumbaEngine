@@ -326,22 +326,12 @@ namespace pg
 
             if (ttfSystem)
             {
-                auto mapIt = ttfSystem->charactersMap.find(ttf->fontPath);
-                if (mapIt != ttfSystem->charactersMap.end())
-                {
-                    const auto& fontChars = mapIt->second;
-                    float scale = ttf->scale;
+                // Measure the text up to the cursor through the shared layout, so the
+                // cursor tracks the same advances (and kerning) the glyphs are drawn with.
+                const size_t cursorPos = std::min(textComp->cursorPos, textComp->text.size());
+                const std::string upToCursor = textComp->text.substr(0, cursorPos);
 
-                    for (size_t i = 0; i < textComp->cursorPos and i < textComp->text.size(); i++)
-                    {
-                        char c = textComp->text[i];
-                        auto it = fontChars.find(c);
-                        if (it != fontChars.end())
-                        {
-                            cursorX += (it->second.advance >> 6) * scale;
-                        }
-                    }
-                }
+                cursorX = ttfSystem->measureText(ttf->fontPath, upToCursor, ttf->scale).width;
             }
         }
 

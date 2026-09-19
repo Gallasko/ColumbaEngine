@@ -12,19 +12,28 @@ namespace pg
 {
     namespace test
     {
+        namespace
+        {
+            // Registers the Inter fixture (copied beside the binary from testdeps/fonts) at 16 px.
+            TTFTextSystem* makeTextSystem(EntitySystem& ecs, MasterRenderer& renderer)
+            {
+                ecs.createSystem<PositionComponentSystem>();
+                auto* sys = ecs.createSystem<TTFTextSystem>(&renderer);
+                sys->registerFont("fonts/Inter-Regular.ttf", "inter", 16);
+                return sys;
+            }
+        }
+
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // Enabled in step 2, once registerFont builds the atlas synchronously.
-        TEST(ttftext_test, DISABLED_colour_is_normalised)
+        TEST(ttftext_test, colour_is_normalised)
         {
             MockLogger logger;
             EntitySystem ecs;
             MasterRenderer renderer;
 
-            ecs.createSystem<PositionComponentSystem>();
-            auto sys = ecs.createSystem<TTFTextSystem>(&renderer);
-            sys->registerFont("fonts/Inter-Regular.ttf", "inter", 16);
+            auto* sys = makeTextSystem(ecs, renderer);
 
             auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", "Ab", 1.0f, {148.0f, 156.0f, 175.0f, 255.0f});
 
@@ -46,6 +55,96 @@ namespace pg
 
                 EXPECT_FLOAT_EQ(glyph.r, 148.0f / 255.0f);
             }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, measure_after_register)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            TextMetrics metrics = sys->measureText("inter", "STR 14");
+
+            EXPECT_GT(metrics.width, 0.0f);
+            EXPECT_EQ(metrics.lineCount, 1);
+            EXPECT_NEAR(metrics.height, metrics.lineHeight, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, measure_matches_layout)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", "STR 14");
+            ecs.executeOnce();
+
+            TextMetrics metrics = sys->measureText("inter", "STR 14");
+
+            auto obj = text.get<TTFText>();
+            EXPECT_NEAR(obj->textWidth, metrics.width, 0.01f);
+            EXPECT_NEAR(obj->textHeight, metrics.height, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, measure_two_lines)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            TextMetrics metrics = sys->measureText("inter", "STR\n14");
+
+            EXPECT_EQ(metrics.lineCount, 2);
+            EXPECT_NEAR(metrics.height, 2.0f * metrics.lineHeight, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, measure_wraps)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            TextMetrics metrics = sys->measureText("inter", "one two three four", 1.0f, 60.0f);
+
+            EXPECT_GE(metrics.lineCount, 2);
+            EXPECT_LE(metrics.width, 60.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, scale_is_linear)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            const float single = sys->measureText("inter", "STR 14", 1.0f).width;
+            const float doubled = sys->measureText("inter", "STR 14", 2.0f).width;
+
+            EXPECT_NEAR(doubled, 2.0f * single, 0.01f);
         }
     }
 }

@@ -1,11 +1,14 @@
 #pragma once
 
+#include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 #include <unordered_set>
 
 #include "2D/position.h"
 #include "Renderer/renderer.h"
+#include "UI/fontatlas.h"
 
 #include "Components/TTFText.generated.h"
 #include "Components/ViewportComponent.generated.h"
@@ -15,25 +18,25 @@
 
 namespace pg
 {
+    struct TextMetrics
+    {
+        float width = 0.0f;      // widest line
+        float height = 0.0f;     // lineCount * (lineHeight + spacing)
+        float lineHeight = 0.0f;
+        float ascender = 0.0f;
+        int lineCount = 1;
+    };
+
     struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Ref<PositionComponent>,
         Listener<PositionSettledEvent>, Listener<TTFTextChangedEvent>, Listener<ViewportComponentChangedEvent>, InitSys>
     {
-        struct Character
-        {
-            glm::ivec2   size;       // Size of glyph
-            glm::ivec2   bearing;    // Offset from baseline to left/top of glyph
-            unsigned int advance;    // Offset to advance to next glyph
-            glm::vec2    uvTopLeft;
-            glm::vec2    uvBottomRight;
-        };
-
         // Position-independent glyph data, relative to the PositionComponent origin.
         // Rebuilt only when text content changes; reused for position-only updates.
         struct GlyphRenderData
         {
             float relX, relY;   // Position relative to PositionComponent (x, y)
             float w, h;         // Glyph size
-            float a, r, g, b;   // Colors (alpha, red, green, blue)
+            float a, r, g, b;   // Colors (alpha, red, green, blue), 0-1
             float uvX0, uvY0;   // UV top-left
             float uvX1, uvY1;   // UV bottom-right
             size_t materialId;
@@ -54,6 +57,9 @@ namespace pg
 
         virtual void execute() override;
 
+        /// Measures without creating an entity. maxWidth <= 0 disables wrapping. Markup (\n, \c{}) is honoured.
+        TextMetrics measureText(const std::string& font, const std::string& text, float scale = 1.0f, float maxWidth = 0.0f, float spacing = 0.0f) const;
+
         // Builds glyph layout templates from text content. Only called when text changes.
         std::vector<GlyphRenderData> buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj, size_t viewport);
 
@@ -70,7 +76,7 @@ namespace pg
 
         std::vector<std::string> loadedFont;
 
-        std::unordered_map<std::string, std::unordered_map<char, Character>> charactersMap;
+        std::unordered_map<std::string, FontAtlas> fonts;   // key = alias (or path when no alias)
 
         std::unordered_map<_unique_id, std::vector<GlyphRenderData>> entityGlyphTemplates;
         std::unordered_map<_unique_id, std::vector<RenderCall>> entityRenderCalls;
@@ -79,12 +85,14 @@ namespace pg
         std::unordered_set<_unique_id> positionUpdateSet;     // Position-only update needed
 
     private:
-        // Render call helpers
-        float computeLineHeight(const std::string& text, const std::string& fontPath, float scale);
-        float getGlyphAdvance(char c, const std::string& fontPath, float scale);
-        float computeWordWidth(const std::string& word, const std::string& fontPath, float scale);
+        // Emits one glyph placement: code point, pen-relative x/y, glyph record and colour.
+        using GlyphEmitter = std::function<void(uint32_t, float, float, const GlyphInfo&, const constant::Vector4D&)>;
 
-        std::vector<TTFText> parseFormattedText(const TTFText &original);
+        // Single layout pass shared by measureText (counting) and buildGlyphTemplates (emitting),
+        // so a measurement can never disagree with the drawing.
+        TextMetrics layoutText(const FontAtlas& atlas, const std::vector<TTFText>& segments, float scale, float maxWidth, float spacing, const GlyphEmitter& emit) const;
+
+        std::vector<TTFText> parseFormattedText(const TTFText &original) const;
 
         size_t getMaterialId(const std::string& fontPath);
 
