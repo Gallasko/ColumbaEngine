@@ -11,6 +11,7 @@
 #include "UI/listview.h"
 #include "UI/progressbar.h"
 #include "UI/textinput.h"
+#include "UI/tooltip.h"
 #include "Scene/scenemanager.h"
 #include "Renderer/renderer.h"
 
@@ -25,9 +26,13 @@ namespace pg
         ecs->createSystem<PrefabSystem>();
         ecs->createSystem<LayoutSystem>();
         ecs->createSystem<ListViewSystem>();
+        ecs->createSystem<TooltipSystem>();
 
         // Ordering
         ecs->succeed<LayoutSystem, PrefabSystem>();
+
+        // The hover diff must land before the tooltip service reads it.
+        ecs->succeed<MouseHoverSystem, TooltipSystem>();
 
         ecs->succeed<PositionComponentSystem, PrefabSystem>();
         ecs->succeed<PositionComponentSystem, NamedUiAnchorSystem>();

@@ -355,6 +355,7 @@ set(ENGINESOURCE
     src/Engine/UI/sizer.cpp
     src/Engine/UI/textinput.cpp
     src/Engine/UI/thememanager.cpp
+    src/Engine/UI/tooltip.cpp
     src/Engine/UI/ttftext.cpp
     src/Engine/UI/uianimation.cpp
     src/Engine/UI/uiconstant.cpp
@@ -1511,6 +1512,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/ttftext.cc
             test/decoratedshapes.cc
             test/hover.cc
+            test/tooltip.cc
             test/scriptregistry.cc
             test/serialize.cc
             test/taskflow.cc
