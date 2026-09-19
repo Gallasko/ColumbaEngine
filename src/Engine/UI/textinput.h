@@ -182,6 +182,10 @@ namespace pg
         ui->setX(x);
         ui->setY(y);
 
+        // TTFTextSystem only renders entities in its <Position, TTFText, Viewport>
+        // group, so the input needs a viewport like every other text/shape factory.
+        ecs->template attach<ViewportComponent>(entity);
+
         auto sentence = ecs->template attach<TTFText>(entity, defaultText, font, size);
 
         ui->setWidth(sentence->textWidth);
