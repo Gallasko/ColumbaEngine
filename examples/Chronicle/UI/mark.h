@@ -16,7 +16,14 @@ namespace chronicle
 {
     // The five pixel sizes a mark is ever drawn at. Registered exactly, so the atlas
     // entry matches the quad and nothing is resampled.
-    enum class MarkSize : uint8_t { S14 = 14, S16 = 16, S18 = 18, S24 = 24, S48 = 48 };
+    enum class MarkSize : uint8_t
+    {
+        S14 = 14,
+        S16 = 16,
+        S18 = 18,
+        S24 = 24,
+        S48 = 48
+    };
 
     inline float px(MarkSize s) { return static_cast<float>(s); }
 

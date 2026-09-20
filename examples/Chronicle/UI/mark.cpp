@@ -52,8 +52,10 @@ namespace chronicle
                 return name;
 
             static std::unordered_set<std::string> warned;
+
             if (warned.insert(name).second)
                 LOG_ERROR(DOM, "Unknown mark '" << name << "'; drawing 'seal'");
+
             return "seal";
         }
     }
@@ -63,18 +65,23 @@ namespace chronicle
         if (style == "caption" or style == "tick" or style == "body-sm"
             or style == "gloss" or style == "label")
             return MarkSize::S14;
+
         if (style == "body")
             return MarkSize::S16;
+
         if (style == "figure" or style == "heading")
             return MarkSize::S18;
+
         if (style == "title" or style == "figure-xl" or style == "chapter")
             return MarkSize::S24;
+
         if (style == "versal")
             return MarkSize::S48;
 
         static std::unordered_set<std::string> warned;
         if (warned.insert(style).second)
             LOG_WARNING(DOM, "No mark size for style '" << style << "'; using S16");
+
         return MarkSize::S16;
     }
 
@@ -162,8 +169,10 @@ namespace chronicle
         auto boxAnchor = label.box->get<UiAnchor>();
         boxAnchor->setTopAnchor(PosAnchor{root.id, AnchorType::Top});
         boxAnchor->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
+
         if (labelLeft > 0.0f)
             boxAnchor->setLeftMargin(labelLeft);
+
         root.get<Prefab>()->addToPrefab(label.box);
 
         std::optional<Mark> mark;
