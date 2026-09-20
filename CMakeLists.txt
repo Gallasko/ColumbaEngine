@@ -1545,6 +1545,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/Chronicle/UI/label.cpp
             examples/Chronicle/UI/mark.cpp
             examples/Chronicle/UI/ornament.cpp
+            examples/Chronicle/UI/panel.cpp
         )
 
         add_executable(Chronicle examples/Chronicle/main.cpp)
@@ -1569,6 +1570,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/chronicle/label.cc
             test/chronicle/mark.cc
             test/chronicle/ornament.cc
+            test/chronicle/panel.cc
             ${CHRONICLE_CORE}
         )
         target_link_libraries(test_chronicle PRIVATE gtest gtest_main ColumbaEngine)
