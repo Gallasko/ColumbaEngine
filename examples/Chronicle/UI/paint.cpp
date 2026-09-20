@@ -17,42 +17,19 @@ namespace chronicle
 
     PaintSystem::PaintSystem(const Tokens* tokens) : tokens(tokens) {}
 
-    void PaintSystem::init()
+    void PaintSystem::onProcessEvent(const ThemeChangedEvent&)
     {
-        auto group = registerGroup<PaintComponent>();
-
-        group->addOnGroup([this](EntityRef entity) {
-            paintedIds.insert(entity->id);
-        });
-
-        group->removeOfGroup([this](EntitySystem*, _unique_id id) {
-            paintedIds.erase(id);
-        });
-    }
-
-    void PaintSystem::onEvent(const ThemeChangedEvent&)
-    {
-        dirty = true;
-    }
-
-    void PaintSystem::execute()
-    {
-        if (not dirty)
-            return;
-
         repaintAll();
-        dirty = false;
     }
 
     void PaintSystem::repaintAll()
     {
-        for (auto id : paintedIds)
+        // We own PaintComponent, so a view over it is the whole working set.
+        for (auto* paint : view<PaintComponent>())
         {
-            auto entity = ecsRef->getEntity(id);
-            if (not entity or not entity->has<PaintComponent>())
-                continue;
-
-            applyColour(entity, entity->get<PaintComponent>()->token);
+            auto entity = ecsRef->getEntity(paint->entityId);
+            if (entity)
+                applyColour(entity, paint->token);
         }
     }
 

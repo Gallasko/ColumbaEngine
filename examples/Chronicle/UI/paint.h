@@ -20,15 +20,16 @@ namespace chronicle
 
     // Repaints every PaintComponent holder on ThemeChangedEvent. Knows the paintable engine
     // components: TTFText, Simple2DObject, IconComponent.
-    struct PaintSystem : public pg::System<pg::Own<PaintComponent>, pg::Listener<ThemeChangedEvent>, pg::InitSys>
+    struct PaintSystem : public pg::System<pg::Own<PaintComponent>, pg::QueuedListener<ThemeChangedEvent>>
     {
         explicit PaintSystem(const Tokens* tokens);
 
         std::string getSystemName() const override { return "Chronicle Paint System"; }
 
-        void init() override;
-        void onEvent(const ThemeChangedEvent&) override;   // sets dirty = true
-        void execute() override;                           // if dirty: repaintAll()
+        // QueuedListener: the repaint runs when the event queue drains in execute(), a frame
+        // after the event was sent. That guarantees any entity/component created on the same
+        // frame as the theme change has been committed before we read it back.
+        void onProcessEvent(const ThemeChangedEvent&);
 
         void repaintAll();                                 // public so a test can call it without an event
         void paint(pg::EntityRef ent, const std::string& token);   // attach-or-update + apply once
@@ -37,9 +38,7 @@ namespace chronicle
         void applyColour(pg::EntityRef ent, const std::string& token);
 
         const Tokens* tokens;
-        bool dirty = false;
 
-        std::set<pg::_unique_id> paintedIds;
         std::set<pg::_unique_id> loggedUnpaintable;
     };
 }

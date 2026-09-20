@@ -172,6 +172,12 @@ namespace chronicle
 
         if (spec.overflow == Overflow::Wrap)
         {
+            // The wrap width is read from the text's own width at glyph-build time
+            // (maxWidth = wrap ? ui->width : 0). Set it now: the anchors below settle it
+            // to the same value over the next ticks, but a later width change only triggers
+            // a position-only update, never a re-wrap — so the first build must already
+            // see the constraint, or the text lays out as a single unwrapped line.
+            text.get<PositionComponent>()->setWidth(spec.width);
             text.get<TTFText>()->setWrap(true);
             // Both anchors stretch the child to the box width; the engine wraps at it.
             textAnchor->setLeftAnchor(PosAnchor{box.id, AnchorType::Left});
