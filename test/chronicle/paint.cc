@@ -169,5 +169,28 @@ namespace pg
             expectColour(dotted.entity->get<DottedLine2DObject>()->colors, ruled);
             expectColour(stroke.entity->get<StrokeRect2DObject>()->colors, ruled);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(paint_test, alpha_scales_token)
+        {
+            MockLogger logger;
+            PaintFixture s;
+
+            EntityRef text = s.makeTextEntity("ink");
+            s.paint->paint(text, "ink", 0.6f);
+            EXPECT_NEAR(text->get<TTFText>()->colors.w, s.tokens.colour("ink").w * 0.6f, 0.5f);
+
+            // A theme switch repaints but keeps the stored alpha.
+            s.tokens.setTheme(Theme::Candle);
+            s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
+            s.ecs.executeOnce();
+            EXPECT_NEAR(text->get<TTFText>()->colors.w, s.tokens.colour("ink", Theme::Candle).w * 0.6f, 0.5f);
+
+            // setAlpha re-applies at a new alpha.
+            s.paint->setAlpha(text, 1.0f);
+            EXPECT_NEAR(text->get<TTFText>()->colors.w, s.tokens.colour("ink", Theme::Candle).w, 0.5f);
+        }
     }
 }

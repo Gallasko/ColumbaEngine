@@ -30,23 +30,40 @@ namespace chronicle
         {
             auto entity = ecsRef->getEntity(paint->entityId);
             if (entity)
-                applyColour(entity, paint->token);
+                applyColour(entity, paint->token, paint->alpha);
         }
     }
 
-    void PaintSystem::paint(EntityRef ent, const std::string& token)
+    void PaintSystem::paint(EntityRef ent, const std::string& token, float alpha)
     {
         if (ent->has<PaintComponent>())
-            ent->get<PaintComponent>()->token = token;
+        {
+            auto pc = ent->get<PaintComponent>();
+            pc->token = token;
+            pc->alpha = alpha;
+        }
         else
-            ecsRef->attach<PaintComponent>(ent, token);
+        {
+            ecsRef->attach<PaintComponent>(ent, token, alpha);
+        }
 
-        applyColour(ent, token);
+        applyColour(ent, token, alpha);
     }
 
-    void PaintSystem::applyColour(EntityRef ent, const std::string& token)
+    void PaintSystem::setAlpha(EntityRef ent, float alpha)
     {
-        const constant::Vector4D colour = tokens->colour(token);
+        if (not ent->has<PaintComponent>())
+            return;
+
+        auto pc = ent->get<PaintComponent>();
+        pc->alpha = alpha;
+        applyColour(ent, pc->token, alpha);
+    }
+
+    void PaintSystem::applyColour(EntityRef ent, const std::string& token, float alpha)
+    {
+        constant::Vector4D colour = tokens->colour(token);
+        colour.w *= alpha;
 
         bool painted = false;
 
