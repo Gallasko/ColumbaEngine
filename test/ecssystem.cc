@@ -1136,6 +1136,76 @@ namespace pg
             EXPECT_TRUE(registry->hasTypeId<MyAutoComponent>());
         }
 
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Regression: get<Comp>() on a component the entity does not have must return an empty
+        // CompRef AND leave the entity untouched. It used to read pendingComponents through
+        // operator[], inserting a null entry on the miss — so the failed get poisoned the entity:
+        // has<Comp>() reported true forever after, and the next get<Comp>() handed back a null
+        // component that callers guarded by has<>() then dereferenced.
+        TEST(system_test, get_on_missing_component_does_not_poison_has)
+        {
+            MockLogger logger;
+
+            EntitySystem ecs;
+            ecs.createSystem<ASystem>();
+            ecs.createSystem<ABSystem>();
+
+            auto entity = ecs.createEntity();
+            ecs.attachGeneric<A>(entity, 1, 2);
+
+            EXPECT_TRUE(entity->has<A>());
+            EXPECT_FALSE(entity->has<B>());
+
+            // The failed lookup itself must come back empty...
+            EXPECT_TRUE(entity->get<B>().empty());
+
+            // ...and must not have created a phantom B on the entity.
+            EXPECT_FALSE(entity->has<B>());
+            EXPECT_TRUE(entity->get<B>().empty());
+
+            // Probing the empty ref must yield null, not crash — callers write
+            // `if (auto* b = ent->get<B>())` and rely on a plain null coming back.
+            B* raw = entity->get<B>();
+            EXPECT_EQ(raw, nullptr);
+            EXPECT_EQ(entity->get<B>().operator->(), nullptr);
+
+            // The component the entity does have is still reachable after the miss.
+            auto a = entity->get<A>();
+            ASSERT_FALSE(a.empty());
+            EXPECT_EQ(a->value, 3);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Same contract while the ECS is running (components flushed to the pools): the
+        // original failure fired from a running system's repaint pass.
+        TEST(system_test, get_on_missing_component_does_not_poison_has_while_running)
+        {
+            MockLogger logger;
+
+            EntitySystem ecs;
+            ecs.createSystem<ASystem>();
+            ecs.createSystem<ABSystem>();
+            ecs.fakeStart();
+
+            auto entity = ecs.createEntity();
+            ecs.attachGeneric<A>(entity, 4, 5);
+
+            ecs.executeOnce();
+
+            auto ent = ecs.getEntity(entity.id);
+            ASSERT_NE(ent, nullptr);
+
+            EXPECT_TRUE(ent->get<B>().empty());
+            EXPECT_FALSE(ent->has<B>());
+
+            auto a = ent->get<A>();
+            ASSERT_FALSE(a.empty());
+            EXPECT_EQ(a->value, 9);
+        }
 
     }
 }

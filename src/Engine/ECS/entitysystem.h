@@ -1142,9 +1142,13 @@ namespace pg
 
         const auto& componentId = ecsRef->getId<Comp>();
 
-        // Fast path: entity is fully initialized, return the cached pointer directly without any lookup
-        if (initialized)
-            return CompRef<Comp>(static_cast<Comp*>(pendingComponents[componentId]), id, ecsRef, true);
+        // Fast path: the pointer is cached in pendingComponents. Use find, never operator[]:
+        // operator[] inserts a null entry on a miss, which makes this return a null component
+        // AND makes has<Comp>() report a false positive forever after (has() consults
+        // pendingComponents too). A miss here must fall through to the flushed-pool lookup.
+        const auto pending = pendingComponents.find(componentId);
+        if (pending != pendingComponents.end() and pending->second)
+            return CompRef<Comp>(static_cast<Comp*>(pending->second), id, ecsRef, initialized);
 
         // Normal path: component is flushed and lives in the sparse set pool
         const auto& it = componentList.find(componentId);
@@ -1154,14 +1158,8 @@ namespace pg
             return CompRef<Comp>(ecsRef->registry.retrieve<Comp>()->getComponent(id), id, ecsRef, initialized);
         }
 
-        // Deferred path: component was attached while ECS is running but not yet flushed
-        const auto pending = pendingComponents.find(componentId);
-        if (pending != pendingComponents.end())
-        {
-            return CompRef<Comp>(static_cast<Comp*>(pending->second), id, ecsRef, false);
-        }
-
-        LOG_ERROR("Entity", "Entity doesn't have component: " << componentId);
+        LOG_MILE("Entity", "Entity " << id << " doesn't have component: " << componentId
+            << " (" << ecsRef->registry.getComponentTypeName(componentId) << ")");
 
         return CompRef<Comp>();
     }
@@ -1443,6 +1441,11 @@ namespace pg
             return component;
         else
         {
+            // An empty ref (no ECS behind it) has nothing to re-fetch from; probing it
+            // must yield null, not a null-ecsRef dereference.
+            if (not ecsRef)
+                return component;
+
             // Try to find the component in the ecs to update this ref
             auto comp = ecsRef->getComponent<Comp>(entityId);
 
@@ -1464,6 +1467,9 @@ namespace pg
             return component;
         else
         {
+            if (not ecsRef)
+                return component;
+
             // Try to find the component in the ecs to update this ref
             auto comp = ecsRef->getComponent<Comp>(entityId);
 
@@ -1478,6 +1484,9 @@ namespace pg
             return component;
         else
         {
+            if (not ecsRef)
+                return component;
+
             // Try to find the component in the ecs to update this ref
             auto comp = ecsRef->getComponent<Comp>(entityId);
 
