@@ -62,11 +62,14 @@ namespace pg
     {
         auto entity = ecs->createEntity();
         auto ui = ecs->template attach<PositionComponent>(entity);
+
         ui->setWidth(sizePx);
         ui->setHeight(sizePx);
+
         auto anchor = ecs->template attach<UiAnchor>(entity);
         auto vp = ecs->template attach<ViewportComponent>(entity);
         auto icon = ecs->template attach<IconComponent>(entity, iconSet, iconName, colors);
+
         return {entity, ui, anchor, vp, icon};
     }
 }
