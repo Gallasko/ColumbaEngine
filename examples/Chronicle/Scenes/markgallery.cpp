@@ -62,27 +62,43 @@ namespace chronicle
             return l;
         };
 
-        // ── Row 1: the whole set at S24 with names beneath ────────────────────
+        // A caption centred in a cell of the given width (so it can't overlap its neighbours).
+        auto captionCentred = [this](float cellX, float y, float cellW, const std::string& text)
         {
-            const float y = 48.0f;
-            const float step = px(MarkSize::S24) + tokens->space(4);   // 24 + 16
-            float x = marginX;
+            LabelSpec spec; spec.style = "caption"; spec.text = text; spec.colour = "ink-muted";
+            spec.align = Align::Centre; spec.overflow = Overflow::Ellipsis; spec.width = cellW;
+            spec.z = static_cast<int>(CONTENT_Z);
+            Label l = makeLabel(ecsRef, *tokens, *styles, spec);
+            l.box->get<PositionComponent>()->setX(cellX);
+            l.box->get<PositionComponent>()->setY(y);
+        };
+
+        // ── Row 1: the whole set at S24 in a grid, each mark named beneath ────
+        //    A grid (not one row) so the names are wide enough not to collide.
+        {
+            const float cellW = 92.0f;
+            const float cellH = 60.0f;
+            const int cols = static_cast<int>((1320.0f - 2.0f * marginX) / cellW);
+            const float top = 48.0f;
+
+            int i = 0;
             for (const auto& name : markNames())
             {
+                const int col = i % cols;
+                const int row = i / cols;
+                const float cellX = marginX + static_cast<float>(col) * cellW;
+                const float cellY = top + static_cast<float>(row) * cellH;
+
                 Mark m = makeMark(ecsRef, *tokens, {name, MarkSize::S24, "ink", static_cast<int>(CONTENT_Z)});
-                placeEntity(m.entity, x, y);
-                caption(x, y + 28.0f, name, "ink-muted");
-                x += step;
-                if (x > 1320.0f - marginX)   // wrap the row
-                {
-                    x = marginX;
-                }
+                placeEntity(m.entity, cellX + (cellW - px(MarkSize::S24)) / 2.0f, cellY);
+                captionCentred(cellX, cellY + 28.0f, cellW, name);
+                ++i;
             }
         }
 
         // ── Row 2: the set at S14 on a vellum-worn strip (legibility floor) ────
         {
-            const float y = 150.0f;
+            const float y = 260.0f;
             const float step = px(MarkSize::S14) + tokens->space(2);   // 14 + 8
             const float rowW = static_cast<float>(markNames().size()) * step + tokens->space(2);
             strip(marginX - 4.0f, y - 4.0f, rowW, px(MarkSize::S14) + 8.0f, "vellum-worn");
@@ -107,7 +123,7 @@ namespace chronicle
                 {"seal", "versal", "A", "vermilion"},
             };
 
-            float y = 210.0f;
+            float y = 320.0f;
             for (const auto& p : pairs)
             {
                 MarkedLabelSpec spec;
@@ -126,7 +142,7 @@ namespace chronicle
         // ── Row 4: status - the mark alone must carry the state ───────────────
         {
             const float x = 520.0f;
-            float y = 210.0f;
+            float y = 320.0f;
             struct Status { const char* mark; const char* text; const char* colour; };
             const Status rows[2] = {
                 {"check", "Strength 14 of 12", "status-gain"},
@@ -156,8 +172,8 @@ namespace chronicle
         // ── Row 5: the missing-mark case draws "seal" and logs once ───────────
         {
             Mark m = makeMark(ecsRef, *tokens, {"clock", MarkSize::S24, "ink", static_cast<int>(CONTENT_Z)});
-            placeEntity(m.entity, 520.0f, 460.0f);
-            caption(520.0f, 490.0f, "\"clock\" -> seal", "ink-muted");
+            placeEntity(m.entity, 520.0f, 560.0f);
+            caption(520.0f, 590.0f, "\"clock\" -> seal", "ink-muted");
         }
 
         // Footer hint.
