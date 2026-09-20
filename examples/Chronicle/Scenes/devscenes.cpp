@@ -8,6 +8,7 @@
 #include "typespecimen.h"
 #include "labelgallery.h"
 #include "markgallery.h"
+#include "ornamentgallery.h"
 
 namespace chronicle
 {
@@ -17,6 +18,7 @@ namespace chronicle
             {"TypeSpecimen", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<TypeSpecimen>(t, st); }},
             {"LabelGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<LabelGallery>(t, st); }},
             {"MarkGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<MarkGallery>(t, st); }},
+            {"OrnamentGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<OrnamentGallery>(t, st); }},
         };
 
         return scenes;

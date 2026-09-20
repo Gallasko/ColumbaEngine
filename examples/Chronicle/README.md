@@ -63,6 +63,25 @@ ctest -R "tokens|textstyle" --output-on-failure
   keeps the mark column when the mark is empty so a list still aligns its text.
   A `versal` label is the one case where the mark (48 px) drives the row height.
 
+- **Ornament** (`UI/mark.h`'s sibling `UI/ornament.h`) — the scribe's ruling and the
+  illuminator's frames, in four kinds: a **Divider** (1 px `rule-hair` or 2 px
+  `rule-ruled`, with an optional knot whose opaque *ground* patch masks the rule
+  underneath — pass the token of the surface the divider sits on as `ground`), a
+  **Flourish** band, a gold **Corner**, and a 72×72 **Versal** (an inset G4 stroke
+  frame, drawn curls, and a `chapter`-set initial nudged so its *cap* — not its
+  line box — centres in the frame, using `kCormorantCapRatio = 0.63`). The versal
+  letter is set in `chapter` (44 px Cormorant SemiBold), the nearest registered
+  atlas to the design system's 46 px versal.
+
+## Assets
+
+- The **mark** set (`res/icons/chronicle/`, 27 glyphs) and the **ornament** set
+  (`res/icons/chronicle-ornaments/`, 7 curves) are SVGs authored on **square**
+  viewBoxes: `SvgLoader::rasterize` fits a document into a square and centres it,
+  so a square viewBox makes the quad and the drawing coincide with no offset. The
+  four corners ship pre-mirrored (`corner-tl/tr/bl/br`) because the icon system
+  has no flip.
+
 ## Adding a dev scene
 
 One line in `Scenes/devscenes.cpp`: add `{"MyScene", [](auto* s, auto* t, auto* st){ s->loadSystemScene<MyScene>(t, st); }}`
