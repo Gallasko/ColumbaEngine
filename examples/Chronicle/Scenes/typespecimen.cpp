@@ -38,6 +38,8 @@ namespace chronicle
 
     void TypeSpecimen::init()
     {
+        paintSystem = ecsRef->getSystem<PaintSystem>();
+
         // Sample text per style, read from the tokens' type section (else a default).
         std::unordered_map<std::string, std::string> samples;
         const nlohmann::json& type = tokens->typeSection();
@@ -55,12 +57,13 @@ namespace chronicle
         bg.get<PositionComponent>()->setY(0.0f);
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
+        paintSystem->paint(bg.entity, "vellum");
 
-        // Records a text entity for repainting and returns its CompList.
+        // Builds a styled text painted through the paint system, and returns its CompList.
         auto paint = [this](const std::string& style, const std::string& text, const std::string& token)
         {
             auto comp = styles->makeText(ecsRef, style, text, tokens->colour(token));
-            paintedTexts.emplace_back(comp.entity.id, token);
+            paintSystem->paint(comp.entity, token);
             return comp;
         };
 
@@ -77,17 +80,14 @@ namespace chronicle
             auto rowLayout = row.get<HorizontalLayout>();
             rowLayout->spacing = tokens->space(4);
 
-            // Style name in a fixed-width column.
             auto name = paint("caption", style.name, "ink-muted");
             name.get<PositionComponent>()->setWidth(140.0f);
             rowLayout->addEntity(name);
 
-            // The sample, in the style itself; versal and chapter are shown as they are used.
             const std::string sampleText = samples.count(style.name) ? samples[style.name] : DEFAULT_SAMPLE;
             const std::string sampleColour = (style.name == "versal" or style.name == "chapter") ? "vermilion" : "ink";
             rowLayout->addEntity(paint(style.name, sampleText, sampleColour));
 
-            // Metrics, then tracking when non-zero.
             rowLayout->addEntity(paint("caption", metricsLine(style), "ink-faint"));
             if (style.letterSpacingPx != 0.0f)
                 rowLayout->addEntity(paint("caption", trackingLine(style), "ink-faint"));
@@ -101,7 +101,7 @@ namespace chronicle
         hint.get<PositionComponent>()->setY(screenHeight - margin);
         hint.get<PositionComponent>()->setZ(10.0f);
 
-        // T: switch theme, announce it, and repaint every owned ref.
+        // T switches theme (PaintSystem repaints); S toggles the swatch column.
         listenToEvent<OnSDLScanCode>([this](const OnSDLScanCode& event)
         {
             if (event.key == SDL_SCANCODE_T)
@@ -114,12 +114,6 @@ namespace chronicle
             {
                 toggleSwatches();
             }
-        });
-
-        // Repaint on a theme change - the pattern every component follows.
-        listenToEvent<ThemeChangedEvent>([this](const ThemeChangedEvent&)
-        {
-            repaint();
         });
 
         // Keep the background covering the window.
@@ -135,27 +129,6 @@ namespace chronicle
                 entity->get<PositionComponent>()->setHeight(screenHeight);
             }
         });
-    }
-
-    void TypeSpecimen::repaint()
-    {
-        auto background = ecsRef->getEntity(backgroundId);
-        if (background and background->has<Simple2DObject>())
-            background->get<Simple2DObject>()->setColors(tokens->colour("vellum"));
-
-        for (const auto& [id, token] : paintedTexts)
-        {
-            auto entity = ecsRef->getEntity(id);
-            if (entity and entity->has<TTFText>())
-                entity->get<TTFText>()->setColors(tokens->colour(token));
-        }
-
-        // Rebuild the swatch column so its colours follow the theme too.
-        if (swatchesShown)
-        {
-            toggleSwatches();
-            toggleSwatches();
-        }
     }
 
     void TypeSpecimen::toggleSwatches()
@@ -180,12 +153,14 @@ namespace chronicle
             leaf.get<PositionComponent>()->setX(x);
             leaf.get<PositionComponent>()->setY(y);
             leaf.get<PositionComponent>()->setZ(11.0f);
+            paintSystem->paint(leaf.entity, colourName);
             swatchIds.push_back(leaf.entity.id);
 
             auto label = styles->makeText(ecsRef, "caption", colourName, tokens->colour("ink-muted"));
             label.get<PositionComponent>()->setX(x + swatchW + tokens->space(2));
             label.get<PositionComponent>()->setY(y + 4.0f);
             label.get<PositionComponent>()->setZ(11.0f);
+            paintSystem->paint(label.entity, "ink-muted");
             swatchIds.push_back(label.entity.id);
 
             y += swatchH + tokens->space(1);

@@ -7,6 +7,7 @@
 #include "UI/ttftext.h"
 #include "Scene/scenemanager.h"
 
+#include "UI/paint.h"
 #include "Scenes/typespecimen.h"
 
 using namespace pg;
@@ -53,7 +54,9 @@ namespace chronicle
             styles = TextStyles::fromTokens(tokens);
             styles.registerAll(ttfSys, "res/font");
 
-            // 3. the standard render/UI/input stack is created by the engine boot.
+            // 3. paint system (repaints on theme change), then the rest of the
+            //    standard render/UI/input stack created by the engine boot.
+            ecs.createSystem<PaintSystem>(&tokens);
 
             // 4. scene
             ecs.getSystem<SceneElementSystem>()->loadSystemScene<TypeSpecimen>(&tokens, &styles);

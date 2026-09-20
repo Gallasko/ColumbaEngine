@@ -1541,6 +1541,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         set(CHRONICLE_CORE
             examples/Chronicle/Core/tokens.cpp
             examples/Chronicle/Core/textstyle.cpp
+            examples/Chronicle/UI/paint.cpp
         )
 
         add_executable(Chronicle examples/Chronicle/main.cpp)
@@ -1557,6 +1558,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_sources(test_chronicle PRIVATE
             test/chronicle/tokens.cc
             test/chronicle/textstyle.cc
+            test/chronicle/paint.cc
             ${CHRONICLE_CORE}
         )
         target_link_libraries(test_chronicle PRIVATE gtest gtest_main ColumbaEngine)
