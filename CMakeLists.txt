@@ -1553,7 +1553,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_link_libraries(Chronicle PRIVATE ColumbaEngine)
 
         add_executable(test_chronicle test/chronicle/maintest.cc)
-        target_include_directories(test_chronicle PUBLIC examples/Chronicle examples/Chronicle/Core)
+        target_include_directories(test_chronicle PUBLIC examples/Chronicle examples/Chronicle/Core ${CMAKE_SOURCE_DIR}/test)
         target_sources(test_chronicle PRIVATE
             test/chronicle/tokens.cc
             test/chronicle/textstyle.cc

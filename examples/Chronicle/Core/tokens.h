@@ -57,6 +57,13 @@ namespace chronicle
         // Colour, resolved to a concrete RGBA per theme (index 0 = Day, 1 = Candle).
         struct Colour { std::array<pg::constant::Vector4D, 2> byTheme; };
 
+        // Resolves one colour for one theme, following {alias} chains (cycle-safe, depth-capped).
+        static pg::constant::Vector4D resolveColour(const std::unordered_map<std::string, std::array<std::string, 2>>& raw,
+                                                    const std::string& name, int themeIdx, std::set<std::string>& visited,
+                                                    std::vector<std::string>& errors, const std::string& source);
+
+        float lookupScale(const std::unordered_map<std::string, float>& table, const std::string& name) const;
+
         Theme currentTheme = Theme::Day;
         int fileVersion = 0;
         std::vector<std::string> errorList;
