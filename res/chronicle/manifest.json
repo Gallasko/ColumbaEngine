@@ -1,0 +1,12 @@
+{
+  "version": "0.1.0",
+  "description": "Chronicle",
+  "changelog": [
+    {
+      "version": "0.1.0",
+      "changes": [
+        "Initial Chronicle scaffolding: tokens loader, text styles, TypeSpecimen dev scene"
+      ]
+    }
+  ]
+}

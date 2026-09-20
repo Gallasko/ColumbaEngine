@@ -1536,6 +1536,36 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             FAIL_REGULAR_EXPRESSION "FAILED"
         )
 
+        ###  Chronicle
+
+        set(CHRONICLE_CORE
+            examples/Chronicle/Core/tokens.cpp
+            examples/Chronicle/Core/textstyle.cpp
+        )
+
+        add_executable(Chronicle examples/Chronicle/main.cpp)
+        target_include_directories(Chronicle PUBLIC examples/Chronicle examples/Chronicle/Core examples/Chronicle/Scenes)
+        target_sources(Chronicle PRIVATE
+            examples/Chronicle/application.cpp
+            examples/Chronicle/Scenes/typespecimen.cpp
+            ${CHRONICLE_CORE}
+        )
+        target_link_libraries(Chronicle PRIVATE ColumbaEngine)
+
+        add_executable(test_chronicle test/chronicle/maintest.cc)
+        target_include_directories(test_chronicle PUBLIC examples/Chronicle examples/Chronicle/Core)
+        target_sources(test_chronicle PRIVATE
+            test/chronicle/tokens.cc
+            test/chronicle/textstyle.cc
+            ${CHRONICLE_CORE}
+        )
+        target_link_libraries(test_chronicle PRIVATE gtest gtest_main ColumbaEngine)
+        add_custom_command(TARGET test_chronicle PRE_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/testdeps/ $<TARGET_FILE_DIR:test_chronicle>)
+        gtest_discover_tests(test_chronicle
+            WORKING_DIRECTORY $<TARGET_FILE_DIR:test_chronicle>
+            PROPERTIES FAIL_REGULAR_EXPRESSION "FAILED")
+
         add_executable(bench benchmark/mainbenchmark.cc)
 
         target_sources(bench PRIVATE
