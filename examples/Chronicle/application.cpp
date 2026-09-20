@@ -10,6 +10,7 @@
 
 #include "UI/paint.h"
 #include "UI/mark.h"
+#include "UI/ornament.h"
 #include "Scenes/devscenes.h"
 
 using namespace pg;
@@ -64,8 +65,9 @@ namespace chronicle
             //    standard render/UI/input stack created by the engine boot.
             ecs.createSystem<PaintSystem>(&tokens);
 
-            // Register the mark set (IconSystem comes from the engine boot).
+            // Register the icon sets (IconSystem comes from the engine boot).
             registerMarks(&ecs);
+            registerOrnaments(&ecs);
 
             // 4. scene (default TypeSpecimen when no --dev given)
             const std::string scene = opt.devScene.empty() ? "TypeSpecimen" : opt.devScene;
