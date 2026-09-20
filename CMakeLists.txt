@@ -1550,6 +1550,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_sources(Chronicle PRIVATE
             examples/Chronicle/application.cpp
             examples/Chronicle/Scenes/typespecimen.cpp
+            examples/Chronicle/Scenes/devscenes.cpp
+            examples/Chronicle/Scenes/labelgallery.cpp
             ${CHRONICLE_CORE}
         )
         target_link_libraries(Chronicle PRIVATE ColumbaEngine)

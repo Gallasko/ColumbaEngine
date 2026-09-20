@@ -42,6 +42,20 @@ ctest -R "tokens|textstyle" --output-on-failure
   default digits are lining and tabular; Cormorant's are proportional, so a
   number in a display style will reflow its row.
 
+## Components
+
+- **Label** (`UI/label.h`) — a style, a colour token, an alignment, and one of
+  three overflows: `Grow` (box = measured width), `Wrap` (box = given width,
+  text wraps, `maxLines` truncates with an ellipsis), `Ellipsis` (one line,
+  shortened with `…`). Box height is always the token line height. Wrapped text
+  is always left-set: the engine has no per-line alignment, so a wrapped
+  `Centre`/`Right` label is set as `Left` (warned once).
+
+## Adding a dev scene
+
+One line in `Scenes/devscenes.cpp`: add `{"MyScene", [](auto* s, auto* t, auto* st){ s->loadSystemScene<MyScene>(t, st); }}`
+to `devScenes()`. `--dev` and its error listing pick it up automatically.
+
 ## z-layer bands (all `int`)
 
 | Band          | z range |

@@ -1,5 +1,6 @@
 #include "application.h"
 
+#include <cstdio>
 #include <cstdlib>
 
 #include "window.h"
@@ -8,16 +9,18 @@
 #include "Scene/scenemanager.h"
 
 #include "UI/paint.h"
-#include "Scenes/typespecimen.h"
+#include "Scenes/devscenes.h"
 
 using namespace pg;
 
 namespace
 {
-    // The dev scenes this build knows. --dev must name one of these.
-    bool isKnownScene(const std::string& name)
+    std::string knownSceneNames()
     {
-        return name == "TypeSpecimen";
+        std::string names;
+        for (const auto& [name, loader] : chronicle::devScenes())
+            names += (names.empty() ? "" : ", ") + name;
+        return names;
     }
 }
 
@@ -25,10 +28,12 @@ namespace chronicle
 {
     GameApp::GameApp(const std::string& appName, const LaunchOptions& options) : engine(appName), opt(options)
     {
-        // Reject an unknown --dev name before opening a window.
-        if (not opt.devScene.empty() and not isKnownScene(opt.devScene))
+        // Reject an unknown --dev name before opening a window. This runs before the
+        // engine (and its log sink) exist, so write straight to stderr.
+        if (not opt.devScene.empty() and devScenes().count(opt.devScene) == 0)
         {
-            LOG_ERROR("Chronicle", "Unknown --dev scene '" << opt.devScene << "'. Known scenes: TypeSpecimen");
+            std::fprintf(stderr, "Chronicle: unknown --dev scene '%s'. Known scenes: %s\n",
+                         opt.devScene.c_str(), knownSceneNames().c_str());
             std::exit(2);
         }
 
@@ -58,8 +63,9 @@ namespace chronicle
             //    standard render/UI/input stack created by the engine boot.
             ecs.createSystem<PaintSystem>(&tokens);
 
-            // 4. scene
-            ecs.getSystem<SceneElementSystem>()->loadSystemScene<TypeSpecimen>(&tokens, &styles);
+            // 4. scene (default TypeSpecimen when no --dev given)
+            const std::string scene = opt.devScene.empty() ? "TypeSpecimen" : opt.devScene;
+            loadDevScene(ecs.getSystem<SceneElementSystem>(), scene, &tokens, &styles);
         });
     }
 
