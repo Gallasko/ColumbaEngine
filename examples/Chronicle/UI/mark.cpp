@@ -6,8 +6,10 @@
 
 #include "2D/position.h"
 #include "UI/iconsystem.h"
+#include "UI/prefab.h"
 
 #include "paint.h"
+#include "label.h"
 
 using namespace pg;
 
@@ -136,5 +138,109 @@ namespace chronicle
         auto pos = entity->get<PositionComponent>();
         pos->setWidth(px(size));
         pos->setHeight(px(size));
+    }
+
+    MarkedLabel makeMarkedLabel(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const MarkedLabelSpec& specIn)
+    {
+        MarkedLabelSpec spec = specIn;
+        const float gap = spec.gap >= 0.0f ? spec.gap : tokens.space(2);
+
+        const bool hasMark = not spec.mark.empty();
+        const bool reserve = hasMark or spec.reserveMark;
+        const bool versal = spec.label.style == "versal";
+        const MarkSize markSize = versal ? MarkSize::S48 : markSizeFor(spec.label.style);
+        const float markPx = px(markSize);
+        const float labelLeft = reserve ? markPx + gap : 0.0f;
+
+        auto root = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(spec.z));
+
+        // Label box at root z (its text at z+1); shifted right by the mark column.
+        LabelSpec labelSpec = spec.label;
+        labelSpec.z = spec.z;
+        Label label = makeLabel(ecs, tokens, styles, labelSpec);
+
+        auto boxAnchor = label.box->get<UiAnchor>();
+        boxAnchor->setTopAnchor(PosAnchor{root.id, AnchorType::Top});
+        boxAnchor->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
+        if (labelLeft > 0.0f)
+            boxAnchor->setLeftMargin(labelLeft);
+        root.get<Prefab>()->addToPrefab(label.box);
+
+        std::optional<Mark> mark;
+        if (hasMark)
+        {
+            Mark m = makeMark(ecs, tokens, {spec.mark, markSize, spec.label.colour, spec.z + 1});
+            auto markAnchor = m.entity->get<UiAnchor>();
+            markAnchor->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
+            markAnchor->setVerticalCenter(PosAnchor{root.id, AnchorType::VerticalCenter});
+            root.get<Prefab>()->addToPrefab(m.entity);
+            mark = m;
+        }
+
+        const float labelW = label.box->get<PositionComponent>()->width;
+        const float labelH = label.box->get<PositionComponent>()->height;
+
+        auto rootPos = root.get<PositionComponent>();
+        rootPos->setWidth(labelLeft + labelW);
+        rootPos->setHeight(versal ? px(MarkSize::S48) : labelH);   // only a versal mark drives the height
+
+        MarkedLabel ml;
+        ml.root = root.entity;
+        ml.mark = mark;
+        ml.label = label;
+        return ml;
+    }
+
+    void MarkedLabel::setColour(EntitySystem* ecs, const std::string& token)
+    {
+        label.setColour(ecs, token);
+        if (mark)
+            mark->setColour(ecs, token);
+    }
+
+    void MarkedLabel::setText(EntitySystem* ecs, const TextStyles& styles, const std::string& newText)
+    {
+        label.setText(ecs, styles, newText);
+
+        // A Grow label re-measures its box; the mark column is the box's left margin, so the
+        // root stays exactly that column plus the (possibly new) box width.
+        const float labelLeft = label.box->get<UiAnchor>()->leftMargin;
+        root->get<PositionComponent>()->setWidth(labelLeft + label.box->get<PositionComponent>()->width);
+    }
+
+    void MarkedLabel::setMark(EntitySystem* ecs, const Tokens& tokens, const std::string& name)
+    {
+        if (name.empty())
+        {
+            if (mark)
+            {
+                ecs->removeEntity(mark->entity.id);
+                mark.reset();
+            }
+            return;
+        }
+
+        if (mark)
+        {
+            mark->setName(ecs, name);
+            return;
+        }
+
+        // Adding a mark where none existed: size from the label's style, shift the box, grow the root.
+        const MarkSize markSize = label.spec.style == "versal" ? MarkSize::S48 : markSizeFor(label.spec.style);
+        const float gap = tokens.space(2);
+        const float labelLeft = px(markSize) + gap;
+
+        auto boxAnchor = label.box->get<UiAnchor>();
+        boxAnchor->setLeftMargin(labelLeft);
+
+        Mark m = makeMark(ecs, tokens, {name, markSize, label.spec.colour, label.spec.z + 1});
+        auto markAnchor = m.entity->get<UiAnchor>();
+        markAnchor->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
+        markAnchor->setVerticalCenter(PosAnchor{root.id, AnchorType::VerticalCenter});
+        root->get<Prefab>()->addToPrefab(m.entity);
+        mark = m;
+
+        root->get<PositionComponent>()->setWidth(labelLeft + label.box->get<PositionComponent>()->width);
     }
 }

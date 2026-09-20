@@ -1,12 +1,16 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "ECS/entitysystem.h"
 
 #include "Core/tokens.h"
+#include "Core/textstyle.h"
+
+#include "label.h"
 
 namespace chronicle
 {
@@ -52,4 +56,26 @@ namespace chronicle
     };
 
     Mark makeMark(pg::EntitySystem*, const Tokens&, const MarkSpec&);
+
+    struct MarkedLabelSpec
+    {
+        std::string mark;              // "" = no mark
+        bool reserveMark = false;      // keep the mark column even when `mark` is empty
+        LabelSpec label;               // colour here is THE colour: the mark takes it
+        float gap = -1.0f;             // < 0 -> tokens.space(2) (8 px)
+        int z = 0;                     // root z; label box z+0 (text z+1), mark z+1
+    };
+
+    struct MarkedLabel
+    {
+        pg::EntityRef root;            // PositionComponent + UiAnchor + Prefab - anchor this
+        std::optional<Mark> mark;
+        Label label;
+
+        void setColour(pg::EntitySystem*, const std::string& token);                      // both
+        void setText(pg::EntitySystem*, const TextStyles&, const std::string&);           // re-measures root for Grow
+        void setMark(pg::EntitySystem*, const Tokens&, const std::string& name);          // "" removes
+    };
+
+    MarkedLabel makeMarkedLabel(pg::EntitySystem*, const Tokens&, const TextStyles&, const MarkedLabelSpec&);
 }

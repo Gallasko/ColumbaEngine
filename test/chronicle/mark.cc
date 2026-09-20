@@ -1,5 +1,7 @@
 #include "stdafx.h"
 
+#include <cmath>
+
 #include <gtest/gtest.h>
 
 #include "UI/mark.h"
@@ -202,6 +204,123 @@ namespace pg
 
             EXPECT_FLOAT_EQ(s.pos(mark.entity)->width, 48.0f);
             EXPECT_FLOAT_EQ(s.pos(mark.entity)->height, 48.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(mark_test, marked_label_geometry)
+        {
+            MockLogger logger;
+            MarkFixture s;
+
+            MarkedLabelSpec spec;
+            spec.mark = "time";
+            spec.label = {"figure", "+3 mo"};
+            MarkedLabel ml = makeMarkedLabel(&s.ecs, s.tokens, s.styles, spec);
+            s.settle();
+
+            ASSERT_TRUE(ml.mark.has_value());
+            EXPECT_FLOAT_EQ(s.pos(ml.mark->entity)->width, 18.0f);   // figure -> S18
+
+            const float rootX = s.pos(ml.root)->x;
+            const float rootY = s.pos(ml.root)->y;
+            const float labelW = s.pos(ml.label.box)->width;
+
+            EXPECT_NEAR(s.pos(ml.mark->entity)->x, rootX, 0.01f);
+            EXPECT_NEAR(s.pos(ml.label.box)->x, rootX + 18.0f + 8.0f, 0.01f);
+            EXPECT_NEAR(s.pos(ml.root)->width, 26.0f + labelW, 0.01f);
+            EXPECT_NEAR(s.pos(ml.root)->height, 22.0f, 0.01f);       // figure line height
+
+            const float markCentre = s.pos(ml.mark->entity)->y + s.pos(ml.mark->entity)->height / 2.0f;
+            EXPECT_NEAR(markCentre, rootY + 11.0f, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(mark_test, no_mark_no_gap)
+        {
+            MockLogger logger;
+            MarkFixture s;
+
+            MarkedLabel a = makeMarkedLabel(&s.ecs, s.tokens, s.styles, {"", false, {"body", "x"}});
+            s.settle();
+            EXPECT_NEAR(s.pos(a.label.box)->x, s.pos(a.root)->x, 0.01f);
+            EXPECT_NEAR(s.pos(a.root)->width, s.pos(a.label.box)->width, 0.01f);
+            EXPECT_FALSE(a.mark.has_value());
+
+            MarkedLabel b = makeMarkedLabel(&s.ecs, s.tokens, s.styles, {"", true, {"body", "x"}});
+            s.settle();
+            EXPECT_NEAR(s.pos(b.label.box)->x, s.pos(b.root)->x + 16.0f + 8.0f, 0.01f);  // body -> S16 reserved
+            EXPECT_FALSE(b.mark.has_value());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(mark_test, colour_is_shared)
+        {
+            MockLogger logger;
+            MarkFixture s;
+
+            MarkedLabel ml = makeMarkedLabel(&s.ecs, s.tokens, s.styles,
+                {"check", false, {"body", "Strength 14", "status-gain"}});
+            s.settle();
+
+            const auto verdigris = s.tokens.colour("verdigris", Theme::Day);
+            EXPECT_FLOAT_EQ(s.iconOf(ml.mark->entity)->colors.x, verdigris.x);
+            EXPECT_FLOAT_EQ(s.ttfOf(ml.label.text)->colors.x, verdigris.x);
+
+            ml.setColour(&s.ecs, "status-loss");
+            const auto vermilion = s.tokens.colour("vermilion", Theme::Day);
+            EXPECT_FLOAT_EQ(s.iconOf(ml.mark->entity)->colors.x, vermilion.x);
+            EXPECT_FLOAT_EQ(s.ttfOf(ml.label.text)->colors.x, vermilion.x);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(mark_test, versal_pairs_48)
+        {
+            MockLogger logger;
+            MarkFixture s;
+
+            MarkedLabel ml = makeMarkedLabel(&s.ecs, s.tokens, s.styles, {"seal", false, {"versal", "A"}});
+            s.settle();
+
+            ASSERT_TRUE(ml.mark.has_value());
+            EXPECT_FLOAT_EQ(s.pos(ml.mark->entity)->width, 48.0f);
+            EXPECT_FLOAT_EQ(s.pos(ml.root)->height, 48.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(mark_test, z_bands)
+        {
+            MockLogger logger;
+            MarkFixture s;
+
+            MarkedLabelSpec spec;
+            spec.mark = "gold";
+            spec.label = {"body", "412 gold"};
+            spec.z = 20;
+            MarkedLabel ml = makeMarkedLabel(&s.ecs, s.tokens, s.styles, spec);
+            s.settle();
+
+            const float rootZ = s.pos(ml.root)->z;
+            const float boxZ = s.pos(ml.label.box)->z;
+            const float textZ = s.pos(ml.label.text)->z;
+            const float markZ = s.pos(ml.mark->entity)->z;
+
+            EXPECT_FLOAT_EQ(rootZ, 20.0f);
+            EXPECT_FLOAT_EQ(boxZ, 20.0f);
+            EXPECT_FLOAT_EQ(textZ, 21.0f);
+            EXPECT_FLOAT_EQ(markZ, 21.0f);
+
+            for (float z : {rootZ, boxZ, textZ, markZ})
+                EXPECT_FLOAT_EQ(z, std::floor(z));
         }
     }
 }
