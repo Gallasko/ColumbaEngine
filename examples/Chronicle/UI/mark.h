@@ -6,6 +6,8 @@
 
 #include "ECS/entitysystem.h"
 
+#include "Core/tokens.h"
+
 namespace chronicle
 {
     // The five pixel sizes a mark is ever drawn at. Registered exactly, so the atlas
@@ -30,4 +32,24 @@ namespace chronicle
     // Calls IconSystem::registerIconSet("chronicle", <iconRoot>/<name>.svg x 27, {14,16,18,24,48}).
     // Returns false (and logs) if the IconSystem is missing. Idempotent: a second call is a no-op.
     bool registerMarks(pg::EntitySystem*, const std::string& iconRoot = "res/icons/chronicle");
+
+    struct MarkSpec
+    {
+        std::string name;             // one of markNames(); unknown -> "seal" drawn + one logged error
+        MarkSize size = MarkSize::S16;
+        std::string colour = "ink";   // token; normally supplied by the paired label
+        int z = 0;
+    };
+
+    struct Mark
+    {
+        pg::EntityRef entity;         // PositionComponent + UiAnchor + ViewportComponent + IconComponent
+        MarkSpec spec;
+
+        void setName(pg::EntitySystem*, const std::string&);           // re-validates (unknown -> seal)
+        void setColour(pg::EntitySystem*, const std::string& token);   // PaintSystem::paint
+        void setSize(pg::EntitySystem*, MarkSize);                     // width and height together
+    };
+
+    Mark makeMark(pg::EntitySystem*, const Tokens&, const MarkSpec&);
 }

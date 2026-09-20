@@ -4,7 +4,10 @@
 
 #include "logger.h"
 
+#include "2D/position.h"
 #include "UI/iconsystem.h"
+
+#include "paint.h"
 
 using namespace pg;
 
@@ -38,6 +41,18 @@ namespace chronicle
         {
             static std::unordered_set<EntitySystem*> instances;
             return instances;
+        }
+
+        // A missing mark must be visible, never blank: draw "seal" and log the name once.
+        std::string validateMarkName(const std::string& name)
+        {
+            if (isMarkName(name))
+                return name;
+
+            static std::unordered_set<std::string> warned;
+            if (warned.insert(name).second)
+                LOG_ERROR(DOM, "Unknown mark '" << name << "'; drawing 'seal'");
+            return "seal";
         }
     }
 
@@ -85,5 +100,41 @@ namespace chronicle
 
         icons->registerIconSet("chronicle", paths, {14, 16, 18, 24, 48});
         return true;
+    }
+
+    Mark makeMark(EntitySystem* ecs, const Tokens& tokens, const MarkSpec& specIn)
+    {
+        MarkSpec spec = specIn;
+        spec.name = validateMarkName(spec.name);
+
+        auto icon = makeIcon(ecs, "chronicle", spec.name, px(spec.size), tokens.colour(spec.colour));
+        icon.get<PositionComponent>()->setZ(static_cast<float>(spec.z));
+
+        ecs->getSystem<PaintSystem>()->paint(icon.entity, spec.colour);
+
+        Mark mark;
+        mark.entity = icon.entity;
+        mark.spec = spec;
+        return mark;
+    }
+
+    void Mark::setName(EntitySystem* ecs, const std::string& name)
+    {
+        spec.name = validateMarkName(name);
+        entity->get<IconComponent>()->setIconName(spec.name);
+    }
+
+    void Mark::setColour(EntitySystem* ecs, const std::string& token)
+    {
+        ecs->getSystem<PaintSystem>()->paint(entity, token);
+        spec.colour = token;
+    }
+
+    void Mark::setSize(EntitySystem* ecs, MarkSize size)
+    {
+        spec.size = size;
+        auto pos = entity->get<PositionComponent>();
+        pos->setWidth(px(size));
+        pos->setHeight(px(size));
     }
 }

@@ -55,6 +55,10 @@ namespace pg
                         for (int s : sizes)
                             entries.push_back({name, s, {s, s}, {0.0f, 0.0f}, {0.1f, 0.1f}});
                     icons->registerEntriesForTest("chronicle", entries, 1024, 1024);
+
+                    // registerEntriesForTest installs no texture; register a stub so render-call
+                    // builds don't log "texture doesn't exist" (real registration needs GL).
+                    renderer.registerTexture("IconAtlas_chronicle", OpenGLTexture{});
                 }
 
                 void settle() { ecs.executeOnce(); ecs.executeOnce(); }
@@ -128,6 +132,76 @@ namespace pg
             ecs.executeOnce();
             EXPECT_NE(icons->getRenderCall(again.id), nullptr);
             EXPECT_EQ(renderer.getNbMaterials(), materials);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(mark_test, mark_is_square_at_size)
+        {
+            MockLogger logger;
+            MarkFixture s;
+
+            Mark mark = makeMark(&s.ecs, s.tokens, {"time", MarkSize::S24});
+
+            EXPECT_FLOAT_EQ(s.pos(mark.entity)->width, 24.0f);
+            EXPECT_FLOAT_EQ(s.pos(mark.entity)->height, 24.0f);
+            EXPECT_EQ(s.iconOf(mark.entity)->iconSet, "chronicle");
+            EXPECT_EQ(s.iconOf(mark.entity)->iconName, "time");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(mark_test, unknown_name_draws_seal)
+        {
+            MockLogger logger;
+            MarkFixture s;
+
+            // Ignore any noise from fixture setup; count only what the unknown mark logs.
+            logger.reset();
+
+            Mark mark = makeMark(&s.ecs, s.tokens, {"clock"});
+            EXPECT_EQ(s.iconOf(mark.entity)->iconName, "seal");
+            EXPECT_EQ(logger.getNbError(), 1u);
+
+            // Same unknown name again logs nothing more.
+            Mark mark2 = makeMark(&s.ecs, s.tokens, {"clock"});
+            EXPECT_EQ(s.iconOf(mark2.entity)->iconName, "seal");
+            EXPECT_EQ(logger.getNbError(), 1u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(mark_test, mark_colour_repaints)
+        {
+            MockLogger logger;
+            MarkFixture s;
+
+            Mark mark = makeMark(&s.ecs, s.tokens, {"check", MarkSize::S16, "status-gain"});
+            EXPECT_FLOAT_EQ(s.iconOf(mark.entity)->colors.x, s.tokens.colour("verdigris", Theme::Day).x);
+
+            s.tokens.setTheme(Theme::Candle);
+            s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
+            s.settle();
+
+            EXPECT_FLOAT_EQ(s.iconOf(mark.entity)->colors.x, s.tokens.colour("verdigris", Theme::Candle).x);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(mark_test, set_size_keeps_square)
+        {
+            MockLogger logger;
+            MarkFixture s;
+
+            Mark mark = makeMark(&s.ecs, s.tokens, {"gold", MarkSize::S16});
+            mark.setSize(&s.ecs, MarkSize::S48);
+
+            EXPECT_FLOAT_EQ(s.pos(mark.entity)->width, 48.0f);
+            EXPECT_FLOAT_EQ(s.pos(mark.entity)->height, 48.0f);
         }
     }
 }
