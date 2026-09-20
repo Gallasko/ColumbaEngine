@@ -20,8 +20,10 @@ namespace
     std::string knownSceneNames()
     {
         std::string names;
+
         for (const auto& [name, loader] : chronicle::devScenes())
             names += (names.empty() ? "" : ", ") + name;
+
         return names;
     }
 }

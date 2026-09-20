@@ -32,10 +32,15 @@ namespace chronicle
             if (s.empty())
                 return s;
             const unsigned char c = static_cast<unsigned char>(s[0]);
+
             size_t len = 1;
-            if (c >= 0xF0)      len = 4;
-            else if (c >= 0xE0) len = 3;
-            else if (c >= 0xC0) len = 2;
+            if (c >= 0xF0)
+                len = 4;
+            else if (c >= 0xE0)
+                len = 3;
+            else if (c >= 0xC0)
+                len = 2;
+
             return s.substr(0, std::min(len, s.size()));
         }
 
@@ -43,10 +48,15 @@ namespace chronicle
         {
             switch (tone)
             {
-            case VersalTone::Gold:  return "gold-edge";
-            case VersalTone::Lapis: return "lapis";
+            case VersalTone::Gold:
+                return "gold-edge";
+
+            case VersalTone::Lapis:
+                return "lapis";
+
             case VersalTone::Vermilion:
-            default:                return "vermilion";
+            default:
+                return "vermilion";
             }
         }
 
@@ -54,11 +64,18 @@ namespace chronicle
         {
             switch (pos)
             {
-            case CornerPos::TR: return "corner-tr";
-            case CornerPos::BL: return "corner-bl";
-            case CornerPos::BR: return "corner-br";
+            case CornerPos::TR:
+                return "corner-tr";
+
+            case CornerPos::BL:
+                return "corner-bl";
+
+            case CornerPos::BR:
+                return "corner-br";
+
             case CornerPos::TL:
-            default:            return "corner-tl";
+            default:
+                return "corner-tl";
             }
         }
 
@@ -115,6 +132,7 @@ namespace chronicle
             paint->paint(child, token);
             root.get<Prefab>()->addToPrefab(child);
             orn.parts.push_back(child);
+
             if (inked)
                 orn.inked.push_back(child);
         };
@@ -189,11 +207,17 @@ namespace chronicle
 
             // Frame: a 64x64 stroke inset 4 px on every side. G4 draws the stroke inside the quad.
             auto frame = makeStrokeRect2DShape(ecs, 64.0f, 64.0f, tokens.colour(token), 3.0f);
+
             auto fa = frame.get<UiAnchor>();
-            fa->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});   fa->setLeftMargin(4.0f);
-            fa->setRightAnchor(PosAnchor{rootId, AnchorType::Right}); fa->setRightMargin(4.0f);
-            fa->setTopAnchor(PosAnchor{rootId, AnchorType::Top});     fa->setTopMargin(4.0f);
-            fa->setBottomAnchor(PosAnchor{rootId, AnchorType::Bottom}); fa->setBottomMargin(4.0f);
+            fa->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
+            fa->setLeftMargin(4.0f);
+            fa->setRightAnchor(PosAnchor{rootId, AnchorType::Right});
+            fa->setRightMargin(4.0f);
+            fa->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
+            fa->setTopMargin(4.0f);
+            fa->setBottomAnchor(PosAnchor{rootId, AnchorType::Bottom});
+            fa->setBottomMargin(4.0f);
+
             add(frame.entity, token, 1, /*inked*/ true);
 
             auto curls = makeIcon(ecs, "chronicle-ornaments", "versal-curls", 72.0f, tokens.colour(token));
@@ -205,14 +229,18 @@ namespace chronicle
             // Letter: chapter style, centred horizontally in the 72 box, nudged so its cap
             // (not its line box) is centred at the root's middle.
             LabelSpec ls;
-            ls.style = "chapter"; ls.text = firstCodePoint(spec.letter); ls.colour = token;
-            ls.align = Align::Centre; ls.overflow = Overflow::Ellipsis; ls.width = 72.0f;
+            ls.style = "chapter";
+            ls.text = firstCodePoint(spec.letter);
+            ls.colour = token;
+            ls.align = Align::Centre;
+            ls.overflow = Overflow::Ellipsis;
+            ls.width = 72.0f;
             ls.z = spec.z;
+
             Label lab = makeLabel(ecs, tokens, styles, ls);
 
             const TextStyle& cs = styles.get("chapter");
-            const float ascender = ecs->getSystem<TTFTextSystem>()
-                ->measureText(cs.fontAlias, ls.text, 1.0f, 0.0f, 0.0f, cs.letterSpacingPx).ascender;
+            const float ascender = ecs->getSystem<TTFTextSystem>()->measureText(cs.fontAlias, ls.text, 1.0f, 0.0f, 0.0f, cs.letterSpacingPx).ascender;
             const float capHeight = kCormorantCapRatio * 44.0f;
             const float labelTop = 36.0f - ascender + capHeight * 0.5f;
 
@@ -235,6 +263,7 @@ namespace chronicle
         auto* paint = ecs->getSystem<PaintSystem>();
         for (auto& e : inked)
             paint->paint(e, token);
+
         if (letter)
             letter->setColour(ecs, token);
     }
