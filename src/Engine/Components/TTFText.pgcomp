@@ -68,6 +68,11 @@ fields:
     default: 0.0f
     setter: event
 
+  - name: letterSpacing
+    type: float
+    default: 0.0f
+    setter: event
+
   - name: changed
     type: bool
     default: false

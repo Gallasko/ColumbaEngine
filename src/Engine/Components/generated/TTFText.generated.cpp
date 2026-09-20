@@ -85,6 +85,19 @@ void TTFText::setSpacing(const float& value)
     }
 }
 
+void TTFText::setLetterSpacing(const float& value)
+{
+    if (areNotAlmostEqual(letterSpacing, value))
+    {
+        letterSpacing = value;
+
+        if (ecsRef)
+        {
+            ecsRef->sendEvent(TTFTextChangedEvent{entityId});
+        }
+    }
+}
+
 // Serialize function for TTFText
 template <>
 void serialize(Archive& archive, const TTFText& value)
@@ -97,6 +110,7 @@ void serialize(Archive& archive, const TTFText& value)
     serialize(archive, "colors", value.colors);
     serialize(archive, "wrap", value.wrap);
     serialize(archive, "spacing", value.spacing);
+    serialize(archive, "letterSpacing", value.letterSpacing);
 
     archive.endSerialization();
 }
@@ -113,6 +127,7 @@ TTFText deserialize(const UnserializedObject& serializedString)
     defaultDeserialize(serializedString, "colors", data.colors);
     defaultDeserialize(serializedString, "wrap", data.wrap);
     defaultDeserialize(serializedString, "spacing", data.spacing);
+    defaultDeserialize(serializedString, "letterSpacing", data.letterSpacing);
 
     return data;
 }

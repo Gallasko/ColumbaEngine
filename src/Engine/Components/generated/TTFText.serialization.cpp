@@ -46,6 +46,7 @@ void serializeTTFTextWithSetters(VM* vm, ObjInstance* table, TTFText* component)
     table->setField("setColors", vm->createNativeFunction(colorsCustomSetter));
     REGISTER_BOOL_SETTER(vm, table, component, setWrap);
     REGISTER_FLOAT_SETTER(vm, table, component, setSpacing);
+    REGISTER_FLOAT_SETTER(vm, table, component, setLetterSpacing);
 }
 
 // Register TTFText serializer at static initialization time
@@ -61,6 +62,7 @@ bool attachTTFText(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Valu
     constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f};
     bool wrap = false;
     float spacing = 0.0f;
+    float letterSpacing = 0.0f;
     bool changed = false;
 
     // Process key-value pairs
@@ -86,6 +88,8 @@ bool attachTTFText(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Valu
             wrap = detail::extractBoolArg(args, i + 1);
         else if (key == "spacing")
             spacing = detail::extractFloatArg(args, i + 1);
+        else if (key == "letterSpacing")
+            letterSpacing = detail::extractFloatArg(args, i + 1);
         else if (key == "changed")
             changed = detail::extractBoolArg(args, i + 1);
     }
@@ -101,6 +105,7 @@ bool attachTTFText(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Valu
     comp->setColors(colors);
     comp->setWrap(wrap);
     comp->setSpacing(spacing);
+    comp->setLetterSpacing(letterSpacing);
     comp->changed = changed;
 
     LOG_INFO("ECS Serialization", "Attached TTFText to entity " << entity->id);
@@ -319,6 +324,32 @@ struct TTFTextProxyMetadataRegistrar
             [](void* comp, const std::string& val) {
                 auto* c = static_cast<TTFText*>(comp);
                 c->setSpacing(std::stof(val));
+            }
+        });
+
+        // Property: letterSpacing
+        metadata.properties.emplace("letterSpacing", PropertyMetadata{
+            "letterSpacing",
+            pg::PropertyType::Float,
+            true,
+            [](void* comp, VM* vm) -> Value {
+                auto* c = static_cast<TTFText*>(comp);
+                (void)vm; // Suppress unused parameter warning
+                return makeFloatValue(c->getLetterSpacing());
+            },
+            [](void* comp, VM* vm, Value val) {
+                auto* c = static_cast<TTFText*>(comp);
+                (void)vm; // Suppress unused parameter warning
+                float v = IS_DOUBLE(val) ? static_cast<float>(AS_DOUBLE(val)) : static_cast<float>(AS_INT(val));
+                c->setLetterSpacing(v);
+            },
+            [](void* comp) -> std::string {
+                auto* c = static_cast<TTFText*>(comp);
+                return std::to_string(c->getLetterSpacing());
+            },
+            [](void* comp, const std::string& val) {
+                auto* c = static_cast<TTFText*>(comp);
+                c->setLetterSpacing(std::stof(val));
             }
         });
 

@@ -259,13 +259,13 @@ namespace pg
         finishChanges();
     }
 
-    TextMetrics TTFTextSystem::layoutText(const FontAtlas& atlas, const std::vector<TTFText>& segments, float scale, float maxWidth, float spacing, const GlyphEmitter& emit) const
+    TextMetrics TTFTextSystem::layoutText(const FontAtlas& atlas, const std::vector<TTFText>& segments, float scale, float maxWidth, float spacing, float letterSpacing, const GlyphEmitter& emit) const
     {
         const FontMetrics& fm = atlas.metrics();
 
         const float lineAdvance = fm.lineHeight * scale + spacing;
         const float ascender = fm.ascender;
-        const float spaceAdvance = atlas.glyphOrNotdef(0x20).advance * scale;
+        const float trackedSpaceAdvance = (atlas.glyphOrNotdef(0x20).advance + letterSpacing) * scale;
 
         const bool wrapEnabled = maxWidth > 0.0f;
 
@@ -294,7 +294,7 @@ namespace pg
 
                 if (codepoint == 0x20)
                 {
-                    penX += spaceAdvance;
+                    penX += trackedSpaceAdvance;
                     prev = codepoint;
                     continue;
                 }
@@ -327,7 +327,9 @@ namespace pg
                 if (emit)
                     emit(codepoint, relX, relY, glyph, seg.colors);
 
-                penX += glyph.advance * scale;
+                // Advance the pen by the glyph plus tracking; the last glyph is tracked
+                // too, matching CSS, so measurement and drawing stay identical.
+                penX += (glyph.advance + letterSpacing) * scale;
                 prev = codepoint;
 
                 if (penX > maxLineWidth)
@@ -345,7 +347,7 @@ namespace pg
         return metrics;
     }
 
-    TextMetrics TTFTextSystem::measureText(const std::string& font, const std::string& text, float scale, float maxWidth, float spacing) const
+    TextMetrics TTFTextSystem::measureText(const std::string& font, const std::string& text, float scale, float maxWidth, float spacing, float letterSpacing) const
     {
         auto it = fonts.find(font);
         if (it == fonts.end())
@@ -357,7 +359,7 @@ namespace pg
 
         std::vector<TTFText> segments = parseFormattedText(temp);
 
-        return layoutText(it->second, segments, scale, maxWidth, spacing, nullptr);
+        return layoutText(it->second, segments, scale, maxWidth, spacing, letterSpacing, nullptr);
     }
 
     std::vector<TTFTextSystem::GlyphRenderData> TTFTextSystem::buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj, size_t viewport)
@@ -397,7 +399,7 @@ namespace pg
             glyphs.push_back(glyphData);
         };
 
-        TextMetrics metrics = layoutText(atlas, segments, scale, maxWidth, obj->spacing, emit);
+        TextMetrics metrics = layoutText(atlas, segments, scale, maxWidth, obj->spacing, obj->letterSpacing, emit);
 
         if (areNotAlmostEqual(obj->textWidth, metrics.width))
         {

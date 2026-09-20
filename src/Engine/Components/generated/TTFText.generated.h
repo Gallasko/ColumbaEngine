@@ -24,6 +24,7 @@ struct TTFText : public Component
     constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f};
     bool wrap = false;
     float spacing = 0.0f;
+    float letterSpacing = 0.0f;
     bool changed = false;
 
     TTFText(const std::string& text, const std::string& fontPath, const float& scale, const constant::Vector4D& colors = {255.0f, 255.0f, 255.0f, 255.0f}) : text(text), fontPath(fontPath), scale(scale), colors(colors) {}
@@ -36,6 +37,7 @@ struct TTFText : public Component
     constant::Vector4D getColors() const { return colors; }
     bool getWrap() const { return wrap; }
     float getSpacing() const { return spacing; }
+    float getLetterSpacing() const { return letterSpacing; }
     bool getChanged() const { return changed; }
 
     void setText(const std::string& value);
@@ -44,6 +46,7 @@ struct TTFText : public Component
     void setColors(const constant::Vector4D& value);
     void setWrap(const bool& value);
     void setSpacing(const float& value);
+    void setLetterSpacing(const float& value);
 
     inline static std::string getType() { return "TTFText"; }
 };

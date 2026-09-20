@@ -58,7 +58,7 @@ namespace pg
         virtual void execute() override;
 
         /// Measures without creating an entity. maxWidth <= 0 disables wrapping. Markup (\n, \c{}) is honoured.
-        TextMetrics measureText(const std::string& font, const std::string& text, float scale = 1.0f, float maxWidth = 0.0f, float spacing = 0.0f) const;
+        TextMetrics measureText(const std::string& font, const std::string& text, float scale = 1.0f, float maxWidth = 0.0f, float spacing = 0.0f, float letterSpacing = 0.0f) const;
 
         // Builds glyph layout templates from text content. Only called when text changes.
         std::vector<GlyphRenderData> buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj, size_t viewport);
@@ -90,7 +90,7 @@ namespace pg
 
         // Single layout pass shared by measureText (counting) and buildGlyphTemplates (emitting),
         // so a measurement can never disagree with the drawing.
-        TextMetrics layoutText(const FontAtlas& atlas, const std::vector<TTFText>& segments, float scale, float maxWidth, float spacing, const GlyphEmitter& emit) const;
+        TextMetrics layoutText(const FontAtlas& atlas, const std::vector<TTFText>& segments, float scale, float maxWidth, float spacing, float letterSpacing, const GlyphEmitter& emit) const;
 
         std::vector<TTFText> parseFormattedText(const TTFText &original) const;
 

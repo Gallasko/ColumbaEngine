@@ -308,5 +308,59 @@ namespace pg
 
             FT_Done_FreeType(ft);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, letter_spacing_widens)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            const float base = sys->measureText("inter", "STRENGTH").width;
+            const float tracked = sys->measureText("inter", "STRENGTH", 1.0f, 0.0f, 0.0f, 1.5f).width;
+
+            // "STRENGTH" is 8 glyphs, each widened by one tracking step.
+            EXPECT_NEAR(tracked, base + 8.0f * 1.5f, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, letter_spacing_scales)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            const float base = sys->measureText("inter", "STRENGTH", 2.0f).width;
+            const float tracked = sys->measureText("inter", "STRENGTH", 2.0f, 0.0f, 0.0f, 1.5f).width;
+
+            EXPECT_NEAR(tracked, base + 8.0f * 1.5f * 2.0f, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, letter_spacing_matches_layout)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", "STRENGTH");
+            text.get<TTFText>()->setLetterSpacing(1.5f);
+            ecs.executeOnce();
+
+            const float measured = sys->measureText("inter", "STRENGTH", 1.0f, 0.0f, 0.0f, 1.5f).width;
+            EXPECT_NEAR(text.get<TTFText>()->textWidth, measured, 0.01f);
+        }
     }
 }
