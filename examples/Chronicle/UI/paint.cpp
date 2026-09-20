@@ -3,6 +3,7 @@
 #include "logger.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/decoratedshapes.h"
 #include "UI/ttftext.h"
 #include "UI/iconsystem.h"
 
@@ -62,6 +63,21 @@ namespace chronicle
         if (ent->has<IconComponent>())
         {
             ent->get<IconComponent>()->setColors(colour);
+            painted = true;
+        }
+        if (ent->has<HatchRect2DObject>())
+        {
+            ent->get<HatchRect2DObject>()->setColors(colour);
+            painted = true;
+        }
+        if (ent->has<DottedLine2DObject>())
+        {
+            ent->get<DottedLine2DObject>()->setColors(colour);
+            painted = true;
+        }
+        if (ent->has<StrokeRect2DObject>())
+        {
+            ent->get<StrokeRect2DObject>()->setColors(colour);
             painted = true;
         }
 

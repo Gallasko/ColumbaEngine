@@ -8,6 +8,7 @@
 #include "ECS/entitysystem.h"
 #include "UI/ttftext.h"
 #include "2D/simple2dobject.h"
+#include "2D/decoratedshapes.h"
 
 #include "mocklogger.h"
 
@@ -42,6 +43,9 @@ namespace pg
                     ecs.createSystem<PositionComponentSystem>();
                     ttf = ecs.createSystem<TTFTextSystem>(&renderer);
                     ecs.createSystem<Simple2DObjectSystem>(&renderer);
+                    ecs.createSystem<HatchRect2DObjectSystem>(&renderer);
+                    ecs.createSystem<DottedLine2DObjectSystem>(&renderer);
+                    ecs.createSystem<StrokeRect2DObjectSystem>(&renderer);
                     paint = ecs.createSystem<PaintSystem>(&tokens);
                     styles = TextStyles::fromTokens(tokens);
                     styles.registerAll(ttf, "fonts");
@@ -139,6 +143,31 @@ namespace pg
             s.paint->paint(ent, "ink");
 
             EXPECT_NO_THROW(s.paint->repaintAll());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(paint_test, repaint_decorated_shapes)
+        {
+            MockLogger logger;
+            PaintFixture s;
+
+            auto hatch  = makeHatchRect2DShape(&s.ecs, 100.0f, 10.0f, s.tokens.colour("rule-ruled"));
+            auto dotted = makeDottedLine2DShape(&s.ecs, 100.0f, s.tokens.colour("rule-ruled"));
+            auto stroke = makeStrokeRect2DShape(&s.ecs, 50.0f, 50.0f, s.tokens.colour("rule-ruled"));
+            s.paint->paint(hatch.entity, "rule-ruled");
+            s.paint->paint(dotted.entity, "rule-ruled");
+            s.paint->paint(stroke.entity, "rule-ruled");
+
+            s.tokens.setTheme(Theme::Candle);
+            s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
+            s.ecs.executeOnce();
+
+            const auto ruled = s.tokens.colour("rule-ruled", Theme::Candle);
+            expectColour(hatch.entity->get<HatchRect2DObject>()->colors, ruled);
+            expectColour(dotted.entity->get<DottedLine2DObject>()->colors, ruled);
+            expectColour(stroke.entity->get<StrokeRect2DObject>()->colors, ruled);
         }
     }
 }
