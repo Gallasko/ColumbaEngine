@@ -209,7 +209,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(textstyle_test, DISABLED_figures_are_tabular)
+        TEST(textstyle_test, figures_are_tabular)
         {
             MockLogger logger;
             EntitySystem ecs;
@@ -220,9 +220,36 @@ namespace pg
             TextStyles styles = shippedStyles();
             styles.registerAll(ttf, "fonts");
 
-            const float zero = ttf->measureText("chr-figure", "0").width;
+            // EB Garamond's lining figures are tabular: every digit shares one advance.
+            for (const char* alias : {"chr-figure", "chr-figure-xl", "chr-tick"})
+            {
+                const float zero = ttf->measureText(alias, "0").width;
+                for (char d = '1'; d <= '9'; ++d)
+                    EXPECT_NEAR(ttf->measureText(alias, std::string(1, d)).width, zero, 0.01f) << alias << " digit " << d;
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(textstyle_test, display_figures_are_not_tabular_so_never_used_for_figures)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+            ecs.createSystem<PositionComponentSystem>();
+            auto* ttf = ecs.createSystem<TTFTextSystem>(&renderer);
+
+            TextStyles styles = shippedStyles();
+            styles.registerAll(ttf, "fonts");
+
+            // Cormorant (display) digits are proportional; the kit never sets figures in it.
+            const float zero = ttf->measureText("chr-title", "0").width;
+            bool anyDiffer = false;
             for (char d = '1'; d <= '9'; ++d)
-                EXPECT_NEAR(ttf->measureText("chr-figure", std::string(1, d)).width, zero, 0.01f);
+                if (std::abs(ttf->measureText("chr-title", std::string(1, d)).width - zero) > 0.01f)
+                    anyDiffer = true;
+            EXPECT_TRUE(anyDiffer);
         }
     }
 }

@@ -38,6 +38,9 @@ ctest -R "tokens|textstyle" --output-on-failure
 - **Promote only generic constructs.** Anything that is not Chronicle-specific
   (a shader, an engine component, a system) belongs in the engine, not here.
   Chronicle mentions no engine internals it did not put there.
+- **Figures** are set only in `figure-xl`, `figure` and `tick`. EB Garamond's
+  default digits are lining and tabular; Cormorant's are proportional, so a
+  number in a display style will reflow its row.
 
 ## z-layer bands (all `int`)
 
@@ -51,11 +54,3 @@ ctest -R "tokens|textstyle" --output-on-failure
 | Tooltip       | 200–209 |
 | Debug         | 900–909 |
 
-## Known gap G8: lining/tabular figures
-
-`figure`, `figure-xl` and `tick` want tabular lining figures. EB Garamond's
-default digits are old-style proportional, and FreeType alone cannot apply the
-`lnum`/`tnum` OpenType features. Restoring them needs either a glyph-name remap
-in `FontAtlas` (`one.lf`… if the face names them) or HarfBuzz; decide after the
-Label brief. Old-style figures are readable in the meantime; the only thing
-that depends on digit width is the `figure` no-reflow promise, which G8 restores.
