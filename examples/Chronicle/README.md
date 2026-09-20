@@ -73,6 +73,25 @@ ctest -R "tokens|textstyle" --output-on-failure
   letter is set in `chapter` (44 px Cormorant SemiBold), the nearest registered
   atlas to the design system's 46 px versal.
 
+- **Panel** (`UI/panel.h`) — a leaf of folio with a drawn frame, an optional
+  head row (mark · title · small-caps aside on one baseline) over a knotless
+  hair rule, and a `VerticalLayout` body that grows with its rows (the root's
+  height is a `PosConstrain` on the body). Four frames: `Hair` (quiet), `Ruled`
+  (the default), `Plain` (no ground/frame/padding), `Illuminated` (doubled gold
+  frame + four inset corners, `space-5` padding — the five gold events only).
+  The panel never sets a child's z: the caller builds children at
+  `z ≥ spec.contentZ`, which must clear the head band (`> z + 4`). A nested panel
+  is a child like any other, at `contentZ` and `contentZ + 10`. There is no
+  `setFrame` (an illuminated panel is a different object, not a state) and no
+  shadow (separation comes from the rule).
+
+## Gate: phase 1
+
+- **Pending** (2026-09-20): `--dev PanelGallery` reproduces the design system's
+  three panels for side-by-side comparison at 100 %. Outcome (rule weight,
+  padding, heading, divider, body, corners, Candle) to be recorded here after the
+  comparison; any 1–5 miss is fixed in 1.1–1.4 before 1.6.
+
 ## Assets
 
 - The **mark** set (`res/icons/chronicle/`, 27 glyphs) and the **ornament** set
