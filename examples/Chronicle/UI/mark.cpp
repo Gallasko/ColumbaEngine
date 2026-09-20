@@ -66,10 +66,10 @@ namespace chronicle
             or style == "gloss" or style == "label")
             return MarkSize::S14;
 
-        if (style == "body")
+        if (style == "body" or style == "control")
             return MarkSize::S16;
 
-        if (style == "figure" or style == "heading")
+        if (style == "figure" or style == "heading" or style == "tab")
             return MarkSize::S18;
 
         if (style == "title" or style == "figure-xl" or style == "chapter")

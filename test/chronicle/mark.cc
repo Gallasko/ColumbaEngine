@@ -97,6 +97,8 @@ namespace pg
             EXPECT_EQ(markSizeFor("tick"), MarkSize::S14);
             EXPECT_EQ(markSizeFor("title"), MarkSize::S24);
             EXPECT_EQ(markSizeFor("versal"), MarkSize::S48);
+            EXPECT_EQ(markSizeFor("tab"), MarkSize::S18);
+            EXPECT_EQ(markSizeFor("control"), MarkSize::S16);
 
             // Unknown style falls back to S16 with exactly one warning.
             EXPECT_EQ(markSizeFor("no-such-style"), MarkSize::S16);
