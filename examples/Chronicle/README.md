@@ -87,10 +87,11 @@ ctest -R "tokens|textstyle" --output-on-failure
 
 ## Gate: phase 1
 
-- **Pending** (2026-09-20): `--dev PanelGallery` reproduces the design system's
-  three panels for side-by-side comparison at 100 %. Outcome (rule weight,
-  padding, heading, divider, body, corners, Candle) to be recorded here after the
-  comparison; any 1–5 miss is fixed in 1.1–1.4 before 1.6.
+- **Passed** (2026-09-20): `--dev PanelGallery` compared against the design
+  system's Panel preview. Rule weight, padding, heading (mark · title · aside on
+  one baseline), the knotless divider, the wrapping body, and the illuminated
+  corners all read the same; the frame/rules/ink/gold switch cleanly in Candle
+  with nothing moving. No 1.1–1.4 fix was needed. Phase 1 is closed.
 
 ## Assets
 
