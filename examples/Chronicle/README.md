@@ -51,6 +51,18 @@ ctest -R "tokens|textstyle" --output-on-failure
   is always left-set: the engine has no per-line alignment, so a wrapped
   `Centre`/`Right` label is set as `Left` (warned once).
 
+- **Mark** (`UI/mark.h`) — one of 27 glyphs at one of five kit sizes
+  (14/16/18/24/48 px), registered at exactly those sizes so nothing resamples.
+  `markSizeFor(style)` is the single style → size table (body → 16, figure → 18,
+  title → 24, versal → 48, the small styles → 14). An unknown name draws `seal`
+  and logs once — a missing mark is visible, never blank. A mark always takes
+  the colour of the text beside it.
+- **MarkedLabel** (`UI/mark.h`) — a `Mark`, a `space-2` gap, and a `Label` under
+  one root: the pair nearly every row is. The colour lives on the label and the
+  mark takes it (structural — there is no mark-colour field). `reserveMark`
+  keeps the mark column when the mark is empty so a list still aligns its text.
+  A `versal` label is the one case where the mark (48 px) drives the row height.
+
 ## Adding a dev scene
 
 One line in `Scenes/devscenes.cpp`: add `{"MyScene", [](auto* s, auto* t, auto* st){ s->loadSystemScene<MyScene>(t, st); }}`

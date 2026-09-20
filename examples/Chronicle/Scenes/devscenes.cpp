@@ -7,6 +7,7 @@
 
 #include "typespecimen.h"
 #include "labelgallery.h"
+#include "markgallery.h"
 
 namespace chronicle
 {
@@ -15,6 +16,7 @@ namespace chronicle
         static const std::map<std::string, DevSceneLoader> scenes = {
             {"TypeSpecimen", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<TypeSpecimen>(t, st); }},
             {"LabelGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<LabelGallery>(t, st); }},
+            {"MarkGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<MarkGallery>(t, st); }},
         };
 
         return scenes;
