@@ -95,15 +95,16 @@ namespace chronicle
             for (const auto& d : divs)
                 y = dividerRow(leftX, y, colW, d, "folio");
 
-            // Flourishes under a title header.
+            // Flourishes under a title header. z = CONTENT_Z so they sit above the folio leaf.
             y += 12.0f;
             label("title", leftX, y, "North Forest", "ink");
-            Ornament f1 = makeOrnament(ecsRef, *tokens, *styles, {OrnamentKind::Flourish});
+            OrnamentSpec f1s; f1s.kind = OrnamentKind::Flourish; f1s.z = static_cast<int>(CONTENT_Z);
+            Ornament f1 = makeOrnament(ecsRef, *tokens, *styles, f1s);
             place(f1.root, leftX, y + 40.0f);
             y += 76.0f;
 
             label("title", leftX, y, "The Drowned Keep", "vermilion");
-            OrnamentSpec fs; fs.kind = OrnamentKind::Flourish; fs.colour = "vermilion";
+            OrnamentSpec fs; fs.kind = OrnamentKind::Flourish; fs.colour = "vermilion"; fs.z = static_cast<int>(CONTENT_Z);
             Ornament f2 = makeOrnament(ecsRef, *tokens, *styles, fs);
             place(f2.root, leftX, y + 40.0f);
             y += 96.0f;
@@ -114,16 +115,23 @@ namespace chronicle
             for (int i = 0; i < 3; ++i)
             {
                 OrnamentSpec vs; vs.kind = OrnamentKind::Versal; vs.letter = letters[i]; vs.tone = tones[i];
+                vs.z = static_cast<int>(CONTENT_Z);
                 Ornament v = makeOrnament(ecsRef, *tokens, *styles, vs);
                 place(v.root, leftX + static_cast<float>(i) * 92.0f, y);
             }
             y += 92.0f;
 
-            // The milestone spread: a versal beside a chapter line.
+            // The milestone spread: a versal beside a chapter line that wraps in the column.
             OrnamentSpec ms; ms.kind = OrnamentKind::Versal; ms.letter = "I"; ms.tone = VersalTone::Vermilion;
+            ms.z = static_cast<int>(CONTENT_Z);
             Ornament milestone = makeOrnament(ecsRef, *tokens, *styles, ms);
             place(milestone.root, leftX, y);
-            label("chapter", leftX + 88.0f, y + 8.0f, "n his fourteenth year, Aldren chose his path.", "ink");
+
+            LabelSpec msl;
+            msl.style = "chapter"; msl.text = "n his fourteenth year, Aldren chose his path."; msl.colour = "ink";
+            msl.overflow = Overflow::Wrap; msl.width = colW - 88.0f; msl.z = static_cast<int>(CONTENT_Z);
+            Label msLabel = makeLabel(ecsRef, *tokens, *styles, msl);
+            place(msLabel.box, leftX + 88.0f, y + 4.0f);
         }
 
         // ── Right column, on bare vellum ──────────────────────────────────────
@@ -149,6 +157,7 @@ namespace chronicle
             for (int i = 0; i < 4; ++i)
             {
                 OrnamentSpec cs; cs.kind = OrnamentKind::Corner; cs.corner = corners[i];
+                cs.z = static_cast<int>(CONTENT_Z);
                 Ornament c = makeOrnament(ecsRef, *tokens, *styles, cs);
                 place(c.root, cx[i], cy[i]);
             }
