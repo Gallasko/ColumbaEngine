@@ -12,6 +12,9 @@
 #include "UI/mark.h"
 #include "UI/ornament.h"
 #include "UI/button.h"
+#include "UI/gloss.h"
+#include "ECS/entitysystem_fwd.h"   // ResizeEvent, used by tooltip.h
+#include "UI/tooltip.h"
 #include "Scenes/devscenes.h"
 
 using namespace pg;
@@ -79,6 +82,11 @@ namespace chronicle
             // system so a hover diff is seen the same frame.
             ecs.createSystem<ButtonSystem>(&tokens);
             ecs.succeed<MouseHoverSystem, ButtonSystem>();
+
+            // Gloss tooltips go through the engine's TooltipSystem (created by the UI boot).
+            if (auto* tip = ecs.getSystem<TooltipSystem>())
+                tip->setDefaultFont("chr-body-sm");
+            ecs.createSystem<GlossRegistry>(&tokens, &styles);
 
             // 4. scene (default TypeSpecimen when no --dev given)
             const std::string scene = opt.devScene.empty() ? "TypeSpecimen" : opt.devScene;
