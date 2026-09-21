@@ -11,6 +11,7 @@
 #include "UI/paint.h"
 #include "UI/mark.h"
 #include "UI/ornament.h"
+#include "UI/button.h"
 #include "Scenes/devscenes.h"
 
 using namespace pg;
@@ -70,6 +71,11 @@ namespace chronicle
             // Register the icon sets (IconSystem comes from the engine boot).
             registerMarks(&ecs);
             registerOrnaments(&ecs);
+
+            // Buttons: react to the engine's hover/click/focus events. Order after the hover
+            // system so a hover diff is seen the same frame.
+            ecs.createSystem<ButtonSystem>(&tokens);
+            ecs.succeed<MouseHoverSystem, ButtonSystem>();
 
             // 4. scene (default TypeSpecimen when no --dev given)
             const std::string scene = opt.devScene.empty() ? "TypeSpecimen" : opt.devScene;

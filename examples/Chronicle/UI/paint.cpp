@@ -77,6 +77,11 @@ namespace chronicle
             ent->get<Simple2DObject>()->setColors(colour);
             painted = true;
         }
+        if (ent->has<RoundedRect2DObject>())
+        {
+            ent->get<RoundedRect2DObject>()->setColors(colour);
+            painted = true;
+        }
         if (ent->has<IconComponent>())
         {
             ent->get<IconComponent>()->setColors(colour);
