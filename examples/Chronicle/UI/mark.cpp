@@ -63,13 +63,13 @@ namespace chronicle
     MarkSize markSizeFor(const std::string& style)
     {
         if (style == "caption" or style == "tick" or style == "body-sm"
-            or style == "gloss" or style == "label")
+            or style == "gloss" or style == "label" or style == "figure-sm")
             return MarkSize::S14;
 
         if (style == "body" or style == "control")
             return MarkSize::S16;
 
-        if (style == "figure" or style == "heading" or style == "tab")
+        if (style == "figure" or style == "heading" or style == "tab" or style == "gloss-title")
             return MarkSize::S18;
 
         if (style == "title" or style == "figure-xl" or style == "chapter")

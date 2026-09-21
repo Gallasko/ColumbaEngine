@@ -31,15 +31,15 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(textstyle_test, fourteen_styles_in_order)
+        TEST(textstyle_test, sixteen_styles_in_order)
         {
             TextStyles styles = shippedStyles();
             EXPECT_TRUE(styles.ok());
-            ASSERT_EQ(styles.all().size(), 14u);
+            ASSERT_EQ(styles.all().size(), 16u);
 
             const std::vector<std::string> expected = {
-                "versal", "chapter", "title", "heading", "tab", "body", "body-sm",
-                "gloss", "label", "caption", "control", "figure-xl", "figure", "tick"};
+                "versal", "chapter", "title", "heading", "tab", "gloss-title", "body", "body-sm",
+                "gloss", "label", "caption", "control", "figure-xl", "figure", "figure-sm", "tick"};
 
             for (size_t i = 0; i < expected.size(); ++i)
                 EXPECT_EQ(styles.all()[i].name, expected[i]);
@@ -129,7 +129,7 @@ namespace pg
             TextStyles styles = shippedStyles();
             const size_t registered = styles.registerAll(ttf, "fonts");
 
-            EXPECT_EQ(registered, 11u);  // 14 minus Italic (gloss) and Medium (caption, tick)
+            EXPECT_EQ(registered, 13u);  // 16 minus Italic (gloss) and Medium (caption, tick)
             EXPECT_GT(ttf->fonts.count("chr-body"), 0u);
             EXPECT_GT(ttf->fonts.count("chr-figure"), 0u);
             EXPECT_GT(ttf->fonts.count("chr-chapter"), 0u);
@@ -221,7 +221,7 @@ namespace pg
             styles.registerAll(ttf, "fonts");
 
             // EB Garamond's lining figures are tabular: every digit shares one advance.
-            for (const char* alias : {"chr-figure", "chr-figure-xl", "chr-tick"})
+            for (const char* alias : {"chr-figure", "chr-figure-xl", "chr-figure-sm", "chr-tick"})
             {
                 const float zero = ttf->measureText(alias, "0").width;
                 for (char d = '1'; d <= '9'; ++d)

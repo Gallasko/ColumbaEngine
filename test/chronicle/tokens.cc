@@ -65,7 +65,7 @@ namespace pg
             const Tokens& t = shipped();
             EXPECT_TRUE(t.ok());
             EXPECT_TRUE(t.errors().empty());
-            EXPECT_EQ(t.version(), 2);
+            EXPECT_EQ(t.version(), 3);
             EXPECT_EQ(t.colourNames().size(), 29u);
         }
 
