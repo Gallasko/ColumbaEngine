@@ -96,6 +96,22 @@ ctest -R "tokens|textstyle" --output-on-failure
   input, and **states the gap in figures** in a `caption` reason beneath it (the
   reason itself is not dimmed). There is no pressed visual and no `setFrame`.
 
+- **Gloss** (`UI/gloss.h`) — the scribe's voice, in two forms. A **Margin** gloss
+  is a 2px `rule-hair` left edge with italic `gloss` text (≤ 240px, flavour only).
+  A **Tooltip** gloss is a folio leaf with a `rule-ruled` frame holding a title,
+  text, rows of right-aligned tabular figures, and a caps footnote — where a row's
+  real numbers live. The tooltip form is registered under a **key** on
+  `GlossRegistry` and shown through the engine's `TooltipSystem`
+  (`attachGloss(entity, key)`), so delay, placement, flipping and click-to-hide are
+  inherited; a missing key shows a `vermilion` fallback, like a missing mark.
+
+- **Tabs** (`UI/tabs.h`) — the book's chapters as *lettering*, not buttons: labels
+  on one `rule-ruled` hairline, the open chapter marked by a 3px `vermilion`
+  underline that overlaps the rule by exactly 1px, an optional count badge per tab.
+  Selection is release-inside or Enter/Space; **←/→** move the selection within the
+  row (no wrap). Only `TabSelectedEvent` is reported — a `Tabs` row never decides
+  what a chapter shows.
+
 ## Patterns
 
 - **State component + System + event-driven tests.** A stateful, input-receiving
@@ -105,6 +121,25 @@ ctest -R "tokens|textstyle" --output-on-failure
   `OnFocus`, …) and repaints via an `applyVisual`, and tests that drive those
   events (`OnMouseMove`/`OnMouseClick`/`OnSDLScanCode`) exactly as `test/hover.cc`
   does — `pump()` = 3×`executeOnce` after each.
+
+- **One Tab order for the kit (`FocusOrderSystem`).** Keyboard focus traversal is
+  not each component's job: `FocusOrderSystem` owns one order for every focusable
+  face (buttons, tabs, later rows), walks it on Tab/Shift-Tab (skipping disabled),
+  and announces every change with `KeyboardFocusChangedEvent`. A component's system
+  only draws its ring from that event and calls `add`/`setEnabled`/`focus(id)`.
+
+## Phase 1 complete
+
+**2026-09-21** — Phase 1 lands the kit's seven components and seven dev scenes,
+all tested (133 `test_chronicle` + engine `t1` green):
+
+- **Components**: `Label`, `Mark`, `Ornament`, `Panel`, `Button`, `Gloss`, `Tabs`
+  (plus the `Tokens`/`TextStyles` core and the `PaintSystem`/`FocusOrderSystem`
+  services).
+- **Scenes**: `TypeSpecimen`, `LabelGallery`, `MarkGallery`, `OrnamentGallery`,
+  `PanelGallery`, `ButtonGallery`, `TabsGlossGallery`.
+- **Patterns**: the state-component + system + event-driven-tests shape, and one
+  Tab order for the whole kit. Phase 2 (`ProgressRule` first) builds on these.
 
 ## Gate: phase 1
 
