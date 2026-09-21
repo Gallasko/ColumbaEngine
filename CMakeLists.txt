@@ -1541,6 +1541,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         set(CHRONICLE_CORE
             examples/Chronicle/Core/tokens.cpp
             examples/Chronicle/Core/textstyle.cpp
+            examples/Chronicle/Core/motion.cpp
             examples/Chronicle/UI/paint.cpp
             examples/Chronicle/UI/label.cpp
             examples/Chronicle/UI/mark.cpp
@@ -1572,6 +1573,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_include_directories(test_chronicle PUBLIC examples/Chronicle examples/Chronicle/Core ${CMAKE_SOURCE_DIR}/test)
         target_sources(test_chronicle PRIVATE
             test/chronicle/tokens.cc
+            test/chronicle/motion.cc
             test/chronicle/textstyle.cc
             test/chronicle/paint.cc
             test/chronicle/label.cc

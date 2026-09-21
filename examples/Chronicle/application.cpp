@@ -8,6 +8,9 @@
 #include "UI/ttftext.h"
 #include "Scene/scenemanager.h"
 
+#include "Systems/tween.h"
+#include "UI/gamedataview.h"
+
 #include "UI/paint.h"
 #include "UI/mark.h"
 #include "UI/ornament.h"
@@ -71,6 +74,10 @@ namespace chronicle
             // 3. paint system (repaints on theme change), then the rest of the
             //    standard render/UI/input stack created by the engine boot.
             ecs.createSystem<PaintSystem>(&tokens);
+
+            // Animation and the data seam every phase-2 scene drives through.
+            ecs.createSystem<TweenSystem>();
+            ecs.createSystem<GameDataView>();
 
             // Register the icon sets (IconSystem comes from the engine boot).
             registerMarks(&ecs);

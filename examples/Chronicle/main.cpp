@@ -3,6 +3,7 @@
 #include <string>
 
 #include "application.h"
+#include "Core/motion.h"
 
 int main(int argc, char* argv[])
 {
@@ -17,9 +18,11 @@ int main(int argc, char* argv[])
             opt.devScene = argv[++i];
         else if (a == "--theme" and i + 1 < argc)
             opt.theme = argv[++i];
+        else if (a == "--reduced-motion")
+            chronicle::Motion::setReduced(true);
         else
         {
-            std::fprintf(stderr, "usage: Chronicle [--dev <Scene>] [--theme day|candle]\n");
+            std::fprintf(stderr, "usage: Chronicle [--dev <Scene>] [--theme day|candle] [--reduced-motion]\n");
             return 2;
         }
     }
