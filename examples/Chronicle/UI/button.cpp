@@ -94,6 +94,8 @@ namespace chronicle
         const bool hasGlyph = not spec.glyph.empty();
         const bool hasCost = spec.months >= 0;
         const int z = spec.z;
+        // The initial dim, so a button that is born disabled draws dimmed before any event.
+        const float a0 = spec.disabled ? tokens.opacity("opacity-locked") : 1.0f;
 
         Button b;
         b.spec = spec;
@@ -164,7 +166,7 @@ namespace chronicle
             tokens.colour(groundToken(spec.variant, false, not spec.disabled)));
         ground.get<UiAnchor>()->fillIn(face->get<UiAnchor>());
         ground.get<UiAnchor>()->setZConstrain(PosConstrain{faceId, AnchorType::Z});
-        paint->paint(ground.entity, groundToken(spec.variant, false, not spec.disabled));
+        paint->paint(ground.entity, groundToken(spec.variant, false, not spec.disabled), a0);
         root.get<Prefab>()->addToPrefab(ground.entity);
         state->ground = ground.entity.id;
 
@@ -173,7 +175,7 @@ namespace chronicle
         frame.get<StrokeRect2DObject>()->setCornerRadius(tokens.radius("radius-md"));
         frame.get<UiAnchor>()->fillIn(face->get<UiAnchor>());
         frame.get<UiAnchor>()->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 1.0f});
-        paint->paint(frame.entity, frameToken(spec.variant));
+        paint->paint(frame.entity, frameToken(spec.variant), a0);
         root.get<Prefab>()->addToPrefab(frame.entity);
         state->frame = frame.entity.id;
 
@@ -204,18 +206,20 @@ namespace chronicle
         root.get<Prefab>()->addToPrefab(ring.entity);
         state->ring = ring.entity.id;
 
-        // face parts, z+2 (their texts z+3).
+        // face parts, z+2 (their texts z+3). Re-paint at a0 so a born-disabled button is dimmed.
         float x = PAD_X;
         if (hasGlyph)
         {
             Mark m = makeMark(ecs, tokens, {spec.glyph, MarkSize::S16, ink, z + 2});
             anchorInFace(m.entity, x, 2, /*vcentre*/ true);
+            paint->paint(m.entity, ink, a0);
             b.glyph = m;
             state->inked.push_back(m.entity.id);
             x += GLYPH + GAP;
         }
 
         anchorInFace(label.box, x, 2, /*vcentre*/ true);
+        paint->paint(label.text, ink, a0);
         b.label = label;
         state->inked.push_back(label.text.id);
         x += labelW;
@@ -225,12 +229,14 @@ namespace chronicle
             x += GAP;
             Mark cm = makeMark(ecs, tokens, {"time", MarkSize::S14, cost, z + 2});
             anchorInFace(cm.entity, x, 2, /*vcentre*/ true);
+            paint->paint(cm.entity, cost, a0);
             b.costMark = cm;
             state->inked.push_back(cm.entity.id);
             state->costParts.push_back(cm.entity.id);
             x += COST_MARK + COST_GAP;
 
             anchorInFace(costLabel->box, x, 2, /*vcentre*/ true);
+            paint->paint(costLabel->text, cost, a0);
             b.cost = costLabel;
             state->inked.push_back(costLabel->text.id);
             state->costParts.push_back(costLabel->text.id);
