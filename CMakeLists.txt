@@ -1549,6 +1549,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/Chronicle/UI/focusorder.cpp
             examples/Chronicle/UI/button.cpp
             examples/Chronicle/UI/gloss.cpp
+            examples/Chronicle/UI/tabs.cpp
         )
 
         add_executable(Chronicle examples/Chronicle/main.cpp)
@@ -1579,6 +1580,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/chronicle/focusorder.cc
             test/chronicle/button.cc
             test/chronicle/gloss.cc
+            test/chronicle/tabs.cc
             ${CHRONICLE_CORE}
         )
         target_link_libraries(test_chronicle PRIVATE gtest gtest_main ColumbaEngine)

@@ -56,10 +56,10 @@ namespace chronicle
         else
             next = ((cur + dir) % static_cast<int>(enabled.size()) + static_cast<int>(enabled.size())) % static_cast<int>(enabled.size());
 
-        focusTo(enabled[next]);
+        focus(enabled[next]);
     }
 
-    void FocusOrderSystem::focusTo(_unique_id face)
+    void FocusOrderSystem::focus(_unique_id face)
     {
         currentFace = face;
         kbFocus = true;

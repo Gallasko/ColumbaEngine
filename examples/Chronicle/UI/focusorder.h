@@ -27,6 +27,7 @@ namespace chronicle
 
         void focusNext();
         void focusPrev();
+        void focus(pg::_unique_id face);            // focus a specific face (keyboard), keeping current in sync
 
         pg::_unique_id current() const { return currentFace; }   // 0 = none
         bool keyboardFocus() const { return kbFocus; }           // true after Tab, false after any mouse click
@@ -36,7 +37,6 @@ namespace chronicle
 
     private:
         void step(int dir);
-        void focusTo(pg::_unique_id face);
 
         std::vector<pg::_unique_id> order;
         std::unordered_set<pg::_unique_id> disabledFaces;

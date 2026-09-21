@@ -12,6 +12,7 @@
 #include "UI/mark.h"
 #include "UI/ornament.h"
 #include "UI/button.h"
+#include "UI/tabs.h"
 #include "UI/gloss.h"
 #include "ECS/entitysystem_fwd.h"   // ResizeEvent, used by tooltip.h
 #include "UI/tooltip.h"
@@ -82,6 +83,9 @@ namespace chronicle
             // system so a hover diff is seen the same frame.
             ecs.createSystem<ButtonSystem>(&tokens);
             ecs.succeed<MouseHoverSystem, ButtonSystem>();
+
+            ecs.createSystem<TabsSystem>(&tokens);
+            ecs.succeed<MouseHoverSystem, TabsSystem>();
 
             // Gloss tooltips go through the engine's TooltipSystem (created by the UI boot).
             if (auto* tip = ecs.getSystem<TooltipSystem>())
