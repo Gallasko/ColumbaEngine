@@ -1566,6 +1566,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/Chronicle/Scenes/panelgallery.cpp
             examples/Chronicle/Scenes/buttongallery.cpp
             examples/Chronicle/Scenes/tabsglossgallery.cpp
+            examples/Chronicle/Scenes/progressgallery.cpp
             ${CHRONICLE_CORE}
         )
         target_link_libraries(Chronicle PRIVATE ColumbaEngine)

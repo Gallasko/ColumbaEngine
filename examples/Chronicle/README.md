@@ -44,6 +44,13 @@ ctest -R "tokens|textstyle" --output-on-failure
 
 ## Components
 
+**Phase 2 rule: components are fed.** From `ProgressRule` on, a component exposes
+*setters only* (`setPercent`, `setValue`, `setState`, …) and computes nothing from
+months, stats or rules — no game logic, no reading of game state. The Life scene
+subscribes to `GameDataView` paths and calls the setters; a dev scene calls the
+same setters with fixed values. The same prefab is driven by both; the numbers
+come from `rules/*.pg` through the scene, never from the component.
+
 - **Label** (`UI/label.h`) — a style, a colour token, an alignment, and one of
   three overflows: `Grow` (box = measured width), `Wrap` (box = given width,
   text wraps, `maxLines` truncates with an ellipsis), `Ellipsis` (one line,
@@ -111,6 +118,18 @@ ctest -R "tokens|textstyle" --output-on-failure
   Selection is release-inside or Enter/Space; **←/→** move the selection within the
   row (no wrap). Only `TabSelectedEvent` is reported — a `Tabs` row never decides
   what a chapter shows.
+
+- **ProgressRule** (`UI/progressrule.h`) — the quill writing across a groove: a
+  `progress-track`, a `progress-ink` fill, a 45° `progress-forecast` hatch of what
+  the running activity will reach (starting at the fill's head), the `quill` nib
+  riding that head, and a caption of figures. Setters only (the phase-2 rule):
+  `setPercent(p, animate)` tweens the fill linearly at `Motion::kMsPerPercent`
+  (6 ms/point; jumps under `Motion::reduced()`), `setForecast` never animates (a
+  forecast is a statement), `setCaption`/`setNib`/`setWidth` re-lay. The fill's
+  left corners are rounded 2px in the design system — not distinguishable under a
+  1px frame at 8px height, so noted not implemented. The tween lives on the fill
+  entity and captures the `ProgressRule` by pointer, so keep it at a stable address
+  while it animates.
 
 ## Patterns
 

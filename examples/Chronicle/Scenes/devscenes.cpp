@@ -12,6 +12,7 @@
 #include "panelgallery.h"
 #include "buttongallery.h"
 #include "tabsglossgallery.h"
+#include "progressgallery.h"
 
 namespace chronicle
 {
@@ -25,6 +26,7 @@ namespace chronicle
             {"PanelGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<PanelGallery>(t, st); }},
             {"ButtonGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<ButtonGallery>(t, st); }},
             {"TabsGlossGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<TabsGlossGallery>(t, st); }},
+            {"ProgressGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<ProgressGallery>(t, st); }},
         };
 
         return scenes;
