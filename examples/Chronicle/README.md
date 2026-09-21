@@ -85,6 +85,27 @@ ctest -R "tokens|textstyle" --output-on-failure
   `setFrame` (an illuminated panel is a different object, not a state) and no
   shadow (separation comes from the rule).
 
+- **Button** (`UI/button.h`) — the game's "do it" control: a face (mark · control
+  label · optional "N mo" cost) on a rounded folio/`lapis`/`vermilion` ground with
+  a 1px frame. Three variants: `Quiet` (default), `Study` (lapis), `Seal`
+  (vermilion, irreversible — one per screen). Activation is **release inside a
+  pressed face**, or Enter/Space on the keyboard-focused face — both send
+  `ButtonActivatedEvent{face, tag}`. Hover tints the Quiet fill / sheens the tonal
+  ones; **Tab** walks the faces drawing a 2px `focus-ink` ring 2px outside; a mouse
+  click hides every ring. A disabled button dims to `opacity-locked`, swallows
+  input, and **states the gap in figures** in a `caption` reason beneath it (the
+  reason itself is not dimmed). There is no pressed visual and no `setFrame`.
+
+## Patterns
+
+- **State component + System + event-driven tests.** A stateful, input-receiving
+  component (Button, and the tabs and every phase-2 row after it) puts a
+  `chronicle::…State` `pg::Component` on the hit entity, a matching `…System` that
+  `Listener`s the engine's input events (`HoverChangedEvent`, `OnMouseClick`,
+  `OnFocus`, …) and repaints via an `applyVisual`, and tests that drive those
+  events (`OnMouseMove`/`OnMouseClick`/`OnSDLScanCode`) exactly as `test/hover.cc`
+  does — `pump()` = 3×`executeOnce` after each.
+
 ## Gate: phase 1
 
 - **Passed** (2026-09-20): `--dev PanelGallery` compared against the design

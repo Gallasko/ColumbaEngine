@@ -1559,6 +1559,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/Chronicle/Scenes/markgallery.cpp
             examples/Chronicle/Scenes/ornamentgallery.cpp
             examples/Chronicle/Scenes/panelgallery.cpp
+            examples/Chronicle/Scenes/buttongallery.cpp
             ${CHRONICLE_CORE}
         )
         target_link_libraries(Chronicle PRIVATE ColumbaEngine)

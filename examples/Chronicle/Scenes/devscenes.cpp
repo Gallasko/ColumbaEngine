@@ -10,6 +10,7 @@
 #include "markgallery.h"
 #include "ornamentgallery.h"
 #include "panelgallery.h"
+#include "buttongallery.h"
 
 namespace chronicle
 {
@@ -21,6 +22,7 @@ namespace chronicle
             {"MarkGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<MarkGallery>(t, st); }},
             {"OrnamentGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<OrnamentGallery>(t, st); }},
             {"PanelGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<PanelGallery>(t, st); }},
+            {"ButtonGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<ButtonGallery>(t, st); }},
         };
 
         return scenes;
