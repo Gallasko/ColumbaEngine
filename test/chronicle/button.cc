@@ -67,6 +67,7 @@ namespace pg
                     icons = ecs.createSystem<IconSystem>(&renderer);
                     ecs.createSystem<MouseHoverSystem>();
                     focus = ecs.createSystem<FocusableSystem>();
+                    ecs.createSystem<FocusOrderSystem>();
                     paint = ecs.createSystem<PaintSystem>(&tokens);
                     buttons = ecs.createSystem<ButtonSystem>(&tokens);
                     ecs.succeed<MouseHoverSystem, ButtonSystem>();

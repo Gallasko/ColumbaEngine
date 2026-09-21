@@ -15,6 +15,7 @@
 
 #include "label.h"
 #include "mark.h"
+#include "focusorder.h"
 
 namespace chronicle
 {
@@ -72,7 +73,7 @@ namespace chronicle
 
     struct ButtonSystem : public pg::System<pg::Own<ButtonState>,
         pg::Listener<pg::HoverChangedEvent>, pg::Listener<pg::OnMouseClick>, pg::Listener<pg::OnMouseRelease>,
-        pg::Listener<pg::OnSDLScanCode>, pg::Listener<pg::OnFocus>, pg::Listener<ThemeChangedEvent>, pg::InitSys>
+        pg::Listener<pg::OnSDLScanCode>, pg::Listener<KeyboardFocusChangedEvent>, pg::Listener<ThemeChangedEvent>, pg::InitSys>
     {
         explicit ButtonSystem(const Tokens* tokens);
 
@@ -83,14 +84,12 @@ namespace chronicle
         void onEvent(const pg::HoverChangedEvent&) override;
         void onEvent(const pg::OnMouseClick&) override;
         void onEvent(const pg::OnMouseRelease&) override;
-        void onEvent(const pg::OnSDLScanCode&) override;
-        void onEvent(const pg::OnFocus&) override;
+        void onEvent(const pg::OnSDLScanCode&) override;   // RETURN/SPACE only; Tab is FocusOrderSystem's
+        void onEvent(const KeyboardFocusChangedEvent&) override;
         void onEvent(const ThemeChangedEvent&) override;
 
         void applyVisual(pg::EntityRef face);   // repaints from state; public for tests
         void activate(pg::EntityRef face);      // sends ButtonActivatedEvent unless disabled
-
-        std::vector<pg::_unique_id> focusOrder; // creation order of faces
 
     private:
         const Tokens* tokens;

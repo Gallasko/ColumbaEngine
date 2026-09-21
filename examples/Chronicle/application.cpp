@@ -72,6 +72,9 @@ namespace chronicle
             registerMarks(&ecs);
             registerOrnaments(&ecs);
 
+            // One Tab order shared by every focusable face (buttons, tabs, later rows).
+            ecs.createSystem<FocusOrderSystem>();
+
             // Buttons: react to the engine's hover/click/focus events. Order after the hover
             // system so a hover diff is seen the same frame.
             ecs.createSystem<ButtonSystem>(&tokens);

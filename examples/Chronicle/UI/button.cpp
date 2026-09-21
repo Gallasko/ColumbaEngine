@@ -149,6 +149,13 @@ namespace chronicle
         b.face = face;
         root.get<Prefab>()->addToPrefab(face);
 
+        // Join the kit-wide Tab order (buttons, tabs, later rows share one).
+        if (auto* fo = ecs->getSystem<FocusOrderSystem>())
+        {
+            fo->add(faceId);
+            fo->setEnabled(faceId, not spec.disabled);
+        }
+
         // Attach a face child: anchor it into the face, constrain z, prefab it.
         auto anchorInFace = [&](EntityRef e, float leftMargin, int zOffset, bool vcentre)
         {
@@ -265,6 +272,8 @@ namespace chronicle
     {
         spec.disabled = disabled;
         face->get<ButtonState>()->disabled = disabled;
+        if (auto* fo = ecs->getSystem<FocusOrderSystem>())
+            fo->setEnabled(face.id, not disabled);
         if (not newReason.empty() and reason and styles)
         {
             reason->setText(ecs, *styles, newReason);
@@ -325,11 +334,6 @@ namespace chronicle
                 ecsRef->attach<MouseEnterComponent>(entity, makeCallable<ButtonNoOp>(ButtonNoOp{}));
             if (not entity->has<MouseLeaveComponent>())
                 ecsRef->attach<MouseLeaveComponent>(entity, makeCallable<ButtonNoOp>(ButtonNoOp{}));
-            focusOrder.push_back(entity->id);
-        });
-
-        group->removeOfGroup([this](EntitySystem*, _unique_id id) {
-            focusOrder.erase(std::remove(focusOrder.begin(), focusOrder.end(), id), focusOrder.end());
         });
     }
 
@@ -392,15 +396,17 @@ namespace chronicle
     {
         if (event.button != 1)
             return;
+        // Ring hiding is FocusOrderSystem's job (KeyboardFocusChangedEvent); we only press.
         for (auto* st : view<ButtonState>())
         {
             auto face = ecsRef->getEntity(st->entityId);
             if (not face)
                 continue;
             if (st->hovered and not st->disabled)
+            {
                 st->pressed = true;
-            st->keyboardFocus = false;   // a mouse click hides every ring
-            applyVisual(face);
+                applyVisual(face);
+            }
         }
     }
 
@@ -423,53 +429,26 @@ namespace chronicle
 
     void ButtonSystem::onEvent(const OnSDLScanCode& event)
     {
-        if (event.key == SDL_SCANCODE_RETURN or event.key == SDL_SCANCODE_SPACE)
-        {
-            for (auto* st : view<ButtonState>())
-                if (st->keyboardFocus)
-                    if (auto face = ecsRef->getEntity(st->entityId))
-                        activate(face);
-            return;
-        }
-
-        if (event.key != SDL_SCANCODE_TAB)
+        // Only activation; Tab traversal lives in FocusOrderSystem.
+        if (event.key != SDL_SCANCODE_RETURN and event.key != SDL_SCANCODE_SPACE)
             return;
 
-        // Enabled faces, in creation order.
-        std::vector<_unique_id> enabled;
-        for (auto id : focusOrder)
-            if (auto e = ecsRef->getEntity(id); e and e->has<ButtonState>() and not e->get<ButtonState>()->disabled)
-                enabled.push_back(id);
-        if (enabled.empty())
+        auto* fo = ecsRef->getSystem<FocusOrderSystem>();
+        if (not fo)
             return;
-
-        const bool back = (event.mod & KMOD_SHIFT) != 0;
-
-        // Where is focus now?
-        int current = -1;
-        for (size_t i = 0; i < enabled.size(); ++i)
-            if (auto e = ecsRef->getEntity(enabled[i]); e and e->get<ButtonState>()->keyboardFocus)
-                current = static_cast<int>(i);
-
-        int next;
-        if (current < 0)
-            next = back ? static_cast<int>(enabled.size()) - 1 : 0;
-        else
-            next = (current + (back ? -1 : 1) + static_cast<int>(enabled.size())) % static_cast<int>(enabled.size());
-
-        if (auto e = ecsRef->getEntity(enabled[next]))
-            e->get<FocusableComponent>()->focus();
+        if (auto face = ecsRef->getEntity(fo->current()); face and face->has<ButtonState>())
+            activate(face);
     }
 
-    void ButtonSystem::onEvent(const OnFocus& event)
+    void ButtonSystem::onEvent(const KeyboardFocusChangedEvent& event)
     {
         for (auto* st : view<ButtonState>())
         {
             auto face = ecsRef->getEntity(st->entityId);
             if (not face)
                 continue;
-            const bool me = (st->entityId == event.id);
-            st->focused = me;
+            const bool me = (st->entityId == event.face) and event.keyboard;
+            st->focused = (st->entityId == event.face);
             st->keyboardFocus = me;
             applyVisual(face);
         }
