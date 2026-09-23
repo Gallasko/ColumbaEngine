@@ -20,7 +20,7 @@ namespace chronicle
         float percent = 0.0f;          // 0-100, clamped
         float forecastPercent = 0.0f;  // 0 = no forecast
         bool nib = true;
-        std::string caption;           // "" = none; the figures, in caps
+        std::string caption = "";      // "" = none; the figures, in caps
         int z = 20;
     };
 

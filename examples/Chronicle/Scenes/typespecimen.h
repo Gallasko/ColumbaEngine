@@ -25,7 +25,6 @@ namespace chronicle
 
         Tokens* tokens = nullptr;
         TextStyles* styles = nullptr;
-        PaintSystem* paintSystem = nullptr;
 
         float screenWidth = 1320.0f;
         float screenHeight = 860.0f;

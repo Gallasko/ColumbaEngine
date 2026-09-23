@@ -30,14 +30,13 @@ namespace chronicle
 
     void LabelGallery::init()
     {
-        paintSystem = ecsRef->getSystem<PaintSystem>();
         auto* ttf = ecsRef->getSystem<TTFTextSystem>();
 
         // Vellum background.
         auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1320.0f, 860.0f, tokens->colour("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        paintSystem->paint(bg.entity, "vellum");
+        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
 
         const float colX[4] = {48.0f, 376.0f, 704.0f, 1032.0f};
 
@@ -57,7 +56,7 @@ namespace chronicle
             r.get<PositionComponent>()->setX(x);
             r.get<PositionComponent>()->setY(y);
             r.get<PositionComponent>()->setZ(CONTENT_Z - 1.0f);
-            paintSystem->paint(r.entity, token);
+            ecsRef->attach<PaintComponent>(r.entity, token);
             return r.entity.id;
         };
 
@@ -68,7 +67,7 @@ namespace chronicle
             s.get<PositionComponent>()->setX(x);
             s.get<PositionComponent>()->setY(y);
             s.get<PositionComponent>()->setZ(CONTENT_Z - 1.0f);
-            paintSystem->paint(s.entity, token);
+            ecsRef->attach<PaintComponent>(s.entity, token);
         };
 
         // Column header: a heading label and a hairline beneath it. Returns the y below the rule.

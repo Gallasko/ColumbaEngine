@@ -31,12 +31,11 @@ namespace chronicle
 
     void OrnamentGallery::init()
     {
-        paintSystem = ecsRef->getSystem<PaintSystem>();
 
         auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        paintSystem->paint(bg.entity, "vellum");
+        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
 
         auto place = [](EntityRef e, float x, float y)
         {
@@ -89,7 +88,7 @@ namespace chronicle
             auto leaf = makeUiSimple2DShape(ecsRef, Shape2D::Square, colW + 32.0f, 760.0f, tokens->colour("folio"));
             leaf.get<PositionComponent>()->setZ(SURFACE_Z);
             place(leaf.entity, leftX - 16.0f, 32.0f);
-            paintSystem->paint(leaf.entity, "folio");
+            ecsRef->attach<PaintComponent>(leaf.entity, "folio");
 
             float y = 56.0f;
             for (const auto& d : divs)
@@ -149,7 +148,7 @@ namespace chronicle
             auto frame = makeStrokeRect2DShape(ecsRef, fw, fh, tokens->colour("gold-edge"), 1.0f, 1.0f, true);
             frame.get<PositionComponent>()->setZ(CONTENT_Z);
             place(frame.entity, rightX, y);
-            paintSystem->paint(frame.entity, "gold-edge");
+            ecsRef->attach<PaintComponent>(frame.entity, "gold-edge");
 
             const CornerPos corners[4] = {CornerPos::TL, CornerPos::TR, CornerPos::BL, CornerPos::BR};
             const float cx[4] = {rightX + 2.0f, rightX + fw - 28.0f - 2.0f, rightX + 2.0f, rightX + fw - 28.0f - 2.0f};

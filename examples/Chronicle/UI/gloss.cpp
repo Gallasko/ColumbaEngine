@@ -36,8 +36,6 @@ namespace chronicle
 
     Gloss makeGloss(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const GlossSpec& spec)
     {
-        auto* paint = ecs->getSystem<PaintSystem>();
-
         Gloss g;
         g.spec = spec;
 
@@ -80,7 +78,7 @@ namespace chronicle
             ea->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
             ea->setBottomAnchor(PosAnchor{rootId, AnchorType::Bottom});
             ea->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
-            paint->paint(edge.entity, "rule-hair");
+            ecs->attach<PaintComponent>(edge.entity, "rule-hair");
             root.get<Prefab>()->addToPrefab(edge.entity);
             g.edge = edge.entity;
 
@@ -100,14 +98,14 @@ namespace chronicle
         auto ground = makeUiSimple2DShape(ecs, Shape2D::Square, 1.0f, 1.0f, tokens.colour("folio"));
         ground.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
         ground.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z});
-        paint->paint(ground.entity, "folio");
+        ecs->attach<PaintComponent>(ground.entity, "folio");
         root.get<Prefab>()->addToPrefab(ground.entity);
         g.ground = ground.entity;
 
         auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, tokens.colour("rule-ruled"), 1.0f);
         frame.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
         frame.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
-        paint->paint(frame.entity, "rule-ruled");
+        ecs->attach<PaintComponent>(frame.entity, "rule-ruled");
         root.get<Prefab>()->addToPrefab(frame.entity);
         g.frame = frame.entity;
 
@@ -203,7 +201,7 @@ namespace chronicle
             GlossSpec fallback; fallback.kind = GlossKind::Tooltip; fallback.text = "(no gloss: " + key + ")";
             lastBuilt = makeGloss(&ecs, *tokens, *styles, fallback);
             if (lastBuilt.text)
-                ecs.getSystem<PaintSystem>()->paint(lastBuilt.text->text, "vermilion");
+                lastBuilt.text->text->get<PaintComponent>()->setToken("vermilion");
             return lastBuilt.root;
         });
     }

@@ -38,7 +38,6 @@ namespace chronicle
 
     void TypeSpecimen::init()
     {
-        paintSystem = ecsRef->getSystem<PaintSystem>();
 
         // Sample text per style, read from the tokens' type section (else a default).
         std::unordered_map<std::string, std::string> samples;
@@ -57,13 +56,13 @@ namespace chronicle
         bg.get<PositionComponent>()->setY(0.0f);
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        paintSystem->paint(bg.entity, "vellum");
+        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
 
         // Builds a styled text painted through the paint system, and returns its CompList.
         auto paint = [this](const std::string& style, const std::string& text, const std::string& token)
         {
             auto comp = styles->makeText(ecsRef, style, text, tokens->colour(token));
-            paintSystem->paint(comp.entity, token);
+            ecsRef->attach<PaintComponent>(comp.entity, token);
             return comp;
         };
 
@@ -153,14 +152,14 @@ namespace chronicle
             leaf.get<PositionComponent>()->setX(x);
             leaf.get<PositionComponent>()->setY(y);
             leaf.get<PositionComponent>()->setZ(11.0f);
-            paintSystem->paint(leaf.entity, colourName);
+            ecsRef->attach<PaintComponent>(leaf.entity, colourName);
             swatchIds.push_back(leaf.entity.id);
 
             auto label = styles->makeText(ecsRef, "caption", colourName, tokens->colour("ink-muted"));
             label.get<PositionComponent>()->setX(x + swatchW + tokens->space(2));
             label.get<PositionComponent>()->setY(y + 4.0f);
             label.get<PositionComponent>()->setZ(11.0f);
-            paintSystem->paint(label.entity, "ink-muted");
+            ecsRef->attach<PaintComponent>(label.entity, "ink-muted");
             swatchIds.push_back(label.entity.id);
 
             y += swatchH + tokens->space(1);

@@ -26,6 +26,14 @@ class ComponentSchema
         this.shortname = data["shortname"]
         this.constructors = data["constructors"]
         this.enums = data["enums"]
+
+        // Missing table keys index as boolean false, which would silently
+        // disable serialization for every spec without the key — default first.
+        this.serialization = true
+        if (contain(data, "serialization"))
+        {
+            this.serialization = data["serialization"]
+        }
     }
 
     getField(index)
@@ -92,6 +100,21 @@ fun getEnumFirstField(schema, typeName)
     }
 
     return ""
+}
+
+// Returns true unless the spec sets top-level `serialization: false`
+// (components outside namespace pg cannot specialize pg::serialize anyway).
+// The typeOf guard matters: a spec without the key yields nil, and nil == false.
+fun serializationEnabled(schema)
+{
+    var flag = schema["serialization"]
+
+    if (typeOf(flag) == "bool" and flag == false)
+    {
+        return false
+    }
+
+    return true
 }
 
 class HeaderGenerator
@@ -171,10 +194,13 @@ class HeaderGenerator
                 code += "const static auto " + revMapName + " = invertMap(" + mapName + ");\n\n"
 
                 // Serialization template declarations for this enum
-                code += "template <>\n"
-                code += "void serialize(Archive& archive, const " + enumName + "& value);\n\n"
-                code += "template <>\n"
-                code += enumName + " deserialize(const UnserializedObject& serializedString);\n\n"
+                if (serializationEnabled(schema))
+                {
+                    code += "template <>\n"
+                    code += "void serialize(Archive& archive, const " + enumName + "& value);\n\n"
+                    code += "template <>\n"
+                    code += enumName + " deserialize(const UnserializedObject& serializedString);\n\n"
+                }
             }
         }
 
@@ -186,7 +212,7 @@ class HeaderGenerator
                 var eventName = schema["events"][i]
                 code += "struct " + eventName + "\n"
                 code += "{\n"
-                code += "    _unique_id id = 0;\n"
+                code += "    pg::_unique_id id = 0;\n"
                 code += "};\n\n"
             }
         }
@@ -199,7 +225,7 @@ class HeaderGenerator
         }
         code += "\n{\n"
 
-        if (contain(schema, "baseClass") and schema["baseClass"] == "Component")
+        if (contain(schema, "baseClass") and (schema["baseClass"] == "Component" or schema["baseClass"] == "pg::Component"))
         {
             code += "    " + "DEFAULT_COMPONENT_MEMBERS(" + schema["name"] +")\n\n"
         }
@@ -430,16 +456,25 @@ class HeaderGenerator
             code += "\n"
         }
 
-        // getType() static method
-        code += "    inline static std::string getType() { return \"" + schema.name + "\"; }\n"
+        // getType() static method. Its presence is what HasStaticName keys on to wire the
+        // component into the ECS serialization maps (see componentregistry.h), so a
+        // non-serialised component must NOT declare it — otherwise Own<T> registration
+        // references serialize<T>/deserialize<T>, which we did not emit.
+        if (serializationEnabled(schema))
+        {
+            code += "    inline static std::string getType() { return \"" + schema.name + "\"; }\n"
+        }
 
         code += "};\n\n"
 
         // Serialization template declarations
-        code += "template <>\n"
-        code += "void serialize(Archive& archive, const " + schema.name + "& value);\n\n"
-        code += "template <>\n"
-        code += schema.name + " deserialize(const UnserializedObject& serializedString);\n\n"
+        if (serializationEnabled(schema))
+        {
+            code += "template <>\n"
+            code += "void serialize(Archive& archive, const " + schema.name + "& value);\n\n"
+            code += "template <>\n"
+            code += schema.name + " deserialize(const UnserializedObject& serializedString);\n\n"
+        }
 
         // Close namespace
         if (contain(schema, "namespace"))
@@ -447,18 +482,21 @@ class HeaderGenerator
             code += "} // namespace " + schema.namespace + "\n\n"
         }
 
-        // Add a reference that forces the .serialization.cpp to be linked (OUTSIDE namespace)
-        code += "// Force reference to serialization registration\n"
-        code += "// This ensures the .serialization.cpp file is linked and static initializers run\n"
-        code += "extern \"C\" void __init_" + schema.name + "_registration();\n"
-        code += "namespace __force_link_impl {\n"
-        code += "    static struct __" + schema.name + "_ForceLink {\n"
-        code += "        __" + schema.name + "_ForceLink() {\n"
-        code += "            // Call init to force linking of the .serialization.cpp\n"
-        code += "            __init_" + schema.name + "_registration();\n"
-        code += "        }\n"
-        code += "    } __" + schema.name + "_force_link_instance;\n"
-        code += "}\n"
+        if (serializationEnabled(schema))
+        {
+            // Add a reference that forces the .serialization.cpp to be linked (OUTSIDE namespace)
+            code += "// Force reference to serialization registration\n"
+            code += "// This ensures the .serialization.cpp file is linked and static initializers run\n"
+            code += "extern \"C\" void __init_" + schema.name + "_registration();\n"
+            code += "namespace __force_link_impl {\n"
+            code += "    static struct __" + schema.name + "_ForceLink {\n"
+            code += "        __" + schema.name + "_ForceLink() {\n"
+            code += "            // Call init to force linking of the .serialization.cpp\n"
+            code += "            __init_" + schema.name + "_registration();\n"
+            code += "        }\n"
+            code += "    } __" + schema.name + "_force_link_instance;\n"
+            code += "}\n"
+        }
 
         return code
     }
@@ -915,6 +953,16 @@ class SerializationGenerator
     {
         var code = ""
 
+        if (not serializationEnabled(schema))
+        {
+            // Keep the three-outputs-per-component contract the build expects.
+            // Including the header keeps the TU non-empty (-pedantic) and checks
+            // that the generated header compiles standalone.
+            code += "// Serialization disabled for " + schema.name + " (serialization: false in .pgcomp)\n"
+            code += "#include \"" + schema.name + ".generated.h\"\n"
+            return code
+        }
+
         // Include necessary headers
         code += "#include \"stdafx.h\"\n\n"
         code += "#include \"" + schema.name + ".generated.h\"\n\n"
@@ -1231,7 +1279,7 @@ class CppGenerator
         }
 
         // Enum serialize / deserialize implementations
-        if (contain(schema, "enums") and typeOf(schema["enums"]) == "array" and len(schema["enums"]) > 0)
+        if (serializationEnabled(schema) and contain(schema, "enums") and typeOf(schema["enums"]) == "array" and len(schema["enums"]) > 0)
         {
             for (var ei = 0; ei < len(schema["enums"]); ei = ei + 1)
             {
@@ -1285,7 +1333,7 @@ class CppGenerator
                         var comparisonCheck = ""
                         if (fieldType == "float" or fieldType == "double")
                         {
-                            comparisonCheck = "areNotAlmostEqual(" + fieldName + ", value)"
+                            comparisonCheck = "pg::areNotAlmostEqual(" + fieldName + ", value)"
                         }
                         else
                         {
@@ -1393,6 +1441,8 @@ class CppGenerator
         }
 
         // Serialization implementation
+        if (serializationEnabled(schema))
+        {
         code += "// Serialize function for " + schema.name + "\n"
         code += "template <>\n"
         code += "void serialize(Archive& archive, const " + schema.name + "& value)\n"
@@ -1470,6 +1520,7 @@ class CppGenerator
 
         code += "\n    return data;\n"
         code += "}\n\n"
+        }
 
         // Close namespace
         if (contain(schema, "namespace"))

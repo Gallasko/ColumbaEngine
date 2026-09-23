@@ -116,8 +116,6 @@ namespace chronicle
 
     Ornament makeOrnament(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const OrnamentSpec& spec)
     {
-        auto* paint = ecs->getSystem<PaintSystem>();
-
         auto root = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(spec.z));
         const _unique_id rootId = root.id;
 
@@ -129,7 +127,7 @@ namespace chronicle
         auto add = [&](EntityRef child, const std::string& token, int zOffset, bool inked)
         {
             child->get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, static_cast<float>(zOffset)});
-            paint->paint(child, token);
+            ecs->attach<PaintComponent>(child, token);
             root.get<Prefab>()->addToPrefab(child);
             orn.parts.push_back(child);
 
@@ -260,9 +258,8 @@ namespace chronicle
 
     void Ornament::setColour(EntitySystem* ecs, const std::string& token)
     {
-        auto* paint = ecs->getSystem<PaintSystem>();
         for (auto& e : inked)
-            paint->paint(e, token);
+            e->get<PaintComponent>()->setToken(token);
 
         if (letter)
             letter->setColour(ecs, token);

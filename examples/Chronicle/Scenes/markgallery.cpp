@@ -31,13 +31,12 @@ namespace chronicle
 
     void MarkGallery::init()
     {
-        paintSystem = ecsRef->getSystem<PaintSystem>();
 
         // Vellum background (not a layout child; it just fills the page).
         auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        paintSystem->paint(bg.entity, "vellum");
+        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
 
         const float margin = tokens->space(7);            // 48
         const float contentW = PAGE_W - 2.0f * margin;
@@ -76,7 +75,7 @@ namespace chronicle
             a->setBottomMargin(-pad);
             a->setLeftMargin(-pad);
             a->setRightMargin(-pad);
-            paintSystem->paint(s.entity, token);
+            ecsRef->attach<PaintComponent>(s.entity, token);
         };
 
         // A grid cell: mark centred over its name, both centred in a fixed-width box so the
@@ -174,7 +173,7 @@ namespace chronicle
                 col.get<VerticalLayout>()->addEntity(makeMarkedLabel(ecsRef, *tokens, *styles, spec).root);
 
                 auto rule = makeUiSimple2DShape(ecsRef, Shape2D::Square, 380.0f, 1.0f, tokens->colour("rule-hair"));
-                paintSystem->paint(rule.entity, "rule-hair");
+                ecsRef->attach<PaintComponent>(rule.entity, "rule-hair");
                 col.get<VerticalLayout>()->addEntity(rule.entity);
             }
 

@@ -29,19 +29,18 @@ namespace chronicle
 
     void ButtonGallery::init()
     {
-        paintSystem = ecsRef->getSystem<PaintSystem>();
 
         auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        paintSystem->paint(bg.entity, "vellum");
+        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
 
         // A folio leaf under the buttons (z below the Panels band).
         auto leaf = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1000.0f, 520.0f, tokens->colour("folio"));
         leaf.get<PositionComponent>()->setX(40.0f);
         leaf.get<PositionComponent>()->setY(48.0f);
         leaf.get<PositionComponent>()->setZ(8.0f);
-        paintSystem->paint(leaf.entity, "folio");
+        ecsRef->attach<PaintComponent>(leaf.entity, "folio");
 
         auto place = [](EntityRef e, float x, float y)
         {
@@ -109,7 +108,11 @@ namespace chronicle
         // Row 5: overlap - a button half-covered by a ruled panel at a higher z.
         caption(margin, 420.0f, "overlap (covered half must not tint)", "ink-muted");
         {
-            ButtonSpec ov; ov.variant = ButtonVariant::Quiet; ov.label = "Half covered"; ov.tag = "covered";
+            ButtonSpec ov;
+            ov.variant = ButtonVariant::Quiet;
+            ov.label = "Half covered";
+            ov.tag = "covered";
+
             place(makeButton(ecsRef, *tokens, *styles, ov).root, margin, 440.0f);
 
             Panel cover = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Ruled, 160.0f, "Cover", "", "", 30, 40});

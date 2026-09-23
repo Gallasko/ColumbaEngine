@@ -52,7 +52,6 @@ namespace chronicle
     Panel makePanel(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const PanelSpec& specIn)
     {
         PanelSpec spec = specIn;
-        auto* paintSys = ecs->getSystem<PaintSystem>();
 
         const float P = paddingFor(spec.frame, tokens);
         const float W = spec.width;
@@ -108,7 +107,7 @@ namespace chronicle
             ground.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
             ground.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z});
 
-            paintSys->paint(ground.entity, "folio");
+            ecs->attach<PaintComponent>(ground.entity, "folio");
 
             root.get<Prefab>()->addToPrefab(ground.entity);
             panel.ground = ground.entity;
@@ -144,7 +143,7 @@ namespace chronicle
             frame.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
             frame.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
 
-            paintSys->paint(frame.entity, frameToken);
+            ecs->attach<PaintComponent>(frame.entity, frameToken);
 
             root.get<Prefab>()->addToPrefab(frame.entity);
             panel.frame = frame.entity;

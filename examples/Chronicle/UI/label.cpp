@@ -24,15 +24,21 @@ namespace chronicle
         std::vector<size_t> codePointStarts(const std::string& text)
         {
             std::vector<size_t> starts;
+
             for (size_t i = 0; i < text.size(); )
             {
                 starts.push_back(i);
                 const unsigned char c = static_cast<unsigned char>(text[i]);
-                if (c >= 0xF0)      i += 4;
-                else if (c >= 0xE0) i += 3;
-                else if (c >= 0xC0) i += 2;
-                else                i += 1;
+                if (c >= 0xF0)
+                    i += 4;
+                else if (c >= 0xE0)
+                    i += 3;
+                else if (c >= 0xC0)
+                    i += 2;
+                else
+                    i += 1;
             }
+
             starts.push_back(text.size());
             return starts;
         }
@@ -69,11 +75,13 @@ namespace chronicle
         int lo = 0;
         int hi = n;
         int best = 0;
+
         while (lo <= hi)
         {
             const int mid = (lo + hi) / 2;
             std::string prefix = text.substr(0, starts[mid]);
             trimTrailingSpaces(prefix);
+
             if (measureWidth(ttf, style, prefix + ELLIPSIS) <= width)
             {
                 best = mid;
@@ -106,6 +114,7 @@ namespace chronicle
             const int mid = (lo + hi) / 2;
             std::string prefix = text.substr(0, starts[mid]);
             trimTrailingSpaces(prefix);
+
             if (countLines(ttf, style, prefix + ELLIPSIS, width) <= maxLines)
             {
                 best = mid;
@@ -127,7 +136,6 @@ namespace chronicle
         LabelSpec spec = specIn;
 
         auto* ttf = ecs->getSystem<TTFTextSystem>();
-        auto* paintSystem = ecs->getSystem<PaintSystem>();
         const TextStyle& style = styles.get(spec.style);
 
         // Wrap and Ellipsis need a width; without one, fall back to Grow.
@@ -148,7 +156,7 @@ namespace chronicle
 
         auto box = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(spec.z));
         auto text = styles.makeText(ecs, spec.style, fitted, tokens.colour(spec.colour), 0.0f, 0.0f, static_cast<float>(spec.z + 1));
-        paintSystem->paint(text.entity, spec.colour);
+        ecs->attach<PaintComponent>(text.entity, spec.colour);
 
         box.get<Prefab>()->addToPrefab(text.entity);
 
@@ -200,9 +208,11 @@ namespace chronicle
             case Align::Left:
                 textAnchor->setLeftAnchor(PosAnchor{box.id, AnchorType::Left});
                 break;
+
             case Align::Centre:
                 textAnchor->setHorizontalCenter(PosAnchor{box.id, AnchorType::HorizontalCenter});
                 break;
+
             case Align::Right:
                 textAnchor->setRightAnchor(PosAnchor{box.id, AnchorType::Right});
                 break;
@@ -244,9 +254,9 @@ namespace chronicle
             boxPos->setHeight(static_cast<float>(countLines(*ttf, style, fitted, spec.width)) * static_cast<float>(style.lineHeightPx));
     }
 
-    void Label::setColour(EntitySystem* ecs, const std::string& token)
+    void Label::setColour(EntitySystem*, const std::string& token)
     {
-        ecs->getSystem<PaintSystem>()->paint(text, token);
+        text->get<PaintComponent>()->setToken(token);
         spec.colour = token;
     }
 
@@ -260,6 +270,7 @@ namespace chronicle
                 LOG_WARNING(DOM, "Label: per-line alignment inside wrapped text is not supported; use Left");
                 warned = true;
             }
+
             return;
         }
 
@@ -273,9 +284,11 @@ namespace chronicle
         case Align::Left:
             anchor->setLeftAnchor(PosAnchor{box.id, AnchorType::Left});
             break;
+
         case Align::Centre:
             anchor->setHorizontalCenter(PosAnchor{box.id, AnchorType::HorizontalCenter});
             break;
+
         case Align::Right:
             anchor->setRightAnchor(PosAnchor{box.id, AnchorType::Right});
             break;

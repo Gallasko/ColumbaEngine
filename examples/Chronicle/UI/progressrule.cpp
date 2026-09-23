@@ -36,7 +36,6 @@ namespace chronicle
         ProgressRuleSpec spec = specIn;
         spec.percent = clampPct(spec.percent);
         spec.forecastPercent = clampPct(spec.forecastPercent);
-        auto* paint = ecs->getSystem<PaintSystem>();
 
         const float W = spec.width;
         const float H = trackH(spec.small);
@@ -59,7 +58,7 @@ namespace chronicle
         track.get<UiAnchor>()->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
         track.get<UiAnchor>()->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
         track.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z});
-        paint->paint(track.entity, "progress-track");
+        ecs->attach<PaintComponent>(track.entity, "progress-track");
         root.get<Prefab>()->addToPrefab(track.entity);
         p.track = track.entity;
 
@@ -72,7 +71,7 @@ namespace chronicle
             fa->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
         }
         fill.get<PositionComponent>()->setHeight(H - 2.0f);
-        paint->paint(fill.entity, "progress-ink");
+        ecs->attach<PaintComponent>(fill.entity, "progress-ink");
         root.get<Prefab>()->addToPrefab(fill.entity);
         p.fill = fill.entity;
 
@@ -86,7 +85,7 @@ namespace chronicle
             fca->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 2.0f});
         }
         forecast.get<PositionComponent>()->setHeight(H - 2.0f);
-        paint->paint(forecast.entity, "progress-forecast", tokens.opacity("opacity-hatch"));
+        ecs->attach<PaintComponent>(forecast.entity, "progress-forecast", tokens.opacity("opacity-hatch"));
         root.get<Prefab>()->addToPrefab(forecast.entity);
         p.forecast = forecast.entity;
 
@@ -95,7 +94,7 @@ namespace chronicle
         frame.get<StrokeRect2DObject>()->setCornerRadius(tokens.radius("radius-sm"));
         frame.get<UiAnchor>()->fillIn(track.get<UiAnchor>());
         frame.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
-        paint->paint(frame.entity, "rule-hair");
+        ecs->attach<PaintComponent>(frame.entity, "rule-hair");
         root.get<Prefab>()->addToPrefab(frame.entity);
         p.frame = frame.entity;
 

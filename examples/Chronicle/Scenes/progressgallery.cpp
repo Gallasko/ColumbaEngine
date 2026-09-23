@@ -35,12 +35,11 @@ namespace chronicle
 
     void ProgressGallery::init()
     {
-        paintSystem = ecsRef->getSystem<PaintSystem>();
 
         auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        paintSystem->paint(bg.entity, "vellum");
+        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
 
         auto place = [](EntityRef e, float x, float y)
         {

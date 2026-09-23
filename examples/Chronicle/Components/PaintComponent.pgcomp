@@ -1,0 +1,25 @@
+name: PaintComponent
+namespace: chronicle
+base_class: pg::Component
+serialization: false
+
+includes:
+  - <string>
+
+fields:
+  - name: token
+    type: string
+    default: ""
+    setter: event
+
+  - name: alpha
+    type: float
+    default: 1.0f
+    setter: event
+
+constructors:
+  - params: [token, alpha]
+    defaults: {alpha: "1.0f"}
+
+events:
+  - PaintComponentChangedEvent

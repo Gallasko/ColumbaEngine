@@ -119,7 +119,7 @@ namespace chronicle
         auto icon = makeIcon(ecs, "chronicle", spec.name, px(spec.size), tokens.colour(spec.colour));
         icon.get<PositionComponent>()->setZ(static_cast<float>(spec.z));
 
-        ecs->getSystem<PaintSystem>()->paint(icon.entity, spec.colour);
+        ecs->attach<PaintComponent>(icon.entity, spec.colour);
 
         Mark mark;
         mark.entity = icon.entity;
@@ -133,9 +133,9 @@ namespace chronicle
         entity->get<IconComponent>()->setIconName(spec.name);
     }
 
-    void Mark::setColour(EntitySystem* ecs, const std::string& token)
+    void Mark::setColour(EntitySystem*, const std::string& token)
     {
-        ecs->getSystem<PaintSystem>()->paint(entity, token);
+        entity->get<PaintComponent>()->setToken(token);
         spec.colour = token;
     }
 

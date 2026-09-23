@@ -58,7 +58,7 @@ namespace chronicle
         MarkSpec spec;
 
         void setName(pg::EntitySystem*, const std::string&);           // re-validates (unknown -> seal)
-        void setColour(pg::EntitySystem*, const std::string& token);   // PaintSystem::paint
+        void setColour(pg::EntitySystem*, const std::string& token);   // PaintComponent::setToken
         void setSize(pg::EntitySystem*, MarkSize);                     // width and height together
     };
 

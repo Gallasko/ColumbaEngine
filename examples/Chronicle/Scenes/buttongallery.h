@@ -20,7 +20,6 @@ namespace chronicle
     private:
         Tokens* tokens = nullptr;
         TextStyles* styles = nullptr;
-        PaintSystem* paintSystem = nullptr;
 
         pg::_unique_id backgroundId = 0;
         Label lastTag;   // updated on ButtonActivatedEvent

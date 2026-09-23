@@ -343,6 +343,7 @@ namespace pg
             EXPECT_FLOAT_EQ(s.ttfOf(orn.letter->text)->colors.x, gold.x);
 
             orn.setColour(&s.ecs, "lapis");
+            s.settle();   // the PaintComponent change event applies on the next frame
             const auto lapis = s.tokens.colour("lapis");
             EXPECT_FLOAT_EQ(s.strokeOf(orn.parts[0])->colors.x, lapis.x);
             EXPECT_FLOAT_EQ(s.iconOf(orn.parts[1])->colors.x, lapis.x);

@@ -1554,9 +1554,50 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/Chronicle/UI/progressrule.cpp
         )
 
+        # Chronicle's own generated components: .pgcomp specs generated with the
+        # same bootstrap pipeline as the engine's, but compiled into the game
+        # targets instead of ColumbaEngine. Native-only, like the Chronicle target.
+        file(GLOB CHRONICLE_COMPONENT_DEFINITIONS
+            "${CMAKE_CURRENT_SOURCE_DIR}/examples/Chronicle/Components/*.pgcomp"
+        )
+        set(CHRONICLE_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/ChronicleComponents")
+        file(MAKE_DIRECTORY ${CHRONICLE_GENERATED_DIR})
+
+        set(CHRONICLE_GENERATED_SOURCES "")
+        foreach(COMP_DEF ${CHRONICLE_COMPONENT_DEFINITIONS})
+            get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
+
+            set(GENERATED_HEADER "${CHRONICLE_GENERATED_DIR}/${COMP_NAME}.generated.h")
+            set(GENERATED_CPP "${CHRONICLE_GENERATED_DIR}/${COMP_NAME}.generated.cpp")
+            set(GENERATED_SER "${CHRONICLE_GENERATED_DIR}/${COMP_NAME}.serialization.cpp")
+
+            add_custom_command(
+                OUTPUT ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+                COMMAND ${CMAKE_COMMAND} -E echo "Regenerating ${COMP_NAME}..."
+                COMMAND $<TARGET_FILE:PgCompilerBootstrap>
+                        ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
+                        ${COMP_DEF}
+                DEPENDS
+                    PgCompilerBootstrap
+                    ${COMP_DEF}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
+                WORKING_DIRECTORY ${CHRONICLE_GENERATED_DIR}
+                COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
+                VERBATIM
+            )
+
+            set_source_files_properties(
+                ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+                PROPERTIES GENERATED TRUE
+            )
+
+            list(APPEND CHRONICLE_GENERATED_SOURCES ${GENERATED_CPP} ${GENERATED_SER})
+        endforeach()
+
         add_executable(Chronicle examples/Chronicle/main.cpp)
-        target_include_directories(Chronicle PUBLIC examples/Chronicle examples/Chronicle/Core examples/Chronicle/Scenes)
+        target_include_directories(Chronicle PUBLIC examples/Chronicle examples/Chronicle/Core examples/Chronicle/Scenes ${CHRONICLE_GENERATED_DIR})
         target_sources(Chronicle PRIVATE
+            ${CHRONICLE_GENERATED_SOURCES}
             examples/Chronicle/application.cpp
             examples/Chronicle/Scenes/typespecimen.cpp
             examples/Chronicle/Scenes/devscenes.cpp
@@ -1572,8 +1613,9 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_link_libraries(Chronicle PRIVATE ColumbaEngine)
 
         add_executable(test_chronicle test/chronicle/maintest.cc)
-        target_include_directories(test_chronicle PUBLIC examples/Chronicle examples/Chronicle/Core ${CMAKE_SOURCE_DIR}/test)
+        target_include_directories(test_chronicle PUBLIC examples/Chronicle examples/Chronicle/Core ${CMAKE_SOURCE_DIR}/test ${CHRONICLE_GENERATED_DIR})
         target_sources(test_chronicle PRIVATE
+            ${CHRONICLE_GENERATED_SOURCES}
             test/chronicle/tokens.cc
             test/chronicle/motion.cc
             test/chronicle/textstyle.cc

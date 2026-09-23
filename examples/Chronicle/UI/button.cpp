@@ -84,11 +84,18 @@ namespace chronicle
         {
             return std::find(v.begin(), v.end(), id) != v.end();
         }
+
+        // Retarget an already-painted part; the PaintComponent setters trigger the repaint.
+        void repaint(EntityRef e, const std::string& token, float alpha)
+        {
+            auto pc = e->get<PaintComponent>();
+            pc->setToken(token);
+            pc->setAlpha(alpha);
+        }
     }
 
     Button makeButton(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const ButtonSpec& spec)
     {
-        auto* paint = ecs->getSystem<PaintSystem>();
         const std::string ink = inkToken(spec.variant);
         const std::string cost = costToken(spec.variant);
         const bool hasGlyph = not spec.glyph.empty();
@@ -173,7 +180,7 @@ namespace chronicle
             tokens.colour(groundToken(spec.variant, false, not spec.disabled)));
         ground.get<UiAnchor>()->fillIn(face->get<UiAnchor>());
         ground.get<UiAnchor>()->setZConstrain(PosConstrain{faceId, AnchorType::Z});
-        paint->paint(ground.entity, groundToken(spec.variant, false, not spec.disabled), a0);
+        ecs->attach<PaintComponent>(ground.entity, groundToken(spec.variant, false, not spec.disabled), a0);
         root.get<Prefab>()->addToPrefab(ground.entity);
         state->ground = ground.entity.id;
 
@@ -182,7 +189,7 @@ namespace chronicle
         frame.get<StrokeRect2DObject>()->setCornerRadius(tokens.radius("radius-md"));
         frame.get<UiAnchor>()->fillIn(face->get<UiAnchor>());
         frame.get<UiAnchor>()->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 1.0f});
-        paint->paint(frame.entity, frameToken(spec.variant), a0);
+        ecs->attach<PaintComponent>(frame.entity, frameToken(spec.variant), a0);
         root.get<Prefab>()->addToPrefab(frame.entity);
         state->frame = frame.entity.id;
 
@@ -192,7 +199,7 @@ namespace chronicle
             auto sheen = makeRoundedRect2DShape(ecs, tokens.radius("radius-md"), 1.0f, 1.0f, tokens.colour(sheenToken(spec.variant)));
             sheen.get<UiAnchor>()->fillIn(face->get<UiAnchor>());
             sheen.get<UiAnchor>()->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 1.0f});
-            paint->paint(sheen.entity, sheenToken(spec.variant), 0.0f);
+            ecs->attach<PaintComponent>(sheen.entity, sheenToken(spec.variant), 0.0f);
             root.get<Prefab>()->addToPrefab(sheen.entity);
             state->sheen = sheen.entity.id;
         }
@@ -209,7 +216,7 @@ namespace chronicle
             ra->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 1.0f});
         }
         ring.get<PositionComponent>()->setVisible(false);
-        paint->paint(ring.entity, "focus-ink");
+        ecs->attach<PaintComponent>(ring.entity, "focus-ink");
         root.get<Prefab>()->addToPrefab(ring.entity);
         state->ring = ring.entity.id;
 
@@ -219,14 +226,14 @@ namespace chronicle
         {
             Mark m = makeMark(ecs, tokens, {spec.glyph, MarkSize::S16, ink, z + 2});
             anchorInFace(m.entity, x, 2, /*vcentre*/ true);
-            paint->paint(m.entity, ink, a0);
+            repaint(m.entity, ink, a0);
             b.glyph = m;
             state->inked.push_back(m.entity.id);
             x += GLYPH + GAP;
         }
 
         anchorInFace(label.box, x, 2, /*vcentre*/ true);
-        paint->paint(label.text, ink, a0);
+        repaint(label.text, ink, a0);
         b.label = label;
         state->inked.push_back(label.text.id);
         x += labelW;
@@ -236,14 +243,14 @@ namespace chronicle
             x += GAP;
             Mark cm = makeMark(ecs, tokens, {"time", MarkSize::S14, cost, z + 2});
             anchorInFace(cm.entity, x, 2, /*vcentre*/ true);
-            paint->paint(cm.entity, cost, a0);
+            repaint(cm.entity, cost, a0);
             b.costMark = cm;
             state->inked.push_back(cm.entity.id);
             state->costParts.push_back(cm.entity.id);
             x += COST_MARK + COST_GAP;
 
             anchorInFace(costLabel->box, x, 2, /*vcentre*/ true);
-            paint->paint(costLabel->text, cost, a0);
+            repaint(costLabel->text, cost, a0);
             b.cost = costLabel;
             state->inked.push_back(costLabel->text.id);
             state->costParts.push_back(costLabel->text.id);
@@ -339,18 +346,20 @@ namespace chronicle
 
     void ButtonSystem::applyVisual(EntityRef face)
     {
-        auto* paint = ecsRef->getSystem<PaintSystem>();
         auto st = face->get<ButtonState>();
         const bool enabled = not st->disabled;
         const float alpha = st->disabled ? tokens->opacity("opacity-locked") : 1.0f;
 
         if (auto g = ecsRef->getEntity(st->ground))
-            paint->paint(g, groundToken(st->variant, st->hovered, enabled), alpha);
+            repaint(g, groundToken(st->variant, st->hovered, enabled), alpha);
+
         if (auto f = ecsRef->getEntity(st->frame))
-            paint->paint(f, frameToken(st->variant), alpha);
+            repaint(f, frameToken(st->variant), alpha);
+
         if (st->sheen)
             if (auto s = ecsRef->getEntity(st->sheen))
-                paint->paint(s, sheenToken(st->variant), (st->hovered and enabled) ? tokens->opacity("opacity-ghost") : 0.0f);
+                repaint(s, sheenToken(st->variant), (st->hovered and enabled) ? tokens->opacity("opacity-ghost") : 0.0f);
+
         if (st->ring)
             if (auto r = ecsRef->getEntity(st->ring))
                 r->get<PositionComponent>()->setVisible(st->keyboardFocus and enabled);
@@ -358,7 +367,7 @@ namespace chronicle
         const std::string ink = inkToken(st->variant);
         for (auto id : st->inked)
             if (auto e = ecsRef->getEntity(id))
-                paint->paint(e, (st->variant == ButtonVariant::Quiet and contains(st->costParts, id)) ? "status-time" : ink, alpha);
+                repaint(e, (st->variant == ButtonVariant::Quiet and contains(st->costParts, id)) ? "status-time" : ink, alpha);
 
         if (st->reasonBox)
             if (auto rb = ecsRef->getEntity(st->reasonBox))
@@ -396,12 +405,14 @@ namespace chronicle
     {
         if (event.button != 1)
             return;
+
         // Ring hiding is FocusOrderSystem's job (KeyboardFocusChangedEvent); we only press.
         for (auto* st : view<ButtonState>())
         {
             auto face = ecsRef->getEntity(st->entityId);
             if (not face)
                 continue;
+
             if (st->hovered and not st->disabled)
             {
                 st->pressed = true;
@@ -414,14 +425,17 @@ namespace chronicle
     {
         if (event.button != 1)
             return;
+
         for (auto* st : view<ButtonState>())
         {
             auto face = ecsRef->getEntity(st->entityId);
             if (not face or not st->pressed)
                 continue;
+
             const bool inside = st->hovered;
             st->pressed = false;
             applyVisual(face);
+
             if (inside)
                 activate(face);
         }

@@ -277,6 +277,7 @@ namespace pg
             EXPECT_FLOAT_EQ(s.ttfOf(ml.label.text)->colors.x, verdigris.x);
 
             ml.setColour(&s.ecs, "status-loss");
+            s.settle();   // the PaintComponent change event applies on the next frame
             const auto vermilion = s.tokens.colour("vermilion", Theme::Day);
             EXPECT_FLOAT_EQ(s.iconOf(ml.mark->entity)->colors.x, vermilion.x);
             EXPECT_FLOAT_EQ(s.ttfOf(ml.label.text)->colors.x, vermilion.x);

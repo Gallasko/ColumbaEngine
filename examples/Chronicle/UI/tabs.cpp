@@ -47,7 +47,6 @@ namespace chronicle
     Tabs makeTabs(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const TabsSpec& spec)
     {
         auto* ttf = ecs->getSystem<TTFTextSystem>();
-        auto* paint = ecs->getSystem<PaintSystem>();
         const int z = spec.z;
 
         if (spec.items.size() > 6)
@@ -137,7 +136,7 @@ namespace chronicle
                 bfa->setLeftAnchor(PosAnchor{faceId, AnchorType::Left}); bfa->setLeftMargin(bx);
                 bfa->setTopAnchor(PosAnchor{faceId, AnchorType::Top}); bfa->setTopMargin(PAD_TOP + (TAB_LINE - BADGE_H) / 2.0f);
                 bfa->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 2.0f});
-                paint->paint(frame.entity, "rule-hair");
+                ecs->attach<PaintComponent>(frame.entity, "rule-hair");
                 root.get<Prefab>()->addToPrefab(frame.entity);
                 tab.badgeFrame = frame.entity;
 
@@ -160,7 +159,7 @@ namespace chronicle
             ua->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 1.0f});
             underline.get<PositionComponent>()->setHeight(UNDERLINE);
             underline.get<PositionComponent>()->setVisible(active);
-            paint->paint(underline.entity, "vermilion");
+            ecs->attach<PaintComponent>(underline.entity, "vermilion");
             root.get<Prefab>()->addToPrefab(underline.entity);
             tab.underline = underline.entity;
             st->underline = underline.entity.id;
@@ -174,7 +173,7 @@ namespace chronicle
             ra->setBottomAnchor(PosAnchor{faceId, AnchorType::Bottom}); ra->setBottomMargin(-4.0f);
             ra->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 1.0f});
             ring.get<PositionComponent>()->setVisible(false);
-            paint->paint(ring.entity, "focus-ink");
+            ecs->attach<PaintComponent>(ring.entity, "focus-ink");
             root.get<Prefab>()->addToPrefab(ring.entity);
             tab.ring = ring.entity;
             st->ring = ring.entity.id;
@@ -194,7 +193,7 @@ namespace chronicle
         rla->setTopAnchor(PosAnchor{rootId, AnchorType::Top}); rla->setTopMargin(ROW_H - 1.0f);
         rla->setZConstrain(PosConstrain{rootId, AnchorType::Z});
         rule.get<PositionComponent>()->setWidth(rowW);
-        paint->paint(rule.entity, "rule-ruled");
+        ecs->attach<PaintComponent>(rule.entity, "rule-ruled");
         root.get<Prefab>()->addToPrefab(rule.entity);
         t.rule = rule.entity;
 
@@ -270,7 +269,6 @@ namespace chronicle
 
     void TabsSystem::applyVisual(EntityRef face)
     {
-        auto* paint = ecsRef->getSystem<PaintSystem>();
         auto st = face->get<TabState>();
         const bool lit = st->hovered or st->active;
 
@@ -280,7 +278,7 @@ namespace chronicle
             r->get<PositionComponent>()->setVisible(st->keyboardFocus);
         for (auto id : st->inked)
             if (auto e = ecsRef->getEntity(id))
-                paint->paint(e, ink(lit));
+                e->get<PaintComponent>()->setToken(ink(lit));
     }
 
     void TabsSystem::select(EntityRef face)

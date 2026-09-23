@@ -29,6 +29,8 @@ namespace pg
             }
 
             // Common setup: engine systems + Chronicle paint system + registered styles.
+            // PaintSystem registers its groups on the first executeOnce(), so every test
+            // runs one frame after building its entities.
             struct PaintFixture
             {
                 Tokens tokens = Tokens::load("chronicle/tokens.json");
@@ -61,15 +63,32 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(paint_test, paint_applies_now)
+        TEST(paint_test, attach_applies_colour)
         {
             MockLogger logger;
             PaintFixture s;
 
             EntityRef ent = s.makeTextEntity("vermilion");
-            s.paint->paint(ent, "ink");
+            s.ecs.attach<PaintComponent>(ent, "ink");
+            s.ecs.executeOnce();
 
             expectColour(ent->get<TTFText>()->colors, s.tokens.colour("ink"));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(paint_test, paint_component_can_attach_before_the_drawable)
+        {
+            MockLogger logger;
+            PaintFixture s;
+
+            auto ent = s.ecs.createEntity();
+            s.ecs.attach<PaintComponent>(ent, "vermilion");
+            s.ecs.attach<Simple2DObject>(ent, Shape2D::Square);
+            s.ecs.executeOnce();
+
+            expectColour(ent->get<Simple2DObject>()->colors, s.tokens.colour("vermilion"));
         }
 
         // ----------------------------------------------------------------------------------------
@@ -81,10 +100,11 @@ namespace pg
             PaintFixture s;
 
             EntityRef text = s.makeTextEntity("ink");
-            s.paint->paint(text, "ink");
+            s.ecs.attach<PaintComponent>(text, "ink");
 
             auto shape = makeUiSimple2DShape(&s.ecs, Shape2D::Square, 10.0f, 10.0f, s.tokens.colour("vellum"));
-            s.paint->paint(shape.entity, "vellum");
+            s.ecs.attach<PaintComponent>(shape.entity, "vellum");
+            s.ecs.executeOnce();
 
             s.tokens.setTheme(Theme::Candle);
             s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
@@ -103,7 +123,8 @@ namespace pg
             PaintFixture s;
 
             EntityRef text = s.makeTextEntity("ink");
-            s.paint->paint(text, "status-gain");
+            s.ecs.attach<PaintComponent>(text, "status-gain");
+            s.ecs.executeOnce();
             expectColour(text->get<TTFText>()->colors, s.tokens.colour("verdigris", Theme::Day));
 
             s.tokens.setTheme(Theme::Candle);
@@ -116,14 +137,17 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(paint_test, paint_updates_token)
+        TEST(paint_test, set_token_repaints)
         {
             MockLogger logger;
             PaintFixture s;
 
             EntityRef text = s.makeTextEntity("ink");
-            s.paint->paint(text, "ink");
-            s.paint->paint(text, "vermilion");
+            s.ecs.attach<PaintComponent>(text, "ink");
+            s.ecs.executeOnce();
+
+            text->get<PaintComponent>()->setToken("vermilion");
+            s.ecs.executeOnce();
 
             EXPECT_TRUE(text->has<PaintComponent>());
             EXPECT_EQ(text->get<PaintComponent>()->token, "vermilion");
@@ -140,7 +164,8 @@ namespace pg
 
             auto ent = s.ecs.createEntity();
             s.ecs.attach<PositionComponent>(ent);
-            s.paint->paint(ent, "ink");
+            s.ecs.attach<PaintComponent>(ent, "ink");
+            s.ecs.executeOnce();
 
             EXPECT_NO_THROW(s.paint->repaintAll());
         }
@@ -156,9 +181,10 @@ namespace pg
             auto hatch  = makeHatchRect2DShape(&s.ecs, 100.0f, 10.0f, s.tokens.colour("rule-ruled"));
             auto dotted = makeDottedLine2DShape(&s.ecs, 100.0f, s.tokens.colour("rule-ruled"));
             auto stroke = makeStrokeRect2DShape(&s.ecs, 50.0f, 50.0f, s.tokens.colour("rule-ruled"));
-            s.paint->paint(hatch.entity, "rule-ruled");
-            s.paint->paint(dotted.entity, "rule-ruled");
-            s.paint->paint(stroke.entity, "rule-ruled");
+            s.ecs.attach<PaintComponent>(hatch.entity, "rule-ruled");
+            s.ecs.attach<PaintComponent>(dotted.entity, "rule-ruled");
+            s.ecs.attach<PaintComponent>(stroke.entity, "rule-ruled");
+            s.ecs.executeOnce();
 
             s.tokens.setTheme(Theme::Candle);
             s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
@@ -179,7 +205,8 @@ namespace pg
             PaintFixture s;
 
             EntityRef text = s.makeTextEntity("ink");
-            s.paint->paint(text, "ink", 0.6f);
+            s.ecs.attach<PaintComponent>(text, "ink", 0.6f);
+            s.ecs.executeOnce();
             EXPECT_NEAR(text->get<TTFText>()->colors.w, s.tokens.colour("ink").w * 0.6f, 0.5f);
 
             // A theme switch repaints but keeps the stored alpha.
@@ -189,7 +216,8 @@ namespace pg
             EXPECT_NEAR(text->get<TTFText>()->colors.w, s.tokens.colour("ink", Theme::Candle).w * 0.6f, 0.5f);
 
             // setAlpha re-applies at a new alpha.
-            s.paint->setAlpha(text, 1.0f);
+            text->get<PaintComponent>()->setAlpha(1.0f);
+            s.ecs.executeOnce();
             EXPECT_NEAR(text->get<TTFText>()->colors.w, s.tokens.colour("ink", Theme::Candle).w, 0.5f);
         }
     }
