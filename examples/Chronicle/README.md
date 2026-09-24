@@ -131,6 +131,26 @@ come from `rules/*.pg` through the scene, never from the component.
   entity and captures the `ProgressRule` by pointer, so keep it at a stable address
   while it animates.
 
+- **StatLine** (`UI/statline.h`) — one part of the character: *the figure is the
+  point, the bar is the glance*. A name (mark S16 + `label` style, both `ink-muted`)
+  at the left and the figure (`figure`, `ink`) at the right on one baseline, with the
+  running activity's projection beside it (`-> 17`, in `tick`/`progress-forecast`);
+  then a groove — a `ProgressRule` with the nib off and an 8px track, so the hatch,
+  the fill animation and the reduced-motion rule are inherited, not repeated — solid
+  fill for the present value, hatched ghost for the projected gain; a 2px
+  `status-time` tick standing *on* the track (z+6, above the groove's frame) where the
+  next milestone's requirement sits; and a `caption`/`ink-faint` note beneath naming
+  it. Fed, not driven: `setValue(v, animate)` sets the figure at once and tweens the
+  fill after it (the figure is the fact, the bar catches up) — and clears the
+  projection if the value rises past it; `setProjected(p)` shows `-> p` only when
+  `p > value` (a projection at or below the value is not a projection) and moves the
+  figure's right anchor to the projection's left, so the figure never reflows;
+  `setThreshold(t)` re-places the tick or hides it (the entity is kept — a threshold
+  comes and goes as milestones pass); `setNote(s)` grows the root to follow. The
+  display label is upper-cased **ASCII only** (`label` is the caps style; the four MVP
+  parts — Strength, Dexterity, Intellect, Vitality — are ASCII). `glossKey` points the
+  whole line at a registered gloss.
+
 ## Patterns
 
 - **State component + System + event-driven tests.** A stateful, input-receiving
