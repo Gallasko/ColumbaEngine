@@ -25,11 +25,23 @@ namespace chronicle
 
         constexpr float MARGIN_W = 240.0f;
         constexpr float TOOLTIP_W = 280.0f;
+
+        // A hover gloss is placed by the engine's TooltipSystem in its tooltip z band. Build it
+        // there from the start so nothing has to re-resolve a *changed* root z after placement.
+        // Must match TooltipSystem::TOOLTIP_Z (150 - above every UI band, but inside the camera's
+        // depth range: the default camera clips world z from ~190-200 up, which is exactly why the
+        // old 200 band showed the gloss ground on the boundary and clipped every child above it).
+        constexpr int TOOLTIP_Z_BAND = 150;
         constexpr float EDGE = 2.0f;      // border-rule
         constexpr float PAD = 12.0f;      // space-3
         constexpr float GAP1 = 4.0f;      // space-1
         constexpr float GAP2 = 8.0f;      // space-2
         constexpr float TEXT_INDENT = EDGE + PAD;   // 14
+
+        // A tooltip gloss is built MID-RUN (on hover): its parts only reach their anchored spot
+        // on the next layout pass, so their raw creation position is drawn for a frame. Spawn
+        // them offstage so that frame is off-screen instead of a blink at (0, 0).
+        constexpr float OFFSTAGE = -10000.0f;
 
         float boxH(const Label& l) { EntityRef b = l.box; return b->get<PositionComponent>()->height; }
     }
@@ -90,12 +102,20 @@ namespace chronicle
         const float inner = W - 2.0f * PAD;
         const int z = spec.z;
 
-        auto root = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(z));
+        auto root = makeAnchoredPrefab(ecs, OFFSTAGE, OFFSTAGE, static_cast<float>(z));
         root.get<PositionComponent>()->setWidth(W);
         const _unique_id rootId = root.id;
         g.root = root.entity;
 
+        auto offstage = [](EntityRef e)
+        {
+            auto p = e->get<PositionComponent>();
+            p->setX(OFFSTAGE);
+            p->setY(OFFSTAGE);
+        };
+
         auto ground = makeUiSimple2DShape(ecs, Shape2D::Square, 1.0f, 1.0f, tokens.colour("folio"));
+        offstage(ground.entity);
         ground.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
         ground.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z});
         ecs->attach<PaintComponent>(ground.entity, "folio");
@@ -103,6 +123,7 @@ namespace chronicle
         g.ground = ground.entity;
 
         auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, tokens.colour("rule-ruled"), 1.0f);
+        offstage(frame.entity);
         frame.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
         frame.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
         ecs->attach<PaintComponent>(frame.entity, "rule-ruled");
@@ -118,12 +139,20 @@ namespace chronicle
             ls.overflow = overflow; ls.width = width; ls.z = z;
             if (alignRight) ls.align = Align::Right;
             Label l = makeLabel(ecs, tokens, styles, ls);
+            offstage(l.box);
+            offstage(l.text);
             auto a = l.box->get<UiAnchor>();
             if (alignRight) { a->setRightAnchor(PosAnchor{rootId, AnchorType::Right}); a->setRightMargin(PAD); }
             else            { a->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});   a->setLeftMargin(PAD); }
             a->setTopAnchor(PosAnchor{rootId, AnchorType::Top}); a->setTopMargin(y);
             a->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 2.0f});
             root.get<Prefab>()->addToPrefab(l.box);
+
+            // The visible glyphs are what must clear the ground(+0)/frame(+1). makeLabel constrains
+            // the TTFText to its box (box+1); constrain it straight to the root instead (+3), the
+            // same single-level pattern the ground and frame use, so every part of the gloss sits
+            // in one explicit band off the root.
+            l.text->get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
             return l;
         };
 
@@ -189,7 +218,9 @@ namespace chronicle
             const std::string key = t.text;
             if (const GlossSpec* spec = find(key))
             {
-                lastBuilt = makeGloss(&ecs, *tokens, *styles, *spec);
+                GlossSpec shown = *spec;      // built in the tooltip z band it will be placed at
+                shown.z = TOOLTIP_Z_BAND;
+                lastBuilt = makeGloss(&ecs, *tokens, *styles, shown);
                 return lastBuilt.root;
             }
 
@@ -199,6 +230,7 @@ namespace chronicle
                 LOG_ERROR(DOM, "No gloss registered for key '" << key << "'");
 
             GlossSpec fallback; fallback.kind = GlossKind::Tooltip; fallback.text = "(no gloss: " + key + ")";
+            fallback.z = TOOLTIP_Z_BAND;
             lastBuilt = makeGloss(&ecs, *tokens, *styles, fallback);
             if (lastBuilt.text)
                 lastBuilt.text->text->get<PaintComponent>()->setToken("vermilion");

@@ -19,7 +19,12 @@ namespace pg
         constexpr float CURSOR_OFFSET_Y = 18.0f;
         constexpr float SCREEN_MARGIN = 4.0f;
         constexpr float PADDING = 8.0f;
-        constexpr float TOOLTIP_Z = 200.0f;
+        // Above every UI band, but INSIDE the camera's depth range: the default perspective
+        // camera sits at z 2.0 (shader units are z / 100) with near plane 0.1, so world z is
+        // clipped from ~190-200 up. At 200 the tooltip root sat exactly on that boundary and
+        // every child above it (frame, text) was cut by the near plane - background visible,
+        // text invisible. 150 leaves headroom for children on both sides.
+        constexpr float TOOLTIP_Z = 150.0f;
 
         // No-op event so the auto-attached hover components carry a valid callable.
         struct TooltipNoOp {};
