@@ -22,6 +22,7 @@ namespace chronicle
         bool nib = true;
         std::string caption = "";      // "" = none; the figures, in caps
         int z = 20;
+        float trackHeight = 0.0f;      // 0 -> 10 (or 6 with `small`); explicit wins over `small`
     };
 
     struct ProgressRule

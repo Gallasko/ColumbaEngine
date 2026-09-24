@@ -28,7 +28,14 @@ namespace chronicle
         constexpr float CAP_GAP = 4.0f;     // space-1 below the track
 
         float clampPct(float p) { return std::max(0.0f, std::min(100.0f, p)); }
-        float trackH(bool small) { return small ? 6.0f : 10.0f; }
+
+        // The resolved track height: an explicit trackHeight wins; otherwise 6 (small) or 10.
+        float trackH(const ProgressRuleSpec& spec)
+        {
+            if (spec.trackHeight > 0.0f)
+                return spec.trackHeight;
+            return spec.small ? 6.0f : 10.0f;
+        }
     }
 
     ProgressRule makeProgressRule(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const ProgressRuleSpec& specIn)
@@ -38,7 +45,7 @@ namespace chronicle
         spec.forecastPercent = clampPct(spec.forecastPercent);
 
         const float W = spec.width;
-        const float H = trackH(spec.small);
+        const float H = trackH(spec);
         const int z = spec.z;
 
         ProgressRule p;
@@ -131,7 +138,7 @@ namespace chronicle
 
     void ProgressRule::layoutAt(float shownPct)
     {
-        const float H = trackH(spec.small);
+        const float H = trackH(spec);
         const float inner = spec.width - 2.0f;
         const float fillW = inner * shownPct / 100.0f;
 
@@ -178,7 +185,7 @@ namespace chronicle
 
     void ProgressRule::setCaption(EntitySystem* ecs, const TextStyles& s, const std::string& text)
     {
-        const float H = trackH(spec.small);
+        const float H = trackH(spec);
         if (text.empty())
         {
             if (caption)
@@ -215,7 +222,7 @@ namespace chronicle
     {
         if (on and not nib)
         {
-            const float H = trackH(spec.small);
+            const float H = trackH(spec);
             Mark m = makeMark(ecs, tokens, {"quill", MarkSize::S14, "ink", spec.z + 4});
             auto ma = m.entity->get<UiAnchor>();
             ma->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
@@ -236,7 +243,7 @@ namespace chronicle
     void ProgressRule::setWidth(EntitySystem*, float width)
     {
         spec.width = width;
-        const float H = trackH(spec.small);
+        const float H = trackH(spec);
         track->get<PositionComponent>()->setWidth(width);   // frame fillIn follows
         root->get<PositionComponent>()->setWidth(width);
         (void)H;

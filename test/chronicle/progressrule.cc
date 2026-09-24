@@ -375,5 +375,27 @@ namespace pg
             EXPECT_FLOAT_EQ(s.pos(r.caption->box)->z, 21.0f);
             EXPECT_FLOAT_EQ(s.pos(r.caption->text)->z, 22.0f);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(progressrule_test, explicit_track_height)
+        {
+            MockLogger logger;
+            ProgressFixture s;
+
+            ProgressRuleSpec ts; ts.width = 240.0f; ts.trackHeight = 8.0f;
+            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, ts);
+            s.settle();
+            EXPECT_FLOAT_EQ(s.pos(r.track)->height, 8.0f);
+            EXPECT_FLOAT_EQ(s.pos(r.fill)->height, 6.0f);
+            EXPECT_FLOAT_EQ(s.pos(r.forecast)->height, 6.0f);
+
+            // Explicit height wins; `small` then only documents intent.
+            ProgressRuleSpec ss; ss.width = 240.0f; ss.small = true; ss.trackHeight = 8.0f;
+            ProgressRule rs = makeProgressRule(&s.ecs, s.tokens, s.styles, ss);
+            s.settle();
+            EXPECT_FLOAT_EQ(s.pos(rs.track)->height, 8.0f);
+        }
     }
 }
