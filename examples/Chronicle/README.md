@@ -54,9 +54,10 @@ come from `rules/*.pg` through the scene, never from the component.
 - **Label** (`UI/label.h`) — a style, a colour token, an alignment, and one of
   three overflows: `Grow` (box = measured width), `Wrap` (box = given width,
   text wraps, `maxLines` truncates with an ellipsis), `Ellipsis` (one line,
-  shortened with `…`). Box height is always the token line height. Wrapped text
-  is always left-set: the engine has no per-line alignment, so a wrapped
-  `Centre`/`Right` label is set as `Left` (warned once).
+  shortened with `…`). Box height is always the token line height. A label is
+  one entity: overflow, alignment (per line, wrapped included) and elision all
+  live on the engine's `TTFText`; the label adds the style and the colour
+  token.
 
 - **Mark** (`UI/mark.h`) — one of 27 glyphs at one of five kit sizes
   (14/16/18/24/48 px), registered at exactly those sizes so nothing resamples.

@@ -25,8 +25,18 @@ Attributes
 - *constant::Vector4D* ``colors``:
     The RGBA color values for the text.
 
-- *bool* ``wrap``:
-    Indicates whether text wrapping is enabled.
+- *TextOverflow* ``overflow``:
+    How the text treats its box width: ``Grow`` (the box sizes to the text),
+    ``Wrap`` (lines break at the box width), or ``Ellipsis`` (one line, cut with
+    ``…`` at the box width).
+
+- *TextAlign* ``align``:
+    Per-line alignment (``Left``, ``Centre``, ``Right``) inside the box width;
+    only meaningful when ``overflow`` is not ``Grow``.
+
+- *int* ``maxLines``:
+    For ``Wrap``: the last permitted line is cut with ``…``. ``0`` means
+    unlimited.
 
 - *float* ``textWidth``:
     The computed width of the rendered text.
@@ -55,8 +65,14 @@ Methods
 - ``setColor(const constant::Vector4D &colors)``
     Sets the text color.
 
-- ``setWrap(bool wrap)``
-    Enables or disables text wrapping.
+- ``setOverflow(TextOverflow overflow)``
+    Sets the overflow behaviour (``Grow`` / ``Wrap`` / ``Ellipsis``).
+
+- ``setAlign(TextAlign align)``
+    Sets the per-line alignment inside the box width.
+
+- ``setMaxLines(int maxLines)``
+    Caps the number of wrapped lines (0 = unlimited).
 
 TTFTextCall
 -----------
