@@ -14,6 +14,7 @@
 #include "tabsglossgallery.h"
 #include "progressgallery.h"
 #include "statgallery.h"
+#include "requirementgallery.h"
 
 namespace chronicle
 {
@@ -29,6 +30,7 @@ namespace chronicle
             {"TabsGlossGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<TabsGlossGallery>(t, st); }},
             {"ProgressGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<ProgressGallery>(t, st); }},
             {"StatGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<StatGallery>(t, st); }},
+            {"RequirementGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<RequirementGallery>(t, st); }},
         };
 
         return scenes;
