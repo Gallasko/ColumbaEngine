@@ -87,7 +87,7 @@ void SpotlightOverlaySystem::init()
             constant::Vector4D{210.0f, 210.0f, 210.0f, 255.0f});
         body.get<ViewportComponent>()->setViewport(UI_VP);
         body.get<PositionComponent>()->setVisibility(false);
-        body.get<TTFText>()->setWrap(true);
+        body.get<TTFText>()->setOverflow(pg::TextOverflow::Wrap);
         cornerBodyId = body.entity->id;
         {
             auto ba = ecsRef->attach<UiAnchor>(body.entity);

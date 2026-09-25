@@ -7,6 +7,36 @@
 namespace pg
 {
 
+template <>
+void serialize(Archive& archive, const TextOverflow& value)
+{
+    serialize(archive, textOverflowToString.at(value));
+}
+
+template <>
+TextOverflow deserialize(const UnserializedObject& serializedString)
+{
+    auto str = deserialize<std::string>(serializedString);
+    auto it = stringToTextOverflow.find(str);
+    if (it != stringToTextOverflow.end()) return it->second;
+    return TextOverflow::Grow; // fallback to first value
+}
+
+template <>
+void serialize(Archive& archive, const TextAlign& value)
+{
+    serialize(archive, textAlignToString.at(value));
+}
+
+template <>
+TextAlign deserialize(const UnserializedObject& serializedString)
+{
+    auto str = deserialize<std::string>(serializedString);
+    auto it = stringToTextAlign.find(str);
+    if (it != stringToTextAlign.end()) return it->second;
+    return TextAlign::Left; // fallback to first value
+}
+
 void TTFText::setText(const std::string& value)
 {
     if (text != value)
@@ -35,7 +65,7 @@ void TTFText::setFontPath(const std::string& value)
 
 void TTFText::setScale(const float& value)
 {
-    if (areNotAlmostEqual(scale, value))
+    if (pg::areNotAlmostEqual(scale, value))
     {
         scale = value;
 
@@ -59,11 +89,37 @@ void TTFText::setColors(const constant::Vector4D& value)
     }
 }
 
-void TTFText::setWrap(const bool& value)
+void TTFText::setOverflow(const TextOverflow& value)
 {
-    if (wrap != value)
+    if (overflow != value)
     {
-        wrap = value;
+        overflow = value;
+
+        if (ecsRef)
+        {
+            ecsRef->sendEvent(TTFTextChangedEvent{entityId});
+        }
+    }
+}
+
+void TTFText::setAlign(const TextAlign& value)
+{
+    if (align != value)
+    {
+        align = value;
+
+        if (ecsRef)
+        {
+            ecsRef->sendEvent(TTFTextChangedEvent{entityId});
+        }
+    }
+}
+
+void TTFText::setMaxLines(const int& value)
+{
+    if (maxLines != value)
+    {
+        maxLines = value;
 
         if (ecsRef)
         {
@@ -74,7 +130,7 @@ void TTFText::setWrap(const bool& value)
 
 void TTFText::setSpacing(const float& value)
 {
-    if (areNotAlmostEqual(spacing, value))
+    if (pg::areNotAlmostEqual(spacing, value))
     {
         spacing = value;
 
@@ -87,7 +143,7 @@ void TTFText::setSpacing(const float& value)
 
 void TTFText::setLetterSpacing(const float& value)
 {
-    if (areNotAlmostEqual(letterSpacing, value))
+    if (pg::areNotAlmostEqual(letterSpacing, value))
     {
         letterSpacing = value;
 
@@ -108,7 +164,9 @@ void serialize(Archive& archive, const TTFText& value)
     serialize(archive, "fontPath", value.fontPath);
     serialize(archive, "scale", value.scale);
     serialize(archive, "colors", value.colors);
-    serialize(archive, "wrap", value.wrap);
+    serialize(archive, "overflow", textOverflowToString.at(value.overflow));
+    serialize(archive, "align", textAlignToString.at(value.align));
+    serialize(archive, "maxLines", value.maxLines);
     serialize(archive, "spacing", value.spacing);
     serialize(archive, "letterSpacing", value.letterSpacing);
 
@@ -125,7 +183,19 @@ TTFText deserialize(const UnserializedObject& serializedString)
     defaultDeserialize(serializedString, "fontPath", data.fontPath);
     defaultDeserialize(serializedString, "scale", data.scale);
     defaultDeserialize(serializedString, "colors", data.colors);
-    defaultDeserialize(serializedString, "wrap", data.wrap);
+    {
+        std::string overflowStr;
+        defaultDeserialize(serializedString, "overflow", overflowStr);
+        auto overflowIt = stringToTextOverflow.find(overflowStr);
+        if (overflowIt != stringToTextOverflow.end()) data.overflow = overflowIt->second;
+    }
+    {
+        std::string alignStr;
+        defaultDeserialize(serializedString, "align", alignStr);
+        auto alignIt = stringToTextAlign.find(alignStr);
+        if (alignIt != stringToTextAlign.end()) data.align = alignIt->second;
+    }
+    defaultDeserialize(serializedString, "maxLines", data.maxLines);
     defaultDeserialize(serializedString, "spacing", data.spacing);
     defaultDeserialize(serializedString, "letterSpacing", data.letterSpacing);
 

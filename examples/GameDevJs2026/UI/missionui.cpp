@@ -782,7 +782,7 @@ void MissionUISystem::createRightColumn(float /*px*/, float contentOff)
         auto desc = makeTTFText(ecsRef, 0.0f, 0.0f, 100.0f,
             FONT_LIGHT, "", SCALE_BODY, C::TEXT_DIM);
         desc.get<ViewportComponent>()->setViewport(UI_VP);
-        desc.entity->get<TTFText>()->setWrap(true);
+        desc.entity->get<TTFText>()->setOverflow(pg::TextOverflow::Wrap);
         detailDescId = desc.entity->id;
 
         auto anchor = ecsRef->attach<UiAnchor>(desc.entity);

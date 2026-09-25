@@ -71,7 +71,7 @@ namespace pg
                 auto text = log.get<TTFText>();
                 auto anchor = log.get<UiAnchor>();
 
-                text->wrap = true;
+                text->overflow = pg::TextOverflow::Wrap;
 
                 auto logView = listViewEnt.get<VerticalLayout>();
 

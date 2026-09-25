@@ -776,7 +776,7 @@ namespace pg
 
         descTextPos->setVisibility(false);
 
-        descText->setWrap(true);
+        descText->setOverflow(pg::TextOverflow::Wrap);
 
         descTextAnchor->setTopAnchor(tooltipBgAnchor->top);
         descTextAnchor->setTopMargin(theme.values["tooltip.topMargin"].get<float>());
@@ -807,7 +807,7 @@ namespace pg
 
         costTextPos->setVisibility(false);
 
-        costText->setWrap(true);
+        costText->setOverflow(pg::TextOverflow::Wrap);
 
         costTextAnchor->setTopAnchor(tooltipCostSpacerAnchor->bottom);
         costTextAnchor->setTopMargin(theme.values["tooltip.topMargin"].get<float>());
@@ -823,7 +823,7 @@ namespace pg
         auto costValuesAnchor = costValuesEnt.get<UiAnchor>();
 
         costValuesPos->setVisibility(false);
-        costValuesText->setWrap(true);
+        costValuesText->setOverflow(pg::TextOverflow::Wrap);
         costValuesText->spacing = 2.0f;
 
         costValuesAnchor->setTopAnchor(costTextAnchor->bottom);

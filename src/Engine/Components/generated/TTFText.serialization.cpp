@@ -44,7 +44,25 @@ void serializeTTFTextWithSetters(VM* vm, ObjInstance* table, TTFText* component)
         return INT_VAL(0);
     };
     table->setField("setColors", vm->createNativeFunction(colorsCustomSetter));
-    REGISTER_BOOL_SETTER(vm, table, component, setWrap);
+    // TODO: Add setter registration for overflow (TextOverflow)
+    auto overflowEnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {
+        if (argCount > 0 && IS_STRING(args[0])) {
+            auto it = stringToTextOverflow.find(vm->asString(args[0]));
+            if (it != stringToTextOverflow.end()) component->setOverflow(it->second);
+        }
+        return INT_VAL(0);
+    };
+    table->setField("setOverflow", vm->createNativeFunction(overflowEnumSetter));
+    // TODO: Add setter registration for align (TextAlign)
+    auto alignEnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {
+        if (argCount > 0 && IS_STRING(args[0])) {
+            auto it = stringToTextAlign.find(vm->asString(args[0]));
+            if (it != stringToTextAlign.end()) component->setAlign(it->second);
+        }
+        return INT_VAL(0);
+    };
+    table->setField("setAlign", vm->createNativeFunction(alignEnumSetter));
+    REGISTER_INT_SETTER(vm, table, component, setMaxLines);
     REGISTER_FLOAT_SETTER(vm, table, component, setSpacing);
     REGISTER_FLOAT_SETTER(vm, table, component, setLetterSpacing);
 }
@@ -60,7 +78,9 @@ bool attachTTFText(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Valu
     std::string fontPath = "";
     float scale = 1.0f;
     constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f};
-    bool wrap = false;
+    TextOverflow overflow = TextOverflow::Grow;
+    TextAlign align = TextAlign::Left;
+    int maxLines = 0;
     float spacing = 0.0f;
     float letterSpacing = 0.0f;
     bool changed = false;
@@ -84,8 +104,22 @@ bool attachTTFText(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Valu
             textHeight = detail::extractFloatArg(args, i + 1);
         else if (key == "scale")
             scale = detail::extractFloatArg(args, i + 1);
-        else if (key == "wrap")
-            wrap = detail::extractBoolArg(args, i + 1);
+        else if (key == "overflow")
+        {
+            if (IS_STRING(args[i + 1])) {
+                auto overflowEnumIt = stringToTextOverflow.find(vm->asString(args[i + 1]));
+                if (overflowEnumIt != stringToTextOverflow.end()) overflow = overflowEnumIt->second;
+            }
+        }
+        else if (key == "align")
+        {
+            if (IS_STRING(args[i + 1])) {
+                auto alignEnumIt = stringToTextAlign.find(vm->asString(args[i + 1]));
+                if (alignEnumIt != stringToTextAlign.end()) align = alignEnumIt->second;
+            }
+        }
+        else if (key == "maxLines")
+            maxLines = detail::extractIntArg(args, i + 1);
         else if (key == "spacing")
             spacing = detail::extractFloatArg(args, i + 1);
         else if (key == "letterSpacing")
@@ -103,7 +137,9 @@ bool attachTTFText(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Valu
     comp->setFontPath(fontPath);
     comp->setScale(scale);
     comp->setColors(colors);
-    comp->setWrap(wrap);
+    comp->setOverflow(overflow);
+    comp->setAlign(align);
+    comp->setMaxLines(maxLines);
     comp->setSpacing(spacing);
     comp->setLetterSpacing(letterSpacing);
     comp->changed = changed;
@@ -276,28 +312,80 @@ struct TTFTextProxyMetadataRegistrar
             }
         });
 
-        // Property: wrap
-        metadata.properties.emplace("wrap", PropertyMetadata{
-            "wrap",
-            pg::PropertyType::Bool,
+        // Property: overflow
+        metadata.properties.emplace("overflow", PropertyMetadata{
+            "overflow",
+            pg::PropertyType::String,
+            true,
+            [](void* comp, VM* vm) -> Value {
+                auto* c = static_cast<TTFText*>(comp);
+                (void)vm;
+                return vm->createString(textOverflowToString.at(c->getOverflow()));
+            },
+            [](void* comp, VM* vm, Value val) {
+                auto* c = static_cast<TTFText*>(comp);
+                auto enumIt = stringToTextOverflow.find(vm->asString(val));
+                if (enumIt != stringToTextOverflow.end()) c->setOverflow(enumIt->second);
+            },
+            [](void* comp) -> std::string {
+                auto* c = static_cast<TTFText*>(comp);
+                return textOverflowToString.at(c->getOverflow());
+            },
+            [](void* comp, const std::string& val) {
+                auto* c = static_cast<TTFText*>(comp);
+                auto enumIt = stringToTextOverflow.find(val);
+                if (enumIt != stringToTextOverflow.end()) c->setOverflow(enumIt->second);
+            }
+        });
+
+        // Property: align
+        metadata.properties.emplace("align", PropertyMetadata{
+            "align",
+            pg::PropertyType::String,
+            true,
+            [](void* comp, VM* vm) -> Value {
+                auto* c = static_cast<TTFText*>(comp);
+                (void)vm;
+                return vm->createString(textAlignToString.at(c->getAlign()));
+            },
+            [](void* comp, VM* vm, Value val) {
+                auto* c = static_cast<TTFText*>(comp);
+                auto enumIt = stringToTextAlign.find(vm->asString(val));
+                if (enumIt != stringToTextAlign.end()) c->setAlign(enumIt->second);
+            },
+            [](void* comp) -> std::string {
+                auto* c = static_cast<TTFText*>(comp);
+                return textAlignToString.at(c->getAlign());
+            },
+            [](void* comp, const std::string& val) {
+                auto* c = static_cast<TTFText*>(comp);
+                auto enumIt = stringToTextAlign.find(val);
+                if (enumIt != stringToTextAlign.end()) c->setAlign(enumIt->second);
+            }
+        });
+
+        // Property: maxLines
+        metadata.properties.emplace("maxLines", PropertyMetadata{
+            "maxLines",
+            pg::PropertyType::Int,
             true,
             [](void* comp, VM* vm) -> Value {
                 auto* c = static_cast<TTFText*>(comp);
                 (void)vm; // Suppress unused parameter warning
-                return makeBoolValue(c->getWrap());
+                return makeIntValue(c->getMaxLines());
             },
             [](void* comp, VM* vm, Value val) {
                 auto* c = static_cast<TTFText*>(comp);
                 (void)vm; // Suppress unused parameter warning
-                c->setWrap(AS_BOOL(val));
+                c->setMaxLines(static_cast<int>(AS_INT(val)));
             },
             [](void* comp) -> std::string {
                 auto* c = static_cast<TTFText*>(comp);
-                return std::to_string(c->getWrap());
+                return std::to_string(c->getMaxLines());
             },
             [](void* comp, const std::string& val) {
                 auto* c = static_cast<TTFText*>(comp);
-                c->setWrap(val == "true" or val == "1");
+                c->setMaxLines(std::stoi(val));
             }
         });
 

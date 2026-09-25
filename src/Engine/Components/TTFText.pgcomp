@@ -7,6 +7,12 @@ includes:
   - <string>
   - "pgconstant.h"
 
+enums:
+  - name: TextOverflow
+    fields: [Grow, Wrap, Ellipsis]
+  - name: TextAlign
+    fields: [Left, Centre, Right]
+
 fields:
   - name: text
     type: string
@@ -58,9 +64,19 @@ fields:
 
         return INT_VAL(0);"
 
-  - name: wrap
-    type: bool
-    default: false
+  - name: overflow
+    type: TextOverflow
+    default: Grow
+    setter: event
+
+  - name: align
+    type: TextAlign
+    default: Left
+    setter: event
+
+  - name: maxLines
+    type: int
+    default: 0
     setter: event
 
   - name: spacing

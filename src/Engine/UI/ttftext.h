@@ -20,11 +20,25 @@ namespace pg
 {
     struct TextMetrics
     {
-        float width = 0.0f;      // widest line
+        float width = 0.0f;      // widest line (content width, before any alignment offset)
         float height = 0.0f;     // lineCount * (lineHeight + spacing)
         float lineHeight = 0.0f;
         float ascender = 0.0f;
         int lineCount = 1;
+        bool elided = false;     // true when overflow cut the text (ellipsis inserted or nothing fit)
+    };
+
+    // The full layout constraint set, shared by measureText and the glyph build so
+    // a measurement can never disagree with the drawing.
+    struct TextLayoutParams
+    {
+        float scale = 1.0f;
+        float maxWidth = 0.0f;                          // box width; active when overflow != Grow and > 0
+        float spacing = 0.0f;                           // extra line spacing
+        float letterSpacing = 0.0f;
+        TextOverflow overflow = TextOverflow::Grow;
+        TextAlign align = TextAlign::Left;              // per line, inside maxWidth (overflow != Grow)
+        int maxLines = 0;                               // Wrap only; 0 = unlimited
     };
 
     struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Ref<PositionComponent>,
@@ -60,6 +74,9 @@ namespace pg
         /// Measures without creating an entity. maxWidth <= 0 disables wrapping. Markup (\n, \c{}) is honoured.
         TextMetrics measureText(const std::string& font, const std::string& text, float scale = 1.0f, float maxWidth = 0.0f, float spacing = 0.0f, float letterSpacing = 0.0f) const;
 
+        /// Measures with the full constraint set (overflow, alignment, maxLines).
+        TextMetrics measureText(const std::string& font, const std::string& text, const TextLayoutParams& params) const;
+
         // Builds glyph layout templates from text content. Only called when text changes.
         std::vector<GlyphRenderData> buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj, size_t viewport);
 
@@ -78,6 +95,10 @@ namespace pg
 
         std::unordered_map<std::string, FontAtlas> fonts;   // key = alias (or path when no alias)
 
+        // Box width each entity was last laid out against; a settled width that differs
+        // from it forces a full rebuild (re-wrap / re-elide) instead of a position move.
+        std::unordered_map<_unique_id, float> lastLayoutWidth;
+
         std::unordered_map<_unique_id, std::vector<GlyphRenderData>> entityGlyphTemplates;
         std::unordered_map<_unique_id, std::vector<RenderCall>> entityRenderCalls;
         std::vector<_unique_id> entitiesInRenderGroup;
@@ -90,7 +111,7 @@ namespace pg
 
         // Single layout pass shared by measureText (counting) and buildGlyphTemplates (emitting),
         // so a measurement can never disagree with the drawing.
-        TextMetrics layoutText(const FontAtlas& atlas, const std::vector<TTFText>& segments, float scale, float maxWidth, float spacing, float letterSpacing, const GlyphEmitter& emit) const;
+        TextMetrics layoutText(const FontAtlas& atlas, const std::vector<TTFText>& segments, const TextLayoutParams& params, const GlyphEmitter& emit) const;
 
         std::vector<TTFText> parseFormattedText(const TTFText &original) const;
 

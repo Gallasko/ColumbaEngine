@@ -78,6 +78,7 @@ namespace pg
 
             entityRenderCalls.erase(id);
             entityGlyphTemplates.erase(id);
+            lastLayoutWidth.erase(id);
             entitiesInRenderGroup.erase(
                 std::remove(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), id),
                 entitiesInRenderGroup.end()
@@ -93,7 +94,27 @@ namespace pg
 
         // Only queue a position-only update if a full rebuild isn't already pending.
         if (textContentUpdateSet.find(event.id) == textContentUpdateSet.end())
+        {
+            // Wrapped or elided text lays out against its box width: when the settled
+            // width differs from the one last laid out against, the glyphs must be
+            // rebuilt, not moved. The rebuild only re-sets the height for such text,
+            // so the follow-up settle arrives with an unchanged width and takes the
+            // position-only path — no rebuild loop.
+            auto entity = ecsRef->getEntity(event.id);
+            if (entity and entity->has<TTFText>() and entity->has<PositionComponent>()
+                and entity->get<TTFText>()->overflow != TextOverflow::Grow)
+            {
+                auto it = lastLayoutWidth.find(event.id);
+                if (it == lastLayoutWidth.end() or areNotAlmostEqual(it->second, entity->get<PositionComponent>()->width))
+                {
+                    textContentUpdateSet.insert(event.id);
+                    changed = true;
+                    return;
+                }
+            }
+
             positionUpdateSet.insert(event.id);
+        }
 
         changed = true;
     }
@@ -259,30 +280,132 @@ namespace pg
         finishChanges();
     }
 
-    TextMetrics TTFTextSystem::layoutText(const FontAtlas& atlas, const std::vector<TTFText>& segments, float scale, float maxWidth, float spacing, float letterSpacing, const GlyphEmitter& emit) const
+    TextMetrics TTFTextSystem::layoutText(const FontAtlas& atlas, const std::vector<TTFText>& segments, const TextLayoutParams& p, const GlyphEmitter& emit) const
     {
         const FontMetrics& fm = atlas.metrics();
 
-        const float lineAdvance = fm.lineHeight * scale + spacing;
+        const float scale = p.scale;
+        const float lineAdvance = fm.lineHeight * scale + p.spacing;
         const float ascender = fm.ascender;
-        const float trackedSpaceAdvance = (atlas.glyphOrNotdef(0x20).advance + letterSpacing) * scale;
+        const float trackedSpaceAdvance = (atlas.glyphOrNotdef(0x20).advance + p.letterSpacing) * scale;
 
-        const bool wrapEnabled = maxWidth > 0.0f;
+        // Grow ignores the box entirely; Wrap breaks lines at it; Ellipsis is a
+        // single line cut at it. Alignment applies whenever the box width rules.
+        const bool fixedWidth = p.overflow != TextOverflow::Grow and p.maxWidth > 0.0f;
+        const bool wrapEnabled = p.overflow == TextOverflow::Wrap and p.maxWidth > 0.0f;
 
+        const GlyphInfo& ellipsisGlyph = atlas.glyphOrNotdef(0x2026);
+        const float ellipsisAdvance = (ellipsisGlyph.advance + p.letterSpacing) * scale;
+
+        // A line is buffered before it is emitted: alignment needs the finished line's
+        // width, and elision needs to know the line was cut, so glyphs can only be
+        // placed once the line is complete. Spaces never enter the buffer (they only
+        // advance the pen), so cutting the buffer trims trailing spaces for free.
+        struct PendingGlyph
+        {
+            uint32_t cp;
+            float penX;                // pen at glyph start, before alignment
+            const GlyphInfo* glyph;
+            constant::Vector4D color;
+            float penAfter;            // pen after advance + tracking
+        };
+
+        std::vector<PendingGlyph> linebuf;
         float penX = 0.0f;
         int lineIndex = 0;
         float maxLineWidth = 0.0f;
         uint32_t prev = 0;   // previous code point, for kerning; 0 = start of line
+        bool elided = false;
+        bool done = false;   // an elision cut discards all remaining input
+        size_t bestFit = 0;  // longest linebuf prefix that still leaves room for the ellipsis
+        constant::Vector4D currentColor{255.0f, 255.0f, 255.0f, 255.0f};
+
+        // The line that must absorb an overflow with an ellipsis: every line in
+        // Ellipsis mode, the maxLines-th line in Wrap mode.
+        auto onLastLine = [&]()
+        {
+            if (not fixedWidth)
+                return false;
+            if (p.overflow == TextOverflow::Ellipsis)
+                return true;
+            return p.maxLines > 0 and lineIndex == p.maxLines - 1;
+        };
+
+        auto flushLine = [&](bool withEllipsis)
+        {
+            if (withEllipsis)
+            {
+                linebuf.resize(bestFit);
+
+                // When not even the ellipsis fits, the line stays empty: a box too
+                // narrow for one glyph is the caller's bug.
+                if (ellipsisAdvance <= p.maxWidth)
+                {
+                    float pen = 0.0f;
+                    constant::Vector4D color = currentColor;
+
+                    if (not linebuf.empty())
+                    {
+                        const PendingGlyph& last = linebuf.back();
+                        pen = last.penAfter;
+                        if (fm.hasKerning)
+                            pen += atlas.kerning(last.cp, 0x2026) * scale;
+                        color = last.color;
+                    }
+
+                    linebuf.push_back(PendingGlyph{0x2026, pen, &ellipsisGlyph, color, pen + ellipsisAdvance});
+                }
+
+                elided = true;
+            }
+
+            const float lineWidth = linebuf.empty() ? 0.0f : linebuf.back().penAfter;
+            if (lineWidth > maxLineWidth)
+                maxLineWidth = lineWidth;
+
+            // Alignment offset, rounded once per line so glyph origins stay integral.
+            float offset = 0.0f;
+            if (fixedWidth and p.align != TextAlign::Left)
+                offset = std::round(p.align == TextAlign::Centre ? (p.maxWidth - lineWidth) * 0.5f : p.maxWidth - lineWidth);
+
+            if (emit)
+            {
+                for (const auto& g : linebuf)
+                {
+                    // Kerning keeps sub-pixel precision on the pen; only the glyph origin snaps.
+                    const float relX = std::round(g.penX + g.glyph->bearing.x * scale) + offset;
+                    const float relY = lineIndex * lineAdvance + (ascender - g.glyph->bearing.y) * scale;
+                    emit(g.cp, relX, relY, *g.glyph, g.color);
+                }
+            }
+
+            linebuf.clear();
+            penX = 0.0f;
+            prev = 0;
+            bestFit = 0;
+        };
 
         for (const auto& seg : segments)
         {
+            if (done)
+                break;
+
             if (seg.text == "\n")
             {
-                penX = 0.0f;
+                // A newline past the last permitted line means unshowable content.
+                if (onLastLine())
+                {
+                    flushLine(true);
+                    done = true;
+                    break;
+                }
+
+                flushLine(false);
                 ++lineIndex;
-                prev = 0;
                 continue;
             }
+
+            currentColor = seg.colors;
 
             // Decode once per segment; markup was already split off as ASCII, so the
             // remaining bytes are text. Word boundaries stay U+0020.
@@ -300,54 +423,84 @@ namespace pg
                 }
 
                 // At a word start, wrap the whole word down a line if it would overflow.
+                // The last permitted line no longer wraps: it fills and elides instead.
                 const bool wordStart = (i == 0) or (codepoints[i - 1] == 0x20);
-                if (wrapEnabled and wordStart)
+                if (wrapEnabled and wordStart and not onLastLine())
                 {
                     float wordWidth = 0.0f;
                     for (size_t j = i; j < codepoints.size() and codepoints[j] != 0x20; ++j)
-                        wordWidth += atlas.glyphOrNotdef(codepoints[j]).advance * scale;
+                        wordWidth += (atlas.glyphOrNotdef(codepoints[j]).advance + p.letterSpacing) * scale;
 
-                    if (penX > 0.0f and penX + wordWidth > maxWidth)
+                    if (penX > 0.0f and penX + wordWidth > p.maxWidth)
                     {
-                        penX = 0.0f;
+                        flushLine(false);
                         ++lineIndex;
-                        prev = 0;
                     }
                 }
 
-                // Kerning keeps sub-pixel precision on the pen; only the glyph origin snaps.
                 if (fm.hasKerning and prev != 0)
                     penX += atlas.kerning(prev, codepoint) * scale;
 
                 const GlyphInfo& glyph = atlas.glyphOrNotdef(codepoint);
 
-                const float relX = std::round(penX + glyph.bearing.x * scale);
-                const float relY = lineIndex * lineAdvance + (ascender - glyph.bearing.y) * scale;
-
-                if (emit)
-                    emit(codepoint, relX, relY, glyph, seg.colors);
-
                 // Advance the pen by the glyph plus tracking; the last glyph is tracked
                 // too, matching CSS, so measurement and drawing stay identical.
-                penX += (glyph.advance + letterSpacing) * scale;
+                const float penAfter = penX + (glyph.advance + p.letterSpacing) * scale;
+
+                linebuf.push_back(PendingGlyph{codepoint, penX, &glyph, seg.colors, penAfter});
+
+                const bool lastLine = onLastLine();
+                if (lastLine)
+                {
+                    float candidate = penAfter + ellipsisAdvance;
+                    if (fm.hasKerning)
+                        candidate += atlas.kerning(codepoint, 0x2026) * scale;
+
+                    if (candidate <= p.maxWidth)
+                        bestFit = linebuf.size();
+                }
+
+                penX = penAfter;
                 prev = codepoint;
 
-                if (penX > maxLineWidth)
-                    maxLineWidth = penX;
+                // Past the box on the last permitted line: the rest of the input can
+                // only widen the line, so cut here.
+                if (lastLine and penX > p.maxWidth)
+                {
+                    flushLine(true);
+                    done = true;
+                    break;
+                }
             }
         }
+
+        if (not done)
+            flushLine(false);
 
         TextMetrics metrics;
         metrics.width = maxLineWidth;
         metrics.lineHeight = fm.lineHeight * scale;
         metrics.ascender = ascender * scale;
         metrics.lineCount = lineIndex + 1;
-        metrics.height = metrics.lineCount * (metrics.lineHeight + spacing);
+        metrics.height = metrics.lineCount * (metrics.lineHeight + p.spacing);
+        metrics.elided = elided;
 
         return metrics;
     }
 
     TextMetrics TTFTextSystem::measureText(const std::string& font, const std::string& text, float scale, float maxWidth, float spacing, float letterSpacing) const
+    {
+        TextLayoutParams params;
+        params.scale = scale;
+        params.maxWidth = maxWidth;
+        params.spacing = spacing;
+        params.letterSpacing = letterSpacing;
+        params.overflow = maxWidth > 0.0f ? TextOverflow::Wrap : TextOverflow::Grow;
+
+        return measureText(font, text, params);
+    }
+
+    TextMetrics TTFTextSystem::measureText(const std::string& font, const std::string& text, const TextLayoutParams& params) const
     {
         auto it = fonts.find(font);
         if (it == fonts.end())
@@ -359,7 +512,7 @@ namespace pg
 
         std::vector<TTFText> segments = parseFormattedText(temp);
 
-        return layoutText(it->second, segments, scale, maxWidth, spacing, letterSpacing, nullptr);
+        return layoutText(it->second, segments, params, nullptr);
     }
 
     std::vector<TTFTextSystem::GlyphRenderData> TTFTextSystem::buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj, size_t viewport)
@@ -375,8 +528,16 @@ namespace pg
         std::vector<TTFText> segments = parseFormattedText(*obj);
 
         const float scale = obj->scale;
-        const float maxWidth = obj->wrap ? ui->width : 0.0f;
         const size_t materialId = getMaterialId(obj->fontPath);
+
+        TextLayoutParams params;
+        params.scale = scale;
+        params.maxWidth = obj->overflow != TextOverflow::Grow ? ui->width : 0.0f;
+        params.spacing = obj->spacing;
+        params.letterSpacing = obj->letterSpacing;
+        params.overflow = obj->overflow;
+        params.align = obj->align;
+        params.maxLines = obj->maxLines;
 
         auto emit = [&](uint32_t, float relX, float relY, const GlyphInfo& glyph, const constant::Vector4D& color)
         {
@@ -399,15 +560,15 @@ namespace pg
             glyphs.push_back(glyphData);
         };
 
-        TextMetrics metrics = layoutText(atlas, segments, scale, maxWidth, obj->spacing, obj->letterSpacing, emit);
+        TextMetrics metrics = layoutText(atlas, segments, params, emit);
 
         if (areNotAlmostEqual(obj->textWidth, metrics.width))
         {
             obj->textWidth = metrics.width;
 
-            // When wrapping, ui->width is the constraint and must stay put; textWidth
-            // just reports the widest line. Only unwrapped text sizes its box to fit.
-            if (not obj->wrap)
+            // Under a box constraint (Wrap/Ellipsis), ui->width must stay put; textWidth
+            // just reports the widest line. Only Grow text sizes its box to fit.
+            if (obj->overflow == TextOverflow::Grow)
                 ui->setWidth(metrics.width);
         }
 
@@ -416,6 +577,8 @@ namespace pg
             obj->textHeight = metrics.height;
             ui->setHeight(metrics.height);
         }
+
+        lastLayoutWidth[obj->entityId] = ui->width;
 
         return glyphs;
     }

@@ -2,6 +2,9 @@
 
 #include <gtest/gtest.h>
 
+#include <map>
+#include <set>
+
 #include "UI/ttftext.h"
 #include "UI/utf8.h"
 
@@ -279,7 +282,7 @@ namespace pg
             auto* sys = makeTextSystem(ecs, renderer);
 
             auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", "one two three four five six seven eight nine ten");
-            text.get<TTFText>()->setWrap(true);
+            text.get<TTFText>()->setOverflow(pg::TextOverflow::Wrap);
             text.get<PositionComponent>()->setWidth(80.0f);
 
             ecs.executeOnce();
@@ -361,6 +364,332 @@ namespace pg
 
             const float measured = sys->measureText("inter", "STRENGTH", 1.0f, 0.0f, 0.0f, 1.5f).width;
             EXPECT_NEAR(text.get<TTFText>()->textWidth, measured, 0.01f);
+        }
+
+        namespace
+        {
+            const std::string ELLIPSIS = "\xE2\x80\xA6";   // U+2026
+            const std::string FOX = "The quick brown fox jumps over the lazy dog";
+
+            TextLayoutParams ellipsisAt(float maxWidth, float letterSpacing = 0.0f)
+            {
+                TextLayoutParams params;
+                params.maxWidth = maxWidth;
+                params.letterSpacing = letterSpacing;
+                params.overflow = TextOverflow::Ellipsis;
+                return params;
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, ellipsis_elides_to_width)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            TextMetrics metrics = sys->measureText("inter", FOX, ellipsisAt(120.0f));
+
+            EXPECT_TRUE(metrics.elided);
+            EXPECT_EQ(metrics.lineCount, 1);
+            EXPECT_GT(metrics.width, 0.0f);
+            EXPECT_LE(metrics.width, 120.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, ellipsis_whole_text_fits_untouched)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            const float plain = sys->measureText("inter", "STR 14").width;
+            TextMetrics metrics = sys->measureText("inter", "STR 14", ellipsisAt(plain + 20.0f));
+
+            EXPECT_FALSE(metrics.elided);
+            EXPECT_NEAR(metrics.width, plain, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, ellipsis_no_trailing_space)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            // A width that fits "one two…" but not "one two t…": the cut lands inside
+            // "three" and the elided line must not keep the space before the ellipsis.
+            const float fits = sys->measureText("inter", "one two" + ELLIPSIS).width;
+            const float overflows = sys->measureText("inter", "one two t" + ELLIPSIS).width;
+            ASSERT_LT(fits, overflows);
+
+            TextMetrics metrics = sys->measureText("inter", "one two three", ellipsisAt((fits + overflows) * 0.5f));
+
+            EXPECT_TRUE(metrics.elided);
+            EXPECT_NEAR(metrics.width, fits, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, ellipsis_too_narrow_is_empty)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            TextMetrics metrics = sys->measureText("inter", FOX, ellipsisAt(2.0f));
+
+            EXPECT_TRUE(metrics.elided);
+            EXPECT_FLOAT_EQ(metrics.width, 0.0f);
+
+            auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", FOX);
+            text.get<TTFText>()->setOverflow(TextOverflow::Ellipsis);
+            text.get<PositionComponent>()->setWidth(2.0f);
+            ecs.executeOnce();
+
+            EXPECT_TRUE(sys->entityGlyphTemplates[text.id].empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, ellipsis_respects_letter_spacing)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            // The box fits the untracked text exactly, so tracking must force an elision.
+            const float untracked = sys->measureText("inter", "STRENGTH").width;
+            TextMetrics metrics = sys->measureText("inter", "STRENGTH", ellipsisAt(untracked, 1.5f));
+
+            EXPECT_TRUE(metrics.elided);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, wrap_max_lines_truncates)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            TextLayoutParams params;
+            params.maxWidth = 80.0f;
+            params.overflow = TextOverflow::Wrap;
+            params.maxLines = 2;
+
+            TextMetrics unlimited = sys->measureText("inter", FOX, 1.0f, 80.0f);
+            ASSERT_GT(unlimited.lineCount, 2);
+
+            TextMetrics metrics = sys->measureText("inter", FOX, params);
+
+            EXPECT_TRUE(metrics.elided);
+            EXPECT_EQ(metrics.lineCount, 2);
+            EXPECT_NEAR(metrics.height, 2.0f * metrics.lineHeight, 0.01f);
+            EXPECT_LE(metrics.width, 80.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, align_right_offsets_glyphs)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            auto makeAligned = [&](TextAlign align)
+            {
+                auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", "STR 14");
+                text.get<TTFText>()->setOverflow(TextOverflow::Ellipsis);
+                text.get<TTFText>()->setAlign(align);
+                text.get<PositionComponent>()->setWidth(200.0f);
+                return text;
+            };
+
+            auto left = makeAligned(TextAlign::Left);
+            auto right = makeAligned(TextAlign::Right);
+            ecs.executeOnce();
+
+            const float w = sys->measureText("inter", "STR 14").width;
+            const float expected = std::round(200.0f - w);
+
+            const auto& leftGlyphs = sys->entityGlyphTemplates[left.id];
+            const auto& rightGlyphs = sys->entityGlyphTemplates[right.id];
+            ASSERT_FALSE(leftGlyphs.empty());
+            ASSERT_EQ(leftGlyphs.size(), rightGlyphs.size());
+
+            for (size_t i = 0; i < leftGlyphs.size(); ++i)
+            {
+                EXPECT_NEAR(rightGlyphs[i].relX - leftGlyphs[i].relX, expected, 0.01f);
+                EXPECT_NEAR(rightGlyphs[i].relX, std::round(rightGlyphs[i].relX), 1e-4f);
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, align_centre_offsets_glyphs)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            auto makeAligned = [&](TextAlign align)
+            {
+                auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", "STR 14");
+                text.get<TTFText>()->setOverflow(TextOverflow::Ellipsis);
+                text.get<TTFText>()->setAlign(align);
+                text.get<PositionComponent>()->setWidth(200.0f);
+                return text;
+            };
+
+            auto left = makeAligned(TextAlign::Left);
+            auto centre = makeAligned(TextAlign::Centre);
+            ecs.executeOnce();
+
+            const float w = sys->measureText("inter", "STR 14").width;
+            const float expected = std::round((200.0f - w) * 0.5f);
+
+            const auto& leftGlyphs = sys->entityGlyphTemplates[left.id];
+            const auto& centreGlyphs = sys->entityGlyphTemplates[centre.id];
+            ASSERT_FALSE(leftGlyphs.empty());
+            ASSERT_EQ(leftGlyphs.size(), centreGlyphs.size());
+
+            for (size_t i = 0; i < leftGlyphs.size(); ++i)
+                EXPECT_NEAR(centreGlyphs[i].relX - leftGlyphs[i].relX, expected, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, wrap_aligns_per_line_right)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            auto makeWrapped = [&](TextAlign align)
+            {
+                auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", FOX);
+                text.get<TTFText>()->setOverflow(TextOverflow::Wrap);
+                text.get<TTFText>()->setAlign(align);
+                text.get<PositionComponent>()->setWidth(100.0f);
+                return text;
+            };
+
+            auto left = makeWrapped(TextAlign::Left);
+            auto right = makeWrapped(TextAlign::Right);
+            ecs.executeOnce();
+
+            const auto& leftGlyphs = sys->entityGlyphTemplates[left.id];
+            const auto& rightGlyphs = sys->entityGlyphTemplates[right.id];
+            ASSERT_FALSE(leftGlyphs.empty());
+            ASSERT_EQ(leftGlyphs.size(), rightGlyphs.size());
+
+            // Every glyph on one line shares one offset; ragged lines get different ones.
+            std::map<float, float> offsetPerLine;
+            for (size_t i = 0; i < leftGlyphs.size(); ++i)
+            {
+                const float delta = rightGlyphs[i].relX - leftGlyphs[i].relX;
+                EXPECT_GE(delta, 0.0f);
+
+                auto it = offsetPerLine.find(leftGlyphs[i].relY);
+                if (it == offsetPerLine.end())
+                    offsetPerLine[leftGlyphs[i].relY] = delta;
+                else
+                    EXPECT_NEAR(it->second, delta, 0.01f);
+            }
+
+            ASSERT_GE(offsetPerLine.size(), 2u);
+
+            std::set<float> distinct;
+            for (const auto& [relY, delta] : offsetPerLine)
+                distinct.insert(delta);
+            EXPECT_GE(distinct.size(), 2u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, width_change_triggers_rewrap)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", FOX);
+            text.get<TTFText>()->setOverflow(TextOverflow::Wrap);
+            text.get<PositionComponent>()->setWidth(300.0f);
+            ecs.executeOnce();
+
+            const float tallAt300 = text.get<TTFText>()->textHeight;
+
+            text.get<PositionComponent>()->setWidth(80.0f);
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            EXPECT_GT(text.get<TTFText>()->textHeight, tallAt300);
+            EXPECT_LE(text.get<TTFText>()->textWidth, 80.0f);
+
+            // The rebuild's own height settle must not retrigger a rebuild.
+            const float settled = text.get<TTFText>()->textHeight;
+            ecs.executeOnce();
+            ecs.executeOnce();
+            EXPECT_FLOAT_EQ(text.get<TTFText>()->textHeight, settled);
+            EXPECT_FLOAT_EQ(text.get<PositionComponent>()->width, 80.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(ttftext_test, measure_matches_layout_ellipsis)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            auto text = makeTTFText(&ecs, 0.0f, 0.0f, 1.0f, "inter", FOX);
+            text.get<TTFText>()->setOverflow(TextOverflow::Ellipsis);
+            text.get<PositionComponent>()->setWidth(120.0f);
+            ecs.executeOnce();
+
+            TextMetrics metrics = sys->measureText("inter", FOX, ellipsisAt(120.0f));
+
+            EXPECT_TRUE(metrics.elided);
+            EXPECT_NEAR(text.get<TTFText>()->textWidth, metrics.width, 0.01f);
+            EXPECT_NEAR(text.get<TTFText>()->textHeight, metrics.height, 0.01f);
         }
     }
 }

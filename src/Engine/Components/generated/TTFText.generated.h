@@ -3,13 +3,56 @@
 #include "ECS/component.h"
 #include <string>
 #include "pgconstant.h"
+#include "Helpers/helpers.h"
 
 namespace pg
 {
 
+enum class TextOverflow : uint8_t
+{
+    Grow = 0,
+    Wrap,
+    Ellipsis,
+};
+
+const static std::unordered_map<TextOverflow, std::string> textOverflowToString = {
+    {TextOverflow::Grow, "Grow"},
+    {TextOverflow::Wrap, "Wrap"},
+    {TextOverflow::Ellipsis, "Ellipsis"},
+};
+
+const static auto stringToTextOverflow = invertMap(textOverflowToString);
+
+template <>
+void serialize(Archive& archive, const TextOverflow& value);
+
+template <>
+TextOverflow deserialize(const UnserializedObject& serializedString);
+
+enum class TextAlign : uint8_t
+{
+    Left = 0,
+    Centre,
+    Right,
+};
+
+const static std::unordered_map<TextAlign, std::string> textAlignToString = {
+    {TextAlign::Left, "Left"},
+    {TextAlign::Centre, "Centre"},
+    {TextAlign::Right, "Right"},
+};
+
+const static auto stringToTextAlign = invertMap(textAlignToString);
+
+template <>
+void serialize(Archive& archive, const TextAlign& value);
+
+template <>
+TextAlign deserialize(const UnserializedObject& serializedString);
+
 struct TTFTextChangedEvent
 {
-    _unique_id id = 0;
+    pg::_unique_id id = 0;
 };
 
 struct TTFText : public Component
@@ -22,7 +65,9 @@ struct TTFText : public Component
     std::string fontPath = "";
     float scale = 1.0f;
     constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f};
-    bool wrap = false;
+    TextOverflow overflow = TextOverflow::Grow;
+    TextAlign align = TextAlign::Left;
+    int maxLines = 0;
     float spacing = 0.0f;
     float letterSpacing = 0.0f;
     bool changed = false;
@@ -35,7 +80,9 @@ struct TTFText : public Component
     std::string getFontPath() const { return fontPath; }
     float getScale() const { return scale; }
     constant::Vector4D getColors() const { return colors; }
-    bool getWrap() const { return wrap; }
+    TextOverflow getOverflow() const { return overflow; }
+    TextAlign getAlign() const { return align; }
+    int getMaxLines() const { return maxLines; }
     float getSpacing() const { return spacing; }
     float getLetterSpacing() const { return letterSpacing; }
     bool getChanged() const { return changed; }
@@ -44,7 +91,9 @@ struct TTFText : public Component
     void setFontPath(const std::string& value);
     void setScale(const float& value);
     void setColors(const constant::Vector4D& value);
-    void setWrap(const bool& value);
+    void setOverflow(const TextOverflow& value);
+    void setAlign(const TextAlign& value);
+    void setMaxLines(const int& value);
     void setSpacing(const float& value);
     void setLetterSpacing(const float& value);
 
