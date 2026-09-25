@@ -22,9 +22,9 @@ namespace chronicle
     {
         PanelFrame frame = PanelFrame::Ruled;
         float width = 320.0f;          // required; the height derives from the content
-        std::string heading;           // "" -> no head row and no rule
-        std::string glyph;             // mark name; "" -> none. Drawn in ink-muted
-        std::string aside;             // set in `label` style, ink-muted; pass it already in caps
+        std::string heading = "";      // "" -> no head row and no rule
+        std::string glyph = "";        // mark name; "" -> none. Drawn in ink-muted
+        std::string aside = "";        // set in `label` style, ink-muted; pass it already in caps
         int z = 10;                    // root: Panels band 10-19
         int contentZ = 20;             // what the caller gives its children; must be > z + 4
     };

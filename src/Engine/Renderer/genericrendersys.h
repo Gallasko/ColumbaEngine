@@ -7,6 +7,8 @@
 
 #include "ECS/entitysystem.h"
 
+#include "Helpers/helpers.h"
+
 namespace pg
 {
     // Forward declaration with defaults for backward compatibility
@@ -56,18 +58,7 @@ namespace pg
                 return;
             }
 
-            std::vector<_unique_id> updateQueue;
-            std::vector<_unique_id> temp;
-
-            temp.assign(updateSet.begin(), updateSet.end());
-
-            std::sort(temp.begin(), temp.end());
-
-            std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), temp.begin(), temp.end(),
-                            std::back_inserter(updateQueue));
-
-            // Clear the update set after processing
-            updateSet.clear();
+            std::vector<_unique_id> updateQueue = drainIntersectSorted(updateSet, entitiesInRenderGroup);
 
             for (const auto& entityId : updateQueue)
             {
@@ -168,17 +159,7 @@ namespace pg
                 return;
             }
 
-            std::vector<_unique_id> updateQueue;
-            std::vector<_unique_id> temp;
-
-            temp.assign(updateSet.begin(), updateSet.end());
-
-            std::sort(temp.begin(), temp.end());
-
-            std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), temp.begin(), temp.end(),
-                            std::back_inserter(updateQueue));
-
-            updateSet.clear();
+            std::vector<_unique_id> updateQueue = drainIntersectSorted(updateSet, entitiesInRenderGroup);
 
             for (const auto& entityId : updateQueue)
             {

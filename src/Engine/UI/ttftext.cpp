@@ -5,6 +5,8 @@
 
 #include "ECS/entitysystem.h"
 
+#include "Helpers/helpers.h"
+
 #include "UI/utf8.h"
 
 #ifdef __EMSCRIPTEN__
@@ -204,38 +206,20 @@ namespace pg
             return;
 
         // Snapshot and clear textContentUpdateSet, intersect with render group.
-        std::vector<_unique_id> fullRebuildQueue;
-        {
-            std::vector<_unique_id> temp;
-            temp.assign(textContentUpdateSet.begin(), textContentUpdateSet.end());
-            std::sort(temp.begin(), temp.end());
-            textContentUpdateSet.clear();
-
-            std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(),
-                                  temp.begin(), temp.end(),
-                                  std::back_inserter(fullRebuildQueue));
-        }
+        std::vector<_unique_id> fullRebuildQueue = drainIntersectSorted(textContentUpdateSet, entitiesInRenderGroup);
 
         // Snapshot and clear positionUpdateSet, intersect with render group,
         // then exclude entities already scheduled for a full rebuild.
         std::vector<_unique_id> positionOnlyQueue;
         {
-            std::vector<_unique_id> temp;
-            temp.assign(positionUpdateSet.begin(), positionUpdateSet.end());
-            std::sort(temp.begin(), temp.end());
-            positionUpdateSet.clear();
-
-            std::vector<_unique_id> inGroup;
-            std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(),
-                                  temp.begin(), temp.end(),
-                                  std::back_inserter(inGroup));
+            std::vector<_unique_id> inGroup = drainIntersectSorted(positionUpdateSet, entitiesInRenderGroup);
 
             std::set_difference(inGroup.begin(), inGroup.end(),
                                 fullRebuildQueue.begin(), fullRebuildQueue.end(),
                                 std::back_inserter(positionOnlyQueue));
         }
 
-        // Full rebuild: text content changed — redo glyph layout and render calls.
+        // Full rebuild: text content changed, redo glyph layout and render calls.
         for (const auto& entityId : fullRebuildQueue)
         {
             auto entity = ecsRef->getEntity(entityId);
@@ -252,7 +236,7 @@ namespace pg
             entityRenderCalls[entityId] = createRenderCall(ui, entityGlyphTemplates[entityId]);
         }
 
-        // Fast-path: position only changed — reuse glyph templates, apply new position.
+        // Fast-path: position only changed, reuse glyph templates, apply new position.
         for (const auto& entityId : positionOnlyQueue)
         {
             auto entity = ecsRef->getEntity(entityId);
@@ -294,8 +278,13 @@ namespace pg
         const bool fixedWidth = p.overflow != TextOverflow::Grow and p.maxWidth > 0.0f;
         const bool wrapEnabled = p.overflow == TextOverflow::Wrap and p.maxWidth > 0.0f;
 
-        const GlyphInfo& ellipsisGlyph = atlas.glyphOrNotdef(0x2026);
-        const float ellipsisAdvance = (ellipsisGlyph.advance + p.letterSpacing) * scale;
+        // Faces without U+2026 elide with three full stops instead.
+        const GlyphInfo* horizontalEllipsis = atlas.glyph(0x2026);
+        const uint32_t ellipsisCp = horizontalEllipsis ? 0x2026 : 0x2E;
+        const int ellipsisRepeat = horizontalEllipsis ? 1 : 3;
+        const GlyphInfo& ellipsisGlyph = horizontalEllipsis ? *horizontalEllipsis : atlas.glyphOrNotdef(0x2E);
+        const float ellipsisStep = (ellipsisGlyph.advance + p.letterSpacing) * scale;
+        const float ellipsisAdvance = ellipsisStep * ellipsisRepeat;
 
         // A line is buffered before it is emitted: alignment needs the finished line's
         // width, and elision needs to know the line was cut, so glyphs can only be
@@ -349,11 +338,15 @@ namespace pg
                         const PendingGlyph& last = linebuf.back();
                         pen = last.penAfter;
                         if (fm.hasKerning)
-                            pen += atlas.kerning(last.cp, 0x2026) * scale;
+                            pen += atlas.kerning(last.cp, ellipsisCp) * scale;
                         color = last.color;
                     }
 
-                    linebuf.push_back(PendingGlyph{0x2026, pen, &ellipsisGlyph, color, pen + ellipsisAdvance});
+                    for (int k = 0; k < ellipsisRepeat; ++k)
+                    {
+                        linebuf.push_back(PendingGlyph{ellipsisCp, pen, &ellipsisGlyph, color, pen + ellipsisStep});
+                        pen += ellipsisStep;
+                    }
                 }
 
                 elided = true;
@@ -454,7 +447,7 @@ namespace pg
                 {
                     float candidate = penAfter + ellipsisAdvance;
                     if (fm.hasKerning)
-                        candidate += atlas.kerning(codepoint, 0x2026) * scale;
+                        candidate += atlas.kerning(codepoint, ellipsisCp) * scale;
 
                     if (candidate <= p.maxWidth)
                         bestFit = linebuf.size();

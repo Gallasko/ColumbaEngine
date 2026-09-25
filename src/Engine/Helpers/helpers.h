@@ -11,11 +11,33 @@
 
 #pragma once
 
+#include <algorithm>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 #include <functional>
 
 namespace pg
 {
+    // Drain a pending update set (clearing it) and return its elements that are
+    // also present in the sorted `sortedFilter` vector, in sorted order.
+    // Used by render systems to intersect queued entity updates with the entities
+    // currently in the render group.
+    template <typename T>
+    std::vector<T> drainIntersectSorted(std::unordered_set<T>& pending, const std::vector<T>& sortedFilter)
+    {
+        std::vector<T> temp(pending.begin(), pending.end());
+        std::sort(temp.begin(), temp.end());
+        pending.clear();
+
+        std::vector<T> out;
+        std::set_intersection(sortedFilter.begin(), sortedFilter.end(),
+                              temp.begin(), temp.end(),
+                              std::back_inserter(out));
+
+        return out;
+    }
+
     // Function which invert an unordered map
     template<typename Kin, typename Vin>
     std::unordered_map<Vin, Kin> invertMap(const std::unordered_map<Kin, Vin>& inMap)
