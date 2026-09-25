@@ -319,8 +319,21 @@ namespace pg
 
             ASSERT_TRUE(orn.letter.has_value());
             EXPECT_NEAR(s.pos(orn.letter->entity)->x, s.pos(orn.root)->x, 0.5f);
-            const float textCentre = s.pos(orn.letter->entity)->x + s.ttfOf(orn.letter->entity)->textWidth / 2.0f;
-            EXPECT_NEAR(textCentre, s.pos(orn.root)->x + 36.0f, 0.5f);
+            EXPECT_FLOAT_EQ(s.pos(orn.letter->entity)->width, 72.0f);
+
+            // The glyph is centred inside the 72 px box by the engine's per-line
+            // alignment (align == Centre), so its drawn extent straddles the box middle.
+            const auto& glyphs = s.ttf->entityGlyphTemplates[orn.letter->entity.id];
+            ASSERT_FALSE(glyphs.empty());
+            float lo = glyphs.front().relX;
+            float hi = glyphs.front().relX + glyphs.front().w;
+            for (const auto& g : glyphs)
+            {
+                if (g.relX < lo) lo = g.relX;
+                if (g.relX + g.w > hi) hi = g.relX + g.w;
+            }
+            const float glyphCentre = s.pos(orn.letter->entity)->x + (lo + hi) / 2.0f;
+            EXPECT_NEAR(glyphCentre, s.pos(orn.root)->x + 36.0f, 2.0f);
             EXPECT_EQ(orn.letter->spec.style, "chapter");
             EXPECT_EQ(orn.letter->spec.text, "\xC3\x86");   // first code point only
         }

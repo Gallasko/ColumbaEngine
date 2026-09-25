@@ -197,29 +197,29 @@ namespace chronicle
             {
                 const int n = v->get(path("str")).get<int>() + 1;
                 v->set(path("str"), ElementType{n});
-                echo.setText(ecsRef, *styles, std::string("Train: STR ") + ARROW + " " + std::to_string(n));
+                echo.setText(ecsRef, std::string("Train: STR ") + ARROW + " " + std::to_string(n));
             }
             else if (e.tag == "study_int")
             {
                 const int n = v->get(path("int")).get<int>() + 1;
                 v->set(path("int"), ElementType{n});
-                echo.setText(ecsRef, *styles, std::string("Study: INT ") + ARROW + " " + std::to_string(n));
+                echo.setText(ecsRef, std::string("Study: INT ") + ARROW + " " + std::to_string(n));
             }
             else if (e.tag == "project_str")
             {
                 v->set(projPath("str"), ElementType{20});
-                echo.setText(ecsRef, *styles, std::string("Project STR ") + ARROW + " 20");
+                echo.setText(ecsRef, std::string("Project STR ") + ARROW + " 20");
             }
             else if (e.tag == "clear_proj")
             {
                 for (const auto& p : PARTS)
                     v->set(projPath(p.id), ElementType{-1});
-                echo.setText(ecsRef, *styles, "Cleared projections");
+                echo.setText(ecsRef, "Cleared projections");
             }
             else if (e.tag == "milestone_str")
             {
                 v->set(thrPath("str"), ElementType{24});
-                echo.setText(ecsRef, *styles, std::string("STR milestone ") + ARROW + " 24");
+                echo.setText(ecsRef, std::string("STR milestone ") + ARROW + " 24");
             }
         });
 
@@ -259,7 +259,7 @@ namespace chronicle
             else if (event.key == SDL_SCANCODE_R)
             {
                 Motion::setReduced(not Motion::reduced());
-                motionLabel.setText(ecsRef, *styles, Motion::reduced() ? "motion: reduced" : "motion: full");
+                motionLabel.setText(ecsRef, Motion::reduced() ? "motion: reduced" : "motion: full");
             }
         });
 

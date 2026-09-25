@@ -37,6 +37,7 @@ namespace chronicle
         // Style values cached at build time so the mutators can size the entity
         // synchronously (callers read width/height right after) without a TextStyles.
         std::string fontAlias;
+        int lineHeightPx = 0;
         float lineSpacingPx = 0.0f;
         float letterSpacingPx = 0.0f;
 

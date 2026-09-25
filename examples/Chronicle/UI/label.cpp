@@ -30,8 +30,9 @@ namespace chronicle
 
         // Sizes the entity now, from the same layout pass the renderer will run, so a
         // caller can read width/height synchronously; the engine's build then lands on
-        // the same numbers. With spacing = lineHeightPx - atlas line height, the
-        // height is lines x the token line height - the kit's stacking rhythm.
+        // the same numbers. Height is the token line height times the line count - the
+        // kit's stacking rhythm, and (unlike the atlas height) still correct for a
+        // style whose font is absent, where the line count falls back to 1.
         void applyMeasure(EntitySystem* ecs, Label& label)
         {
             auto* ttf = ecs->getSystem<TTFTextSystem>();
@@ -40,7 +41,7 @@ namespace chronicle
             auto pos = label.entity->get<PositionComponent>();
             if (label.spec.overflow == Overflow::Grow)
                 pos->setWidth(metrics.width);
-            pos->setHeight(metrics.height);
+            pos->setHeight(static_cast<float>(metrics.lineCount) * static_cast<float>(label.lineHeightPx));
         }
     }
 
@@ -81,6 +82,7 @@ namespace chronicle
         label.entity = text.entity;
         label.spec = spec;
         label.fontAlias = style.fontAlias;
+        label.lineHeightPx = style.lineHeightPx;
         label.lineSpacingPx = style.lineSpacingPx;
         label.letterSpacingPx = style.letterSpacingPx;
 

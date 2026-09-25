@@ -127,7 +127,7 @@ namespace chronicle
         return mark;
     }
 
-    void Mark::setName(EntitySystem* ecs, const std::string& name)
+    void Mark::setName(EntitySystem*, const std::string& name)
     {
         spec.name = validateMarkName(name);
         entity->get<IconComponent>()->setIconName(spec.name);
@@ -139,7 +139,7 @@ namespace chronicle
         spec.colour = token;
     }
 
-    void Mark::setSize(EntitySystem* ecs, MarkSize size)
+    void Mark::setSize(EntitySystem*, MarkSize size)
     {
         spec.size = size;
         auto pos = entity->get<PositionComponent>();

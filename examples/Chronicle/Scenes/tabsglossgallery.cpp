@@ -102,7 +102,7 @@ namespace chronicle
             std::string text = "selected: " + it.label;
             if (it.badge > 0)
                 text += " (" + std::to_string(it.badge) + ")";
-            selected.setText(ecsRef, *styles, text);
+            selected.setText(ecsRef, text);
         });
 
         // ── Left: a Parts panel whose rows carry glosses ──────────────────────

@@ -129,7 +129,7 @@ namespace chronicle
 
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& event)
         {
-            lastTag.setText(ecsRef, *styles, "activated: " + event.tag);
+            lastTag.setText(ecsRef, "activated: " + event.tag);
         });
 
         listenToEvent<OnSDLScanCode>([this](const OnSDLScanCode& event)

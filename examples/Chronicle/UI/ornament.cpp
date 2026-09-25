@@ -265,7 +265,7 @@ namespace chronicle
             letter->setColour(ecs, token);
     }
 
-    void Ornament::setLetter(EntitySystem* ecs, const TextStyles& styles, const std::string& newLetter)
+    void Ornament::setLetter(EntitySystem* ecs, const TextStyles&, const std::string& newLetter)
     {
         if (letter)
             letter->setText(ecs, firstCodePoint(newLetter));

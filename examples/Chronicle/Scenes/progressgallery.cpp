@@ -147,7 +147,7 @@ namespace chronicle
             else if (event.key == SDL_SCANCODE_R)
             {
                 Motion::setReduced(not Motion::reduced());
-                motionLabel.setText(ecsRef, *styles, Motion::reduced() ? "motion: reduced" : "motion: full");
+                motionLabel.setText(ecsRef, Motion::reduced() ? "motion: reduced" : "motion: full");
             }
         });
 
