@@ -10,6 +10,7 @@
 #include "UI/prefab.h"
 #include "UI/ttftext.h"
 
+#include "Core/textmetrics.h"
 #include "paint.h"
 #include "gloss.h"
 
@@ -27,13 +28,6 @@ namespace chronicle
         constexpr float BASE_H = HEAD + GAP1 + TRACK;   // 34 (no note)
 
         const std::string PROJ = "\xE2\x86\x92 ";   // U+2192 + space: "-> "
-
-        // Ascender of a style's "H" (a property of the per-ECS font atlas), measured fresh.
-        float ascenderOf(EntitySystem* ecs, const TextStyles& styles, const std::string& style)
-        {
-            const TextStyle& s = styles.get(style);
-            return ecs->getSystem<TTFTextSystem>()->measureText(s.fontAlias, "H", 1.0f, 0.0f, 0.0f, s.letterSpacingPx).ascender;
-        }
 
         // Upper-case ASCII only; non-ASCII bytes (é, …) pass through untouched — `label` is a caps
         // style and the four MVP labels are ASCII; this documents the limit rather than transliterating.

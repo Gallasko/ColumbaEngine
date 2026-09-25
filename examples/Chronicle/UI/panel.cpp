@@ -11,6 +11,7 @@
 #include "UI/sizer.h"
 #include "UI/ttftext.h"
 
+#include "Core/textmetrics.h"
 #include "paint.h"
 
 using namespace pg;
@@ -40,13 +41,6 @@ namespace chronicle
             }
         }
 
-        // Ascender of a style's "H" (a property of the font atlas). Measured fresh: the atlas is
-        // per-ECS, so a process-wide cache keyed on style name would leak values across ECS instances.
-        float ascenderOf(EntitySystem* ecs, const TextStyles& styles, const std::string& style)
-        {
-            const TextStyle& s = styles.get(style);
-            return ecs->getSystem<TTFTextSystem>()->measureText(s.fontAlias, "H", 1.0f, 0.0f, 0.0f, s.letterSpacingPx).ascender;
-        }
     }
 
     Panel makePanel(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const PanelSpec& specIn)
@@ -215,7 +209,7 @@ namespace chronicle
 
                 // Align the aside's baseline on the heading's: shift its box top by the ascender gap.
                 // (The title is set in the "heading" style; spec.heading is its text, not a style.)
-                const float baseline = ascenderOf(ecs, styles, "heading") - ascenderOf(ecs, styles, "label");
+                const float baseline = baselineShift(ecs, styles, "heading", "label");
                 aa->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
                 aa->setTopMargin(P + baseline);
 

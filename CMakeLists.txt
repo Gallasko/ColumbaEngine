@@ -1541,6 +1541,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         set(CHRONICLE_CORE
             examples/Chronicle/Core/tokens.cpp
             examples/Chronicle/Core/textstyle.cpp
+            examples/Chronicle/Core/textmetrics.cpp
             examples/Chronicle/Core/motion.cpp
             examples/Chronicle/UI/paint.cpp
             examples/Chronicle/UI/label.cpp
@@ -1632,6 +1633,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/chronicle/tabs.cc
             test/chronicle/progressrule.cc
             test/chronicle/statline.cc
+            test/chronicle/textmetrics.cc
             ${CHRONICLE_CORE}
         )
         target_link_libraries(test_chronicle PRIVATE gtest gtest_main ColumbaEngine)
