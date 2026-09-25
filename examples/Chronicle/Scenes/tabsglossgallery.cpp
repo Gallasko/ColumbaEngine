@@ -48,7 +48,7 @@ namespace chronicle
         auto caption = [&](float x, float y, const std::string& text, const std::string& colour)
         {
             LabelSpec spec; spec.style = "caption"; spec.text = text; spec.colour = colour; spec.z = 15;
-            place(makeLabel(ecsRef, *tokens, *styles, spec).box, x, y);
+            place(makeLabel(ecsRef, *tokens, *styles, spec).entity, x, y);
         };
 
         const float margin = tokens->space(7);   // 48
@@ -91,7 +91,7 @@ namespace chronicle
         // Echo the last selection.
         LabelSpec ss; ss.style = "body-sm"; ss.text = "selected: Life"; ss.colour = "ink-muted"; ss.z = 15;
         selected = makeLabel(ecsRef, *tokens, *styles, ss);
-        place(selected.box, margin, 150.0f);
+        place(selected.entity, margin, 150.0f);
 
         const std::vector<TabItem> items = ts.items;
         listenToEvent<TabSelectedEvent>([this, items](const TabSelectedEvent& e)

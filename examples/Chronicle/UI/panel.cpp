@@ -205,11 +205,11 @@ namespace chronicle
                 as.style = "label";
                 as.text = spec.aside;
                 as.colour = "ink-muted";
-                as.z = headZ;
+                as.z = headZ + 1;
 
                 Label a = makeLabel(ecs, tokens, styles, as);
-                asideWidth = a.box->get<PositionComponent>()->width;
-                auto aa = a.box->get<UiAnchor>();
+                asideWidth = a.entity->get<PositionComponent>()->width;
+                auto aa = a.entity->get<UiAnchor>();
                 aa->setRightAnchor(PosAnchor{rootId, AnchorType::Right});
                 aa->setRightMargin(P);
 
@@ -219,7 +219,7 @@ namespace chronicle
                 aa->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
                 aa->setTopMargin(P + baseline);
 
-                root.get<Prefab>()->addToPrefab(a.box);
+                root.get<Prefab>()->addToPrefab(a.entity);
                 panel.aside = a;
             }
 
@@ -248,16 +248,16 @@ namespace chronicle
             ts.align = Align::Left;
             ts.overflow = Overflow::Ellipsis;
             ts.width = titleWidth;
-            ts.z = headZ;
+            ts.z = headZ + 1;
 
             Label t = makeLabel(ecs, tokens, styles, ts);
-            auto ta = t.box->get<UiAnchor>();
+            auto ta = t.entity->get<UiAnchor>();
             ta->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             ta->setLeftMargin(P + glyphAdvance);
             ta->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
             ta->setTopMargin(P);
 
-            root.get<Prefab>()->addToPrefab(t.box);
+            root.get<Prefab>()->addToPrefab(t.entity);
             panel.title = t;
 
             OrnamentSpec rs;
@@ -293,7 +293,7 @@ namespace chronicle
         body->get<VerticalLayout>()->removeEntity(child);
     }
 
-    void Panel::setHeading(EntitySystem* ecs, const TextStyles& s, const std::string& text)
+    void Panel::setHeading(EntitySystem* ecs, const TextStyles&, const std::string& text)
     {
         if (text.empty())
         {
@@ -302,31 +302,31 @@ namespace chronicle
         }
 
         if (title)
-            title->setText(ecs, s, text);
+            title->setText(ecs, text);
     }
 
-    void Panel::setAside(EntitySystem* ecs, const TextStyles& s, const std::string& text)
+    void Panel::setAside(EntitySystem* ecs, const TextStyles&, const std::string& text)
     {
         if (text.empty())
         {
             // Remove the aside and widen the title back to the glyph-only inner width.
             if (aside)
             {
-                ecs->removeEntity(aside->box.id);
+                ecs->removeEntity(aside->entity.id);
                 aside.reset();
             }
 
             if (title)
             {
                 const float glyphAdvance = glyph ? GLYPH_ADVANCE : 0.0f;
-                title->setWidth(ecs, s, innerWidth() - glyphAdvance);
+                title->setWidth(ecs, innerWidth() - glyphAdvance);
             }
 
             return;
         }
 
         if (aside)
-            aside->setText(ecs, s, text);
+            aside->setText(ecs, text);
     }
 
     void Panel::setWidth(EntitySystem* ecs, float w)
@@ -337,10 +337,10 @@ namespace chronicle
         if (title and styles)
         {
             const float glyphAdvance = glyph ? GLYPH_ADVANCE : 0.0f;
-            const float asideW = aside ? aside->box->get<PositionComponent>()->width : 0.0f;
+            const float asideW = aside ? aside->entity->get<PositionComponent>()->width : 0.0f;
             const float titleWidth = innerWidth() - glyphAdvance - (asideW > 0.0f ? asideW + 8.0f : 0.0f);
 
-            title->setWidth(ecs, *styles, titleWidth);
+            title->setWidth(ecs, titleWidth);
         }
     }
 

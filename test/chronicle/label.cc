@@ -21,13 +21,7 @@ namespace pg
     {
         namespace
         {
-            const std::string ELL = "\xE2\x80\xA6";
             const std::string FOX = "The quick brown fox jumps over the lazy dog";
-
-            bool endsWithEllipsis(const std::string& s)
-            {
-                return s.size() >= ELL.size() and s.compare(s.size() - ELL.size(), ELL.size(), ELL) == 0;
-            }
 
             std::string paragraph(int words)
             {
@@ -60,7 +54,19 @@ namespace pg
 
                 CompRef<PositionComponent> pos(EntityRef e) { return ecs.getEntity(e.id)->get<PositionComponent>(); }
                 CompRef<TTFText> ttfOf(EntityRef e) { return ecs.getEntity(e.id)->get<TTFText>(); }
-                CompRef<UiAnchor> anchorOf(EntityRef e) { return ecs.getEntity(e.id)->get<UiAnchor>(); }
+
+                // The label's layout constraint set, as the engine sees it.
+                TextLayoutParams paramsOf(const Label& l)
+                {
+                    TextLayoutParams p;
+                    p.maxWidth = l.spec.overflow != Overflow::Grow ? l.spec.width : 0.0f;
+                    p.spacing = l.lineSpacingPx;
+                    p.letterSpacing = l.letterSpacingPx;
+                    p.overflow = l.spec.overflow;
+                    p.align = l.spec.align;
+                    p.maxLines = l.spec.maxLines;
+                    return p;
+                }
             };
         }
 
@@ -70,8 +76,8 @@ namespace pg
             MockLogger logger; LabelFixture s;
             auto label = makeLabel(&s.ecs, s.tokens, s.styles, {"body", "STR 14"});
             s.settle();
-            EXPECT_NEAR(label.boxWidth(&s.ecs), s.ttf->measureText("chr-body", "STR 14").width, 0.01f);
-            EXPECT_FLOAT_EQ(label.boxHeight(&s.ecs), 24.0f);
+            EXPECT_NEAR(s.pos(label.entity)->width, s.ttf->measureText("chr-body", "STR 14").width, 0.01f);
+            EXPECT_FLOAT_EQ(s.pos(label.entity)->height, 24.0f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -80,7 +86,7 @@ namespace pg
             MockLogger logger; LabelFixture s;
             auto label = makeLabel(&s.ecs, s.tokens, s.styles, {"title", "North Forest"});
             s.settle();
-            EXPECT_FLOAT_EQ(label.boxHeight(&s.ecs), 34.0f);
+            EXPECT_FLOAT_EQ(s.pos(label.entity)->height, 34.0f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -90,33 +96,29 @@ namespace pg
             auto a = makeLabel(&s.ecs, s.tokens, s.styles, {"body", "x"});
             auto b = makeLabel(&s.ecs, s.tokens, s.styles, {"body", "Hg|"});
             s.settle();
-            EXPECT_FLOAT_EQ(a.boxHeight(&s.ecs), b.boxHeight(&s.ecs));
+            EXPECT_FLOAT_EQ(s.pos(a.entity)->height, s.pos(b.entity)->height);
         }
 
         // ----------------------------------------------------------------------------------------
-        TEST(label_test, right_aligned_edge_equals_anchor)
+        TEST(label_test, right_aligned_edge_equals_box_edge)
         {
             MockLogger logger; LabelFixture s;
             LabelSpec spec; spec.style = "figure"; spec.text = "412"; spec.align = Align::Right;
             spec.overflow = Overflow::Ellipsis; spec.width = 300.0f;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
+            auto right = makeLabel(&s.ecs, s.tokens, s.styles, spec);
+            spec.align = Align::Left;
+            auto left = makeLabel(&s.ecs, s.tokens, s.styles, spec);
             s.settle();
-            auto tp = s.pos(label.text);
-            auto bp = s.pos(label.box);
-            EXPECT_NEAR(tp->x + s.ttfOf(label.text)->textWidth, bp->x + 300.0f, 0.01f);
-        }
 
-        // ----------------------------------------------------------------------------------------
-        TEST(label_test, centre_aligned)
-        {
-            MockLogger logger; LabelFixture s;
-            LabelSpec spec; spec.style = "body"; spec.text = "Training"; spec.align = Align::Centre;
-            spec.overflow = Overflow::Ellipsis; spec.width = 300.0f;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
-            s.settle();
-            auto tp = s.pos(label.text);
-            auto bp = s.pos(label.box);
-            EXPECT_NEAR(tp->x + s.ttfOf(label.text)->textWidth / 2.0f, bp->x + 150.0f, 0.01f);
+            // Alignment happens inside the glyph layout: the right-aligned glyphs sit
+            // exactly the free box space to the right of the left-aligned twin's.
+            const float w = s.ttfOf(right.entity)->textWidth;
+            const auto& rightGlyphs = s.ttf->entityGlyphTemplates[right.entity.id];
+            const auto& leftGlyphs = s.ttf->entityGlyphTemplates[left.entity.id];
+            ASSERT_FALSE(rightGlyphs.empty());
+            ASSERT_EQ(rightGlyphs.size(), leftGlyphs.size());
+            for (size_t i = 0; i < rightGlyphs.size(); ++i)
+                EXPECT_NEAR(rightGlyphs[i].relX - leftGlyphs[i].relX, std::round(300.0f - w), 0.01f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -125,34 +127,16 @@ namespace pg
             MockLogger logger; LabelFixture s;
             LabelSpec spec; spec.style = "body"; spec.text = FOX; spec.overflow = Overflow::Ellipsis; spec.width = 120.0f;
             auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
-            EXPECT_TRUE(endsWithEllipsis(label.fitted));
+            s.settle();
+
+            const TextMetrics metrics = s.ttf->measureText(label.fontAlias, FOX, s.paramsOf(label));
+            EXPECT_TRUE(metrics.elided);
+            EXPECT_EQ(metrics.lineCount, 1);
+
+            EXPECT_GT(s.ttfOf(label.entity)->textWidth, 0.0f);
+            EXPECT_LE(s.ttfOf(label.entity)->textWidth, 120.0f);
             const TextStyle& style = s.styles.get("body");
-            EXPECT_LE(s.ttf->measureText("chr-body", label.fitted, 1, 0, 0, style.letterSpacingPx).width, 120.0f);
             EXPECT_GT(s.ttf->measureText("chr-body", FOX, 1, 0, 0, style.letterSpacingPx).width, 120.0f);
-        }
-
-        // ----------------------------------------------------------------------------------------
-        TEST(label_test, ellipsis_no_trailing_space)
-        {
-            MockLogger logger; LabelFixture s;
-            const TextStyle& style = s.styles.get("body");
-            // A width between "one two…" and "one two t…", so the fit lands on the word
-            // boundary and must trim the trailing space before the ellipsis.
-            const float lo = s.ttf->measureText("chr-body", "one two" + ELL, 1, 0, 0, style.letterSpacingPx).width;
-            const float hi = s.ttf->measureText("chr-body", "one two t" + ELL, 1, 0, 0, style.letterSpacingPx).width;
-            const float width = (lo + hi) / 2.0f;
-            LabelSpec spec; spec.style = "body"; spec.text = "one two three"; spec.overflow = Overflow::Ellipsis; spec.width = width;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
-            EXPECT_EQ(label.fitted, "one two" + ELL);
-        }
-
-        // ----------------------------------------------------------------------------------------
-        TEST(label_test, ellipsis_too_narrow_is_empty)
-        {
-            MockLogger logger; LabelFixture s;
-            LabelSpec spec; spec.style = "body"; spec.text = FOX; spec.overflow = Overflow::Ellipsis; spec.width = 2.0f;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
-            EXPECT_EQ(label.fitted, "");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -162,11 +146,11 @@ namespace pg
             LabelSpec spec; spec.style = "body"; spec.text = paragraph(60); spec.overflow = Overflow::Wrap; spec.width = 300.0f;
             auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
             s.settle();
-            const int lines = countLines(*s.ttf, s.styles.get("body"), label.fitted, 300.0f);
+            const int lines = s.ttf->measureText(label.fontAlias, label.spec.text, s.paramsOf(label)).lineCount;
             EXPECT_GE(lines, 3);
-            EXPECT_FLOAT_EQ(label.boxHeight(&s.ecs), lines * 24.0f);
-            EXPECT_TRUE(s.ttfOf(label.text)->wrap);
-            EXPECT_NEAR(s.pos(label.text)->width, 300.0f, 0.01f);
+            EXPECT_FLOAT_EQ(s.pos(label.entity)->height, lines * 24.0f);
+            EXPECT_TRUE(s.ttfOf(label.entity)->overflow == pg::TextOverflow::Wrap);
+            EXPECT_NEAR(s.pos(label.entity)->width, 300.0f, 0.01f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -177,9 +161,10 @@ namespace pg
             spec.width = 300.0f; spec.maxLines = 2;
             auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
             s.settle();
-            EXPECT_FLOAT_EQ(label.boxHeight(&s.ecs), 48.0f);
-            EXPECT_TRUE(endsWithEllipsis(label.fitted));
-            EXPECT_EQ(countLines(*s.ttf, s.styles.get("body"), label.fitted, 300.0f), 2);
+            EXPECT_FLOAT_EQ(s.pos(label.entity)->height, 48.0f);
+            const TextMetrics metrics = s.ttf->measureText(label.fontAlias, label.spec.text, s.paramsOf(label));
+            EXPECT_TRUE(metrics.elided);
+            EXPECT_EQ(metrics.lineCount, 2);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -188,10 +173,12 @@ namespace pg
             MockLogger logger; LabelFixture s;
             auto label = makeLabel(&s.ecs, s.tokens, s.styles, {"body", "a"});
             s.settle();
-            const float before = label.boxWidth(&s.ecs);
-            label.setText(&s.ecs, s.styles, "a much longer line");
+            const float before = s.pos(label.entity)->width;
+            label.setText(&s.ecs, "a much longer line");
+            // The label re-measures synchronously; callers size layouts on it at once.
+            EXPECT_GT(s.pos(label.entity)->width, before);
             s.settle();
-            EXPECT_GT(label.boxWidth(&s.ecs), before);
+            EXPECT_GT(s.pos(label.entity)->width, before);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -200,8 +187,11 @@ namespace pg
             MockLogger logger; LabelFixture s;
             LabelSpec spec; spec.style = "body"; spec.text = FOX; spec.overflow = Overflow::Ellipsis; spec.width = 300.0f;
             auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
-            label.setWidth(&s.ecs, s.styles, 80.0f);
-            EXPECT_TRUE(endsWithEllipsis(label.fitted));
+            s.settle();
+            label.setWidth(&s.ecs, 80.0f);
+            s.settle();
+            EXPECT_TRUE(s.ttf->measureText(label.fontAlias, FOX, s.paramsOf(label)).elided);
+            EXPECT_LE(s.ttfOf(label.entity)->textWidth, 80.0f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -212,54 +202,24 @@ namespace pg
             auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
 
             auto verdigrisDay = s.tokens.colour("verdigris", Theme::Day);
-            EXPECT_FLOAT_EQ(s.ttfOf(label.text)->colors.x, verdigrisDay.x);
+            EXPECT_FLOAT_EQ(s.ttfOf(label.entity)->colors.x, verdigrisDay.x);
 
             s.tokens.setTheme(Theme::Candle);
             s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
             s.ecs.executeOnce();
 
             auto verdigrisCandle = s.tokens.colour("verdigris", Theme::Candle);
-            EXPECT_FLOAT_EQ(s.ttfOf(label.text)->colors.x, verdigrisCandle.x);
+            EXPECT_FLOAT_EQ(s.ttfOf(label.entity)->colors.x, verdigrisCandle.x);
         }
 
         // ----------------------------------------------------------------------------------------
-        TEST(label_test, z_is_parent_plus_one)
+        TEST(label_test, z_matches_spec)
         {
             MockLogger logger; LabelFixture s;
             LabelSpec spec; spec.style = "body"; spec.text = "x"; spec.z = 20;
             auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
             s.settle();
-            EXPECT_FLOAT_EQ(s.pos(label.box)->z, 20.0f);
-            EXPECT_FLOAT_EQ(s.pos(label.text)->z, 21.0f);
-
-            s.pos(label.box)->setZ(30.0f);
-            s.settle();
-            EXPECT_FLOAT_EQ(s.pos(label.text)->z, 31.0f);
-        }
-
-        // ----------------------------------------------------------------------------------------
-        TEST(label_test, wrap_ignores_align_with_warning)
-        {
-            MockLogger logger; LabelFixture s;
-            LabelSpec spec; spec.style = "body"; spec.text = paragraph(60); spec.overflow = Overflow::Wrap;
-            spec.width = 300.0f; spec.align = Align::Right;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
-            s.settle();
-            auto a = s.anchorOf(label.text);
-            EXPECT_TRUE(a->hasLeftAnchor);
-            EXPECT_TRUE(a->hasRightAnchor);
-            EXPECT_FALSE(a->hasHorizontalCenter);
-        }
-
-        // ----------------------------------------------------------------------------------------
-        TEST(label_test, letter_spacing_in_fit)
-        {
-            MockLogger logger; LabelFixture s;
-            // A width that fits "REQUIRES" WITHOUT tracking but not WITH the label style's tracking.
-            const float untracked = s.ttf->measureText("chr-label", "REQUIRES", 1, 0, 0, 0.0f).width;
-            LabelSpec spec; spec.style = "label"; spec.text = "REQUIRES"; spec.overflow = Overflow::Ellipsis; spec.width = untracked;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
-            EXPECT_TRUE(endsWithEllipsis(label.fitted));
+            EXPECT_FLOAT_EQ(s.pos(label.entity)->z, 20.0f);
         }
     }
 }

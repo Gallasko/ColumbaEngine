@@ -318,11 +318,11 @@ namespace pg
             s.settle();
 
             ASSERT_TRUE(orn.letter.has_value());
-            EXPECT_NEAR(s.pos(orn.letter->box)->x, s.pos(orn.root)->x, 0.5f);
-            const float textCentre = s.pos(orn.letter->text)->x + s.ttfOf(orn.letter->text)->textWidth / 2.0f;
+            EXPECT_NEAR(s.pos(orn.letter->entity)->x, s.pos(orn.root)->x, 0.5f);
+            const float textCentre = s.pos(orn.letter->entity)->x + s.ttfOf(orn.letter->entity)->textWidth / 2.0f;
             EXPECT_NEAR(textCentre, s.pos(orn.root)->x + 36.0f, 0.5f);
             EXPECT_EQ(orn.letter->spec.style, "chapter");
-            EXPECT_EQ(orn.letter->fitted, "\xC3\x86");   // first code point only
+            EXPECT_EQ(orn.letter->spec.text, "\xC3\x86");   // first code point only
         }
 
         // ----------------------------------------------------------------------------------------
@@ -340,14 +340,14 @@ namespace pg
             const auto gold = s.tokens.colour("gold-edge");
             EXPECT_FLOAT_EQ(s.strokeOf(orn.parts[0])->colors.x, gold.x);
             EXPECT_FLOAT_EQ(s.iconOf(orn.parts[1])->colors.x, gold.x);
-            EXPECT_FLOAT_EQ(s.ttfOf(orn.letter->text)->colors.x, gold.x);
+            EXPECT_FLOAT_EQ(s.ttfOf(orn.letter->entity)->colors.x, gold.x);
 
             orn.setColour(&s.ecs, "lapis");
             s.settle();   // the PaintComponent change event applies on the next frame
             const auto lapis = s.tokens.colour("lapis");
             EXPECT_FLOAT_EQ(s.strokeOf(orn.parts[0])->colors.x, lapis.x);
             EXPECT_FLOAT_EQ(s.iconOf(orn.parts[1])->colors.x, lapis.x);
-            EXPECT_FLOAT_EQ(s.ttfOf(orn.letter->text)->colors.x, lapis.x);
+            EXPECT_FLOAT_EQ(s.ttfOf(orn.letter->entity)->colors.x, lapis.x);
         }
 
         // ----------------------------------------------------------------------------------------

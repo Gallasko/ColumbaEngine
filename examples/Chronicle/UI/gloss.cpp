@@ -43,7 +43,7 @@ namespace chronicle
         // them offstage so that frame is off-screen instead of a blink at (0, 0).
         constexpr float OFFSTAGE = -10000.0f;
 
-        float boxH(const Label& l) { EntityRef b = l.box; return b->get<PositionComponent>()->height; }
+        float boxH(const Label& l) { EntityRef e = l.entity; return e->get<PositionComponent>()->height; }
     }
 
     Gloss makeGloss(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const GlossSpec& spec)
@@ -72,13 +72,13 @@ namespace chronicle
             g.root = root.entity;
 
             LabelSpec ts; ts.style = "gloss"; ts.text = spec.text; ts.colour = "ink-muted";
-            ts.overflow = Overflow::Wrap; ts.width = W - TEXT_INDENT; ts.z = z;
+            ts.overflow = Overflow::Wrap; ts.width = W - TEXT_INDENT; ts.z = z + 1;
             Label text = makeLabel(ecs, tokens, styles, ts);
-            auto ta = text.box->get<UiAnchor>();
+            auto ta = text.entity->get<UiAnchor>();
             ta->setLeftAnchor(PosAnchor{rootId, AnchorType::Left}); ta->setLeftMargin(TEXT_INDENT);
             ta->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
-            ta->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
-            root.get<Prefab>()->addToPrefab(text.box);
+            ta->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 2.0f});
+            root.get<Prefab>()->addToPrefab(text.entity);
             g.text = text;
 
             root.get<PositionComponent>()->setHeight(boxH(text));
@@ -139,20 +139,15 @@ namespace chronicle
             ls.overflow = overflow; ls.width = width; ls.z = z;
             if (alignRight) ls.align = Align::Right;
             Label l = makeLabel(ecs, tokens, styles, ls);
-            offstage(l.box);
-            offstage(l.text);
-            auto a = l.box->get<UiAnchor>();
+            offstage(l.entity);
+            auto a = l.entity->get<UiAnchor>();
             if (alignRight) { a->setRightAnchor(PosAnchor{rootId, AnchorType::Right}); a->setRightMargin(PAD); }
             else            { a->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});   a->setLeftMargin(PAD); }
             a->setTopAnchor(PosAnchor{rootId, AnchorType::Top}); a->setTopMargin(y);
-            a->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 2.0f});
-            root.get<Prefab>()->addToPrefab(l.box);
-
-            // The visible glyphs are what must clear the ground(+0)/frame(+1). makeLabel constrains
-            // the TTFText to its box (box+1); constrain it straight to the root instead (+3), the
-            // same single-level pattern the ground and frame use, so every part of the gloss sits
-            // in one explicit band off the root.
-            l.text->get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
+            // The glyphs must clear the ground(+0) and frame(+1): one band above the
+            // frame, the same single-level pattern the ground and frame use.
+            a->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
+            root.get<Prefab>()->addToPrefab(l.entity);
             return l;
         };
 
@@ -191,14 +186,14 @@ namespace chronicle
         return ecs->getEntity(root.id)->get<PositionComponent>()->height;
     }
 
-    void Gloss::setText(EntitySystem* ecs, const TextStyles& styles, const std::string& newText)
+    void Gloss::setText(EntitySystem* ecs, const TextStyles&, const std::string& newText)
     {
         if (not text)
             return;
-        text->setText(ecs, styles, newText);
+        text->setText(ecs, newText);
         spec.text = newText;
         if (spec.kind == GlossKind::Margin)
-            root->get<PositionComponent>()->setHeight(text->box->get<PositionComponent>()->height);
+            root->get<PositionComponent>()->setHeight(text->entity->get<PositionComponent>()->height);
     }
 
     // ── GlossRegistry ────────────────────────────────────────────────────────
@@ -233,7 +228,7 @@ namespace chronicle
             fallback.z = TOOLTIP_Z_BAND;
             lastBuilt = makeGloss(&ecs, *tokens, *styles, fallback);
             if (lastBuilt.text)
-                lastBuilt.text->text->get<PaintComponent>()->setToken("vermilion");
+                lastBuilt.text->entity->get<PaintComponent>()->setToken("vermilion");
             return lastBuilt.root;
         });
     }

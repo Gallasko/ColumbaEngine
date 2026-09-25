@@ -70,7 +70,7 @@ namespace chronicle
         bool reserveMark = false;      // keep the mark column even when `mark` is empty
         LabelSpec label;               // colour here is THE colour: the mark takes it
         float gap = -1.0f;             // < 0 -> tokens.space(2) (8 px)
-        int z = 0;                     // root z; label box z+0 (text z+1), mark z+1
+        int z = 0;                     // root z; label glyphs z+1, mark z+1
     };
 
     struct MarkedLabel

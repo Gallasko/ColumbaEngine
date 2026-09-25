@@ -109,17 +109,17 @@ namespace chronicle
         b.styles = &styles;
 
         // Measure the label (and the cost figure) so the face can size to them.
-        LabelSpec ls; ls.style = "control"; ls.text = spec.label; ls.colour = ink; ls.z = z + 2;
+        LabelSpec ls; ls.style = "control"; ls.text = spec.label; ls.colour = ink; ls.z = z + 3;
         Label label = makeLabel(ecs, tokens, styles, ls);
-        const float labelW = label.box->get<PositionComponent>()->width;
+        const float labelW = label.entity->get<PositionComponent>()->width;
 
         float costTextW = 0.0f;
         std::optional<Label> costLabel;
         if (hasCost)
         {
-            LabelSpec cs; cs.style = "tick"; cs.text = monthsText(spec.months); cs.colour = cost; cs.z = z + 2;
+            LabelSpec cs; cs.style = "tick"; cs.text = monthsText(spec.months); cs.colour = cost; cs.z = z + 3;
             costLabel = makeLabel(ecs, tokens, styles, cs);
-            costTextW = costLabel->box->get<PositionComponent>()->width;
+            costTextW = costLabel->entity->get<PositionComponent>()->width;
         }
 
         const float faceW = PAD_X
@@ -232,10 +232,10 @@ namespace chronicle
             x += GLYPH + GAP;
         }
 
-        anchorInFace(label.box, x, 2, /*vcentre*/ true);
-        repaint(label.text, ink, a0);
+        anchorInFace(label.entity, x, 3, /*vcentre*/ true);
+        repaint(label.entity, ink, a0);
         b.label = label;
-        state->inked.push_back(label.text.id);
+        state->inked.push_back(label.entity.id);
         x += labelW;
 
         if (hasCost)
@@ -249,26 +249,26 @@ namespace chronicle
             state->costParts.push_back(cm.entity.id);
             x += COST_MARK + COST_GAP;
 
-            anchorInFace(costLabel->box, x, 2, /*vcentre*/ true);
-            repaint(costLabel->text, cost, a0);
+            anchorInFace(costLabel->entity, x, 3, /*vcentre*/ true);
+            repaint(costLabel->entity, cost, a0);
             b.cost = costLabel;
-            state->inked.push_back(costLabel->text.id);
-            state->costParts.push_back(costLabel->text.id);
+            state->inked.push_back(costLabel->entity.id);
+            state->costParts.push_back(costLabel->entity.id);
         }
 
         // reason (created when there is reason text; shown only while disabled).
         if (hasReason)
         {
-            LabelSpec rs; rs.style = "caption"; rs.text = spec.reason; rs.colour = "ink-faint"; rs.z = z + 2;
+            LabelSpec rs; rs.style = "caption"; rs.text = spec.reason; rs.colour = "ink-faint"; rs.z = z + 3;
             Label r = makeLabel(ecs, tokens, styles, rs);
-            auto ra = r.box->get<UiAnchor>();
+            auto ra = r.entity->get<UiAnchor>();
             ra->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             ra->setTopAnchor(PosAnchor{faceId, AnchorType::Bottom}); ra->setTopMargin(REASON_GAP);
-            ra->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 2.0f});
-            r.box->get<PositionComponent>()->setVisible(spec.disabled);
-            root.get<Prefab>()->addToPrefab(r.box);
+            ra->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 3.0f});
+            r.entity->get<PositionComponent>()->setVisible(spec.disabled);
+            root.get<Prefab>()->addToPrefab(r.entity);
             b.reason = r;
-            state->reasonBox = r.box.id;
+            state->reasonBox = r.entity.id;
         }
 
         return b;
@@ -283,7 +283,7 @@ namespace chronicle
             fo->setEnabled(face.id, not disabled);
         if (not newReason.empty() and reason and styles)
         {
-            reason->setText(ecs, *styles, newReason);
+            reason->setText(ecs, newReason);
             spec.reason = newReason;
         }
         // The reason band changes the root height.
@@ -292,14 +292,14 @@ namespace chronicle
         ecs->getSystem<ButtonSystem>()->applyVisual(face);
     }
 
-    void Button::setLabel(EntitySystem* ecs, const TextStyles& styles, const std::string& text)
+    void Button::setLabel(EntitySystem* ecs, const TextStyles&, const std::string& text)
     {
-        label.setText(ecs, styles, text);
+        label.setText(ecs, text);
         // Re-measure and regrow the face; the glyph/cost anchors reflow from the new label width.
-        const float labelW = label.box->get<PositionComponent>()->width;
+        const float labelW = label.entity->get<PositionComponent>()->width;
         const bool hasGlyph = glyph.has_value();
         const bool hasCost = cost.has_value();
-        float costTextW = hasCost ? cost->box->get<PositionComponent>()->width : 0.0f;
+        float costTextW = hasCost ? cost->entity->get<PositionComponent>()->width : 0.0f;
         const float faceW = PAD_X + (hasGlyph ? GLYPH + GAP : 0.0f) + labelW
             + (hasCost ? GAP + COST_MARK + COST_GAP + costTextW : 0.0f) + PAD_X;
         root->get<PositionComponent>()->setWidth(faceW);
@@ -310,7 +310,7 @@ namespace chronicle
             float x = PAD_X + (hasGlyph ? GLYPH + GAP : 0.0f) + labelW + GAP;
             costMark->entity->get<UiAnchor>()->setLeftMargin(x);
             x += COST_MARK + COST_GAP;
-            cost->box->get<UiAnchor>()->setLeftMargin(x);
+            cost->entity->get<UiAnchor>()->setLeftMargin(x);
         }
         spec.label = text;
     }

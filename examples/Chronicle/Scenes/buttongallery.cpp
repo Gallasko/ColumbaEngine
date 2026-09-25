@@ -52,7 +52,7 @@ namespace chronicle
         auto caption = [&](float x, float y, const std::string& text, const std::string& colour)
         {
             LabelSpec spec; spec.style = "caption"; spec.text = text; spec.colour = colour; spec.z = 15;
-            place(makeLabel(ecsRef, *tokens, *styles, spec).box, x, y);
+            place(makeLabel(ecsRef, *tokens, *styles, spec).entity, x, y);
         };
 
         // A row of buttons laid out left to right.
@@ -116,7 +116,7 @@ namespace chronicle
             place(makeButton(ecsRef, *tokens, *styles, ov).root, margin, 440.0f);
 
             Panel cover = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Ruled, 160.0f, "Cover", "", "", 30, 40});
-            cover.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, {"body", "on top", "ink", Align::Left, Overflow::Grow, 0.0f, 0, 40}).box);
+            cover.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, {"body", "on top", "ink", Align::Left, Overflow::Grow, 0.0f, 0, 40}).entity);
             place(cover.root, margin + 90.0f, 430.0f);
         }
 
@@ -125,7 +125,7 @@ namespace chronicle
 
         LabelSpec ts; ts.style = "body-sm"; ts.text = "(no activation yet)"; ts.colour = "ink-muted"; ts.z = 15;
         lastTag = makeLabel(ecsRef, *tokens, *styles, ts);
-        place(lastTag.box, 980.0f, 820.0f);
+        place(lastTag.entity, 980.0f, 820.0f);
 
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& event)
         {

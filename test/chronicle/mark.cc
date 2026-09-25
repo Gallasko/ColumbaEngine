@@ -229,10 +229,10 @@ namespace pg
 
             const float rootX = s.pos(ml.root)->x;
             const float rootY = s.pos(ml.root)->y;
-            const float labelW = s.pos(ml.label.box)->width;
+            const float labelW = s.pos(ml.label.entity)->width;
 
             EXPECT_NEAR(s.pos(ml.mark->entity)->x, rootX, 0.01f);
-            EXPECT_NEAR(s.pos(ml.label.box)->x, rootX + 18.0f + 8.0f, 0.01f);
+            EXPECT_NEAR(s.pos(ml.label.entity)->x, rootX + 18.0f + 8.0f, 0.01f);
             EXPECT_NEAR(s.pos(ml.root)->width, 26.0f + labelW, 0.01f);
             EXPECT_NEAR(s.pos(ml.root)->height, 22.0f, 0.01f);       // figure line height
 
@@ -250,13 +250,13 @@ namespace pg
 
             MarkedLabel a = makeMarkedLabel(&s.ecs, s.tokens, s.styles, {"", false, {"body", "x"}});
             s.settle();
-            EXPECT_NEAR(s.pos(a.label.box)->x, s.pos(a.root)->x, 0.01f);
-            EXPECT_NEAR(s.pos(a.root)->width, s.pos(a.label.box)->width, 0.01f);
+            EXPECT_NEAR(s.pos(a.label.entity)->x, s.pos(a.root)->x, 0.01f);
+            EXPECT_NEAR(s.pos(a.root)->width, s.pos(a.label.entity)->width, 0.01f);
             EXPECT_FALSE(a.mark.has_value());
 
             MarkedLabel b = makeMarkedLabel(&s.ecs, s.tokens, s.styles, {"", true, {"body", "x"}});
             s.settle();
-            EXPECT_NEAR(s.pos(b.label.box)->x, s.pos(b.root)->x + 16.0f + 8.0f, 0.01f);  // body -> S16 reserved
+            EXPECT_NEAR(s.pos(b.label.entity)->x, s.pos(b.root)->x + 16.0f + 8.0f, 0.01f);  // body -> S16 reserved
             EXPECT_FALSE(b.mark.has_value());
         }
 
@@ -274,13 +274,13 @@ namespace pg
 
             const auto verdigris = s.tokens.colour("verdigris", Theme::Day);
             EXPECT_FLOAT_EQ(s.iconOf(ml.mark->entity)->colors.x, verdigris.x);
-            EXPECT_FLOAT_EQ(s.ttfOf(ml.label.text)->colors.x, verdigris.x);
+            EXPECT_FLOAT_EQ(s.ttfOf(ml.label.entity)->colors.x, verdigris.x);
 
             ml.setColour(&s.ecs, "status-loss");
             s.settle();   // the PaintComponent change event applies on the next frame
             const auto vermilion = s.tokens.colour("vermilion", Theme::Day);
             EXPECT_FLOAT_EQ(s.iconOf(ml.mark->entity)->colors.x, vermilion.x);
-            EXPECT_FLOAT_EQ(s.ttfOf(ml.label.text)->colors.x, vermilion.x);
+            EXPECT_FLOAT_EQ(s.ttfOf(ml.label.entity)->colors.x, vermilion.x);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -315,16 +315,14 @@ namespace pg
             s.settle();
 
             const float rootZ = s.pos(ml.root)->z;
-            const float boxZ = s.pos(ml.label.box)->z;
-            const float textZ = s.pos(ml.label.text)->z;
+            const float labelZ = s.pos(ml.label.entity)->z;
             const float markZ = s.pos(ml.mark->entity)->z;
 
             EXPECT_FLOAT_EQ(rootZ, 20.0f);
-            EXPECT_FLOAT_EQ(boxZ, 20.0f);
-            EXPECT_FLOAT_EQ(textZ, 21.0f);
+            EXPECT_FLOAT_EQ(labelZ, 21.0f);
             EXPECT_FLOAT_EQ(markZ, 21.0f);
 
-            for (float z : {rootZ, boxZ, textZ, markZ})
+            for (float z : {rootZ, labelZ, markZ})
                 EXPECT_FLOAT_EQ(z, std::floor(z));
         }
     }

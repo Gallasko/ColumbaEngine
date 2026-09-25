@@ -117,15 +117,15 @@ namespace chronicle
             }
 
             // label
-            LabelSpec ls; ls.style = "tab"; ls.text = item.label; ls.colour = ink(active); ls.z = z + 2;
+            LabelSpec ls; ls.style = "tab"; ls.text = item.label; ls.colour = ink(active); ls.z = z + 3;
             Label label = makeLabel(ecs, tokens, styles, ls);
-            auto la = label.box->get<UiAnchor>();
+            auto la = label.entity->get<UiAnchor>();
             la->setLeftAnchor(PosAnchor{faceId, AnchorType::Left}); la->setLeftMargin(glyphAdvance);
             la->setTopAnchor(PosAnchor{faceId, AnchorType::Top}); la->setTopMargin(PAD_TOP);
-            la->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 2.0f});
-            root.get<Prefab>()->addToPrefab(label.box);
+            la->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 3.0f});
+            root.get<Prefab>()->addToPrefab(label.entity);
             tab.label = label;
-            st->inked.push_back(label.text.id);
+            st->inked.push_back(label.entity.id);
 
             // badge
             if (hasBadge)
@@ -140,13 +140,13 @@ namespace chronicle
                 root.get<Prefab>()->addToPrefab(frame.entity);
                 tab.badgeFrame = frame.entity;
 
-                LabelSpec bs; bs.style = "caption"; bs.text = std::to_string(item.badge); bs.colour = "ink-muted"; bs.z = z + 2;
+                LabelSpec bs; bs.style = "caption"; bs.text = std::to_string(item.badge); bs.colour = "ink-muted"; bs.z = z + 3;
                 Label badge = makeLabel(ecs, tokens, styles, bs);
-                auto ba = badge.box->get<UiAnchor>();
+                auto ba = badge.entity->get<UiAnchor>();
                 ba->setLeftAnchor(PosAnchor{faceId, AnchorType::Left}); ba->setLeftMargin(bx + BADGE_PAD);
                 ba->setTopAnchor(PosAnchor{faceId, AnchorType::Top}); ba->setTopMargin(PAD_TOP + (TAB_LINE - BADGE_H) / 2.0f);
-                ba->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 2.0f});
-                root.get<Prefab>()->addToPrefab(badge.box);
+                ba->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 3.0f});
+                root.get<Prefab>()->addToPrefab(badge.entity);
                 tab.badge = badge;
             }
 
@@ -225,13 +225,13 @@ namespace chronicle
         {
             if (had)
             {
-                ecs->removeEntity(tab.badge->box.id);
+                ecs->removeEntity(tab.badge->entity.id);
                 ecs->removeEntity(tab.badgeFrame.id);
                 tab.badge.reset();
                 tab.badgeFrame = EntityRef{};
                 // Narrow the face back to glyph + label.
                 const float glyphAdvance = tab.glyph ? GLYPH + GLYPH_GAP : 0.0f;
-                const float labelW = tab.label.box->get<PositionComponent>()->width;
+                const float labelW = tab.label.entity->get<PositionComponent>()->width;
                 tab.face->get<PositionComponent>()->setWidth(glyphAdvance + labelW);
             }
             return;
@@ -239,7 +239,7 @@ namespace chronicle
 
         if (had)
         {
-            tab.badge->setText(ecs, styles, std::to_string(count));
+            tab.badge->setText(ecs, std::to_string(count));
             const TextStyle& capStyle = styles.get("caption");
             const float badgeTextW = ecs->getSystem<TTFTextSystem>()
                 ->measureText(capStyle.fontAlias, std::to_string(count), 1.0f, 0.0f, 0.0f, capStyle.letterSpacingPx).width;
@@ -247,7 +247,7 @@ namespace chronicle
             tab.badgeFrame->get<PositionComponent>()->setWidth(badgeFrameW);
 
             const float glyphAdvance = tab.glyph ? GLYPH + GLYPH_GAP : 0.0f;
-            const float labelW = tab.label.box->get<PositionComponent>()->width;
+            const float labelW = tab.label.entity->get<PositionComponent>()->width;
             tab.face->get<PositionComponent>()->setWidth(glyphAdvance + labelW + BADGE_GAP + badgeFrameW);
         }
         // Adding a badge where none existed is a rebuild; the gallery rebuilds instead.

@@ -51,7 +51,7 @@ namespace chronicle
         auto caption = [&](float x, float y, const std::string& text, const std::string& colour)
         {
             LabelSpec spec; spec.style = "caption"; spec.text = text; spec.colour = colour; spec.z = 15;
-            place(makeLabel(ecsRef, *tokens, *styles, spec).box, x, y);
+            place(makeLabel(ecsRef, *tokens, *styles, spec).entity, x, y);
         };
 
         // A static rule with a caption naming it.
@@ -132,7 +132,7 @@ namespace chronicle
         // ── Motion + theme controls ───────────────────────────────────────────
         LabelSpec ms; ms.style = "caption"; ms.text = "motion: full"; ms.colour = "ink-muted"; ms.z = 15;
         motionLabel = makeLabel(ecsRef, *tokens, *styles, ms);
-        place(motionLabel.box, rx, 200.0f);
+        place(motionLabel.entity, rx, 200.0f);
 
         caption(48.0f, 820.0f, "T toggle theme \xC2\xB7 R toggle reduced motion \xC2\xB7 Advance to fill the bar", "ink-muted");
 

@@ -99,10 +99,10 @@ namespace pg
             EXPECT_EQ(s.token(g.edge), "rule-hair");
 
             ASSERT_TRUE(g.text.has_value());
-            EXPECT_NEAR(s.pos(g.text->box)->x, s.pos(g.root)->x + 14.0f, 0.5f);
-            EXPECT_NEAR(s.pos(g.text->box)->width, 226.0f, 0.5f);
+            EXPECT_NEAR(s.pos(g.text->entity)->x, s.pos(g.root)->x + 14.0f, 0.5f);
+            EXPECT_NEAR(s.pos(g.text->entity)->width, 226.0f, 0.5f);
             EXPECT_EQ(g.text->spec.style, "gloss");
-            EXPECT_NEAR(s.pos(g.root)->height, s.pos(g.text->box)->height, 0.5f);
+            EXPECT_NEAR(s.pos(g.root)->height, s.pos(g.text->entity)->height, 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -151,12 +151,12 @@ namespace pg
             auto top = [&](EntityRef e) { return s.pos(e)->y; };
             auto bottom = [&](EntityRef e) { return s.pos(e)->y + s.pos(e)->height; };
 
-            EXPECT_NEAR(top(g.title->box), rootY + 12.0f, 0.5f);
-            EXPECT_NEAR(top(g.text->box), bottom(g.title->box) + 4.0f, 0.5f);
-            EXPECT_NEAR(top(g.rows[0].first.box), bottom(g.text->box) + 4.0f, 0.5f);
-            EXPECT_NEAR(top(g.rows[2].first.box), bottom(g.rows[1].first.box) + 4.0f, 0.5f);
-            EXPECT_NEAR(top(g.footnote->box), bottom(g.rows[2].first.box) + 8.0f, 0.5f);
-            EXPECT_NEAR(s.pos(g.root)->height, bottom(g.footnote->box) + 12.0f - rootY, 0.5f);
+            EXPECT_NEAR(top(g.title->entity), rootY + 12.0f, 0.5f);
+            EXPECT_NEAR(top(g.text->entity), bottom(g.title->entity) + 4.0f, 0.5f);
+            EXPECT_NEAR(top(g.rows[0].first.entity), bottom(g.text->entity) + 4.0f, 0.5f);
+            EXPECT_NEAR(top(g.rows[2].first.entity), bottom(g.rows[1].first.entity) + 4.0f, 0.5f);
+            EXPECT_NEAR(top(g.footnote->entity), bottom(g.rows[2].first.entity) + 8.0f, 0.5f);
+            EXPECT_NEAR(s.pos(g.root)->height, bottom(g.footnote->entity) + 12.0f - rootY, 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -175,7 +175,7 @@ namespace pg
             const float edge = s.pos(g.root)->x + 12.0f + 256.0f;
             for (const auto& row : g.rows)
             {
-                EXPECT_NEAR(s.pos(row.second.box)->x + s.pos(row.second.box)->width, edge, 0.5f);
+                EXPECT_NEAR(s.pos(row.second.entity)->x + s.pos(row.second.entity)->width, edge, 0.5f);
                 EXPECT_EQ(row.second.spec.style, "figure-sm");
                 EXPECT_EQ(row.first.spec.style, "body-sm");
             }
@@ -193,7 +193,7 @@ namespace pg
             Gloss g = makeGloss(&s.ecs, s.tokens, s.styles, spec);
             s.settle();
 
-            EXPECT_NEAR(g.height(&s.ecs), 12.0f + s.pos(g.text->box)->height + 12.0f, 0.5f);
+            EXPECT_NEAR(g.height(&s.ecs), 12.0f + s.pos(g.text->entity)->height + 12.0f, 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -307,7 +307,7 @@ namespace pg
             ASSERT_TRUE(s.tip->isShowing());
             ASSERT_TRUE(s.reg->lastBuilt.text.has_value());
             EXPECT_NE(s.reg->lastBuilt.text->spec.text.find("nope"), std::string::npos);
-            EXPECT_EQ(s.token(s.reg->lastBuilt.text->text), "vermilion");
+            EXPECT_EQ(s.token(s.reg->lastBuilt.text->entity), "vermilion");
             EXPECT_GE(logger.getNbError(), 1u);
         }
 
@@ -329,7 +329,7 @@ namespace pg
             g.setText(&s.ecs, s.styles, PARA30);
             s.settle();
             EXPECT_EQ(g.text->spec.text, PARA30);
-            EXPECT_NEAR(s.pos(g.root)->height, s.pos(g.text->box)->height, 0.5f);
+            EXPECT_NEAR(s.pos(g.root)->height, s.pos(g.text->entity)->height, 0.5f);
             EXPECT_NEAR(s.pos(g.edge)->height, s.pos(g.root)->height, 0.5f);
         }
 

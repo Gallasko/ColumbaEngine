@@ -138,19 +138,19 @@ namespace pg
             ASSERT_TRUE(sl.name.mark.has_value());
             EXPECT_EQ(sl.name.mark->spec.size, MarkSize::S16);
             EXPECT_EQ(s.token(sl.name.mark->entity), "ink-muted");
-            EXPECT_EQ(sl.name.label.fitted, "STRENGTH");
+            EXPECT_EQ(sl.name.label.spec.text, "STRENGTH");
             EXPECT_EQ(sl.name.label.spec.style, "label");
-            EXPECT_EQ(s.token(sl.name.label.text), "ink-muted");
+            EXPECT_EQ(s.token(sl.name.label.entity), "ink-muted");
 
             // figure at the right, ink.
-            EXPECT_EQ(sl.figure.fitted, "14");
+            EXPECT_EQ(sl.figure.spec.text, "14");
             EXPECT_EQ(sl.figure.spec.style, "figure");
-            EXPECT_EQ(s.token(sl.figure.text), "ink");
-            EXPECT_NEAR(s.rightEdge(sl.figure.box), s.pos(sl.root)->x + 288.0f, 0.5f);
+            EXPECT_EQ(s.token(sl.figure.entity), "ink");
+            EXPECT_NEAR(s.rightEdge(sl.figure.entity), s.pos(sl.root)->x + 288.0f, 0.5f);
 
             // one baseline.
-            const float nameBaseline = s.pos(sl.name.label.box)->y + s.asc("label");
-            const float figBaseline = s.pos(sl.figure.box)->y + s.asc("figure");
+            const float nameBaseline = s.pos(sl.name.label.entity)->y + s.asc("label");
+            const float figBaseline = s.pos(sl.figure.entity)->y + s.asc("figure");
             EXPECT_NEAR(nameBaseline, figBaseline, 0.5f);
         }
 
@@ -182,17 +182,17 @@ namespace pg
             StatLine sl = s.make({288.0f, "Strength", "strength", 14, 30});
             const float nameX = s.pos(sl.name.root)->x;
             const float grooveX = s.pos(sl.groove.root)->x;
-            const float edge0 = s.rightEdge(sl.figure.box);
+            const float edge0 = s.rightEdge(sl.figure.entity);
 
             sl.setValue(&s.ecs, s.styles, 9, false);
             s.settle();
-            const float w9 = s.pos(sl.figure.box)->width;
-            EXPECT_NEAR(s.rightEdge(sl.figure.box), edge0, 0.01f);
+            const float w9 = s.pos(sl.figure.entity)->width;
+            EXPECT_NEAR(s.rightEdge(sl.figure.entity), edge0, 0.01f);
 
             sl.setValue(&s.ecs, s.styles, 15, false);
             s.settle();
-            const float w15 = s.pos(sl.figure.box)->width;
-            EXPECT_NEAR(s.rightEdge(sl.figure.box), edge0, 0.01f);
+            const float w15 = s.pos(sl.figure.entity)->width;
+            EXPECT_NEAR(s.rightEdge(sl.figure.entity), edge0, 0.01f);
             EXPECT_GT(w15, w9);   // "15" is wider than "9", but grows leftward
             EXPECT_NEAR(s.pos(sl.name.root)->x, nameX, 0.01f);
             EXPECT_NEAR(s.pos(sl.groove.root)->x, grooveX, 0.01f);
@@ -209,16 +209,16 @@ namespace pg
             StatLine sl = s.make({288.0f, "Strength", "strength", 14, 30, 17});
 
             ASSERT_TRUE(sl.projected.has_value());
-            EXPECT_EQ(sl.projected->fitted, std::string("\xE2\x86\x92 ") + "17");
+            EXPECT_EQ(sl.projected->spec.text, std::string("\xE2\x86\x92 ") + "17");
             EXPECT_EQ(sl.projected->spec.style, "tick");
-            EXPECT_EQ(s.token(sl.projected->text), "progress-forecast");
-            EXPECT_NEAR(s.rightEdge(sl.projected->box), s.pos(sl.root)->x + 288.0f, 0.5f);
+            EXPECT_EQ(s.token(sl.projected->entity), "progress-forecast");
+            EXPECT_NEAR(s.rightEdge(sl.projected->entity), s.pos(sl.root)->x + 288.0f, 0.5f);
 
-            const float projBaseline = s.pos(sl.projected->box)->y + s.asc("tick");
-            const float figBaseline = s.pos(sl.figure.box)->y + s.asc("figure");
+            const float projBaseline = s.pos(sl.projected->entity)->y + s.asc("tick");
+            const float figBaseline = s.pos(sl.figure.entity)->y + s.asc("figure");
             EXPECT_NEAR(projBaseline, figBaseline, 0.5f);
 
-            EXPECT_NEAR(s.rightEdge(sl.figure.box), s.pos(sl.projected->box)->x - 4.0f, 0.5f);
+            EXPECT_NEAR(s.rightEdge(sl.figure.entity), s.pos(sl.projected->entity)->x - 4.0f, 0.5f);
             EXPECT_NEAR(sl.groove.spec.forecastPercent, 100.0f * 17.0f / 30.0f, 0.01f);
 
             // A projection at the value is not a projection.
@@ -226,7 +226,7 @@ namespace pg
             s.settle();
             EXPECT_FALSE(sl.projected.has_value());
             EXPECT_FLOAT_EQ(sl.groove.spec.forecastPercent, 0.0f);
-            EXPECT_NEAR(s.rightEdge(sl.figure.box), s.pos(sl.root)->x + 288.0f, 0.5f);
+            EXPECT_NEAR(s.rightEdge(sl.figure.entity), s.pos(sl.root)->x + 288.0f, 0.5f);
 
             // Below the value: same.
             sl.setProjected(&s.ecs, s.styles, 12);
@@ -293,8 +293,8 @@ namespace pg
 
             ASSERT_TRUE(sl.note.has_value());
             EXPECT_EQ(sl.note->spec.style, "caption");
-            EXPECT_EQ(s.token(sl.note->text), "ink-faint");
-            EXPECT_NEAR(s.pos(sl.note->box)->y, s.pos(sl.groove.root)->y + 8.0f + 4.0f, 0.5f);
+            EXPECT_EQ(s.token(sl.note->entity), "ink-faint");
+            EXPECT_NEAR(s.pos(sl.note->entity)->y, s.pos(sl.groove.root)->y + 8.0f + 4.0f, 0.5f);
             EXPECT_NEAR(s.pos(sl.root)->height, 53.0f, 0.5f);
 
             sl.setNote(&s.ecs, s.styles, "");
@@ -311,10 +311,10 @@ namespace pg
             StatLineFixture s;
 
             StatLineSpec a; a.label = "Intellect"; a.glyph = "intelligence";
-            EXPECT_EQ(s.make(a).name.label.fitted, "INTELLECT");
+            EXPECT_EQ(s.make(a).name.label.spec.text, "INTELLECT");
 
             StatLineSpec b; b.label = "Vitalité"; b.glyph = "vitality";
-            EXPECT_EQ(s.make(b, 100.0f, 300.0f).name.label.fitted, "VITALITé");   // ASCII only
+            EXPECT_EQ(s.make(b, 100.0f, 300.0f).name.label.spec.text, "VITALITé");   // ASCII only
         }
 
         // ----------------------------------------------------------------------------------------
@@ -326,12 +326,12 @@ namespace pg
             StatLineFixture s;
 
             StatLine sl = s.make({288.0f, "Strength", "strength", 40, 30});
-            EXPECT_EQ(sl.figure.fitted, "30");
+            EXPECT_EQ(sl.figure.spec.text, "30");
             EXPECT_NEAR(sl.groove.shown, 100.0f, 0.01f);
 
             sl.setValue(&s.ecs, s.styles, -3, false);
             s.settle();
-            EXPECT_EQ(sl.figure.fitted, "0");
+            EXPECT_EQ(sl.figure.spec.text, "0");
             EXPECT_NEAR(sl.groove.shown, 0.0f, 0.01f);
         }
 
@@ -348,7 +348,7 @@ namespace pg
             sl.setValue(&s.ecs, s.styles, 24);   // animate
 
             EXPECT_TRUE(s.hasTween(sl.groove.fill));
-            EXPECT_EQ(sl.figure.fitted, "24");   // the figure is the fact, at once
+            EXPECT_EQ(sl.figure.spec.text, "24");   // the figure is the fact, at once
 
             s.tick(2000.0f);
             EXPECT_NEAR(sl.groove.shown, 80.0f, 0.01f);
@@ -398,12 +398,12 @@ namespace pg
 
             s.view->set("character.parts.str", ElementType{16});
             s.settle();
-            EXPECT_EQ(sl.figure.fitted, "16");
+            EXPECT_EQ(sl.figure.spec.text, "16");
 
             s.view->set("character.parts.str.projected", ElementType{19});
             s.settle();
             ASSERT_TRUE(sl.projected.has_value());
-            EXPECT_EQ(sl.projected->fitted, std::string("\xE2\x86\x92 ") + "19");
+            EXPECT_EQ(sl.projected->spec.text, std::string("\xE2\x86\x92 ") + "19");
 
             s.view->set("character.parts.str.threshold", ElementType{18});
             s.settle();
@@ -460,16 +460,12 @@ namespace pg
 
             EXPECT_FLOAT_EQ(s.pos(sl.root)->z, 20.0f);
 
-            EXPECT_FLOAT_EQ(s.pos(sl.name.label.box)->z, 21.0f);
-            EXPECT_FLOAT_EQ(s.pos(sl.name.label.text)->z, 22.0f);
-            EXPECT_FLOAT_EQ(s.pos(sl.figure.box)->z, 21.0f);
-            EXPECT_FLOAT_EQ(s.pos(sl.figure.text)->z, 22.0f);
+            EXPECT_FLOAT_EQ(s.pos(sl.name.label.entity)->z, 22.0f);
+            EXPECT_FLOAT_EQ(s.pos(sl.figure.entity)->z, 22.0f);
             ASSERT_TRUE(sl.projected.has_value());
-            EXPECT_FLOAT_EQ(s.pos(sl.projected->box)->z, 21.0f);
-            EXPECT_FLOAT_EQ(s.pos(sl.projected->text)->z, 22.0f);
+            EXPECT_FLOAT_EQ(s.pos(sl.projected->entity)->z, 22.0f);
             ASSERT_TRUE(sl.note.has_value());
-            EXPECT_FLOAT_EQ(s.pos(sl.note->box)->z, 21.0f);
-            EXPECT_FLOAT_EQ(s.pos(sl.note->text)->z, 22.0f);
+            EXPECT_FLOAT_EQ(s.pos(sl.note->entity)->z, 22.0f);
 
             EXPECT_FLOAT_EQ(s.pos(sl.groove.root)->z, 21.0f);
             EXPECT_FLOAT_EQ(s.pos(sl.groove.fill)->z, 22.0f);
@@ -512,21 +508,21 @@ namespace pg
 
             // The gloss content must FOLLOW that root, not be stranded at the origin.
             ASSERT_TRUE(s.reg->lastBuilt.title.has_value());
-            auto titlePos = s.pos(s.reg->lastBuilt.title->box);
+            auto titlePos = s.pos(s.reg->lastBuilt.title->entity);
             EXPECT_NEAR(titlePos->x, rootPos->x + 12.0f, 1.0f);   // PAD from the tooltip's left
             EXPECT_GT(titlePos->y, 100.0f);
 
             // And it must sit in the tooltip z band (150), above panel content but INSIDE the
             // camera's depth range - the default camera clips world z from ~190-200 up, so a
             // 200 band drew the gloss ground on the boundary and clipped the text above it.
-            EXPECT_GE(s.pos(s.reg->lastBuilt.title->box)->z, 150.0f);
-            EXPECT_GE(s.pos(s.reg->lastBuilt.title->text)->z, 150.0f);
-            EXPECT_LT(s.pos(s.reg->lastBuilt.title->text)->z, 190.0f);   // never past the near plane
+            EXPECT_GE(s.pos(s.reg->lastBuilt.title->entity)->z, 150.0f);
+            EXPECT_GE(s.pos(s.reg->lastBuilt.title->entity)->z, 150.0f);
+            EXPECT_LT(s.pos(s.reg->lastBuilt.title->entity)->z, 190.0f);   // never past the near plane
 
             // The visible glyphs must clear the gloss's OWN folio background, or the text is
             // occluded by its own panel. (Regression: gloss text drew behind the gloss ground.)
             ASSERT_FALSE(s.reg->lastBuilt.ground.empty());
-            EXPECT_GT(s.pos(s.reg->lastBuilt.title->text)->z, s.pos(s.reg->lastBuilt.ground)->z);
+            EXPECT_GT(s.pos(s.reg->lastBuilt.title->entity)->z, s.pos(s.reg->lastBuilt.ground)->z);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -579,7 +575,7 @@ namespace pg
             // the ground (checked above) is one level deep and works. Verify the glyph calls
             // exist, are marked visible, and carry the settled position and tooltip-band z.
             ASSERT_TRUE(s.reg->lastBuilt.title.has_value());
-            EntityRef titleText = s.reg->lastBuilt.title->text;
+            EntityRef titleText = s.reg->lastBuilt.title->entity;
             auto titleUi = s.pos(titleText);
 
             ASSERT_TRUE(s.ttf->entityRenderCalls.count(titleText.id) > 0) << "title text has NO cached render calls";

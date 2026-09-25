@@ -121,15 +121,15 @@ namespace chronicle
         if (not spec.caption.empty())
         {
             LabelSpec cs; cs.style = "caption"; cs.text = spec.caption; cs.colour = "ink-muted";
-            cs.overflow = Overflow::Wrap; cs.width = W; cs.z = z + 1;
+            cs.overflow = Overflow::Wrap; cs.width = W; cs.z = z + 2;
             Label c = makeLabel(ecs, tokens, styles, cs);
-            auto ca = c.box->get<UiAnchor>();
+            auto ca = c.entity->get<UiAnchor>();
             ca->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             ca->setTopAnchor(PosAnchor{rootId, AnchorType::Top}); ca->setTopMargin(H + CAP_GAP);
-            ca->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
-            root.get<Prefab>()->addToPrefab(c.box);
+            ca->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 2.0f});
+            root.get<Prefab>()->addToPrefab(c.entity);
             p.caption = c;
-            root.get<PositionComponent>()->setHeight(H + CAP_GAP + c.box->get<PositionComponent>()->height);
+            root.get<PositionComponent>()->setHeight(H + CAP_GAP + c.entity->get<PositionComponent>()->height);
         }
 
         p.layoutAt(p.shown);
@@ -190,7 +190,7 @@ namespace chronicle
         {
             if (caption)
             {
-                ecs->removeEntity(caption->box.id);
+                ecs->removeEntity(caption->entity.id);
                 caption.reset();
             }
             spec.caption.clear();
@@ -200,22 +200,22 @@ namespace chronicle
 
         if (caption)
         {
-            caption->setText(ecs, s, text);
+            caption->setText(ecs, text);
         }
         else if (tokens)
         {
             LabelSpec cs; cs.style = "caption"; cs.text = text; cs.colour = "ink-muted";
-            cs.overflow = Overflow::Wrap; cs.width = spec.width; cs.z = spec.z + 1;
+            cs.overflow = Overflow::Wrap; cs.width = spec.width; cs.z = spec.z + 2;
             Label c = makeLabel(ecs, *tokens, s, cs);
-            auto ca = c.box->get<UiAnchor>();
+            auto ca = c.entity->get<UiAnchor>();
             ca->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
             ca->setTopAnchor(PosAnchor{root.id, AnchorType::Top}); ca->setTopMargin(H + CAP_GAP);
-            ca->setZConstrain(PosConstrain{root.id, AnchorType::Z, PosOpType::Add, 1.0f});
-            root->get<Prefab>()->addToPrefab(c.box);
+            ca->setZConstrain(PosConstrain{root.id, AnchorType::Z, PosOpType::Add, 2.0f});
+            root->get<Prefab>()->addToPrefab(c.entity);
             caption = c;
         }
         spec.caption = text;
-        root->get<PositionComponent>()->setHeight(H + CAP_GAP + caption->box->get<PositionComponent>()->height);
+        root->get<PositionComponent>()->setHeight(H + CAP_GAP + caption->entity->get<PositionComponent>()->height);
     }
 
     void ProgressRule::setNib(EntitySystem* ecs, const Tokens& tokens, bool on)

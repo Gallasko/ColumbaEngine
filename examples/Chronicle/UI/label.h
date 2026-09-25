@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <string>
 
 #include "UI/ttftext.h"
@@ -10,14 +9,10 @@
 
 namespace chronicle
 {
-    enum class Align : uint8_t { Left, Centre, Right };
-
-    enum class Overflow : uint8_t
-    {
-        Grow,      // box width = measured text width; `width` ignored
-        Wrap,      // box width = `width`; text wraps; height = lines x lineHeight; maxLines truncates with an ellipsis
-        Ellipsis   // box width = `width`; one line; text shortened to fit with U+2026
-    };
+    // The engine owns overflow and alignment (TTFText.overflow / align / maxLines);
+    // these aliases keep the kit's spelling.
+    using Align = pg::TextAlign;
+    using Overflow = pg::TextOverflow;
 
     struct LabelSpec
     {
@@ -31,26 +26,25 @@ namespace chronicle
         int z              = 0;
     };
 
+    // A single entity: PositionComponent + UiAnchor + ViewportComponent + TTFText +
+    // PaintComponent. The engine lays out, wraps, elides and aligns; the label only
+    // owns the colour token and the spec.
     struct Label
     {
-        pg::EntityRef box;     // PositionComponent + UiAnchor + Prefab - anchor and size this
-        pg::EntityRef text;    // the TTFText child
-        LabelSpec spec;        // as built, with `text` the text as given (not the fitted one)
-        std::string fitted;    // the text actually set on the TTFText
+        pg::EntityRef entity;
+        LabelSpec spec;        // as built; `text` is the text as given (elision happens at layout)
 
-        void setText(pg::EntitySystem*, const TextStyles&, const std::string&);
+        // Style values cached at build time so the mutators can size the entity
+        // synchronously (callers read width/height right after) without a TextStyles.
+        std::string fontAlias;
+        float lineSpacingPx = 0.0f;
+        float letterSpacingPx = 0.0f;
+
+        void setText(pg::EntitySystem*, const std::string&);          // engine re-fits
         void setColour(pg::EntitySystem*, const std::string& token);
         void setAlign(pg::EntitySystem*, Align);
-        void setWidth(pg::EntitySystem*, const TextStyles&, float);
-
-        float boxWidth(pg::EntitySystem*) const;
-        float boxHeight(pg::EntitySystem*) const;
+        void setWidth(pg::EntitySystem*, float);                      // engine re-wraps / re-elides
     };
 
     Label makeLabel(pg::EntitySystem*, const Tokens&, const TextStyles&, const LabelSpec&);
-
-    // Pure helpers (no ECS), exposed for tests and for the tooltip sizing later.
-    std::string fitEllipsis(const pg::TTFTextSystem&, const TextStyle&, const std::string& text, float width);
-    std::string clampLines(const pg::TTFTextSystem&, const TextStyle&, const std::string& text, float width, int maxLines);
-    int countLines(const pg::TTFTextSystem&, const TextStyle&, const std::string& text, float width);
 }

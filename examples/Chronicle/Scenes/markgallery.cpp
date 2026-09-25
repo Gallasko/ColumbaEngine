@@ -100,12 +100,12 @@ namespace chronicle
             spec.align = Align::Centre; spec.overflow = Overflow::Ellipsis; spec.width = CELL_W;
             spec.z = static_cast<int>(CONTENT_Z);
             Label cap = makeLabel(ecsRef, *tokens, *styles, spec);
-            auto ca = cap.box->get<UiAnchor>();
+            auto ca = cap.entity->get<UiAnchor>();
             ca->setTopAnchor(PosAnchor{cell.id, AnchorType::Top});
             ca->setTopMargin(px(MarkSize::S24) + tokens->space(1));
             ca->setLeftAnchor(PosAnchor{cell.id, AnchorType::Left});
             ca->setZConstrain(PosConstrain{cell.id, AnchorType::Z, PosOpType::Add, 1.0f});
-            cell.get<Prefab>()->addToPrefab(cap.box);
+            cell.get<Prefab>()->addToPrefab(cap.entity);
 
             return cell.entity;
         };
@@ -223,7 +223,7 @@ namespace chronicle
 
             LabelSpec spec; spec.style = "caption"; spec.text = "\"clock\" -> seal"; spec.colour = "ink-muted";
             spec.z = static_cast<int>(CONTENT_Z);
-            row.get<HorizontalLayout>()->addEntity(makeLabel(ecsRef, *tokens, *styles, spec).box);
+            row.get<HorizontalLayout>()->addEntity(makeLabel(ecsRef, *tokens, *styles, spec).entity);
             pageLayout->addEntity(row.entity);
         }
 
@@ -231,7 +231,7 @@ namespace chronicle
         {
             LabelSpec spec; spec.style = "caption"; spec.text = "T  toggle theme"; spec.colour = "ink-muted";
             spec.z = static_cast<int>(CONTENT_Z);
-            pageLayout->addEntity(makeLabel(ecsRef, *tokens, *styles, spec).box);
+            pageLayout->addEntity(makeLabel(ecsRef, *tokens, *styles, spec).entity);
         }
 
         // T toggles the theme; PaintSystem repaints every painted entity (marks included).

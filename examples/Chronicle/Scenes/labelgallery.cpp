@@ -40,11 +40,11 @@ namespace chronicle
 
         const float colX[4] = {48.0f, 376.0f, 704.0f, 1032.0f};
 
-        // Places a label's box at (x, y). Use the stored EntityRef, not getEntity:
+        // Places a label at (x, y). Use the stored EntityRef, not getEntity:
         // in a loading scene the entity is freshly created and not yet in the registry.
         auto place = [](Label& l, float x, float y)
         {
-            auto pos = l.box->get<PositionComponent>();
+            auto pos = l.entity->get<PositionComponent>();
             pos->setX(x);
             pos->setY(y);
         };
@@ -153,7 +153,13 @@ namespace chronicle
                 place(l, colX[3], y);
 
                 const TextStyle& st = styles->get(v.style);
-                const int lines = countLines(*ttf, st, l.fitted, COL_W);
+                TextLayoutParams wrapParams;
+                wrapParams.maxWidth = COL_W;
+                wrapParams.spacing = st.lineSpacingPx;
+                wrapParams.letterSpacing = st.letterSpacingPx;
+                wrapParams.overflow = Overflow::Wrap;
+                wrapParams.maxLines = v.maxLines;
+                const int lines = ttf->measureText(st.fontAlias, PARA, wrapParams).lineCount;
                 const float h = static_cast<float>(lines) * static_cast<float>(st.lineHeightPx);
 
                 LabelSpec meta; meta.style = "caption"; meta.colour = "ink-faint";

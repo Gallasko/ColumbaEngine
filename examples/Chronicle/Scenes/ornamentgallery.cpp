@@ -49,7 +49,7 @@ namespace chronicle
             LabelSpec spec; spec.style = "caption"; spec.text = text; spec.colour = colour;
             spec.z = static_cast<int>(CONTENT_Z);
             Label l = makeLabel(ecsRef, *tokens, *styles, spec);
-            place(l.box, x, y);
+            place(l.entity, x, y);
         };
 
         auto label = [&](const std::string& style, float x, float y, const std::string& text, const std::string& colour)
@@ -57,7 +57,7 @@ namespace chronicle
             LabelSpec spec; spec.style = style; spec.text = text; spec.colour = colour;
             spec.z = static_cast<int>(CONTENT_Z);
             Label l = makeLabel(ecsRef, *tokens, *styles, spec);
-            place(l.box, x, y);
+            place(l.entity, x, y);
             return l;
         };
 
@@ -130,7 +130,7 @@ namespace chronicle
             msl.style = "chapter"; msl.text = "n his fourteenth year, Aldren chose his path."; msl.colour = "ink";
             msl.overflow = Overflow::Wrap; msl.width = colW - 88.0f; msl.z = static_cast<int>(CONTENT_Z);
             Label msLabel = makeLabel(ecsRef, *tokens, *styles, msl);
-            place(msLabel.box, leftX + 88.0f, y + 4.0f);
+            place(msLabel.entity, leftX + 88.0f, y + 4.0f);
         }
 
         // ── Right column, on bare vellum ──────────────────────────────────────
@@ -172,7 +172,7 @@ namespace chronicle
             for (int i = 0; i < 5; ++i)
             {
                 LabelSpec rs; rs.style = "body"; rs.text = rows[i]; rs.colour = "ink"; rs.z = static_cast<int>(CONTENT_Z);
-                list.get<VerticalLayout>()->addEntity(makeLabel(ecsRef, *tokens, *styles, rs).box);
+                list.get<VerticalLayout>()->addEntity(makeLabel(ecsRef, *tokens, *styles, rs).entity);
 
                 if (i < 4)
                 {

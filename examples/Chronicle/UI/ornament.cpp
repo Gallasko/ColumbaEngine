@@ -233,7 +233,7 @@ namespace chronicle
             ls.align = Align::Centre;
             ls.overflow = Overflow::Ellipsis;
             ls.width = 72.0f;
-            ls.z = spec.z;
+            ls.z = spec.z + 1;
 
             Label lab = makeLabel(ecs, tokens, styles, ls);
 
@@ -242,12 +242,12 @@ namespace chronicle
             const float capHeight = kCormorantCapRatio * 44.0f;
             const float labelTop = 36.0f - ascender + capHeight * 0.5f;
 
-            auto lba = lab.box->get<UiAnchor>();
+            auto lba = lab.entity->get<UiAnchor>();
             lba->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             lba->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
             lba->setTopMargin(labelTop);
-            lba->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});   // text is box z + 1 = root + 2
-            root.get<Prefab>()->addToPrefab(lab.box);
+            lba->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 2.0f});   // glyphs at root + 2
+            root.get<Prefab>()->addToPrefab(lab.entity);
             orn.letter = lab;
             break;
         }
@@ -268,6 +268,6 @@ namespace chronicle
     void Ornament::setLetter(EntitySystem* ecs, const TextStyles& styles, const std::string& newLetter)
     {
         if (letter)
-            letter->setText(ecs, styles, firstCodePoint(newLetter));
+            letter->setText(ecs, firstCodePoint(newLetter));
     }
 }

@@ -217,8 +217,8 @@ namespace pg
             s.settle();
             ASSERT_TRUE(r.caption.has_value());
             EXPECT_EQ(r.caption->spec.style, "caption");
-            EXPECT_NEAR(s.pos(r.caption->box)->y, s.pos(r.root)->y + 10.0f + 4.0f, 0.5f);
-            EXPECT_NEAR(s.pos(r.root)->height, 14.0f + s.pos(r.caption->box)->height, 0.5f);
+            EXPECT_NEAR(s.pos(r.caption->entity)->y, s.pos(r.root)->y + 10.0f + 4.0f, 0.5f);
+            EXPECT_NEAR(s.pos(r.root)->height, 14.0f + s.pos(r.caption->entity)->height, 0.5f);
 
             r.setCaption(&s.ecs, s.styles, "");
             s.settle();
@@ -372,8 +372,7 @@ namespace pg
             EXPECT_FLOAT_EQ(s.pos(r.forecast)->z, 22.0f);
             EXPECT_FLOAT_EQ(s.pos(r.frame)->z, 23.0f);
             EXPECT_FLOAT_EQ(s.pos(r.nib->entity)->z, 24.0f);
-            EXPECT_FLOAT_EQ(s.pos(r.caption->box)->z, 21.0f);
-            EXPECT_FLOAT_EQ(s.pos(r.caption->text)->z, 22.0f);
+            EXPECT_FLOAT_EQ(s.pos(r.caption->entity)->z, 22.0f);
         }
 
         // ----------------------------------------------------------------------------------------

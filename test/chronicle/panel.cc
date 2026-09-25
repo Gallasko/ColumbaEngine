@@ -78,7 +78,7 @@ namespace pg
                 EntityRef bodyRow(const std::string& text = "Row")
                 {
                     LabelSpec s; s.style = "body"; s.text = text; s.colour = "ink"; s.z = 20;
-                    return makeLabel(&ecs, tokens, styles, s).box;
+                    return makeLabel(&ecs, tokens, styles, s).entity;
                 }
 
                 float asc(const std::string& style)
@@ -224,12 +224,12 @@ namespace pg
             const float rx = s.pos(p.root)->x;
             EXPECT_NEAR(s.pos(p.glyph->entity)->x, rx + 16.0f, 0.5f);
             const float glyphCentre = s.pos(p.glyph->entity)->y + s.pos(p.glyph->entity)->height / 2.0f;
-            EXPECT_NEAR(glyphCentre, s.pos(p.title->box)->y + 13.0f, 0.5f);
-            EXPECT_NEAR(s.pos(p.title->box)->x, s.pos(p.glyph->entity)->x + 18.0f + 8.0f, 0.5f);
+            EXPECT_NEAR(glyphCentre, s.pos(p.title->entity)->y + 13.0f, 0.5f);
+            EXPECT_NEAR(s.pos(p.title->entity)->x, s.pos(p.glyph->entity)->x + 18.0f + 8.0f, 0.5f);
 
-            const float asideRight = s.pos(p.aside->box)->x + s.pos(p.aside->box)->width;
+            const float asideRight = s.pos(p.aside->entity)->x + s.pos(p.aside->entity)->width;
             EXPECT_NEAR(asideRight, s.pos(p.root)->x + s.pos(p.root)->width - 16.0f, 0.5f);
-            EXPECT_FLOAT_EQ(s.ttfOf(p.aside->text)->colors.x, s.tokens.colour("ink-muted").x);
+            EXPECT_FLOAT_EQ(s.ttfOf(p.aside->entity)->colors.x, s.tokens.colour("ink-muted").x);
             EXPECT_EQ(p.aside->spec.style, "label");
         }
 
@@ -243,8 +243,8 @@ namespace pg
             Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
-            const float asideBaseline = s.pos(p.aside->box)->y + s.asc("label");
-            const float titleBaseline = s.pos(p.title->box)->y + s.asc("heading");
+            const float asideBaseline = s.pos(p.aside->entity)->y + s.asc("label");
+            const float titleBaseline = s.pos(p.title->entity)->y + s.asc("heading");
             EXPECT_NEAR(asideBaseline, titleBaseline, 0.5f);
         }
 
@@ -261,13 +261,13 @@ namespace pg
             Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
-            const float asideWidth = s.pos(p.aside->box)->width;
-            EXPECT_NEAR(s.pos(p.title->box)->width, inner - 26.0f - (asideWidth + 8.0f), 0.5f);
+            const float asideWidth = s.pos(p.aside->entity)->width;
+            EXPECT_NEAR(s.pos(p.title->entity)->width, inner - 26.0f - (asideWidth + 8.0f), 0.5f);
 
             Panel bare = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts"});
             bare.addChild(&s.ecs, s.bodyRow());
             s.settle();
-            EXPECT_NEAR(s.pos(bare.title->box)->width, inner, 0.5f);
+            EXPECT_NEAR(s.pos(bare.title->entity)->width, inner, 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -326,11 +326,11 @@ namespace pg
             LabelSpec ws; ws.style = "body"; ws.overflow = Overflow::Wrap; ws.width = p.innerWidth();
             ws.text = "The quick brown fox jumps over the lazy dog and keeps on running past the edge"; ws.z = 20;
             Label wrapped = makeLabel(&s.ecs, s.tokens, s.styles, ws);
-            p.addChild(&s.ecs, wrapped.box);
+            p.addChild(&s.ecs, wrapped.entity);
             s.settle();
 
             EXPECT_NEAR(s.pos(p.body)->width, 288.0f, 0.5f);
-            EXPECT_LE(s.ttfOf(wrapped.text)->textWidth, 288.0f);
+            EXPECT_LE(s.ttfOf(wrapped.entity)->textWidth, 288.0f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -353,8 +353,8 @@ namespace pg
             EXPECT_NEAR(s.pos(p.body)->width, 448.0f, 0.5f);
             EXPECT_NEAR(s.pos(p.rule->root)->width, 448.0f, 0.5f);
 
-            const float asideWidth = s.pos(p.aside->box)->width;
-            EXPECT_NEAR(s.pos(p.title->box)->width, 448.0f - 26.0f - (asideWidth + 8.0f), 0.5f);
+            const float asideWidth = s.pos(p.aside->entity)->width;
+            EXPECT_NEAR(s.pos(p.title->entity)->width, 448.0f - 26.0f - (asideWidth + 8.0f), 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -374,9 +374,8 @@ namespace pg
             EXPECT_FLOAT_EQ(s.pos(p.frame)->z, 11.0f);
             EXPECT_FLOAT_EQ(s.pos(p.corners[0].root)->z, 12.0f);
             EXPECT_FLOAT_EQ(s.pos(p.glyph->entity)->z, 13.0f);
-            EXPECT_FLOAT_EQ(s.pos(p.title->box)->z, 13.0f);
-            EXPECT_FLOAT_EQ(s.pos(p.title->text)->z, 14.0f);
-            EXPECT_FLOAT_EQ(s.pos(p.aside->box)->z, 13.0f);
+            EXPECT_FLOAT_EQ(s.pos(p.title->entity)->z, 14.0f);
+            EXPECT_FLOAT_EQ(s.pos(p.aside->entity)->z, 14.0f);
             EXPECT_FLOAT_EQ(s.pos(p.rule->root)->z, 13.0f);
             EXPECT_FLOAT_EQ(s.pos(p.body)->z, 20.0f);
 

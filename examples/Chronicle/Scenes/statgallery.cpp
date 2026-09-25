@@ -87,7 +87,7 @@ namespace chronicle
             spec.colour = colour;
             spec.z = 15;
 
-            place(makeLabel(ecsRef, *tokens, *styles, spec).box, x, y);
+            place(makeLabel(ecsRef, *tokens, *styles, spec).entity, x, y);
         };
 
         const float margin = tokens->space(7);   // 48
@@ -185,7 +185,7 @@ namespace chronicle
 
         LabelSpec es; es.style = "body-sm"; es.text = "ready"; es.colour = "ink-muted"; es.z = 15;
         echo = makeLabel(ecsRef, *tokens, *styles, es);
-        place(echo.box, bx, by + 5.0f * 44.0f + 12.0f);
+        place(echo.entity, bx, by + 5.0f * 44.0f + 12.0f);
 
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e)
         {
@@ -242,7 +242,7 @@ namespace chronicle
         // ── Motion + theme controls ──────────────────────────────────────────
         LabelSpec ms; ms.style = "caption"; ms.text = "motion: full"; ms.colour = "ink-muted"; ms.z = 15;
         motionLabel = makeLabel(ecsRef, *tokens, *styles, ms);
-        place(motionLabel.box, bx, by + 5.0f * 44.0f + 32.0f);
+        place(motionLabel.entity, bx, by + 5.0f * 44.0f + 32.0f);
 
         caption(margin, 820.0f,
             "T toggle theme \xC2\xB7 R toggle reduced motion \xC2\xB7 buttons write paths, lines react",

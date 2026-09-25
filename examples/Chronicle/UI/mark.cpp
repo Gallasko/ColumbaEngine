@@ -161,19 +161,19 @@ namespace chronicle
 
         auto root = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(spec.z));
 
-        // Label box at root z (its text at z+1); shifted right by the mark column.
+        // Label glyphs one layer above the root; shifted right by the mark column.
         LabelSpec labelSpec = spec.label;
-        labelSpec.z = spec.z;
+        labelSpec.z = spec.z + 1;
         Label label = makeLabel(ecs, tokens, styles, labelSpec);
 
-        auto boxAnchor = label.box->get<UiAnchor>();
+        auto boxAnchor = label.entity->get<UiAnchor>();
         boxAnchor->setTopAnchor(PosAnchor{root.id, AnchorType::Top});
         boxAnchor->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
 
         if (labelLeft > 0.0f)
             boxAnchor->setLeftMargin(labelLeft);
 
-        root.get<Prefab>()->addToPrefab(label.box);
+        root.get<Prefab>()->addToPrefab(label.entity);
 
         std::optional<Mark> mark;
         if (hasMark)
@@ -186,8 +186,8 @@ namespace chronicle
             mark = m;
         }
 
-        const float labelW = label.box->get<PositionComponent>()->width;
-        const float labelH = label.box->get<PositionComponent>()->height;
+        const float labelW = label.entity->get<PositionComponent>()->width;
+        const float labelH = label.entity->get<PositionComponent>()->height;
 
         auto rootPos = root.get<PositionComponent>();
         rootPos->setWidth(labelLeft + labelW);
@@ -207,14 +207,14 @@ namespace chronicle
             mark->setColour(ecs, token);
     }
 
-    void MarkedLabel::setText(EntitySystem* ecs, const TextStyles& styles, const std::string& newText)
+    void MarkedLabel::setText(EntitySystem* ecs, const TextStyles&, const std::string& newText)
     {
-        label.setText(ecs, styles, newText);
+        label.setText(ecs, newText);
 
         // A Grow label re-measures its box; the mark column is the box's left margin, so the
         // root stays exactly that column plus the (possibly new) box width.
-        const float labelLeft = label.box->get<UiAnchor>()->leftMargin;
-        root->get<PositionComponent>()->setWidth(labelLeft + label.box->get<PositionComponent>()->width);
+        const float labelLeft = label.entity->get<UiAnchor>()->leftMargin;
+        root->get<PositionComponent>()->setWidth(labelLeft + label.entity->get<PositionComponent>()->width);
     }
 
     void MarkedLabel::setMark(EntitySystem* ecs, const Tokens& tokens, const std::string& name)
@@ -240,7 +240,7 @@ namespace chronicle
         const float gap = tokens.space(2);
         const float labelLeft = px(markSize) + gap;
 
-        auto boxAnchor = label.box->get<UiAnchor>();
+        auto boxAnchor = label.entity->get<UiAnchor>();
         boxAnchor->setLeftMargin(labelLeft);
 
         Mark m = makeMark(ecs, tokens, {name, markSize, label.spec.colour, label.spec.z + 1});
@@ -250,6 +250,6 @@ namespace chronicle
         root->get<Prefab>()->addToPrefab(m.entity);
         mark = m;
 
-        root->get<PositionComponent>()->setWidth(labelLeft + label.box->get<PositionComponent>()->width);
+        root->get<PositionComponent>()->setWidth(labelLeft + label.entity->get<PositionComponent>()->width);
     }
 }

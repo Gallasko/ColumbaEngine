@@ -184,15 +184,15 @@ namespace pg
             TabsFixture s;
             Tabs t = s.place(s.sixTabs());
 
-            EXPECT_EQ(s.token(t.tabs[1].label.text.id), "ink-muted");
-            EXPECT_EQ(s.token(t.tabs[0].label.text.id), "ink");   // active
+            EXPECT_EQ(s.token(t.tabs[1].label.entity.id), "ink-muted");
+            EXPECT_EQ(s.token(t.tabs[0].label.entity.id), "ink");   // active
 
             s.hover(s.centreX(t.tabs[1]), s.centreY(t.tabs[1]));
-            EXPECT_EQ(s.token(t.tabs[1].label.text.id), "ink");
-            EXPECT_EQ(s.token(t.tabs[0].label.text.id), "ink");   // active stays ink
+            EXPECT_EQ(s.token(t.tabs[1].label.entity.id), "ink");
+            EXPECT_EQ(s.token(t.tabs[0].label.entity.id), "ink");   // active stays ink
 
             s.hover(600.0f, 600.0f);
-            EXPECT_EQ(s.token(t.tabs[1].label.text.id), "ink-muted");
+            EXPECT_EQ(s.token(t.tabs[1].label.entity.id), "ink-muted");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -207,7 +207,7 @@ namespace pg
 
             ASSERT_TRUE(t.tabs[0].badge.has_value());
             EXPECT_EQ(t.tabs[0].badge->spec.text, "3");
-            EXPECT_EQ(s.token(t.tabs[0].badge->text.id), "ink-muted");
+            EXPECT_EQ(s.token(t.tabs[0].badge->entity.id), "ink-muted");
 
             const float frameW = s.capW("3") + 8.0f;
             EXPECT_NEAR(s.pos(t.tabs[0].badgeFrame)->width, frameW, 0.5f);
@@ -351,7 +351,7 @@ namespace pg
             s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
             s.pump();
 
-            EXPECT_FLOAT_EQ(s.ecs.getEntity(t.tabs[1].label.text.id)->get<TTFText>()->colors.x,
+            EXPECT_FLOAT_EQ(s.ecs.getEntity(t.tabs[1].label.entity.id)->get<TTFText>()->colors.x,
                             s.tokens.colour("ink", Theme::Candle).x);
             EXPECT_FLOAT_EQ(s.s2d(t.rule)->colors.x, s.tokens.colour("rule-ruled", Theme::Candle).x);
         }
@@ -372,10 +372,9 @@ namespace pg
             EXPECT_FLOAT_EQ(s.pos(tab.face)->z, 20.0f);
             EXPECT_FLOAT_EQ(s.pos(tab.underline)->z, 21.0f);
             EXPECT_FLOAT_EQ(s.pos(tab.ring)->z, 21.0f);
-            EXPECT_FLOAT_EQ(s.pos(tab.label.box)->z, 22.0f);
-            EXPECT_FLOAT_EQ(s.pos(tab.label.text)->z, 23.0f);
+            EXPECT_FLOAT_EQ(s.pos(tab.label.entity)->z, 23.0f);
             EXPECT_FLOAT_EQ(s.pos(tab.glyph->entity)->z, 22.0f);
-            EXPECT_FLOAT_EQ(s.pos(tab.badge->box)->z, 22.0f);
+            EXPECT_FLOAT_EQ(s.pos(tab.badge->entity)->z, 23.0f);
         }
     }
 }

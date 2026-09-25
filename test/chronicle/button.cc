@@ -157,21 +157,21 @@ namespace pg
             Button q = s.place(qs);
             EXPECT_EQ(s.token(s.state(q)->ground), "folio");
             EXPECT_EQ(s.token(s.state(q)->frame), "rule-ruled");
-            EXPECT_EQ(s.token(q.label.text.id), "ink");
+            EXPECT_EQ(s.token(q.label.entity.id), "ink");
             EXPECT_EQ(s.token(q.costMark->entity.id), "status-time");
 
             ButtonSpec ds; ds.variant = ButtonVariant::Study; ds.label = "Study"; ds.glyph = "study"; ds.months = 9;
             Button d = s.place(ds);
             EXPECT_EQ(s.token(s.state(d)->ground), "lapis");
             EXPECT_EQ(s.token(s.state(d)->frame), "lapis");
-            EXPECT_EQ(s.token(d.label.text.id), "on-lapis");
+            EXPECT_EQ(s.token(d.label.entity.id), "on-lapis");
             EXPECT_EQ(s.token(d.costMark->entity.id), "on-lapis");
 
             ButtonSpec es; es.variant = ButtonVariant::Seal; es.label = "Take"; es.glyph = "seal"; es.months = 3;
             Button e = s.place(es);
             EXPECT_EQ(s.token(s.state(e)->ground), "vermilion");
             EXPECT_EQ(s.token(s.state(e)->frame), "vermilion");
-            EXPECT_EQ(s.token(e.label.text.id), "on-vermilion");
+            EXPECT_EQ(s.token(e.label.entity.id), "on-vermilion");
             EXPECT_EQ(s.token(e.costMark->entity.id), "on-vermilion");
         }
 
@@ -187,7 +187,7 @@ namespace pg
             s.hover(110.0f, 118.0f);
             EXPECT_EQ(s.token(s.state(q)->ground), "vellum-tint");
             EXPECT_EQ(s.token(s.state(q)->frame), "rule-ruled");
-            EXPECT_EQ(s.token(q.label.text.id), "ink");
+            EXPECT_EQ(s.token(q.label.entity.id), "ink");
 
             s.hover(600.0f, 600.0f);
             EXPECT_EQ(s.token(s.state(q)->ground), "folio");
@@ -291,12 +291,12 @@ namespace pg
             EXPECT_EQ(s.token(s.state(b)->ground), "folio");
 
             EXPECT_NEAR(s.palpha(s.state(b)->ground), 0.6f, 0.001f);
-            EXPECT_NEAR(s.palpha(b.label.text.id), 0.6f, 0.001f);
+            EXPECT_NEAR(s.palpha(b.label.entity.id), 0.6f, 0.001f);
 
             ASSERT_TRUE(b.reason.has_value());
             EXPECT_EQ(b.reason->spec.style, "caption");
-            EXPECT_TRUE(s.pos(b.reason->box)->visible);
-            EXPECT_NEAR(s.pos(b.reason->box)->y, s.pos(b.face)->y + 36.0f + 4.0f, 0.5f);
+            EXPECT_TRUE(s.pos(b.reason->entity)->visible);
+            EXPECT_NEAR(s.pos(b.reason->entity)->y, s.pos(b.face)->y + 36.0f + 4.0f, 0.5f);
             EXPECT_NEAR(s.pos(b.root)->height, 55.0f, 0.5f);
         }
 
@@ -315,7 +315,7 @@ namespace pg
             b.setDisabled(&s.ecs, false);
             s.pump();
             EXPECT_NEAR(s.palpha(s.state(b)->ground), 1.0f, 0.001f);
-            EXPECT_FALSE(s.pos(b.reason->box)->visible);
+            EXPECT_FALSE(s.pos(b.reason->entity)->visible);
             EXPECT_NEAR(s.pos(b.root)->height, 36.0f, 0.5f);
 
             s.hover(110.0f, 118.0f);
@@ -472,12 +472,11 @@ namespace pg
             EXPECT_FLOAT_EQ(s.pos(st->frame)->z, 21.0f);
             EXPECT_FLOAT_EQ(s.pos(st->ring)->z, 21.0f);
             EXPECT_FLOAT_EQ(s.pos(st->sheen)->z, 21.0f);
-            EXPECT_FLOAT_EQ(s.pos(b.label.box)->z, 22.0f);
-            EXPECT_FLOAT_EQ(s.pos(b.label.text)->z, 23.0f);
+            EXPECT_FLOAT_EQ(s.pos(b.label.entity)->z, 23.0f);
             EXPECT_FLOAT_EQ(s.pos(b.glyph->entity)->z, 22.0f);
-            EXPECT_FLOAT_EQ(s.pos(b.reason->box)->z, 22.0f);
+            EXPECT_FLOAT_EQ(s.pos(b.reason->entity)->z, 23.0f);
 
-            for (float z : {s.pos(st->ground)->z, s.pos(st->frame)->z, s.pos(b.label.box)->z, s.pos(b.label.text)->z})
+            for (float z : {s.pos(st->ground)->z, s.pos(st->frame)->z, s.pos(b.label.entity)->z})
                 EXPECT_FLOAT_EQ(z, std::floor(z));
         }
     }

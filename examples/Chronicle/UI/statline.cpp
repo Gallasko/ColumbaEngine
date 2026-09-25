@@ -55,15 +55,15 @@ namespace chronicle
             ps.text = PROJ + std::to_string(p);
             ps.colour = "progress-forecast";
             ps.overflow = Overflow::Grow;
-            ps.z = z + 1;
+            ps.z = z + 2;
 
             Label pl = makeLabel(ecs, tokens, styles, ps);
-            auto pa = pl.box->get<UiAnchor>();
+            auto pa = pl.entity->get<UiAnchor>();
             pa->setRightAnchor(PosAnchor{root.id, AnchorType::Right});
             pa->setTopAnchor(PosAnchor{root.id, AnchorType::Top});
             pa->setTopMargin(ascFig - ascTick);
-            pa->setZConstrain(PosConstrain{root.id, AnchorType::Z, PosOpType::Add, 1.0f});
-            root->get<Prefab>()->addToPrefab(pl.box);
+            pa->setZConstrain(PosConstrain{root.id, AnchorType::Z, PosOpType::Add, 2.0f});
+            root->get<Prefab>()->addToPrefab(pl.entity);
             return pl;
         }
 
@@ -77,15 +77,15 @@ namespace chronicle
             ns.colour = "ink-faint";
             ns.overflow = Overflow::Wrap;
             ns.width = width;
-            ns.z = z + 1;
+            ns.z = z + 2;
 
             Label nl = makeLabel(ecs, tokens, styles, ns);
-            auto na = nl.box->get<UiAnchor>();
+            auto na = nl.entity->get<UiAnchor>();
             na->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
             na->setTopAnchor(PosAnchor{root.id, AnchorType::Top});
             na->setTopMargin(HEAD + GAP1 + TRACK + GAP1);   // 38
-            na->setZConstrain(PosConstrain{root.id, AnchorType::Z, PosOpType::Add, 1.0f});
-            root->get<Prefab>()->addToPrefab(nl.box);
+            na->setZConstrain(PosConstrain{root.id, AnchorType::Z, PosOpType::Add, 2.0f});
+            root->get<Prefab>()->addToPrefab(nl.entity);
             return nl;
         }
 
@@ -93,7 +93,7 @@ namespace chronicle
         {
             float h = BASE_H;
             if (sl.note)
-                h += GAP1 + sl.note->box->get<PositionComponent>()->height;
+                h += GAP1 + sl.note->entity->get<PositionComponent>()->height;
             sl.root->get<PositionComponent>()->setHeight(h);
         }
     }
@@ -130,14 +130,14 @@ namespace chronicle
         // ── figure (right edge is the anchor; the figure does not reflow) ──────
         LabelSpec fs;
         fs.style = "figure"; fs.text = std::to_string(spec.value); fs.colour = "ink";
-        fs.align = Align::Right; fs.overflow = Overflow::Grow; fs.z = z + 1;
+        fs.align = Align::Right; fs.overflow = Overflow::Grow; fs.z = z + 2;
         Label figure = makeLabel(ecs, tokens, styles, fs);
         {
-            auto fa = figure.box->get<UiAnchor>();
+            auto fa = figure.entity->get<UiAnchor>();
             fa->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
-            fa->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
+            fa->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 2.0f});
         }
-        root.get<Prefab>()->addToPrefab(figure.box);
+        root.get<Prefab>()->addToPrefab(figure.entity);
         sl.figure = figure;
 
         // ── name: mark S16 + label style, both ink-muted, baseline on the figure ──
@@ -209,10 +209,10 @@ namespace chronicle
 
     void StatLine::placeFigureRight(EntitySystem*)
     {
-        auto fa = figure.box->get<UiAnchor>();
+        auto fa = figure.entity->get<UiAnchor>();
         if (projected)
         {
-            fa->setRightAnchor(PosAnchor{projected->box.id, AnchorType::Left});
+            fa->setRightAnchor(PosAnchor{projected->entity.id, AnchorType::Left});
             fa->setRightMargin(4.0f);
         }
         else
@@ -243,7 +243,7 @@ namespace chronicle
         spec.value = value;
 
         // The figure is the fact and updates at once; the bar is catching up.
-        figure.setText(ecs, styles, std::to_string(value));
+        figure.setText(ecs, std::to_string(value));
         groove.setPercent(ecs, 100.0f * static_cast<float>(value) / static_cast<float>(spec.max), animate);
 
         // A projection at or below the value is not a projection.
@@ -268,7 +268,7 @@ namespace chronicle
             }
             else
             {
-                projected->setText(ecs, styles, PROJ + std::to_string(p));
+                projected->setText(ecs, PROJ + std::to_string(p));
             }
             groove.setForecast(ecs, 100.0f * static_cast<float>(p) / static_cast<float>(spec.max));
         }
@@ -276,7 +276,7 @@ namespace chronicle
         {
             if (projected)
             {
-                ecs->removeEntity(projected->box.id);
+                ecs->removeEntity(projected->entity.id);
                 projected.reset();
             }
             groove.setForecast(ecs, 0.0f);
@@ -299,14 +299,14 @@ namespace chronicle
         {
             if (note)
             {
-                ecs->removeEntity(note->box.id);
+                ecs->removeEntity(note->entity.id);
                 note.reset();
             }
             spec.note.clear();
         }
         else if (note)
         {
-            note->setText(ecs, styles, text);
+            note->setText(ecs, text);
             spec.note = text;
         }
         else if (tokens)

@@ -45,7 +45,7 @@ namespace chronicle
         auto caption = [&](float x, float y, const std::string& text)
         {
             LabelSpec spec; spec.style = "caption"; spec.text = text; spec.colour = "ink-muted"; spec.z = 10;
-            place(makeLabel(ecsRef, *tokens, *styles, spec).box, x, y);
+            place(makeLabel(ecsRef, *tokens, *styles, spec).entity, x, y);
         };
 
         // A wrap body label sized to a panel's inner width.
@@ -53,7 +53,7 @@ namespace chronicle
         {
             LabelSpec spec; spec.style = "body"; spec.text = text; spec.colour = "ink";
             spec.overflow = Overflow::Wrap; spec.width = p.innerWidth(); spec.z = p.spec.contentZ;
-            return makeLabel(ecsRef, *tokens, *styles, spec).box;
+            return makeLabel(ecsRef, *tokens, *styles, spec).entity;
         };
 
         // ── Row 1: the three design-system panels, to compare with the preview ──
@@ -87,8 +87,8 @@ namespace chronicle
             Panel plain = makePanel(ecsRef, *tokens, *styles, ps);
             LabelSpec r1; r1.style = "body"; r1.text = "A frameless region"; r1.colour = "ink"; r1.z = ps.contentZ;
             LabelSpec r2; r2.style = "body"; r2.text = "on bare vellum."; r2.colour = "ink"; r2.z = ps.contentZ;
-            plain.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, r1).box);
-            plain.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, r2).box);
+            plain.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, r1).entity);
+            plain.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, r2).entity);
             place(plain.root, 48.0f, row2Y);
         }
 
@@ -101,7 +101,7 @@ namespace chronicle
             for (int i = 0; i < 5; ++i)
             {
                 LabelSpec rl; rl.style = "body"; rl.text = rows[i]; rl.colour = "ink"; rl.z = p.spec.contentZ;
-                p.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, rl).box);
+                p.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, rl).entity);
                 if (i < 4)
                 {
                     OrnamentSpec ds; ds.kind = OrnamentKind::Divider; ds.weight = DividerWeight::Hair;
@@ -132,7 +132,7 @@ namespace chronicle
             is.z = 20; is.contentZ = 30;
             Panel inner = makePanel(ecsRef, *tokens, *styles, is);
             LabelSpec il; il.style = "body"; il.text = "Swordsmanship"; il.colour = "ink"; il.z = is.contentZ;
-            inner.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, il).box);
+            inner.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, il).entity);
             outer.addChild(ecsRef, inner.root);
             place(outer.root, x, row2Y);
         }
