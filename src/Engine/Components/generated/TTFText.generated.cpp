@@ -18,7 +18,9 @@ TextOverflow deserialize(const UnserializedObject& serializedString)
 {
     auto str = deserialize<std::string>(serializedString);
     auto it = stringToTextOverflow.find(str);
-    if (it != stringToTextOverflow.end()) return it->second;
+    if (it != stringToTextOverflow.end())
+        return it->second;
+
     return TextOverflow::Grow; // fallback to first value
 }
 
@@ -33,7 +35,9 @@ TextAlign deserialize(const UnserializedObject& serializedString)
 {
     auto str = deserialize<std::string>(serializedString);
     auto it = stringToTextAlign.find(str);
-    if (it != stringToTextAlign.end()) return it->second;
+    if (it != stringToTextAlign.end())
+        return it->second;
+
     return TextAlign::Left; // fallback to first value
 }
 

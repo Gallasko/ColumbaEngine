@@ -674,7 +674,8 @@ class ProxyMetadataGenerator
         {
             code += "                // Convert Vector3D to table\n"
             code += "                VM::GlobalCell* cell = vm->findGlobalCell(\"__Table\");\n"
-            code += "                if (cell == nullptr or not cell->defined) return INT_VAL(0);\n\n"
+            code += "                if (cell == nullptr or not cell->defined)\n"
+            code += "                    return INT_VAL(0);\n\n"
             code += "                Klass* tableClass = vm->asClass(cell->value);\n"
             code += "                Value tableValue = vm->createInstance(tableClass);\n"
             code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
@@ -688,7 +689,8 @@ class ProxyMetadataGenerator
         {
             code += "                // Convert Vector4D to table\n"
             code += "                VM::GlobalCell* cell = vm->findGlobalCell(\"__Table\");\n"
-            code += "                if (cell == nullptr or not cell->defined) return INT_VAL(0);\n\n"
+            code += "                if (cell == nullptr or not cell->defined)\n"
+            code += "                    return INT_VAL(0);\n\n"
             code += "                Klass* tableClass = vm->asClass(cell->value);\n"
             code += "                Value tableValue = vm->createInstance(tableClass);\n"
             code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
@@ -859,7 +861,8 @@ class ProxyMetadataGenerator
         {
             var revMapName = "stringTo" + fieldType
             code += "                auto enumIt = " + revMapName + ".find(vm->asString(val));\n"
-            code += "                if (enumIt != " + revMapName + ".end()) c->" + setterName + "(enumIt->second);\n"
+            code += "                if (enumIt != " + revMapName + ".end())\n"
+            code += "                    c->" + setterName + "(enumIt->second);\n"
         }
         else
         {
@@ -913,9 +916,12 @@ class ProxyMetadataGenerator
             code += "                float x = 0.0f, y = 0.0f, z = 0.0f;\n\n"
             code += "                std::istringstream ss(val);\n"
             code += "                std::string tok;\n"
-            code += "                if (std::getline(ss, tok, ',')) x = std::stof(tok);\n"
-            code += "                if (std::getline(ss, tok, ',')) y = std::stof(tok);\n"
-            code += "                if (std::getline(ss, tok, ',')) z = std::stof(tok);\n\n"
+            code += "                if (std::getline(ss, tok, ','))\n"
+            code += "                    x = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ','))\n"
+            code += "                    y = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ','))\n"
+            code += "                    z = std::stof(tok);\n\n"
             code += "                c->" + setterName + "(constant::Vector3D(x, y, z));\n"
         }
         else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
@@ -924,17 +930,22 @@ class ProxyMetadataGenerator
             code += "                float x = 0.0f, y = 0.0f, z = 0.0f, w = 0.0f;\n\n"
             code += "                std::istringstream ss(val);\n"
             code += "                std::string tok;\n"
-            code += "                if (std::getline(ss, tok, ',')) x = std::stof(tok);\n"
-            code += "                if (std::getline(ss, tok, ',')) y = std::stof(tok);\n"
-            code += "                if (std::getline(ss, tok, ',')) z = std::stof(tok);\n"
-            code += "                if (std::getline(ss, tok, ',')) w = std::stof(tok);\n\n"
+            code += "                if (std::getline(ss, tok, ','))\n"
+            code += "                    x = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ','))\n"
+            code += "                    y = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ','))\n"
+            code += "                    z = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ','))\n"
+            code += "                    w = std::stof(tok);\n\n"
             code += "                c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
         }
         else if (isEnumType(this.schema, fieldType))
         {
             var revMapName = "stringTo" + fieldType
             code += "                auto enumIt = " + revMapName + ".find(val);\n"
-            code += "                if (enumIt != " + revMapName + ".end()) c->" + setterName + "(enumIt->second);\n"
+            code += "                if (enumIt != " + revMapName + ".end())\n"
+            code += "                    c->" + setterName + "(enumIt->second);\n"
         }
         else
         {
@@ -1032,10 +1043,12 @@ class SerializationGenerator
                     // Enum: generate a custom VM setter that converts string -> enum
                     var revMapName = "stringTo" + fieldType
                     code += "    auto " + fieldName + "EnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {\n"
-                    code += "        if (argCount > 0 && IS_STRING(args[0])) {\n"
+                    code += "        if (argCount > 0 && IS_STRING(args[0]))\n"
+                    code += "        {\n"
                     code += "            auto it = " + revMapName + ".find(vm->asString(args[0]));\n"
-                    code += "            if (it != " + revMapName + ".end()) component->" + setterName + "(it->second);\n"
-                    code += "        }\n"
+                    code += "            if (it != " + revMapName + ".end())\n"
+                    code += "                component->" + setterName + "(it->second);\n"
+                    code += "        }\n\n"
                     code += "        return INT_VAL(0);\n"
                     code += "    };\n"
                     code += "    table->setField(\"" + setterName + "\", vm->createNativeFunction(" + fieldName + "EnumSetter));\n"
@@ -1048,7 +1061,7 @@ class SerializationGenerator
                 var customCode = field["customSerializationSetter"]
                 code += "    " + customCode + "\n"
 
-                code += "    };\n"
+                code += "    };\n\n"
                 code += "    table->setField(\"" + setterName + "\", vm->createNativeFunction(" + fieldName + "CustomSetter));\n"
             }
         }
@@ -1119,7 +1132,8 @@ class SerializationGenerator
         code += "\n    // Process key-value pairs\n"
         code += "    for (int i = 0; i < argCount; i += 2)\n"
         code += "    {\n"
-        code += "        if (i + 1 >= argCount) break;\n\n"
+        code += "        if (i + 1 >= argCount)\n"
+        code += "            break;\n\n"
         code += "        if (not IS_STRING(args[i]))\n"
         code += "        {\n"
         code += "            LOG_ERROR(\"ECS Serialization\", \"attachComp expects string keys for properties\");\n"
@@ -1175,9 +1189,11 @@ class SerializationGenerator
                     code += "        else if (key == \"" + fieldName + "\")\n"
                 }
                 code += "        {\n"
-                code += "            if (IS_STRING(args[i + 1])) {\n"
+                code += "            if (IS_STRING(args[i + 1]))\n"
+                code += "            {\n"
                 code += "                auto " + fieldName + "EnumIt = " + revMapName + ".find(vm->asString(args[i + 1]));\n"
-                code += "                if (" + fieldName + "EnumIt != " + revMapName + ".end()) " + fieldName + " = " + fieldName + "EnumIt->second;\n"
+                code += "                if (" + fieldName + "EnumIt != " + revMapName + ".end())\n"
+                code += "                    " + fieldName + " = " + fieldName + "EnumIt->second;\n"
                 code += "            }\n"
                 code += "        }\n"
             }
@@ -1300,7 +1316,8 @@ class CppGenerator
                 code += enumName + " deserialize(const UnserializedObject& serializedString)\n{\n"
                 code += "    auto str = deserialize<std::string>(serializedString);\n"
                 code += "    auto it = " + revMapName + ".find(str);\n"
-                code += "    if (it != " + revMapName + ".end()) return it->second;\n"
+                code += "    if (it != " + revMapName + ".end())\n"
+                code += "        return it->second;\n\n"
                 code += "    return " + enumName + "::" + enumFields[0] + "; // fallback to first value\n"
                 code += "}\n\n"
             }
@@ -1375,9 +1392,11 @@ class CppGenerator
                             eventType = capitalize(fieldName) + "Changed"
                         }
 
-                        code += "    if (" + fieldName + " != value) {\n"
+                        code += "    if (" + fieldName + " != value)\n"
+                        code += "    {\n"
                         code += "        " + fieldName + " = value;\n"
-                        code += "        if (ecsRef) {\n"
+                        code += "        if (ecsRef)\n"
+                        code += "        {\n"
                         code += "            sendEvent<" + eventType + ">(ecsRef, id);\n"
                         code += "        }\n"
                         code += "    }\n"
@@ -1536,13 +1555,15 @@ class CppGenerator
 // Main
 // ============================================================================
 
-fun main() {
+fun main()
+{
     log("Component Generator Starting...")
 
     var argCount = getArgCount()
     log("Argument count: " + toString(argCount))
 
-    if (argCount < 2) {
+    if (argCount < 2)
+    {
         log("Usage: pgcompiler component_generator.pg <input.pgcomp>")
         return
     }
@@ -1551,7 +1572,8 @@ fun main() {
     log("Input file: " + inputFile)
 
     // Check if file exists
-    if (not fileExists(inputFile)) {
+    if (not fileExists(inputFile))
+    {
         log("Error: File not found: " + inputFile)
         return
     }
@@ -1571,25 +1593,21 @@ fun main() {
     // Create schema
     log("Creating component schema...")
 
-    if (contain(data, "name")) {
+    if (contain(data, "name"))
         log("Data has 'name' key: " + data["name"])
-    } else {
+    else
         log("ERROR: Data does not contain 'name' key!")
-    }
 
-    if (contain(data, "namespace")) {
+    if (contain(data, "namespace"))
         log("Data has 'namespace' key: " + data["namespace"])
-    }
 
-    if (contain(data, "fields")) {
+    if (contain(data, "fields"))
         log("Data has 'fields' key, type: " + typeOf(data["fields"]))
-    }
 
-    if (contain(data, "includes")) {
+    if (contain(data, "includes"))
         log("Data has 'includes' key, type: " + typeOf(data["includes"]))
-    } else {
+    else
         log("Data does NOT have 'includes' key")
-    }
 
     var schema = ComponentSchema(data)
     log("Schema created")

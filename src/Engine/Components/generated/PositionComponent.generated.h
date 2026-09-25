@@ -9,7 +9,7 @@ struct UiAnchor;
 
 struct PositionComponentChangedEvent
 {
-    _unique_id id = 0;
+    pg::_unique_id id = 0;
 };
 
 struct PositionComponent : public Component

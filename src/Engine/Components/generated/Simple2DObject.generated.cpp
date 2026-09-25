@@ -18,7 +18,9 @@ Shape2D deserialize(const UnserializedObject& serializedString)
 {
     auto str = deserialize<std::string>(serializedString);
     auto it = stringToShape2D.find(str);
-    if (it != stringToShape2D.end()) return it->second;
+    if (it != stringToShape2D.end())
+        return it->second;
+
     return Shape2D::Triangle; // fallback to first value
 }
 

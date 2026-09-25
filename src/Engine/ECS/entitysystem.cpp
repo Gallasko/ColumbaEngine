@@ -471,19 +471,10 @@ namespace pg
     {
         LOG_THIS_MEMBER("ECS");
 
-        if (running)
-        {
-            auto ent = cmdDispatcher.createEntity();
-            ent->attach<EntityName>(name);
-            return ent;
-        }
-        else
-        {
-            const auto& id = registry.idGenerator.generateId();
-            auto ent = entityPool.addComponent(id, id, this);
-            ent->attach<EntityName>(name);
-            return ent;
-        }
+        auto ent = createEntity();
+        ent->attach<EntityName>(name);
+
+        return ent;
     }
 
     std::vector<EntityRef> EntitySystem::createEntities(size_t count)
@@ -741,8 +732,14 @@ namespace pg
     {
         LOG_THIS_MEMBER("ECS");
 
-        return getEntity(getSystem<EntityNameSystem>()->getEntityId(name));
+        auto id = getSystem<EntityNameSystem>()->getEntityId(name);
+
+        if (id == 0)
+            return nullptr;
+
+        return getEntity(id);
     }
+
     void EntitySystem::reportSystemProfiles()
     {
 #ifdef PROFILE

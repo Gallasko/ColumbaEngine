@@ -32,7 +32,7 @@ Shape2D deserialize(const UnserializedObject& serializedString);
 
 struct Simple2DObjectChangedEvent
 {
-    _unique_id id = 0;
+    pg::_unique_id id = 0;
 };
 
 struct Simple2DObject : public Component

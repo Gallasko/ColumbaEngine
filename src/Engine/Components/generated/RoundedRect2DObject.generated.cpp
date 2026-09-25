@@ -9,7 +9,7 @@ namespace pg
 
 void RoundedRect2DObject::setCornerRadius(const float& value)
 {
-    if (areNotAlmostEqual(cornerRadius, value))
+    if (pg::areNotAlmostEqual(cornerRadius, value))
     {
         cornerRadius = value;
 

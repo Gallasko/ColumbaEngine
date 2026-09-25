@@ -663,8 +663,8 @@ namespace pg
 
         // True while a BasicTask iteration is currently executing on some
         // worker thread. Lets sendEvent distinguish "BasicTask is mid-run on
-        // another thread → must enqueue" from "no BasicTask running yet (e.g.
-        // initial setup phase before start()) → direct dispatch is safe".
+        // another thread -> must enqueue" from "no BasicTask running yet (e.g.
+        // initial setup phase before start()) -> direct dispatch is safe".
         std::atomic<bool> basicTaskInProgress{false};
 
         template <typename Event>
@@ -1767,10 +1767,12 @@ namespace pg
         ComponentSerializerFunc getSerializer(const std::string& componentName) const
         {
             auto it = serializers_.find(componentName);
+
             if (it != serializers_.end())
             {
                 return it->second.serializer;
             }
+
             return nullptr;
         }
 
@@ -1783,10 +1785,12 @@ namespace pg
         ComponentRetrieverFunc getRetriever(const std::string& componentName) const
         {
             auto it = serializers_.find(componentName);
+
             if (it != serializers_.end())
             {
                 return it->second.retriever;
             }
+
             return nullptr;
         }
 

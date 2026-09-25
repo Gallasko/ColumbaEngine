@@ -8,7 +8,7 @@ namespace pg
 
 struct RoundedRect2DObjectChangedEvent
 {
-    _unique_id id = 0;
+    pg::_unique_id id = 0;
 };
 
 struct RoundedRect2DObject : public Component

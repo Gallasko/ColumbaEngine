@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "Simple2DObject.generated.h"
+#include "DottedLine2DObject.generated.h"
 
 #include <sstream>
 
@@ -10,36 +10,27 @@
 namespace pg
 {
 
-void serializeSimple2DObjectWithSetters(VM* vm, ObjInstance* table, Simple2DObject* component)
+void serializeDottedLine2DObjectWithSetters(VM* vm, ObjInstance* table, DottedLine2DObject* component)
 {
     // Get component context
     _unique_id entityId = component->entityId;
 
-    LOG_MILE("ECS Serialization", "Generating setters for Simple2DObject on entity " << entityId);
+    LOG_MILE("ECS Serialization", "Generating setters for DottedLine2DObject on entity " << entityId);
 
     // Generate setter methods for each property using macros
-    // TODO: Add setter registration for shape (Shape2D)
-    auto shapeEnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {
-        if (argCount > 0 && IS_STRING(args[0]))
-        {
-            auto it = stringToShape2D.find(vm->asString(args[0]));
-            if (it != stringToShape2D.end())
-                component->setShape(it->second);
-        }
-
-        return INT_VAL(0);
-    };
-    table->setField("setShape", vm->createNativeFunction(shapeEnumSetter));
     // TODO: Add setter registration for colors (constant::Vector4D)
+    REGISTER_FLOAT_SETTER(vm, table, component, setPeriod);
+    REGISTER_FLOAT_SETTER(vm, table, component, setDotRadius);
 }
 
-// Register Simple2DObject serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(Simple2DObject, serializeSimple2DObjectWithSetters);
+// Register DottedLine2DObject serializer at static initialization time
+REGISTER_COMPONENT_SERIALIZER(DottedLine2DObject, serializeDottedLine2DObjectWithSetters);
 
-bool attachSimple2DObject(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
+bool attachDottedLine2DObject(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
-    Shape2D shape = Shape2D::Triangle;
     constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f};
+    float period = 4.0f;
+    float dotRadius = 0.75f;
 
     // Process key-value pairs
     for (int i = 0; i < argCount; i += 2)
@@ -55,30 +46,26 @@ bool attachSimple2DObject(VM* vm, EntitySystem* ecs, Entity* entity, int argCoun
 
         auto key = vm->asString(args[i]);
 
-        if (key == "shape")
-        {
-            if (IS_STRING(args[i + 1]))
-            {
-                auto shapeEnumIt = stringToShape2D.find(vm->asString(args[i + 1]));
-                if (shapeEnumIt != stringToShape2D.end())
-                    shape = shapeEnumIt->second;
-            }
-        }
+        if (key == "period")
+            period = detail::extractFloatArg(args, i + 1);
+        else if (key == "dotRadius")
+            dotRadius = detail::extractFloatArg(args, i + 1);
     }
 
-    // Attach Simple2DObject with parsed parameters
-    auto comp = ecs->_attach<Simple2DObject>(entity);
+    // Attach DottedLine2DObject with parsed parameters
+    auto comp = ecs->_attach<DottedLine2DObject>(entity);
 
-    comp->setShape(shape);
     comp->setColors(colors);
+    comp->setPeriod(period);
+    comp->setDotRadius(dotRadius);
 
-    LOG_INFO("ECS Serialization", "Attached Simple2DObject to entity " << entity->id);
+    LOG_INFO("ECS Serialization", "Attached DottedLine2DObject to entity " << entity->id);
 
     return true;
 }
 
-// Register the Simple2DObject component attach handler
-REGISTER_COMPONENT_ATTACH_HANDLER(Simple2DObject, attachSimple2DObject);
+// Register the DottedLine2DObject component attach handler
+REGISTER_COMPONENT_ATTACH_HANDLER(DottedLine2DObject, attachDottedLine2DObject);
 
 } // namespace pg
 
@@ -89,41 +76,13 @@ REGISTER_COMPONENT_ATTACH_HANDLER(Simple2DObject, attachSimple2DObject);
 namespace pg
 {
 
-struct Simple2DObjectProxyMetadataRegistrar
+struct DottedLine2DObjectProxyMetadataRegistrar
 {
-    Simple2DObjectProxyMetadataRegistrar()
+    DottedLine2DObjectProxyMetadataRegistrar()
     {
         pg::ComponentProxyMetadata metadata;
-        metadata.componentTypeName = "Simple2DObject";
-        metadata.componentSize = sizeof(Simple2DObject);
-
-        // Property: shape
-        metadata.properties.emplace("shape", PropertyMetadata{
-            "shape",
-            pg::PropertyType::String,
-            true,
-            [](void* comp, VM* vm) -> Value {
-                auto* c = static_cast<Simple2DObject*>(comp);
-                (void)vm;
-                return vm->createString(shape2DToString.at(c->getShape()));
-            },
-            [](void* comp, VM* vm, Value val) {
-                auto* c = static_cast<Simple2DObject*>(comp);
-                auto enumIt = stringToShape2D.find(vm->asString(val));
-                if (enumIt != stringToShape2D.end())
-                    c->setShape(enumIt->second);
-            },
-            [](void* comp) -> std::string {
-                auto* c = static_cast<Simple2DObject*>(comp);
-                return shape2DToString.at(c->getShape());
-            },
-            [](void* comp, const std::string& val) {
-                auto* c = static_cast<Simple2DObject*>(comp);
-                auto enumIt = stringToShape2D.find(val);
-                if (enumIt != stringToShape2D.end())
-                    c->setShape(enumIt->second);
-            }
-        });
+        metadata.componentTypeName = "DottedLine2DObject";
+        metadata.componentSize = sizeof(DottedLine2DObject);
 
         // Property: colors
         metadata.properties.emplace("colors", PropertyMetadata{
@@ -131,7 +90,7 @@ struct Simple2DObjectProxyMetadataRegistrar
             pg::PropertyType::Vector4D,
             true,
             [](void* comp, VM* vm) -> Value {
-                auto* c = static_cast<Simple2DObject*>(comp);
+                auto* c = static_cast<DottedLine2DObject*>(comp);
                 // Convert Vector4D to table
                 VM::GlobalCell* cell = vm->findGlobalCell("__Table");
                 if (cell == nullptr or not cell->defined)
@@ -151,7 +110,7 @@ struct Simple2DObjectProxyMetadataRegistrar
                 return tableValue;
             },
             [](void* comp, VM* vm, Value val) {
-                auto* c = static_cast<Simple2DObject*>(comp);
+                auto* c = static_cast<DottedLine2DObject*>(comp);
                 // Convert table or vector to Vector4D
                 if (IS_INSTANCE(val))
                 {
@@ -177,12 +136,12 @@ struct Simple2DObjectProxyMetadataRegistrar
                 }
             },
             [](void* comp) -> std::string {
-                auto* c = static_cast<Simple2DObject*>(comp);
+                auto* c = static_cast<DottedLine2DObject*>(comp);
                 auto vec = c->getColors();
                 return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z); + "," + std::to_string(vec.w);
             },
             [](void* comp, const std::string& val) {
-                auto* c = static_cast<Simple2DObject*>(comp);
+                auto* c = static_cast<DottedLine2DObject*>(comp);
                 // Parse comma-separated "x,y,z,w"
                 float x = 0.0f, y = 0.0f, z = 0.0f, w = 0.0f;
 
@@ -201,17 +160,69 @@ struct Simple2DObjectProxyMetadataRegistrar
             }
         });
 
+        // Property: period
+        metadata.properties.emplace("period", PropertyMetadata{
+            "period",
+            pg::PropertyType::Float,
+            true,
+            [](void* comp, VM* vm) -> Value {
+                auto* c = static_cast<DottedLine2DObject*>(comp);
+                (void)vm; // Suppress unused parameter warning
+                return makeFloatValue(c->getPeriod());
+            },
+            [](void* comp, VM* vm, Value val) {
+                auto* c = static_cast<DottedLine2DObject*>(comp);
+                (void)vm; // Suppress unused parameter warning
+                float v = IS_DOUBLE(val) ? static_cast<float>(AS_DOUBLE(val)) : static_cast<float>(AS_INT(val));
+                c->setPeriod(v);
+            },
+            [](void* comp) -> std::string {
+                auto* c = static_cast<DottedLine2DObject*>(comp);
+                return std::to_string(c->getPeriod());
+            },
+            [](void* comp, const std::string& val) {
+                auto* c = static_cast<DottedLine2DObject*>(comp);
+                c->setPeriod(std::stof(val));
+            }
+        });
+
+        // Property: dotRadius
+        metadata.properties.emplace("dotRadius", PropertyMetadata{
+            "dotRadius",
+            pg::PropertyType::Float,
+            true,
+            [](void* comp, VM* vm) -> Value {
+                auto* c = static_cast<DottedLine2DObject*>(comp);
+                (void)vm; // Suppress unused parameter warning
+                return makeFloatValue(c->getDotRadius());
+            },
+            [](void* comp, VM* vm, Value val) {
+                auto* c = static_cast<DottedLine2DObject*>(comp);
+                (void)vm; // Suppress unused parameter warning
+                float v = IS_DOUBLE(val) ? static_cast<float>(AS_DOUBLE(val)) : static_cast<float>(AS_INT(val));
+                c->setDotRadius(v);
+            },
+            [](void* comp) -> std::string {
+                auto* c = static_cast<DottedLine2DObject*>(comp);
+                return std::to_string(c->getDotRadius());
+            },
+            [](void* comp, const std::string& val) {
+                auto* c = static_cast<DottedLine2DObject*>(comp);
+                c->setDotRadius(std::stof(val));
+            }
+        });
+
         pg::ComponentProxyRegistry::instance().registerMetadata(metadata);
-        LOG_INFO("ComponentProxy", "Registered proxy metadata for Simple2DObject");
+        LOG_INFO("ComponentProxy", "Registered proxy metadata for DottedLine2DObject");
     }
 };
 
-static Simple2DObjectProxyMetadataRegistrar s_simple2DObjectProxyMetadataRegistrar;
+static DottedLine2DObjectProxyMetadataRegistrar s_dottedLine2DObjectProxyMetadataRegistrar;
 
 } // namespace pg
 
 // Initialization function referenced from .generated.h
 // This ensures this .serialization.cpp is linked and static initializers run
-extern "C" void __init_Simple2DObject_registration() {
+extern "C" void __init_DottedLine2DObject_registration() {
     // Being called is enough to force linking
 }

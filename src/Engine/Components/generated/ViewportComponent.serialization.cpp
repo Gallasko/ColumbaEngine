@@ -31,7 +31,8 @@ bool attachViewportComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argC
     // Process key-value pairs
     for (int i = 0; i < argCount; i += 2)
     {
-        if (i + 1 >= argCount) break;
+        if (i + 1 >= argCount)
+            break;
 
         if (not IS_STRING(args[i]))
         {

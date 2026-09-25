@@ -33,7 +33,8 @@ bool attachRoundedRect2DObject(VM* vm, EntitySystem* ecs, Entity* entity, int ar
     // Process key-value pairs
     for (int i = 0; i < argCount; i += 2)
     {
-        if (i + 1 >= argCount) break;
+        if (i + 1 >= argCount)
+            break;
 
         if (not IS_STRING(args[i]))
         {
@@ -113,7 +114,8 @@ struct RoundedRect2DObjectProxyMetadataRegistrar
                 auto* c = static_cast<RoundedRect2DObject*>(comp);
                 // Convert Vector4D to table
                 VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-                if (cell == nullptr or not cell->defined) return INT_VAL(0);
+                if (cell == nullptr or not cell->defined)
+                    return INT_VAL(0);
 
                 Klass* tableClass = vm->asClass(cell->value);
                 Value tableValue = vm->createInstance(tableClass);
@@ -166,10 +168,14 @@ struct RoundedRect2DObjectProxyMetadataRegistrar
 
                 std::istringstream ss(val);
                 std::string tok;
-                if (std::getline(ss, tok, ',')) x = std::stof(tok);
-                if (std::getline(ss, tok, ',')) y = std::stof(tok);
-                if (std::getline(ss, tok, ',')) z = std::stof(tok);
-                if (std::getline(ss, tok, ',')) w = std::stof(tok);
+                if (std::getline(ss, tok, ','))
+                    x = std::stof(tok);
+                if (std::getline(ss, tok, ','))
+                    y = std::stof(tok);
+                if (std::getline(ss, tok, ','))
+                    z = std::stof(tok);
+                if (std::getline(ss, tok, ','))
+                    w = std::stof(tok);
 
                 c->setColors(constant::Vector4D(x, y, z, w));
             }

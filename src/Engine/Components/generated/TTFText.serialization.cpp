@@ -43,22 +43,29 @@ void serializeTTFTextWithSetters(VM* vm, ObjInstance* table, TTFText* component)
 
         return INT_VAL(0);
     };
+
     table->setField("setColors", vm->createNativeFunction(colorsCustomSetter));
     // TODO: Add setter registration for overflow (TextOverflow)
     auto overflowEnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {
-        if (argCount > 0 && IS_STRING(args[0])) {
+        if (argCount > 0 && IS_STRING(args[0]))
+        {
             auto it = stringToTextOverflow.find(vm->asString(args[0]));
-            if (it != stringToTextOverflow.end()) component->setOverflow(it->second);
+            if (it != stringToTextOverflow.end())
+                component->setOverflow(it->second);
         }
+
         return INT_VAL(0);
     };
     table->setField("setOverflow", vm->createNativeFunction(overflowEnumSetter));
     // TODO: Add setter registration for align (TextAlign)
     auto alignEnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {
-        if (argCount > 0 && IS_STRING(args[0])) {
+        if (argCount > 0 && IS_STRING(args[0]))
+        {
             auto it = stringToTextAlign.find(vm->asString(args[0]));
-            if (it != stringToTextAlign.end()) component->setAlign(it->second);
+            if (it != stringToTextAlign.end())
+                component->setAlign(it->second);
         }
+
         return INT_VAL(0);
     };
     table->setField("setAlign", vm->createNativeFunction(alignEnumSetter));
@@ -88,7 +95,8 @@ bool attachTTFText(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Valu
     // Process key-value pairs
     for (int i = 0; i < argCount; i += 2)
     {
-        if (i + 1 >= argCount) break;
+        if (i + 1 >= argCount)
+            break;
 
         if (not IS_STRING(args[i]))
         {
@@ -106,16 +114,20 @@ bool attachTTFText(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Valu
             scale = detail::extractFloatArg(args, i + 1);
         else if (key == "overflow")
         {
-            if (IS_STRING(args[i + 1])) {
+            if (IS_STRING(args[i + 1]))
+            {
                 auto overflowEnumIt = stringToTextOverflow.find(vm->asString(args[i + 1]));
-                if (overflowEnumIt != stringToTextOverflow.end()) overflow = overflowEnumIt->second;
+                if (overflowEnumIt != stringToTextOverflow.end())
+                    overflow = overflowEnumIt->second;
             }
         }
         else if (key == "align")
         {
-            if (IS_STRING(args[i + 1])) {
+            if (IS_STRING(args[i + 1]))
+            {
                 auto alignEnumIt = stringToTextAlign.find(vm->asString(args[i + 1]));
-                if (alignEnumIt != stringToTextAlign.end()) align = alignEnumIt->second;
+                if (alignEnumIt != stringToTextAlign.end())
+                    align = alignEnumIt->second;
             }
         }
         else if (key == "maxLines")
@@ -250,7 +262,8 @@ struct TTFTextProxyMetadataRegistrar
                 auto* c = static_cast<TTFText*>(comp);
                 // Convert Vector4D to table
                 VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-                if (cell == nullptr or not cell->defined) return INT_VAL(0);
+                if (cell == nullptr or not cell->defined)
+                    return INT_VAL(0);
 
                 Klass* tableClass = vm->asClass(cell->value);
                 Value tableValue = vm->createInstance(tableClass);
@@ -303,10 +316,14 @@ struct TTFTextProxyMetadataRegistrar
 
                 std::istringstream ss(val);
                 std::string tok;
-                if (std::getline(ss, tok, ',')) x = std::stof(tok);
-                if (std::getline(ss, tok, ',')) y = std::stof(tok);
-                if (std::getline(ss, tok, ',')) z = std::stof(tok);
-                if (std::getline(ss, tok, ',')) w = std::stof(tok);
+                if (std::getline(ss, tok, ','))
+                    x = std::stof(tok);
+                if (std::getline(ss, tok, ','))
+                    y = std::stof(tok);
+                if (std::getline(ss, tok, ','))
+                    z = std::stof(tok);
+                if (std::getline(ss, tok, ','))
+                    w = std::stof(tok);
 
                 c->setColors(constant::Vector4D(x, y, z, w));
             }
@@ -325,7 +342,8 @@ struct TTFTextProxyMetadataRegistrar
             [](void* comp, VM* vm, Value val) {
                 auto* c = static_cast<TTFText*>(comp);
                 auto enumIt = stringToTextOverflow.find(vm->asString(val));
-                if (enumIt != stringToTextOverflow.end()) c->setOverflow(enumIt->second);
+                if (enumIt != stringToTextOverflow.end())
+                    c->setOverflow(enumIt->second);
             },
             [](void* comp) -> std::string {
                 auto* c = static_cast<TTFText*>(comp);
@@ -334,7 +352,8 @@ struct TTFTextProxyMetadataRegistrar
             [](void* comp, const std::string& val) {
                 auto* c = static_cast<TTFText*>(comp);
                 auto enumIt = stringToTextOverflow.find(val);
-                if (enumIt != stringToTextOverflow.end()) c->setOverflow(enumIt->second);
+                if (enumIt != stringToTextOverflow.end())
+                    c->setOverflow(enumIt->second);
             }
         });
 
@@ -351,7 +370,8 @@ struct TTFTextProxyMetadataRegistrar
             [](void* comp, VM* vm, Value val) {
                 auto* c = static_cast<TTFText*>(comp);
                 auto enumIt = stringToTextAlign.find(vm->asString(val));
-                if (enumIt != stringToTextAlign.end()) c->setAlign(enumIt->second);
+                if (enumIt != stringToTextAlign.end())
+                    c->setAlign(enumIt->second);
             },
             [](void* comp) -> std::string {
                 auto* c = static_cast<TTFText*>(comp);
@@ -360,7 +380,8 @@ struct TTFTextProxyMetadataRegistrar
             [](void* comp, const std::string& val) {
                 auto* c = static_cast<TTFText*>(comp);
                 auto enumIt = stringToTextAlign.find(val);
-                if (enumIt != stringToTextAlign.end()) c->setAlign(enumIt->second);
+                if (enumIt != stringToTextAlign.end())
+                    c->setAlign(enumIt->second);
             }
         });
 

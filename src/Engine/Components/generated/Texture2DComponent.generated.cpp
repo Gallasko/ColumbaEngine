@@ -22,7 +22,7 @@ void Texture2DComponent::setTextureName(const std::string& value)
 
 void Texture2DComponent::setOpacity(const float& value)
 {
-    if (areNotAlmostEqual(opacity, value))
+    if (pg::areNotAlmostEqual(opacity, value))
     {
         opacity = value;
 
@@ -48,7 +48,7 @@ void Texture2DComponent::setOverlappingColor(const constant::Vector3D& value)
 
 void Texture2DComponent::setOverlappingColorRatio(const float& value)
 {
-    if (areNotAlmostEqual(overlappingColorRatio, value))
+    if (pg::areNotAlmostEqual(overlappingColorRatio, value))
     {
         overlappingColorRatio = value;
 

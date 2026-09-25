@@ -9,7 +9,7 @@ namespace pg
 
 void PositionComponent::setX(const float& value)
 {
-    if (areNotAlmostEqual(x, value))
+    if (pg::areNotAlmostEqual(x, value))
     {
         x = value;
 
@@ -22,7 +22,7 @@ void PositionComponent::setX(const float& value)
 
 void PositionComponent::setY(const float& value)
 {
-    if (areNotAlmostEqual(y, value))
+    if (pg::areNotAlmostEqual(y, value))
     {
         y = value;
 
@@ -35,7 +35,7 @@ void PositionComponent::setY(const float& value)
 
 void PositionComponent::setZ(const float& value)
 {
-    if (areNotAlmostEqual(z, value))
+    if (pg::areNotAlmostEqual(z, value))
     {
         z = value;
 
@@ -48,7 +48,7 @@ void PositionComponent::setZ(const float& value)
 
 void PositionComponent::setWidth(const float& value)
 {
-    if (areNotAlmostEqual(width, value))
+    if (pg::areNotAlmostEqual(width, value))
     {
         width = value;
 
@@ -61,7 +61,7 @@ void PositionComponent::setWidth(const float& value)
 
 void PositionComponent::setHeight(const float& value)
 {
-    if (areNotAlmostEqual(height, value))
+    if (pg::areNotAlmostEqual(height, value))
     {
         height = value;
 
@@ -74,7 +74,7 @@ void PositionComponent::setHeight(const float& value)
 
 void PositionComponent::setRotation(const float& value)
 {
-    if (areNotAlmostEqual(rotation, value))
+    if (pg::areNotAlmostEqual(rotation, value))
     {
         rotation = value;
 

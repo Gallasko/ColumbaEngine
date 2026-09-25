@@ -42,6 +42,7 @@ void serializeTexture2DComponentWithSetters(VM* vm, ObjInstance* table, Texture2
         component->setOverlappingColor(constant::Vector3D{r, g, b}, ratio);
         return INT_VAL(0);
     };
+
     table->setField("setOverlappingColor", vm->createNativeFunction(overlappingColorCustomSetter));
     REGISTER_FLOAT_SETTER(vm, table, component, setOverlappingColorRatio);
 }
@@ -59,7 +60,8 @@ bool attachTexture2DComponent(VM* vm, EntitySystem* ecs, Entity* entity, int arg
     // Process key-value pairs
     for (int i = 0; i < argCount; i += 2)
     {
-        if (i + 1 >= argCount) break;
+        if (i + 1 >= argCount)
+            break;
 
         if (not IS_STRING(args[i]))
         {
@@ -166,7 +168,8 @@ struct Texture2DComponentProxyMetadataRegistrar
                 auto* c = static_cast<Texture2DComponent*>(comp);
                 // Convert Vector3D to table
                 VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-                if (cell == nullptr or not cell->defined) return INT_VAL(0);
+                if (cell == nullptr or not cell->defined)
+                    return INT_VAL(0);
 
                 Klass* tableClass = vm->asClass(cell->value);
                 Value tableValue = vm->createInstance(tableClass);
@@ -216,9 +219,12 @@ struct Texture2DComponentProxyMetadataRegistrar
 
                 std::istringstream ss(val);
                 std::string tok;
-                if (std::getline(ss, tok, ',')) x = std::stof(tok);
-                if (std::getline(ss, tok, ',')) y = std::stof(tok);
-                if (std::getline(ss, tok, ',')) z = std::stof(tok);
+                if (std::getline(ss, tok, ','))
+                    x = std::stof(tok);
+                if (std::getline(ss, tok, ','))
+                    y = std::stof(tok);
+                if (std::getline(ss, tok, ','))
+                    z = std::stof(tok);
 
                 c->setOverlappingColor(constant::Vector3D(x, y, z));
             }

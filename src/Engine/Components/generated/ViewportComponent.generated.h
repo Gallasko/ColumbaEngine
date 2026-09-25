@@ -7,7 +7,7 @@ namespace pg
 
 struct ViewportComponentChangedEvent
 {
-    _unique_id id = 0;
+    pg::_unique_id id = 0;
 };
 
 struct ViewportComponent : public Component
