@@ -1554,6 +1554,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/Chronicle/UI/tabs.cpp
             examples/Chronicle/UI/progressrule.cpp
             examples/Chronicle/UI/statline.cpp
+            examples/Chronicle/UI/requirementlist.cpp
         )
 
         # Chronicle's own generated components: .pgcomp specs generated with the
@@ -1634,6 +1635,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/chronicle/progressrule.cc
             test/chronicle/statline.cc
             test/chronicle/textmetrics.cc
+            test/chronicle/requirementlist.cc
             ${CHRONICLE_CORE}
         )
         target_link_libraries(test_chronicle PRIVATE gtest gtest_main ColumbaEngine)

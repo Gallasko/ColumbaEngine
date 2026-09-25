@@ -152,6 +152,22 @@ come from `rules/*.pg` through the scene, never from the component.
   parts — Strength, Dexterity, Intellect, Vitality — are ASCII). `glossKey` points the
   whole line at a registered gloss.
 
+- **RequirementList** (`UI/requirementlist.h`) — prerequisites as a checked list:
+  each row carries a **mark as well as a colour** (`check` in `status-gain` when met,
+  `cross` in `status-loss` when not) and shows the pair "current / needed", never a
+  verdict. *The mark carries the state, the label carries the words*: the mark and
+  the value take the tone, the label stays `ink` when unmet and recedes to
+  `ink-muted` when met — the one row in the kit where mark and label differ in
+  colour by design. `met` is the scene's to say: an explicit 0/1 **wins over** the
+  derived `current >= needed` (a display rule, not a game rule); non-numeric
+  conditions (*"Has the Guild's letter"*) pass `met` directly and show no pair (one
+  with no verdict logs once and shows unmet). Two densities: roomy (`body-sm` +
+  `figure-sm`) and **dense = `tick`** for both label and value — the mark stays S14
+  in both. Values right-align so the slashes stack; the label's ellipsis width
+  leaves room for the pair. Fed: `setItems` rebuilds, `setItem(i, c, n)` updates a
+  pair in place (re-deriving `met` unless explicit), `setMet`/`clearMet` repaint
+  tokens only — nothing moves.
+
 ## Patterns
 
 - **State component + System + event-driven tests.** A stateful, input-receiving
