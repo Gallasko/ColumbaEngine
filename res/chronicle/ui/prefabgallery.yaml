@@ -1,0 +1,134 @@
+# Dev gallery for the prefab file format: `Chronicle --dev PrefabFileGallery`.
+#
+# One file, one root node. This root has no kind, so it is a bare container and
+# every child keeps the x / y it declares. Panels hand `width: innerWidth` and
+# `z: contentZ` down to their children, so the rows below never spell them out.
+name: gallery
+children:
+
+  # ── A ruled list body: labels between knotless hair dividers ─────────────
+  - kind: Panel
+    name: parts
+    x: 48
+    y: 90
+    frame: ruled
+    width: 300
+    heading: Parts
+    glyph: strength
+    aside: LEDGER
+    children:
+      - {kind: Label, text: Strength}
+      - {kind: Ornament, ornament: divider, knot: false}
+      - {kind: Label, text: Dexterity}
+      - {kind: Ornament, ornament: divider, knot: false}
+      - {kind: Label, text: Intelligence}
+      - {kind: Ornament, ornament: divider, knot: false}
+      - kind: Label
+        overflow: wrap
+        colour: ink-muted
+        style: body-sm
+        text: "A wrapped body line takes the panel's inner width, as it did when the scene
+computed innerWidth() by hand."
+
+  # ── An illuminated milestone panel, fed from GameDataView ────────────────
+  - kind: Panel
+    name: squire
+    x: 372
+    y: 90
+    frame: illuminated
+    width: 360
+    heading: Squire
+    glyph: training
+    aside: PATH
+    children:
+      - kind: RequirementList
+        name: fed                 # the scene subscribes milestone.squire.reqs.* to this handle
+        items:
+          - {label: Strength, current: 12, needed: 18}
+          - {label: Swordsmanship, current: 2, needed: 4}
+          - {label: Vitality, current: 9, needed: 8}
+          - {label: "Has the Guild's letter", met: false}
+      - kind: Button
+        name: train
+        variant: seal
+        label: Train a season
+        glyph: time
+        months: 3
+        tag: gallery.train        # carried by ButtonActivatedEvent
+      - kind: Button
+        name: letter
+        variant: quiet
+        label: Grant or revoke the letter
+        tag: gallery.letter
+
+  # ── Nested panels: the inner one lands in the next z band on its own ─────
+  - kind: Panel
+    name: outer
+    x: 780
+    y: 90
+    frame: ruled
+    width: 260
+    heading: Who he is
+    children:
+      - kind: Label
+        text: Aldren of Bellmoor
+      - kind: Panel
+        name: inner
+        frame: hair
+        heading: Skills
+        glyph: study
+        children:
+          - {kind: MarkedLabel, mark: swordsmanship, text: Swordsmanship, style: body}
+          - {kind: MarkedLabel, mark: study, text: Letters, style: body, colour: ink-muted}
+
+  # ── Stat lines in a ruled panel ──────────────────────────────────────────
+  - kind: Panel
+    name: stats
+    x: 48
+    y: 430
+    frame: ruled
+    width: 320
+    heading: Parts
+    glyph: strength
+    aside: AT 18
+    children:
+      - kind: StatLine
+        name: strength
+        label: Strength
+        glyph: strength
+        value: 12
+        max: 30
+        projected: 15
+        threshold: 18
+        note: WARRIOR AT 18 ASKS 18
+      - kind: StatLine
+        name: swordsmanship
+        label: Swordsmanship
+        glyph: swordsmanship
+        value: 2
+        max: 10
+      - kind: ProgressRule
+        caption: SEASON 3 OF 12
+        percent: 25
+        forecast: 40
+
+  # ── A tab row and a margin gloss, on bare vellum ─────────────────────────
+  - kind: Tabs
+    name: tabs
+    x: 420
+    y: 430
+    z: 20
+    tag: gallery.tabs             # carried by TabSelectedEvent
+    items:
+      - {label: Skills, glyph: study}
+      - {label: Parts, glyph: strength, badge: 2}
+      - {label: Relics, glyph: relic}
+
+  - kind: Gloss
+    name: gloss
+    x: 420
+    y: 500
+    z: 20
+    gloss: margin
+    width: 300
+    text: "A margin gloss beside the tab row: the same file feeds every kind of the kit."

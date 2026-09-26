@@ -348,6 +348,7 @@ set(ENGINESOURCE
     src/Engine/UI/listview.cpp
     src/Engine/UI/namedanchor.cpp
     src/Engine/UI/prefabbuilder.cpp
+    src/Engine/UI/prefabloader.cpp
     src/Engine/UI/enginefactories.cpp
     src/Engine/UI/progressbar.cpp
     src/Engine/UI/scrollable.cpp
@@ -1497,6 +1498,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/layout.cc
             test/prefab.cc
             test/prefabbuilder.cc
+            test/prefabtree.cc
+            test/prefabloader.cc
             test/network.cc
             # test/mock2dsimpleshape.h
             # test/simple2dobject.cc
@@ -1527,7 +1530,11 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         add_custom_command(TARGET t1 PRE_BUILD
                            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                           ${CMAKE_SOURCE_DIR}/testdeps/ $<TARGET_FILE_DIR:t1>)
+                           ${CMAKE_SOURCE_DIR}/testdeps/ $<TARGET_FILE_DIR:t1>
+                           COMMAND ${CMAKE_COMMAND} -E copy_directory
+                           ${CMAKE_SOURCE_DIR}/tools $<TARGET_FILE_DIR:t1>/tools
+                           COMMAND ${CMAKE_COMMAND} -E copy_directory
+                           ${CMAKE_SOURCE_DIR}/res/scripts $<TARGET_FILE_DIR:t1>/res/scripts)
 
         include(GoogleTest)
 
@@ -1555,6 +1562,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/Chronicle/UI/progressrule.cpp
             examples/Chronicle/UI/statline.cpp
             examples/Chronicle/UI/requirementlist.cpp
+            examples/Chronicle/UI/factories.cpp
         )
 
         # Chronicle's own generated components: .pgcomp specs generated with the
@@ -1613,6 +1621,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/Chronicle/Scenes/progressgallery.cpp
             examples/Chronicle/Scenes/statgallery.cpp
             examples/Chronicle/Scenes/requirementgallery.cpp
+            examples/Chronicle/Scenes/prefabfilegallery.cpp
             ${CHRONICLE_CORE}
         )
         target_link_libraries(Chronicle PRIVATE ColumbaEngine)
@@ -1637,11 +1646,14 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/chronicle/statline.cc
             test/chronicle/textmetrics.cc
             test/chronicle/requirementlist.cc
+            test/chronicle/factories.cc
             ${CHRONICLE_CORE}
         )
         target_link_libraries(test_chronicle PRIVATE gtest gtest_main ColumbaEngine)
         add_custom_command(TARGET test_chronicle PRE_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/testdeps/ $<TARGET_FILE_DIR:test_chronicle>)
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/testdeps/ $<TARGET_FILE_DIR:test_chronicle>
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/tools $<TARGET_FILE_DIR:test_chronicle>/tools
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/res/scripts $<TARGET_FILE_DIR:test_chronicle>/res/scripts)
         gtest_discover_tests(test_chronicle
             WORKING_DIRECTORY $<TARGET_FILE_DIR:test_chronicle>
             PROPERTIES FAIL_REGULAR_EXPRESSION "FAILED")

@@ -15,6 +15,7 @@
 #include "progressgallery.h"
 #include "statgallery.h"
 #include "requirementgallery.h"
+#include "prefabfilegallery.h"
 
 namespace chronicle
 {
@@ -31,6 +32,7 @@ namespace chronicle
             {"ProgressGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<ProgressGallery>(t, st); }},
             {"StatGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<StatGallery>(t, st); }},
             {"RequirementGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<RequirementGallery>(t, st); }},
+            {"PrefabFileGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<PrefabFileGallery>(t, st); }},
         };
 
         return scenes;

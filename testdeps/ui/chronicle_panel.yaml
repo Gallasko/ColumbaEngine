@@ -1,0 +1,19 @@
+kind: Panel
+name: panel
+x: 10
+y: 20
+frame: ruled
+width: 320
+heading: Squire
+glyph: training
+children:
+  - kind: RequirementList
+    name: fed
+    items:
+      - {label: Strength, current: 12, needed: 18}
+      - {label: "Has the Guild's letter", met: false}
+  - kind: Button
+    name: train
+    variant: seal
+    label: Train
+    tag: test.train

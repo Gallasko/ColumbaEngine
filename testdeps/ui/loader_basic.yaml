@@ -1,0 +1,33 @@
+# A node exercising every mapping rule of the loader.
+kind: Panel
+name: root
+x: 48
+y: 56.5
+width: 300
+heading: "Parts: the list"     # a colon inside quotes is not a key separator
+enabled: true
+flow: vertical
+spacing: 8
+anchors:
+  - {side: left, target: window, margin: 48}
+  - side: top
+    target: window
+    targetSide: bottom
+    margin: 2
+items:
+  - {label: Strength, current: 12, needed: 18}
+  - label: "Has the Guild's letter"
+    met: false
+label:
+  style: body
+  text: nested
+children:
+  - kind: Label
+    name: a
+    text: Hello world
+    note: "multi
+line"
+  - kind: Layout:Vertical
+    spacing: 4
+    children:
+      - {kind: Label, text: inner}

@@ -19,6 +19,9 @@
 #include "UI/gloss.h"
 #include "ECS/entitysystem_fwd.h"   // ResizeEvent, used by tooltip.h
 #include "UI/tooltip.h"
+#include "UI/prefabfactory.h"
+#include "UI/enginefactories.h"
+#include "UI/factories.h"
 #include "Scenes/devscenes.h"
 
 using namespace pg;
@@ -98,6 +101,12 @@ namespace chronicle
             if (auto* tip = ecs.getSystem<TooltipSystem>())
                 tip->setDefaultFont("chr-body-sm");
             ecs.createSystem<GlossRegistry>(&tokens, &styles);
+
+            // Prefab factories: the engine primitives plus every Chronicle kind, so a
+            // NodeSpec tree (hand-built or loaded from res/chronicle/ui/*.yaml) builds.
+            auto* factories = ecs.createSystem<PrefabFactoryRegistry>();
+            registerEnginePrefabFactories(factories);
+            registerChronicleFactories(factories, &tokens, &styles);
 
             // 4. scene (default TypeSpecimen when no --dev given)
             const std::string scene = opt.devScene.empty() ? "TypeSpecimen" : opt.devScene;
