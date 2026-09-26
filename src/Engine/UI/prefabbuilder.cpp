@@ -5,6 +5,7 @@
 #include "UI/prefabfactory.h"
 #include "UI/sizer.h"
 #include "Systems/coresystems.h"
+#include "Components/ThemeComponent.generated.h"
 
 #include <string_view>
 #include <unordered_map>
@@ -169,7 +170,13 @@ namespace
             return FactoryResult{};
         }
 
-        return registry->buildEx(spec, ctx);
+        FactoryResult result = registry->buildEx(spec, ctx);
+
+        // The node's theme element keys the leaf into the theme: painted now, repainted on every switch.
+        if (result.entity and not spec.theme.empty())
+            ecs->attach<ThemeComponent>(result.entity, spec.theme);
+
+        return result;
     }
 
     // For a child that was itself wrapped in a Prefab, look up its inner mainEntity so the

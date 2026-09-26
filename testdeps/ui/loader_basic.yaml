@@ -1,6 +1,7 @@
 # A node exercising every mapping rule of the loader.
 kind: Panel
 name: root
+theme: panel.ground
 x: 48
 y: 56.5
 width: 300

@@ -42,6 +42,11 @@ namespace pg
      *   `x` / `y` props on a wrapped node position the wrap container (the leaf is anchored to
      *   the container's top-left, so this is what moves the whole node).
      *
+     * Theme:
+     *   `theme` is a theme element key (`theme: button.hover`). The builder attaches a
+     *   ThemeComponent with it to the leaf the node's factory produced, for every kind; the
+     *   ThemeSystem then paints the leaf and repaints it on each theme switch.
+     *
      * Name resolution (sibling/parent anchor scope):
      *   Each child registers under `name` in its parent's name map. The stored entity is the
      *   child's mainEntity (unwrapped from its Prefab container) so that
@@ -103,6 +108,7 @@ namespace pg
         std::string kind;                       // see kind dispatch above
         ElementMap  props;                      // editor-introspectable scalar parameters for the leaf
         std::string name;                       // optional; see name semantics above
+        std::string theme;                      // optional theme element key applied to the leaf
         std::vector<AnchorSpec> anchors;        // applied to THIS node's produced entity
         std::vector<NodeSpec>   children;       // recursive composition
 

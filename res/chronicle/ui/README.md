@@ -46,6 +46,9 @@ comment.
 - Lists: `Tabs.items` (`label`, `glyph`, `badge`), `RequirementList.items` (`label`,
   `current`, `needed`, `met` as a bool), `Gloss.rows` (`label`, `value`), and
   `MarkedLabel.label` as a nested map (or flat `text` / `style` / `color` on the node).
+- Any node takes `theme: <element key>` next to `kind` and `name`: the builder attaches a
+  `ThemeComponent` to the node's leaf, so an engine `Shape2D` or `TTFText` is painted by the
+  theme like the kit pieces are (`theme: scene.background`, `theme: label.caption.ink-muted`).
 - Events stay tag-based: `Button.tag` rides `ButtonActivatedEvent`, `Tabs.tag` rides
   `TabSelectedEvent`, `StatLine.glossKey` attaches a registered gloss.
 - No data bindings in files: name the node and subscribe its handle from C++

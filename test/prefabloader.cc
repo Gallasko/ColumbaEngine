@@ -55,6 +55,8 @@ namespace pg
 
             EXPECT_EQ(spec.kind, "Panel");
             EXPECT_EQ(spec.name, "root");
+            EXPECT_EQ(spec.theme, "panel.ground");
+            EXPECT_FALSE(spec.props.count("theme"));
 
             // Scalars keep their type.
             ASSERT_TRUE(spec.props.count("x"));

@@ -13,6 +13,7 @@
 #include "Input/sdlevents.h"
 #include "2D/position.h"
 #include "2D/simple2dobject.h"
+#include "UI/prefab.h"
 #include "UI/prefabloader.h"
 
 #include "UI/themesystem.h"
@@ -27,8 +28,6 @@ namespace chronicle
 {
     namespace
     {
-        constexpr float PAGE_W = 1320.0f;
-        constexpr float PAGE_H = 860.0f;
         constexpr const char* FILE = "res/chronicle/ui/prefabgallery.yaml";
 
         // The Squire path, as in RequirementGallery: the scene owns the numbers.
@@ -43,11 +42,6 @@ namespace chronicle
     {
         theme = ecsRef->getSystem<ThemeSystem>();
 
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
-        bg.get<PositionComponent>()->setZ(0.0f);
-        backgroundId = bg.entity.id;
-        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
-
         auto place = [](EntityRef e, float x, float y)
         {
             auto p = e->get<PositionComponent>();
@@ -55,7 +49,7 @@ namespace chronicle
             p->setY(y);
         };
 
-        auto caption = [&](float x, float y, const std::string& text, const std::string& color)
+        auto caption = [&](float, float, const std::string& text, const std::string& color)
         {
             LabelSpec spec;
             spec.style = "caption";
@@ -83,10 +77,9 @@ namespace chronicle
 
         built = buildTree(ecsRef, *spec);
 
-        {
-            Label c = caption(margin, 68.0f, std::string("every panel on this page comes from ") + FILE, "ink-muted");
-            place(c.entity, margin, 68.0f);
-        }
+        // The page background is the file's first node; the resize handler below keeps it full-window.
+        if (built.root and built.root->has<Prefab>())
+            backgroundId = built.root->get<Prefab>()->getEntity("page").id;
 
         if (not errors.empty())
         {

@@ -18,7 +18,7 @@ namespace pg
      * EntitySystem; the resulting table is then mapped onto a NodeSpec:
      *
      *   reserved keys      -> NodeSpec fields
-     *     kind, name              strings
+     *     kind, name, theme       strings (theme: the element key the leaf is painted with)
      *     x, y                    kept in props (the builder positions the wrap with them)
      *     anchors                 list of {side, target, targetSide?, margin?}
      *     children                list of nodes (recursive)

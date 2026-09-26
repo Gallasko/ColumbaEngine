@@ -16,6 +16,7 @@ Source: `src/Engine/UI/theme.h` (the data), `src/Engine/UI/themesystem.h` (the s
 - [Elements and keys](#elements-and-keys)
 - [Role values](#role-values)
 - [Themable drawables](#themable-drawables)
+- [Prefab files](#prefab-files)
 - [Events](#events)
 - [Script bindings](#script-bindings)
 
@@ -140,6 +141,27 @@ theme->registerThemable<Glow>([](EntityRef entity, const ElementMap& map, const 
 `registerThemable<Comp>()` with no argument is the default pairing: `color` and `alpha` through `setColors`.
 The helpers `entry`, `resolveColor`, `resolveAlpha` and `resolveScale` do the type-prefixed lookup and the
 token or literal conversion. A pairing is skipped when no system owns the component type yet.
+
+## Prefab files
+
+A node of a prefab tree (`src/Engine/UI/prefabspec.h`, YAML through `loadNodeSpec`) has a `theme` field next
+to `kind` and `name`: the element key the leaf is painted with. The builder attaches a `ThemeComponent` with it
+to the leaf the node's factory produced, for every kind.
+
+```
+- kind: Shape2D
+  name: page
+  width: 1320
+  height: 860
+  theme: scene.background
+
+- kind: TTFText
+  text: every panel on this page comes from the file
+  theme: label.caption.ink-muted
+```
+
+A `TTFText` node needs no `font` when its element carries one: the theme sets the face, the letter spacing and
+the line spacing on attach.
 
 ## Events
 

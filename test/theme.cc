@@ -9,6 +9,11 @@
 #include "ECS/entitysystem.h"
 #include "2D/simple2dobject.h"
 #include "2D/decoratedshapes.h"
+#include "UI/prefab.h"
+#include "UI/prefabspec.h"
+#include "UI/prefabbuilder.h"
+#include "UI/prefabfactory.h"
+#include "UI/enginefactories.h"
 
 #include "mocklogger.h"
 
@@ -641,6 +646,45 @@ namespace pg
             s.ecs.executeOnce();
 
             EXPECT_FLOAT_EQ(ent->get<Glow>()->level, 0.25f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(theme_test, node_theme_keyword_paints_the_leaf)
+        {
+            MockLogger logger;
+            ThemeFixture s;
+
+            s.ecs.createSystem<PrefabSystem>();
+            s.ecs.succeed<PositionComponentSystem, PrefabSystem>();
+            auto* registry = s.ecs.createSystem<PrefabFactoryRegistry>();
+            registerEnginePrefabFactories(registry);
+
+            NodeSpec node;
+            node.kind = "Shape2D";
+            node.name = "ground";
+            node.theme = "panel.ground";
+            node.props = {
+                {"width",  10.0f},
+                {"height", 10.0f},
+            };
+
+            EntityRef root = buildNode(&s.ecs, node);
+            s.ecs.executeOnce();
+            s.ecs.executeOnce();
+
+            ASSERT_TRUE(root);
+            EntityRef leaf = root->get<Prefab>()->getEntity("ground");
+            ASSERT_TRUE(leaf);
+            ASSERT_TRUE(leaf->has<ThemeComponent>());
+            EXPECT_EQ(leaf->get<ThemeComponent>()->element, "panel.ground");
+            expectColor(leaf->get<Simple2DObject>()->colors, 255, 255, 255, 255);
+
+            s.theme->setTheme("night");
+            s.ecs.executeOnce();
+
+            expectColor(leaf->get<Simple2DObject>()->colors, 16, 16, 16, 255);
         }
 
         // ----------------------------------------------------------------------------------------

@@ -6,6 +6,22 @@
 name: gallery
 children:
 
+  # ── The page itself: an engine Shape2D keyed into the theme ──────────────
+  - kind: Shape2D
+    name: page
+    width: 1320
+    height: 860
+    z: 0
+    theme: scene.background
+
+  - kind: TTFText
+    name: note
+    x: 48
+    y: 68
+    z: 15
+    text: every panel on this page comes from res/chronicle/ui/prefabgallery.yaml
+    theme: label.caption.ink-muted
+
   # ── A ruled list body: labels between knotless hair dividers ─────────────
   - kind: Panel
     name: parts

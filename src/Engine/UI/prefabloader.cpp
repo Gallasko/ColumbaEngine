@@ -165,6 +165,10 @@ namespace
                 {
                     out.name = string(value, path);
                 }
+                else if (key == "theme")
+                {
+                    out.theme = string(value, path);
+                }
                 else if (key == "flow")
                 {
                     const std::string f = lower(string(value, path));

@@ -13,6 +13,8 @@ First tagged release. Everything below describes the state of the engine at the 
   `Tokens`/`TextStyles`/`PaintSystem` are folded into it. Migration: `getSystem<ThemeManager>()` becomes
   `getSystem<ThemeSystem>()`, the flat `key.r/.g/.b/.a` properties become colour tokens in a theme file
   (`res/editor/theme.json` for the editor), and the script module keeps `setCurrentTheme`/`getCurrentTheme`.
+- Prefab trees: `theme` is a node keyword like `kind` and `name`; the builder attaches a `ThemeComponent`
+  with that element key to the node's leaf.
 
 ### Engine
 - Pure-ECS core (sparse sets, groups, system traits) with Taskflow-based parallel scheduling
