@@ -7,12 +7,11 @@
 
 #include "UI/statline.h"
 #include "UI/panel.h"
-#include "UI/paint.h"
 #include "UI/gloss.h"
 #include "Core/motion.h"
-#include "Core/textstyle.h"
 
 #include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
 #include "ECS/entitysystem_fwd.h"   // ResizeEvent
 #include "UI/ttftext.h"
 #include "UI/iconsystem.h"
@@ -37,16 +36,16 @@ namespace pg
         {
             struct StatLineFixture
             {
-                Tokens tokens = Tokens::load("chronicle/tokens.json");
                 EntitySystem ecs;
                 MasterRenderer renderer;
                 TTFTextSystem* ttf = nullptr;
                 IconSystem* icons = nullptr;
-                PaintSystem* paint = nullptr;
+                ThemeSystem* theme = nullptr;
+
+                constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
                 GameDataView* view = nullptr;
                 TooltipSystem* tip = nullptr;
                 GlossRegistry* reg = nullptr;
-                TextStyles styles;
 
                 StatLineFixture()
                 {
@@ -65,11 +64,10 @@ namespace pg
                     ecs.succeed<MouseHoverSystem, TooltipSystem>();
                     ecs.createSystem<TweenSystem>();
                     view = ecs.createSystem<GameDataView>();
-                    paint = ecs.createSystem<PaintSystem>(&tokens);
-                    styles = TextStyles::fromTokens(tokens);
-                    styles.registerAll(ttf, "fonts");
-                    tip->setDefaultFont("chr-body-sm");
-                    reg = ecs.createSystem<GlossRegistry>(&tokens, &styles);
+                    theme = ecs.createSystem<ThemeSystem>();
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
+                    tip->setDefaultFont("body-sm");
+                    reg = ecs.createSystem<GlossRegistry>();
                     installIconEntries();
                     ecs.sendEvent(ResizeEvent{1320.0f, 860.0f});
                 }
@@ -100,7 +98,7 @@ namespace pg
 
                 StatLine make(const StatLineSpec& spec, float x = 100.0f, float y = 100.0f)
                 {
-                    StatLine sl = makeStatLine(&ecs, tokens, styles, spec);
+                    StatLine sl = makeStatLine(&ecs, spec);
                     sl.root->get<PositionComponent>()->setX(x);
                     sl.root->get<PositionComponent>()->setY(y);
                     settle();
@@ -109,13 +107,13 @@ namespace pg
 
                 float asc(const std::string& style)
                 {
-                    const TextStyle& s = styles.get(style);
+                    const TextStyle& s = theme->style(style);
                     return ttf->measureText(s.fontAlias, "H", 1.0f, 0.0f, 0.0f, s.letterSpacingPx).ascender;
                 }
 
                 CompRef<PositionComponent> pos(EntityRef e) { return ecs.getEntity(e.id)->get<PositionComponent>(); }
                 float rightEdge(EntityRef box) { return pos(box)->x + pos(box)->width; }
-                std::string token(EntityRef e) { return ecs.getEntity(e.id)->get<PaintComponent>()->token; }
+                std::string token(EntityRef e) { return theme->elementEntry(ecs.getEntity(e.id)->get<ThemeComponent>()->element, "color").get<std::string>(); }
                 bool hasTween(EntityRef e) { return ecs.getEntity(e.id)->has<TweenComponent>(); }
             };
         }
@@ -184,12 +182,12 @@ namespace pg
             const float grooveX = s.pos(sl.groove.root)->x;
             const float edge0 = s.rightEdge(sl.figure.entity);
 
-            sl.setValue(&s.ecs, s.styles, 9, false);
+            sl.setValue(&s.ecs, 9, false);
             s.settle();
             const float w9 = s.pos(sl.figure.entity)->width;
             EXPECT_NEAR(s.rightEdge(sl.figure.entity), edge0, 0.01f);
 
-            sl.setValue(&s.ecs, s.styles, 15, false);
+            sl.setValue(&s.ecs, 15, false);
             s.settle();
             const float w15 = s.pos(sl.figure.entity)->width;
             EXPECT_NEAR(s.rightEdge(sl.figure.entity), edge0, 0.01f);
@@ -222,14 +220,14 @@ namespace pg
             EXPECT_NEAR(sl.groove.spec.forecastPercent, 100.0f * 17.0f / 30.0f, 0.01f);
 
             // A projection at the value is not a projection.
-            sl.setProjected(&s.ecs, s.styles, 14);
+            sl.setProjected(&s.ecs, 14);
             s.settle();
             EXPECT_FALSE(sl.projected.has_value());
             EXPECT_FLOAT_EQ(sl.groove.spec.forecastPercent, 0.0f);
             EXPECT_NEAR(s.rightEdge(sl.figure.entity), s.pos(sl.root)->x + 288.0f, 0.5f);
 
             // Below the value: same.
-            sl.setProjected(&s.ecs, s.styles, 12);
+            sl.setProjected(&s.ecs, 12);
             s.settle();
             EXPECT_FALSE(sl.projected.has_value());
             EXPECT_FLOAT_EQ(sl.groove.spec.forecastPercent, 0.0f);
@@ -246,7 +244,7 @@ namespace pg
             StatLine sl = s.make({288.0f, "Strength", "strength", 14, 30, 17});
             ASSERT_TRUE(sl.projected.has_value());
 
-            sl.setValue(&s.ecs, s.styles, 17, false);
+            sl.setValue(&s.ecs, 17, false);
             s.settle();
             EXPECT_FALSE(sl.projected.has_value());
         }
@@ -297,7 +295,7 @@ namespace pg
             EXPECT_NEAR(s.pos(sl.note->entity)->y, s.pos(sl.groove.root)->y + 8.0f + 4.0f, 0.5f);
             EXPECT_NEAR(s.pos(sl.root)->height, 53.0f, 0.5f);
 
-            sl.setNote(&s.ecs, s.styles, "");
+            sl.setNote(&s.ecs, "");
             s.settle();
             EXPECT_NEAR(s.pos(sl.root)->height, 34.0f, 0.5f);
         }
@@ -329,7 +327,7 @@ namespace pg
             EXPECT_EQ(sl.figure.spec.text, "30");
             EXPECT_NEAR(sl.groove.shown, 100.0f, 0.01f);
 
-            sl.setValue(&s.ecs, s.styles, -3, false);
+            sl.setValue(&s.ecs, -3, false);
             s.settle();
             EXPECT_EQ(sl.figure.spec.text, "0");
             EXPECT_NEAR(sl.groove.shown, 0.0f, 0.01f);
@@ -345,7 +343,7 @@ namespace pg
             Motion::setReduced(false);
 
             StatLine sl = s.make({288.0f, "Strength", "strength", 14, 30});
-            sl.setValue(&s.ecs, s.styles, 24);   // animate
+            sl.setValue(&s.ecs, 24);   // animate
 
             EXPECT_TRUE(s.hasTween(sl.groove.fill));
             EXPECT_EQ(sl.figure.spec.text, "24");   // the figure is the fact, at once
@@ -387,10 +385,10 @@ namespace pg
             StatLine sl = s.make({288.0f, "Strength", "strength", 14, 30});
 
             s.view->subscribe("character.parts.str", [&](const ElementType& v) {
-                sl.setValue(&s.ecs, s.styles, v.get<int>(), false);
+                sl.setValue(&s.ecs, v.get<int>(), false);
             });
             s.view->subscribe("character.parts.str.projected", [&](const ElementType& v) {
-                sl.setProjected(&s.ecs, s.styles, v.get<int>());
+                sl.setProjected(&s.ecs, v.get<int>());
             });
             s.view->subscribe("character.parts.str.threshold", [&](const ElementType& v) {
                 sl.setThreshold(&s.ecs, v.get<int>());
@@ -421,11 +419,11 @@ namespace pg
 
             // No notes: P(16) + head(51) + 4 x 34 + 3 x 12 + P(16) = 255.
             {
-                Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
+                Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
                 for (int i = 0; i < 4; ++i)
                 {
                     StatLineSpec ls; ls.width = 288.0f; ls.value = 14; ls.z = p.spec.contentZ;
-                    p.addChild(&s.ecs, makeStatLine(&s.ecs, s.tokens, s.styles, ls).root);
+                    p.addChild(&s.ecs, makeStatLine(&s.ecs, ls).root);
                 }
                 s.settle();
                 EXPECT_NEAR(p.height(&s.ecs), 255.0f, 1.0f);
@@ -433,12 +431,12 @@ namespace pg
 
             // One note on the first line adds 4 + 15 = 19.
             {
-                Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
+                Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
                 for (int i = 0; i < 4; ++i)
                 {
                     StatLineSpec ls; ls.width = 288.0f; ls.value = 14; ls.z = p.spec.contentZ;
                     if (i == 0) ls.note = "WARRIOR AT 18 ASKS 18";
-                    p.addChild(&s.ecs, makeStatLine(&s.ecs, s.tokens, s.styles, ls).root);
+                    p.addChild(&s.ecs, makeStatLine(&s.ecs, ls).root);
                 }
                 s.settle();
                 EXPECT_NEAR(p.height(&s.ecs), 274.0f, 1.0f);

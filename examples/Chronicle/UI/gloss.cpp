@@ -12,8 +12,7 @@
 #include "UI/prefab.h"
 #include "UI/ttftext.h"
 #include "UI/tooltip.h"
-
-#include "paint.h"
+#include "UI/themesystem.h"
 
 using namespace pg;
 
@@ -46,7 +45,7 @@ namespace chronicle
         float boxH(const Label& l) { EntityRef e = l.entity; return e->get<PositionComponent>()->height; }
     }
 
-    Gloss makeGloss(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const GlossSpec& spec)
+    Gloss makeGloss(EntitySystem* ecs, const GlossSpec& spec)
     {
         Gloss g;
         g.spec = spec;
@@ -71,9 +70,9 @@ namespace chronicle
             const _unique_id rootId = root.id;
             g.root = root.entity;
 
-            LabelSpec ts; ts.style = "gloss"; ts.text = spec.text; ts.colour = "ink-muted";
+            LabelSpec ts; ts.style = "gloss"; ts.text = spec.text; ts.color = "ink-muted";
             ts.overflow = Overflow::Wrap; ts.width = W - TEXT_INDENT; ts.z = z + 1;
-            Label text = makeLabel(ecs, tokens, styles, ts);
+            Label text = makeLabel(ecs, ts);
             auto ta = text.entity->get<UiAnchor>();
             ta->setLeftAnchor(PosAnchor{rootId, AnchorType::Left}); ta->setLeftMargin(TEXT_INDENT);
             ta->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
@@ -84,13 +83,13 @@ namespace chronicle
             root.get<PositionComponent>()->setHeight(boxH(text));
 
             // The 2 px rule-hair edge, spanning the whole gloss height.
-            auto edge = makeUiSimple2DShape(ecs, Shape2D::Square, EDGE, 1.0f, tokens.colour("rule-hair"));
+            auto edge = makeUiSimple2DShape(ecs, Shape2D::Square, EDGE, 1.0f);
             auto ea = edge.get<UiAnchor>();
             ea->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             ea->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
             ea->setBottomAnchor(PosAnchor{rootId, AnchorType::Bottom});
             ea->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
-            ecs->attach<PaintComponent>(edge.entity, "rule-hair");
+            ecs->attach<ThemeComponent>(edge.entity, "gloss.edge");
             root.get<Prefab>()->addToPrefab(edge.entity);
             g.edge = edge.entity;
 
@@ -114,31 +113,31 @@ namespace chronicle
             p->setY(OFFSTAGE);
         };
 
-        auto ground = makeUiSimple2DShape(ecs, Shape2D::Square, 1.0f, 1.0f, tokens.colour("folio"));
+        auto ground = makeUiSimple2DShape(ecs, Shape2D::Square, 1.0f, 1.0f);
         offstage(ground.entity);
         ground.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
         ground.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z});
-        ecs->attach<PaintComponent>(ground.entity, "folio");
+        ecs->attach<ThemeComponent>(ground.entity, "gloss.ground");
         root.get<Prefab>()->addToPrefab(ground.entity);
         g.ground = ground.entity;
 
-        auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, tokens.colour("rule-ruled"), 1.0f);
+        auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, {255.0f, 255.0f, 255.0f, 255.0f}, 1.0f);
         offstage(frame.entity);
         frame.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
         frame.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
-        ecs->attach<PaintComponent>(frame.entity, "rule-ruled");
+        ecs->attach<ThemeComponent>(frame.entity, "gloss.frame");
         root.get<Prefab>()->addToPrefab(frame.entity);
         g.frame = frame.entity;
 
         // Stack the parts top to bottom at `inner` wide, tracking the running y.
         float y = PAD;
-        auto stack = [&](const std::string& style, const std::string& text, const std::string& colour,
+        auto stack = [&](const std::string& style, const std::string& text, const std::string& color,
                          Overflow overflow, float width, bool alignRight) -> Label
         {
-            LabelSpec ls; ls.style = style; ls.text = text; ls.colour = colour;
+            LabelSpec ls; ls.style = style; ls.text = text; ls.color = color;
             ls.overflow = overflow; ls.width = width; ls.z = z;
             if (alignRight) ls.align = Align::Right;
-            Label l = makeLabel(ecs, tokens, styles, ls);
+            Label l = makeLabel(ecs, ls);
             offstage(l.entity);
             auto a = l.entity->get<UiAnchor>();
             if (alignRight) { a->setRightAnchor(PosAnchor{rootId, AnchorType::Right}); a->setRightMargin(PAD); }
@@ -186,7 +185,7 @@ namespace chronicle
         return ecs->getEntity(root.id)->get<PositionComponent>()->height;
     }
 
-    void Gloss::setText(EntitySystem* ecs, const TextStyles&, const std::string& newText)
+    void Gloss::setText(EntitySystem* ecs, const std::string& newText)
     {
         if (not text)
             return;
@@ -197,8 +196,6 @@ namespace chronicle
     }
 
     // ── GlossRegistry ────────────────────────────────────────────────────────
-    GlossRegistry::GlossRegistry(const Tokens* tokens, const TextStyles* styles) : tokens(tokens), styles(styles) {}
-
     void GlossRegistry::init()
     {
         auto* tip = ecsRef->getSystem<TooltipSystem>();
@@ -215,7 +212,7 @@ namespace chronicle
             {
                 GlossSpec shown = *spec;      // built in the tooltip z band it will be placed at
                 shown.z = TOOLTIP_Z_BAND;
-                lastBuilt = makeGloss(&ecs, *tokens, *styles, shown);
+                lastBuilt = makeGloss(&ecs, shown);
                 return lastBuilt.root;
             }
 
@@ -226,9 +223,9 @@ namespace chronicle
 
             GlossSpec fallback; fallback.kind = GlossKind::Tooltip; fallback.text = "(no gloss: " + key + ")";
             fallback.z = TOOLTIP_Z_BAND;
-            lastBuilt = makeGloss(&ecs, *tokens, *styles, fallback);
+            lastBuilt = makeGloss(&ecs, fallback);
             if (lastBuilt.text)
-                lastBuilt.text->entity->get<PaintComponent>()->setToken("vermilion");
+                lastBuilt.text->setColor(&ecs, "vermilion");
             return lastBuilt.root;
         });
     }

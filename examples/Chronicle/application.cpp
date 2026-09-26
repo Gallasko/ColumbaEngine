@@ -11,7 +11,8 @@
 #include "Systems/tween.h"
 #include "UI/gamedataview.h"
 
-#include "UI/paint.h"
+#include "UI/themesystem.h"
+
 #include "UI/mark.h"
 #include "UI/ornament.h"
 #include "UI/button.h"
@@ -60,25 +61,16 @@ namespace chronicle
 
         engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
         {
-            // 1. tokens
-            tokens = Tokens::load("res/chronicle/tokens.json");
-            if (not tokens.ok())
-            {
-                for (const auto& e : tokens.errors())
-                    LOG_ERROR("Chronicle", e);
-            }
-            tokens.setTheme(opt.theme == "candle" ? Theme::Candle : Theme::Day);
+            // 1. text, then the theme: the tokens, text styles and elements of res/chronicle/tokens.json.
+            //    The engine boot created the ThemeSystem; loading the file registers every style's
+            //    font atlas on the TTFTextSystem and paints every themed entity from then on.
+            ecs.createSystem<TTFTextSystem>(window.masterRenderer);
 
-            // 2. text
-            auto* ttfSys = ecs.createSystem<TTFTextSystem>(window.masterRenderer);
-            styles = TextStyles::fromTokens(tokens);
-            styles.registerAll(ttfSys, "res/font");
+            auto* theme = ecs.getSystem<ThemeSystem>();
+            theme->loadTheme("res/chronicle/tokens.json", "res/font");
+            theme->setTheme(opt.theme);
 
-            // 3. paint system (repaints on theme change), then the rest of the
-            //    standard render/UI/input stack created by the engine boot.
-            ecs.createSystem<PaintSystem>(&tokens);
-
-            // Animation and the data seam every phase-2 scene drives through.
+            // 2. animation and the data seam every phase-2 scene drives through.
             ecs.createSystem<TweenSystem>();
             ecs.createSystem<GameDataView>();
 
@@ -91,26 +83,26 @@ namespace chronicle
 
             // Buttons: react to the engine's hover/click/focus events. Order after the hover
             // system so a hover diff is seen the same frame.
-            ecs.createSystem<ButtonSystem>(&tokens);
+            ecs.createSystem<ButtonSystem>();
             ecs.succeed<MouseHoverSystem, ButtonSystem>();
 
-            ecs.createSystem<TabsSystem>(&tokens);
+            ecs.createSystem<TabsSystem>();
             ecs.succeed<MouseHoverSystem, TabsSystem>();
 
             // Gloss tooltips go through the engine's TooltipSystem (created by the UI boot).
             if (auto* tip = ecs.getSystem<TooltipSystem>())
-                tip->setDefaultFont("chr-body-sm");
-            ecs.createSystem<GlossRegistry>(&tokens, &styles);
+                tip->setDefaultFont("body-sm");
+            ecs.createSystem<GlossRegistry>();
 
             // Prefab factories: the engine primitives plus every Chronicle kind, so a
             // NodeSpec tree (hand-built or loaded from res/chronicle/ui/*.yaml) builds.
             auto* factories = ecs.createSystem<PrefabFactoryRegistry>();
             registerEnginePrefabFactories(factories);
-            registerChronicleFactories(factories, &tokens, &styles);
+            registerChronicleFactories(factories);
 
-            // 4. scene (default TypeSpecimen when no --dev given)
+            // 3. scene (default TypeSpecimen when no --dev given)
             const std::string scene = opt.devScene.empty() ? "TypeSpecimen" : opt.devScene;
-            loadDevScene(ecs.getSystem<SceneElementSystem>(), scene, &tokens, &styles);
+            loadDevScene(ecs.getSystem<SceneElementSystem>(), scene);
         });
     }
 

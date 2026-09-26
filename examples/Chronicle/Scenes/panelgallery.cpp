@@ -29,11 +29,12 @@ namespace chronicle
 
     void PanelGallery::init()
     {
+        theme = ecsRef->getSystem<ThemeSystem>();
 
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
+        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
+        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
 
         auto place = [](EntityRef e, float x, float y)
         {
@@ -44,34 +45,34 @@ namespace chronicle
 
         auto caption = [&](float x, float y, const std::string& text)
         {
-            LabelSpec spec; spec.style = "caption"; spec.text = text; spec.colour = "ink-muted"; spec.z = 10;
-            place(makeLabel(ecsRef, *tokens, *styles, spec).entity, x, y);
+            LabelSpec spec; spec.style = "caption"; spec.text = text; spec.color = "ink-muted"; spec.z = 10;
+            place(makeLabel(ecsRef, spec).entity, x, y);
         };
 
         // A wrap body label sized to a panel's inner width.
         auto wrapBody = [&](const Panel& p, const std::string& text)
         {
-            LabelSpec spec; spec.style = "body"; spec.text = text; spec.colour = "ink";
+            LabelSpec spec; spec.style = "body"; spec.text = text; spec.color = "ink";
             spec.overflow = Overflow::Wrap; spec.width = p.innerWidth(); spec.z = p.spec.contentZ;
-            return makeLabel(ecsRef, *tokens, *styles, spec).entity;
+            return makeLabel(ecsRef, spec).entity;
         };
 
         // ── Row 1: the three design-system panels, to compare with the preview ──
         {
             const float y = 56.0f;
             const float w = 360.0f;
-            const float step = w + tokens->space(5);   // 24
+            const float step = w + theme->space(5);   // 24
 
-            Panel hair = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Hair, w, "Skills", "study"});
+            Panel hair = makePanel(ecsRef, {PanelFrame::Hair, w, "Skills", "study"});
             hair.addChild(ecsRef, wrapBody(hair, "The quiet default. A hairline edge, for lists inside a bigger region."));
             place(hair.root, 48.0f, y);
 
             PanelSpec rs; rs.frame = PanelFrame::Ruled; rs.width = w; rs.heading = "Parts"; rs.glyph = "strength"; rs.aside = "LEDGER";
-            Panel ruled = makePanel(ecsRef, *tokens, *styles, rs);
+            Panel ruled = makePanel(ecsRef, rs);
             ruled.addChild(ecsRef, wrapBody(ruled, "The working panel of the game: a drawn rule around a leaf of folio."));
             place(ruled.root, 48.0f + step, y);
 
-            Panel illum = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Illuminated, w, "A relic is found", "relic"});
+            Panel illum = makePanel(ecsRef, {PanelFrame::Illuminated, w, "A relic is found", "relic"});
             illum.addChild(ecsRef, wrapBody(illum, "Gold corners and a doubled frame. Five events in the whole game may use this."));
             place(illum.root, 48.0f + 2.0f * step, y);
         }
@@ -84,11 +85,11 @@ namespace chronicle
         {
             caption(48.0f, row2Y - capOffset, "plain (no frame)");
             PanelSpec ps; ps.frame = PanelFrame::Plain; ps.width = 300.0f; ps.heading = "Notes";
-            Panel plain = makePanel(ecsRef, *tokens, *styles, ps);
-            LabelSpec r1; r1.style = "body"; r1.text = "A frameless region"; r1.colour = "ink"; r1.z = ps.contentZ;
-            LabelSpec r2; r2.style = "body"; r2.text = "on bare vellum."; r2.colour = "ink"; r2.z = ps.contentZ;
-            plain.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, r1).entity);
-            plain.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, r2).entity);
+            Panel plain = makePanel(ecsRef, ps);
+            LabelSpec r1; r1.style = "body"; r1.text = "A frameless region"; r1.color = "ink"; r1.z = ps.contentZ;
+            LabelSpec r2; r2.style = "body"; r2.text = "on bare vellum."; r2.color = "ink"; r2.z = ps.contentZ;
+            plain.addChild(ecsRef, makeLabel(ecsRef, r1).entity);
+            plain.addChild(ecsRef, makeLabel(ecsRef, r2).entity);
             place(plain.root, 48.0f, row2Y);
         }
 
@@ -96,17 +97,17 @@ namespace chronicle
         {
             const float x = 372.0f;
             caption(x, row2Y - capOffset, "ruled list body");
-            Panel p = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Ruled, 300.0f, "Parts", "strength"});
+            Panel p = makePanel(ecsRef, {PanelFrame::Ruled, 300.0f, "Parts", "strength"});
             const char* rows[5] = {"Strength", "Dexterity", "Intelligence", "Vitality", "Reputation"};
             for (int i = 0; i < 5; ++i)
             {
-                LabelSpec rl; rl.style = "body"; rl.text = rows[i]; rl.colour = "ink"; rl.z = p.spec.contentZ;
-                p.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, rl).entity);
+                LabelSpec rl; rl.style = "body"; rl.text = rows[i]; rl.color = "ink"; rl.z = p.spec.contentZ;
+                p.addChild(ecsRef, makeLabel(ecsRef, rl).entity);
                 if (i < 4)
                 {
                     OrnamentSpec ds; ds.kind = OrnamentKind::Divider; ds.weight = DividerWeight::Hair;
                     ds.knot = false; ds.width = p.innerWidth(); ds.ground = "folio"; ds.z = p.spec.contentZ;
-                    p.addChild(ecsRef, makeOrnament(ecsRef, *tokens, *styles, ds).root);
+                    p.addChild(ecsRef, makeOrnament(ecsRef, ds).root);
                 }
             }
             place(p.root, x, row2Y);
@@ -118,7 +119,7 @@ namespace chronicle
             caption(x, row2Y - capOffset, "ellipsis heading");
             PanelSpec es; es.frame = PanelFrame::Ruled; es.width = 300.0f;
             es.heading = "What Aldren may do this season and the next"; es.glyph = "adventure"; es.aside = "RUNNING";
-            Panel p = makePanel(ecsRef, *tokens, *styles, es);
+            Panel p = makePanel(ecsRef, es);
             p.addChild(ecsRef, wrapBody(p, "The title ellipsises; the aside keeps its room."));
             place(p.root, x, row2Y);
         }
@@ -127,12 +128,12 @@ namespace chronicle
         {
             const float x = 1020.0f;
             caption(x, row2Y - capOffset, "nested (z bands)");
-            Panel outer = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Ruled, 260.0f, "Who he is"});
+            Panel outer = makePanel(ecsRef, {PanelFrame::Ruled, 260.0f, "Who he is"});
             PanelSpec is; is.frame = PanelFrame::Ruled; is.width = outer.innerWidth(); is.heading = "Skills";
             is.z = 20; is.contentZ = 30;
-            Panel inner = makePanel(ecsRef, *tokens, *styles, is);
-            LabelSpec il; il.style = "body"; il.text = "Swordsmanship"; il.colour = "ink"; il.z = is.contentZ;
-            inner.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, il).entity);
+            Panel inner = makePanel(ecsRef, is);
+            LabelSpec il; il.style = "body"; il.text = "Swordsmanship"; il.color = "ink"; il.z = is.contentZ;
+            inner.addChild(ecsRef, makeLabel(ecsRef, il).entity);
             outer.addChild(ecsRef, inner.root);
             place(outer.root, x, row2Y);
         }
@@ -142,8 +143,8 @@ namespace chronicle
             const float x = 48.0f;
             const float y = 620.0f;
             caption(x, y - capOffset, "marks in a panel");
-            Panel p = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Ruled, 300.0f, "Season"});
-            struct Row { const char* mark; const char* text; const char* colour; };
+            Panel p = makePanel(ecsRef, {PanelFrame::Ruled, 300.0f, "Season"});
+            struct Row { const char* mark; const char* text; const char* color; };
             const Row rows[3] = {
                 {"time", "+3 mo", "ink"},
                 {"gold", "412", "ink"},
@@ -151,8 +152,8 @@ namespace chronicle
             };
             for (const auto& r : rows)
             {
-                MarkedLabelSpec ms; ms.mark = r.mark; ms.label = {"body", r.text, r.colour}; ms.z = p.spec.contentZ;
-                p.addChild(ecsRef, makeMarkedLabel(ecsRef, *tokens, *styles, ms).root);
+                MarkedLabelSpec ms; ms.mark = r.mark; ms.label = {"body", r.text, r.color}; ms.z = p.spec.contentZ;
+                p.addChild(ecsRef, makeMarkedLabel(ecsRef, ms).root);
             }
             place(p.root, x, y);
         }
@@ -163,9 +164,7 @@ namespace chronicle
         {
             if (event.key == SDL_SCANCODE_T)
             {
-                const Theme next = tokens->theme() == Theme::Day ? Theme::Candle : Theme::Day;
-                tokens->setTheme(next);
-                ecsRef->sendEvent(ThemeChangedEvent{next});
+                theme->setTheme(theme->currentTheme() == "day" ? "candle" : "day");
             }
         });
 

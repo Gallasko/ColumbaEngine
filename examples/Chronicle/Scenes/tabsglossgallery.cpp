@@ -31,12 +31,14 @@ namespace chronicle
 
     void TabsGlossGallery::init()
     {
+        theme = ecsRef->getSystem<ThemeSystem>();
+
         auto* reg = ecsRef->getSystem<GlossRegistry>();
 
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
+        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
+        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
 
         auto place = [](EntityRef e, float x, float y)
         {
@@ -45,13 +47,13 @@ namespace chronicle
             p->setY(y);
         };
 
-        auto caption = [&](float x, float y, const std::string& text, const std::string& colour)
+        auto caption = [&](float x, float y, const std::string& text, const std::string& color)
         {
-            LabelSpec spec; spec.style = "caption"; spec.text = text; spec.colour = colour; spec.z = 15;
-            place(makeLabel(ecsRef, *tokens, *styles, spec).entity, x, y);
+            LabelSpec spec; spec.style = "caption"; spec.text = text; spec.color = color; spec.z = 15;
+            place(makeLabel(ecsRef, spec).entity, x, y);
         };
 
-        const float margin = tokens->space(7);   // 48
+        const float margin = theme->space(7);   // 48
 
         // ── Register the Parts row glosses (one is deliberately absent) ────────
         if (reg)
@@ -70,14 +72,14 @@ namespace chronicle
         }
 
         // ── Two buttons, then the tab row: the shared Tab order ───────────────
-        makeButton(ecsRef, *tokens, *styles, {ButtonVariant::Quiet, "Back", "", -1, false, "", "back"})
+        makeButton(ecsRef, {ButtonVariant::Quiet, "Back", "", -1, false, "", "back"})
             .root->get<PositionComponent>()->setX(margin);
         {
-            Button b = makeButton(ecsRef, *tokens, *styles, {ButtonVariant::Quiet, "Menu", "", -1, false, "", "menu"});
+            Button b = makeButton(ecsRef, {ButtonVariant::Quiet, "Menu", "", -1, false, "", "menu"});
             place(b.root, margin, 44.0f);
         }
         {
-            Button b2 = makeButton(ecsRef, *tokens, *styles, {ButtonVariant::Quiet, "Back", "", -1, false, "", "back"});
+            Button b2 = makeButton(ecsRef, {ButtonVariant::Quiet, "Back", "", -1, false, "", "back"});
             place(b2.root, margin + 90.0f, 44.0f);
         }
 
@@ -85,12 +87,12 @@ namespace chronicle
         ts.items = {
             {"Life", "quill", 0}, {"Kit", "equipment", 0}, {"Town", "town", 0},
             {"Guild", "guild", 3}, {"Adventure", "adventure", 0}, {"Chronicle", "study", 12}};
-        Tabs tabsRow = makeTabs(ecsRef, *tokens, *styles, ts);
+        Tabs tabsRow = makeTabs(ecsRef, ts);
         place(tabsRow.root, margin, 96.0f);
 
         // Echo the last selection.
-        LabelSpec ss; ss.style = "body-sm"; ss.text = "selected: Life"; ss.colour = "ink-muted"; ss.z = 15;
-        selected = makeLabel(ecsRef, *tokens, *styles, ss);
+        LabelSpec ss; ss.style = "body-sm"; ss.text = "selected: Life"; ss.color = "ink-muted"; ss.z = 15;
+        selected = makeLabel(ecsRef, ss);
         place(selected.entity, margin, 150.0f);
 
         const std::vector<TabItem> items = ts.items;
@@ -109,7 +111,7 @@ namespace chronicle
         {
             const float y = 200.0f;
             caption(margin, y - 22.0f, "hover a row for its gloss (200 ms)", "ink-muted");
-            Panel parts = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength"});
+            Panel parts = makePanel(ecsRef, {PanelFrame::Ruled, 320.0f, "Parts", "strength"});
             struct Row { const char* mark; const char* text; const char* key; };
             const Row rows[3] = {
                 {"strength", "Strength 14", "parts/strength"},
@@ -119,7 +121,7 @@ namespace chronicle
             for (const auto& r : rows)
             {
                 MarkedLabelSpec ms; ms.mark = r.mark; ms.label = {"body", r.text, "ink"}; ms.z = parts.spec.contentZ;
-                MarkedLabel ml = makeMarkedLabel(ecsRef, *tokens, *styles, ms);
+                MarkedLabel ml = makeMarkedLabel(ecsRef, ms);
                 parts.addChild(ecsRef, ml.root);
                 attachGloss(ecsRef, ml.root, r.key);
             }
@@ -133,7 +135,7 @@ namespace chronicle
             GlossSpec g1; g1.kind = GlossKind::Margin;
             g1.text = "He had not the strength for it, and the guild would not wait; the smith took him "
                       "on for the winter and asked no questions of the boy at all.";
-            place(makeGloss(ecsRef, *tokens, *styles, g1).root, x, 200.0f);
+            place(makeGloss(ecsRef, g1).root, x, 200.0f);
 
             caption(x, 320.0f, "margin gloss (80 words - past the ceiling)", "ink-muted");
             GlossSpec g2; g2.kind = GlossKind::Margin;
@@ -142,7 +144,7 @@ namespace chronicle
                       "roads opened again he found the work had made a wideness in his shoulders and a "
                       "patience in his hands that the yard had never given him, and he wondered whether he "
                       "had chosen the forge or the forge had chosen him.";
-            place(makeGloss(ecsRef, *tokens, *styles, g2).root, x, 342.0f);
+            place(makeGloss(ecsRef, g2).root, x, 342.0f);
         }
 
         // ── Bottom-right: a static tooltip gloss for the design comparison ────
@@ -153,7 +155,7 @@ namespace chronicle
             tip.text = "Lifting, striking, enduring. Grows at the yard and in the mines over a season.";
             tip.rows = {{"Now", "14"}, {"At term", "17"}, {"Warrior at 18 asks", "18"}};
             tip.footnote = "WARRIOR AT 18 ASKS STRENGTH 18";
-            place(makeGloss(ecsRef, *tokens, *styles, tip).root, x, y);
+            place(makeGloss(ecsRef, tip).root, x, y);
         }
 
         caption(margin, 820.0f,
@@ -164,9 +166,7 @@ namespace chronicle
         {
             if (event.key == SDL_SCANCODE_T)
             {
-                const Theme next = tokens->theme() == Theme::Day ? Theme::Candle : Theme::Day;
-                tokens->setTheme(next);
-                ecsRef->sendEvent(ThemeChangedEvent{next});
+                theme->setTheme(theme->currentTheme() == "day" ? "candle" : "day");
             }
         });
 

@@ -7,7 +7,7 @@
 #include "UI/namedanchor.h"
 #include "UI/sizer.h"
 #include "UI/textinput.h"
-#include "UI/thememanager.h"
+#include "Gui/editortheme.h"
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
 
@@ -337,7 +337,7 @@ namespace pg
             listViewUi->setBottomAnchor(windowUi->bottom);
             listViewUi->setRightAnchor(windowUi->right);
 
-            auto themeManager = ecsRef->getSystem<ThemeManager>();
+            auto themeManager = ecsRef->getSystem<ThemeSystem>();
             auto listViewBackground = makeEditorPanel(ecsRef, themeManager, 0, 0);
 
             auto listViewBackgroundUi = listViewBackground.get<UiAnchor>();
@@ -541,7 +541,7 @@ namespace pg
             rowView->fitToAxis = true;
 
             // Label
-            auto themeManager = ecs->getSystem<ThemeManager>();
+            auto themeManager = ecs->getSystem<ThemeSystem>();
             auto labelEnt = makeEditorSecondaryText(ecs, themeManager, 0, 0, 1, "bold", toUpper(labelText), 0.4f);
             // auto labelPos = labelEnt.get<PositionComponent>();
             rowView->addEntity(labelEnt.entity);
@@ -584,7 +584,7 @@ namespace pg
 
         std::array<_unique_id, 3> InspectorWidgets::makeVec3Input(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, const std::string& baseKey, const std::string& baseValue)
         {
-            auto themeManager = ecs->getSystem<ThemeManager>();
+            auto themeManager = ecs->getSystem<ThemeSystem>();
 
             // Top label: property name
             auto nameLabel = makeEditorSecondaryText(ecs, themeManager, 0, 0, 1, "bold", toUpper(labelText), 0.4f);

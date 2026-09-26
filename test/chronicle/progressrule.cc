@@ -5,11 +5,10 @@
 #include <gtest/gtest.h>
 
 #include "UI/progressrule.h"
-#include "UI/paint.h"
 #include "Core/motion.h"
-#include "Core/textstyle.h"
 
 #include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
 #include "UI/ttftext.h"
 #include "UI/iconsystem.h"
 #include "UI/sizer.h"
@@ -31,14 +30,14 @@ namespace pg
         {
             struct ProgressFixture
             {
-                Tokens tokens = Tokens::load("chronicle/tokens.json");
                 EntitySystem ecs;
                 MasterRenderer renderer;
                 TTFTextSystem* ttf = nullptr;
                 IconSystem* icons = nullptr;
-                PaintSystem* paint = nullptr;
+                ThemeSystem* theme = nullptr;
+
+                constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
                 GameDataView* view = nullptr;
-                TextStyles styles;
 
                 ProgressFixture()
                 {
@@ -54,9 +53,8 @@ namespace pg
                     icons = ecs.createSystem<IconSystem>(&renderer);
                     ecs.createSystem<TweenSystem>();
                     view = ecs.createSystem<GameDataView>();
-                    paint = ecs.createSystem<PaintSystem>(&tokens);
-                    styles = TextStyles::fromTokens(tokens);
-                    styles.registerAll(ttf, "fonts");
+                    theme = ecs.createSystem<ThemeSystem>();
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
                     installIconEntries();
                 }
 
@@ -78,8 +76,8 @@ namespace pg
                 CompRef<Simple2DObject> s2d(EntityRef e) { return ecs.getEntity(e.id)->get<Simple2DObject>(); }
                 CompRef<HatchRect2DObject> hatchOf(EntityRef e) { return ecs.getEntity(e.id)->get<HatchRect2DObject>(); }
                 CompRef<StrokeRect2DObject> strokeOf(EntityRef e) { return ecs.getEntity(e.id)->get<StrokeRect2DObject>(); }
-                std::string token(EntityRef e) { return ecs.getEntity(e.id)->get<PaintComponent>()->token; }
-                float palpha(EntityRef e) { return ecs.getEntity(e.id)->get<PaintComponent>()->alpha; }
+                std::string token(EntityRef e) { return theme->elementEntry(ecs.getEntity(e.id)->get<ThemeComponent>()->element, "color").get<std::string>(); }
+                float palpha(EntityRef e) { return theme->resolveAlpha(theme->element(ecs.getEntity(e.id)->get<ThemeComponent>()->element), ""); }
                 bool hasTween(EntityRef e) { return ecs.getEntity(e.id)->has<TweenComponent>(); }
             };
         }
@@ -92,7 +90,7 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f});
             s.settle();
             EXPECT_FLOAT_EQ(s.pos(r.root)->width, 240.0f);
             EXPECT_FLOAT_EQ(s.pos(r.root)->height, 10.0f);
@@ -105,7 +103,7 @@ namespace pg
             EXPECT_NEAR(s.pos(r.frame)->width, 240.0f, 0.5f);
 
             ProgressRuleSpec sm; sm.width = 240.0f; sm.small = true; sm.percent = 50.0f;
-            ProgressRule rs = makeProgressRule(&s.ecs, s.tokens, s.styles, sm);
+            ProgressRule rs = makeProgressRule(&s.ecs, sm);
             s.settle();
             EXPECT_FLOAT_EQ(s.pos(rs.track)->height, 6.0f);
             EXPECT_FLOAT_EQ(s.pos(rs.fill)->height, 4.0f);
@@ -119,7 +117,7 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f, false, 35.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f, false, 35.0f});
             s.settle();
             EXPECT_NEAR(s.pos(r.fill)->x, s.pos(r.root)->x + 1.0f, 0.5f);
             EXPECT_NEAR(s.pos(r.fill)->width, 238.0f * 0.35f, 0.01f);
@@ -140,12 +138,12 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule a = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f, false, -5.0f});
+            ProgressRule a = makeProgressRule(&s.ecs, {240.0f, false, -5.0f});
             EXPECT_FLOAT_EQ(a.spec.percent, 0.0f);
-            ProgressRule b = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f, false, 140.0f});
+            ProgressRule b = makeProgressRule(&s.ecs, {240.0f, false, 140.0f});
             EXPECT_FLOAT_EQ(b.spec.percent, 100.0f);
 
-            ProgressRule c = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f});
+            ProgressRule c = makeProgressRule(&s.ecs, {240.0f});
             c.setPercent(&s.ecs, 250.0f, false);
             EXPECT_FLOAT_EQ(c.shown, 100.0f);
         }
@@ -158,7 +156,7 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f, false, 35.0f, 60.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f, false, 35.0f, 60.0f});
             s.settle();
             EXPECT_NEAR(s.pos(r.forecast)->x, s.pos(r.fill)->x + s.pos(r.fill)->width, 0.01f);
             EXPECT_NEAR(s.pos(r.forecast)->width, 238.0f * 0.25f, 0.01f);
@@ -177,7 +175,7 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f, false, 60.0f, 40.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f, false, 60.0f, 40.0f});
             s.settle();
             EXPECT_NEAR(s.pos(r.forecast)->width, 0.0f, 0.01f);
 
@@ -193,14 +191,14 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f, false, 35.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f, false, 35.0f});
             s.settle();
             ASSERT_TRUE(r.nib.has_value());
             EXPECT_NEAR(s.pos(r.nib->entity)->x, s.pos(r.root)->x + 1.0f + 238.0f * 0.35f - 5.6f, 0.01f);
             EXPECT_NEAR(s.pos(r.nib->entity)->y, s.pos(r.root)->y + 5.0f - 8.4f, 0.01f);
 
             ProgressRuleSpec nn; nn.width = 240.0f; nn.percent = 35.0f; nn.nib = false;
-            ProgressRule r2 = makeProgressRule(&s.ecs, s.tokens, s.styles, nn);
+            ProgressRule r2 = makeProgressRule(&s.ecs, nn);
             EXPECT_FALSE(r2.nib.has_value());
         }
 
@@ -213,14 +211,14 @@ namespace pg
             ProgressFixture s;
 
             ProgressRuleSpec cs; cs.width = 240.0f; cs.caption = "MONTH 3 OF 6";
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, cs);
+            ProgressRule r = makeProgressRule(&s.ecs, cs);
             s.settle();
             ASSERT_TRUE(r.caption.has_value());
             EXPECT_EQ(r.caption->spec.style, "caption");
             EXPECT_NEAR(s.pos(r.caption->entity)->y, s.pos(r.root)->y + 10.0f + 4.0f, 0.5f);
             EXPECT_NEAR(s.pos(r.root)->height, 14.0f + s.pos(r.caption->entity)->height, 0.5f);
 
-            r.setCaption(&s.ecs, s.styles, "");
+            r.setCaption(&s.ecs, "");
             s.settle();
             EXPECT_FLOAT_EQ(s.pos(r.root)->height, 10.0f);
         }
@@ -233,7 +231,7 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f});
             r.setPercent(&s.ecs, 70.0f, false);
             EXPECT_FLOAT_EQ(r.shown, 70.0f);
             s.settle();
@@ -249,7 +247,7 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f});
             r.setPercent(&s.ecs, 50.0f);   // animate
             ASSERT_TRUE(s.hasTween(r.fill));
             EXPECT_FLOAT_EQ(s.ecs.getEntity(r.fill.id)->get<TweenComponent>()->duration, 300.0f);
@@ -271,7 +269,7 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f});
             r.setPercent(&s.ecs, 50.0f);
             s.tick(150.0f);
             ASSERT_NEAR(r.shown, 25.0f, 0.5f);
@@ -291,7 +289,7 @@ namespace pg
             ProgressFixture s;
             Motion::setReduced(true);
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f});
             r.setPercent(&s.ecs, 80.0f);   // animate requested, but reduced -> jump
             EXPECT_FLOAT_EQ(r.shown, 80.0f);
             EXPECT_FALSE(s.hasTween(r.fill));
@@ -307,7 +305,7 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f, false, 0.0f, 50.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f, false, 0.0f, 50.0f});
             r.setPercent(&s.ecs, 50.0f);
             s.tick(150.0f);   // midpoint: shown ~25
             EXPECT_NEAR(s.pos(r.forecast)->width, 238.0f * 0.25f, 0.5f);
@@ -325,7 +323,7 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f});
             s.view->subscribe("activity.running.percent", [&](const ElementType& v) {
                 r.setPercent(&s.ecs, v.get<float>(), false);
             });
@@ -341,7 +339,7 @@ namespace pg
             MockLogger logger;
             ProgressFixture s;
 
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, {240.0f, false, 50.0f, 75.0f});
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f, false, 50.0f, 75.0f});
             s.settle();
             r.setWidth(&s.ecs, 480.0f);
             s.settle();
@@ -363,7 +361,7 @@ namespace pg
 
             ProgressRuleSpec zs; zs.width = 240.0f; zs.percent = 35.0f; zs.forecastPercent = 60.0f;
             zs.caption = "MONTH 3 OF 6"; zs.z = 20;
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, zs);
+            ProgressRule r = makeProgressRule(&s.ecs, zs);
             s.settle();
 
             EXPECT_FLOAT_EQ(s.pos(r.root)->z, 20.0f);
@@ -384,7 +382,7 @@ namespace pg
             ProgressFixture s;
 
             ProgressRuleSpec ts; ts.width = 240.0f; ts.trackHeight = 8.0f;
-            ProgressRule r = makeProgressRule(&s.ecs, s.tokens, s.styles, ts);
+            ProgressRule r = makeProgressRule(&s.ecs, ts);
             s.settle();
             EXPECT_FLOAT_EQ(s.pos(r.track)->height, 8.0f);
             EXPECT_FLOAT_EQ(s.pos(r.fill)->height, 6.0f);
@@ -392,7 +390,7 @@ namespace pg
 
             // Explicit height wins; `small` then only documents intent.
             ProgressRuleSpec ss; ss.width = 240.0f; ss.small = true; ss.trackHeight = 8.0f;
-            ProgressRule rs = makeProgressRule(&s.ecs, s.tokens, s.styles, ss);
+            ProgressRule rs = makeProgressRule(&s.ecs, ss);
             s.settle();
             EXPECT_FLOAT_EQ(s.pos(rs.track)->height, 8.0f);
         }

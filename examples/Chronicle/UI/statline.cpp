@@ -9,9 +9,9 @@
 #include "2D/simple2dobject.h"
 #include "UI/prefab.h"
 #include "UI/ttftext.h"
+#include "UI/themesystem.h"
 
 #include "Core/textmetrics.h"
-#include "paint.h"
 #include "gloss.h"
 
 using namespace pg;
@@ -41,17 +41,16 @@ namespace chronicle
         }
 
         // The "-> p" forecast label, right-anchored to the root and baseline-aligned to the figure.
-        Label buildProjection(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles,
-                              EntityRef root, int z, float ascFig, float ascTick, int p)
+        Label buildProjection(EntitySystem* ecs, EntityRef root, int z, float ascFig, float ascTick, int p)
         {
             LabelSpec ps;
             ps.style = "tick";
             ps.text = PROJ + std::to_string(p);
-            ps.colour = "progress-forecast";
+            ps.color = "progress-forecast";
             ps.overflow = Overflow::Grow;
             ps.z = z + 2;
 
-            Label pl = makeLabel(ecs, tokens, styles, ps);
+            Label pl = makeLabel(ecs, ps);
             auto pa = pl.entity->get<UiAnchor>();
             pa->setRightAnchor(PosAnchor{root.id, AnchorType::Right});
             pa->setTopAnchor(PosAnchor{root.id, AnchorType::Top});
@@ -62,18 +61,17 @@ namespace chronicle
         }
 
         // The note under the groove: wrapped `caption`, ink-faint, at groove.bottom + 4.
-        Label buildNote(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles,
-                        EntityRef root, int z, float width, const std::string& text)
+        Label buildNote(EntitySystem* ecs, EntityRef root, int z, float width, const std::string& text)
         {
             LabelSpec ns;
             ns.style = "caption";
             ns.text = text;
-            ns.colour = "ink-faint";
+            ns.color = "ink-faint";
             ns.overflow = Overflow::Wrap;
             ns.width = width;
             ns.z = z + 2;
 
-            Label nl = makeLabel(ecs, tokens, styles, ns);
+            Label nl = makeLabel(ecs, ns);
             auto na = nl.entity->get<UiAnchor>();
             na->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
             na->setTopAnchor(PosAnchor{root.id, AnchorType::Top});
@@ -92,7 +90,7 @@ namespace chronicle
         }
     }
 
-    StatLine makeStatLine(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const StatLineSpec& specIn)
+    StatLine makeStatLine(EntitySystem* ecs, const StatLineSpec& specIn)
     {
         StatLineSpec spec = specIn;
         spec.max = std::max(1, spec.max);
@@ -109,23 +107,21 @@ namespace chronicle
 
         StatLine sl;
         sl.spec = spec;
-        sl.tokens = &tokens;
-        sl.styles = &styles;
 
         auto root = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(z));
         root.get<PositionComponent>()->setWidth(W);
         sl.root = root.entity;
         const _unique_id rootId = root.id;
 
-        const float ascFig = ascenderOf(ecs, styles, "figure");
-        const float ascLbl = ascenderOf(ecs, styles, "label");
-        const float ascTick = ascenderOf(ecs, styles, "tick");
+        const float ascFig = ascenderOf(ecs, "figure");
+        const float ascLbl = ascenderOf(ecs, "label");
+        const float ascTick = ascenderOf(ecs, "tick");
 
         // ── figure (right edge is the anchor; the figure does not reflow) ──────
         LabelSpec fs;
-        fs.style = "figure"; fs.text = std::to_string(spec.value); fs.colour = "ink";
+        fs.style = "figure"; fs.text = std::to_string(spec.value); fs.color = "ink";
         fs.align = Align::Right; fs.overflow = Overflow::Grow; fs.z = z + 2;
-        Label figure = makeLabel(ecs, tokens, styles, fs);
+        Label figure = makeLabel(ecs, fs);
         {
             auto fa = figure.entity->get<UiAnchor>();
             fa->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
@@ -139,7 +135,7 @@ namespace chronicle
         ns.mark = spec.glyph;
         ns.label = {"label", asciiUpper(spec.label), "ink-muted"};
         ns.z = z + 1;
-        MarkedLabel name = makeMarkedLabel(ecs, tokens, styles, ns);
+        MarkedLabel name = makeMarkedLabel(ecs, ns);
         if (name.mark)
             name.mark->setSize(ecs, MarkSize::S16);   // a stat name's mark is 16, not the label's 14
         {
@@ -154,7 +150,7 @@ namespace chronicle
 
         // ── projection (only when above the value) ────────────────────────────
         if (hasProj)
-            sl.projected = buildProjection(ecs, tokens, styles, sl.root, z, ascFig, ascTick, spec.projected);
+            sl.projected = buildProjection(ecs, sl.root, z, ascFig, ascTick, spec.projected);
         sl.placeFigureRight(ecs);
 
         // ── groove: a ProgressRule, nib off, 8 px track ───────────────────────
@@ -163,7 +159,7 @@ namespace chronicle
         gs.percent = pct(spec.value);
         gs.forecastPercent = hasProj ? pct(spec.projected) : 0.0f;
         gs.nib = false; gs.z = z + 1;
-        ProgressRule groove = makeProgressRule(ecs, tokens, styles, gs);
+        ProgressRule groove = makeProgressRule(ecs, gs);
         {
             auto ga = groove.root->get<UiAnchor>();
             ga->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
@@ -175,7 +171,7 @@ namespace chronicle
         sl.groove = groove;
 
         // ── threshold tick: 2 x 14 status-time, standing on the track (z+6) ───
-        auto th = makeUiSimple2DShape(ecs, Shape2D::Square, 2.0f, 14.0f, tokens.colour("status-time"));
+        auto th = makeUiSimple2DShape(ecs, Shape2D::Square, 2.0f, 14.0f);
         {
             auto ta = th.get<UiAnchor>();
             ta->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
@@ -183,14 +179,14 @@ namespace chronicle
             ta->setTopMargin(HEAD + GAP1 - 3.0f);   // 3 px proud of the track above and below
             ta->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 6.0f});
         }
-        ecs->attach<PaintComponent>(th.entity, "status-time");
+        ecs->attach<ThemeComponent>(th.entity, "stat.threshold");
         root.get<Prefab>()->addToPrefab(th.entity);
         sl.threshold = th.entity;
         sl.placeThreshold();
 
         // ── note ──────────────────────────────────────────────────────────────
         if (not spec.note.empty())
-            sl.note = buildNote(ecs, tokens, styles, sl.root, z, W, spec.note);
+            sl.note = buildNote(ecs, sl.root, z, W, spec.note);
 
         setRootHeight(sl);
 
@@ -231,7 +227,7 @@ namespace chronicle
         threshold->get<UiAnchor>()->setLeftMargin(lm);
     }
 
-    void StatLine::setValue(EntitySystem* ecs, const TextStyles& styles, int value, bool animate)
+    void StatLine::setValue(EntitySystem* ecs, int value, bool animate)
     {
         value = std::clamp(value, 0, spec.max);
         spec.value = value;
@@ -242,10 +238,10 @@ namespace chronicle
 
         // A projection at or below the value is not a projection.
         if (projected and spec.projected <= value)
-            setProjected(ecs, styles, -1);
+            setProjected(ecs, -1);
     }
 
-    void StatLine::setProjected(EntitySystem* ecs, const TextStyles& styles, int p)
+    void StatLine::setProjected(EntitySystem* ecs, int p)
     {
         if (p >= 0)
             p = std::clamp(p, 0, spec.max);
@@ -256,9 +252,9 @@ namespace chronicle
         {
             if (not projected)
             {
-                const float ascFig = ascenderOf(ecs, styles, "figure");
-                const float ascTick = ascenderOf(ecs, styles, "tick");
-                projected = buildProjection(ecs, *tokens, styles, root, spec.z, ascFig, ascTick, p);
+                const float ascFig = ascenderOf(ecs, "figure");
+                const float ascTick = ascenderOf(ecs, "tick");
+                projected = buildProjection(ecs, root, spec.z, ascFig, ascTick, p);
             }
             else
             {
@@ -287,7 +283,7 @@ namespace chronicle
         placeThreshold();
     }
 
-    void StatLine::setNote(EntitySystem* ecs, const TextStyles& styles, const std::string& text)
+    void StatLine::setNote(EntitySystem* ecs, const std::string& text)
     {
         if (text.empty())
         {
@@ -303,9 +299,9 @@ namespace chronicle
             note->setText(ecs, text);
             spec.note = text;
         }
-        else if (tokens)
+        else
         {
-            note = buildNote(ecs, *tokens, styles, root, spec.z, spec.width, text);
+            note = buildNote(ecs, root, spec.z, spec.width, text);
             spec.note = text;
         }
 

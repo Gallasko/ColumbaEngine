@@ -9,9 +9,7 @@
 #include "Input/inputcomponent.h"
 #include "Input/sdlevents.h"
 #include "UI/focusable.h"
-
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
+#include "UI/themesystem.h"
 
 #include "label.h"
 #include "mark.h"
@@ -65,17 +63,15 @@ namespace chronicle
 
         int active() const;
         void setActive(pg::EntitySystem*, int);                   // programmatic: repaints, sends no event
-        void setBadge(pg::EntitySystem*, const TextStyles&, int index, int count);   // 0 removes; re-measures the face
+        void setBadge(pg::EntitySystem*, int index, int count);   // 0 removes; re-measures the face
     };
 
-    Tabs makeTabs(pg::EntitySystem*, const Tokens&, const TextStyles&, const TabsSpec&);
+    Tabs makeTabs(pg::EntitySystem*, const TabsSpec&);
 
     struct TabsSystem : public pg::System<pg::Own<TabState>,
         pg::Listener<pg::HoverChangedEvent>, pg::Listener<pg::OnMouseClick>, pg::Listener<pg::OnMouseRelease>,
-        pg::Listener<pg::OnSDLScanCode>, pg::Listener<KeyboardFocusChangedEvent>, pg::Listener<ThemeChangedEvent>, pg::InitSys>
+        pg::Listener<pg::OnSDLScanCode>, pg::Listener<KeyboardFocusChangedEvent>, pg::Listener<pg::ThemeChangedEvent>, pg::InitSys>
     {
-        explicit TabsSystem(const Tokens* tokens);
-
         std::string getSystemName() const override { return "Chronicle Tabs System"; }
 
         void init() override;
@@ -85,12 +81,9 @@ namespace chronicle
         void onEvent(const pg::OnMouseRelease&) override;
         void onEvent(const pg::OnSDLScanCode&) override;
         void onEvent(const KeyboardFocusChangedEvent&) override;
-        void onEvent(const ThemeChangedEvent&) override;
+        void onEvent(const pg::ThemeChangedEvent&) override;
 
         void select(pg::EntityRef face);   // sets active on its row; sends TabSelectedEvent unless already active
         void applyVisual(pg::EntityRef face);
-
-    private:
-        const Tokens* tokens;
     };
 }

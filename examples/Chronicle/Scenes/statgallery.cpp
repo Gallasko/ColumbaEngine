@@ -64,13 +64,15 @@ namespace chronicle
 
     void StatGallery::init()
     {
+        theme = ecsRef->getSystem<ThemeSystem>();
+
         auto* view = ecsRef->getSystem<GameDataView>();
         auto* reg  = ecsRef->getSystem<GlossRegistry>();
 
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
+        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
+        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
 
         auto place = [](EntityRef e, float x, float y)
         {
@@ -79,18 +81,18 @@ namespace chronicle
             p->setY(y);
         };
 
-        auto caption = [&](float x, float y, const std::string& text, const std::string& colour)
+        auto caption = [&](float x, float y, const std::string& text, const std::string& color)
         {
             LabelSpec spec;
             spec.style = "caption";
             spec.text = text;
-            spec.colour = colour;
+            spec.color = color;
             spec.z = 15;
 
-            place(makeLabel(ecsRef, *tokens, *styles, spec).entity, x, y);
+            place(makeLabel(ecsRef, spec).entity, x, y);
         };
 
-        const float margin = tokens->space(7);   // 48
+        const float margin = theme->space(7);   // 48
 
         // -- Register each part's gloss (Now / At term / Next milestone asks) --
         if (reg)
@@ -114,7 +116,7 @@ namespace chronicle
         }
 
         // ── Left: the Parts panel, four lines fed from the view ──────────────
-        Panel panel = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
+        Panel panel = makePanel(ecsRef, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
         for (int i = 0; i < 4; ++i)
         {
             const Part& p = PARTS[i];
@@ -130,7 +132,7 @@ namespace chronicle
             ls.glossKey = std::string("parts/") + p.id;
             ls.z = panel.spec.contentZ;
 
-            parts[static_cast<size_t>(i)] = makeStatLine(ecsRef, *tokens, *styles, ls);
+            parts[static_cast<size_t>(i)] = makeStatLine(ecsRef, ls);
             panel.addChild(ecsRef, parts[static_cast<size_t>(i)].root);
 
             // Seed the view (stores only; subscriptions are wired below).
@@ -155,10 +157,10 @@ namespace chronicle
                 const char* id = PARTS[i].id;
                 const size_t idx = static_cast<size_t>(i);
                 view->subscribe(path(id), [this, idx](const ElementType& v) {
-                    parts[idx].setValue(ecsRef, *styles, v.get<int>());
+                    parts[idx].setValue(ecsRef, v.get<int>());
                 });
                 view->subscribe(projPath(id), [this, idx](const ElementType& v) {
-                    parts[idx].setProjected(ecsRef, *styles, v.get<int>());
+                    parts[idx].setProjected(ecsRef, v.get<int>());
                 });
                 view->subscribe(thrPath(id), [this, idx](const ElementType& v) {
                     parts[idx].setThreshold(ecsRef, v.get<int>());
@@ -179,12 +181,12 @@ namespace chronicle
         const float by = 120.0f;
         for (int i = 0; i < 5; ++i)
         {
-            Button b = makeButton(ecsRef, *tokens, *styles, {ButtonVariant::Quiet, btns[i].label, "", -1, false, "", btns[i].tag});
+            Button b = makeButton(ecsRef, {ButtonVariant::Quiet, btns[i].label, "", -1, false, "", btns[i].tag});
             place(b.root, bx, by + static_cast<float>(i) * 44.0f);
         }
 
-        LabelSpec es; es.style = "body-sm"; es.text = "ready"; es.colour = "ink-muted"; es.z = 15;
-        echo = makeLabel(ecsRef, *tokens, *styles, es);
+        LabelSpec es; es.style = "body-sm"; es.text = "ready"; es.color = "ink-muted"; es.z = 15;
+        echo = makeLabel(ecsRef, es);
         place(echo.entity, bx, by + 5.0f * 44.0f + 12.0f);
 
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e)
@@ -235,13 +237,13 @@ namespace chronicle
             bs.projected = 27;
             bs.threshold = 25;
             bs.note = "WARRIOR AT 24 ASKS 24";
-            big = makeStatLine(ecsRef, *tokens, *styles, bs);
+            big = makeStatLine(ecsRef, bs);
             place(big.root, margin, 460.0f);
         }
 
         // ── Motion + theme controls ──────────────────────────────────────────
-        LabelSpec ms; ms.style = "caption"; ms.text = "motion: full"; ms.colour = "ink-muted"; ms.z = 15;
-        motionLabel = makeLabel(ecsRef, *tokens, *styles, ms);
+        LabelSpec ms; ms.style = "caption"; ms.text = "motion: full"; ms.color = "ink-muted"; ms.z = 15;
+        motionLabel = makeLabel(ecsRef, ms);
         place(motionLabel.entity, bx, by + 5.0f * 44.0f + 32.0f);
 
         caption(margin, 820.0f,
@@ -252,9 +254,7 @@ namespace chronicle
         {
             if (event.key == SDL_SCANCODE_T)
             {
-                const Theme next = tokens->theme() == Theme::Day ? Theme::Candle : Theme::Day;
-                tokens->setTheme(next);
-                ecsRef->sendEvent(ThemeChangedEvent{next});
+                theme->setTheme(theme->currentTheme() == "day" ? "candle" : "day");
             }
             else if (event.key == SDL_SCANCODE_R)
             {

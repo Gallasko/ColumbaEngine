@@ -5,9 +5,6 @@
 
 #include "UI/prefabfactory.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-
 namespace chronicle
 {
     // Registers every Chronicle kit piece as a prefab factory, so a NodeSpec tree (hand-built
@@ -20,7 +17,7 @@ namespace chronicle
     //
     // Conventions shared by every kind:
     //   - enum props are lowercase strings (`frame: ruled`, `overflow: wrap`, `variant: seal`);
-    //   - colours are token names, checked against the Tokens (unknown -> logged, default kept);
+    //   - colours are token names, checked against the theme (unknown -> logged, default kept);
     //   - numeric props also accept a spacing token (`gap: space-2`);
     //   - `z` is an int; Panel hands `z: contentZ` and `width: innerWidth` down to its children
     //     and exposes its body layout as the slot the children go into;
@@ -29,7 +26,7 @@ namespace chronicle
     //
     // Renamed keys (the node's `kind` is taken): Ornament's kind is `ornament`, Gloss's kind
     // is `gloss`.
-    void registerChronicleFactories(pg::PrefabFactoryRegistry* registry, const Tokens* tokens, const TextStyles* styles);
+    void registerChronicleFactories(pg::PrefabFactoryRegistry* registry);
 
     // The kind names registered above, in registration order.
     const std::vector<std::string>& chronicleKinds();

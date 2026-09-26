@@ -35,11 +35,12 @@ namespace chronicle
 
     void ProgressGallery::init()
     {
+        theme = ecsRef->getSystem<ThemeSystem>();
 
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
+        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
+        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
 
         auto place = [](EntityRef e, float x, float y)
         {
@@ -48,17 +49,17 @@ namespace chronicle
             p->setY(y);
         };
 
-        auto caption = [&](float x, float y, const std::string& text, const std::string& colour)
+        auto caption = [&](float x, float y, const std::string& text, const std::string& color)
         {
-            LabelSpec spec; spec.style = "caption"; spec.text = text; spec.colour = colour; spec.z = 15;
-            place(makeLabel(ecsRef, *tokens, *styles, spec).entity, x, y);
+            LabelSpec spec; spec.style = "caption"; spec.text = text; spec.color = color; spec.z = 15;
+            place(makeLabel(ecsRef, spec).entity, x, y);
         };
 
         // A static rule with a caption naming it.
         auto row = [&](float x, float y, const std::string& name, const ProgressRuleSpec& spec)
         {
             caption(x, y - 20.0f, name, "ink-muted");
-            ProgressRule r = makeProgressRule(ecsRef, *tokens, *styles, spec);
+            ProgressRule r = makeProgressRule(ecsRef, spec);
             place(r.root, x, y);
         };
 
@@ -71,22 +72,22 @@ namespace chronicle
         {
             caption(lx, 240.0f, "sm, no nib, 70 %", "ink-muted");
             ProgressRuleSpec sm; sm.width = 240.0f; sm.small = true; sm.percent = 70.0f; sm.nib = false;
-            ProgressRule r = makeProgressRule(ecsRef, *tokens, *styles, sm);
+            ProgressRule r = makeProgressRule(ecsRef, sm);
             place(r.root, lx, 260.0f);
         }
         {
             caption(lx, 300.0f, "with caption", "ink-muted");
             ProgressRuleSpec cs; cs.width = 240.0f; cs.percent = 50.0f;
             cs.caption = "MONTH 3 OF 6 \xC2\xB7 SWORDSMANSHIP 3 \xE2\x86\x92 4 AT TERM";
-            ProgressRule r = makeProgressRule(ecsRef, *tokens, *styles, cs);
+            ProgressRule r = makeProgressRule(ecsRef, cs);
             place(r.root, lx, 320.0f);
         }
         {
             caption(lx, 380.0f, "on folio (inside a panel)", "ink-muted");
-            Panel panel = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Ruled, 288.0f, "At work now"});
+            Panel panel = makePanel(ecsRef, {PanelFrame::Ruled, 288.0f, "At work now"});
             ProgressRuleSpec ps; ps.width = 256.0f; ps.percent = 35.0f; ps.forecastPercent = 60.0f;
             ps.z = panel.spec.contentZ;
-            panel.addChild(ecsRef, makeProgressRule(ecsRef, *tokens, *styles, ps).root);
+            panel.addChild(ecsRef, makeProgressRule(ecsRef, ps).root);
             place(panel.root, lx, 400.0f);
         }
 
@@ -96,7 +97,7 @@ namespace chronicle
         {
             ProgressRuleSpec rs; rs.width = 480.0f; rs.percent = 0.0f; rs.forecastPercent = 100.0f;
             rs.caption = RUNNING_CAPTION;
-            running = makeProgressRule(ecsRef, *tokens, *styles, rs);
+            running = makeProgressRule(ecsRef, rs);
             place(running.root, rx, 80.0f);
         }
 
@@ -104,7 +105,7 @@ namespace chronicle
         const Btn btns[3] = {{"Advance a month", "advance"}, {"Reset", "reset"}, {"Set forecast 50", "forecast50"}};
         for (int i = 0; i < 3; ++i)
         {
-            Button b = makeButton(ecsRef, *tokens, *styles, {ButtonVariant::Quiet, btns[i].label, "", -1, false, "", btns[i].tag});
+            Button b = makeButton(ecsRef, {ButtonVariant::Quiet, btns[i].label, "", -1, false, "", btns[i].tag});
             place(b.root, rx + static_cast<float>(i) * 180.0f, 140.0f);
         }
 
@@ -114,14 +115,14 @@ namespace chronicle
             {
                 month = std::min(month + 1, 6);
                 running.setPercent(ecsRef, static_cast<float>(month) * 100.0f / 6.0f);
-                running.setCaption(ecsRef, *styles,
+                running.setCaption(ecsRef,
                     "MONTH " + std::to_string(month) + " OF 6 \xC2\xB7 STRENGTH 14 \xE2\x86\x92 17 AT TERM");
             }
             else if (e.tag == "reset")
             {
                 month = 0;
                 running.setPercent(ecsRef, 0.0f, false);
-                running.setCaption(ecsRef, *styles, RUNNING_CAPTION);
+                running.setCaption(ecsRef, RUNNING_CAPTION);
             }
             else if (e.tag == "forecast50")
             {
@@ -130,8 +131,8 @@ namespace chronicle
         });
 
         // ── Motion + theme controls ───────────────────────────────────────────
-        LabelSpec ms; ms.style = "caption"; ms.text = "motion: full"; ms.colour = "ink-muted"; ms.z = 15;
-        motionLabel = makeLabel(ecsRef, *tokens, *styles, ms);
+        LabelSpec ms; ms.style = "caption"; ms.text = "motion: full"; ms.color = "ink-muted"; ms.z = 15;
+        motionLabel = makeLabel(ecsRef, ms);
         place(motionLabel.entity, rx, 200.0f);
 
         caption(48.0f, 820.0f, "T toggle theme \xC2\xB7 R toggle reduced motion \xC2\xB7 Advance to fill the bar", "ink-muted");
@@ -140,9 +141,7 @@ namespace chronicle
         {
             if (event.key == SDL_SCANCODE_T)
             {
-                const Theme next = tokens->theme() == Theme::Day ? Theme::Candle : Theme::Day;
-                tokens->setTheme(next);
-                ecsRef->sendEvent(ThemeChangedEvent{next});
+                theme->setTheme(theme->currentTheme() == "day" ? "candle" : "day");
             }
             else if (event.key == SDL_SCANCODE_R)
             {

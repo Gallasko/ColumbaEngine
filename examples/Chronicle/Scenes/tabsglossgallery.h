@@ -2,9 +2,7 @@
 
 #include "Scene/scenemanager.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-#include "UI/paint.h"
+#include "UI/themesystem.h"
 #include "UI/label.h"
 
 namespace chronicle
@@ -14,13 +12,10 @@ namespace chronicle
     // static tooltip gloss for side-by-side comparison. T toggles theme.
     struct TabsGlossGallery : public pg::Scene
     {
-        TabsGlossGallery(Tokens* tokens, TextStyles* styles) : tokens(tokens), styles(styles) {}
-
         virtual void init() override;
 
     private:
-        Tokens* tokens = nullptr;
-        TextStyles* styles = nullptr;
+        pg::ThemeSystem* theme = nullptr;
 
         pg::_unique_id backgroundId = 0;
         Label selected;   // echoes the last TabSelectedEvent

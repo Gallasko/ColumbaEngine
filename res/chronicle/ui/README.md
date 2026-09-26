@@ -10,7 +10,7 @@ realises it through the Chronicle prefab factories
 auto spec  = pg::loadNodeSpec(ecs, "res/chronicle/ui/skills.yaml");
 auto built = pg::buildTree(ecs, *spec);
 if (auto* fed = built.get<chronicle::RequirementList>("fed"))
-    fed->setItem(ecs, styles, 0, 18, 18);        // every runtime setter stays available
+    fed->setItem(ecs, 0, 18, 18);                // every runtime setter stays available
 ```
 
 ## Shape
@@ -45,7 +45,7 @@ comment.
   a nested panel lands in the next z band on its own. An explicit child value wins.
 - Lists: `Tabs.items` (`label`, `glyph`, `badge`), `RequirementList.items` (`label`,
   `current`, `needed`, `met` as a bool), `Gloss.rows` (`label`, `value`), and
-  `MarkedLabel.label` as a nested map (or flat `text` / `style` / `colour` on the node).
+  `MarkedLabel.label` as a nested map (or flat `text` / `style` / `color` on the node).
 - Events stay tag-based: `Button.tag` rides `ButtonActivatedEvent`, `Tabs.tag` rides
   `TabSelectedEvent`, `StatLine.glossKey` attaches a registered gloss.
 - No data bindings in files: name the node and subscribe its handle from C++

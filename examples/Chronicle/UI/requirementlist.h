@@ -6,9 +6,6 @@
 
 #include "ECS/entitysystem.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-
 #include "label.h"
 #include "mark.h"
 
@@ -52,11 +49,8 @@ namespace chronicle
         std::vector<Row> rows;
         RequirementListSpec spec;
 
-        const Tokens* tokens = nullptr;
-        const TextStyles* styles = nullptr;
-
-        void setItems(pg::EntitySystem*, const Tokens&, const TextStyles&, const std::vector<Requirement>&);
-        void setItem(pg::EntitySystem*, const TextStyles&, size_t index, int current, int needed);
+        void setItems(pg::EntitySystem*, const std::vector<Requirement>&);
+        void setItem(pg::EntitySystem*, size_t index, int current, int needed);
         void setMet(pg::EntitySystem*, size_t index, bool met);
         void clearMet(pg::EntitySystem*, size_t index);
         float height(pg::EntitySystem*) const;
@@ -65,5 +59,5 @@ namespace chronicle
         void repaintRow(pg::EntitySystem*, size_t index);   // tokens only; nothing moves (internal)
     };
 
-    RequirementList makeRequirementList(pg::EntitySystem*, const Tokens&, const TextStyles&, const RequirementListSpec&);
+    RequirementList makeRequirementList(pg::EntitySystem*, const RequirementListSpec&);
 }

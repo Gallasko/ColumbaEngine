@@ -1,0 +1,51 @@
+{
+  "name": "Basic",
+  "version": 1,
+  "themes": [
+    { "id": "day", "name": "Day" },
+    { "id": "night", "name": "Night" }
+  ],
+  "color": {
+    "tokens": [
+      { "name": "paper", "value": { "day": "#ffffff", "night": "#101010" } },
+      { "name": "ink", "value": { "day": "#202020", "night": "#e0e0e0" } },
+      { "name": "accent", "value": "#ff8000" },
+      { "name": "accent-soft", "value": { "default": "{accent}", "night": "rgba(255,128,0,0.5)" } },
+      { "name": "link", "value": "{accent}" }
+    ]
+  },
+  "type": {
+    "fonts": [
+      { "family": "text", "weight": 400, "italic": false, "file": "Inter-Regular.ttf" }
+    ],
+    "groups": [
+      {
+        "name": "Text",
+        "family": "text",
+        "styles": [
+          { "name": "body", "fontSize": "16px", "lineHeight": "24px", "fontWeight": 400 },
+          { "name": "caption", "fontSize": { "default": "12px", "night": "14px" }, "lineHeight": "16px", "fontWeight": 400, "letterSpacing": "0.05em" }
+        ]
+      }
+    ]
+  },
+  "spacing": { "tokens": [ { "name": "space-1", "value": "4px" }, { "name": "space-2", "value": { "day": "8px", "night": "10px" } } ] },
+  "radius": { "tokens": [ { "name": "radius-md", "value": "6px" } ] },
+  "border": { "tokens": [ { "name": "border-rule", "value": "2px" } ] },
+  "opacity": { "tokens": [ { "name": "opacity-soft", "value": "0.5" } ] },
+  "elements": {
+    "label": { "font": "body", "color": "ink" },
+    "label.caption": { "font": "caption" },
+    "soft": { "alpha": "opacity-soft" },
+    "panel.ground": { "color": "paper" },
+    "panel.frame": { "color": "ink", "border": "border-rule", "radius": "radius-md" },
+    "button.ground": { "color": "accent", "radius": 3 },
+    "button.ground.hover": { "color": { "default": "accent-soft", "night": "ink" } },
+    "button.disabled": { "extends": "button.ground", "alpha": 0.25 },
+    "literal": { "color": "#4080c0", "alpha": 0.5 },
+    "mixed": { "color": "paper", "TTFText.color": "ink" },
+    "dim": { "alpha": 0.5 },
+    "loop-a": { "extends": "loop-b", "color": "ink" },
+    "loop-b": { "extends": "loop-a" }
+  }
+}

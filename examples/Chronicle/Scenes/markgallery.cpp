@@ -31,20 +31,21 @@ namespace chronicle
 
     void MarkGallery::init()
     {
+        theme = ecsRef->getSystem<ThemeSystem>();
 
         // Vellum background (not a layout child; it just fills the page).
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
+        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
+        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
 
-        const float margin = tokens->space(7);            // 48
+        const float margin = theme->space(7);            // 48
         const float contentW = PAGE_W - 2.0f * margin;
 
         // ── helpers ───────────────────────────────────────────────────────────
         auto mark = [this](const std::string& name, MarkSize size)
         {
-            return makeMark(ecsRef, *tokens, {name, size, "ink", static_cast<int>(CONTENT_Z)}).entity;
+            return makeMark(ecsRef, {name, size, "ink", static_cast<int>(CONTENT_Z)}).entity;
         };
 
         auto vlayout = [this](float w, size_t spacing)
@@ -67,7 +68,7 @@ namespace chronicle
         // their z constrained to the layout's z (== CONTENT_Z), so SURFACE_Z sits behind them.
         auto surfaceBehind = [this](EntityRef layout, const std::string& token, float pad)
         {
-            auto s = makeUiSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, tokens->colour(token));
+            auto s = makeUiSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, theme->color(token));
             s.get<PositionComponent>()->setZ(SURFACE_Z);
             auto a = s.get<UiAnchor>();
             a->fillIn(layout->get<UiAnchor>());
@@ -75,7 +76,7 @@ namespace chronicle
             a->setBottomMargin(-pad);
             a->setLeftMargin(-pad);
             a->setRightMargin(-pad);
-            ecsRef->attach<PaintComponent>(s.entity, token);
+            ecsRef->attach<ThemeComponent>(s.entity, "scene." + token);
         };
 
         // A grid cell: mark centred over its name, both centred in a fixed-width box so the
@@ -89,20 +90,20 @@ namespace chronicle
             cell.get<PositionComponent>()->setWidth(CELL_W);
             cell.get<PositionComponent>()->setHeight(CELL_H);
 
-            Mark m = makeMark(ecsRef, *tokens, {name, MarkSize::S24, "ink", static_cast<int>(CONTENT_Z)});
+            Mark m = makeMark(ecsRef, {name, MarkSize::S24, "ink", static_cast<int>(CONTENT_Z)});
             auto ma = m.entity->get<UiAnchor>();
             ma->setTopAnchor(PosAnchor{cell.id, AnchorType::Top});
             ma->setHorizontalCenter(PosAnchor{cell.id, AnchorType::HorizontalCenter});
             ma->setZConstrain(PosConstrain{cell.id, AnchorType::Z, PosOpType::Add, 1.0f});
             cell.get<Prefab>()->addToPrefab(m.entity);
 
-            LabelSpec spec; spec.style = "caption"; spec.text = name; spec.colour = "ink-muted";
+            LabelSpec spec; spec.style = "caption"; spec.text = name; spec.color = "ink-muted";
             spec.align = Align::Centre; spec.overflow = Overflow::Ellipsis; spec.width = CELL_W;
             spec.z = static_cast<int>(CONTENT_Z);
-            Label cap = makeLabel(ecsRef, *tokens, *styles, spec);
+            Label cap = makeLabel(ecsRef, spec);
             auto ca = cap.entity->get<UiAnchor>();
             ca->setTopAnchor(PosAnchor{cell.id, AnchorType::Top});
-            ca->setTopMargin(px(MarkSize::S24) + tokens->space(1));
+            ca->setTopMargin(px(MarkSize::S24) + theme->space(1));
             ca->setLeftAnchor(PosAnchor{cell.id, AnchorType::Left});
             ca->setZConstrain(PosConstrain{cell.id, AnchorType::Z, PosOpType::Add, 1.0f});
             cell.get<Prefab>()->addToPrefab(cap.entity);
@@ -111,7 +112,7 @@ namespace chronicle
         };
 
         // ── the page: one vertical column, sections stacked with a region gap ──
-        auto page = vlayout(contentW, static_cast<size_t>(tokens->space(6)));   // 32
+        auto page = vlayout(contentW, static_cast<size_t>(theme->space(6)));   // 32
 
         page.get<PositionComponent>()->setX(margin);
         page.get<PositionComponent>()->setY(40.0f);
@@ -121,7 +122,7 @@ namespace chronicle
 
         // ── Row 1: the whole set at S24 in a wrapping grid, name under each ────
         {
-            auto row = hlayout(contentW, static_cast<size_t>(tokens->space(4)), /*wrap*/ true);   // 16
+            auto row = hlayout(contentW, static_cast<size_t>(theme->space(4)), /*wrap*/ true);   // 16
 
             for (const auto& name : markNames())
                 row.get<HorizontalLayout>()->addEntity(gridCell(name));
@@ -131,8 +132,8 @@ namespace chronicle
 
         // ── Row 2: the set at S14 on a vellum-worn strip (legibility floor) ───
         {
-            auto row = hlayout(contentW, static_cast<size_t>(tokens->space(2)));   // 8
-            surfaceBehind(row.entity, "vellum-worn", tokens->space(2));
+            auto row = hlayout(contentW, static_cast<size_t>(theme->space(2)));   // 8
+            surfaceBehind(row.entity, "vellum-worn", theme->space(2));
 
             for (const auto& name : markNames())
                 row.get<HorizontalLayout>()->addEntity(mark(name, MarkSize::S14));
@@ -142,17 +143,17 @@ namespace chronicle
 
         // ── Mid: pairs (left) beside the status check (right) ─────────────────
         {
-            auto mid = hlayout(contentW, static_cast<size_t>(tokens->space(6)));   // 32
+            auto mid = hlayout(contentW, static_cast<size_t>(theme->space(6)));   // 32
 
             // Pairs, one per size, with a hair-rule divider under each.
-            auto col = vlayout(380.0f, static_cast<size_t>(tokens->space(2)));
+            auto col = vlayout(380.0f, static_cast<size_t>(theme->space(2)));
 
             struct Pair
             {
                 const char* mark;
                 const char* style;
                 const char* text;
-                const char* colour;
+                const char* color;
             };
 
             const Pair pairs[6] = {
@@ -168,12 +169,12 @@ namespace chronicle
             {
                 MarkedLabelSpec spec;
                 spec.mark = p.mark;
-                spec.label = {p.style, p.text, p.colour};
+                spec.label = {p.style, p.text, p.color};
                 spec.z = static_cast<int>(CONTENT_Z);
-                col.get<VerticalLayout>()->addEntity(makeMarkedLabel(ecsRef, *tokens, *styles, spec).root);
+                col.get<VerticalLayout>()->addEntity(makeMarkedLabel(ecsRef, spec).root);
 
-                auto rule = makeUiSimple2DShape(ecsRef, Shape2D::Square, 380.0f, 1.0f, tokens->colour("rule-hair"));
-                ecsRef->attach<PaintComponent>(rule.entity, "rule-hair");
+                auto rule = makeUiSimple2DShape(ecsRef, Shape2D::Square, 380.0f, 1.0f, theme->color("rule-hair"));
+                ecsRef->attach<ThemeComponent>(rule.entity, "scene.rule-hair");
                 col.get<VerticalLayout>()->addEntity(rule.entity);
             }
 
@@ -184,7 +185,7 @@ namespace chronicle
             {
                 const char* mark;
                 const char* text;
-                const char* colour;
+                const char* color;
             };
 
             const Status rows[2] = {
@@ -198,17 +199,17 @@ namespace chronicle
                 {
                     MarkedLabelSpec spec;
                     spec.mark = r.mark;
-                    spec.label = {"body", r.text, r.colour};
+                    spec.label = {"body", r.text, r.color};
                     spec.z = static_cast<int>(CONTENT_Z);
-                    into->addEntity(makeMarkedLabel(ecsRef, *tokens, *styles, spec).root);
+                    into->addEntity(makeMarkedLabel(ecsRef, spec).root);
                 }
             };
 
-            auto statusCol = vlayout(300.0f, static_cast<size_t>(tokens->space(4)));
+            auto statusCol = vlayout(300.0f, static_cast<size_t>(theme->space(4)));
             addStatus(statusCol.get<VerticalLayout>().component);
 
-            auto folioGroup = vlayout(300.0f, static_cast<size_t>(tokens->space(2)));
-            surfaceBehind(folioGroup.entity, "folio", tokens->space(3));
+            auto folioGroup = vlayout(300.0f, static_cast<size_t>(theme->space(2)));
+            surfaceBehind(folioGroup.entity, "folio", theme->space(3));
             addStatus(folioGroup.get<VerticalLayout>().component);
             statusCol.get<VerticalLayout>()->addEntity(folioGroup.entity);
 
@@ -218,30 +219,28 @@ namespace chronicle
 
         // ── Row 5: the missing-mark case draws "seal" and logs once ───────────
         {
-            auto row = hlayout(contentW, static_cast<size_t>(tokens->space(2)));
+            auto row = hlayout(contentW, static_cast<size_t>(theme->space(2)));
             row.get<HorizontalLayout>()->addEntity(mark("clock", MarkSize::S24));
 
-            LabelSpec spec; spec.style = "caption"; spec.text = "\"clock\" -> seal"; spec.colour = "ink-muted";
+            LabelSpec spec; spec.style = "caption"; spec.text = "\"clock\" -> seal"; spec.color = "ink-muted";
             spec.z = static_cast<int>(CONTENT_Z);
-            row.get<HorizontalLayout>()->addEntity(makeLabel(ecsRef, *tokens, *styles, spec).entity);
+            row.get<HorizontalLayout>()->addEntity(makeLabel(ecsRef, spec).entity);
             pageLayout->addEntity(row.entity);
         }
 
         // Footer hint.
         {
-            LabelSpec spec; spec.style = "caption"; spec.text = "T  toggle theme"; spec.colour = "ink-muted";
+            LabelSpec spec; spec.style = "caption"; spec.text = "T  toggle theme"; spec.color = "ink-muted";
             spec.z = static_cast<int>(CONTENT_Z);
-            pageLayout->addEntity(makeLabel(ecsRef, *tokens, *styles, spec).entity);
+            pageLayout->addEntity(makeLabel(ecsRef, spec).entity);
         }
 
-        // T toggles the theme; PaintSystem repaints every painted entity (marks included).
+        // T toggles the theme; the theme system repaints every themed entity (marks included).
         listenToEvent<OnSDLScanCode>([this](const OnSDLScanCode& event)
         {
             if (event.key == SDL_SCANCODE_T)
             {
-                const Theme next = tokens->theme() == Theme::Day ? Theme::Candle : Theme::Day;
-                tokens->setTheme(next);
-                ecsRef->sendEvent(ThemeChangedEvent{next});
+                theme->setTheme(theme->currentTheme() == "day" ? "candle" : "day");
             }
         });
 

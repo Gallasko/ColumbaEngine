@@ -30,13 +30,15 @@ namespace chronicle
 
     void LabelGallery::init()
     {
+        theme = ecsRef->getSystem<ThemeSystem>();
+
         auto* ttf = ecsRef->getSystem<TTFTextSystem>();
 
         // Vellum background.
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1320.0f, 860.0f, tokens->colour("vellum"));
+        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1320.0f, 860.0f, theme->color("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
+        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
 
         const float colX[4] = {48.0f, 376.0f, 704.0f, 1032.0f};
 
@@ -52,29 +54,29 @@ namespace chronicle
         // A thin painted rule.
         auto rule = [this](float x, float y, float w, float h, const std::string& token)
         {
-            auto r = makeUiSimple2DShape(ecsRef, Shape2D::Square, w, h, tokens->colour(token));
+            auto r = makeUiSimple2DShape(ecsRef, Shape2D::Square, w, h, theme->color(token));
             r.get<PositionComponent>()->setX(x);
             r.get<PositionComponent>()->setY(y);
             r.get<PositionComponent>()->setZ(CONTENT_Z - 1.0f);
-            ecsRef->attach<PaintComponent>(r.entity, token);
+            ecsRef->attach<ThemeComponent>(r.entity, "scene." + token);
             return r.entity.id;
         };
 
         // A filled strip so a box's edges are visible.
         auto strip = [this](float x, float y, float w, float h, const std::string& token)
         {
-            auto s = makeUiSimple2DShape(ecsRef, Shape2D::Square, w, h, tokens->colour(token));
+            auto s = makeUiSimple2DShape(ecsRef, Shape2D::Square, w, h, theme->color(token));
             s.get<PositionComponent>()->setX(x);
             s.get<PositionComponent>()->setY(y);
             s.get<PositionComponent>()->setZ(CONTENT_Z - 1.0f);
-            ecsRef->attach<PaintComponent>(s.entity, token);
+            ecsRef->attach<ThemeComponent>(s.entity, "scene." + token);
         };
 
         // Column header: a heading label and a hairline beneath it. Returns the y below the rule.
         auto header = [&](float x, const std::string& title) -> float
         {
-            LabelSpec h; h.style = "heading"; h.text = title; h.colour = "ink"; h.z = static_cast<int>(CONTENT_Z);
-            Label label = makeLabel(ecsRef, *tokens, *styles, h);
+            LabelSpec h; h.style = "heading"; h.text = title; h.color = "ink"; h.z = static_cast<int>(CONTENT_Z);
+            Label label = makeLabel(ecsRef, h);
             place(label, x, 40.0f);
             rule(x, 72.0f, COL_W, 1.0f, "rule-hair");
             return 84.0f;
@@ -90,7 +92,7 @@ namespace chronicle
                 strip(colX[0], y, COL_W, 24.0f, "vellum-tint");
                 LabelSpec spec; spec.style = "body"; spec.text = names[i]; spec.align = aligns[i];
                 spec.overflow = Overflow::Ellipsis; spec.width = COL_W; spec.z = static_cast<int>(CONTENT_Z);
-                Label l = makeLabel(ecsRef, *tokens, *styles, spec);
+                Label l = makeLabel(ecsRef, spec);
                 place(l, colX[0], y);
                 y += 32.0f;
             }
@@ -99,8 +101,8 @@ namespace chronicle
             {
                 strip(colX[0], y, COL_W, 22.0f, "vellum-tint");
                 LabelSpec spec; spec.style = "figure"; spec.text = figures[i]; spec.align = Align::Right;
-                spec.overflow = Overflow::Ellipsis; spec.width = COL_W; spec.colour = "ochre"; spec.z = static_cast<int>(CONTENT_Z);
-                Label l = makeLabel(ecsRef, *tokens, *styles, spec);
+                spec.overflow = Overflow::Ellipsis; spec.width = COL_W; spec.color = "ochre"; spec.z = static_cast<int>(CONTENT_Z);
+                Label l = makeLabel(ecsRef, spec);
                 place(l, colX[0], y);
                 y += 30.0f;
             }
@@ -114,10 +116,10 @@ namespace chronicle
             for (const auto& item : items)
             {
                 LabelSpec spec; spec.style = item.style; spec.text = item.text; spec.z = static_cast<int>(CONTENT_Z);
-                Label l = makeLabel(ecsRef, *tokens, *styles, spec);
+                Label l = makeLabel(ecsRef, spec);
                 place(l, colX[1], y);
 
-                const TextStyle& st = styles->get(item.style);
+                const TextStyle& st = theme->style(item.style);
                 const float w = ttf->measureText(st.fontAlias, item.text, 1.0f, 0.0f, 0.0f, st.letterSpacingPx).width;
                 rule(colX[1] + w, y, 1.0f, static_cast<float>(st.lineHeightPx), "rule-ruled");
 
@@ -134,7 +136,7 @@ namespace chronicle
                 strip(colX[2], y, w, 24.0f, "vellum-tint");
                 LabelSpec spec; spec.style = "body"; spec.text = "The quick brown fox jumps over the lazy dog";
                 spec.overflow = Overflow::Ellipsis; spec.width = w; spec.z = static_cast<int>(CONTENT_Z);
-                Label l = makeLabel(ecsRef, *tokens, *styles, spec);
+                Label l = makeLabel(ecsRef, spec);
                 place(l, colX[2], y);
                 y += 30.0f;
             }
@@ -143,16 +145,16 @@ namespace chronicle
         // ── Column 3: Wrap variants, each annotated with its line count/height ──
         {
             float y = header(colX[3], "Wrap");
-            struct Wrap { const char* style; int maxLines; const char* colour; };
+            struct Wrap { const char* style; int maxLines; const char* color; };
             const Wrap variants[4] = {{"body", 0, "ink"}, {"body", 3, "ink"}, {"body", 1, "ink"}, {"body-sm", 2, "ink-muted"}};
             for (const auto& v : variants)
             {
-                LabelSpec spec; spec.style = v.style; spec.text = PARA; spec.colour = v.colour;
+                LabelSpec spec; spec.style = v.style; spec.text = PARA; spec.color = v.color;
                 spec.overflow = Overflow::Wrap; spec.width = COL_W; spec.maxLines = v.maxLines; spec.z = static_cast<int>(CONTENT_Z);
-                Label l = makeLabel(ecsRef, *tokens, *styles, spec);
+                Label l = makeLabel(ecsRef, spec);
                 place(l, colX[3], y);
 
-                const TextStyle& st = styles->get(v.style);
+                const TextStyle& st = theme->style(v.style);
                 TextLayoutParams wrapParams;
                 wrapParams.maxWidth = COL_W;
                 wrapParams.spacing = st.lineSpacingPx;
@@ -162,10 +164,10 @@ namespace chronicle
                 const int lines = ttf->measureText(st.fontAlias, PARA, wrapParams).lineCount;
                 const float h = static_cast<float>(lines) * static_cast<float>(st.lineHeightPx);
 
-                LabelSpec meta; meta.style = "caption"; meta.colour = "ink-faint";
+                LabelSpec meta; meta.style = "caption"; meta.color = "ink-faint";
                 meta.text = std::to_string(lines) + " lines \xC2\xB7 " + std::to_string(static_cast<int>(h)) + " px";
                 meta.z = static_cast<int>(CONTENT_Z);
-                Label metaLabel = makeLabel(ecsRef, *tokens, *styles, meta);
+                Label metaLabel = makeLabel(ecsRef, meta);
                 place(metaLabel, colX[3], y + h + 2.0f);
 
                 y += h + 24.0f;
@@ -173,18 +175,16 @@ namespace chronicle
         }
 
         // Footer hint.
-        LabelSpec hint; hint.style = "caption"; hint.text = "T  toggle theme"; hint.colour = "ink-muted"; hint.z = static_cast<int>(CONTENT_Z);
-        Label hintLabel = makeLabel(ecsRef, *tokens, *styles, hint);
+        LabelSpec hint; hint.style = "caption"; hint.text = "T  toggle theme"; hint.color = "ink-muted"; hint.z = static_cast<int>(CONTENT_Z);
+        Label hintLabel = makeLabel(ecsRef, hint);
         place(hintLabel, colX[0], 820.0f);
 
-        // T toggles the theme; PaintSystem repaints every painted entity.
+        // T toggles the theme; the theme system repaints every themed entity.
         listenToEvent<OnSDLScanCode>([this](const OnSDLScanCode& event)
         {
             if (event.key == SDL_SCANCODE_T)
             {
-                const Theme next = tokens->theme() == Theme::Day ? Theme::Candle : Theme::Day;
-                tokens->setTheme(next);
-                ecsRef->sendEvent(ThemeChangedEvent{next});
+                theme->setTheme(theme->currentTheme() == "day" ? "candle" : "day");
             }
         });
 

@@ -3,9 +3,9 @@
 #include <gtest/gtest.h>
 
 #include "UI/label.h"
-#include "UI/paint.h"
 
 #include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
 #include "UI/ttftext.h"
 #include "2D/simple2dobject.h"
 #include "2D/position.h"
@@ -33,11 +33,12 @@ namespace pg
 
             struct LabelFixture
             {
-                Tokens tokens = Tokens::load("chronicle/tokens.json");
                 EntitySystem ecs;
                 MasterRenderer renderer;
                 TTFTextSystem* ttf = nullptr;
-                TextStyles styles;
+                ThemeSystem* theme = nullptr;
+
+                constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
 
                 LabelFixture()
                 {
@@ -45,9 +46,8 @@ namespace pg
                     ttf = ecs.createSystem<TTFTextSystem>(&renderer);
                     ecs.createSystem<Simple2DObjectSystem>(&renderer);
                     ecs.createSystem<PrefabSystem>();
-                    ecs.createSystem<PaintSystem>(&tokens);
-                    styles = TextStyles::fromTokens(tokens);
-                    styles.registerAll(ttf, "fonts");
+                    theme = ecs.createSystem<ThemeSystem>();
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
                 }
 
                 void settle() { ecs.executeOnce(); ecs.executeOnce(); }
@@ -74,9 +74,9 @@ namespace pg
         TEST(label_test, grow_width_equals_measure)
         {
             MockLogger logger; LabelFixture s;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, {"body", "STR 14"});
+            auto label = makeLabel(&s.ecs, {"body", "STR 14"});
             s.settle();
-            EXPECT_NEAR(s.pos(label.entity)->width, s.ttf->measureText("chr-body", "STR 14").width, 0.01f);
+            EXPECT_NEAR(s.pos(label.entity)->width, s.ttf->measureText("body", "STR 14").width, 0.01f);
             EXPECT_FLOAT_EQ(s.pos(label.entity)->height, 24.0f);
         }
 
@@ -84,7 +84,7 @@ namespace pg
         TEST(label_test, grow_height_is_token_line_height_not_font)
         {
             MockLogger logger; LabelFixture s;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, {"title", "North Forest"});
+            auto label = makeLabel(&s.ecs, {"title", "North Forest"});
             s.settle();
             EXPECT_FLOAT_EQ(s.pos(label.entity)->height, 34.0f);
         }
@@ -93,8 +93,8 @@ namespace pg
         TEST(label_test, two_labels_share_line_height)
         {
             MockLogger logger; LabelFixture s;
-            auto a = makeLabel(&s.ecs, s.tokens, s.styles, {"body", "x"});
-            auto b = makeLabel(&s.ecs, s.tokens, s.styles, {"body", "Hg|"});
+            auto a = makeLabel(&s.ecs, {"body", "x"});
+            auto b = makeLabel(&s.ecs, {"body", "Hg|"});
             s.settle();
             EXPECT_FLOAT_EQ(s.pos(a.entity)->height, s.pos(b.entity)->height);
         }
@@ -105,9 +105,9 @@ namespace pg
             MockLogger logger; LabelFixture s;
             LabelSpec spec; spec.style = "figure"; spec.text = "412"; spec.align = Align::Right;
             spec.overflow = Overflow::Ellipsis; spec.width = 300.0f;
-            auto right = makeLabel(&s.ecs, s.tokens, s.styles, spec);
+            auto right = makeLabel(&s.ecs, spec);
             spec.align = Align::Left;
-            auto left = makeLabel(&s.ecs, s.tokens, s.styles, spec);
+            auto left = makeLabel(&s.ecs, spec);
             s.settle();
 
             // Alignment happens inside the glyph layout: the right-aligned glyphs sit
@@ -126,7 +126,7 @@ namespace pg
         {
             MockLogger logger; LabelFixture s;
             LabelSpec spec; spec.style = "body"; spec.text = FOX; spec.overflow = Overflow::Ellipsis; spec.width = 120.0f;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
+            auto label = makeLabel(&s.ecs, spec);
             s.settle();
 
             const TextMetrics metrics = s.ttf->measureText(label.fontAlias, FOX, s.paramsOf(label));
@@ -135,8 +135,8 @@ namespace pg
 
             EXPECT_GT(s.ttfOf(label.entity)->textWidth, 0.0f);
             EXPECT_LE(s.ttfOf(label.entity)->textWidth, 120.0f);
-            const TextStyle& style = s.styles.get("body");
-            EXPECT_GT(s.ttf->measureText("chr-body", FOX, 1, 0, 0, style.letterSpacingPx).width, 120.0f);
+            const TextStyle& style = s.theme->style("body");
+            EXPECT_GT(s.ttf->measureText("body", FOX, 1, 0, 0, style.letterSpacingPx).width, 120.0f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -144,7 +144,7 @@ namespace pg
         {
             MockLogger logger; LabelFixture s;
             LabelSpec spec; spec.style = "body"; spec.text = paragraph(60); spec.overflow = Overflow::Wrap; spec.width = 300.0f;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
+            auto label = makeLabel(&s.ecs, spec);
             s.settle();
             const int lines = s.ttf->measureText(label.fontAlias, label.spec.text, s.paramsOf(label)).lineCount;
             EXPECT_GE(lines, 3);
@@ -159,7 +159,7 @@ namespace pg
             MockLogger logger; LabelFixture s;
             LabelSpec spec; spec.style = "body"; spec.text = paragraph(60); spec.overflow = Overflow::Wrap;
             spec.width = 300.0f; spec.maxLines = 2;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
+            auto label = makeLabel(&s.ecs, spec);
             s.settle();
             EXPECT_FLOAT_EQ(s.pos(label.entity)->height, 48.0f);
             const TextMetrics metrics = s.ttf->measureText(label.fontAlias, label.spec.text, s.paramsOf(label));
@@ -171,7 +171,7 @@ namespace pg
         TEST(label_test, set_text_regrows)
         {
             MockLogger logger; LabelFixture s;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, {"body", "a"});
+            auto label = makeLabel(&s.ecs, {"body", "a"});
             s.settle();
             const float before = s.pos(label.entity)->width;
             label.setText(&s.ecs, "a much longer line");
@@ -186,7 +186,7 @@ namespace pg
         {
             MockLogger logger; LabelFixture s;
             LabelSpec spec; spec.style = "body"; spec.text = FOX; spec.overflow = Overflow::Ellipsis; spec.width = 300.0f;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
+            auto label = makeLabel(&s.ecs, spec);
             s.settle();
             label.setWidth(&s.ecs, 80.0f);
             s.settle();
@@ -195,20 +195,19 @@ namespace pg
         }
 
         // ----------------------------------------------------------------------------------------
-        TEST(label_test, colour_is_token_and_repaints)
+        TEST(label_test, color_is_token_and_repaints)
         {
             MockLogger logger; LabelFixture s;
-            LabelSpec spec; spec.style = "body"; spec.text = "x"; spec.colour = "status-gain";
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
+            LabelSpec spec; spec.style = "body"; spec.text = "x"; spec.color = "status-gain";
+            auto label = makeLabel(&s.ecs, spec);
 
-            auto verdigrisDay = s.tokens.colour("verdigris", Theme::Day);
+            auto verdigrisDay = s.color("verdigris", "day");
             EXPECT_FLOAT_EQ(s.ttfOf(label.entity)->colors.x, verdigrisDay.x);
 
-            s.tokens.setTheme(Theme::Candle);
-            s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
+            s.theme->setTheme("candle");
             s.ecs.executeOnce();
 
-            auto verdigrisCandle = s.tokens.colour("verdigris", Theme::Candle);
+            auto verdigrisCandle = s.color("verdigris", "candle");
             EXPECT_FLOAT_EQ(s.ttfOf(label.entity)->colors.x, verdigrisCandle.x);
         }
 
@@ -217,7 +216,7 @@ namespace pg
         {
             MockLogger logger; LabelFixture s;
             LabelSpec spec; spec.style = "body"; spec.text = "x"; spec.z = 20;
-            auto label = makeLabel(&s.ecs, s.tokens, s.styles, spec);
+            auto label = makeLabel(&s.ecs, spec);
             s.settle();
             EXPECT_FLOAT_EQ(s.pos(label.entity)->z, 20.0f);
         }

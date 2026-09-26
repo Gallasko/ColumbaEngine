@@ -11,10 +11,9 @@
 #include <gtest/gtest.h>
 
 #include "UI/button.h"
-#include "UI/paint.h"
-#include "Core/textstyle.h"
 
 #include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
 #include "UI/ttftext.h"
 #include "UI/iconsystem.h"
 #include "UI/sizer.h"
@@ -42,16 +41,16 @@ namespace pg
 
             struct ButtonFixture
             {
-                Tokens tokens = Tokens::load("chronicle/tokens.json");
                 EntitySystem ecs;
                 MasterRenderer renderer;
                 TTFTextSystem* ttf = nullptr;
                 IconSystem* icons = nullptr;
-                PaintSystem* paint = nullptr;
+                ThemeSystem* theme = nullptr;
+
+                constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
                 ButtonSystem* buttons = nullptr;
                 FocusableSystem* focus = nullptr;
                 ActivationRecorder* recorder = nullptr;
-                TextStyles styles;
 
                 ButtonFixture()
                 {
@@ -68,12 +67,11 @@ namespace pg
                     ecs.createSystem<MouseHoverSystem>();
                     focus = ecs.createSystem<FocusableSystem>();
                     ecs.createSystem<FocusOrderSystem>();
-                    paint = ecs.createSystem<PaintSystem>(&tokens);
-                    buttons = ecs.createSystem<ButtonSystem>(&tokens);
+                    theme = ecs.createSystem<ThemeSystem>();
+                    buttons = ecs.createSystem<ButtonSystem>();
                     ecs.succeed<MouseHoverSystem, ButtonSystem>();
                     recorder = ecs.createSystem<ActivationRecorder>();
-                    styles = TextStyles::fromTokens(tokens);
-                    styles.registerAll(ttf, "fonts");
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
                     installIconEntries();
                 }
 
@@ -96,7 +94,7 @@ namespace pg
 
                 Button place(const ButtonSpec& spec, float x = 100.0f, float y = 100.0f)
                 {
-                    Button b = makeButton(&ecs, tokens, styles, spec);
+                    Button b = makeButton(&ecs, spec);
                     b.root->get<PositionComponent>()->setX(x);
                     b.root->get<PositionComponent>()->setY(y);
                     pump();
@@ -105,19 +103,19 @@ namespace pg
 
                 float controlWidth(const std::string& text)
                 {
-                    const TextStyle& s = styles.get("control");
+                    const TextStyle& s = theme->style("control");
                     return ttf->measureText(s.fontAlias, text, 1.0f, 0.0f, 0.0f, s.letterSpacingPx).width;
                 }
                 float tickWidth(const std::string& text)
                 {
-                    const TextStyle& s = styles.get("tick");
+                    const TextStyle& s = theme->style("tick");
                     return ttf->measureText(s.fontAlias, text, 1.0f, 0.0f, 0.0f, s.letterSpacingPx).width;
                 }
 
                 CompRef<PositionComponent> pos(EntityRef e) { return ecs.getEntity(e.id)->get<PositionComponent>(); }
                 CompRef<PositionComponent> pos(_unique_id id) { return ecs.getEntity(id)->get<PositionComponent>(); }
-                std::string token(_unique_id id) { return ecs.getEntity(id)->get<PaintComponent>()->token; }
-                float palpha(_unique_id id) { return ecs.getEntity(id)->get<PaintComponent>()->alpha; }
+                std::string token(_unique_id id) { return theme->elementEntry(ecs.getEntity(id)->get<ThemeComponent>()->element, "color").get<std::string>(); }
+                float palpha(_unique_id id) { return theme->resolveAlpha(theme->element(ecs.getEntity(id)->get<ThemeComponent>()->element), ""); }
                 ButtonState* state(const Button& b) { return ecs.getEntity(b.face.id)->get<ButtonState>().component; }
             };
         }
@@ -426,13 +424,12 @@ namespace pg
             s.hover(110.0f, 118.0f);
             EXPECT_EQ(s.token(s.state(b)->ground), "vellum-tint");
 
-            s.tokens.setTheme(Theme::Candle);
-            s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
+            s.theme->setTheme("candle");
             s.pump();
 
             EXPECT_EQ(s.token(s.state(b)->ground), "vellum-tint");
             EXPECT_FLOAT_EQ(s.ecs.getEntity(s.state(b)->ground)->get<RoundedRect2DObject>()->colors.x,
-                            s.tokens.colour("vellum-tint", Theme::Candle).x);
+                            s.color("vellum-tint", "candle").x);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -446,7 +443,7 @@ namespace pg
             Button b = s.place({ButtonVariant::Quiet, "Go"});
             const float before = s.pos(b.face)->width;
 
-            b.setLabel(&s.ecs, s.styles, "Enter the Ruins");
+            b.setLabel(&s.ecs, "Enter the Ruins");
             s.pump();
 
             const float after = s.pos(b.face)->width;

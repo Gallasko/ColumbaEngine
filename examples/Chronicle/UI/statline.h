@@ -5,9 +5,6 @@
 
 #include "ECS/entitysystem.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-
 #include "label.h"
 #include "mark.h"
 #include "progressrule.h"
@@ -45,13 +42,10 @@ namespace chronicle
         std::optional<Label> note;     // `caption`, ink-faint
         StatLineSpec spec;
 
-        const Tokens* tokens = nullptr;
-        const TextStyles* styles = nullptr;
-
-        void setValue(pg::EntitySystem*, const TextStyles&, int value, bool animate = true);
-        void setProjected(pg::EntitySystem*, const TextStyles&, int projected);
+        void setValue(pg::EntitySystem*, int value, bool animate = true);
+        void setProjected(pg::EntitySystem*, int projected);
         void setThreshold(pg::EntitySystem*, int threshold);
-        void setNote(pg::EntitySystem*, const TextStyles&, const std::string&);
+        void setNote(pg::EntitySystem*, const std::string&);
         float height(pg::EntitySystem*) const;
 
         // internal
@@ -59,5 +53,5 @@ namespace chronicle
         void placeThreshold();                      // re-place the tick and set its visibility
     };
 
-    StatLine makeStatLine(pg::EntitySystem*, const Tokens&, const TextStyles&, const StatLineSpec&);
+    StatLine makeStatLine(pg::EntitySystem*, const StatLineSpec&);
 }

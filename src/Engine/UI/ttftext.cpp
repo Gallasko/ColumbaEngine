@@ -7,6 +7,8 @@
 
 #include "Helpers/helpers.h"
 
+#include "UI/themesystem.h"
+
 #include "UI/utf8.h"
 
 #ifdef __EMSCRIPTEN__
@@ -88,6 +90,15 @@ namespace pg
 
             changed = true;
         });
+
+        // The theme system boots before us: register the ThemeComponent + TTFText pairing ourselves.
+        auto theme = ecsRef->getSystem<ThemeSystem>();
+
+        if (theme)
+        {
+            theme->registerThemable<TTFText>(&ThemeSystem::applyTTFText);
+            theme->registerFontsInto(this);
+        }
     }
 
     void TTFTextSystem::onEvent(const PositionSettledEvent& event)

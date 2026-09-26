@@ -5,10 +5,9 @@
 #include <gtest/gtest.h>
 
 #include "UI/mark.h"
-#include "UI/paint.h"
-#include "Core/textstyle.h"
 
 #include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
 #include "UI/ttftext.h"
 #include "UI/iconsystem.h"
 #include "2D/simple2dobject.h"
@@ -28,13 +27,13 @@ namespace pg
             // tests run headless. The one test that exercises real files calls registerMarks.
             struct MarkFixture
             {
-                Tokens tokens = Tokens::load("chronicle/tokens.json");
                 EntitySystem ecs;
                 MasterRenderer renderer;
                 TTFTextSystem* ttf = nullptr;
                 IconSystem* icons = nullptr;
-                PaintSystem* paint = nullptr;
-                TextStyles styles;
+                ThemeSystem* theme = nullptr;
+
+                constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
 
                 MarkFixture()
                 {
@@ -42,9 +41,8 @@ namespace pg
                     ttf = ecs.createSystem<TTFTextSystem>(&renderer);
                     ecs.createSystem<Simple2DObjectSystem>(&renderer);
                     icons = ecs.createSystem<IconSystem>(&renderer);
-                    paint = ecs.createSystem<PaintSystem>(&tokens);
-                    styles = TextStyles::fromTokens(tokens);
-                    styles.registerAll(ttf, "fonts");
+                    theme = ecs.createSystem<ThemeSystem>();
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
 
                     installMarkEntries();
                 }
@@ -113,8 +111,6 @@ namespace pg
         TEST(mark_test, register_marks_rasterises_real_files)
         {
             MockLogger logger;
-
-            Tokens tokens = Tokens::load("chronicle/tokens.json");
             EntitySystem ecs;
             MasterRenderer renderer;
             ecs.createSystem<PositionComponentSystem>();
@@ -148,7 +144,7 @@ namespace pg
             MockLogger logger;
             MarkFixture s;
 
-            Mark mark = makeMark(&s.ecs, s.tokens, {"time", MarkSize::S24});
+            Mark mark = makeMark(&s.ecs, {"time", MarkSize::S24});
 
             EXPECT_FLOAT_EQ(s.pos(mark.entity)->width, 24.0f);
             EXPECT_FLOAT_EQ(s.pos(mark.entity)->height, 24.0f);
@@ -167,12 +163,12 @@ namespace pg
             // Ignore any noise from fixture setup; count only what the unknown mark logs.
             logger.reset();
 
-            Mark mark = makeMark(&s.ecs, s.tokens, {"clock"});
+            Mark mark = makeMark(&s.ecs, {"clock"});
             EXPECT_EQ(s.iconOf(mark.entity)->iconName, "seal");
             EXPECT_EQ(logger.getNbError(), 1u);
 
             // Same unknown name again logs nothing more.
-            Mark mark2 = makeMark(&s.ecs, s.tokens, {"clock"});
+            Mark mark2 = makeMark(&s.ecs, {"clock"});
             EXPECT_EQ(s.iconOf(mark2.entity)->iconName, "seal");
             EXPECT_EQ(logger.getNbError(), 1u);
         }
@@ -180,19 +176,18 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(mark_test, mark_colour_repaints)
+        TEST(mark_test, mark_color_repaints)
         {
             MockLogger logger;
             MarkFixture s;
 
-            Mark mark = makeMark(&s.ecs, s.tokens, {"check", MarkSize::S16, "status-gain"});
-            EXPECT_FLOAT_EQ(s.iconOf(mark.entity)->colors.x, s.tokens.colour("verdigris", Theme::Day).x);
+            Mark mark = makeMark(&s.ecs, {"check", MarkSize::S16, "status-gain"});
+            EXPECT_FLOAT_EQ(s.iconOf(mark.entity)->colors.x, s.color("verdigris", "day").x);
 
-            s.tokens.setTheme(Theme::Candle);
-            s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
+            s.theme->setTheme("candle");
             s.settle();
 
-            EXPECT_FLOAT_EQ(s.iconOf(mark.entity)->colors.x, s.tokens.colour("verdigris", Theme::Candle).x);
+            EXPECT_FLOAT_EQ(s.iconOf(mark.entity)->colors.x, s.color("verdigris", "candle").x);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -203,7 +198,7 @@ namespace pg
             MockLogger logger;
             MarkFixture s;
 
-            Mark mark = makeMark(&s.ecs, s.tokens, {"gold", MarkSize::S16});
+            Mark mark = makeMark(&s.ecs, {"gold", MarkSize::S16});
             mark.setSize(&s.ecs, MarkSize::S48);
 
             EXPECT_FLOAT_EQ(s.pos(mark.entity)->width, 48.0f);
@@ -221,7 +216,7 @@ namespace pg
             MarkedLabelSpec spec;
             spec.mark = "time";
             spec.label = {"figure", "+3 mo"};
-            MarkedLabel ml = makeMarkedLabel(&s.ecs, s.tokens, s.styles, spec);
+            MarkedLabel ml = makeMarkedLabel(&s.ecs, spec);
             s.settle();
 
             ASSERT_TRUE(ml.mark.has_value());
@@ -248,13 +243,13 @@ namespace pg
             MockLogger logger;
             MarkFixture s;
 
-            MarkedLabel a = makeMarkedLabel(&s.ecs, s.tokens, s.styles, {"", false, {"body", "x"}});
+            MarkedLabel a = makeMarkedLabel(&s.ecs, {"", false, {"body", "x"}});
             s.settle();
             EXPECT_NEAR(s.pos(a.label.entity)->x, s.pos(a.root)->x, 0.01f);
             EXPECT_NEAR(s.pos(a.root)->width, s.pos(a.label.entity)->width, 0.01f);
             EXPECT_FALSE(a.mark.has_value());
 
-            MarkedLabel b = makeMarkedLabel(&s.ecs, s.tokens, s.styles, {"", true, {"body", "x"}});
+            MarkedLabel b = makeMarkedLabel(&s.ecs, {"", true, {"body", "x"}});
             s.settle();
             EXPECT_NEAR(s.pos(b.label.entity)->x, s.pos(b.root)->x + 16.0f + 8.0f, 0.01f);  // body -> S16 reserved
             EXPECT_FALSE(b.mark.has_value());
@@ -263,22 +258,21 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(mark_test, colour_is_shared)
+        TEST(mark_test, color_is_shared)
         {
             MockLogger logger;
             MarkFixture s;
 
-            MarkedLabel ml = makeMarkedLabel(&s.ecs, s.tokens, s.styles,
-                {"check", false, {"body", "Strength 14", "status-gain"}});
+            MarkedLabel ml = makeMarkedLabel(&s.ecs, {"check", false, {"body", "Strength 14", "status-gain"}});
             s.settle();
 
-            const auto verdigris = s.tokens.colour("verdigris", Theme::Day);
+            const auto verdigris = s.color("verdigris", "day");
             EXPECT_FLOAT_EQ(s.iconOf(ml.mark->entity)->colors.x, verdigris.x);
             EXPECT_FLOAT_EQ(s.ttfOf(ml.label.entity)->colors.x, verdigris.x);
 
-            ml.setColour(&s.ecs, "status-loss");
-            s.settle();   // the PaintComponent change event applies on the next frame
-            const auto vermilion = s.tokens.colour("vermilion", Theme::Day);
+            ml.setColor(&s.ecs, "status-loss");
+            s.settle();   // the ThemeComponent change event applies on the next frame
+            const auto vermilion = s.color("vermilion", "day");
             EXPECT_FLOAT_EQ(s.iconOf(ml.mark->entity)->colors.x, vermilion.x);
             EXPECT_FLOAT_EQ(s.ttfOf(ml.label.entity)->colors.x, vermilion.x);
         }
@@ -291,7 +285,7 @@ namespace pg
             MockLogger logger;
             MarkFixture s;
 
-            MarkedLabel ml = makeMarkedLabel(&s.ecs, s.tokens, s.styles, {"seal", false, {"versal", "A"}});
+            MarkedLabel ml = makeMarkedLabel(&s.ecs, {"seal", false, {"versal", "A"}});
             s.settle();
 
             ASSERT_TRUE(ml.mark.has_value());
@@ -311,7 +305,7 @@ namespace pg
             spec.mark = "gold";
             spec.label = {"body", "412 gold"};
             spec.z = 20;
-            MarkedLabel ml = makeMarkedLabel(&s.ecs, s.tokens, s.styles, spec);
+            MarkedLabel ml = makeMarkedLabel(&s.ecs, spec);
             s.settle();
 
             const float rootZ = s.pos(ml.root)->z;

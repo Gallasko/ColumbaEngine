@@ -5,9 +5,6 @@
 
 #include "engine.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-
 namespace chronicle
 {
     struct LaunchOptions
@@ -27,8 +24,6 @@ namespace chronicle
     private:
         pg::Engine engine;
         LaunchOptions opt;
-        Tokens tokens;
-        TextStyles styles;
     };
 }
 

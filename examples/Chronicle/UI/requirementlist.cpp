@@ -7,9 +7,9 @@
 #include "2D/position.h"
 #include "UI/prefab.h"
 #include "UI/ttftext.h"
+#include "UI/themesystem.h"
 
 #include "Core/textmetrics.h"
-#include "paint.h"
 
 using namespace pg;
 
@@ -50,24 +50,22 @@ namespace chronicle
         }
     }
 
-    RequirementList makeRequirementList(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const RequirementListSpec& spec)
+    RequirementList makeRequirementList(EntitySystem* ecs, const RequirementListSpec& spec)
     {
         RequirementList list;
         list.spec = spec;
         list.spec.items.clear();   // setItems owns the rows; spec.items lives in rows[i].item
-        list.tokens = &tokens;
-        list.styles = &styles;
 
         auto root = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(spec.z));
         root.get<PositionComponent>()->setWidth(spec.width);
         root.get<PositionComponent>()->setHeight(0.0f);
         list.root = root.entity;
 
-        list.setItems(ecs, tokens, styles, spec.items);
+        list.setItems(ecs, spec.items);
         return list;
     }
 
-    void RequirementList::setItems(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const std::vector<Requirement>& items)
+    void RequirementList::setItems(EntitySystem* ecs, const std::vector<Requirement>& items)
     {
         auto prefab = root->get<Prefab>();
 
@@ -87,7 +85,7 @@ namespace chronicle
 
         const std::string style = rowStyle(spec.dense);
         const std::string vStyle = valueStyle(spec.dense);
-        const float lineH = static_cast<float>(styles.get(style).lineHeightPx);
+        const float lineH = static_cast<float>(ecs->getSystem<ThemeSystem>()->style(style).lineHeightPx);
         const float W = spec.width;
         const _unique_id rootId = root.id;
 
@@ -111,18 +109,18 @@ namespace chronicle
                 LabelSpec vs;
                 vs.style = vStyle;
                 vs.text = pairText(item.current, item.needed);
-                vs.colour = tone;
+                vs.color = tone;
                 vs.align = Align::Right;
                 vs.overflow = Overflow::Grow;
                 vs.z = spec.z + 1;
 
-                Label value = makeLabel(ecs, tokens, styles, vs);
+                Label value = makeLabel(ecs, vs);
                 valueW = value.entity->get<PositionComponent>()->width;
 
                 auto va = value.entity->get<UiAnchor>();
                 va->setRightAnchor(PosAnchor{rootId, AnchorType::Right});
                 va->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
-                va->setTopMargin(rowTop + baselineShift(ecs, styles, style, vStyle));
+                va->setTopMargin(rowTop + baselineShift(ecs, style, vStyle));
                 va->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
                 root->get<Prefab>()->addToPrefab(value.entity);
                 row.value = value;
@@ -132,17 +130,17 @@ namespace chronicle
             ns.mark = met ? "check" : "cross";
             ns.label.style = style;
             ns.label.text = item.label;
-            ns.label.colour = inkOf(item);
+            ns.label.color = inkOf(item);
             ns.label.overflow = Overflow::Ellipsis;
             ns.label.width = numeric ? W - valueW - VALUE_GAP : W;
             ns.gap = VALUE_GAP;
             ns.z = spec.z;
-            MarkedLabel name = makeMarkedLabel(ecs, tokens, styles, ns);
+            MarkedLabel name = makeMarkedLabel(ecs, ns);
 
             // The one row in the kit where mark and label differ in colour by design:
             // the mark carries the state (tone), the label carries the words (ink).
             if (name.mark)
-                name.mark->setColour(ecs, tone);
+                name.mark->setColor(ecs, tone);
 
             auto na = name.root->get<UiAnchor>();
             na->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
@@ -160,7 +158,7 @@ namespace chronicle
             n == 0 ? 0.0f : static_cast<float>(n) * lineH + static_cast<float>(n - 1) * ROW_GAP);
     }
 
-    void RequirementList::setItem(EntitySystem* ecs, const TextStyles&, size_t index, int current, int needed)
+    void RequirementList::setItem(EntitySystem* ecs, size_t index, int current, int needed)
     {
         if (index >= rows.size())
         {
@@ -219,11 +217,11 @@ namespace chronicle
         if (row.name.mark)
         {
             row.name.mark->setName(ecs, row.item.isMet() ? "check" : "cross");
-            row.name.mark->setColour(ecs, tone);
+            row.name.mark->setColor(ecs, tone);
         }
-        row.name.label.setColour(ecs, inkOf(row.item));
+        row.name.label.setColor(ecs, inkOf(row.item));
         if (row.value)
-            row.value->setColour(ecs, tone);
+            row.value->setColor(ecs, tone);
     }
 
     float RequirementList::height(EntitySystem* ecs) const

@@ -12,6 +12,8 @@
 #include "2D/simple2dobject.h"
 #include "UI/sizer.h"
 
+#include "UI/label.h"
+
 using namespace pg;
 
 namespace chronicle
@@ -38,54 +40,42 @@ namespace chronicle
 
     void TypeSpecimen::init()
     {
-
-        // Sample text per style, read from the tokens' type section (else a default).
-        std::unordered_map<std::string, std::string> samples;
-        const nlohmann::json& type = tokens->typeSection();
-        if (type.contains("groups"))
-        {
-            for (const auto& group : type["groups"])
-                for (const auto& st : group["styles"])
-                    if (st.contains("name") and st.contains("sample") and st["sample"].is_string())
-                        samples[st["name"].get<std::string>()] = st["sample"].get<std::string>();
-        }
+        theme = ecsRef->getSystem<ThemeSystem>();
 
         // Vellum background behind everything.
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, screenWidth, screenHeight, tokens->colour("vellum"));
+        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, screenWidth, screenHeight, theme->color("vellum"));
         bg.get<PositionComponent>()->setX(0.0f);
         bg.get<PositionComponent>()->setY(0.0f);
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
+        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
 
-        // Builds a styled text painted through the paint system, and returns its CompList.
+        // Builds a styled text painted through the theme system, and returns its CompList.
         auto paint = [this](const std::string& style, const std::string& text, const std::string& token)
         {
-            auto comp = styles->makeText(ecsRef, style, text, tokens->colour(token));
-            ecsRef->attach<PaintComponent>(comp.entity, token);
-            return comp;
+            return theme->makeText(ecsRef, labelElement(style, token), text);
         };
 
         // One row per style, stacked in a vertical layout inside the page margin.
-        const float margin = tokens->space(7);
+        const float margin = theme->space(7);
         auto column = makeVerticalLayout(ecsRef, margin, margin, 1000.0f, screenHeight - 2.0f * margin, false);
         column.get<PositionComponent>()->setZ(10.0f);
         auto layout = column.get<VerticalLayout>();
-        layout->spacing = tokens->space(3);
+        layout->spacing = theme->space(3);
 
-        for (const auto& style : styles->all())
+        for (const auto& style : theme->theme().styles(theme->currentTheme()))
         {
             auto row = makeHorizontalLayout(ecsRef, 0.0f, 0.0f, 1000.0f, static_cast<float>(style.lineHeightPx), false);
             auto rowLayout = row.get<HorizontalLayout>();
-            rowLayout->spacing = tokens->space(4);
+            rowLayout->spacing = theme->space(4);
 
             auto name = paint("caption", style.name, "ink-muted");
             name.get<PositionComponent>()->setWidth(140.0f);
             rowLayout->addEntity(name);
 
-            const std::string sampleText = samples.count(style.name) ? samples[style.name] : DEFAULT_SAMPLE;
-            const std::string sampleColour = (style.name == "versal" or style.name == "chapter") ? "vermilion" : "ink";
-            rowLayout->addEntity(paint(style.name, sampleText, sampleColour));
+            const std::string sampleText = style.sample.empty() ? DEFAULT_SAMPLE : style.sample;
+            const std::string sampleColor = (style.name == "versal" or style.name == "chapter") ? "vermilion" : "ink";
+            rowLayout->addEntity(paint(style.name, sampleText, sampleColor));
 
             rowLayout->addEntity(paint("caption", metricsLine(style), "ink-faint"));
             if (style.letterSpacingPx != 0.0f)
@@ -100,14 +90,12 @@ namespace chronicle
         hint.get<PositionComponent>()->setY(screenHeight - margin);
         hint.get<PositionComponent>()->setZ(10.0f);
 
-        // T switches theme (PaintSystem repaints); S toggles the swatch column.
+        // T switches theme (the theme system repaints); S toggles the swatch column.
         listenToEvent<OnSDLScanCode>([this](const OnSDLScanCode& event)
         {
             if (event.key == SDL_SCANCODE_T)
             {
-                const Theme next = tokens->theme() == Theme::Day ? Theme::Candle : Theme::Day;
-                tokens->setTheme(next);
-                ecsRef->sendEvent(ThemeChangedEvent{next});
+                theme->setTheme(theme->currentTheme() == "day" ? "candle" : "day");
             }
             else if (event.key == SDL_SCANCODE_S)
             {
@@ -142,27 +130,26 @@ namespace chronicle
         }
 
         const float x = 760.0f;
-        float y = tokens->space(7);
+        float y = theme->space(7);
         const float swatchW = 48.0f;
         const float swatchH = 24.0f;
 
-        for (const auto& colourName : tokens->colourNames())
+        for (const auto& colorName : theme->theme().colorNames())
         {
-            auto leaf = makeUiSimple2DShape(ecsRef, Shape2D::Square, swatchW, swatchH, tokens->colour(colourName));
+            auto leaf = makeUiSimple2DShape(ecsRef, Shape2D::Square, swatchW, swatchH, theme->color(colorName));
             leaf.get<PositionComponent>()->setX(x);
             leaf.get<PositionComponent>()->setY(y);
             leaf.get<PositionComponent>()->setZ(11.0f);
-            ecsRef->attach<PaintComponent>(leaf.entity, colourName);
+            ecsRef->attach<ThemeComponent>(leaf.entity, "scene." + colorName);
             swatchIds.push_back(leaf.entity.id);
 
-            auto label = styles->makeText(ecsRef, "caption", colourName, tokens->colour("ink-muted"));
-            label.get<PositionComponent>()->setX(x + swatchW + tokens->space(2));
+            auto label = theme->makeText(ecsRef, labelElement("caption", "ink-muted"), colorName);
+            label.get<PositionComponent>()->setX(x + swatchW + theme->space(2));
             label.get<PositionComponent>()->setY(y + 4.0f);
             label.get<PositionComponent>()->setZ(11.0f);
-            ecsRef->attach<PaintComponent>(label.entity, "ink-muted");
             swatchIds.push_back(label.entity.id);
 
-            y += swatchH + tokens->space(1);
+            y += swatchH + theme->space(1);
         }
 
         swatchesShown = true;

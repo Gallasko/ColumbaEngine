@@ -3,10 +3,9 @@
 #include <gtest/gtest.h>
 
 #include "UI/gloss.h"
-#include "UI/paint.h"
-#include "Core/textstyle.h"
 
 #include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
 #include "ECS/entitysystem_fwd.h"   // ResizeEvent
 #include "UI/ttftext.h"
 #include "UI/tooltip.h"
@@ -27,14 +26,14 @@ namespace pg
         {
             struct GlossFixture
             {
-                Tokens tokens = Tokens::load("chronicle/tokens.json");
                 EntitySystem ecs;
                 MasterRenderer renderer;
                 TTFTextSystem* ttf = nullptr;
                 TooltipSystem* tip = nullptr;
                 GlossRegistry* reg = nullptr;
-                PaintSystem* paint = nullptr;
-                TextStyles styles;
+                ThemeSystem* theme = nullptr;
+
+                constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
 
                 GlossFixture()
                 {
@@ -47,11 +46,10 @@ namespace pg
                     ecs.createSystem<MouseHoverSystem>();
                     tip = ecs.createSystem<TooltipSystem>();
                     ecs.succeed<MouseHoverSystem, TooltipSystem>();
-                    paint = ecs.createSystem<PaintSystem>(&tokens);
-                    styles = TextStyles::fromTokens(tokens);
-                    styles.registerAll(ttf, "fonts");
-                    tip->setDefaultFont("chr-body-sm");
-                    reg = ecs.createSystem<GlossRegistry>(&tokens, &styles);
+                    theme = ecs.createSystem<ThemeSystem>();
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
+                    tip->setDefaultFont("body-sm");
+                    reg = ecs.createSystem<GlossRegistry>();
                     ecs.sendEvent(ResizeEvent{1320.0f, 860.0f});
                 }
 
@@ -73,7 +71,7 @@ namespace pg
                 CompRef<Simple2DObject> s2d(EntityRef e) { return ecs.getEntity(e.id)->get<Simple2DObject>(); }
                 CompRef<StrokeRect2DObject> strokeOf(EntityRef e) { return ecs.getEntity(e.id)->get<StrokeRect2DObject>(); }
                 CompRef<TTFText> ttfOf(EntityRef e) { return ecs.getEntity(e.id)->get<TTFText>(); }
-                std::string token(EntityRef e) { return ecs.getEntity(e.id)->get<PaintComponent>()->token; }
+                std::string token(EntityRef e) { return theme->elementEntry(ecs.getEntity(e.id)->get<ThemeComponent>()->element, "color").get<std::string>(); }
             };
 
             const char* PARA30 =
@@ -90,7 +88,7 @@ namespace pg
             GlossFixture s;
 
             GlossSpec spec; spec.kind = GlossKind::Margin; spec.text = PARA30;
-            Gloss g = makeGloss(&s.ecs, s.tokens, s.styles, spec);
+            Gloss g = makeGloss(&s.ecs, spec);
             s.settle();
 
             EXPECT_FLOAT_EQ(s.pos(g.root)->width, 240.0f);
@@ -115,7 +113,7 @@ namespace pg
 
             GlossSpec spec; spec.kind = GlossKind::Margin; spec.title = "x"; spec.text = "some text";
             spec.rows = {{"Time", "6 mo"}};
-            Gloss g = makeGloss(&s.ecs, s.tokens, s.styles, spec);
+            Gloss g = makeGloss(&s.ecs, spec);
             s.settle();
 
             EXPECT_FALSE(g.title.has_value());
@@ -135,7 +133,7 @@ namespace pg
             spec.text = "Lifting, striking, enduring. Grows at the yard and in the mines over a long season.";
             spec.rows = {{"Now", "14"}, {"At term", "17"}, {"Warrior at 18 asks", "18"}};
             spec.footnote = "WARRIOR AT 18 ASKS STRENGTH 18";
-            Gloss g = makeGloss(&s.ecs, s.tokens, s.styles, spec);
+            Gloss g = makeGloss(&s.ecs, spec);
             s.settle();
 
             EXPECT_EQ(s.token(g.ground), "folio");
@@ -169,7 +167,7 @@ namespace pg
 
             GlossSpec spec; spec.kind = GlossKind::Tooltip; spec.text = "figures";
             spec.rows = {{"Now", "14"}, {"At term", "170"}, {"Cap", "9"}};
-            Gloss g = makeGloss(&s.ecs, s.tokens, s.styles, spec);
+            Gloss g = makeGloss(&s.ecs, spec);
             s.settle();
 
             const float edge = s.pos(g.root)->x + 12.0f + 256.0f;
@@ -190,7 +188,7 @@ namespace pg
             GlossFixture s;
 
             GlossSpec spec; spec.kind = GlossKind::Tooltip; spec.text = "just a line of text here";
-            Gloss g = makeGloss(&s.ecs, s.tokens, s.styles, spec);
+            Gloss g = makeGloss(&s.ecs, spec);
             s.settle();
 
             EXPECT_NEAR(g.height(&s.ecs), 12.0f + s.pos(g.text->entity)->height + 12.0f, 0.5f);
@@ -323,10 +321,10 @@ namespace pg
             // test relies on), so the text cannot actually wrap here; assert the reflow plumbing
             // instead: setText re-drives the root height from the text box, and the edge follows.
             GlossSpec spec; spec.kind = GlossKind::Margin; spec.text = "Short.";
-            Gloss g = makeGloss(&s.ecs, s.tokens, s.styles, spec);
+            Gloss g = makeGloss(&s.ecs, spec);
             s.settle();
 
-            g.setText(&s.ecs, s.styles, PARA30);
+            g.setText(&s.ecs, PARA30);
             s.settle();
             EXPECT_EQ(g.text->spec.text, PARA30);
             EXPECT_NEAR(s.pos(g.root)->height, s.pos(g.text->entity)->height, 0.5f);
@@ -351,11 +349,10 @@ namespace pg
             ASSERT_TRUE(s.tip->isShowing());
 
             EntityRef ground = s.reg->lastBuilt.ground;
-            s.tokens.setTheme(Theme::Candle);
-            s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
+            s.theme->setTheme("candle");
             s.pump();
 
-            EXPECT_FLOAT_EQ(s.s2d(ground)->colors.x, s.tokens.colour("folio", Theme::Candle).x);
+            EXPECT_FLOAT_EQ(s.s2d(ground)->colors.x, s.color("folio", "candle").x);
         }
     }
 }

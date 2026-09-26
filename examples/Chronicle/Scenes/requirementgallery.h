@@ -2,9 +2,7 @@
 
 #include "Scene/scenemanager.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-#include "UI/paint.h"
+#include "UI/themesystem.h"
 #include "UI/label.h"
 #include "UI/requirementlist.h"
 
@@ -15,13 +13,10 @@ namespace chronicle
     // pair demonstrations. T toggles theme.
     struct RequirementGallery : public pg::Scene
     {
-        RequirementGallery(Tokens* tokens, TextStyles* styles) : tokens(tokens), styles(styles) {}
-
         virtual void init() override;
 
     private:
-        Tokens* tokens = nullptr;
-        TextStyles* styles = nullptr;
+        pg::ThemeSystem* theme = nullptr;
 
         pg::_unique_id backgroundId = 0;
 

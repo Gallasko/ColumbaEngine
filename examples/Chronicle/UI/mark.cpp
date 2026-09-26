@@ -7,8 +7,8 @@
 #include "2D/position.h"
 #include "UI/iconsystem.h"
 #include "UI/prefab.h"
+#include "UI/themesystem.h"
 
-#include "paint.h"
 #include "label.h"
 
 using namespace pg;
@@ -111,15 +111,20 @@ namespace chronicle
         return true;
     }
 
-    Mark makeMark(EntitySystem* ecs, const Tokens& tokens, const MarkSpec& specIn)
+    std::string markElement(const std::string& color)
+    {
+        return "mark." + color;
+    }
+
+    Mark makeMark(EntitySystem* ecs, const MarkSpec& specIn)
     {
         MarkSpec spec = specIn;
         spec.name = validateMarkName(spec.name);
 
-        auto icon = makeIcon(ecs, "chronicle", spec.name, px(spec.size), tokens.colour(spec.colour));
+        auto icon = makeIcon(ecs, "chronicle", spec.name, px(spec.size));
         icon.get<PositionComponent>()->setZ(static_cast<float>(spec.z));
 
-        ecs->attach<PaintComponent>(icon.entity, spec.colour);
+        ecs->attach<ThemeComponent>(icon.entity, markElement(spec.color));
 
         Mark mark;
         mark.entity = icon.entity;
@@ -133,10 +138,10 @@ namespace chronicle
         entity->get<IconComponent>()->setIconName(spec.name);
     }
 
-    void Mark::setColour(EntitySystem*, const std::string& token)
+    void Mark::setColor(EntitySystem*, const std::string& token)
     {
-        entity->get<PaintComponent>()->setToken(token);
-        spec.colour = token;
+        entity->get<ThemeComponent>()->setElement(markElement(token));
+        spec.color = token;
     }
 
     void Mark::setSize(EntitySystem*, MarkSize size)
@@ -147,10 +152,10 @@ namespace chronicle
         pos->setHeight(px(size));
     }
 
-    MarkedLabel makeMarkedLabel(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const MarkedLabelSpec& specIn)
+    MarkedLabel makeMarkedLabel(EntitySystem* ecs, const MarkedLabelSpec& specIn)
     {
         MarkedLabelSpec spec = specIn;
-        const float gap = spec.gap >= 0.0f ? spec.gap : tokens.space(2);
+        const float gap = spec.gap >= 0.0f ? spec.gap : ecs->getSystem<ThemeSystem>()->space(2);
 
         const bool hasMark = not spec.mark.empty();
         const bool reserve = hasMark or spec.reserveMark;
@@ -164,7 +169,7 @@ namespace chronicle
         // Label glyphs one layer above the root; shifted right by the mark column.
         LabelSpec labelSpec = spec.label;
         labelSpec.z = spec.z + 1;
-        Label label = makeLabel(ecs, tokens, styles, labelSpec);
+        Label label = makeLabel(ecs, labelSpec);
 
         auto boxAnchor = label.entity->get<UiAnchor>();
         boxAnchor->setTopAnchor(PosAnchor{root.id, AnchorType::Top});
@@ -178,7 +183,7 @@ namespace chronicle
         std::optional<Mark> mark;
         if (hasMark)
         {
-            Mark m = makeMark(ecs, tokens, {spec.mark, markSize, spec.label.colour, spec.z + 1});
+            Mark m = makeMark(ecs, {spec.mark, markSize, spec.label.color, spec.z + 1});
             auto markAnchor = m.entity->get<UiAnchor>();
             markAnchor->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
             markAnchor->setVerticalCenter(PosAnchor{root.id, AnchorType::VerticalCenter});
@@ -200,14 +205,14 @@ namespace chronicle
         return ml;
     }
 
-    void MarkedLabel::setColour(EntitySystem* ecs, const std::string& token)
+    void MarkedLabel::setColor(EntitySystem* ecs, const std::string& token)
     {
-        label.setColour(ecs, token);
+        label.setColor(ecs, token);
         if (mark)
-            mark->setColour(ecs, token);
+            mark->setColor(ecs, token);
     }
 
-    void MarkedLabel::setText(EntitySystem* ecs, const TextStyles&, const std::string& newText)
+    void MarkedLabel::setText(EntitySystem* ecs, const std::string& newText)
     {
         label.setText(ecs, newText);
 
@@ -217,7 +222,7 @@ namespace chronicle
         root->get<PositionComponent>()->setWidth(labelLeft + label.entity->get<PositionComponent>()->width);
     }
 
-    void MarkedLabel::setMark(EntitySystem* ecs, const Tokens& tokens, const std::string& name)
+    void MarkedLabel::setMark(EntitySystem* ecs, const std::string& name)
     {
         if (name.empty())
         {
@@ -237,13 +242,13 @@ namespace chronicle
 
         // Adding a mark where none existed: size from the label's style, shift the box, grow the root.
         const MarkSize markSize = label.spec.style == "versal" ? MarkSize::S48 : markSizeFor(label.spec.style);
-        const float gap = tokens.space(2);
+        const float gap = ecs->getSystem<ThemeSystem>()->space(2);
         const float labelLeft = px(markSize) + gap;
 
         auto boxAnchor = label.entity->get<UiAnchor>();
         boxAnchor->setLeftMargin(labelLeft);
 
-        Mark m = makeMark(ecs, tokens, {name, markSize, label.spec.colour, label.spec.z + 1});
+        Mark m = makeMark(ecs, {name, markSize, label.spec.color, label.spec.z + 1});
         auto markAnchor = m.entity->get<UiAnchor>();
         markAnchor->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
         markAnchor->setVerticalCenter(PosAnchor{root.id, AnchorType::VerticalCenter});

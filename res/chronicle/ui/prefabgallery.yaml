@@ -25,7 +25,7 @@ children:
       - {kind: Ornament, ornament: divider, knot: false}
       - kind: Label
         overflow: wrap
-        colour: ink-muted
+        color: ink-muted
         style: body-sm
         text: "A wrapped body line takes the panel's inner width, as it did when the scene
 computed innerWidth() by hand."
@@ -79,7 +79,7 @@ computed innerWidth() by hand."
         glyph: study
         children:
           - {kind: MarkedLabel, mark: swordsmanship, text: Swordsmanship, style: body}
-          - {kind: MarkedLabel, mark: study, text: Letters, style: body, colour: ink-muted}
+          - {kind: MarkedLabel, mark: study, text: Letters, style: body, color: ink-muted}
 
   # ── Stat lines in a ruled panel ──────────────────────────────────────────
   - kind: Panel

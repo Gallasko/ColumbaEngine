@@ -10,9 +10,9 @@
 #include "2D/decoratedshapes.h"
 #include "UI/prefab.h"
 #include "Systems/tween.h"
+#include "UI/themesystem.h"
 
 #include "Core/motion.h"
-#include "paint.h"
 
 using namespace pg;
 
@@ -38,7 +38,7 @@ namespace chronicle
         }
     }
 
-    ProgressRule makeProgressRule(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const ProgressRuleSpec& specIn)
+    ProgressRule makeProgressRule(EntitySystem* ecs, const ProgressRuleSpec& specIn)
     {
         ProgressRuleSpec spec = specIn;
         spec.percent = clampPct(spec.percent);
@@ -51,8 +51,6 @@ namespace chronicle
         ProgressRule p;
         p.spec = spec;
         p.shown = spec.percent;
-        p.tokens = &tokens;
-        p.styles = &styles;
 
         auto root = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(z));
         root.get<PositionComponent>()->setWidth(W);
@@ -61,16 +59,16 @@ namespace chronicle
         p.root = root.entity;
 
         // track
-        auto track = makeUiSimple2DShape(ecs, Shape2D::Square, W, H, tokens.colour("progress-track"));
+        auto track = makeUiSimple2DShape(ecs, Shape2D::Square, W, H);
         track.get<UiAnchor>()->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
         track.get<UiAnchor>()->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
         track.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z});
-        ecs->attach<PaintComponent>(track.entity, "progress-track");
+        ecs->attach<ThemeComponent>(track.entity, "progress.track");
         root.get<Prefab>()->addToPrefab(track.entity);
         p.track = track.entity;
 
         // fill (progress-ink), inside the frame
-        auto fill = makeUiSimple2DShape(ecs, Shape2D::Square, 1.0f, H - 2.0f, tokens.colour("progress-ink"));
+        auto fill = makeUiSimple2DShape(ecs, Shape2D::Square, 1.0f, H - 2.0f);
         {
             auto fa = fill.get<UiAnchor>();
             fa->setLeftAnchor(PosAnchor{rootId, AnchorType::Left}); fa->setLeftMargin(1.0f);
@@ -78,12 +76,12 @@ namespace chronicle
             fa->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
         }
         fill.get<PositionComponent>()->setHeight(H - 2.0f);
-        ecs->attach<PaintComponent>(fill.entity, "progress-ink");
+        ecs->attach<ThemeComponent>(fill.entity, "progress.fill");
         root.get<Prefab>()->addToPrefab(fill.entity);
         p.fill = fill.entity;
 
         // forecast (hatch), starting where the fill ends
-        auto forecast = makeHatchRect2DShape(ecs, 1.0f, H - 2.0f, tokens.colour("progress-forecast"), 6.0f, 2.0f);
+        auto forecast = makeHatchRect2DShape(ecs, 1.0f, H - 2.0f, {255.0f, 255.0f, 255.0f, 255.0f}, 6.0f, 2.0f);
         forecast.get<HatchRect2DObject>()->setAngle(45.0f);
         {
             auto fca = forecast.get<UiAnchor>();
@@ -92,23 +90,22 @@ namespace chronicle
             fca->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 2.0f});
         }
         forecast.get<PositionComponent>()->setHeight(H - 2.0f);
-        ecs->attach<PaintComponent>(forecast.entity, "progress-forecast", tokens.opacity("opacity-hatch"));
+        ecs->attach<ThemeComponent>(forecast.entity, "progress.forecast");
         root.get<Prefab>()->addToPrefab(forecast.entity);
         p.forecast = forecast.entity;
 
         // frame (above fill and forecast so the hairline is never covered)
-        auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, tokens.colour("rule-hair"), 1.0f);
-        frame.get<StrokeRect2DObject>()->setCornerRadius(tokens.radius("radius-sm"));
+        auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, {255.0f, 255.0f, 255.0f, 255.0f}, 1.0f);
         frame.get<UiAnchor>()->fillIn(track.get<UiAnchor>());
         frame.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
-        ecs->attach<PaintComponent>(frame.entity, "rule-hair");
+        ecs->attach<ThemeComponent>(frame.entity, "progress.frame");
         root.get<Prefab>()->addToPrefab(frame.entity);
         p.frame = frame.entity;
 
         // nib
         if (spec.nib)
         {
-            Mark m = makeMark(ecs, tokens, {"quill", MarkSize::S14, "ink", z + 4});
+            Mark m = makeMark(ecs, {"quill", MarkSize::S14, "ink", z + 4});
             auto ma = m.entity->get<UiAnchor>();
             ma->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             ma->setTopAnchor(PosAnchor{rootId, AnchorType::Top}); ma->setTopMargin(H / 2.0f - NIB_DY);
@@ -120,9 +117,9 @@ namespace chronicle
         // caption
         if (not spec.caption.empty())
         {
-            LabelSpec cs; cs.style = "caption"; cs.text = spec.caption; cs.colour = "ink-muted";
+            LabelSpec cs; cs.style = "caption"; cs.text = spec.caption; cs.color = "ink-muted";
             cs.overflow = Overflow::Wrap; cs.width = W; cs.z = z + 2;
-            Label c = makeLabel(ecs, tokens, styles, cs);
+            Label c = makeLabel(ecs, cs);
             auto ca = c.entity->get<UiAnchor>();
             ca->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             ca->setTopAnchor(PosAnchor{rootId, AnchorType::Top}); ca->setTopMargin(H + CAP_GAP);
@@ -183,7 +180,7 @@ namespace chronicle
         layoutAt(shown);   // never animated: a forecast is a statement, not a motion
     }
 
-    void ProgressRule::setCaption(EntitySystem* ecs, const TextStyles& s, const std::string& text)
+    void ProgressRule::setCaption(EntitySystem* ecs, const std::string& text)
     {
         const float H = trackH(spec);
         if (text.empty())
@@ -202,11 +199,11 @@ namespace chronicle
         {
             caption->setText(ecs, text);
         }
-        else if (tokens)
+        else
         {
-            LabelSpec cs; cs.style = "caption"; cs.text = text; cs.colour = "ink-muted";
+            LabelSpec cs; cs.style = "caption"; cs.text = text; cs.color = "ink-muted";
             cs.overflow = Overflow::Wrap; cs.width = spec.width; cs.z = spec.z + 2;
-            Label c = makeLabel(ecs, *tokens, s, cs);
+            Label c = makeLabel(ecs, cs);
             auto ca = c.entity->get<UiAnchor>();
             ca->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
             ca->setTopAnchor(PosAnchor{root.id, AnchorType::Top}); ca->setTopMargin(H + CAP_GAP);
@@ -218,12 +215,12 @@ namespace chronicle
         root->get<PositionComponent>()->setHeight(H + CAP_GAP + caption->entity->get<PositionComponent>()->height);
     }
 
-    void ProgressRule::setNib(EntitySystem* ecs, const Tokens& tokens, bool on)
+    void ProgressRule::setNib(EntitySystem* ecs, bool on)
     {
         if (on and not nib)
         {
             const float H = trackH(spec);
-            Mark m = makeMark(ecs, tokens, {"quill", MarkSize::S14, "ink", spec.z + 4});
+            Mark m = makeMark(ecs, {"quill", MarkSize::S14, "ink", spec.z + 4});
             auto ma = m.entity->get<UiAnchor>();
             ma->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
             ma->setTopAnchor(PosAnchor{root.id, AnchorType::Top}); ma->setTopMargin(H / 2.0f - NIB_DY);

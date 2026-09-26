@@ -10,9 +10,9 @@
 #include "UI/prefab.h"
 #include "UI/sizer.h"
 #include "UI/ttftext.h"
+#include "UI/themesystem.h"
 
 #include "Core/textmetrics.h"
-#include "paint.h"
 
 using namespace pg;
 
@@ -26,7 +26,7 @@ namespace chronicle
         constexpr float HEAD_BLOCK = TITLE_BOX + 12.0f + 1.0f + 12.0f;  // 51: title + gap + rule + gap
         constexpr float GLYPH_ADVANCE = 18.0f + 8.0f;                   // mark width + space-2
 
-        float paddingFor(PanelFrame f, const Tokens& t)
+        float paddingFor(PanelFrame f, const ThemeSystem* theme)
         {
             switch (f)
             {
@@ -34,20 +34,22 @@ namespace chronicle
                 return 0.0f;
 
             case PanelFrame::Illuminated:
-                return t.space(5);
+                return theme->space(5);
 
             default:
-                return t.space(4);
+                return theme->space(4);
             }
         }
 
     }
 
-    Panel makePanel(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const PanelSpec& specIn)
+    Panel makePanel(EntitySystem* ecs, const PanelSpec& specIn)
     {
         PanelSpec spec = specIn;
 
-        const float P = paddingFor(spec.frame, tokens);
+        auto* theme = ecs->getSystem<ThemeSystem>();
+
+        const float P = paddingFor(spec.frame, theme);
         const float W = spec.width;
         const float inner = W - 2.0f * P;
         const int z = spec.z;
@@ -65,7 +67,6 @@ namespace chronicle
         panel.spec = spec;
         panel.padding = P;
         panel.headBlock = headBlock;
-        panel.styles = &styles;
 
         // root: width fixed, height a constraint on the body.
         auto root = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(z));
@@ -75,7 +76,7 @@ namespace chronicle
 
         // body: a vertical layout inset by the padding; height free, so it grows with its rows.
         auto body = makeVerticalLayout(ecs, 0.0f, 0.0f, inner, 0.0f);
-        body.get<VerticalLayout>()->spacing = static_cast<size_t>(tokens.space(3));
+        body.get<VerticalLayout>()->spacing = static_cast<size_t>(theme->space(3));
 
         auto ba = body.get<UiAnchor>();
         ba->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
@@ -91,53 +92,51 @@ namespace chronicle
 
         // root height = body.height + (P + headBlock + P). The body auto-sizes to its rows, but the
         // engine's layout appends its spacing after the last row too, so discount one spacing.
-        const float trailing = tokens.space(3);
+        const float trailing = theme->space(3);
         root.get<UiAnchor>()->setHeightConstrain(PosConstrain{body.id, AnchorType::Height, PosOpType::Add, 2.0f * P + headBlock - trailing});
 
         // ground + frame (not Plain).
         if (spec.frame != PanelFrame::Plain)
         {
-            auto ground = makeUiSimple2DShape(ecs, Shape2D::Square, 1.0f, 1.0f, tokens.colour("folio"));
+            auto ground = makeUiSimple2DShape(ecs, Shape2D::Square, 1.0f, 1.0f);
             ground.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
             ground.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z});
 
-            ecs->attach<PaintComponent>(ground.entity, "folio");
+            ecs->attach<ThemeComponent>(ground.entity, "panel.ground");
 
             root.get<Prefab>()->addToPrefab(ground.entity);
             panel.ground = ground.entity;
 
-            std::string frameToken;
-            float sw = 1.0f, gap = 0.0f;
+            // The frame's colour and stroke width come from the theme element; gap and doubling are geometry.
+            std::string frameElement;
+            float gap = 0.0f;
             bool doubled = false;
 
             switch (spec.frame)
             {
             case PanelFrame::Hair:
-                sw = tokens.border("border-hair");
-                frameToken = "rule-hair";
+                frameElement = "panel.frame.hair";
                 break;
 
             case PanelFrame::Ruled:
-                sw = 1.0f;
-                frameToken = "rule-ruled";
+                frameElement = "panel.frame.ruled";
                 break;
 
             case PanelFrame::Illuminated:
-                sw = 1.0f;
                 gap = 1.0f;
                 doubled = true;
-                frameToken = "gold-edge";
+                frameElement = "panel.frame.illuminated";
                 break;
 
             default:
                 break;
             }
 
-            auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, tokens.colour(frameToken), sw, gap, doubled);
+            auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, {255.0f, 255.0f, 255.0f, 255.0f}, 1.0f, gap, doubled);
             frame.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
             frame.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
 
-            ecs->attach<PaintComponent>(frame.entity, frameToken);
+            ecs->attach<ThemeComponent>(frame.entity, frameElement);
 
             root.get<Prefab>()->addToPrefab(frame.entity);
             panel.frame = frame.entity;
@@ -155,7 +154,7 @@ namespace chronicle
                 cs.corner = pos;
                 cs.z = z + 2;
 
-                Ornament c = makeOrnament(ecs, tokens, styles, cs);
+                Ornament c = makeOrnament(ecs, cs);
                 auto ca = c.root->get<UiAnchor>();
                 const bool right = (pos == CornerPos::TR or pos == CornerPos::BR);
                 const bool bottom = (pos == CornerPos::BL or pos == CornerPos::BR);
@@ -198,10 +197,10 @@ namespace chronicle
                 LabelSpec as;
                 as.style = "label";
                 as.text = spec.aside;
-                as.colour = "ink-muted";
+                as.color = "ink-muted";
                 as.z = headZ + 1;
 
-                Label a = makeLabel(ecs, tokens, styles, as);
+                Label a = makeLabel(ecs, as);
                 asideWidth = a.entity->get<PositionComponent>()->width;
                 auto aa = a.entity->get<UiAnchor>();
                 aa->setRightAnchor(PosAnchor{rootId, AnchorType::Right});
@@ -209,7 +208,7 @@ namespace chronicle
 
                 // Align the aside's baseline on the heading's: shift its box top by the ascender gap.
                 // (The title is set in the "heading" style; spec.heading is its text, not a style.)
-                const float baseline = baselineShift(ecs, styles, "heading", "label");
+                const float baseline = baselineShift(ecs, "heading", "label");
                 aa->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
                 aa->setTopMargin(P + baseline);
 
@@ -220,7 +219,7 @@ namespace chronicle
             float glyphAdvance = 0.0f;
             if (not spec.glyph.empty())
             {
-                Mark m = makeMark(ecs, tokens, {spec.glyph, MarkSize::S18, "ink-muted", headZ});
+                Mark m = makeMark(ecs, {spec.glyph, MarkSize::S18, "ink-muted", headZ});
 
                 auto ma = m.entity->get<UiAnchor>();
                 ma->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
@@ -238,13 +237,13 @@ namespace chronicle
             LabelSpec ts;
             ts.style = "heading";
             ts.text = spec.heading;
-            ts.colour = "ink";
+            ts.color = "ink";
             ts.align = Align::Left;
             ts.overflow = Overflow::Ellipsis;
             ts.width = titleWidth;
             ts.z = headZ + 1;
 
-            Label t = makeLabel(ecs, tokens, styles, ts);
+            Label t = makeLabel(ecs, ts);
             auto ta = t.entity->get<UiAnchor>();
             ta->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             ta->setLeftMargin(P + glyphAdvance);
@@ -261,7 +260,7 @@ namespace chronicle
             rs.width = 0.0f;
             rs.z = headZ;
 
-            Ornament r = makeOrnament(ecs, tokens, styles, rs);
+            Ornament r = makeOrnament(ecs, rs);
             auto ra = r.root->get<UiAnchor>();
             ra->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             ra->setLeftMargin(P);
@@ -287,7 +286,7 @@ namespace chronicle
         body->get<VerticalLayout>()->removeEntity(child);
     }
 
-    void Panel::setHeading(EntitySystem* ecs, const TextStyles&, const std::string& text)
+    void Panel::setHeading(EntitySystem* ecs, const std::string& text)
     {
         if (text.empty())
         {
@@ -299,7 +298,7 @@ namespace chronicle
             title->setText(ecs, text);
     }
 
-    void Panel::setAside(EntitySystem* ecs, const TextStyles&, const std::string& text)
+    void Panel::setAside(EntitySystem* ecs, const std::string& text)
     {
         if (text.empty())
         {
@@ -328,7 +327,7 @@ namespace chronicle
         spec.width = w;
         root->get<PositionComponent>()->setWidth(w);
 
-        if (title and styles)
+        if (title)
         {
             const float glyphAdvance = glyph ? GLYPH_ADVANCE : 0.0f;
             const float asideW = aside ? aside->entity->get<PositionComponent>()->width : 0.0f;

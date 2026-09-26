@@ -15,7 +15,7 @@
 #include "2D/simple2dobject.h"
 #include "UI/prefabloader.h"
 
-#include "UI/paint.h"
+#include "UI/themesystem.h"
 #include "UI/requirementlist.h"
 #include "UI/button.h"
 #include "UI/tabs.h"
@@ -41,10 +41,12 @@ namespace chronicle
 
     void PrefabFileGallery::init()
     {
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
+        theme = ecsRef->getSystem<ThemeSystem>();
+
+        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
+        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
 
         auto place = [](EntityRef e, float x, float y)
         {
@@ -53,18 +55,18 @@ namespace chronicle
             p->setY(y);
         };
 
-        auto caption = [&](float x, float y, const std::string& text, const std::string& colour)
+        auto caption = [&](float x, float y, const std::string& text, const std::string& color)
         {
             LabelSpec spec;
             spec.style = "caption";
             spec.text = text;
-            spec.colour = colour;
+            spec.color = color;
             spec.z = 15;
 
-            return makeLabel(ecsRef, *tokens, *styles, spec);
+            return makeLabel(ecsRef, spec);
         };
 
-        const float margin = tokens->space(7);   // 48
+        const float margin = theme->space(7);   // 48
 
         // ── The page ─────────────────────────────────────────────────────────
         std::vector<std::string> errors;
@@ -106,7 +108,7 @@ namespace chronicle
             {
                 const int needed = SQUIRE[i].needed;
                 view->subscribe(curPath(i), [this, fed, i, needed](const ElementType& v) {
-                    fed->setItem(ecsRef, *styles, i, v.get<int>(), needed);
+                    fed->setItem(ecsRef, i, v.get<int>(), needed);
                 });
             }
             view->subscribe(metPath(3), [this, fed](const ElementType& v) {
@@ -114,8 +116,8 @@ namespace chronicle
             });
         }
 
-        LabelSpec es; es.style = "body-sm"; es.text = "ready"; es.colour = "ink-muted"; es.z = 15;
-        echo = makeLabel(ecsRef, *tokens, *styles, es);
+        LabelSpec es; es.style = "body-sm"; es.text = "ready"; es.color = "ink-muted"; es.z = 15;
+        echo = makeLabel(ecsRef, es);
         place(echo.entity, margin, 820.0f);
 
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e)
@@ -153,9 +155,7 @@ namespace chronicle
         {
             if (event.key == SDL_SCANCODE_T)
             {
-                const Theme next = tokens->theme() == Theme::Day ? Theme::Candle : Theme::Day;
-                tokens->setTheme(next);
-                ecsRef->sendEvent(ThemeChangedEvent{next});
+                theme->setTheme(theme->currentTheme() == "day" ? "candle" : "day");
             }
         });
 

@@ -5,10 +5,9 @@
 #include <gtest/gtest.h>
 
 #include "UI/ornament.h"
-#include "UI/paint.h"
-#include "Core/textstyle.h"
 
 #include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
 #include "UI/ttftext.h"
 #include "UI/iconsystem.h"
 #include "UI/prefab.h"
@@ -27,13 +26,13 @@ namespace pg
         {
             struct OrnamentFixture
             {
-                Tokens tokens = Tokens::load("chronicle/tokens.json");
                 EntitySystem ecs;
                 MasterRenderer renderer;
                 TTFTextSystem* ttf = nullptr;
                 IconSystem* icons = nullptr;
-                PaintSystem* paint = nullptr;
-                TextStyles styles;
+                ThemeSystem* theme = nullptr;
+
+                constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
 
                 OrnamentFixture()
                 {
@@ -44,9 +43,8 @@ namespace pg
                     ecs.createSystem<DottedLine2DObjectSystem>(&renderer);
                     ecs.createSystem<StrokeRect2DObjectSystem>(&renderer);
                     icons = ecs.createSystem<IconSystem>(&renderer);
-                    paint = ecs.createSystem<PaintSystem>(&tokens);
-                    styles = TextStyles::fromTokens(tokens);
-                    styles.registerAll(ttf, "fonts");
+                    theme = ecs.createSystem<ThemeSystem>();
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
 
                     installOrnamentEntries();
                 }
@@ -82,8 +80,6 @@ namespace pg
         TEST(ornament_test, register_ornaments_rasterises)
         {
             MockLogger logger;
-
-            Tokens tokens = Tokens::load("chronicle/tokens.json");
             EntitySystem ecs;
             MasterRenderer renderer;
             ecs.createSystem<PositionComponentSystem>();
@@ -110,7 +106,7 @@ namespace pg
             OrnamentSpec spec;
             spec.kind = OrnamentKind::Divider; spec.weight = DividerWeight::Hair;
             spec.knot = false; spec.width = 300.0f;
-            Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, spec);
+            Ornament orn = makeOrnament(&s.ecs, spec);
             s.settle();
 
             EXPECT_FLOAT_EQ(s.pos(orn.root)->width, 300.0f);
@@ -119,7 +115,7 @@ namespace pg
             ASSERT_EQ(orn.parts.size(), 1u);
             EXPECT_NEAR(s.pos(orn.parts[0])->width, 300.0f, 0.01f);
             EXPECT_NEAR(s.pos(orn.parts[0])->height, 1.0f, 0.01f);
-            EXPECT_FLOAT_EQ(s.s2d(orn.parts[0])->colors.x, s.tokens.colour("rule-hair").x);
+            EXPECT_FLOAT_EQ(s.s2d(orn.parts[0])->colors.x, s.color("rule-hair").x);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -132,11 +128,11 @@ namespace pg
 
             OrnamentSpec spec;
             spec.kind = OrnamentKind::Divider; spec.weight = DividerWeight::Rule; spec.width = 200.0f;
-            Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, spec);
+            Ornament orn = makeOrnament(&s.ecs, spec);
             s.settle();
 
             EXPECT_FLOAT_EQ(s.pos(orn.root)->height, 2.0f);
-            EXPECT_FLOAT_EQ(s.s2d(orn.parts[0])->colors.x, s.tokens.colour("rule-ruled").x);
+            EXPECT_FLOAT_EQ(s.s2d(orn.parts[0])->colors.x, s.color("rule-ruled").x);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -147,11 +143,11 @@ namespace pg
             MockLogger logger;
             OrnamentFixture s;
 
-            auto parent = makeUiSimple2DShape(&s.ecs, Shape2D::Square, 500.0f, 40.0f, s.tokens.colour("vellum"));
+            auto parent = makeUiSimple2DShape(&s.ecs, Shape2D::Square, 500.0f, 40.0f, s.color("vellum"));
 
             OrnamentSpec spec;
             spec.kind = OrnamentKind::Divider; spec.weight = DividerWeight::Hair; spec.knot = false; spec.width = 0.0f;
-            Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, spec);
+            Ornament orn = makeOrnament(&s.ecs, spec);
             s.pos(orn.root)->setX(0.0f);
             auto ra = s.ecs.getEntity(orn.root.id)->get<UiAnchor>();
             ra->setLeftAnchor(PosAnchor{parent.entity.id, AnchorType::Left});
@@ -173,7 +169,7 @@ namespace pg
             OrnamentSpec spec;
             spec.kind = OrnamentKind::Divider; spec.weight = DividerWeight::Hair;
             spec.knot = true; spec.width = 300.0f; spec.ground = "folio";
-            Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, spec);
+            Ornament orn = makeOrnament(&s.ecs, spec);
             s.settle();
 
             ASSERT_EQ(orn.parts.size(), 3u);
@@ -186,12 +182,12 @@ namespace pg
             EXPECT_NEAR(s.pos(patch)->height, 10.0f, 0.01f);
             EXPECT_NEAR(s.pos(patch)->x + s.pos(patch)->width / 2.0f, rootX + 150.0f, 0.5f);
             EXPECT_FLOAT_EQ(s.pos(patch)->z, rootZ + 1.0f);
-            EXPECT_FLOAT_EQ(s.s2d(patch)->colors.x, s.tokens.colour("folio").x);
+            EXPECT_FLOAT_EQ(s.s2d(patch)->colors.x, s.color("folio").x);
 
             EXPECT_NEAR(s.pos(knot)->width, 22.0f, 0.01f);
             EXPECT_NEAR(s.pos(knot)->x + s.pos(knot)->width / 2.0f, rootX + 150.0f, 0.5f);
             EXPECT_FLOAT_EQ(s.pos(knot)->z, rootZ + 2.0f);
-            EXPECT_FLOAT_EQ(s.iconOf(knot)->colors.x, s.tokens.colour("rule-hair").x);
+            EXPECT_FLOAT_EQ(s.iconOf(knot)->colors.x, s.color("rule-hair").x);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -204,14 +200,13 @@ namespace pg
 
             OrnamentSpec spec;
             spec.kind = OrnamentKind::Divider; spec.knot = true; spec.width = 300.0f; spec.ground = "folio";
-            Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, spec);
+            Ornament orn = makeOrnament(&s.ecs, spec);
             s.settle();
 
-            s.tokens.setTheme(Theme::Candle);
-            s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
+            s.theme->setTheme("candle");
             s.settle();
 
-            EXPECT_FLOAT_EQ(s.s2d(orn.parts[1])->colors.x, s.tokens.colour("folio", Theme::Candle).x);
+            EXPECT_FLOAT_EQ(s.s2d(orn.parts[1])->colors.x, s.color("folio", "candle").x);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -222,7 +217,7 @@ namespace pg
             MockLogger logger;
             OrnamentFixture s;
 
-            Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, {OrnamentKind::Flourish});
+            Ornament orn = makeOrnament(&s.ecs, {OrnamentKind::Flourish});
             s.settle();
 
             EXPECT_FLOAT_EQ(s.pos(orn.root)->width, 120.0f);
@@ -234,12 +229,12 @@ namespace pg
             const float iconCentre = s.pos(icon)->y + s.pos(icon)->height / 2.0f;
             const float rootCentre = s.pos(orn.root)->y + s.pos(orn.root)->height / 2.0f;
             EXPECT_NEAR(iconCentre, rootCentre, 0.5f);
-            EXPECT_FLOAT_EQ(s.iconOf(icon)->colors.x, s.tokens.colour("rule-ruled").x);
+            EXPECT_FLOAT_EQ(s.iconOf(icon)->colors.x, s.color("rule-ruled").x);
 
-            OrnamentSpec vs; vs.kind = OrnamentKind::Flourish; vs.colour = "vermilion";
-            Ornament orn2 = makeOrnament(&s.ecs, s.tokens, s.styles, vs);
+            OrnamentSpec vs; vs.kind = OrnamentKind::Flourish; vs.color = "vermilion";
+            Ornament orn2 = makeOrnament(&s.ecs, vs);
             s.settle();
-            EXPECT_FLOAT_EQ(s.iconOf(orn2.parts[0])->colors.x, s.tokens.colour("vermilion").x);
+            EXPECT_FLOAT_EQ(s.iconOf(orn2.parts[0])->colors.x, s.color("vermilion").x);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -255,14 +250,14 @@ namespace pg
             for (int i = 0; i < 4; ++i)
             {
                 OrnamentSpec spec; spec.kind = OrnamentKind::Corner; spec.corner = poss[i];
-                Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, spec);
+                Ornament orn = makeOrnament(&s.ecs, spec);
                 s.settle();
 
                 EntityRef icon = orn.parts[0];
                 EXPECT_EQ(s.iconOf(icon)->iconName, names[i]);
                 EXPECT_FLOAT_EQ(s.pos(icon)->width, 28.0f);
                 EXPECT_FLOAT_EQ(s.pos(icon)->height, 28.0f);
-                EXPECT_FLOAT_EQ(s.iconOf(icon)->colors.x, s.tokens.colour("gold-edge").x);
+                EXPECT_FLOAT_EQ(s.iconOf(icon)->colors.x, s.color("gold-edge").x);
             }
         }
 
@@ -277,7 +272,7 @@ namespace pg
             for (const char* letter : {"A", "W", "i"})
             {
                 OrnamentSpec spec; spec.kind = OrnamentKind::Versal; spec.letter = letter;
-                Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, spec);
+                Ornament orn = makeOrnament(&s.ecs, spec);
                 s.settle();
                 EXPECT_FLOAT_EQ(s.pos(orn.root)->width, 72.0f) << "letter " << letter;
                 EXPECT_FLOAT_EQ(s.pos(orn.root)->height, 72.0f) << "letter " << letter;
@@ -293,7 +288,7 @@ namespace pg
             OrnamentFixture s;
 
             OrnamentSpec spec; spec.kind = OrnamentKind::Versal; spec.letter = "A";
-            Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, spec);
+            Ornament orn = makeOrnament(&s.ecs, spec);
             s.settle();
 
             EntityRef frame = orn.parts[0];
@@ -314,7 +309,7 @@ namespace pg
             OrnamentFixture s;
 
             OrnamentSpec spec; spec.kind = OrnamentKind::Versal; spec.letter = "\xC3\x86thel";   // "Æthel"
-            Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, spec);
+            Ornament orn = makeOrnament(&s.ecs, spec);
             s.settle();
 
             ASSERT_TRUE(orn.letter.has_value());
@@ -347,17 +342,17 @@ namespace pg
             OrnamentFixture s;
 
             OrnamentSpec spec; spec.kind = OrnamentKind::Versal; spec.letter = "A"; spec.tone = VersalTone::Gold;
-            Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, spec);
+            Ornament orn = makeOrnament(&s.ecs, spec);
             s.settle();
 
-            const auto gold = s.tokens.colour("gold-edge");
+            const auto gold = s.color("gold-edge");
             EXPECT_FLOAT_EQ(s.strokeOf(orn.parts[0])->colors.x, gold.x);
             EXPECT_FLOAT_EQ(s.iconOf(orn.parts[1])->colors.x, gold.x);
             EXPECT_FLOAT_EQ(s.ttfOf(orn.letter->entity)->colors.x, gold.x);
 
-            orn.setColour(&s.ecs, "lapis");
-            s.settle();   // the PaintComponent change event applies on the next frame
-            const auto lapis = s.tokens.colour("lapis");
+            orn.setColor(&s.ecs, "lapis");
+            s.settle();   // the ThemeComponent change event applies on the next frame
+            const auto lapis = s.color("lapis");
             EXPECT_FLOAT_EQ(s.strokeOf(orn.parts[0])->colors.x, lapis.x);
             EXPECT_FLOAT_EQ(s.iconOf(orn.parts[1])->colors.x, lapis.x);
             EXPECT_FLOAT_EQ(s.ttfOf(orn.letter->entity)->colors.x, lapis.x);
@@ -379,7 +374,7 @@ namespace pg
 
             for (const auto& spec : specs)
             {
-                Ornament orn = makeOrnament(&s.ecs, s.tokens, s.styles, spec);
+                Ornament orn = makeOrnament(&s.ecs, spec);
                 s.settle();
                 const float rootZ = s.pos(orn.root)->z;
                 for (const auto& part : orn.parts)

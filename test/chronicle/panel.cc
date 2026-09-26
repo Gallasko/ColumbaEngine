@@ -5,10 +5,9 @@
 #include <gtest/gtest.h>
 
 #include "UI/panel.h"
-#include "UI/paint.h"
-#include "Core/textstyle.h"
 
 #include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
 #include "UI/ttftext.h"
 #include "UI/iconsystem.h"
 #include "UI/sizer.h"
@@ -27,13 +26,13 @@ namespace pg
         {
             struct PanelFixture
             {
-                Tokens tokens = Tokens::load("chronicle/tokens.json");
                 EntitySystem ecs;
                 MasterRenderer renderer;
                 TTFTextSystem* ttf = nullptr;
                 IconSystem* icons = nullptr;
-                PaintSystem* paint = nullptr;
-                TextStyles styles;
+                ThemeSystem* theme = nullptr;
+
+                constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
 
                 PanelFixture()
                 {
@@ -46,9 +45,8 @@ namespace pg
                     ecs.createSystem<DottedLine2DObjectSystem>(&renderer);
                     ecs.createSystem<StrokeRect2DObjectSystem>(&renderer);
                     icons = ecs.createSystem<IconSystem>(&renderer);
-                    paint = ecs.createSystem<PaintSystem>(&tokens);
-                    styles = TextStyles::fromTokens(tokens);
-                    styles.registerAll(ttf, "fonts");
+                    theme = ecs.createSystem<ThemeSystem>();
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
 
                     installIconEntries();
                 }
@@ -77,13 +75,13 @@ namespace pg
 
                 EntityRef bodyRow(const std::string& text = "Row")
                 {
-                    LabelSpec s; s.style = "body"; s.text = text; s.colour = "ink"; s.z = 20;
-                    return makeLabel(&ecs, tokens, styles, s).entity;
+                    LabelSpec s; s.style = "body"; s.text = text; s.color = "ink"; s.z = 20;
+                    return makeLabel(&ecs, s).entity;
                 }
 
                 float asc(const std::string& style)
                 {
-                    const TextStyle& s = styles.get(style);
+                    const TextStyle& s = theme->style(style);
                     return ttf->measureText(s.fontAlias, "H", 1.0f, 0.0f, 0.0f, s.letterSpacingPx).ascender;
                 }
 
@@ -103,7 +101,7 @@ namespace pg
             MockLogger logger;
             PanelFixture s;
 
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
 
@@ -117,7 +115,7 @@ namespace pg
             EXPECT_NEAR(s.pos(p.frame)->height, 107.0f, 0.5f);
             EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->strokeWidth, 1.0f);
             EXPECT_FALSE(s.strokeOf(p.frame)->doubled);
-            EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->colors.x, s.tokens.colour("rule-ruled").x);
+            EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->colors.x, s.color("rule-ruled").x);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -128,12 +126,12 @@ namespace pg
             MockLogger logger;
             PanelFixture s;
 
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Hair, 320.0f, "Skills", "study"});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Hair, 320.0f, "Skills", "study"});
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
 
             EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->strokeWidth, 1.0f);
-            EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->colors.x, s.tokens.colour("rule-hair").x);
+            EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->colors.x, s.color("rule-hair").x);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -145,7 +143,7 @@ namespace pg
             PanelFixture s;
 
             PanelSpec spec; spec.frame = PanelFrame::Plain; spec.width = 320.0f; spec.heading = "Notes";
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, spec);
+            Panel p = makePanel(&s.ecs, spec);
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
 
@@ -164,7 +162,7 @@ namespace pg
             PanelFixture s;
 
             PanelSpec spec; spec.frame = PanelFrame::Illuminated; spec.width = 320.0f;
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, spec);
+            Panel p = makePanel(&s.ecs, spec);
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
 
@@ -172,7 +170,7 @@ namespace pg
             EXPECT_TRUE(s.strokeOf(p.frame)->doubled);
             EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->strokeWidth, 1.0f);
             EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->gap, 1.0f);
-            EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->colors.x, s.tokens.colour("gold-edge").x);
+            EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->colors.x, s.color("gold-edge").x);
 
             ASSERT_EQ(p.corners.size(), 4u);
             const float W = s.pos(p.root)->width, H = s.pos(p.root)->height;
@@ -196,7 +194,7 @@ namespace pg
             MockLogger logger;
             PanelFixture s;
 
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, ""});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, ""});
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
 
@@ -213,7 +211,7 @@ namespace pg
             MockLogger logger;
             PanelFixture s;
 
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
 
@@ -229,7 +227,7 @@ namespace pg
 
             const float asideRight = s.pos(p.aside->entity)->x + s.pos(p.aside->entity)->width;
             EXPECT_NEAR(asideRight, s.pos(p.root)->x + s.pos(p.root)->width - 16.0f, 0.5f);
-            EXPECT_FLOAT_EQ(s.ttfOf(p.aside->entity)->colors.x, s.tokens.colour("ink-muted").x);
+            EXPECT_FLOAT_EQ(s.ttfOf(p.aside->entity)->colors.x, s.color("ink-muted").x);
             EXPECT_EQ(p.aside->spec.style, "label");
         }
 
@@ -240,7 +238,7 @@ namespace pg
         {
             MockLogger logger;
             PanelFixture s;
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
             const float asideBaseline = s.pos(p.aside->entity)->y + s.asc("label");
@@ -258,13 +256,13 @@ namespace pg
 
             const float inner = 320.0f - 32.0f;
 
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
             const float asideWidth = s.pos(p.aside->entity)->width;
             EXPECT_NEAR(s.pos(p.title->entity)->width, inner - 26.0f - (asideWidth + 8.0f), 0.5f);
 
-            Panel bare = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts"});
+            Panel bare = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts"});
             bare.addChild(&s.ecs, s.bodyRow());
             s.settle();
             EXPECT_NEAR(s.pos(bare.title->entity)->width, inner, 0.5f);
@@ -278,7 +276,7 @@ namespace pg
             MockLogger logger;
             PanelFixture s;
 
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength"});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts", "strength"});
             EntityRef first = s.bodyRow("One");
             p.addChild(&s.ecs, first);
             s.settle();
@@ -300,7 +298,7 @@ namespace pg
             MockLogger logger;
             PanelFixture s;
 
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength"});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts", "strength"});
             p.addChild(&s.ecs, s.bodyRow("One"));
             EntityRef second = s.bodyRow("Two");
             p.addChild(&s.ecs, second);
@@ -320,12 +318,12 @@ namespace pg
             MockLogger logger;
             PanelFixture s;
 
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts"});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts"});
             EXPECT_FLOAT_EQ(p.innerWidth(), 288.0f);
 
             LabelSpec ws; ws.style = "body"; ws.overflow = Overflow::Wrap; ws.width = p.innerWidth();
             ws.text = "The quick brown fox jumps over the lazy dog and keeps on running past the edge"; ws.z = 20;
-            Label wrapped = makeLabel(&s.ecs, s.tokens, s.styles, ws);
+            Label wrapped = makeLabel(&s.ecs, ws);
             p.addChild(&s.ecs, wrapped.entity);
             s.settle();
 
@@ -341,7 +339,7 @@ namespace pg
             MockLogger logger;
             PanelFixture s;
 
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
 
@@ -365,7 +363,7 @@ namespace pg
             MockLogger logger;
             PanelFixture s;
 
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Illuminated, 320.0f, "Parts", "strength", "LEDGER"});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Illuminated, 320.0f, "Parts", "strength", "LEDGER"});
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
 
@@ -381,7 +379,7 @@ namespace pg
 
             // contentZ must clear the head band; a too-low value is corrected to z+10.
             PanelSpec bad; bad.frame = PanelFrame::Ruled; bad.width = 320.0f; bad.heading = "X"; bad.z = 10; bad.contentZ = 12;
-            Panel corrected = makePanel(&s.ecs, s.tokens, s.styles, bad);
+            Panel corrected = makePanel(&s.ecs, bad);
             EXPECT_EQ(corrected.spec.contentZ, 20);
         }
 
@@ -393,16 +391,15 @@ namespace pg
             MockLogger logger;
             PanelFixture s;
 
-            Panel p = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Parts", "strength"});
+            Panel p = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Parts", "strength"});
             p.addChild(&s.ecs, s.bodyRow());
             s.settle();
 
-            s.tokens.setTheme(Theme::Candle);
-            s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
+            s.theme->setTheme("candle");
             s.settle();
 
-            EXPECT_FLOAT_EQ(s.s2d(p.ground)->colors.x, s.tokens.colour("folio", Theme::Candle).x);
-            EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->colors.x, s.tokens.colour("rule-ruled", Theme::Candle).x);
+            EXPECT_FLOAT_EQ(s.s2d(p.ground)->colors.x, s.color("folio", "candle").x);
+            EXPECT_FLOAT_EQ(s.strokeOf(p.frame)->colors.x, s.color("rule-ruled", "candle").x);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -413,10 +410,10 @@ namespace pg
             MockLogger logger;
             PanelFixture s;
 
-            Panel outer = makePanel(&s.ecs, s.tokens, s.styles, {PanelFrame::Ruled, 320.0f, "Who he is"});
+            Panel outer = makePanel(&s.ecs, {PanelFrame::Ruled, 320.0f, "Who he is"});
 
             PanelSpec is; is.frame = PanelFrame::Ruled; is.width = 288.0f; is.heading = "Skills"; is.z = 20; is.contentZ = 30;
-            Panel inner = makePanel(&s.ecs, s.tokens, s.styles, is);
+            Panel inner = makePanel(&s.ecs, is);
             inner.addChild(&s.ecs, s.bodyRow());
             s.settle();
             const float innerH = s.pos(inner.root)->height;

@@ -9,9 +9,6 @@
 
 #include "ECS/entitysystem.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-
 #include "label.h"
 
 namespace chronicle
@@ -41,17 +38,15 @@ namespace chronicle
         GlossSpec spec;
 
         float height(pg::EntitySystem*) const;
-        void setText(pg::EntitySystem*, const TextStyles&, const std::string&);   // Margin: re-wraps, updates height
+        void setText(pg::EntitySystem*, const std::string&);   // Margin: re-wraps, updates height
     };
 
-    Gloss makeGloss(pg::EntitySystem*, const Tokens&, const TextStyles&, const GlossSpec&);
+    Gloss makeGloss(pg::EntitySystem*, const GlossSpec&);
 
     // The tooltip side. A gloss to show on hover is registered once under a key; TooltipComponent{key, "gloss"}
     // on any hoverable entity then shows it through the engine's TooltipSystem.
     struct GlossRegistry : public pg::System<pg::InitSys>
     {
-        GlossRegistry(const Tokens* tokens, const TextStyles* styles);
-
         std::string getSystemName() const override { return "Chronicle Gloss Registry"; }
 
         void init() override;                              // registers the "gloss" style on TooltipSystem
@@ -63,8 +58,6 @@ namespace chronicle
         Gloss lastBuilt;   // the most recently built gloss, for tests
 
     private:
-        const Tokens* tokens;
-        const TextStyles* styles;
         std::unordered_map<std::string, GlossSpec> specs;
     };
 

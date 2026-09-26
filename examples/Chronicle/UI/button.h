@@ -9,9 +9,7 @@
 #include "Input/inputcomponent.h"   // HoverChangedEvent, OnMouseClick/Release
 #include "Input/sdlevents.h"        // OnSDLScanCode
 #include "UI/focusable.h"           // OnFocus
-
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
+#include "UI/themesystem.h"         // ThemeChangedEvent
 
 #include "label.h"
 #include "mark.h"
@@ -61,22 +59,19 @@ namespace chronicle
         std::optional<Label> cost;
         std::optional<Label> reason;
         ButtonSpec spec;
-        const TextStyles* styles = nullptr;   // for re-fitting the reason on setDisabled
 
         void setDisabled(pg::EntitySystem*, bool, const std::string& reason = "");
-        void setLabel(pg::EntitySystem*, const TextStyles&, const std::string&);
-        void setMonths(pg::EntitySystem*, const TextStyles&, int);
+        void setLabel(pg::EntitySystem*, const std::string&);
+        void setMonths(pg::EntitySystem*, int);
         float faceWidth(pg::EntitySystem*) const;
     };
 
-    Button makeButton(pg::EntitySystem*, const Tokens&, const TextStyles&, const ButtonSpec&);
+    Button makeButton(pg::EntitySystem*, const ButtonSpec&);
 
     struct ButtonSystem : public pg::System<pg::Own<ButtonState>,
         pg::Listener<pg::HoverChangedEvent>, pg::Listener<pg::OnMouseClick>, pg::Listener<pg::OnMouseRelease>,
-        pg::Listener<pg::OnSDLScanCode>, pg::Listener<KeyboardFocusChangedEvent>, pg::Listener<ThemeChangedEvent>, pg::InitSys>
+        pg::Listener<pg::OnSDLScanCode>, pg::Listener<KeyboardFocusChangedEvent>, pg::Listener<pg::ThemeChangedEvent>, pg::InitSys>
     {
-        explicit ButtonSystem(const Tokens* tokens);
-
         std::string getSystemName() const override { return "Chronicle Button System"; }
 
         void init() override;
@@ -86,12 +81,9 @@ namespace chronicle
         void onEvent(const pg::OnMouseRelease&) override;
         void onEvent(const pg::OnSDLScanCode&) override;   // RETURN/SPACE only; Tab is FocusOrderSystem's
         void onEvent(const KeyboardFocusChangedEvent&) override;
-        void onEvent(const ThemeChangedEvent&) override;
+        void onEvent(const pg::ThemeChangedEvent&) override;
 
-        void applyVisual(pg::EntityRef face);   // repaints from state; public for tests
+        void applyVisual(pg::EntityRef face);   // re-keys the parts from state; public for tests
         void activate(pg::EntityRef face);      // sends ButtonActivatedEvent unless disabled
-
-    private:
-        const Tokens* tokens;
     };
 }

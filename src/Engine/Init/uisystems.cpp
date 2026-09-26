@@ -12,6 +12,7 @@
 #include "UI/progressbar.h"
 #include "UI/textinput.h"
 #include "UI/tooltip.h"
+#include "UI/themesystem.h"
 #include "Scene/scenemanager.h"
 #include "Renderer/renderer.h"
 
@@ -27,6 +28,9 @@ namespace pg
         ecs->createSystem<LayoutSystem>();
         ecs->createSystem<ListViewSystem>();
         ecs->createSystem<TooltipSystem>();
+
+        // Last of the UI systems: it pairs ThemeComponent with every drawable registered so far.
+        ecs->createSystem<ThemeSystem>();
 
         // Ordering
         ecs->succeed<LayoutSystem, PrefabSystem>();
@@ -44,5 +48,8 @@ namespace pg
         ecs->succeed<AnimationPositionSystem, PositionComponentSystem>();
 
         ecs->succeed<SceneElementSystem, MasterRenderer>();
+
+        // A repaint lands before the frame renders.
+        ecs->succeed<ThemeSystem, MasterRenderer>();
     }
 }

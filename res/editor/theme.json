@@ -1,0 +1,49 @@
+{
+  "name": "Editor",
+  "version": 1,
+  "themes": [
+    { "id": "default", "name": "Default engine theme" },
+    { "id": "white", "name": "Clean white theme for editor" },
+    { "id": "dark", "name": "Modern dark theme for editor" }
+  ],
+  "color": {
+    "tokens": [
+      { "name": "editor-panel-background", "value": { "default": "#373737", "white": "#fafafa", "dark": "#1e1e1e" } },
+      { "name": "editor-panel-border", "value": { "default": "#c8c8c8", "white": "#b4b4b4", "dark": "#505050" } },
+      { "name": "editor-button-normal", "value": { "default": "#c8c8c8", "white": "#e6e6e6", "dark": "#3c3c3c" } },
+      { "name": "editor-button-hover", "value": { "default": "#dcdcdc", "white": "#d2d2d2", "dark": "#505050" } },
+      { "name": "editor-button-pressed", "value": { "default": "#b4b4b4", "white": "#bebebe", "dark": "#282828" } },
+      { "name": "editor-text-primary", "value": { "default": "#ffffff", "white": "#282828", "dark": "#dcdcdc" } },
+      { "name": "editor-text-secondary", "value": { "default": "#c8c8c8", "white": "#505050", "dark": "#a0a0a0" } },
+      { "name": "editor-text-header", "value": { "default": "#ffffff", "white": "#141414", "dark": "#f0f0f0" } },
+      { "name": "editor-text-accent", "value": { "default": "#ff6464", "white": "#3278c8", "dark": "#64aaff" } },
+      { "name": "editor-item-background", "value": { "default": "#464646", "white": "#f5f5f5", "dark": "#2d2d2d" } },
+      { "name": "editor-item-selected", "value": { "default": "#6496c8", "white": "#c8dcff", "dark": "#5078b4" } },
+      { "name": "editor-item-hover", "value": { "default": "#5a5a5a", "white": "#ebebeb", "dark": "#414141" } },
+      { "name": "editor-input-background", "value": { "default": "#373737", "white": "#ffffff", "dark": "#191919" } },
+      { "name": "editor-input-border", "value": { "default": "#969696", "white": "#c8c8c8", "dark": "#646464" } },
+      { "name": "editor-input-text", "value": { "default": "#ffffff", "white": "#282828", "dark": "#c8c8c8" } },
+      { "name": "editor-menu-background", "value": { "default": "#141414", "white": "#f0f0f0", "dark": "#141414" } },
+      { "name": "editor-menu-item", "value": { "default": "#282828", "white": "#dcdcdc", "dark": "#323232" } }
+    ]
+  },
+  "elements": {
+    "editor.panel": { "color": "editor-panel-background" },
+    "editor.panel.border": { "color": "editor-panel-border" },
+    "editor.button": { "color": "editor-button-normal" },
+    "editor.button.hover": { "color": "editor-button-hover" },
+    "editor.button.pressed": { "color": "editor-button-pressed" },
+    "editor.text": { "color": "editor-text-primary" },
+    "editor.text.secondary": { "color": "editor-text-secondary" },
+    "editor.text.header": { "color": "editor-text-header" },
+    "editor.text.accent": { "color": "editor-text-accent" },
+    "editor.item": { "color": "editor-item-background" },
+    "editor.item.selected": { "color": "editor-item-selected" },
+    "editor.item.hover": { "color": "editor-item-hover" },
+    "editor.input.background": { "color": "editor-input-background" },
+    "editor.input.border": { "color": "editor-input-border" },
+    "editor.input.text": { "color": "editor-input-text" },
+    "editor.menu.background": { "color": "editor-menu-background" },
+    "editor.menu.item": { "color": "editor-menu-item" }
+  }
+}

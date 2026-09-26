@@ -12,10 +12,9 @@
 
 #include "UI/tabs.h"
 #include "UI/button.h"
-#include "UI/paint.h"
-#include "Core/textstyle.h"
 
 #include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
 #include "UI/ttftext.h"
 #include "UI/iconsystem.h"
 #include "UI/sizer.h"
@@ -43,16 +42,16 @@ namespace pg
 
             struct TabsFixture
             {
-                Tokens tokens = Tokens::load("chronicle/tokens.json");
                 EntitySystem ecs;
                 MasterRenderer renderer;
                 TTFTextSystem* ttf = nullptr;
                 IconSystem* icons = nullptr;
-                PaintSystem* paint = nullptr;
+                ThemeSystem* theme = nullptr;
+
+                constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
                 TabsSystem* tabsSys = nullptr;
                 FocusOrderSystem* order = nullptr;
                 TabRecorder* recorder = nullptr;
-                TextStyles styles;
 
                 TabsFixture()
                 {
@@ -69,13 +68,12 @@ namespace pg
                     ecs.createSystem<MouseHoverSystem>();
                     ecs.createSystem<FocusableSystem>();
                     order = ecs.createSystem<FocusOrderSystem>();
-                    paint = ecs.createSystem<PaintSystem>(&tokens);
-                    ecs.createSystem<ButtonSystem>(&tokens);
-                    tabsSys = ecs.createSystem<TabsSystem>(&tokens);
+                    theme = ecs.createSystem<ThemeSystem>();
+                    ecs.createSystem<ButtonSystem>();
+                    tabsSys = ecs.createSystem<TabsSystem>();
                     ecs.succeed<MouseHoverSystem, TabsSystem>();
                     recorder = ecs.createSystem<TabRecorder>();
-                    styles = TextStyles::fromTokens(tokens);
-                    styles.registerAll(ttf, "fonts");
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
                     installIconEntries();
                 }
 
@@ -98,7 +96,7 @@ namespace pg
 
                 Tabs place(const TabsSpec& spec, float x = 100.0f, float y = 100.0f)
                 {
-                    Tabs t = makeTabs(&ecs, tokens, styles, spec);
+                    Tabs t = makeTabs(&ecs, spec);
                     t.root->get<PositionComponent>()->setX(x);
                     t.root->get<PositionComponent>()->setY(y);
                     pump();
@@ -107,20 +105,20 @@ namespace pg
 
                 float tabW(const std::string& text)
                 {
-                    const TextStyle& s = styles.get("tab");
+                    const TextStyle& s = theme->style("tab");
                     return ttf->measureText(s.fontAlias, text, 1.0f, 0.0f, 0.0f, s.letterSpacingPx).width;
                 }
                 float capW(const std::string& text)
                 {
-                    const TextStyle& s = styles.get("caption");
+                    const TextStyle& s = theme->style("caption");
                     return ttf->measureText(s.fontAlias, text, 1.0f, 0.0f, 0.0f, s.letterSpacingPx).width;
                 }
 
                 CompRef<PositionComponent> pos(EntityRef e) { return ecs.getEntity(e.id)->get<PositionComponent>(); }
                 CompRef<PositionComponent> pos(_unique_id id) { return ecs.getEntity(id)->get<PositionComponent>(); }
                 CompRef<Simple2DObject> s2d(EntityRef e) { return ecs.getEntity(e.id)->get<Simple2DObject>(); }
-                std::string token(EntityRef e) { return ecs.getEntity(e.id)->get<PaintComponent>()->token; }
-                std::string token(_unique_id id) { return ecs.getEntity(id)->get<PaintComponent>()->token; }
+                std::string token(EntityRef e) { return theme->elementEntry(ecs.getEntity(e.id)->get<ThemeComponent>()->element, "color").get<std::string>(); }
+                std::string token(_unique_id id) { return theme->elementEntry(ecs.getEntity(id)->get<ThemeComponent>()->element, "color").get<std::string>(); }
                 float centreX(const Tabs::Tab& t) { return pos(t.face)->x + pos(t.face)->width / 2.0f; }
                 float centreY(const Tabs::Tab& t) { return pos(t.face)->y + 22.0f; }
 
@@ -214,7 +212,7 @@ namespace pg
             EXPECT_FLOAT_EQ(s.pos(t.tabs[0].badgeFrame)->height, 15.0f);
             EXPECT_NEAR(s.pos(t.tabs[0].face)->width, 24.0f + s.tabW("Guild") + 8.0f + frameW, 0.5f);
 
-            t.setBadge(&s.ecs, s.styles, 0, 0);
+            t.setBadge(&s.ecs, 0, 0);
             s.pump();
             EXPECT_FALSE(t.tabs[0].badge.has_value());
             EXPECT_NEAR(s.pos(t.tabs[0].face)->width, 24.0f + s.tabW("Guild"), 0.5f);
@@ -270,7 +268,7 @@ namespace pg
             TabsFixture s;
 
             // A button first, so the shared Tab order is button -> tab0 -> tab1 ...
-            makeButton(&s.ecs, s.tokens, s.styles, {ButtonVariant::Quiet, "Go"});
+            makeButton(&s.ecs, {ButtonVariant::Quiet, "Go"});
             Tabs t = s.place(s.sixTabs(), 100.0f, 200.0f);
 
             s.key(SDL_SCANCODE_TAB);   // button
@@ -347,13 +345,12 @@ namespace pg
 
             s.hover(s.centreX(t.tabs[1]), s.centreY(t.tabs[1]));
 
-            s.tokens.setTheme(Theme::Candle);
-            s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
+            s.theme->setTheme("candle");
             s.pump();
 
             EXPECT_FLOAT_EQ(s.ecs.getEntity(t.tabs[1].label.entity.id)->get<TTFText>()->colors.x,
-                            s.tokens.colour("ink", Theme::Candle).x);
-            EXPECT_FLOAT_EQ(s.s2d(t.rule)->colors.x, s.tokens.colour("rule-ruled", Theme::Candle).x);
+                            s.color("ink", "candle").x);
+            EXPECT_FLOAT_EQ(s.s2d(t.rule)->colors.x, s.color("rule-ruled", "candle").x);
         }
 
         // ----------------------------------------------------------------------------------------

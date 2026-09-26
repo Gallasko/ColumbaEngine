@@ -31,11 +31,12 @@ namespace chronicle
 
     void OrnamentGallery::init()
     {
+        theme = ecsRef->getSystem<ThemeSystem>();
 
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
+        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
+        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
 
         auto place = [](EntityRef e, float x, float y)
         {
@@ -44,19 +45,19 @@ namespace chronicle
             p->setY(y);
         };
 
-        auto caption = [&](float x, float y, const std::string& text, const std::string& colour)
+        auto caption = [&](float x, float y, const std::string& text, const std::string& color)
         {
-            LabelSpec spec; spec.style = "caption"; spec.text = text; spec.colour = colour;
+            LabelSpec spec; spec.style = "caption"; spec.text = text; spec.color = color;
             spec.z = static_cast<int>(CONTENT_Z);
-            Label l = makeLabel(ecsRef, *tokens, *styles, spec);
+            Label l = makeLabel(ecsRef, spec);
             place(l.entity, x, y);
         };
 
-        auto label = [&](const std::string& style, float x, float y, const std::string& text, const std::string& colour)
+        auto label = [&](const std::string& style, float x, float y, const std::string& text, const std::string& color)
         {
-            LabelSpec spec; spec.style = style; spec.text = text; spec.colour = colour;
+            LabelSpec spec; spec.style = style; spec.text = text; spec.color = color;
             spec.z = static_cast<int>(CONTENT_Z);
-            Label l = makeLabel(ecsRef, *tokens, *styles, spec);
+            Label l = makeLabel(ecsRef, spec);
             place(l.entity, x, y);
             return l;
         };
@@ -69,9 +70,9 @@ namespace chronicle
             OrnamentSpec spec;
             spec.kind = OrnamentKind::Divider; spec.weight = d.weight; spec.knot = d.knot;
             spec.width = w; spec.ground = ground; spec.z = static_cast<int>(CONTENT_Z);
-            Ornament orn = makeOrnament(ecsRef, *tokens, *styles, spec);
+            Ornament orn = makeOrnament(ecsRef, spec);
             place(orn.root, x, y + 24.0f);
-            return y + 24.0f + tokens->space(3) + 6.0f;
+            return y + 24.0f + theme->space(3) + 6.0f;
         };
 
         const Div divs[4] = {
@@ -85,10 +86,10 @@ namespace chronicle
         const float leftX = 64.0f;
         const float colW = 520.0f;
         {
-            auto leaf = makeUiSimple2DShape(ecsRef, Shape2D::Square, colW + 32.0f, 760.0f, tokens->colour("folio"));
+            auto leaf = makeUiSimple2DShape(ecsRef, Shape2D::Square, colW + 32.0f, 760.0f, theme->color("folio"));
             leaf.get<PositionComponent>()->setZ(SURFACE_Z);
             place(leaf.entity, leftX - 16.0f, 32.0f);
-            ecsRef->attach<PaintComponent>(leaf.entity, "folio");
+            ecsRef->attach<ThemeComponent>(leaf.entity, "scene.leaf");
 
             float y = 56.0f;
             for (const auto& d : divs)
@@ -98,13 +99,13 @@ namespace chronicle
             y += 12.0f;
             label("title", leftX, y, "North Forest", "ink");
             OrnamentSpec f1s; f1s.kind = OrnamentKind::Flourish; f1s.z = static_cast<int>(CONTENT_Z);
-            Ornament f1 = makeOrnament(ecsRef, *tokens, *styles, f1s);
+            Ornament f1 = makeOrnament(ecsRef, f1s);
             place(f1.root, leftX, y + 40.0f);
             y += 76.0f;
 
             label("title", leftX, y, "The Drowned Keep", "vermilion");
-            OrnamentSpec fs; fs.kind = OrnamentKind::Flourish; fs.colour = "vermilion"; fs.z = static_cast<int>(CONTENT_Z);
-            Ornament f2 = makeOrnament(ecsRef, *tokens, *styles, fs);
+            OrnamentSpec fs; fs.kind = OrnamentKind::Flourish; fs.color = "vermilion"; fs.z = static_cast<int>(CONTENT_Z);
+            Ornament f2 = makeOrnament(ecsRef, fs);
             place(f2.root, leftX, y + 40.0f);
             y += 96.0f;
 
@@ -115,7 +116,7 @@ namespace chronicle
             {
                 OrnamentSpec vs; vs.kind = OrnamentKind::Versal; vs.letter = letters[i]; vs.tone = tones[i];
                 vs.z = static_cast<int>(CONTENT_Z);
-                Ornament v = makeOrnament(ecsRef, *tokens, *styles, vs);
+                Ornament v = makeOrnament(ecsRef, vs);
                 place(v.root, leftX + static_cast<float>(i) * 92.0f, y);
             }
             y += 92.0f;
@@ -123,13 +124,13 @@ namespace chronicle
             // The milestone spread: a versal beside a chapter line that wraps in the column.
             OrnamentSpec ms; ms.kind = OrnamentKind::Versal; ms.letter = "I"; ms.tone = VersalTone::Vermilion;
             ms.z = static_cast<int>(CONTENT_Z);
-            Ornament milestone = makeOrnament(ecsRef, *tokens, *styles, ms);
+            Ornament milestone = makeOrnament(ecsRef, ms);
             place(milestone.root, leftX, y);
 
             LabelSpec msl;
-            msl.style = "chapter"; msl.text = "n his fourteenth year, Aldren chose his path."; msl.colour = "ink";
+            msl.style = "chapter"; msl.text = "n his fourteenth year, Aldren chose his path."; msl.color = "ink";
             msl.overflow = Overflow::Wrap; msl.width = colW - 88.0f; msl.z = static_cast<int>(CONTENT_Z);
-            Label msLabel = makeLabel(ecsRef, *tokens, *styles, msl);
+            Label msLabel = makeLabel(ecsRef, msl);
             place(msLabel.entity, leftX + 88.0f, y + 4.0f);
         }
 
@@ -145,10 +146,10 @@ namespace chronicle
             caption(rightX, y, "illuminated frame", "ink-muted");
             y += 24.0f;
             const float fw = 320.0f, fh = 160.0f;
-            auto frame = makeStrokeRect2DShape(ecsRef, fw, fh, tokens->colour("gold-edge"), 1.0f, 1.0f, true);
+            auto frame = makeStrokeRect2DShape(ecsRef, fw, fh, theme->color("gold-edge"), 1.0f, 1.0f, true);
             frame.get<PositionComponent>()->setZ(CONTENT_Z);
             place(frame.entity, rightX, y);
-            ecsRef->attach<PaintComponent>(frame.entity, "gold-edge");
+            ecsRef->attach<ThemeComponent>(frame.entity, "scene.gold-edge");
 
             const CornerPos corners[4] = {CornerPos::TL, CornerPos::TR, CornerPos::BL, CornerPos::BR};
             const float cx[4] = {rightX + 2.0f, rightX + fw - 28.0f - 2.0f, rightX + 2.0f, rightX + fw - 28.0f - 2.0f};
@@ -157,7 +158,7 @@ namespace chronicle
             {
                 OrnamentSpec cs; cs.kind = OrnamentKind::Corner; cs.corner = corners[i];
                 cs.z = static_cast<int>(CONTENT_Z);
-                Ornament c = makeOrnament(ecsRef, *tokens, *styles, cs);
+                Ornament c = makeOrnament(ecsRef, cs);
                 place(c.root, cx[i], cy[i]);
             }
             y += fh + 24.0f;
@@ -166,20 +167,20 @@ namespace chronicle
             caption(rightX, y, "ruled list", "ink-muted");
             y += 24.0f;
             auto list = makeVerticalLayout(ecsRef, rightX, y, colW, 0.0f);
-            list.get<VerticalLayout>()->spacing = static_cast<size_t>(tokens->space(3));
+            list.get<VerticalLayout>()->spacing = static_cast<size_t>(theme->space(3));
             list.get<PositionComponent>()->setZ(CONTENT_Z);
             const char* rows[5] = {"Strength", "Dexterity", "Intelligence", "Vitality", "Reputation"};
             for (int i = 0; i < 5; ++i)
             {
-                LabelSpec rs; rs.style = "body"; rs.text = rows[i]; rs.colour = "ink"; rs.z = static_cast<int>(CONTENT_Z);
-                list.get<VerticalLayout>()->addEntity(makeLabel(ecsRef, *tokens, *styles, rs).entity);
+                LabelSpec rs; rs.style = "body"; rs.text = rows[i]; rs.color = "ink"; rs.z = static_cast<int>(CONTENT_Z);
+                list.get<VerticalLayout>()->addEntity(makeLabel(ecsRef, rs).entity);
 
                 if (i < 4)
                 {
                     OrnamentSpec ds;
                     ds.kind = OrnamentKind::Divider; ds.weight = DividerWeight::Hair; ds.knot = false;
                     ds.width = colW; ds.ground = "vellum"; ds.z = static_cast<int>(CONTENT_Z);
-                    list.get<VerticalLayout>()->addEntity(makeOrnament(ecsRef, *tokens, *styles, ds).root);
+                    list.get<VerticalLayout>()->addEntity(makeOrnament(ecsRef, ds).root);
                 }
             }
         }
@@ -190,9 +191,7 @@ namespace chronicle
         {
             if (event.key == SDL_SCANCODE_T)
             {
-                const Theme next = tokens->theme() == Theme::Day ? Theme::Candle : Theme::Day;
-                tokens->setTheme(next);
-                ecsRef->sendEvent(ThemeChangedEvent{next});
+                theme->setTheme(theme->currentTheme() == "day" ? "candle" : "day");
             }
         });
 

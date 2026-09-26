@@ -17,8 +17,6 @@
 #include "UI/prefab.h"
 #include "UI/ttftext.h"
 
-#include "paint.h"
-
 using namespace pg;
 
 namespace chronicle
@@ -40,43 +38,32 @@ namespace chronicle
         constexpr float REASON_GAP = 4.0f;
         constexpr float REASON_H = 15.0f; // caption line height
 
-        std::string groundToken(ButtonVariant v, bool hovered, bool enabled)
+        std::string variantName(ButtonVariant v)
         {
             switch (v)
             {
-            case ButtonVariant::Study: return "lapis";
-            case ButtonVariant::Seal:  return "vermilion";
+            case ButtonVariant::Study: return "study";
+            case ButtonVariant::Seal:  return "seal";
             case ButtonVariant::Quiet:
-            default:                   return (hovered and enabled) ? "vellum-tint" : "folio";
+            default:                   return "quiet";
             }
         }
 
-        std::string frameToken(ButtonVariant v)
+        // The theme defines "button.<variant>.<part>" for ground, frame, sheen, ink and cost, with
+        // ".hover" leaves where a state differs and the root "disabled" mixin for the locked dim.
+        std::string partElement(ButtonVariant v, const std::string& part, const std::string& state = "")
         {
-            switch (v)
-            {
-            case ButtonVariant::Study: return "lapis";
-            case ButtonVariant::Seal:  return "vermilion";
-            case ButtonVariant::Quiet:
-            default:                   return "rule-ruled";
-            }
+            return "button." + variantName(v) + "." + part + state;
         }
 
-        std::string inkToken(ButtonVariant v)
+        // The state suffix of a part: disabled dims, hover lights, otherwise the resting element.
+        std::string stateSuffix(bool hovered, bool enabled)
         {
-            switch (v)
-            {
-            case ButtonVariant::Study: return "on-lapis";
-            case ButtonVariant::Seal:  return "on-vermilion";
-            case ButtonVariant::Quiet:
-            default:                   return "ink";
-            }
+            if (not enabled)
+                return ".disabled";
+
+            return hovered ? ".hover" : "";
         }
-
-        std::string sheenToken(ButtonVariant v) { return v == ButtonVariant::Study ? "on-lapis" : "on-vermilion"; }
-
-        // Quiet keeps its cost in the ochre time colour; the tonal variants use their on-tone ink.
-        std::string costToken(ButtonVariant v) { return v == ButtonVariant::Quiet ? "status-time" : inkToken(v); }
 
         std::string monthsText(int months) { return std::to_string(months) + " mo"; }
 
@@ -85,40 +72,39 @@ namespace chronicle
             return std::find(v.begin(), v.end(), id) != v.end();
         }
 
-        // Retarget an already-painted part; the PaintComponent setters trigger the repaint.
-        void repaint(EntityRef e, const std::string& token, float alpha)
+        // Retarget an already-themed part; the ThemeComponent setter triggers the repaint.
+        void rekey(EntityRef e, const std::string& element)
         {
-            auto pc = e->get<PaintComponent>();
-            pc->setToken(token);
-            pc->setAlpha(alpha);
+            e->get<ThemeComponent>()->setElement(element);
         }
     }
 
-    Button makeButton(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const ButtonSpec& spec)
+    Button makeButton(EntitySystem* ecs, const ButtonSpec& spec)
     {
-        const std::string ink = inkToken(spec.variant);
-        const std::string cost = costToken(spec.variant);
+        auto* theme = ecs->getSystem<ThemeSystem>();
+
         const bool hasGlyph = not spec.glyph.empty();
         const bool hasCost = spec.months >= 0;
         const int z = spec.z;
-        // The initial dim, so a button that is born disabled draws dimmed before any event.
-        const float a0 = spec.disabled ? tokens.opacity("opacity-locked") : 1.0f;
+        // The initial state, so a button that is born disabled draws dimmed before any event.
+        const std::string s0 = stateSuffix(false, not spec.disabled);
+        const std::string ink = partElement(spec.variant, "ink", s0);
+        const std::string cost = partElement(spec.variant, "cost", s0);
 
         Button b;
         b.spec = spec;
-        b.styles = &styles;
 
         // Measure the label (and the cost figure) so the face can size to them.
-        LabelSpec ls; ls.style = "control"; ls.text = spec.label; ls.colour = ink; ls.z = z + 3;
-        Label label = makeLabel(ecs, tokens, styles, ls);
+        LabelSpec ls; ls.style = "control"; ls.text = spec.label; ls.z = z + 3;
+        Label label = makeLabel(ecs, ls);
         const float labelW = label.entity->get<PositionComponent>()->width;
 
         float costTextW = 0.0f;
         std::optional<Label> costLabel;
         if (hasCost)
         {
-            LabelSpec cs; cs.style = "tick"; cs.text = monthsText(spec.months); cs.colour = cost; cs.z = z + 3;
-            costLabel = makeLabel(ecs, tokens, styles, cs);
+            LabelSpec cs; cs.style = "tick"; cs.text = monthsText(spec.months); cs.z = z + 3;
+            costLabel = makeLabel(ecs, cs);
             costTextW = costLabel->entity->get<PositionComponent>()->width;
         }
 
@@ -175,38 +161,35 @@ namespace chronicle
             root.get<Prefab>()->addToPrefab(e);
         };
 
-        // ground (rounded folio/tone), z.
-        auto ground = makeRoundedRect2DShape(ecs, tokens.radius("radius-md"), 1.0f, 1.0f,
-            tokens.colour(groundToken(spec.variant, false, not spec.disabled)));
+        // ground (rounded folio/tone), z. Colour and radius come from the theme element.
+        auto ground = makeRoundedRect2DShape(ecs, theme->radius("radius-md"), 1.0f, 1.0f);
         ground.get<UiAnchor>()->fillIn(face->get<UiAnchor>());
         ground.get<UiAnchor>()->setZConstrain(PosConstrain{faceId, AnchorType::Z});
-        ecs->attach<PaintComponent>(ground.entity, groundToken(spec.variant, false, not spec.disabled), a0);
+        ecs->attach<ThemeComponent>(ground.entity, partElement(spec.variant, "ground", s0));
         root.get<Prefab>()->addToPrefab(ground.entity);
         state->ground = ground.entity.id;
 
         // frame (1 px stroke, radius 3), z+1.
-        auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, tokens.colour(frameToken(spec.variant)), 1.0f);
-        frame.get<StrokeRect2DObject>()->setCornerRadius(tokens.radius("radius-md"));
+        auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, {255.0f, 255.0f, 255.0f, 255.0f}, 1.0f);
         frame.get<UiAnchor>()->fillIn(face->get<UiAnchor>());
         frame.get<UiAnchor>()->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 1.0f});
-        ecs->attach<PaintComponent>(frame.entity, frameToken(spec.variant), a0);
+        ecs->attach<ThemeComponent>(frame.entity, partElement(spec.variant, "frame", s0));
         root.get<Prefab>()->addToPrefab(frame.entity);
         state->frame = frame.entity.id;
 
         // sheen (tonal only): a hover brighten/darken, alpha 0 until hovered.
         if (spec.variant != ButtonVariant::Quiet)
         {
-            auto sheen = makeRoundedRect2DShape(ecs, tokens.radius("radius-md"), 1.0f, 1.0f, tokens.colour(sheenToken(spec.variant)));
+            auto sheen = makeRoundedRect2DShape(ecs, theme->radius("radius-md"), 1.0f, 1.0f);
             sheen.get<UiAnchor>()->fillIn(face->get<UiAnchor>());
             sheen.get<UiAnchor>()->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 1.0f});
-            ecs->attach<PaintComponent>(sheen.entity, sheenToken(spec.variant), 0.0f);
+            ecs->attach<ThemeComponent>(sheen.entity, partElement(spec.variant, "sheen"));
             root.get<Prefab>()->addToPrefab(sheen.entity);
             state->sheen = sheen.entity.id;
         }
 
         // focus ring: 2 px focus-ink, radius 5, 4 px outside the face, hidden until keyboard focus.
-        auto ring = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, tokens.colour("focus-ink"), tokens.border("border-rule"));
-        ring.get<StrokeRect2DObject>()->setCornerRadius(5.0f);
+        auto ring = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, {255.0f, 255.0f, 255.0f, 255.0f}, theme->border("border-rule"));
         {
             auto ra = ring.get<UiAnchor>();
             ra->setLeftAnchor(PosAnchor{faceId, AnchorType::Left});     ra->setLeftMargin(-4.0f);
@@ -216,24 +199,24 @@ namespace chronicle
             ra->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 1.0f});
         }
         ring.get<PositionComponent>()->setVisible(false);
-        ecs->attach<PaintComponent>(ring.entity, "focus-ink");
+        ecs->attach<ThemeComponent>(ring.entity, "button.ring");
         root.get<Prefab>()->addToPrefab(ring.entity);
         state->ring = ring.entity.id;
 
-        // face parts, z+2 (their texts z+3). Re-paint at a0 so a born-disabled button is dimmed.
+        // face parts, z+2 (their texts z+3). Re-keyed to the variant's ink so a born-disabled button is dimmed.
         float x = PAD_X;
         if (hasGlyph)
         {
-            Mark m = makeMark(ecs, tokens, {spec.glyph, MarkSize::S16, ink, z + 2});
+            Mark m = makeMark(ecs, {spec.glyph, MarkSize::S16, "ink", z + 2});
             anchorInFace(m.entity, x, 2, /*vcentre*/ true);
-            repaint(m.entity, ink, a0);
+            rekey(m.entity, ink);
             b.glyph = m;
             state->inked.push_back(m.entity.id);
             x += GLYPH + GAP;
         }
 
         anchorInFace(label.entity, x, 3, /*vcentre*/ true);
-        repaint(label.entity, ink, a0);
+        rekey(label.entity, ink);
         b.label = label;
         state->inked.push_back(label.entity.id);
         x += labelW;
@@ -241,16 +224,16 @@ namespace chronicle
         if (hasCost)
         {
             x += GAP;
-            Mark cm = makeMark(ecs, tokens, {"time", MarkSize::S14, cost, z + 2});
+            Mark cm = makeMark(ecs, {"time", MarkSize::S14, "ink", z + 2});
             anchorInFace(cm.entity, x, 2, /*vcentre*/ true);
-            repaint(cm.entity, cost, a0);
+            rekey(cm.entity, cost);
             b.costMark = cm;
             state->inked.push_back(cm.entity.id);
             state->costParts.push_back(cm.entity.id);
             x += COST_MARK + COST_GAP;
 
             anchorInFace(costLabel->entity, x, 3, /*vcentre*/ true);
-            repaint(costLabel->entity, cost, a0);
+            rekey(costLabel->entity, cost);
             b.cost = costLabel;
             state->inked.push_back(costLabel->entity.id);
             state->costParts.push_back(costLabel->entity.id);
@@ -259,8 +242,8 @@ namespace chronicle
         // reason (created when there is reason text; shown only while disabled).
         if (hasReason)
         {
-            LabelSpec rs; rs.style = "caption"; rs.text = spec.reason; rs.colour = "ink-faint"; rs.z = z + 3;
-            Label r = makeLabel(ecs, tokens, styles, rs);
+            LabelSpec rs; rs.style = "caption"; rs.text = spec.reason; rs.color = "ink-faint"; rs.z = z + 3;
+            Label r = makeLabel(ecs, rs);
             auto ra = r.entity->get<UiAnchor>();
             ra->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             ra->setTopAnchor(PosAnchor{faceId, AnchorType::Bottom}); ra->setTopMargin(REASON_GAP);
@@ -281,7 +264,7 @@ namespace chronicle
         face->get<ButtonState>()->disabled = disabled;
         if (auto* fo = ecs->getSystem<FocusOrderSystem>())
             fo->setEnabled(face.id, not disabled);
-        if (not newReason.empty() and reason and styles)
+        if (not newReason.empty() and reason)
         {
             reason->setText(ecs, newReason);
             spec.reason = newReason;
@@ -292,7 +275,7 @@ namespace chronicle
         ecs->getSystem<ButtonSystem>()->applyVisual(face);
     }
 
-    void Button::setLabel(EntitySystem* ecs, const TextStyles&, const std::string& text)
+    void Button::setLabel(EntitySystem* ecs, const std::string& text)
     {
         label.setText(ecs, text);
         // Re-measure and regrow the face; the glyph/cost anchors reflow from the new label width.
@@ -315,7 +298,7 @@ namespace chronicle
         spec.label = text;
     }
 
-    void Button::setMonths(EntitySystem*, const TextStyles&, int months)
+    void Button::setMonths(EntitySystem*, int months)
     {
         // Full add/remove of the cost pair is a rebuild; the gallery rebuilds instead.
         spec.months = months;
@@ -328,8 +311,6 @@ namespace chronicle
     }
 
     // ── ButtonSystem ───────────────────────────────────────────────────────────
-    ButtonSystem::ButtonSystem(const Tokens* tokens) : tokens(tokens) {}
-
     void ButtonSystem::init()
     {
         auto group = registerGroup<ButtonState>();
@@ -348,26 +329,26 @@ namespace chronicle
     {
         auto st = face->get<ButtonState>();
         const bool enabled = not st->disabled;
-        const float alpha = st->disabled ? tokens->opacity("opacity-locked") : 1.0f;
+        const std::string state = stateSuffix(st->hovered, enabled);
 
         if (auto g = ecsRef->getEntity(st->ground))
-            repaint(g, groundToken(st->variant, st->hovered, enabled), alpha);
+            rekey(g, partElement(st->variant, "ground", state));
 
         if (auto f = ecsRef->getEntity(st->frame))
-            repaint(f, frameToken(st->variant), alpha);
+            rekey(f, partElement(st->variant, "frame", state));
 
+        // The sheen only lights on an enabled hover; it never dims, it is invisible at rest.
         if (st->sheen)
             if (auto s = ecsRef->getEntity(st->sheen))
-                repaint(s, sheenToken(st->variant), (st->hovered and enabled) ? tokens->opacity("opacity-ghost") : 0.0f);
+                rekey(s, partElement(st->variant, "sheen", (st->hovered and enabled) ? ".hover" : ""));
 
         if (st->ring)
             if (auto r = ecsRef->getEntity(st->ring))
                 r->get<PositionComponent>()->setVisible(st->keyboardFocus and enabled);
 
-        const std::string ink = inkToken(st->variant);
         for (auto id : st->inked)
             if (auto e = ecsRef->getEntity(id))
-                repaint(e, (st->variant == ButtonVariant::Quiet and contains(st->costParts, id)) ? "status-time" : ink, alpha);
+                rekey(e, partElement(st->variant, contains(st->costParts, id) ? "cost" : "ink", state));
 
         if (st->reasonBox)
             if (auto rb = ecsRef->getEntity(st->reasonBox))
@@ -470,8 +451,6 @@ namespace chronicle
 
     void ButtonSystem::onEvent(const ThemeChangedEvent&)
     {
-        for (auto* st : view<ButtonState>())
-            if (auto face = ecsRef->getEntity(st->entityId))
-                applyVisual(face);
+        // The parts are keyed by state, so the theme system repaints them on its own; nothing to re-key.
     }
 }

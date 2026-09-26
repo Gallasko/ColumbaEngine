@@ -6,8 +6,6 @@
 #include "2D/position.h"
 #include "logger.h"
 
-#include "paint.h"
-
 using namespace pg;
 
 namespace chronicle
@@ -45,9 +43,21 @@ namespace chronicle
         }
     }
 
-    Label makeLabel(EntitySystem* ecs, const Tokens& tokens, const TextStyles& styles, const LabelSpec& specIn)
+    std::string labelElement(const std::string& style, const std::string& color)
+    {
+        return "label." + style + "." + color;
+    }
+
+    Label makeLabel(EntitySystem* ecs, const LabelSpec& specIn)
     {
         LabelSpec spec = specIn;
+
+        auto* theme = ecs->getSystem<ThemeSystem>();
+        if (not theme)
+        {
+            LOG_ERROR(DOM, "makeLabel needs a ThemeSystem in this ECS");
+            return Label{};
+        }
 
         // Wrap and Ellipsis need a width; without one, fall back to Grow.
         if ((spec.overflow == Overflow::Wrap or spec.overflow == Overflow::Ellipsis) and spec.width <= 0.0f)
@@ -57,8 +67,7 @@ namespace chronicle
             spec.overflow = Overflow::Grow;
         }
 
-        auto text = styles.makeText(ecs, spec.style, spec.text, tokens.colour(spec.colour), 0.0f, 0.0f, static_cast<float>(spec.z));
-        ecs->attach<PaintComponent>(text.entity, spec.colour);
+        auto text = theme->makeText(ecs, labelElement(spec.style, spec.color), spec.text, 0.0f, 0.0f, static_cast<float>(spec.z));
 
         auto ttf = text.get<TTFText>();
 
@@ -76,7 +85,7 @@ namespace chronicle
         if (spec.align != Align::Left)
             ttf->setAlign(spec.align);
 
-        const TextStyle& style = styles.get(spec.style);
+        const TextStyle& style = theme->style(spec.style);
 
         Label label;
         label.entity = text.entity;
@@ -98,10 +107,10 @@ namespace chronicle
         applyMeasure(ecs, *this);
     }
 
-    void Label::setColour(EntitySystem*, const std::string& token)
+    void Label::setColor(EntitySystem*, const std::string& token)
     {
-        entity->get<PaintComponent>()->setToken(token);
-        spec.colour = token;
+        entity->get<ThemeComponent>()->setElement(labelElement(spec.style, token));
+        spec.color = token;
     }
 
     void Label::setAlign(EntitySystem*, Align align)

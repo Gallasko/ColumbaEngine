@@ -7,9 +7,6 @@
 
 #include "ECS/entitysystem.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-
 #include "label.h"
 
 namespace chronicle
@@ -33,7 +30,7 @@ namespace chronicle
         float width = 0.0f;               // 0 -> caller anchors left+right and the divider stretches
         std::string ground = "folio";     // the token the knot's patch is filled with: the surface it sits on
         // Flourish / override
-        std::string colour = "";          // "" -> rule-ruled for divider/flourish, gold-edge for corner, tone for versal
+        std::string color = "";           // "" -> rule-ruled for divider/flourish, gold-edge for corner, tone for versal
         // Corner
         CornerPos corner = CornerPos::TL;
         // Versal
@@ -49,12 +46,15 @@ namespace chronicle
         std::vector<pg::EntityRef> parts; // every child, for tests
         std::optional<Label> letter;      // Versal only
 
-        void setColour(pg::EntitySystem*, const std::string& token);   // all inked parts (not the knot's ground patch)
-        void setLetter(pg::EntitySystem*, const TextStyles&, const std::string&);   // Versal only
+        void setColor(pg::EntitySystem*, const std::string& token);    // all inked parts (not the knot's ground patch)
+        void setLetter(pg::EntitySystem*, const std::string&);         // Versal only
 
         // The parts that carry the ornament's colour (excludes the knot's ground patch).
         std::vector<pg::EntityRef> inked;
+
+        // The theme element of the inked parts; setColor re-keys them to "<inkedElement>.<token>".
+        std::string inkedElement;
     };
 
-    Ornament makeOrnament(pg::EntitySystem*, const Tokens&, const TextStyles&, const OrnamentSpec&);
+    Ornament makeOrnament(pg::EntitySystem*, const OrnamentSpec&);
 }

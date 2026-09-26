@@ -6,11 +6,10 @@
 #include <gtest/gtest.h>
 
 #include "UI/requirementlist.h"
-#include "UI/paint.h"
 #include "Core/textmetrics.h"
-#include "Core/textstyle.h"
 
 #include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
 #include "ECS/entitysystem_fwd.h"
 #include "UI/ttftext.h"
 #include "UI/iconsystem.h"
@@ -32,14 +31,14 @@ namespace pg
         {
             struct ReqFixture
             {
-                Tokens tokens = Tokens::load("chronicle/tokens.json");
                 EntitySystem ecs;
                 MasterRenderer renderer;
                 TTFTextSystem* ttf = nullptr;
                 IconSystem* icons = nullptr;
-                PaintSystem* paint = nullptr;
+                ThemeSystem* theme = nullptr;
+
+                constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
                 GameDataView* view = nullptr;
-                TextStyles styles;
 
                 ReqFixture()
                 {
@@ -50,9 +49,8 @@ namespace pg
                     ecs.createSystem<Simple2DObjectSystem>(&renderer);
                     icons = ecs.createSystem<IconSystem>(&renderer);
                     view = ecs.createSystem<GameDataView>();
-                    paint = ecs.createSystem<PaintSystem>(&tokens);
-                    styles = TextStyles::fromTokens(tokens);
-                    styles.registerAll(ttf, "fonts");
+                    theme = ecs.createSystem<ThemeSystem>();
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
                     installIconEntries();
                 }
 
@@ -71,7 +69,7 @@ namespace pg
 
                 RequirementList make(const RequirementListSpec& spec, float x = 100.0f, float y = 100.0f)
                 {
-                    RequirementList list = makeRequirementList(&ecs, tokens, styles, spec);
+                    RequirementList list = makeRequirementList(&ecs, spec);
                     list.root->get<PositionComponent>()->setX(x);
                     list.root->get<PositionComponent>()->setY(y);
                     settle();
@@ -80,19 +78,19 @@ namespace pg
 
                 float asc(const std::string& style)
                 {
-                    const TextStyle& s = styles.get(style);
+                    const TextStyle& s = theme->style(style);
                     return ttf->measureText(s.fontAlias, "H", 1.0f, 0.0f, 0.0f, s.letterSpacingPx).ascender;
                 }
 
                 float textW(const std::string& style, const std::string& text)
                 {
-                    const TextStyle& s = styles.get(style);
+                    const TextStyle& s = theme->style(style);
                     return ttf->measureText(s.fontAlias, text, 1.0f, 0.0f, 0.0f, s.letterSpacingPx).width;
                 }
 
                 CompRef<PositionComponent> pos(EntityRef e) { return ecs.getEntity(e.id)->get<PositionComponent>(); }
                 float rightEdge(EntityRef e) { return pos(e)->x + pos(e)->width; }
-                std::string token(EntityRef e) { return ecs.getEntity(e.id)->get<PaintComponent>()->token; }
+                std::string token(EntityRef e) { return theme->elementEntry(ecs.getEntity(e.id)->get<ThemeComponent>()->element, "color").get<std::string>(); }
                 CompRef<IconComponent> iconOf(EntityRef e) { return ecs.getEntity(e.id)->get<IconComponent>(); }
 
                 RequirementListSpec threeNumeric(bool dense = false)
@@ -247,12 +245,12 @@ namespace pg
             EXPECT_EQ(list.rows[0].value->spec.text, "15 / 18");
             const float edge = s.rightEdge(list.rows[0].value->entity);
 
-            list.setItem(&s.ecs, s.styles, 0, 9, 18);
+            list.setItem(&s.ecs, 0, 9, 18);
             s.settle();
             EXPECT_EQ(list.rows[0].value->spec.text, "9 / 18");
             EXPECT_NEAR(s.rightEdge(list.rows[0].value->entity), edge, 0.01f);
 
-            list.setItem(&s.ecs, s.styles, 0, 18, 18);
+            list.setItem(&s.ecs, 0, 18, 18);
             s.settle();
             EXPECT_EQ(list.rows[0].name.mark->spec.name, "check");
             EXPECT_EQ(s.token(list.rows[0].name.mark->entity), "status-gain");
@@ -298,7 +296,7 @@ namespace pg
 
             // A wider pair narrows the label.
             const float labelW = s.pos(list.rows[0].name.label.entity)->width;
-            list.setItem(&s.ecs, s.styles, 0, 100, 120);
+            list.setItem(&s.ecs, 0, 100, 120);
             s.settle();
             EXPECT_LT(s.pos(list.rows[0].name.label.entity)->width, labelW);
         }
@@ -317,13 +315,13 @@ namespace pg
             std::vector<Requirement> five = {
                 {"One", 1, 2}, {"Two", 2, 2}, {"Three", 3, 2}, {"Four", 0, 1}, {"Five", 5, 5},
             };
-            list.setItems(&s.ecs, s.tokens, s.styles, five);
+            list.setItems(&s.ecs, five);
             s.settle();
             EXPECT_EQ(list.size(), 5u);
             EXPECT_NEAR(list.height(&s.ecs), 5.0f * 20.0f + 4.0f * 4.0f, 0.5f);
             EXPECT_EQ(list.root->get<Prefab>()->childrenIds.size(), 10u);   // name root + value per row
 
-            list.setItems(&s.ecs, s.tokens, s.styles, {});
+            list.setItems(&s.ecs, {});
             s.settle();
             EXPECT_EQ(list.size(), 0u);
             EXPECT_NEAR(list.height(&s.ecs), 0.0f, 0.01f);
@@ -361,7 +359,7 @@ namespace pg
             RequirementList list = s.make(spec);
 
             s.view->subscribe("milestone.reqs.0.current", [&](const ElementType& v) {
-                list.setItem(&s.ecs, s.styles, 0, v.get<int>(), 18);
+                list.setItem(&s.ecs, 0, v.get<int>(), 18);
             });
             s.view->subscribe("milestone.reqs.2.met", [&](const ElementType& v) {
                 list.setMet(&s.ecs, 2, v.get<bool>());
@@ -388,13 +386,12 @@ namespace pg
 
             RequirementList list = s.make(s.threeNumeric());   // row 0 unmet
 
-            s.tokens.setTheme(Theme::Candle);
-            s.ecs.sendEvent(ThemeChangedEvent{Theme::Candle});
+            s.theme->setTheme("candle");
             s.settle();
 
             // status-loss aliases vermilion.
             EXPECT_FLOAT_EQ(s.iconOf(list.rows[0].name.mark->entity)->colors.x,
-                            s.tokens.colour("vermilion", Theme::Candle).x);
+                            s.color("vermilion", "candle").x);
         }
 
         // ----------------------------------------------------------------------------------------

@@ -355,7 +355,8 @@ set(ENGINESOURCE
     src/Engine/UI/sentencesystem.cpp
     src/Engine/UI/sizer.cpp
     src/Engine/UI/textinput.cpp
-    src/Engine/UI/thememanager.cpp
+    src/Engine/UI/theme.cpp
+    src/Engine/UI/themesystem.cpp
     src/Engine/UI/tooltip.cpp
     src/Engine/UI/ttftext.cpp
     src/Engine/UI/uianimation.cpp
@@ -1513,6 +1514,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/iconatlas.cc
             test/iconsystem.cc
             test/ttftext.cc
+            test/theme.cc
             test/decoratedshapes.cc
             test/hover.cc
             test/tooltip.cc
@@ -1546,11 +1548,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         ###  Chronicle
 
         set(CHRONICLE_CORE
-            examples/Chronicle/Core/tokens.cpp
-            examples/Chronicle/Core/textstyle.cpp
             examples/Chronicle/Core/textmetrics.cpp
             examples/Chronicle/Core/motion.cpp
-            examples/Chronicle/UI/paint.cpp
             examples/Chronicle/UI/label.cpp
             examples/Chronicle/UI/mark.cpp
             examples/Chronicle/UI/ornament.cpp
@@ -1630,10 +1629,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_include_directories(test_chronicle PUBLIC examples/Chronicle examples/Chronicle/Core ${CMAKE_SOURCE_DIR}/test ${CHRONICLE_GENERATED_DIR})
         target_sources(test_chronicle PRIVATE
             ${CHRONICLE_GENERATED_SOURCES}
-            test/chronicle/tokens.cc
             test/chronicle/motion.cc
-            test/chronicle/textstyle.cc
-            test/chronicle/paint.cc
             test/chronicle/label.cc
             test/chronicle/mark.cc
             test/chronicle/ornament.cc

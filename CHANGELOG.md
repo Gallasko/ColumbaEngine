@@ -6,6 +6,14 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
+### Changed
+- Theming: `ThemeSystem` + `ThemeComponent` replace `ThemeManager`. A theme file (`docs/THEMING.md`) holds
+  colour tokens with per-theme values and aliases, scales, text styles with font files, and elements; an entity
+  is painted by attaching `ThemeComponent{"element.key"}` and `setTheme` repaints everything. The Chronicle
+  `Tokens`/`TextStyles`/`PaintSystem` are folded into it. Migration: `getSystem<ThemeManager>()` becomes
+  `getSystem<ThemeSystem>()`, the flat `key.r/.g/.b/.a` properties become colour tokens in a theme file
+  (`res/editor/theme.json` for the editor), and the script module keeps `setCurrentTheme`/`getCurrentTheme`.
+
 ### Engine
 - Pure-ECS core (sparse sets, groups, system traits) with Taskflow-based parallel scheduling
 - Complete 2D pipeline: sprites, texture atlases, tilemaps, Aseprite import, 2D animation, tweens

@@ -42,7 +42,7 @@ namespace editor
     {
         LOG_THIS_MEMBER(DOM);
 
-        auto themeManager = ecsRef->getSystem<ThemeManager>();
+        auto themeManager = ecsRef->getSystem<ThemeSystem>();
         auto actionTab = makeEditorMenuBackground(ecsRef, themeManager, 1, 38);
         actionTab.get<PositionComponent>()->setZ(11);
         actionTab.attach<EntityName>("__ActionTab");
@@ -118,7 +118,7 @@ namespace editor
 
     void ContextMenu::addItemInContextMenu(const std::string& text, CallablePtr callable)
     {
-        auto themeManager = ecsRef->getSystem<ThemeManager>();
+        auto themeManager = ecsRef->getSystem<ThemeSystem>();
         auto addItem = makeEditorText(ecsRef, themeManager, 0, 0, 11.0f, "light", text, 0.5);
         auto addItemEntity = addItem.entity;
 
@@ -178,7 +178,7 @@ namespace editor
             case UiComponentType::TEXT:
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
-                    auto themeManager = ecsRef->getSystem<ThemeManager>();
+                    auto themeManager = ecsRef->getSystem<ThemeSystem>();
                     auto newElement = makeEditorText(ecsRef, themeManager, cX, cY, 0.0f, "light", "New Text", 1);
 
                     return newElement;
@@ -189,7 +189,7 @@ namespace editor
             case UiComponentType::TTFTEXT:
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
-                    auto themeManager = ecsRef->getSystem<ThemeManager>();
+                    auto themeManager = ecsRef->getSystem<ThemeSystem>();
                     auto newElement = makeEditorText(ecsRef, themeManager, cX, cY, 0.0f, "light", "New Text", 1);
 
                     return newElement;
@@ -200,7 +200,7 @@ namespace editor
             case UiComponentType::TEXTURE:
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
-                    auto themeManager = ecsRef->getSystem<ThemeManager>();
+                    auto themeManager = ecsRef->getSystem<ThemeSystem>();
                     auto newElement = makeEditorPanel(ecsRef, themeManager, 50, 50);
                     newElement.get<PositionComponent>()->setX(cX);
                     newElement.get<PositionComponent>()->setY(cY);
@@ -214,7 +214,7 @@ namespace editor
             case UiComponentType::SHAPE2D:
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
-                    auto themeManager = ecsRef->getSystem<ThemeManager>();
+                    auto themeManager = ecsRef->getSystem<ThemeSystem>();
                     auto newElement = makeEditorButton(ecsRef, themeManager, 50, 50);
                     newElement.get<PositionComponent>()->setX(cX);
                     newElement.get<PositionComponent>()->setY(cY);

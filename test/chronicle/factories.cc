@@ -15,11 +15,10 @@
 #include "UI/statline.h"
 #include "UI/requirementlist.h"
 #include "UI/gloss.h"
-#include "UI/paint.h"
 #include "Core/motion.h"
-#include "Core/textstyle.h"
 
 #include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
 #include "ECS/entitysystem_fwd.h"   // ResizeEvent
 #include "UI/ttftext.h"
 #include "UI/iconsystem.h"
@@ -50,13 +49,14 @@ namespace pg
         {
             struct FactoriesFixture
             {
-                Tokens tokens = Tokens::load("chronicle/tokens.json");
                 EntitySystem ecs;
                 MasterRenderer renderer;
                 TTFTextSystem* ttf = nullptr;
+                ThemeSystem* theme = nullptr;
+
+                constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
                 IconSystem* icons = nullptr;
                 PrefabFactoryRegistry* registry = nullptr;
-                TextStyles styles;
 
                 FactoriesFixture()
                 {
@@ -77,16 +77,15 @@ namespace pg
                     ecs.succeed<MouseHoverSystem, TooltipSystem>();
                     ecs.createSystem<TweenSystem>();
                     ecs.createSystem<GameDataView>();
-                    ecs.createSystem<PaintSystem>(&tokens);
-                    styles = TextStyles::fromTokens(tokens);
-                    styles.registerAll(ttf, "fonts");
-                    tip->setDefaultFont("chr-body-sm");
-                    ecs.createSystem<GlossRegistry>(&tokens, &styles);
+                    theme = ecs.createSystem<ThemeSystem>();
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
+                    tip->setDefaultFont("body-sm");
+                    ecs.createSystem<GlossRegistry>();
                     installIconEntries();
 
                     registry = ecs.createSystem<PrefabFactoryRegistry>();
                     registerEnginePrefabFactories(registry);
-                    registerChronicleFactories(registry, &tokens, &styles);
+                    registerChronicleFactories(registry);
 
                     ecs.sendEvent(ResizeEvent{1320.0f, 860.0f});
                 }
@@ -171,7 +170,7 @@ namespace pg
             EXPECT_EQ(body->entities.size(), 2u);
 
             // The handle is the real result struct: its setters work.
-            r->setItem(&f.ecs, f.styles, 0, 18, 18);
+            r->setItem(&f.ecs, 0, 18, 18);
             EXPECT_TRUE(r->rows[0].item.isMet());
         }
 
@@ -201,14 +200,14 @@ namespace pg
         }
 
         // ----------------------------------------------------------------------------------------
-        TEST(chronicle_factories_test, enum_strings_colours_and_spacing_tokens)
+        TEST(chronicle_factories_test, enum_strings_colors_and_spacing_tokens)
         {
             FactoriesFixture f;
 
             NodeSpec page = node("", "page");
             page.children.push_back(node("Panel", "lit", {{"frame", "illuminated"}, {"width", 200.0f}}));
             page.children.push_back(node("Label", "ell", {{"text", "x"}, {"overflow", "ellipsis"}, {"align", "right"}, {"width", 100.0f}}));
-            page.children.push_back(node("Label", "bad", {{"text", "x"}, {"colour", "not-a-token"}}));
+            page.children.push_back(node("Label", "bad", {{"text", "x"}, {"color", "not-a-token"}}));
             page.children.push_back(node("Button", "seal", {{"label", "Go"}, {"variant", "seal"}, {"tag", "t"}}));
             page.children.push_back(node("ProgressRule", "rule", {{"width", "space-7"}}));
             page.children.push_back(node("Mark", "mark", {{"name", "gold"}, {"size", 24}}));
@@ -223,7 +222,7 @@ namespace pg
             EXPECT_EQ(built.get<Label>("ell")->spec.align, Align::Right);
 
             ASSERT_NE(built.get<Label>("bad"), nullptr);
-            EXPECT_EQ(built.get<Label>("bad")->spec.colour, "ink");   // unknown token -> default
+            EXPECT_EQ(built.get<Label>("bad")->spec.color, "ink");   // unknown token -> default
 
             ASSERT_NE(built.get<Button>("seal"), nullptr);
             EXPECT_EQ(built.get<Button>("seal")->spec.variant, ButtonVariant::Seal);

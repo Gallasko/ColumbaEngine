@@ -5,9 +5,6 @@
 
 #include "ECS/entitysystem.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-
 #include "label.h"
 #include "mark.h"
 
@@ -37,18 +34,15 @@ namespace chronicle
         ProgressRuleSpec spec;
         float shown = 0.0f;            // the percent currently DRAWN (differs from spec.percent while animating)
 
-        const Tokens* tokens = nullptr;       // for setCaption/setNib building parts
-        const TextStyles* styles = nullptr;   // for setCaption re-fitting
-
         // Setters - the whole public surface. No getters that compute.
         void setPercent(pg::EntitySystem*, float percent, bool animate = true);
         void setForecast(pg::EntitySystem*, float forecastPercent);
-        void setCaption(pg::EntitySystem*, const TextStyles&, const std::string&);
-        void setNib(pg::EntitySystem*, const Tokens&, bool);
+        void setCaption(pg::EntitySystem*, const std::string&);
+        void setNib(pg::EntitySystem*, bool);
         void setWidth(pg::EntitySystem*, float);
 
         void layoutAt(float shown);    // moves fill/forecast/nib to a drawn percent (internal)
     };
 
-    ProgressRule makeProgressRule(pg::EntitySystem*, const Tokens&, const TextStyles&, const ProgressRuleSpec&);
+    ProgressRule makeProgressRule(pg::EntitySystem*, const ProgressRuleSpec&);
 }

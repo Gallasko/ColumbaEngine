@@ -7,9 +7,6 @@
 
 #include "ECS/entitysystem.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-
 #include "label.h"
 
 namespace chronicle
@@ -48,28 +45,31 @@ namespace chronicle
     {
         std::string name;             // one of markNames(); unknown -> "seal" drawn + one logged error
         MarkSize size = MarkSize::S16;
-        std::string colour = "ink";   // token; normally supplied by the paired label
+        std::string color = "ink";    // token; normally supplied by the paired label
         int z = 0;
     };
 
+    // The theme element of a mark: "mark.<color>".
+    std::string markElement(const std::string& color);
+
     struct Mark
     {
-        pg::EntityRef entity;         // PositionComponent + UiAnchor + ViewportComponent + IconComponent
+        pg::EntityRef entity;         // PositionComponent + UiAnchor + ViewportComponent + IconComponent + ThemeComponent
         MarkSpec spec;
 
         void setName(pg::EntitySystem*, const std::string&);           // re-validates (unknown -> seal)
-        void setColour(pg::EntitySystem*, const std::string& token);   // PaintComponent::setToken
+        void setColor(pg::EntitySystem*, const std::string& token);    // ThemeComponent::setElement
         void setSize(pg::EntitySystem*, MarkSize);                     // width and height together
     };
 
-    Mark makeMark(pg::EntitySystem*, const Tokens&, const MarkSpec&);
+    Mark makeMark(pg::EntitySystem*, const MarkSpec&);
 
     struct MarkedLabelSpec
     {
         std::string mark;              // "" = no mark
         bool reserveMark = false;      // keep the mark column even when `mark` is empty
-        LabelSpec label;               // colour here is THE colour: the mark takes it
-        float gap = -1.0f;             // < 0 -> tokens.space(2) (8 px)
+        LabelSpec label;               // color here is THE colour: the mark takes it
+        float gap = -1.0f;             // < 0 -> theme space(2) (8 px)
         int z = 0;                     // root z; label glyphs z+1, mark z+1
     };
 
@@ -79,10 +79,10 @@ namespace chronicle
         std::optional<Mark> mark;
         Label label;
 
-        void setColour(pg::EntitySystem*, const std::string& token);                      // both
-        void setText(pg::EntitySystem*, const TextStyles&, const std::string&);           // re-measures root for Grow
-        void setMark(pg::EntitySystem*, const Tokens&, const std::string& name);          // "" removes
+        void setColor(pg::EntitySystem*, const std::string& token);                       // both
+        void setText(pg::EntitySystem*, const std::string&);                              // re-measures root for Grow
+        void setMark(pg::EntitySystem*, const std::string& name);                         // "" removes
     };
 
-    MarkedLabel makeMarkedLabel(pg::EntitySystem*, const Tokens&, const TextStyles&, const MarkedLabelSpec&);
+    MarkedLabel makeMarkedLabel(pg::EntitySystem*, const MarkedLabelSpec&);
 }

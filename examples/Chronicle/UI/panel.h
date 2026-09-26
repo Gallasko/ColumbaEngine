@@ -7,9 +7,6 @@
 
 #include "ECS/entitysystem.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-
 #include "label.h"
 #include "mark.h"
 #include "ornament.h"
@@ -43,17 +40,16 @@ namespace chronicle
         PanelSpec spec;
         float padding = 16.0f;         // resolved from the frame
         float headBlock = 0.0f;        // 0, or 26 + 12 + 1 + 12 = 51 when there is a heading
-        const TextStyles* styles = nullptr;   // for re-fitting the title on setWidth/setAside
 
         void addChild(pg::EntitySystem*, pg::EntityRef);
         void removeChild(pg::EntitySystem*, pg::EntityRef);
-        void setHeading(pg::EntitySystem*, const TextStyles&, const std::string&);
-        void setAside(pg::EntitySystem*, const TextStyles&, const std::string&);
+        void setHeading(pg::EntitySystem*, const std::string&);
+        void setAside(pg::EntitySystem*, const std::string&);
         void setWidth(pg::EntitySystem*, float);
         float width(pg::EntitySystem*) const;
         float height(pg::EntitySystem*) const;
         float innerWidth() const;      // spec.width - 2 * padding
     };
 
-    Panel makePanel(pg::EntitySystem*, const Tokens&, const TextStyles&, const PanelSpec&);
+    Panel makePanel(pg::EntitySystem*, const PanelSpec&);
 }

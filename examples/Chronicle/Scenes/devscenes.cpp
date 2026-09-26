@@ -2,9 +2,6 @@
 
 #include "Scene/scenemanager.h"
 
-#include "Core/tokens.h"
-#include "Core/textstyle.h"
-
 #include "typespecimen.h"
 #include "labelgallery.h"
 #include "markgallery.h"
@@ -22,29 +19,29 @@ namespace chronicle
     const std::map<std::string, DevSceneLoader>& devScenes()
     {
         static const std::map<std::string, DevSceneLoader> scenes = {
-            {"TypeSpecimen", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<TypeSpecimen>(t, st); }},
-            {"LabelGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<LabelGallery>(t, st); }},
-            {"MarkGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<MarkGallery>(t, st); }},
-            {"OrnamentGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<OrnamentGallery>(t, st); }},
-            {"PanelGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<PanelGallery>(t, st); }},
-            {"ButtonGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<ButtonGallery>(t, st); }},
-            {"TabsGlossGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<TabsGlossGallery>(t, st); }},
-            {"ProgressGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<ProgressGallery>(t, st); }},
-            {"StatGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<StatGallery>(t, st); }},
-            {"RequirementGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<RequirementGallery>(t, st); }},
-            {"PrefabFileGallery", [](pg::SceneElementSystem* s, Tokens* t, TextStyles* st) { s->loadSystemScene<PrefabFileGallery>(t, st); }},
+            {"TypeSpecimen", [](pg::SceneElementSystem* s) { s->loadSystemScene<TypeSpecimen>(); }},
+            {"LabelGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<LabelGallery>(); }},
+            {"MarkGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<MarkGallery>(); }},
+            {"OrnamentGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<OrnamentGallery>(); }},
+            {"PanelGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<PanelGallery>(); }},
+            {"ButtonGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<ButtonGallery>(); }},
+            {"TabsGlossGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<TabsGlossGallery>(); }},
+            {"ProgressGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<ProgressGallery>(); }},
+            {"StatGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<StatGallery>(); }},
+            {"RequirementGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<RequirementGallery>(); }},
+            {"PrefabFileGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<PrefabFileGallery>(); }},
         };
 
         return scenes;
     }
 
-    bool loadDevScene(pg::SceneElementSystem* sceneSystem, const std::string& name, Tokens* tokens, TextStyles* styles)
+    bool loadDevScene(pg::SceneElementSystem* sceneSystem, const std::string& name)
     {
         auto it = devScenes().find(name);
         if (it == devScenes().end())
             return false;
 
-        it->second(sceneSystem, tokens, styles);
+        it->second(sceneSystem);
         return true;
     }
 }

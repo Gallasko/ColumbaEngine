@@ -44,12 +44,14 @@ namespace chronicle
 
     void RequirementGallery::init()
     {
+        theme = ecsRef->getSystem<ThemeSystem>();
+
         auto* view = ecsRef->getSystem<GameDataView>();
 
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
+        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
+        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
 
         auto place = [](EntityRef e, float x, float y)
         {
@@ -58,18 +60,18 @@ namespace chronicle
             p->setY(y);
         };
 
-        auto caption = [&](float x, float y, const std::string& text, const std::string& colour)
+        auto caption = [&](float x, float y, const std::string& text, const std::string& color)
         {
             LabelSpec spec;
             spec.style = "caption";
             spec.text = text;
-            spec.colour = colour;
+            spec.color = color;
             spec.z = 15;
 
-            place(makeLabel(ecsRef, *tokens, *styles, spec).entity, x, y);
+            place(makeLabel(ecsRef, spec).entity, x, y);
         };
 
-        const float margin = tokens->space(7);   // 48
+        const float margin = theme->space(7);   // 48
 
         const std::vector<Requirement> warrior = {
             {"Strength", 15, 18},
@@ -80,13 +82,13 @@ namespace chronicle
 
         // ── Left: the milestone panel, roomy ─────────────────────────────────
         {
-            Panel panel = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Illuminated, 360.0f, "Warrior", "swordsmanship", "AT 18"});
+            Panel panel = makePanel(ecsRef, {PanelFrame::Illuminated, 360.0f, "Warrior", "swordsmanship", "AT 18"});
 
             RequirementListSpec ls;
             ls.width = panel.innerWidth();
             ls.items = warrior;
             ls.z = panel.spec.contentZ;
-            panel.addChild(ecsRef, makeRequirementList(ecsRef, *tokens, *styles, ls).root);
+            panel.addChild(ecsRef, makeRequirementList(ecsRef, ls).root);
             place(panel.root, margin, 90.0f);
         }
 
@@ -97,13 +99,13 @@ namespace chronicle
             ds.width = 256.0f;
             ds.dense = true;
             ds.items = warrior;
-            place(makeRequirementList(ecsRef, *tokens, *styles, ds).root, margin, 408.0f);
+            place(makeRequirementList(ecsRef, ds).root, margin, 408.0f);
         }
 
         // ── Right: the Squire panel, fed from GameDataView ───────────────────
         const float rx = 520.0f;
         {
-            Panel panel = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Ruled, 320.0f, "Squire", "training", "PATH"});
+            Panel panel = makePanel(ecsRef, {PanelFrame::Ruled, 320.0f, "Squire", "training", "PATH"});
 
             RequirementListSpec fs;
             fs.width = panel.innerWidth();
@@ -114,7 +116,7 @@ namespace chronicle
                 {"Has the Guild's letter", -1, 0, 0},
             };
             fs.z = panel.spec.contentZ;
-            fed = makeRequirementList(ecsRef, *tokens, *styles, fs);
+            fed = makeRequirementList(ecsRef, fs);
             panel.addChild(ecsRef, fed.root);
             place(panel.root, rx, 90.0f);
         }
@@ -131,7 +133,7 @@ namespace chronicle
             {
                 const int needed = SQUIRE[i].needed;
                 view->subscribe(curPath(i), [this, i, needed](const ElementType& v) {
-                    fed.setItem(ecsRef, *styles, i, v.get<int>(), needed);
+                    fed.setItem(ecsRef, i, v.get<int>(), needed);
                 });
             }
             view->subscribe(metPath(3), [this](const ElementType& v) {
@@ -152,12 +154,12 @@ namespace chronicle
         const float by = 90.0f;
         for (int i = 0; i < 5; ++i)
         {
-            Button b = makeButton(ecsRef, *tokens, *styles, {ButtonVariant::Quiet, btns[i].label, "", -1, false, "", btns[i].tag});
+            Button b = makeButton(ecsRef, {ButtonVariant::Quiet, btns[i].label, "", -1, false, "", btns[i].tag});
             place(b.root, bx, by + static_cast<float>(i) * 44.0f);
         }
 
-        LabelSpec es; es.style = "body-sm"; es.text = "ready"; es.colour = "ink-muted"; es.z = 15;
-        echo = makeLabel(ecsRef, *tokens, *styles, es);
+        LabelSpec es; es.style = "body-sm"; es.text = "ready"; es.color = "ink-muted"; es.z = 15;
+        echo = makeLabel(ecsRef, es);
         place(echo.entity, bx, by + 5.0f * 44.0f + 12.0f);
 
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e)
@@ -203,7 +205,7 @@ namespace chronicle
             RequirementListSpec os;
             os.width = 256.0f;
             os.items = {{"Reputation among the Bellmoor carters and the eastern road guild", 40, 22}};
-            place(makeRequirementList(ecsRef, *tokens, *styles, os).root, margin, 628.0f);
+            place(makeRequirementList(ecsRef, os).root, margin, 628.0f);
 
             caption(margin, 680.0f, "pairs right-align: the slashes stack", "ink-muted");
             RequirementListSpec ps;
@@ -212,7 +214,7 @@ namespace chronicle
                 {"Caravan miles", 100, 120},
                 {"Letters carried", 9, 18},
             };
-            place(makeRequirementList(ecsRef, *tokens, *styles, ps).root, margin, 700.0f);
+            place(makeRequirementList(ecsRef, ps).root, margin, 700.0f);
         }
 
         caption(margin, 820.0f, "T toggle theme \xC2\xB7 the mark carries the state, the label carries the words", "ink-muted");
@@ -221,9 +223,7 @@ namespace chronicle
         {
             if (event.key == SDL_SCANCODE_T)
             {
-                const Theme next = tokens->theme() == Theme::Day ? Theme::Candle : Theme::Day;
-                tokens->setTheme(next);
-                ecsRef->sendEvent(ThemeChangedEvent{next});
+                theme->setTheme(theme->currentTheme() == "day" ? "candle" : "day");
             }
         });
 

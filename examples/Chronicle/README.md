@@ -20,14 +20,17 @@ Tests:
 
 ```
 cmake --build . --target test_chronicle
-ctest -R "tokens|textstyle" --output-on-failure
+ctest -R "theme" --output-on-failure
 ```
 
 ## Layout
 
-- `Core/` — data with no rendering: `tokens` (colours/spacing/borders/opacities,
-  two themes, alias resolution), `textstyle` (one font atlas per style at exact
-  pixel size), `fontfiles` (the family × weight × italic → ttf table).
+- `Core/` — data with no rendering: `textmetrics` (ascender and baseline helpers
+  over the theme's text styles), `motion`. The tokens, text styles, font files
+  and elements live in `res/chronicle/tokens.json`, loaded by the engine's
+  `ThemeSystem` (`src/Engine/UI/themesystem.h`): a part is painted by attaching a
+  `ThemeComponent` with an element key (`panel.ground`, `label.body.ink-muted`,
+  `button.seal.ground.hover`), and `theme->setTheme("candle")` repaints everything.
 - `Scenes/` — dev scenes. `TypeSpecimen` shows every style on vellum.
 - `UI/` — components (added from phase 1.2 onward).
 
@@ -190,8 +193,7 @@ come from `rules/*.pg` through the scene, never from the component.
 all tested (133 `test_chronicle` + engine `t1` green):
 
 - **Components**: `Label`, `Mark`, `Ornament`, `Panel`, `Button`, `Gloss`, `Tabs`
-  (plus the `Tokens`/`TextStyles` core and the `PaintSystem`/`FocusOrderSystem`
-  services).
+  (plus the engine's `ThemeSystem` and the `FocusOrderSystem` service).
 - **Scenes**: `TypeSpecimen`, `LabelGallery`, `MarkGallery`, `OrnamentGallery`,
   `PanelGallery`, `ButtonGallery`, `TabsGlossGallery`.
 - **Patterns**: the state-component + system + event-driven-tests shape, and one

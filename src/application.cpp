@@ -27,7 +27,7 @@
 #include "UI/namedanchor.h"
 
 #include "Systems/thememodule.h"
-#include "UI/thememanager.h"
+#include "UI/themesystem.h"
 
 #include "UI/utils.h"
 
@@ -547,13 +547,15 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
-        auto thema = ecs.createSystem<ThemeManager>();
+        auto ttfSys = ecs.createSystem<TTFTextSystem>(window.masterRenderer);
 
-        window.interpreter->addSystemModule("theme", ThemeModule{thema});
+        // The theme system comes from the engine boot; the editor's colours are res/editor/theme.json.
+        auto theme = ecs.getSystem<ThemeSystem>();
+        theme->loadTheme("res/editor/theme.json");
+
+        window.interpreter->addSystemModule("theme", ThemeModule{theme});
 
         window.interpreter->interpretFromFile("res/sysThema.pg");
-
-        auto ttfSys = ecs.createSystem<TTFTextSystem>(window.masterRenderer);
 
         #ifdef __EMSCRIPTEN__
             // Need to fix this

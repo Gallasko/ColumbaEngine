@@ -29,18 +29,19 @@ namespace chronicle
 
     void ButtonGallery::init()
     {
+        theme = ecsRef->getSystem<ThemeSystem>();
 
-        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, tokens->colour("vellum"));
+        auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
         backgroundId = bg.entity.id;
-        ecsRef->attach<PaintComponent>(bg.entity, "vellum");
+        ecsRef->attach<ThemeComponent>(bg.entity, "scene.background");
 
         // A folio leaf under the buttons (z below the Panels band).
-        auto leaf = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1000.0f, 520.0f, tokens->colour("folio"));
+        auto leaf = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1000.0f, 520.0f, theme->color("folio"));
         leaf.get<PositionComponent>()->setX(40.0f);
         leaf.get<PositionComponent>()->setY(48.0f);
         leaf.get<PositionComponent>()->setZ(8.0f);
-        ecsRef->attach<PaintComponent>(leaf.entity, "folio");
+        ecsRef->attach<ThemeComponent>(leaf.entity, "scene.leaf");
 
         auto place = [](EntityRef e, float x, float y)
         {
@@ -49,10 +50,10 @@ namespace chronicle
             p->setY(y);
         };
 
-        auto caption = [&](float x, float y, const std::string& text, const std::string& colour)
+        auto caption = [&](float x, float y, const std::string& text, const std::string& color)
         {
-            LabelSpec spec; spec.style = "caption"; spec.text = text; spec.colour = colour; spec.z = 15;
-            place(makeLabel(ecsRef, *tokens, *styles, spec).entity, x, y);
+            LabelSpec spec; spec.style = "caption"; spec.text = text; spec.color = color; spec.z = 15;
+            place(makeLabel(ecsRef, spec).entity, x, y);
         };
 
         // A row of buttons laid out left to right.
@@ -62,14 +63,14 @@ namespace chronicle
             layout.get<HorizontalLayout>()->spacing = spacing;
             layout.get<PositionComponent>()->setZ(20.0f);
             for (const auto& spec : specs)
-                layout.get<HorizontalLayout>()->addEntity(makeButton(ecsRef, *tokens, *styles, spec).root);
+                layout.get<HorizontalLayout>()->addEntity(makeButton(ecsRef, spec).root);
         };
 
         const float margin = 64.0f;
 
         // Row 1: the three variants.
         caption(margin, 60.0f, "variants", "ink-muted");
-        row(margin, 80.0f, static_cast<size_t>(tokens->space(5)), {
+        row(margin, 80.0f, static_cast<size_t>(theme->space(5)), {
             {ButtonVariant::Quiet, "Train", "", -1, false, "", "train"},
             {ButtonVariant::Study, "Study", "study", -1, false, "", "study"},
             {ButtonVariant::Seal, "Take the path", "seal", -1, false, "", "seal"},
@@ -77,7 +78,7 @@ namespace chronicle
 
         // Row 2: with a month cost.
         caption(margin, 140.0f, "with cost", "ink-muted");
-        row(margin, 160.0f, static_cast<size_t>(tokens->space(5)), {
+        row(margin, 160.0f, static_cast<size_t>(theme->space(5)), {
             {ButtonVariant::Quiet, "Train at the yard", "training", 6, false, "", "train-yard"},
             {ButtonVariant::Study, "Read at the academy", "study", 9, false, "", "read"},
             {ButtonVariant::Seal, "Enter the Ruins", "seal", 3, false, "", "ruins"},
@@ -88,16 +89,16 @@ namespace chronicle
         {
             ButtonSpec sq; sq.variant = ButtonVariant::Quiet; sq.label = "Squire"; sq.disabled = true;
             sq.reason = "SWORDSMANSHIP 3 OF 4 \xC2\xB7 THE DOOR CLOSES AT 22"; sq.tag = "squire";
-            place(makeButton(ecsRef, *tokens, *styles, sq).root, margin, 240.0f);
+            place(makeButton(ecsRef, sq).root, margin, 240.0f);
 
             ButtonSpec tk; tk.variant = ButtonVariant::Seal; tk.label = "Take the path"; tk.glyph = "seal";
             tk.disabled = true; tk.reason = "STRENGTH 14 OF 18"; tk.tag = "take-locked";
-            place(makeButton(ecsRef, *tokens, *styles, tk).root, 420.0f, 240.0f);
+            place(makeButton(ecsRef, tk).root, 420.0f, 240.0f);
         }
 
         // Row 4: dense, no glyphs, the tab-order row.
         caption(margin, 320.0f, "dense (tab order)", "ink-muted");
-        row(margin, 340.0f, static_cast<size_t>(tokens->space(2)), {
+        row(margin, 340.0f, static_cast<size_t>(theme->space(2)), {
             {ButtonVariant::Quiet, "One", "", -1, false, "", "one"},
             {ButtonVariant::Quiet, "Two", "", -1, false, "", "two"},
             {ButtonVariant::Quiet, "Three", "", -1, false, "", "three"},
@@ -113,18 +114,18 @@ namespace chronicle
             ov.label = "Half covered";
             ov.tag = "covered";
 
-            place(makeButton(ecsRef, *tokens, *styles, ov).root, margin, 440.0f);
+            place(makeButton(ecsRef, ov).root, margin, 440.0f);
 
-            Panel cover = makePanel(ecsRef, *tokens, *styles, {PanelFrame::Ruled, 160.0f, "Cover", "", "", 30, 40});
-            cover.addChild(ecsRef, makeLabel(ecsRef, *tokens, *styles, {"body", "on top", "ink", Align::Left, Overflow::Grow, 0.0f, 0, 40}).entity);
+            Panel cover = makePanel(ecsRef, {PanelFrame::Ruled, 160.0f, "Cover", "", "", 30, 40});
+            cover.addChild(ecsRef, makeLabel(ecsRef, {"body", "on top", "ink", Align::Left, Overflow::Grow, 0.0f, 0, 40}).entity);
             place(cover.root, margin + 90.0f, 430.0f);
         }
 
         // Footer: instructions + the last activated tag.
         caption(margin, 820.0f, "Tab / Shift-Tab focus \xC2\xB7 Enter or Space activates \xC2\xB7 click a button to log its tag", "ink-muted");
 
-        LabelSpec ts; ts.style = "body-sm"; ts.text = "(no activation yet)"; ts.colour = "ink-muted"; ts.z = 15;
-        lastTag = makeLabel(ecsRef, *tokens, *styles, ts);
+        LabelSpec ts; ts.style = "body-sm"; ts.text = "(no activation yet)"; ts.color = "ink-muted"; ts.z = 15;
+        lastTag = makeLabel(ecsRef, ts);
         place(lastTag.entity, 980.0f, 820.0f);
 
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& event)
@@ -136,9 +137,7 @@ namespace chronicle
         {
             if (event.key == SDL_SCANCODE_T)
             {
-                const Theme next = tokens->theme() == Theme::Day ? Theme::Candle : Theme::Day;
-                tokens->setTheme(next);
-                ecsRef->sendEvent(ThemeChangedEvent{next});
+                theme->setTheme(theme->currentTheme() == "day" ? "candle" : "day");
             }
         });
 
