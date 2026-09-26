@@ -81,3 +81,5 @@ children:
 ```
 
 `Chronicle --dev PrefabFileGallery` renders `prefabgallery.yaml`, the reference page.
+
+The file format and the builder are documented in `docs/PREFAB_TREES.md`.

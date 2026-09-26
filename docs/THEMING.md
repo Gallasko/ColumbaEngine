@@ -144,7 +144,7 @@ token or literal conversion. A pairing is skipped when no system owns the compon
 
 ## Prefab files
 
-A node of a prefab tree (`src/Engine/UI/prefabspec.h`, YAML through `loadNodeSpec`) has a `theme` field next
+A node of a prefab tree (`docs/PREFAB_TREES.md`) has a `theme` field next
 to `kind` and `name`: the element key the leaf is painted with. The builder attaches a `ThemeComponent` with it
 to the leaf the node's factory produced, for every kind.
 
