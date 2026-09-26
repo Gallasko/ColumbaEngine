@@ -168,6 +168,7 @@ namespace chronicle
             auto la = line.get<UiAnchor>();
             la->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             la->setRightAnchor(PosAnchor{rootId, AnchorType::Right});
+            la->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
             la->setHeightConstrain(PosConstrain{rootId, AnchorType::Height});
             add(line.entity, lineElement, 1, /*inked*/ true);
 

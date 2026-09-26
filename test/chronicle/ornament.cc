@@ -156,6 +156,11 @@ namespace pg
 
             EXPECT_NEAR(s.pos(orn.root)->width, 500.0f, 0.01f);
             EXPECT_NEAR(s.pos(orn.parts[0])->width, 500.0f, 0.01f);
+
+            // The line follows the root vertically too
+            s.pos(orn.root)->setY(120.0f);
+            s.settle();
+            EXPECT_NEAR(s.pos(orn.parts[0])->y, 120.0f, 0.01f);
         }
 
         // ----------------------------------------------------------------------------------------
