@@ -1,0 +1,19 @@
+// UI prefab loader
+// ----------------
+// Run by pg::loadNodeSpec() (src/Engine/UI/prefabloader.cpp). The C++ side
+// defines the global `uiFile` (the .yaml path, relative to the working
+// directory) before running this script and reads the globals `doc` and
+// `errors` back once it has finished.
+//
+// The import is resolved relative to THIS script (PgScript imports are
+// script-relative), while `uiFile` is read from the working directory, which is the repository
+// root for the game binaries and the test directory for the tests.
+
+import "file"
+import "../../tools/yaml_parser"
+
+var parser = YamlParser()
+
+var content = readFile(uiFile)
+var doc = parser.parse(content)
+var errors = parser.errors

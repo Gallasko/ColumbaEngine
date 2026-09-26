@@ -1,377 +1,134 @@
 import "string"
-import "file"
 import "algorithm"
 
 // ============================================================================
-// YAML Parser
+// YAML Parser (subset)
 // ============================================================================
+//
+// An indentation-driven parser for the YAML shape the engine uses: .pgcomp
+// component specs and declarative UI prefab files (NodeSpec trees).
+//
+// Supported:
+//   - block maps      `key: value` / `key:` + deeper block
+//   - block lists     `- value` / `- key: value` (map item) / `-` + deeper block
+//   - a list at the same indent as its key (`items:` then `- a`)
+//   - inline lists    `[a, b, {k: v}]` and inline maps `{k: v, k2: [1, 2]}`, nested
+//   - scalars         int, float, true/false, "quoted" / 'quoted', bare strings
+//   - a double-quoted scalar spanning several lines (closes on a line ending in `"`)
+//   - `#` comments (whole line or trailing, outside quotes)
+//
+// Not supported: anchors/aliases, tags, multi-document files, `|` / `>` blocks.
+//
+// Result: a table (map) or a vector (list). Every scalar that looks like a
+// number is a number: `0` -> int, `12.5` -> double, `0.0f` -> string.
+//
+// Errors are collected in `parser.errors` (a list of strings); parsing
+// continues past a bad line so one typo does not hide the rest of the file.
 
 class YamlParser
 {
     init()
     {
-        this.indentStack = []
+        this.lines = []      // significant lines: {indent, text, rawIndex}
+        this.raw = []        // every line of the input, untouched (multi-line strings need them)
+        this.errors = []
     }
 
+    // ------------------------------------------------------------------------
+    // Entry point
+    // ------------------------------------------------------------------------
     parse(content)
     {
-        log("Parse: splitting lines...")
-        var lines = splitLines(content)
-        log("Parse: split into " + toString(len(lines)) + " lines")
+        this.errors = []
+        this.raw = splitLines(content)
+        this.lines = this.preprocess(this.raw)
 
-        var result = {}
-        var currentSection = ""
-        var currentArray = []
-        var currentItem = {}
-
-        log("Parse: starting line iteration...")
-
-        for (var i = 0; i < len(lines); i++)
+        if (len(this.lines) == 0)
         {
-            var line = lines[i]
-            var trimmed = trim(line)
-            log("Line " + toString(i) + ": '" + trimmed + "'")
-
-            // Skip empty lines and comments
-            if (len(trimmed) > 0 and not startsWith(trimmed, "#"))
-            {
-                var indent = this.getIndent(line)
-                // log("  indent=" + toString(indent))
-
-                if (startsWith(trimmed, "-"))
-                {
-                    log("  -> array item")
-                    // Array item - save previous item if exists
-                    if (contain(currentItem, "name") or contain(currentItem, "params") or contain(currentItem, "definition"))
-                    {
-                        push(currentArray, currentItem)
-                    }
-
-                    currentItem = {}
-
-                    // Parse the line after the dash
-                    var afterDash = trim(substring(trimmed, 1, len(trimmed)))
-
-                    // Check if it's a quoted string - if so, treat as simple value
-                    var isQuotedString = len(afterDash) > 0 and (substring(afterDash, 0, 1) == "\"" or substring(afterDash, 0, 1) == "'")
-
-                    if (not isQuotedString and contains(afterDash, ":"))
-                    {
-                        // Array item with key-value (e.g., "- name: value")
-                        var parts = this.splitFirst(afterDash, ":")
-                        var key = trim(parts[0])
-                        var value = trim(parts[1])
-
-                        // Check for multi-line string value (starts with " but doesn't end with ")
-                        var startsWithQuote = len(value) > 0 and substring(value, 0, 1) == "\""
-                        var endsWithQuote = len(value) > 0 and substring(value, len(value) - 1, len(value)) == "\""
-
-                        if (startsWithQuote and not endsWithQuote)
-                        {
-                            // Multi-line string - accumulate lines until closing quote
-                            var multiLineValue = substring(value, 1, len(value))
-
-                            var j = i + 1
-                            while (j < len(lines))
-                            {
-                                var nextLine = lines[j]
-                                var trimmedNext = trim(nextLine)
-
-                                var lineEndsWithQuote = len(trimmedNext) > 0 and substring(trimmedNext, len(trimmedNext) - 1, len(trimmedNext)) == "\""
-
-                                if (lineEndsWithQuote)
-                                {
-                                    var quotePos = len(nextLine) - 1
-                                    while (quotePos >= 0 and substring(nextLine, quotePos, quotePos + 1) != "\"")
-                                    {
-                                        quotePos = quotePos - 1
-                                    }
-                                    multiLineValue = multiLineValue + "\n" + substring(nextLine, 0, quotePos)
-                                    break
-                                }
-                                else
-                                {
-                                    multiLineValue = multiLineValue + "\n" + nextLine
-                                }
-                                j = j + 1
-                            }
-
-                            i = j
-                            currentItem[key] = this.escapeQuotesInMultiline(multiLineValue)
-                        }
-                        else
-                        {
-                            currentItem[key] = this.parseValue(value)
-                        }
-                    }
-                    else if (len(afterDash) > 0)
-                    {
-                        // Simple array item (e.g., "- <cstdint>" or "- \"file.h\"")
-                        // For includes and methods, keep the value as-is without parsing
-                        if (currentSection == "includes")
-                        {
-                            push(currentArray, afterDash)
-                        }
-                        else
-                        {
-                            push(currentArray, this.parseValue(afterDash))
-                        }
-
-                        currentItem = {}
-                    }
-                }
-                else if (contains(trimmed, ":"))
-                {
-                    log("  -> key-value pair")
-                    // Key-value pair
-                    var parts = this.splitFirst(trimmed, ":")
-                    var key = trim(parts[0])
-                    var value = trim(parts[1])
-                    log("  key='" + key + "' value='" + value + "'")
-
-                    if (indent == 0)
-                    {
-                        log("  -> top-level")
-                        // Top-level key
-                        if (len(value) == 0)
-                        {
-                            log("  -> section start: " + key)
-                            // Start of array or object section
-                            if (len(currentArray) > 0 or contain(currentItem, "name") or contain(currentItem, "params") or contain(currentItem, "definition"))
-                            {
-                                // Save previous array
-                                if (contain(currentItem, "name") or contain(currentItem, "params") or contain(currentItem, "definition"))
-                                {
-                                    push(currentArray, currentItem)
-                                    currentItem = {}
-                                }
-
-                                log("  -> saving section '" + currentSection + "' with " + toString(len(currentArray)) + " items")
-                                result[currentSection] = currentArray
-                                currentArray = []
-                            }
-                            currentSection = key
-                        }
-                        else
-                        {
-                            log("  -> simple key-value: " + key + " = " + value)
-                            // Simple key-value
-                            result[key] = this.parseValue(value)
-                        }
-                    }
-                    else
-                    {
-                        log("  -> indented key-value")
-                        // Indented key - part of current item
-                        if (len(value) > 0)
-                        {
-                            log("  -> about to parse value for key: " + key)
-                            log("  -> checking if currentItem already has a key...")
-
-                            if (contain(currentItem, "name"))
-                            {
-                                log("  -> currentItem has 'name' key, seems valid")
-                            }
-                            else
-                            {
-                                log("  -> currentItem does NOT have 'name' key yet")
-                            }
-
-                            // Check if this is a multi-line string value
-                            var startsWithQuote = len(value) > 0 and substring(value, 0, 1) == "\""
-                            var endsWithQuote = len(value) > 0 and substring(value, len(value) - 1, len(value)) == "\""
-
-                            if (startsWithQuote and not endsWithQuote)
-                            {
-                                // Multi-line string - accumulate lines until closing quote
-                                // Start with the value after the opening quote
-                                var multiLineValue = substring(value, 1, len(value))
-
-                                // Read subsequent lines directly without going through normal parsing
-                                var j = i + 1
-                                while (j < len(lines))
-                                {
-                                    var nextLine = lines[j]
-                                    var trimmedNext = trim(nextLine)
-
-                                    // Check if this line ends the string
-                                    var lineEndsWithQuote = len(trimmedNext) > 0 and substring(trimmedNext, len(trimmedNext) - 1, len(trimmedNext)) == "\""
-
-                                    if (lineEndsWithQuote)
-                                    {
-                                        // Add everything except the closing quote
-                                        // Find where the closing quote is in the original line
-                                        var quotePos = len(nextLine) - 1
-                                        while (quotePos >= 0 and substring(nextLine, quotePos, quotePos + 1) != "\"")
-                                        {
-                                            quotePos = quotePos - 1
-                                        }
-                                        multiLineValue = multiLineValue + "\n" + substring(nextLine, 0, quotePos)
-                                        break
-                                    }
-                                    else
-                                    {
-                                        multiLineValue = multiLineValue + "\n" + nextLine
-                                    }
-                                    j = j + 1
-                                }
-
-                                // Update i to skip all the lines we just processed
-                                i = j
-
-                                // Properly escape all quotes in the multiline value
-                                currentItem[key] = this.escapeQuotesInMultiline(multiLineValue)
-                            }
-                            else
-                            {
-                                var parsedValue = this.parseValue(value)
-                                log("  -> parsed value successfully")
-                                log("  -> about to assign to currentItem")
-                                currentItem[key] = parsedValue
-                                log("  -> assignment complete")
-                            }
-                        }
-                    }
-                }
-            }
+            return {}
         }
 
-        // Save last item/array
-        if (contain(currentItem, "name") or contain(currentItem, "params") or contain(currentItem, "definition"))
+        var first = this.lines[0]
+        var r = this.parseBlock(0, first["indent"])
+
+        if (r["next"] < len(this.lines))
         {
-            push(currentArray, currentItem)
+            var stray = this.lines[r["next"]]
+            this.error(stray["rawIndex"], "unexpected content after the top-level block")
         }
 
-        if (len(currentArray) > 0)
-        {
-            result[currentSection] = currentArray
-        }
-
-        log("Parse: complete, returning result")
-        return result
+        return r["value"]
     }
 
-    parseArrayItem(value)
+    // ------------------------------------------------------------------------
+    // Pre-pass: strip blank lines and comments, measure indentation
+    // ------------------------------------------------------------------------
+    preprocess(rawLines)
     {
-        if (contains(value, ":"))
+        var out = []
+
+        for (var i = 0; i < len(rawLines); i++)
         {
-            // It's an object
-            var obj = {}
-            var parts = this.splitFirst(value, ":")
-            var key = trim(parts[0])
-            var val = trim(parts[1])
-            obj[key] = this.parseValue(val)
-            return obj
+            var line = this.stripComment(rawLines[i])
+            var text = trim(line)
+
+            if (len(text) > 0)
+            {
+                var entry = {}
+                entry["indent"] = this.getIndent(line)
+                entry["text"] = text
+                entry["rawIndex"] = i
+                push(out, entry)
+            }
         }
 
-        return this.parseValue(value)
+        return out
     }
 
-    parseValue(value)
+    // Removes a `#` comment that is outside quotes and either starts the line or
+    // follows whitespace. Returns the line without it.
+    stripComment(line)
     {
-        log("    Parsing value: '" + value + "'")
+        var quote = ""
+        var n = len(line)
 
-        // Parse inline arrays [item1, item2, item3]
-        if (startsWith(value, "[") and endsWith(value, "]"))
+        for (var i = 0; i < n; i++)
         {
-            var innerContent = substring(value, 1, len(value) - 1)
-            var items = split(innerContent, ",")
-            var result = []
+            var c = charAt(line, i)
 
-            for (var i = 0; i < len(items); i = i + 1)
+            if (quote != "")
             {
-                push(result, trim(items[i]))
-            }
-
-            return result
-        }
-
-        // Parse inline objects {key1: value1, key2: value2}
-        if (startsWith(value, "{") and endsWith(value, "}"))
-        {
-            var innerContent = substring(value, 1, len(value) - 1)
-            var result = {}
-
-            // Simple parser: split by comma, but respect quotes
-            var currentKey = ""
-            var currentVal = ""
-            var inQuote = false
-            var parsingKey = true
-
-            for (var i = 0; i < len(innerContent); i = i + 1)
-            {
-                var c = substring(innerContent, i, i + 1)
-
-                if (c == "\"")
+                if (c == "\\")
                 {
-                    inQuote = not inQuote
-                    if (not parsingKey)
-                    {
-                        currentVal = currentVal + c
-                    }
+                    i = i + 1
                 }
-                else if (c == ":" and not inQuote and parsingKey)
+                else if (c == quote)
                 {
-                    parsingKey = false
-                }
-                else if (c == "," and not inQuote)
-                {
-                    // End of key-value pair
-                    if (currentKey != "")
-                    {
-                        result[trim(currentKey)] = trim(currentVal)
-                    }
-                    currentKey = ""
-                    currentVal = ""
-                    parsingKey = true
-                }
-                else
-                {
-                    if (parsingKey)
-                    {
-                        currentKey = currentKey + c
-                    }
-                    else
-                    {
-                        currentVal = currentVal + c
-                    }
+                    quote = ""
                 }
             }
-
-            // Save the last pair
-            if (currentKey != "")
+            else if (c == "\"" or c == "'")
             {
-                result[trim(currentKey)] = trim(currentVal)
+                quote = c
             }
-
-            return result
+            else if (c == "#")
+            {
+                if (i == 0 or charAt(line, i - 1) == " " or charAt(line, i - 1) == "\t")
+                {
+                    return substring(line, 0, i)
+                }
+            }
         }
 
-        // Remove quotes if present
-        if (startsWith(value, "\"") and endsWith(value, "\""))
-        {
-            return substring(value, 1, len(value) - 1)
-        }
-
-        if (startsWith(value, "'") and endsWith(value, "'"))
-        {
-            return substring(value, 1, len(value) - 1)
-        }
-
-        // Parse boolean
-        if (value == "true") return true
-
-        if (value == "false") return false
-
-        return value
+        return line
     }
 
     getIndent(line)
     {
         var count = 0
-        var done = false
+        var n = len(line)
 
-        for (var i = 0; i < len(line) and not done; i++)
+        for (var i = 0; i < n; i++)
         {
             var ch = charAt(line, i)
 
@@ -379,59 +136,555 @@ class YamlParser
             {
                 count = count + 1
             }
+            else if (ch == "\t")
+            {
+                count = count + 4
+            }
             else
             {
-                done = true
+                return count
             }
         }
 
         return count
     }
 
-    splitFirst(str, delimiter)
+    error(rawIndex, message)
     {
-        var idx = indexOf(str, delimiter)
-
-        if (idx == -1)
-        {
-            return [str, ""]
-        }
-
-        return [substring(str, 0, idx), substring(str, idx + 1, len(str))]
+        push(this.errors, "line " + toString(rawIndex + 1) + ": " + message)
     }
 
-    escapeQuotesInMultiline(str)
+    // ------------------------------------------------------------------------
+    // Block structure
+    // ------------------------------------------------------------------------
+
+    // A block at `indent` starting at line `i`: a list when the first line is a
+    // list item, a map otherwise. Returns {value, next}.
+    parseBlock(i, indent)
     {
-        // Escapes all double quotes in a multiline string for proper C++ code generation
-        // Replaces \" with " so the generated code has proper quote
-        var result = ""
-        var i = 0
+        var line = this.lines[i]
 
-        while (i < len(str))
+        if (this.isListItem(line["text"]))
         {
-            var ch = str[i]
+            return this.parseList(i, indent)
+        }
 
-            if (ch == "\\")
+        return this.parseMapInto({}, i, indent)
+    }
+
+    isListItem(text)
+    {
+        return text == "-" or startsWith(text, "- ")
+    }
+
+    // Map entries at exactly `indent`, appended into `map`. Stops at the first
+    // line that is shallower, or at a list item at this indent (the caller's).
+    parseMapInto(map, i, indent)
+    {
+        var n = len(this.lines)
+
+        while (i < n)
+        {
+            var line = this.lines[i]
+            var lineIndent = line["indent"]
+            var text = line["text"]
+
+            if (lineIndent < indent)
             {
-                if (i + 1 < len(str))
-                {
-                    var nextCh = str[i + 1]
+                break
+            }
 
-                    if (nextCh == "\"")
-                    {
-                        log("Found escaped quote at position " + toString(i))
-                        result = result + "\""
-                        i = i + 1  // Skip the next quote
-                    }
-                    else
-                    {
-                        result = result + "\\"
-                    }
+            if (lineIndent > indent)
+            {
+                this.error(line["rawIndex"], "unexpected indentation")
+                i = i + 1
+                continue
+            }
+
+            if (this.isListItem(text))
+            {
+                break
+            }
+
+            var sep = this.findKeySep(text)
+
+            if (sep < 0)
+            {
+                this.error(line["rawIndex"], "expected `key: value`, got `" + text + "`")
+                i = i + 1
+                continue
+            }
+
+            var key = trim(substring(text, 0, sep))
+            var value = trim(substring(text, sep + 1, len(text)))
+
+            i = this.parseEntry(map, key, value, i, indent)
+        }
+
+        var r = {}
+        r["value"] = map
+        r["next"] = i
+        return r
+    }
+
+    // One `key: value` entry whose line is `i` at `indent`. Stores into `map`
+    // and returns the index of the next unparsed line.
+    parseEntry(map, key, value, i, indent)
+    {
+        var n = len(this.lines)
+
+        if (len(value) == 0)
+        {
+            if (i + 1 < n)
+            {
+                var nextLine = this.lines[i + 1]
+                var nextIndent = nextLine["indent"]
+
+                if (nextIndent > indent)
+                {
+                    var r = this.parseBlock(i + 1, nextIndent)
+                    map[key] = r["value"]
+                    return r["next"]
+                }
+
+                if (nextIndent == indent and this.isListItem(nextLine["text"]))
+                {
+                    var rl = this.parseList(i + 1, indent)
+                    map[key] = rl["value"]
+                    return rl["next"]
+                }
+            }
+
+            map[key] = ""
+            return i + 1
+        }
+
+        var rs = this.parseScalarAt(value, i)
+        map[key] = rs["value"]
+        return rs["next"]
+    }
+
+    // List items at exactly `indent` starting at line `i`. Returns {value, next}.
+    parseList(i, indent)
+    {
+        var list = []
+        var n = len(this.lines)
+
+        while (i < n)
+        {
+            var line = this.lines[i]
+            var lineIndent = line["indent"]
+            var text = line["text"]
+
+            if (lineIndent < indent)
+            {
+                break
+            }
+
+            if (lineIndent > indent)
+            {
+                this.error(line["rawIndex"], "unexpected indentation")
+                i = i + 1
+                continue
+            }
+
+            if (not this.isListItem(text))
+            {
+                break
+            }
+
+            var after = trim(substring(text, 1, len(text)))
+
+            if (len(after) == 0)
+            {
+                // `-` alone: the item is the deeper block that follows.
+                if (i + 1 < n and this.lines[i + 1]["indent"] > indent)
+                {
+                    var rb = this.parseBlock(i + 1, this.lines[i + 1]["indent"])
+                    push(list, rb["value"])
+                    i = rb["next"]
                 }
                 else
                 {
-                    result = result + "\\"
+                    push(list, "")
+                    i = i + 1
                 }
+            }
+            else if (this.isMapEntry(after))
+            {
+                // `- key: value`: a map item. Its remaining keys sit at the column
+                // where `key` starts.
+                var itemIndent = lineIndent + (len(text) - len(after))
+                var sep = this.findKeySep(after)
+                var key = trim(substring(after, 0, sep))
+                var value = trim(substring(after, sep + 1, len(after)))
+
+                var item = {}
+                var next = this.parseEntry(item, key, value, i, itemIndent)
+                var rm = this.parseMapInto(item, next, itemIndent)
+
+                push(list, rm["value"])
+                i = rm["next"]
+            }
+            else
+            {
+                var rs = this.parseScalarAt(after, i)
+                push(list, rs["value"])
+                i = rs["next"]
+            }
+        }
+
+        var r = {}
+        r["value"] = list
+        r["next"] = i
+        return r
+    }
+
+    // Does this text (already past a `- `) start a map entry rather than a scalar?
+    isMapEntry(text)
+    {
+        var c = charAt(text, 0)
+
+        if (c == "\"" or c == "'" or c == "[" or c == "{")
+        {
+            return false
+        }
+
+        return this.findKeySep(text) >= 0
+    }
+
+    // Index of the `:` that separates a key from its value: the first colon
+    // outside quotes that is followed by a space or ends the text. -1 if none.
+    findKeySep(text)
+    {
+        var quote = ""
+        var n = len(text)
+
+        for (var i = 0; i < n; i++)
+        {
+            var c = charAt(text, i)
+
+            if (quote != "")
+            {
+                if (c == "\\")
+                {
+                    i = i + 1
+                }
+                else if (c == quote)
+                {
+                    quote = ""
+                }
+            }
+            else if (c == "\"" or c == "'")
+            {
+                quote = c
+            }
+            else if (c == ":")
+            {
+                if (i + 1 == n or charAt(text, i + 1) == " " or charAt(text, i + 1) == "\t")
+                {
+                    return i
+                }
+            }
+        }
+
+        return -1
+    }
+
+    // ------------------------------------------------------------------------
+    // Scalars
+    // ------------------------------------------------------------------------
+
+    // A scalar found on line `i`. Handles the multi-line quoted form, which
+    // continues over the RAW lines until one ends with `"`. Returns {value, next}.
+    parseScalarAt(value, i)
+    {
+        var r = {}
+
+        var startsWithQuote = startsWith(value, "\"")
+        var closed = len(value) >= 2 and endsWith(value, "\"") and not this.endsWithEscapedQuote(value)
+
+        if (startsWithQuote and not closed)
+        {
+            var rawIndex = this.lines[i]["rawIndex"]
+            var multi = substring(value, 1, len(value))
+            var j = rawIndex + 1
+            var found = false
+
+            while (j < len(this.raw) and not found)
+            {
+                var rawLine = this.raw[j]
+                var trimmedNext = trim(rawLine)
+
+                if (len(trimmedNext) > 0 and endsWith(trimmedNext, "\""))
+                {
+                    var quotePos = len(rawLine) - 1
+                    while (quotePos >= 0 and charAt(rawLine, quotePos) != "\"")
+                    {
+                        quotePos = quotePos - 1
+                    }
+                    multi = multi + "\n" + substring(rawLine, 0, quotePos)
+                    found = true
+                }
+                else
+                {
+                    multi = multi + "\n" + rawLine
+                    j = j + 1
+                }
+            }
+
+            if (not found)
+            {
+                this.error(rawIndex, "unterminated multi-line string")
+            }
+
+            // Skip every significant line the string swallowed.
+            var next = i + 1
+            while (next < len(this.lines) and this.lines[next]["rawIndex"] <= j)
+            {
+                next = next + 1
+            }
+
+            r["value"] = this.escapeQuotesInMultiline(multi)
+            r["next"] = next
+            return r
+        }
+
+        r["value"] = this.parseValue(value)
+        r["next"] = i + 1
+        return r
+    }
+
+    endsWithEscapedQuote(value)
+    {
+        var n = len(value)
+        return n >= 2 and charAt(value, n - 2) == "\\"
+    }
+
+    // A single-line scalar: inline list / inline map / quoted / bool / number / bare string.
+    parseValue(value)
+    {
+        if (startsWith(value, "[") and endsWith(value, "]"))
+        {
+            var items = this.splitTopLevel(substring(value, 1, len(value) - 1))
+            var list = []
+
+            for (var i = 0; i < len(items); i++)
+            {
+                var item = trim(items[i])
+                if (len(item) > 0)
+                {
+                    push(list, this.parseValue(item))
+                }
+            }
+
+            return list
+        }
+
+        if (startsWith(value, "{") and endsWith(value, "}"))
+        {
+            var parts = this.splitTopLevel(substring(value, 1, len(value) - 1))
+            var map = {}
+
+            for (var i = 0; i < len(parts); i++)
+            {
+                var part = trim(parts[i])
+                if (len(part) == 0)
+                {
+                    continue
+                }
+
+                var sep = this.findKeySep(part)
+                if (sep < 0)
+                {
+                    push(this.errors, "inline map entry without a key: `" + part + "`")
+                    continue
+                }
+
+                var key = trim(substring(part, 0, sep))
+                var val = trim(substring(part, sep + 1, len(part)))
+                map[key] = this.parseValue(val)
+            }
+
+            return map
+        }
+
+        if (len(value) >= 2 and startsWith(value, "\"") and endsWith(value, "\""))
+        {
+            return substring(value, 1, len(value) - 1)
+        }
+
+        if (len(value) >= 2 and startsWith(value, "'") and endsWith(value, "'"))
+        {
+            return substring(value, 1, len(value) - 1)
+        }
+
+        if (value == "true")
+        {
+            return true
+        }
+
+        if (value == "false")
+        {
+            return false
+        }
+
+        var kind = this.numberKind(value)
+
+        if (kind == 1)
+        {
+            return toInt(value)
+        }
+
+        if (kind == 2)
+        {
+            return toFloat(value)
+        }
+
+        return value
+    }
+
+    // 0 = not a number, 1 = integer, 2 = decimal. Only `-?digits(.digits)?`
+    // counts, so `0.0f`, `1e5` and `.5` stay strings.
+    numberKind(value)
+    {
+        var n = len(value)
+        var i = 0
+
+        if (n == 0)
+        {
+            return 0
+        }
+
+        if (charAt(value, 0) == "-")
+        {
+            i = 1
+        }
+
+        var intDigits = 0
+        var fracDigits = 0
+        var seenDot = false
+
+        while (i < n)
+        {
+            var c = charAt(value, i)
+
+            if (contains("0123456789", c))
+            {
+                if (seenDot)
+                {
+                    fracDigits = fracDigits + 1
+                }
+                else
+                {
+                    intDigits = intDigits + 1
+                }
+            }
+            else if (c == "." and not seenDot)
+            {
+                seenDot = true
+            }
+            else
+            {
+                return 0
+            }
+
+            i = i + 1
+        }
+
+        if (intDigits == 0)
+        {
+            return 0
+        }
+
+        if (seenDot)
+        {
+            if (fracDigits == 0)
+            {
+                return 0
+            }
+            return 2
+        }
+
+        return 1
+    }
+
+    // Splits `text` on commas that are outside quotes and outside nested [] / {}.
+    splitTopLevel(text)
+    {
+        var parts = []
+        var current = ""
+        var depth = 0
+        var quote = ""
+        var n = len(text)
+
+        for (var i = 0; i < n; i++)
+        {
+            var c = charAt(text, i)
+
+            if (quote != "")
+            {
+                current = current + c
+                if (c == "\\" and i + 1 < n)
+                {
+                    i = i + 1
+                    current = current + charAt(text, i)
+                }
+                else if (c == quote)
+                {
+                    quote = ""
+                }
+            }
+            else if (c == "\"" or c == "'")
+            {
+                quote = c
+                current = current + c
+            }
+            else if (c == "[" or c == "{")
+            {
+                depth = depth + 1
+                current = current + c
+            }
+            else if (c == "]" or c == "}")
+            {
+                depth = depth - 1
+                current = current + c
+            }
+            else if (c == "," and depth == 0)
+            {
+                push(parts, current)
+                current = ""
+            }
+            else
+            {
+                current = current + c
+            }
+        }
+
+        if (len(trim(current)) > 0)
+        {
+            push(parts, current)
+        }
+
+        return parts
+    }
+
+    // Turns `\"` into `"` in a multi-line string (kept from the first parser:
+    // the component generator writes these straight into C++ source).
+    escapeQuotesInMultiline(str)
+    {
+        var result = ""
+        var i = 0
+        var n = len(str)
+
+        while (i < n)
+        {
+            var ch = charAt(str, i)
+
+            if (ch == "\\" and i + 1 < n and charAt(str, i + 1) == "\"")
+            {
+                result = result + "\""
+                i = i + 1
             }
             else
             {

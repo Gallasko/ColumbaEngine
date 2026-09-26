@@ -3,7 +3,9 @@
 #include "ECS/system.h"
 #include "ECS/entitysystem.h"
 #include "Memory/elementtype.h"
+#include "UI/prefabspec.h"
 
+#include <any>
 #include <functional>
 #include <string>
 #include <unordered_map>
@@ -62,7 +64,51 @@ namespace pg
         std::vector<Entry> entries;
     };
 
+    /**
+     * Per-build state the builder threads through the factories.
+     *
+     *  - `handles`: where a factory's `FactoryResult::handle` lands, keyed by the node's name.
+     *    Owned by the `PrefabBuildResult` of the running `buildTree()`; null when a factory is
+     *    invoked directly through `PrefabFactoryRegistry::build()`.
+     *  - `inherited`: the props the parent handed down (`FactoryResult::childDefaults` of the
+     *    enclosing node). They are already merged into the NodeSpec the factory receives; this
+     *    only tells a factory which values were inherited rather than written by the caller.
+     */
+    struct BuildContext
+    {
+        std::unordered_map<std::string, std::any>* handles = nullptr;
+        ElementMap inherited;
+    };
+
+    /**
+     * What a factory gives back to the builder.
+     *
+     *  - `entity`:        the realised leaf; becomes the wrap's mainEntity. Empty on failure.
+     *  - `slot`:          optional. A layout entity (VerticalLayout / HorizontalLayout) that
+     *                     receives the node's children through `addEntity` instead of the
+     *                     sibling-anchoring path. The Chronicle panel's body is one.
+     *  - `childDefaults`: optional. Props merged UNDER every child's own props (an explicit
+     *                     child value wins), e.g. `{width: innerWidth, z: contentZ}`.
+     *  - `handle`:        optional. The builder's rich result struct (a `Panel`, a `Label`, ...),
+     *                     exposed by name in `PrefabBuildResult::handles` so callers keep every
+     *                     runtime setter the struct offers.
+     */
+    struct FactoryResult
+    {
+        EntityRef   entity;
+        EntityRef   slot;
+        ElementMap  childDefaults;
+        std::any    handle;
+    };
+
+    // The simple contract: props in, one entity out. Kept for the engine primitives and any
+    // existing factory; wrapped into the extended contract on registration.
     using PrefabFactoryFn = std::function<EntityRef(EntitySystem*, const PrefabParams&)>;
+
+    // The extended contract: the whole NodeSpec (props already merged with the schema defaults
+    // and the parent's childDefaults, plus `records`; `children` are NOT passed — the builder
+    // owns recursion) and the build context in; a FactoryResult out.
+    using PrefabFactoryFnEx = std::function<FactoryResult(EntitySystem*, const NodeSpec&, BuildContext&)>;
 
     class PrefabFactoryRegistry : public System<StoragePolicy>
     {
@@ -70,6 +116,18 @@ namespace pg
         virtual std::string getSystemName() const override { return "Prefab Factory Registry"; }
 
         void registerFactory(const std::string& name, ParamSchema schema, PrefabFactoryFn fn)
+        {
+            PrefabFactoryFnEx wrapped = [fn = std::move(fn)](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+            {
+                FactoryResult result;
+                result.entity = fn(ecs, spec.props);
+                return result;
+            };
+
+            registerFactory(name, std::move(schema), std::move(wrapped));
+        }
+
+        void registerFactory(const std::string& name, ParamSchema schema, PrefabFactoryFnEx fn)
         {
             schemas[name] = std::move(schema);
             factories[name] = std::move(fn);
@@ -80,31 +138,33 @@ namespace pg
             return factories.find(name) != factories.end();
         }
 
-        EntityRef build(const std::string& name, const PrefabParams& params)
+        // Full build: required-param check, schema defaults merged under the spec's props, then
+        // the factory. `spec.children` are ignored here (the builder recurses, not the factory).
+        FactoryResult buildEx(const NodeSpec& spec, BuildContext& ctx)
         {
-            auto it = factories.find(name);
+            auto it = factories.find(spec.kind);
             if (it == factories.end())
             {
-                LOG_ERROR("Prefab Factory Registry", "No factory registered with name: " << name);
-                return EntityRef{};
+                LOG_ERROR("Prefab Factory Registry", "No factory registered with name: " << spec.kind);
+                return FactoryResult{};
             }
 
             // Enforce required params: every entry marked `Required` in the schema must be
-            // present in the caller's `params` map. Schema defaults do NOT satisfy a Required
+            // present in the caller's `props` map. Schema defaults do NOT satisfy a Required
             // entry — the contract is that the caller explicitly opts in.
 
             bool allRequiredParamsPresent = true;
 
-            auto schemaIt = schemas.find(name);
+            auto schemaIt = schemas.find(spec.kind);
             if (schemaIt != schemas.end())
             {
                 for (const auto& entry : schemaIt->second.entries)
                 {
                     if (entry.requirement == ParamSchema::Requirement::Required and
-                        params.find(entry.name) == params.end())
+                        spec.props.find(entry.name) == spec.props.end())
                     {
                         LOG_ERROR("Prefab Factory Registry",
-                            "Factory '" << name << "' missing required parameter: '" << entry.name << "'");
+                            "Factory '" << spec.kind << "' missing required parameter: '" << entry.name << "'");
 
                         allRequiredParamsPresent = false;
                     }
@@ -112,9 +172,25 @@ namespace pg
             }
 
             if (not allRequiredParamsPresent)
-                return EntityRef{};
+                return FactoryResult{};
 
-            return it->second(this->ecsRef, mergeWithDefaults(name, params));
+            NodeSpec merged;
+            merged.kind    = spec.kind;
+            merged.name    = spec.name;
+            merged.props   = mergeWithDefaults(spec.kind, spec.props);
+            merged.records = spec.records;
+
+            return it->second(this->ecsRef, merged, ctx);
+        }
+
+        EntityRef build(const std::string& name, const PrefabParams& params)
+        {
+            NodeSpec spec;
+            spec.kind  = name;
+            spec.props = params;
+
+            BuildContext ctx;
+            return buildEx(spec, ctx).entity;
         }
 
         EntityRef build(const std::string& name)
@@ -158,7 +234,7 @@ namespace pg
             return merged;
         }
 
-        std::unordered_map<std::string, PrefabFactoryFn> factories;
+        std::unordered_map<std::string, PrefabFactoryFnEx> factories;
         std::unordered_map<std::string, ParamSchema> schemas;
     };
 

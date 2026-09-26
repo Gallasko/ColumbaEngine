@@ -134,7 +134,14 @@ class HeaderGenerator
         {
             for (var i = 0; i < len(schema["includes"]); i = i + 1)
             {
-                code += "#include " + schema["includes"][i] + "\n"
+                var inc = schema["includes"][i]
+                // The parser strips the quotes of a quoted item; a header that is not a
+                // system one (`<...>`) gets them back so the directive is well formed.
+                if (not startsWith(inc, "<") and not startsWith(inc, "\""))
+                {
+                    inc = "\"" + inc + "\""
+                }
+                code += "#include " + inc + "\n"
             }
         }
         if (contain(schema, "enums") and typeOf(schema["enums"]) == "array" and len(schema["enums"]) > 0)

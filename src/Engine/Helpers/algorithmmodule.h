@@ -16,6 +16,7 @@ namespace pg
             // Add utility functions
             addNativeFunction("contain", nativeContain);
             addNativeFunction("toInt", nativeToInt);
+            addNativeFunction("toFloat", nativeToFloat);
             addNativeFunction("typeOf", nativeTypeOf);
 
             // Array functions
@@ -117,6 +118,51 @@ namespace pg
             auto intValue = value.get<int>();
 
             return makeIntValue(intValue);
+        }
+
+        /**
+         * Convert a value to a double
+         * Usage: toFloat("12.5") / toFloat(3)
+         * Returns: the value as a double; a string that is not a number throws
+         */
+        static Value nativeToFloat(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 1)
+            {
+                throw std::runtime_error("toFloat expects exactly 1 arguments (value)");
+            }
+
+            if (IS_STRING(args[0]))
+            {
+                auto str = vm->asString(args[0]);
+
+                double res = 0.0;
+                size_t consumed = 0;
+                try
+                {
+                    res = std::stod(str, &consumed);
+                }
+                catch (const std::exception&)
+                {
+                    throw std::runtime_error("toFloat could not convert the string " + str + " to a number");
+                }
+
+                if (consumed != str.size())
+                    throw std::runtime_error("toFloat could not convert the string " + str + " to a number");
+
+                return makeDoubleValue(res);
+            }
+
+            if (IS_DOUBLE(args[0]))
+                return args[0];
+
+            if (IS_INT(args[0]))
+                return makeDoubleValue(static_cast<double>(AS_INT(args[0])));
+
+            if (IS_BOOL(args[0]))
+                return makeDoubleValue(AS_BOOL(args[0]) ? 1.0 : 0.0);
+
+            throw std::runtime_error("toFloat expects a number or a string");
         }
 
         /**

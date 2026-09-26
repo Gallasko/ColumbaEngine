@@ -4,12 +4,13 @@
 #include "2D/position.h"
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace pg
 {
     /**
-     * Declarative description of a UI tree. Built at runtime by `buildNode()`.
+     * Declarative description of a UI tree. Built at runtime by `buildNode()` / `buildTree()`.
      *
      * One rule:
      *   - `kind == "Layout:Horizontal" | "Layout:Vertical"` produces a layout entity; children
@@ -21,7 +22,25 @@ namespace pg
      *         `Panel`, `Slot`, etc.). The factory's returned entity is the mainEntity.
      *       * empty kind     -> no mainEntity; `children` are all siblings of a bare container.
      *     `children` are realised recursively (each becomes its own wrap unless it's a layout)
-     *     and anchored as siblings of the mainEntity inside this prefab.
+     *     and anchored as siblings of the mainEntity inside this prefab — unless the factory
+     *     exposes a *slot* (`FactoryResult::slot`, a layout entity): then every child is added
+     *     to that layout instead and its anchors / the flow sugar are ignored.
+     *
+     * Props (`props`) and records (`records`):
+     *   `props` holds the scalar parameters of the leaf (editor-introspectable through the
+     *   factory's ParamSchema). `records` holds the list-shaped parameters: each entry is a
+     *   list of flat maps (e.g. a tab row's `items`, a requirement list's `items`). A text
+     *   loader maps a YAML list of maps onto `records[key]`.
+     *
+     * Inheritance:
+     *   A factory can hand props down to the node's children (`FactoryResult::childDefaults`,
+     *   e.g. a panel giving `width` = its inner width and `z` = its content band). They are
+     *   merged UNDER each child's own props — an explicit child value always wins — and are
+     *   forwarded through layout nodes and kinds that declare none of their own.
+     *
+     * Placement:
+     *   `x` / `y` props on a wrapped node position the wrap container (the leaf is anchored to
+     *   the container's top-left, so this is what moves the whole node).
      *
      * Name resolution (sibling/parent anchor scope):
      *   Each child registers under `name` in its parent's name map. The stored entity is the
@@ -30,6 +49,8 @@ namespace pg
      *   Anchoring a sibling to `"bg"` resolves to the leaf — geometrically identical to
      *   targeting the wrap (the leaf is auto-anchored top-left and width/height-constrained
      *   to its wrap container).
+     *   A named node whose factory returns a handle (`FactoryResult::handle`) also lands in
+     *   `PrefabBuildResult::handles` under the same name.
      *
      * Anchor sides (`AnchorSpec::side`):
      *   - Top / Bottom / Left / Right       -> cardinal anchor with margin
@@ -74,10 +95,13 @@ namespace pg
         float       margin     = 0.0f;
     };
 
+    // A list-shaped parameter: an ordered list of flat maps.
+    using RecordList = std::vector<ElementMap>;
+
     struct NodeSpec
     {
         std::string kind;                       // see kind dispatch above
-        ElementMap  props;                      // editor-introspectable parameters for the leaf
+        ElementMap  props;                      // editor-introspectable scalar parameters for the leaf
         std::string name;                       // optional; see name semantics above
         std::vector<AnchorSpec> anchors;        // applied to THIS node's produced entity
         std::vector<NodeSpec>   children;       // recursive composition
@@ -85,6 +109,8 @@ namespace pg
         Flow  flow    = Flow::None;             // build-time anchor sugar for children with empty anchors
         float padding = 0.0f;                   // first in-flow child distance from `main`
         float spacing = 0.0f;                   // gap between adjacent in-flow children
+
+        std::unordered_map<std::string, RecordList> records;   // list-shaped parameters for the leaf
     };
 
     // Helper: returns the pair of anchors needed to fully center the entity on `target`.
