@@ -50,8 +50,8 @@ ctest -R "theme" --output-on-failure
 **Phase 2 rule: components are fed.** From `ProgressRule` on, a component exposes
 *setters only* (`setPercent`, `setValue`, `setState`, …) and computes nothing from
 months, stats or rules — no game logic, no reading of game state. The Life scene
-subscribes to `GameDataView` paths and calls the setters; a dev scene calls the
-same setters with fixed values. The same prefab is driven by both; the numbers
+listens to the engine's `WorldFactsUpdate` (`src/Engine/Systems/gamefacts.h`)
+and calls the setters; a dev scene calls the same setters with fixed values. The same prefab is driven by both; the numbers
 come from `rules/*.pg` through the scene, never from the component.
 
 - **Label** (`UI/label.h`) — a style, a colour token, an alignment, and one of

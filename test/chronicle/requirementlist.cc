@@ -15,11 +15,12 @@
 #include "UI/iconsystem.h"
 #include "UI/sizer.h"
 #include "UI/prefab.h"
-#include "UI/gamedataview.h"
+#include "Systems/gamefacts.h"
 #include "Systems/coresystems.h"
 #include "2D/simple2dobject.h"
 
 #include "mocklogger.h"
+#include "factfeed.h"
 
 using namespace chronicle;
 
@@ -38,7 +39,8 @@ namespace pg
                 ThemeSystem* theme = nullptr;
 
                 constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
-                GameDataView* view = nullptr;
+                WorldFacts* facts = nullptr;
+                FactFeed* feed = nullptr;
 
                 ReqFixture()
                 {
@@ -48,7 +50,8 @@ namespace pg
                     ttf = ecs.createSystem<TTFTextSystem>(&renderer);
                     ecs.createSystem<Simple2DObjectSystem>(&renderer);
                     icons = ecs.createSystem<IconSystem>(&renderer);
-                    view = ecs.createSystem<GameDataView>();
+                    facts = createTestFacts(&ecs);
+                    feed = ecs.createSystem<FactFeed>();
                     theme = ecs.createSystem<ThemeSystem>();
                     theme->loadTheme("chronicle/tokens.json", "fonts");
                     installIconEntries();
@@ -345,7 +348,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(requirementlist_test, fed_from_gamedataview)
+        TEST(requirementlist_test, fed_from_worldfacts)
         {
             MockLogger logger;
             ReqFixture s;
@@ -358,19 +361,22 @@ namespace pg
             };
             RequirementList list = s.make(spec);
 
-            s.view->subscribe("milestone.reqs.0.current", [&](const ElementType& v) {
-                list.setItem(&s.ecs, 0, v.get<int>(), 18);
-            });
-            s.view->subscribe("milestone.reqs.2.met", [&](const ElementType& v) {
-                list.setMet(&s.ecs, 2, v.get<bool>());
-            });
+            s.feed->onFact = [&](const std::string& name, const ElementType& v) {
+                if (name == "milestone.reqs.0.current")
+                    list.setItem(&s.ecs, 0, v.get<int>(), 18);
+                else if (name == "milestone.reqs.2.met")
+                    list.setMet(&s.ecs, 2, v.get<bool>());
+            };
 
-            s.view->set("milestone.reqs.0.current", ElementType{18});
+            // The update leaves on the first pass and is delivered on the next one
+            s.facts->setFact("milestone.reqs.0.current", 18);
+            s.settle();
             s.settle();
             EXPECT_EQ(list.rows[0].value->spec.text, "18 / 18");
             EXPECT_EQ(list.rows[0].name.mark->spec.name, "check");
 
-            s.view->set("milestone.reqs.2.met", ElementType{true});
+            s.facts->setFact("milestone.reqs.2.met", true);
+            s.settle();
             s.settle();
             EXPECT_EQ(list.rows[2].name.mark->spec.name, "check");
             EXPECT_EQ(s.token(list.rows[2].name.mark->entity), "status-gain");

@@ -18,7 +18,7 @@
 #include "inventory.h"
 
 #include "gamemodule.h"
-#include "gamefacts.h"
+#include "Systems/gamefacts.h"
 
 #include "gamelog.h"
 

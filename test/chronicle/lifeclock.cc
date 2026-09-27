@@ -15,13 +15,14 @@
 #include "UI/iconsystem.h"
 #include "UI/sizer.h"
 #include "UI/prefab.h"
-#include "UI/gamedataview.h"
+#include "Systems/gamefacts.h"
 #include "Systems/tween.h"
 #include "Systems/coresystems.h"
 #include "2D/simple2dobject.h"
 #include "2D/decoratedshapes.h"
 
 #include "mocklogger.h"
+#include "factfeed.h"
 
 using namespace chronicle;
 
@@ -38,7 +39,8 @@ namespace pg
                 TTFTextSystem* ttf = nullptr;
                 IconSystem* icons = nullptr;
                 ThemeSystem* theme = nullptr;
-                GameDataView* view = nullptr;
+                WorldFacts* facts = nullptr;
+                FactFeed* feed = nullptr;
 
                 LifeClockFixture()
                 {
@@ -53,7 +55,8 @@ namespace pg
                     ecs.createSystem<StrokeRect2DObjectSystem>(&renderer);
                     icons = ecs.createSystem<IconSystem>(&renderer);
                     ecs.createSystem<TweenSystem>();
-                    view = ecs.createSystem<GameDataView>();
+                    facts = createTestFacts(&ecs);
+                    feed = ecs.createSystem<FactFeed>();
                     theme = ecs.createSystem<ThemeSystem>();
                     theme->loadTheme("chronicle/tokens.json", "fonts");
                     installIconEntries();
@@ -441,7 +444,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(lifeclock_test, fed_from_gamedataview)
+        TEST(lifeclock_test, fed_from_worldfacts)
         {
             MockLogger logger;
             LifeClockFixture s;
@@ -451,26 +454,24 @@ namespace pg
             spec.nextIn = 7;
             LifeClock clock = s.make(spec);
 
-            s.view->subscribe("life.age", [&](const ElementType& v) {
-                clock.setAge(&s.ecs, v.get<float>());
-            });
+            s.feed->onFact = [&](const std::string& name, const ElementType& v) {
+                if (name == "life.age")
+                    clock.setAge(&s.ecs, v.get<float>());
+                else if (name == "activity.running.months")
+                    clock.setRunning(&s.ecs, v.get<float>());
+                else if (name == "life.next.label")
+                    clock.setNext(&s.ecs, v.get<std::string>(), clock.spec.nextIn);
+                else if (name == "life.next.in")
+                    clock.setNext(&s.ecs, clock.spec.nextLabel, v.get<int>());
+            };
 
-            s.view->subscribe("activity.running.months", [&](const ElementType& v) {
-                clock.setRunning(&s.ecs, v.get<float>());
-            });
+            s.facts->setFact("life.age", 18.25f);
+            s.facts->setFact("activity.running.months", 3.0f);
+            s.facts->setFact("life.next.label", std::string("Squire"));
+            s.facts->setFact("life.next.in", 9);
 
-            s.view->subscribe("life.next.label", [&](const ElementType& v) {
-                clock.setNext(&s.ecs, v.get<std::string>(), clock.spec.nextIn);
-            });
-
-            s.view->subscribe("life.next.in", [&](const ElementType& v) {
-                clock.setNext(&s.ecs, clock.spec.nextLabel, v.get<int>());
-            });
-
-            s.view->set("life.age", ElementType{18.25f});
-            s.view->set("activity.running.months", ElementType{3.0f});
-            s.view->set("life.next.label", ElementType{std::string("Squire")});
-            s.view->set("life.next.in", ElementType{9});
+            // The update leaves on the first pass and is delivered on the next one
+            s.settle();
             s.settle();
 
             EXPECT_FLOAT_EQ(clock.shownAge, 18.25f);

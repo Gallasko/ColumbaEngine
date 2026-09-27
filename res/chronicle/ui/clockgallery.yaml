@@ -1,6 +1,6 @@
 # Dev gallery for the life clock: `Chronicle --dev ClockGallery`.
 #
-# Four clocks. `life` is the Life screen's, wired by the scene to GameDataView
+# Four clocks. `life` is the Life screen's, wired by the scene to WorldFacts
 # (life.age, activity.running.months, life.next.label, life.next.in) and driven by
 # the buttons on the right; the other three are still frames of the same piece.
 name: gallery
@@ -26,7 +26,7 @@ children:
     x: 48
     y: 90
     z: 15
-    text: "life - fed from GameDataView, driven by the buttons"
+    text: "life - fed from WorldFacts, driven by the buttons"
     theme: label.caption.ink-muted
 
   - kind: LifeClock
@@ -124,7 +124,7 @@ children:
     windows:
       - {from: 16, to: 22, label: Squire}
 
-  # The buttons drive `life` through GameDataView
+  # The buttons drive `life` through WorldFacts
   - kind: Button
     name: advance
     x: 760

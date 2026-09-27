@@ -15,11 +15,11 @@
 #include "2D/simple2dobject.h"
 #include "UI/prefab.h"
 #include "UI/prefabloader.h"
+#include "Systems/gamefacts.h"
 
 #include "UI/themesystem.h"
 #include "UI/button.h"
 #include "UI/tabs.h"
-#include "UI/gamedataview.h"
 
 using namespace pg;
 
@@ -92,30 +92,42 @@ namespace chronicle
             place(c.entity, margin, 40.0f);
         }
 
-        // ── Wiring: the fed list follows the view, the button writes it ──────
+        // Wiring: the fed list follows the facts, the button writes them
         // The list's setters are helpers on its prefab; the argument types must match the
         // helper's signature exactly (size_t index, int values, bool verdict).
-        auto* view = ecsRef->getSystem<GameDataView>();
+        auto facts = ecsRef->getSystem<WorldFacts>();
         const _unique_id fedId = page->get<Prefab>()->findEntity("fed").id;
         auto fedEnt = ecsRef->getEntity(fedId);
 
-        if (view and fedEnt and fedEnt->has<Prefab>() and fedEnt->get<Prefab>()->hasHelper("setItem"))
+        if (facts and fedEnt and fedEnt->has<Prefab>() and fedEnt->get<Prefab>()->hasHelper("setItem"))
         {
             for (size_t i = 0; i < 3; ++i)
-                view->set(curPath(i), ElementType{SQUIRE[i].start});
-            view->set(metPath(3), ElementType{false});
+                facts->setFact(curPath(i), SQUIRE[i].start);
 
-            for (size_t i = 0; i < 3; ++i)
-            {
-                const int needed = SQUIRE[i].needed;
-                view->subscribe(curPath(i), [this, fedId, i, needed](const ElementType& v) {
-                    if (auto fed = ecsRef->getEntity(fedId))
-                        fed->get<Prefab>()->callHelper("setItem", i, v.get<int>(), needed);
-                });
-            }
-            view->subscribe(metPath(3), [this, fedId](const ElementType& v) {
-                if (auto fed = ecsRef->getEntity(fedId))
-                    fed->get<Prefab>()->callHelper("setMet", size_t{3}, v.get<bool>());
+            facts->setFact(metPath(3), false);
+
+            listenToEvent<WorldFactsUpdate>([this, fedId](const WorldFactsUpdate& event) {
+                auto fed = ecsRef->getEntity(fedId);
+
+                if (not fed or not fed->has<Prefab>())
+                    return;
+
+                for (const auto& name : event.changedFacts)
+                {
+                    const auto& it = event.factMap->find(name);
+
+                    if (it == event.factMap->end())
+                        continue;
+
+                    for (size_t i = 0; i < 3; ++i)
+                    {
+                        if (name == curPath(i))
+                            fed->get<Prefab>()->callHelper("setItem", i, it->second.get<int>(), SQUIRE[i].needed);
+                    }
+
+                    if (name == metPath(3))
+                        fed->get<Prefab>()->callHelper("setMet", size_t{3}, it->second.get<bool>());
+                }
             });
         }
 
@@ -125,22 +137,23 @@ namespace chronicle
 
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e)
         {
-            auto* v = ecsRef->getSystem<GameDataView>();
-            if (not v)
+            auto facts = ecsRef->getSystem<WorldFacts>();
+
+            if (not facts)
                 return;
 
             if (e.tag == "gallery.train")
             {
-                const int str = v->get(curPath(0)).get<int>() + 1;
-                const int swd = v->get(curPath(1)).get<int>() + 1;
-                v->set(curPath(0), ElementType{str});
-                v->set(curPath(1), ElementType{swd});
+                const int str = facts->getFact<int>(curPath(0)) + 1;
+                const int swd = facts->getFact<int>(curPath(1)) + 1;
+                facts->setFact(curPath(0), str);
+                facts->setFact(curPath(1), swd);
                 echo.setText(ecsRef, "A season of training: Strength " + std::to_string(str) + ", Swordsmanship " + std::to_string(swd));
             }
             else if (e.tag == "gallery.letter")
             {
-                const bool has = v->get(metPath(3)).get<bool>();
-                v->set(metPath(3), ElementType{not has});
+                const bool has = facts->getFact<bool>(metPath(3));
+                facts->setFact(metPath(3), not has);
                 echo.setText(ecsRef, has ? "The letter is revoked" : "The letter is granted");
             }
             else

@@ -30,13 +30,14 @@
 #include "UI/prefabloader.h"
 #include "UI/enginefactories.h"
 #include "UI/tooltip.h"
-#include "UI/gamedataview.h"
+#include "Systems/gamefacts.h"
 #include "Systems/tween.h"
 #include "Systems/coresystems.h"
 #include "2D/simple2dobject.h"
 #include "2D/decoratedshapes.h"
 
 #include "mocklogger.h"
+#include "factfeed.h"
 
 using namespace chronicle;
 
@@ -77,7 +78,7 @@ namespace pg
                     auto* tip = ecs.createSystem<TooltipSystem>();
                     ecs.succeed<MouseHoverSystem, TooltipSystem>();
                     ecs.createSystem<TweenSystem>();
-                    ecs.createSystem<GameDataView>();
+                    createTestFacts(&ecs);
                     theme = ecs.createSystem<ThemeSystem>();
                     theme->loadTheme("chronicle/tokens.json", "fonts");
                     tip->setDefaultFont("body-sm");

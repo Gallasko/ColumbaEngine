@@ -8,8 +8,8 @@
 namespace chronicle
 {
     // Dev scene: four life clocks from res/chronicle/ui/clockgallery.yaml. The `life` clock
-    // follows GameDataView (life.age, activity.running.months, life.next.label, life.next.in);
-    // the buttons write those paths the way the game will when a month passes or an activity
+    // follows WorldFacts (life.age, activity.running.months, life.next.label, life.next.in);
+    // the buttons write those facts the way the game will when a month passes or an activity
     // starts. T toggles theme, R reduced motion.
     struct ClockGallery : public pg::Scene
     {

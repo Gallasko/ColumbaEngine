@@ -336,7 +336,7 @@ set(ENGINESOURCE
     src/Engine/Scene/scenemanager.cpp
     src/Engine/Shader/shader.cpp
     src/Engine/Systems/coresystems.cpp
-    src/Engine/Systems/factsystem.cpp
+    src/Engine/Systems/gamefacts.cpp
     src/Engine/Systems/oneventcomponent.cpp
     src/Engine/Systems/positionmodule.cpp
     src/Engine/Systems/uimodule.cpp
@@ -1113,7 +1113,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameOff/character.cpp
             examples/GameOff/characustomizationscene.cpp
             examples/GameOff/fightscene.cpp
-            examples/GameOff/gamefacts.cpp
             examples/GameOff/inventory.cpp
             examples/GameOff/item.cpp
             examples/GameOff/location.cpp
@@ -1494,6 +1493,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/ecssystem.cc
             test/filemanager.cc
             test/framelimiter.cc
+            test/gamefacts.cc
             test/profilertools.cc
             test/interpreter.cc
             test/layout.cc

@@ -18,10 +18,10 @@
 #include "UI/prefab.h"
 #include "UI/prefabloader.h"
 #include "UI/prefabbuilder.h"
+#include "Systems/gamefacts.h"
 
 #include "UI/lifeclock.h"
 #include "UI/button.h"
-#include "UI/gamedataview.h"
 #include "Core/motion.h"
 
 using namespace pg;
@@ -139,43 +139,47 @@ namespace chronicle
         echo = caption(760.0f, 300.0f, "ready", "ink-muted");
         motionLabel = caption(760.0f, 320.0f, Motion::reduced() ? "motion: reduced" : "motion: full", "ink-muted");
 
-        // Seed the view, then subscribe: the buttons write paths, the clock follows them.
-        auto view = ecsRef->getSystem<GameDataView>();
+        // Seed the facts, then listen: the buttons write facts, the clock follows them.
+        auto facts = ecsRef->getSystem<WorldFacts>();
 
-        if (view)
+        if (facts)
         {
-            view->set(AgePath, ElementType{StartAge});
-            view->set(RunningPath, ElementType{static_cast<float>(StartRunning)});
-            view->set(NextLabelPath, ElementType{std::string("Choose a path")});
-            view->set(NextInPath, ElementType{7});
-
-            view->subscribe(AgePath, [this](const ElementType& v) {
-                if (auto clock = lifeClock(ecsRef, lifeId))
-                    clock->setAge(ecsRef, v.get<float>());
-            });
-
-            view->subscribe(RunningPath, [this](const ElementType& v) {
-                if (auto clock = lifeClock(ecsRef, lifeId))
-                    clock->setRunning(ecsRef, v.get<float>());
-            });
-
-            view->subscribe(NextLabelPath, [this](const ElementType& v) {
-                if (auto clock = lifeClock(ecsRef, lifeId))
-                    clock->setNext(ecsRef, v.get<std::string>(), clock->spec.nextIn);
-            });
-
-            view->subscribe(NextInPath, [this](const ElementType& v) {
-                if (auto clock = lifeClock(ecsRef, lifeId))
-                    clock->setNext(ecsRef, clock->spec.nextLabel, v.get<int>());
-            });
+            facts->setFact(AgePath, StartAge);
+            facts->setFact(RunningPath, static_cast<float>(StartRunning));
+            facts->setFact(NextLabelPath, std::string("Choose a path"));
+            facts->setFact(NextInPath, 7);
         }
+
+        listenToEvent<WorldFactsUpdate>([this](const WorldFactsUpdate& event) {
+            auto clock = lifeClock(ecsRef, lifeId);
+
+            if (not clock)
+                return;
+
+            for (const auto& name : event.changedFacts)
+            {
+                const auto& it = event.factMap->find(name);
+
+                if (it == event.factMap->end())
+                    continue;
+
+                if (name == AgePath)
+                    clock->setAge(ecsRef, it->second.get<float>());
+                else if (name == RunningPath)
+                    clock->setRunning(ecsRef, it->second.get<float>());
+                else if (name == NextLabelPath)
+                    clock->setNext(ecsRef, it->second.get<std::string>(), clock->spec.nextIn);
+                else if (name == NextInPath)
+                    clock->setNext(ecsRef, clock->spec.nextLabel, it->second.get<int>());
+            }
+        });
 
         updateNext(true);
 
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e) {
-            auto v = ecsRef->getSystem<GameDataView>();
+            auto facts = ecsRef->getSystem<WorldFacts>();
 
-            if (not v)
+            if (not facts)
                 return;
 
             if (e.tag == "clock.advance")
@@ -185,7 +189,7 @@ namespace chronicle
             else if (e.tag == "clock.season")
             {
                 runningMonths = 6;
-                v->set(RunningPath, ElementType{static_cast<float>(runningMonths)});
+                facts->setFact(RunningPath, static_cast<float>(runningMonths));
                 echo.setText(ecsRef, "A season starts: 6 months hatched ahead of the fill");
             }
             else if (e.tag == "clock.choir")
@@ -197,8 +201,8 @@ namespace chronicle
             {
                 monthsLived = 0;
                 runningMonths = StartRunning;
-                v->set(AgePath, ElementType{ageAt(monthsLived)});
-                v->set(RunningPath, ElementType{static_cast<float>(runningMonths)});
+                facts->setFact(AgePath, ageAt(monthsLived));
+                facts->setFact(RunningPath, static_cast<float>(runningMonths));
                 updateNext(true);
                 setChoir(true);
                 echo.setText(ecsRef, "Reset to 17.4, 9 months running");
@@ -230,9 +234,9 @@ namespace chronicle
 
     void ClockGallery::advanceMonth()
     {
-        auto view = ecsRef->getSystem<GameDataView>();
+        auto facts = ecsRef->getSystem<WorldFacts>();
 
-        if (not view)
+        if (not facts)
             return;
 
         ++monthsLived;
@@ -242,8 +246,8 @@ namespace chronicle
         if (wasRunning)
             --runningMonths;
 
-        view->set(AgePath, ElementType{ageAt(monthsLived)});
-        view->set(RunningPath, ElementType{static_cast<float>(runningMonths)});
+        facts->setFact(AgePath, ageAt(monthsLived));
+        facts->setFact(RunningPath, static_cast<float>(runningMonths));
 
         // The activity is done: the game recomputes the next milestone, and so does the scene.
         const bool finished = wasRunning and runningMonths == 0;
@@ -261,9 +265,9 @@ namespace chronicle
 
     void ClockGallery::updateNext(bool relabel)
     {
-        auto view = ecsRef->getSystem<GameDataView>();
+        auto facts = ecsRef->getSystem<WorldFacts>();
 
-        if (not view)
+        if (not facts)
             return;
 
         const float age = ageAt(monthsLived);
@@ -281,18 +285,18 @@ namespace chronicle
                 }
             }
 
-            view->set(NextLabelPath, ElementType{std::string(nextIndex < NbMilestones ? Milestones[nextIndex].label : "")});
+            facts->setFact(NextLabelPath, std::string(nextIndex < NbMilestones ? Milestones[nextIndex].label : ""));
         }
 
         if (nextIndex >= NbMilestones)
         {
-            view->set(NextInPath, ElementType{-1});
+            facts->setFact(NextInPath, -1);
             return;
         }
 
         const int months = static_cast<int>(std::round((Milestones[nextIndex].age - age) * 12.0f));
 
-        view->set(NextInPath, ElementType{std::max(0, months)});
+        facts->setFact(NextInPath, std::max(0, months));
     }
 
     void ClockGallery::setChoir(bool closed)

@@ -13,12 +13,12 @@
 #include "Input/sdlevents.h"
 #include "2D/position.h"
 #include "2D/simple2dobject.h"
+#include "Systems/gamefacts.h"
 
 #include "UI/requirementlist.h"
 #include "UI/panel.h"
 #include "UI/button.h"
 #include "UI/label.h"
-#include "UI/gamedataview.h"
 
 using namespace pg;
 
@@ -46,7 +46,7 @@ namespace chronicle
     {
         theme = ecsRef->getSystem<ThemeSystem>();
 
-        auto* view = ecsRef->getSystem<GameDataView>();
+        auto facts = ecsRef->getSystem<WorldFacts>();
 
         auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
         bg.get<PositionComponent>()->setZ(0.0f);
@@ -102,7 +102,7 @@ namespace chronicle
             place(makeRequirementList(ecsRef, ds).root, margin, 408.0f);
         }
 
-        // ── Right: the Squire panel, fed from GameDataView ───────────────────
+        // Right: the Squire panel, fed from the facts
         const float rx = 520.0f;
         {
             Panel panel = makePanel(ecsRef, {PanelFrame::Ruled, 320.0f, "Squire", "training", "PATH"});
@@ -120,26 +120,35 @@ namespace chronicle
             panel.addChild(ecsRef, fed.root);
             place(panel.root, rx, 90.0f);
         }
-        caption(rx, 68.0f, "fed from GameDataView \xC2\xB7 buttons write paths, the list reacts", "ink-muted");
+        caption(rx, 68.0f, "fed from WorldFacts \xC2\xB7 buttons write facts, the list reacts", "ink-muted");
 
-        // Seed the view, then subscribe the rows: buttons write, the list reacts.
-        if (view)
+        // Seed the facts, then listen for the rows: buttons write, the list reacts.
+        if (facts)
         {
             for (size_t i = 0; i < 3; ++i)
-                view->set(curPath(i), ElementType{SQUIRE[i].start});
-            view->set(metPath(3), ElementType{false});
+                facts->setFact(curPath(i), SQUIRE[i].start);
 
-            for (size_t i = 0; i < 3; ++i)
-            {
-                const int needed = SQUIRE[i].needed;
-                view->subscribe(curPath(i), [this, i, needed](const ElementType& v) {
-                    fed.setItem(ecsRef, i, v.get<int>(), needed);
-                });
-            }
-            view->subscribe(metPath(3), [this](const ElementType& v) {
-                fed.setMet(ecsRef, 3, v.get<bool>());
-            });
+            facts->setFact(metPath(3), false);
         }
+
+        listenToEvent<WorldFactsUpdate>([this](const WorldFactsUpdate& event) {
+            for (const auto& name : event.changedFacts)
+            {
+                const auto& it = event.factMap->find(name);
+
+                if (it == event.factMap->end())
+                    continue;
+
+                for (size_t i = 0; i < 3; ++i)
+                {
+                    if (name == curPath(i))
+                        fed.setItem(ecsRef, i, it->second.get<int>(), SQUIRE[i].needed);
+                }
+
+                if (name == metPath(3))
+                    fed.setMet(ecsRef, 3, it->second.get<bool>());
+            }
+        });
 
         // ── The buttons ──────────────────────────────────────────────────────
         struct Btn { const char* label; const char* tag; };
@@ -164,37 +173,39 @@ namespace chronicle
 
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e)
         {
-            auto* v = ecsRef->getSystem<GameDataView>();
-            if (not v)
+            auto facts = ecsRef->getSystem<WorldFacts>();
+
+            if (not facts)
                 return;
 
             if (e.tag == "str")
             {
-                const int n = v->get(curPath(0)).get<int>() + 1;
-                v->set(curPath(0), ElementType{n});
+                const int n = facts->getFact<int>(curPath(0)) + 1;
+                facts->setFact(curPath(0), n);
                 echo.setText(ecsRef, "Strength " + std::to_string(n) + " / " + std::to_string(SQUIRE[0].needed));
             }
             else if (e.tag == "sword")
             {
-                const int n = v->get(curPath(1)).get<int>() + 1;
-                v->set(curPath(1), ElementType{n});
+                const int n = facts->getFact<int>(curPath(1)) + 1;
+                facts->setFact(curPath(1), n);
                 echo.setText(ecsRef, "Swordsmanship " + std::to_string(n) + " / " + std::to_string(SQUIRE[1].needed));
             }
             else if (e.tag == "grant")
             {
-                v->set(metPath(3), ElementType{true});
+                facts->setFact(metPath(3), true);
                 echo.setText(ecsRef, "The letter is granted");
             }
             else if (e.tag == "revoke")
             {
-                v->set(metPath(3), ElementType{false});
+                facts->setFact(metPath(3), false);
                 echo.setText(ecsRef, "The letter is revoked");
             }
             else if (e.tag == "reset")
             {
                 for (size_t i = 0; i < 3; ++i)
-                    v->set(curPath(i), ElementType{SQUIRE[i].start});
-                v->set(metPath(3), ElementType{false});
+                    facts->setFact(curPath(i), SQUIRE[i].start);
+
+                facts->setFact(metPath(3), false);
                 echo.setText(ecsRef, "Reset");
             }
         });

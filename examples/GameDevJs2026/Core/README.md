@@ -6,4 +6,4 @@ Foundation data types and utilities shared across the game. Nothing in here depe
 - `terrain.h` — `TerrainType` enum + `isOre`, `isBlockingTerrain`, `oreToItem` helpers
 - `canvasgenerator.h` / `.cpp` — procedural canvas generation (ores, trees, rocks); RNG is `pg::LocalRng` (engine)
 - `machinekey.h` — shared `machineKey(x, y)` inline helper (used by miner/crafting/inserter maps)
-- `worldfacts.h` — thin shim over the engine's `Systems/factsystem.h` (`pg::WorldFacts` + `pg::FactChecker`)
+- `worldfacts.h` — thin shim over the engine's `Systems/gamefacts.h` (`pg::WorldFacts` + `pg::FactChecker`)

@@ -24,7 +24,7 @@
 
 #include "inventory.h"
 
-#include "gamefacts.h"
+#include "Systems/gamefacts.h"
 
 #include "locationscene.h"
 

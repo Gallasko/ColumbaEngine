@@ -9,7 +9,7 @@
 #include "Scene/scenemanager.h"
 
 #include "Systems/tween.h"
-#include "UI/gamedataview.h"
+#include "Systems/gamefacts.h"
 
 #include "UI/themesystem.h"
 
@@ -72,7 +72,7 @@ namespace chronicle
 
             // 2. animation and the data seam every phase-2 scene drives through.
             ecs.createSystem<TweenSystem>();
-            ecs.createSystem<GameDataView>();
+            ecs.createSystem<WorldFacts>();
 
             // Register the icon sets (IconSystem comes from the engine boot).
             registerMarks(&ecs);

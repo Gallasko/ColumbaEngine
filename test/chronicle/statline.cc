@@ -18,13 +18,14 @@
 #include "UI/sizer.h"
 #include "UI/prefab.h"
 #include "UI/tooltip.h"
-#include "UI/gamedataview.h"
+#include "Systems/gamefacts.h"
 #include "Systems/tween.h"
 #include "Systems/coresystems.h"
 #include "2D/simple2dobject.h"
 #include "2D/decoratedshapes.h"
 
 #include "mocklogger.h"
+#include "factfeed.h"
 
 using namespace chronicle;
 
@@ -43,7 +44,8 @@ namespace pg
                 ThemeSystem* theme = nullptr;
 
                 constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
-                GameDataView* view = nullptr;
+                WorldFacts* facts = nullptr;
+                FactFeed* feed = nullptr;
                 TooltipSystem* tip = nullptr;
                 GlossRegistry* reg = nullptr;
 
@@ -63,7 +65,8 @@ namespace pg
                     tip = ecs.createSystem<TooltipSystem>();
                     ecs.succeed<MouseHoverSystem, TooltipSystem>();
                     ecs.createSystem<TweenSystem>();
-                    view = ecs.createSystem<GameDataView>();
+                    facts = createTestFacts(&ecs);
+                    feed = ecs.createSystem<FactFeed>();
                     theme = ecs.createSystem<ThemeSystem>();
                     theme->loadTheme("chronicle/tokens.json", "fonts");
                     tip->setDefaultFont("body-sm");
@@ -377,33 +380,36 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(statline_test, fed_from_gamedataview)
+        TEST(statline_test, fed_from_worldfacts)
         {
             MockLogger logger;
             StatLineFixture s;
 
             StatLine sl = s.make({288.0f, "Strength", "strength", 14, 30});
 
-            s.view->subscribe("character.parts.str", [&](const ElementType& v) {
-                sl.setValue(&s.ecs, v.get<int>(), false);
-            });
-            s.view->subscribe("character.parts.str.projected", [&](const ElementType& v) {
-                sl.setProjected(&s.ecs, v.get<int>());
-            });
-            s.view->subscribe("character.parts.str.threshold", [&](const ElementType& v) {
-                sl.setThreshold(&s.ecs, v.get<int>());
-            });
+            s.feed->onFact = [&](const std::string& name, const ElementType& v) {
+                if (name == "character.parts.str")
+                    sl.setValue(&s.ecs, v.get<int>(), false);
+                else if (name == "character.parts.str.projected")
+                    sl.setProjected(&s.ecs, v.get<int>());
+                else if (name == "character.parts.str.threshold")
+                    sl.setThreshold(&s.ecs, v.get<int>());
+            };
 
-            s.view->set("character.parts.str", ElementType{16});
+            // The update leaves on the first pass and is delivered on the next one
+            s.facts->setFact("character.parts.str", 16);
+            s.settle();
             s.settle();
             EXPECT_EQ(sl.figure.spec.text, "16");
 
-            s.view->set("character.parts.str.projected", ElementType{19});
+            s.facts->setFact("character.parts.str.projected", 19);
+            s.settle();
             s.settle();
             ASSERT_TRUE(sl.projected.has_value());
             EXPECT_EQ(sl.projected->spec.text, std::string("\xE2\x86\x92 ") + "19");
 
-            s.view->set("character.parts.str.threshold", ElementType{18});
+            s.facts->setFact("character.parts.str.threshold", 18);
+            s.settle();
             s.settle();
             EXPECT_TRUE(s.pos(sl.threshold)->isVisible());
             EXPECT_NEAR(s.pos(sl.threshold)->x, s.pos(sl.groove.root)->x + 286.0f * 18.0f / 30.0f, 0.5f);

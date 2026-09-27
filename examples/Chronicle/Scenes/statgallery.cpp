@@ -13,6 +13,7 @@
 #include "Input/sdlevents.h"
 #include "2D/position.h"
 #include "2D/simple2dobject.h"
+#include "Systems/gamefacts.h"
 
 #include "Core/motion.h"
 #include "UI/statline.h"
@@ -20,7 +21,6 @@
 #include "UI/button.h"
 #include "UI/gloss.h"
 #include "UI/label.h"
-#include "UI/gamedataview.h"
 
 using namespace pg;
 
@@ -66,7 +66,7 @@ namespace chronicle
     {
         theme = ecsRef->getSystem<ThemeSystem>();
 
-        auto* view = ecsRef->getSystem<GameDataView>();
+        auto facts = ecsRef->getSystem<WorldFacts>();
         auto* reg  = ecsRef->getSystem<GlossRegistry>();
 
         auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, PAGE_W, PAGE_H, theme->color("vellum"));
@@ -115,7 +115,7 @@ namespace chronicle
             }
         }
 
-        // ── Left: the Parts panel, four lines fed from the view ──────────────
+        // Left: the Parts panel, four lines fed from the facts
         Panel panel = makePanel(ecsRef, {PanelFrame::Ruled, 320.0f, "Parts", "strength", "LEDGER"});
         for (int i = 0; i < 4; ++i)
         {
@@ -135,40 +135,44 @@ namespace chronicle
             parts[static_cast<size_t>(i)] = makeStatLine(ecsRef, ls);
             panel.addChild(ecsRef, parts[static_cast<size_t>(i)].root);
 
-            // Seed the view (stores only; subscriptions are wired below).
-            if (view)
+            // Seed the facts, the listener is wired below
+            if (facts)
             {
-                view->set(path(p.id), ElementType{p.value});
+                facts->setFact(path(p.id), p.value);
 
                 if (p.projected >= 0)
-                    view->set(projPath(p.id), ElementType{p.projected});
+                    facts->setFact(projPath(p.id), p.projected);
 
-                view->set(thrPath(p.id), ElementType{p.threshold});
+                facts->setFact(thrPath(p.id), p.threshold);
             }
         }
         place(panel.root, margin, 120.0f);
-        caption(margin, 98.0f, "fed from GameDataView \xC2\xB7 hover a line for its gloss (200 ms)", "ink-muted");
+        caption(margin, 98.0f, "fed from WorldFacts \xC2\xB7 hover a line for its gloss (200 ms)", "ink-muted");
 
-        // ── The lines react through subscriptions; nothing calls a setter directly ──
-        if (view)
-        {
-            for (int i = 0; i < 4; ++i)
+        // The lines react to the facts update; nothing calls a setter directly
+        listenToEvent<WorldFactsUpdate>([this](const WorldFactsUpdate& event) {
+            for (const auto& name : event.changedFacts)
             {
-                const char* id = PARTS[i].id;
-                const size_t idx = static_cast<size_t>(i);
-                view->subscribe(path(id), [this, idx](const ElementType& v) {
-                    parts[idx].setValue(ecsRef, v.get<int>());
-                });
-                view->subscribe(projPath(id), [this, idx](const ElementType& v) {
-                    parts[idx].setProjected(ecsRef, v.get<int>());
-                });
-                view->subscribe(thrPath(id), [this, idx](const ElementType& v) {
-                    parts[idx].setThreshold(ecsRef, v.get<int>());
-                });
-            }
-        }
+                const auto& it = event.factMap->find(name);
 
-        // ── Right: five Quiet buttons that write the view ────────────────────
+                if (it == event.factMap->end())
+                    continue;
+
+                for (size_t i = 0; i < parts.size(); ++i)
+                {
+                    const char* id = PARTS[i].id;
+
+                    if (name == path(id))
+                        parts[i].setValue(ecsRef, it->second.get<int>());
+                    else if (name == projPath(id))
+                        parts[i].setProjected(ecsRef, it->second.get<int>());
+                    else if (name == thrPath(id))
+                        parts[i].setThreshold(ecsRef, it->second.get<int>());
+                }
+            }
+        });
+
+        // Right: five Quiet buttons that write the facts
         struct Btn { const char* label; const char* tag; };
         const Btn btns[5] = {
             {"Train: STR +1", "train_str"},
@@ -191,36 +195,37 @@ namespace chronicle
 
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e)
         {
-            auto* v = ecsRef->getSystem<GameDataView>();
-            if (not v)
+            auto facts = ecsRef->getSystem<WorldFacts>();
+
+            if (not facts)
                 return;
 
             if (e.tag == "train_str")
             {
-                const int n = v->get(path("str")).get<int>() + 1;
-                v->set(path("str"), ElementType{n});
+                const int n = facts->getFact<int>(path("str")) + 1;
+                facts->setFact(path("str"), n);
                 echo.setText(ecsRef, std::string("Train: STR ") + ARROW + " " + std::to_string(n));
             }
             else if (e.tag == "study_int")
             {
-                const int n = v->get(path("int")).get<int>() + 1;
-                v->set(path("int"), ElementType{n});
+                const int n = facts->getFact<int>(path("int")) + 1;
+                facts->setFact(path("int"), n);
                 echo.setText(ecsRef, std::string("Study: INT ") + ARROW + " " + std::to_string(n));
             }
             else if (e.tag == "project_str")
             {
-                v->set(projPath("str"), ElementType{20});
+                facts->setFact(projPath("str"), 20);
                 echo.setText(ecsRef, std::string("Project STR ") + ARROW + " 20");
             }
             else if (e.tag == "clear_proj")
             {
                 for (const auto& p : PARTS)
-                    v->set(projPath(p.id), ElementType{-1});
+                    facts->setFact(projPath(p.id), -1);
                 echo.setText(ecsRef, "Cleared projections");
             }
             else if (e.tag == "milestone_str")
             {
-                v->set(thrPath("str"), ElementType{24});
+                facts->setFact(thrPath("str"), 24);
                 echo.setText(ecsRef, std::string("STR milestone ") + ARROW + " 24");
             }
         });

@@ -1,5 +1,9 @@
 #pragma once
 
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "ECS/entitysystem.h"
 #include "ECS/system.h"
 
@@ -62,6 +66,18 @@ namespace pg
 
     template <>
     void serialize(Archive& archive, const IncreaseFact& value);
+
+    template <>
+    FactMetadata deserialize(const UnserializedObject& serializedString);
+
+    template <>
+    AddFact deserialize(const UnserializedObject& serializedString);
+
+    template <>
+    RemoveFact deserialize(const UnserializedObject& serializedString);
+
+    template <>
+    IncreaseFact deserialize(const UnserializedObject& serializedString);
 
     struct WorldFactsUpdate
     {
@@ -169,6 +185,9 @@ namespace pg
     template <>
     void serialize(Archive& archive, const FactChecker& value);
 
+    template <>
+    FactChecker deserialize(const UnserializedObject& serializedString);
+
     struct WorldFacts : public System<Listener<AddFact>, Listener<RemoveFact>, Listener<IncreaseFact>, SaveSys>
     {
         virtual std::string getSystemName() const override { return "WorldFacts"; }
@@ -181,6 +200,9 @@ namespace pg
 
         virtual void load(const UnserializedObject& serializedString) override
         {
+            // Saves written through the former Systems/factsystem.h used this key
+            defaultDeserialize(serializedString, "factMap", factMap);
+
             defaultDeserialize(serializedString, "worldFacts", factMap);
             defaultDeserialize(serializedString, "factMetadata", factMetadata);
         }
@@ -274,14 +296,13 @@ namespace pg
 
         std::unordered_map<std::string, FactMetadata> factMetadata;
 
-        // ===== HELPER METHODS =====
-
-        // READ operations (direct access, fast)
-        template<typename T>
-        T getFact(const std::string& name, T defaultValue = T{}) const
+        // Reads are direct
+        template <typename Type>
+        Type getFact(const std::string& name, Type defaultValue = Type{}) const
         {
             auto it = factMap.find(name);
-            return (it != factMap.end()) ? it->second.get<T>() : defaultValue;
+
+            return (it != factMap.end()) ? it->second.get<Type>() : defaultValue;
         }
 
         bool hasFact(const std::string& name) const
@@ -289,28 +310,26 @@ namespace pg
             return factMap.find(name) != factMap.end();
         }
 
-        // WRITE operations (use events, reactive)
-        template<typename T>
-        void setFact(const std::string& name, T value)
+        // Writes go through events
+        template <typename Type>
+        void setFact(const std::string& name, Type value)
         {
             ecsRef->sendEvent(AddFact{name, ElementType(value)});
         }
 
-        template<typename T>
-        void increaseFact(const std::string& name, T amount)
+        template <typename Type>
+        void increaseFact(const std::string& name, Type amount)
         {
             ecsRef->sendEvent(IncreaseFact{name, ElementType(amount)});
         }
 
-        template<typename T>
-        void setFactIfNotExists(const std::string& name, T value)
+        template <typename Type>
+        void setFactIfNotExists(const std::string& name, Type value)
         {
-            if (!hasFact(name)) {
+            if (not hasFact(name))
                 setFact(name, value);
-            }
         }
 
-        // Generic resource operations (no game-specific logic)
         float getResource(const std::string& resource) const
         {
             return getFact<float>(resource, 0.0f);
@@ -331,7 +350,6 @@ namespace pg
             increaseFact(resource, amount);
         }
 
-        // Generic statistics operations
         void incrementStat(const std::string& statName, float amount = 1.0f)
         {
             increaseFact(statName, amount);

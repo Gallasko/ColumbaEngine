@@ -9,7 +9,7 @@
 namespace chronicle
 {
     // Dev scene: a milestone panel with a roomy list (and its dense twin), a fed list bound
-    // to GameDataView paths with buttons that write them, and the ellipsis / right-aligned
+    // to WorldFacts facts with buttons that write them, and the ellipsis / right-aligned
     // pair demonstrations. T toggles theme.
     struct RequirementGallery : public pg::Scene
     {
@@ -20,7 +20,7 @@ namespace chronicle
 
         pg::_unique_id backgroundId = 0;
 
-        RequirementList fed;   // bound to milestone.squire.reqs.* through subscriptions
+        RequirementList fed;   // bound to milestone.squire.reqs.* through WorldFactsUpdate
         Label echo;
     };
 }

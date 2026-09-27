@@ -1,7 +1,7 @@
 #include "nexusscene.h"
 
 #include "managenerator.h"
-#include "gamefacts.h"
+#include "Systems/gamefacts.h"
 #include "gamemodule.h"
 
 #include "Interpreter/pginterpreter.h"

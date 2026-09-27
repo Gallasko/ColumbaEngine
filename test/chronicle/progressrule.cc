@@ -12,13 +12,14 @@
 #include "UI/ttftext.h"
 #include "UI/iconsystem.h"
 #include "UI/sizer.h"
-#include "UI/gamedataview.h"
+#include "Systems/gamefacts.h"
 #include "Systems/tween.h"
 #include "Systems/coresystems.h"
 #include "2D/simple2dobject.h"
 #include "2D/decoratedshapes.h"
 
 #include "mocklogger.h"
+#include "factfeed.h"
 
 using namespace chronicle;
 
@@ -37,7 +38,8 @@ namespace pg
                 ThemeSystem* theme = nullptr;
 
                 constant::Vector4D color(const std::string& token, const std::string& id = "") { return theme->theme().color(token, id.empty() ? theme->currentTheme() : id); }
-                GameDataView* view = nullptr;
+                WorldFacts* facts = nullptr;
+                FactFeed* feed = nullptr;
 
                 ProgressFixture()
                 {
@@ -52,7 +54,8 @@ namespace pg
                     ecs.createSystem<StrokeRect2DObjectSystem>(&renderer);
                     icons = ecs.createSystem<IconSystem>(&renderer);
                     ecs.createSystem<TweenSystem>();
-                    view = ecs.createSystem<GameDataView>();
+                    facts = createTestFacts(&ecs);
+                    feed = ecs.createSystem<FactFeed>();
                     theme = ecs.createSystem<ThemeSystem>();
                     theme->loadTheme("chronicle/tokens.json", "fonts");
                     installIconEntries();
@@ -318,16 +321,22 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(progressrule_test, fed_from_gamedataview)
+        TEST(progressrule_test, fed_from_worldfacts)
         {
             MockLogger logger;
             ProgressFixture s;
 
             ProgressRule r = makeProgressRule(&s.ecs, {240.0f});
-            s.view->subscribe("activity.running.percent", [&](const ElementType& v) {
-                r.setPercent(&s.ecs, v.get<float>(), false);
-            });
-            s.view->set("activity.running.percent", ElementType{42.0f});
+
+            s.feed->onFact = [&](const std::string& name, const ElementType& v) {
+                if (name == "activity.running.percent")
+                    r.setPercent(&s.ecs, v.get<float>(), false);
+            };
+
+            // The update leaves on the first pass and is delivered on the next one
+            s.facts->setFact("activity.running.percent", 42.0f);
+            s.settle();
+
             EXPECT_FLOAT_EQ(r.shown, 42.0f);
         }
 

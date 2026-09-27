@@ -7,6 +7,11 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Changed
+- Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
+  `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
+  serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written
+  under the old `factMap` key still loads, new saves use `worldFacts` and `factMetadata`. The Chronicle
+  example is fed through `WorldFactsUpdate` instead of `GameDataView`.
 - Theming: `ThemeSystem` + `ThemeComponent` replace `ThemeManager`. A theme file (`docs/THEMING.md`) holds
   colour tokens with per-theme values and aliases, scales, text styles with font files, and elements; an entity
   is painted by attaching `ThemeComponent{"element.key"}` and `setTheme` repaints everything. The Chronicle

@@ -10,8 +10,8 @@
 
 namespace chronicle
 {
-    // Dev scene: a Parts panel of four StatLines on the left, fed entirely through GameDataView;
-    // buttons on the right write those paths (never a setter directly); a wide bare line below.
+    // Dev scene: a Parts panel of four StatLines on the left, fed entirely through WorldFacts;
+    // buttons on the right write those facts (never a setter directly); a wide bare line below.
     // T toggles theme; R toggles reduced motion.
     struct StatGallery : public pg::Scene
     {

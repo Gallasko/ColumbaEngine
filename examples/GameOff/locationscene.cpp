@@ -4,7 +4,7 @@
 
 #include "fightscene.h"
 
-#include "gamefacts.h"
+#include "Systems/gamefacts.h"
 
 namespace pg
 {

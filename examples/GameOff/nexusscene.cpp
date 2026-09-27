@@ -1,7 +1,7 @@
 #include "nexusscene.h"
 
 #include "managenerator.h"
-#include "gamefacts.h"
+#include "Systems/gamefacts.h"
 
 #include "2D/simple2dobject.h"
 #include "UI/ttftext.h"

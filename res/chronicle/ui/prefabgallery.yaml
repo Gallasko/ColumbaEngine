@@ -46,7 +46,7 @@ children:
         text: "A wrapped body line takes the panel's inner width, as it did when the scene
 computed innerWidth() by hand."
 
-  # ── An illuminated milestone panel, fed from GameDataView ────────────────
+  # ── An illuminated milestone panel, fed from WorldFacts ────────────────
   - kind: Panel
     name: squire
     x: 372
