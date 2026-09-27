@@ -216,6 +216,21 @@ all tested (133 `test_chronicle` + engine `t1` green):
   four corners ship pre-mirrored (`corner-tl/tr/bl/br`) because the icon system
   has no flip.
 
+- The **tokens** live in two files that are always identical:
+  `res/chronicle/tokens.json` (the game) and `testdeps/chronicle/tokens.json` (the
+  tests). Edit the first, copy it over the second, commit both together. The token
+  values (`name`, `version`, `color`, `spacing`, `radius`, `border`, `opacity`,
+  `shadow`, `type.groups`) belong to the design system; `type.fonts`,
+  `type.families` and `elements` belong to the engine. `tools/merge_tokens.pg`
+  brings a new design-system export in without touching the engine's part:
+
+  ```bash
+  build/PgCompilerBootstrap tools/merge_tokens.pg <design-system tokens.json> res/chronicle/tokens.json
+  cp res/chronicle/tokens.json testdeps/chronicle/tokens.json
+  ```
+
+  It splices the raw text, so an unchanged export is a no-op diff.
+
 ## Adding a dev scene
 
 One line in `Scenes/devscenes.cpp`: add `{"MyScene", [](auto* s, auto* t, auto* st){ s->loadSystemScene<MyScene>(t, st); }}`

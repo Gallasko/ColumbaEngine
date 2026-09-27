@@ -1,0 +1,379 @@
+// merge_tokens.pg - brings a design-system token file into an engine token file.
+//
+// The design system owns the token values; the engine owns the fonts it ships and
+// the element keys it paints with. This tool replaces, in the engine file:
+//
+//     name, version, color, spacing, radius, border, opacity, shadow, type.groups
+//
+// with the design system's, keeps type.fonts, type.families and elements, and
+// writes the engine file back.
+//
+// The merge works on the raw text: each replaced value is spliced in exactly as
+// the design system wrote it and everything else keeps its bytes, so merging an
+// identical pair is a no-op diff.
+//
+// Usage:  PgCompilerBootstrap tools/merge_tokens.pg <design-system tokens> <engine tokens>
+//
+// Example (from the repo root):
+//         build/PgCompilerBootstrap tools/merge_tokens.pg chronicle-tokens.json res/chronicle/tokens.json
+//
+// res/chronicle/tokens.json and testdeps/chronicle/tokens.json are kept identical:
+// copy the result over the testdeps one after a merge.
+
+import "string"
+import "file"
+import "algorithm"
+
+// ============================================================================
+// JSON scanning (spans only, no values)
+// ============================================================================
+
+fun isSpace(c)
+{
+    return c == " " or c == "\n" or c == "\r" or c == "\t"
+}
+
+fun skipSpace(text, pos)
+{
+    var n = len(text)
+
+    while (pos < n and isSpace(charAt(text, pos)))
+    {
+        pos = pos + 1
+    }
+
+    return pos
+}
+
+// Index just past the string that opens at pos (pos is on the opening quote).
+fun skipString(text, pos)
+{
+    var n = len(text)
+    var i = pos + 1
+
+    while (i < n)
+    {
+        var c = charAt(text, i)
+
+        if (c == "\\")
+        {
+            i = i + 2
+        }
+        else if (c == "\"")
+        {
+            return i + 1
+        }
+        else
+        {
+            i = i + 1
+        }
+    }
+
+    return n
+}
+
+// Index just past the value that starts at pos: a string, an object or array
+// (nested, strings respected), or a bare scalar up to the next , } or ].
+fun skipValue(text, pos)
+{
+    var n = len(text)
+    var c = charAt(text, pos)
+
+    if (c == "\"")
+    {
+        return skipString(text, pos)
+    }
+
+    if (c == "{" or c == "[")
+    {
+        var depth = 0
+        var i = pos
+
+        while (i < n)
+        {
+            var d = charAt(text, i)
+
+            if (d == "\"")
+            {
+                i = skipString(text, i)
+            }
+            else
+            {
+                if (d == "{" or d == "[")
+                {
+                    depth = depth + 1
+                }
+                else if (d == "}" or d == "]")
+                {
+                    depth = depth - 1
+
+                    if (depth == 0)
+                    {
+                        return i + 1
+                    }
+                }
+
+                i = i + 1
+            }
+        }
+
+        return n
+    }
+
+    var j = pos
+
+    while (j < n)
+    {
+        var e = charAt(text, j)
+
+        if (e == "," or e == "}" or e == "]" or isSpace(e))
+        {
+            return j
+        }
+
+        j = j + 1
+    }
+
+    return n
+}
+
+// The members of the object that opens at pos: a table key -> {start, end}, the
+// span of the member's value. An "error" entry is set when the text is not an object.
+fun scanObject(text, pos)
+{
+    var members = {}
+    var n = len(text)
+
+    pos = skipSpace(text, pos)
+
+    if (pos >= n or charAt(text, pos) != "{")
+    {
+        members["error"] = "expected an object at offset " + toString(pos)
+        return members
+    }
+
+    pos = pos + 1
+
+    while (pos < n)
+    {
+        pos = skipSpace(text, pos)
+
+        var c = charAt(text, pos)
+
+        if (c == "}")
+        {
+            return members
+        }
+
+        if (c == ",")
+        {
+            pos = pos + 1
+        }
+        else if (c == "\"")
+        {
+            var keyEnd = skipString(text, pos)
+            var key = substring(text, pos + 1, keyEnd - 1)
+
+            pos = skipSpace(text, keyEnd)
+
+            if (charAt(text, pos) != ":")
+            {
+                members["error"] = "expected ':' after \"" + key + "\" at offset " + toString(pos)
+                return members
+            }
+
+            var valueStart = skipSpace(text, pos + 1)
+            var valueEnd = skipValue(text, valueStart)
+
+            var span = {}
+            span["start"] = valueStart
+            span["end"] = valueEnd
+            members[key] = span
+
+            pos = valueEnd
+        }
+        else
+        {
+            members["error"] = "unexpected '" + c + "' at offset " + toString(pos)
+            return members
+        }
+    }
+
+    members["error"] = "unterminated object"
+    return members
+}
+
+fun spanText(text, span)
+{
+    return substring(text, span["start"], span["end"])
+}
+
+// ============================================================================
+// Merge
+// ============================================================================
+
+// Replacements are collected as {start, end, text} on the engine text, then applied
+// from the last to the first so earlier offsets stay valid.
+fun addReplacement(list, span, text)
+{
+    var r = {}
+    r["start"] = span["start"]
+    r["end"] = span["end"]
+    r["text"] = text
+    push(list, r)
+}
+
+fun applyReplacements(text, list)
+{
+    // Sort by start, descending (the lists are a handful long).
+    var n = len(list)
+
+    for (var i = 0; i < n; i++)
+    {
+        for (var j = i + 1; j < n; j++)
+        {
+            if (list[j]["start"] > list[i]["start"])
+            {
+                var tmp = list[i]
+                list[i] = list[j]
+                list[j] = tmp
+            }
+        }
+    }
+
+    var out = text
+
+    for (var r : list)
+    {
+        out = substring(out, 0, r["start"]) + r["text"] + substring(out, r["end"])
+    }
+
+    return out
+}
+
+fun merge(designText, engineText)
+{
+    var result = {}
+    result["ok"] = false
+
+    var design = scanObject(designText, 0)
+    var engine = scanObject(engineText, 0)
+
+    if (contain(design, "error"))
+    {
+        log("Error: design-system file: " + design["error"])
+        return result
+    }
+
+    if (contain(engine, "error"))
+    {
+        log("Error: engine file: " + engine["error"])
+        return result
+    }
+
+    var replaced = ["name", "version", "color", "spacing", "radius", "border", "opacity", "shadow"]
+    var list = []
+    var changed = 0
+
+    for (var key : replaced)
+    {
+        if (not contain(design, key))
+        {
+            log("Warning: the design system has no '" + key + "'; the engine's is kept")
+        }
+        else if (not contain(engine, key))
+        {
+            log("Warning: the engine file has no '" + key + "' to replace; skipped")
+        }
+        else
+        {
+            var incoming = spanText(designText, design[key])
+
+            if (incoming != spanText(engineText, engine[key]))
+            {
+                changed = changed + 1
+                log("Replaced: " + key)
+            }
+
+            addReplacement(list, engine[key], incoming)
+        }
+    }
+
+    // type: groups come from the design system, fonts and families stay.
+    if (contain(design, "type") and contain(engine, "type"))
+    {
+        var designType = scanObject(designText, design["type"]["start"])
+        var engineType = scanObject(engineText, engine["type"]["start"])
+
+        if (contain(designType, "groups") and contain(engineType, "groups"))
+        {
+            var groups = spanText(designText, designType["groups"])
+
+            if (groups != spanText(engineText, engineType["groups"]))
+            {
+                changed = changed + 1
+                log("Replaced: type.groups")
+            }
+
+            addReplacement(list, engineType["groups"], groups)
+        }
+        else
+        {
+            log("Warning: 'type.groups' missing on one side; the engine's is kept")
+        }
+    }
+
+    result["ok"] = true
+    result["text"] = applyReplacements(engineText, list)
+    result["changed"] = changed
+    return result
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+fun main()
+{
+    if (getArgCount() < 4)
+    {
+        log("Usage: PgCompilerBootstrap merge_tokens.pg <design-system tokens> <engine tokens>")
+        return
+    }
+
+    var designFile = getArg(2)
+    var engineFile = getArg(3)
+
+    if (not fileExists(designFile))
+    {
+        log("Error: file not found: " + designFile)
+        return
+    }
+
+    if (not fileExists(engineFile))
+    {
+        log("Error: file not found: " + engineFile)
+        return
+    }
+
+    var result = merge(readFile(designFile), readFile(engineFile))
+
+    if (not result["ok"])
+    {
+        log("Nothing written")
+        return
+    }
+
+    // readFile drops the final newline; the token files keep one.
+    var text = result["text"]
+
+    if (not endsWith(text, "\n"))
+    {
+        text = text + "\n"
+    }
+
+    writeFile(engineFile, text)
+    log("Merged " + designFile + " into " + engineFile + " (" + toString(result["changed"]) + " section(s) changed)")
+}
+
+main()
