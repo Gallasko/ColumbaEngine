@@ -171,6 +171,27 @@ come from `rules/*.pg` through the scene, never from the component.
   pair in place (re-deriving `met` unless explicit), `setMet`/`clearMet` repaint
   tokens only — nothing moves.
 
+- **LifeClock** (`UI/lifeclock.h`) - one whole life on a single track, the spine of
+  the Life screen. The head line: the age in `figure-xl` with `YEARS` beside it on
+  one baseline, and at the right the next milestone with the `time` mark and the
+  months to it. The track (14 px, framed): months lived solid, the running activity
+  hatched ahead of them with a 1 px hairline at its start, age-limited windows as a
+  **wash between two ruled edges** (never a solid band: the lived fill stays readable
+  through it; a closed window keeps its wash and turns its edges `rule-ruled`), and
+  ticks at the milestone ages only, labelled below and nudged inward at the ends.
+  **The promise**: the clock advances by exactly the months the activity promised -
+  a running segment of *n* months, once settled by `setRunning(0)` and
+  `setAge(age + n / 12)`, ends where the lived fill then ends. `xFor(age)` is the
+  root-relative x of an age on the track's inner span (pure; the tests and the scene
+  place things with it). `setAge(a, animate)` changes the head figure at once and
+  tweens the fill at 600 ms per whole span (a month is about 1.4 ms: the clock
+  ticks, it does not sweep), the hatch riding the fill's head; `setRunning`,
+  `setNext`, `setWindows`, `setWindowClosed` and `setMilestones` are never animated.
+  Elements: `clock.age`, `clock.unit`, `clock.next`, `clock.next.mark`,
+  `clock.next.in`, `clock.track`, `clock.frame`, `clock.lived`, `clock.running`,
+  `clock.running.edge`, `clock.window.wash`, `clock.window.edge` (`.closed`),
+  `clock.tick.mark`, `clock.tick.label` (`.past`).
+
 ## Patterns
 
 - **State component + System + event-driven tests.** A stateful, input-receiving

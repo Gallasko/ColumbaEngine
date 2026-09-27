@@ -19,6 +19,7 @@
 #include "progressrule.h"
 #include "statline.h"
 #include "requirementlist.h"
+#include "lifeclock.h"
 
 using namespace pg;
 
@@ -59,6 +60,8 @@ namespace pg
     template <> chronicle::StatLine deserialize(const UnserializedObject&) { return chronicle::StatLine{}; }
     template <> void serialize(Archive& archive, const chronicle::RequirementList& value) { (void)value; serializeEmptyPiece<chronicle::RequirementList>(archive, "RequirementList"); }
     template <> chronicle::RequirementList deserialize(const UnserializedObject&) { return chronicle::RequirementList{}; }
+    template <> void serialize(Archive& archive, const chronicle::LifeClock& value) { (void)value; serializeEmptyPiece<chronicle::LifeClock>(archive, "LifeClock"); }
+    template <> chronicle::LifeClock deserialize(const UnserializedObject&) { return chronicle::LifeClock{}; }
 }
 
 namespace chronicle
@@ -279,6 +282,7 @@ namespace chronicle
             ecs->registerFlagComponent<ProgressRule>();
             ecs->registerFlagComponent<StatLine>();
             ecs->registerFlagComponent<RequirementList>();
+            ecs->registerFlagComponent<LifeClock>();
         }
 
         // ---- kinds ------------------------------------------------------------------------
@@ -713,13 +717,65 @@ namespace chronicle
                     return leaf(keep(ecs, rl.root, std::move(rl)));
                 }});
         }
+
+        void registerLifeClock(PrefabFactoryRegistry* registry)
+        {
+            ParamSchema schema;
+            schema.entries = {
+                {"width",         640.0f},
+                {"startAge",      7.0f},
+                {"endAge",        43.0f},
+                {"age",           7.0f},
+                {"runningMonths", 0.0f},
+                {"nextLabel",     ""},
+                {"nextIn",        -1},
+                {"z",             20},
+            };
+
+            registry->registerFactory("LifeClock", std::move(schema),
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
+                {
+                    auto theme = ecs->getSystem<ThemeSystem>();
+                    LifeClockSpec s;
+                    s.width         = numberProp(spec.props, "width", theme, s.width);
+                    s.startAge      = getParamFloat(spec.props, "startAge", s.startAge);
+                    s.endAge        = getParamFloat(spec.props, "endAge", s.endAge);
+                    s.age           = getParamFloat(spec.props, "age", s.age);
+                    s.runningMonths = getParamFloat(spec.props, "runningMonths", s.runningMonths);
+                    s.nextLabel     = stringProp(spec.props, "nextLabel", s.nextLabel);
+                    s.nextIn        = getParamInt(spec.props, "nextIn", s.nextIn);
+                    s.z             = getParamInt(spec.props, "z", s.z);
+
+                    if (const RecordList* milestones = recordsOf(spec, "milestones"))
+                    {
+                        for (const auto& rec : *milestones)
+                            s.milestones.push_back({getParamFloat(rec, "age", 0.0f), stringProp(rec, "label")});
+                    }
+
+                    if (const RecordList* windows = recordsOf(spec, "windows"))
+                    {
+                        for (const auto& rec : *windows)
+                            s.windows.push_back({getParamFloat(rec, "from", 0.0f), getParamFloat(rec, "to", 0.0f), stringProp(rec, "label"), getParamBool(rec, "closed", false)});
+                    }
+
+                    LifeClock clock = makeLifeClock(ecs, s);
+                    auto prefab = clock.root->get<Prefab>();
+                    prefab->addHelper("setAge", [](Prefab* p, float age, bool animate) { if (auto piece = pieceOf<LifeClock>(p)) piece->setAge(p->ecsRef, age, animate); });
+                    prefab->addHelper("setRunning", [](Prefab* p, float months) { if (auto piece = pieceOf<LifeClock>(p)) piece->setRunning(p->ecsRef, months); });
+                    prefab->addHelper("setNext", [](Prefab* p, const std::string& label, int months) { if (auto piece = pieceOf<LifeClock>(p)) piece->setNext(p->ecsRef, label, months); });
+                    prefab->addHelper("setWindows", [](Prefab* p, const std::vector<ClockWindow>& windows) { if (auto piece = pieceOf<LifeClock>(p)) piece->setWindows(p->ecsRef, windows); });
+                    prefab->addHelper("setWindowClosed", [](Prefab* p, size_t index, bool closed) { if (auto piece = pieceOf<LifeClock>(p)) piece->setWindowClosed(p->ecsRef, index, closed); });
+                    prefab->addHelper("setMilestones", [](Prefab* p, const std::vector<ClockMilestone>& milestones) { if (auto piece = pieceOf<LifeClock>(p)) piece->setMilestones(p->ecsRef, milestones); });
+                    return leaf(keep(ecs, clock.root, std::move(clock)));
+                }});
+        }
     }
 
     const std::vector<std::string>& chronicleKinds()
     {
         static const std::vector<std::string> kinds = {
             "Label", "Mark", "MarkedLabel", "Ornament", "Panel", "Button",
-            "Tabs", "Gloss", "ProgressRule", "StatLine", "RequirementList",
+            "Tabs", "Gloss", "ProgressRule", "StatLine", "RequirementList", "LifeClock",
         };
 
         return kinds;
@@ -747,5 +803,6 @@ namespace chronicle
         registerProgressRule(registry);
         registerStatLine(registry);
         registerRequirementList(registry);
+        registerLifeClock(registry);
     }
 }

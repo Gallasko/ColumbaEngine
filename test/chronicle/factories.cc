@@ -14,6 +14,7 @@
 #include "UI/progressrule.h"
 #include "UI/statline.h"
 #include "UI/requirementlist.h"
+#include "UI/lifeclock.h"
 #include "UI/gloss.h"
 #include "Core/motion.h"
 
@@ -131,7 +132,7 @@ namespace pg
             for (const auto& kind : chronicleKinds())
                 EXPECT_TRUE(f.registry->hasFactory(kind)) << kind;
 
-            EXPECT_EQ(chronicleKinds().size(), 11u);
+            EXPECT_EQ(chronicleKinds().size(), 12u);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -386,6 +387,81 @@ namespace pg
             auto pos = root->get<PositionComponent>();
             EXPECT_FLOAT_EQ(pos->x, 10.0f);
             EXPECT_FLOAT_EQ(pos->y, 20.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(chronicle_factories_test, lifeclock_maps_props_and_records)
+        {
+            FactoriesFixture f;
+
+            NodeSpec page = node("", "page");
+
+            NodeSpec clockNode = node("LifeClock", "clock", {{"age", 17.4f}, {"runningMonths", 9.0f}, {"nextLabel", "Choose a path"}, {"nextIn", 7}});
+            clockNode.records["milestones"] = {
+                {{"age", 7}}, {{"age", 14}}, {{"age", 18}, {"label", "Of age"}}, {{"age", 25}}, {{"age", 40}}, {{"age", 43}},
+            };
+            clockNode.records["windows"] = {
+                {{"from", 16}, {"to", 22}, {"label", "Squire"}},
+                {{"from", 9}, {"to", 13}, {"label", "Choir"}, {"closed", true}},
+            };
+            page.children.push_back(clockNode);
+
+            EntityRef root = buildTree(&f.ecs, page);
+            EntityRef clockEnt = root->get<Prefab>()->getEntity("clock");
+            ASSERT_FALSE(clockEnt.empty());
+            ASSERT_TRUE(clockEnt->has<LifeClock>());
+
+            const LifeClockSpec& spec = clockEnt->get<LifeClock>()->spec;
+            EXPECT_FLOAT_EQ(spec.width, 640.0f);
+            EXPECT_FLOAT_EQ(spec.startAge, 7.0f);
+            EXPECT_FLOAT_EQ(spec.endAge, 43.0f);
+            EXPECT_FLOAT_EQ(spec.age, 17.4f);
+            EXPECT_FLOAT_EQ(spec.runningMonths, 9.0f);
+            EXPECT_EQ(spec.nextLabel, "Choose a path");
+            EXPECT_EQ(spec.nextIn, 7);
+            ASSERT_EQ(spec.milestones.size(), 6u);
+            EXPECT_FLOAT_EQ(spec.milestones[2].age, 18.0f);
+            EXPECT_EQ(spec.milestones[2].label, "Of age");
+            ASSERT_EQ(spec.windows.size(), 2u);
+            EXPECT_FLOAT_EQ(spec.windows[0].from, 16.0f);
+            EXPECT_FLOAT_EQ(spec.windows[0].to, 22.0f);
+            EXPECT_EQ(spec.windows[0].label, "Squire");
+            EXPECT_FALSE(spec.windows[0].closed);
+            EXPECT_TRUE(spec.windows[1].closed);
+
+            auto prefab = clockEnt->get<Prefab>();
+            EXPECT_TRUE(prefab->hasHelper("setAge"));
+            EXPECT_TRUE(prefab->hasHelper("setRunning"));
+            EXPECT_TRUE(prefab->hasHelper("setNext"));
+            EXPECT_TRUE(prefab->hasHelper("setWindowClosed"));
+
+            prefab->callHelper("setRunning", 0.0f);
+            EXPECT_FLOAT_EQ(clockEnt->get<LifeClock>()->spec.runningMonths, 0.0f);
+
+            // The file builds the same clock.
+            std::vector<std::string> errors;
+            PrefabLoadOptions options;
+            options.errors = &errors;
+
+            auto fileSpec = loadNodeSpec(&f.ecs, "ui/lifeclock.yaml", options);
+            ASSERT_TRUE(fileSpec.has_value());
+            EXPECT_TRUE(errors.empty());
+
+            EntityRef fileRoot = buildTree(&f.ecs, *fileSpec);
+            EntityRef fileClock = fileRoot->get<Prefab>()->getEntity("clock");
+            ASSERT_FALSE(fileClock.empty());
+            ASSERT_TRUE(fileClock->has<LifeClock>());
+
+            const LifeClockSpec& fromFile = fileClock->get<LifeClock>()->spec;
+            EXPECT_FLOAT_EQ(fromFile.age, 17.4f);
+            EXPECT_FLOAT_EQ(fromFile.runningMonths, 9.0f);
+            EXPECT_EQ(fromFile.nextLabel, "Choose a path");
+            EXPECT_EQ(fromFile.nextIn, 7);
+            ASSERT_EQ(fromFile.milestones.size(), 6u);
+            EXPECT_EQ(fromFile.milestones[2].label, "Of age");
+            ASSERT_EQ(fromFile.windows.size(), 2u);
+            EXPECT_EQ(fromFile.windows[1].label, "Choir");
+            EXPECT_TRUE(fromFile.windows[1].closed);
         }
     }
 }

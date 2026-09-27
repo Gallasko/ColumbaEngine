@@ -1,0 +1,18 @@
+kind: LifeClock
+name: clock
+x: 10
+y: 20
+age: 17.4
+runningMonths: 9
+nextLabel: Choose a path
+nextIn: 7
+milestones:
+  - {age: 7}
+  - {age: 14}
+  - {age: 18, label: Of age}
+  - {age: 25}
+  - {age: 40}
+  - {age: 43}
+windows:
+  - {from: 16, to: 22, label: Squire}
+  - {from: 9, to: 13, label: Choir, closed: true}

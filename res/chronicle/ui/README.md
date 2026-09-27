@@ -19,7 +19,7 @@ One file holds one root node. A node is a map:
 
 | key | meaning |
 |---|---|
-| `kind` | the factory: `Label`, `Mark`, `MarkedLabel`, `Ornament`, `Panel`, `Button`, `Tabs`, `Gloss`, `ProgressRule`, `StatLine`, `RequirementList`, or the engine's `Shape2D`, `Texture`, `TTFText`, `Layout:Vertical`, `Layout:Horizontal`. Omitted: a bare container (its children keep their own `x` / `y`). |
+| `kind` | the factory: `Label`, `Mark`, `MarkedLabel`, `Ornament`, `Panel`, `Button`, `Tabs`, `Gloss`, `ProgressRule`, `StatLine`, `RequirementList`, `LifeClock`, or the engine's `Shape2D`, `Texture`, `TTFText`, `Layout:Vertical`, `Layout:Horizontal`. Omitted: a bare container (its children keep their own `x` / `y`). |
 | `name` | registers the entity on the enclosing prefab (`getEntity(name)`), which also reaches the piece's helpers. |
 | `x`, `y` | places the node (useful on roots and on children of a bare container). |
 | `anchors` | list of `{side, target, targetSide?, margin?}`; `target` is `main`, `parent`, a sibling's name or a globally named entity; sides are the `AnchorType` names, any case. |
@@ -44,8 +44,9 @@ comment.
   children and puts them in its body layout, so the rows never spell those out, and
   a nested panel lands in the next z band on its own. An explicit child value wins.
 - Lists: `Tabs.items` (`label`, `glyph`, `badge`), `RequirementList.items` (`label`,
-  `current`, `needed`, `met` as a bool), `Gloss.rows` (`label`, `value`), and
-  `MarkedLabel.label` as a nested map (or flat `text` / `style` / `color` on the node).
+  `current`, `needed`, `met` as a bool), `Gloss.rows` (`label`, `value`),
+  `LifeClock.milestones` (`age`, `label`), `LifeClock.windows` (`from`, `to`, `label`,
+  `closed`), and `MarkedLabel.label` as a nested map (or flat `text` / `style` / `color` on the node).
 - Any node takes `theme: <element key>` next to `kind` and `name`: the builder attaches a
   `ThemeComponent` to the node's leaf, so an engine `Shape2D` or `TTFText` is painted by the
   theme like the kit pieces are (`theme: scene.background`, `theme: label.caption.ink-muted`).
