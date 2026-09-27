@@ -1124,7 +1124,10 @@ namespace pg
             spec.children.push_back(shapeNode("b", 40.0f, 20.0f));
             spec.children.push_back(shapeNode("c", 25.0f, 20.0f));
 
-            auto layoutEnt = buildTree(&ecs, spec);
+            // The root is the Prefab container; the layout is its main entity.
+            auto root = buildTree(&ecs, spec);
+            ASSERT_FALSE(root.empty());
+            auto layoutEnt = root->get<Prefab>()->getEntity("MainEntity");
             ASSERT_FALSE(layoutEnt.empty());
             ASSERT_TRUE(layoutEnt->has<HorizontalLayout>());
 
@@ -1160,7 +1163,10 @@ namespace pg
             spec.children.push_back(shapeNode("r1", 60.0f, 25.0f));
             spec.children.push_back(shapeNode("r2", 60.0f, 25.0f));
 
-            auto layoutEnt = buildTree(&ecs, spec);
+            // The root is the Prefab container; the layout is its main entity.
+            auto root = buildTree(&ecs, spec);
+            ASSERT_FALSE(root.empty());
+            auto layoutEnt = root->get<Prefab>()->getEntity("MainEntity");
             ASSERT_FALSE(layoutEnt.empty());
             ASSERT_TRUE(layoutEnt->has<VerticalLayout>());
 
@@ -1194,8 +1200,11 @@ namespace pg
                 {"stickToEnd", true},
             };
 
-            auto layoutEnt = buildTree(&ecs, spec);
+            auto root = buildTree(&ecs, spec);
+            ASSERT_FALSE(root.empty());
+            auto layoutEnt = root->get<Prefab>()->getEntity("MainEntity");
             ASSERT_FALSE(layoutEnt.empty());
+            ASSERT_TRUE(layoutEnt->has<HorizontalLayout>());
 
             auto layout = layoutEnt->get<HorizontalLayout>();
             EXPECT_EQ(layout->spacing,   7u);

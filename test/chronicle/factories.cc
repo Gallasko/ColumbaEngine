@@ -164,12 +164,13 @@ namespace pg
             EXPECT_FLOAT_EQ(r->get<PositionComponent>()->width, 268.0f);
             EXPECT_FLOAT_EQ(r->get<PositionComponent>()->z, 20.0f);
 
-            // Both went into the body layout, as Panel::addChild would have put them.
+            f.settle();
+
+            // Both went into the body layout, as Panel::addChild would have put them (addEntity
+            // is event-driven, so the layout holds them after a frame).
             EntityRef body = p->get<Prefab>()->getEntity("body");
             ASSERT_FALSE(body.empty());
             EXPECT_EQ(body->get<VerticalLayout>()->entities.size(), 2u);
-
-            f.settle();
 
             // The list's setters are helpers on its prefab: meeting the requirement flips the mark.
             auto fed = r->get<Prefab>();

@@ -674,9 +674,9 @@ namespace pg
             s.ecs.executeOnce();
             s.ecs.executeOnce();
 
-            ASSERT_TRUE(root);
+            ASSERT_FALSE(root.empty());
             EntityRef leaf = root->get<Prefab>()->getEntity("ground");
-            ASSERT_TRUE(leaf);
+            ASSERT_FALSE(leaf.empty());
             ASSERT_TRUE(leaf->has<ThemeComponent>());
             EXPECT_EQ(leaf->get<ThemeComponent>()->element, "panel.ground");
             expectColor(leaf->get<Simple2DObject>()->colors, 255, 255, 255, 255);
