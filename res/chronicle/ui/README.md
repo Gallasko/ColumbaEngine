@@ -81,6 +81,11 @@ children:
     tag: gallery.train
 ```
 
-`Chronicle --dev PrefabFileGallery` renders `prefabgallery.yaml`, the reference page.
+## Files
+
+| file | scene | what |
+|---|---|---|
+| `prefabgallery.yaml` | `Chronicle --dev PrefabFileGallery` | the reference page: one of every kind |
+| `clockgallery.yaml` | `Chronicle --dev ClockGallery` | four `LifeClock`s: the Life screen's, a first frame, an old age, a narrow one |
 
 The file format and the builder are documented in `docs/PREFAB_TREES.md`.

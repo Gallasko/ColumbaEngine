@@ -13,6 +13,7 @@
 #include "statgallery.h"
 #include "requirementgallery.h"
 #include "prefabfilegallery.h"
+#include "clockgallery.h"
 
 namespace chronicle
 {
@@ -30,6 +31,7 @@ namespace chronicle
             {"StatGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<StatGallery>(); }},
             {"RequirementGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<RequirementGallery>(); }},
             {"PrefabFileGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<PrefabFileGallery>(); }},
+            {"ClockGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<ClockGallery>(); }},
         };
 
         return scenes;

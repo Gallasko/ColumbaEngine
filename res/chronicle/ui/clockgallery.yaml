@@ -1,0 +1,158 @@
+# Dev gallery for the life clock: `Chronicle --dev ClockGallery`.
+#
+# Four clocks. `life` is the Life screen's, wired by the scene to GameDataView
+# (life.age, activity.running.months, life.next.label, life.next.in) and driven by
+# the buttons on the right; the other three are still frames of the same piece.
+name: gallery
+children:
+
+  - kind: Shape2D
+    name: page
+    width: 1320
+    height: 860
+    z: 0
+    theme: scene.background
+
+  - kind: TTFText
+    name: note
+    x: 48
+    y: 48
+    z: 15
+    text: "T theme - R reduced motion - every clock on this page comes from res/chronicle/ui/clockgallery.yaml"
+    theme: label.caption.ink-muted
+
+  # The Life screen's clock: something running, three windows, the six ticks
+  - kind: TTFText
+    x: 48
+    y: 90
+    z: 15
+    text: "life - fed from GameDataView, driven by the buttons"
+    theme: label.caption.ink-muted
+
+  - kind: LifeClock
+    name: life
+    x: 48
+    y: 112
+    width: 640
+    age: 17.4
+    runningMonths: 9
+    nextLabel: Choose a path
+    nextIn: 7
+    milestones:
+      - {age: 7, label: Childhood}
+      - {age: 14, label: Apprenticeship}
+      - {age: 18, label: Choose a path}
+      - {age: 25, label: Journeyman}
+      - {age: 40, label: Elder}
+      - {age: 43, label: The end}
+    windows:
+      - {from: 16, to: 22, label: Squire}
+      - {from: 20, to: 28, label: Academy}
+      - {from: 9, to: 13, label: Choir, closed: true}
+
+  # The first frame of a life: nothing lived, nothing running
+  - kind: TTFText
+    x: 48
+    y: 240
+    z: 15
+    text: "young - age 7, nothing running, no windows"
+    theme: label.caption.ink-muted
+
+  - kind: LifeClock
+    name: young
+    x: 48
+    y: 262
+    width: 640
+    age: 7
+    milestones:
+      - {age: 7}
+      - {age: 14}
+      - {age: 18}
+      - {age: 25}
+      - {age: 40}
+      - {age: 43}
+
+  # Near the end: every tick past, the running year clipped at the end of the track
+  - kind: TTFText
+    x: 48
+    y: 390
+    z: 15
+    text: "old - age 42.5, a year running, clipped at 43"
+    theme: label.caption.ink-muted
+
+  - kind: LifeClock
+    name: old
+    x: 48
+    y: 412
+    width: 640
+    age: 42.5
+    runningMonths: 12
+    nextLabel: The end
+    nextIn: 6
+    milestones:
+      - {age: 7}
+      - {age: 14}
+      - {age: 18}
+      - {age: 25}
+      - {age: 40}
+      - {age: 43}
+
+  # Half the width: the ticks crowd, the end labels stay inside the root
+  - kind: TTFText
+    x: 48
+    y: 540
+    z: 15
+    text: "narrow - 320 wide"
+    theme: label.caption.ink-muted
+
+  - kind: LifeClock
+    name: narrow
+    x: 48
+    y: 562
+    width: 320
+    age: 17.4
+    runningMonths: 9
+    nextLabel: Choose a path
+    nextIn: 7
+    milestones:
+      - {age: 7}
+      - {age: 14}
+      - {age: 18}
+      - {age: 25}
+      - {age: 40}
+      - {age: 43}
+    windows:
+      - {from: 16, to: 22, label: Squire}
+
+  # The buttons drive `life` through GameDataView
+  - kind: Button
+    name: advance
+    x: 760
+    y: 112
+    variant: quiet
+    label: Advance a month
+    tag: clock.advance
+
+  - kind: Button
+    name: season
+    x: 760
+    y: 156
+    variant: quiet
+    label: Start a season (6 mo)
+    tag: clock.season
+
+  - kind: Button
+    name: choir
+    x: 760
+    y: 200
+    variant: quiet
+    label: Open the Choir window   # the scene flips it with the window
+    tag: clock.choir
+
+  - kind: Button
+    name: reset
+    x: 760
+    y: 244
+    variant: quiet
+    label: Reset to 17.4
+    tag: clock.reset
