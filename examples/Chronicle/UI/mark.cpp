@@ -178,7 +178,7 @@ namespace chronicle
         if (labelLeft > 0.0f)
             boxAnchor->setLeftMargin(labelLeft);
 
-        root.get<Prefab>()->addToPrefab(label.entity);
+        root.get<Prefab>()->addToPrefab(label.entity, "label");
 
         std::optional<Mark> mark;
         if (hasMark)
@@ -187,7 +187,7 @@ namespace chronicle
             auto markAnchor = m.entity->get<UiAnchor>();
             markAnchor->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
             markAnchor->setVerticalCenter(PosAnchor{root.id, AnchorType::VerticalCenter});
-            root.get<Prefab>()->addToPrefab(m.entity);
+            root.get<Prefab>()->addToPrefab(m.entity, "mark");
             mark = m;
         }
 
@@ -252,7 +252,7 @@ namespace chronicle
         auto markAnchor = m.entity->get<UiAnchor>();
         markAnchor->setLeftAnchor(PosAnchor{root.id, AnchorType::Left});
         markAnchor->setVerticalCenter(PosAnchor{root.id, AnchorType::VerticalCenter});
-        root->get<Prefab>()->addToPrefab(m.entity);
+        root->get<Prefab>()->addToPrefab(m.entity, "mark");
         mark = m;
 
         root->get<PositionComponent>()->setWidth(labelLeft + label.entity->get<PositionComponent>()->width);

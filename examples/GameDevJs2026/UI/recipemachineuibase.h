@@ -114,7 +114,7 @@ protected:
 
     // Entity handles populated post-build by walking the prefab tree. Saves a per-access
     // hash-map lookup compared to storing _unique_id and re-resolving via ecs->getEntity.
-    pg::EntityRef backdrop;      // outer Prefab wrap returned by buildNode (carries UiAnchor)
+    pg::EntityRef backdrop;      // outer Prefab wrap returned by buildTree (carries UiAnchor)
     pg::EntityRef bgLeaf;        // inner Shape2D backdrop — what other entities anchor to
     pg::EntityRef title;
     pg::EntityRef inputSlots[2];

@@ -92,7 +92,7 @@ EntityRef makeSlotPrefab(EntitySystem* ecs, ItemRegistry* itemRegistry, const Pr
         spec.children.push_back(std::move(text));
     }
 
-    EntityRef slot = buildNode(ecs, spec);
+    EntityRef slot = buildTree(ecs, spec);
     auto prefab = slot->get<Prefab>();
     EntityRef bg = prefab->getEntity("bg");
     EntityRef itemEnt = prefab->getEntity("item");
@@ -200,9 +200,9 @@ void registerSlotFactory(PrefabFactoryRegistry* factory, ItemRegistry* itemRegis
     };
 
     factory->registerFactory("Slot", std::move(schema),
-        [itemRegistry](EntitySystem* ecs, const PrefabParams& params) {
+        leafFactory([itemRegistry](EntitySystem* ecs, const PrefabParams& params) {
             return makeSlotPrefab(ecs, itemRegistry, params);
-        });
+        }));
 }
 
 void SlotSystem::init()

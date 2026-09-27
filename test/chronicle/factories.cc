@@ -146,32 +146,38 @@ namespace pg
             list.records["items"] = {{{"label", "Strength"}, {"current", 12}, {"needed", 18}}};
             spec.children.push_back(list);
 
-            auto built = buildTree(&f.ecs, spec);
-            f.settle();
+            EntityRef root = buildTree(&f.ecs, spec);
 
-            auto* p = built.get<Panel>("p");
-            auto* l = built.get<Label>("l");
-            auto* r = built.get<RequirementList>("r");
-            ASSERT_NE(p, nullptr);
-            ASSERT_NE(l, nullptr);
-            ASSERT_NE(r, nullptr);
+            // Read before the first frame: the sizes and bands are what the factories set.
+            auto prefab = root->get<Prefab>();
+            EntityRef p = prefab->getEntity("p");
+            EntityRef l = prefab->getEntity("l");
+            EntityRef r = prefab->getEntity("r");
+            ASSERT_FALSE(p.empty());
+            ASSERT_FALSE(l.empty());
+            ASSERT_FALSE(r.empty());
 
-            EXPECT_EQ(p->spec.z, 10);
-            EXPECT_EQ(p->spec.contentZ, 20);
-
-            // Neither child wrote a width or a z: both came from the panel.
-            EXPECT_FLOAT_EQ(l->spec.width, p->innerWidth());
-            EXPECT_EQ(l->spec.z, p->spec.contentZ);
-            EXPECT_FLOAT_EQ(r->spec.width, p->innerWidth());
-            EXPECT_EQ(r->spec.z, p->spec.contentZ);
+            // A ruled panel pads by space-4 (16): the inner width is 268, the content band z 20.
+            EXPECT_FLOAT_EQ(p->get<PositionComponent>()->z, 10.0f);
+            EXPECT_FLOAT_EQ(l->get<PositionComponent>()->width, 268.0f);
+            EXPECT_FLOAT_EQ(l->get<PositionComponent>()->z, 20.0f);
+            EXPECT_FLOAT_EQ(r->get<PositionComponent>()->width, 268.0f);
+            EXPECT_FLOAT_EQ(r->get<PositionComponent>()->z, 20.0f);
 
             // Both went into the body layout, as Panel::addChild would have put them.
-            auto body = p->body->get<VerticalLayout>();
-            EXPECT_EQ(body->entities.size(), 2u);
+            EntityRef body = p->get<Prefab>()->getEntity("body");
+            ASSERT_FALSE(body.empty());
+            EXPECT_EQ(body->get<VerticalLayout>()->entities.size(), 2u);
 
-            // The handle is the real result struct: its setters work.
-            r->setItem(&f.ecs, 0, 18, 18);
-            EXPECT_TRUE(r->rows[0].item.isMet());
+            f.settle();
+
+            // The list's setters are helpers on its prefab: meeting the requirement flips the mark.
+            auto fed = r->get<Prefab>();
+            ASSERT_TRUE(fed->hasHelper("setItem"));
+            EXPECT_EQ(fed->callHelper<size_t>("size"), 1u);
+
+            fed->callHelper("setItem", size_t{0}, 18, 18);
+            EXPECT_EQ(fed->getEntity("row0")->get<Prefab>()->getEntity("mark")->get<IconComponent>()->iconName, "check");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -184,19 +190,24 @@ namespace pg
             inner.children.push_back(node("Label", "deep", {{"text", "Swordsmanship"}}));
             outer.children.push_back(inner);
 
-            auto built = buildTree(&f.ecs, outer);
+            EntityRef root = buildTree(&f.ecs, outer);
 
-            auto* o = built.get<Panel>("outer");
-            auto* i = built.get<Panel>("inner");
-            auto* d = built.get<Label>("deep");
-            ASSERT_NE(o, nullptr);
-            ASSERT_NE(i, nullptr);
-            ASSERT_NE(d, nullptr);
+            // Names are scoped: the inner panel is named on the outer's prefab, the label on the inner's.
+            EntityRef o = root->get<Prefab>()->getEntity("outer");
+            EntityRef i = root->get<Prefab>()->getEntity("inner");
+            ASSERT_FALSE(o.empty());
+            ASSERT_FALSE(i.empty());
+            EntityRef d = i->get<Prefab>()->getEntity("deep");
+            ASSERT_FALSE(d.empty());
 
-            EXPECT_EQ(i->spec.z, o->spec.contentZ);          // 20
-            EXPECT_EQ(i->spec.contentZ, o->spec.contentZ + 10);   // 30
-            EXPECT_FLOAT_EQ(i->spec.width, o->innerWidth());
-            EXPECT_EQ(d->spec.z, i->spec.contentZ);
+            // And findEntity walks the tree from the root.
+            EXPECT_EQ(root->get<Prefab>()->findEntity("deep").id, d.id);
+            EXPECT_TRUE(root->get<Prefab>()->findEntity("ghost").empty());
+
+            EXPECT_FLOAT_EQ(o->get<PositionComponent>()->z, 10.0f);
+            EXPECT_FLOAT_EQ(i->get<PositionComponent>()->z, 20.0f);       // the outer content band
+            EXPECT_FLOAT_EQ(i->get<PositionComponent>()->width, 228.0f);  // the outer inner width
+            EXPECT_FLOAT_EQ(d->get<PositionComponent>()->z, 30.0f);       // the inner content band
         }
 
         // ----------------------------------------------------------------------------------------
@@ -212,27 +223,37 @@ namespace pg
             page.children.push_back(node("ProgressRule", "rule", {{"width", "space-7"}}));
             page.children.push_back(node("Mark", "mark", {{"name", "gold"}, {"size", 24}}));
 
-            auto built = buildTree(&f.ecs, page);
+            EntityRef root = buildTree(&f.ecs, page);
+            auto prefab = root->get<Prefab>();
 
-            ASSERT_NE(built.get<Panel>("lit"), nullptr);
-            EXPECT_EQ(built.get<Panel>("lit")->corners.size(), 4u);
+            // An illuminated panel: ground, frame, four corners and the body
+            EntityRef lit = prefab->getEntity("lit");
+            ASSERT_FALSE(lit.empty());
+            EXPECT_EQ(lit->get<Prefab>()->childrenIds.size(), 7u);
 
-            ASSERT_NE(built.get<Label>("ell"), nullptr);
-            EXPECT_EQ(built.get<Label>("ell")->spec.overflow, Overflow::Ellipsis);
-            EXPECT_EQ(built.get<Label>("ell")->spec.align, Align::Right);
+            EntityRef ell = prefab->getEntity("ell");
+            ASSERT_FALSE(ell.empty());
+            EXPECT_EQ(ell->get<TTFText>()->overflow, Overflow::Ellipsis);
+            EXPECT_EQ(ell->get<TTFText>()->align, Align::Right);
 
-            ASSERT_NE(built.get<Label>("bad"), nullptr);
-            EXPECT_EQ(built.get<Label>("bad")->spec.color, "ink");   // unknown token -> default
+            EntityRef bad = prefab->getEntity("bad");
+            ASSERT_FALSE(bad.empty());
+            EXPECT_EQ(bad->get<ThemeComponent>()->element, labelElement("body", "ink"));   // unknown token -> default
 
-            ASSERT_NE(built.get<Button>("seal"), nullptr);
-            EXPECT_EQ(built.get<Button>("seal")->spec.variant, ButtonVariant::Seal);
-            EXPECT_EQ(built.get<Button>("seal")->spec.tag, "t");
+            EntityRef seal = prefab->getEntity("seal");
+            ASSERT_FALSE(seal.empty());
+            auto face = seal->get<Prefab>()->getEntity("face");
+            ASSERT_FALSE(face.empty());
+            EXPECT_EQ(face->get<ButtonState>()->variant, ButtonVariant::Seal);
+            EXPECT_EQ(face->get<ButtonState>()->tag, "t");
 
-            ASSERT_NE(built.get<ProgressRule>("rule"), nullptr);
-            EXPECT_FLOAT_EQ(built.get<ProgressRule>("rule")->spec.width, 48.0f);   // space-7
+            EntityRef rule = prefab->getEntity("rule");
+            ASSERT_FALSE(rule.empty());
+            EXPECT_FLOAT_EQ(rule->get<PositionComponent>()->width, 48.0f);   // space-7
 
-            ASSERT_NE(built.get<Mark>("mark"), nullptr);
-            EXPECT_EQ(built.get<Mark>("mark")->spec.size, MarkSize::S24);
+            EntityRef mark = prefab->getEntity("mark");
+            ASSERT_FALSE(mark.empty());
+            EXPECT_FLOAT_EQ(mark->get<PositionComponent>()->width, 24.0f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -262,28 +283,72 @@ namespace pg
             ml.records["label"] = {{{"text", "412"}, {"style", "figure"}}};
             page.children.push_back(ml);
 
-            auto built = buildTree(&f.ecs, page);
+            EntityRef root = buildTree(&f.ecs, page);
+            auto prefab = root->get<Prefab>();
 
-            auto* t = built.get<Tabs>("tabs");
-            ASSERT_NE(t, nullptr);
-            EXPECT_EQ(t->tabs.size(), 3u);
-            EXPECT_EQ(t->spec.items[1].badge, 2);
-            EXPECT_EQ(t->spec.tag, "nav");
+            EntityRef t = prefab->getEntity("tabs");
+            ASSERT_FALSE(t.empty());
+            auto tabsPrefab = t->get<Prefab>();
+            EXPECT_EQ(tabsPrefab->namedChildrenIds.count("tab2"), 1u);
+            EXPECT_EQ(tabsPrefab->namedChildrenIds.count("tab3"), 0u);
+            EXPECT_EQ(tabsPrefab->getEntity("badge1")->get<TTFText>()->text, "2");
+            EXPECT_EQ(tabsPrefab->getEntity("tab0")->get<TabState>()->tag, "nav");
 
-            auto* r = built.get<RequirementList>("reqs");
-            ASSERT_NE(r, nullptr);
-            ASSERT_EQ(r->rows.size(), 3u);
-            EXPECT_EQ(r->rows[0].item.current, 12);
-            EXPECT_EQ(r->rows[0].item.needed, 18);
-            EXPECT_EQ(r->rows[0].item.met, -1);
-            EXPECT_EQ(r->rows[1].item.met, 0);
-            EXPECT_EQ(r->rows[2].item.met, 1);
+            EntityRef r = prefab->getEntity("reqs");
+            ASSERT_FALSE(r.empty());
+            auto reqs = r->get<Prefab>();
+            EXPECT_EQ(reqs->callHelper<size_t>("size"), 3u);
 
-            auto* m = built.get<MarkedLabel>("ml");
-            ASSERT_NE(m, nullptr);
-            EXPECT_TRUE(m->mark.has_value());
-            EXPECT_EQ(m->label.spec.text, "412");
-            EXPECT_EQ(m->label.spec.style, "figure");
+            auto markOf = [&](const std::string& row) {
+                return reqs->getEntity(row)->get<Prefab>()->getEntity("mark")->get<IconComponent>()->iconName;
+            };
+            EXPECT_EQ(markOf("row0"), "cross");   // 12 / 18, derived
+            EXPECT_EQ(markOf("row1"), "cross");   // met: false
+            EXPECT_EQ(markOf("row2"), "check");   // met: 1
+            EXPECT_EQ(reqs->getEntity("value0")->get<TTFText>()->text, "12 / 18");
+
+            EntityRef m = prefab->getEntity("ml");
+            ASSERT_FALSE(m.empty());
+            auto mlPrefab = m->get<Prefab>();
+            EXPECT_EQ(mlPrefab->namedChildrenIds.count("mark"), 1u);
+            EXPECT_EQ(mlPrefab->getEntity("label")->get<TTFText>()->text, "412");
+            EXPECT_EQ(mlPrefab->getEntity("label")->get<TTFText>()->fontPath, "figure");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(chronicle_factories_test, helpers_are_exposed_on_the_piece)
+        {
+            FactoriesFixture f;
+
+            NodeSpec page = node("", "page");
+            page.children.push_back(node("Panel", "panel", {{"width", 200.0f}, {"heading", "Parts"}}));
+            page.children.push_back(node("StatLine", "stat", {{"value", 12}, {"max", 30}}));
+            page.children.push_back(node("Gloss", "gloss", {{"text", "before"}, {"width", 200.0f}}));
+
+            EntityRef root = buildTree(&f.ecs, page);
+            auto prefab = root->get<Prefab>();
+            f.settle();
+
+            // The piece is a component on its root; the helpers change it in place.
+            EntityRef panelEnt = prefab->getEntity("panel");
+            ASSERT_TRUE(panelEnt->has<Panel>());
+            EXPECT_EQ(panelEnt->get<Panel>()->spec.heading, "Parts");
+
+            auto panel = panelEnt->get<Prefab>();
+            EXPECT_TRUE(panel->hasHelper("setHeading"));
+            EXPECT_TRUE(panel->hasHelper("setWidth"));
+            panel->callHelper("setWidth", 240.0f);
+            EXPECT_FLOAT_EQ(panelEnt->get<Panel>()->spec.width, 240.0f);
+
+            EntityRef statEnt = prefab->getEntity("stat");
+            auto stat = statEnt->get<Prefab>();
+            EXPECT_TRUE(stat->hasHelper("setValue"));
+            stat->callHelper("setValue", 20, false);
+            EXPECT_EQ(statEnt->get<StatLine>()->spec.value, 20);
+
+            auto gloss = prefab->getEntity("gloss")->get<Prefab>();
+            ASSERT_TRUE(gloss->hasHelper("setText"));
+            gloss->callHelper("setText", std::string("after"));
         }
 
         // ----------------------------------------------------------------------------------------
@@ -299,23 +364,25 @@ namespace pg
             ASSERT_TRUE(spec.has_value());
             EXPECT_TRUE(errors.empty());
 
-            auto built = buildTree(&f.ecs, *spec);
+            EntityRef root = buildTree(&f.ecs, *spec);
+            auto prefab = root->get<Prefab>();
+
+            EntityRef panel = prefab->getEntity("panel");
+            EntityRef fed = prefab->getEntity("fed");
+            EntityRef train = prefab->getEntity("train");
+            ASSERT_FALSE(panel.empty());
+            ASSERT_FALSE(fed.empty());
+            ASSERT_FALSE(train.empty());
+
+            EXPECT_EQ(fed->get<Prefab>()->callHelper<size_t>("size"), 2u);
+            EXPECT_FLOAT_EQ(fed->get<PositionComponent>()->width, 288.0f);   // the panel's inner width (320 - 2 x 16)
+            EXPECT_EQ(train->get<Prefab>()->getEntity("face")->get<ButtonState>()->tag, "test.train");
+            EXPECT_FLOAT_EQ(train->get<PositionComponent>()->z, 20.0f);     // the panel's content band
+
             f.settle();
 
-            auto* panel = built.get<Panel>("panel");
-            auto* fed = built.get<RequirementList>("fed");
-            auto* train = built.get<Button>("train");
-            ASSERT_NE(panel, nullptr);
-            ASSERT_NE(fed, nullptr);
-            ASSERT_NE(train, nullptr);
-
-            EXPECT_EQ(fed->rows.size(), 2u);
-            EXPECT_FLOAT_EQ(fed->spec.width, panel->innerWidth());
-            EXPECT_EQ(train->spec.tag, "test.train");
-            EXPECT_EQ(train->spec.z, panel->spec.contentZ);
-
             // x / y from the file placed the wrap.
-            auto pos = built.root->get<PositionComponent>();
+            auto pos = root->get<PositionComponent>();
             EXPECT_FLOAT_EQ(pos->x, 10.0f);
             EXPECT_FLOAT_EQ(pos->y, 20.0f);
         }

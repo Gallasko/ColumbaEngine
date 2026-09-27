@@ -16,7 +16,7 @@ A complete example is `res/chronicle/ui/prefabgallery.yaml`, shown by `Chronicle
 - [Placement and anchors](#placement-and-anchors)
 - [Flow](#flow)
 - [Layout nodes](#layout-nodes)
-- [Names and handles](#names-and-handles)
+- [Names and helpers](#names-and-helpers)
 - [Theme](#theme)
 - [Inheritance](#inheritance)
 - [The YAML file](#the-yaml-file)
@@ -57,10 +57,10 @@ auto spec = loadNodeSpec(ecs, "res/chronicle/ui/prefabgallery.yaml", options);
 
 if (spec)
 {
-    PrefabBuildResult built = buildTree(ecs, *spec);
+    EntityRef page = buildTree(ecs, *spec);
 
-    if (auto* panel = built.get<chronicle::Panel>("skills"))
-        panel->setHeading(ecs, "Parts");
+    auto skills = page->get<Prefab>()->getEntity("skills")->get<Prefab>();
+    skills->callHelper("setHeading", std::string("Parts"));
 }
 ```
 
@@ -76,7 +76,7 @@ The registry of factories must exist first: `ecs->createSystem<PrefabFactoryRegi
 | Field | Meaning |
 |---|---|
 | `kind` | which factory builds the leaf: an engine kind (`Shape2D`, `TTFText`, `Texture`, `Panel`, `Text`, `TitleBar`), a layout (`Layout:Vertical`, `Layout:Horizontal`), a game kind, or empty for a bare container |
-| `name` | the node's name in its parent's scope; also the key of its handle in the build result |
+| `name` | the node's name in the enclosing prefab's scope (`getEntity`, `findEntity`) |
 | `theme` | the theme element key the leaf is painted with (see [Theme](#theme)) |
 | `props` | the scalar parameters of the leaf, read by the factory |
 | `records` | the list-shaped parameters: `records["items"]` is a list of flat maps |
@@ -101,17 +101,19 @@ root.children.push_back(label);
 
 ## Kinds and what they produce
 
-Every node except a layout is wrapped: the builder creates a Prefab container (a `Prefab` + `UiAnchor` +
-`PositionComponent` entity), asks the kind's factory for the leaf, and makes that leaf the container's main
-entity, anchored to the container's top-left with the container sized to it. Children are built the same way
-and land beside the leaf inside the container. This is the one rule to keep in mind: the thing you position is
-the container, the thing you paint or read is the leaf.
+Every node is wrapped: the builder creates a Prefab container (a `Prefab` + `UiAnchor` + `PositionComponent`
+entity), asks the kind's factory for the leaf, and makes that leaf the container's main entity, anchored to
+the container's top-left with the container sized to it. Children are built the same way and land beside the
+leaf inside the container. This is the one rule to keep in mind: the thing you position is the container, the
+thing you paint or read is the leaf. `buildTree` returns the root container, so `root->get<Prefab>()` always
+works.
 
 - A **non-empty kind** is looked up in the `PrefabFactoryRegistry`. Unknown kinds log and produce nothing.
 - An **empty kind** produces a container with no leaf: a grouping node whose children keep the `x` and `y`
   they declare. The root of `prefabgallery.yaml` is one.
 - A **layout kind** (`Layout:Vertical`, `Layout:Horizontal`) produces one entity carrying the layout component;
-  its children are added to the layout and reflow at runtime.
+  its children are added to the layout and reflow at runtime. A nested layout sits inside its parent's
+  container as is; a layout at the root gets a container of its own like every other node.
 
 ## Props and records
 
@@ -165,30 +167,44 @@ disappear at runtime or need to scroll.
 `kind: Layout:Vertical` or `Layout:Horizontal` creates a real `VerticalLayout` or `HorizontalLayout` entity.
 Its props: `x`, `y`, `width`, `height`, `z`, `visibility`, `scrollable`, plus the layout's own `spacing`,
 `fitToAxis`, `spaced` and `stickToEnd`. Children are added with `addEntity` and the `LayoutSystem` places
-them every frame. A layout declares no defaults for its children; it forwards what it inherited.
+them every frame. A layout declares no defaults for its children; it forwards what it inherited. A layout has
+no `Prefab` of its own, so the names of its children are registered on the nearest enclosing prefab.
 
 A factory can also expose a **slot**: a layout entity inside the leaf that receives the node's children
 instead of the sibling-anchoring path. The Chronicle panel's body is one, which is why a panel's children in
 the YAML need no anchors at all.
 
-## Names and handles
+## Names and helpers
 
 A named child registers under `name` in its parent's scope. `parent->get<Prefab>()->getEntity("bg")` returns
 the child's leaf, not its container, so `->get<Simple2DObject>()` works directly on it. Anchoring to a sibling
-by name targets that leaf as well.
+by name targets that leaf as well. A composite piece (a leaf with a `Prefab` of its own, like every Chronicle
+panel) also takes over the names of the nodes nested under it, so `getEntity("squire")->get<Prefab>()->getEntity("fed")`
+walks the file's structure. `Prefab::findEntity(name)` searches the whole subtree when the path does not
+matter.
 
-A factory may return a **handle**: its own rich result struct (`chronicle::Panel`, `chronicle::Label`...).
-`buildTree` collects the handles of named nodes in `PrefabBuildResult::handles`, retrieved with the exact type:
+A factory that builds a stateful piece attaches the piece's struct to the piece's entity as a component, so
+the state lives on the entity: `page->get<Prefab>()->findEntity("fed")->get<chronicle::RequirementList>()`
+is the list with every setter. On top of that, a composite piece registers its setters as **helpers** on its
+own `Prefab` (`Prefab::addHelper`), stateless conveniences that reach the component by name:
 
 ```cpp
-auto built = buildTree(ecs, spec);
+EntityRef page = buildTree(ecs, spec);
 
-if (auto* list = built.get<chronicle::RequirementList>("fed"))
-    list->setItem(ecs, 0, 18, 18);
+auto fed = page->get<Prefab>()->findEntity("fed")->get<Prefab>();
+
+if (fed->hasHelper("setItem"))
+    fed->callHelper("setItem", size_t{0}, 18, 18);
+
+const size_t rows = fed->callHelper<size_t>("size");
 ```
 
-An unnamed node's handle is dropped with a warning, which is expected for the dividers and plain labels of a
-list. `buildNode` is the root-only form that returns just the root entity.
+Two rules of the helper registry: a helper's arguments are matched by exact type (an `int` literal does not
+match a `size_t` parameter, a string literal does not match a `std::string` one), and an unknown name or a
+type mismatch throws, so check with `hasHelper` when a file may or may not carry the piece. The Chronicle kit
+registers the same setters its structs offer, minus the ecs argument (`examples/Chronicle/UI/factories.h`).
+A single-entity piece such as a label needs no helper: change its `TTFText`, `IconComponent` or
+`ThemeComponent` directly.
 
 ## Theme
 
@@ -217,8 +233,7 @@ described in `docs/THEMING.md`.
 A factory can hand props down to the node's children through `FactoryResult::childDefaults`. They are merged
 under each child's own props, so an explicit child value always wins, and they are forwarded through layout
 nodes and through kinds that declare none of their own. The Chronicle panel gives its children
-`width: innerWidth` and `z: contentZ`; that is why a panel's rows never spell out a width. A factory can tell
-what it inherited from `BuildContext::inherited`.
+`width: innerWidth` and `z: contentZ`; that is why a panel's rows never spell out a width.
 
 ## The YAML file
 
@@ -237,39 +252,50 @@ collected there too. `nullopt` comes back only when the file cannot be read or i
 
 ## Writing a factory
 
-A factory is a function registered under a kind name with its schema. The simple contract takes the props
-and returns one entity:
-
-```cpp
-registry->registerFactory("Badge", ParamSchema{{{"text", ""}, {"width", 24.0f}}}, [](EntitySystem* ecs, const PrefabParams& p) -> EntityRef {
-    auto shape = makeUiSimple2DShape(ecs, Shape2D::Square, getParamFloat(p, "width"), 16.0f);
-
-    return shape.entity;
-});
-```
-
-The extended contract (`PrefabFactoryFnEx`) receives the whole `NodeSpec` (props already merged with the
-schema defaults and the parent's inheritance, plus `records`; `children` are the builder's business) and the
-`BuildContext`, and returns a `FactoryResult`:
+A factory is a function registered under a kind name with its schema. It receives the whole `NodeSpec`
+(props already merged with the schema defaults and the parent's inheritance, plus `records`, `name` and
+`theme`; `children` are the builder's business) and returns a `FactoryResult`:
 
 - `entity`: the leaf, empty on failure;
 - `slot`: a layout entity that receives the node's children;
-- `childDefaults`: props merged under every child's own;
-- `handle`: the rich result exposed by name.
+- `childDefaults`: props merged under every child's own.
+
+A factory that produces one entity and nothing else wraps a props-in, entity-out function with `leafFactory`:
 
 ```cpp
-registry->registerFactory("Panel", std::move(schema), PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult {
+registry->registerFactory("Badge", ParamSchema{{{"text", ""}, {"width", 24.0f}}}, leafFactory([](EntitySystem* ecs, const PrefabParams& p) -> EntityRef {
+    auto shape = makeUiSimple2DShape(ecs, Shape2D::Square, getParamFloat(p, "width"), 16.0f);
+
+    return shape.entity;
+}));
+```
+
+A composite piece returns its slot and defaults, keeps its state on its entity as a component, and registers
+its runtime setters as helpers on its own prefab. The helpers are stateless: they look the component up on
+the prefab they were called on, and the `Prefab` knows the ECS, so they take no ecs argument:
+
+```cpp
+registry->registerFactory("Panel", std::move(schema), PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult {
     Panel panel = makePanel(ecs, panelSpecFrom(spec.props));
+
+    auto prefab = panel.root->get<Prefab>();
+    prefab->addHelper("setHeading", [](Prefab* p, const std::string& text) { p->ecsRef->getEntity(p->id)->get<Panel>()->setHeading(p->ecsRef, text); });
 
     FactoryResult r;
     r.entity = panel.root;
     r.slot = panel.body;
     r.childDefaults = {{"width", ElementType{panel.innerWidth()}}, {"z", ElementType{panel.spec.contentZ}}};
-    r.handle = std::make_any<Panel>(std::move(panel));
+
+    ecs->attachGeneric<Panel>(panel.root, std::move(panel));
 
     return r;
 }});
 ```
+
+A plain struct attaches with `attachGeneric`; register its flag component once at setup
+(`ecs->registerFlagComponent<Panel>()`) and give it an archive form (`serialize`/`deserialize` specialisations,
+empty when the piece is never saved). The first parameter of a helper is always the `Prefab*` it was called
+on; the registry adds it.
 
 Conventions the Chronicle factories follow (`examples/Chronicle/UI/factories.cpp`): enum props are lowercase
 strings, colour props are theme token names checked against the theme, numeric props also accept a spacing

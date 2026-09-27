@@ -10,7 +10,7 @@
 namespace pg
 {
     /**
-     * Declarative description of a UI tree. Built at runtime by `buildNode()` / `buildTree()`.
+     * Declarative description of a UI tree. Built at runtime by `buildTree()`.
      *
      * One rule:
      *   - `kind == "Layout:Horizontal" | "Layout:Vertical"` produces a layout entity; children
@@ -53,9 +53,8 @@ namespace pg
      *   `parent->get<Prefab>()->getEntity("bg")->get<Simple2DObject>()` works ergonomically.
      *   Anchoring a sibling to `"bg"` resolves to the leaf — geometrically identical to
      *   targeting the wrap (the leaf is auto-anchored top-left and width/height-constrained
-     *   to its wrap container).
-     *   A named node whose factory returns a handle (`FactoryResult::handle`) also lands in
-     *   `PrefabBuildResult::handles` under the same name.
+     *   to its wrap container). A layout has no Prefab of its own: the names of its children are
+     *   registered on the nearest enclosing prefab.
      *
      * Anchor sides (`AnchorSpec::side`):
      *   - Top / Bottom / Left / Right       -> cardinal anchor with margin

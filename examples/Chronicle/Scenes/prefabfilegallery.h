@@ -20,7 +20,7 @@ namespace chronicle
 
         pg::_unique_id backgroundId = 0;
 
-        pg::PrefabBuildResult built;   // owns the handles the lambdas below point into
+        pg::EntityRef page;             // the file's root prefab
         Label echo;
     };
 }

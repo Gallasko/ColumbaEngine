@@ -12,8 +12,11 @@ namespace chronicle
     //
     // Kinds: Label, Mark, MarkedLabel, Ornament, Panel, Button, Tabs, Gloss, ProgressRule,
     // StatLine, RequirementList. Each maps its props onto the matching XSpec and calls the
-    // existing makeX; the result struct is returned as the node's handle, so
-    // `built.get<Panel>("skills")` keeps every runtime setter.
+    // existing makeX, then attaches the result struct to the piece's entity as a component:
+    // `getEntity("fed")->get<RequirementList>()->setItem(ecs, 0, 18, 18)` keeps every runtime
+    // setter. The composite kinds also register those setters as helpers on their root prefab
+    // (`getEntity("fed")->get<Prefab>()->callHelper("setItem", size_t{0}, 18, 18)`), with the
+    // same arguments as the struct's method minus the ecs.
     //
     // Conventions shared by every kind:
     //   - enum props are lowercase strings (`frame: ruled`, `overflow: wrap`, `variant: seal`);

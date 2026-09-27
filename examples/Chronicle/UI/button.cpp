@@ -140,7 +140,7 @@ namespace chronicle
         state->tag = spec.tag;
         const _unique_id faceId = face.id;
         b.face = face;
-        root.get<Prefab>()->addToPrefab(face);
+        root.get<Prefab>()->addToPrefab(face, "face");
 
         // Join the kit-wide Tab order (buttons, tabs, later rows share one).
         if (auto* fo = ecs->getSystem<FocusOrderSystem>())

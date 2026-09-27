@@ -87,7 +87,7 @@ namespace chronicle
         ba->setTopMargin(P + headBlock);
 
         body.get<PositionComponent>()->setZ(static_cast<float>(spec.contentZ));
-        root.get<Prefab>()->addToPrefab(body.entity);
+        root.get<Prefab>()->addToPrefab(body.entity, "body");
         panel.body = body.entity;
 
         // root height = body.height + (P + headBlock + P). The body auto-sizes to its rows, but the

@@ -1,11 +1,12 @@
 #include "factories.h"
 
 #include <algorithm>
-#include <any>
 #include <cctype>
+#include <unordered_set>
 #include <utility>
 
 #include "ECS/entitysystem.h"
+#include "UI/prefab.h"
 #include "UI/themesystem.h"
 
 #include "label.h"
@@ -20,6 +21,45 @@
 #include "requirementlist.h"
 
 using namespace pg;
+
+// The kit pieces are attached to their root entity as plain components so a scene reaches them
+// with getEntity(name)->get<Panel>(). A component needs an archive form; the pieces are rebuilt
+// from their file, never saved, so it is empty.
+namespace pg
+{
+    namespace
+    {
+        template <typename Piece>
+        void serializeEmptyPiece(Archive& archive, const char* name)
+        {
+            archive.startSerialization(name);
+            archive.endSerialization();
+        }
+    }
+
+    template <> void serialize(Archive& archive, const chronicle::Label& value) { (void)value; serializeEmptyPiece<chronicle::Label>(archive, "Label"); }
+    template <> chronicle::Label deserialize(const UnserializedObject&) { return chronicle::Label{}; }
+    template <> void serialize(Archive& archive, const chronicle::Mark& value) { (void)value; serializeEmptyPiece<chronicle::Mark>(archive, "Mark"); }
+    template <> chronicle::Mark deserialize(const UnserializedObject&) { return chronicle::Mark{}; }
+    template <> void serialize(Archive& archive, const chronicle::MarkedLabel& value) { (void)value; serializeEmptyPiece<chronicle::MarkedLabel>(archive, "MarkedLabel"); }
+    template <> chronicle::MarkedLabel deserialize(const UnserializedObject&) { return chronicle::MarkedLabel{}; }
+    template <> void serialize(Archive& archive, const chronicle::Ornament& value) { (void)value; serializeEmptyPiece<chronicle::Ornament>(archive, "Ornament"); }
+    template <> chronicle::Ornament deserialize(const UnserializedObject&) { return chronicle::Ornament{}; }
+    template <> void serialize(Archive& archive, const chronicle::Panel& value) { (void)value; serializeEmptyPiece<chronicle::Panel>(archive, "Panel"); }
+    template <> chronicle::Panel deserialize(const UnserializedObject&) { return chronicle::Panel{}; }
+    template <> void serialize(Archive& archive, const chronicle::Button& value) { (void)value; serializeEmptyPiece<chronicle::Button>(archive, "Button"); }
+    template <> chronicle::Button deserialize(const UnserializedObject&) { return chronicle::Button{}; }
+    template <> void serialize(Archive& archive, const chronicle::Tabs& value) { (void)value; serializeEmptyPiece<chronicle::Tabs>(archive, "Tabs"); }
+    template <> chronicle::Tabs deserialize(const UnserializedObject&) { return chronicle::Tabs{}; }
+    template <> void serialize(Archive& archive, const chronicle::Gloss& value) { (void)value; serializeEmptyPiece<chronicle::Gloss>(archive, "Gloss"); }
+    template <> chronicle::Gloss deserialize(const UnserializedObject&) { return chronicle::Gloss{}; }
+    template <> void serialize(Archive& archive, const chronicle::ProgressRule& value) { (void)value; serializeEmptyPiece<chronicle::ProgressRule>(archive, "ProgressRule"); }
+    template <> chronicle::ProgressRule deserialize(const UnserializedObject&) { return chronicle::ProgressRule{}; }
+    template <> void serialize(Archive& archive, const chronicle::StatLine& value) { (void)value; serializeEmptyPiece<chronicle::StatLine>(archive, "StatLine"); }
+    template <> chronicle::StatLine deserialize(const UnserializedObject&) { return chronicle::StatLine{}; }
+    template <> void serialize(Archive& archive, const chronicle::RequirementList& value) { (void)value; serializeEmptyPiece<chronicle::RequirementList>(archive, "RequirementList"); }
+    template <> chronicle::RequirementList deserialize(const UnserializedObject&) { return chronicle::RequirementList{}; }
+}
 
 namespace chronicle
 {
@@ -187,13 +227,58 @@ namespace chronicle
             }
         }
 
-        template <typename Handle>
-        FactoryResult result(EntityRef entity, Handle&& handle)
+        FactoryResult leaf(EntityRef entity)
         {
             FactoryResult r;
             r.entity = entity;
-            r.handle = std::make_any<std::decay_t<Handle>>(std::forward<Handle>(handle));
             return r;
+        }
+
+        // The piece struct, attached as a component on the piece's own entity: the state lives on
+        // the entity, and a scene reads it with getEntity(name)->get<Panel>(). Returns the entity.
+        template <typename Piece>
+        EntityRef keep(EntitySystem* ecs, EntityRef entity, Piece&& piece)
+        {
+            ecs->attachGeneric<Piece>(entity, std::move(piece));
+            return entity;
+        }
+
+        // The piece on the prefab a helper was called on. The helpers are stateless conveniences
+        // over that component; the Prefab knows the ECS, so the setters take no ecs argument.
+        template <typename Piece>
+        Piece* pieceOf(Prefab* p)
+        {
+            auto ent = p->ecsRef->getEntity(p->id);
+
+            if (not ent or not ent->has<Piece>())
+                return nullptr;
+
+            return ent->get<Piece>().component;
+        }
+
+        // ECS instances whose flag components are registered; keeps a repeat registration a no-op.
+        std::unordered_set<EntitySystem*>& piecesRegisteredIn()
+        {
+            static std::unordered_set<EntitySystem*> instances;
+            return instances;
+        }
+
+        void registerPieceComponents(EntitySystem* ecs)
+        {
+            if (not piecesRegisteredIn().insert(ecs).second)
+                return;
+
+            ecs->registerFlagComponent<Label>();
+            ecs->registerFlagComponent<Mark>();
+            ecs->registerFlagComponent<MarkedLabel>();
+            ecs->registerFlagComponent<Ornament>();
+            ecs->registerFlagComponent<Panel>();
+            ecs->registerFlagComponent<Button>();
+            ecs->registerFlagComponent<Tabs>();
+            ecs->registerFlagComponent<Gloss>();
+            ecs->registerFlagComponent<ProgressRule>();
+            ecs->registerFlagComponent<StatLine>();
+            ecs->registerFlagComponent<RequirementList>();
         }
 
         // ---- kinds ------------------------------------------------------------------------
@@ -205,11 +290,11 @@ namespace chronicle
             schema.entries.push_back({"z", 0});
 
             registry->registerFactory("Label", std::move(schema),
-                PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     Label label = makeLabel(ecs, labelSpecFrom(spec.props, theme, LabelSpec{}));
-                    return result(label.entity, std::move(label));
+                    return leaf(keep(ecs, label.entity, std::move(label)));
                 }});
         }
 
@@ -224,7 +309,7 @@ namespace chronicle
             };
 
             registry->registerFactory("Mark", std::move(schema),
-                PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     MarkSpec s;
@@ -234,7 +319,7 @@ namespace chronicle
                     s.z      = getParamInt(spec.props, "z", s.z);
 
                     Mark mark = makeMark(ecs, s);
-                    return result(mark.entity, std::move(mark));
+                    return leaf(keep(ecs, mark.entity, std::move(mark)));
                 }});
         }
 
@@ -248,7 +333,7 @@ namespace chronicle
             schema.entries.push_back({"z",           0});
 
             registry->registerFactory("MarkedLabel", std::move(schema),
-                PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     MarkedLabelSpec s;
@@ -266,7 +351,11 @@ namespace chronicle
                         s.label = flat;
 
                     MarkedLabel ml = makeMarkedLabel(ecs, s);
-                    return result(ml.root, std::move(ml));
+                    auto prefab = ml.root->get<Prefab>();
+                    prefab->addHelper("setColor", [](Prefab* p, const std::string& token) { if (auto piece = pieceOf<MarkedLabel>(p)) piece->setColor(p->ecsRef, token); });
+                    prefab->addHelper("setText", [](Prefab* p, const std::string& text) { if (auto piece = pieceOf<MarkedLabel>(p)) piece->setText(p->ecsRef, text); });
+                    prefab->addHelper("setMark", [](Prefab* p, const std::string& name) { if (auto piece = pieceOf<MarkedLabel>(p)) piece->setMark(p->ecsRef, name); });
+                    return leaf(keep(ecs, ml.root, std::move(ml)));
                 }});
         }
 
@@ -301,7 +390,7 @@ namespace chronicle
             };
 
             registry->registerFactory("Ornament", std::move(schema),
-                PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     OrnamentSpec s;
@@ -317,7 +406,10 @@ namespace chronicle
                     s.z      = getParamInt(spec.props, "z", s.z);
 
                     Ornament o = makeOrnament(ecs, s);
-                    return result(o.root, std::move(o));
+                    auto prefab = o.root->get<Prefab>();
+                    prefab->addHelper("setColor", [](Prefab* p, const std::string& token) { if (auto piece = pieceOf<Ornament>(p)) piece->setColor(p->ecsRef, token); });
+                    prefab->addHelper("setLetter", [](Prefab* p, const std::string& letter) { if (auto piece = pieceOf<Ornament>(p)) piece->setLetter(p->ecsRef, letter); });
+                    return leaf(keep(ecs, o.root, std::move(o)));
                 }});
         }
 
@@ -340,7 +432,7 @@ namespace chronicle
             };
 
             registry->registerFactory("Panel", std::move(schema),
-                PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     PanelSpec s;
@@ -354,6 +446,10 @@ namespace chronicle
                     s.contentZ = contentZ < 0 ? s.z + 10 : contentZ;
 
                     Panel panel = makePanel(ecs, s);
+                    auto prefab = panel.root->get<Prefab>();
+                    prefab->addHelper("setHeading", [](Prefab* p, const std::string& text) { if (auto piece = pieceOf<Panel>(p)) piece->setHeading(p->ecsRef, text); });
+                    prefab->addHelper("setAside", [](Prefab* p, const std::string& text) { if (auto piece = pieceOf<Panel>(p)) piece->setAside(p->ecsRef, text); });
+                    prefab->addHelper("setWidth", [](Prefab* p, float width) { if (auto piece = pieceOf<Panel>(p)) piece->setWidth(p->ecsRef, width); });
 
                     // The generalised part of makePanel's caller contract: children draw in the
                     // content band and span the inner width unless they say otherwise, and they
@@ -365,7 +461,7 @@ namespace chronicle
                         {"width", ElementType{panel.innerWidth()}},
                         {"z",     ElementType{panel.spec.contentZ}},
                     };
-                    r.handle = std::make_any<Panel>(std::move(panel));
+                    keep(ecs, panel.root, std::move(panel));
                     return r;
                 }});
         }
@@ -389,7 +485,7 @@ namespace chronicle
             };
 
             registry->registerFactory("Button", std::move(schema),
-                PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     ButtonSpec s;
@@ -403,7 +499,11 @@ namespace chronicle
                     s.z        = getParamInt(spec.props, "z", s.z);
 
                     Button b = makeButton(ecs, s);
-                    return result(b.root, std::move(b));
+                    auto prefab = b.root->get<Prefab>();
+                    prefab->addHelper("setDisabled", [](Prefab* p, bool disabled) { if (auto piece = pieceOf<Button>(p)) piece->setDisabled(p->ecsRef, disabled); });
+                    prefab->addHelper("setDisabledReason", [](Prefab* p, bool disabled, const std::string& reason) { if (auto piece = pieceOf<Button>(p)) piece->setDisabled(p->ecsRef, disabled, reason); });
+                    prefab->addHelper("setLabel", [](Prefab* p, const std::string& text) { if (auto piece = pieceOf<Button>(p)) piece->setLabel(p->ecsRef, text); });
+                    return leaf(keep(ecs, b.root, std::move(b)));
                 }});
         }
 
@@ -418,7 +518,7 @@ namespace chronicle
             };
 
             registry->registerFactory("Tabs", std::move(schema),
-                PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     TabsSpec s;
@@ -443,7 +543,10 @@ namespace chronicle
                         LOG_ERROR(DOM, "Tabs: `items` is empty; a tab row needs 2 to 6 items");
 
                     Tabs t = makeTabs(ecs, s);
-                    return result(t.root, std::move(t));
+                    auto prefab = t.root->get<Prefab>();
+                    prefab->addHelper("setActive", [](Prefab* p, int index) { if (auto piece = pieceOf<Tabs>(p)) piece->setActive(p->ecsRef, index); });
+                    prefab->addHelper("setBadge", [](Prefab* p, int index, int count) { if (auto piece = pieceOf<Tabs>(p)) piece->setBadge(p->ecsRef, index, count); });
+                    return leaf(keep(ecs, t.root, std::move(t)));
                 }});
         }
 
@@ -464,7 +567,7 @@ namespace chronicle
             };
 
             registry->registerFactory("Gloss", std::move(schema),
-                PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     GlossSpec s;
@@ -482,7 +585,9 @@ namespace chronicle
                     }
 
                     Gloss g = makeGloss(ecs, s);
-                    return result(g.root, std::move(g));
+                    auto prefab = g.root->get<Prefab>();
+                    prefab->addHelper("setText", [](Prefab* p, const std::string& text) { if (auto piece = pieceOf<Gloss>(p)) piece->setText(p->ecsRef, text); });
+                    return leaf(keep(ecs, g.root, std::move(g)));
                 }});
         }
 
@@ -501,7 +606,7 @@ namespace chronicle
             };
 
             registry->registerFactory("ProgressRule", std::move(schema),
-                PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     ProgressRuleSpec s;
@@ -515,7 +620,13 @@ namespace chronicle
                     s.z               = getParamInt(spec.props, "z", s.z);
 
                     ProgressRule pr = makeProgressRule(ecs, s);
-                    return result(pr.root, std::move(pr));
+                    auto prefab = pr.root->get<Prefab>();
+                    prefab->addHelper("setPercent", [](Prefab* p, float percent, bool animate) { if (auto piece = pieceOf<ProgressRule>(p)) piece->setPercent(p->ecsRef, percent, animate); });
+                    prefab->addHelper("setForecast", [](Prefab* p, float percent) { if (auto piece = pieceOf<ProgressRule>(p)) piece->setForecast(p->ecsRef, percent); });
+                    prefab->addHelper("setCaption", [](Prefab* p, const std::string& text) { if (auto piece = pieceOf<ProgressRule>(p)) piece->setCaption(p->ecsRef, text); });
+                    prefab->addHelper("setNib", [](Prefab* p, bool on) { if (auto piece = pieceOf<ProgressRule>(p)) piece->setNib(p->ecsRef, on); });
+                    prefab->addHelper("setWidth", [](Prefab* p, float width) { if (auto piece = pieceOf<ProgressRule>(p)) piece->setWidth(p->ecsRef, width); });
+                    return leaf(keep(ecs, pr.root, std::move(pr)));
                 }});
         }
 
@@ -536,7 +647,7 @@ namespace chronicle
             };
 
             registry->registerFactory("StatLine", std::move(schema),
-                PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     StatLineSpec s;
@@ -552,7 +663,12 @@ namespace chronicle
                     s.z         = getParamInt(spec.props, "z", s.z);
 
                     StatLine sl = makeStatLine(ecs, s);
-                    return result(sl.root, std::move(sl));
+                    auto prefab = sl.root->get<Prefab>();
+                    prefab->addHelper("setValue", [](Prefab* p, int value, bool animate) { if (auto piece = pieceOf<StatLine>(p)) piece->setValue(p->ecsRef, value, animate); });
+                    prefab->addHelper("setProjected", [](Prefab* p, int projected) { if (auto piece = pieceOf<StatLine>(p)) piece->setProjected(p->ecsRef, projected); });
+                    prefab->addHelper("setThreshold", [](Prefab* p, int threshold) { if (auto piece = pieceOf<StatLine>(p)) piece->setThreshold(p->ecsRef, threshold); });
+                    prefab->addHelper("setNote", [](Prefab* p, const std::string& text) { if (auto piece = pieceOf<StatLine>(p)) piece->setNote(p->ecsRef, text); });
+                    return leaf(keep(ecs, sl.root, std::move(sl)));
                 }});
         }
 
@@ -566,7 +682,7 @@ namespace chronicle
             };
 
             registry->registerFactory("RequirementList", std::move(schema),
-                PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     RequirementListSpec s;
@@ -588,7 +704,13 @@ namespace chronicle
                     }
 
                     RequirementList rl = makeRequirementList(ecs, s);
-                    return result(rl.root, std::move(rl));
+                    auto prefab = rl.root->get<Prefab>();
+                    prefab->addHelper("setItems", [](Prefab* p, const std::vector<Requirement>& items) { if (auto piece = pieceOf<RequirementList>(p)) piece->setItems(p->ecsRef, items); });
+                    prefab->addHelper("setItem", [](Prefab* p, size_t index, int current, int needed) { if (auto piece = pieceOf<RequirementList>(p)) piece->setItem(p->ecsRef, index, current, needed); });
+                    prefab->addHelper("setMet", [](Prefab* p, size_t index, bool met) { if (auto piece = pieceOf<RequirementList>(p)) piece->setMet(p->ecsRef, index, met); });
+                    prefab->addHelper("clearMet", [](Prefab* p, size_t index) { if (auto piece = pieceOf<RequirementList>(p)) piece->clearMet(p->ecsRef, index); });
+                    prefab->addHelper("size", [](Prefab* p) -> size_t { auto piece = pieceOf<RequirementList>(p); return piece ? piece->size() : 0; });
+                    return leaf(keep(ecs, rl.root, std::move(rl)));
                 }});
         }
     }
@@ -610,6 +732,9 @@ namespace chronicle
             LOG_ERROR(DOM, "registerChronicleFactories needs a registry");
             return;
         }
+
+        // The pieces are attached as components; their storage exists before the first build.
+        registerPieceComponents(registry->ecsRef);
 
         registerLabel(registry);
         registerMark(registry);

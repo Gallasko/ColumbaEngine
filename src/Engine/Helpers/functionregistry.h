@@ -90,6 +90,11 @@ namespace pg {
             add(name, std::function(std::move(func)));
         }
 
+        bool has(const std::string& name) const
+        {
+            return functions_.find(name) != functions_.end();
+        }
+
         // Generic call returning std::any
         template<typename... Args>
         std::any call(const std::string& name, Args&&... args)

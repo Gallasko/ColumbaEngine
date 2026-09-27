@@ -158,7 +158,7 @@ namespace
     // Realise the leaf by looking up the kind in the PrefabFactoryRegistry. Built-in
     // primitives (Shape2D / TTFText / Texture) are registered alongside user factories — there
     // is no separate hardcoded dispatch. Returns an empty result if kind is empty or unknown.
-    FactoryResult realiseLeaf(EntitySystem* ecs, const NodeSpec& spec, BuildContext& ctx)
+    FactoryResult realiseLeaf(EntitySystem* ecs, const NodeSpec& spec)
     {
         if (spec.kind.empty())
             return FactoryResult{};
@@ -170,7 +170,7 @@ namespace
             return FactoryResult{};
         }
 
-        FactoryResult result = registry->buildEx(spec, ctx);
+        FactoryResult result = registry->build(spec);
 
         // The node's theme element keys the leaf into the theme: painted now, repainted on every switch.
         if (result.entity and not spec.theme.empty())
@@ -183,28 +183,36 @@ namespace
     // parent's name map exposes the leaf (not the wrap). Falls back to the entity itself when
     // there's no mainEntity (e.g. layouts or empty-kind wraps).
     //
-    // Only unwraps "trivial" wraps — those whose Prefab contains nothing but the mainEntity.
-    // Composite wraps (mainEntity + sibling children) are kept whole so callers can traverse
-    // the sub-tree via `wrap->get<Prefab>()->getEntity("childName")`. This makes nested-prefab
-    // access work both ways: shapeNode("bg") in a parent exposes bg's Simple2DObject directly,
-    // while a kind=Shape2D + children composite exposes its inner namedChildren via the wrap.
+    // A wrap unwraps when it holds nothing but the main entity, or when the main entity carries a
+    // Prefab of its own (a composite piece: the wrap's names were copied onto it, see
+    // buildPrefabWrapping, so the piece exposes both its parts and its nested nodes, and its
+    // helpers are one get<Prefab>() away). A kind=Shape2D + children composite has no such
+    // prefab and stays the wrap, which exposes the nested names.
     EntityRef unwrapToMain(EntityRef ent)
     {
         if (not ent or not ent->has<Prefab>())
             return ent;
         auto p = ent->get<Prefab>();
 
-        if (p->childrenIds.size() != 1)
+        auto it = p->namedChildrenIds.find(MAIN_ENTITY_KEY);
+        if (it == p->namedChildrenIds.end() or it->second.id == 0)
             return ent;
 
-        auto inner = p->getEntity(MAIN_ENTITY_KEY);
-        return inner ? inner : ent;
+        EntityRef inner = it->second;
+
+        if (p->childrenIds.size() == 1 or inner->has<Prefab>())
+            return inner;
+
+        return ent;
     }
 
+    using NameMap = std::unordered_map<std::string, EntityRef>;
+
     // Forward declaration — recursive entry. `inherited` is what the parent forwards to this
-    // node's children (already applied to `spec.props` by the caller).
-    EntityRef buildNodeImpl(EntitySystem* ecs, const NodeSpec& spec, BuildContext& ctx,
-                            const ElementMap& inherited, bool applyOwnAnchors);
+    // node's children (already applied to `spec.props` by the caller). A layout node has no
+    // Prefab of its own, so it hands the names of its children up through `liftedNames` for the
+    // nearest enclosing Prefab to register.
+    EntityRef buildNodeImpl(EntitySystem* ecs, const NodeSpec& spec, const ElementMap& inherited, bool applyOwnAnchors, NameMap* liftedNames);
 
     template<typename LayoutComp>
     void configureLayout(LayoutComp* layout, const ElementMap& p)
@@ -236,8 +244,7 @@ namespace
         return false;
     }
 
-    EntityRef buildLayoutNode(EntitySystem* ecs, const NodeSpec& spec, BuildContext& ctx,
-                              const ElementMap& inherited, bool applyOwnAnchors)
+    EntityRef buildLayoutNode(EntitySystem* ecs, const NodeSpec& spec, const ElementMap& inherited, NameMap& names)
     {
         const std::string_view orient = std::string_view(spec.kind).substr(LAYOUT_PREFIX.size());
 
@@ -274,22 +281,18 @@ namespace
         if (hasParam(spec.props, "visibility"))
             layoutEnt->get<PositionComponent>()->setVisibility(getParam(spec.props, "visibility", true));
 
-        std::unordered_map<std::string, EntityRef> nameToEntity;
-        nameToEntity[RESERVED_PARENT] = layoutEnt;
-        nameToEntity[RESERVED_MAIN]   = layoutEnt;   // for layouts, "main" == "parent"
-
         // A layout declares no childDefaults of its own; it forwards what it inherited.
         for (const auto& childSpec : spec.children)
         {
             NodeSpec child = childSpec;
             applyInherited(child, inherited);
 
-            EntityRef childEnt = buildNodeImpl(ecs, child, ctx, inherited, /*applyOwnAnchors=*/false);
+            EntityRef childEnt = buildNodeImpl(ecs, child, inherited, /*applyOwnAnchors=*/false, &names);
             if (not childEnt)
                 continue;
 
             if (not child.name.empty())
-                nameToEntity[child.name] = unwrapToMain(childEnt);
+                names[child.name] = unwrapToMain(childEnt);
 
             if (orient == "Horizontal")
                 layoutEnt->get<HorizontalLayout>()->addEntity(childEnt);
@@ -297,16 +300,31 @@ namespace
                 layoutEnt->get<VerticalLayout>()->addEntity(childEnt);
         }
 
-        if (applyOwnAnchors)
-            applyAnchorsToEntity(layoutEnt, spec.anchors, nameToEntity);
-
         return layoutEnt;
+    }
+
+    // The names a layout lifted, registered on the enclosing prefab and its anchor scope.
+    void adoptLiftedNames(CompRef<Prefab> prefab, NameMap& nameToEntity, const NameMap& lifted)
+    {
+        for (const auto& [name, ent] : lifted)
+        {
+            if (name == RESERVED_MAIN or name == RESERVED_PARENT)
+                continue;
+
+            if (nameToEntity.count(name))
+            {
+                LOG_ERROR("Prefab Builder", "Name collision: '" << name << "'");
+                continue;
+            }
+
+            prefab->namedChildrenIds[name] = ent;
+            nameToEntity[name] = ent;
+        }
     }
 
     // Always-wrap path. `leaf` is what the factory produced for `spec` (its entity may be
     // empty if kind=="" — then the wrap has no mainEntity, just children as siblings).
-    EntityRef buildPrefabWrapping(EntitySystem* ecs, const NodeSpec& spec, FactoryResult& leaf, BuildContext& ctx,
-                                  const ElementMap& inherited, bool applyOwnAnchors)
+    EntityRef buildPrefabWrapping(EntitySystem* ecs, const NodeSpec& spec, FactoryResult& leaf, const ElementMap& inherited, bool applyOwnAnchors)
     {
         auto container = makeAnchoredPrefab(ecs);
         auto prefab = container.get<Prefab>();
@@ -345,15 +363,6 @@ namespace
             nameToEntity[RESERVED_MAIN] = container.entity;
         }
 
-        // The factory's rich result, exposed by the node's name.
-        if (ctx.handles and leaf.handle.has_value())
-        {
-            if (spec.name.empty())
-                LOG_WARNING("Prefab Builder", "Kind '" << spec.kind << "' returned a handle but the node has no name; the handle is dropped");
-            else
-                (*ctx.handles)[spec.name] = std::move(leaf.handle);
-        }
-
         // A slot routes every child into the factory's layout instead of the sibling path.
         EntityRef slot = leaf.slot;
         if (slot and not slot->has<VerticalLayout>() and not slot->has<HorizontalLayout>())
@@ -361,7 +370,7 @@ namespace
             LOG_ERROR("Prefab Builder", "Kind '" << spec.kind << "' returned a slot without a layout component; children are anchored as siblings instead");
             slot = EntityRef{};
         }
-        const bool useSlot = static_cast<bool>(slot);
+        const bool useSlot = slot.id != 0;
 
         const ElementMap childInherited = forwardedDefaults(inherited, leaf.childDefaults);
 
@@ -405,11 +414,13 @@ namespace
             NodeSpec child = childSpec;
             applyInherited(child, childInherited);
 
-            EntityRef ent = buildNodeImpl(ecs, child, ctx, childInherited, /*applyOwnAnchors=*/false);
+            NameMap lifted;
+            EntityRef ent = buildNodeImpl(ecs, child, childInherited, /*applyOwnAnchors=*/false, &lifted);
             if (not ent)
                 continue;
 
             registerNamed(ent, child.name);
+            adoptLiftedNames(prefab, nameToEntity, lifted);
 
             if (useSlot)
             {
@@ -473,6 +484,25 @@ namespace
         for (auto& b : built)
             applyAnchorsToEntity(b.wrap, b.anchors, nameToEntity);
 
+        // A composite piece (a leaf with a Prefab of its own) takes the wrap's names too, so the
+        // name a parent exposes for this node resolves to the piece and still reaches its nested
+        // nodes: getEntity("squire")->get<Prefab>()->getEntity("fed").
+        if (leafEnt and leafEnt->has<Prefab>())
+        {
+            auto leafPrefab = leafEnt->get<Prefab>();
+
+            for (const auto& [name, ent] : prefab->namedChildrenIds)
+            {
+                if (name == MAIN_ENTITY_KEY or name == spec.name)
+                    continue;
+
+                if (leafPrefab->namedChildrenIds.count(name))
+                    LOG_ERROR("Prefab Builder", "Name collision on '" << spec.kind << "': '" << name << "' is already a part of the piece");
+                else
+                    leafPrefab->namedChildrenIds[name] = ent;
+            }
+        }
+
         // Apply this node's own anchors to the container — top-level only; nested cases let the
         // parent apply them using ITS scope.
         if (applyOwnAnchors)
@@ -481,33 +511,66 @@ namespace
         return container.entity;
     }
 
-    EntityRef buildNodeImpl(EntitySystem* ecs, const NodeSpec& spec, BuildContext& ctx,
-                            const ElementMap& inherited, bool applyOwnAnchors)
+    EntityRef buildNodeImpl(EntitySystem* ecs, const NodeSpec& spec, const ElementMap& inherited, bool applyOwnAnchors, NameMap* liftedNames)
     {
         // Layout kinds: produce a single layout-bearing entity; children added via addEntity.
         if (startsWith(spec.kind, LAYOUT_PREFIX))
-            return buildLayoutNode(ecs, spec, ctx, inherited, applyOwnAnchors);
+        {
+            NameMap local;
+            return buildLayoutNode(ecs, spec, inherited, liftedNames ? *liftedNames : local);
+        }
 
         // Everything else: realise the kind's leaf (may be empty for kind=="") and wrap it.
-        ctx.inherited = inherited;
-        FactoryResult leaf = realiseLeaf(ecs, spec, ctx);
-        return buildPrefabWrapping(ecs, spec, leaf, ctx, inherited, applyOwnAnchors);
+        FactoryResult leaf = realiseLeaf(ecs, spec);
+        return buildPrefabWrapping(ecs, spec, leaf, inherited, applyOwnAnchors);
+    }
+
+    // A layout root gets the same Prefab container as every other node: the layout is its main
+    // entity (the container follows the layout's size), the placement props and the root anchors
+    // go on the container, and the layout's named children are registered on it.
+    EntityRef wrapLayoutRoot(EntitySystem* ecs, const NodeSpec& spec, EntityRef layoutEnt, const NameMap& names)
+    {
+        auto container = makeAnchoredPrefab(ecs);
+        auto prefab = container.get<Prefab>();
+
+        if (hasParam(spec.props, "x"))
+            container.get<PositionComponent>()->setX(getParamFloat(spec.props, "x"));
+        if (hasParam(spec.props, "y"))
+            container.get<PositionComponent>()->setY(getParamFloat(spec.props, "y"));
+        if (hasParam(spec.props, "z"))
+            container.get<PositionComponent>()->setZ(getParamFloat(spec.props, "z"));
+
+        prefab->setMainEntity(container.entity, layoutEnt);
+
+        NameMap nameToEntity;
+        nameToEntity[RESERVED_PARENT] = container.entity;
+        nameToEntity[RESERVED_MAIN] = layoutEnt;
+
+        if (not spec.name.empty())
+        {
+            prefab->addToPrefab(layoutEnt, spec.name);
+            nameToEntity[spec.name] = layoutEnt;
+        }
+
+        adoptLiftedNames(prefab, nameToEntity, names);
+
+        applyAnchorsToEntity(container.entity, spec.anchors, nameToEntity);
+
+        return container.entity;
     }
 }
 
-PrefabBuildResult buildTree(EntitySystem* ecs, const NodeSpec& spec)
+EntityRef buildTree(EntitySystem* ecs, const NodeSpec& spec)
 {
-    PrefabBuildResult out;
+    if (not startsWith(spec.kind, LAYOUT_PREFIX))
+        return buildNodeImpl(ecs, spec, ElementMap{}, /*applyOwnAnchors=*/true, nullptr);
 
-    BuildContext ctx;
-    ctx.handles = &out.handles;
+    NameMap names;
+    EntityRef layoutEnt = buildLayoutNode(ecs, spec, ElementMap{}, names);
 
-    out.root = buildNodeImpl(ecs, spec, ctx, ElementMap{}, /*applyOwnAnchors=*/true);
-    return out;
-}
+    if (layoutEnt.id == 0)
+        return EntityRef{};
 
-EntityRef buildNode(EntitySystem* ecs, const NodeSpec& spec)
-{
-    return buildTree(ecs, spec).root;
+    return wrapLayoutRoot(ecs, spec, layoutEnt, names);
 }
 }

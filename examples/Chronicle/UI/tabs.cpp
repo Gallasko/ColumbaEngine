@@ -99,7 +99,7 @@ namespace chronicle
             st->tabs = rootId; st->index = static_cast<int>(i); st->tag = spec.tag; st->active = active;
             const _unique_id faceId = face.id;
             tab.face = face;
-            root.get<Prefab>()->addToPrefab(face);
+            root.get<Prefab>()->addToPrefab(face, "tab" + std::to_string(i));
             if (auto* fo = ecs->getSystem<FocusOrderSystem>())
                 fo->add(faceId);
 
@@ -148,7 +148,7 @@ namespace chronicle
                 ba->setLeftAnchor(PosAnchor{faceId, AnchorType::Left}); ba->setLeftMargin(bx + BADGE_PAD);
                 ba->setTopAnchor(PosAnchor{faceId, AnchorType::Top}); ba->setTopMargin(PAD_TOP + (TAB_LINE - BADGE_H) / 2.0f);
                 ba->setZConstrain(PosConstrain{faceId, AnchorType::Z, PosOpType::Add, 3.0f});
-                root.get<Prefab>()->addToPrefab(badge.entity);
+                root.get<Prefab>()->addToPrefab(badge.entity, "badge" + std::to_string(i));
                 tab.badge = badge;
             }
 

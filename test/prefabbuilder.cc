@@ -57,7 +57,7 @@ namespace pg
 
         // ----------------------------------------------------------------------------------------
         // Built-in primitive factories — tested directly via the registry so we probe the
-        // realised leaf in isolation, without the Prefab wrap that `buildNode` always adds.
+        // realised leaf in isolation, without the Prefab wrap that `buildTree` always adds.
         // ----------------------------------------------------------------------------------------
         TEST(prefab_builder_test, primitive_shape2d_factory_attaches_expected_components)
         {
@@ -150,7 +150,7 @@ namespace pg
             NodeSpec spec;
             spec.kind = "TotallyMadeUp";
 
-            auto ent = buildNode(&ecs, spec);
+            auto ent = buildTree(&ecs, spec);
             ASSERT_FALSE(ent.empty());
             EXPECT_TRUE(ent->has<Prefab>());
             EXPECT_TRUE(ent->get<Prefab>()->getEntity("MainEntity").empty());
@@ -168,7 +168,7 @@ namespace pg
             // Shape2D as mainEntity (and registered under the spec's name).
             NodeSpec spec = shapeNode("bg", 100.0f, 80.0f);
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
 
             ASSERT_FALSE(container.empty());
             EXPECT_TRUE(container->has<Prefab>());
@@ -202,7 +202,7 @@ namespace pg
             // An unnamed child is added to the prefab but cannot be looked up by name.
             spec.children.push_back(shapeNode("", 5.0f, 5.0f));
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
 
             ecs.executeOnce();
 
@@ -248,7 +248,7 @@ namespace pg
             badge.anchors = {leftToIconRight, topToIcon};
             spec.children.push_back(badge);
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             auto containerPos = container->get<PositionComponent>();
 
             // Move the container into a non-zero spot so the assertions are not all zeros.
@@ -307,7 +307,7 @@ namespace pg
             dot.anchors = centerInAnchors("main");
             spec.children.push_back(dot);
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
 
             ecs.executeOnce();
             ecs.executeOnce();
@@ -337,7 +337,7 @@ namespace pg
             ghost.anchors = {dangling};
             spec.children.push_back(ghost);
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             ASSERT_FALSE(container.empty());
 
             ecs.executeOnce();
@@ -373,12 +373,12 @@ namespace pg
             };
 
             registry->registerFactory("Tag", std::move(schema),
-                [](EntitySystem* e, const PrefabParams& p) -> EntityRef {
+                leafFactory([](EntitySystem* e, const PrefabParams& p) -> EntityRef {
                     auto cl = makeUiSimple2DShape(e, Shape2D::Square,
                                                   getParamFloat(p, "size"),
                                                   getParamFloat(p, "size"));
                     return cl.entity;
-                });
+                }));
 
             EXPECT_TRUE(registry->hasFactory("Tag"));
             EXPECT_FALSE(registry->hasFactory("OtherTag"));
@@ -402,12 +402,12 @@ namespace pg
             ASSERT_NE(registry, nullptr);
 
             registry->registerFactory("Box", ParamSchema{},
-                [](EntitySystem* e, const PrefabParams& p) -> EntityRef {
+                leafFactory([](EntitySystem* e, const PrefabParams& p) -> EntityRef {
                     const float w = getParamFloat(p, "width", 0.0f);
                     const float h = getParamFloat(p, "height", 0.0f);
                     auto cl = makeUiSimple2DShape(e, Shape2D::Square, w, h);
                     return cl.entity;
-                });
+                }));
 
             PrefabParams params;
             params["width"]  = 40.0f;
@@ -452,12 +452,12 @@ namespace pg
             };
 
             registry->registerFactory("Slab", std::move(schema),
-                [](EntitySystem* e, const PrefabParams& p) -> EntityRef {
+                leafFactory([](EntitySystem* e, const PrefabParams& p) -> EntityRef {
                     auto cl = makeUiSimple2DShape(e, Shape2D::Square,
                                                   getParamFloat(p, "width"),
                                                   getParamFloat(p, "height"));
                     return cl.entity;
-                });
+                }));
 
             // Build with no params - the schema defaults should be merged in.
             auto ent = registry->build("Slab");
@@ -478,7 +478,7 @@ namespace pg
         }
 
         // ----------------------------------------------------------------------------------------
-        // buildNode looks up every kind in the registry — no `Factory:` prefix needed.
+        // buildTree looks up every kind in the registry — no `Factory:` prefix needed.
         // The result is always wrapped in a Prefab container (per the always-wrap rule).
         // ----------------------------------------------------------------------------------------
         TEST(prefab_builder_test, build_node_dispatches_kind_to_registry)
@@ -496,18 +496,18 @@ namespace pg
             };
 
             registry->registerFactory("Pill", std::move(schema),
-                [&factoryCalled](EntitySystem* e, const PrefabParams& p) -> EntityRef {
+                leafFactory([&factoryCalled](EntitySystem* e, const PrefabParams& p) -> EntityRef {
                     factoryCalled = true;
                     EXPECT_EQ(getParamString(p, "label"), "hello");
                     auto cl = makeUiSimple2DShape(e, Shape2D::Circle, 20.0f, 20.0f);
                     return cl.entity;
-                });
+                }));
 
             NodeSpec spec;
             spec.kind  = "Pill";
             spec.props = {{"label", std::string("hello")}};
 
-            auto ent = buildNode(&ecs, spec);
+            auto ent = buildTree(&ecs, spec);
 
             EXPECT_TRUE(factoryCalled);
             ASSERT_FALSE(ent.empty());
@@ -532,12 +532,12 @@ namespace pg
             ASSERT_NE(registry, nullptr);
 
             registry->registerFactory("Card", ParamSchema{},
-                [](EntitySystem* e, const PrefabParams& p) -> EntityRef {
+                leafFactory([](EntitySystem* e, const PrefabParams& p) -> EntityRef {
                     const float w = getParamFloat(p, "width",  120.0f);
                     const float h = getParamFloat(p, "height",  40.0f);
                     auto cl = makeUiSimple2DShape(e, Shape2D::Square, w, h);
                     return cl.entity;
-                });
+                }));
 
             // Always-wrap: `kind="Card"` realises the leaf via the registry and `buildNode`
             // wraps it in a Prefab. The leaf is exposed under spec.name ("card") inside.
@@ -546,7 +546,7 @@ namespace pg
             spec.name  = "card";
             spec.props = {{"width", 120.0f}, {"height", 40.0f}};
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             auto containerPos = container->get<PositionComponent>();
             containerPos->setX(8.0f);
             containerPos->setY(4.0f);
@@ -587,7 +587,7 @@ namespace pg
             NodeSpec outer = shapeNode("outerBg", 200.0f, 100.0f);
             outer.children.push_back(std::move(inner));
 
-            auto container = buildNode(&ecs, outer);
+            auto container = buildTree(&ecs, outer);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -631,7 +631,7 @@ namespace pg
             outer.children.push_back(std::move(inner));
             outer.children.push_back(body);
 
-            auto container = buildNode(&ecs, outer);
+            auto container = buildTree(&ecs, outer);
             auto containerPos = container->get<PositionComponent>();
             containerPos->setX(5.0f);
             containerPos->setY(7.0f);
@@ -667,7 +667,7 @@ namespace pg
             outer = shapeNode("outerBg", 100.0f, 80.0f);
             outer.children.push_back(std::move(inner));
 
-            auto container = buildNode(&ecs, outer);
+            auto container = buildTree(&ecs, outer);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -697,7 +697,7 @@ namespace pg
             outer = shapeNode("outerBg", 50.0f, 50.0f);
             outer.children.push_back(std::move(inner));
 
-            auto container = buildNode(&ecs, outer);
+            auto container = buildTree(&ecs, outer);
             ecs.executeOnce();
 
             auto prefab = container->get<Prefab>();
@@ -727,7 +727,7 @@ namespace pg
             NodeSpec a = shapeNode("aBg", 80.0f, 80.0f);
             a.children.push_back(std::move(b));
 
-            auto container = buildNode(&ecs, a);
+            auto container = buildTree(&ecs, a);
             ecs.executeOnce();
 
             auto outer = container->get<Prefab>();
@@ -761,7 +761,7 @@ namespace pg
                 AnchorSpec{external.entity.id, AnchorType::Left, AnchorType::Left,   0.0f},
             };
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -797,7 +797,7 @@ namespace pg
                 AnchorSpec{std::string("globalAnchor"), AnchorType::Left, AnchorType::Left, 0.0f},
             };
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -831,7 +831,7 @@ namespace pg
             a.targetSide = AnchorType::Left;
             spec.anchors = {a};
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -855,7 +855,7 @@ namespace pg
             outer = shapeNode("outerBg", 50.0f, 50.0f);
             outer.children.push_back(std::move(inner));
 
-            auto container = buildNode(&ecs, outer);
+            auto container = buildTree(&ecs, outer);
             ecs.executeOnce();
 
             // "main" resolves to the OUTER prefab's main entity, not the nested one.
@@ -878,7 +878,7 @@ namespace pg
             a.side = AnchorType::Top;
             spec.anchors = {a};
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             ecs.executeOnce();
 
             // No assertion on position; the test passes if the build did not crash and the
@@ -903,7 +903,7 @@ namespace pg
             spec.children.push_back(shapeNode("b", 30.0f, 20.0f));
             spec.children.push_back(shapeNode("c", 25.0f, 20.0f));
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             auto cPos = container->get<PositionComponent>();
             cPos->setX(10.0f);
             cPos->setY(20.0f);
@@ -942,7 +942,7 @@ namespace pg
             spec.children.push_back(shapeNode("row2", 60.0f, 15.0f));
             spec.children.push_back(shapeNode("row3", 60.0f, 22.0f));
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -976,7 +976,7 @@ namespace pg
             spec.children.push_back(shapeNode("a", 10.0f, 10.0f));
             spec.children.push_back(shapeNode("b", 10.0f, 10.0f));
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             ecs.executeOnce();
 
             auto prefab = container->get<Prefab>();
@@ -1017,7 +1017,7 @@ namespace pg
 
             spec.children.push_back(shapeNode("flowB", 30.0f, 20.0f));   // chain off flowA, not manual
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -1044,7 +1044,7 @@ namespace pg
             spec.padding  = 7.0f;
             spec.children.push_back(shapeNode("only", 10.0f, 10.0f));
 
-            auto container = buildNode(&ecs, spec);
+            auto container = buildTree(&ecs, spec);
             ecs.executeOnce();
 
             auto only = container->get<Prefab>()->getEntity("only")->get<PositionComponent>();
@@ -1074,7 +1074,7 @@ namespace pg
             outer.children.push_back(std::move(inner));
             outer.children.push_back(shapeNode("leaf2", 15.0f, 20.0f));
 
-            auto container = buildNode(&ecs, outer);
+            auto container = buildTree(&ecs, outer);
             ecs.executeOnce();
             ecs.executeOnce();
 
@@ -1124,7 +1124,7 @@ namespace pg
             spec.children.push_back(shapeNode("b", 40.0f, 20.0f));
             spec.children.push_back(shapeNode("c", 25.0f, 20.0f));
 
-            auto layoutEnt = buildNode(&ecs, spec);
+            auto layoutEnt = buildTree(&ecs, spec);
             ASSERT_FALSE(layoutEnt.empty());
             ASSERT_TRUE(layoutEnt->has<HorizontalLayout>());
 
@@ -1160,7 +1160,7 @@ namespace pg
             spec.children.push_back(shapeNode("r1", 60.0f, 25.0f));
             spec.children.push_back(shapeNode("r2", 60.0f, 25.0f));
 
-            auto layoutEnt = buildNode(&ecs, spec);
+            auto layoutEnt = buildTree(&ecs, spec);
             ASSERT_FALSE(layoutEnt.empty());
             ASSERT_TRUE(layoutEnt->has<VerticalLayout>());
 
@@ -1194,7 +1194,7 @@ namespace pg
                 {"stickToEnd", true},
             };
 
-            auto layoutEnt = buildNode(&ecs, spec);
+            auto layoutEnt = buildTree(&ecs, spec);
             ASSERT_FALSE(layoutEnt.empty());
 
             auto layout = layoutEnt->get<HorizontalLayout>();
@@ -1226,7 +1226,7 @@ namespace pg
             NodeSpec outer = shapeNode("bg", 200.0f, 60.0f);
             outer.children.push_back(std::move(row));
 
-            auto container = buildNode(&ecs, outer);
+            auto container = buildTree(&ecs, outer);
             ecs.executeOnce();
             ecs.executeOnce();
 

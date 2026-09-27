@@ -29,13 +29,8 @@ namespace pg
             id = entity.id;
         }
 
-        virtual void onDeletion(EntityRef) override
-        {
-            if (ecsRef and deleteEntityUponRelease)
-            {
-                ecsRef->sendEvent(ClearPrefabEvent{childrenIds});
-            }
-        }
+        // Drops the prefab's helpers, then its children; defined after PrefabSystem
+        virtual void onDeletion(EntityRef) override;
 
         void addToPrefab(EntityRef entity)
         {
@@ -64,6 +59,31 @@ namespace pg
             }
 
             return namedChildrenIds[name];
+        }
+
+        // The named entity anywhere below this prefab: this scope first, then every named child
+        // that is a prefab itself, depth first. Empty (no log) when nothing carries the name.
+        EntityRef findEntity(const std::string& name)
+        {
+            const auto it = namedChildrenIds.find(name);
+
+            if (it != namedChildrenIds.end())
+                return it->second;
+
+            for (auto& child : namedChildrenIds)
+            {
+                EntityRef ent = child.second;
+
+                if (ent.id == 0 or not ent->has<Prefab>())
+                    continue;
+
+                EntityRef found = ent->get<Prefab>()->findEntity(name);
+
+                if (found.id != 0)
+                    return found;
+            }
+
+            return EntityRef{};
         }
 
         // Two-argument form: caller passes the prefab container's own EntityRef so the
@@ -96,6 +116,9 @@ namespace pg
 
         template <typename ReturnType, typename... Args>
         ReturnType callHelper(const std::string& name, Args... args);
+
+        // Whether a helper of that name was registered; callHelper throws on an unknown name
+        bool hasHelper(const std::string& name) const;
 
         EntitySystem *ecsRef = nullptr;
 
@@ -273,8 +296,36 @@ namespace pg
             return helperRegistry[id].call<ReturnType>(name, args...);
         }
 
+        bool hasHelper(_unique_id id, const std::string& name) const
+        {
+            auto it = helperRegistry.find(id);
+
+            return it != helperRegistry.end() and it->second.has(name);
+        }
+
         std::unordered_map<_unique_id, FunctionRegistry> helperRegistry;
     };
+
+    inline void Prefab::onDeletion(EntityRef)
+    {
+        if (not ecsRef)
+            return;
+
+        auto sys = ecsRef->getSystem<PrefabSystem>();
+
+        if (sys)
+            sys->helperRegistry.erase(id);
+
+        if (deleteEntityUponRelease)
+            ecsRef->sendEvent(ClearPrefabEvent{childrenIds});
+    }
+
+    inline bool Prefab::hasHelper(const std::string& name) const
+    {
+        auto sys = ecsRef ? ecsRef->getSystem<PrefabSystem>() : nullptr;
+
+        return sys and sys->hasHelper(id, name);
+    }
 
     template<typename R, typename... Args>
     void Prefab::addHelper(const std::string& name, std::function<R(Args...)> func)

@@ -7,10 +7,10 @@ realises it through the Chronicle prefab factories
 (`examples/Chronicle/UI/factories.cpp`).
 
 ```cpp
-auto spec  = pg::loadNodeSpec(ecs, "res/chronicle/ui/skills.yaml");
-auto built = pg::buildTree(ecs, *spec);
-if (auto* fed = built.get<chronicle::RequirementList>("fed"))
-    fed->setItem(ecs, 0, 18, 18);                // every runtime setter stays available
+auto spec = pg::loadNodeSpec(ecs, "res/chronicle/ui/skills.yaml");
+pg::EntityRef page = pg::buildTree(ecs, *spec);
+auto fed = page->get<pg::Prefab>()->findEntity("fed")->get<pg::Prefab>();
+fed->callHelper("setItem", size_t{0}, 18, 18);   // the runtime setters are helpers on the piece's prefab
 ```
 
 ## Shape
@@ -20,7 +20,7 @@ One file holds one root node. A node is a map:
 | key | meaning |
 |---|---|
 | `kind` | the factory: `Label`, `Mark`, `MarkedLabel`, `Ornament`, `Panel`, `Button`, `Tabs`, `Gloss`, `ProgressRule`, `StatLine`, `RequirementList`, or the engine's `Shape2D`, `Texture`, `TTFText`, `Layout:Vertical`, `Layout:Horizontal`. Omitted: a bare container (its children keep their own `x` / `y`). |
-| `name` | registers the entity on the prefab and the typed handle in `PrefabBuildResult::handles`. |
+| `name` | registers the entity on the enclosing prefab (`getEntity(name)`), which also reaches the piece's helpers. |
 | `x`, `y` | places the node (useful on roots and on children of a bare container). |
 | `anchors` | list of `{side, target, targetSide?, margin?}`; `target` is `main`, `parent`, a sibling's name or a globally named entity; sides are the `AnchorType` names, any case. |
 | `children` | the subtree, in order. |
@@ -51,7 +51,7 @@ comment.
   theme like the kit pieces are (`theme: scene.background`, `theme: label.caption.ink-muted`).
 - Events stay tag-based: `Button.tag` rides `ButtonActivatedEvent`, `Tabs.tag` rides
   `TabSelectedEvent`, `StatLine.glossKey` attaches a registered gloss.
-- No data bindings in files: name the node and subscribe its handle from C++
+- No data bindings in files: name the node and drive its helpers from C++
   (see `Scenes/prefabfilegallery.cpp`).
 
 ## Example

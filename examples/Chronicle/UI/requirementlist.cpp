@@ -82,6 +82,7 @@ namespace chronicle
             }
         }
         rows.clear();
+        prefab->namedChildrenIds.clear();
 
         const std::string style = rowStyle(spec.dense);
         const std::string vStyle = valueStyle(spec.dense);
@@ -122,7 +123,7 @@ namespace chronicle
                 va->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
                 va->setTopMargin(rowTop + baselineShift(ecs, style, vStyle));
                 va->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
-                root->get<Prefab>()->addToPrefab(value.entity);
+                root->get<Prefab>()->addToPrefab(value.entity, "value" + std::to_string(i));
                 row.value = value;
             }
 
@@ -147,7 +148,7 @@ namespace chronicle
             na->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
             na->setTopMargin(rowTop);
             na->setZConstrain(PosConstrain{rootId, AnchorType::Z});
-            root->get<Prefab>()->addToPrefab(name.root);
+            root->get<Prefab>()->addToPrefab(name.root, "row" + std::to_string(i));
             row.name = name;
 
             rows.push_back(row);

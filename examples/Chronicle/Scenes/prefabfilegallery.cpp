@@ -17,7 +17,6 @@
 #include "UI/prefabloader.h"
 
 #include "UI/themesystem.h"
-#include "UI/requirementlist.h"
 #include "UI/button.h"
 #include "UI/tabs.h"
 #include "UI/gamedataview.h"
@@ -75,11 +74,17 @@ namespace chronicle
             return;
         }
 
-        built = buildTree(ecsRef, *spec);
+        page = buildTree(ecsRef, *spec);
+
+        if (page.id == 0)
+        {
+            Label fail = caption(margin, 68.0f, std::string("could not build ") + FILE + " (see the log)", "status-loss");
+            place(fail.entity, margin, 68.0f);
+            return;
+        }
 
         // The page background is the file's first node; the resize handler below keeps it full-window.
-        if (built.root and built.root->has<Prefab>())
-            backgroundId = built.root->get<Prefab>()->getEntity("page").id;
+        backgroundId = page->get<Prefab>()->getEntity("page").id;
 
         if (not errors.empty())
         {
@@ -88,10 +93,13 @@ namespace chronicle
         }
 
         // ── Wiring: the fed list follows the view, the button writes it ──────
+        // The list's setters are helpers on its prefab; the argument types must match the
+        // helper's signature exactly (size_t index, int values, bool verdict).
         auto* view = ecsRef->getSystem<GameDataView>();
-        RequirementList* fed = built.get<RequirementList>("fed");
+        const _unique_id fedId = page->get<Prefab>()->findEntity("fed").id;
+        auto fedEnt = ecsRef->getEntity(fedId);
 
-        if (view and fed)
+        if (view and fedEnt and fedEnt->has<Prefab>() and fedEnt->get<Prefab>()->hasHelper("setItem"))
         {
             for (size_t i = 0; i < 3; ++i)
                 view->set(curPath(i), ElementType{SQUIRE[i].start});
@@ -100,12 +108,14 @@ namespace chronicle
             for (size_t i = 0; i < 3; ++i)
             {
                 const int needed = SQUIRE[i].needed;
-                view->subscribe(curPath(i), [this, fed, i, needed](const ElementType& v) {
-                    fed->setItem(ecsRef, i, v.get<int>(), needed);
+                view->subscribe(curPath(i), [this, fedId, i, needed](const ElementType& v) {
+                    if (auto fed = ecsRef->getEntity(fedId))
+                        fed->get<Prefab>()->callHelper("setItem", i, v.get<int>(), needed);
                 });
             }
-            view->subscribe(metPath(3), [this, fed](const ElementType& v) {
-                fed->setMet(ecsRef, 3, v.get<bool>());
+            view->subscribe(metPath(3), [this, fedId](const ElementType& v) {
+                if (auto fed = ecsRef->getEntity(fedId))
+                    fed->get<Prefab>()->callHelper("setMet", size_t{3}, v.get<bool>());
             });
         }
 

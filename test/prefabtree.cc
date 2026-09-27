@@ -14,19 +14,16 @@
 
 #include "mocklogger.h"
 
-// buildTree: the extended factory contract (slot, childDefaults, handle, records) and the
-// wrap placement, exercised with engine-only test kinds so no game kit is needed.
+// buildTree: the factory contract (slot, childDefaults, records), the wrap placement and the
+// layout-root wrap, exercised with engine-only test kinds so no game kit is needed.
 namespace pg
 {
     namespace test
     {
         namespace
         {
-            struct BoxHandle
-            {
-                EntityRef layout;
-                float inner = 0.0f;
-            };
+            // The slot layout of the last "Box" built, so a test can look into it.
+            EntityRef lastBoxLayout;
 
             // Keeps every message so a test can count the builder's own diagnostics rather
             // than whatever else the engine logs while entities are created.
@@ -79,7 +76,7 @@ namespace pg
                     schema.entries = {{"width", 100.0f}, {"height", 50.0f}, {"inner", 80.0f}, {"z", 0.0f}};
 
                     registry->registerFactory("Box", std::move(schema),
-                        PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                        PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                         {
                             auto* reg = ecs->getSystem<PrefabFactoryRegistry>();
                             const float inner = getParamFloat(spec.props, "inner");
@@ -99,60 +96,50 @@ namespace pg
                             la->setLeftAnchor(PosAnchor{back.id, AnchorType::Left});
                             la->setLeftMargin(10.0f);
 
+                            lastBoxLayout = layout.entity;
+
                             FactoryResult r;
                             r.entity = back;
                             r.slot = layout.entity;
                             r.childDefaults = {{"width", inner}, {"z", z + 5.0f}};
-                            r.handle = BoxHandle{layout.entity, inner};
                             return r;
                         }});
                 }
 
-                // "Probe": a 1x1 shape whose handle is the props it received — shows what a
-                // child actually gets after inheritance and schema merging.
+                // "Probe": a shape sized from the props it received — shows what a child
+                // actually gets after inheritance and schema merging.
                 {
                     ParamSchema schema;
                     schema.entries = {{"width", 1.0f}, {"height", 1.0f}, {"z", 0.0f}};
 
                     registry->registerFactory("Probe", std::move(schema),
-                        PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext& ctx) -> FactoryResult
+                        PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                         {
                             auto* reg = ecs->getSystem<PrefabFactoryRegistry>();
                             FactoryResult r;
-                            r.entity = reg->build("Shape2D", {{"width", 1.0f}, {"height", 1.0f}});
-                            ElementMap seen = spec.props;
-                            seen["__inheritedCount"] = static_cast<int>(ctx.inherited.size());
-                            r.handle = seen;
+                            r.entity = reg->build("Shape2D", {
+                                {"width",  getParamFloat(spec.props, "width")},
+                                {"height", getParamFloat(spec.props, "height")},
+                                {"z",      getParamFloat(spec.props, "z")},
+                            });
                             return r;
                         }});
                 }
 
-                // "Rec": its handle is the number of `items` records it received.
+                // "Rec": a shape as wide as the number of `items` records it received.
                 {
                     registry->registerFactory("Rec", ParamSchema{},
-                        PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                        PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                         {
                             auto* reg = ecs->getSystem<PrefabFactoryRegistry>();
-                            FactoryResult r;
-                            r.entity = reg->build("Shape2D", {{"width", 1.0f}, {"height", 1.0f}});
                             size_t n = 0;
                             auto it = spec.records.find("items");
                             if (it != spec.records.end())
                                 n = it->second.size();
-                            r.handle = n;
+
+                            FactoryResult r;
+                            r.entity = reg->build("Shape2D", {{"width", static_cast<float>(n)}, {"height", 1.0f}});
                             return r;
-                        }});
-                }
-
-                // "Old": the simple contract, to prove existing factories still register.
-                {
-                    ParamSchema schema;
-                    schema.entries = {{"width", 1.0f}, {"height", 1.0f}};
-
-                    registry->registerFactory("Old", std::move(schema),
-                        PrefabFactoryFn{[](EntitySystem* ecs, const PrefabParams& params) -> EntityRef
-                        {
-                            return ecs->getSystem<PrefabFactoryRegistry>()->build("Shape2D", params);
                         }});
                 }
 
@@ -165,12 +152,11 @@ namespace pg
                     };
 
                     registry->registerFactory("Need", std::move(schema),
-                        PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                        PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                         {
                             auto* reg = ecs->getSystem<PrefabFactoryRegistry>();
                             FactoryResult r;
                             r.entity = reg->build("Shape2D", {{"width", getParamFloat(spec.props, "width")}, {"height", 1.0f}});
-                            r.handle = getParamString(spec.props, "label");
                             return r;
                         }});
                 }
@@ -181,7 +167,7 @@ namespace pg
                     schema.entries = {{"width", 100.0f}, {"height", 50.0f}};
 
                     registry->registerFactory("BadSlot", std::move(schema),
-                        PrefabFactoryFnEx{[](EntitySystem* ecs, const NodeSpec& spec, BuildContext&) -> FactoryResult
+                        PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
                         {
                             auto* reg = ecs->getSystem<PrefabFactoryRegistry>();
                             FactoryResult r;
@@ -229,46 +215,31 @@ namespace pg
                 ecs.executeOnce();
             }
 
-            float propFloat(const ElementMap& m, const std::string& key)
+            // The leaf a name resolves to on the root's prefab.
+            EntityRef leafOf(EntityRef root, const std::string& name)
             {
-                return getParamFloat(m, key, -1.0f);
+                return root->get<Prefab>()->getEntity(name);
             }
         }
 
         // ----------------------------------------------------------------------------------------
-        TEST(prefab_tree_test, handles_are_exposed_by_node_name)
+        TEST(prefab_tree_test, build_tree_returns_a_prefab_root)
         {
             EntitySystem ecs;
             bootstrap(ecs);
 
-            auto built = buildTree(&ecs, node("Box", "box"));
+            EntityRef root = buildTree(&ecs, node("Box", "box"));
 
-            ASSERT_FALSE(built.root.empty());
-            ASSERT_TRUE(built.has("box"));
+            ASSERT_FALSE(root.empty());
+            ASSERT_TRUE(root->has<Prefab>());
+            EXPECT_FALSE(leafOf(root, "MainEntity").empty());
+            EXPECT_FALSE(leafOf(root, "box").empty());
+            EXPECT_TRUE(leafOf(root, "box")->has<Simple2DObject>());
 
-            auto* box = built.get<BoxHandle>("box");
-            ASSERT_NE(box, nullptr);
-            EXPECT_FLOAT_EQ(box->inner, 80.0f);
-            EXPECT_FALSE(box->layout.empty());
-
-            // Wrong type -> nullptr, not a throw.
-            EXPECT_EQ(built.get<int>("box"), nullptr);
-            EXPECT_EQ(built.get<BoxHandle>("nope"), nullptr);
-
-            // buildNode is the root-only form.
-            EXPECT_FALSE(buildNode(&ecs, node("Box", "other")).empty());
-        }
-
-        // ----------------------------------------------------------------------------------------
-        TEST(prefab_tree_test, unnamed_node_drops_its_handle)
-        {
-            EntitySystem ecs;
-            bootstrap(ecs);
-
-            auto built = buildTree(&ecs, node("Box", ""));
-
-            ASSERT_FALSE(built.root.empty());
-            EXPECT_TRUE(built.handles.empty());
+            // An unnamed node builds the same way; it is just not named on its prefab.
+            EntityRef anon = buildTree(&ecs, node("Box", ""));
+            ASSERT_FALSE(anon.empty());
+            EXPECT_EQ(anon->get<Prefab>()->namedChildrenIds.size(), 1u);   // MainEntity only
         }
 
         // ----------------------------------------------------------------------------------------
@@ -281,32 +252,25 @@ namespace pg
             spec.children.push_back(shapeNode("a", 10.0f, 10.0f));
             spec.children.push_back(shapeNode("b", 10.0f, 10.0f));
 
-            auto built = buildTree(&ecs, spec);
+            EntityRef root = buildTree(&ecs, spec);
             settle(ecs);
 
-            auto* box = built.get<BoxHandle>("box");
-            ASSERT_NE(box, nullptr);
-
             // Both children were added to the layout, not anchored as siblings.
-            auto layout = box->layout->get<VerticalLayout>();
+            auto layout = lastBoxLayout->get<VerticalLayout>();
             EXPECT_EQ(layout->entities.size(), 2u);
 
             // They are still tracked and named on the wrap prefab.
-            auto prefab = built.root->get<Prefab>();
+            auto prefab = root->get<Prefab>();
             EXPECT_EQ(prefab->childrenIds.size(), 3u);   // main + 2 child wraps
             EXPECT_FALSE(prefab->getEntity("a").empty());
             EXPECT_FALSE(prefab->getEntity("b").empty());
 
             // No sibling anchors were applied to the child wraps.
-            for (const auto& id : prefab->childrenIds)
+            for (auto& wrap : childWraps(ecs, root))
             {
-                auto ent = ecs.getEntity(id);
-                if (not ent or ent->id == prefab->getEntity("MainEntity").id)
-                    continue;
-
-                if (ent->has<UiAnchor>())
+                if (wrap->has<UiAnchor>())
                 {
-                    auto a = ent->get<UiAnchor>();
+                    auto a = wrap->get<UiAnchor>();
                     EXPECT_FALSE(a->hasTopAnchor);
                     EXPECT_FALSE(a->hasLeftAnchor);
                 }
@@ -323,24 +287,22 @@ namespace pg
             spec.children.push_back(node("Probe", "inherits"));
             spec.children.push_back(node("Probe", "explicit", {{"width", 30.0f}}));
 
-            auto built = buildTree(&ecs, spec);
+            EntityRef root = buildTree(&ecs, spec);
 
-            auto* inherits = built.get<ElementMap>("inherits");
-            auto* explicitP = built.get<ElementMap>("explicit");
-            ASSERT_NE(inherits, nullptr);
-            ASSERT_NE(explicitP, nullptr);
+            // Read before the first frame: the sizes are what the factories set from their props.
+            auto inherits = leafOf(root, "inherits")->get<PositionComponent>();
+            auto explicitP = leafOf(root, "explicit")->get<PositionComponent>();
 
             // Inherited: the box's inner width and content band replace the schema defaults.
-            EXPECT_FLOAT_EQ(propFloat(*inherits, "width"), 64.0f);
-            EXPECT_FLOAT_EQ(propFloat(*inherits, "z"), 15.0f);
-            EXPECT_EQ(getParamInt(*inherits, "__inheritedCount"), 2);
+            EXPECT_FLOAT_EQ(inherits->width, 64.0f);
+            EXPECT_FLOAT_EQ(inherits->z, 15.0f);
 
             // Explicit child value wins over the inherited one; z still inherited.
-            EXPECT_FLOAT_EQ(propFloat(*explicitP, "width"), 30.0f);
-            EXPECT_FLOAT_EQ(propFloat(*explicitP, "z"), 15.0f);
+            EXPECT_FLOAT_EQ(explicitP->width, 30.0f);
+            EXPECT_FLOAT_EQ(explicitP->z, 15.0f);
 
             // Schema defaults still fill what neither gave.
-            EXPECT_FLOAT_EQ(propFloat(*inherits, "height"), 1.0f);
+            EXPECT_FLOAT_EQ(inherits->height, 1.0f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -360,15 +322,19 @@ namespace pg
             spec.children.push_back(column);
             spec.children.push_back(group);
 
-            auto built = buildTree(&ecs, spec);
+            EntityRef root = buildTree(&ecs, spec);
 
-            auto* a = built.get<ElementMap>("inColumn");
-            auto* b = built.get<ElementMap>("inGroup");
-            ASSERT_NE(a, nullptr);
-            ASSERT_NE(b, nullptr);
+            // A layout has no prefab: its children's names land on the enclosing one.
+            EntityRef a = leafOf(root, "inColumn");
+            ASSERT_FALSE(a.empty());
+            EXPECT_FLOAT_EQ(a->get<PositionComponent>()->width, 48.0f);
 
-            EXPECT_FLOAT_EQ(propFloat(*a, "width"), 48.0f);
-            EXPECT_FLOAT_EQ(propFloat(*b, "width"), 48.0f);
+            // A bare wrap is a prefab of its own: its children are named on it.
+            EntityRef groupEnt = leafOf(root, "group");
+            ASSERT_FALSE(groupEnt.empty());
+            EntityRef b = groupEnt->get<Prefab>()->getEntity("inGroup");
+            ASSERT_FALSE(b.empty());
+            EXPECT_FLOAT_EQ(b->get<PositionComponent>()->width, 48.0f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -381,14 +347,14 @@ namespace pg
             spec.props["x"] = 40.0f;
             spec.props["y"] = 25.0f;
 
-            auto built = buildTree(&ecs, spec);
+            EntityRef root = buildTree(&ecs, spec);
             settle(ecs);
 
-            auto container = built.root->get<PositionComponent>();
+            auto container = root->get<PositionComponent>();
             EXPECT_FLOAT_EQ(container->x, 40.0f);
             EXPECT_FLOAT_EQ(container->y, 25.0f);
 
-            auto leaf = built.root->get<Prefab>()->getEntity("bg")->get<PositionComponent>();
+            auto leaf = leafOf(root, "bg")->get<PositionComponent>();
             EXPECT_FLOAT_EQ(leaf->x, 40.0f);
             EXPECT_FLOAT_EQ(leaf->y, 25.0f);
             EXPECT_FLOAT_EQ(leaf->width, 100.0f);
@@ -406,35 +372,14 @@ namespace pg
                 {{"label", "b"}, {"n", 2}},
             };
 
-            auto built = buildTree(&ecs, spec);
+            EntityRef root = buildTree(&ecs, spec);
 
-            auto* n = built.get<size_t>("r");
-            ASSERT_NE(n, nullptr);
-            EXPECT_EQ(*n, 2u);
-        }
-
-        // ----------------------------------------------------------------------------------------
-        TEST(prefab_tree_test, simple_contract_factories_still_build)
-        {
-            EntitySystem ecs;
-            bootstrap(ecs);
-
-            auto root = buildNode(&ecs, node("Old", "old", {{"width", 12.0f}, {"height", 3.0f}}));
-            ASSERT_FALSE(root.empty());
-
-            auto leaf = root->get<Prefab>()->getEntity("old");
-            ASSERT_FALSE(leaf.empty());
-            EXPECT_TRUE(leaf->has<Simple2DObject>());
-            EXPECT_FLOAT_EQ(leaf->get<PositionComponent>()->width, 12.0f);
-
-            // And the registry's direct build path is unchanged.
-            auto* registry = ecs.getSystem<PrefabFactoryRegistry>();
-            EXPECT_FALSE(registry->build("Shape2D", {{"width", 5.0f}, {"height", 5.0f}}).empty());
+            EXPECT_FLOAT_EQ(leafOf(root, "r")->get<PositionComponent>()->width, 2.0f);
         }
 
         // ----------------------------------------------------------------------------------------
         // A Required param that the node does not give: the factory is never called, the node
-        // becomes a bare wrap (no main entity, no handle), and the problem is logged once.
+        // becomes a bare wrap (no main entity), and the problem is logged once.
         // ----------------------------------------------------------------------------------------
         TEST(prefab_tree_test, missing_required_param_refuses_the_leaf)
         {
@@ -443,11 +388,10 @@ namespace pg
             bootstrap(ecs);
 
             CaptureSink::messages().clear();
-            auto built = buildTree(&ecs, node("Need", "need", {{"width", 9.0f}}));
+            EntityRef root = buildTree(&ecs, node("Need", "need", {{"width", 9.0f}}));
 
-            ASSERT_FALSE(built.root.empty());
-            EXPECT_TRUE(built.root->get<Prefab>()->getEntity("MainEntity").empty());
-            EXPECT_FALSE(built.has("need"));
+            ASSERT_FALSE(root.empty());
+            EXPECT_TRUE(leafOf(root, "MainEntity").empty());
             EXPECT_EQ(countLogs("missing required parameter: 'label'"), 1u) << allLogs();
 
             // Direct registry path agrees.
@@ -456,12 +400,10 @@ namespace pg
 
             // Given the param, the same node builds and the schema default still fills `width`.
             CaptureSink::messages().clear();
-            auto ok = buildTree(&ecs, node("Need", "need", {{"label", "yes"}}));
+            EntityRef ok = buildTree(&ecs, node("Need", "need", {{"label", "yes"}}));
 
-            ASSERT_FALSE(ok.root->get<Prefab>()->getEntity("MainEntity").empty());
-            ASSERT_NE(ok.get<std::string>("need"), nullptr);
-            EXPECT_EQ(*ok.get<std::string>("need"), "yes");
-            EXPECT_FLOAT_EQ(ok.root->get<Prefab>()->getEntity("need")->get<PositionComponent>()->width, 4.0f);
+            ASSERT_FALSE(leafOf(ok, "MainEntity").empty());
+            EXPECT_FLOAT_EQ(leafOf(ok, "need")->get<PositionComponent>()->width, 4.0f);
             EXPECT_EQ(countLogs("missing required parameter"), 0u) << allLogs();
         }
 
@@ -481,12 +423,12 @@ namespace pg
             spec.children.push_back(shapeNode("b", 10.0f, 10.0f));
 
             CaptureSink::messages().clear();
-            auto built = buildTree(&ecs, spec);
+            EntityRef root = buildTree(&ecs, spec);
             settle(ecs);
 
             EXPECT_EQ(countLogs("returned a slot without a layout component"), 1u) << allLogs();
 
-            auto wraps = childWraps(ecs, built.root);
+            auto wraps = childWraps(ecs, root);
             ASSERT_EQ(wraps.size(), 2u);
 
             // Flow synthesis ran: every child wrap is anchored (first to main, second to the first).
@@ -498,8 +440,8 @@ namespace pg
             }
 
             // And the column actually stacks: b sits below a.
-            auto a = built.root->get<Prefab>()->getEntity("a")->get<PositionComponent>();
-            auto b = built.root->get<Prefab>()->getEntity("b")->get<PositionComponent>();
+            auto a = leafOf(root, "a")->get<PositionComponent>();
+            auto b = leafOf(root, "b")->get<PositionComponent>();
             EXPECT_FLOAT_EQ(b->y, a->y + a->height);
         }
 
@@ -523,24 +465,62 @@ namespace pg
             spec.children.push_back(b);
 
             CaptureSink::messages().clear();
-            auto built = buildTree(&ecs, spec);
+            EntityRef root = buildTree(&ecs, spec);
             settle(ecs);
 
             EXPECT_EQ(countLogs("their anchors are ignored"), 1u) << allLogs();
             EXPECT_EQ(countLogs("Anchor target not found"), 0u) << allLogs();
 
             // Both are in the layout and none of the anchors was applied.
-            auto* box = built.get<BoxHandle>("box");
-            ASSERT_NE(box, nullptr);
-            EXPECT_EQ(box->layout->get<VerticalLayout>()->entities.size(), 2u);
+            EXPECT_EQ(lastBoxLayout->get<VerticalLayout>()->entities.size(), 2u);
 
-            auto wraps = childWraps(ecs, built.root);
-            for (auto& wrap : wraps)
+            for (auto& wrap : childWraps(ecs, root))
             {
                 ASSERT_TRUE(wrap->has<UiAnchor>());
                 EXPECT_FALSE(wrap->get<UiAnchor>()->hasTopAnchor);
                 EXPECT_FALSE(wrap->get<UiAnchor>()->hasLeftAnchor);
             }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // A layout root is wrapped like every other node: the root carries a Prefab whose main
+        // entity is the layout, the placement goes on the container, the layout's named children
+        // resolve through the root, and the container follows the layout's size.
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_tree_test, layout_root_is_wrapped_in_a_prefab)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            NodeSpec column = node("Layout:Vertical", "column", {{"x", 10.0f}, {"y", 20.0f}, {"spacing", 4}});
+            column.children.push_back(shapeNode("a", 30.0f, 10.0f));
+            column.children.push_back(shapeNode("b", 50.0f, 10.0f));
+
+            EntityRef root = buildTree(&ecs, column);
+            settle(ecs);
+            settle(ecs);
+
+            ASSERT_FALSE(root.empty());
+            ASSERT_TRUE(root->has<Prefab>());
+
+            EntityRef layout = leafOf(root, "MainEntity");
+            ASSERT_FALSE(layout.empty());
+            EXPECT_TRUE(layout->has<VerticalLayout>());
+            EXPECT_EQ(layout->get<VerticalLayout>()->entities.size(), 2u);
+            EXPECT_EQ(leafOf(root, "column").id, layout.id);
+
+            EXPECT_FALSE(leafOf(root, "a").empty());
+            EXPECT_FALSE(leafOf(root, "b").empty());
+
+            auto container = root->get<PositionComponent>();
+            EXPECT_FLOAT_EQ(container->x, 10.0f);
+            EXPECT_FLOAT_EQ(container->y, 20.0f);
+
+            // The container took the layout's size, which the layout took from its rows.
+            auto layoutPos = layout->get<PositionComponent>();
+            EXPECT_GT(layoutPos->width, 0.0f);
+            EXPECT_FLOAT_EQ(container->width, layoutPos->width);
+            EXPECT_FLOAT_EQ(container->height, layoutPos->height);
         }
     }
 }

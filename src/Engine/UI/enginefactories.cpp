@@ -54,7 +54,7 @@ namespace
 
     // ----------------------------------------------------------------------------------------
     // Built-in primitive factories — registered under their kind name (Shape2D / TTFText /
-    // Texture). `buildNode`'s realiseLeaf path looks them up via `PrefabFactoryRegistry::build`
+    // Texture). `buildTree`'s realiseLeaf path looks them up via `PrefabFactoryRegistry::build`
     // exactly the same way as user-registered factories.
     // ----------------------------------------------------------------------------------------
     EntityRef buildShape2D(EntitySystem* ecs, const PrefabParams& p)
@@ -111,7 +111,7 @@ namespace
 
     // The "Panel" prefab: a Shape2D backdrop wrapped in a Prefab container. Because every
     // non-Layout NodeSpec now wraps automatically, this is just `kind="Shape2D"` with the bg
-    // props — buildNode does the wrap.
+    // props — buildTree does the wrap.
     EntityRef buildPanel(EntitySystem* ecs, const PrefabParams& p)
     {
         NodeSpec spec;
@@ -130,7 +130,7 @@ namespace
         if (hasParam(p, "viewport"))
             spec.props["viewport"] = getParam(p, "viewport");
 
-        auto prefabEnt = buildNode(ecs, spec);
+        auto prefabEnt = buildTree(ecs, spec);
 
         // Optional: center the panel within a named target (e.g. __MainWindow). The bg is
         // anchored to the container top-left by SetMainEntity, so only the container is centered.
@@ -188,7 +188,7 @@ namespace
 
         spec.children.push_back(label);
 
-        return buildNode(ecs, spec);
+        return buildTree(ecs, spec);
     }
 }
 
@@ -215,7 +215,7 @@ void registerEnginePrefabFactories(PrefabFactoryRegistry* registry)
             {"viewport",    0,    ParamSchema::Requirement::Optional},
             {"visibility",  true, ParamSchema::Requirement::Optional},
         };
-        registry->registerFactory("Shape2D", std::move(schema), buildShape2D);
+        registry->registerFactory("Shape2D", std::move(schema), leafFactory(buildShape2D));
     }
 
     {
@@ -230,7 +230,7 @@ void registerEnginePrefabFactories(PrefabFactoryRegistry* registry)
             {"viewport",   0,    ParamSchema::Requirement::Optional},
             {"visibility", true, ParamSchema::Requirement::Optional},
         };
-        registry->registerFactory("Texture", std::move(schema), buildTexture);
+        registry->registerFactory("Texture", std::move(schema), leafFactory(buildTexture));
     }
 
     {
@@ -249,7 +249,7 @@ void registerEnginePrefabFactories(PrefabFactoryRegistry* registry)
             {"viewport",    0,    ParamSchema::Requirement::Optional},
             {"visibility",  true, ParamSchema::Requirement::Optional},
         };
-        registry->registerFactory("TTFText", std::move(schema), buildTTFText);
+        registry->registerFactory("TTFText", std::move(schema), leafFactory(buildTTFText));
     }
 
     // -------- Composite factories --------
@@ -268,7 +268,7 @@ void registerEnginePrefabFactories(PrefabFactoryRegistry* registry)
             {"viewport",       0,   ParamSchema::Requirement::Optional},
             {"centerInTarget", "",  ParamSchema::Requirement::Optional},
         };
-        registry->registerFactory("Panel", std::move(schema), buildPanel);
+        registry->registerFactory("Panel", std::move(schema), leafFactory(buildPanel));
     }
 
     {
@@ -287,7 +287,7 @@ void registerEnginePrefabFactories(PrefabFactoryRegistry* registry)
             {"viewport",    0,    ParamSchema::Requirement::Optional},
             {"visibility",  true, ParamSchema::Requirement::Optional},
         };
-        registry->registerFactory("Text", std::move(schema), buildText);
+        registry->registerFactory("Text", std::move(schema), leafFactory(buildText));
     }
 
     {
@@ -310,7 +310,7 @@ void registerEnginePrefabFactories(PrefabFactoryRegistry* registry)
             {"z",        97.0f},
             {"viewport", 0, ParamSchema::Requirement::Optional},
         };
-        registry->registerFactory("TitleBar", std::move(schema), buildTitleBar);
+        registry->registerFactory("TitleBar", std::move(schema), leafFactory(buildTitleBar));
     }
 }
 }

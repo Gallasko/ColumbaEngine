@@ -359,7 +359,7 @@ void RecipeMachineUIBase::createPanel()
         spec.children.push_back(std::move(btn));
     }
 
-    backdrop = buildNode(ecsRef, spec);
+    backdrop = buildTree(ecsRef, spec);
     auto prefab = backdrop->get<Prefab>();
 
     // ---- Cache leaf handles ----

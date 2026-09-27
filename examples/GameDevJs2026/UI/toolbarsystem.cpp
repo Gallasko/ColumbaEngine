@@ -175,7 +175,7 @@ void ToolbarSystem::createToolbarUI()
     spec.children.push_back(std::move(highlightSpec));
 
     // ----- Build. The returned wrap is the toolbar root. -----
-    backdrop = buildNode(ecsRef, spec);
+    backdrop = buildTree(ecsRef, spec);
     auto backdropPrefab = backdrop->get<Prefab>();
 
     // The composite "slotRow" child is non-trivial (it has slot siblings), so its wrap is

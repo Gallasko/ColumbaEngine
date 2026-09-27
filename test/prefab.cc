@@ -56,6 +56,34 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        TEST(prefab_test, helpers_die_with_their_prefab)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            auto* sys = ecs.createSystem<PrefabSystem>();
+            ecs.succeed<PositionComponentSystem, PrefabSystem>();
+
+            auto prefabEnt = makeAnchoredPrefab(&ecs);
+            auto prefab = prefabEnt.get<Prefab>();
+            const _unique_id id = prefabEnt.entity.id;
+
+            prefab->addHelper("ping", [](Prefab*) -> int { return 7; });
+
+            EXPECT_TRUE(prefab->hasHelper("ping"));
+            EXPECT_FALSE(prefab->hasHelper("pong"));
+            EXPECT_EQ(prefab->callHelper<int>("ping"), 7);
+            EXPECT_EQ(sys->helperRegistry.count(id), 1u);
+
+            ecs.removeEntity(id);
+
+            EXPECT_EQ(sys->helperRegistry.count(id), 0u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(prefab_test, prefab_anchored_creation_with_factory)
         {
             EntitySystem ecs;

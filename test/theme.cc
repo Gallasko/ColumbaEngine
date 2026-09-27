@@ -670,7 +670,7 @@ namespace pg
                 {"height", 10.0f},
             };
 
-            EntityRef root = buildNode(&s.ecs, node);
+            EntityRef root = buildTree(&s.ecs, node);
             s.ecs.executeOnce();
             s.ecs.executeOnce();
 

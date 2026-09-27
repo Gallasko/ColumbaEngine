@@ -15,6 +15,13 @@ First tagged release. Everything below describes the state of the engine at the 
   (`res/editor/theme.json` for the editor), and the script module keeps `setCurrentTheme`/`getCurrentTheme`.
 - Prefab trees: `theme` is a node keyword like `kind` and `name`; the builder attaches a `ThemeComponent`
   with that element key to the node's leaf.
+- Prefab trees: `buildTree` returns the root `EntityRef`, which always carries a `Prefab` (a layout root is
+  wrapped like every other node). `PrefabBuildResult`, `buildNode`, `BuildContext` and typed handles are
+  gone; a factory is `FactoryResult(EntitySystem*, const NodeSpec&)` returning entity, slot and
+  childDefaults (`leafFactory` adapts a props-in, entity-out builder). A kit piece lives on its entity as a
+  component (`getEntity("fed")->get<RequirementList>()`), its setters are also helpers on its `Prefab`
+  (`callHelper("setItem", size_t{0}, 18, 18)`), `Prefab::findEntity` searches a subtree by name, and a
+  prefab's helpers are dropped with it.
 
 ### Engine
 - Pure-ECS core (sparse sets, groups, system traits) with Taskflow-based parallel scheduling
