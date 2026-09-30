@@ -1,0 +1,160 @@
+# Dev gallery for the resource ledger: `Chronicle --dev LedgerGallery`.
+#
+# The Life screen's left column: what he holds, in a ruled panel. Beside it on vellum
+# the same ledger at 480, and one at 200 whose guild name is too long to leave a leader
+# (a content error: it logs a warning). The scene feeds the two full ledgers from
+# WorldFacts (resources.coin.value, resources.rations.value, resources.timber.value,
+# resources.relic.sunstone.held) and drives them with the buttons on the right. Timber
+# is not in the file: it was never earned, so it is not drawn until the scene adds it.
+name: gallery
+children:
+
+  - kind: Shape2D
+    name: page
+    width: 1320
+    height: 860
+    z: 0
+    theme: scene.background
+
+  - kind: TTFText
+    name: note
+    x: 48
+    y: 48
+    z: 15
+    text: "T theme - every ledger on this page comes from res/chronicle/ui/ledgergallery.yaml"
+    theme: label.caption.ink-muted
+
+  - kind: Panel
+    name: holds
+    x: 48
+    y: 90
+    frame: ruled
+    width: 320
+    heading: What he holds
+    glyph: gold
+    aside: LEDGER
+    children:
+      - kind: ResourceLedger
+        name: ledger
+        children:
+          - kind: LedgerGroup
+            id: purse
+            label: PURSE
+            children:
+              - {kind: LedgerRow, id: coin, glyph: gold, label: Coin, value: 412, rate: "+2 / mo", tone: coin}
+              - {kind: LedgerRow, id: rations, glyph: trade, label: Rations, value: 18, rate: "−1 / mo"}
+          - kind: LedgerGroup
+            id: standing
+            label: STANDING
+            children:
+              - {kind: LedgerRow, id: guild.bellmoor, glyph: guild, label: Bellmoor Guild, value: 3, tone: guild}
+              - {kind: LedgerRow, id: guild.academy, glyph: academy, label: The Academy, value: 1, tone: guild, muted: true}
+          - kind: LedgerGroup
+            id: stores
+            label: STORES
+            children:
+              - {kind: LedgerRow, id: iron, glyph: forge, label: Iron, value: 6}
+          - kind: LedgerGroup
+            id: kept
+            label: KEPT BETWEEN LIVES
+            children:
+              - {kind: LedgerRow, id: relic.sunstone, glyph: relic, label: Sunstone relic, value: 1 of 3, tone: relic}
+
+  # The same ledger at 480, on vellum
+  - kind: TTFText
+    x: 420
+    y: 90
+    z: 15
+    text: "480 wide, on vellum"
+    theme: label.caption.ink-muted
+
+  - kind: ResourceLedger
+    name: ledgerWide
+    x: 420
+    y: 112
+    width: 480
+    children:
+      - kind: LedgerGroup
+        id: purse
+        label: PURSE
+        children:
+          - {kind: LedgerRow, id: coin, glyph: gold, label: Coin, value: 412, rate: "+2 / mo", tone: coin}
+          - {kind: LedgerRow, id: rations, glyph: trade, label: Rations, value: 18, rate: "−1 / mo"}
+      - kind: LedgerGroup
+        id: standing
+        label: STANDING
+        children:
+          - {kind: LedgerRow, id: guild.bellmoor, glyph: guild, label: Bellmoor Guild, value: 3, tone: guild}
+          - {kind: LedgerRow, id: guild.academy, glyph: academy, label: The Academy, value: 1, tone: guild, muted: true}
+      - kind: LedgerGroup
+        id: stores
+        label: STORES
+        children:
+          - {kind: LedgerRow, id: iron, glyph: forge, label: Iron, value: 6}
+      - kind: LedgerGroup
+        id: kept
+        label: KEPT BETWEEN LIVES
+        children:
+          - {kind: LedgerRow, id: relic.sunstone, glyph: relic, label: Sunstone relic, value: 1 of 3, tone: relic}
+
+  # Too narrow for its name: the leader is gone and the log says so
+  - kind: TTFText
+    x: 420
+    y: 470
+    z: 15
+    text: "200 wide - a name that leaves no leader (logs a warning)"
+    theme: label.caption.ink-muted
+
+  - kind: ResourceLedger
+    name: narrow
+    x: 420
+    y: 492
+    width: 200
+    children:
+      - kind: LedgerGroup
+        id: standing
+        label: STANDING
+        children:
+          - {kind: LedgerRow, id: guild.smiths, glyph: guild, label: The Worshipful Company of Bellmoor Smiths, value: 3, tone: guild}
+          - {kind: LedgerRow, id: guild.bellmoor, glyph: guild, label: Bellmoor Guild, value: 3, tone: guild}
+
+  # The buttons write the facts the two full ledgers follow
+  - kind: Button
+    name: earn
+    x: 960
+    y: 112
+    variant: quiet
+    label: Earn 100 coin
+    tag: ledger.earn
+
+  - kind: Button
+    name: eat
+    x: 960
+    y: 156
+    variant: quiet
+    label: "Eat (−6 rations)"
+    tag: ledger.eat
+
+  - kind: Button
+    name: timber
+    x: 960
+    y: 200
+    variant: quiet
+    label: Find timber
+    tag: ledger.timber
+
+  - kind: Button
+    name: relic
+    x: 960
+    y: 244
+    variant: quiet
+    label: Lose the relic
+    tag: ledger.relic
+
+  - kind: Button
+    name: reset
+    x: 960
+    y: 288
+    variant: quiet
+    label: Reset
+    tag: ledger.reset
