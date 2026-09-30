@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include <string>
+#include <variant>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -18,6 +19,7 @@
 #include "UI/activityrow.h"
 #include "UI/windowmeter.h"
 #include "UI/resourceledger.h"
+#include "UI/eventlog.h"
 #include "UI/gloss.h"
 #include "Core/motion.h"
 
@@ -137,7 +139,7 @@ namespace pg
             for (const auto& kind : chronicleKinds())
                 EXPECT_TRUE(f.registry->hasFactory(kind)) << kind;
 
-            EXPECT_EQ(chronicleKinds().size(), 19u);
+            EXPECT_EQ(chronicleKinds().size(), 20u);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -891,6 +893,83 @@ namespace pg
             f.settle();
 
             EXPECT_NEAR(panelEnt->get<PositionComponent>()->height, before + 32.0f + 26.0f, 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(chronicle_factories_test, event_log_records)
+        {
+            FactoriesFixture f;
+
+            NodeSpec logNode = node("EventLog", "log", {{"width", 300.0f}, {"height", 200.0f}, {"yearPrefix", "IN HER "}});
+            logNode.records["entries"] = {
+                {{"age", 7.2f}, {"text", "Born at the mill"}, {"kind", "milestone"}},
+                {{"age", 7.9f}, {"text", "A hard winter"}},
+                {{"age", 8.4f}, {"text", "Carried sacks all spring"}, {"kind", "gain"}, {"figure", "+1 str"}},
+                {{"age", 8.6f}, {"text", "Paid for the harvest"}, {"kind", "coin"}, {"figure", "+12"}, {"glyph", "trade"}},
+                {{"age", 9.1f}, {"text", "Gored in the North Forest"}, {"kind", "loss"}, {"figure", "-9 vit"}},
+            };
+
+            NodeSpec page = node("", "page");
+            page.children = {logNode};
+
+            EntityRef root = buildTree(&f.ecs, page);
+            EntityRef logEnt = root->get<Prefab>()->getEntity("log");
+            ASSERT_FALSE(logEnt.empty());
+            ASSERT_TRUE(logEnt->has<EventLog>());
+
+            EventLog* log = logEnt->get<EventLog>().component;
+            EXPECT_FLOAT_EQ(log->spec.width, 300.0f);
+            EXPECT_FLOAT_EQ(log->spec.height, 200.0f);
+            EXPECT_EQ(log->size(), 5u);
+            ASSERT_EQ(log->items.size(), 8u);   // Rubrics for 7, 8 and 9
+
+            ASSERT_TRUE(std::holds_alternative<EventLog::Year>(log->items[0]));
+            EXPECT_EQ(std::get<EventLog::Year>(log->items[0]).rubric.spec.text, "IN HER 7TH YEAR");
+            ASSERT_TRUE(std::holds_alternative<EventLog::Row>(log->items[1]));
+            EXPECT_EQ(std::get<EventLog::Row>(log->items[1]).entry.kind, LogKind::Milestone);
+            ASSERT_TRUE(std::holds_alternative<EventLog::Year>(log->items[3]));
+            EXPECT_EQ(std::get<EventLog::Year>(log->items[3]).year, 8);
+            const auto& coin = std::get<EventLog::Row>(log->items[5]);
+            EXPECT_EQ(coin.entry.kind, LogKind::Coin);
+            EXPECT_EQ(coin.entry.figure, "+12");
+            EXPECT_EQ(coin.entry.glyph, "trade");
+            EXPECT_EQ(coin.mark.spec.name, "trade");
+
+            auto prefab = logEnt->get<Prefab>();
+            EXPECT_TRUE(prefab->hasHelper("append"));
+            EXPECT_TRUE(prefab->hasHelper("clear"));
+            EXPECT_TRUE(prefab->hasHelper("setFootnote"));
+            EXPECT_TRUE(prefab->hasHelper("scrollToEnd"));
+
+            LogEntry more;
+            more.age = 9.5f;
+            more.text = "Learned his letters";
+            prefab->callHelper("append", more);
+            EXPECT_EQ(log->size(), 6u);
+
+            // The file builds the same log.
+            std::vector<std::string> errors;
+            PrefabLoadOptions options;
+            options.errors = &errors;
+
+            auto fileSpec = loadNodeSpec(&f.ecs, "ui/eventlog.yaml", options);
+            ASSERT_TRUE(fileSpec.has_value());
+            EXPECT_TRUE(errors.empty());
+
+            EntityRef fileRoot = buildTree(&f.ecs, *fileSpec);
+            EntityRef fileLog = fileRoot->get<Prefab>()->getEntity("log");
+            ASSERT_FALSE(fileLog.empty());
+            ASSERT_TRUE(fileLog->has<EventLog>());
+
+            EventLog* fromFile = fileLog->get<EventLog>().component;
+            EXPECT_EQ(fromFile->size(), 5u);
+            EXPECT_EQ(fromFile->items.size(), 8u);
+            EXPECT_EQ(std::get<EventLog::Year>(fromFile->items[0]).rubric.spec.text, "IN HIS 7TH YEAR");
+            EXPECT_EQ(std::get<EventLog::Row>(fromFile->items[7]).entry.figure, "\xE2\x88\x92" "9 vit");
+            EXPECT_EQ(std::get<EventLog::Row>(fromFile->items[7]).entry.kind, LogKind::Loss);
+            ASSERT_TRUE(fromFile->footnote.has_value());
+            EXPECT_EQ(fromFile->footnote->spec.text, "THE CHRONICLE IS WRITTEN FROM THIS LOG");
+            EXPECT_EQ(fromFile->spec.footnote, "THE CHRONICLE IS WRITTEN FROM THIS LOG");
         }
     }
 }

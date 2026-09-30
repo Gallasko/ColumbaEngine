@@ -11,7 +11,7 @@ namespace chronicle
     // or loaded from a .yaml file through pg::loadNodeSpec) can be realised with pg::buildTree.
     //
     // Kinds: Label, Mark, MarkedLabel, Ornament, Panel, Button, Tabs, Gloss, ProgressRule,
-    // StatLine, RequirementList, LifeClock, ActivityRow, ActivityList, ActivityGroup, WindowMeter, ResourceLedger, LedgerGroup, LedgerRow. Each maps its props onto the matching XSpec and calls the
+    // StatLine, RequirementList, LifeClock, ActivityRow, ActivityList, ActivityGroup, WindowMeter, ResourceLedger, LedgerGroup, LedgerRow, EventLog. Each maps its props onto the matching XSpec and calls the
     // existing makeX, then attaches the result struct to the piece's entity as a component:
     // `getEntity("fed")->get<RequirementList>()->setItem(ecs, 0, 18, 18)` keeps every runtime
     // setter. The composite kinds also register those setters as helpers on their root prefab
@@ -26,7 +26,7 @@ namespace chronicle
     //     and exposes its body layout as the slot the children go into;
     //   - list props come through NodeSpec::records: Tabs `items`, RequirementList `items`,
     //     Gloss `rows`, LifeClock `milestones` and `windows`, ActivityRow `gains` and
-    //     `requirements`, and MarkedLabel's nested `label` map;
+    //     `requirements`, EventLog `entries`, and MarkedLabel's nested `label` map;
     //   - ResourceLedger's children are LedgerGroup nodes whose children are LedgerRow nodes;
     //     neither builds anything of its own, both add to the ledger they are nested in;
     //   - ActivityList's slot takes ActivityGroup and ActivityRow children, side by side: a

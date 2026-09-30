@@ -1,0 +1,665 @@
+#include "stdafx.h"
+
+#include <string>
+#include <variant>
+#include <vector>
+
+#include <gtest/gtest.h>
+
+#include "UI/eventlog.h"
+#include "Core/motion.h"
+
+#include "ECS/entitysystem.h"
+#include "UI/themesystem.h"
+#include "ECS/entitysystem_fwd.h"   // ResizeEvent
+#include "UI/ttftext.h"
+#include "UI/iconsystem.h"
+#include "UI/sizer.h"
+#include "UI/prefab.h"
+#include "Input/inputcomponent.h"
+#include "Systems/gamefacts.h"
+#include "Systems/tween.h"
+#include "Systems/coresystems.h"
+#include "2D/simple2dobject.h"
+#include "2D/decoratedshapes.h"
+
+#include "mocklogger.h"
+#include "factfeed.h"
+
+using namespace chronicle;
+
+namespace pg
+{
+    namespace test
+    {
+        namespace
+        {
+            struct LogFixture
+            {
+                EntitySystem ecs;
+                MasterRenderer renderer;
+                TTFTextSystem* ttf = nullptr;
+                IconSystem* icons = nullptr;
+                ThemeSystem* theme = nullptr;
+                WorldFacts* facts = nullptr;
+                FactFeed* feed = nullptr;
+
+                LogFixture()
+                {
+                    Motion::setReduced(true);
+                    ecs.createSystem<PositionComponentSystem>();
+                    ecs.createSystem<LayoutSystem>();
+                    ecs.createSystem<PrefabSystem>();
+                    ecs.succeed<PositionComponentSystem, LayoutSystem>();
+                    ecs.succeed<PositionComponentSystem, PrefabSystem>();
+                    ttf = ecs.createSystem<TTFTextSystem>(&renderer);
+                    ecs.createSystem<Simple2DObjectSystem>(&renderer);
+                    ecs.createSystem<HatchRect2DObjectSystem>(&renderer);
+                    ecs.createSystem<DottedLine2DObjectSystem>(&renderer);
+                    ecs.createSystem<StrokeRect2DObjectSystem>(&renderer);
+                    icons = ecs.createSystem<IconSystem>(&renderer);
+                    ecs.createSystem<TweenSystem>();
+                    facts = createTestFacts(&ecs);
+                    feed = ecs.createSystem<FactFeed>();
+                    theme = ecs.createSystem<ThemeSystem>();
+                    theme->loadTheme("chronicle/tokens.json", "fonts");
+                    installIconEntries();
+                    ecs.sendEvent(ResizeEvent{1320.0f, 860.0f});
+                }
+
+                void installIconEntries()
+                {
+                    std::vector<IconEntry> marks;
+                    const int sizes[5] = {14, 16, 18, 24, 48};
+
+                    for (const auto& name : markNames())
+                    {
+                        for (int s : sizes)
+                            marks.push_back({name, s, {s, s}, {0.0f, 0.0f}, {0.1f, 0.1f}});
+                    }
+
+                    icons->registerEntriesForTest("chronicle", marks, 1024, 1024);
+                    renderer.registerTexture("IconAtlas_chronicle", OpenGLTexture{});
+                }
+
+                void settle() { ecs.executeOnce(); ecs.executeOnce(); ecs.executeOnce(); }
+
+                EventLog make(const EventLogSpec& spec, float x = 100.0f, float y = 100.0f)
+                {
+                    EventLog log = makeEventLog(&ecs, spec);
+                    log.root->get<PositionComponent>()->setX(x);
+                    log.root->get<PositionComponent>()->setY(y);
+                    settle();
+                    settle();
+
+                    return log;
+                }
+
+                // The wheel as the input system sends it: the list's own event, with the delta.
+                void wheel(const EventLog& log, int delta)
+                {
+                    auto event = ecs.getEntity(log.list.id)->get<MouseWheelComponent>()->event;
+                    event.values["x"] = ElementType{0};
+                    event.values["y"] = ElementType{delta};
+                    ecs.sendEvent(event);
+                    settle();
+                }
+
+                float asc(const std::string& style)
+                {
+                    const TextStyle& s = theme->style(style);
+
+                    return ttf->measureText(s.fontAlias, "H", 1.0f, 0.0f, 0.0f, s.letterSpacingPx).ascender;
+                }
+
+                constant::Vector4D color(const std::string& token, const std::string& id) { return theme->theme().color(token, id); }
+
+                CompRef<PositionComponent> pos(EntityRef e) { return ecs.getEntity(e.id)->get<PositionComponent>(); }
+
+                float left(EntityRef e, const EventLog& log) { return pos(e)->x - pos(log.root)->x; }
+
+                float top(EntityRef e, const EventLog& log) { return pos(e)->y - pos(log.root)->y; }
+
+                float right(EntityRef e) { return pos(e)->x + pos(e)->width; }
+
+                std::string element(EntityRef e) { return ecs.getEntity(e.id)->get<ThemeComponent>()->element; }
+
+                std::string iconName(const Mark& mark) { return ecs.getEntity(mark.entity.id)->get<IconComponent>()->iconName; }
+
+                VerticalLayout* layout(const EventLog& log) { return ecs.getEntity(log.list.id)->get<VerticalLayout>().component; }
+
+                // A point inside the entity, tested against its clip chain.
+                bool shown(EntityRef e) { return inClipBound(e, pos(e)->x + 1.0f, pos(e)->y + 1.0f); }
+            };
+
+            LogEntry entry(float age, const std::string& text, LogKind kind = LogKind::Note, const std::string& figure = "", const std::string& glyph = "")
+            {
+                LogEntry e;
+                e.age = age;
+                e.text = text;
+                e.kind = kind;
+                e.figure = figure;
+                e.glyph = glyph;
+
+                return e;
+            }
+
+            // n rows, ten a year from 7.
+            std::vector<LogEntry> life(int n)
+            {
+                std::vector<LogEntry> entries;
+
+                for (int i = 0; i < n; ++i)
+                    entries.push_back(entry(7.0f + 0.1f * static_cast<float>(i), "Month " + std::to_string(i), i % 2 ? LogKind::Gain : LogKind::Note, i % 2 ? "+1 str" : ""));
+
+                return entries;
+            }
+
+            const EventLog::Row& rowAt(const EventLog& log, size_t i) { return std::get<EventLog::Row>(log.items.at(i)); }
+
+            const EventLog::Year& yearAt(const EventLog& log, size_t i) { return std::get<EventLog::Year>(log.items.at(i)); }
+
+            // The n-th row, not counting rubrics.
+            const EventLog::Row& nthRow(const EventLog& log, size_t n)
+            {
+                for (const auto& item : log.items)
+                {
+                    if (const auto* row = std::get_if<EventLog::Row>(&item))
+                    {
+                        if (n == 0)
+                            return *row;
+
+                        --n;
+                    }
+                }
+
+                return std::get<EventLog::Row>(log.items.back());
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, gutter_geometry)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLog log = s.make(EventLogSpec{});
+
+            EXPECT_FLOAT_EQ(s.pos(log.root)->width, 300.0f);
+            EXPECT_FLOAT_EQ(s.pos(log.root)->height, 560.0f);
+
+            EXPECT_FLOAT_EQ(s.pos(log.gutter)->width, 300.0f);
+            EXPECT_FLOAT_EQ(s.pos(log.gutter)->height, 560.0f);
+            EXPECT_EQ(s.element(log.gutter), "log.gutter");
+
+            EXPECT_NEAR(s.left(log.edge, log), 0.0f, 0.01f);
+            EXPECT_FLOAT_EQ(s.pos(log.edge)->width, 2.0f);
+            EXPECT_FLOAT_EQ(s.pos(log.edge)->height, 560.0f);
+            EXPECT_EQ(s.element(log.edge), "log.edge");
+
+            EXPECT_NEAR(s.left(log.list, log), 14.0f, 0.01f);
+            EXPECT_NEAR(s.top(log.list, log), 8.0f, 0.01f);
+            EXPECT_FLOAT_EQ(s.pos(log.list)->width, 274.0f);
+            EXPECT_FLOAT_EQ(s.pos(log.list)->height, 544.0f);
+            EXPECT_TRUE(s.layout(log)->scrollable);
+            EXPECT_EQ(s.layout(log)->spacing, 1u);
+            EXPECT_TRUE(s.ecs.getEntity(log.list.id)->has<MouseWheelComponent>());
+
+            EXPECT_EQ(log.size(), 0u);
+            EXPECT_TRUE(log.atEnd(&s.ecs));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, rubrics_on_year_change)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = {entry(14.2f, "Apprenticed at the yard"), entry(14.8f, "A fever in the spring"), entry(15.1f, "Came of age at the guild")};
+            EventLog log = s.make(spec);
+
+            ASSERT_EQ(log.items.size(), 5u);
+            EXPECT_TRUE(std::holds_alternative<EventLog::Year>(log.items[0]));
+            EXPECT_TRUE(std::holds_alternative<EventLog::Row>(log.items[1]));
+            EXPECT_TRUE(std::holds_alternative<EventLog::Row>(log.items[2]));
+            EXPECT_TRUE(std::holds_alternative<EventLog::Year>(log.items[3]));
+            EXPECT_TRUE(std::holds_alternative<EventLog::Row>(log.items[4]));
+            EXPECT_EQ(log.size(), 3u);
+            EXPECT_EQ(log.lastYear, 15);
+
+            const auto& first = yearAt(log, 0);
+            EXPECT_EQ(first.year, 14);
+            EXPECT_EQ(first.rubric.spec.text, "IN HIS 14TH YEAR");
+            EXPECT_EQ(first.rubric.spec.style, "gloss-title");
+            EXPECT_EQ(s.element(first.rubric.entity), "log.year");
+
+            // The first rubric has nothing above it; the next has 12 px
+            EXPECT_FLOAT_EQ(s.pos(first.line)->height, 22.0f);
+            EXPECT_NEAR(s.pos(first.rubric.entity)->y, s.pos(first.line)->y, 0.01f);
+            EXPECT_NEAR(s.pos(first.line)->y, s.pos(log.list)->y, 0.01f);
+
+            const auto& second = yearAt(log, 3);
+            EXPECT_EQ(second.rubric.spec.text, "IN HIS 15TH YEAR");
+            EXPECT_FLOAT_EQ(s.pos(second.line)->height, 34.0f);
+            EXPECT_NEAR(s.pos(second.rubric.entity)->y, s.pos(second.line)->y + 12.0f, 0.01f);
+
+            // Lines one pixel apart
+            EXPECT_NEAR(s.pos(rowAt(log, 1).line)->y, s.pos(first.line)->y + 22.0f + 1.0f, 0.01f);
+            EXPECT_NEAR(s.pos(rowAt(log, 2).line)->y, s.pos(rowAt(log, 1).line)->y + 20.0f + 1.0f, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, ordinals)
+        {
+            const std::vector<std::pair<int, std::string>> cases = {
+                {1, "1ST"}, {2, "2ND"}, {3, "3RD"}, {4, "4TH"}, {11, "11TH"}, {12, "12TH"}, {13, "13TH"},
+                {21, "21ST"}, {22, "22ND"}, {23, "23RD"}, {43, "43RD"}, {111, "111TH"}, {101, "101ST"},
+            };
+
+            for (const auto& [n, text] : cases)
+                EXPECT_EQ(ordinal(n), text) << n;
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, row_geometry_and_kinds)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = {
+                entry(14.3f, "Gored in the North Forest", LogKind::Loss, "\xE2\x88\x92" "9 vit"),
+                entry(14.4f, "Stronger for the winter", LogKind::Gain, "+1 str"),
+                entry(14.5f, "Paid for the harvest", LogKind::Coin, "+12"),
+                entry(14.6f, "Took the Squire's oath", LogKind::Milestone),
+                entry(14.7f, "It rained all summer"),
+            };
+            EventLog log = s.make(spec);
+
+            const auto& loss = rowAt(log, 1);
+            EXPECT_EQ(loss.age.spec.text, "14.3");
+            EXPECT_EQ(s.element(loss.age.entity), "log.age");
+            EXPECT_FLOAT_EQ(s.pos(loss.age.entity)->width, 30.0f);
+            EXPECT_NEAR(s.pos(loss.age.entity)->x, s.pos(loss.line)->x, 0.01f);
+
+            EXPECT_EQ(s.iconName(loss.mark), "cross");
+            EXPECT_EQ(loss.mark.spec.size, MarkSize::S14);
+            EXPECT_EQ(s.element(loss.mark.entity), "log.mark.loss");
+            EXPECT_NEAR(s.pos(loss.mark.entity)->x, s.pos(loss.line)->x + 38.0f, 0.01f);
+            EXPECT_NEAR(s.pos(loss.mark.entity)->y, s.pos(loss.line)->y + 3.0f, 0.01f);
+
+            EXPECT_EQ(s.element(loss.text.entity), "log.text.loss");
+            EXPECT_EQ(loss.text.spec.style, "body-sm");
+            EXPECT_NEAR(s.pos(loss.text.entity)->x, s.pos(loss.line)->x + 60.0f, 0.01f);
+
+            ASSERT_TRUE(loss.figure.has_value());
+            EXPECT_EQ(loss.figure->spec.text, "\xE2\x88\x92" "9 vit");
+            EXPECT_EQ(s.element(loss.figure->entity), "log.figure.loss");
+            EXPECT_NEAR(s.right(loss.figure->entity), s.right(loss.line), 0.01f);
+
+            const float baseline = s.pos(loss.text.entity)->y + s.asc("body-sm");
+            EXPECT_NEAR(s.pos(loss.age.entity)->y + s.asc("caption"), baseline, 0.5f);
+            EXPECT_NEAR(s.pos(loss.figure->entity)->y + s.asc("figure-sm"), baseline, 0.5f);
+
+            const auto& gain = rowAt(log, 2);
+            EXPECT_EQ(s.iconName(gain.mark), "check");
+            EXPECT_EQ(s.element(gain.mark.entity), "log.mark.gain");
+            EXPECT_EQ(s.element(gain.text.entity), "log.text.gain");
+            EXPECT_EQ(s.element(gain.figure->entity), "log.figure.gain");
+
+            const auto& coin = rowAt(log, 3);
+            EXPECT_EQ(s.iconName(coin.mark), "gold");
+            EXPECT_EQ(s.element(coin.mark.entity), "log.mark.coin");
+            EXPECT_EQ(s.element(coin.text.entity), "log.text");
+            EXPECT_EQ(s.element(coin.figure->entity), "log.figure.coin");
+
+            const auto& milestone = rowAt(log, 4);
+            EXPECT_EQ(s.iconName(milestone.mark), "seal");
+            EXPECT_EQ(s.element(milestone.mark.entity), "log.mark.milestone");
+            EXPECT_EQ(s.element(milestone.text.entity), "log.text.milestone");
+            EXPECT_EQ(milestone.text.spec.style, "figure-sm");
+            EXPECT_FALSE(milestone.figure.has_value());
+
+            const auto& note = rowAt(log, 5);
+            EXPECT_EQ(s.iconName(note.mark), "quill");
+            EXPECT_EQ(s.element(note.mark.entity), "log.mark");
+            EXPECT_EQ(s.element(note.text.entity), "log.text.note");
+            EXPECT_EQ(note.text.spec.style, "gloss");
+            EXPECT_FALSE(note.figure.has_value());
+
+            // The italic note keeps the row's baseline
+            EXPECT_NEAR(s.pos(note.age.entity)->y + s.asc("caption"), s.pos(note.text.entity)->y + s.asc("gloss"), 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, explicit_glyph_wins)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = {entry(14.3f, "Carried the anvil", LogKind::Gain, "+1 str", "strength")};
+            EventLog log = s.make(spec);
+
+            const auto& row = rowAt(log, 1);
+            EXPECT_EQ(s.iconName(row.mark), "strength");
+            EXPECT_EQ(s.element(row.mark.entity), "log.mark.gain");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, text_leaves_room_for_figure)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            const std::string longText = "Gored in the North Forest by a boar he had been told twice to leave alone";
+
+            EventLogSpec spec;
+            spec.entries = {entry(14.3f, longText, LogKind::Loss, "\xE2\x88\x92" "9 vit")};
+            EventLog log = s.make(spec);
+
+            const auto& row = rowAt(log, 1);
+
+            // The text is cut to the room the figure leaves, and the figure is whole
+            TextLayoutParams params;
+            params.maxWidth = row.text.spec.width;
+            params.overflow = Overflow::Ellipsis;
+            params.letterSpacing = row.text.letterSpacingPx;
+            params.spacing = row.text.lineSpacingPx;
+            EXPECT_TRUE(s.ttf->measureText(row.text.fontAlias, longText, params).elided);
+
+            EXPECT_EQ(row.text.spec.text, longText);
+            EXPECT_EQ(row.figure->spec.text, "\xE2\x88\x92" "9 vit");
+            EXPECT_LE(s.right(row.text.entity), s.pos(row.figure->entity)->x - 8.0f + 0.01f);
+            EXPECT_NEAR(s.right(row.figure->entity), s.right(row.line), 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, footnote)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLog log = s.make(EventLogSpec{});
+
+            log.setFootnote(&s.ecs, "THE CHRONICLE IS WRITTEN FROM THIS LOG");
+            s.settle();
+
+            ASSERT_TRUE(log.footnote.has_value());
+            EXPECT_EQ(s.element(log.footnote->entity), "log.footnote");
+            EXPECT_NEAR(s.top(log.footnote->entity, log), 564.0f, 0.01f);
+
+            const float footHeight = s.pos(log.footnote->entity)->height;
+            EXPECT_FLOAT_EQ(footHeight, 15.0f);
+            EXPECT_FLOAT_EQ(s.pos(log.root)->height, 564.0f + footHeight);
+
+            log.setFootnote(&s.ecs, "");
+            s.settle();
+
+            EXPECT_FALSE(log.footnote.has_value());
+            EXPECT_FLOAT_EQ(s.pos(log.root)->height, 560.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, rows_outside_clip_are_culled)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = life(60);
+            EventLog log = s.make(spec);
+
+            ASSERT_EQ(log.size(), 60u);
+
+            // Built at the end: the first rows are above the well and clipped
+            EXPECT_TRUE(log.atEnd(&s.ecs));
+            EXPECT_LT(s.pos(nthRow(log, 0).line)->y, s.pos(log.list)->y);
+            EXPECT_FALSE(s.shown(nthRow(log, 0).line));
+            EXPECT_FALSE(s.shown(nthRow(log, 0).text.entity));
+            EXPECT_TRUE(s.shown(nthRow(log, 59).line));
+
+            // At the top: the last rows are below the well and clipped, and still there
+            s.wheel(log, 1000);
+
+            EXPECT_FLOAT_EQ(s.layout(log)->yOffset, 0.0f);
+            EXPECT_TRUE(s.shown(nthRow(log, 0).line));
+
+            const float listBottom = s.pos(log.list)->y + s.pos(log.list)->height;
+            const auto& last = nthRow(log, 59);
+            EXPECT_GT(s.pos(last.line)->y, listBottom);
+            EXPECT_FALSE(s.shown(last.line));
+            EXPECT_FALSE(s.shown(last.text.entity));
+            EXPECT_FALSE(s.shown(last.mark.entity));
+            EXPECT_EQ(log.size(), 60u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, wheel_scrolls)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = life(60);
+            EventLog log = s.make(spec);
+
+            s.wheel(log, 1000);
+            ASSERT_FLOAT_EQ(s.layout(log)->yOffset, 0.0f);
+
+            const float firstY = s.pos(nthRow(log, 0).line)->y;
+
+            // A notch down: the content moves up by the layout's scroll speed
+            s.wheel(log, -2);
+
+            EXPECT_NEAR(s.pos(nthRow(log, 0).line)->y, firstY - 2.0f * s.layout(log)->scrollSpeed, 0.01f);
+            EXPECT_FALSE(log.atEnd(&s.ecs));
+
+            // Never past the end
+            s.wheel(log, -1000);
+
+            EXPECT_TRUE(log.atEnd(&s.ecs));
+            EXPECT_FLOAT_EQ(s.layout(log)->yOffset, s.layout(log)->contentHeight - s.pos(log.list)->height);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, no_autoscroll_while_reading_up)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = life(60);
+            EventLog log = s.make(spec);
+
+            log.scrollToEnd(&s.ecs);
+            s.settle();
+            ASSERT_TRUE(log.atEnd(&s.ecs));
+
+            // At the end, a new row: the view follows it
+            log.append(&s.ecs, entry(13.1f, "A letter from the Guild", LogKind::Coin, "+5"));
+            s.settle();
+
+            EXPECT_TRUE(log.atEnd(&s.ecs));
+            EXPECT_TRUE(s.shown(nthRow(log, 60).line));
+
+            // Reading further up: new rows do not move the view
+            s.wheel(log, 4);
+            ASSERT_FALSE(log.atEnd(&s.ecs));
+
+            const float offset = s.layout(log)->yOffset;
+            const float firstY = s.pos(nthRow(log, 0).line)->y;
+
+            log.append(&s.ecs, entry(13.2f, "Snow on the pass"));
+            log.append(&s.ecs, entry(14.0f, "Turned fourteen", LogKind::Milestone));
+            s.settle();
+
+            EXPECT_FLOAT_EQ(s.layout(log)->yOffset, offset);
+            EXPECT_FLOAT_EQ(s.pos(nthRow(log, 0).line)->y, firstY);
+            EXPECT_FALSE(log.atEnd(&s.ecs));
+            EXPECT_EQ(log.size(), 63u);
+
+            // Back to the end on request
+            log.scrollToEnd(&s.ecs);
+            s.settle();
+
+            EXPECT_TRUE(log.atEnd(&s.ecs));
+            EXPECT_TRUE(s.shown(nthRow(log, 62).line));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, clear)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = life(12);
+            EventLog log = s.make(spec);
+
+            const EntityRef oldLine = nthRow(log, 0).line;
+            const EntityRef oldText = nthRow(log, 0).text.entity;
+
+            log.clear(&s.ecs);
+            s.settle();
+
+            EXPECT_EQ(log.size(), 0u);
+            EXPECT_TRUE(log.items.empty());
+            EXPECT_EQ(log.lastYear, -1);
+            EXPECT_TRUE(s.layout(log)->entities.empty());
+            EXPECT_EQ(s.ecs.getEntity(oldLine.id), nullptr);
+            EXPECT_EQ(s.ecs.getEntity(oldText.id), nullptr);
+
+            log.append(&s.ecs, entry(7.5f, "Born again, in a manner of speaking"));
+            s.settle();
+
+            ASSERT_EQ(log.items.size(), 2u);
+            EXPECT_TRUE(std::holds_alternative<EventLog::Year>(log.items[0]));
+            EXPECT_EQ(yearAt(log, 0).rubric.spec.text, "IN HIS 7TH YEAR");
+            EXPECT_FLOAT_EQ(s.pos(yearAt(log, 0).line)->height, 22.0f);
+            EXPECT_NEAR(s.pos(yearAt(log, 0).line)->y, s.pos(log.list)->y, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The scene owns what happens and calls append from its own handler: nothing else is needed.
+        TEST(eventlog_test, fed_from_worldfacts)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLog log = s.make(EventLogSpec{});
+            float age = 14.0f;
+
+            s.feed->onFact = [&](const std::string& name, const ElementType& v) {
+                if (name == "life.age")
+                    age = v.get<float>();
+                else if (name == "life.event")
+                    log.append(&s.ecs, entry(age, v.get<std::string>(), LogKind::Gain, "+1 str"));
+            };
+
+            s.facts->setFact("life.age", 14.3f);
+            s.settle();
+            s.settle();
+            s.facts->setFact("life.event", std::string("Carried the anvil"));
+            s.settle();
+            s.settle();
+
+            ASSERT_EQ(log.size(), 1u);
+            ASSERT_EQ(log.items.size(), 2u);
+            EXPECT_EQ(rowAt(log, 1).age.spec.text, "14.3");
+            EXPECT_EQ(rowAt(log, 1).text.spec.text, "Carried the anvil");
+            EXPECT_EQ(s.element(rowAt(log, 1).text.entity), "log.text.gain");
+            EXPECT_NEAR(s.pos(rowAt(log, 1).line)->y, s.pos(log.list)->y + 23.0f, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, theme_switch)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = {entry(14.3f, "Gored in the North Forest", LogKind::Loss, "\xE2\x88\x92" "9 vit")};
+            EventLog log = s.make(spec);
+
+            s.theme->setTheme("candle");
+            s.settle();
+
+            const auto gutter = s.ecs.getEntity(log.gutter.id)->get<Simple2DObject>()->colors;
+            EXPECT_FLOAT_EQ(gutter.x, s.color("vellum-worn", "candle").x);
+            EXPECT_FLOAT_EQ(gutter.y, s.color("vellum-worn", "candle").y);
+            EXPECT_FLOAT_EQ(gutter.z, s.color("vellum-worn", "candle").z);
+
+            // status-loss is vermilion
+            const auto figure = s.ecs.getEntity(rowAt(log, 1).figure->entity.id)->get<TTFText>()->colors;
+            EXPECT_FLOAT_EQ(figure.x, s.color("vermilion", "candle").x);
+            EXPECT_FLOAT_EQ(figure.y, s.color("vermilion", "candle").y);
+            EXPECT_FLOAT_EQ(figure.z, s.color("vermilion", "candle").z);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, z_bands)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = {entry(14.3f, "Gored in the North Forest", LogKind::Loss, "\xE2\x88\x92" "9 vit")};
+            spec.footnote = "THE CHRONICLE IS WRITTEN FROM THIS LOG";
+            spec.z = 20;
+            EventLog log = s.make(spec);
+
+            const auto& year = yearAt(log, 0);
+            const auto& row = rowAt(log, 1);
+
+            EXPECT_FLOAT_EQ(s.pos(log.root)->z, 20.0f);
+            EXPECT_FLOAT_EQ(s.pos(log.gutter)->z, 20.0f);
+            EXPECT_FLOAT_EQ(s.pos(log.edge)->z, 21.0f);
+            EXPECT_FLOAT_EQ(s.pos(log.footnote->entity)->z, 21.0f);
+            EXPECT_FLOAT_EQ(s.pos(log.list)->z, 22.0f);
+            // A layout holds its children at its own z: the lines share the list's
+            EXPECT_FLOAT_EQ(s.pos(year.line)->z, 22.0f);
+            EXPECT_FLOAT_EQ(s.pos(row.line)->z, 22.0f);
+            EXPECT_FLOAT_EQ(s.pos(row.mark.entity)->z, 24.0f);
+            EXPECT_FLOAT_EQ(s.pos(row.age.entity)->z, 24.0f);
+            EXPECT_FLOAT_EQ(s.pos(row.text.entity)->z, 25.0f);
+            EXPECT_FLOAT_EQ(s.pos(row.figure->entity)->z, 25.0f);
+            EXPECT_FLOAT_EQ(s.pos(year.rubric.entity)->z, 25.0f);
+
+            for (auto e : {log.root, log.gutter, log.edge, log.list, year.line, row.line, row.mark.entity, row.age.entity, row.text.entity, row.figure->entity, year.rubric.entity})
+            {
+                const float z = s.pos(e)->z;
+                EXPECT_FLOAT_EQ(z, static_cast<float>(static_cast<int>(z)));
+            }
+        }
+    }
+}

@@ -24,6 +24,7 @@
 #include "activityrow.h"
 #include "windowmeter.h"
 #include "resourceledger.h"
+#include "eventlog.h"
 
 using namespace pg;
 
@@ -70,6 +71,8 @@ namespace pg
     template <> chronicle::WindowMeter deserialize(const UnserializedObject&) { return chronicle::WindowMeter{}; }
     template <> void serialize(Archive& archive, const chronicle::ResourceLedger& value) { (void)value; serializeEmptyPiece<chronicle::ResourceLedger>(archive, "ResourceLedger"); }
     template <> chronicle::ResourceLedger deserialize(const UnserializedObject&) { return chronicle::ResourceLedger{}; }
+    template <> void serialize(Archive& archive, const chronicle::EventLog& value) { (void)value; serializeEmptyPiece<chronicle::EventLog>(archive, "EventLog"); }
+    template <> chronicle::EventLog deserialize(const UnserializedObject&) { return chronicle::EventLog{}; }
 }
 
 namespace chronicle
@@ -293,6 +296,7 @@ namespace chronicle
             ecs->registerFlagComponent<LifeClock>();
             ecs->registerFlagComponent<WindowMeter>();
             ecs->registerFlagComponent<ResourceLedger>();
+            ecs->registerFlagComponent<EventLog>();
             registerActivityComponents(ecs);   // Guarded: makeActivityRow registers them too
         }
 
@@ -1120,6 +1124,57 @@ namespace chronicle
                     return FactoryResult{};
                 }});
         }
+
+        void registerEventLog(PrefabFactoryRegistry* registry)
+        {
+            ParamSchema schema;
+            schema.entries = {
+                {"width",      300.0f},
+                {"height",     560.0f},
+                {"yearPrefix", "IN HIS "},
+                {"footnote",   ""},
+                {"z",          20},
+            };
+
+            static const std::vector<std::pair<std::string, LogKind>> KIND = {
+                {"note", LogKind::Note}, {"gain", LogKind::Gain}, {"loss", LogKind::Loss},
+                {"coin", LogKind::Coin}, {"milestone", LogKind::Milestone},
+            };
+
+            registry->registerFactory("EventLog", std::move(schema),
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
+                {
+                    auto theme = ecs->getSystem<ThemeSystem>();
+                    EventLogSpec s;
+                    s.width      = numberProp(spec.props, "width", theme, s.width);
+                    s.height     = numberProp(spec.props, "height", theme, s.height);
+                    s.yearPrefix = stringProp(spec.props, "yearPrefix", s.yearPrefix);
+                    s.footnote   = stringProp(spec.props, "footnote", s.footnote);
+                    s.z          = getParamInt(spec.props, "z", s.z);
+
+                    if (const RecordList* entries = recordsOf(spec, "entries"))
+                    {
+                        for (const auto& rec : *entries)
+                        {
+                            LogEntry entry;
+                            entry.age    = getParamFloat(rec, "age", entry.age);
+                            entry.text   = stringProp(rec, "text");
+                            entry.kind   = enumProp(rec, "kind", KIND, entry.kind);
+                            entry.figure = stringProp(rec, "figure");
+                            entry.glyph  = stringProp(rec, "glyph");
+                            s.entries.push_back(std::move(entry));
+                        }
+                    }
+
+                    EventLog log = makeEventLog(ecs, s);
+                    auto prefab = log.root->get<Prefab>();
+                    prefab->addHelper("append", [](Prefab* p, const LogEntry& entry) { if (auto piece = pieceOf<EventLog>(p)) piece->append(p->ecsRef, entry); });
+                    prefab->addHelper("clear", [](Prefab* p) { if (auto piece = pieceOf<EventLog>(p)) piece->clear(p->ecsRef); });
+                    prefab->addHelper("setFootnote", [](Prefab* p, const std::string& text) { if (auto piece = pieceOf<EventLog>(p)) piece->setFootnote(p->ecsRef, text); });
+                    prefab->addHelper("scrollToEnd", [](Prefab* p) { if (auto piece = pieceOf<EventLog>(p)) piece->scrollToEnd(p->ecsRef); });
+                    return leaf(keep(ecs, log.root, std::move(log)));
+                }});
+        }
     }
 
     const std::vector<std::string>& chronicleKinds()
@@ -1128,7 +1183,7 @@ namespace chronicle
             "Label", "Mark", "MarkedLabel", "Ornament", "Panel", "Button",
             "Tabs", "Gloss", "ProgressRule", "StatLine", "RequirementList", "LifeClock",
             "ActivityRow", "ActivityList", "ActivityGroup", "WindowMeter",
-            "ResourceLedger", "LedgerGroup", "LedgerRow",
+            "ResourceLedger", "LedgerGroup", "LedgerRow", "EventLog",
         };
 
         return kinds;
@@ -1164,5 +1219,6 @@ namespace chronicle
         registerResourceLedger(registry);
         registerLedgerGroup(registry);
         registerLedgerRow(registry);
+        registerEventLog(registry);
     }
 }

@@ -266,6 +266,33 @@ come from `rules/*.pg` through the scene, never from the component.
   `ledger.mark` (`.coin`, `.guild`, `.relic`, `.muted`), `ledger.name` (`.muted`),
   `ledger.leader`, `ledger.figure` (`.relic`, `.muted`), `ledger.rate` (`.loss`).
 
+- **EventLog** (`UI/eventlog.h`) - the running account of everything that has happened in
+  this life, entered under the year it happened in: a `vellum-worn` well with a 2 px
+  `rule-hair` left edge, and inside it (inset 8 / 12) a scrollable `VerticalLayout` of lines
+  one pixel apart. A row is age (`caption`, a 30 px column, one decimal) · mark (S14) · text
+  (`body-sm`, elided to the room the figure leaves) · figure (`figure-sm`, right edge), on one
+  baseline. **Kinds → glyph / element**: note → `quill`, `log.text.note` (`gloss`, italic,
+  muted: what happened *to* him); gain → `check`, loss → `cross` (mark, text and figure in
+  `status-gain` / `status-loss`); coin → `gold` (ochre mark and figure, plain text);
+  milestone → `seal` in gold-edge, the text in `figure-sm` for full ink and weight. An
+  entry's own `glyph` wins; the element stays the kind's. **Rubrics**: the log inserts one
+  when `floor(age)` passes the last year - grouping what it is given, not game logic - in
+  `gloss-title` vermilion (the design's 15 px display size does not exist in the kit),
+  `yearPrefix` + ordinal + ` YEAR` (`IN HIS 14TH YEAR`; `1ST 2ND 3RD 4TH … 11TH 12TH 13TH
+  21ST`), 12 px above all but the first. **The whole life is kept, never truncated**: rows
+  scrolled out of the well are clipped (`ClippedTo` the list), not removed. **Stick-to-end
+  rule**: `append` sets the layout's `stickToEnd` to `atEnd()` for that insertion, so the view
+  follows new lines only when it was already at the end; a player reading further up is left
+  where they are (`atEnd` = offset ≥ content − viewport − 1; `scrollToEnd` jumps there).
+  Wheel scrolling is the engine's `layoutScroll`. A layout holds its children at its own z,
+  so the lines share the list's band; their parts stand two and three above it. The entity
+  count grows with the life - a 36-year life at ~30 entries a year is ~1 100 rows, ~4 400
+  entities: fine for the MVP; the answer to a bad profile is row virtualisation, not
+  truncation. Fed: `append`, `clear`, `setFootnote` (`caption`, `ink-faint`, 4 px under the
+  well). Elements: `log.gutter`, `log.edge`, `log.year`, `log.age`, `log.mark` (`.gain`,
+  `.loss`, `.coin`, `.milestone`), `log.text` (`.note`, `.gain`, `.loss`, `.milestone`),
+  `log.figure` (`.gain`, `.loss`, `.coin`), `log.footnote`.
+
 ## Patterns
 
 - **State component + System + event-driven tests.** A stateful, input-receiving

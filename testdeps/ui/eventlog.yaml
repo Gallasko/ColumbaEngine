@@ -1,0 +1,13 @@
+kind: EventLog
+name: log
+x: 10
+y: 20
+width: 300
+height: 200
+footnote: THE CHRONICLE IS WRITTEN FROM THIS LOG
+entries:
+  - {age: 7.2, text: Born at the mill, kind: milestone}
+  - {age: 7.9, text: A hard winter, kind: note}
+  - {age: 8.4, text: Carried sacks all spring, kind: gain, figure: "+1 str"}
+  - {age: 8.6, text: Paid for the harvest, kind: coin, figure: "+12", glyph: trade}
+  - {age: 9.1, text: Gored in the North Forest, kind: loss, figure: "−9 vit"}
