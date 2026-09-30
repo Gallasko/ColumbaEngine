@@ -88,6 +88,7 @@ namespace chronicle
         void addGroup(pg::EntitySystem*, const std::string& groupId, const std::string& label);   // Appended; a known id is left as it is
         void addRow(pg::EntitySystem*, const std::string& groupId, const LedgerRowSpec& row, const std::string& groupLabel = "");   // Appended to the group; an unknown group is created at the end with groupLabel
         void removeRow(pg::EntitySystem*, const std::string& id);
+        void clear(pg::EntitySystem*);                                     // Every group and row
         Row* row(const std::string& id);
         Group* group(const std::string& id);
         float height(pg::EntitySystem*) const;

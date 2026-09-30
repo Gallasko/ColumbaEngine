@@ -363,6 +363,25 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A group with no label (the skills of the Life screen) has no heading: its first line
+        // sits at the top.
+        TEST(resourceledger_test, unlabelled_group_has_no_heading)
+        {
+            MockLogger logger;
+            LedgerFixture s;
+
+            ResourceLedgerSpec spec;
+            spec.groups = {{"skills", "", {rowSpec("swd", "Swordsmanship", "3", "", LedgerTone::None, "swordsmanship"), rowSpec("ride", "Riding", "1")}}};
+            ResourceLedger ledger = s.make(spec);
+
+            EXPECT_FLOAT_EQ(s.pos(ledger.groups[0].heading)->height, 0.0f);
+            EXPECT_NEAR(s.top(ledger.row("swd")->line, ledger), 0.0f, 0.01f);
+            EXPECT_FLOAT_EQ(ledger.height(&s.ecs), 52.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(resourceledger_test, add_and_remove_rows)
         {
             MockLogger logger;

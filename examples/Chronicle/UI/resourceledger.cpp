@@ -245,13 +245,14 @@ namespace chronicle
             return row;
         }
 
+        // A group with no label has no heading to read: its block is only the space above it.
         EntityRef makeHeading(EntitySystem* ecs, const std::string& text, float width, int z, bool first, Label& label)
         {
             const float above = first ? 0.0f : HeadingAbove;
 
             auto block = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(z));
             block.get<PositionComponent>()->setWidth(width);
-            block.get<PositionComponent>()->setHeight(above + HeadingLine + HeadingBelow);
+            block.get<PositionComponent>()->setHeight(text.empty() ? above : above + HeadingLine + HeadingBelow);
 
             label = makeLedgerText(ecs, "label", "ledger.group", text, z + 2);
             placeIn(label.entity, block.id, 0.0f, above, 2.0f);
@@ -414,6 +415,13 @@ namespace chronicle
         }
 
         LOG_ERROR(DOM, "removeRow: the ledger has no row '" << id << "'");
+    }
+
+    void ResourceLedger::clear(EntitySystem*)
+    {
+        // The layout destroys the headings and lines; their parts follow them.
+        body->get<VerticalLayout>()->clear();
+        groups.clear();
     }
 
     void ResourceLedger::setValue(EntitySystem* ecs, const std::string& id, const std::string& value)

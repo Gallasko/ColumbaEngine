@@ -322,6 +322,7 @@ namespace chronicle
             ParamSchema schema;
             schema.entries = {
                 {"name",   "seal"},
+                {"glyph",  ""},     // wins over `name`: a named node's `name` is its handle
                 {"size",   16},
                 {"color",  "ink"},
                 {"z",      0},
@@ -332,7 +333,9 @@ namespace chronicle
                 {
                     auto* theme = ecs->getSystem<ThemeSystem>();
                     MarkSpec s;
-                    s.name   = stringProp(spec.props, "name", s.name);
+                    s.name   = stringProp(spec.props, "glyph", "");
+                    if (s.name.empty())
+                        s.name = stringProp(spec.props, "name", "seal");
                     s.size   = markSizeProp(spec.props, "size", s.size);
                     s.color = colorProp(spec.props, "color", theme, s.color);
                     s.z      = getParamInt(spec.props, "z", s.z);

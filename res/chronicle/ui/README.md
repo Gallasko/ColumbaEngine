@@ -37,7 +37,7 @@ comment.
 - Enum props are lowercase strings: `frame: ruled`, `overflow: wrap`, `align: right`,
   `variant: seal`, `weight: hair`, `tone: gold`, `corner: tl`, `gloss: tooltip`.
 - Where the spec field is itself called `kind`, the prop is renamed: `ornament: divider`
-  and `gloss: margin`. `size: 16` picks a `MarkSize`. `name` is the node's handle, so an
+  and `gloss: margin`. `size: 16` picks a `MarkSize`; a `Mark`'s glyph is `glyph:` (or `name:` on an unnamed node). `name` is the node's handle, so an
   `ActivityRow`'s display name is `label: Train at the yard`, and a `WindowMeter`'s is
   `label: Squire`. `WindowMeter.state` is `upcoming`, `open` or `closed`.
 - Colours are token names (`ink-muted`, `status-gain`); an unknown token is logged and
