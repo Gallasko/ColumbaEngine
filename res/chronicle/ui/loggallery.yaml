@@ -1,0 +1,154 @@
+# Dev gallery for the event log: `Chronicle --dev LogGallery`.
+#
+# The Life screen's right column: a plain panel holding the log, ten years of a life
+# in 24 entries, all five kinds. Beside it a short log that does not scroll and a wide
+# one. The scene appends to `log` and `wide` from its own handlers when a button is
+# pressed, as the Life screen will from the rules; the log keeps the whole life, and
+# follows new rows only when the view is already at the end.
+name: gallery
+children:
+
+  - kind: Shape2D
+    name: page
+    width: 1320
+    height: 860
+    z: 0
+    theme: scene.background
+
+  - kind: TTFText
+    name: note
+    x: 48
+    y: 48
+    z: 15
+    text: "T theme - wheel to scroll - every log on this page comes from res/chronicle/ui/loggallery.yaml"
+    theme: label.caption.ink-muted
+
+  - kind: Panel
+    name: column
+    x: 48
+    y: 90
+    frame: plain
+    width: 300
+    children:
+      - kind: EventLog
+        name: log
+        height: 560
+        footnote: THE CHRONICLE IS WRITTEN FROM THIS LOG
+        entries:
+          - {age: 7.0, text: "Born to the miller's wife at Bellmoor", kind: milestone}
+          - {age: 7.6, text: Fell in the millrace and was pulled out, kind: note}
+          - {age: 8.2, text: Carried sacks for the mill, kind: gain, figure: "+1 str"}
+          - {age: 8.9, text: Paid for a season at the mill, kind: coin, figure: "+4"}
+          - {age: 9.3, text: Learned his letters from the priest, kind: gain, figure: "+1 int"}
+          - {age: 9.8, text: A fever that took the winter, kind: loss, figure: "−2 vit"}
+          - {age: 10.1, text: His father went north and did not come back, kind: note}
+          - {age: 10.7, text: Sold the old mule, kind: coin, figure: "+9"}
+          - {age: 11.4, text: Trained at the yard with the other boys, kind: gain, figure: "+1 str"}
+          - {age: 11.9, text: "Beaten at the yard by the smith's son", kind: loss, figure: "−1 vit"}
+          - {age: 12.2, text: Taken on by the Bellmoor Guild, kind: milestone}
+          - {age: 12.6, text: The choir turned him away, kind: note}
+          - {age: 13.0, text: "Carried the guild's anvil to the fair", kind: gain, figure: "+2 str"}
+          - {age: 13.5, text: Wages from the guild, kind: coin, figure: "+15"}
+          - {age: 14.3, text: Gored in the North Forest, kind: loss, figure: "−9 vit"}
+          - {age: 14.4, text: Kept to his bed until the thaw, kind: note}
+          - {age: 14.9, text: Walked again by midsummer, kind: gain, figure: "+3 vit"}
+          - {age: 15.2, text: Came of age at the guild, kind: milestone}
+          - {age: 15.8, text: Lost his purse at the fair, kind: loss, figure: "−11"}
+          - {age: 16.1, text: "Swore the Squire's oath at the keep", kind: milestone}
+          - {age: 16.4, text: Drilled with the sword all spring, kind: gain, figure: "+1 swd", glyph: swordsmanship}
+          - {age: 16.7, text: "A squire's stipend", kind: coin, figure: "+20"}
+          - {age: 16.9, text: Rode out behind the knight for the first time, kind: note}
+          - {age: 16.9, text: Unhorsed in the first tilt, kind: loss, figure: "−1 dex"}
+
+  # A short log: three entries, nothing to scroll. A piece placed straight on the page
+  # sits at the page's z; a plain panel gives it the content band, as on the Life screen
+  - kind: TTFText
+    x: 400
+    y: 90
+    z: 15
+    text: "short - 3 entries, 200 tall, no scroll"
+    theme: label.caption.ink-muted
+
+  - kind: Panel
+    name: shortColumn
+    x: 400
+    y: 112
+    frame: plain
+    width: 300
+    children:
+      - kind: EventLog
+        name: short
+        height: 200
+        entries:
+          - {age: 7.0, text: "Born to the miller's wife at Bellmoor", kind: milestone}
+          - {age: 7.6, text: Fell in the millrace and was pulled out, kind: note}
+          - {age: 8.2, text: Carried sacks for the mill, kind: gain, figure: "+1 str"}
+
+  # The wide log: the same account at 480, driven by the buttons like the column's
+  - kind: TTFText
+    x: 400
+    y: 340
+    z: 15
+    text: "wide - 480, fed with the column's log"
+    theme: label.caption.ink-muted
+
+  - kind: Panel
+    name: wideColumn
+    x: 400
+    y: 362
+    frame: plain
+    width: 480
+    children:
+      - kind: EventLog
+        name: wide
+        height: 420
+        yearPrefix: "IN HIS "
+        entries:
+          - {age: 14.3, text: Gored in the North Forest by a boar he had been told twice to leave alone, kind: loss, figure: "−9 vit"}
+          - {age: 14.4, text: Kept to his bed until the thaw, kind: note}
+          - {age: 14.9, text: Walked again by midsummer, kind: gain, figure: "+3 vit"}
+          - {age: 15.2, text: Came of age at the guild, kind: milestone}
+          - {age: 15.8, text: Lost his purse at the fair, kind: loss, figure: "−11"}
+          - {age: 16.1, text: "Swore the Squire's oath at the keep", kind: milestone}
+          - {age: 16.7, text: "A squire's stipend", kind: coin, figure: "+20"}
+
+  # The buttons append to `log` and `wide`
+  - kind: Button
+    name: month
+    x: 940
+    y: 112
+    variant: quiet
+    label: A month passes
+    tag: log.month
+
+  - kind: Button
+    name: milestone
+    x: 940
+    y: 156
+    variant: quiet
+    label: Milestone
+    tag: log.milestone
+
+  - kind: Button
+    name: loss
+    x: 940
+    y: 200
+    variant: quiet
+    label: Loss
+    tag: log.loss
+
+  - kind: Button
+    name: end
+    x: 940
+    y: 244
+    variant: quiet
+    label: Scroll to end
+    tag: log.end
+
+  - kind: Button
+    name: clear
+    x: 940
+    y: 288
+    variant: quiet
+    label: Clear
+    tag: log.clear

@@ -17,6 +17,7 @@
 #include "activitygallery.h"
 #include "windowgallery.h"
 #include "ledgergallery.h"
+#include "loggallery.h"
 
 namespace chronicle
 {
@@ -38,6 +39,7 @@ namespace chronicle
             {"ActivityGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<ActivityGallery>(); }},
             {"WindowGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<WindowGallery>(); }},
             {"LedgerGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<LedgerGallery>(); }},
+            {"LogGallery", [](pg::SceneElementSystem* s) { s->loadSystemScene<LogGallery>(); }},
         };
 
         return scenes;

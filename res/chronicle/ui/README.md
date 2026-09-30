@@ -105,5 +105,6 @@ children:
 | `activitygallery.yaml` | `Chronicle --dev ActivityGallery` | the Life screen's activity list in five groups, scrolling, and the side panel showing the activity at work or the one chosen |
 | `windowgallery.yaml` | `Chronicle --dev WindowGallery` | the doors that close: three `WindowMeter`s (open, upcoming, closed) in a ruled panel, the same three at 480 on vellum, and one with a two-line note |
 | `ledgergallery.yaml` | `Chronicle --dev LedgerGallery` | the Life screen's ledger in its panel (PURSE, STANDING, STORES, KEPT BETWEEN LIVES), the same at 480 on vellum, and one at 200 whose name leaves no leader |
+| `loggallery.yaml` | `Chronicle --dev LogGallery` | the Life screen's event log in a plain panel (ten years, all five kinds, footnote), a short log that does not scroll, and a wide one at 480 |
 
 The file format and the builder are documented in `docs/PREFAB_TREES.md`.
