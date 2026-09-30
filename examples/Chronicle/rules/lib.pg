@@ -1,0 +1,166 @@
+// Chronicle rules: shared helpers
+// -------------------------------
+// Pure functions only: no state, no ecs, no events. Imported by the other rule scripts.
+
+import "string"
+import "math"
+import "algorithm"
+
+fun clamp(v, lo, hi)
+{
+    if (v < lo)
+    {
+        return lo
+    }
+
+    if (v > hi)
+    {
+        return hi
+    }
+
+    return v
+}
+
+// 1 -> "1st", 2 -> "2nd", 11 -> "11th", 21 -> "21st"
+fun ordinal(n)
+{
+    var lastTwo = n % 100
+    var last = n % 10
+    var suffix = "th"
+
+    if (lastTwo < 11 or lastTwo > 13)
+    {
+        if (last == 1)
+        {
+            suffix = "st"
+        }
+        else if (last == 2)
+        {
+            suffix = "nd"
+        }
+        else if (last == 3)
+        {
+            suffix = "rd"
+        }
+    }
+
+    return toString(n) + suffix
+}
+
+// Whole months from one age to another: never negative.
+fun monthsBetween(fromAge, toAge)
+{
+    if (toAge <= fromAge)
+    {
+        return 0
+    }
+
+    return toInt(floor((toAge - fromAge) * 12 + 0.001))
+}
+
+// How many attempts of `cost` months fit in `open` months.
+fun monthsToAttempts(open, cost)
+{
+    if (cost <= 0)
+    {
+        return 0
+    }
+
+    return toInt(floor(open / cost))
+}
+
+// +1, −2 (a real minus, U+2212)
+fun signed(n)
+{
+    if (n < 0)
+    {
+        return "−" + toString(0 - n)
+    }
+
+    return "+" + toString(n)
+}
+
+fun fmtMonths(n)
+{
+    return toString(n) + " mo"
+}
+
+// 0 -> "no", 1 -> "one", ... 12 -> "twelve"; beyond, the figure.
+fun numberWord(n)
+{
+    var words = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
+
+    if (n >= 0 and n < len(words))
+    {
+        return words[n]
+    }
+
+    return toString(n)
+}
+
+fun capitalised(word)
+{
+    if (strlen(word) == 0)
+    {
+        return word
+    }
+
+    return toUpperCase(substring(word, 0, 1)) + substring(word, 1, strlen(word))
+}
+
+// The names a stat or a flag is written with.
+var statNames = {
+    str: "Strength",
+    dex: "Dexterity",
+    int: "Intelligence",
+    vit: "Vitality",
+    swd: "Swordsmanship",
+    ride: "Riding",
+    letters: "Letters",
+    haggle: "Haggling",
+    letter: "The Guild's letter",
+    coin: "Coin"
+}
+
+var statShort = {
+    str: "STR",
+    dex: "DEX",
+    int: "INT",
+    vit: "VIT",
+    swd: "SWD",
+    ride: "RIDE",
+    letters: "LET",
+    haggle: "HAG",
+    letter: "LETTER",
+    coin: "COIN"
+}
+
+// A missing key reads as false, not as an error: look names up explicitly.
+fun lookup(table, key, fallback)
+{
+    for (var k : table)
+    {
+        if (k == key)
+        {
+            return table[k]
+        }
+    }
+
+    return fallback
+}
+
+fun statName(stat)
+{
+    return lookup(statNames, stat, stat)
+}
+
+fun statShortName(stat)
+{
+    return lookup(statShort, stat, toUpperCase(stat))
+}
+
+// A stat of a character, 0 when it has none.
+fun statOf(character, stat)
+{
+    return lookup(character, stat, 0)
+}

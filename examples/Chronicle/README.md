@@ -305,6 +305,47 @@ come from `rules/*.pg` through the scene, never from the component.
   `.loss`, `.coin`, `.milestone`), `log.text` (`.note`, `.gain`, `.loss`, `.milestone`),
   `log.figure` (`.gain`, `.loss`, `.coin`), `log.footnote`.
 
+## Game rules (`rules/*.pg`)
+
+**Balance lives here.** Every number the Life screen shows about the future or the rules - what
+an activity costs and gives, what a milestone asks, which doors are open and how many attempts
+fit, what a stat will be at term - comes from `examples/Chronicle/rules/*.pg`, never from C++.
+C++ owns the clock, the save, the scene and the events; the scripts own the content and the
+evaluation, so a rule change or a mod is a `.pg` edit with a test, not a rebuild. The numbers
+in the tables are the design mockup's placeholders.
+
+**The contract** (`Core/rulevm.h`, the prefab loader's seam): *inputs are globals the C++ side
+defines, outputs are globals the script leaves behind*, read back by a dotted path
+(`forecast.atTerm`, `activities.3.gains`) with the engine's `vmread` readers
+(`src/Engine/Compiler/vmreaders.h`). A `RuleScript` compiles once through the ECS's script
+registry and re-runs its whole top level from the prepared bytecode
+(`prepareCachedFunction` / `runPreparedFunction`): there is no `main()`, and a script keeps
+nothing between runs because each run redefines everything it leaves.
+
+- **No `nil`**: every optional output is present, as `""` or `-1`. A missing output global or
+  field is an error when read, never a default. (In PgScript a missing table key reads as
+  `false`, so `lib.pg`'s `lookup` is how scripts read a key that may be absent.)
+- **No `ecs`, no events**: scripts import `string`, `math`, `algorithm` and `lib` only
+  (native modules are imported per script: `lib`'s imports do not carry).
+- **Errors are data**: a script refuses its inputs by pushing onto its `errors` list, or, for
+  the forecast, by setting `forecast.error`; `run()` fails and logs each message with the
+  script's path. A compile error fails `load()`, with the VM's message in the log.
+- Language notes: `from` is a keyword (`w["from"]`), a one-line `{ ... }` block needs a newline
+  before `}`, numbers print as `std::to_string` does (`17.500000`), so text is worded with ints.
+
+| script | inputs | outputs |
+|---|---|---|
+| `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup` |
+| `activities.pg` | - | `activities`: `{id, group, name, glyph, months, rank, each, path, gains[{stat, amount}], requires[{stat, needed}]}` |
+| `milestones.pg` | `age` | `milestones`: `{age, id, label, passed, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
+| `windows.pg` | `age`, `character` | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}` |
+| `forecast.pg` | `age`, `character`, `activityId`, `monthsIn` | `forecast`: `{atTerm{stats}, percent, months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
+
+`Rules` loads the four once from a root (`examples/Chronicle/rules` from the repo root, where
+the game runs; `rules` beside `test_chronicle`, where CMake copies them) and gives each a typed
+call. The forecast runs once per month tick, not per frame; `rules_test.timing_ceiling` keeps
+100 runs under 50 ms. The compiled `.pgc` files land beside the scripts and are git-ignored.
+
 ## Patterns
 
 - **State component + System + event-driven tests.** A stateful, input-receiving

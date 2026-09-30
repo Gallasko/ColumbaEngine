@@ -1,0 +1,52 @@
+// Chronicle rules: the activities
+// -------------------------------
+// Output: `activities`, one table per thing the character may spend months doing, in the order
+// the Life screen lists them:
+//   id, group, name, glyph, months, rank ("" or caps), each ("" or caps), path (the milestone
+//   path it leads toward, "" if none), gains [{stat, amount}] (at term), requires [{stat, needed}].
+//
+// The numbers are the design mockup's placeholders for the game's balance: change them here,
+// nothing in C++ moves.
+
+import "string"
+import "math"
+import "algorithm"
+
+var errors = []
+
+var activities = [
+    {id: "train.yard", group: "Training", name: "Train at the yard", glyph: "training", months: 6, rank: "RANK 2", each: "AT THE YARD", path: "squire",
+     gains: [{stat: "str", amount: 2}, {stat: "vit", amount: 1}],
+     requires: []},
+    {id: "train.guard", group: "Training", name: "Spar with the guard", glyph: "swordsmanship", months: 3, rank: "", each: "AT THE GATE", path: "squire",
+     gains: [{stat: "swd", amount: 1}, {stat: "dex", amount: 1}],
+     requires: [{stat: "str", needed: 12}]},
+    {id: "train.squire", group: "Training", name: "Squire at the keep", glyph: "swordsmanship", months: 12, rank: "", each: "", path: "squire",
+     gains: [{stat: "swd", amount: 2}, {stat: "ride", amount: 2}],
+     requires: [{stat: "str", needed: 18}, {stat: "swd", needed: 4}]},
+
+    {id: "study.academy", group: "Study", name: "Read at the academy", glyph: "academy", months: 6, rank: "", each: "AT THE ACADEMY", path: "scholar",
+     gains: [{stat: "int", amount: 2}],
+     requires: [{stat: "int", needed: 10}]},
+    {id: "study.letters", group: "Study", name: "Letters with the priest", glyph: "quill", months: 6, rank: "", each: "AT THE CHAPEL", path: "scholar",
+     gains: [{stat: "letters", amount: 1}, {stat: "int", amount: 1}],
+     requires: []},
+
+    {id: "work.smithy", group: "Work", name: "Work the smithy", glyph: "forge", months: 6, rank: "", each: "AT THE SMITHY", path: "guild",
+     gains: [{stat: "str", amount: 1}, {stat: "coin", amount: 24}],
+     requires: []},
+    {id: "work.carters", group: "Work", name: "Carry for the carters", glyph: "work", months: 3, rank: "", each: "", path: "",
+     gains: [{stat: "vit", amount: 1}, {stat: "coin", amount: 9}],
+     requires: []},
+
+    {id: "guild.errands", group: "Guild", name: "Run the guild's errands", glyph: "guild", months: 3, rank: "", each: "", path: "guild",
+     gains: [{stat: "haggle", amount: 1}],
+     requires: []},
+    {id: "guild.letter", group: "Guild", name: "Earn the Guild's letter", glyph: "seal", months: 6, rank: "", each: "", path: "squire",
+     gains: [{stat: "letter", amount: 1}],
+     requires: [{stat: "haggle", needed: 2}]},
+
+    {id: "adventure.forest", group: "Adventure", name: "Into the North Forest", glyph: "adventure", months: 3, rank: "ONCE", each: "", path: "",
+     gains: [{stat: "dex", amount: 1}, {stat: "swd", amount: 1}],
+     requires: [{stat: "vit", needed: 10}]}
+]

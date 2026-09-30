@@ -1,0 +1,109 @@
+// Chronicle rules: the doors that close
+// -------------------------------------
+// Input:  `age` (years), `character` (a table of stats and flags).
+// Output: `windows`, one table per age-limited chance:
+//         {id, name, from, to, state, note, attempts}
+//         state: "upcoming" before `from`, "open" until `to`, "closed" after: a closed door stays
+//         listed for the rest of the life. The note says what still fits, in attempts of the
+//         window's activity, never in percentages; before the door opens it names what the door
+//         asks.
+
+import "string"
+import "math"
+import "algorithm"
+import "lib"
+import "activities"
+
+var errors = []
+
+var windowTable = [
+    {id: "choir", name: "Choir", from: 9, to: 13, activity: "study.letters",
+     asks: "Asks a clear voice and a letter from the priest.", closed: "The choir took boys until 13. That door is shut."},
+    {id: "ruins", name: "The ruins at Harrow", from: 15, to: 19, activity: "adventure.forest",
+     asks: "Asks Vitality 10 and a sword.", closed: "The ruins were picked clean by 19. That door is shut."},
+    {id: "squire", name: "Squire", from: 16, to: 22, activity: "train.yard",
+     asks: "Asks Strength 12 and a knight who will have him.", closed: "No knight takes a squire past 22. That door is shut."},
+    {id: "tourney", name: "The spring tourney", from: 17, to: 21, activity: "train.guard",
+     asks: "Asks Swordsmanship 3 and a horse.", closed: "The tourney is for the young, and he is 21. That door is shut."},
+    {id: "academy", name: "Academy", from: 20, to: 28, activity: "study.academy",
+     asks: "Asks Intellect 12 and 40 coin at the door.", closed: "The Academy takes no one past 28. That door is shut."}
+]
+
+fun monthsOf(activityId)
+{
+    for (var i = 0; i < len(activities); i++)
+    {
+        if (activities[i].id == activityId)
+        {
+            return activities[i].months
+        }
+    }
+
+    return 0
+}
+
+// "Open 22 more months. One attempt fits; two do not."
+fun openNote(monthsLeft, attempts)
+{
+    var note = "Open " + toString(monthsLeft) + " more month"
+
+    if (monthsLeft != 1)
+    {
+        note = note + "s"
+    }
+
+    note = note + ". "
+
+    if (attempts == 0)
+    {
+        return note + "No attempt fits."
+    }
+
+    if (attempts == 1)
+    {
+        note = note + "One attempt fits; "
+    }
+    else
+    {
+        note = note + capitalised(numberWord(attempts)) + " attempts fit; "
+    }
+
+    return note + numberWord(attempts + 1) + " do not."
+}
+
+var windows = []
+
+for (var i = 0; i < len(windowTable); i++)
+{
+    var w = windowTable[i]
+    var cost = monthsOf(w.activity)
+
+    if (cost <= 0)
+    {
+        push(errors, "window " + w.id + ": unknown activity " + w.activity)
+    }
+
+    var state = "open"
+    var note = ""
+    var attempts = 0
+
+    if (age < w["from"])
+    {
+        state = "upcoming"
+        note = w.asks
+        attempts = monthsToAttempts(monthsBetween(w["from"], w["to"]), cost)
+    }
+    else if (age >= w["to"])
+    {
+        state = "closed"
+        note = w.closed
+    }
+    else
+    {
+        var left = monthsBetween(age, w["to"])
+        attempts = monthsToAttempts(left, cost)
+        note = openNote(left, attempts)
+    }
+
+    push(windows, {id: w.id, name: w.name, from: w["from"], to: w["to"], state: state, note: note, attempts: attempts})
+}

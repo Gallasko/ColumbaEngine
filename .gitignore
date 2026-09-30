@@ -35,3 +35,4 @@ asan/
 !src/Engine/Components/generated/*.generated.*
 !src/Engine/Components/generated/*.serialization.cpp
 tools/*.pgc
+examples/Chronicle/rules/*.pgc
