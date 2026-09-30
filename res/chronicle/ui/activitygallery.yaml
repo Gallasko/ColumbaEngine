@@ -1,0 +1,160 @@
+# Dev gallery for the activity rows: `Chronicle --dev ActivityGallery`.
+#
+# The Life screen's activity list in a ruled panel, and beside it the single
+# running row the screen shows at the top. The scene feeds both from WorldFacts
+# (activity.running.percent, activity.train.squire.req.0.current) and drives them
+# with the buttons under the side panel.
+name: gallery
+children:
+
+  - kind: Shape2D
+    name: page
+    width: 1320
+    height: 860
+    z: 0
+    theme: scene.background
+
+  - kind: TTFText
+    name: note
+    x: 48
+    y: 48
+    z: 15
+    text: "T theme - R reduced motion - click a row to select it, click it again or press Enter to confirm"
+    theme: label.caption.ink-muted
+
+  # The list: five groups, the stripes alternate across all of them. It is taller than
+  # the page allows, so it is given a height and scrolls. A group is a heading: the rows
+  # that follow it, up to the next heading, are its rows.
+  - kind: Panel
+    name: activities
+    x: 48
+    y: 90
+    frame: ruled
+    width: 660
+    heading: What Aldren may do
+    glyph: training
+    children:
+      - kind: ActivityList
+        name: list
+        id: life.activities
+        height: 560               # the list keeps this height and its rows scroll
+        children:
+          - {kind: ActivityGroup, label: Training}
+          - kind: ActivityRow
+            id: train.yard
+            label: Train at the yard
+            glyph: training
+            rank: RANK 2
+            months: 6
+            each: AT THE YARD
+            gains:
+              - {stat: STR, amount: 1}
+              - {stat: VIT, amount: 1}
+          - kind: ActivityRow
+            id: train.squire
+            label: Squire at the keep
+            glyph: swordsmanship
+            months: 12
+            state: locked
+            requirements:
+              - {label: Strength, current: 15, needed: 18}
+              - {label: Swordsmanship, current: 3, needed: 4}
+
+          - {kind: ActivityGroup, label: Study}
+          - kind: ActivityRow
+            id: study.letters
+            label: Letters at the abbey
+            glyph: study
+            months: 6
+            each: AT THE ABBEY
+            state: running
+            percent: 50
+            caption: MONTH 3 OF 6
+            gains:
+              - {stat: INT, amount: 2}
+
+          - {kind: ActivityGroup, label: Work}
+          - kind: ActivityRow
+            id: work.mill
+            label: Carry sacks at the mill
+            glyph: strength
+            months: 3
+            gains:
+              - {stat: STR, amount: 1}
+              - {stat: DEX, amount: -1}
+          - kind: ActivityRow
+            id: work.caravan
+            label: Guard the eastern caravan
+            glyph: swordsmanship
+            months: 6
+            each: PAYS 2 A MONTH
+            gains:
+              - {stat: VIT, amount: 1}
+
+          - {kind: ActivityGroup, label: Guild}
+          - kind: ActivityRow
+            id: guild.join
+            label: Take the Guild's oath
+            glyph: seal
+            months: 1
+            state: locked
+            requirements:
+              - {label: Strength, current: 15, needed: 18}
+              - {label: Swordsmanship, current: 4, needed: 4}
+              - {label: "Has the Guild's letter", met: false}
+
+          - {kind: ActivityGroup, label: Adventure}
+          - kind: ActivityRow
+            id: adventure.forest
+            label: Into the North Forest
+            glyph: skull
+            rank: ONCE
+            months: 3
+            gains:
+              - {stat: STR, amount: 1}
+              - {stat: DEX, amount: 1}
+              - {stat: VIT, amount: 1}
+
+  # The row the scene speaks through: the activity at work, or the one just chosen
+  - kind: Panel
+    name: side
+    x: 740
+    y: 90
+    frame: ruled
+    width: 320
+    heading: At work now
+    glyph: time
+    children:
+      - kind: ActivityRow
+        name: now
+        id: study.letters
+        label: Letters at the abbey
+        glyph: study
+        months: 6
+        state: running
+        percent: 50
+        caption: MONTH 3 OF 6
+
+  - kind: Button
+    name: advance
+    x: 740
+    y: 280
+    variant: quiet
+    label: Advance a month
+    tag: activity.advance
+
+  - kind: Button
+    name: meet
+    x: 740
+    y: 324
+    variant: quiet
+    label: Meet the requirement
+    tag: activity.meet
+
+  - kind: Button
+    name: confirm
+    x: 740
+    y: 368
+    variant: seal
+    label: Confirm
+    tag: activity.confirm

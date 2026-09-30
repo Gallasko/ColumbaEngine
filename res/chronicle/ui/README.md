@@ -96,5 +96,6 @@ children:
 |---|---|---|
 | `prefabgallery.yaml` | `Chronicle --dev PrefabFileGallery` | the reference page: one of every kind |
 | `clockgallery.yaml` | `Chronicle --dev ClockGallery` | four `LifeClock`s: the Life screen's, a first frame, an old age, a narrow one |
+| `activitygallery.yaml` | `Chronicle --dev ActivityGallery` | the Life screen's activity list in five groups, scrolling, and the side panel showing the activity at work or the one chosen |
 
 The file format and the builder are documented in `docs/PREFAB_TREES.md`.
