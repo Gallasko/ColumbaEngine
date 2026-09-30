@@ -192,6 +192,39 @@ come from `rules/*.pg` through the scene, never from the component.
   `clock.running.edge`, `clock.window.wash`, `clock.window.edge` (`.closed`),
   `clock.tick.mark`, `clock.tick.label` (`.past`).
 
+- **ActivityRow** (`UI/activityrow.h`) - the game's main verb: one thing the character
+  could spend months doing, in four states. Idle shows the gains (`tick`, `"STR +1   VIT
+  -1"` with a real minus); running draws a verdigris edge and mark and a `ProgressRule`
+  whose caption names what the activity reaches at term; locked keeps the row fully
+  legible in `state-locked` and states what it still needs as a dense
+  `RequirementList` in place; selected is a 3 px `focus-ink` edge inside the row's left.
+  The month cost (`time` mark + `control` figure) shows in every state, right-aligned so
+  the figures share an edge down a list. One entity per part and state changes are
+  element swaps (`activity.row.ground` is transparent at rest); only the middle block
+  (gains, rule or list) is rebuilt by `setState`, and the list re-stacks on the new
+  height. The row also lives on its root as a component, and every setter keeps that
+  copy and the caller's in step. `setName` elides the name only when it no longer fits
+  between the mark and the cost. The mark is S24 (the design system draws 22; the kit
+  registers 18 and 24).
+
+- **ActivityList** (`UI/activityrow.h`) - the rows in groups, headed in the display face
+  (`activity.group`, 24 px, `space-3` above all but the first, `space-1` below), with
+  the grounds alternating across the whole list like an account book, not per group,
+  and the last row's rule hidden. **Selection is the list's**: at most one row, set by a
+  release on it or `select(id)`; locked and running rows never select (a click does
+  nothing, `select` logs). **Confirm** is a second release on the selected row within
+  400 ms, or Enter / Space with keyboard focus on it, and sends
+  `ActivityActivatedEvent{list, id}`; Enter on another row selects it first. Tab skips
+  locked rows and the focus ring sits 2 px inside the row. The list finds its rows by
+  walking its body each frame (`ActivitySystem::execute`), so a list filled by the
+  prefab builder behaves like one built by `makeActivityList`. In a file the list is
+  **flat**: `ActivityGroup` (a heading) and `ActivityRow` children side by side, the rows
+  after a heading being its rows; the body stacks one level only. Starting the activity is the scene's business. The list
+  is Panel-like: a root prefab (anchor it, name it) and a `body` layout the rows stack
+  in. With `height: 0` it is as tall as its rows; given a height it keeps it, clips its
+  rows to the body and **scrolls** (mouse wheel, and a thumb on the right edge,
+  `activity.scroll`); rows out of view take no hover and no click.
+
 ## Patterns
 
 - **State component + System + event-driven tests.** A stateful, input-receiving

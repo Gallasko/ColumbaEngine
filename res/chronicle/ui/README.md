@@ -19,7 +19,7 @@ One file holds one root node. A node is a map:
 
 | key | meaning |
 |---|---|
-| `kind` | the factory: `Label`, `Mark`, `MarkedLabel`, `Ornament`, `Panel`, `Button`, `Tabs`, `Gloss`, `ProgressRule`, `StatLine`, `RequirementList`, `LifeClock`, or the engine's `Shape2D`, `Texture`, `TTFText`, `Layout:Vertical`, `Layout:Horizontal`. Omitted: a bare container (its children keep their own `x` / `y`). |
+| `kind` | the factory: `Label`, `Mark`, `MarkedLabel`, `Ornament`, `Panel`, `Button`, `Tabs`, `Gloss`, `ProgressRule`, `StatLine`, `RequirementList`, `LifeClock`, `ActivityRow`, `ActivityList`, `ActivityGroup`, or the engine's `Shape2D`, `Texture`, `TTFText`, `Layout:Vertical`, `Layout:Horizontal`. Omitted: a bare container (its children keep their own `x` / `y`). |
 | `name` | registers the entity on the enclosing prefab (`getEntity(name)`), which also reaches the piece's helpers. |
 | `x`, `y` | places the node (useful on roots and on children of a bare container). |
 | `anchors` | list of `{side, target, targetSide?, margin?}`; `target` is `main`, `parent`, a sibling's name or a globally named entity; sides are the `AnchorType` names, any case. |
@@ -37,16 +37,25 @@ comment.
 - Enum props are lowercase strings: `frame: ruled`, `overflow: wrap`, `align: right`,
   `variant: seal`, `weight: hair`, `tone: gold`, `corner: tl`, `gloss: tooltip`.
 - Where the spec field is itself called `kind`, the prop is renamed: `ornament: divider`
-  and `gloss: margin`. `size: 16` picks a `MarkSize`.
+  and `gloss: margin`. `size: 16` picks a `MarkSize`. `name` is the node's handle, so an
+  `ActivityRow`'s display name is `label: Train at the yard`.
 - Colours are token names (`ink-muted`, `status-gain`); an unknown token is logged and
   the default kept. Numeric props also take a spacing token: `gap: space-2`.
 - **Panel** hands `width: innerWidth` and `z: contentZ` (default `z + 10`) down to its
   children and puts them in its body layout, so the rows never spell those out, and
   a nested panel lands in the next z band on its own. An explicit child value wins.
+- **ActivityList** does the same with `width` and `z`. Its children are `ActivityGroup`s
+  and `ActivityRow`s **side by side**: a group is a heading (`label`), and the rows that
+  follow it, up to the next heading, are its rows. A group takes no children. The list
+  stripes and owns its rows from the next frame. `height: 560` makes the list keep that
+  height and scroll its rows; without it the list is as tall as its rows.
+  `ActivityRow.state` is `idle`, `running` or `locked`; the events carry the list's `id`
+  and the row's `id`. A row is reached by its `name`, or with `list->row(ecs, id)`.
 - Lists: `Tabs.items` (`label`, `glyph`, `badge`), `RequirementList.items` (`label`,
   `current`, `needed`, `met` as a bool), `Gloss.rows` (`label`, `value`),
   `LifeClock.milestones` (`age`, `label`), `LifeClock.windows` (`from`, `to`, `label`,
-  `closed`), and `MarkedLabel.label` as a nested map (or flat `text` / `style` / `color` on the node).
+  `closed`), `ActivityRow.gains` (`stat`, `amount`), `ActivityRow.requirements` (as
+  `RequirementList.items`), and `MarkedLabel.label` as a nested map (or flat `text` / `style` / `color` on the node).
 - Any node takes `theme: <element key>` next to `kind` and `name`: the builder attaches a
   `ThemeComponent` to the node's leaf, so an engine `Shape2D` or `TTFText` is painted by the
   theme like the kit pieces are (`theme: scene.background`, `theme: label.caption.ink-muted`).

@@ -15,6 +15,7 @@
 #include "UI/statline.h"
 #include "UI/requirementlist.h"
 #include "UI/lifeclock.h"
+#include "UI/activityrow.h"
 #include "UI/gloss.h"
 #include "Core/motion.h"
 
@@ -83,6 +84,7 @@ namespace pg
                     theme->loadTheme("chronicle/tokens.json", "fonts");
                     tip->setDefaultFont("body-sm");
                     ecs.createSystem<GlossRegistry>();
+                    ecs.createSystem<ActivitySystem>();
                     installIconEntries();
 
                     registry = ecs.createSystem<PrefabFactoryRegistry>();
@@ -133,7 +135,7 @@ namespace pg
             for (const auto& kind : chronicleKinds())
                 EXPECT_TRUE(f.registry->hasFactory(kind)) << kind;
 
-            EXPECT_EQ(chronicleKinds().size(), 12u);
+            EXPECT_EQ(chronicleKinds().size(), 15u);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -463,6 +465,193 @@ namespace pg
             ASSERT_EQ(fromFile.windows.size(), 2u);
             EXPECT_EQ(fromFile.windows[1].label, "Choir");
             EXPECT_TRUE(fromFile.windows[1].closed);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(chronicle_factories_test, activity_list_takes_rows_and_groups)
+        {
+            FactoriesFixture f;
+
+            NodeSpec yard = node("ActivityRow", "yard", {{"id", "train.yard"}, {"label", "Train at the yard"}, {"months", 6}});
+            yard.records["gains"] = {{{"stat", "STR"}, {"amount", 1}}, {{"stat", "VIT"}, {"amount", 1}}};
+
+            NodeSpec squire = node("ActivityRow", "squire", {{"id", "train.squire"}, {"label", "Squire at the keep"}, {"months", 12}, {"state", "locked"}});
+            squire.records["requirements"] = {{{"label", "Strength"}, {"current", 15}, {"needed", 18}}, {{"label", "Has the Guild's letter"}, {"met", false}}};
+
+            // A group is a heading; the rows that follow it are its rows
+            NodeSpec group = node("ActivityGroup", "", {{"label", "Training"}});
+
+            NodeSpec listNode = node("ActivityList", "list", {{"id", "test.list"}, {"width", 620.0f}});
+            listNode.children = {group, yard, squire};
+
+            // The same tree by hand and from the file
+            std::vector<std::string> errors;
+            PrefabLoadOptions options;
+            options.errors = &errors;
+
+            auto fileSpec = loadNodeSpec(&f.ecs, "ui/activitylist.yaml", options);
+            ASSERT_TRUE(fileSpec.has_value());
+            EXPECT_TRUE(errors.empty());
+
+            for (const NodeSpec* spec : {&listNode, &*fileSpec})
+            {
+                EntityRef root = buildTree(&f.ecs, *spec);
+                ASSERT_FALSE(root.empty());
+
+                // The list adopts its rows once the layouts have taken them
+                f.settle();
+                f.settle();
+
+                // The list and its rows are named handles; a row is reached by activity id too
+                auto prefab = root->get<Prefab>();
+                EntityRef listEnt = prefab->findEntity("list");
+                EntityRef yardEnt = prefab->findEntity("yard");
+                EntityRef squireEnt = prefab->findEntity("squire");
+                ASSERT_FALSE(listEnt.empty());
+                ASSERT_FALSE(yardEnt.empty());
+                ASSERT_FALSE(squireEnt.empty());
+                ASSERT_TRUE(listEnt->has<ActivityList>());
+
+                ActivityRow* byId = listEnt->get<ActivityList>()->row(&f.ecs, "train.yard");
+                ASSERT_NE(byId, nullptr);
+                EXPECT_EQ(byId->root.id, yardEnt.id);
+
+                // The heading, then the rows, stacked with no gap
+                auto headings = listEnt->get<ActivityListState>()->headings;
+                ASSERT_EQ(headings.size(), 1u);
+                auto headingPos = f.ecs.getEntity(headings[0])->get<PositionComponent>();
+                EXPECT_NEAR(headingPos->height, 28.0f, 0.5f);
+                EXPECT_NEAR(yardEnt->get<PositionComponent>()->y, headingPos->y + 28.0f, 0.5f);
+                EXPECT_NEAR(squireEnt->get<PositionComponent>()->y, yardEnt->get<PositionComponent>()->y + 68.0f, 0.5f);
+
+                auto listState = listEnt->get<ActivityListState>();
+                EXPECT_EQ(listState->id, "test.list");
+                EXPECT_EQ(listState->rows.size(), 2u);
+                EXPECT_EQ(listState->headings.size(), 1u);
+
+                ASSERT_TRUE(yardEnt->has<ActivityRow>());
+                auto yardRow = yardEnt->get<ActivityRow>();
+                EXPECT_EQ(yardRow->spec.id, "train.yard");
+                EXPECT_EQ(yardRow->spec.name, "Train at the yard");
+                EXPECT_EQ(yardRow->spec.gains.size(), 2u);
+                EXPECT_FLOAT_EQ(yardRow->spec.width, 620.0f);
+                EXPECT_FALSE(yardEnt->get<ActivityRowState>()->stripe);
+                EXPECT_EQ(yardEnt->get<ActivityRowState>()->list, listEnt.id);
+
+                ASSERT_TRUE(squireEnt->has<ActivityRow>());
+                auto squireRow = squireEnt->get<ActivityRow>();
+                EXPECT_EQ(squireRow->spec.state, ActivityState::Locked);
+                EXPECT_EQ(squireRow->spec.requirements.size(), 2u);
+                EXPECT_TRUE(squireEnt->get<ActivityRowState>()->stripe);
+                EXPECT_TRUE(squireEnt->get<ActivityRowState>()->last);
+
+                // The list's helpers select through the handle
+                ASSERT_TRUE(listEnt->get<Prefab>()->hasHelper("select"));
+                listEnt->get<Prefab>()->callHelper("select", std::string("train.yard"));
+                EXPECT_EQ(listEnt->get<ActivityList>()->selected(), "train.yard");
+                EXPECT_TRUE(yardEnt->get<ActivityRowState>()->selected);
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(chronicle_factories_test, activity_list_named_in_a_panel_is_the_list)
+        {
+            FactoriesFixture f;
+
+            NodeSpec yard = node("ActivityRow", "", {{"id", "train.yard"}, {"label", "Train at the yard"}});
+            NodeSpec mill = node("ActivityRow", "", {{"id", "work.mill"}, {"label", "Carry sacks at the mill"}});
+
+            NodeSpec group = node("ActivityGroup", "", {{"label", "Training"}});
+
+            NodeSpec listNode = node("ActivityList", "list", {{"id", "life.activities"}, {"height", 100.0f}});
+            listNode.children = {group, yard, mill};
+
+            NodeSpec panel = node("Panel", "activities", {{"width", 660.0f}, {"heading", "What Aldren may do"}});
+            panel.children = {listNode};
+
+            NodeSpec page = node("", "page");
+            page.children = {panel};
+
+            EntityRef root = buildTree(&f.ecs, page);
+            ASSERT_FALSE(root.empty());
+
+            f.settle();
+            f.settle();
+
+            // The name reaches the list itself, not the builder's wrap around it
+            EntityRef listEnt = root->get<Prefab>()->findEntity("list");
+            ASSERT_FALSE(listEnt.empty());
+            ASSERT_TRUE(listEnt->has<ActivityList>());
+
+            auto list = listEnt->get<ActivityList>();
+            EXPECT_EQ(list->spec.id, "life.activities");
+
+            // The panel handed its inner width down; the list keeps the height it was given
+            EXPECT_FLOAT_EQ(list->spec.width, 628.0f);
+            EXPECT_FLOAT_EQ(listEnt->get<PositionComponent>()->height, 100.0f);
+            EXPECT_TRUE(list->body->get<VerticalLayout>()->scrollable);
+
+            ActivityRow* yardRow = list->row(&f.ecs, "train.yard");
+            ActivityRow* millRow = list->row(&f.ecs, "work.mill");
+            ASSERT_NE(yardRow, nullptr);
+            ASSERT_NE(millRow, nullptr);
+
+            // A row that grows pushes the next one down, through the builder's wraps
+            const float millY = millRow->root.get<PositionComponent>()->y;
+
+            yardRow->setCaption(&f.ecs, "MONTH 1 OF 6");
+            list->setRowState(&f.ecs, "train.yard", ActivityState::Running);
+            f.settle();
+            f.settle();
+            f.settle();
+
+            EXPECT_FLOAT_EQ(yardRow->root.get<PositionComponent>()->height, 81.0f);
+            EXPECT_NEAR(millRow->root.get<PositionComponent>()->y, millY + 13.0f, 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(chronicle_factories_test, activity_row_in_a_panel_resizes_the_panel)
+        {
+            FactoriesFixture f;
+
+            NodeSpec row = node("ActivityRow", "now", {{"id", "study.letters"}, {"label", "Letters at the abbey"}, {"caption", "MONTH 3 OF 6"}});
+
+            NodeSpec panel = node("Panel", "side", {{"width", 320.0f}, {"heading", "At work now"}});
+            panel.children = {row};
+
+            NodeSpec page = node("", "page");
+            page.children = {panel};
+
+            EntityRef root = buildTree(&f.ecs, page);
+            ASSERT_FALSE(root.empty());
+
+            f.settle();
+            f.settle();
+
+            EntityRef panelEnt = root->get<Prefab>()->findEntity("side");
+            EntityRef rowEnt = root->get<Prefab>()->findEntity("now");
+            ASSERT_FALSE(panelEnt.empty());
+            ASSERT_FALSE(rowEnt.empty());
+            ASSERT_TRUE(rowEnt->has<ActivityRow>());
+
+            // The panel's inner width came down to the row
+            EXPECT_FLOAT_EQ(rowEnt->get<PositionComponent>()->width, 288.0f);
+
+            const float idle = panelEnt->get<PositionComponent>()->height;
+
+            rowEnt->get<ActivityRow>()->setState(&f.ecs, ActivityState::Running);
+            f.settle();
+            f.settle();
+            f.settle();
+
+            EXPECT_NEAR(panelEnt->get<PositionComponent>()->height, idle + 13.0f, 0.5f);
+
+            rowEnt->get<ActivityRow>()->setState(&f.ecs, ActivityState::Idle);
+            f.settle();
+            f.settle();
+            f.settle();
+
+            EXPECT_NEAR(panelEnt->get<PositionComponent>()->height, idle, 0.5f);
         }
     }
 }

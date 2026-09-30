@@ -17,6 +17,7 @@
 #include "UI/ornament.h"
 #include "UI/button.h"
 #include "UI/tabs.h"
+#include "UI/activityrow.h"
 #include "UI/gloss.h"
 #include "ECS/entitysystem_fwd.h"   // ResizeEvent, used by tooltip.h
 #include "UI/tooltip.h"
@@ -88,6 +89,10 @@ namespace chronicle
 
             ecs.createSystem<TabsSystem>();
             ecs.succeed<MouseHoverSystem, TabsSystem>();
+
+            // Activity rows and lists: hover, selection and confirm, and the rows' adoption by their list.
+            ecs.createSystem<ActivitySystem>();
+            ecs.succeed<MouseHoverSystem, ActivitySystem>();
 
             // Gloss tooltips go through the engine's TooltipSystem (created by the UI boot).
             if (auto* tip = ecs.getSystem<TooltipSystem>())

@@ -1,0 +1,25 @@
+kind: ActivityList
+name: list
+id: test.list
+width: 620
+children:
+  - {kind: ActivityGroup, label: Training}
+  - kind: ActivityRow
+    name: yard
+    id: train.yard
+    label: Train at the yard
+    glyph: training
+    months: 6
+    gains:
+      - {stat: STR, amount: 1}
+      - {stat: VIT, amount: 1}
+  - kind: ActivityRow
+    name: squire
+    id: train.squire
+    label: Squire at the keep
+    glyph: swordsmanship
+    months: 12
+    state: locked
+    requirements:
+      - {label: Strength, current: 15, needed: 18}
+      - {label: "Has the Guild's letter", met: false}

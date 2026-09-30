@@ -7,6 +7,7 @@
 
 #include "ECS/entitysystem.h"
 #include "UI/prefab.h"
+#include "UI/sizer.h"
 #include "UI/themesystem.h"
 
 #include "label.h"
@@ -20,6 +21,7 @@
 #include "statline.h"
 #include "requirementlist.h"
 #include "lifeclock.h"
+#include "activityrow.h"
 
 using namespace pg;
 
@@ -283,6 +285,7 @@ namespace chronicle
             ecs->registerFlagComponent<StatLine>();
             ecs->registerFlagComponent<RequirementList>();
             ecs->registerFlagComponent<LifeClock>();
+            registerActivityComponents(ecs);   // Guarded: makeActivityRow registers them too
         }
 
         // ---- kinds ------------------------------------------------------------------------
@@ -769,6 +772,147 @@ namespace chronicle
                     return leaf(keep(ecs, clock.root, std::move(clock)));
                 }});
         }
+
+        void registerActivityRow(PrefabFactoryRegistry* registry)
+        {
+            ParamSchema schema;
+            schema.entries = {
+                {"id",       UnionType::STRING, Req::Required},
+                {"label",    ""},       // the display name: `name` is the node's handle
+                {"glyph",    "training"},
+                {"rank",     ""},
+                {"months",   1},
+                {"each",     ""},
+                {"percent",  0.0f},
+                {"caption",  ""},
+                {"state",    "idle"},
+                {"stripe",   false},
+                {"glossKey", ""},
+                {"width",    620.0f},
+                {"z",        20},
+            };
+
+            static const std::vector<std::pair<std::string, ActivityState>> STATE = {
+                {"idle", ActivityState::Idle}, {"running", ActivityState::Running}, {"locked", ActivityState::Locked},
+            };
+
+            registry->registerFactory("ActivityRow", std::move(schema),
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
+                {
+                    auto theme = ecs->getSystem<ThemeSystem>();
+                    ActivityRowSpec s;
+                    s.id       = stringProp(spec.props, "id", s.id);
+                    s.name     = stringProp(spec.props, "label", s.name);
+                    s.glyph    = stringProp(spec.props, "glyph", s.glyph);
+                    s.rank     = stringProp(spec.props, "rank", s.rank);
+                    s.months   = getParamInt(spec.props, "months", s.months);
+                    s.each     = stringProp(spec.props, "each", s.each);
+                    s.percent  = getParamFloat(spec.props, "percent", s.percent);
+                    s.caption  = stringProp(spec.props, "caption", s.caption);
+                    s.state    = enumProp(spec.props, "state", STATE, s.state);
+                    s.stripe   = getParamBool(spec.props, "stripe", s.stripe);
+                    s.glossKey = stringProp(spec.props, "glossKey", s.glossKey);
+                    s.width    = numberProp(spec.props, "width", theme, s.width);
+                    s.z        = getParamInt(spec.props, "z", s.z);
+
+                    if (const RecordList* gains = recordsOf(spec, "gains"))
+                    {
+                        for (const auto& rec : *gains)
+                            s.gains.push_back({stringProp(rec, "stat"), getParamInt(rec, "amount", 0)});
+                    }
+
+                    if (const RecordList* items = recordsOf(spec, "requirements"))
+                    {
+                        for (const auto& rec : *items)
+                        {
+                            Requirement req;
+                            req.label   = stringProp(rec, "label");
+                            req.current = getParamInt(rec, "current", -1);
+                            req.needed  = getParamInt(rec, "needed", 0);
+                            req.met     = metProp(rec);
+                            s.requirements.push_back(std::move(req));
+                        }
+                    }
+
+                    // The row attaches itself to its root; nothing to keep here.
+                    ActivityRow row = makeActivityRow(ecs, s);
+                    if (row.root.empty())
+                        return FactoryResult{};
+
+                    auto prefab = row.root->get<Prefab>();
+                    prefab->addHelper("setState", [](Prefab* p, ActivityState state) { if (auto piece = pieceOf<ActivityRow>(p)) piece->setState(p->ecsRef, state); });
+                    prefab->addHelper("setPercent", [](Prefab* p, float percent, bool animate) { if (auto piece = pieceOf<ActivityRow>(p)) piece->setPercent(p->ecsRef, percent, animate); });
+                    prefab->addHelper("setCaption", [](Prefab* p, const std::string& text) { if (auto piece = pieceOf<ActivityRow>(p)) piece->setCaption(p->ecsRef, text); });
+                    prefab->addHelper("setRequirement", [](Prefab* p, size_t index, int current, int needed) { if (auto piece = pieceOf<ActivityRow>(p)) piece->setRequirement(p->ecsRef, index, current, needed); });
+                    prefab->addHelper("setMonths", [](Prefab* p, int months) { if (auto piece = pieceOf<ActivityRow>(p)) piece->setMonths(p->ecsRef, months); });
+                    return leaf(row.root);
+                }});
+        }
+
+        void registerActivityList(PrefabFactoryRegistry* registry)
+        {
+            ParamSchema schema;
+            schema.entries = {
+                {"id",     "activities"},
+                {"width",  620.0f},
+                {"height", 0.0f},      // > 0: the list keeps that height and its rows scroll
+                {"z",      20},
+            };
+
+            registry->registerFactory("ActivityList", std::move(schema),
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
+                {
+                    auto theme = ecs->getSystem<ThemeSystem>();
+                    ActivityListSpec s;
+                    s.id     = stringProp(spec.props, "id", s.id);
+                    s.width  = numberProp(spec.props, "width", theme, s.width);
+                    s.height = numberProp(spec.props, "height", theme, s.height);
+                    s.z      = getParamInt(spec.props, "z", s.z);
+
+                    ActivityList list = makeActivityList(ecs, s);
+                    if (list.root.empty())
+                        return FactoryResult{};
+
+                    auto prefab = list.root->get<Prefab>();
+                    prefab->addHelper("select", [](Prefab* p, const std::string& id) { if (auto piece = pieceOf<ActivityList>(p)) piece->select(p->ecsRef, id); });
+                    prefab->addHelper("setRowState", [](Prefab* p, const std::string& id, ActivityState state) { if (auto piece = pieceOf<ActivityList>(p)) piece->setRowState(p->ecsRef, id, state); });
+
+                    // Headings and rows go into the list's body, at its width and in its band;
+                    // the list finds them there on the next frame (stripes, last rule, owner).
+                    FactoryResult r;
+                    r.entity = list.root;
+                    r.slot   = list.body;
+                    r.childDefaults = {
+                        {"width", ElementType{s.width}},
+                        {"z",     ElementType{s.z}},
+                    };
+                    keep(ecs, list.root, std::move(list));
+                    return r;
+                }});
+        }
+
+        void registerActivityGroup(PrefabFactoryRegistry* registry)
+        {
+            ParamSchema schema;
+            schema.entries = {
+                {"label", ""},
+                {"width", 620.0f},
+                {"z",     20},
+            };
+
+            // A group is its heading: the rows that follow it in the list, up to the next
+            // heading, are its rows. It takes no children (a list stacks one level only).
+            registry->registerFactory("ActivityGroup", std::move(schema),
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
+                {
+                    auto theme = ecs->getSystem<ThemeSystem>();
+                    const std::string label = stringProp(spec.props, "label");
+                    const float width = numberProp(spec.props, "width", theme, 620.0f);
+                    const int z = getParamInt(spec.props, "z", 20);
+
+                    return leaf(makeActivityHeading(ecs, label, width, z));
+                }});
+        }
     }
 
     const std::vector<std::string>& chronicleKinds()
@@ -776,6 +920,7 @@ namespace chronicle
         static const std::vector<std::string> kinds = {
             "Label", "Mark", "MarkedLabel", "Ornament", "Panel", "Button",
             "Tabs", "Gloss", "ProgressRule", "StatLine", "RequirementList", "LifeClock",
+            "ActivityRow", "ActivityList", "ActivityGroup",
         };
 
         return kinds;
@@ -804,5 +949,8 @@ namespace chronicle
         registerStatLine(registry);
         registerRequirementList(registry);
         registerLifeClock(registry);
+        registerActivityRow(registry);
+        registerActivityList(registry);
+        registerActivityGroup(registry);
     }
 }

@@ -11,7 +11,7 @@ namespace chronicle
     // or loaded from a .yaml file through pg::loadNodeSpec) can be realised with pg::buildTree.
     //
     // Kinds: Label, Mark, MarkedLabel, Ornament, Panel, Button, Tabs, Gloss, ProgressRule,
-    // StatLine, RequirementList, LifeClock. Each maps its props onto the matching XSpec and calls the
+    // StatLine, RequirementList, LifeClock, ActivityRow, ActivityList, ActivityGroup. Each maps its props onto the matching XSpec and calls the
     // existing makeX, then attaches the result struct to the piece's entity as a component:
     // `getEntity("fed")->get<RequirementList>()->setItem(ecs, 0, 18, 18)` keeps every runtime
     // setter. The composite kinds also register those setters as helpers on their root prefab
@@ -25,7 +25,11 @@ namespace chronicle
     //   - `z` is an int; Panel hands `z: contentZ` and `width: innerWidth` down to its children
     //     and exposes its body layout as the slot the children go into;
     //   - list props come through NodeSpec::records: Tabs `items`, RequirementList `items`,
-    //     Gloss `rows`, LifeClock `milestones` and `windows`, and MarkedLabel's nested `label` map.
+    //     Gloss `rows`, LifeClock `milestones` and `windows`, ActivityRow `gains` and
+    //     `requirements`, and MarkedLabel's nested `label` map;
+    //   - ActivityList's slot takes ActivityGroup and ActivityRow children, side by side: a
+    //     group is a heading and the rows after it are its rows. The list stripes and owns
+    //     them from the next frame.
     //
     // Renamed keys (the node's `kind` is taken): Ornament's kind is `ornament`, Gloss's kind
     // is `gloss`.

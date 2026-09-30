@@ -225,8 +225,9 @@ namespace chronicle
             row.value->setColor(ecs, tone);
     }
 
-    float RequirementList::height(EntitySystem* ecs) const
+    float RequirementList::height(EntitySystem*) const
     {
-        return ecs->getEntity(root.id)->get<PositionComponent>()->height;
+        // Through the ref, not the pool: a list built during a frame is not in the pool yet.
+        return root.get<PositionComponent>()->height;
     }
 }
