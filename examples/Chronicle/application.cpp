@@ -25,6 +25,8 @@
 #include "UI/enginefactories.h"
 #include "UI/factories.h"
 #include "Scenes/devscenes.h"
+#include "Scenes/lifescene.h"
+#include "Core/factrouter.h"
 
 using namespace pg;
 
@@ -56,7 +58,7 @@ namespace chronicle
 
         auto config = engine.getConfig();
         config.width = 1320;
-        config.height = 860;
+        config.height = 1020;
         config.manifestPath = "res/chronicle/manifest.json";
         engine.setConfig(config);
 
@@ -74,6 +76,7 @@ namespace chronicle
             // 2. animation and the data seam every phase-2 scene drives through.
             ecs.createSystem<TweenSystem>();
             ecs.createSystem<WorldFacts>();
+            ecs.createSystem<FactRouter>();   // Paths to the widgets that follow them
 
             // Register the icon sets (IconSystem comes from the engine boot).
             registerMarks(&ecs);
@@ -105,9 +108,20 @@ namespace chronicle
             registerEnginePrefabFactories(factories);
             registerChronicleFactories(factories);
 
-            // 3. scene (default TypeSpecimen when no --dev given)
-            const std::string scene = opt.devScene.empty() ? "TypeSpecimen" : opt.devScene;
-            loadDevScene(ecs.getSystem<SceneElementSystem>(), scene);
+            // 3. scene: the Life scene, unless --dev names a gallery
+            if (opt.devScene.empty() or opt.devScene == "LifeScene")
+            {
+                LifeSceneOptions life;
+                life.fresh = opt.fresh;
+                life.noSave = opt.noSave;
+                life.savePath = opt.savePath;
+
+                ecs.getSystem<SceneElementSystem>()->loadSystemScene<LifeScene>(life);
+            }
+            else
+            {
+                loadDevScene(ecs.getSystem<SceneElementSystem>(), opt.devScene);
+            }
         });
     }
 

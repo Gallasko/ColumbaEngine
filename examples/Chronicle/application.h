@@ -9,8 +9,11 @@ namespace chronicle
 {
     struct LaunchOptions
     {
-        std::string devScene;
+        std::string devScene;          // "" = the Life scene
         std::string theme = "day";
+        bool fresh = false;            // --fresh: a new life at 7
+        bool noSave = false;           // --no-save: the mockup's life, never written
+        std::string savePath = "save/chronicle/life.sz";
     };
 
     class GameApp

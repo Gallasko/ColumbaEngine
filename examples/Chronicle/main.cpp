@@ -20,9 +20,15 @@ int main(int argc, char* argv[])
             opt.theme = argv[++i];
         else if (a == "--reduced-motion")
             chronicle::Motion::setReduced(true);
+        else if (a == "--fresh")
+            opt.fresh = true;
+        else if (a == "--no-save")
+            opt.noSave = true;
+        else if (a == "--save" and i + 1 < argc)
+            opt.savePath = argv[++i];
         else
         {
-            std::fprintf(stderr, "usage: Chronicle [--dev <Scene>] [--theme day|candle] [--reduced-motion]\n");
+            std::fprintf(stderr, "usage: Chronicle [--dev <Scene>] [--theme day|candle] [--reduced-motion] [--fresh] [--no-save] [--save <path>]\n");
             return 2;
         }
     }

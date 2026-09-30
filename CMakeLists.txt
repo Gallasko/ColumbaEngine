@@ -1553,6 +1553,9 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/Chronicle/Core/textmetrics.cpp
             examples/Chronicle/Core/motion.cpp
             examples/Chronicle/Core/rulevm.cpp
+            examples/Chronicle/Core/factrouter.cpp
+            examples/Chronicle/Scenes/lifesave.cpp
+            examples/Chronicle/Scenes/lifescene.cpp
             examples/Chronicle/UI/label.cpp
             examples/Chronicle/UI/mark.cpp
             examples/Chronicle/UI/ornament.cpp
@@ -1662,14 +1665,24 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/chronicle/resourceledger.cc
             test/chronicle/eventlog.cc
             test/chronicle/rules.cc
+            test/chronicle/lifescene.cc
             ${CHRONICLE_CORE}
         )
         target_link_libraries(test_chronicle PRIVATE gtest gtest_main ColumbaEngine)
+        target_compile_definitions(test_chronicle PRIVATE CHRONICLE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")   # lifescene_test.no_scene_arithmetic reads the scene's source
         add_custom_command(TARGET test_chronicle PRE_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/testdeps/ $<TARGET_FILE_DIR:test_chronicle>
             COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/tools $<TARGET_FILE_DIR:test_chronicle>/tools
-            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/res/scripts $<TARGET_FILE_DIR:test_chronicle>/res/scripts
-            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/examples/Chronicle/rules $<TARGET_FILE_DIR:test_chronicle>/rules)
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/res/scripts $<TARGET_FILE_DIR:test_chronicle>/res/scripts)
+
+        # The rule scripts beside the test binary, copied on every build: a .pg edit changes no
+        # C++, so a PRE_BUILD step (which runs only when the binary relinks) would miss it.
+        add_custom_target(chronicle_test_rules ALL
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/examples/Chronicle/rules ${CMAKE_CURRENT_BINARY_DIR}/rules
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/testdeps/rules ${CMAKE_CURRENT_BINARY_DIR}/rules
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/res/chronicle/ui ${CMAKE_CURRENT_BINARY_DIR}/res/chronicle/ui
+            COMMENT "Copying the Chronicle rule scripts and pages beside test_chronicle")
+        add_dependencies(test_chronicle chronicle_test_rules)
         gtest_discover_tests(test_chronicle
             WORKING_DIRECTORY $<TARGET_FILE_DIR:test_chronicle>
             PROPERTIES FAIL_REGULAR_EXPRESSION "FAILED")
