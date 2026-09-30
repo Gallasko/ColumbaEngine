@@ -537,6 +537,7 @@ namespace pg
         Listener<StandardEvent>,
         QueuedListener<EntityRemovedFromLayoutEvent>,
         QueuedListener<PositionComponentChangedEvent>,
+        QueuedListener<PositionSettledEvent>,
         QueuedListener<LayoutScrolledEvent>,
         QueuedListener<AddLayoutElementEvent>,
         QueuedListener<InsertLayoutElementEvent>,
@@ -642,6 +643,18 @@ namespace pg
          * @see EntityChangedEvent
          */
         virtual void onProcessEvent(const PositionComponentChangedEvent& event) override;
+
+        /**
+         * @brief Processes the moves and resizes made by the position solver.
+         *
+         * An entity placed by an anchor or sized by a constraint changes without a setter
+         * call, so it only announces PositionSettledEvent. A layout moved that way re-places
+         * its children, and a child resized that way (a prefab container following its main
+         * entity) makes its layout re-stack.
+         *
+         * @param event Event containing the ID of the settled entity
+         */
+        virtual void onProcessEvent(const PositionSettledEvent& event) override;
 
         virtual void onProcessEvent(const LayoutScrolledEvent& event) override;
 

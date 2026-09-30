@@ -5,6 +5,8 @@
 
 #include "2D/position.h"
 
+#include "UI/sizer.h"
+
 #include "Helpers/functionregistry.h"
 
 namespace pg
@@ -224,6 +226,12 @@ namespace pg
                 LOG_MILE("Prefab", "Entity " << targetEnt.id << " can't be added to prefab as it doesn't have a PositionComponent!");
                 return;
             }
+
+            // A child stacked by a layout answers to that layout: it decides what is in view and
+            // what clips it, and the prefab reaches the child through the layout itself. Without
+            // this an unclipped prefab strips the clip a scrolling layout gave its rows
+            if (targetEnt->has<EntityInLayout>())
+                return;
 
             auto pos = targetEnt->get<PositionComponent>();
 

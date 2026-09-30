@@ -465,5 +465,70 @@ namespace pg
             EXPECT_FLOAT_EQ(prefabPos->width, 64.0f);
             EXPECT_FLOAT_EQ(prefabPos->height, 48.0f);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The prefab builder registers the children of a node in the node's container, and puts
+        // them in the layout the node exposes: two owners. The layout is the one that decides
+        TEST(prefab_test, leaves_a_layout_child_to_its_layout)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<LayoutSystem>();
+            ecs.createSystem<PrefabSystem>();
+            ecs.succeed<PositionComponentSystem, LayoutSystem>();
+            ecs.succeed<PositionComponentSystem, PrefabSystem>();
+
+            // 50 tall and scrolling: it clips its children and hides the ones out of view
+            auto layout = makeVerticalLayout(&ecs, 0.0f, 0.0f, 100.0f, 50.0f, true);
+
+            // Not clipped itself
+            auto prefabComp = makeAnchoredPrefab(&ecs, 0.0f, 0.0f, 0.0f);
+            auto prefab = prefabComp.get<Prefab>();
+
+            std::vector<EntityRef> children;
+
+            for (size_t i = 0; i < 3; ++i)
+            {
+                auto child = ecs.createEntity();
+                auto childPos = ecs.attach<PositionComponent>(child);
+                ecs.attach<UiAnchor>(child);
+                childPos->setWidth(100.0f);
+                childPos->setHeight(30.0f);
+
+                prefab->addToPrefab(child);
+                layout.get<VerticalLayout>()->addEntity(child);
+
+                children.push_back(child);
+            }
+
+            for (size_t i = 0; i < 5; ++i)
+                ecs.executeOnce();
+
+            for (auto& child : children)
+            {
+                ASSERT_TRUE(child->has<ClippedTo>());
+                EXPECT_EQ(child->get<ClippedTo>()->clipperId, layout.entity.id);
+            }
+
+            // The third one starts at 60, under the layout's 50
+            EXPECT_TRUE(children[0]->get<PositionComponent>()->observable);
+            EXPECT_FALSE(children[2]->get<PositionComponent>()->observable);
+
+            // The prefab updates its children when it changes
+            prefabComp.get<PositionComponent>()->setX(5.0f);
+
+            for (size_t i = 0; i < 5; ++i)
+                ecs.executeOnce();
+
+            for (auto& child : children)
+                EXPECT_TRUE(child->has<ClippedTo>());
+
+            EXPECT_TRUE(children[0]->get<PositionComponent>()->observable);
+            EXPECT_FALSE(children[2]->get<PositionComponent>()->observable);
+        }
     }
 }

@@ -635,6 +635,18 @@ namespace pg
         ecsRef = entity->world();
 
         ecsRef->sendEvent(ParentingEvent{clipperId, id});
+
+        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+    }
+
+    void ClippedTo::onDeletion(EntityRef entity)
+    {
+        if (not ecsRef)
+            return;
+
+        // The parenting to the clipper is kept: the entity may be anchored to it too, and the
+        // two share one edge in the parental map
+        ecsRef->sendEvent(PositionComponentChangedEvent{entity.id});
     }
 
     void ClippedTo::setNewClipper(_unique_id clipperId)
@@ -645,6 +657,8 @@ namespace pg
 
             this->clipperId = clipperId;
             ecsRef->sendEvent(ParentingEvent{clipperId, id});
+
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
         }
     }
 

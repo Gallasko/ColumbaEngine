@@ -315,7 +315,8 @@ namespace pg
         {
             std::function<void(const OnMouseMove&)> dragCallback = [layoutId, ecs, drag, sys](const OnMouseMove& event)
             {
-                if (not event.inputHandler->isButtonPressed(SDL_BUTTON_LEFT))
+                // A move that carries no input handler cannot be a drag
+                if (not event.inputHandler or not event.inputHandler->isButtonPressed(SDL_BUTTON_LEFT))
                 {
                     drag->grabOffset = -1.0f;
                     return;
@@ -372,7 +373,8 @@ namespace pg
         {
             std::function<void(const OnMouseMove&)> dragCallback = [layoutId, ecs, drag, sys](const OnMouseMove& event)
             {
-                if (not event.inputHandler->isButtonPressed(SDL_BUTTON_LEFT))
+                // A move that carries no input handler cannot be a drag
+                if (not event.inputHandler or not event.inputHandler->isButtonPressed(SDL_BUTTON_LEFT))
                 {
                     drag->grabOffset = -1.0f;
                     return;
@@ -503,6 +505,11 @@ namespace pg
     }
 
     void LayoutSystem::onProcessEvent(const PositionComponentChangedEvent& event)
+    {
+        onLayoutChanged(event.id);
+    }
+
+    void LayoutSystem::onProcessEvent(const PositionSettledEvent& event)
     {
         onLayoutChanged(event.id);
     }

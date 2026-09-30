@@ -294,7 +294,10 @@ namespace pg
     };
 
     // Todo add a Dtor that remove any parenting
-    struct ClippedTo : public Ctor
+    // Clips the entity to the bounds of another one. A clip that arrives, changes or leaves marks
+    // the entity as changed, so whatever draws it picks the new clip up on the next settle even
+    // if the entity itself did not move
+    struct ClippedTo : public Ctor, public Dtor
     {
         ClippedTo(_unique_id clipperId) : clipperId(clipperId) {}
         ClippedTo(const ClippedTo& other) : clipperId(other.clipperId), id(other.id), ecsRef(other.ecsRef) {}
@@ -310,6 +313,8 @@ namespace pg
         }
 
         virtual void onCreation(EntityRef entity) override;
+
+        virtual void onDeletion(EntityRef entity) override;
 
         void setNewClipper(_unique_id clipperId);
 

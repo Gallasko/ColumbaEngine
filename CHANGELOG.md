@@ -27,6 +27,14 @@ First tagged release. Everything below describes the state of the engine at the 
   component (`getEntity("fed")->get<RequirementList>()`), its setters are also helpers on its `Prefab`
   (`callHelper("setItem", size_t{0}, 18, 18)`), `Prefab::findEntity` searches a subtree by name, and a
   prefab's helpers are dropped with it.
+- Layouts: a layout follows what the position solver moves or resizes, not only setter calls. A layout
+  placed by an anchor places its children again when it moves, and a child sized by a constraint (a prefab
+  container following its main entity) makes its layout re-stack. `LayoutSystem` listens to
+  `PositionSettledEvent` for it.
+- Prefabs: a prefab leaves a child that a layout stacks to that layout, which decides what is in view and
+  what clips it. An unclipped prefab no longer strips the `ClippedTo` a scrolling layout gave its rows.
+- Clipping: a `ClippedTo` that arrives, changes or leaves marks its entity as changed, so it is drawn with
+  the new clip on the next settle even when it does not move.
 
 ### Engine
 - Pure-ECS core (sparse sets, groups, system traits) with Taskflow-based parallel scheduling

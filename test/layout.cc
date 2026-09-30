@@ -3,6 +3,7 @@
 #include "gtest/gtest.h"
 
 #include "UI/sizer.h"
+#include "UI/prefab.h"
 #include "ECS/entitysystem.h"
 
 #include "mocklogger.h"
@@ -592,6 +593,115 @@ namespace pg
 
             // Verify that the layout scrolled to the end
             EXPECT_FLOAT_EQ(layout->xOffset, 200.0f); // Total content width (500) - visible width (300)
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A prefab container follows the height of its main entity through a constraint, so the
+        // resize reaches the layout as a settled position, not as a setter call
+        TEST(layout_test, restacks_when_a_constraint_resizes_a_child)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<LayoutSystem>();
+            ecs.createSystem<PrefabSystem>();
+            ecs.succeed<PositionComponentSystem, LayoutSystem>();
+            ecs.succeed<PositionComponentSystem, PrefabSystem>();
+
+            auto layout = makeVerticalLayout(&ecs, 0.0f, 0.0f, 100.0f, 0.0f);
+
+            auto container = makeAnchoredPrefab(&ecs, 0.0f, 0.0f, 0.0f);
+
+            auto mainEnt = ecs.createEntity();
+            auto mainPos = ecs.attach<PositionComponent>(mainEnt);
+            ecs.attach<UiAnchor>(mainEnt);
+            mainPos->setWidth(100.0f);
+            mainPos->setHeight(40.0f);
+
+            container.get<Prefab>()->setMainEntity(mainEnt);
+
+            auto second = ecs.createEntity();
+            auto secondPos = ecs.attach<PositionComponent>(second);
+            ecs.attach<UiAnchor>(second);
+            secondPos->setWidth(100.0f);
+            secondPos->setHeight(20.0f);
+
+            layout.get<VerticalLayout>()->addEntity(container.entity);
+            layout.get<VerticalLayout>()->addEntity(second);
+
+            for (size_t i = 0; i < 5; ++i)
+                ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(container.get<PositionComponent>()->height, 40.0f);
+            EXPECT_FLOAT_EQ(secondPos->y, 40.0f);
+            EXPECT_FLOAT_EQ(layout.get<PositionComponent>()->height, 60.0f);
+
+            mainPos->setHeight(70.0f);
+
+            for (size_t i = 0; i < 5; ++i)
+                ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(container.get<PositionComponent>()->height, 70.0f);
+            EXPECT_FLOAT_EQ(secondPos->y, 70.0f);
+            EXPECT_FLOAT_EQ(layout.get<PositionComponent>()->height, 90.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(layout_test, moved_by_an_anchor_places_its_children_again)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<LayoutSystem>();
+            ecs.succeed<PositionComponentSystem, LayoutSystem>();
+
+            auto holder = ecs.createEntity();
+            auto holderPos = ecs.attach<PositionComponent>(holder);
+            ecs.attach<UiAnchor>(holder);
+            holderPos->setX(10.0f);
+            holderPos->setY(10.0f);
+
+            auto layout = makeVerticalLayout(&ecs, 0.0f, 0.0f, 100.0f, 0.0f);
+            layout.get<UiAnchor>()->setTopAnchor(PosAnchor{holder.id, AnchorType::Top});
+            layout.get<UiAnchor>()->setLeftAnchor(PosAnchor{holder.id, AnchorType::Left});
+
+            auto first = ecs.createEntity();
+            auto firstPos = ecs.attach<PositionComponent>(first);
+            ecs.attach<UiAnchor>(first);
+            firstPos->setWidth(100.0f);
+            firstPos->setHeight(20.0f);
+
+            auto second = ecs.createEntity();
+            auto secondPos = ecs.attach<PositionComponent>(second);
+            ecs.attach<UiAnchor>(second);
+            secondPos->setWidth(100.0f);
+            secondPos->setHeight(30.0f);
+
+            layout.get<VerticalLayout>()->addEntity(first);
+            layout.get<VerticalLayout>()->addEntity(second);
+
+            for (size_t i = 0; i < 5; ++i)
+                ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(layout.get<PositionComponent>()->y, 10.0f);
+            EXPECT_FLOAT_EQ(firstPos->y, 10.0f);
+            EXPECT_FLOAT_EQ(secondPos->y, 30.0f);
+
+            // The layout follows its holder by anchor: no setter is called on it
+            holderPos->setY(50.0f);
+
+            for (size_t i = 0; i < 5; ++i)
+                ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(layout.get<PositionComponent>()->y, 50.0f);
+            EXPECT_FLOAT_EQ(firstPos->y, 50.0f);
+            EXPECT_FLOAT_EQ(secondPos->y, 70.0f);
         }
     }
 }

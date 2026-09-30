@@ -1,5 +1,8 @@
 #include "stdafx.h"
 
+#include <algorithm>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 #include "2D/position.h"
@@ -15,6 +18,17 @@ namespace pg
     {
         namespace
         {
+            struct SettledSpy : public System<Listener<PositionSettledEvent>, StoragePolicy>
+            {
+                virtual std::string getSystemName() const override { return "Settled Spy"; }
+
+                virtual void onEvent(const PositionSettledEvent& event) override { ids.push_back(event.id); }
+
+                size_t nbSettled(_unique_id id) const { return static_cast<size_t>(std::count(ids.begin(), ids.end(), id)); }
+
+                std::vector<_unique_id> ids;
+            };
+
             EntityRef makeRect(EntitySystem& ecs, float x, float y, float w, float h)
             {
                 auto entity = ecs.createEntity();
@@ -153,6 +167,55 @@ namespace pg
             EXPECT_FLOAT_EQ(call.state.scissorBound.y, 0.0f);
             EXPECT_FLOAT_EQ(call.state.scissorBound.z, 50.0f);
             EXPECT_FLOAT_EQ(call.state.scissorBound.w, 100.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A renderer draws an entity again when it settles. A clip that arrives on an entity
+        // that does not move must settle it too, or it keeps drawing unclipped
+        TEST(clip_test, a_clip_that_arrives_or_leaves_settles_the_entity)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            ecs.createSystem<PositionComponentSystem>();
+            auto spy = ecs.createSystem<SettledSpy>();
+
+            auto parent = makeRect(ecs, 0, 0, 100, 100);
+            auto child = makeRect(ecs, 50, 50, 100, 100);
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+            spy->ids.clear();
+
+            ecs.attach<ClippedTo>(child, parent.id);
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            EXPECT_EQ(spy->nbSettled(child.id), 1u);
+            spy->ids.clear();
+
+            auto other = makeRect(ecs, 0, 0, 60, 60);
+            ecs.executeOnce();
+            ecs.executeOnce();
+            spy->ids.clear();
+
+            child->get<ClippedTo>()->setNewClipper(other.id);
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            EXPECT_EQ(spy->nbSettled(child.id), 1u);
+            spy->ids.clear();
+
+            ecs.detach<ClippedTo>(child);
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            EXPECT_EQ(spy->nbSettled(child.id), 1u);
+            EXPECT_FALSE(child->has<ClippedTo>());
         }
     }
 }
