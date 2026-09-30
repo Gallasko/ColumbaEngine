@@ -6,6 +6,12 @@
 
 #include <gtest/gtest.h>
 
+#ifdef __linux__
+#include <SDL2/SDL.h>
+#elif _WIN32
+#include <SDL.h>
+#endif
+
 #include "UI/eventlog.h"
 #include "Core/motion.h"
 
@@ -533,6 +539,41 @@ namespace pg
 
             EXPECT_TRUE(log.atEnd(&s.ecs));
             EXPECT_FLOAT_EQ(s.layout(log)->yOffset, s.layout(log)->contentHeight - s.pos(log.list)->height);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A press and a drag in the well scroll the life, as the wheel does.
+        TEST(eventlog_test, drag_scrolls)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = life(60);
+            EventLog log = s.make(spec);
+
+            s.wheel(log, 1000);
+            ASSERT_FLOAT_EQ(s.layout(log)->yOffset, 0.0f);
+            EXPECT_TRUE(s.layout(log)->dragToScroll);
+
+            const float x = s.pos(log.list)->x + 100.0f;
+            const float y = s.pos(log.list)->y + 300.0f;
+
+            s.ecs.sendEvent(OnMouseClick{Point2D{x, y}, SDL_BUTTON_LEFT});
+            s.ecs.sendEvent(OnMouseMove{Point2D{x, y - 120.0f}, nullptr});
+            s.settle();
+
+            EXPECT_FLOAT_EQ(s.layout(log)->yOffset, 120.0f);
+            EXPECT_FALSE(log.atEnd(&s.ecs));
+
+            // Dragged all the way: at the end, and new rows are followed again
+            s.ecs.sendEvent(OnMouseMove{Point2D{x, y - 5000.0f}, nullptr});
+            s.ecs.sendEvent(OnMouseRelease{Point2D{x, y - 5000.0f}, SDL_BUTTON_LEFT, true});
+            s.settle();
+
+            EXPECT_TRUE(log.atEnd(&s.ecs));
         }
 
         // ----------------------------------------------------------------------------------------

@@ -890,6 +890,9 @@ namespace chronicle
 
             // The layout places the thumb on its right edge and sizes it to what is in view
             body.get<VerticalLayout>()->setVerticalScrollBar(thumb.entity);
+
+            // A press and a drag scroll the rows; the release of a drag selects nothing
+            body.get<VerticalLayout>()->dragToScroll = true;
         }
         else
         {
@@ -1212,7 +1215,8 @@ namespace chronicle
                 released = st->entityId;
         }
 
-        if (released == 0)
+        // The press scrolled the list: it was not a click
+        if (released == 0 or event.cancelled)
             return;
 
         auto row = ecsRef->getEntity(released);

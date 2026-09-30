@@ -337,7 +337,8 @@ namespace chronicle
                 continue;
             const bool inside = st->hovered;
             st->pressed = false;
-            if (inside)
+            // A cancelled release (the press scrolled a list) is not a click
+            if (inside and not event.cancelled)
                 if (auto f = ecsRef->getEntity(st->entityId))
                     select(f);
         }

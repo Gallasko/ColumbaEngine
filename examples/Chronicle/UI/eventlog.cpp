@@ -294,6 +294,7 @@ namespace chronicle
         // runs 8 px into the right padding, where the thumb goes; the lines stop short of it.
         auto list = makeVerticalLayout(ecs, 0.0f, 0.0f, log.lineWidth() + ScrollLane, H - 2.0f * PadY, true);
         list.get<VerticalLayout>()->spacing = static_cast<size_t>(RowSpacing);
+        list.get<VerticalLayout>()->dragToScroll = true;   // A press and a drag scroll the life, as the wheel does
         {
             auto anchor = list.get<UiAnchor>();
 

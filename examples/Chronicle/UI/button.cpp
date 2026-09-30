@@ -417,7 +417,8 @@ namespace chronicle
             st->pressed = false;
             applyVisual(face);
 
-            if (inside)
+            // A cancelled release (the press scrolled a list) is not a click
+            if (inside and not event.cancelled)
                 activate(face);
         }
     }

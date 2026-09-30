@@ -757,6 +757,54 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A press and a drag scroll a list that has a height; the drag's release (cancelled by the
+        // layout) selects nothing, and a click in place still does.
+        TEST(activityrow_test, list_drags_without_selecting)
+        {
+            MockLogger logger;
+            ActivityFixture s;
+
+            ActivityListSpec spec;
+            spec.height = 200.0f;
+            spec.groups = {{"Training", {idleSpec("a"), idleSpec("b"), idleSpec("c"), idleSpec("d"), idleSpec("e")}}};
+            ActivityList list = s.placeList(spec);
+            s.pump();
+
+            auto layout = s.ecs.getEntity(list.body.id)->get<VerticalLayout>();
+            EXPECT_TRUE(layout->dragToScroll);
+            ASSERT_FLOAT_EQ(layout->yOffset, 0.0f);
+
+            ActivityRow* b = list.row(&s.ecs, "b");
+            ASSERT_NE(b, nullptr);
+
+            const float x = s.pos(b->root)->x + 200.0f;
+            const float y = s.pos(b->root)->y + 30.0f;
+
+            s.hover(x, y);
+            s.press(x, y);
+            s.hover(x, y - 80.0f);
+
+            EXPECT_FLOAT_EQ(layout->yOffset, 80.0f);
+
+            // What the mouse click system sends for the release of a drag
+            s.ecs.sendEvent(OnMouseRelease{Point2D{x, y - 80.0f}, static_cast<MouseButton>(1), true});
+            s.pump();
+
+            EXPECT_TRUE(s.recorder->selected.empty());
+            EXPECT_EQ(list.selected(), "");
+
+            // A click in place selects the row under it
+            ActivityRow* c = list.row(&s.ecs, "c");
+            ASSERT_NE(c, nullptr);
+            s.click(c->root);
+
+            EXPECT_EQ(list.selected(), "c");
+            EXPECT_FLOAT_EQ(layout->yOffset, 80.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(activityrow_test, set_name_and_glyph)
         {
             MockLogger logger;

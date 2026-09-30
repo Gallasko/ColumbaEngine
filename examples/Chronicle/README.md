@@ -222,8 +222,11 @@ come from `rules/*.pg` through the scene, never from the component.
   after a heading being its rows; the body stacks one level only. Starting the activity is the scene's business. The list
   is Panel-like: a root prefab (anchor it, name it) and a `body` layout the rows stack
   in. With `height: 0` it is as tall as its rows; given a height it keeps it, clips its
-  rows to the body and **scrolls** (mouse wheel, and a thumb on the right edge,
-  `activity.scroll`); rows out of view take no hover and no click.
+  rows to the body and **scrolls** (mouse wheel, a thumb on the right edge,
+  `activity.scroll`, and a press dragged 4 px or more on the rows); rows out of view take no
+  hover and no click. The release of a drag reaches the list cancelled
+  (`OnMouseRelease::cancelled`) and selects nothing; Button and Tabs ignore a cancelled release
+  too.
 
 - **WindowMeter** (`UI/windowmeter.h`) - a door that closes: an age-limited chance, how
   much of it is spent, and what still fits inside it. The head: the `gate` mark (S16) and
@@ -289,7 +292,9 @@ come from `rules/*.pg` through the scene, never from the component.
   where they are (`atEnd` = offset ≥ content − viewport − 1; `scrollToEnd` jumps there).
   Wheel scrolling is the engine's `layoutScroll`. The list runs 8 px into the right padding
   for its **thumb** (`log.scroll`, 4 px, `ink-faint` at 45 %): the layout sizes it to what is
-  in view, hides it while everything fits, and dragging it scrolls the list. A new line and
+  in view, hides it while everything fits, and dragging it scrolls the list. The rows themselves
+  drag too (the layout's `dragToScroll`): a press and a 4 px move scroll the life like the
+  wheel. A new line and
   its parts are born unobserved and drawn only once the layout has placed the line in view,
   so nothing flashes where it was made. A layout holds its children at its own z,
   so the lines share the list's band; their parts stand two and three above it. The entity
