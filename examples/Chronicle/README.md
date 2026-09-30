@@ -8,13 +8,18 @@ The Chronicle UI kit, built on ColumbaEngine. Everything here lives in the
 Run from the repo root (assets are read relative to the working directory):
 
 ```
-./build/Chronicle --dev TypeSpecimen          # the type/colour specimen dev scene
-./build/Chronicle --dev TypeSpecimen --theme candle
+./release/Chronicle                           # the Life scene, from save/chronicle/life.sz (the mockup's life when there is none)
+./release/Chronicle --no-save                 # the mockup's life, never written
+./release/Chronicle --fresh                   # a new life at 7
+./release/Chronicle --save save/other.sz      # another save file
+./release/Chronicle --dev TypeSpecimen --theme candle
 ```
 
-`--dev <Scene>` picks a dev scene; an unknown name exits with code 2 before a
-window opens. With no `--dev`, `TypeSpecimen` is the current default (the Life
-scene replaces it in phase 2).
+With no `--dev` the game opens on the **Life scene** (`--dev LifeScene` names it too).
+`--dev <Scene>` picks a dev gallery instead; an unknown name exits with code 2 before a
+window opens. On the Life scene: `SPACE` runs or pauses the months (one every 800 ms),
+`M` passes one month, `T` switches the theme, `R` reduced motion, `S` saves, `N` starts
+a new life.
 
 Tests:
 
@@ -31,7 +36,8 @@ ctest -R "theme" --output-on-failure
   `ThemeSystem` (`src/Engine/UI/themesystem.h`): a part is painted by attaching a
   `ThemeComponent` with an element key (`panel.ground`, `label.body.ink-muted`,
   `button.seal.ground.hover`), and `theme->setTheme("candle")` repaints everything.
-- `Scenes/` — dev scenes. `TypeSpecimen` shows every style on vellum.
+- `Scenes/` — `LifeScene` (the game's screen, `lifescene.h`, with its save in
+  `lifesave.h`) and the dev galleries. `TypeSpecimen` shows every style on vellum.
 - `UI/` — components (added from phase 1.2 onward).
 
 ## Rules
@@ -373,6 +379,43 @@ all tested (133 `test_chronicle` + engine `t1` green):
   `PanelGallery`, `ButtonGallery`, `TabsGlossGallery`.
 - **Patterns**: the state-component + system + event-driven-tests shape, and one
   Tab order for the whole kit. Phase 2 (`ProgressRule` first) builds on these.
+
+## The Life scene
+
+`Scenes/lifescene.h`. The page is `res/chronicle/ui/life.yaml`, built as it is: head,
+tabs, three columns (320 / 556 / 300) of panels anchored 16 apart. The scene does the
+three things a file cannot. In `startUp` it runs the rules and the save and fills the
+rows only they know: the ledgers, the activity lists, the log, the clock's ticks and bands.
+In `wire()`, the one function with every subscription, it subscribes each widget to a
+`WorldFacts` path through the `FactRouter` (`Core/factrouter.h`). And it turns input into
+game events: select (the forecast's ghosts on the parts), confirm (the activity at work,
+refused while one runs), a month passes. It computes nothing about the game: every number
+it writes is a script's output or the save's (`lifescene_test.no_scene_arithmetic` scans
+the source for it). A month: the age moves a twelfth, the running activity's forecast is
+re-run and written, and at term its `atTerm` becomes the character, its lines the log's,
+and the milestones, doors and locks are run again. `onLeave` drops every subscription and
+the page leaves with the scene. The save (`Scenes/lifesave.h`, `save/chronicle/life.sz`)
+holds the character, the life, what he holds and the log; nothing a script outputs is saved.
+
+z on the page: page 0, panels 10, their content 20–59, tooltips 200.
+
+## Gate: phase 2
+
+- **The mockup** (2026-09-30, `--no-save` at 1320 × 1020): the head (title, subtitle and age
+  from the scripts), the tabs, the three columns in order with nothing overlapping and the
+  page inside 1020, the clock's six ticks and five bands, two doors, the ledger's leaders,
+  the stat lines with the Squire's threshold on Strength, the activity list with its locked
+  Squire row, the log's rubrics and the skills all read from the save and the rules. Not
+  compared side by side with the design system's MainLifeScreen yet: that comparison, and
+  any component fix it asks for, is the first open item of the gate.
+- **A fresh life** (`--fresh`): age 7.0, WINTER, 84 months to the fourteenth; the ledger
+  empty, the log one rubric and "Childhood", every door upcoming with what it asks. The
+  months running on `SPACE`, and the entity count over ten months, are still to be
+  watched by hand (the month loop itself is covered by `lifescene_test`).
+- **A saved life**: the save round trip is covered by `lifescene_test.save_round_trip`;
+  `S` at 17.9, quit, run again, and a *Train at the yard* run to term (the log's last
+  line, the stat, the clock's edge, *At work now* emptying) are still to be checked by
+  hand, with `T` in the middle of the run.
 
 ## Gate: phase 1
 
