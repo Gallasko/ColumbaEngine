@@ -1661,13 +1661,15 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/chronicle/windowmeter.cc
             test/chronicle/resourceledger.cc
             test/chronicle/eventlog.cc
+            test/chronicle/rules.cc
             ${CHRONICLE_CORE}
         )
         target_link_libraries(test_chronicle PRIVATE gtest gtest_main ColumbaEngine)
         add_custom_command(TARGET test_chronicle PRE_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/testdeps/ $<TARGET_FILE_DIR:test_chronicle>
             COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/tools $<TARGET_FILE_DIR:test_chronicle>/tools
-            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/res/scripts $<TARGET_FILE_DIR:test_chronicle>/res/scripts)
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/res/scripts $<TARGET_FILE_DIR:test_chronicle>/res/scripts
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/examples/Chronicle/rules $<TARGET_FILE_DIR:test_chronicle>/rules)
         gtest_discover_tests(test_chronicle
             WORKING_DIRECTORY $<TARGET_FILE_DIR:test_chronicle>
             PROPERTIES FAIL_REGULAR_EXPRESSION "FAILED")

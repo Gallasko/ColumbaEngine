@@ -1,0 +1,3 @@
+// A rule script that runs but leaves no `forecast` behind: reading it is an error.
+var errors = []
+var notTheOutput = 1

@@ -1,0 +1,3 @@
+// A rule script that does not compile.
+var errors = []
+var forecast = {percent: }

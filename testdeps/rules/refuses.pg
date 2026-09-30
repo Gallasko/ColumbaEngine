@@ -1,0 +1,5 @@
+import "algorithm"
+// A rule script that runs and refuses its input through the `errors` list.
+var errors = []
+push(errors, "character: no strength given")
+var forecast = {}
