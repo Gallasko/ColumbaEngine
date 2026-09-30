@@ -127,6 +127,7 @@ namespace chronicle
         void setGlyph(pg::EntitySystem*, const std::string& name);
         void setMonths(pg::EntitySystem*, int);
         void setEach(pg::EntitySystem*, const std::string&);            // Only on a row built with an `each` line
+        void setWidth(pg::EntitySystem*, float width);                  // The name re-fits, the rule follows
         float height(pg::EntitySystem*) const;       // Idle 68, Running 81, Locked 24 + 4 + list + 24
 
         // Internal
@@ -196,6 +197,7 @@ namespace chronicle
         ActivityRow* find(pg::EntitySystem*, const std::string& id);    // nullptr when unknown or not laid out yet (quiet)
         void setRowState(pg::EntitySystem*, const std::string& id, ActivityState);   // Clears the selection if it was that row
         void setRows(pg::EntitySystem*, const std::vector<ActivityGroup>& groups);   // Rebuilds
+        void setSize(pg::EntitySystem*, float width, float height);      // Rows and headings follow the width; height only on a list that scrolls
     };
 
     ActivityList makeActivityList(pg::EntitySystem*, const ActivityListSpec&);

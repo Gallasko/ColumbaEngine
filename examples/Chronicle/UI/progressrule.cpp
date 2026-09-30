@@ -237,13 +237,20 @@ namespace chronicle
         spec.nib = on;
     }
 
-    void ProgressRule::setWidth(EntitySystem*, float width)
+    void ProgressRule::setWidth(EntitySystem* ecs, float width)
     {
         spec.width = width;
         const float H = trackH(spec);
         track->get<PositionComponent>()->setWidth(width);   // frame fillIn follows
         root->get<PositionComponent>()->setWidth(width);
-        (void)H;
+
+        // The caption wraps at the rule's width
+        if (caption)
+        {
+            caption->setWidth(ecs, width);
+            root->get<PositionComponent>()->setHeight(H + CAP_GAP + caption->entity->get<PositionComponent>()->height);
+        }
+
         layoutAt(shown);
     }
 }

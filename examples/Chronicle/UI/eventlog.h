@@ -87,6 +87,7 @@ namespace chronicle
         void append(pg::EntitySystem*, const LogEntry&);   // A rubric first when floor(age) > lastYear
         void clear(pg::EntitySystem*);
         void setFootnote(pg::EntitySystem*, const std::string&);   // "" removes
+        void setHeight(pg::EntitySystem*, float height);            // The well's; the list inside follows
         void scrollToEnd(pg::EntitySystem*);
         bool atEnd(pg::EntitySystem*) const;                // scrollOffset >= contentHeight - viewport - 1
         size_t size() const;                                 // Rows, not rubrics

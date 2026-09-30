@@ -817,6 +817,24 @@ namespace chronicle
         });
     }
 
+    void ActivityRow::setWidth(EntitySystem* ecs, float width)
+    {
+        onLive(this, [ecs, width](ActivityRow& r) {
+            if (std::abs(r.spec.width - width) < 0.5f)
+                return;
+
+            r.spec.width = width;
+            r.root.get<PositionComponent>()->setWidth(width);
+
+            // The ground, rule, edge and ring follow the root through their anchors; the cost is
+            // right-anchored. The name and the running rule take the room in between.
+            r.fitName(ecs);
+
+            if (r.progress)
+                r.progress->setWidth(ecs, r.middleWidth());
+        });
+    }
+
     float ActivityRow::height(EntitySystem*) const
     {
         return root.get<PositionComponent>()->height;
@@ -992,6 +1010,39 @@ namespace chronicle
 
                 layout->addEntity(makeActivityRow(ecs, rowSpec).root);
             }
+        }
+    }
+
+    void ActivityList::setSize(EntitySystem* ecs, float width, float height)
+    {
+        spec.width = width;
+        root.get<PositionComponent>()->setWidth(width);   // The body is anchored to both sides
+
+        // A list that scrolls keeps the height it is given; one that does not is as tall as its rows
+        if (spec.height > 0.0f and height > 0.0f)
+        {
+            spec.height = height;
+            root.get<PositionComponent>()->setHeight(height);
+            body.get<PositionComponent>()->setHeight(height);
+        }
+
+        std::vector<EntityRef> rows;
+        std::vector<EntityRef> headings;
+        walkList(body, rows, headings);
+
+        for (auto& entity : rows)
+        {
+            if (entity->has<ActivityRow>())
+                entity->get<ActivityRow>()->setWidth(ecs, width);
+        }
+
+        for (auto& heading : headings)
+            heading->get<PositionComponent>()->setWidth(width);
+
+        for (auto& group : spec.groups)
+        {
+            for (auto& row : group.rows)
+                row.width = width;
         }
     }
 

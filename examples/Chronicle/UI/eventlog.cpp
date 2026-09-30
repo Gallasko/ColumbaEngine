@@ -494,6 +494,23 @@ namespace chronicle
         setRootHeight(*this);
     }
 
+    void EventLog::setHeight(EntitySystem*, float height)
+    {
+        if (std::abs(spec.height - height) < 0.5f)
+            return;
+
+        spec.height = height;
+
+        // The list is anchored inside the gutter, top and bottom: it follows
+        gutter.get<PositionComponent>()->setHeight(height);
+        edge.get<PositionComponent>()->setHeight(height);
+
+        if (footnote)
+            footnote->entity.get<UiAnchor>()->setTopMargin(height + FootnoteGap);
+
+        setRootHeight(*this);
+    }
+
     void EventLog::scrollToEnd(EntitySystem* ecs)
     {
         auto layout = list.get<VerticalLayout>();
