@@ -98,6 +98,52 @@ fun numberWord(n)
     return toString(n)
 }
 
+// 1 -> "first", 17 -> "seventeenth", 21 -> "twenty-first", 40 -> "fortieth", 43 -> "forty-third"
+fun ordinalWord(n)
+{
+    var units = ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
+                 "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth", "eighteenth", "nineteenth"]
+    var tensOrdinal = ["", "", "twentieth", "thirtieth", "fortieth", "fiftieth", "sixtieth", "seventieth", "eightieth", "ninetieth"]
+    var tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+
+    if (n <= 0 or n >= 100)
+    {
+        return ordinal(n)
+    }
+
+    if (n < 20)
+    {
+        return units[n]
+    }
+
+    var t = toInt(floor(n / 10))
+    var u = n % 10
+
+    if (u == 0)
+    {
+        return tensOrdinal[t]
+    }
+
+    return tens[t] + "-" + units[u]
+}
+
+// An age as the head writes it: one decimal ("17.5").
+fun ageText(age)
+{
+    var whole = toInt(floor(age))
+    var tenth = toInt(floor(age * 10 + 0.001)) % 10
+
+    return toString(whole) + "." + toString(tenth)
+}
+
+// The season a month of his year falls in (0 = the month he was born, in the winter).
+fun seasonOf(month)
+{
+    var seasons = ["WINTER", "WINTER", "WINTER", "SPRING", "SPRING", "SPRING", "SUMMER", "SUMMER", "SUMMER", "AUTUMN", "AUTUMN", "AUTUMN"]
+
+    return seasons[clamp(month, 0, 11)]
+}
+
 fun capitalised(word)
 {
     if (strlen(word) == 0)

@@ -77,12 +77,12 @@ namespace chronicle
     };
 
     // An activity from activities.pg: its scalar fields (id, group, name, glyph, months, rank,
-    // each, path) and its two lists.
+    // each, path, locked) and its two lists.
     struct RuleActivity
     {
         pg::ElementMap fields;
         pg::RecordList gains;          // {stat, amount}: what the activity brings at term
-        pg::RecordList requires;       // {stat, needed}: what it asks before it can start
+        pg::RecordList requires;       // {stat, label, current, needed}: what it asks before it can start
     };
 
     // A milestone from milestones.pg: {age, id, label, passed} and what it asks, per path.
@@ -110,12 +110,13 @@ namespace chronicle
     {
         bool load(pg::EntitySystem* ecs, const std::string& root = "examples/Chronicle/rules");
 
-        // activities.pg: the activity table.
-        bool activities(std::vector<RuleActivity>& out);
+        // activities.pg: the activity table, and what each still asks of `character`.
+        bool activities(const pg::ElementMap& character, std::vector<RuleActivity>& out);
 
         // milestones.pg: every milestone (with `passed`), and the next one after `age`
-        // ({id, label, age, in}: `in` is the months to it; "", "", -1, -1 past the last).
-        bool milestones(float age, std::vector<RuleMilestone>& out, pg::ElementMap& next);
+        // ({id, label, age, in}: `in` is the months to it; "", "", -1, -1 past the last), and the
+        // page's head at that age ({ageText, subtitle, ageNote}) when asked for.
+        bool milestones(float age, std::vector<RuleMilestone>& out, pg::ElementMap& next, pg::ElementMap* headline = nullptr);
 
         // windows.pg: each window's {id, name, from, to, state, note, attempts} at `age`.
         bool windows(float age, const pg::ElementMap& character, pg::RecordList& out);

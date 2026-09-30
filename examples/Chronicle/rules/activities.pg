@@ -1,9 +1,12 @@
 // Chronicle rules: the activities
 // -------------------------------
+// Input:  `character` (a table of stats and flags; the table below needs none of it).
 // Output: `activities`, one table per thing the character may spend months doing, in the order
-// the Life screen lists them:
-//   id, group, name, glyph, months, rank ("" or caps), each ("" or caps), path (the milestone
-//   path it leads toward, "" if none), gains [{stat, amount}] (at term), requires [{stat, needed}].
+//         the Life screen lists them:
+//           id, group, name, glyph, months, rank ("" or caps), each ("" or caps), path (the
+//           milestone path it leads toward, "" if none), gains [{stat, amount}] (at term),
+//           requires [{stat, label, current, needed}] (current: the character's),
+//           locked (true while a requirement is unmet).
 //
 // The numbers are the design mockup's placeholders for the game's balance: change them here,
 // nothing in C++ moves.
@@ -11,6 +14,7 @@
 import "string"
 import "math"
 import "algorithm"
+import "lib"
 
 var errors = []
 
@@ -50,3 +54,24 @@ var activities = [
      gains: [{stat: "dex", amount: 1}, {stat: "swd", amount: 1}],
      requires: [{stat: "vit", needed: 10}]}
 ]
+
+// What each activity still asks of this character
+for (var i = 0; i < len(activities); i++)
+{
+    var a = activities[i]
+    var locked = false
+
+    for (var r = 0; r < len(a.requires); r++)
+    {
+        var req = a.requires[r]
+        req.label = statName(req.stat)
+        req.current = statOf(character, req.stat)
+
+        if (req.current < req.needed)
+        {
+            locked = true
+        }
+    }
+
+    a.locked = locked
+}

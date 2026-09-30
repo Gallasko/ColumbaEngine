@@ -457,11 +457,13 @@ namespace chronicle
         return ok;
     }
 
-    bool Rules::activities(std::vector<RuleActivity>& out)
+    bool Rules::activities(const ElementMap& character, std::vector<RuleActivity>& out)
     {
         RuleScript& s = activitiesScript;
         s.clearErrors();
         out.clear();
+
+        s.set("character", character);
 
         size_t n = 0;
 
@@ -483,7 +485,7 @@ namespace chronicle
         return true;
     }
 
-    bool Rules::milestones(float age, std::vector<RuleMilestone>& out, ElementMap& next)
+    bool Rules::milestones(float age, std::vector<RuleMilestone>& out, ElementMap& next, ElementMap* headline)
     {
         RuleScript& s = milestonesScript;
         s.clearErrors();
@@ -511,6 +513,14 @@ namespace chronicle
 
         if (not s.get("next", next))
             return fail(s);
+
+        if (headline)
+        {
+            headline->clear();
+
+            if (not s.get("headline", *headline))
+                return fail(s);
+        }
 
         return true;
     }

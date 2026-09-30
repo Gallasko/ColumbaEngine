@@ -4,7 +4,10 @@
 // Output: `milestones`, every milestone {age, id, label, passed, asks}, where `asks` lists what
 //         each path asks at it: [{path, stat, label, needed}];
 //         `next`, the first milestone after `age`: {id, label, age, in} with `in` the whole
-//         months to it; past the last one: {id: "", label: "", age: -1, in: -1}.
+//         months to it; past the last one: {id: "", label: "", age: -1, in: -1};
+//         `headline`, the page's head at `age`: {ageText ("17.5"), subtitle ("THE SEVENTEENTH
+//         YEAR · SPRING · BELLMOOR"), ageNote ("years · 6 mo to the eighteenth", or "years"
+//         past the last milestone)}.
 
 import "string"
 import "math"
@@ -43,4 +46,19 @@ for (var i = 0; i < len(milestoneTable); i++)
     {
         next = {id: m.id, label: m.label, age: m.age, in: monthsBetween(age, m.age)}
     }
+}
+
+var place = "BELLMOOR"
+var year = toInt(floor(age + 0.001))
+var monthOfYear = monthsBetween(year, age)
+
+var headline = {
+    ageText: ageText(age),
+    subtitle: "THE " + toUpperCase(ordinalWord(year)) + " YEAR · " + seasonOf(monthOfYear) + " · " + place,
+    ageNote: "years"
+}
+
+if (next.age > 0)
+{
+    headline.ageNote = "years · " + toString(next.in) + " mo to the " + ordinalWord(next.age)
 }

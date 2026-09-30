@@ -111,12 +111,12 @@ namespace pg
             RulesFixture f;
 
             std::vector<RuleActivity> activities;
-            ASSERT_TRUE(f.rules.activities(activities)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+            ASSERT_TRUE(f.rules.activities(aldren(), activities)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
             ASSERT_GE(activities.size(), 9u);
 
             for (const auto& a : activities)
             {
-                for (const char* key : {"id", "group", "name", "glyph", "months", "rank", "each"})
+                for (const char* key : {"id", "group", "name", "glyph", "months", "rank", "each", "locked"})
                     EXPECT_TRUE(a.fields.count(key)) << textOf(a.fields, "id") << " has no " << key;
             }
 
@@ -134,6 +134,23 @@ namespace pg
             EXPECT_TRUE(yard->gains[0].count("stat"));
             EXPECT_TRUE(yard->gains[0].count("amount"));
             EXPECT_EQ(textOf(yard->gains[0], "stat"), "str");
+            EXPECT_FALSE(yard->fields.at("locked").get<bool>());
+
+            // Squiring asks STR 18 and SWD 4 of a character with 14 and 3: locked, and says so
+            const RuleActivity* squire = nullptr;
+
+            for (const auto& a : activities)
+            {
+                if (textOf(a.fields, "id") == "train.squire")
+                    squire = &a;
+            }
+
+            ASSERT_NE(squire, nullptr);
+            EXPECT_TRUE(squire->fields.at("locked").get<bool>());
+            ASSERT_EQ(squire->requires.size(), 2u);
+            EXPECT_EQ(textOf(squire->requires[0], "label"), "Strength");
+            EXPECT_EQ(intOf(squire->requires[0], "current"), 14);
+            EXPECT_EQ(intOf(squire->requires[0], "needed"), 18);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -171,8 +188,16 @@ namespace pg
             EXPECT_EQ(first->fields.at("passed").get<bool>(), false);
             EXPECT_FALSE(first->asks.empty());
 
+            // The page's head at that age
+            ElementMap headline;
+            ASSERT_TRUE(f.rules.milestones(17.5f, milestones, next, &headline));
+            EXPECT_EQ(textOf(headline, "ageText"), "17.5");
+            EXPECT_EQ(textOf(headline, "subtitle"), "THE SEVENTEENTH YEAR \xC2\xB7 SUMMER \xC2\xB7 BELLMOOR");
+            EXPECT_EQ(textOf(headline, "ageNote"), "years \xC2\xB7 6 mo to the eighteenth");
+
             // Past the last: empty strings and -1
-            ASSERT_TRUE(f.rules.milestones(43.0f, milestones, next));
+            ASSERT_TRUE(f.rules.milestones(43.0f, milestones, next, &headline));
+            EXPECT_EQ(textOf(headline, "ageNote"), "years");
             EXPECT_EQ(textOf(next, "id"), "");
             EXPECT_EQ(textOf(next, "label"), "");
             EXPECT_EQ(intOf(next, "age"), -1);
@@ -219,7 +244,7 @@ namespace pg
 
             // The gain the table gives at term
             std::vector<RuleActivity> activities;
-            ASSERT_TRUE(f.rules.activities(activities));
+            ASSERT_TRUE(f.rules.activities(aldren(), activities));
             int strGain = 0;
 
             for (const auto& a : activities)
