@@ -32,6 +32,7 @@
 #include "UI/windowmeter.h"
 #include "UI/resourceledger.h"
 #include "UI/eventlog.h"
+#include "UI/panel.h"
 #include "UI/gloss.h"
 #include "Core/motion.h"
 
@@ -44,6 +45,22 @@ namespace chronicle
         constexpr const char * const DOM = "Chronicle.Life";
 
         constexpr const char * const ActivitiesList = "life.activities";
+
+        // The page's frame (life.yaml): margins, the fixed columns, where the columns start, and the
+        // chrome of a panel with a heading (16 + the 51 head block + 16)
+        constexpr float PageMargin = 48.0f;
+        constexpr float ColumnGap = 24.0f;
+        constexpr float LeftColumn = 320.0f;
+        constexpr float RightColumn = 360.0f;
+        constexpr float ColumnsTop = 178.0f;
+        constexpr float StackGap = 16.0f;
+        constexpr float PanelChrome = 83.0f;
+        constexpr float MinMiddle = 420.0f;
+        constexpr float MinList = 200.0f;
+        constexpr float MinLog = 160.0f;
+        constexpr float ClockPanel = 240.0f;       // The clock and two doors, until the panel has measured itself
+        constexpr float RunningPanel = 164.0f;     // "At work now" holding a running row
+        constexpr float LogFootnote = 19.0f;       // 4 + a caption line
         constexpr const char * const TabsTag = "life.tabs";
 
         int intOf(const ElementType& v)
@@ -285,15 +302,7 @@ namespace chronicle
             }
         });
 
-        listenToEvent<ResizeEvent>([this](const ResizeEvent& e) {
-            EntityRef background = named("page");
-
-            if (not background.empty())
-            {
-                background->get<PositionComponent>()->setWidth(e.width);
-                background->get<PositionComponent>()->setHeight(e.height);
-            }
-        });
+        listenToEvent<ResizeEvent>([this](const ResizeEvent& e) { fit(e.width, e.height); });
     }
 
     // ---- startUp: rules, save, rows, wiring, paths ------------------------------------------------
@@ -324,6 +333,60 @@ namespace chronicle
         wire();
         publish();
         registerDeeds();
+
+        // The window as it is now; every resize after this comes as a ResizeEvent
+        float width = 1320.0f;
+        float height = 1020.0f;
+
+        if (auto window = ecsRef->getEntity("__MainWindow"); window and window->has<PositionComponent>())
+        {
+            auto pos = window->get<PositionComponent>();
+
+            if (pos->width > 0.0f and pos->height > 0.0f)
+            {
+                width = pos->width;
+                height = pos->height;
+            }
+        }
+
+        fit(width, height);
+    }
+
+    void LifeScene::fit(float width, float height)
+    {
+        if (page.empty())
+            return;
+
+        EntitySystem* ecs = ecsRef;
+
+        if (EntityRef background = named("page"); not background.empty())
+        {
+            background->get<PositionComponent>()->setWidth(width);
+            background->get<PositionComponent>()->setHeight(height);
+        }
+
+        // The middle column takes what the two fixed ones leave; the choice fills it to the bottom
+        const float middle = std::max(MinMiddle, width - 2.0f * PageMargin - LeftColumn - RightColumn - 2.0f * ColumnGap);
+        const float listHeight = std::max(MinList, height - ColumnsTop - PanelChrome - StackGap);
+
+        if (auto may = piece<Panel>("may"))
+        {
+            may->setWidth(ecs, middle);
+
+            if (auto list = piece<ActivityList>("activities"))
+                list->setSize(ecs, may->innerWidth(), listHeight);
+        }
+
+        // The log takes the height left under the years and the work at hand
+        float clock = ClockPanel;
+
+        if (EntityRef clockPanel = named("clockPanel"); not clockPanel.empty())
+            clock = std::max(clock, clockPanel->get<PositionComponent>()->height);
+
+        const float logHeight = std::max(MinLog, height - ColumnsTop - clock - StackGap - RunningPanel - StackGap - PanelChrome - LogFootnote - StackGap);
+
+        if (auto log = piece<EventLog>("log"))
+            log->setHeight(ecs, logHeight);
     }
 
     void LifeScene::onLeave()

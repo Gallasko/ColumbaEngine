@@ -73,6 +73,16 @@ namespace pg
                 FactRouter* router = nullptr;
                 AchievementSys* achievements = nullptr;
                 SceneElementSystem* scenes = nullptr;
+                EntityRef window;
+
+                // What the window does when it is resized: the viewport entity, then the event
+                void resize(float width, float height)
+                {
+                    window->get<PositionComponent>()->setWidth(width);
+                    window->get<PositionComponent>()->setHeight(height);
+                    ecs.sendEvent(ResizeEvent{width, height});
+                    frames(6);
+                }
 
                 LifeFixture()
                 {
@@ -115,6 +125,15 @@ namespace pg
                     registerChronicleFactories(registry);
 
                     scenes = ecs.createSystem<SceneElementSystem>();
+
+                    // The viewport the page anchors to, as the window names it
+                    ecs.createSystem<EntityNameSystem>();
+                    window = ecs.createEntity();
+                    auto windowPos = ecs.attach<PositionComponent>(window);
+                    windowPos->setWidth(1320.0f);
+                    windowPos->setHeight(1020.0f);
+                    ecs.attach<UiAnchor>(window);
+                    ecs.attach<EntityName>(window, "__MainWindow");
 
                     ecs.sendEvent(ResizeEvent{1320.0f, 1020.0f});
                 }
@@ -273,6 +292,58 @@ namespace pg
                     EXPECT_FALSE(r->root->get<ActivityRowState>()->stripe) << row.id;
                 }
             }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The page follows the window: the right column and the age hold to its right edge, the
+        // middle column takes the rest of the width, the choice and the log the rest of the height.
+        TEST(lifescene_test, page_follows_the_window)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto right = [&](const char* name) { auto p = f.pos(life->named(name)); return p->x + p->width; };
+            auto bottom = [&](const char* name) { auto p = f.pos(life->named(name)); return p->y + p->height; };
+
+            // As designed, at 1320 x 1020
+            EXPECT_NEAR(f.pos(life->named("may"))->width, 496.0f, 0.5f);
+            EXPECT_NEAR(right("clockPanel"), 1272.0f, 0.5f);
+            EXPECT_NEAR(right("age"), 1272.0f, 0.5f);
+
+            const float logAt1020 = life->piece<EventLog>("log")->spec.height;
+
+            f.resize(1600.0f, 1100.0f);
+
+            // The middle column takes the new width, the right one moves with the edge
+            EXPECT_NEAR(f.pos(life->named("may"))->width, 1600.0f - 96.0f - 320.0f - 360.0f - 48.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("may"))->x, 392.0f, 0.5f);
+            EXPECT_NEAR(right("clockPanel"), 1552.0f, 0.5f);
+            EXPECT_NEAR(right("age"), 1552.0f, 0.5f);
+            EXPECT_NEAR(right("ageNote"), 1552.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("page"))->width, 1600.0f, 0.5f);
+
+            // The rows follow the list's width; the choice and the log take the new height
+            auto list = life->piece<ActivityList>("activities");
+            EXPECT_NEAR(list->spec.width, 1600.0f - 96.0f - 320.0f - 360.0f - 48.0f - 32.0f, 0.5f);
+            ActivityRow* yard = list->row(&f.ecs, "train.yard");
+            ASSERT_NE(yard, nullptr);
+            EXPECT_NEAR(f.pos(yard->root)->width, list->spec.width, 0.5f);
+
+            EXPECT_LE(bottom("may"), 1100.0f);
+            EXPECT_GT(bottom("may"), 1100.0f - 32.0f);
+            EXPECT_NEAR(life->piece<EventLog>("log")->spec.height, logAt1020 + 80.0f, 0.5f);
+            EXPECT_LE(bottom("happened"), 1100.0f);
+
+            // And back
+            f.resize(1320.0f, 1020.0f);
+            EXPECT_NEAR(f.pos(life->named("may"))->width, 496.0f, 0.5f);
+            EXPECT_NEAR(right("clockPanel"), 1272.0f, 0.5f);
+            EXPECT_NEAR(f.pos(yard->root)->width, 464.0f, 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------

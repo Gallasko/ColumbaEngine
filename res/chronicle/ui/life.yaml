@@ -5,9 +5,11 @@
 # names, values and rows come from the save and the rules (examples/Chronicle/rules/*.pg) in the
 # scene's startUp, and the rows of the ledgers, the activity lists and the log are added there.
 #
-# Page 1320 wide: margins 48, three columns 320 / 496 / 360 with 24 between them, panels
-# stacked 16 apart (each anchored under the one above it, so a panel that grows pushes the
-# next one down). The middle column is the choice alone: what he may do. z: page 0, panels 10,
+# The page follows the window (__MainWindow, the viewport): margins 48, the left column 320 and
+# the right one 360 hold their width, the right one anchored to the window's right edge, and the
+# middle column - the choice alone, what he may do - takes the rest. The scene widens it and sets
+# the heights of the choice and the log on every resize. Panels stack 16 apart, each anchored
+# under the one above it, so a panel that grows pushes the next one down. z: page 0, panels 10,
 # their content 20.
 name: life
 children:
@@ -47,24 +49,26 @@ children:
 
   - kind: Label
     name: age
-    x: 1072
-    y: 32
     style: figure-xl
     overflow: ellipsis
     width: 200
     align: right
     text: "17.5"
+    anchors:
+      - {side: right, target: __MainWindow, targetSide: right, margin: 48}
+      - {side: top, target: __MainWindow, targetSide: top, margin: 32}
 
   - kind: Label
     name: ageNote
-    x: 872
-    y: 70
     style: body-sm
     color: ink-muted
     overflow: ellipsis
     width: 400
     align: right
     text: years · 7 mo to the eighteenth
+    anchors:
+      - {side: right, target: __MainWindow, targetSide: right, margin: 48}
+      - {side: top, target: __MainWindow, targetSide: top, margin: 70}
 
   - kind: Tabs
     name: tabs
@@ -131,10 +135,11 @@ children:
   # ── Right: the years and their doors, the work at hand, what has happened ─────
   - kind: Panel
     name: clockPanel
-    x: 912
-    y: 178
     frame: ruled
     width: 360
+    anchors:
+      - {side: right, target: __MainWindow, targetSide: right, margin: 48}
+      - {side: top, target: __MainWindow, targetSide: top, margin: 178}
     children:
       - kind: LifeClock
         name: clock

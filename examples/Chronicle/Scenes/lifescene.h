@@ -65,6 +65,7 @@ namespace chronicle
         bool paused = true;
 
     private:
+        void fit(float width, float height);   // The page to the window: the middle column's width, the choice's and the log's heights
         void wire();                   // THE one function with every subscription
         void rebuild();                // The rows only the save and the rules know: ledgers, lists, log, clock
         void addToLedger(const LifeResource& resource);   // One row of what he holds
