@@ -2,6 +2,7 @@
 
 #include "ECS/entitysystem.h"
 #include "Compiler/vm.h"
+#include "Compiler/vmreaders.h"
 #include "2D/position.h"
 #include "logger.h"
 
@@ -35,19 +36,12 @@ namespace
 
         bool isScalar(Value v) const
         {
-            return IS_INT(v) or IS_DOUBLE(v) or IS_BOOL(v) or IS_STRING(v);
+            return vmread::isScalar(v);
         }
 
         ElementType scalar(Value v)
         {
-            if (IS_INT(v))
-                return ElementType{static_cast<int>(AS_INT(v))};
-            if (IS_DOUBLE(v))
-                return ElementType{static_cast<float>(AS_DOUBLE(v))};
-            if (IS_BOOL(v))
-                return ElementType{AS_BOOL(v)};
-
-            return ElementType{vm.asString(v)};
+            return vmread::scalar(vm, v);
         }
 
         float number(Value v, const std::string& what, float fallback = 0.0f)
@@ -86,25 +80,15 @@ namespace
         }
 
         // A flat map of scalars (one record).
-        bool record(ObjInstance* table, ElementMap& out, const std::string& what)
+        bool record(Value table, ElementMap& out, const std::string& what)
         {
-            for (size_t i = 0; i < table->fieldValues.size(); ++i)
-            {
-                const std::string& key = table->fieldNames[i];
-                if (key.rfind("__", 0) == 0 or key.empty())
-                    continue;
+            std::vector<std::string> problems;
+            const bool ok = vmread::record(vm, table, out, &problems, what);
 
-                Value v = table->fieldValues[i];
-                if (not isScalar(v))
-                {
-                    fail(what + "." + key + ": only scalars are allowed inside a record");
-                    return false;
-                }
+            for (const auto& problem : problems)
+                fail(problem);
 
-                out[key] = scalar(v);
-            }
-
-            return true;
+            return ok;
         }
 
         void anchor(ObjInstance* table, NodeSpec& node, const std::string& what)
@@ -243,7 +227,7 @@ namespace
                         }
 
                         ElementMap rec;
-                        if (not record(vm.asInstance(item), rec, itemPath))
+                        if (not record(item, rec, itemPath))
                         {
                             ok = false;
                             break;
@@ -259,7 +243,7 @@ namespace
                 {
                     // A single nested map is a one-element record list (e.g. a MarkedLabel's `label`).
                     ElementMap rec;
-                    if (record(vm.asInstance(value), rec, path))
+                    if (record(value, rec, path))
                         out.records[key] = RecordList{std::move(rec)};
                 }
                 else

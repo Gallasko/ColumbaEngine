@@ -255,6 +255,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/vm_binary_op.cpp
     src/Engine/Compiler/vm_struct_op.cpp
     src/Engine/Compiler/vm_profiler.cpp
+    src/Engine/Compiler/vmreaders.cpp
     src/Engine/Compiler/compiler.cpp
     src/Engine/Compiler/decoded_chunk.cpp
     src/Engine/Compiler/ecsserialization.cpp
@@ -1501,6 +1502,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/prefabbuilder.cc
             test/prefabtree.cc
             test/prefabloader.cc
+            test/vmreaders.cc
             test/network.cc
             # test/mock2dsimpleshape.h
             # test/simple2dobject.cc
