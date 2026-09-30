@@ -407,6 +407,40 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // The guild's errands raise Haggling to 2, which unlocks the Guild's letter: a row going
+        // from locked to idle when a term ends.
+        TEST(lifescene_test, a_term_that_unlocks_an_activity)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_EQ(list->row(&f.ecs, "guild.letter")->spec.state, ActivityState::Locked);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "guild.errands"});
+            f.settle();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.settle();
+
+            EXPECT_EQ(life->save.running, "");
+            EXPECT_EQ(life->save.stats["haggle"], 2);
+            EXPECT_EQ(list->row(&f.ecs, "guild.letter")->spec.state, ActivityState::Idle);
+            EXPECT_EQ(life->piece<ResourceLedger>("skills")->row("haggle")->figure.spec.text, "2");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(lifescene_test, confirm_refused_while_running)
         {
             MockLogger logger;

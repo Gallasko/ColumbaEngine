@@ -957,17 +957,16 @@ namespace chronicle
     {
         auto layout = body.get<VerticalLayout>();
 
-        // Drop what the list holds, rows and headings alike
+        // Drop what the list holds, rows and headings alike. The layout destroys each one as it
+        // lets it go: destroying them here as well would leave the layout holding dead rows until
+        // it gets to the removal, and the list walks those rows every frame.
         std::vector<_unique_id> old;
 
         for (auto& child : layout->entities)
             old.push_back(child.id);
 
         for (auto id : old)
-        {
             layout->removeEntity(id);
-            ecs->removeEntity(id);
-        }
 
         auto state = root.get<ActivityListState>();
         state->selected.clear();

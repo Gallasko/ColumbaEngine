@@ -723,6 +723,51 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // Rebuilt rows leave through the layout, which destroys each one as it lets it go: a row
+        // is never destroyed while the layout still holds it (the list walks those every frame).
+        TEST(activityrow_test, set_rows_never_leaves_a_dead_row_in_the_layout)
+        {
+            MockLogger logger;
+            ActivityFixture s;
+
+            ActivityListSpec spec;
+            spec.groups = {{"Training", {idleSpec("a"), idleSpec("b")}}};
+            ActivityList list = s.placeList(spec);
+
+            auto layout = s.ecs.getEntity(list.body.id)->get<VerticalLayout>();
+            ASSERT_EQ(layout->entities.size(), 3u);   // The heading and two rows
+
+            std::vector<_unique_id> old;
+            for (auto& e : layout->entities)
+                old.push_back(e.id);
+
+            const unsigned int errors = logger.getNbError();
+
+            list.setRows(&s.ecs, {{"Work", {idleSpec("c")}}});
+
+            // Until the layout has let them go, the old rows are alive
+            for (auto id : old)
+                EXPECT_NE(s.ecs.getEntity(id), nullptr) << id;
+
+            for (int frame = 0; frame < 4; ++frame)
+            {
+                s.ecs.executeOnce();
+
+                for (auto& e : layout->entities)
+                    EXPECT_NE(s.ecs.getEntity(e.id), nullptr) << "frame " << frame << ": the layout holds a dead row " << e.id;
+            }
+
+            for (auto id : old)
+                EXPECT_EQ(s.ecs.getEntity(id), nullptr) << id;
+
+            EXPECT_EQ(layout->entities.size(), 2u);
+            EXPECT_NE(list.row(&s.ecs, "c"), nullptr);
+            EXPECT_EQ(logger.getNbError(), errors);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(activityrow_test, list_is_as_tall_as_its_rows)
         {
             MockLogger logger;

@@ -26,6 +26,7 @@
 #include "UI/factories.h"
 #include "Scenes/devscenes.h"
 #include "Scenes/lifescene.h"
+#include "UI/sizer.h"   // LayoutSystem
 #include "Core/factrouter.h"
 
 using namespace pg;
@@ -96,6 +97,8 @@ namespace chronicle
             // Activity rows and lists: hover, selection and confirm, and the rows' adoption by their list.
             ecs.createSystem<ActivitySystem>();
             ecs.succeed<MouseHoverSystem, ActivitySystem>();
+            // It walks the lists' layouts every frame: never while the layout system changes them
+            ecs.succeed<LayoutSystem, ActivitySystem>();
 
             // Gloss tooltips go through the engine's TooltipSystem (created by the UI boot).
             if (auto* tip = ecs.getSystem<TooltipSystem>())
