@@ -1,5 +1,7 @@
 #pragma once
 
+#include <mutex>
+
 #include <gtest/gtest.h>
 
 #include "logger.h"
@@ -31,6 +33,8 @@ namespace pg
 
         void resetSink()
         {
+            std::lock_guard<std::mutex> guard(lock);
+
             nbMessages[Logger::InfoLevel::log]      = 0;
             nbMessages[Logger::InfoLevel::test]     = 0;
             nbMessages[Logger::InfoLevel::mile]     = 0;
@@ -46,8 +50,11 @@ namespace pg
         const std::unordered_map<Logger::InfoLevel, unsigned int>& getNbMessages() const { return nbMessages; }
         const LogMessage& getLastMessage() const { return lastMessage; }
         
+        // Systems log from the ECS's worker threads, and the Logger does not lock around its sinks
         virtual void processLog(const Logger::Info& log) override
         {
+            std::lock_guard<std::mutex> guard(lock);
+
             std::string objectName = showObject ? log.objectName : "";
 
             underlyingSink.processLog({log.line, log.filename, log.function, log.object, objectName, log.scope, log.message, log.level});
@@ -64,6 +71,8 @@ namespace pg
         LogMessage lastMessage = {"", Logger::InfoLevel::log};
 
         const bool showObject;
+
+        std::mutex lock;
     };
 
     template <typename SinkType = MockSink>
