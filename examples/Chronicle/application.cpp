@@ -59,8 +59,8 @@ namespace chronicle
         }
 
         auto config = engine.getConfig();
-        config.width = 1320;
-        config.height = 1020;
+        config.width = opt.width;
+        config.height = opt.height;
         config.manifestPath = "res/chronicle/manifest.json";
         engine.setConfig(config);
 

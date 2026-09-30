@@ -14,6 +14,8 @@ namespace chronicle
         bool fresh = false;            // --fresh: a new life at 7
         bool noSave = false;           // --no-save: the mockup's life, never written
         std::string savePath = "save/chronicle/life.sz";
+        int width = 1320;              // --size WxH: the window at launch
+        int height = 1020;
     };
 
     class GameApp

@@ -349,6 +349,138 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // Below the three columns' size the page is the compact file: the work at hand over the
+        // choice, a side column of one panel at a time, and everything the life wrote still there.
+        // It swaps back when the window grows.
+        TEST(lifescene_test, compact_page_at_800x600)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+            EXPECT_FALSE(life->compact);
+
+            f.resize(800.0f, 600.0f);
+            f.settle();
+
+            ASSERT_TRUE(life->compact);
+
+            auto box = [&](const char* name) {
+                auto p = f.pos(life->named(name));
+                return Box{p->x, p->y, p->x + p->width, p->y + p->height};
+            };
+
+            auto shown = [&](const char* name) { return f.pos(life->named(name))->isRenderable(); };
+
+            // The same names, but the about line, and the side column's tabs
+            for (const char* name : Names)
+            {
+                if (std::string(name) != "about")
+                    EXPECT_FALSE(life->named(name).empty()) << name;
+            }
+
+            EXPECT_TRUE(life->named("about").empty());
+            ASSERT_NE(life->piece<Tabs>("sideTabs"), nullptr);
+
+            // Two columns inside the window: the work at hand over the choice, the side at the right
+            EXPECT_NEAR(box("working").left, 24.0f, 0.5f);
+            EXPECT_NEAR(box("working").right, 800.0f - 24.0f - 320.0f - 16.0f, 0.5f);
+            EXPECT_NEAR(box("may").top, box("working").bottom + 16.0f, 0.5f);
+            EXPECT_NEAR(box("may").right, box("working").right, 0.5f);
+            EXPECT_LE(box("may").bottom, 600.0f);
+            EXPECT_GT(box("may").bottom, 600.0f - 32.0f);
+            EXPECT_NEAR(box("age").right, 776.0f, 0.5f);
+            EXPECT_LE(box("title").right, box("age").left);
+
+            for (const char* side : {"parts", "holds", "clockPanel", "happened"})
+            {
+                EXPECT_NEAR(box(side).right, 776.0f, 0.5f) << side;
+                EXPECT_NEAR(box(side).left, 456.0f, 0.5f) << side;
+                EXPECT_GE(box(side).top, box("sideTabs").bottom) << side;
+            }
+
+            EXPECT_LE(box("happened").bottom, 600.0f);
+
+            // The rows follow the narrower list
+            auto list = life->piece<ActivityList>("activities");
+            ActivityRow* yard = list->row(&f.ecs, "train.yard");
+            ASSERT_NE(yard, nullptr);
+            EXPECT_NEAR(f.pos(yard->root)->width, 416.0f - 32.0f, 0.5f);
+
+            // One side panel at a time: his parts first, the log on its tab
+            EXPECT_TRUE(shown("parts"));
+            EXPECT_FALSE(shown("holds"));
+            EXPECT_FALSE(shown("clockPanel"));
+            EXPECT_FALSE(shown("happened"));
+
+            f.ecs.sendEvent(TabSelectedEvent{life->piece<Tabs>("sideTabs")->root.id, "life.side", 3});
+            f.settle();
+
+            EXPECT_FALSE(shown("parts"));
+            EXPECT_TRUE(shown("happened"));
+            EXPECT_FALSE(f.pos(life->named("str"))->isRenderable());
+            EXPECT_EQ(life->piece<Tabs>("sideTabs")->active(), 3);
+
+            // What the life wrote reached the new page
+            EXPECT_EQ(life->piece<Label>("title")->spec.text, "The Chronicle of " + life->save.name);
+            EXPECT_EQ(life->piece<EventLog>("log")->size(), life->save.log.size());
+            EXPECT_EQ(life->piece<StatLine>("str")->spec.value, life->save.stats["str"]);
+            EXPECT_NE(life->piece<ResourceLedger>("ledger")->row("coin"), nullptr);
+
+            // At work: "At work now" grows and the choice gives it the room
+            const float idleList = list->spec.height;
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "train.yard"});
+            f.settle();
+
+            EXPECT_NE(life->piece<ActivityList>("running")->row(&f.ecs, "train.yard"), nullptr);
+            EXPECT_LT(list->spec.height, idleList);
+            EXPECT_NEAR(box("may").top, box("working").bottom + 16.0f, 0.5f);
+            EXPECT_LE(box("may").bottom, 600.0f);
+
+            // And back to three columns, the running row with it
+            f.resize(1320.0f, 1020.0f);
+            f.settle();
+
+            EXPECT_FALSE(life->compact);
+            EXPECT_FALSE(life->named("about").empty());
+            EXPECT_TRUE(life->named("sideTabs").empty());
+            EXPECT_NEAR(box("may").right - box("may").left, 496.0f, 0.5f);
+            EXPECT_TRUE(shown("parts"));
+            EXPECT_TRUE(shown("happened"));
+            EXPECT_NE(life->piece<ActivityList>("running")->row(&f.ecs, "train.yard"), nullptr);
+            EXPECT_EQ(life->piece<EventLog>("log")->size(), life->save.log.size());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A window already small at the start builds the compact page from the first frame
+        TEST(lifescene_test, starts_compact_in_a_small_window)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            f.window->get<PositionComponent>()->setWidth(800.0f);
+            f.window->get<PositionComponent>()->setHeight(600.0f);
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+            EXPECT_TRUE(life->compact);
+            EXPECT_TRUE(life->named("about").empty());
+
+            ActivityRow* yard = life->piece<ActivityList>("activities")->row(&f.ecs, "train.yard");
+            ASSERT_NE(yard, nullptr);
+            EXPECT_NEAR(f.pos(yard->root)->width, 416.0f - 32.0f, 0.5f);
+
+            auto p = f.pos(life->named("may"));
+            EXPECT_LE(p->y + p->height, 600.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(lifescene_test, start_up_publishes_from_save)
         {
             MockLogger logger;

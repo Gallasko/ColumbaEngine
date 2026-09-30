@@ -21,6 +21,7 @@ namespace chronicle
         std::string savePath = "save/chronicle/life.sz";
         std::string rulesRoot = "examples/Chronicle/rules";
         std::string pageFile = "res/chronicle/ui/life.yaml";
+        std::string compactFile = "res/chronicle/ui/life-compact.yaml";   // Below the three columns' size
         float monthMs = 800.0f;        // One month every so many ms while the loop runs
     };
 
@@ -63,9 +64,19 @@ namespace chronicle
         pg::EntityRef page;
         std::vector<FactRouter::SubId> subs;
         bool paused = true;
+        bool compact = false;          // Which file the page is: opt.compactFile or opt.pageFile
+        int sideTab = 0;               // Compact: the side panel in view (parts, holds, years, log)
+        float windowWidth = 1320.0f;   // As the last fit saw it
+        float windowHeight = 1020.0f;
+        bool runningShown = false;     // "At work now" holds a row: the page is fitted to it
 
     private:
-        void fit(float width, float height);   // The page to the window: the middle column's width, the choice's and the log's heights
+        bool buildPage(bool compact);  // The page from its file, in place of the one there was
+        void fit(float width, float height);   // The page to the window, swapping it at the breakpoint
+        void fitFull(float width, float height);      // The middle column's width, the choice's and the log's heights
+        void fitCompact(float width, float height);   // The main column's width, the choice's and the log's heights
+        float workingHeight() const;   // "At work now": its chrome alone, or with a running row
+        void showSide(int index);      // Compact: one side panel in view, the others hidden
         void wire();                   // THE one function with every subscription
         void rebuild();                // The rows only the save and the rules know: ledgers, lists, log, clock
         void addToLedger(const LifeResource& resource);   // One row of what he holds

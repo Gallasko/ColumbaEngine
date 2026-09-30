@@ -63,6 +63,42 @@ namespace chronicle
         constexpr float LogFootnote = 19.0f;       // 4 + a caption line
         constexpr const char * const TabsTag = "life.tabs";
 
+        // Below the three columns' least size the page is life-compact.yaml: margins 24, the head
+        // on two lines, the work at hand over the choice, and a side column of one panel at a time
+        constexpr float FullMinWidth = 2.0f * PageMargin + LeftColumn + RightColumn + 2.0f * ColumnGap + MinMiddle;          // That is 1244
+        constexpr float FullMinHeight = ColumnsTop + ClockPanel + StackGap + RunningPanel + StackGap + PanelChrome + LogFootnote + MinLog + PageMargin;   // That is 924
+        constexpr float CompactMargin = 24.0f;
+        constexpr float CompactTop = 128.0f;       // Under the tabs
+        constexpr float SideColumn = 320.0f;
+        constexpr float SideTop = 180.0f;          // Under the side tabs
+        constexpr float SideChrome = 32.0f;        // A panel without a heading
+        constexpr float AgeWidth = 120.0f;
+        constexpr float MinCompactList = 120.0f;
+        constexpr const char * const SideTag = "life.side";
+        const char * const SidePanels[] = {"parts", "holds", "clockPanel", "happened"};
+
+        bool needsCompact(float width, float height)
+        {
+            return width < FullMinWidth or height < FullMinHeight;
+        }
+
+        void windowSize(EntitySystem* ecs, float& width, float& height)
+        {
+            width = 1320.0f;
+            height = 1020.0f;
+
+            if (auto window = ecs->getEntity("__MainWindow"); window and window->has<PositionComponent>())
+            {
+                auto pos = window->get<PositionComponent>();
+
+                if (pos->width > 0.0f and pos->height > 0.0f)
+                {
+                    width = pos->width;
+                    height = pos->height;
+                }
+            }
+        }
+
         int intOf(const ElementType& v)
         {
             switch (v.type)
@@ -212,33 +248,54 @@ namespace chronicle
 
     // ---- init: the page as a file ----------------------------------------------------------------
 
-    void LifeScene::init()
+    bool LifeScene::buildPage(bool compactPage)
     {
+        const std::string& file = compactPage ? opt.compactFile : opt.pageFile;
+
         std::vector<std::string> errors;
         PrefabLoadOptions options;
         options.errors = &errors;
 
-        auto spec = loadNodeSpec(ecsRef, opt.pageFile, options);
+        auto spec = loadNodeSpec(ecsRef, file, options);
 
         if (not spec)
         {
-            LOG_ERROR(DOM, "Could not load the page " << opt.pageFile);
-            return;
+            LOG_ERROR(DOM, "Could not load the page " << file);
+            return false;
         }
 
         for (const auto& e : errors)
-            LOG_ERROR(DOM, opt.pageFile << ": " << e);
+            LOG_ERROR(DOM, file << ": " << e);
 
-        page = buildTree(ecsRef, *spec);
+        EntityRef built = buildTree(ecsRef, *spec);
 
-        if (page.empty())
+        if (built.empty())
         {
-            LOG_ERROR(DOM, "Could not build the page " << opt.pageFile);
-            return;
+            LOG_ERROR(DOM, "Could not build the page " << file);
+            return false;
         }
+
+        // The former page goes, its pieces with it as its prefab children
+        if (not page.empty())
+            ecsRef->removeEntity(page);
+
+        page = built;
+        compact = compactPage;
+        handles.clear();
 
         // The page leaves with the scene; its pieces follow it as its prefab children.
         ecsRef->attach<SceneElement>(page);
+
+        return true;
+    }
+
+    void LifeScene::init()
+    {
+        float width, height;
+        windowSize(ecsRef, width, height);
+
+        if (not buildPage(needsCompact(width, height)))
+            return;
 
         listenToEvent<ActivitySelectedEvent>([this](const ActivitySelectedEvent& e) { onSelect(e); });
         listenToEvent<ActivityActivatedEvent>([this](const ActivityActivatedEvent& e) { onConfirm(e); });
@@ -329,27 +386,18 @@ namespace chronicle
         refreshHoldings();
         save.holdEarned(holdings);
 
+        // The page to the window as it is now, before the rows: they are built at the widths it
+        // sets (a list resizes the rows it holds, not the ones still on their way in). Every
+        // resize after this comes as a ResizeEvent.
+        float width, height;
+        windowSize(ecsRef, width, height);
+
+        fit(width, height);
+
         rebuild();
         wire();
         publish();
         registerDeeds();
-
-        // The window as it is now; every resize after this comes as a ResizeEvent
-        float width = 1320.0f;
-        float height = 1020.0f;
-
-        if (auto window = ecsRef->getEntity("__MainWindow"); window and window->has<PositionComponent>())
-        {
-            auto pos = window->get<PositionComponent>();
-
-            if (pos->width > 0.0f and pos->height > 0.0f)
-            {
-                width = pos->width;
-                height = pos->height;
-            }
-        }
-
-        fit(width, height);
     }
 
     void LifeScene::fit(float width, float height)
@@ -357,13 +405,46 @@ namespace chronicle
         if (page.empty())
             return;
 
-        EntitySystem* ecs = ecsRef;
+        windowWidth = width;
+        windowHeight = height;
+        runningShown = not save.running.empty();
+
+        // Across the breakpoint the other file replaces the page, sized, then its rows and every
+        // path again
+        const bool swap = needsCompact(width, height) != compact;
+
+        if (swap and not buildPage(not compact))
+            return;
 
         if (EntityRef background = named("page"); not background.empty())
         {
             background->get<PositionComponent>()->setWidth(width);
             background->get<PositionComponent>()->setHeight(height);
         }
+
+        if (compact)
+            fitCompact(width, height);
+        else
+            fitFull(width, height);
+
+        if (swap)
+        {
+            rebuild();
+            publish();
+
+            for (const auto& p : save.parts)
+                setFact("character.parts." + p + ".projected", -1);
+        }
+    }
+
+    float LifeScene::workingHeight() const
+    {
+        return save.running.empty() ? PanelChrome : RunningPanel;
+    }
+
+    void LifeScene::fitFull(float width, float height)
+    {
+        EntitySystem* ecs = ecsRef;
 
         // The middle column takes what the two fixed ones leave; the choice fills it to the bottom
         const float middle = std::max(MinMiddle, width - 2.0f * PageMargin - LeftColumn - RightColumn - 2.0f * ColumnGap);
@@ -383,10 +464,67 @@ namespace chronicle
         if (EntityRef clockPanel = named("clockPanel"); not clockPanel.empty())
             clock = std::max(clock, clockPanel->get<PositionComponent>()->height);
 
-        const float logHeight = std::max(MinLog, height - ColumnsTop - clock - StackGap - RunningPanel - StackGap - PanelChrome - LogFootnote - StackGap);
+        const float logHeight = std::max(MinLog, height - ColumnsTop - clock - StackGap - workingHeight() - StackGap - PanelChrome - LogFootnote - StackGap);
 
         if (auto log = piece<EventLog>("log"))
             log->setHeight(ecs, logHeight);
+    }
+
+    void LifeScene::fitCompact(float width, float height)
+    {
+        EntitySystem* ecs = ecsRef;
+
+        if (auto title = piece<Label>("title"))
+            title->setWidth(ecs, std::max(0.0f, width - 2.0f * CompactMargin - AgeWidth - StackGap));
+
+        // The main column takes what the side one leaves; the choice fills it to the bottom under
+        // the work at hand
+        const float main = std::max(MinCompactList, width - 2.0f * CompactMargin - SideColumn - StackGap);
+        const float listHeight = std::max(MinCompactList, height - CompactTop - workingHeight() - StackGap - PanelChrome - CompactMargin);
+
+        if (auto working = piece<Panel>("working"))
+        {
+            working->setWidth(ecs, main);
+
+            if (auto running = piece<ActivityList>("running"))
+                running->setSize(ecs, working->innerWidth(), 0.0f);
+        }
+
+        if (auto may = piece<Panel>("may"))
+        {
+            may->setWidth(ecs, main);
+
+            if (auto list = piece<ActivityList>("activities"))
+                list->setSize(ecs, may->innerWidth(), listHeight);
+        }
+
+        // The log fills the side column to the bottom
+        if (auto log = piece<EventLog>("log"))
+            log->setHeight(ecs, std::max(MinLog, height - SideTop - SideChrome - LogFootnote - CompactMargin));
+
+        showSide(sideTab);
+    }
+
+    void LifeScene::showSide(int index)
+    {
+        const int count = static_cast<int>(std::size(SidePanels));
+
+        if (index < 0 or index >= count)
+            index = 0;
+
+        sideTab = index;
+
+        if (not compact)
+            return;
+
+        for (int i = 0; i < count; ++i)
+        {
+            if (EntityRef panel = named(SidePanels[i]); not panel.empty())
+                panel->get<PositionComponent>()->setVisibility(i == index);
+        }
+
+        if (auto tabs = piece<Tabs>("sideTabs"); tabs and tabs->active() != index)
+            tabs->setActive(ecsRef, index);
     }
 
     void LifeScene::onLeave()
@@ -546,6 +684,14 @@ namespace chronicle
                 return;
 
             const std::string id = v.toString();
+
+            // The work at hand starts or ends: "At work now" grows or shrinks, what is under it
+            // takes the rest
+            if (id.empty() == runningShown)
+            {
+                runningShown = not id.empty();
+                fit(windowWidth, windowHeight);
+            }
 
             if (id.empty())
             {
@@ -1214,6 +1360,12 @@ namespace chronicle
 
     void LifeScene::onTab(const TabSelectedEvent& event)
     {
+        if (event.tag == SideTag)
+        {
+            showSide(event.index);
+            return;
+        }
+
         if (event.tag != TabsTag or event.index == 0)
             return;
 
