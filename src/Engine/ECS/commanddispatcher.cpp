@@ -171,7 +171,8 @@ namespace pg
         // Finally try to create all the components requested
         while (found3)
         {
-            // We need to use the id of the entity here as the ref could hold an outdated pointer to the entity
+            // We need to use the id of the entity here as the ref could hold an outdated pointer to the entity.
+            // An entity deleted since the component was asked for gets nothing: addInEcs only frees it.
             if (not item3.entity.empty())
                 item3.addInEcs(ecsRef, ecsRef->getEntity(item3.entity.id), item3.component);
 

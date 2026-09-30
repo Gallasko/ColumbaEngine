@@ -1207,5 +1207,32 @@ namespace pg
             EXPECT_EQ(a->value, 9);
         }
 
+        // ----------------------------------------------------------------------------------------
+        // A component asked for on an entity that is deleted in the same frame: the deletion runs
+        // first, and the component has nothing to attach to. It is dropped, not attached to null.
+        TEST(system_test, attach_to_an_entity_removed_the_same_frame)
+        {
+            MockLogger logger;
+
+            EntitySystem ecs;
+            ecs.createSystem<ASystem>();
+            ecs.createSystem<ABSystem>();
+            ecs.fakeStart();
+
+            auto entity = ecs.createEntity();
+            ecs.executeOnce();
+
+            const auto id = entity.id;
+            ASSERT_NE(ecs.getEntity(id), nullptr);
+
+            ecs.removeEntity(entity);
+            ecs.attachGeneric<A>(entity, 4, 5);
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            EXPECT_EQ(ecs.getEntity(id), nullptr);
+        }
+
     }
 }

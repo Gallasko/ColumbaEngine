@@ -959,6 +959,10 @@ namespace pg
         {
             LOG_THIS_MEMBER("ECS");
 
+            // The entity was deleted before its component could be attached (see CommandDispatcher::process)
+            if (entity.empty())
+                return;
+
             if (component)
             {
                 LOG_MILE("ECS", "addComponentToPool");
@@ -979,6 +983,10 @@ namespace pg
         void addComponentToPool(EntityRef entity, StandardComponent* component)
         {
             LOG_THIS_MEMBER("ECS");
+
+            // The entity was deleted before its component could be attached (see CommandDispatcher::process)
+            if (entity.empty())
+                return;
 
             if (component)
             {
