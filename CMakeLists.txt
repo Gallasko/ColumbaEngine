@@ -1626,6 +1626,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/Chronicle/Scenes/prefabfilegallery.cpp
             examples/Chronicle/Scenes/clockgallery.cpp
             examples/Chronicle/Scenes/activitygallery.cpp
+            examples/Chronicle/Scenes/windowgallery.cpp
             ${CHRONICLE_CORE}
         )
         target_link_libraries(Chronicle PRIVATE ColumbaEngine)

@@ -1,0 +1,156 @@
+# Dev gallery for the window meters: `Chronicle --dev WindowGallery`.
+#
+# The doors that close, in a ruled panel as the Life screen shows them, and beside
+# it the same three at 480 wide on bare vellum, then one whose note runs to two
+# lines. The scene feeds every meter from WorldFacts (life.age) and the two Squire
+# meters from window.squire.state and window.squire.note, and drives them with the
+# buttons on the right.
+name: gallery
+children:
+
+  - kind: Shape2D
+    name: page
+    width: 1320
+    height: 860
+    z: 0
+    theme: scene.background
+
+  - kind: TTFText
+    name: note
+    x: 48
+    y: 48
+    z: 15
+    text: "T theme - R reduced motion - every meter on this page comes from res/chronicle/ui/windowgallery.yaml"
+    theme: label.caption.ink-muted
+
+  # The Life screen's column: open, upcoming and closed, at the panel's inner width
+  - kind: Panel
+    name: doors
+    x: 48
+    y: 90
+    frame: ruled
+    width: 320
+    heading: Doors that close
+    glyph: gate
+    children:
+      - kind: WindowMeter
+        name: squire
+        label: Squire
+        from: 16
+        to: 22
+        age: 20.2
+        state: open
+        note: Open 22 more months. One attempt fits; two do not.
+      - kind: WindowMeter
+        name: academy
+        label: Academy
+        from: 20
+        to: 28
+        age: 20.2
+        state: upcoming
+        note: Asks Intellect 12 and 40 coin at the door.
+      - kind: WindowMeter
+        name: choir
+        label: Choir
+        from: 9
+        to: 13
+        age: 20.2
+        state: closed
+        note: The choir took boys until 13. That door is shut.
+
+  # The same three at 480, on vellum
+  - kind: TTFText
+    x: 420
+    y: 90
+    z: 15
+    text: "480 wide, on vellum"
+    theme: label.caption.ink-muted
+
+  - kind: WindowMeter
+    name: squireWide
+    x: 420
+    y: 112
+    width: 480
+    label: Squire
+    from: 16
+    to: 22
+    age: 20.2
+    state: open
+    note: Open 22 more months. One attempt fits; two do not.
+
+  - kind: WindowMeter
+    name: academyWide
+    x: 420
+    y: 190
+    width: 480
+    label: Academy
+    from: 20
+    to: 28
+    age: 20.2
+    state: upcoming
+    note: Asks Intellect 12 and 40 coin at the door.
+
+  - kind: WindowMeter
+    name: choirWide
+    x: 420
+    y: 268
+    width: 480
+    label: Choir
+    from: 9
+    to: 13
+    age: 20.2
+    state: closed
+    note: The choir took boys until 13. That door is shut.
+
+  # A note that runs to a second line grows the meter by one tick line
+  - kind: TTFText
+    x: 420
+    y: 370
+    z: 15
+    text: "a two-line note"
+    theme: label.caption.ink-muted
+
+  - kind: WindowMeter
+    name: academyLong
+    x: 420
+    y: 392
+    width: 480
+    label: Academy of the Seven Tongues
+    from: 20
+    to: 28
+    age: 20.2
+    state: upcoming
+    note: "Asks Intellect 12 and 40 coin at the door. The Academy takes no one past 28, and its first year runs twelve months with no leave."
+
+  # The buttons write the facts the meters follow
+  - kind: Button
+    name: age
+    x: 960
+    y: 112
+    variant: quiet
+    label: +6 months
+    tag: window.age
+
+  - kind: Button
+    name: close
+    x: 960
+    y: 156
+    variant: quiet
+    label: Close the Squire door
+    tag: window.close
+
+  - kind: Button
+    name: reopen
+    x: 960
+    y: 200
+    variant: quiet
+    label: Reopen
+    tag: window.reopen
+
+  - kind: Button
+    name: reset
+    x: 960
+    y: 244
+    variant: quiet
+    label: Reset to 20.2
+    tag: window.reset
