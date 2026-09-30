@@ -100,6 +100,7 @@ children:
 
 | file | scene | what |
 |---|---|---|
+| `life.yaml` | `Chronicle` (the Life scene) | **the page**: the Life screen, head, tabs and three columns; the names are what `LifeScene::wire()` subscribes |
 | `prefabgallery.yaml` | `Chronicle --dev PrefabFileGallery` | the reference page: one of every kind |
 | `clockgallery.yaml` | `Chronicle --dev ClockGallery` | four `LifeClock`s: the Life screen's, a first frame, an old age, a narrow one |
 | `activitygallery.yaml` | `Chronicle --dev ActivityGallery` | the Life screen's activity list in five groups, scrolling, and the side panel showing the activity at work or the one chosen |
