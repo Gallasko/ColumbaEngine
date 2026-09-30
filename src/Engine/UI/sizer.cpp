@@ -1036,11 +1036,12 @@ namespace pg
                 auto viewUi = viewEnt->get<PositionComponent>();
                 auto entUi = ent->get<PositionComponent>();
 
-                // If another child was added during the same execute pass, we just need to adjust the offset
+                // The new child and the spacing after it; another child added during the same
+                // execute pass only moves the offset further by its own share.
                 if (not view->childrenAdded)
-                    view->xOffset = std::max(0.0f, view->contentWidth - viewUi->width + entUi->width);
+                    view->xOffset = std::max(0.0f, view->contentWidth - viewUi->width + entUi->width + view->spacing);
                 else
-                    view->xOffset += entUi->width;
+                    view->xOffset += entUi->width + view->spacing;
             }
 
             view->childrenAdded = true;
@@ -1081,11 +1082,12 @@ namespace pg
                 auto viewUi = viewEnt->get<PositionComponent>();
                 auto entUi = ent->get<PositionComponent>();
 
-                // If another child was added during the same execute pass, we just need to adjust the offset
+                // The new child and the spacing after it; another child added during the same
+                // execute pass only moves the offset further by its own share.
                 if (not view->childrenAdded)
-                    view->yOffset = std::max(0.0f, view->contentHeight - viewUi->height + entUi->height);
+                    view->yOffset = std::max(0.0f, view->contentHeight - viewUi->height + entUi->height + view->spacing);
                 else
-                    view->yOffset += entUi->height;
+                    view->yOffset += entUi->height + view->spacing;
             }
 
             view->childrenAdded = true;

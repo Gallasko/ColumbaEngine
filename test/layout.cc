@@ -598,6 +598,72 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // Every child is followed by `spacing`, so an element stuck to the end moves the offset by
+        // its height and the spacing after it: the view lands exactly on the new end, one element
+        // or several added in the same pass.
+        TEST(layout_test, layout_stick_to_end_vertical_with_spacing)
+        {
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<LayoutSystem>();
+            ecs.succeed<PositionComponentSystem, LayoutSystem>();
+
+            auto layoutEntity = ecs.createEntity();
+            auto layout = ecs.attach<VerticalLayout>(layoutEntity);
+            auto layoutPos = ecs.attach<PositionComponent>(layoutEntity);
+
+            layoutPos->setX(0.0f);
+            layoutPos->setY(0.0f);
+            layoutPos->setWidth(100.0f);
+            layoutPos->setHeight(300.0f);
+
+            layout->spacing = 1;
+
+            auto addChild = [&](float height) {
+                auto childEntity = ecs.createEntity();
+                auto childPos = ecs.attach<PositionComponent>(childEntity);
+
+                childPos->setWidth(100.0f);
+                childPos->setHeight(height);
+
+                layout->addEntity(childEntity);
+            };
+
+            for (int i = 0; i < 40; ++i)
+                addChild(20.0f);
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(layout->contentHeight, 40.0f * 21.0f);
+            EXPECT_FLOAT_EQ(layout->yOffset, 0.0f);
+
+            layout->stickToEnd = true;
+
+            // One element
+            addChild(20.0f);
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(layout->contentHeight, 41.0f * 21.0f);
+            EXPECT_FLOAT_EQ(layout->yOffset, layout->contentHeight - 300.0f);
+
+            // Two in the same pass, of different heights
+            addChild(34.0f);
+            addChild(20.0f);
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(layout->contentHeight, 41.0f * 21.0f + 35.0f + 21.0f);
+            EXPECT_FLOAT_EQ(layout->yOffset, layout->contentHeight - 300.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A prefab container follows the height of its main entity through a constraint, so the
         // resize reaches the layout as a settled position, not as a setter call
         TEST(layout_test, restacks_when_a_constraint_resizes_a_child)
