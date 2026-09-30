@@ -106,10 +106,10 @@ children:
       - {side: top, target: holds, targetSide: bottom, margin: 16}
       - {side: left, target: holds, targetSide: left}
     children:
-      - {kind: StatLine, name: str, label: Strength, glyph: strength, value: 15, max: 30}
-      - {kind: StatLine, name: dex, label: Dexterity, glyph: dexterity, value: 11, max: 30}
-      - {kind: StatLine, name: int, label: Intelligence, glyph: intelligence, value: 9, max: 30}
-      - {kind: StatLine, name: vit, label: Vitality, glyph: vitality, value: 12, max: 30}
+      - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30}
+      - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30}
+      - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30}
+      - {kind: StatLine, name: vit, glossKey: parts/vit, label: Vitality, glyph: vitality, value: 12, max: 30}
 
   # ── Middle: the clock, the doors, the work, the choice ───────────────────────
   - kind: Panel
@@ -144,8 +144,8 @@ children:
       - {side: top, target: clockPanel, targetSide: bottom, margin: 16}
       - {side: left, target: clockPanel, targetSide: left}
     children:
-      - {kind: WindowMeter, name: window.ruins, label: The ruins at Harrow, from: 15, to: 19, age: 17.5, state: open, note: "Open 18 more months. Six attempts fit; seven do not."}
-      - {kind: WindowMeter, name: window.tourney, label: The spring tourney, from: 17, to: 21, age: 17.5, state: open, note: "Open 42 more months. Fourteen attempts fit; fifteen do not."}
+      - {kind: WindowMeter, name: window.ruins, glossKey: window/ruins, label: The ruins at Harrow, from: 15, to: 19, age: 17.5, state: open, note: "Open 18 more months. Six attempts fit; seven do not."}
+      - {kind: WindowMeter, name: window.tourney, glossKey: window/tourney, label: The spring tourney, from: 17, to: 21, age: 17.5, state: open, note: "Open 42 more months. Fourteen attempts fit; fifteen do not."}
 
   - kind: Panel
     name: working

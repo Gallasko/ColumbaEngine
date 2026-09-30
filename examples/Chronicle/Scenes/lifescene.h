@@ -75,6 +75,11 @@ namespace chronicle
         void onConfirm(const ActivityActivatedEvent& event);
         void onTab(const TabSelectedEvent& event);
 
+        // The hover glosses: what the numbers mean, from the same outputs
+        void glossParts(const RuleForecast* forecast, const std::string& activity);   // parts/<p>
+        void glossActivities();                                                         // activity/<id>
+        void glossWindows(const pg::RecordList& windows);                               // window/<id>
+
         void appendLog(const LogEntry& entry);
         std::string activityName(const std::string& id) const;
 
@@ -82,6 +87,8 @@ namespace chronicle
         void setFact(const std::string& path, const Type& value);
 
         std::vector<RuleActivity> activities;    // The last activities.pg output
+        pg::ElementMap next;                      // The last next milestone
+        pg::RecordList nextAsks;                  // What it asks of the path he is headed for
         std::unordered_map<std::string, pg::EntityRef> handles;
         float sinceMonth = 0.0f;
     };

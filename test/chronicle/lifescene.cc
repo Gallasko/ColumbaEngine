@@ -367,6 +367,15 @@ namespace pg
             EXPECT_FLOAT_EQ(clock->spec.runningMonths, 6.0f);
             EXPECT_EQ(life->piece<ActivityList>("activities")->row(&f.ecs, "train.yard")->spec.state, ActivityState::Running);
 
+            // The running row is built with its caption and percent: they came in the same update
+            ActivityRow* at = running->find(&f.ecs, "train.yard");
+            ASSERT_NE(at, nullptr);
+            EXPECT_EQ(at->spec.caption, f.fact<std::string>("activity.running.caption"));
+            EXPECT_EQ(at->spec.caption.rfind("MONTH 0 OF 6", 0), 0u) << at->spec.caption;
+            ASSERT_TRUE(at->progress.has_value());
+            ASSERT_TRUE(at->progress->caption.has_value());
+            EXPECT_EQ(at->progress->caption->spec.text, at->spec.caption);
+
             for (int i = 0; i < 3; ++i)
                 life->onMonth();
             f.settle();
@@ -567,6 +576,70 @@ namespace pg
 
             for (const char* stat : {"\"str\"", "\"dex\"", "\"int\"", "\"vit\"", "\"swd\"", "\"ride\"", "\"letters\"", "\"haggle\"", "\"letter\""})
                 EXPECT_EQ(outside.find(stat), std::string::npos) << stat;
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Hovering a part, an activity or a door explains its numbers, with the rules' own.
+        TEST(lifescene_test, glosses_explain_the_numbers)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto registry = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(registry, nullptr);
+
+            auto rowOf = [](const GlossSpec* g, const std::string& label) -> std::string {
+                for (const auto& r : g->rows)
+                {
+                    if (r.label == label)
+                        return r.value;
+                }
+
+                return "<none>";
+            };
+
+            // A part: where it is, what the next milestone asks of it
+            const GlossSpec* str = registry->find("parts/str");
+            ASSERT_NE(str, nullptr);
+            EXPECT_EQ(str->title, "Strength");
+            EXPECT_EQ(rowOf(str, "Now"), "15");
+            EXPECT_EQ(rowOf(str, "Choose a path asks"), "18");
+            EXPECT_EQ(str->footnote, "IN 6 MO: CHOOSE A PATH");
+
+            // Selected, it says what the activity brings it to
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "train.yard"});
+            f.settle();
+            EXPECT_EQ(rowOf(registry->find("parts/str"), "Train at the yard brings it to"), "17");
+
+            // An activity: its time, its gains, what it asks
+            const GlossSpec* squire = registry->find("activity/train.squire");
+            ASSERT_NE(squire, nullptr);
+            EXPECT_EQ(squire->title, "Squire at the keep");
+            EXPECT_EQ(rowOf(squire, "Time"), "12 mo");
+            EXPECT_EQ(rowOf(squire, "Strength"), "15 / 18");
+            EXPECT_EQ(squire->footnote, "NOT YET: IT ASKS MORE THAN HE HAS");
+
+            // A door: its note, its ages, what fits
+            const GlossSpec* ruins = registry->find("window/ruins");
+            ASSERT_NE(ruins, nullptr);
+            EXPECT_EQ(ruins->text, f.fact<std::string>("window.ruins.note"));
+            EXPECT_EQ(rowOf(ruins, "Opens at"), "15");
+            EXPECT_EQ(rowOf(ruins, "Attempts that fit"), "6");
+
+            // And the pieces carry them
+            EXPECT_TRUE(life->piece<StatLine>("str")->root->has<TooltipComponent>());
+            EXPECT_EQ(life->piece<StatLine>("str")->root->get<TooltipComponent>()->text, "parts/str");
+            EXPECT_EQ(life->piece<WindowMeter>("window.ruins")->root->get<TooltipComponent>()->text, "window/ruins");
+
+            ActivityRow* yard = life->piece<ActivityList>("activities")->row(&f.ecs, "train.yard");
+            ASSERT_NE(yard, nullptr);
+            ASSERT_TRUE(yard->root->has<TooltipComponent>());
+            EXPECT_EQ(yard->root->get<TooltipComponent>()->text, "activity/train.yard");
         }
 
         // ----------------------------------------------------------------------------------------

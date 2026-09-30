@@ -30,6 +30,7 @@
 #include "UI/windowmeter.h"
 #include "UI/resourceledger.h"
 #include "UI/eventlog.h"
+#include "UI/gloss.h"
 #include "Core/motion.h"
 
 using namespace pg;
@@ -111,6 +112,12 @@ namespace chronicle
             if (state == "closed")   return WindowState::Closed;
 
             return WindowState::Open;
+        }
+
+        // +2, −1 (U+2212)
+        std::string signedText(int n)
+        {
+            return (n < 0 ? std::string("\xE2\x88\x92") : std::string("+")) + std::to_string(n < 0 ? -n : n);
         }
 
         std::string upper(std::string s)
@@ -457,6 +464,15 @@ namespace chronicle
                 row.each = textOf(a.fields, "each");
                 row.months = intOf(a.fields, "months");
                 row.state = ActivityState::Running;
+                row.glossKey = "activity/" + id;
+
+                // Built with the percent and caption of the same update: the row is not in its list
+                // until the next frame, so their own handlers would not find it
+                if (auto facts = ecs->getSystem<WorldFacts>())
+                {
+                    row.percent = facts->hasFact("activity.running.percent") ? floatOf(facts->factMap["activity.running.percent"]) : 0.0f;
+                    row.caption = facts->getFact<std::string>("activity.running.caption", "");
+                }
 
                 running->setRows(ecs, {{"", {row}}});
             }
@@ -472,7 +488,7 @@ namespace chronicle
 
             if (running and not save.running.empty())
             {
-                if (auto row = running->row(ecs, save.running))
+                if (auto row = running->find(ecs, save.running))
                     row->setPercent(ecs, floatOf(v));
             }
         }));
@@ -482,7 +498,7 @@ namespace chronicle
 
             if (running and not save.running.empty())
             {
-                if (auto row = running->row(ecs, save.running))
+                if (auto row = running->find(ecs, save.running))
                     row->setCaption(ecs, v.toString());
             }
         }));
@@ -642,6 +658,7 @@ namespace chronicle
                 row.each = textOf(a.fields, "each");
                 row.months = intOf(a.fields, "months");
                 row.state = boolOf(a.fields, "locked") ? ActivityState::Locked : ActivityState::Idle;
+                row.glossKey = "activity/" + row.id;
 
                 for (const auto& g : a.gains)
                     row.gains.push_back({upper(textOf(g, "stat")), intOf(g, "amount")});
@@ -739,11 +756,12 @@ namespace chronicle
     void LifeScene::publishRules()
     {
         std::vector<RuleMilestone> milestones;
-        ElementMap next;
         ElementMap headline;
 
         if (rules.milestones(save.age, milestones, next, &headline))
         {
+            nextAsks.clear();
+
             setFact("life.next.label", textOf(next, "label"));
             setFact("life.next.in", intOf(next, "in"));
 
@@ -761,12 +779,17 @@ namespace chronicle
                 for (const auto& ask : m.asks)
                 {
                     if (textOf(ask, "path") == save.aim)
+                    {
                         thresholds[textOf(ask, "stat")] = intOf(ask, "needed");
+                        nextAsks.push_back(ask);
+                    }
                 }
             }
 
             for (const auto& p : save.parts)
                 setFact("character.parts." + p + ".threshold", thresholds.count(p) ? thresholds[p] : 0);
+
+            glossParts(nullptr, "");
         }
 
         RecordList windows;
@@ -778,6 +801,8 @@ namespace chronicle
                 setFact("window." + textOf(w, "id") + ".state", textOf(w, "state"));
                 setFact("window." + textOf(w, "id") + ".note", textOf(w, "note"));
             }
+
+            glossWindows(windows);
         }
 
         if (rules.activities(save.character(), activities))
@@ -789,6 +814,8 @@ namespace chronicle
 
                 setFact("activity." + id + ".state", state);
             }
+
+            glossActivities();
         }
 
         for (const auto& e : rules.errors)
@@ -808,6 +835,7 @@ namespace chronicle
             for (const auto& p : save.parts)
                 setFact("character.parts." + p + ".projected", -1);
 
+            glossParts(nullptr, "");
             return;
         }
 
@@ -824,6 +852,8 @@ namespace chronicle
 
             setFact("character.parts." + p + ".projected", atTerm > save.stats[p] ? atTerm : -1);
         }
+
+        glossParts(&forecast, activityName(event.id));
     }
 
     void LifeScene::onConfirm(const ActivityActivatedEvent& event)
@@ -895,6 +925,98 @@ namespace chronicle
         }
 
         publish();
+    }
+
+    // ---- the glosses -----------------------------------------------------------------------------------------
+
+    void LifeScene::glossParts(const RuleForecast* forecast, const std::string& activity)
+    {
+        auto registry = ecsRef->getSystem<GlossRegistry>();
+
+        if (not registry)
+            return;
+
+        for (const auto& p : save.parts)
+        {
+            auto line = piece<StatLine>(p);
+
+            GlossSpec gloss;
+            gloss.title = line ? line->spec.label : p;
+            gloss.rows.push_back({"Now", std::to_string(save.stats[p])});
+
+            for (const auto& ask : nextAsks)
+            {
+                if (textOf(ask, "stat") == p)
+                    gloss.rows.push_back({textOf(next, "label") + " asks", std::to_string(intOf(ask, "needed"))});
+            }
+
+            if (forecast)
+            {
+                auto it = forecast->atTerm.find(p);
+
+                if (it != forecast->atTerm.end() and intOf(it->second) != save.stats[p])
+                    gloss.rows.push_back({activity + " brings it to", std::to_string(intOf(it->second))});
+            }
+
+            if (not textOf(next, "label").empty())
+                gloss.footnote = "IN " + std::to_string(intOf(next, "in")) + " MO: " + upper(textOf(next, "label"));
+
+            registry->set("parts/" + p, gloss);
+        }
+    }
+
+    void LifeScene::glossActivities()
+    {
+        auto registry = ecsRef->getSystem<GlossRegistry>();
+
+        if (not registry)
+            return;
+
+        for (const auto& a : activities)
+        {
+            GlossSpec gloss;
+            gloss.title = textOf(a.fields, "name");
+            gloss.rows.push_back({"Time", std::to_string(intOf(a.fields, "months")) + " mo"});
+
+            for (const auto& g : a.gains)
+                gloss.rows.push_back({upper(textOf(g, "stat")) + " at term", signedText(intOf(g, "amount"))});
+
+            for (const auto& r : a.requires)
+                gloss.rows.push_back({textOf(r, "label"), std::to_string(intOf(r, "current")) + " / " + std::to_string(intOf(r, "needed"))});
+
+            if (textOf(a.fields, "id") == save.running)
+                gloss.footnote = "AT WORK NOW";
+            else if (boolOf(a.fields, "locked"))
+                gloss.footnote = "NOT YET: IT ASKS MORE THAN HE HAS";
+            else
+                gloss.footnote = "SELECT, THEN CONFIRM TO BEGIN";
+
+            registry->set("activity/" + textOf(a.fields, "id"), gloss);
+        }
+    }
+
+    void LifeScene::glossWindows(const RecordList& windows)
+    {
+        auto registry = ecsRef->getSystem<GlossRegistry>();
+
+        if (not registry)
+            return;
+
+        for (const auto& w : windows)
+        {
+            GlossSpec gloss;
+            gloss.title = textOf(w, "name");
+            gloss.text = textOf(w, "note");
+            gloss.rows.push_back({"Opens at", std::to_string(intOf(w, "from"))});
+            gloss.rows.push_back({"Closes at", std::to_string(intOf(w, "to"))});
+
+            if (textOf(w, "state") != "closed")
+                gloss.rows.push_back({"Attempts that fit", std::to_string(intOf(w, "attempts"))});
+
+            gloss.footnote = upper(textOf(w, "state"));
+
+            registry->set("window/" + textOf(w, "id"), gloss);
+        }
     }
 
     // ---- the rest -------------------------------------------------------------------------------------------
