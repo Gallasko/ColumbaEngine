@@ -2,8 +2,17 @@
 
 #include "gtest/gtest.h"
 
+#ifdef __linux__
+#include <SDL2/SDL.h>
+#elif _WIN32
+#include <SDL.h>
+#endif
+
 #include "UI/sizer.h"
 #include "UI/prefab.h"
+#include "Input/input.h"
+#include "Input/inputcomponent.h"
+#include "ECS/callable.h"
 #include "ECS/entitysystem.h"
 
 #include "mocklogger.h"
@@ -659,6 +668,171 @@ namespace pg
 
             EXPECT_FLOAT_EQ(layout->contentHeight, 41.0f * 21.0f + 35.0f + 21.0f);
             EXPECT_FLOAT_EQ(layout->yOffset, layout->contentHeight - 300.0f);
+        }
+
+        namespace
+        {
+            // A scrollable vertical layout 100 x 300 at the origin, 40 rows 20 tall, spacing 1:
+            // 840 of content, 540 to scroll.
+            struct DragFixture
+            {
+                EntitySystem ecs;
+                VerticalLayout* layout = nullptr;
+                EntityRef layoutEntity;
+                std::vector<EntityRef> rows;
+
+                // With an input, the mouse click system reads it and sends the mouse events
+                DragFixture(Input* input = nullptr)
+                {
+                    ecs.createSystem<PositionComponentSystem>();
+                    ecs.createSystem<LayoutSystem>();
+                    ecs.succeed<PositionComponentSystem, LayoutSystem>();
+
+                    if (input)
+                        ecs.createSystem<MouseClickSystem>(input);
+
+                    auto list = makeVerticalLayout(&ecs, 0.0f, 0.0f, 100.0f, 300.0f, true);
+                    layout = list.get<VerticalLayout>();
+                    layoutEntity = list.entity;
+                    layout->spacing = 1;
+                    layout->dragToScroll = true;
+
+                    for (int i = 0; i < 40; ++i)
+                    {
+                        auto row = ecs.createEntity();
+                        auto pos = ecs.attach<PositionComponent>(row);
+                        ecs.attach<UiAnchor>(row);
+                        pos->setWidth(100.0f);
+                        pos->setHeight(20.0f);
+
+                        layout->addEntity(row);
+                        rows.push_back(row);
+                    }
+
+                    settle();
+                }
+
+                void settle() { ecs.executeOnce(); ecs.executeOnce(); ecs.executeOnce(); }
+
+                float rowY(size_t i) { return rows[i]->get<PositionComponent>()->y; }
+            };
+
+            struct RowClicked {};
+
+            struct ClickSpy : public System<Listener<RowClicked>, Listener<OnMouseRelease>, StoragePolicy>
+            {
+                virtual std::string getSystemName() const override { return "Click Spy"; }
+
+                virtual void onEvent(const RowClicked&) override { ++clicks; }
+
+                virtual void onEvent(const OnMouseRelease& event) override { releases.push_back(event.cancelled); }
+
+                int clicks = 0;
+                std::vector<bool> releases;   // cancelled, per release
+            };
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A press in a dragToScroll layout stays a click until the mouse has moved dragThreshold;
+        // then the content follows the mouse, clamped to its ends, until the release.
+        TEST(layout_test, layout_drag_to_scroll)
+        {
+            DragFixture f;
+
+            ASSERT_FLOAT_EQ(f.layout->contentHeight, 840.0f);
+            ASSERT_FLOAT_EQ(f.rowY(0), 0.0f);
+
+            f.ecs.sendEvent(OnMouseClick{Point2D{50.0f, 150.0f}, SDL_BUTTON_LEFT});
+
+            // Under the threshold: nothing moves
+            f.ecs.sendEvent(OnMouseMove{Point2D{50.0f, 147.0f}, nullptr});
+            EXPECT_FLOAT_EQ(f.layout->yOffset, 0.0f);
+
+            // Up by 100: the content follows
+            f.ecs.sendEvent(OnMouseMove{Point2D{50.0f, 50.0f}, nullptr});
+            EXPECT_FLOAT_EQ(f.layout->yOffset, 100.0f);
+
+            f.settle();
+            EXPECT_FLOAT_EQ(f.rowY(0), -100.0f);
+
+            // Never past either end
+            f.ecs.sendEvent(OnMouseMove{Point2D{50.0f, 400.0f}, nullptr});
+            EXPECT_FLOAT_EQ(f.layout->yOffset, 0.0f);
+
+            f.ecs.sendEvent(OnMouseMove{Point2D{50.0f, -2000.0f}, nullptr});
+            EXPECT_FLOAT_EQ(f.layout->yOffset, 540.0f);
+
+            f.settle();
+            EXPECT_FLOAT_EQ(f.rowY(39), 300.0f - 20.0f - 1.0f);
+
+            // Released: the mouse moves freely again
+            f.ecs.sendEvent(OnMouseRelease{Point2D{50.0f, -2000.0f}, SDL_BUTTON_LEFT});
+            f.ecs.sendEvent(OnMouseMove{Point2D{50.0f, 150.0f}, nullptr});
+            EXPECT_FLOAT_EQ(f.layout->yOffset, 540.0f);
+
+            // A press outside the view does not drag it
+            f.ecs.sendEvent(OnMouseClick{Point2D{250.0f, 150.0f}, SDL_BUTTON_LEFT});
+            f.ecs.sendEvent(OnMouseMove{Point2D{250.0f, 300.0f}, nullptr});
+            EXPECT_FLOAT_EQ(f.layout->yOffset, 540.0f);
+            f.ecs.sendEvent(OnMouseRelease{Point2D{250.0f, 300.0f}, SDL_BUTTON_LEFT});
+
+            // Nor does one in a layout that did not opt in
+            f.layout->dragToScroll = false;
+            f.ecs.sendEvent(OnMouseClick{Point2D{50.0f, 150.0f}, SDL_BUTTON_LEFT});
+            f.ecs.sendEvent(OnMouseMove{Point2D{50.0f, 300.0f}, nullptr});
+            EXPECT_FLOAT_EQ(f.layout->yOffset, 540.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Through the mouse click system: a drag cancels the click (its release calls no release
+        // area and reaches the listeners cancelled); a press that does not move is still a click.
+        TEST(layout_test, layout_drag_cancels_the_click)
+        {
+            Input input;
+            DragFixture f(&input);
+            auto spy = f.ecs.createSystem<ClickSpy>();
+
+            // The row under the press answers a click on release
+            f.ecs.attach<MouseLeftClickComponent>(f.rows[7], makeCallable<RowClicked>(), MouseStateTrigger::OnRelease);
+            f.settle();
+
+            // What a system sends while it executes reaches the listeners on a later pass
+            auto frame = [&]() { f.settle(); };
+
+            // Press on row 7, drag up 60, release: a scroll, not a click
+            input.registerMouseMove(Point2D{50.0f, 150.0f}, Point2D{0.0f, 0.0f});
+            input.registerMouseInput(SDL_BUTTON_LEFT, Input::InputState::MOUSEPRESS);
+            frame();
+
+            input.registerMouseMove(Point2D{50.0f, 90.0f}, Point2D{0.0f, -60.0f});
+            frame();
+
+            EXPECT_FLOAT_EQ(f.layout->yOffset, 60.0f);
+
+            input.registerMouseInput(SDL_BUTTON_LEFT, Input::InputState::MOUSERELEASE);
+            frame();
+
+            EXPECT_EQ(spy->clicks, 0);
+            ASSERT_EQ(spy->releases.size(), 1u);
+            EXPECT_TRUE(spy->releases[0]);
+
+            input.updateInput(0.0);
+
+            // Press and release in place on row 7 (now 60 higher): a click
+            input.registerMouseMove(Point2D{50.0f, 100.0f}, Point2D{0.0f, 0.0f});
+            input.registerMouseInput(SDL_BUTTON_LEFT, Input::InputState::MOUSEPRESS);
+            frame();
+            input.registerMouseInput(SDL_BUTTON_LEFT, Input::InputState::MOUSERELEASE);
+            frame();
+
+            EXPECT_EQ(spy->clicks, 1);
+            ASSERT_EQ(spy->releases.size(), 2u);
+            EXPECT_FALSE(spy->releases[1]);
+            EXPECT_FLOAT_EQ(f.layout->yOffset, 60.0f);
         }
 
         // ----------------------------------------------------------------------------------------

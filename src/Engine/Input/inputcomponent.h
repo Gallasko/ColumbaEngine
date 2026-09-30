@@ -74,13 +74,24 @@ namespace pg
 
     struct OnMouseRelease : public Component
     {
-        OnMouseRelease(const Point2D& pos, const MouseButton& button) : pos(pos), button(button) { }
+        OnMouseRelease(const Point2D& pos, const MouseButton& button, bool cancelled = false) : pos(pos), button(button), cancelled(cancelled) { }
         DEFAULT_COMPONENT_MEMBERS(OnMouseRelease)
 
         Point2D pos;
         MouseButton button;
 
+        // The press became something else (a drag that scrolled a layout): the release ends it,
+        // it is not a click. Release areas are not called; listeners should not act on it.
+        bool cancelled = false;
+
         STANDARD_EVENT_CONVERTIBLE(OnMouseRelease)
+    };
+
+    // Sent while a button is held: the press in progress is not a click. Its release reaches the
+    // listeners as OnMouseRelease{cancelled = true} and calls no release area.
+    struct CancelMouseClickEvent
+    {
+        MouseButton button;
     };
 
     // Component that triggers a callback when the mouse enters the entity’s area.
@@ -130,7 +141,7 @@ namespace pg
         CompRef<ViewportComponent> vp;
     };
 
-    struct MouseClickSystem : public System<Own<MouseLeftClickComponent>, Own<MouseRightClickComponent>, InitSys>
+    struct MouseClickSystem : public System<Own<MouseLeftClickComponent>, Own<MouseRightClickComponent>, Listener<CancelMouseClickEvent>, InitSys>
     {
         MouseClickSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("MouseClickSystem"); }
 
@@ -139,6 +150,8 @@ namespace pg
         virtual void init() override;
 
         virtual void execute() override;
+
+        virtual void onEvent(const CancelMouseClickEvent& event) override;
 
         void handleClick(const MouseButton& button, const std::set<MouseAreaZ, std::greater<>>& pressAreas, const std::set<MouseAreaZ, std::greater<>>& releaseAreas);
 
@@ -151,6 +164,7 @@ namespace pg
         std::set<MouseAreaZ, std::greater<>> mouseRightAreaPressHolder;
         std::set<MouseAreaZ, std::greater<>> mouseRightAreaReleaseHolder;
         std::unordered_map<MouseButton, bool> pressedList;
+        std::unordered_map<MouseButton, bool> cancelledList;   // The press in progress is not a click
     };
 
     // Todo combine this in the MouseClickSystem

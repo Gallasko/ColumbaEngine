@@ -233,6 +233,8 @@ namespace pg
         {
             if (not pressedList[button])
             {
+                cancelledList[button] = false;
+
                 ecsRef->sendEvent(OnMouseClick{mousePos, button});
 
                 for (const auto& mouseArea : pressAreas)
@@ -265,10 +267,17 @@ namespace pg
         {
             if (pressedList[button])
             {
-                ecsRef->sendEvent(OnMouseRelease{mousePos, button});
+                const bool cancelled = cancelledList[button];
+                cancelledList[button] = false;
+
+                ecsRef->sendEvent(OnMouseRelease{mousePos, button, cancelled});
 
                 for (const auto& mouseArea : releaseAreas)
                 {
+                    // A cancelled press ends here: no release area takes it as a click.
+                    if (cancelled)
+                        break;
+
                     auto pos = mouseArea.pos;
                     auto areaVp = getViewport(mouseArea.vp);
 
@@ -289,6 +298,12 @@ namespace pg
 
             pressedList[button] = false;
         }
+    }
+
+    void MouseClickSystem::onEvent(const CancelMouseClickEvent& event)
+    {
+        if (pressedList[event.button])
+            cancelledList[event.button] = true;
     }
 
     void MouseClickSystem::callCallback(const MouseButton& button, _unique_id id)
@@ -514,6 +529,7 @@ namespace pg
             event.values["button"] = ElementType{"right"};
 
         event.values["buttonValue"] = ElementType{static_cast<int>(button)};
+        event.values["cancelled"] = ElementType{cancelled};
 
         return event;
     }

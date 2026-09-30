@@ -5,6 +5,7 @@
 #include "ECS/entitysystem.h"
 
 #include "2D/position.h"
+#include "Input/inputcomponent.h"   // OnMouseClick, OnMouseRelease, CancelMouseClickEvent
 
 namespace pg
 {
@@ -436,6 +437,8 @@ namespace pg
         float scrollSpeed = 25.0f;     ///< Scroll sensitivity multiplier
 
         bool stickToEnd = false;       ///< If true, maintains scroll position at end when adding elements
+        bool dragToScroll = false;     ///< If true, a left press in the view and a drag scroll the content (scrollable layouts only)
+        float dragThreshold = 4.0f;    ///< Pixels the mouse moves before a press becomes a drag; a shorter move stays a click
         bool clearOnDeletion = true;   ///< If true, destroys all child entities when layout is destroyed
 
         // Internal properties (do not modify directly)
@@ -547,6 +550,9 @@ namespace pg
         QueuedListener<UpdateLayoutScrollable>,
         QueuedListener<SetVerticalScrollBarEvent>,
         QueuedListener<SetHorizontalScrollBarEvent>,
+        Listener<OnMouseClick>,
+        Listener<OnMouseMove>,
+        Listener<OnMouseRelease>,
         Own<HorizontalLayout>,
         Own<VerticalLayout>,
         InitSys>
@@ -576,6 +582,25 @@ namespace pg
          * @see StandardEvent
          */
         virtual void onEvent(const StandardEvent& event) override;
+
+        /**
+         * @brief Drag to scroll: a left press inside a `dragToScroll` layout whose content overflows.
+         *
+         * The topmost such layout under the mouse (its clip chain included) takes the press, unless
+         * it landed on the layout's scroll bar, which has its own drag. Nothing scrolls yet: the
+         * press is still a click.
+         */
+        virtual void onEvent(const OnMouseClick& event) override;
+
+        /**
+         * @brief Once the mouse has moved `dragThreshold` along the layout's axis, the press is a
+         * drag: the content follows the mouse, clamped to its ends, and the click is cancelled
+         * (CancelMouseClickEvent) so the release selects nothing.
+         */
+        virtual void onEvent(const OnMouseMove& event) override;
+
+        /// @brief Ends a drag (or a press that stayed a click).
+        virtual void onEvent(const OnMouseRelease& event) override;
 
         /**
          * @brief Processes requests to add elements to layouts.
@@ -921,6 +946,17 @@ namespace pg
         void setupScrollBarInteraction(EntityRef scrollBarEntity, _unique_id layoutId, bool isVertical);
 
         std::set<EntityRef> layoutUpdate;    ///< Layouts that need position recalculation this frame
+
+        /// @brief The press a dragToScroll layout took, and whether it has become a drag.
+        struct DragScroll
+        {
+            _unique_id layoutId = 0;   ///< 0 = no press in progress
+            Point2D start;
+            float startOffset = 0.0f;
+            bool dragging = false;
+        };
+
+        DragScroll dragScroll;
         std::unordered_map<_unique_id, _unique_id> entitiesInLayout; ///< Optimization: tracks which entities are in layouts
     };
 

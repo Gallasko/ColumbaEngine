@@ -2,6 +2,10 @@
 
 #include "sizer.h"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 #include "UI/focusable.h"
 #include "Systems/oneventcomponent.h"
 #include "Input/inputcomponent.h"
@@ -171,6 +175,125 @@ namespace pg
         *offset -= event.values.at("y").get<int>() * scrollSpeed;
 
         ecsRef->sendEvent(LayoutScrolledEvent{id});
+    }
+
+    void LayoutSystem::onEvent(const OnMouseClick& event)
+    {
+        if (event.button != SDL_BUTTON_LEFT)
+            return;
+
+        dragScroll = DragScroll{};
+
+        const float x = event.pos.x;
+        const float y = event.pos.y;
+
+        BaseLayout* taken = nullptr;
+        float takenZ = std::numeric_limits<float>::lowest();
+
+        // The topmost dragToScroll layout under the mouse that has something to scroll
+        auto consider = [&](BaseLayout* view) {
+            if (not view->dragToScroll or not view->scrollable)
+                return;
+
+            auto ent = ecsRef->getEntity(view->id);
+
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+
+            if (not pos->isRenderable())
+                return;
+
+            const bool vertical = view->orientation == LayoutOrientation::Vertical;
+            const float overflow = vertical ? view->contentHeight - pos->height : view->contentWidth - pos->width;
+
+            if (overflow <= 0.0f or not inClipBound(ent, x, y))
+                return;
+
+            // The scroll bar has its own drag
+            EntityRef bar = vertical ? view->verticalScrollBar : view->horizontalScrollBar;
+
+            if (not bar.empty() and bar->has<PositionComponent>() and bar->get<PositionComponent>()->isRenderable() and inClipBound(bar, x, y))
+                return;
+
+            if (pos->z < takenZ)
+                return;
+
+            taken = view;
+            takenZ = pos->z;
+        };
+
+        for (auto* view : this->view<VerticalLayout>())
+            consider(view);
+
+        for (auto* view : this->view<HorizontalLayout>())
+            consider(view);
+
+        if (not taken)
+            return;
+
+        dragScroll.layoutId = taken->id;
+        dragScroll.start = event.pos;
+        dragScroll.startOffset = taken->orientation == LayoutOrientation::Vertical ? taken->yOffset : taken->xOffset;
+    }
+
+    void LayoutSystem::onEvent(const OnMouseMove& event)
+    {
+        if (dragScroll.layoutId == 0)
+            return;
+
+        auto ent = ecsRef->getEntity(dragScroll.layoutId);
+
+        if (not ent or not ent->has<PositionComponent>())
+        {
+            dragScroll = DragScroll{};
+            return;
+        }
+
+        BaseLayout* view = nullptr;
+
+        if (ent->has<VerticalLayout>())
+            view = ent->get<VerticalLayout>();
+        else if (ent->has<HorizontalLayout>())
+            view = ent->get<HorizontalLayout>();
+
+        if (not view)
+        {
+            dragScroll = DragScroll{};
+            return;
+        }
+
+        const bool vertical = view->orientation == LayoutOrientation::Vertical;
+        const float moved = vertical ? event.pos.y - dragScroll.start.y : event.pos.x - dragScroll.start.x;
+
+        if (not dragScroll.dragging)
+        {
+            // Short of the threshold the press is still a click
+            if (std::abs(moved) < view->dragThreshold)
+                return;
+
+            dragScroll.dragging = true;
+            ecsRef->sendEvent(CancelMouseClickEvent{SDL_BUTTON_LEFT});
+        }
+
+        // The content follows the mouse, from where it was when the press began
+        auto pos = ent->get<PositionComponent>();
+        const float range = std::max(0.0f, vertical ? view->contentHeight - pos->height : view->contentWidth - pos->width);
+        const float offset = std::clamp(dragScroll.startOffset - moved, 0.0f, range);
+
+        if (vertical)
+            view->yOffset = offset;
+        else
+            view->xOffset = offset;
+
+        layoutUpdate.insert(ent);
+    }
+
+    void LayoutSystem::onEvent(const OnMouseRelease& event)
+    {
+        if (event.button == SDL_BUTTON_LEFT)
+            dragScroll = DragScroll{};
     }
 
     void LayoutSystem::execute()
