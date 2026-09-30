@@ -23,21 +23,46 @@ namespace chronicle
         constexpr const char * const DOM = "Chronicle.Log";
 
         constexpr float EdgeWidth = 2.0f;
-        constexpr float PadX = 12.0f;             // Inside the edge
+        constexpr float PadX = 12.0f;             // Inside the edge, and on the right of the lines
         constexpr float PadY = 8.0f;
+        constexpr float ScrollLane = 8.0f;        // Taken from the right padding: the thumb runs there
+        constexpr float ScrollWidth = 4.0f;
         constexpr float RowSpacing = 1.0f;        // Rows one pixel apart
         constexpr float RowHeight = 20.0f;        // The body-sm line
-        constexpr float AgeWidth = 30.0f;         // Room for "43.9"
+        constexpr float AgeWidth = 30.0f;         // Room for "43.12"
         constexpr float Gap = 8.0f;               // space-2
         constexpr float RubricLine = 22.0f;       // The gloss-title line
         constexpr float RubricAbove = 12.0f;      // space-3, none for the first item
         constexpr float FootnoteGap = 4.0f;       // space-1
 
-        std::string ageText(float age)
+        // Whole months lived. The small bias keeps an age summed from twelfths (16.9 + 1/12 + ...)
+        // from falling a hair short of the month it names.
+        int monthsOf(float age)
         {
-            const int tenths = static_cast<int>(std::round(age * 10.0f));
+            return static_cast<int>(std::floor(age * 12.0f + 0.001f));
+        }
 
-            return std::to_string(tenths / 10) + "." + std::to_string(std::abs(tenths % 10));
+        float textWidth(EntitySystem* ecs, const std::string& style, const std::string& text)
+        {
+            const TextStyle& s = ecs->getSystem<ThemeSystem>()->style(style);
+
+            return ecs->getSystem<TTFTextSystem>()->measureText(s.fontAlias, text, 1.0f, 0.0f, 0.0f, s.letterSpacingPx).width;
+        }
+
+        // The advance of a space in a style: "I I" less "II".
+        float spaceWidth(EntitySystem* ecs, const std::string& style)
+        {
+            return textWidth(ecs, style, "I I") - textWidth(ecs, style, "II");
+        }
+
+        std::string trimmed(const std::string& text)
+        {
+            const size_t first = text.find_first_not_of(' ');
+
+            if (first == std::string::npos)
+                return "";
+
+            return text.substr(first, text.find_last_not_of(' ') - first + 1);
         }
 
         // The text's style is the element's font: the label measures itself with it.
@@ -147,11 +172,16 @@ namespace chronicle
 
         // A line is clipped to the list from the start, before the layout gets to it: the prefab
         // hands its clip down to the parts, and strips a clip the line itself does not have.
+        //
+        // It is born unobserved, and so are its parts: nothing is drawn until the layout has placed
+        // the line and found it in view, and the prefab hands that down with the clip. Drawn at once,
+        // a part would show for a frame where it was made, before its anchors had moved it.
         EntityRef makeLine(EntitySystem* ecs, float width, float height, int z, _unique_id listId)
         {
             auto line = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(z));
             line.get<PositionComponent>()->setWidth(width);
             line.get<PositionComponent>()->setHeight(height);
+            line.get<PositionComponent>()->setObservable(false);
             ecs->attach<ClippedTo>(line.entity, listId);
 
             return line.entity;
@@ -159,6 +189,7 @@ namespace chronicle
 
         void addPart(EntityRef line, EntityRef part)
         {
+            part->get<PositionComponent>()->setObservable(false);
             line->get<Prefab>()->addToPrefab(part);
         }
 
@@ -191,6 +222,18 @@ namespace chronicle
         }
 
         return std::to_string(n) + suffix;
+    }
+
+    std::string logAge(float age)
+    {
+        const int months = monthsOf(age);
+
+        return std::to_string(months / 12) + "." + std::to_string(months % 12 + 1);
+    }
+
+    int logYear(float age)
+    {
+        return monthsOf(age) / 12;
     }
 
     std::string defaultGlyph(LogKind kind)
@@ -247,8 +290,9 @@ namespace chronicle
         prefab->addToPrefab(edge.entity);
         log.edge = edge.entity;
 
-        // The list: fixed to the well's inner rect, so it clips and scrolls instead of growing
-        auto list = makeVerticalLayout(ecs, 0.0f, 0.0f, log.listWidth(), H - 2.0f * PadY, true);
+        // The list: fixed to the well's inner rect, so it clips and scrolls instead of growing. It
+        // runs 8 px into the right padding, where the thumb goes; the lines stop short of it.
+        auto list = makeVerticalLayout(ecs, 0.0f, 0.0f, log.lineWidth() + ScrollLane, H - 2.0f * PadY, true);
         list.get<VerticalLayout>()->spacing = static_cast<size_t>(RowSpacing);
         {
             auto anchor = list.get<UiAnchor>();
@@ -264,6 +308,17 @@ namespace chronicle
         prefab->addToPrefab(list.entity, "list");
         log.list = list.entity;
 
+        // The thumb: a faint bar on the list's right edge, sized to what is in view, hidden while
+        // everything fits. The layout places it, and dragging it scrolls the list.
+        auto thumb = makeUiSimple2DShape(ecs, Shape2D::Square, ScrollWidth, 1.0f);
+        thumb.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
+        thumb.get<PositionComponent>()->setVisibility(false);
+        ecs->attach<ThemeComponent>(thumb.entity, "log.scroll");
+        prefab->addToPrefab(thumb.entity, "scroll");
+        log.scroll = thumb.entity;
+
+        list.get<VerticalLayout>()->setVerticalScrollBar(thumb.entity);
+
         for (const auto& entry : specIn.entries)
             log.append(ecs, entry);
 
@@ -273,7 +328,7 @@ namespace chronicle
         return log;
     }
 
-    float EventLog::listWidth() const
+    float EventLog::lineWidth() const
     {
         return spec.width - EdgeWidth - 2.0f * PadX;
     }
@@ -293,7 +348,7 @@ namespace chronicle
 
     void EventLog::append(EntitySystem* ecs, const LogEntry& entry)
     {
-        const float LW = listWidth();
+        const float LW = lineWidth();
 
         // A layout holds its children at its own z, so the lines share the list's; their parts
         // stand above it: marks and ages at z+4, texts at z+5.
@@ -306,7 +361,7 @@ namespace chronicle
         // at the end, and stays where the player is reading otherwise.
         layout->stickToEnd = atEnd(ecs);
 
-        const int year = static_cast<int>(std::floor(entry.age));
+        const int year = logYear(entry.age);
 
         if (year < lastYear)
             LOG_WARNING(DOM, "Entry at " << entry.age << " is older than the year " << lastYear << " it follows; entered under that year");
@@ -317,12 +372,31 @@ namespace chronicle
 
             Year y;
             y.year = year;
+            y.text = spec.yearPrefix + ordinal(year) + " YEAR";
 
             y.line = makeLine(ecs, LW, above + RubricLine, z, listId);
 
-            y.rubric = makeLogText(ecs, "gloss-title", "log.year", spec.yearPrefix + ordinal(year) + " YEAR", z + 3);
-            placeIn(y.rubric.entity, y.line.id, 0.0f, above, 3.0f);
-            addPart(y.line, y.rubric.entity);
+            // Three labels on one baseline, a display-face space apart
+            const float space = spaceWidth(ecs, "gloss-title");
+            const std::string prefix = trimmed(spec.yearPrefix);
+            float x = 0.0f;
+
+            if (not prefix.empty())
+            {
+                y.rubric = makeLogText(ecs, "gloss-title", "log.year", prefix, z + 3);
+                placeIn(y.rubric->entity, y.line.id, x, above, 3.0f);
+                addPart(y.line, y.rubric->entity);
+                x += y.rubric->entity.get<PositionComponent>()->width + space;
+            }
+
+            y.ordinal = makeLogText(ecs, "figure", "log.year.ordinal", ordinal(year), z + 3);
+            placeIn(y.ordinal.entity, y.line.id, x, above + baselineShift(ecs, "gloss-title", "figure"), 3.0f);
+            addPart(y.line, y.ordinal.entity);
+            x += y.ordinal.entity.get<PositionComponent>()->width + space;
+
+            y.suffix = makeLogText(ecs, "gloss-title", "log.year", "YEAR", z + 3);
+            placeIn(y.suffix.entity, y.line.id, x, above, 3.0f);
+            addPart(y.line, y.suffix.entity);
 
             layout->addEntity(y.line);
             items.push_back(y);
@@ -339,7 +413,7 @@ namespace chronicle
         const _unique_id lineId = row.line.id;
 
         // Age, on the text's baseline, in a 30 px column
-        row.age = makeLogText(ecs, "caption", "log.age", ageText(entry.age), z + 2, Overflow::Ellipsis, AgeWidth);
+        row.age = makeLogText(ecs, "caption", "log.age", logAge(entry.age), z + 2, Overflow::Ellipsis, AgeWidth);
         placeIn(row.age.entity, lineId, 0.0f, baselineShift(ecs, style, "caption"), 2.0f);
         addPart(row.line, row.age.entity);
 

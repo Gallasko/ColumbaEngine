@@ -924,7 +924,7 @@ namespace pg
             ASSERT_EQ(log->items.size(), 8u);   // Rubrics for 7, 8 and 9
 
             ASSERT_TRUE(std::holds_alternative<EventLog::Year>(log->items[0]));
-            EXPECT_EQ(std::get<EventLog::Year>(log->items[0]).rubric.spec.text, "IN HER 7TH YEAR");
+            EXPECT_EQ(std::get<EventLog::Year>(log->items[0]).text, "IN HER 7TH YEAR");
             ASSERT_TRUE(std::holds_alternative<EventLog::Row>(log->items[1]));
             EXPECT_EQ(std::get<EventLog::Row>(log->items[1]).entry.kind, LogKind::Milestone);
             ASSERT_TRUE(std::holds_alternative<EventLog::Year>(log->items[3]));
@@ -964,7 +964,7 @@ namespace pg
             EventLog* fromFile = fileLog->get<EventLog>().component;
             EXPECT_EQ(fromFile->size(), 5u);
             EXPECT_EQ(fromFile->items.size(), 8u);
-            EXPECT_EQ(std::get<EventLog::Year>(fromFile->items[0]).rubric.spec.text, "IN HIS 7TH YEAR");
+            EXPECT_EQ(std::get<EventLog::Year>(fromFile->items[0]).text, "IN HIS 7TH YEAR");
             EXPECT_EQ(std::get<EventLog::Row>(fromFile->items[7]).entry.figure, "\xE2\x88\x92" "9 vit");
             EXPECT_EQ(std::get<EventLog::Row>(fromFile->items[7]).entry.kind, LogKind::Loss);
             ASSERT_TRUE(fromFile->footnote.has_value());

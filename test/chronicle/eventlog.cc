@@ -17,6 +17,7 @@
 #include "UI/sizer.h"
 #include "UI/prefab.h"
 #include "Input/inputcomponent.h"
+#include "UI/focusable.h"
 #include "Systems/gamefacts.h"
 #include "Systems/tween.h"
 #include "Systems/coresystems.h"
@@ -58,6 +59,8 @@ namespace pg
                     ecs.createSystem<DottedLine2DObjectSystem>(&renderer);
                     ecs.createSystem<StrokeRect2DObjectSystem>(&renderer);
                     icons = ecs.createSystem<IconSystem>(&renderer);
+                    ecs.createSystem<MouseHoverSystem>();
+                    ecs.createSystem<FocusableSystem>();   // The thumb is focusable: dragging it scrolls
                     ecs.createSystem<TweenSystem>();
                     facts = createTestFacts(&ecs);
                     feed = ecs.createSystem<FactFeed>();
@@ -201,14 +204,21 @@ namespace pg
 
             EXPECT_NEAR(s.left(log.list, log), 14.0f, 0.01f);
             EXPECT_NEAR(s.top(log.list, log), 8.0f, 0.01f);
-            EXPECT_FLOAT_EQ(s.pos(log.list)->width, 274.0f);
+            // The lines are 274; the list runs 8 px further right, the thumb's lane
+            EXPECT_FLOAT_EQ(s.pos(log.list)->width, 282.0f);
             EXPECT_FLOAT_EQ(s.pos(log.list)->height, 544.0f);
+            EXPECT_FLOAT_EQ(log.lineWidth(), 274.0f);
             EXPECT_TRUE(s.layout(log)->scrollable);
             EXPECT_EQ(s.layout(log)->spacing, 1u);
             EXPECT_TRUE(s.ecs.getEntity(log.list.id)->has<MouseWheelComponent>());
 
             EXPECT_EQ(log.size(), 0u);
             EXPECT_TRUE(log.atEnd(&s.ecs));
+
+            // Nothing to scroll: no thumb
+            EXPECT_EQ(s.element(log.scroll), "log.scroll");
+            EXPECT_EQ(s.layout(log)->verticalScrollBar.id, log.scroll.id);
+            EXPECT_FALSE(s.pos(log.scroll)->isVisible());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -234,19 +244,36 @@ namespace pg
 
             const auto& first = yearAt(log, 0);
             EXPECT_EQ(first.year, 14);
-            EXPECT_EQ(first.rubric.spec.text, "IN HIS 14TH YEAR");
-            EXPECT_EQ(first.rubric.spec.style, "gloss-title");
-            EXPECT_EQ(s.element(first.rubric.entity), "log.year");
+            EXPECT_EQ(first.text, "IN HIS 14TH YEAR");
+
+            // The words in the display face, the ordinal in the text face's lining figures
+            ASSERT_TRUE(first.rubric.has_value());
+            EXPECT_EQ(first.rubric->spec.text, "IN HIS");
+            EXPECT_EQ(first.rubric->spec.style, "gloss-title");
+            EXPECT_EQ(s.element(first.rubric->entity), "log.year");
+            EXPECT_EQ(first.ordinal.spec.text, "14TH");
+            EXPECT_EQ(first.ordinal.spec.style, "figure");
+            EXPECT_EQ(s.element(first.ordinal.entity), "log.year.ordinal");
+            EXPECT_EQ(first.suffix.spec.text, "YEAR");
+            EXPECT_EQ(s.element(first.suffix.entity), "log.year");
+
+            // One baseline, in reading order, a space apart
+            const float baseline = s.pos(first.rubric->entity)->y + s.asc("gloss-title");
+            EXPECT_NEAR(s.pos(first.ordinal.entity)->y + s.asc("figure"), baseline, 0.5f);
+            EXPECT_NEAR(s.pos(first.suffix.entity)->y + s.asc("gloss-title"), baseline, 0.5f);
+            EXPECT_GT(s.pos(first.ordinal.entity)->x, s.right(first.rubric->entity));
+            EXPECT_GT(s.pos(first.suffix.entity)->x, s.right(first.ordinal.entity));
+            EXPECT_LT(s.pos(first.ordinal.entity)->x - s.right(first.rubric->entity), 8.0f);
 
             // The first rubric has nothing above it; the next has 12 px
             EXPECT_FLOAT_EQ(s.pos(first.line)->height, 22.0f);
-            EXPECT_NEAR(s.pos(first.rubric.entity)->y, s.pos(first.line)->y, 0.01f);
+            EXPECT_NEAR(s.pos(first.rubric->entity)->y, s.pos(first.line)->y, 0.01f);
             EXPECT_NEAR(s.pos(first.line)->y, s.pos(log.list)->y, 0.01f);
 
             const auto& second = yearAt(log, 3);
-            EXPECT_EQ(second.rubric.spec.text, "IN HIS 15TH YEAR");
+            EXPECT_EQ(second.text, "IN HIS 15TH YEAR");
             EXPECT_FLOAT_EQ(s.pos(second.line)->height, 34.0f);
-            EXPECT_NEAR(s.pos(second.rubric.entity)->y, s.pos(second.line)->y + 12.0f, 0.01f);
+            EXPECT_NEAR(s.pos(second.rubric->entity)->y, s.pos(second.line)->y + 12.0f, 0.01f);
 
             // Lines one pixel apart
             EXPECT_NEAR(s.pos(rowAt(log, 1).line)->y, s.pos(first.line)->y + 22.0f + 1.0f, 0.01f);
@@ -270,6 +297,33 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // Ages are written year.month, the month 1 to 12, and the rubric's year counts the same
+        // whole months: 16.12 is followed by 17.1, under the 17th year.
+        TEST(eventlog_test, ages_count_months)
+        {
+            EXPECT_EQ(logAge(7.0f), "7.1");
+            EXPECT_EQ(logAge(14.3f), "14.4");
+            EXPECT_EQ(logAge(16.9f), "16.11");
+            EXPECT_EQ(logAge(43.95f), "43.12");
+
+            float age = 16.9f;
+            std::vector<std::string> months;
+
+            for (int i = 0; i < 4; ++i)
+            {
+                months.push_back(logAge(age));
+                age += 1.0f / 12.0f;
+            }
+
+            EXPECT_EQ(months, (std::vector<std::string>{"16.11", "16.12", "17.1", "17.2"}));
+
+            EXPECT_EQ(logYear(16.9f + 1.0f / 12.0f), 16);
+            EXPECT_EQ(logYear(16.9f + 2.0f / 12.0f), 17);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(eventlog_test, row_geometry_and_kinds)
         {
             MockLogger logger;
@@ -286,7 +340,7 @@ namespace pg
             EventLog log = s.make(spec);
 
             const auto& loss = rowAt(log, 1);
-            EXPECT_EQ(loss.age.spec.text, "14.3");
+            EXPECT_EQ(loss.age.spec.text, "14.4");   // In his fourth month
             EXPECT_EQ(s.element(loss.age.entity), "log.age");
             EXPECT_FLOAT_EQ(s.pos(loss.age.entity)->width, 30.0f);
             EXPECT_NEAR(s.pos(loss.age.entity)->x, s.pos(loss.line)->x, 0.01f);
@@ -531,6 +585,77 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        TEST(eventlog_test, scroll_thumb)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = life(60);
+            EventLog log = s.make(spec);
+
+            auto thumb = s.pos(log.scroll);
+            const auto list = s.pos(log.list);
+            const float content = s.layout(log)->contentHeight;
+
+            // Shown once the rows overflow, in the lane right of the lines, sized to the view
+            EXPECT_TRUE(thumb->isVisible());
+            EXPECT_FLOAT_EQ(thumb->width, 4.0f);
+            EXPECT_NEAR(thumb->x + thumb->width, list->x + list->width, 0.01f);
+            EXPECT_GE(thumb->x, s.right(nthRow(log, 59).line) + 4.0f);
+            EXPECT_NEAR(thumb->height, list->height * list->height / content, 0.01f);
+
+            // At the end, it sits at the bottom of the track; at the top, at the top
+            EXPECT_NEAR(thumb->y + thumb->height, list->y + list->height, 0.01f);
+
+            s.wheel(log, 1000);
+            EXPECT_NEAR(s.pos(log.scroll)->y, list->y, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A new line and its parts are not drawn until the layout has placed the line in view:
+        // drawn at once, a mark would show for a frame where it was made.
+        TEST(eventlog_test, parts_hidden_until_placed)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.entries = life(60);
+            EventLog log = s.make(spec);
+
+            log.append(&s.ecs, entry(13.1f, "A letter from the Guild", LogKind::Coin, "+5"));
+
+            const auto& row = nthRow(log, 60);
+            EXPECT_FALSE(s.pos(row.line)->isRenderable());
+            EXPECT_FALSE(s.pos(row.mark.entity)->isRenderable());
+            EXPECT_FALSE(s.pos(row.text.entity)->isRenderable());
+
+            s.settle();
+
+            // At the end, it is followed into view, and drawn where it belongs
+            EXPECT_TRUE(s.pos(row.line)->isRenderable());
+            EXPECT_TRUE(s.pos(row.mark.entity)->isRenderable());
+            EXPECT_TRUE(s.pos(row.age.entity)->isRenderable());
+            EXPECT_TRUE(s.pos(row.text.entity)->isRenderable());
+            EXPECT_TRUE(s.pos(row.figure->entity)->isRenderable());
+            EXPECT_NEAR(s.pos(row.mark.entity)->x, s.pos(row.line)->x + 38.0f, 0.01f);
+
+            // Reading up: the next one lands below the view and stays undrawn
+            s.wheel(log, 4);
+            log.append(&s.ecs, entry(13.2f, "Snow on the pass"));
+            s.settle();
+
+            const auto& below = nthRow(log, 61);
+            EXPECT_FALSE(s.pos(below.line)->isRenderable());
+            EXPECT_FALSE(s.pos(below.mark.entity)->isRenderable());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(eventlog_test, clear)
         {
             MockLogger logger;
@@ -558,7 +683,7 @@ namespace pg
 
             ASSERT_EQ(log.items.size(), 2u);
             EXPECT_TRUE(std::holds_alternative<EventLog::Year>(log.items[0]));
-            EXPECT_EQ(yearAt(log, 0).rubric.spec.text, "IN HIS 7TH YEAR");
+            EXPECT_EQ(yearAt(log, 0).text, "IN HIS 7TH YEAR");
             EXPECT_FLOAT_EQ(s.pos(yearAt(log, 0).line)->height, 22.0f);
             EXPECT_NEAR(s.pos(yearAt(log, 0).line)->y, s.pos(log.list)->y, 0.01f);
         }
@@ -591,7 +716,7 @@ namespace pg
 
             ASSERT_EQ(log.size(), 1u);
             ASSERT_EQ(log.items.size(), 2u);
-            EXPECT_EQ(rowAt(log, 1).age.spec.text, "14.3");
+            EXPECT_EQ(rowAt(log, 1).age.spec.text, "14.4");
             EXPECT_EQ(rowAt(log, 1).text.spec.text, "Carried the anvil");
             EXPECT_EQ(s.element(rowAt(log, 1).text.entity), "log.text.gain");
             EXPECT_NEAR(s.pos(rowAt(log, 1).line)->y, s.pos(log.list)->y + 23.0f, 0.01f);
@@ -653,9 +778,12 @@ namespace pg
             EXPECT_FLOAT_EQ(s.pos(row.age.entity)->z, 24.0f);
             EXPECT_FLOAT_EQ(s.pos(row.text.entity)->z, 25.0f);
             EXPECT_FLOAT_EQ(s.pos(row.figure->entity)->z, 25.0f);
-            EXPECT_FLOAT_EQ(s.pos(year.rubric.entity)->z, 25.0f);
+            EXPECT_FLOAT_EQ(s.pos(year.rubric->entity)->z, 25.0f);
+            EXPECT_FLOAT_EQ(s.pos(year.ordinal.entity)->z, 25.0f);
+            EXPECT_FLOAT_EQ(s.pos(year.suffix.entity)->z, 25.0f);
+            EXPECT_FLOAT_EQ(s.pos(log.scroll)->z, 23.0f);
 
-            for (auto e : {log.root, log.gutter, log.edge, log.list, year.line, row.line, row.mark.entity, row.age.entity, row.text.entity, row.figure->entity, year.rubric.entity})
+            for (auto e : {log.root, log.gutter, log.edge, log.list, log.scroll, year.line, row.line, row.mark.entity, row.age.entity, row.text.entity, row.figure->entity, year.rubric->entity, year.ordinal.entity})
             {
                 const float z = s.pos(e)->z;
                 EXPECT_FLOAT_EQ(z, static_cast<float>(static_cast<int>(z)));

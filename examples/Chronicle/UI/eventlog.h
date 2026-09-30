@@ -24,7 +24,7 @@ namespace chronicle
 
     struct LogEntry
     {
-        float age = 7.0f;              // 14.3 -> "14.3"; the year rubric is floor(age)
+        float age = 7.0f;              // Years; shown as year.month, months 1-12 (14.3 -> "14.4", in his 4th month); the rubric is the whole year
         std::string text;              // "Gored in the North Forest"
         LogKind kind = LogKind::Note;
         std::string figure;            // "" or "−9 vit": preformatted
@@ -62,17 +62,23 @@ namespace chronicle
             LogEntry entry;
         };
 
+        // "IN HIS" and "YEAR" in the display face; the ordinal in the text face, whose figures
+        // are lining (the display face's old-style figures sit below its capitals).
         struct Year
         {
-            pg::EntityRef line;        // List width x 22, with 12 above unless it is the first item
-            Label rubric;
+            pg::EntityRef line;        // Line width x 22, with 12 above unless it is the first item
+            std::optional<Label> rubric;   // The prefix, "IN HIS"; none when the prefix is empty
+            Label ordinal;             // "14TH", log.year.ordinal (figure)
+            Label suffix;              // "YEAR"
+            std::string text;          // The whole rubric, "IN HIS 14TH YEAR"
             int year = 0;
         };
 
         pg::EntityRef root;            // PositionComponent + UiAnchor + Prefab: width x (height + 4 + footnote), or height
         pg::EntityRef gutter;          // Simple2DObject, log.gutter
         pg::EntityRef edge;            // Simple2DObject 2 px, log.edge
-        pg::EntityRef list;            // The scrollable VerticalLayout (the clipper), inset 8 / 12, spacing 1
+        pg::EntityRef list;            // The scrollable VerticalLayout (the clipper), inset 8 / 12 / 4, spacing 1
+        pg::EntityRef scroll;          // The thumb in the list's right lane: shown when the rows overflow, draggable
         std::vector<std::variant<Year, Row>> items;   // In order
         std::optional<Label> footnote;
         EventLogSpec spec;             // width, height, yearPrefix, footnote and z; the entries live in `items`
@@ -86,13 +92,19 @@ namespace chronicle
         size_t size() const;                                 // Rows, not rubrics
 
         // Internal
-        float listWidth() const;
+        float lineWidth() const;       // The lines; the list is 8 px wider, the thumb's lane
     };
 
     EventLog makeEventLog(pg::EntitySystem*, const EventLogSpec&);
 
     // "1ST", "2ND", "3RD", "4TH", "11TH", "21ST": the kit's caps.
     std::string ordinal(int n);
+
+    // An age as the log writes it: the year and the month in it, 1 to 12 ("14.4", "16.12").
+    std::string logAge(float age);
+
+    // The whole year an age falls in, counted in the same whole months as logAge.
+    int logYear(float age);
 
     // The glyph a kind draws with when the entry names none.
     std::string defaultGlyph(LogKind kind);
