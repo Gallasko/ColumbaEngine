@@ -1552,6 +1552,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         set(CHRONICLE_CORE
             examples/Chronicle/Core/textmetrics.cpp
             examples/Chronicle/Core/motion.cpp
+            examples/Chronicle/Core/rulevm.cpp
             examples/Chronicle/UI/label.cpp
             examples/Chronicle/UI/mark.cpp
             examples/Chronicle/UI/ornament.cpp
