@@ -598,6 +598,44 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A click leaves the row current in the focus order, without a ring: Space (the Life scene's
+        // month key) must not select it then. After Tab, with the ring showing, it does.
+        TEST(activityrow_test, space_after_a_click_selects_nothing)
+        {
+            MockLogger logger;
+            ActivityFixture s;
+
+            ActivityListSpec spec;
+            spec.groups = {{"Training", {idleSpec("a"), idleSpec("b")}}};
+            ActivityList list = s.placeList(spec);
+
+            ActivityRow* a = list.row(&s.ecs, "a");
+            ASSERT_NE(a, nullptr);
+
+            s.click(a->root);
+            ASSERT_EQ(list.selected(), "a");
+
+            list.select(&s.ecs, "");
+            s.pump();
+            ASSERT_EQ(list.selected(), "");
+
+            s.key(SDL_SCANCODE_SPACE);
+            EXPECT_EQ(list.selected(), "");
+            EXPECT_TRUE(s.recorder->activated.empty());
+
+            s.key(SDL_SCANCODE_RETURN);
+            EXPECT_EQ(list.selected(), "");
+
+            // With the keyboard on the row, Space selects it
+            s.key(SDL_SCANCODE_TAB);
+            ASSERT_TRUE(s.focusOrder->keyboardFocus());
+            s.key(SDL_SCANCODE_SPACE);
+            EXPECT_FALSE(list.selected().empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(activityrow_test, stripes_alternate_across_groups)
         {
             MockLogger logger;

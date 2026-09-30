@@ -355,7 +355,10 @@ namespace chronicle
 
         if (event.key == SDL_SCANCODE_RETURN or event.key == SDL_SCANCODE_SPACE)
         {
-            select(face);
+            // Only the tab the keyboard is on (ring showing), not the last one clicked
+            if (fo->keyboardFocus())
+                select(face);
+
             return;
         }
 

@@ -190,7 +190,8 @@ namespace chronicle
 
         void select(pg::EntitySystem*, const std::string& id);          // "" clears; refuses Locked and Running (logs)
         const std::string& selected() const;
-        ActivityRow* row(pg::EntitySystem*, const std::string& id);     // nullptr when unknown
+        ActivityRow* row(pg::EntitySystem*, const std::string& id);     // nullptr when unknown (logged)
+        ActivityRow* find(pg::EntitySystem*, const std::string& id);    // nullptr when unknown or not laid out yet (quiet)
         void setRowState(pg::EntitySystem*, const std::string& id, ActivityState);   // Clears the selection if it was that row
         void setRows(pg::EntitySystem*, const std::vector<ActivityGroup>& groups);   // Rebuilds
     };

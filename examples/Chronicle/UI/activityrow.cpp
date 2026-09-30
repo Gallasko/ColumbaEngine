@@ -922,7 +922,7 @@ namespace chronicle
         return root.get<ActivityListState>()->selected;
     }
 
-    ActivityRow* ActivityList::row(EntitySystem* ecs, const std::string& id)
+    ActivityRow* ActivityList::find(EntitySystem*, const std::string& id)
     {
         std::vector<EntityRef> rows;
         std::vector<EntityRef> headings;
@@ -934,7 +934,13 @@ namespace chronicle
                 return entity->get<ActivityRow>().component;
         }
 
-        (void)ecs;
+        return nullptr;
+    }
+
+    ActivityRow* ActivityList::row(EntitySystem* ecs, const std::string& id)
+    {
+        if (auto r = find(ecs, id))
+            return r;
 
         LOG_ERROR(DOM, "List '" << spec.id << "' has no row '" << id << "'");
 
@@ -1239,7 +1245,9 @@ namespace chronicle
 
         auto focusOrder = ecsRef->getSystem<FocusOrderSystem>();
 
-        if (not focusOrder)
+        // Only a row the keyboard is on (its ring showing): after a click the focus order still
+        // remembers the row, and a key the scene uses (Space) must not select it behind its back.
+        if (not focusOrder or not focusOrder->keyboardFocus())
             return;
 
         auto row = ecsRef->getEntity(focusOrder->current());

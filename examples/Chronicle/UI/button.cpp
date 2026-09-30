@@ -430,7 +430,9 @@ namespace chronicle
             return;
 
         auto* fo = ecsRef->getSystem<FocusOrderSystem>();
-        if (not fo)
+
+        // Only the face the keyboard is on (ring showing), not the last one clicked
+        if (not fo or not fo->keyboardFocus())
             return;
         if (auto face = ecsRef->getEntity(fo->current()); face and face->has<ButtonState>())
             activate(face);
