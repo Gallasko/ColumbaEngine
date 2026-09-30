@@ -17,6 +17,7 @@
 #include "UI/lifeclock.h"
 #include "UI/activityrow.h"
 #include "UI/windowmeter.h"
+#include "UI/resourceledger.h"
 #include "UI/gloss.h"
 #include "Core/motion.h"
 
@@ -136,7 +137,7 @@ namespace pg
             for (const auto& kind : chronicleKinds())
                 EXPECT_TRUE(f.registry->hasFactory(kind)) << kind;
 
-            EXPECT_EQ(chronicleKinds().size(), 16u);
+            EXPECT_EQ(chronicleKinds().size(), 19u);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -753,6 +754,143 @@ namespace pg
             f.settle();
 
             EXPECT_NEAR(panelEnt->get<PositionComponent>()->height, oneLine + 16.0f, 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(chronicle_factories_test, ledger_factory_tree)
+        {
+            FactoriesFixture f;
+
+            NodeSpec coin = node("LedgerRow", "", {{"id", "coin"}, {"label", "Coin"}, {"value", 412}, {"rate", "+2 / mo"}, {"tone", "coin"}});
+            NodeSpec rations = node("LedgerRow", "", {{"id", "rations"}, {"label", "Rations"}, {"value", "18"}});
+            NodeSpec purse = node("LedgerGroup", "", {{"id", "purse"}, {"label", "PURSE"}});
+            purse.children = {coin, rations};
+
+            NodeSpec guild = node("LedgerRow", "", {{"id", "guild.academy"}, {"glyph", "guild"}, {"label", "The Academy"}, {"value", "1"}, {"tone", "guild"}, {"muted", true}});
+            NodeSpec standing = node("LedgerGroup", "", {{"id", "standing"}, {"label", "STANDING"}});
+            standing.children = {guild};
+
+            NodeSpec ledgerNode = node("ResourceLedger", "ledger", {{"width", 300.0f}});
+            ledgerNode.children = {purse, standing};
+
+            NodeSpec page = node("", "page");
+            page.children = {ledgerNode};
+
+            EntityRef root = buildTree(&f.ecs, page);
+            EntityRef ledgerEnt = root->get<Prefab>()->getEntity("ledger");
+            ASSERT_FALSE(ledgerEnt.empty());
+            ASSERT_TRUE(ledgerEnt->has<ResourceLedger>());
+
+            ResourceLedger* ledger = ledgerEnt->get<ResourceLedger>().component;
+            EXPECT_FLOAT_EQ(ledger->spec.width, 300.0f);
+            ASSERT_EQ(ledger->groups.size(), 2u);
+            EXPECT_EQ(ledger->groups[0].spec.id, "purse");
+            EXPECT_EQ(ledger->groups[0].label.spec.text, "PURSE");
+            ASSERT_EQ(ledger->groups[0].rows.size(), 2u);
+            EXPECT_EQ(ledger->groups[0].rows[0].spec.id, "coin");
+            EXPECT_EQ(ledger->groups[0].rows[0].spec.name, "Coin");
+            EXPECT_EQ(ledger->groups[0].rows[0].spec.value, "412");
+            EXPECT_EQ(ledger->groups[0].rows[0].spec.rate, "+2 / mo");
+            EXPECT_EQ(ledger->groups[0].rows[0].spec.tone, LedgerTone::Coin);
+            EXPECT_EQ(ledger->groups[0].rows[1].spec.id, "rations");
+            ASSERT_EQ(ledger->groups[1].rows.size(), 1u);
+            EXPECT_EQ(ledger->groups[1].rows[0].spec.tone, LedgerTone::Guild);
+            EXPECT_TRUE(ledger->groups[1].rows[0].spec.muted);
+
+            auto prefab = ledgerEnt->get<Prefab>();
+            EXPECT_TRUE(prefab->hasHelper("setValue"));
+            EXPECT_TRUE(prefab->hasHelper("setRate"));
+            EXPECT_TRUE(prefab->hasHelper("setMuted"));
+            EXPECT_TRUE(prefab->hasHelper("addRow"));
+            EXPECT_TRUE(prefab->hasHelper("removeRow"));
+
+            prefab->callHelper("setValue", std::string("coin"), std::string("500"));
+            EXPECT_EQ(ledger->row("coin")->figure.spec.text, "500");
+
+            f.settle();
+            f.settle();
+            EXPECT_FLOAT_EQ(ledgerEnt->get<PositionComponent>()->height, 20.0f + 2.0f * 26.0f + 32.0f + 26.0f);
+
+            // A row outside a ledger adds to nothing and says so
+            NodeSpec stray = node("", "stray");
+            stray.children = {node("LedgerRow", "", {{"id", "lost"}, {"label", "Lost"}})};
+            buildTree(&f.ecs, stray);
+            EXPECT_EQ(ledger->row("lost"), nullptr);
+
+            // The file builds the same ledger.
+            std::vector<std::string> errors;
+            PrefabLoadOptions options;
+            options.errors = &errors;
+
+            auto fileSpec = loadNodeSpec(&f.ecs, "ui/ledger.yaml", options);
+            ASSERT_TRUE(fileSpec.has_value());
+            EXPECT_TRUE(errors.empty());
+
+            EntityRef fileRoot = buildTree(&f.ecs, *fileSpec);
+            EntityRef fileLedger = fileRoot->get<Prefab>()->getEntity("ledger");
+            ASSERT_FALSE(fileLedger.empty());
+            ASSERT_TRUE(fileLedger->has<ResourceLedger>());
+
+            ResourceLedger* fromFile = fileLedger->get<ResourceLedger>().component;
+            EXPECT_FLOAT_EQ(fromFile->spec.width, 320.0f);
+            ASSERT_EQ(fromFile->groups.size(), 2u);
+            ASSERT_EQ(fromFile->groups[0].rows.size(), 2u);
+            EXPECT_EQ(fromFile->groups[0].rows[0].spec.value, "412");
+            EXPECT_EQ(fromFile->groups[0].rows[1].spec.rate, "\xE2\x88\x92" "1 / mo");
+            EXPECT_EQ(fromFile->groups[1].label.spec.text, "KEPT BETWEEN LIVES");
+            ASSERT_EQ(fromFile->groups[1].rows.size(), 1u);
+            EXPECT_EQ(fromFile->groups[1].rows[0].spec.id, "relic.sunstone");
+            EXPECT_EQ(fromFile->groups[1].rows[0].spec.value, "1 of 3");
+            EXPECT_EQ(fromFile->groups[1].rows[0].spec.tone, LedgerTone::Relic);
+            EXPECT_TRUE(fromFile->groups[1].rows[0].spec.muted);
+            EXPECT_EQ(fromFile->groups[1].rows[0].spec.glossKey, "relic.sunstone");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(chronicle_factories_test, ledger_in_a_panel_grows_the_panel)
+        {
+            FactoriesFixture f;
+
+            NodeSpec purse = node("LedgerGroup", "", {{"id", "purse"}, {"label", "PURSE"}});
+            purse.children = {node("LedgerRow", "", {{"id", "coin"}, {"label", "Coin"}, {"value", "412"}, {"tone", "coin"}})};
+
+            NodeSpec ledgerNode = node("ResourceLedger", "ledger");
+            ledgerNode.children = {purse};
+
+            NodeSpec panel = node("Panel", "holds", {{"width", 320.0f}, {"heading", "What he holds"}, {"glyph", "gold"}, {"aside", "LEDGER"}});
+            panel.children = {ledgerNode};
+
+            NodeSpec page = node("", "page");
+            page.children = {panel};
+
+            EntityRef root = buildTree(&f.ecs, page);
+            ASSERT_FALSE(root.empty());
+
+            f.settle();
+            f.settle();
+
+            EntityRef panelEnt = root->get<Prefab>()->findEntity("holds");
+            EntityRef ledgerEnt = root->get<Prefab>()->findEntity("ledger");
+            ASSERT_FALSE(panelEnt.empty());
+            ASSERT_FALSE(ledgerEnt.empty());
+            ASSERT_TRUE(ledgerEnt->has<ResourceLedger>());
+
+            // The panel's inner width came down to the ledger
+            EXPECT_FLOAT_EQ(ledgerEnt->get<ResourceLedger>()->spec.width, 288.0f);
+            EXPECT_FLOAT_EQ(ledgerEnt->get<PositionComponent>()->width, 288.0f);
+
+            const float before = panelEnt->get<PositionComponent>()->height;
+
+            LedgerRowSpec timber;
+            timber.id = "timber";
+            timber.name = "Timber";
+            timber.value = "14";
+            ledgerEnt->get<ResourceLedger>()->addRow(&f.ecs, "stores", timber, "STORES");
+            f.settle();
+            f.settle();
+            f.settle();
+
+            EXPECT_NEAR(panelEnt->get<PositionComponent>()->height, before + 32.0f + 26.0f, 0.5f);
         }
     }
 }

@@ -23,6 +23,7 @@
 #include "lifeclock.h"
 #include "activityrow.h"
 #include "windowmeter.h"
+#include "resourceledger.h"
 
 using namespace pg;
 
@@ -67,6 +68,8 @@ namespace pg
     template <> chronicle::LifeClock deserialize(const UnserializedObject&) { return chronicle::LifeClock{}; }
     template <> void serialize(Archive& archive, const chronicle::WindowMeter& value) { (void)value; serializeEmptyPiece<chronicle::WindowMeter>(archive, "WindowMeter"); }
     template <> chronicle::WindowMeter deserialize(const UnserializedObject&) { return chronicle::WindowMeter{}; }
+    template <> void serialize(Archive& archive, const chronicle::ResourceLedger& value) { (void)value; serializeEmptyPiece<chronicle::ResourceLedger>(archive, "ResourceLedger"); }
+    template <> chronicle::ResourceLedger deserialize(const UnserializedObject&) { return chronicle::ResourceLedger{}; }
 }
 
 namespace chronicle
@@ -289,6 +292,7 @@ namespace chronicle
             ecs->registerFlagComponent<RequirementList>();
             ecs->registerFlagComponent<LifeClock>();
             ecs->registerFlagComponent<WindowMeter>();
+            ecs->registerFlagComponent<ResourceLedger>();
             registerActivityComponents(ecs);   // Guarded: makeActivityRow registers them too
         }
 
@@ -961,6 +965,161 @@ namespace chronicle
                     return leaf(keep(ecs, meter.root, std::move(meter)));
                 }});
         }
+
+        // ---- the ledger's build context ------------------------------------------------------
+        //
+        // A ledger's groups hold rows, which a flat record list cannot say, so in a file they are
+        // child nodes: ResourceLedger > LedgerGroup > LedgerRow. A factory never sees its node's
+        // children, but the builder realises a node and then its children, depth first and in
+        // order, so the ledger a LedgerGroup or LedgerRow belongs to is the last one realised in
+        // that ECS. The ledger hands its root id down (childDefaults `ledger`) and a group hands
+        // its id (`group`): the child kinds build nothing of their own, they add to that ledger.
+
+        std::unordered_map<EntitySystem*, EntityRef>& openLedgers()
+        {
+            static std::unordered_map<EntitySystem*, EntityRef> ledgers;
+            return ledgers;
+        }
+
+        _unique_id idProp(const ElementMap& p, const std::string& key)
+        {
+            auto it = p.find(key);
+            if (it == p.end() or it->second.isEmpty())
+                return 0;
+
+            if (it->second.type == UnionType::SIZE_T)
+                return static_cast<_unique_id>(it->second.get<size_t>());
+
+            return static_cast<_unique_id>(std::max(0, getParamInt(p, key, 0)));
+        }
+
+        // The ledger a child node was built under; nullptr (logged) outside one.
+        ResourceLedger* enclosingLedger(EntitySystem* ecs, const NodeSpec& spec)
+        {
+            const _unique_id id = idProp(spec.props, "ledger");
+            auto it = openLedgers().find(ecs);
+
+            if (id == 0 or it == openLedgers().end() or it->second.id != id)
+            {
+                LOG_ERROR(DOM, spec.kind << " '" << stringProp(spec.props, "id") << "' is not inside a ResourceLedger; ignored");
+                return nullptr;
+            }
+
+            EntityRef root = it->second;
+
+            if (not root->has<ResourceLedger>())
+                return nullptr;
+
+            return root->get<ResourceLedger>().component;
+        }
+
+        void registerResourceLedger(PrefabFactoryRegistry* registry)
+        {
+            ParamSchema schema;
+            schema.entries = {
+                {"width", 288.0f},
+                {"z",     20},
+            };
+
+            registry->registerFactory("ResourceLedger", std::move(schema),
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
+                {
+                    auto theme = ecs->getSystem<ThemeSystem>();
+                    ResourceLedgerSpec s;
+                    s.width = numberProp(spec.props, "width", theme, s.width);
+                    s.z     = getParamInt(spec.props, "z", s.z);
+
+                    ResourceLedger ledger = makeResourceLedger(ecs, s);
+                    auto prefab = ledger.root->get<Prefab>();
+                    prefab->addHelper("setValue", [](Prefab* p, const std::string& id, const std::string& value) { if (auto piece = pieceOf<ResourceLedger>(p)) piece->setValue(p->ecsRef, id, value); });
+                    prefab->addHelper("setRate", [](Prefab* p, const std::string& id, const std::string& rate) { if (auto piece = pieceOf<ResourceLedger>(p)) piece->setRate(p->ecsRef, id, rate); });
+                    prefab->addHelper("setMuted", [](Prefab* p, const std::string& id, bool muted) { if (auto piece = pieceOf<ResourceLedger>(p)) piece->setMuted(p->ecsRef, id, muted); });
+                    prefab->addHelper("addRow", [](Prefab* p, const std::string& group, const LedgerRowSpec& row) { if (auto piece = pieceOf<ResourceLedger>(p)) piece->addRow(p->ecsRef, group, row); });
+                    prefab->addHelper("removeRow", [](Prefab* p, const std::string& id) { if (auto piece = pieceOf<ResourceLedger>(p)) piece->removeRow(p->ecsRef, id); });
+
+                    // The groups and rows under this node are realised next, into this ledger.
+                    openLedgers()[ecs] = ledger.root;
+
+                    FactoryResult r;
+                    r.entity = ledger.root;
+                    r.childDefaults = {
+                        {"ledger", ElementType{static_cast<size_t>(ledger.root.id)}},
+                    };
+                    keep(ecs, ledger.root, std::move(ledger));
+                    return r;
+                }});
+        }
+
+        void registerLedgerGroup(PrefabFactoryRegistry* registry)
+        {
+            ParamSchema schema;
+            schema.entries = {
+                {"id",    UnionType::STRING, Req::Required},
+                {"label", ""},
+            };
+
+            registry->registerFactory("LedgerGroup", std::move(schema),
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
+                {
+                    const std::string id = stringProp(spec.props, "id");
+
+                    if (auto ledger = enclosingLedger(ecs, spec))
+                        ledger->addGroup(ecs, id, stringProp(spec.props, "label"));
+
+                    // Nothing of its own: the heading is the ledger's. The rows learn their group.
+                    FactoryResult r;
+                    r.childDefaults = {
+                        {"group", ElementType{id}},
+                    };
+                    return r;
+                }});
+        }
+
+        void registerLedgerRow(PrefabFactoryRegistry* registry)
+        {
+            ParamSchema schema;
+            schema.entries = {
+                {"id",       UnionType::STRING, Req::Required},
+                {"glyph",    "gold"},
+                {"label",    ""},       // the display name: `name` is the node's handle
+                {"value",    "0"},
+                {"rate",     ""},
+                {"tone",     "none"},
+                {"muted",    false},
+                {"glossKey", ""},
+            };
+
+            static const std::vector<std::pair<std::string, LedgerTone>> TONE = {
+                {"none", LedgerTone::None}, {"coin", LedgerTone::Coin}, {"guild", LedgerTone::Guild}, {"relic", LedgerTone::Relic},
+            };
+
+            registry->registerFactory("LedgerRow", std::move(schema),
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
+                {
+                    LedgerRowSpec s;
+                    s.id       = stringProp(spec.props, "id");
+                    s.glyph    = stringProp(spec.props, "glyph", s.glyph);
+                    s.name     = stringProp(spec.props, "label", s.name);
+                    s.value    = stringProp(spec.props, "value", s.value);
+                    s.rate     = stringProp(spec.props, "rate", s.rate);
+                    s.tone     = enumProp(spec.props, "tone", TONE, s.tone);
+                    s.muted    = getParamBool(spec.props, "muted", s.muted);
+                    s.glossKey = stringProp(spec.props, "glossKey", s.glossKey);
+
+                    const std::string group = stringProp(spec.props, "group");
+
+                    if (group.empty())
+                    {
+                        LOG_ERROR(DOM, "LedgerRow '" << s.id << "' is not inside a LedgerGroup; ignored");
+                        return FactoryResult{};
+                    }
+
+                    if (auto ledger = enclosingLedger(ecs, spec))
+                        ledger->addRow(ecs, group, s);
+
+                    return FactoryResult{};
+                }});
+        }
     }
 
     const std::vector<std::string>& chronicleKinds()
@@ -969,6 +1128,7 @@ namespace chronicle
             "Label", "Mark", "MarkedLabel", "Ornament", "Panel", "Button",
             "Tabs", "Gloss", "ProgressRule", "StatLine", "RequirementList", "LifeClock",
             "ActivityRow", "ActivityList", "ActivityGroup", "WindowMeter",
+            "ResourceLedger", "LedgerGroup", "LedgerRow",
         };
 
         return kinds;
@@ -1001,5 +1161,8 @@ namespace chronicle
         registerActivityList(registry);
         registerActivityGroup(registry);
         registerWindowMeter(registry);
+        registerResourceLedger(registry);
+        registerLedgerGroup(registry);
+        registerLedgerRow(registry);
     }
 }

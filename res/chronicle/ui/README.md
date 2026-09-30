@@ -19,7 +19,7 @@ One file holds one root node. A node is a map:
 
 | key | meaning |
 |---|---|
-| `kind` | the factory: `Label`, `Mark`, `MarkedLabel`, `Ornament`, `Panel`, `Button`, `Tabs`, `Gloss`, `ProgressRule`, `StatLine`, `RequirementList`, `LifeClock`, `ActivityRow`, `ActivityList`, `ActivityGroup`, `WindowMeter`, or the engine's `Shape2D`, `Texture`, `TTFText`, `Layout:Vertical`, `Layout:Horizontal`. Omitted: a bare container (its children keep their own `x` / `y`). |
+| `kind` | the factory: `Label`, `Mark`, `MarkedLabel`, `Ornament`, `Panel`, `Button`, `Tabs`, `Gloss`, `ProgressRule`, `StatLine`, `RequirementList`, `LifeClock`, `ActivityRow`, `ActivityList`, `ActivityGroup`, `WindowMeter`, `ResourceLedger`, `LedgerGroup`, `LedgerRow`, or the engine's `Shape2D`, `Texture`, `TTFText`, `Layout:Vertical`, `Layout:Horizontal`. Omitted: a bare container (its children keep their own `x` / `y`). |
 | `name` | registers the entity on the enclosing prefab (`getEntity(name)`), which also reaches the piece's helpers. |
 | `x`, `y` | places the node (useful on roots and on children of a bare container). |
 | `anchors` | list of `{side, target, targetSide?, margin?}`; `target` is `main`, `parent`, a sibling's name or a globally named entity; sides are the `AnchorType` names, any case. |
@@ -52,6 +52,11 @@ comment.
   height and scroll its rows; without it the list is as tall as its rows.
   `ActivityRow.state` is `idle`, `running` or `locked`; the events carry the list's `id`
   and the row's `id`. A row is reached by its `name`, or with `list->row(ecs, id)`.
+- **ResourceLedger** takes its groups as children: `LedgerGroup` nodes (`id`, `label` in caps)
+  whose children are `LedgerRow` nodes (`id`, `glyph`, `label` for the display name, `value`
+  and `rate` as the scene formats them, `tone: coin | guild | relic`, `muted`, `glossKey`).
+  They build nothing of their own and add to the ledger they are nested in; a row is reached
+  with `ledger->row(id)`, not by a `name`. Quote a `rate` (`rate: "+2 / mo"`).
 - Lists: `Tabs.items` (`label`, `glyph`, `badge`), `RequirementList.items` (`label`,
   `current`, `needed`, `met` as a bool), `Gloss.rows` (`label`, `value`),
   `LifeClock.milestones` (`age`, `label`), `LifeClock.windows` (`from`, `to`, `label`,

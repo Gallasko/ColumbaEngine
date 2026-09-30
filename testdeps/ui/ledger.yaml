@@ -1,0 +1,17 @@
+kind: ResourceLedger
+name: ledger
+x: 10
+y: 20
+width: 320
+children:
+  - kind: LedgerGroup
+    id: purse
+    label: PURSE
+    children:
+      - {kind: LedgerRow, id: coin, glyph: gold, label: Coin, value: 412, rate: "+2 / mo", tone: coin}
+      - {kind: LedgerRow, id: rations, glyph: gold, label: Rations, value: 18, rate: "−1 / mo"}
+  - kind: LedgerGroup
+    id: kept
+    label: KEPT BETWEEN LIVES
+    children:
+      - {kind: LedgerRow, id: relic.sunstone, glyph: relic, label: Sunstone relic, value: 1 of 3, tone: relic, muted: true, glossKey: relic.sunstone}

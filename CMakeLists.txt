@@ -1564,6 +1564,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/Chronicle/UI/lifeclock.cpp
             examples/Chronicle/UI/activityrow.cpp
             examples/Chronicle/UI/windowmeter.cpp
+            examples/Chronicle/UI/resourceledger.cpp
             examples/Chronicle/UI/factories.cpp
         )
 
@@ -1652,6 +1653,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/chronicle/lifeclock.cc
             test/chronicle/activityrow.cc
             test/chronicle/windowmeter.cc
+            test/chronicle/resourceledger.cc
             ${CHRONICLE_CORE}
         )
         target_link_libraries(test_chronicle PRIVATE gtest gtest_main ColumbaEngine)

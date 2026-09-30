@@ -243,6 +243,29 @@ come from `rules/*.pg` through the scene, never from the component.
   scene. Elements: `window.name`, `window.mark`, `window.note` (each `.upcoming`,
   `.closed`), `window.range`.
 
+- **ResourceLedger** (`UI/resourceledger.h`) - everything the character holds, as a column
+  of account-book rows grouped by kind (PURSE, STANDING, STORES, KEPT BETWEEN LIVES). A row
+  is mark (S16) · name (`body-sm`, never wrapped) · a **dotted leader** · figure
+  (`figure-sm`) · rate (`tick`, `status-gain`; a leading minus paints it `status-loss`),
+  26 px apart; a group heading is the `label` style in `ink-muted`, `space-3` above all but
+  the first and `space-1` below. **Strings in, no arithmetic**: the value and the rate are
+  the scene's, already formatted (`"412"`, `"−3"`, `"2 of 3"`, `"+2 / mo"`). **The leader
+  is engine-sized**: a `DottedLine2DObject` anchored from the name's right + 8 to the
+  figure's left − 8, 3 px above the baseline, so `setValue` moves only the figure's left
+  edge and the leader gives way; every figure is right-anchored to the row (or to its
+  rate), so the figures share one right edge down the ledger. A name that leaves under
+  24 px of leader is a content error and logs one warning. Tones colour the mark (`coin`,
+  `guild` ochre; `relic` gold-edge, figure too); `muted` greys the mark, name and figure,
+  and **state beats tone**: a muted relic is `ledger.figure.muted`, not gold. **A row never
+  earned this life is never added**: the scene adds it (`addRow`, in the order of first
+  earning; an unknown group is appended with the label given) and may `removeRow` it.
+  Fed: `setValue`, `setRate` (`""` removes), `setMuted`. In a file the groups hold rows,
+  so they are **child kinds**: `ResourceLedger > LedgerGroup (id, label) > LedgerRow`
+  (`id`, `glyph`, `label`, `value`, `rate`, `tone`, `muted`, `glossKey`). Neither builds
+  anything of its own; each adds to the ledger it is nested in. Elements: `ledger.group`,
+  `ledger.mark` (`.coin`, `.guild`, `.relic`, `.muted`), `ledger.name` (`.muted`),
+  `ledger.leader`, `ledger.figure` (`.relic`, `.muted`), `ledger.rate` (`.loss`).
+
 ## Patterns
 
 - **State component + System + event-driven tests.** A stateful, input-receiving
