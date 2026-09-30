@@ -225,6 +225,24 @@ come from `rules/*.pg` through the scene, never from the component.
   rows to the body and **scrolls** (mouse wheel, and a thumb on the right edge,
   `activity.scroll`); rows out of view take no hover and no click.
 
+- **WindowMeter** (`UI/windowmeter.h`) - a door that closes: an age-limited chance, how
+  much of it is spent, and what still fits inside it. The head: the `gate` mark (S16) and
+  the name in `tab` at the left, the age range (`"16–22"`, en dash, `control`,
+  `ink-muted`) at the right on the name's baseline; the name elides in the room the range
+  leaves. Under it a small `ProgressRule` (6 px, no nib) filled by
+  `(age − from) / (to − from)`, clamped, and the note that does the work (`tick`, wrapped
+  at the meter's width; a second line grows the root, 38 + note height). **The note is in
+  attempts, never percentages** (*"Open 22 more months. One attempt fits; two do not."*),
+  and it is the scene's string: `windows.pg` counts the attempts from the activity's
+  months. **Three states, each an element suffix** on the name, the mark and the note:
+  upcoming (`.upcoming`: ink name, verdigris note naming the entry requirement), open (no
+  suffix: ochre name and mark, `status-time` note) and closed (`.closed`: all
+  `state-locked`, the mark a **`cross`**, back to `gate` when it leaves Closed). A closed
+  meter stays fully legible and on the screen for the rest of the life. The meter never
+  decides its own state: `setAge`, `setState`, `setNote` and `setRange` are fed by the
+  scene. Elements: `window.name`, `window.mark`, `window.note` (each `.upcoming`,
+  `.closed`), `window.range`.
+
 ## Patterns
 
 - **State component + System + event-driven tests.** A stateful, input-receiving

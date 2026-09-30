@@ -19,7 +19,7 @@ One file holds one root node. A node is a map:
 
 | key | meaning |
 |---|---|
-| `kind` | the factory: `Label`, `Mark`, `MarkedLabel`, `Ornament`, `Panel`, `Button`, `Tabs`, `Gloss`, `ProgressRule`, `StatLine`, `RequirementList`, `LifeClock`, `ActivityRow`, `ActivityList`, `ActivityGroup`, or the engine's `Shape2D`, `Texture`, `TTFText`, `Layout:Vertical`, `Layout:Horizontal`. Omitted: a bare container (its children keep their own `x` / `y`). |
+| `kind` | the factory: `Label`, `Mark`, `MarkedLabel`, `Ornament`, `Panel`, `Button`, `Tabs`, `Gloss`, `ProgressRule`, `StatLine`, `RequirementList`, `LifeClock`, `ActivityRow`, `ActivityList`, `ActivityGroup`, `WindowMeter`, or the engine's `Shape2D`, `Texture`, `TTFText`, `Layout:Vertical`, `Layout:Horizontal`. Omitted: a bare container (its children keep their own `x` / `y`). |
 | `name` | registers the entity on the enclosing prefab (`getEntity(name)`), which also reaches the piece's helpers. |
 | `x`, `y` | places the node (useful on roots and on children of a bare container). |
 | `anchors` | list of `{side, target, targetSide?, margin?}`; `target` is `main`, `parent`, a sibling's name or a globally named entity; sides are the `AnchorType` names, any case. |
@@ -38,7 +38,8 @@ comment.
   `variant: seal`, `weight: hair`, `tone: gold`, `corner: tl`, `gloss: tooltip`.
 - Where the spec field is itself called `kind`, the prop is renamed: `ornament: divider`
   and `gloss: margin`. `size: 16` picks a `MarkSize`. `name` is the node's handle, so an
-  `ActivityRow`'s display name is `label: Train at the yard`.
+  `ActivityRow`'s display name is `label: Train at the yard`, and a `WindowMeter`'s is
+  `label: Squire`. `WindowMeter.state` is `upcoming`, `open` or `closed`.
 - Colours are token names (`ink-muted`, `status-gain`); an unknown token is logged and
   the default kept. Numeric props also take a spacing token: `gap: space-2`.
 - **Panel** hands `width: innerWidth` and `z: contentZ` (default `z + 10`) down to its

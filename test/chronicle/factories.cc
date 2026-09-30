@@ -16,6 +16,7 @@
 #include "UI/requirementlist.h"
 #include "UI/lifeclock.h"
 #include "UI/activityrow.h"
+#include "UI/windowmeter.h"
 #include "UI/gloss.h"
 #include "Core/motion.h"
 
@@ -135,7 +136,7 @@ namespace pg
             for (const auto& kind : chronicleKinds())
                 EXPECT_TRUE(f.registry->hasFactory(kind)) << kind;
 
-            EXPECT_EQ(chronicleKinds().size(), 15u);
+            EXPECT_EQ(chronicleKinds().size(), 16u);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -652,6 +653,106 @@ namespace pg
             f.settle();
 
             EXPECT_NEAR(panelEnt->get<PositionComponent>()->height, idle, 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(chronicle_factories_test, window_meter_maps_props)
+        {
+            FactoriesFixture f;
+
+            NodeSpec page = node("", "page");
+            page.children.push_back(node("WindowMeter", "squire", {{"label", "Squire"}, {"from", 16}, {"to", 22}, {"age", 20.2f},
+                {"state", "closed"}, {"note", "Open 22 more months. One attempt fits; two do not."}, {"width", 300.0f}, {"z", 30}}));
+
+            EntityRef root = buildTree(&f.ecs, page);
+            EntityRef meterEnt = root->get<Prefab>()->getEntity("squire");
+            ASSERT_FALSE(meterEnt.empty());
+            ASSERT_TRUE(meterEnt->has<WindowMeter>());
+
+            const WindowMeterSpec& spec = meterEnt->get<WindowMeter>()->spec;
+            EXPECT_EQ(spec.name, "Squire");
+            EXPECT_FLOAT_EQ(spec.from, 16.0f);
+            EXPECT_FLOAT_EQ(spec.to, 22.0f);
+            EXPECT_FLOAT_EQ(spec.age, 20.2f);
+            EXPECT_EQ(spec.state, WindowState::Closed);
+            EXPECT_EQ(spec.note, "Open 22 more months. One attempt fits; two do not.");
+            EXPECT_FLOAT_EQ(spec.width, 300.0f);
+            EXPECT_EQ(spec.z, 30);
+            EXPECT_EQ(meterEnt->get<WindowMeter>()->mark.spec.name, "cross");
+
+            auto prefab = meterEnt->get<Prefab>();
+            EXPECT_TRUE(prefab->hasHelper("setAge"));
+            EXPECT_TRUE(prefab->hasHelper("setState"));
+            EXPECT_TRUE(prefab->hasHelper("setNote"));
+            EXPECT_TRUE(prefab->hasHelper("setRange"));
+
+            prefab->callHelper("setState", WindowState::Open);
+            EXPECT_EQ(meterEnt->get<WindowMeter>()->spec.state, WindowState::Open);
+            EXPECT_EQ(meterEnt->get<WindowMeter>()->mark.spec.name, "gate");
+
+            // The file builds the same meter.
+            std::vector<std::string> errors;
+            PrefabLoadOptions options;
+            options.errors = &errors;
+
+            auto fileSpec = loadNodeSpec(&f.ecs, "ui/windowmeter.yaml", options);
+            ASSERT_TRUE(fileSpec.has_value());
+            EXPECT_TRUE(errors.empty());
+
+            EntityRef fileRoot = buildTree(&f.ecs, *fileSpec);
+            EntityRef fileMeter = fileRoot->get<Prefab>()->getEntity("choir");
+            ASSERT_FALSE(fileMeter.empty());
+            ASSERT_TRUE(fileMeter->has<WindowMeter>());
+
+            const WindowMeterSpec& fromFile = fileMeter->get<WindowMeter>()->spec;
+            EXPECT_EQ(fromFile.name, "Choir");
+            EXPECT_FLOAT_EQ(fromFile.from, 9.0f);
+            EXPECT_FLOAT_EQ(fromFile.to, 13.0f);
+            EXPECT_FLOAT_EQ(fromFile.age, 17.4f);
+            EXPECT_EQ(fromFile.state, WindowState::Closed);
+            EXPECT_EQ(fromFile.note, "The choir took boys until 13. That door is shut.");
+            EXPECT_EQ(fromFile.glossKey, "window.choir");
+            EXPECT_FLOAT_EQ(fromFile.width, 320.0f);
+            EXPECT_EQ(fromFile.z, 30);
+            EXPECT_FLOAT_EQ(fileMeter->get<WindowMeter>()->rule.shown, 100.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        TEST(chronicle_factories_test, window_meter_in_a_panel_grows_the_panel)
+        {
+            FactoriesFixture f;
+
+            NodeSpec meter = node("WindowMeter", "squire", {{"label", "Squire"}, {"age", 20.2f}, {"note", "Open 22 more months."}});
+
+            NodeSpec panel = node("Panel", "doors", {{"width", 320.0f}, {"heading", "Doors that close"}, {"glyph", "gate"}});
+            panel.children = {meter};
+
+            NodeSpec page = node("", "page");
+            page.children = {panel};
+
+            EntityRef root = buildTree(&f.ecs, page);
+            ASSERT_FALSE(root.empty());
+
+            f.settle();
+            f.settle();
+
+            EntityRef panelEnt = root->get<Prefab>()->findEntity("doors");
+            EntityRef meterEnt = root->get<Prefab>()->findEntity("squire");
+            ASSERT_FALSE(panelEnt.empty());
+            ASSERT_FALSE(meterEnt.empty());
+            ASSERT_TRUE(meterEnt->has<WindowMeter>());
+
+            // The panel's inner width came down to the meter
+            EXPECT_FLOAT_EQ(meterEnt->get<PositionComponent>()->width, 288.0f);
+
+            const float oneLine = panelEnt->get<PositionComponent>()->height;
+
+            meterEnt->get<WindowMeter>()->setNote(&f.ecs, "Open 22 more months. One attempt fits; two do not. The Guild writes again when you are 19.");
+            f.settle();
+            f.settle();
+            f.settle();
+
+            EXPECT_NEAR(panelEnt->get<PositionComponent>()->height, oneLine + 16.0f, 0.5f);
         }
     }
 }

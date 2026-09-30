@@ -1,0 +1,13 @@
+kind: WindowMeter
+name: choir
+x: 10
+y: 20
+label: Choir
+from: 9
+to: 13
+age: 17.4
+state: closed
+note: The choir took boys until 13. That door is shut.
+glossKey: window.choir
+width: 320
+z: 30

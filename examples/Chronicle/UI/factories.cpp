@@ -22,6 +22,7 @@
 #include "requirementlist.h"
 #include "lifeclock.h"
 #include "activityrow.h"
+#include "windowmeter.h"
 
 using namespace pg;
 
@@ -64,6 +65,8 @@ namespace pg
     template <> chronicle::RequirementList deserialize(const UnserializedObject&) { return chronicle::RequirementList{}; }
     template <> void serialize(Archive& archive, const chronicle::LifeClock& value) { (void)value; serializeEmptyPiece<chronicle::LifeClock>(archive, "LifeClock"); }
     template <> chronicle::LifeClock deserialize(const UnserializedObject&) { return chronicle::LifeClock{}; }
+    template <> void serialize(Archive& archive, const chronicle::WindowMeter& value) { (void)value; serializeEmptyPiece<chronicle::WindowMeter>(archive, "WindowMeter"); }
+    template <> chronicle::WindowMeter deserialize(const UnserializedObject&) { return chronicle::WindowMeter{}; }
 }
 
 namespace chronicle
@@ -285,6 +288,7 @@ namespace chronicle
             ecs->registerFlagComponent<StatLine>();
             ecs->registerFlagComponent<RequirementList>();
             ecs->registerFlagComponent<LifeClock>();
+            ecs->registerFlagComponent<WindowMeter>();
             registerActivityComponents(ecs);   // Guarded: makeActivityRow registers them too
         }
 
@@ -913,6 +917,50 @@ namespace chronicle
                     return leaf(makeActivityHeading(ecs, label, width, z));
                 }});
         }
+
+        void registerWindowMeter(PrefabFactoryRegistry* registry)
+        {
+            ParamSchema schema;
+            schema.entries = {
+                {"label",    "Squire"},   // the display name: `name` is the node's handle
+                {"from",     16.0f},
+                {"to",       22.0f},
+                {"age",      7.0f},
+                {"state",    "open"},
+                {"note",     ""},
+                {"glossKey", ""},
+                {"width",    288.0f},
+                {"z",        20},
+            };
+
+            static const std::vector<std::pair<std::string, WindowState>> STATE = {
+                {"upcoming", WindowState::Upcoming}, {"open", WindowState::Open}, {"closed", WindowState::Closed},
+            };
+
+            registry->registerFactory("WindowMeter", std::move(schema),
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
+                {
+                    auto theme = ecs->getSystem<ThemeSystem>();
+                    WindowMeterSpec s;
+                    s.name     = stringProp(spec.props, "label", s.name);
+                    s.from     = getParamFloat(spec.props, "from", s.from);
+                    s.to       = getParamFloat(spec.props, "to", s.to);
+                    s.age      = getParamFloat(spec.props, "age", s.age);
+                    s.state    = enumProp(spec.props, "state", STATE, s.state);
+                    s.note     = stringProp(spec.props, "note", s.note);
+                    s.glossKey = stringProp(spec.props, "glossKey", s.glossKey);
+                    s.width    = numberProp(spec.props, "width", theme, s.width);
+                    s.z        = getParamInt(spec.props, "z", s.z);
+
+                    WindowMeter meter = makeWindowMeter(ecs, s);
+                    auto prefab = meter.root->get<Prefab>();
+                    prefab->addHelper("setAge", [](Prefab* p, float age, bool animate) { if (auto piece = pieceOf<WindowMeter>(p)) piece->setAge(p->ecsRef, age, animate); });
+                    prefab->addHelper("setState", [](Prefab* p, WindowState state) { if (auto piece = pieceOf<WindowMeter>(p)) piece->setState(p->ecsRef, state); });
+                    prefab->addHelper("setNote", [](Prefab* p, const std::string& text) { if (auto piece = pieceOf<WindowMeter>(p)) piece->setNote(p->ecsRef, text); });
+                    prefab->addHelper("setRange", [](Prefab* p, float from, float to) { if (auto piece = pieceOf<WindowMeter>(p)) piece->setRange(p->ecsRef, from, to); });
+                    return leaf(keep(ecs, meter.root, std::move(meter)));
+                }});
+        }
     }
 
     const std::vector<std::string>& chronicleKinds()
@@ -920,7 +968,7 @@ namespace chronicle
         static const std::vector<std::string> kinds = {
             "Label", "Mark", "MarkedLabel", "Ornament", "Panel", "Button",
             "Tabs", "Gloss", "ProgressRule", "StatLine", "RequirementList", "LifeClock",
-            "ActivityRow", "ActivityList", "ActivityGroup",
+            "ActivityRow", "ActivityList", "ActivityGroup", "WindowMeter",
         };
 
         return kinds;
@@ -952,5 +1000,6 @@ namespace chronicle
         registerActivityRow(registry);
         registerActivityList(registry);
         registerActivityGroup(registry);
+        registerWindowMeter(registry);
     }
 }
