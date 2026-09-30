@@ -945,6 +945,9 @@ namespace pg
          */
         void setupScrollBarInteraction(EntityRef scrollBarEntity, _unique_id layoutId, bool isVertical);
 
+        /// @brief Drops a removed layout from the queued updates (and ends a drag it was taking).
+        void forgetLayout(_unique_id id);
+
         std::set<EntityRef> layoutUpdate;    ///< Layouts that need position recalculation this frame
 
         /// @brief The press a dragToScroll layout took, and whether it has become a drag.

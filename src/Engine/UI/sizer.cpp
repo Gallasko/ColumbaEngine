@@ -43,6 +43,10 @@ namespace pg
                 entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
         });
 
+        // A layout removed while an update of it is queued (a scene left, a list cleared) is
+        // forgotten: its queued update would reach an entity that is gone.
+        vGroup->removeOfGroup([this](EntitySystem*, _unique_id id) { forgetLayout(id); });
+
         auto vClippedGroup = registerGroup<PositionComponent, VerticalLayout, ClippedTo>();
 
         vClippedGroup->addOnGroup([](EntityRef entity) {
@@ -87,6 +91,8 @@ namespace pg
             if (hLayout->scrollable)
                 entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
         });
+
+        hGroup->removeOfGroup([this](EntitySystem*, _unique_id id) { forgetLayout(id); });
 
         auto hClippedGroup = registerGroup<PositionComponent, HorizontalLayout, ClippedTo>();
 
@@ -296,11 +302,22 @@ namespace pg
             dragScroll = DragScroll{};
     }
 
+    void LayoutSystem::forgetLayout(_unique_id id)
+    {
+        auto it = std::find_if(layoutUpdate.begin(), layoutUpdate.end(), [id](const EntityRef& ent) { return ent.id == id; });
+
+        if (it != layoutUpdate.end())
+            layoutUpdate.erase(it);
+
+        if (dragScroll.layoutId == id)
+            dragScroll = DragScroll{};
+    }
+
     void LayoutSystem::execute()
     {
         for (auto ent : layoutUpdate)
         {
-            if (not ent->has<PositionComponent>())
+            if (ent.empty() or not ent->has<PositionComponent>())
                 continue;
 
             if (ent->has<HorizontalLayout>())
@@ -691,7 +708,10 @@ namespace pg
 
         if (it != entitiesInLayout.end())
         {
-            layoutUpdate.insert(ecsRef->getEntity(it->second));
+            // The child may outlive its layout by a frame (the layout was removed first)
+            if (auto layout = ecsRef->getEntity(it->second))
+                layoutUpdate.insert(layout);
+
             return;
         }
     }

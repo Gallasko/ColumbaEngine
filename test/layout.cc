@@ -838,6 +838,55 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A layout removed while an update of it is queued (a scene left, a list cleared, in the
+        // frame something moved in it) is forgotten, not recalculated.
+        TEST(layout_test, layout_removed_with_an_update_pending)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<LayoutSystem>();
+            ecs.succeed<PositionComponentSystem, LayoutSystem>();
+
+            std::vector<EntityRef> layouts;
+
+            for (int n = 0; n < 3; ++n)
+            {
+                auto list = makeVerticalLayout(&ecs, 0.0f, 0.0f, 100.0f, 300.0f, true);
+
+                for (int i = 0; i < 5; ++i)
+                {
+                    auto row = ecs.createEntity();
+                    ecs.attach<PositionComponent>(row)->setHeight(20.0f);
+                    ecs.attach<UiAnchor>(row);
+                    list.get<VerticalLayout>()->addEntity(row);
+                }
+
+                layouts.push_back(list.entity);
+            }
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            // Something moves in each list, then the lists go, all in one frame
+            for (auto& layout : layouts)
+            {
+                layout->get<PositionComponent>()->setY(10.0f);
+                ecs.removeEntity(layout);
+            }
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            for (auto& layout : layouts)
+                EXPECT_EQ(ecs.getEntity(layout.id), nullptr);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A prefab container follows the height of its main entity through a constraint, so the
         // resize reaches the layout as a settled position, not as a setter call
         TEST(layout_test, restacks_when_a_constraint_resizes_a_child)
