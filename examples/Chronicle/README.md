@@ -382,8 +382,12 @@ all tested (133 `test_chronicle` + engine `t1` green):
 
 ## The Life scene
 
-`Scenes/lifescene.h`. The page is `res/chronicle/ui/life.yaml`, built as it is: head,
-tabs, three columns (320 / 556 / 300) of panels anchored 16 apart. The scene does the
+`Scenes/lifescene.h`. The page is `res/chronicle/ui/life.yaml`, built as it is: the head
+(title, what he is and where he comes from, the year line, the age), the tabs, and three
+columns of panels anchored 16 apart. Left (320): his parts and skills in one panel, then
+what he holds. Middle (496): the choice alone, *What Aldren may do*, every row on one ground
+(`stripes: false`) so the only tint is the hover's and the only edge the selection's. Right
+(360): the years (the clock and the doors), the work at hand, the log. The scene does the
 three things a file cannot. In `startUp` it runs the rules and the save and fills the
 rows only they know: the ledgers, the activity lists, the log, the clock's ticks and bands.
 In `wire()`, the one function with every subscription, it subscribes each widget to a

@@ -171,12 +171,11 @@ namespace pg
             };
 
             const char* const Names[] = {
-                "title", "subtitle", "age", "ageNote", "tabs",
-                "who", "portrait", "name", "profession", "origin",
-                "holds", "ledger", "parts", "str", "dex", "int", "vit",
-                "clockPanel", "clock", "doors", "window.ruins", "window.tourney",
-                "working", "running", "may", "activities",
-                "happened", "log", "scribe", "skillsPanel", "skills",
+                "title", "about", "subtitle", "age", "ageNote", "tabs",
+                "parts", "str", "dex", "int", "vit", "skills", "holds", "ledger",
+                "may", "activities",
+                "clockPanel", "clock", "window.ruins", "window.tourney",
+                "working", "running", "happened", "log",
             };
 
             struct Box
@@ -205,11 +204,12 @@ namespace pg
                 return Box{p->x, p->y, p->x + p->width, p->y + p->height};
             };
 
-            // Three columns, side by side, panels stacked without overlapping, on a 1020 page
+            // Three columns, side by side, panels stacked without overlapping, on a 1020 page: his
+            // parts and holdings, the choice alone, the years and the work and the log
             const std::vector<std::vector<const char*>> columns = {
-                {"who", "holds", "parts"},
-                {"clockPanel", "doors", "working", "may"},
-                {"happened", "scribe", "skillsPanel"},
+                {"parts", "holds"},
+                {"may"},
+                {"clockPanel", "working", "happened"},
             };
 
             float columnRight = 0.0f;
@@ -235,10 +235,25 @@ namespace pg
                 columnRight = right;
             }
 
-            EXPECT_NEAR(box("who").left, 48.0f, 0.5f);
-            EXPECT_NEAR(box("clockPanel").left, 392.0f, 0.5f);
-            EXPECT_NEAR(box("happened").left, 972.0f, 0.5f);
-            EXPECT_NEAR(box("holds").top, box("who").bottom + 16.0f, 0.5f);
+            EXPECT_NEAR(box("parts").left, 48.0f, 0.5f);
+            EXPECT_NEAR(box("may").left, 392.0f, 0.5f);
+            EXPECT_NEAR(box("clockPanel").left, 912.0f, 0.5f);
+            EXPECT_NEAR(box("holds").top, box("parts").bottom + 16.0f, 0.5f);
+            EXPECT_NEAR(box("working").top, box("clockPanel").bottom + 16.0f, 0.5f);
+
+            // The head: what he is, between the title and the year
+            EXPECT_EQ(life->piece<Label>("about")->spec.text, "Apprentice at the Bellmoor Guild \xC2\xB7 Second son of the miller, born at the mill on the Bell.");
+
+            // One ground for every row of the choice
+            for (const auto& group : life->piece<ActivityList>("activities")->spec.groups)
+            {
+                for (const auto& row : group.rows)
+                {
+                    ActivityRow* r = life->piece<ActivityList>("activities")->row(&f.ecs, row.id);
+                    ASSERT_NE(r, nullptr);
+                    EXPECT_FALSE(r->root->get<ActivityRowState>()->stripe) << row.id;
+                }
+            }
         }
 
         // ----------------------------------------------------------------------------------------

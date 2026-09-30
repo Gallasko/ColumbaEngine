@@ -861,6 +861,7 @@ namespace chronicle
 
         auto state = ecs->attach<ActivityListState>(root.entity);
         state->id = spec.id;
+        state->stripes = spec.stripes;
 
         // Body: the rows stack here. With a height it keeps it, clips its rows and scrolls.
         auto body = makeVerticalLayout(ecs, 0.0f, 0.0f, W, H, scrolls);
@@ -1057,7 +1058,7 @@ namespace chronicle
             auto st = entity->get<ActivityRowState>();
 
             st->list = listRoot.id;
-            st->stripe = i % 2 == 1;
+            st->stripe = list->stripes and i % 2 == 1;
             st->last = i + 1 == rows.size();
 
             if (entity->has<ActivityRow>())

@@ -871,6 +871,7 @@ namespace chronicle
                 {"id",     "activities"},
                 {"width",  620.0f},
                 {"height", 0.0f},      // > 0: the list keeps that height and its rows scroll
+                {"stripes", true},     // false: every row on the same ground
                 {"z",      20},
             };
 
@@ -882,6 +883,7 @@ namespace chronicle
                     s.id     = stringProp(spec.props, "id", s.id);
                     s.width  = numberProp(spec.props, "width", theme, s.width);
                     s.height = numberProp(spec.props, "height", theme, s.height);
+                    s.stripes = getParamBool(spec.props, "stripes", s.stripes);
                     s.z      = getParamInt(spec.props, "z", s.z);
 
                     ActivityList list = makeActivityList(ecs, s);

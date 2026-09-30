@@ -49,7 +49,8 @@ comment.
   and `ActivityRow`s **side by side**: a group is a heading (`label`), and the rows that
   follow it, up to the next heading, are its rows. A group takes no children. The list
   stripes and owns its rows from the next frame. `height: 560` makes the list keep that
-  height and scroll its rows; without it the list is as tall as its rows.
+  height and scroll its rows; without it the list is as tall as its rows. `stripes: false` puts
+  every row on the same ground.
   `ActivityRow.state` is `idle`, `running` or `locked`; the events carry the list's `id`
   and the row's `id`. A row is reached by its `name`, or with `list->row(ecs, id)`.
 - **ResourceLedger** takes its groups as children: `LedgerGroup` nodes (`id`, `label` in caps)
@@ -100,7 +101,7 @@ children:
 
 | file | scene | what |
 |---|---|---|
-| `life.yaml` | `Chronicle` (the Life scene) | **the page**: the Life screen, head, tabs and three columns; the names are what `LifeScene::wire()` subscribes |
+| `life.yaml` | `Chronicle` (the Life scene) | **the page**: the Life screen, head, tabs and three columns (parts and holdings / the choice / the years, the work and the log); the names are what `LifeScene::wire()` subscribes |
 | `prefabgallery.yaml` | `Chronicle --dev PrefabFileGallery` | the reference page: one of every kind |
 | `clockgallery.yaml` | `Chronicle --dev ClockGallery` | four `LifeClock`s: the Life screen's, a first frame, an old age, a narrow one |
 | `activitygallery.yaml` | `Chronicle --dev ActivityGallery` | the Life screen's activity list in five groups, scrolling, and the side panel showing the activity at work or the one chosen |

@@ -153,6 +153,7 @@ namespace chronicle
         std::string id = "activities"; // Carried by the events
         float width = 620.0f;
         float height = 0.0f;           // 0 = as tall as its rows; > 0 = that tall, and the rows scroll
+        bool stripes = true;           // Alternate grounds like an account book; false: every row on the same ground
         std::vector<ActivityGroup> groups;
         int z = 20;                    // Root, body and rows; the scroll thumb z+6
     };
@@ -165,6 +166,7 @@ namespace chronicle
 
         std::string id;
         std::string selected;
+        bool stripes = true;
         std::vector<pg::_unique_id> rows;        // Row roots, in list order
         std::vector<pg::_unique_id> headings;    // Heading blocks, in list order
     };

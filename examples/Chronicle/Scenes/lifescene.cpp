@@ -367,22 +367,14 @@ namespace chronicle
                 clock->setNext(ecs, clock->spec.nextLabel, intOf(v));
         }));
 
-        // Who he is
+        // Who he is: the title, and under it what he is and where he comes from
         subs.push_back(router->on("character.name", [this, ecs](const ElementType& v) {
-            if (auto name = piece<MarkedLabel>("name"))
-                name->setText(ecs, v.toString());
-
             if (auto title = piece<Label>("title"))
                 title->setText(ecs, "The Chronicle of " + v.toString());
         }));
 
-        subs.push_back(router->on("character.profession", [this, ecs](const ElementType& v) {
-            if (auto label = piece<Label>("profession"))
-                label->setText(ecs, v.toString());
-        }));
-
-        subs.push_back(router->on("character.origin", [this, ecs](const ElementType& v) {
-            if (auto label = piece<Label>("origin"))
+        subs.push_back(router->on("character.about", [this, ecs](const ElementType& v) {
+            if (auto label = piece<Label>("about"))
                 label->setText(ecs, v.toString());
         }));
 
@@ -705,8 +697,7 @@ namespace chronicle
         setFact("life.age", save.age);
 
         setFact("character.name", save.name);
-        setFact("character.profession", save.profession);
-        setFact("character.origin", save.origin);
+        setFact("character.about", save.profession + " \xC2\xB7 " + save.origin);
 
         for (const auto& p : save.parts)
             setFact("character.parts." + p, save.stats[p]);

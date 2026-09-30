@@ -5,9 +5,10 @@
 # names, values and rows come from the save and the rules (examples/Chronicle/rules/*.pg) in the
 # scene's startUp, and the rows of the ledgers, the activity lists and the log are added there.
 #
-# Page 1320 wide: margins 48, three columns 320 / 556 / 300 with 24 between them, panels
+# Page 1320 wide: margins 48, three columns 320 / 496 / 360 with 24 between them, panels
 # stacked 16 apart (each anchored under the one above it, so a panel that grows pushes the
-# next one down). z: page 0, panels 10, their content 20.
+# next one down). The middle column is the choice alone: what he may do. z: page 0, panels 10,
+# their content 20.
 name: life
 children:
 
@@ -18,7 +19,7 @@ children:
     z: 0
     theme: scene.background
 
-  # ── Head ─────────────────────────────────────────────────────────────────────
+  # ── Head: who, how old, what he is ───────────────────────────────────────────
   - kind: Label
     name: title
     x: 48
@@ -27,9 +28,19 @@ children:
     text: The Chronicle of Aldren of Bellmoor
 
   - kind: Label
-    name: subtitle
+    name: about
     x: 48
     y: 70
+    style: gloss
+    color: ink-muted
+    overflow: ellipsis
+    width: 860
+    text: "Apprentice at the Bellmoor Guild · Second son of the miller, born at the mill on the Bell."
+
+  - kind: Label
+    name: subtitle
+    x: 48
+    y: 94
     style: label
     color: ink-muted
     text: "THE SEVENTEENTH YEAR · SPRING · BELLMOOR"
@@ -58,7 +69,7 @@ children:
   - kind: Tabs
     name: tabs
     x: 48
-    y: 94
+    y: 118
     tag: life.tabs
     items:
       - {label: Life, glyph: quill}
@@ -68,19 +79,23 @@ children:
       - {label: Adventure, glyph: adventure}
       - {label: Chronicle, glyph: study}
 
-  # ── Left: who he is, what he holds, his parts ────────────────────────────────
+  # ── Left: his parts and skills, what he holds ────────────────────────────────
   - kind: Panel
-    name: who
+    name: parts
     x: 48
-    y: 154
+    y: 178
     frame: ruled
     width: 320
+    heading: Parts
+    glyph: strength
     children:
-      # TODO phase 3: PortraitFrame
-      - {kind: Mark, name: portrait, glyph: equipment, size: 48, color: ink-muted}
-      - {kind: MarkedLabel, name: name, mark: seal, text: Aldren of Bellmoor, style: title}
-      - {kind: Label, name: profession, style: body-sm, color: ink-muted, overflow: wrap, text: "Apprentice at the Bellmoor Guild"}
-      - {kind: Label, name: origin, style: gloss, color: ink-muted, overflow: wrap, text: "Second son of the miller, born at the mill on the Bell."}
+      - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30}
+      - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30}
+      - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30}
+      - {kind: StatLine, name: vit, glossKey: parts/vit, label: Vitality, glyph: vitality, value: 12, max: 30}
+      - {kind: Ornament, ornament: divider, knot: false}
+      - kind: ResourceLedger
+        name: skills
 
   - kind: Panel
     name: holds
@@ -90,34 +105,36 @@ children:
     glyph: gold
     aside: LEDGER
     anchors:
-      - {side: top, target: who, targetSide: bottom, margin: 16}
-      - {side: left, target: who, targetSide: left}
+      - {side: top, target: parts, targetSide: bottom, margin: 16}
+      - {side: left, target: parts, targetSide: left}
     children:
       - kind: ResourceLedger
         name: ledger
 
+  # ── Middle: the choice ───────────────────────────────────────────────────────
   - kind: Panel
-    name: parts
+    name: may
+    x: 392
+    y: 178
     frame: ruled
-    width: 320
-    heading: Parts
-    glyph: strength
-    anchors:
-      - {side: top, target: holds, targetSide: bottom, margin: 16}
-      - {side: left, target: holds, targetSide: left}
+    width: 496
+    heading: What Aldren may do
+    glyph: town
+    aside: CHOOSE ONE
     children:
-      - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30}
-      - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30}
-      - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30}
-      - {kind: StatLine, name: vit, glossKey: parts/vit, label: Vitality, glyph: vitality, value: 12, max: 30}
+      - kind: ActivityList
+        name: activities
+        id: life.activities
+        height: 740
+        stripes: false        # one ground for every row: the tint is the hover's, the edge the selection's
 
-  # ── Middle: the clock, the doors, the work, the choice ───────────────────────
+  # ── Right: the years and their doors, the work at hand, what has happened ─────
   - kind: Panel
     name: clockPanel
-    x: 392
-    y: 154
+    x: 912
+    y: 178
     frame: ruled
-    width: 556
+    width: 360
     children:
       - kind: LifeClock
         name: clock
@@ -133,85 +150,36 @@ children:
           - {age: 25}
           - {age: 40}
           - {age: 43}
-
-  - kind: Panel
-    name: doors
-    frame: ruled
-    width: 556
-    heading: Doors that close
-    glyph: gate
-    anchors:
-      - {side: top, target: clockPanel, targetSide: bottom, margin: 16}
-      - {side: left, target: clockPanel, targetSide: left}
-    children:
       - {kind: WindowMeter, name: window.ruins, glossKey: window/ruins, label: The ruins at Harrow, from: 15, to: 19, age: 17.5, state: open, note: "Open 18 more months. Six attempts fit; seven do not."}
       - {kind: WindowMeter, name: window.tourney, glossKey: window/tourney, label: The spring tourney, from: 17, to: 21, age: 17.5, state: open, note: "Open 42 more months. Fourteen attempts fit; fifteen do not."}
 
   - kind: Panel
     name: working
     frame: ruled
-    width: 556
+    width: 360
     heading: At work now
     glyph: quill
     aside: RUNNING
     anchors:
-      - {side: top, target: doors, targetSide: bottom, margin: 16}
-      - {side: left, target: doors, targetSide: left}
+      - {side: top, target: clockPanel, targetSide: bottom, margin: 16}
+      - {side: left, target: clockPanel, targetSide: left}
     children:
       - kind: ActivityList
         name: running
         id: life.running
 
   - kind: Panel
-    name: may
+    name: happened
     frame: ruled
-    width: 556
-    heading: What Aldren may do
-    glyph: town
-    aside: CHOOSE ONE
+    width: 360
+    heading: What has happened
+    glyph: quill
+    aside: LOG
     anchors:
       - {side: top, target: working, targetSide: bottom, margin: 16}
       - {side: left, target: working, targetSide: left}
     children:
-      - kind: ActivityList
-        name: activities
-        id: life.activities
-        height: 240
-
-  # ── Right: what has happened, the scribe, the skills ─────────────────────────
-  - kind: Panel
-    name: happened
-    x: 972
-    y: 154
-    frame: ruled
-    width: 300
-    heading: What has happened
-    glyph: quill
-    aside: LOG
-    children:
       - kind: EventLog
         name: log
-        height: 440
+        height: 300
         footnote: THE CHRONICLE IS WRITTEN FROM THIS LOG
-
-  - kind: Gloss
-    name: scribe
-    gloss: margin
-    width: 300
-    text: "Seven months to the choosing. The keep will ask for strength before it asks for anything else."
-    anchors:
-      - {side: top, target: happened, targetSide: bottom, margin: 16}
-      - {side: left, target: happened, targetSide: left}
-
-  - kind: Panel
-    name: skillsPanel
-    frame: ruled
-    width: 300
-    heading: Skills
-    glyph: study
-    anchors:
-      - {side: top, target: scribe, targetSide: bottom, margin: 16}
-      - {side: left, target: scribe, targetSide: left}
-    children:
-      - kind: ResourceLedger
-        name: skills
