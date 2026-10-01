@@ -7,6 +7,14 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Changed
+- Achievements: `Achievement`, `AchievementReward` and `AchievementSys` live in `Systems/achievement.h`,
+  promoted from the GameOff example. An achievement is a list of `FactChecker` on the world facts and a list
+  of rewards (a `StandardEvent`, or `AddFact` / `IncreaseFact` / `RemoveFact`); unlocking sends the
+  `achievementUnlocked` event and the `<name>_unlocked` fact. New: `AchievementSys::clear()`, and an
+  achievement added with `addNewAchivement` that is already complete now sends its rewards and events like
+  any other. Migration: include `Systems/achievement.h` instead of the example's `achievement.h`. The
+  Chronicle example uses it for its deeds, next to tasks with limited uses, tasks that change with
+  repetition and holdings that produce or deplete each month (`examples/Chronicle/rules/`).
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written

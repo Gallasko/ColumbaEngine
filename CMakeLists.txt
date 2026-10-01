@@ -336,6 +336,7 @@ set(ENGINESOURCE
     src/Engine/Renderer/camera.cpp
     src/Engine/Scene/scenemanager.cpp
     src/Engine/Shader/shader.cpp
+    src/Engine/Systems/achievement.cpp
     src/Engine/Systems/coresystems.cpp
     src/Engine/Systems/gamefacts.cpp
     src/Engine/Systems/oneventcomponent.cpp
@@ -1109,7 +1110,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_include_directories(GameOff PUBLIC examples/GameOff)
 
         target_sources(GameOff PRIVATE
-            examples/GameOff/achievement.cpp
             examples/GameOff/application.cpp
             examples/GameOff/character.cpp
             examples/GameOff/characustomizationscene.cpp
@@ -1490,6 +1490,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_sources(t1 PRIVATE
             test/mocksentencesystem.h
             # test/sentencesystem.cc
+            test/achievement.cc
             test/collision2d.cc
             test/ecssystem.cc
             test/filemanager.cc
