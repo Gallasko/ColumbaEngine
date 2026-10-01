@@ -343,6 +343,12 @@ namespace
 
         if (leafEnt)
         {
+            // Depth: the main entity follows the container's z from here on, so the container
+            // takes the z the factory gave its leaf. Left at 0 it would flatten every node of the
+            // tree onto one depth.
+            if (leafEnt->has<PositionComponent>())
+                container.get<PositionComponent>()->setZ(leafEnt->get<PositionComponent>()->z);
+
             // Wire the leaf as the prefab's mainEntity (auto-anchored top-left of container,
             // container's size constrained to leaf size — see PrefabSystem::onEvent(SetMainEntityEvent)).
             prefab->setMainEntity(container.entity, leafEnt);

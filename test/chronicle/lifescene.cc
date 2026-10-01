@@ -12,6 +12,7 @@
 #include "Scenes/lifescene.h"
 #include "UI/factories.h"
 #include "UI/label.h"
+#include "UI/panel.h"
 #include "UI/mark.h"
 #include "UI/statline.h"
 #include "UI/lifeclock.h"
@@ -239,6 +240,18 @@ namespace pg
                 }
 
                 columnRight = right;
+            }
+
+            // The page under the panels, each panel's ground under what it holds
+            const float pageZ = f.pos(life->named("page"))->z;
+
+            for (const char* name : {"parts", "holds", "may", "clockPanel", "working", "happened"})
+            {
+                auto panel = life->piece<Panel>(name);
+                ASSERT_NE(panel, nullptr) << name;
+
+                EXPECT_GT(f.pos(panel->ground)->z, pageZ) << name;
+                EXPECT_GT(f.pos(panel->body)->z, f.pos(panel->ground)->z) << name;
             }
 
             EXPECT_NEAR(box("parts").left, 48.0f, 0.5f);

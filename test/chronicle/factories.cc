@@ -174,6 +174,11 @@ namespace pg
 
             f.settle();
 
+            // The bands hold once the anchors have settled: a node keeps the depth its factory gave it
+            EXPECT_FLOAT_EQ(p->get<PositionComponent>()->z, 10.0f);
+            EXPECT_FLOAT_EQ(l->get<PositionComponent>()->z, 20.0f);
+            EXPECT_FLOAT_EQ(r->get<PositionComponent>()->z, 20.0f);
+
             // Both went into the body layout, as Panel::addChild would have put them (addEntity
             // is event-driven, so the layout holds them after a frame).
             EntityRef body = p->get<Prefab>()->getEntity("body");

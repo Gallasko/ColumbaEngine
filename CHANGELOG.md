@@ -6,6 +6,12 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
+### Fixed
+- Prefab trees: a node keeps the z its factory gave it. The wrapping container was left at z 0 and its main
+  entity follows the container's z, so after the first frame every node of a built tree sat on one depth and
+  shapes of the same material drew in an arbitrary order (in Chronicle, the panel grounds vanished behind
+  the page).
+
 ### Changed
 - Achievements: `Achievement`, `AchievementReward` and `AchievementSys` live in `Systems/achievement.h`,
   promoted from the GameOff example. An achievement is a list of `FactChecker` on the world facts and a list
