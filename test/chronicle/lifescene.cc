@@ -39,6 +39,7 @@
 #include "UI/tooltip.h"
 #include "UI/focusable.h"
 #include "Systems/gamefacts.h"
+#include "Systems/achievement.h"
 #include "Systems/tween.h"
 #include "Systems/coresystems.h"
 #include "2D/simple2dobject.h"
@@ -69,6 +70,7 @@ namespace pg
                 ThemeSystem* theme = nullptr;
                 WorldFacts* facts = nullptr;
                 FactRouter* router = nullptr;
+                AchievementSys* achievements = nullptr;
                 SceneElementSystem* scenes = nullptr;
 
                 LifeFixture()
@@ -94,6 +96,10 @@ namespace pg
                     ecs.createSystem<TweenSystem>();
                     facts = createTestFacts(&ecs);
                     router = ecs.createSystem<FactRouter>();
+                    achievements = ecs.createSystem<AchievementSys>();
+                    ecs.getComponentRegistry()->unregisterSystemSave(achievements->getSystemName());
+                    achievements->clear();
+                    ecs.succeed<AchievementSys, WorldFacts>();
                     theme = ecs.createSystem<ThemeSystem>();
                     theme->loadTheme("chronicle/tokens.json", "fonts");
                     tip->setDefaultFont("body-sm");
@@ -451,6 +457,439 @@ namespace pg
             EXPECT_EQ(life->save.stats["haggle"], 2);
             EXPECT_EQ(list->row(&f.ecs, "guild.letter")->spec.state, ActivityState::Idle);
             EXPECT_EQ(life->piece<ResourceLedger>("skills")->row("haggle")->figure.spec.text, "2");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The yard raises Strength to 17: the keep still asks 18, and its row says 17 / 18.
+        TEST(lifescene_test, a_locked_row_follows_what_it_asks)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_EQ(list->row(&f.ecs, "train.squire")->spec.requirements[0].current, 15);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "train.yard"});
+            f.settle();
+
+            for (int i = 0; i < 6; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.settle();
+
+            auto row = list->row(&f.ecs, "train.squire");
+            ASSERT_NE(row, nullptr);
+
+            EXPECT_EQ(life->save.stats["str"], 17);
+            EXPECT_EQ(row->spec.state, ActivityState::Locked);
+            EXPECT_EQ(row->spec.requirements[0].current, 17);
+            EXPECT_EQ(row->spec.requirements[0].needed, 18);
+            ASSERT_TRUE(row->reqs.has_value());
+            EXPECT_EQ(row->reqs->rows[0].item.current, 17);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A fresh life shows no skill and holds nothing; the first coin and the first point of a
+        // skill each bring their row.
+        TEST(lifescene_test, first_earnings_get_their_rows)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            auto ledger = life->piece<ResourceLedger>("ledger");
+            auto skills = life->piece<ResourceLedger>("skills");
+            ASSERT_NE(ledger, nullptr);
+            ASSERT_NE(skills, nullptr);
+
+            EXPECT_EQ(ledger->row("coin"), nullptr);
+
+            for (const char* id : {"swd", "ride", "letters", "haggle"})
+                EXPECT_EQ(skills->row(id), nullptr) << id;
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "work.carters"});
+            f.settle();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.settle();
+
+            ASSERT_NE(ledger->row("coin"), nullptr);
+            EXPECT_EQ(ledger->row("coin")->figure.spec.text, "9");
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "guild.errands"});
+            f.settle();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.settle();
+
+            ASSERT_NE(skills->row("haggle"), nullptr);
+            EXPECT_EQ(skills->row("haggle")->figure.spec.text, "1");
+            EXPECT_EQ(skills->row("swd"), nullptr);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The forest is gone into once: its row leaves the list when the term ends.
+        TEST(lifescene_test, a_spent_activity_leaves_the_list)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(list->find(&f.ecs, "adventure.forest"), nullptr);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "adventure.forest"});
+            f.settle();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.settle();
+
+            EXPECT_EQ(life->save.running, "");
+            EXPECT_EQ(life->save.done["adventure.forest"], 1);
+            EXPECT_EQ(list->find(&f.ecs, "adventure.forest"), nullptr);
+            EXPECT_NE(list->find(&f.ecs, "train.yard"), nullptr);
+            EXPECT_EQ(f.fact<int>("done.adventure.forest"), 1);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Three terms at the yard: the row changes its rank and what it brings.
+        TEST(lifescene_test, repetition_upgrades_an_activity)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_EQ(list->row(&f.ecs, "train.yard")->spec.rank, "RANK 2");
+
+            life->save.done["train.yard"] = 2;
+            life->rules.done = life->save.terms();
+
+            const size_t logEntries = life->save.log.size();
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "train.yard"});
+            f.settle();
+
+            for (int i = 0; i < 6; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.settle();
+
+            auto row = list->row(&f.ecs, "train.yard");
+            ASSERT_NE(row, nullptr);
+
+            EXPECT_EQ(life->save.done["train.yard"], 3);
+            EXPECT_EQ(row->spec.rank, "RANK 3");
+            ASSERT_FALSE(row->spec.gains.empty());
+            EXPECT_EQ(row->spec.gains[0].amount, 3);
+
+            // The term's own line, and the step's
+            EXPECT_GE(life->save.log.size(), logEntries + 2);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The Guild's letter brings coin every month, and the ledger says at what rate.
+        TEST(lifescene_test, a_holding_produces_each_month)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            life->save.stats["letter"] = 1;
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["coin"], 414);
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["coin"], 416);
+
+            auto ledger = life->piece<ResourceLedger>("ledger");
+            ASSERT_NE(ledger, nullptr);
+            ASSERT_NE(ledger->row("coin"), nullptr);
+            ASSERT_NE(ledger->row("letter"), nullptr);
+
+            EXPECT_EQ(ledger->row("coin")->figure.spec.text, "416");
+            EXPECT_EQ(ledger->row("coin")->spec.rate, "+2 / mo");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Rations go down a month at a time; out of them, his Vitality pays.
+        TEST(lifescene_test, a_holding_runs_out)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto ledger = life->piece<ResourceLedger>("ledger");
+            ASSERT_NE(ledger, nullptr);
+            ASSERT_NE(ledger->row("rations"), nullptr);
+
+            life->save.stats["rations"] = 2;
+
+            const int vit = life->save.stats["vit"];
+            const size_t logEntries = life->save.log.size();
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["rations"], 1);
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "1");
+            EXPECT_EQ(life->save.log.size(), logEntries);
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["rations"], 0);
+            EXPECT_EQ(life->save.stats["vit"], vit);
+            ASSERT_EQ(life->save.log.size(), logEntries + 1);
+            EXPECT_EQ(life->save.log.back().kind, LogKind::Loss);
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["vit"], vit - 1);
+            EXPECT_EQ(life->save.log.size(), logEntries + 1);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The first coin of a fresh life is a deed: one line in the log, once, and it is kept.
+        TEST(lifescene_test, a_deed_is_reached_once)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            EXPECT_TRUE(life->save.achieved.empty());
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "work.carters"});
+            f.settle();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.frames(8);
+
+            ASSERT_EQ(life->save.achieved.size(), 1u);
+            EXPECT_EQ(life->save.achieved[0], "first.coin");
+
+            size_t lines = 0;
+
+            for (const auto& entry : life->save.log)
+            {
+                if (entry.text == "Held a coin of his own for the first time")
+                    ++lines;
+            }
+
+            EXPECT_EQ(lines, 1u);
+            EXPECT_EQ(life->piece<EventLog>("log")->size(), life->save.log.size());
+
+            // More coin: nothing more to reach
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "work.carters"});
+            f.settle();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.frames(8);
+
+            EXPECT_EQ(life->save.achieved.size(), 1u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A deed reached is in the save: the life loaded again does not reach it a second time.
+        TEST(lifescene_test, a_deed_survives_the_save)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const std::string path = "save/test_life_deeds.sz";
+            std::remove(path.c_str());
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+            opt.noSave = false;
+            opt.savePath = path;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "work.carters"});
+            f.settle();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.frames(8);
+
+            ASSERT_EQ(life->save.achieved.size(), 1u);
+            ASSERT_TRUE(life->saveNow());
+
+            const size_t writtenLog = life->save.log.size() - 1;   // saveNow's own line came after
+            const int coin = life->save.stats["coin"];
+
+            f.load<EmptyScene>();
+
+            opt.fresh = false;
+
+            LifeScene* again = f.life(opt);
+            ASSERT_NE(again, nullptr);
+
+            f.frames(8);
+
+            EXPECT_EQ(again->save.achieved.size(), 1u);
+            EXPECT_EQ(again->save.done["work.carters"], 1);
+            EXPECT_EQ(again->save.stats["coin"], coin);
+            EXPECT_EQ(again->save.log.size(), writtenLog);
+
+            std::remove(path.c_str());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Buying rations takes coin and no time: done on confirm, even while he is at work.
+        TEST(lifescene_test, an_activity_done_at_once)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(list->row(&f.ecs, "buy.rations"), nullptr);
+            EXPECT_EQ(list->row(&f.ecs, "buy.rations")->cost.spec.text, "NOW");
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "train.yard"});
+            f.settle();
+
+            const float age = life->save.age;
+            const int coin = life->save.stats["coin"];
+            const int rations = life->save.stats["rations"];
+            const size_t logEntries = life->save.log.size();
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "buy.rations"});
+            f.settle();
+
+            EXPECT_FLOAT_EQ(life->save.age, age);
+            EXPECT_EQ(life->save.running, "train.yard");
+            EXPECT_EQ(life->save.stats["coin"], coin - 5);
+            EXPECT_EQ(life->save.stats["rations"], rations + 6);
+            EXPECT_EQ(life->save.done["buy.rations"], 1);
+            EXPECT_EQ(life->save.log.size(), logEntries + 1);
+
+            auto ledger = life->piece<ResourceLedger>("ledger");
+            ASSERT_NE(ledger, nullptr);
+            EXPECT_EQ(ledger->row("coin")->figure.spec.text, std::to_string(coin - 5));
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, std::to_string(rations + 6));
+
+            // Still there to be done again
+            EXPECT_NE(list->find(&f.ecs, "buy.rations"), nullptr);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Without the coin it asks, the row is locked and confirming it does nothing.
+        TEST(lifescene_test, an_activity_he_cannot_pay)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            auto row = list->row(&f.ecs, "buy.rations");
+            ASSERT_NE(row, nullptr);
+            EXPECT_EQ(row->spec.state, ActivityState::Locked);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "buy.rations"});
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["coin"], 0);
+            EXPECT_EQ(life->save.stats["rations"], 0);
+            EXPECT_EQ(life->save.done.count("buy.rations"), 0u);
         }
 
         // ----------------------------------------------------------------------------------------

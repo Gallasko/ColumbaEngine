@@ -38,7 +38,7 @@ namespace chronicle
         std::string name;              // "Train at the yard"
         std::string glyph = "training";
         std::string rank;              // "" or "RANK 2" (caps)
-        int months = 1;
+        int months = 1;                // 0 = done at once: the cost reads "NOW"
         std::string each;              // "" or "AT THE YARD"
         std::vector<Gain> gains;       // Shown when Idle
         std::vector<Requirement> requirements;   // Shown when Locked, as a dense list

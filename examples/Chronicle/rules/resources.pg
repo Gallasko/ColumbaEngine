@@ -1,0 +1,132 @@
+// Chronicle rules: what he holds, and what a month does to it
+// ----------------------------------------------------------
+// Input:  `character` (a table of stats and flags).
+// Output: `month`:
+//           after    every stat of the character once one month has passed
+//           entries  [{text, kind, figure, glyph}]: the log lines that month writes
+//         `rows`, one table per holding the ledger can show, in the order it lists them:
+//           {id, group, groupLabel, glyph, name, tone, rate}
+//           tone: 0 none, 1 coin, 2 guild, 3 relic; rate: "" or "+2 / mo", what the coming
+//           month does to it as things stand.
+//
+// A holding is a stat with a place in the ledger. Optional fields:
+//   produces: [{stat, amount, per}]   while he holds it, every `per` of it brings `amount` of
+//                                     `stat` each month.
+//   decays: N                         it loses N each month, never below 0.
+//   empty: {effects [{stat, amount}], entry "text"}
+//                                     what running out costs: the entry is written the month it
+//                                     reaches 0, the effects land every month it stays there.
+//                                     A character who never held any is not out of it.
+//
+// The numbers are placeholders for the game's balance: change them here, nothing in C++ moves.
+
+import "string"
+import "math"
+import "algorithm"
+import "lib"
+
+var errors = []
+
+var holdings = [
+    {id: "coin", group: "purse", groupLabel: "PURSE", glyph: "gold", name: "Coin", tone: 1},
+    {id: "rations", group: "purse", groupLabel: "PURSE", glyph: "trade", name: "Rations", tone: 0,
+     decays: 1,
+     empty: {effects: [{stat: "vit", amount: -1}], entry: "The rations ran out"}},
+    {id: "letter", group: "standing", groupLabel: "STANDING", glyph: "seal", name: "The Guild's letter", tone: 2,
+     produces: [{stat: "coin", amount: 2, per: 1}]}
+]
+
+// Every stat as it is, then the month on top
+var after = {}
+
+for (var k : character)
+{
+    after[k] = character[k]
+}
+
+// What the month changes, by stat: the rates come from it
+var change = {}
+
+fun shiftStat(stat, amount)
+{
+    var now = lookup(after, stat, 0) + amount
+
+    if (now < 0)
+    {
+        amount = amount - now
+        now = 0
+    }
+
+    after[stat] = now
+    change[stat] = lookup(change, stat, 0) + amount
+}
+
+var entries = []
+
+for (var i = 0; i < len(holdings); i++)
+{
+    var h = holdings[i]
+    var held = statOf(character, h.id)
+
+    var produces = listOf(h, "produces")
+
+    for (var p = 0; p < len(produces); p++)
+    {
+        var product = produces[p]
+
+        if (product.per <= 0)
+        {
+            push(errors, "holding " + h.id + ": produces " + product.stat + " per " + toString(product.per))
+        }
+        else
+        {
+            var made = toInt(floor(held / product.per)) * product.amount
+
+            if (made != 0)
+            {
+                shiftStat(product.stat, made)
+            }
+        }
+    }
+
+    var decays = lookup(h, "decays", 0)
+
+    if (decays > 0 and has(character, h.id))
+    {
+        if (held > 0)
+        {
+            shiftStat(h.id, 0 - decays)
+
+            if (after[h.id] == 0 and has(h, "empty"))
+            {
+                push(entries, {text: h.empty.entry, kind: "loss", figure: "", glyph: h.glyph})
+            }
+        }
+        else if (has(h, "empty"))
+        {
+            for (var e = 0; e < len(h.empty.effects); e++)
+            {
+                var effect = h.empty.effects[e]
+                shiftStat(effect.stat, effect.amount)
+            }
+        }
+    }
+}
+
+var month = {after: after, entries: entries}
+
+var rows = []
+
+for (var j = 0; j < len(holdings); j++)
+{
+    var h = holdings[j]
+    var delta = lookup(change, h.id, 0)
+    var rate = ""
+
+    if (delta != 0)
+    {
+        rate = signed(delta) + " / mo"
+    }
+
+    push(rows, {id: h.id, group: h.group, groupLabel: h.groupLabel, glyph: h.glyph, name: h.name, tone: h.tone, rate: rate})
+}

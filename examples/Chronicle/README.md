@@ -342,12 +342,41 @@ nothing between runs because each run redefines everything it leaves.
 | script | inputs | outputs |
 |---|---|---|
 | `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup` |
-| `activities.pg` | - | `activities`: `{id, group, name, glyph, months, rank, each, path, gains[{stat, amount}], requires[{stat, needed}]}` |
+| `activities.pg` | `character`, `done` | `activities`: `{id, group, name, glyph, months, rank, each, path, gains[{stat, amount}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, after[step]}` |
 | `milestones.pg` | `age` | `milestones`: `{age, id, label, passed, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
-| `windows.pg` | `age`, `character` | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}` |
-| `forecast.pg` | `age`, `character`, `activityId`, `monthsIn` | `forecast`: `{atTerm{stats}, percent, months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
+| `windows.pg` | `age`, `character`, `done` | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}` |
+| `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atTerm{stats}, percent, months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
+| `resources.pg` | `character` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo")}` |
+| `achievements.pg` | - | `achievements`: `{id, name, entry, asks[{fact, op, value}], gives[{stat, amount}]}` |
 
-`Rules` loads the four once from a root (`examples/Chronicle/rules` from the repo root, where
+**Repetition** (`activities.pg`). `done` is the save's count of terms completed per activity.
+An activity may carry two optional fields:
+
+- `uses: N`: it can be done N times. `left` counts down and `spent` turns true at the last
+  one; the Life screen drops a spent activity from its list.
+- `after: [{uses: N, ...}]`: what repetition changes. `rank`, `months` and `gains` in a step
+  replace the activity's own once N terms are done (an upgrade). `effects [{stat, amount}]`
+  and `entry` happen once, at the term that makes it N (a trigger): `forecast.pg` adds the
+  effects to `atTerm` and the entry to `entries`.
+
+**Costs and things done at once** (`activities.pg`). `costs: [{stat, amount}]` is what an
+activity takes: it is listed in `requires` (he must hold that much, or the row is locked) and
+leaves with the gains, as a negative entry. `months: 0` is an activity done at once: confirming
+it applies it immediately, no month passes, and it can be done while another activity runs.
+Its row reads `NOW` where the others read their months.
+
+**Holdings** (`resources.pg`). A holding is a stat with a row in the ledger. `produces
+[{stat, amount, per}]` brings `amount` of `stat` every month for each `per` of it he holds;
+`decays: N` takes N from it every month, never below 0; `empty {effects, entry}` says what
+running out costs: the entry the month it reaches 0, the effects every month it stays there.
+The script runs once per month for `month.after`, and once per publish for the rows' rates.
+
+**Deeds** (`achievements.pg`). Each deed asks facts the Life scene publishes (`stat.<key>`,
+`done.<activity id>`, `life.age`) with an `op` of `>=`, `>`, `<=`, `<` or `==`. The scene hands
+them to the engine's `AchievementSys` (`src/Engine/Systems/achievement.h`); when one is
+reached the scene applies `gives`, writes `entry` in the log and keeps the id in the save.
+
+`Rules` loads them once from a root (`examples/Chronicle/rules` from the repo root, where
 the game runs; `rules` beside `test_chronicle`, where CMake copies them) and gives each a typed
 call. The forecast runs once per month tick, not per frame; `rules_test.timing_ceiling` keeps
 100 runs under 50 ms. The compiled `.pgc` files land beside the scripts and are git-ignored.
@@ -397,9 +426,13 @@ refused while one runs), a month passes. It computes nothing about the game: eve
 it writes is a script's output or the save's (`lifescene_test.no_scene_arithmetic` scans
 the source for it). A month: the age moves a twelfth, the running activity's forecast is
 re-run and written, and at term its `atTerm` becomes the character, its lines the log's,
-and the milestones, doors and locks are run again. `onLeave` drops every subscription and
-the page leaves with the scene. The save (`Scenes/lifesave.h`, `save/chronicle/life.sz`)
-holds the character, the life, what he holds and the log; nothing a script outputs is saved.
+and the milestones, doors and locks are run again. Before that, every month, `resources.pg`
+is run and its `month.after` becomes the character: what he holds produces or wastes
+whatever he is doing. A term ended also counts in the save's `done`, and the activity rows
+are rebuilt so a spent one leaves and an upgraded one shows what it has become. `onLeave`
+drops every subscription and the page leaves with the scene. The save (`Scenes/lifesave.h`,
+`save/chronicle/life.sz`) holds the character, the life, what he holds, the log, the terms
+done and the deeds reached; nothing a script outputs is saved.
 
 z on the page: page 0, panels 10, their content 20–59, tooltips 200.
 

@@ -7,6 +7,7 @@
 #endif
 
 #include <algorithm>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -22,6 +23,7 @@
 #include "UI/themesystem.h"
 #include "Systems/coresystems.h"
 #include "Systems/gamefacts.h"
+#include "Systems/achievement.h"
 
 #include "UI/label.h"
 #include "UI/mark.h"
@@ -104,6 +106,17 @@ namespace chronicle
             if (state == "locked")  return ActivityState::Locked;
 
             return ActivityState::Idle;
+        }
+
+        FactCheckEquality equalityOf(const std::string& op)
+        {
+            if (op == ">=") return FactCheckEquality::GreaterEqual;
+            if (op == ">")  return FactCheckEquality::Greater;
+            if (op == "<=") return FactCheckEquality::LesserEqual;
+            if (op == "<")  return FactCheckEquality::Lesser;
+            if (op == "==") return FactCheckEquality::Equal;
+
+            return FactCheckEquality::None;
         }
 
         WindowState windowStateOf(const std::string& state)
@@ -214,6 +227,14 @@ namespace chronicle
         listenToEvent<ActivityActivatedEvent>([this](const ActivityActivatedEvent& e) { onConfirm(e); });
         listenToEvent<TabSelectedEvent>([this](const TabSelectedEvent& e) { onTab(e); });
 
+        // A deed reached: taken in execute(), never while the facts are being handed around
+        listenToStandardEvent(AchievementUnlockEventName, [this](const StandardEvent& e) {
+            auto name = e.values.find("name");
+
+            if (name != e.values.end())
+                reached.push_back(name->second.toString());
+        });
+
         // The month loop: one month every opt.monthMs while it runs
         listenToEvent<TickEvent>([this](const TickEvent& e) {
             if (paused)
@@ -293,9 +314,16 @@ namespace chronicle
         else if (opt.noSave or not save.load(opt.savePath))
             save = firstLife();
 
+        rules.done = save.terms();
+
+        // A save from before the ledger followed the stats
+        refreshHoldings();
+        save.holdEarned(holdings);
+
         rebuild();
         wire();
         publish();
+        registerDeeds();
     }
 
     void LifeScene::onLeave()
@@ -307,10 +335,23 @@ namespace chronicle
         }
 
         subs.clear();
+
+        if (auto achievements = ecsRef->getSystem<AchievementSys>())
+            achievements->clear();
     }
 
     void LifeScene::execute()
     {
+        if (reached.empty())
+            return;
+
+        std::vector<std::string> ids;
+        ids.swap(reached);
+
+        for (const auto& id : ids)
+            reachDeed(id);
+
+        publish();
     }
 
     // ---- wire: every subscription, and nothing else -------------------------------------------------
@@ -398,10 +439,20 @@ namespace chronicle
                 line->setNote(ecs, v.toString());
         }));
 
-        // His skills: skills.<id>
+        // His skills: skills.<id>, shown once he has any of it
         subs.push_back(router->onPrefix("skills.", [this, ecs](const std::string& path, const ElementType& v) {
-            if (auto skills = piece<ResourceLedger>("skills"))
-                skills->setValue(ecs, path.substr(std::string("skills.").size()), v.toString());
+            auto skills = piece<ResourceLedger>("skills");
+
+            if (not skills)
+                return;
+
+            const std::string id = path.substr(std::string("skills.").size());
+            const bool shown = skills->row(id) != nullptr;
+
+            if (shown != (intOf(v) > 0))
+                fillSkills();
+            else if (shown)
+                skills->setValue(ecs, id, v.toString());
         }));
 
         // What he holds: resources.<id>.value, .rate, .muted
@@ -495,11 +546,28 @@ namespace chronicle
             }
         }));
 
-        // Each activity's state: activity.<id>.state
+        // Each activity's state and what it still asks: activity.<id>.state, .requirement.<n>
         subs.push_back(router->onPrefix("activity.", [this, ecs](const std::string& path, const ElementType& v) {
+            const std::string rest = path.substr(std::string("activity.").size());
+            const std::string asked = ".requirement.";
+            const size_t at = rest.rfind(asked);
+
+            if (at != std::string::npos)
+            {
+                auto list = piece<ActivityList>("activities");
+                auto row = list ? list->find(ecs, rest.substr(0, at)) : nullptr;
+                const size_t index = static_cast<size_t>(std::atoi(rest.substr(at + asked.size()).c_str()));
+
+                // A row that is no longer locked keeps the pair for the day it is again
+                if (row and index < row->spec.requirements.size())
+                    row->setRequirement(ecs, index, intOf(v), row->spec.requirements[index].needed);
+
+                return;
+            }
+
             std::string id, field;
 
-            if (not splitPath(path.substr(std::string("activity.").size()), {"state"}, id, field) or id == "running")
+            if (not splitPath(rest, {"state"}, id, field) or id == "running")
                 return;
 
             if (auto list = piece<ActivityList>("activities"))
@@ -556,41 +624,10 @@ namespace chronicle
             ledger->clear(ecs);
 
             for (const auto& r : save.resources)
-            {
-                ledger->addGroup(ecs, r.group, r.groupLabel);
-
-                auto stat = save.stats.find(r.id);
-
-                LedgerRowSpec row;
-                row.id = r.id;
-                row.glyph = r.glyph;
-                row.name = r.name;
-                row.value = stat != save.stats.end() ? std::to_string(stat->second) : r.value;
-                row.rate = r.rate;
-                row.tone = static_cast<LedgerTone>(r.tone);
-                row.muted = r.muted;
-
-                ledger->addRow(ecs, r.group, row, r.groupLabel);
-            }
+                addToLedger(r);
         }
 
-        if (auto skills = piece<ResourceLedger>("skills"))
-        {
-            skills->clear(ecs);
-
-            for (const auto& s : save.skills)
-            {
-                skills->addGroup(ecs, s.group, s.groupLabel);   // Unlabelled: no heading
-
-                LedgerRowSpec row;
-                row.id = s.id;
-                row.glyph = s.glyph;
-                row.name = s.name;
-                row.value = std::to_string(save.stats[s.id]);
-
-                skills->addRow(ecs, s.group, row, s.groupLabel);
-            }
-        }
+        fillSkills();
 
         if (auto log = piece<EventLog>("log"))
             log->clear(ecs);
@@ -630,51 +667,7 @@ namespace chronicle
                 clock->setWindows(ecs, bands);
         }
 
-        // The activities, grouped as the table orders them
-        if (rules.activities(save.character(), activities))
-        {
-            std::vector<ActivityGroup> groups;
-
-            for (const auto& a : activities)
-            {
-                const std::string group = textOf(a.fields, "group");
-
-                if (groups.empty() or groups.back().label != group)
-                    groups.push_back({group, {}});
-
-                ActivityRowSpec row;
-                row.id = textOf(a.fields, "id");
-                row.name = textOf(a.fields, "name");
-                row.glyph = textOf(a.fields, "glyph");
-                row.rank = textOf(a.fields, "rank");
-                row.each = textOf(a.fields, "each");
-                row.months = intOf(a.fields, "months");
-                row.state = boolOf(a.fields, "locked") ? ActivityState::Locked : ActivityState::Idle;
-                row.glossKey = "activity/" + row.id;
-
-                for (const auto& g : a.gains)
-                    row.gains.push_back({upper(textOf(g, "stat")), intOf(g, "amount")});
-
-                for (const auto& r : a.requires)
-                {
-                    Requirement req;
-                    req.label = textOf(r, "label");
-                    req.current = intOf(r, "current");
-                    req.needed = intOf(r, "needed");
-                    row.requirements.push_back(req);
-                }
-
-                groups.back().rows.push_back(row);
-            }
-
-            if (auto list = piece<ActivityList>("activities"))
-                list->setRows(ecs, groups);
-        }
-        else
-        {
-            for (const auto& e : rules.errors)
-                LOG_ERROR(DOM, e);
-        }
+        fillActivities();
 
         if (auto running = piece<ActivityList>("running"))
             running->setRows(ecs, {});
@@ -684,10 +677,209 @@ namespace chronicle
             named("window." + textOf(w, "id"));
     }
 
+    void LifeScene::fillActivities()
+    {
+        if (not rules.activities(save.character(), activities))
+        {
+            for (const auto& e : rules.errors)
+                LOG_ERROR(DOM, e);
+
+            return;
+        }
+
+        // Grouped as the table orders them; what he can no longer do is not listed
+        std::vector<ActivityGroup> groups;
+
+        for (const auto& a : activities)
+        {
+            if (boolOf(a.fields, "spent"))
+                continue;
+
+            const std::string group = textOf(a.fields, "group");
+
+            if (groups.empty() or groups.back().label != group)
+                groups.push_back({group, {}});
+
+            ActivityRowSpec row;
+            row.id = textOf(a.fields, "id");
+            row.name = textOf(a.fields, "name");
+            row.glyph = textOf(a.fields, "glyph");
+            row.rank = textOf(a.fields, "rank");
+            row.each = textOf(a.fields, "each");
+            row.months = intOf(a.fields, "months");
+            row.state = boolOf(a.fields, "locked") ? ActivityState::Locked : ActivityState::Idle;
+            row.glossKey = "activity/" + row.id;
+
+            for (const auto& g : a.gains)
+                row.gains.push_back({upper(textOf(g, "stat")), intOf(g, "amount")});
+
+            for (const auto& r : a.requires)
+            {
+                Requirement req;
+                req.label = textOf(r, "label");
+                req.current = intOf(r, "current");
+                req.needed = intOf(r, "needed");
+                row.requirements.push_back(req);
+            }
+
+            groups.back().rows.push_back(row);
+        }
+
+        if (auto list = piece<ActivityList>("activities"))
+            list->setRows(ecsRef, groups);
+    }
+
+    void LifeScene::refreshHoldings()
+    {
+        RuleMonth month;
+
+        if (rules.month(save.character(), month))
+        {
+            holdings = month.rows;
+            return;
+        }
+
+        for (const auto& e : rules.errors)
+            LOG_ERROR(DOM, e);
+    }
+
+    void LifeScene::registerDeeds()
+    {
+        auto achievements = ecsRef->getSystem<AchievementSys>();
+
+        if (not achievements)
+        {
+            LOG_ERROR(DOM, "No AchievementSys: no deed will be reached");
+            return;
+        }
+
+        achievements->clear();
+        reached.clear();
+
+        if (not rules.achievements(deeds))
+        {
+            for (const auto& e : rules.errors)
+                LOG_ERROR(DOM, e);
+
+            return;
+        }
+
+        for (const auto& deed : deeds)
+        {
+            const std::string id = textOf(deed.fields, "id");
+
+            if (std::find(save.achieved.begin(), save.achieved.end(), id) != save.achieved.end())
+                continue;
+
+            Achievement achievement;
+            achievement.name = id;
+
+            for (const auto& ask : deed.asks)
+            {
+                auto value = ask.find("value");
+
+                achievement.prerequisiteFacts.push_back(FactChecker(textOf(ask, "fact"), value == ask.end() ? ElementType{0} : value->second, equalityOf(textOf(ask, "op"))));
+            }
+
+            achievements->addNewAchivement(achievement);
+        }
+    }
+
+    void LifeScene::reachDeed(const std::string& id)
+    {
+        if (std::find(save.achieved.begin(), save.achieved.end(), id) != save.achieved.end())
+            return;
+
+        for (const auto& deed : deeds)
+        {
+            if (textOf(deed.fields, "id") != id)
+                continue;
+
+            save.achieved.push_back(id);
+
+            for (const auto& g : deed.gives)
+                save.stats[textOf(g, "stat")] += intOf(g, "amount");
+
+            save.log.push_back({save.age, textOf(deed.fields, "entry"), LogKind::Milestone, "", ""});
+
+            refreshHoldings();
+
+            for (const auto& r : save.holdEarned(holdings))
+                addToLedger(r);
+
+            return;
+        }
+    }
+
+    void LifeScene::takeStats(const ElementMap& stats)
+    {
+        for (const auto& [key, value] : stats)
+            save.stats[key] = intOf(value);
+    }
+
+    void LifeScene::writeEntries(const RecordList& entries)
+    {
+        for (const auto& e : entries)
+            save.log.push_back({save.age, textOf(e, "text"), kindOf(textOf(e, "kind")), textOf(e, "figure"), textOf(e, "glyph")});
+    }
+
+    void LifeScene::addToLedger(const LifeResource& resource)
+    {
+        auto ledger = piece<ResourceLedger>("ledger");
+
+        if (not ledger)
+            return;
+
+        ledger->addGroup(ecsRef, resource.group, resource.groupLabel);
+
+        auto stat = save.stats.find(resource.id);
+
+        LedgerRowSpec row;
+        row.id = resource.id;
+        row.glyph = resource.glyph;
+        row.name = resource.name;
+        row.value = stat != save.stats.end() ? std::to_string(stat->second) : resource.value;
+        row.rate = resource.rate;
+        row.tone = static_cast<LedgerTone>(resource.tone);
+        row.muted = resource.muted;
+
+        ledger->addRow(ecsRef, resource.group, row, resource.groupLabel);
+    }
+
+    void LifeScene::fillSkills()
+    {
+        auto skills = piece<ResourceLedger>("skills");
+
+        if (not skills)
+            return;
+
+        skills->clear(ecsRef);
+
+        // Rebuilt whole, so the skills keep the save's order whenever one appears
+        for (const auto& s : save.skills)
+        {
+            const int value = save.stats[s.id];
+
+            if (value <= 0)
+                continue;
+
+            skills->addGroup(ecsRef, s.group, s.groupLabel);   // Unlabelled: no heading
+
+            LedgerRowSpec row;
+            row.id = s.id;
+            row.glyph = s.glyph;
+            row.name = s.name;
+            row.value = std::to_string(value);
+
+            skills->addRow(ecsRef, s.group, row, s.groupLabel);
+        }
+    }
+
     // ---- publish: the save and the scripts to paths ------------------------------------------------------
 
     void LifeScene::publish()
     {
+        refreshHoldings();
         publishCharacter();
         publishRules();
     }
@@ -709,10 +901,23 @@ namespace chronicle
         {
             auto stat = save.stats.find(r.id);
 
+            // The rules' rate for what they follow, the save's own for the rest
+            std::string rate = r.rate;
+
+            for (const auto& h : holdings)
+            {
+                if (textOf(h, "id") == r.id)
+                    rate = textOf(h, "rate");
+            }
+
             setFact("resources." + r.id + ".value", stat != save.stats.end() ? std::to_string(stat->second) : r.value);
-            setFact("resources." + r.id + ".rate", r.rate);
+            setFact("resources." + r.id + ".rate", rate);
             setFact("resources." + r.id + ".muted", r.muted);
         }
+
+        // Every stat as a number, for what watches the life rather than shows it
+        for (const auto& [key, value] : save.stats)
+            setFact("stat." + key, value);
 
         setFact("log.size", static_cast<int>(save.log.size()));
 
@@ -803,7 +1008,16 @@ namespace chronicle
                 const std::string id = textOf(a.fields, "id");
                 const std::string state = id == save.running ? "running" : boolOf(a.fields, "locked") ? "locked" : "idle";
 
+                setFact("done." + id, intOf(a.fields, "done"));
+
+                // A spent activity has no row to tell
+                if (boolOf(a.fields, "spent"))
+                    continue;
+
                 setFact("activity." + id + ".state", state);
+
+                for (size_t i = 0; i < a.requires.size(); ++i)
+                    setFact("activity." + id + ".requirement." + std::to_string(i), intOf(a.requires[i], "current"));
             }
 
             glossActivities();
@@ -852,6 +1066,15 @@ namespace chronicle
         if (event.list != ActivitiesList)
             return;
 
+        // What takes no time is done now, whatever else he is at
+        RuleForecast forecast;
+
+        if (rules.forecast(save.age, save.character(), event.id, 0, forecast) and forecast.months <= 0)
+        {
+            doAtOnce(event.id, forecast);
+            return;
+        }
+
         if (not save.running.empty())
         {
             appendLog({save.age, "Already at work: " + activityName(save.running), LogKind::Note, "", ""});
@@ -870,6 +1093,60 @@ namespace chronicle
         setFact("activity." + event.id + ".state", std::string("running"));
 
         publishRunning();
+    }
+
+    void LifeScene::doAtOnce(const std::string& id, const RuleForecast& forecast)
+    {
+        // The row as it stands, to see whether doing it changes the row itself
+        std::string rank;
+        std::vector<int> amounts;
+
+        for (const auto& a : activities)
+        {
+            if (textOf(a.fields, "id") != id)
+                continue;
+
+            // The list refuses a locked row, a key or a script may not
+            if (boolOf(a.fields, "locked") or boolOf(a.fields, "spent"))
+                return;
+
+            rank = textOf(a.fields, "rank");
+
+            for (const auto& g : a.gains)
+                amounts.push_back(intOf(g, "amount"));
+        }
+
+        takeStats(forecast.atTerm);
+        writeEntries(forecast.entries);
+
+        ++save.done[id];
+        rules.done = save.terms();
+
+        refreshHoldings();
+
+        for (const auto& r : save.holdEarned(holdings))
+            addToLedger(r);
+
+        // Rebuilt only when it left or changed: the selection stays for the next time otherwise
+        bool changed = not rules.activities(save.character(), activities);
+
+        for (const auto& a : activities)
+        {
+            if (textOf(a.fields, "id") != id)
+                continue;
+
+            std::vector<int> now;
+
+            for (const auto& g : a.gains)
+                now.push_back(intOf(g, "amount"));
+
+            changed = changed or boolOf(a.fields, "spent") or textOf(a.fields, "rank") != rank or now != amounts;
+        }
+
+        if (changed)
+            fillActivities();
+
+        publish();
     }
 
     void LifeScene::onTab(const TabSelectedEvent& event)
@@ -895,6 +1172,20 @@ namespace chronicle
     {
         save.age += 1.0f / 12.0f;
 
+        // What he holds works or wastes, whatever he is doing
+        RuleMonth month;
+
+        if (rules.month(save.character(), month))
+        {
+            takeStats(month.after);
+            writeEntries(month.entries);
+        }
+        else
+        {
+            for (const auto& e : rules.errors)
+                LOG_ERROR(DOM, e);
+        }
+
         if (not save.running.empty())
         {
             ++save.monthsIn;
@@ -904,16 +1195,23 @@ namespace chronicle
             if (rules.forecast(save.age, save.character(), save.running, save.monthsIn, forecast) and save.monthsIn >= forecast.months)
             {
                 // At term: the forecast's numbers become the character's, its lines the log's
-                for (const auto& [key, value] : forecast.atTerm)
-                    save.stats[key] = intOf(value);
+                takeStats(forecast.atTerm);
+                writeEntries(forecast.entries);
 
-                for (const auto& e : forecast.entries)
-                    save.log.push_back({save.age, textOf(e, "text"), kindOf(textOf(e, "kind")), textOf(e, "figure"), textOf(e, "glyph")});
+                ++save.done[save.running];
+                rules.done = save.terms();
 
                 save.running.clear();
                 save.monthsIn = 0;
+
+                // One more term done: a row may have left, another may have changed
+                fillActivities();
             }
         }
+
+        // What he holds for the first time gets its row
+        for (const auto& r : save.holdEarned(month.rows))
+            addToLedger(r);
 
         publish();
     }
@@ -967,7 +1265,7 @@ namespace chronicle
         {
             GlossSpec gloss;
             gloss.title = textOf(a.fields, "name");
-            gloss.rows.push_back({"Time", std::to_string(intOf(a.fields, "months")) + " mo"});
+            gloss.rows.push_back({"Time", intOf(a.fields, "months") > 0 ? std::to_string(intOf(a.fields, "months")) + " mo" : std::string("At once")});
 
             for (const auto& g : a.gains)
                 gloss.rows.push_back({upper(textOf(g, "stat")) + " at term", signedText(intOf(g, "amount"))});
@@ -1051,7 +1349,10 @@ namespace chronicle
     {
         save = freshLife();
 
+        rules.done = save.terms();
+
         rebuild();
         publish();
+        registerDeeds();
     }
 }

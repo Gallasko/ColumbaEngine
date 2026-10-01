@@ -1,12 +1,30 @@
 // Chronicle rules: the activities
 // -------------------------------
-// Input:  `character` (a table of stats and flags; the table below needs none of it).
+// Input:  `character` (a table of stats and flags), `done` (a table: activity id -> the terms
+//         already completed; an activity never done has no key).
 // Output: `activities`, one table per thing the character may spend months doing, in the order
 //         the Life screen lists them:
 //           id, group, name, glyph, months, rank ("" or caps), each ("" or caps), path (the
 //           milestone path it leads toward, "" if none), gains [{stat, amount}] (at term),
 //           requires [{stat, label, current, needed}] (current: the character's),
-//           locked (true while a requirement is unmet).
+//           locked (true while a requirement is unmet),
+//           done (the terms completed), uses (0 = as often as he likes), left (-1 = no limit),
+//           spent (true once a limited activity has no use left: the screen drops it),
+//           after (its steps, as below).
+//
+// `months: 0` is an activity done at once: it takes no time, and can be done while another runs.
+//
+// Optional fields of an activity:
+//   costs: [{stat, amount}]
+//                    what it takes from him. He must hold that much to begin (it is listed in
+//                    `requires`), and it leaves with the gains (a negative entry in `gains`).
+//   uses: N          it can be done N times, then it is spent.
+//   after: [step]    what changes with repetition. A step is {uses: N, ...}:
+//                      rank, months, gains   replace the activity's own once N terms are done
+//                                            (the last step reached wins);
+//                      effects [{stat, amount}], entry "text"
+//                                            happen once, at the term that makes it N
+//                                            (forecast.pg applies them).
 //
 // The numbers are the design mockup's placeholders for the game's balance: change them here,
 // nothing in C++ moves.
@@ -21,7 +39,8 @@ var errors = []
 var activities = [
     {id: "train.yard", group: "Training", name: "Train at the yard", glyph: "training", months: 6, rank: "RANK 2", each: "AT THE YARD", path: "squire",
      gains: [{stat: "str", amount: 2}, {stat: "vit", amount: 1}],
-     requires: []},
+     requires: [],
+     after: [{uses: 3, rank: "RANK 3", gains: [{stat: "str", amount: 3}, {stat: "vit", amount: 1}], entry: "The yard has no more to teach a beginner"}]},
     {id: "train.guard", group: "Training", name: "Spar with the guard", glyph: "swordsmanship", months: 3, rank: "", each: "AT THE GATE", path: "squire",
      gains: [{stat: "swd", amount: 1}, {stat: "dex", amount: 1}],
      requires: [{stat: "str", needed: 12}]},
@@ -40,19 +59,26 @@ var activities = [
      gains: [{stat: "str", amount: 1}, {stat: "coin", amount: 24}],
      requires: []},
     {id: "work.carters", group: "Work", name: "Carry for the carters", glyph: "work", months: 3, rank: "", each: "", path: "",
-     gains: [{stat: "vit", amount: 1}, {stat: "coin", amount: 9}],
+     gains: [{stat: "vit", amount: 1}, {stat: "coin", amount: 9}, {stat: "rations", amount: 6}],
      requires: []},
+
+    {id: "buy.rations", group: "Market", name: "Buy rations", glyph: "trade", months: 0, rank: "", each: "AT THE MARKET", path: "",
+     gains: [{stat: "rations", amount: 6}],
+     requires: [],
+     costs: [{stat: "coin", amount: 5}]},
 
     {id: "guild.errands", group: "Guild", name: "Run the guild's errands", glyph: "guild", months: 3, rank: "", each: "", path: "guild",
      gains: [{stat: "haggle", amount: 1}],
-     requires: []},
+     requires: [],
+     after: [{uses: 2, effects: [{stat: "coin", amount: 5}], entry: "The guild master tips him for his trouble"}]},
     {id: "guild.letter", group: "Guild", name: "Earn the Guild's letter", glyph: "seal", months: 6, rank: "", each: "", path: "squire",
      gains: [{stat: "letter", amount: 1}],
      requires: [{stat: "haggle", needed: 2}]},
 
     {id: "adventure.forest", group: "Adventure", name: "Into the North Forest", glyph: "adventure", months: 3, rank: "ONCE", each: "", path: "",
      gains: [{stat: "dex", amount: 1}, {stat: "swd", amount: 1}],
-     requires: [{stat: "vit", needed: 10}]}
+     requires: [{stat: "vit", needed: 10}],
+     uses: 1}
 ]
 
 // What each activity still asks of this character
@@ -60,6 +86,55 @@ for (var i = 0; i < len(activities); i++)
 {
     var a = activities[i]
     var locked = false
+
+    // How often it was done, and what repetition has made of it
+    var count = lookup(done, a.id, 0)
+    var uses = lookup(a, "uses", 0)
+    var steps = listOf(a, "after")
+
+    for (var s = 0; s < len(steps); s++)
+    {
+        var step = steps[s]
+
+        if (count >= step.uses)
+        {
+            if (has(step, "rank"))
+            {
+                a.rank = step.rank
+            }
+
+            if (has(step, "months"))
+            {
+                a.months = step.months
+            }
+
+            if (has(step, "gains"))
+            {
+                a.gains = step.gains
+            }
+        }
+    }
+
+    // What it costs: asked before, taken with the gains
+    var costs = listOf(a, "costs")
+
+    for (var c = 0; c < len(costs); c++)
+    {
+        push(a.requires, {stat: costs[c].stat, needed: costs[c].amount})
+        push(a.gains, {stat: costs[c].stat, amount: 0 - costs[c].amount})
+    }
+
+    a.done = count
+    a.uses = uses
+    a.after = steps
+    a.left = -1
+    a.spent = false
+
+    if (uses > 0)
+    {
+        a.left = clamp(uses - count, 0, uses)
+        a.spent = count >= uses
+    }
 
     for (var r = 0; r < len(a.requires); r++)
     {

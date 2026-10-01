@@ -1,15 +1,18 @@
 // Chronicle rules: what an activity will do
 // -----------------------------------------
-// Input:  `age` (years), `character` (a table of stats and flags), `activityId`, `monthsIn` (the
-//         months already spent in it).
+// Input:  `age` (years), `character` (a table of stats and flags), `done` (activity id -> terms
+//         completed, read by activities.pg), `activityId`, `monthsIn` (the months already spent
+//         in it).
 // Output: `forecast`:
-//           atTerm   every stat of the character after the activity's gains
-//           percent  monthsIn / months x 100
+//           atTerm   every stat of the character after the activity's gains, and after the
+//                    effects of a step of its `after` list that this term reaches
+//           percent  monthsIn / months x 100 (100 for an activity done at once)
 //           months   the activity's term
 //           caption  "MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"
 //           gaps     [{stat, label, current, needed}]: the next milestone's asks for the path the
 //                    activity leads toward, against the character as he is (atTerm says after)
-//           entries  [{text, kind, figure, glyph}]: the log lines the term writes
+//           entries  [{text, kind, figure, glyph}]: the log lines the term writes, the reached
+//                    steps' after the activity's own
 //           error    "" or "unknown activity"
 // Run once per month tick; it keeps nothing between runs.
 
@@ -116,5 +119,47 @@ else
 
     var entries = [{text: activity.name, kind: kind, figure: figure, glyph: activity.glyph}]
 
-    forecast = {atTerm: atTerm, percent: spent * 100.0 / months, months: months, caption: caption, gaps: gaps, entries: entries, error: ""}
+    // The steps this term reaches: their effects land with the gains, once
+    for (var s = 0; s < len(activity.after); s++)
+    {
+        var step = activity.after[s]
+
+        if (step.uses == activity.done + 1)
+        {
+            var effects = listOf(step, "effects")
+            var stepFigure = ""
+
+            for (var e = 0; e < len(effects); e++)
+            {
+                var effect = effects[e]
+                atTerm[effect.stat] = lookup(atTerm, effect.stat, 0) + effect.amount
+
+                if (atTerm[effect.stat] < 0)
+                {
+                    atTerm[effect.stat] = 0
+                }
+
+                if (stepFigure != "")
+                {
+                    stepFigure = stepFigure + " "
+                }
+
+                stepFigure = stepFigure + signed(effect.amount) + " " + toLowerCase(statShortName(effect.stat))
+            }
+
+            if (has(step, "entry"))
+            {
+                push(entries, {text: step.entry, kind: "milestone", figure: stepFigure, glyph: activity.glyph})
+            }
+        }
+    }
+
+    var percent = 100.0
+
+    if (months > 0)
+    {
+        percent = spent * 100.0 / months
+    }
+
+    forecast = {atTerm: atTerm, percent: percent, months: months, caption: caption, gaps: gaps, entries: entries, error: ""}
 }

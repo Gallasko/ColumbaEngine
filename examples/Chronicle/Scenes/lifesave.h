@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "UI/eventlog.h"   // LogEntry
+#include "UI/prefabspec.h" // RecordList
 
 namespace chronicle
 {
@@ -17,7 +18,7 @@ namespace chronicle
         std::string glyph;
         std::string name;
         std::string value;             // As shown, for a resource that is not a stat
-        std::string rate;
+        std::string rate;              // For a resource the rules do not follow; theirs wins
         int tone = 0;                  // LedgerTone
         bool muted = false;
     };
@@ -38,9 +39,18 @@ namespace chronicle
         std::vector<LifeResource> skills;              // The skills, in the order shown
         std::vector<LifeResource> resources;           // The ledger, in the order first earned
         std::vector<LogEntry> log;
+        std::unordered_map<std::string, int> done;    // The terms completed, by activity
+        std::vector<std::string> achieved;             // The deeds already reached, by id
 
         // The character as the rule scripts read it: every stat.
         pg::ElementMap character() const;
+
+        // The terms completed as the rule scripts read them.
+        pg::ElementMap terms() const;
+
+        // What he holds for the first time: every holding of the rules (resources.pg's `rows`)
+        // he has any of and the ledger does not show yet. Added to `resources`, and returned.
+        std::vector<LifeResource> holdEarned(const pg::RecordList& rows);
 
         bool save(const std::string& path) const;
         bool load(const std::string& path);

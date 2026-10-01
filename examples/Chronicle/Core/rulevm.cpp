@@ -445,7 +445,9 @@ namespace chronicle
         for (auto [script, file] : {std::pair<RuleScript*, const char*>{&activitiesScript, "activities.pg"},
                                     {&milestonesScript, "milestones.pg"},
                                     {&windowsScript, "windows.pg"},
-                                    {&forecastScript, "forecast.pg"}})
+                                    {&forecastScript, "forecast.pg"},
+                                    {&resourcesScript, "resources.pg"},
+                                    {&achievementsScript, "achievements.pg"}})
         {
             if (not script->load(ecs, root + "/" + file))
             {
@@ -464,6 +466,7 @@ namespace chronicle
         out.clear();
 
         s.set("character", character);
+        s.set("done", done);
 
         size_t n = 0;
 
@@ -533,6 +536,7 @@ namespace chronicle
 
         s.set("age", ElementType{age});
         s.set("character", character);
+        s.set("done", done);
 
         if (not s.run() or not s.get("windows", out))
             return fail(s);
@@ -548,6 +552,7 @@ namespace chronicle
 
         s.set("age", ElementType{age});
         s.set("character", character);
+        s.set("done", done);
         s.set("activityId", ElementType{activityId});
         s.set("monthsIn", ElementType{monthsIn});
 
@@ -570,6 +575,46 @@ namespace chronicle
 
         if (not s.get("forecast.atTerm", out.atTerm) or not s.get("forecast.gaps", out.gaps) or not s.get("forecast.entries", out.entries))
             return fail(s);
+
+        return true;
+    }
+
+    bool Rules::month(const ElementMap& character, RuleMonth& out)
+    {
+        RuleScript& s = resourcesScript;
+        s.clearErrors();
+        out = RuleMonth{};
+
+        s.set("character", character);
+
+        if (not s.run() or not s.get("month.after", out.after) or not s.get("month.entries", out.entries) or not s.get("rows", out.rows))
+            return fail(s);
+
+        return true;
+    }
+
+    bool Rules::achievements(std::vector<RuleAchievement>& out)
+    {
+        RuleScript& s = achievementsScript;
+        s.clearErrors();
+        out.clear();
+
+        size_t n = 0;
+
+        if (not s.run() or not s.size("achievements", n))
+            return fail(s);
+
+        for (size_t i = 0; i < n; ++i)
+        {
+            const std::string at = "achievements." + std::to_string(i);
+
+            RuleAchievement achievement;
+
+            if (not s.get(at, achievement.fields) or not s.get(at + ".asks", achievement.asks) or not s.get(at + ".gives", achievement.gives))
+                return fail(s);
+
+            out.push_back(std::move(achievement));
+        }
 
         return true;
     }

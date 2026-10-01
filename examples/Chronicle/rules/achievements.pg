@@ -1,0 +1,57 @@
+// Chronicle rules: the deeds worth a line
+// --------------------------------------
+// Input:  none.
+// Output: `achievements`, one table per deed:
+//           {id, name, entry, asks [{fact, op, value}], gives [{stat, amount}]}
+//           asks   every one must hold; `fact` is a path the Life screen publishes:
+//                  "stat.<key>" (a stat of the character), "done.<activity id>" (the terms
+//                  completed) or "life.age"; `op` is one of ">=", ">", "<=", "<", "==".
+//           gives  what the character gains the moment it is reached.
+//           entry  the line it writes in the log.
+// A deed is reached once in a life and stays reached.
+//
+// The numbers are placeholders for the game's balance: change them here, nothing in C++ moves.
+
+import "string"
+import "math"
+import "algorithm"
+import "lib"
+
+var errors = []
+
+var achievements = [
+    {id: "first.coin", name: "First wages", entry: "Held a coin of his own for the first time",
+     asks: [{fact: "stat.coin", op: ">=", value: 1}],
+     gives: []},
+    {id: "strong.arm", name: "A strong arm", entry: "The yard men say he has a strong arm",
+     asks: [{fact: "stat.str", op: ">=", value: 18}],
+     gives: [{stat: "vit", amount: 1}]},
+    {id: "errand.boy", name: "Errand boy", entry: "Every door of the guild knows his knock",
+     asks: [{fact: "done.guild.errands", op: ">=", value: 3}],
+     gives: [{stat: "haggle", amount: 1}]}
+]
+
+var ops = [">=", ">", "<=", "<", "=="]
+
+for (var i = 0; i < len(achievements); i++)
+{
+    var a = achievements[i]
+
+    for (var r = 0; r < len(a.asks); r++)
+    {
+        var known = false
+
+        for (var o = 0; o < len(ops); o++)
+        {
+            if (ops[o] == a.asks[r].op)
+            {
+                known = true
+            }
+        }
+
+        if (not known)
+        {
+            push(errors, "achievement " + a.id + ": unknown op " + a.asks[r].op)
+        }
+    }
+}

@@ -89,8 +89,12 @@ namespace chronicle
         const std::string NoBreakSpace = "\xC2\xA0";
         const std::string Minus = "\xE2\x88\x92";   // U+2212
 
+        // An activity that takes no time is done at once
         std::string monthsText(int months)
         {
+            if (months <= 0)
+                return "NOW";
+
             return std::to_string(months) + " mo";
         }
 

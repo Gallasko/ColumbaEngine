@@ -77,7 +77,7 @@ namespace chronicle
     };
 
     // An activity from activities.pg: its scalar fields (id, group, name, glyph, months, rank,
-    // each, path, locked) and its two lists.
+    // each, path, locked, done, uses, left, spent) and its two lists.
     struct RuleActivity
     {
         pg::ElementMap fields;
@@ -104,11 +104,30 @@ namespace chronicle
         std::string error;             // "" or "unknown activity"
     };
 
-    // The scene's four scripts, loaded once from a rules root, each with its typed call. Every
+    // One month of what the character holds, from resources.pg.
+    struct RuleMonth
+    {
+        pg::ElementMap after;          // Every stat of the character once the month has passed
+        pg::RecordList entries;        // The log lines the month writes: {text, kind, figure, glyph}
+        pg::RecordList rows;           // The holdings the ledger can show: {id, group, groupLabel, glyph, name, tone, rate}
+    };
+
+    // A deed from achievements.pg: {id, name, entry}, what it asks and what it gives.
+    struct RuleAchievement
+    {
+        pg::ElementMap fields;
+        pg::RecordList asks;           // {fact, op, value}: every one must hold
+        pg::RecordList gives;          // {stat, amount}: gained when it is reached
+    };
+
+    // The scene's scripts, loaded once from a rules root, each with its typed call. Every
     // number about the future or the rules comes from here, never from C++.
     struct Rules
     {
         bool load(pg::EntitySystem* ecs, const std::string& root = "examples/Chronicle/rules");
+
+        // The terms completed, by activity: handed to every script that reads the activities.
+        pg::ElementMap done;
 
         // activities.pg: the activity table, and what each still asks of `character`.
         bool activities(const pg::ElementMap& character, std::vector<RuleActivity>& out);
@@ -124,12 +143,20 @@ namespace chronicle
         // forecast.pg: `activityId` for `character` at `age`, `monthsIn` months already spent.
         bool forecast(float age, const pg::ElementMap& character, const std::string& activityId, int monthsIn, RuleForecast& out);
 
+        // resources.pg: what one month does to what `character` holds, and the ledger's rows.
+        bool month(const pg::ElementMap& character, RuleMonth& out);
+
+        // achievements.pg: every deed, what it asks and what it gives.
+        bool achievements(std::vector<RuleAchievement>& out);
+
         std::vector<std::string> errors;   // The last failed call's
 
         RuleScript activitiesScript;
         RuleScript milestonesScript;
         RuleScript windowsScript;
         RuleScript forecastScript;
+        RuleScript resourcesScript;
+        RuleScript achievementsScript;
 
     private:
         bool fail(RuleScript& script);

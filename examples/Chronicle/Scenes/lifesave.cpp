@@ -1,5 +1,6 @@
 #include "lifesave.h"
 
+#include <algorithm>
 #include <filesystem>
 
 #include "logger.h"
@@ -103,6 +104,8 @@ namespace pg
         serialize(archive, "skills", value.skills);
         serialize(archive, "resources", value.resources);
         serialize(archive, "log", value.log);
+        serialize(archive, "done", value.done);
+        serialize(archive, "achieved", value.achieved);
 
         archive.endSerialization();
     }
@@ -127,6 +130,8 @@ namespace pg
         defaultDeserialize(serialized, "skills", data.skills);
         defaultDeserialize(serialized, "resources", data.resources);
         defaultDeserialize(serialized, "log", data.log);
+        defaultDeserialize(serialized, "done", data.done);
+        defaultDeserialize(serialized, "achieved", data.achieved);
 
         return data;
     }
@@ -139,6 +144,13 @@ namespace chronicle
         constexpr const char * const DOM = "Chronicle.Save";
 
         constexpr const char * const ObjectName = "life";
+
+        std::string textOf(const ElementMap& map, const std::string& key)
+        {
+            auto it = map.find(key);
+
+            return it == map.end() ? std::string() : it->second.toString();
+        }
     }
 
     ElementMap LifeSave::character() const
@@ -149,6 +161,50 @@ namespace chronicle
             map[key] = ElementType{value};
 
         return map;
+    }
+
+    ElementMap LifeSave::terms() const
+    {
+        ElementMap map;
+
+        for (const auto& [key, value] : done)
+            map[key] = ElementType{value};
+
+        return map;
+    }
+
+    std::vector<LifeResource> LifeSave::holdEarned(const RecordList& rows)
+    {
+        std::vector<LifeResource> earned;
+
+        for (const auto& row : rows)
+        {
+            const std::string id = textOf(row, "id");
+            auto stat = stats.find(id);
+
+            if (stat == stats.end() or stat->second <= 0)
+                continue;
+
+            const bool held = std::any_of(resources.begin(), resources.end(), [&id](const LifeResource& r) { return r.id == id; });
+
+            if (held)
+                continue;
+
+            auto tone = row.find("tone");
+
+            LifeResource resource;
+            resource.group = textOf(row, "group");
+            resource.groupLabel = textOf(row, "groupLabel");
+            resource.id = id;
+            resource.glyph = textOf(row, "glyph");
+            resource.name = textOf(row, "name");
+            resource.tone = tone != row.end() and tone->second.type == UnionType::INT ? tone->second.get<int>() : 0;
+
+            resources.push_back(resource);
+            earned.push_back(resource);
+        }
+
+        return earned;
     }
 
     bool LifeSave::save(const std::string& path) const
@@ -225,15 +281,18 @@ namespace chronicle
         life.stats = {
             {"str", 15}, {"dex", 11}, {"int", 9}, {"vit", 12},
             {"swd", 3}, {"ride", 1}, {"letters", 2}, {"haggle", 1},
-            {"letter", 0}, {"coin", 412},
+            {"letter", 0}, {"coin", 412}, {"rations", 18},
         };
+
+        // He is past his first wages
+        life.achieved = {"first.coin"};
 
         life.parts = {"str", "dex", "int", "vit"};
         life.skills = skillRows();
 
         life.resources = {
-            {"purse", "PURSE", "coin", "gold", "Coin", "", "+2 / mo", static_cast<int>(LedgerTone::Coin), false},
-            {"purse", "PURSE", "rations", "trade", "Rations", "18", "\xE2\x88\x92" "1 / mo", 0, false},
+            {"purse", "PURSE", "coin", "gold", "Coin", "", "", static_cast<int>(LedgerTone::Coin), false},
+            {"purse", "PURSE", "rations", "trade", "Rations", "", "", 0, false},
             {"standing", "STANDING", "guild.bellmoor", "guild", "Bellmoor Guild", "3", "", static_cast<int>(LedgerTone::Guild), false},
             {"standing", "STANDING", "guild.academy", "academy", "The Academy", "1", "", static_cast<int>(LedgerTone::Guild), true},
             {"stores", "STORES", "iron", "forge", "Iron", "6", "", 0, false},

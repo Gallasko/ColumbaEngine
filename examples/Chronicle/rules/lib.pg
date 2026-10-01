@@ -165,7 +165,8 @@ var statNames = {
     letters: "Letters",
     haggle: "Haggling",
     letter: "The Guild's letter",
-    coin: "Coin"
+    coin: "Coin",
+    rations: "Rations"
 }
 
 var statShort = {
@@ -178,7 +179,8 @@ var statShort = {
     letters: "LET",
     haggle: "HAG",
     letter: "LETTER",
-    coin: "COIN"
+    coin: "COIN",
+    rations: "RATIONS"
 }
 
 // A missing key reads as false, not as an error: look names up explicitly.
@@ -193,6 +195,26 @@ fun lookup(table, key, fallback)
     }
 
     return fallback
+}
+
+// Whether a table holds a key at all.
+fun has(table, key)
+{
+    for (var k : table)
+    {
+        if (k == key)
+        {
+            return true
+        }
+    }
+
+    return false
+}
+
+// A list field of a table, empty when the table has none.
+fun listOf(table, key)
+{
+    return lookup(table, key, [])
 }
 
 fun statName(stat)

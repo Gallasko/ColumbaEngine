@@ -10,6 +10,7 @@
 
 #include "Systems/tween.h"
 #include "Systems/gamefacts.h"
+#include "Systems/achievement.h"
 
 #include "UI/themesystem.h"
 
@@ -78,6 +79,13 @@ namespace chronicle
             ecs.createSystem<TweenSystem>();
             ecs.createSystem<WorldFacts>();
             ecs.createSystem<FactRouter>();   // Paths to the widgets that follow them
+
+            // The deeds of a life, watched against the facts. What is reached is kept by the
+            // life's own save, not by the systems' file.
+            auto* achievements = ecs.createSystem<AchievementSys>();
+            ecs.getComponentRegistry()->unregisterSystemSave(achievements->getSystemName());
+            achievements->clear();
+            ecs.succeed<AchievementSys, WorldFacts>();
 
             // Register the icon sets (IconSystem comes from the engine boot).
             registerMarks(&ecs);

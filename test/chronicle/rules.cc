@@ -415,6 +415,291 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // An activity with `uses` counts down as it is done, and is spent at the last one.
+        TEST(rules_test, activities_limited_uses)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            auto forest = [&f]() {
+                std::vector<RuleActivity> activities;
+                EXPECT_TRUE(f.rules.activities(aldren(), activities)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+
+                for (const auto& a : activities)
+                {
+                    if (textOf(a.fields, "id") == "adventure.forest")
+                        return a.fields;
+                }
+
+                return ElementMap{};
+            };
+
+            ElementMap fresh = forest();
+
+            EXPECT_EQ(intOf(fresh, "uses"), 1);
+            EXPECT_EQ(intOf(fresh, "done"), 0);
+            EXPECT_EQ(intOf(fresh, "left"), 1);
+            EXPECT_FALSE(fresh.at("spent").get<bool>());
+
+            f.rules.done = {{"adventure.forest", ElementType{1}}};
+
+            ElementMap spent = forest();
+
+            EXPECT_EQ(intOf(spent, "done"), 1);
+            EXPECT_EQ(intOf(spent, "left"), 0);
+            EXPECT_TRUE(spent.at("spent").get<bool>());
+
+            // No `uses`: as often as he likes
+            f.rules.done = {{"train.guard", ElementType{40}}};
+
+            std::vector<RuleActivity> activities;
+            ASSERT_TRUE(f.rules.activities(aldren(), activities));
+
+            for (const auto& a : activities)
+            {
+                if (textOf(a.fields, "id") != "train.guard")
+                    continue;
+
+                EXPECT_EQ(intOf(a.fields, "left"), -1);
+                EXPECT_FALSE(a.fields.at("spent").get<bool>());
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The yard changes rank and gains once three terms are done; the third term writes a line.
+        TEST(rules_test, activities_upgrade_after_uses)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            auto yard = [&f]() {
+                std::vector<RuleActivity> activities;
+                EXPECT_TRUE(f.rules.activities(aldren(), activities)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+
+                for (const auto& a : activities)
+                {
+                    if (textOf(a.fields, "id") == "train.yard")
+                        return a;
+                }
+
+                return RuleActivity{};
+            };
+
+            f.rules.done = {{"train.yard", ElementType{2}}};
+
+            RuleActivity before = yard();
+
+            EXPECT_EQ(textOf(before.fields, "rank"), "RANK 2");
+            ASSERT_FALSE(before.gains.empty());
+            EXPECT_EQ(intOf(before.gains[0], "amount"), 2);
+
+            // The term that makes it three: the old gains still, and the step's line
+            RuleForecast forecast;
+            ASSERT_TRUE(f.rules.forecast(17.4f, aldren(), "train.yard", 0, forecast)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+
+            EXPECT_EQ(intOf(forecast.atTerm, "str"), 14 + 2);
+            ASSERT_EQ(forecast.entries.size(), 2u);
+            EXPECT_EQ(textOf(forecast.entries[1], "kind"), "milestone");
+
+            f.rules.done = {{"train.yard", ElementType{3}}};
+
+            RuleActivity after = yard();
+
+            EXPECT_EQ(textOf(after.fields, "rank"), "RANK 3");
+            ASSERT_FALSE(after.gains.empty());
+            EXPECT_EQ(intOf(after.gains[0], "amount"), 3);
+
+            // Past the step: the new gains, and the line is not written again
+            ASSERT_TRUE(f.rules.forecast(17.4f, aldren(), "train.yard", 0, forecast));
+
+            EXPECT_EQ(intOf(forecast.atTerm, "str"), 14 + 3);
+            EXPECT_EQ(forecast.entries.size(), 1u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The second round of errands is tipped, once.
+        TEST(rules_test, forecast_trigger_fires_once)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            ElementMap character = aldren();
+            character["coin"] = ElementType{10};
+
+            RuleForecast forecast;
+
+            ASSERT_TRUE(f.rules.forecast(17.4f, character, "guild.errands", 0, forecast));
+            EXPECT_EQ(intOf(forecast.atTerm, "coin"), 10);
+            EXPECT_EQ(forecast.entries.size(), 1u);
+
+            f.rules.done = {{"guild.errands", ElementType{1}}};
+
+            ASSERT_TRUE(f.rules.forecast(17.4f, character, "guild.errands", 0, forecast));
+            EXPECT_EQ(intOf(forecast.atTerm, "coin"), 15);
+            ASSERT_EQ(forecast.entries.size(), 2u);
+            EXPECT_EQ(textOf(forecast.entries[1], "figure"), "+5 coin");
+
+            f.rules.done = {{"guild.errands", ElementType{2}}};
+
+            ASSERT_TRUE(f.rules.forecast(17.4f, character, "guild.errands", 0, forecast));
+            EXPECT_EQ(intOf(forecast.atTerm, "coin"), 10);
+            EXPECT_EQ(forecast.entries.size(), 1u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A cost is asked like a requirement and taken with the gains; no months, no wait.
+        TEST(rules_test, activities_cost_and_at_once)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            ElementMap character = aldren();
+            character["coin"] = ElementType{3};
+
+            std::vector<RuleActivity> activities;
+            ASSERT_TRUE(f.rules.activities(character, activities)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+
+            const RuleActivity* buy = nullptr;
+
+            for (const auto& a : activities)
+            {
+                if (textOf(a.fields, "id") == "buy.rations")
+                    buy = &a;
+            }
+
+            ASSERT_NE(buy, nullptr);
+            EXPECT_EQ(intOf(buy->fields, "months"), 0);
+            EXPECT_TRUE(buy->fields.at("locked").get<bool>());
+
+            ASSERT_EQ(buy->requires.size(), 1u);
+            EXPECT_EQ(textOf(buy->requires[0], "stat"), "coin");
+            EXPECT_EQ(intOf(buy->requires[0], "current"), 3);
+            EXPECT_EQ(intOf(buy->requires[0], "needed"), 5);
+
+            ASSERT_EQ(buy->gains.size(), 2u);
+            EXPECT_EQ(textOf(buy->gains[1], "stat"), "coin");
+            EXPECT_EQ(intOf(buy->gains[1], "amount"), -5);
+
+            character["coin"] = ElementType{12};
+
+            RuleForecast forecast;
+            ASSERT_TRUE(f.rules.forecast(17.4f, character, "buy.rations", 0, forecast)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+
+            EXPECT_EQ(forecast.months, 0);
+            EXPECT_FLOAT_EQ(forecast.percent, 100.0f);
+            EXPECT_EQ(intOf(forecast.atTerm, "coin"), 7);
+            EXPECT_EQ(intOf(forecast.atTerm, "rations"), 6);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A month: the letter brings coin, the rations go down, and both say so as a rate.
+        TEST(rules_test, month_produces_and_decays)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            ElementMap character = {{"vit", ElementType{12}}, {"coin", ElementType{3}}, {"letter", ElementType{2}}, {"rations", ElementType{5}}};
+
+            RuleMonth month;
+            ASSERT_TRUE(f.rules.month(character, month)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+
+            EXPECT_EQ(intOf(month.after, "coin"), 3 + 4);
+            EXPECT_EQ(intOf(month.after, "rations"), 4);
+            EXPECT_EQ(intOf(month.after, "vit"), 12);
+            EXPECT_EQ(intOf(month.after, "letter"), 2);
+            EXPECT_TRUE(month.entries.empty());
+
+            const ElementMap* coin = byId(month.rows, "coin");
+            const ElementMap* rations = byId(month.rows, "rations");
+            const ElementMap* letter = byId(month.rows, "letter");
+
+            ASSERT_NE(coin, nullptr);
+            ASSERT_NE(rations, nullptr);
+            ASSERT_NE(letter, nullptr);
+
+            EXPECT_EQ(textOf(*coin, "rate"), "+4 / mo");
+            EXPECT_EQ(textOf(*rations, "rate"), "\xE2\x88\x92" "1 / mo");
+            EXPECT_EQ(textOf(*letter, "rate"), "");
+
+            for (const char* key : {"id", "group", "groupLabel", "glyph", "name", "tone", "rate"})
+                EXPECT_TRUE(coin->count(key)) << key;
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Running out is written once; staying out costs every month. Never having had any costs nothing.
+        TEST(rules_test, month_empty_holding)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            RuleMonth month;
+
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{12}}, {"rations", ElementType{1}}}, month));
+            EXPECT_EQ(intOf(month.after, "rations"), 0);
+            EXPECT_EQ(intOf(month.after, "vit"), 12);
+            ASSERT_EQ(month.entries.size(), 1u);
+            EXPECT_EQ(textOf(month.entries[0], "kind"), "loss");
+
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{12}}, {"rations", ElementType{0}}}, month));
+            EXPECT_EQ(intOf(month.after, "rations"), 0);
+            EXPECT_EQ(intOf(month.after, "vit"), 11);
+            EXPECT_TRUE(month.entries.empty());
+
+            // Nothing goes below zero
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{0}}, {"rations", ElementType{0}}}, month));
+            EXPECT_EQ(intOf(month.after, "vit"), 0);
+
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{12}}}, month));
+            EXPECT_EQ(intOf(month.after, "vit"), 12);
+            EXPECT_EQ(month.after.count("rations"), 0u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(rules_test, achievements_load_and_shape)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            std::vector<RuleAchievement> achievements;
+            ASSERT_TRUE(f.rules.achievements(achievements)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+            ASSERT_GE(achievements.size(), 2u);
+
+            for (const auto& a : achievements)
+            {
+                for (const char* key : {"id", "name", "entry"})
+                    EXPECT_TRUE(a.fields.count(key)) << textOf(a.fields, "id") << " has no " << key;
+
+                ASSERT_FALSE(a.asks.empty()) << textOf(a.fields, "id");
+
+                for (const auto& ask : a.asks)
+                {
+                    for (const char* key : {"fact", "op", "value"})
+                        EXPECT_TRUE(ask.count(key)) << textOf(a.fields, "id") << " asks without " << key;
+                }
+
+                for (const auto& give : a.gives)
+                {
+                    for (const char* key : {"stat", "amount"})
+                        EXPECT_TRUE(give.count(key)) << textOf(a.fields, "id") << " gives without " << key;
+                }
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A ceiling, not a target: the forecast runs once per month tick.
         TEST(rules_test, timing_ceiling)
         {
