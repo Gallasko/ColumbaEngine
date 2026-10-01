@@ -40,6 +40,18 @@ namespace chronicle
             return r;
         }
 
+        // A part added to a line already on the page is drawn before its anchors are solved:
+        // put it where they will, so it does not show for a frame at the page's corner.
+        void seedPlace(EntityRef root, EntityRef part, float x, float y, float zOffset)
+        {
+            auto rootPos = root->get<PositionComponent>();
+            auto pos = part->get<PositionComponent>();
+
+            pos->setX(rootPos->x + x);
+            pos->setY(rootPos->y + y);
+            pos->setZ(rootPos->z + zOffset);
+        }
+
         // The "-> p" forecast label, right-anchored to the root and baseline-aligned to the figure.
         Label buildProjection(EntitySystem* ecs, EntityRef root, int z, float ascFig, float ascTick, int p)
         {
@@ -56,6 +68,9 @@ namespace chronicle
             pa->setTopAnchor(PosAnchor{root.id, AnchorType::Top});
             pa->setTopMargin(ascFig - ascTick);
             pa->setZConstrain(PosConstrain{root.id, AnchorType::Z, PosOpType::Add, 2.0f});
+
+            seedPlace(root, pl.entity, root->get<PositionComponent>()->width - pl.entity->get<PositionComponent>()->width, ascFig - ascTick, 2.0f);
+
             root->get<Prefab>()->addToPrefab(pl.entity);
             return pl;
         }
@@ -77,6 +92,9 @@ namespace chronicle
             na->setTopAnchor(PosAnchor{root.id, AnchorType::Top});
             na->setTopMargin(HEAD + GAP1 + TRACK + GAP1);   // 38
             na->setZConstrain(PosConstrain{root.id, AnchorType::Z, PosOpType::Add, 2.0f});
+
+            seedPlace(root, nl.entity, 0.0f, HEAD + GAP1 + TRACK + GAP1, 2.0f);
+
             root->get<Prefab>()->addToPrefab(nl.entity);
             return nl;
         }
