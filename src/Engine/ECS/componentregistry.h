@@ -25,8 +25,6 @@
 namespace pg
 {
     class InputSystem;
-    class ClassInstance;
-    class InterpreterSystem;
 
     template <class T>
     class HasStaticName
@@ -186,10 +184,6 @@ namespace pg
                 eventStorageMap[id].erase(it);
             }
         }
-
-        void addEventListener(_unique_id eventId, InterpreterSystem *listener);
-
-        void removeEventListener(_unique_id eventId, InterpreterSystem *listener);
 
         template <typename EventListener>
         void addStandardEventListener(const std::string& name, EventListener* listener)

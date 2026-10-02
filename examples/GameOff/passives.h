@@ -14,7 +14,6 @@ namespace pg
 {
     // Type definitions
     struct Character;
-    struct CallableIntepretedFunction;
 
     static const char * const NOOPPASSIVE = "Noop"; 
 
@@ -74,7 +73,6 @@ namespace pg
 
         // Todo make it an union
         std::function<void(Type&, const ElementMap&, EntitySystem*)> func = [](Type&, const ElementMap&, EntitySystem*) { LOG_ERROR("Passive", "Trying to call a non function"); };
-        std::shared_ptr<CallableIntepretedFunction> scriptFunction = nullptr;
 
         ApplicablePassive& operator=(const std::function<void(Type&, const ElementMap&, EntitySystem*)>& f)
         {

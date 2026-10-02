@@ -55,9 +55,6 @@ namespace pg
     // Forward declarations
     class ComponentRegistry;
     struct AbstractSystem;
-    class InterpreterSystem;
-    class Environment;
-    class ClassInstance;
     class StandardSystemImpl;
     class ScriptRegistry;
     class BaseAbstractRenderer;
@@ -343,8 +340,6 @@ namespace pg
 
             return sys;
         }
-
-        InterpreterSystem* createInterpreterSystem(std::shared_ptr<Environment> env, std::shared_ptr<ClassInstance> sysInstance);
 
         /**
          * Overload of deleteSystem mainly used for deleting Interpreter system

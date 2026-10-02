@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
 #include "statement.h"
-#include "interpreter.h"
+#include "visitor.h"
 
 namespace pg
 {

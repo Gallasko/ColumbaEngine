@@ -10,7 +10,6 @@
 #include "entitysystem.h"
 
 // Full build modules
-#include "ecsmodule.h"
 #include "Helpers/randommodule.h"
 #include "Helpers/inputmodule_vm.h"
 #include "Input/inputcomponent.h"
@@ -20,31 +19,6 @@
 
 namespace pg
 {
-    InterpreterSystem* EntitySystem::createInterpreterSystem(std::shared_ptr<Environment> env, std::shared_ptr<ClassInstance> sysInstance)
-    {
-        LOG_THIS_MEMBER("ECS");
-
-        // Todo: add support for system creation during runtime
-        if (running)
-        {
-            LOG_ERROR("ECS", "System creation during runtime is not supported");
-            return nullptr;
-        }
-
-        auto system = new InterpreterSystem(env, sysInstance);
-        system->_id = registry.idGenerator.generateId();
-
-        system->ecsRef = this;
-
-        systems.emplace(system->_id, system);
-
-        system->addToRegistry(&registry);
-
-        internalCreateSystem(system);
-
-        return system;
-    }
-
     void EntitySystem::enableCollision()
     {
         if (getSystem<CollisionSystem>())

@@ -25,15 +25,31 @@ First tagged release. Everything below describes the state of the engine at the 
   reported, and anchors on the children of a layout node are reported once instead of being dropped
   silently.
 
+### Removed
+- The tree-walking interpreter: `PgInterpreter`, `Interpreter`, `InterpreterSystem`, `Environment`,
+  `Valuable`, `Function`, `SysModule`, `Resolver` and the system functions, with their sources under
+  `src/Engine/Interpreter/` (only the lexer, the tokens, the AST nodes, the parser and `visitor.h` remain).
+  Every script goes through the bytecode VM.
+- The interpreter modules `core`, `time`, `scene`, `audio`, `2Dshapes`, `2Dtexture`, `uitext`, `position`,
+  the interpreter `ui`, `input`, `ecs`, `log`, `renderer` and `theme` headers, `EntitySystem::createInterpreterSystem`
+  and the `InterpreterSystem` overloads of `ComponentRegistry::addEventListener` / `removeEventListener`.
+  Migration: write a `NativeModule` and register it with `VM::addNativeModule` or
+  `EntitySystem::registerCustomVmModule`; systems written in script go through `StandardSystem`.
+
 ### Changed
 - Boot scripts run on the bytecode VM: `Window` owns a `VM` (`window.vm`, set up with `EntitySystem::setupVm`)
   instead of a `PgInterpreter`, and `res/logManager.pg`, `res/setupRenderer.pg`, `res/sysRegister.pg` and the
   editor's `res/sysThema.pg` go through it. The `log`, `renderer` and `theme` modules are ported to
   `NativeModule` (`Systems/lognativemodule.h`, `Renderer/renderernativemodule.h`,
-  `Systems/themenativemodule.h`). Migration: `window.interpreter` is gone, and so are the interpreter-only
-  modules it carried (`core`, `time`, `2Dshapes`, `2Dtexture`, `scene`, `audio`, the interpreter `input` and
-  `ecs`); use `window.vm->addNativeModule(...)` and `window.vm->interpretFromFile(...)`, or create a
-  `PgInterpreter` system yourself as GameOff does. `registerRenderSystems` takes a `VM*`.
+  `Systems/themenativemodule.h`). Migration: `window.interpreter` is gone; use
+  `window.vm->addNativeModule(...)` and `window.vm->interpretFromFile(...)`. `registerRenderSystems` takes
+  a `VM*`.
+- Scene enter and leave scripts, and any `ExecuteFileScriptEvent` / `ExecuteCodeScriptEvent`, run on the VM
+  through the new `ScriptRunnerSystem` (`Systems/scriptrunner.h`, registered with the core systems). The
+  events carry a `ScriptFunctions` map of native functions instead of `CustomSysFunctions`, and
+  `getCurrentScene()` returns a table.
+- `Visitor` lives in `Interpreter/visitor.h` and its `visit` methods, like `Expression::accept`, return
+  nothing.
 - The AST front-end (`ScriptFrontEnd::Ast`) is the default for `VM` and `EntitySystem`; select the Pratt
   compiler with `setVMFrontEnd(ScriptFrontEnd::Pratt)` / `VM::setFrontEnd`.
 - Script bridge: `Compiler/ecsserialization.h` is split by concern into `Compiler/componentproxy.h`

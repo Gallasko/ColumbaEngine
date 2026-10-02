@@ -5,6 +5,7 @@
 #include "ECS/entitysystem.h"
 #include "ECS/loggersystem.h"
 #include "Systems/coresystems.h"
+#include "Systems/scriptrunner.h"
 #include "UI/focusable.h"
 
 namespace pg
@@ -17,8 +18,10 @@ namespace pg
         ecs->createSystem<TerminalLogSystem>();
         ecs->createSystem<FocusableSystem>();
         ecs->createSystem<OnEventComponentSystem>();
+        ecs->createSystem<ScriptRunnerSystem>();
 
         // Ordering
+        ecs->succeed<TickingSystem, ScriptRunnerSystem>();
         ecs->succeed<TimerSystem, TickingSystem>();
     }
 }

@@ -30,8 +30,6 @@
 #include "Renderer/renderer.h"
 #endif // PG_MINIMAL_BUILD
 
-// #include "Interpreter/interpretersystem.h"
-
 #ifdef PROFILE
 std::mutex profileMutex;
 // Profiling data
@@ -671,7 +669,6 @@ namespace pg
         }
     }
 
-    // createInterpreterSystem is now implemented in entitysystem_full.cpp or entitysystem_minimal.cpp
 
     void EntitySystem::deleteSystem(_unique_id id)
     {

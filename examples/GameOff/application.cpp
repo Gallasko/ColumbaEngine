@@ -18,8 +18,6 @@
 #include "inventory.h"
 
 #include "gamemodule.h"
-#include "Systems/logmodule.h"
-#include "Interpreter/systemfunction.h"
 #include "Systems/gamefacts.h"
 
 #include "gamelog.h"
@@ -542,18 +540,9 @@ void initGame()
 
     mainWindow->ecs->dumbTaskflow();
 
-    // Todo port the game module to the vm, the window does not own a tree walking interpreter anymore
-    auto interpreter = mainWindow->ecs->createSystem<PgInterpreter>();
+    mainWindow->vm->addNativeModule("game", GameNativeModule{mainWindow->ecs});
 
-    mainWindow->ecs->succeed<TickingSystem, PgInterpreter>();
-
-    interpreter->addSystemFunction<TestPrint>("print");
-    interpreter->addSystemFunction<DebugPrint>("debugPrint");
-    interpreter->addSystemFunction<ToString>("toString");
-
-    interpreter->addSystemModule("game", GameModule{mainWindow->ecs});
-
-    interpreter->interpretFromFile("main.pg");
+    mainWindow->vm->interpretFromFile("main.pg");
 
     LOG_INFO(DOM, "Size of UiComponent: " << sizeof(UiComponent) << " vs size of Position: " << sizeof(PositionComponent) << " and size of Anchor: " << sizeof(UiAnchor));
 

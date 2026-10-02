@@ -4,282 +4,17 @@
 #include "Systems/gamefacts.h"
 #include "gamemodule.h"
 
-#include "Interpreter/pginterpreter.h"
-#include "Systems/logmodule.h"
+#include "Compiler/vm.h"
+#include "Systems/lognativemodule.h"
 
 namespace pg
 {
-    class CreateNexusButton : public Function
+    namespace
     {
-        using Function::Function;
-    public:
-        void setUp()
-        {
-            setArity(0, 0);
-        }
-
-        virtual ValuablePtr call(ValuableQueue&) override
-        {
-            DynamicNexusButton button;
-
-            auto list = serializeToInterpreter(this, button);
-
-            return list;
-        }
-    };
-
-    class RegisterNexusButton : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-
-            setArity(1, 1);
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto nexusButton = args.front();
-            args.pop();
-
-            auto button = deserializeTo<DynamicNexusButton>(nexusButton);
-
-            sys->savedButtons.push_back(button);
-
-            return nullptr;
-        }
-
-        NexusSystem *sys;
-    };
-
-    class TrackNewResource : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-
-            setArity(1, 1);
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto resName = args.front()->getElement().toString();
-            args.pop();
-
-            sys->addResourceDisplay(resName);
-
-            return nullptr;
-        }
-
-        NexusSystem *sys;
-    };
-
-    class CreateGenerator : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-
-            setArity(2, 7); // Added prestige tags parameter
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            // Todo check type of elements gotten here
-
-            RessourceGenerator gen;
-
-            gen.id = args.front()->getElement().toString();
-            args.pop();
-
-            gen.ressource = args.front()->getElement().toString();
-            args.pop();
-
-            if (not args.empty())
-            {
-                gen.currentMana = args.front()->getElement().get<float>();
-                args.pop();
-            }
-
-            if (not args.empty())
-            {
-                gen.productionRate = args.front()->getElement().get<float>();
-                args.pop();
-            }
-
-            if (not args.empty())
-            {
-                gen.capacity = args.front()->getElement().get<float>();
-                args.pop();
-            }
-
-            if (not args.empty())
-            {
-                gen.active = args.front()->getElement().get<bool>();
-                args.pop();
-            }
-
-            // Optional prestige tags array (7th parameter) - if not provided, use defaults
-            if (!args.empty())
-            {
-                auto tagsArg = args.front();
-                args.pop();
-                if (tagsArg->getType() == "ClassInstance")
-                {
-                    auto tagList = std::static_pointer_cast<ClassInstance>(tagsArg);
-                    for (const auto& field : tagList->getFields())
-                    {
-                        gen.prestigeTags.push_back(field.value->getElement().toString());
-                    }
-                }
-            }
-            else
-            {
-                // Use default tags from NexusSystem
-                gen.prestigeTags = sys->defaultPrestigeTags;
-            }
-
-            sys->ecsRef->sendEvent(NewGeneratorEvent{gen});
-
-            return makeVar(gen.id);
-        }
-
-        NexusSystem *sys;
-    };
-
-    class CreateButtonCost : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(1, 4); }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            NexusButtonCost cost;
-
-            // Todo check type of elements gotten here
-            // Assume arguments: eventName (string), key (string), message (string)
-            cost.resourceId = args.front()->getElement().toString();
-            args.pop();
-
-            if (not args.empty())
-            {
-                cost.value = args.front()->getElement().get<float>();
-                args.pop();
-            }
-
-            if (not args.empty())
-            {
-                cost.valueId = args.front()->getElement().get<std::string>();
-                args.pop();
-            }
-
-            if (not args.empty())
-            {
-                cost.consumed = args.front()->getElement().get<bool>();
-                args.pop();
-            }
-
-            return serializeToInterpreter(this, cost);
-        }
-    };
-
-    class CreateConverter : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys) { 
-            this->sys = sys;
-            setArity(1, 2); // Added prestige tags parameter
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            ConverterComponent converter;
-
-            converter.id = args.front()->getElement().toString();
-            args.pop();
-
-            // Optional prestige tags array (2nd parameter) - if not provided, use defaults
-            if (!args.empty())
-            {
-                auto tagsArg = args.front();
-                args.pop();
-                if (tagsArg->getType() == "ClassInstance")
-                {
-                    auto tagList = std::static_pointer_cast<ClassInstance>(tagsArg);
-                    for (const auto& field : tagList->getFields())
-                    {
-                        converter.prestigeTags.push_back(field.value->getElement().toString());
-                    }
-                }
-            }
-            else
-            {
-                // Use default tags from NexusSystem
-                converter.prestigeTags = sys->defaultPrestigeTags;
-            }
-
-            return serializeToInterpreter(this, converter);
-        }
-
-        NexusSystem *sys;
-    };
-
-    class RegisterConverter : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-
-            setArity(1, 1);
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            // Todo check type of elements gotten here
-            // Assume arguments: eventName (string), key (string), message (string)
-            auto arg = args.front();
-            args.pop();
-
-            auto converter = deserializeTo<ConverterComponent>(arg);
-
-            auto converterEntity = sys->ecsRef->createEntity();
-            sys->ecsRef->attach<ConverterComponent>(converterEntity, converter);
-
-            return makeVar(converterEntity.id);
-        }
-
-        NexusSystem *sys;
-    };
-
-    class ParseRequirement : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(1, 1); }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto reqStr = args.front()->getElement().toString();
-            args.pop();
-
-            FactChecker checker = parseRequirementString(reqStr);
-            return serializeToInterpreter(this, checker);
-        }
-
-    private:
+        // A requirement is written as: name, !name, name>=value, name<=value, name>value, name<value or name==value
         FactChecker parseRequirementString(const std::string& req)
         {
-            if (req.length() > 0 && req[0] == '!')
+            if (req.length() > 0 and req[0] == '!')
             {
                 return FactChecker(req.substr(1), false, FactCheckEquality::Equal);
             }
@@ -288,6 +23,7 @@ namespace pg
                 auto pos = req.find(">=");
                 auto name = req.substr(0, pos);
                 auto value = std::stof(req.substr(pos + 2));
+
                 return FactChecker(name, value, FactCheckEquality::GreaterEqual);
             }
             else if (req.find("<=") != std::string::npos)
@@ -295,6 +31,7 @@ namespace pg
                 auto pos = req.find("<=");
                 auto name = req.substr(0, pos);
                 auto value = std::stof(req.substr(pos + 2));
+
                 return FactChecker(name, value, FactCheckEquality::LesserEqual);
             }
             else if (req.find(">") != std::string::npos)
@@ -302,6 +39,7 @@ namespace pg
                 auto pos = req.find(">");
                 auto name = req.substr(0, pos);
                 auto value = std::stof(req.substr(pos + 1));
+
                 return FactChecker(name, value, FactCheckEquality::Greater);
             }
             else if (req.find("<") != std::string::npos)
@@ -309,6 +47,7 @@ namespace pg
                 auto pos = req.find("<");
                 auto name = req.substr(0, pos);
                 auto value = std::stof(req.substr(pos + 1));
+
                 return FactChecker(name, value, FactCheckEquality::Lesser);
             }
             else if (req.find("==") != std::string::npos)
@@ -316,692 +55,434 @@ namespace pg
                 auto pos = req.find("==");
                 auto name = req.substr(0, pos);
                 auto valueStr = req.substr(pos + 2);
-                if (valueStr == "true") {
+
+                if (valueStr == "true")
                     return FactChecker(name, true, FactCheckEquality::Equal);
-                } else if (valueStr == "false") {
+
+                if (valueStr == "false")
                     return FactChecker(name, false, FactCheckEquality::Equal);
-                } else {
-                    auto value = std::stof(valueStr);
-                    return FactChecker(name, value, FactCheckEquality::Equal);
-                }
-            }
-            else
-            {
-                return FactChecker(req, true, FactCheckEquality::Equal);
-            }
-        }
-    };
 
-    class CreateGamelog : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(1, 1); }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto message = args.front()->getElement().toString();
-            args.pop();
-
-            auto event = StandardEvent("gamelog", "message", message);
-            return serializeToInterpreter(this, AchievementReward(event));
-        }
-    };
-
-    class CreateFact : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(2, 2); }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto name = args.front()->getElement().toString();
-            args.pop();
-            auto value = args.front()->getElement();
-            args.pop();
-
-            return serializeToInterpreter(this, AchievementReward(AddFact{name, value}));
-        }
-    };
-
-    class CreateResource : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(2, 2); }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto resourceName = args.front()->getElement().toString();
-            args.pop();
-            auto amount = args.front()->getElement();
-            args.pop();
-
-            auto event = StandardEvent("one_shot_res", "res", resourceName, "value", amount);
-            return serializeToInterpreter(this, AchievementReward(event));
-        }
-    };
-
-    class CreateIncrease : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(2, 2); }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto name = args.front()->getElement().toString();
-            args.pop();
-            auto value = args.front()->getElement();
-            args.pop();
-
-            return serializeToInterpreter(this, AchievementReward(IncreaseFact{name, value}));
-        }
-    };
-
-    class CreateReward : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(3, -1); } // Infinite arguments like AchievementRewardEvent
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            // Same pattern as CreateAchievementRewardEvent
-            std::string eventName = args.front()->getElement().toString();
-            args.pop();
-            std::string key = args.front()->getElement().toString();
-            args.pop();
-
-            const auto& message = args.front()->getElement();
-            StandardEvent ev(eventName, key, message);
-            args.pop();
-
-            while (!args.empty())
-            {
-                std::string key = args.front()->getElement().toString();
-                args.pop();
-
-                if (args.empty())
-                    throw RuntimeException(token, "Invalid number of arguments for function call: '" + token.text + "' expected value after a key .");
-
-                ev.values[key] = args.front()->getElement();
-                args.pop();
+                return FactChecker(name, std::stof(valueStr), FactCheckEquality::Equal);
             }
 
-            AchievementReward reward(ev);
-            return serializeToInterpreter(this, reward);
+            return FactChecker(req, true, FactCheckEquality::Equal);
         }
-    };
 
-    class CreateCost : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(2, 4); } // resourceId, value, [valueId], [consumed]
-
-        virtual ValuablePtr call(ValuableQueue& args) override
+        // Arguments: resourceId, [value], [valueId], [consumed]
+        NexusButtonCost costFromArgs(VM* vm, int argCount, Value* args)
         {
             NexusButtonCost cost;
 
-            cost.resourceId = args.front()->getElement().toString();
-            args.pop();
-            cost.value = args.front()->getElement().get<float>();
-            args.pop();
+            cost.resourceId = argString(vm, args[0]);
 
-            if (!args.empty())
+            if (argCount > 1)
+                cost.value = argElement(vm, args[1]).get<float>();
+
+            if (argCount > 2)
+                cost.valueId = argString(vm, args[2]);
+
+            if (argCount > 3)
+                cost.consumed = argElement(vm, args[3]).get<bool>();
+
+            return cost;
+        }
+
+        Value stringVector(VM* vm, const std::vector<std::string>& strings)
+        {
+            Value vectorValue = vm->createVector();
+
+            auto vector = vm->asVector(vectorValue);
+
+            for (const auto& string : strings)
             {
-                cost.valueId = args.front()->getElement().toString();
-                args.pop();
+                vector->fields.push_back(vm->createString(string));
             }
 
-            if (!args.empty())
+            return vectorValue;
+        }
+
+        std::vector<float> listFloats(VM* vm, Value list)
+        {
+            std::vector<float> floats;
+
+            for (const auto& value : listValues(vm, list))
             {
-                cost.consumed = args.front()->getElement().get<bool>();
-                args.pop();
-            }
-            else
-            {
-                cost.consumed = true; // Default to consumed
-            }
-
-            return serializeToInterpreter(this, cost);
-        }
-    };
-
-    class CreateHarvest : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(1, 1); } // generatorId
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto generatorId = args.front()->getElement().toString();
-            args.pop();
-
-            // Create res_harvest event
-            auto event = StandardEvent("res_harvest", "id", generatorId);
-            return serializeToInterpreter(this, AchievementReward(event));
-        }
-    };
-
-    class CreateResourceFrom : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(2, 2); } // resourceName, valueId
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto resourceName = args.front()->getElement().toString();
-            args.pop();
-            auto valueId = args.front()->getElement().toString();
-            args.pop();
-
-            // Create one_shot_res event with valueId
-            auto event = StandardEvent("one_shot_res", "res", resourceName, "valueId", valueId);
-            return serializeToInterpreter(this, AchievementReward(event));
-        }
-    };
-
-    // Prestige system helper functions
-    class CreatePrestige : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(1, 1); } // prestigeLevel
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            int prestigeLevel = args.front()->getElement().get<int>();
-            args.pop();
-
-            // Create StandardEvent with perform_prestige
-            StandardEvent ev("perform_prestige", "level", ElementType(prestigeLevel));
-            AchievementReward reward(ev);
-
-            return serializeToInterpreter(this, reward);
-        }
-    };
-
-    class SetTagTier : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys) {
-            this->sys = sys;
-            setArity(2, 2); // tag, tier
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override {
-            std::string tag = args.front()->getElement().toString();
-            args.pop();
-            int tier = args.front()->getElement().get<int>();
-            args.pop();
-
-            sys->setTagToTierMapping(tag, tier);
-            return nullptr;
-        }
-
-    private:
-        NexusSystem *sys;
-    };
-
-    class GetTagTier : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys) {
-            this->sys = sys;
-            setArity(1, 1); // tag
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override {
-            std::string tag = args.front()->getElement().toString();
-            args.pop();
-
-            int tier = sys->getTagTier(tag);
-            return makeVar(tier);
-        }
-
-    private:
-        NexusSystem *sys;
-    };
-
-    class SetDefaultTags : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-            setArity(1, 1); // Array of tags
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            // Clear both tags and stack to prevent bugs
-            sys->defaultPrestigeTags.clear();
-            while (!sys->prestigeTagStack.empty()) {
-                sys->prestigeTagStack.pop();
+                floats.push_back(argElement(vm, value).get<float>());
             }
 
-            auto tagsArg = args.front();
-            args.pop();
+            return floats;
+        }
+    }
 
-            if (tagsArg->getType() == "ClassInstance")
-            {
-                auto tagList = std::static_pointer_cast<ClassInstance>(tagsArg);
-                for (const auto& field : tagList->getFields())
+    /**
+     * Nexus Module
+     * Lets a script declare the buttons, generators, converters and auto clickers of the nexus
+     */
+    class NexusNativeModule : public NativeModule
+    {
+    public:
+        NexusNativeModule(NexusSystem *sys, AutoClickerSystem *autoClickerSys, std::shared_ptr<ScriptHandles> handles)
+        {
+            addNativeFunction("addResourceDisplay", [sys](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("addResourceDisplay", argCount, 1, 1);
+
+                sys->addResourceDisplay(argString(vm, args[0]));
+
+                return makeBoolValue(true);
+            });
+
+            // Arguments: id, ressource, [currentMana], [productionRate], [capacity], [active], [tags[]]
+            addNativeFunction("createGenerator", [sys](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("createGenerator", argCount, 2, 7);
+
+                RessourceGenerator gen;
+
+                gen.id = argString(vm, args[0]);
+                gen.ressource = argString(vm, args[1]);
+
+                if (argCount > 2)
+                    gen.currentMana = argElement(vm, args[2]).get<float>();
+
+                if (argCount > 3)
+                    gen.productionRate = argElement(vm, args[3]).get<float>();
+
+                if (argCount > 4)
+                    gen.capacity = argElement(vm, args[4]).get<float>();
+
+                if (argCount > 5)
+                    gen.active = argElement(vm, args[5]).get<bool>();
+
+                // Without tags the generator takes the default ones
+                gen.prestigeTags = argCount > 6 ? listStrings(vm, args[6]) : sys->defaultPrestigeTags;
+
+                sys->ecsRef->sendEvent(NewGeneratorEvent{gen});
+
+                return vm->createString(gen.id);
+            });
+
+            addNativeFunction("ButtonCost", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("ButtonCost", argCount, 1, 4);
+
+                return handles->add(costFromArgs(vm, argCount, args));
+            });
+
+            // The script fills input, output, cost and yield on the returned table before registering it
+            addNativeFunction("Converter", [sys](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("Converter", argCount, 1, 2);
+
+                Value converterValue = vm->createTable();
+
+                auto converter = vm->asInstance(converterValue);
+
+                converter->setField("id", vm->createString(argString(vm, args[0])), vm, true);
+                converter->setField("active", makeBoolValue(false), vm, true);
+                converter->setField("prestigeTags", stringVector(vm, argCount > 1 ? listStrings(vm, args[1]) : sys->defaultPrestigeTags), vm, true);
+
+                return converterValue;
+            });
+
+            addNativeFunction("registerConverter", [sys](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("registerConverter", argCount, 1, 1);
+
+                if (not IS_INSTANCE(args[0]))
                 {
-                    sys->defaultPrestigeTags.push_back(field.value->getElement().toString());
+                    throw std::runtime_error("registerConverter expects the table returned by Converter");
                 }
-            }
 
-            return nullptr;
-        }
+                auto table = vm->asInstance(args[0]);
 
-        NexusSystem* sys;
-    };
+                ConverterComponent converter;
 
-    class PushDefaultTags : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-            setArity(1, 1); // Array of additional tags
-        }
+                if (table->hasField("id"))
+                    converter.id = argString(vm, table->getField("id"));
 
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            // Save current tags to stack
-            sys->prestigeTagStack.push(sys->defaultPrestigeTags);
+                if (table->hasField("input"))
+                    converter.input = listStrings(vm, table->getField("input"));
 
-            auto tagsArg = args.front();
-            args.pop();
+                if (table->hasField("output"))
+                    converter.output = listStrings(vm, table->getField("output"));
 
-            if (tagsArg->getType() == "ClassInstance")
-            {
-                auto tagList = std::static_pointer_cast<ClassInstance>(tagsArg);
-                for (const auto& field : tagList->getFields())
-                {
-                    sys->defaultPrestigeTags.push_back(field.value->getElement().toString());
-                }
-            }
+                if (table->hasField("cost"))
+                    converter.cost = listFloats(vm, table->getField("cost"));
 
-            return nullptr;
-        }
+                if (table->hasField("yield"))
+                    converter.yield = listFloats(vm, table->getField("yield"));
 
-        NexusSystem* sys;
-    };
+                if (table->hasField("active"))
+                    converter.active = argElement(vm, table->getField("active")).get<bool>();
 
-    class PopDefaultTags : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-            setArity(0, 0);
-        }
+                if (table->hasField("prestigeTags"))
+                    converter.prestigeTags = listStrings(vm, table->getField("prestigeTags"));
 
-        virtual ValuablePtr call(ValuableQueue&) override
-        {
-            if (!sys->prestigeTagStack.empty())
-            {
-                sys->defaultPrestigeTags = sys->prestigeTagStack.top();
-                sys->prestigeTagStack.pop();
-            }
+                auto converterEntity = sys->ecsRef->createEntity();
 
-            return nullptr;
-        }
+                sys->ecsRef->attach<ConverterComponent>(converterEntity, converter);
 
-        NexusSystem* sys;
-    };
-
-    class ClearDefaultTags : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-            setArity(0, 0);
-        }
-
-        virtual ValuablePtr call(ValuableQueue&) override
-        {
-            // Clear both tags and stack to prevent bugs
-            sys->defaultPrestigeTags.clear();
-            while (!sys->prestigeTagStack.empty()) {
-                sys->prestigeTagStack.pop();
-            }
-            return nullptr;
-        }
-
-        NexusSystem* sys;
-    };
-
-    class QuickButton : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-            setArity(5, 11); // id, label, requirements[], outcomes[], description, [category], [clicks], [costs[]], [tags[]]
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            DynamicNexusButton button;
-
-            button.id = args.front()->getElement().toString();
-            args.pop();
-            button.label = args.front()->getElement().toString();
-            args.pop();
-
-            // Parse requirements array
-            auto requirementsArg = args.front();
-            args.pop();
-            if (requirementsArg->getType() == "ClassInstance")
-            {
-                auto reqList = std::static_pointer_cast<ClassInstance>(requirementsArg);
-                for (const auto& field : reqList->getFields())
-                {
-                    auto checker = deserializeTo<FactChecker>(field.value);
-                    button.conditions.push_back(checker);
-                }
-            }
-
-            // Parse outcomes array
-            auto outcomesArg = args.front();
-            args.pop();
-            if (outcomesArg->getType() == "ClassInstance")
-            {
-                auto outcomeList = std::static_pointer_cast<ClassInstance>(outcomesArg);
-                for (const auto& field : outcomeList->getFields())
-                {
-                    auto reward = deserializeTo<AchievementReward>(field.value);
-                    button.outcome.push_back(reward);
-                }
-            }
-
-            button.description = args.front()->getElement().toString();
-            args.pop();
-
-            // Optional category (6th parameter)
-            if (!args.empty())
-            {
-                button.category = args.front()->getElement().toString();
-                args.pop();
-            }
-            else
-            {
-                button.category = "Main";
-            }
-
-            // Optional costs array (7th parameter)
-            if (!args.empty())
-            {
-                auto costsArg = args.front();
-                args.pop();
-                if (costsArg->getType() == "ClassInstance")
-                {
-                    auto costList = std::static_pointer_cast<ClassInstance>(costsArg);
-                    for (const auto& field : costList->getFields())
-                    {
-                        auto cost = deserializeTo<NexusButtonCost>(field.value);
-                        button.costs.push_back(cost);
-                    }
-                }
-            }
-
-            // Optional number of clicks before archive (8th parameter)
-            if (!args.empty())
-            {
-                button.nbClickBeforeArchive = args.front()->getElement().get<size_t>();
-                args.pop();
-            }
-            else
-            {
-                button.nbClickBeforeArchive = 1;
-            }
-
-            // Optional cost increase array (9th parameter)
-            if (!args.empty())
-            {
-                auto costIncreaseArg = args.front();
-                args.pop();
-                if (costIncreaseArg->getType() == "ClassInstance")
-                {
-                    auto increaseList = std::static_pointer_cast<ClassInstance>(costIncreaseArg);
-                    for (const auto& field : increaseList->getFields())
-                    {
-                        button.costIncrease.push_back(field.value->getElement().get<float>());
-                    }
-                }
-            }
-
-            // Optional activation time (10th parameter) - if > 0, makes button activable
-            if (!args.empty())
-            {
-                button.activationTime = args.front()->getElement().get<float>();
-                args.pop();
-
-                // If activationTime is provided and > 0, make button activable
-                if (button.activationTime > 0.0f)
-                {
-                    button.activable = true;
-                }
-            }
-            else
-            {
-                button.activationTime = 1000.0f; // Default
-            }
-
-            // Optional prestige tags array (11th parameter) - if not provided, use defaults
-            if (!args.empty())
-            {
-                auto tagsArg = args.front();
-                args.pop();
-                if (tagsArg->getType() == "ClassInstance")
-                {
-                    auto tagList = std::static_pointer_cast<ClassInstance>(tagsArg);
-                    for (const auto& field : tagList->getFields())
-                    {
-                        button.prestigeTags.push_back(field.value->getElement().toString());
-                    }
-                }
-            }
-            else
-            {
-                // Use default tags from NexusSystem
-                button.prestigeTags = sys->defaultPrestigeTags;
-            }
-
-            // Create metadata for this button
-            FactMetadata buttonMetadata;
-            buttonMetadata.meta["buttonId"] = ElementType(button.id);
-            buttonMetadata.meta["nbTags"] = ElementType((int)button.prestigeTags.size());
-            for (size_t i = 0; i < button.prestigeTags.size(); i++) {
-                buttonMetadata.meta["tag" + std::to_string(i)] = ElementType(button.prestigeTags[i]);
-            }
-
-            // Inject metadata into AddFact and IncreaseFact events in outcomes
-            for (auto& outcome : button.outcome) {
-                if (outcome.type == AchievementRewardType::Add) {
-                    auto& addFact = std::get<AddFact>(outcome.reward);
-                    addFact.metadata = buttonMetadata;
-                }
-                else if (outcome.type == AchievementRewardType::Increase) {
-                    auto& increaseFact = std::get<IncreaseFact>(outcome.reward);
-                    increaseFact.metadata = buttonMetadata;
-                }
-            }
-
-            // Auto-register the button
-            sys->savedButtons.push_back(button);
-
-            return nullptr;
-        }
-
-        NexusSystem *sys;
-    };
-
-    class CreateAutoClicker : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(AutoClickerSystem *sys)
-        {
-            this->sys = sys;
-            setArity(3, 5); // id, targetButtonId, baseInterval, [costs[]], [unlockConditions[]]
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            AutoClicker clicker;
-
-            clicker.id = args.front()->getElement().toString();
-            args.pop();
-            clicker.targetButtonId = args.front()->getElement().toString();
-            args.pop();
-            clicker.baseInterval = args.front()->getElement().get<float>();
-            args.pop();
-
-            // Optional costs array
-            if (!args.empty())
-            {
-                auto costsArg = args.front();
-                args.pop();
-                if (costsArg->getType() == "ClassInstance")
-                {
-                    auto costList = std::static_pointer_cast<ClassInstance>(costsArg);
-                    for (const auto& field : costList->getFields())
-                    {
-                        auto cost = deserializeTo<NexusButtonCost>(field.value);
-                        clicker.costs.push_back(cost);
-                    }
-                }
-            }
-
-            // Optional unlock conditions array
-            if (!args.empty())
-            {
-                auto conditionsArg = args.front();
-                args.pop();
-                if (conditionsArg->getType() == "ClassInstance")
-                {
-                    auto conditionList = std::static_pointer_cast<ClassInstance>(conditionsArg);
-                    for (const auto& field : conditionList->getFields())
-                    {
-                        auto condition = deserializeTo<FactChecker>(field.value);
-                        clicker.unlockConditions.push_back(condition);
-                    }
-                }
-            }
-
-            // Add to available auto-clickers
-            sys->availableAutoClickers.push_back(clicker);
-
-            // Create the auto-clicker facts immediately
-            sys->createAutoClickerFacts(clicker);
-
-            return nullptr;
-        }
-
-        AutoClickerSystem *sys;
-    };
-
-    class PurchaseAutoClickerReward : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(1, 1); }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto autoClickerId = args.front()->getElement().toString();
-            args.pop();
-
-            auto event = StandardEvent("purchase_autoclicker", "id", autoClickerId);
-            return serializeToInterpreter(this, AchievementReward(event));
-        }
-    };
-
-    class ToggleAutoClickerReward : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(1, 2); } // autoClickerId, [enable]
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto autoClickerId = args.front()->getElement().toString();
-            args.pop();
-
-            bool enable = true; // Default to enable
-            if (!args.empty())
-            {
-                enable = args.front()->getElement().get<bool>();
-                args.pop();
-            }
-
-            auto event = StandardEvent("toggle_autoclicker", "id", autoClickerId, "enable", ElementType(enable));
-            return serializeToInterpreter(this, AchievementReward(event));
-        }
-    };
-
-    struct NexusModule : public SysModule
-    {
-        NexusModule(NexusSystem *sys, AutoClickerSystem *autoClickerSys)
-        {
-            // Existing functions
-            addSystemFunction<CreateNexusButton>("NexusButton");
-            addSystemFunction<RegisterNexusButton>("registerNexusButton", sys);
-            addSystemFunction<TrackNewResource>("addResourceDisplay", sys);
-            addSystemFunction<CreateGenerator>("createGenerator", sys);
-            addSystemFunction<CreateButtonCost>("ButtonCost");
-            addSystemFunction<CreateConverter>("Converter", sys);
-            addSystemFunction<RegisterConverter>("registerConverter", sys);
+                return makeIntValue(static_cast<int64_t>(converterEntity.id));
+            });
 
             // Tag system functions
-            addSystemFunction<SetDefaultTags>("setDefaultTags", sys);
-            addSystemFunction<PushDefaultTags>("pushDefaultTags", sys);
-            addSystemFunction<PopDefaultTags>("popDefaultTags", sys);
-            addSystemFunction<ClearDefaultTags>("clearDefaultTags", sys);
+            addNativeFunction("setDefaultTags", [sys](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("setDefaultTags", argCount, 1, 1);
 
-            // New helper functions for simplified button creation
-            addSystemFunction<QuickButton>("quickButton", sys);
-            addSystemFunction<ParseRequirement>("req");
-            addSystemFunction<CreateGamelog>("gamelog");
-            addSystemFunction<CreateFact>("fact");
-            addSystemFunction<CreateResource>("resource");
-            addSystemFunction<CreateIncrease>("increase");
+                // Clear both tags and stack to prevent bugs
+                while (not sys->prestigeTagStack.empty())
+                {
+                    sys->prestigeTagStack.pop();
+                }
 
-            // Simple helper functions
-            addSystemFunction<CreateReward>("reward");
-            addSystemFunction<CreateCost>("cost");
-            addSystemFunction<CreateHarvest>("harvest");
-            addSystemFunction<CreateResourceFrom>("resourceFrom");
+                sys->defaultPrestigeTags = listStrings(vm, args[0]);
 
-            // AutoClicker functions
-            addSystemFunction<CreateAutoClicker>("createAutoClicker", autoClickerSys);
-            addSystemFunction<PurchaseAutoClickerReward>("purchaseAutoClicker");
-            addSystemFunction<ToggleAutoClickerReward>("toggleAutoClicker");
+                return makeBoolValue(true);
+            });
+
+            addNativeFunction("pushDefaultTags", [sys](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("pushDefaultTags", argCount, 1, 1);
+
+                // Save current tags to stack
+                sys->prestigeTagStack.push(sys->defaultPrestigeTags);
+
+                for (const auto& tag : listStrings(vm, args[0]))
+                {
+                    sys->defaultPrestigeTags.push_back(tag);
+                }
+
+                return makeBoolValue(true);
+            });
+
+            addNativeFunction("popDefaultTags", [sys](VM*, int argCount, Value*) -> Value {
+                checkArgCount("popDefaultTags", argCount, 0, 0);
+
+                if (not sys->prestigeTagStack.empty())
+                {
+                    sys->defaultPrestigeTags = sys->prestigeTagStack.top();
+                    sys->prestigeTagStack.pop();
+                }
+
+                return makeBoolValue(true);
+            });
+
+            addNativeFunction("clearDefaultTags", [sys](VM*, int argCount, Value*) -> Value {
+                checkArgCount("clearDefaultTags", argCount, 0, 0);
+
+                // Clear both tags and stack to prevent bugs
+                sys->defaultPrestigeTags.clear();
+
+                while (not sys->prestigeTagStack.empty())
+                {
+                    sys->prestigeTagStack.pop();
+                }
+
+                return makeBoolValue(true);
+            });
+
+            // Arguments: id, label, requirements[], outcomes[], description, [category], [costs[]], [clicks], [costIncrease[]], [activationTime], [tags[]]
+            addNativeFunction("quickButton", [sys, handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("quickButton", argCount, 5, 11);
+
+                DynamicNexusButton button;
+
+                button.id = argString(vm, args[0]);
+                button.label = argString(vm, args[1]);
+
+                for (const auto& value : listValues(vm, args[2]))
+                {
+                    button.conditions.push_back(handles->checker(value));
+                }
+
+                for (const auto& value : listValues(vm, args[3]))
+                {
+                    button.outcome.push_back(handles->reward(value));
+                }
+
+                button.description = argString(vm, args[4]);
+
+                button.category = argCount > 5 ? argString(vm, args[5]) : "Main";
+
+                if (argCount > 6)
+                {
+                    for (const auto& value : listValues(vm, args[6]))
+                    {
+                        button.costs.push_back(handles->cost(value));
+                    }
+                }
+
+                button.nbClickBeforeArchive = argCount > 7 ? argElement(vm, args[7]).get<size_t>() : 1;
+
+                if (argCount > 8)
+                    button.costIncrease = listFloats(vm, args[8]);
+
+                // A button given an activation time becomes activable
+                if (argCount > 9)
+                {
+                    button.activationTime = argElement(vm, args[9]).get<float>();
+
+                    if (button.activationTime > 0.0f)
+                        button.activable = true;
+                }
+                else
+                {
+                    button.activationTime = 1000.0f;
+                }
+
+                // Without tags the button takes the default ones
+                button.prestigeTags = argCount > 10 ? listStrings(vm, args[10]) : sys->defaultPrestigeTags;
+
+                FactMetadata buttonMetadata;
+
+                buttonMetadata.meta["buttonId"] = ElementType(button.id);
+                buttonMetadata.meta["nbTags"] = ElementType(static_cast<int>(button.prestigeTags.size()));
+
+                for (size_t i = 0; i < button.prestigeTags.size(); ++i)
+                {
+                    buttonMetadata.meta["tag" + std::to_string(i)] = ElementType(button.prestigeTags[i]);
+                }
+
+                // Inject metadata into AddFact and IncreaseFact events in outcomes
+                for (auto& outcome : button.outcome)
+                {
+                    if (outcome.type == AchievementRewardType::Add)
+                    {
+                        std::get<AddFact>(outcome.reward).metadata = buttonMetadata;
+                    }
+                    else if (outcome.type == AchievementRewardType::Increase)
+                    {
+                        std::get<IncreaseFact>(outcome.reward).metadata = buttonMetadata;
+                    }
+                }
+
+                // Auto-register the button
+                sys->savedButtons.push_back(button);
+
+                return makeBoolValue(true);
+            });
+
+            // Helper functions building the requirements, outcomes and costs of a button
+            addNativeFunction("req", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("req", argCount, 1, 1);
+
+                return handles->add(parseRequirementString(argString(vm, args[0])));
+            });
+
+            addNativeFunction("gamelog", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("gamelog", argCount, 1, 1);
+
+                return handles->add(AchievementReward(StandardEvent("gamelog", "message", argString(vm, args[0]))));
+            });
+
+            addNativeFunction("fact", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("fact", argCount, 2, 2);
+
+                return handles->add(AchievementReward(AddFact{argString(vm, args[0]), argElement(vm, args[1])}));
+            });
+
+            addNativeFunction("resource", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("resource", argCount, 2, 2);
+
+                return handles->add(AchievementReward(StandardEvent("one_shot_res", "res", argString(vm, args[0]), "value", argElement(vm, args[1]))));
+            });
+
+            addNativeFunction("increase", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("increase", argCount, 2, 2);
+
+                return handles->add(AchievementReward(IncreaseFact{argString(vm, args[0]), argElement(vm, args[1])}));
+            });
+
+            addNativeFunction("reward", [handles](VM* vm, int argCount, Value* args) -> Value {
+                return handles->add(AchievementReward(eventFromArgs(vm, "reward", argCount, args)));
+            });
+
+            // Arguments: resourceId, value, [valueId], [consumed]
+            addNativeFunction("cost", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("cost", argCount, 2, 4);
+
+                return handles->add(costFromArgs(vm, argCount, args));
+            });
+
+            addNativeFunction("harvest", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("harvest", argCount, 1, 1);
+
+                return handles->add(AchievementReward(StandardEvent("res_harvest", "id", argString(vm, args[0]))));
+            });
+
+            // Arguments: resourceName, valueId
+            addNativeFunction("resourceFrom", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("resourceFrom", argCount, 2, 2);
+
+                return handles->add(AchievementReward(StandardEvent("one_shot_res", "res", argString(vm, args[0]), "valueId", argString(vm, args[1]))));
+            });
+
+            // Arguments: id, targetButtonId, baseInterval, [costs[]], [unlockConditions[]]
+            addNativeFunction("createAutoClicker", [autoClickerSys, handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("createAutoClicker", argCount, 3, 5);
+
+                AutoClicker clicker;
+
+                clicker.id = argString(vm, args[0]);
+                clicker.targetButtonId = argString(vm, args[1]);
+                clicker.baseInterval = argElement(vm, args[2]).get<float>();
+
+                if (argCount > 3)
+                {
+                    for (const auto& value : listValues(vm, args[3]))
+                    {
+                        clicker.costs.push_back(handles->cost(value));
+                    }
+                }
+
+                if (argCount > 4)
+                {
+                    for (const auto& value : listValues(vm, args[4]))
+                    {
+                        clicker.unlockConditions.push_back(handles->checker(value));
+                    }
+                }
+
+                autoClickerSys->availableAutoClickers.push_back(clicker);
+
+                // Create the auto-clicker facts immediately
+                autoClickerSys->createAutoClickerFacts(clicker);
+
+                return makeBoolValue(true);
+            });
+
+            addNativeFunction("purchaseAutoClicker", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("purchaseAutoClicker", argCount, 1, 1);
+
+                return handles->add(AchievementReward(StandardEvent("purchase_autoclicker", "id", argString(vm, args[0]))));
+            });
+
+            // Arguments: autoClickerId, [enable]
+            addNativeFunction("toggleAutoClicker", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("toggleAutoClicker", argCount, 1, 2);
+
+                const bool enable = argCount > 1 ? argElement(vm, args[1]).get<bool>() : true;
+
+                return handles->add(AchievementReward(StandardEvent("toggle_autoclicker", "id", argString(vm, args[0]), "enable", ElementType(enable))));
+            });
 
             // Prestige system functions
-            addSystemFunction<CreatePrestige>("prestige");
-            addSystemFunction<SetTagTier>("setTagTier", sys);
-            addSystemFunction<GetTagTier>("getTagTier", sys);
+            addNativeFunction("prestige", [handles](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("prestige", argCount, 1, 1);
 
-            //Todo add basic generator / converter ids as system vars
-            //addSystemVar("SCANCODE_A", SDL_SCANCODE_A);
+                return handles->add(AchievementReward(StandardEvent("perform_prestige", "level", ElementType(argElement(vm, args[0]).get<int>()))));
+            });
+
+            addNativeFunction("setTagTier", [sys](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("setTagTier", argCount, 2, 2);
+
+                sys->setTagToTierMapping(argString(vm, args[0]), argElement(vm, args[1]).get<int>());
+
+                return makeBoolValue(true);
+            });
+
+            addNativeFunction("getTagTier", [sys](VM* vm, int argCount, Value* args) -> Value {
+                checkArgCount("getTagTier", argCount, 1, 1);
+
+                return makeIntValue(sys->getTagTier(argString(vm, args[0])));
+            });
+
+            // Todo add basic generator / converter ids as system vars
         }
     };
 
@@ -1010,15 +491,19 @@ namespace pg
         // Register StandardEvent types we listen to
         addListenerToStandardEvent("perform_prestige");
 
-        PgInterpreter interpreter;
+        auto autoClickerSystem = ecsRef->getSystem<AutoClickerSystem>();
 
-        // Get the AutoClickerSystem reference
-        auto* autoClickerSystem = ecsRef->getSystem<AutoClickerSystem>();
+        // The requirements, outcomes and costs built by the script are shared between the modules
+        auto handles = std::make_shared<ScriptHandles>();
 
-        interpreter.addSystemModule("nexus", NexusModule{this, autoClickerSystem});
-        interpreter.addSystemModule("log", LogModule{nullptr});
-        interpreter.addSystemModule("achievement", AchievementModule{});
+        VM vm;
 
-        interpreter.interpretFromFile("res/main.pg");
+        ecsRef->setupVm(vm);
+
+        vm.addNativeModule("nexus", NexusNativeModule{this, autoClickerSystem, handles});
+        vm.addNativeModule("log", LogNativeModule{nullptr});
+        vm.addNativeModule("achievement", AchievementNativeModule{handles});
+
+        vm.interpretFromFile("res/main.pg");
     }
 }

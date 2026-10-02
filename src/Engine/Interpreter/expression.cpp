@@ -1,94 +1,93 @@
 #include "stdafx.h"
 
 #include "expression.h"
-#include "valuable.h"
-#include "interpreter.h"
+#include "visitor.h"
 
 namespace pg
 {
-    std::shared_ptr<Valuable> BinaryExpression::accept(Visitor* visitor)
+    void BinaryExpression::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> LogicExpression::accept(Visitor* visitor)
+    void LogicExpression::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> UnaryExpression::accept(Visitor* visitor)
+    void UnaryExpression::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> PreFixExpression::accept(Visitor* visitor)
+    void PreFixExpression::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> PostFixExpression::accept(Visitor* visitor)
+    void PostFixExpression::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> CompoundAtom::accept(Visitor* visitor)
+    void CompoundAtom::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> Atom::accept(Visitor* visitor)
+    void Atom::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> List::accept(Visitor* visitor)
+    void List::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> This::accept(Visitor* visitor)
+    void This::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> Var::accept(Visitor* visitor)
+    void Var::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> Assign::accept(Visitor* visitor)
+    void Assign::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> CallExpression::accept(Visitor* visitor)
+    void CallExpression::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> Get::accept(Visitor* visitor)
+    void Get::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> Set::accept(Visitor* visitor)
+    void Set::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> AnonymousFunction::accept(Visitor* visitor)
+    void AnonymousFunction::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> IndexGet::accept(Visitor* visitor)
+    void IndexGet::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
-    std::shared_ptr<Valuable> IndexSet::accept(Visitor* visitor)
+    void IndexSet::accept(Visitor* visitor)
     {
-        return visitor->visit(this);
+        visitor->visit(this);
     }
 
 }

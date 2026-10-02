@@ -6,11 +6,12 @@
 
 #include "Files/fileparser.h"
 
-#include "Interpreter/pginterpreter.h"
+#include "Compiler/vm.h"
 
 #include "Renderer/renderer.h"
 
 #include "Systems/coresystems.h"
+#include "Systems/scriptrunner.h"
 
 namespace pg
 {
@@ -174,58 +175,52 @@ namespace pg
         return SceneFile{};
     }
 
-    class GetCurrentScene : public Function
+    // Script function returning the scene as a table: its name, the instanced entities by id and the names of the subscenes
+    NativeFn makeGetCurrentScene(const SceneFile& sceneFile)
     {
-        using Function::Function;
-    public:
-        void setUp(const SceneFile& sceneFile)
-        {
-            LOG_THIS_MEMBER(DOM);
+        return [sceneFile](VM* vm, int argCount, Value*) -> Value {
+            if (argCount != 0)
+            {
+                throw std::runtime_error("getCurrentScene expects no argument");
+            }
 
-            setArity(0, 0);
+            Value sceneValue = vm->createTable();
 
-            this->sceneFile = sceneFile;
-        }
+            auto scene = vm->asInstance(sceneValue);
 
-        virtual ValuablePtr call(ValuableQueue&) override
-        {
-            LOG_THIS_MEMBER(DOM);
+            scene->setField("name", vm->createString(sceneFile.filename), vm, true);
 
-            auto entityList = makeList(this, {});
+            Value entitiesValue = vm->createTable();
 
-            auto subsceneList = makeList(this, {});
-
-            auto list = makeList(this, {{"name", sceneFile.filename}});
+            auto entities = vm->asInstance(entitiesValue);
 
             for (const auto& ent : sceneFile.instancedEntities)
             {
-                if (ent.has<EntityName>())
-                {
-                    addToList(entityList, this->token, {std::to_string(ent.id), ent.get<EntityName>()->name});
-                }
-                else
-                {
-                    addToList(entityList, this->token, {std::to_string(ent.id), "UnNamed"});
-                }
+                const std::string name = ent.has<EntityName>() ? ent.get<EntityName>()->name : "UnNamed";
+
+                entities->setField(std::to_string(ent.id), vm->createString(name), vm, true);
             }
 
-            addToList(list, this->token, {"entities", entityList});
+            scene->setField("entities", entitiesValue, vm, true);
 
-            unsigned int i = 0;
+            Value subscenesValue = vm->createTable();
+
+            auto subscenes = vm->asInstance(subscenesValue);
+
+            size_t i = 0;
+
             for (const auto& subscene : sceneFile.subScenes)
             {
-                addToList(subsceneList, this->token, {std::to_string(i), subscene.filename});
+                subscenes->setField(std::to_string(i), vm->createString(subscene.filename), vm, true);
 
                 ++i;
             }
 
-            addToList(list, this->token, {"subscenes", subsceneList});
+            scene->setField("subscenes", subscenesValue, vm, true);
 
-            return list;
-        }
-
-        SceneFile sceneFile;
-    };
+            return sceneValue;
+        };
+    }
 
     EntityRef Scene::createEntity()
     {
@@ -641,8 +636,8 @@ namespace pg
 
         if (scene.onEnterScript != "" and scene.onEnterScript != NONESCRIPT)
         {
-            CustomSysFunctions function;
-            function.addSystemFunction<GetCurrentScene>("getCurrentScene", scene);
+            ScriptFunctions function;
+            function["getCurrentScene"] = makeGetCurrentScene(scene);
 
             ecsRef->sendEvent(ExecuteFileScriptEvent{scene.onEnterScript, function});
         }
@@ -664,8 +659,8 @@ namespace pg
 
         if (scene.onLeaveScript != "" and scene.onLeaveScript != NONESCRIPT)
         {
-            CustomSysFunctions function;
-            function.addSystemFunction<GetCurrentScene>("getCurrentScene", scene);
+            ScriptFunctions function;
+            function["getCurrentScene"] = makeGetCurrentScene(scene);
 
             ecsRef->sendEvent(ExecuteFileScriptEvent{scene.onLeaveScript, function});
         }

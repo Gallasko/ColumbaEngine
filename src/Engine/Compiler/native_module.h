@@ -11,7 +11,6 @@ namespace pg
 
     /**
      * Base class for native modules
-     * Similar to SysModule in the interpreter
      *
      * Usage:
      *   class MyModule : public NativeModule {

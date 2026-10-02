@@ -197,14 +197,12 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/componentproxy.cpp
     src/Engine/Compiler/ecsserialization.cpp
     src/Engine/Compiler/tableserialization.cpp
-    # Minimal interpreter (lexer/token + the AST front-end shared with the
-    # bytecode compiler; the tree-walking runtime itself is excluded)
+    # Lexer, tokens and the AST parser used by the bytecode compiler
     src/Engine/Interpreter/lexer.cpp
     src/Engine/Interpreter/token.cpp
     src/Engine/Interpreter/expression.cpp
     src/Engine/Interpreter/statement.cpp
     src/Engine/Interpreter/parser.cpp
-    src/Engine/Interpreter/resolver.cpp
     # ECS system (needed for module registration and VM integration)
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
@@ -312,18 +310,11 @@ set(ENGINESOURCE
     src/Engine/Helpers/tinyfiledialogs.cpp
     src/Engine/Input/input.cpp
     src/Engine/Input/inputcomponent.cpp
-    src/Engine/Interpreter/environment.cpp
     src/Engine/Interpreter/expression.cpp
-    src/Engine/Interpreter/interpreter.cpp
-    src/Engine/Interpreter/interpretersystem.cpp
     src/Engine/Interpreter/lexer.cpp
     src/Engine/Interpreter/parser.cpp
-    src/Engine/Interpreter/pginterpreter.cpp
-    src/Engine/Interpreter/resolver.cpp
     src/Engine/Interpreter/statement.cpp
-    src/Engine/Interpreter/systemfunction.cpp
     src/Engine/Interpreter/token.cpp
-    src/Engine/Interpreter/valuable.cpp
     src/Engine/Loaders/atlasloader.cpp
     src/Engine/Loaders/gridatlasloader.cpp
     src/Engine/Loaders/svgloader.cpp
@@ -347,8 +338,7 @@ set(ENGINESOURCE
     src/Engine/Systems/coresystems.cpp
     src/Engine/Systems/gamefacts.cpp
     src/Engine/Systems/oneventcomponent.cpp
-    src/Engine/Systems/positionmodule.cpp
-    src/Engine/Systems/uimodule.cpp
+    src/Engine/Systems/scriptrunner.cpp
     src/Engine/UI/button.cpp
     src/Engine/UI/focusable.cpp
     src/Engine/UI/fontatlas.cpp
@@ -1511,7 +1501,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/framelimiter.cc
             test/gamefacts.cc
             test/profilertools.cc
-            test/interpreter.cc
             test/layout.cc
             test/prefab.cc
             test/prefabbuilder.cc
@@ -1523,7 +1512,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             # test/simple2dobject.cc
             test/position.cc
             test/memorypool.cc
-            test/mockinterpreter.h
             test/mocklogger.h
             test/mockloggertest.cc
             test/renderer.cc

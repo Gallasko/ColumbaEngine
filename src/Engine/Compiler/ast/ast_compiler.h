@@ -24,7 +24,7 @@
  * the differential testbench compares both front-ends over the script corpus.
  */
 
-#include "Interpreter/interpreter.h"
+#include "Interpreter/visitor.h"
 #include "Interpreter/token.h"
 
 #include "../compiler.h"
@@ -56,23 +56,23 @@ namespace pg
         std::vector<Value>& allocatedFunctions() { return root.parser.allocatedFunction; }
 
         // Expressions
-        virtual std::shared_ptr<Valuable> visit(BinaryExpression* expr) override;
-        virtual std::shared_ptr<Valuable> visit(LogicExpression* expr) override;
-        virtual std::shared_ptr<Valuable> visit(UnaryExpression* expr) override;
-        virtual std::shared_ptr<Valuable> visit(PreFixExpression* expr) override;
-        virtual std::shared_ptr<Valuable> visit(PostFixExpression* expr) override;
-        virtual std::shared_ptr<Valuable> visit(CompoundAtom* expr) override;
-        virtual std::shared_ptr<Valuable> visit(Atom* expr) override;
-        virtual std::shared_ptr<Valuable> visit(List* expr) override;
-        virtual std::shared_ptr<Valuable> visit(This* expr) override;
-        virtual std::shared_ptr<Valuable> visit(Var* expr) override;
-        virtual std::shared_ptr<Valuable> visit(Assign* expr) override;
-        virtual std::shared_ptr<Valuable> visit(CallExpression* expr) override;
-        virtual std::shared_ptr<Valuable> visit(Get* expr) override;
-        virtual std::shared_ptr<Valuable> visit(Set* expr) override;
-        virtual std::shared_ptr<Valuable> visit(AnonymousFunction* expr) override;
-        virtual std::shared_ptr<Valuable> visit(IndexGet* expr) override;
-        virtual std::shared_ptr<Valuable> visit(IndexSet* expr) override;
+        virtual void visit(BinaryExpression* expr) override;
+        virtual void visit(LogicExpression* expr) override;
+        virtual void visit(UnaryExpression* expr) override;
+        virtual void visit(PreFixExpression* expr) override;
+        virtual void visit(PostFixExpression* expr) override;
+        virtual void visit(CompoundAtom* expr) override;
+        virtual void visit(Atom* expr) override;
+        virtual void visit(List* expr) override;
+        virtual void visit(This* expr) override;
+        virtual void visit(Var* expr) override;
+        virtual void visit(Assign* expr) override;
+        virtual void visit(CallExpression* expr) override;
+        virtual void visit(Get* expr) override;
+        virtual void visit(Set* expr) override;
+        virtual void visit(AnonymousFunction* expr) override;
+        virtual void visit(IndexGet* expr) override;
+        virtual void visit(IndexSet* expr) override;
 
         // Statements
         virtual void visitStatement(ExpressionStatement* stmt) override;

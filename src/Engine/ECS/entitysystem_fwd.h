@@ -19,9 +19,6 @@ namespace pg
     struct AbstractSystem;
     class CommandDispatcher;
     class SaveManager;
-    class InterpreterSystem;
-    class Environment;
-    class ClassInstance;
     class StandardSystemImpl;
     struct StandardComponent;
     struct VM;

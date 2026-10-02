@@ -11,11 +11,6 @@
 
 namespace pg
 {
-    InterpreterSystem* EntitySystem::createInterpreterSystem(std::shared_ptr<Environment>, std::shared_ptr<ClassInstance>)
-    {
-        return nullptr;
-    }
-
     void EntitySystem::setupVmFullModules(VM&)
     {
         // No additional modules in minimal build

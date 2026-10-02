@@ -2,7 +2,6 @@
 
 #include "Interpreter/lexer.h"
 #include "Interpreter/parser.h"
-#include "Interpreter/resolver.h"
 
 #include "../mocklogger.h"
 

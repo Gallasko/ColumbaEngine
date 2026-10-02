@@ -2,8 +2,6 @@
 
 #include "componentregistry.h"
 
-#include "Interpreter/interpretersystem.h"
-
 #include "entitysystem.h"
 
 namespace pg
@@ -116,26 +114,6 @@ namespace pg
             delete static_cast<AbstractGroup*>(group.second);
 
         LOG_INFO("Component Registry", "Component Registry deleted !");
-    }
-
-    void ComponentRegistry::addEventListener(_unique_id eventId, InterpreterSystem *listener)
-    {
-        LOG_THIS_MEMBER("Component Registry");
-
-        // Store the listerer using the listener pointer value to be able to delete it later
-        eventStorageMap[eventId].emplace((intptr_t)listener, [eventId, listener](const std::any& event) {
-            listener->onEvent(eventId, std::any_cast<const std::shared_ptr<ClassInstance>&>(event));
-        });
-    }
-
-    void ComponentRegistry::removeEventListener(_unique_id eventId, InterpreterSystem *listener)
-    {
-        LOG_THIS_MEMBER("Component Registry");
-
-        if (const auto& it = eventStorageMap[eventId].find((intptr_t)listener); it != eventStorageMap[eventId].end())
-        {
-            eventStorageMap[eventId].erase(it);
-        }
     }
 
     void ComponentRegistry::removeTypeId(_unique_id id)

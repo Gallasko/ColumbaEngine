@@ -220,7 +220,7 @@ namespace pg
     // Expressions
     // ------------------------------------------------------------------
 
-    std::shared_ptr<Valuable> AstCompiler::visit(BinaryExpression* expr)
+    void AstCompiler::visit(BinaryExpression* expr)
     {
         expr->leftExpr->accept(this);
         expr->rightExpr->accept(this);
@@ -277,11 +277,9 @@ namespace pg
                 error(expr->op, "Unknown binary operator '" + expr->op.text + "'.");
                 break;
         }
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(LogicExpression* expr)
+    void AstCompiler::visit(LogicExpression* expr)
     {
         expr->leftExpr->accept(this);
 
@@ -313,11 +311,9 @@ namespace pg
         {
             error(expr->op, "Unknown logic operator '" + expr->op.text + "'.");
         }
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(UnaryExpression* expr)
+    void AstCompiler::visit(UnaryExpression* expr)
     {
         expr->expr->accept(this);
 
@@ -337,11 +333,9 @@ namespace pg
                 error(expr->op, "Unknown unary operator '" + expr->op.text + "'.");
                 break;
         }
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(PreFixExpression* expr)
+    void AstCompiler::visit(PreFixExpression* expr)
     {
         // Mirror incrementOp/decrementOp: prefix ++/-- only supports plain
         // variables (locals resolve to a slot, everything else goes global by
@@ -351,7 +345,7 @@ namespace pg
         if (expr->expr->getType() != "Var")
         {
             error(expr->op, "Expected variable after prefix operator.");
-            return nullptr;
+            return;
         }
 
         Token varToken = std::static_pointer_cast<Var>(expr->expr)->name;
@@ -374,11 +368,9 @@ namespace pg
 
         root.parser.writeConstant(identifier);
         root.parser.writeByte(op);
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(PostFixExpression* expr)
+    void AstCompiler::visit(PostFixExpression* expr)
     {
         // Mirror the postfix ++/-- handling inside variable(): push the old
         // value, then emit the post-increment op with the identifier operand
@@ -387,7 +379,7 @@ namespace pg
         if (expr->expr->getType() != "Var")
         {
             error(expr->op, "Expected variable before postfix operator.");
-            return nullptr;
+            return;
         }
 
         Token varToken = std::static_pointer_cast<Var>(expr->expr)->name;
@@ -419,28 +411,22 @@ namespace pg
             root.parser.writeConstant(varToken.text);
             root.parser.writeByte(increment ? OpCode::OP_Post_Incr_Global : OpCode::OP_Post_Decr_Global);
         }
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(CompoundAtom* expr)
+    void AstCompiler::visit(CompoundAtom* expr)
     {
         expr->expr->accept(this);
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(Atom* expr)
+    void AstCompiler::visit(Atom* expr)
     {
         if (expr->value.type == UnionType::BOOL)
             root.parser.writeByte(expr->value.isTrue() ? OpCode::OP_True : OpCode::OP_False);
         else
             root.parser.writeConstant(expr->value);
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(List* expr)
+    void AstCompiler::visit(List* expr)
     {
         // Mirror createTable/createTableBrace: for each entry push the value
         // then its key, then build. Braces or any explicit 'key:' entry make
@@ -452,7 +438,7 @@ namespace pg
         if (entries.size() > 255)
         {
             error(expr->squareBracket, "Too many entries in a list literal (max 255).");
-            return nullptr;
+            return;
         }
 
         uint8_t count = 0;
@@ -476,7 +462,7 @@ namespace pg
                 else
                 {
                     error(expr->squareBracket, "Unsupported table key expression.");
-                    return nullptr;
+                    return;
                 }
             }
             else
@@ -491,33 +477,27 @@ namespace pg
 
         root.parser.writeByte(buildTable ? OpCode::OP_Build_Table : OpCode::OP_Build_Vector);
         root.parser.writeByte(count);
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(This* expr)
+    void AstCompiler::visit(This* expr)
     {
         if (Compiler::current->currentClass == nullptr)
         {
             error(expr->name, "Can't use 'this' outside of a class.");
-            return nullptr;
+            return;
         }
 
         setLine(expr->name);
         emitVariableGet(expr->name);
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(Var* expr)
+    void AstCompiler::visit(Var* expr)
     {
         setLine(expr->name);
         emitVariableGet(expr->name);
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(Assign* expr)
+    void AstCompiler::visit(Assign* expr)
     {
         setLine(expr->name);
 
@@ -544,11 +524,9 @@ namespace pg
             root.parser.writeConstant(expr->name.text);
             root.parser.writeByte(OpCode::OP_Set_Global);
         }
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(CallExpression* expr)
+    void AstCompiler::visit(CallExpression* expr)
     {
         setLine(expr->paren);
 
@@ -584,12 +562,12 @@ namespace pg
             int stringIndex = internString(getExpr->name.text, getExpr->name);
 
             if (stringIndex < 0)
-                return nullptr;
+                return;
 
             int argCount = emitArgs(expr->args, expr->paren);
 
             if (argCount < 0)
-                return nullptr;
+                return;
 
             setLine(expr->paren);
             root.parser.emitBytes(OpCode::OP_Invoke, static_cast<uint8_t>(stringIndex));
@@ -602,16 +580,14 @@ namespace pg
             int argCount = emitArgs(expr->args, expr->paren);
 
             if (argCount < 0)
-                return nullptr;
+                return;
 
             setLine(expr->paren);
             root.parser.emitBytes(OpCode::OP_Call, static_cast<uint8_t>(argCount));
         }
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(Get* expr)
+    void AstCompiler::visit(Get* expr)
     {
         expr->object->accept(this);
 
@@ -620,15 +596,13 @@ namespace pg
         int stringIndex = internString(expr->name.text, expr->name);
 
         if (stringIndex < 0)
-            return nullptr;
+            return;
 
         root.parser.writeByte(OpCode::OP_Get_Property);
         root.parser.writeByte(static_cast<uint8_t>(stringIndex));
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(Set* expr)
+    void AstCompiler::visit(Set* expr)
     {
         expr->object->accept(this);
 
@@ -638,38 +612,32 @@ namespace pg
         int stringIndex = internString(expr->name.text, expr->name);
 
         if (stringIndex < 0)
-            return nullptr;
+            return;
 
         expr->value->accept(this);
 
         setLine(expr->name);
         root.parser.writeByte(OpCode::OP_Set_Property);
         root.parser.writeByte(static_cast<uint8_t>(stringIndex));
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(AnonymousFunction* expr)
+    void AstCompiler::visit(AnonymousFunction* expr)
     {
         // The Pratt front-end names anonymous functions after the 'fun'
         // keyword token it just consumed
         compileFunction(FunctionType::TYPE_FUNCTION, expr->token.text, expr->parameters, expr->body, expr->token);
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(IndexGet* expr)
+    void AstCompiler::visit(IndexGet* expr)
     {
         expr->object->accept(this);
         expr->index->accept(this);
 
         setLine(expr->bracket);
         root.parser.writeByte(OpCode::OP_Get_Index);
-
-        return nullptr;
     }
 
-    std::shared_ptr<Valuable> AstCompiler::visit(IndexSet* expr)
+    void AstCompiler::visit(IndexSet* expr)
     {
         expr->object->accept(this);
         expr->index->accept(this);
@@ -677,8 +645,6 @@ namespace pg
 
         setLine(expr->bracket);
         root.parser.writeByte(OpCode::OP_Set_Index);
-
-        return nullptr;
     }
 
     // ------------------------------------------------------------------
