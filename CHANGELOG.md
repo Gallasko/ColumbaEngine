@@ -86,6 +86,11 @@ First tagged release. Everything below describes the state of the engine at the 
   any other. Migration: include `Systems/achievement.h` instead of the example's `achievement.h`. The
   Chronicle example uses it for its deeds, next to tasks with limited uses, tasks that change with
   repetition and holdings that produce or deplete each month (`examples/Chronicle/rules/`).
+- Chronicle: a life whose Vitality reaches 0 is lost and a new one begins, with 24 rations. Vitality
+  stands under the clock's age, turns red when a month takes from it, and the first such month stops the
+  running months; what was taken mends, one every two months, up to the most it can be (`vitmax`). The ledger rows have a tooltip (what is held, its limit, what it brings or uses), holdings can
+  have a limit (`statLimits` in `rules/lib.pg`) that locks what would fill them, and an activity row shows
+  how often it was done and what is left of a limited one. The door meters left the Life page.
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written

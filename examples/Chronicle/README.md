@@ -19,7 +19,12 @@ With no `--dev` the game opens on the **Life scene** (`--dev LifeScene` names it
 `--dev <Scene>` picks a dev gallery instead; an unknown name exits with code 2 before a
 window opens. On the Life scene: `SPACE` runs or pauses the months (one every 800 ms),
 `M` passes one month, `T` switches the theme, `R` reduced motion, `S` saves, `N` starts
-a new life.
+a new life. A life whose Vitality reaches 0 is lost: a new one begins at 7 with 24 rations, the
+months stopped and a line in its log saying how the last one ended. Vitality stands under the
+clock's age at the top of the right column, his other parts in a panel under the log. A month
+that takes from it turns it red for a moment, and the first such month stops the running
+months. What was taken mends, one every two months, up to the most it can be: the hatch on its
+line and the `-> 12` beside its figure.
 
 Tests:
 
@@ -211,7 +216,9 @@ come from `rules/*.pg` through the scene, never from the component.
   height. The row also lives on its root as a component, and every setter keeps that
   copy and the caller's in step. `setName` elides the name only when it no longer fits
   between the mark and the cost. The mark is S24 (the design system draws 22; the kit
-  registers 18 and 24).
+  registers 18 and 24). `count` (`"DONE 2 · 1 LEFT"`) is how often it was done and what is
+  left of a limited one: it follows the rank on the rank's label (`"RANK 2 · DONE 2"`), and
+  `setCount` rewrites it in place on a row built with a rank or a count.
 
 - **ActivityList** (`UI/activityrow.h`) - the rows in groups, headed in the display face
   (`activity.group`, 24 px, `space-3` above all but the first, `space-1` below), with
@@ -339,14 +346,21 @@ nothing between runs because each run redefines everything it leaves.
 - Language notes: `from` is a keyword (`w["from"]`), a one-line `{ ... }` block needs a newline
   before `}`, numbers print as `std::to_string` does (`17.500000`), so text is worded with ints.
 
+**Loaded scripts are never imported.** Loading a script writes its bytecode beside it (`x.pgc`),
+and an `import "x"` that finds an `x.pgc` takes it instead of the source. That path does not
+compile here (`windows.pg` importing a compiled `activities` fails in the compiler's
+`PoppingJumpPass`), and it would not follow an edit of `x.pg` either. So `activities.pg` and
+`milestones.pg`, which the game loads, only import `activitytable.pg` and `milestonetable.pg`,
+which hold everything and are what `windows.pg` and `forecast.pg` import. `lib.pg` is never loaded.
+
 | script | inputs | outputs |
 |---|---|---|
 | `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup` |
-| `activities.pg` | `character`, `done` | `activities`: `{id, group, name, glyph, months, rank, each, path, gains[{stat, amount}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, after[step]}` |
-| `milestones.pg` | `age` | `milestones`: `{age, id, label, passed, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
+| `activities.pg` (`activitytable.pg`) | `character`, `done` | `activities`: `{id, group, name, glyph, months, rank, each, path, gains[{stat, amount}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, tally ("DONE 2", "DONE 0 · 1 LEFT"), after[step]}` |
+| `milestones.pg` (`milestonetable.pg`) | `age` | `milestones`: `{age, id, label, passed, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
 | `windows.pg` | `age`, `character`, `done` | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}` |
 | `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atTerm{stats}, percent, months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
-| `resources.pg` | `character` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo")}` |
+| `resources.pg` | `character` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
 | `achievements.pg` | - | `achievements`: `{id, name, entry, asks[{fact, op, value}], gives[{stat, amount}]}` |
 
 **Repetition** (`activities.pg`). `done` is the save's count of terms completed per activity.
@@ -370,6 +384,34 @@ Its row reads `NOW` where the others read their months.
 `decays: N` takes N from it every month, never below 0; `empty {effects, entry}` says what
 running out costs: the entry the month it reaches 0, the effects every month it stays there.
 The script runs once per month for `month.after`, and once per publish for the rows' rates.
+`about` is a sentence on what the holding is. Each holding leaves a **gloss** (`glosses`): what
+he holds, its limit, what the month does to it and where that comes from, what it brings
+(a holding that `produces` is footnoted as a generator), what it uses and how long it lasts,
+and what running out costs. The Life screen registers it as `resource/<id>` on the ledger row;
+a row the rules do not follow says only what he holds.
+
+**Limits** (`lib.pg`). `statLimits` is the most he can hold of a stat (`limitOf`, 0 for none;
+`roomFor` is what he can still take in). What a month produces stops at the limit
+(`resources.pg`). An activity that brings such a stat asks for room (`activities.pg`: one more
+requirement, `Room for Rations`, current = the room left, needed 1), so it is locked while he
+is full. Begun with any room left it brings all it brings: **an activity may carry him past the
+limit**, and what he holds past it is only eaten into, never cut.
+
+**Caps and mending** (`lib.pg`, `resources.pg`). `statCaps` names the stat holding the most
+another can be (`vit` -> `vitmax`). What takes from the stat leaves the cap alone; a gain from
+an activity raises both (`forecast.pg`). `mending [{stat, amount, every}]` brings the stat back
+toward its cap, `amount` every `every` months counted in `<stat>rest`; a month that took from it
+mends nothing and starts the count again. `caps` (`[{stat, most}]`) is what the scene shows as
+the part's ghost when no activity is chosen, and as `At most` in its gloss. A save from before
+the cap takes what it has as its most.
+
+**The end of a life** (`resources.pg`). `mortal` lists the stats a life cannot go on without.
+`month.hurt` lists the ones the month took from: the scene turns those parts red for a moment
+(`StatLine::setAlert`, through `character.parts.<p>.alert`) and pauses the months at the first
+month of a run of them.
+`death` is the entry of the first one the character as given has none left of, else `""`. The
+scene asks after every month and every activity done at once; on a death it starts a fresh
+life, pauses the months and writes the entry in the new log, with the age the last life ended at.
 
 **Deeds** (`achievements.pg`). Each deed asks facts the Life scene publishes (`stat.<key>`,
 `done.<activity id>`, `life.age`) with an `op` of `>=`, `>`, `<=`, `<` or `==`. The scene hands

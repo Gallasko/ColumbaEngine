@@ -77,7 +77,7 @@ namespace chronicle
     };
 
     // An activity from activities.pg: its scalar fields (id, group, name, glyph, months, rank,
-    // each, path, locked, done, uses, left, spent) and its two lists.
+    // each, path, locked, done, uses, left, spent, tally) and its two lists.
     struct RuleActivity
     {
         pg::ElementMap fields;
@@ -104,12 +104,23 @@ namespace chronicle
         std::string error;             // "" or "unknown activity"
     };
 
+    // What hovering a holding says, from resources.pg: {id, title, text, footnote} and its figures.
+    struct RuleGloss
+    {
+        pg::ElementMap fields;
+        pg::RecordList rows;           // {label, value}
+    };
+
     // One month of what the character holds, from resources.pg.
     struct RuleMonth
     {
         pg::ElementMap after;          // Every stat of the character once the month has passed
         pg::RecordList entries;        // The log lines the month writes: {text, kind, figure, glyph}
-        pg::RecordList rows;           // The holdings the ledger can show: {id, group, groupLabel, glyph, name, tone, rate}
+        std::vector<std::string> hurt; // The stats a life needs that the month took from
+        pg::RecordList caps;           // The most each capped stat of the character can be: {stat, most}
+        pg::RecordList rows;           // The holdings the ledger can show: {id, group, groupLabel, glyph, name, tone, rate, limit}
+        std::vector<RuleGloss> glosses;   // One per holding, in the rows' order
+        std::string death;             // "" or the line the next life opens with: the character as given cannot go on
     };
 
     // A deed from achievements.pg: {id, name, entry}, what it asks and what it gives.
@@ -143,7 +154,8 @@ namespace chronicle
         // forecast.pg: `activityId` for `character` at `age`, `monthsIn` months already spent.
         bool forecast(float age, const pg::ElementMap& character, const std::string& activityId, int monthsIn, RuleForecast& out);
 
-        // resources.pg: what one month does to what `character` holds, and the ledger's rows.
+        // resources.pg: what one month does to what `character` holds, the ledger's rows and
+        // their glosses, and whether the character as he is can go on.
         bool month(const pg::ElementMap& character, RuleMonth& out);
 
         // achievements.pg: every deed, what it asks and what it gives.

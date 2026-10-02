@@ -200,7 +200,7 @@ namespace pg
                 "title", "about", "subtitle", "age", "ageNote", "tabs",
                 "parts", "str", "dex", "int", "vit", "skills", "holds", "ledger",
                 "may", "activities",
-                "clockPanel", "clock", "window.ruins", "window.tourney",
+                "clockPanel", "clock",
                 "working", "running", "happened", "log",
             };
 
@@ -230,12 +230,13 @@ namespace pg
                 return Box{p->x, p->y, p->x + p->width, p->y + p->height};
             };
 
-            // Three columns, side by side, panels stacked without overlapping, on a 1020 page: his
-            // parts and holdings, the choice alone, the years and the work and the log
+            // Three columns, side by side, panels stacked without overlapping, on a 1020 page: what
+            // he holds and has learned, the choice alone, the years and the work and the log and
+            // his parts
             const std::vector<std::vector<const char*>> columns = {
-                {"parts", "holds"},
+                {"holds", "learned"},
                 {"may"},
-                {"clockPanel", "working", "happened"},
+                {"clockPanel", "working", "happened", "parts"},
             };
 
             float columnRight = 0.0f;
@@ -264,7 +265,7 @@ namespace pg
             // The page under the panels, each panel's ground under what it holds
             const float pageZ = f.pos(life->named("page"))->z;
 
-            for (const char* name : {"parts", "holds", "may", "clockPanel", "working", "happened"})
+            for (const char* name : {"parts", "holds", "learned", "may", "clockPanel", "working", "happened"})
             {
                 auto panel = life->piece<Panel>(name);
                 ASSERT_NE(panel, nullptr) << name;
@@ -273,11 +274,21 @@ namespace pg
                 EXPECT_GT(f.pos(panel->body)->z, f.pos(panel->ground)->z) << name;
             }
 
-            EXPECT_NEAR(box("parts").left, 48.0f, 0.5f);
+            EXPECT_NEAR(box("holds").left, 48.0f, 0.5f);
             EXPECT_NEAR(box("may").left, 392.0f, 0.5f);
             EXPECT_NEAR(box("clockPanel").left, 912.0f, 0.5f);
-            EXPECT_NEAR(box("holds").top, box("parts").bottom + 16.0f, 0.5f);
+            EXPECT_NEAR(box("learned").top, box("holds").bottom + 16.0f, 0.5f);
             EXPECT_NEAR(box("working").top, box("clockPanel").bottom + 16.0f, 0.5f);
+            EXPECT_NEAR(box("parts").top, box("happened").bottom + 16.0f, 0.5f);
+            EXPECT_NEAR(box("parts").left, 912.0f, 0.5f);
+
+            // His Vitality stands under the clock's age, in its panel; his other parts close the
+            // column under the log; the doors are not on this page
+            EXPECT_GE(box("vit").top, box("clock").bottom);
+            EXPECT_LE(box("vit").bottom, box("clockPanel").bottom);
+            EXPECT_GE(box("str").top, box("parts").top);
+            EXPECT_LE(box("int").bottom, box("parts").bottom);
+            EXPECT_TRUE(life->named("window.ruins").empty());
 
             // The head: what he is, between the title and the year
             EXPECT_EQ(life->piece<Label>("about")->spec.text, "Apprentice at the Bellmoor Guild \xC2\xB7 Second son of the miller, born at the mill on the Bell.");
@@ -337,7 +348,8 @@ namespace pg
             EXPECT_LE(bottom("may"), 1100.0f);
             EXPECT_GT(bottom("may"), 1100.0f - 32.0f);
             EXPECT_NEAR(life->piece<EventLog>("log")->spec.height, logAt1020 + 80.0f, 0.5f);
-            EXPECT_LE(bottom("happened"), 1100.0f);
+            EXPECT_LE(bottom("parts"), 1100.0f);
+            EXPECT_GT(bottom("parts"), 1100.0f - 32.0f);
 
             // And back
             f.resize(1320.0f, 1020.0f);
@@ -535,7 +547,6 @@ namespace pg
             EXPECT_EQ(list->row(&f.ecs, "train.squire")->spec.state, ActivityState::Locked);
 
             EXPECT_EQ(f.fact<std::string>("window.ruins.state"), "open");
-            EXPECT_EQ(life->piece<WindowMeter>("window.ruins")->spec.state, WindowState::Open);
             EXPECT_EQ(f.fact<int>("life.next.in"), 6);
             EXPECT_EQ(f.fact<std::string>("life.next.label"), "Choose a path");
             EXPECT_EQ(life->piece<LifeClock>("clock")->spec.nextIn, 6);
@@ -926,6 +937,281 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A month that takes from his Vitality stops the months and turns it red for a moment. With
+        // none left the life is lost: a new one begins at 7 with its rations, stopped, and says why.
+        TEST(lifescene_test, a_life_ends_when_vitality_is_spent)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            life->paused = false;
+            life->save.stats["rations"] = 0;
+            life->save.stats["vit"] = 2;
+
+            life->onMonth();
+            f.settle();
+
+            // Still his life, a month older, and in danger: the months stopped, his life in red
+            EXPECT_EQ(life->save.stats["vit"], 1);
+            EXPECT_GT(life->save.age, 17.5f);
+            EXPECT_TRUE(life->paused);
+
+            auto vit = life->piece<StatLine>("vit");
+            ASSERT_NE(vit, nullptr);
+            EXPECT_TRUE(vit->spec.alert);
+            EXPECT_EQ(vit->figure.spec.color, "status-loss");
+            EXPECT_FALSE(life->piece<StatLine>("str")->spec.alert);
+
+            // The red fades
+            f.ecs.sendEvent(TickEvent{2000.0f});
+            f.settle();
+
+            EXPECT_FALSE(life->piece<StatLine>("vit")->spec.alert);
+            EXPECT_EQ(life->piece<StatLine>("vit")->figure.spec.color, "ink");
+            EXPECT_TRUE(life->paused);
+
+            life->paused = false;
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_FLOAT_EQ(life->save.age, 7.0f);
+            EXPECT_FLOAT_EQ(f.fact<float>("life.age"), 7.0f);
+            EXPECT_EQ(life->save.stats["vit"], 8);
+            EXPECT_TRUE(life->save.running.empty());
+            EXPECT_EQ(life->save.stats["rations"], 24);
+            EXPECT_TRUE(life->paused);
+            EXPECT_FALSE(life->piece<StatLine>("vit")->spec.alert);
+
+            // Childhood, then what became of the last life
+            ASSERT_EQ(life->save.log.size(), 2u);
+            EXPECT_EQ(life->save.log.back().kind, LogKind::Loss);
+            EXPECT_NE(life->save.log.back().text.find("life ended"), std::string::npos);
+
+            auto ledger = life->piece<ResourceLedger>("ledger");
+            ASSERT_NE(ledger, nullptr);
+            ASSERT_NE(ledger->row("rations"), nullptr);
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "24");
+            EXPECT_EQ(ledger->row("coin"), nullptr);
+
+            // The new life goes on as any other
+            life->onMonth();
+            f.settle();
+
+            EXPECT_GT(life->save.age, 7.0f);
+            EXPECT_EQ(life->save.stats["vit"], 8);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What was taken from his Vitality comes back, one every two months, up to the most it can
+        // be: the hatch on its line is what is still to mend.
+        TEST(lifescene_test, vitality_mends_toward_its_most)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto vit = [&]() { return life->piece<StatLine>("vit"); };
+            ASSERT_NE(vit(), nullptr);
+
+            // Whole: no ghost
+            EXPECT_EQ(f.fact<int>("character.parts.vit.projected"), -1);
+            EXPECT_FALSE(vit()->projected.has_value());
+
+            life->save.stats["vit"] = 10;
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["vit"], 10);
+            EXPECT_EQ(vit()->spec.value, 10);
+            EXPECT_EQ(f.fact<int>("character.parts.vit.projected"), 12);
+            ASSERT_TRUE(vit()->projected.has_value());
+            EXPECT_EQ(vit()->spec.projected, 12);
+            EXPECT_FALSE(vit()->spec.alert);
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["vit"], 11);
+            EXPECT_EQ(vit()->spec.value, 11);
+            EXPECT_EQ(vit()->spec.projected, 12);
+
+            life->onMonth();
+            life->onMonth();
+            f.settle();
+
+            // Whole again: the most it can be did not move, and it stops there
+            EXPECT_EQ(life->save.stats["vit"], 12);
+            EXPECT_EQ(life->save.stats["vitmax"], 12);
+            EXPECT_EQ(f.fact<int>("character.parts.vit.projected"), -1);
+            EXPECT_FALSE(vit()->projected.has_value());
+
+            life->onMonth();
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["vit"], 12);
+
+            // The gloss says both
+            auto registry = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(registry, nullptr);
+
+            const GlossSpec* gloss = registry->find("parts/vit");
+            ASSERT_NE(gloss, nullptr);
+
+            bool most = false;
+
+            for (const auto& r : gloss->rows)
+            {
+                if (r.label == "At most")
+                {
+                    EXPECT_EQ(r.value, "12");
+                    most = true;
+                }
+            }
+
+            EXPECT_TRUE(most);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Hovering what he holds says what it is for: its limit, what it uses, what it brings.
+        TEST(lifescene_test, holdings_explain_themselves)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto registry = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(registry, nullptr);
+
+            auto rowOf = [](const GlossSpec* g, const std::string& label) -> std::string {
+                for (const auto& r : g->rows)
+                {
+                    if (r.label == label)
+                        return r.value;
+                }
+
+                return "<none>";
+            };
+
+            const GlossSpec* rations = registry->find("resource/rations");
+            ASSERT_NE(rations, nullptr);
+            EXPECT_EQ(rations->title, "Rations");
+            EXPECT_FALSE(rations->text.empty());
+            EXPECT_EQ(rowOf(rations, "Held"), "18");
+            EXPECT_EQ(rowOf(rations, "Limit"), "60");
+            EXPECT_EQ(rowOf(rations, "Lasts"), "18 mo");
+
+            const GlossSpec* coin = registry->find("resource/coin");
+            ASSERT_NE(coin, nullptr);
+            EXPECT_EQ(rowOf(coin, "Limit"), "none");
+
+            // What the rules do not follow still says what he holds of it
+            const GlossSpec* iron = registry->find("resource/iron");
+            ASSERT_NE(iron, nullptr);
+            EXPECT_EQ(iron->title, "Iron");
+            EXPECT_EQ(rowOf(iron, "Held"), "6");
+
+            // The rows carry them, and follow the months
+            auto ledger = life->piece<ResourceLedger>("ledger");
+            ASSERT_NE(ledger, nullptr);
+            ASSERT_NE(ledger->row("rations"), nullptr);
+            ASSERT_TRUE(ledger->row("rations")->line->has<TooltipComponent>());
+            EXPECT_EQ(ledger->row("rations")->line->get<TooltipComponent>()->text, "resource/rations");
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(rowOf(registry->find("resource/rations"), "Held"), "17");
+
+            // A holding earned later gets its gloss with its row
+            life->save.stats["letter"] = 1;
+
+            life->onMonth();
+            f.settle();
+
+            ASSERT_NE(ledger->row("letter"), nullptr);
+
+            const GlossSpec* letter = registry->find("resource/letter");
+            ASSERT_NE(letter, nullptr);
+            EXPECT_EQ(rowOf(letter, "Each brings Coin"), "+2 / mo");
+            EXPECT_NE(letter->footnote.find("GENERATOR"), std::string::npos);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A row says how often it was done, and what is left of a limited one; doing it counts.
+        TEST(lifescene_test, a_row_counts_its_uses)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            ActivityRow* forest = list->row(&f.ecs, "adventure.forest");
+            ASSERT_NE(forest, nullptr);
+            EXPECT_EQ(forest->spec.rank, "ONCE");
+            EXPECT_EQ(forest->spec.count, "DONE 0 \xC2\xB7 1 LEFT");
+            ASSERT_TRUE(forest->rank.has_value());
+            EXPECT_EQ(forest->rank->spec.text, "ONCE \xC2\xB7 DONE 0 \xC2\xB7 1 LEFT");
+
+            ActivityRow* buy = list->row(&f.ecs, "buy.rations");
+            ASSERT_NE(buy, nullptr);
+            EXPECT_EQ(buy->spec.count, "DONE 0");
+            ASSERT_TRUE(buy->rank.has_value());
+            EXPECT_EQ(buy->rank->spec.text, "DONE 0");
+
+            // Done at once: the same row, one more
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "buy.rations"});
+            f.settle();
+
+            buy = list->row(&f.ecs, "buy.rations");
+            ASSERT_NE(buy, nullptr);
+            EXPECT_EQ(buy->spec.count, "DONE 1");
+            EXPECT_EQ(buy->rank->spec.text, "DONE 1");
+            EXPECT_EQ(f.fact<std::string>("activity.buy.rations.count"), "DONE 1");
+
+            // The gloss has the same figures
+            auto registry = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(registry, nullptr);
+
+            const GlossSpec* gloss = registry->find("activity/adventure.forest");
+            ASSERT_NE(gloss, nullptr);
+
+            bool left = false;
+
+            for (const auto& r : gloss->rows)
+            {
+                if (r.label == "Left")
+                {
+                    EXPECT_EQ(r.value, "1");
+                    left = true;
+                }
+            }
+
+            EXPECT_TRUE(left);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // The first coin of a fresh life is a deed: one line in the log, once, and it is kept.
         TEST(lifescene_test, a_deed_is_reached_once)
         {
@@ -1224,10 +1510,13 @@ namespace pg
             EXPECT_FLOAT_EQ(f.fact<float>("life.age"), 7.0f);
             EXPECT_EQ(life->piece<Label>("age")->spec.text, "7.0");
 
-            // Nothing earned: nothing in the ledger
+            // Nothing earned: only the rations he was sent off with
             auto ledger = life->piece<ResourceLedger>("ledger");
             ASSERT_NE(ledger, nullptr);
-            EXPECT_TRUE(ledger->groups.empty());
+            ASSERT_EQ(ledger->groups.size(), 1u);
+            ASSERT_NE(ledger->row("rations"), nullptr);
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "24");
+            EXPECT_EQ(ledger->row("coin"), nullptr);
 
             // One year rubric, one milestone row
             auto log = life->piece<EventLog>("log");
@@ -1338,7 +1627,6 @@ namespace pg
             // And the pieces carry them
             EXPECT_TRUE(life->piece<StatLine>("str")->root->has<TooltipComponent>());
             EXPECT_EQ(life->piece<StatLine>("str")->root->get<TooltipComponent>()->text, "parts/str");
-            EXPECT_EQ(life->piece<WindowMeter>("window.ruins")->root->get<TooltipComponent>()->text, "window/ruins");
 
             ActivityRow* yard = life->piece<ActivityList>("activities")->row(&f.ecs, "train.yard");
             ASSERT_NE(yard, nullptr);

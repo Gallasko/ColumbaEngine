@@ -585,6 +585,30 @@ namespace chronicle
         if (not s.run() or not s.get("month.after", out.after) or not s.get("month.entries", out.entries) or not s.get("rows", out.rows))
             return fail(s);
 
+        ElementType death;
+        std::vector<ElementType> hurt;
+        size_t n = 0;
+
+        if (not s.get("death", death) or not s.get("month.hurt", hurt) or not s.get("caps", out.caps) or not s.size("glosses", n))
+            return fail(s);
+
+        out.death = death.toString();
+
+        for (const auto& stat : hurt)
+            out.hurt.push_back(stat.toString());
+
+        for (size_t i = 0; i < n; ++i)
+        {
+            const std::string at = "glosses." + std::to_string(i);
+
+            RuleGloss gloss;
+
+            if (not s.get(at, gloss.fields) or not s.get(at + ".rows", gloss.rows))
+                return fail(s);
+
+            out.glosses.push_back(std::move(gloss));
+        }
+
         return true;
     }
 

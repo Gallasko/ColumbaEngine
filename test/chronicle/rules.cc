@@ -577,7 +577,8 @@ namespace pg
             EXPECT_EQ(intOf(buy->fields, "months"), 0);
             EXPECT_TRUE(buy->fields.at("locked").get<bool>());
 
-            ASSERT_EQ(buy->requires.size(), 1u);
+            // The coin it costs, then room for what it brings
+            ASSERT_EQ(buy->requires.size(), 2u);
             EXPECT_EQ(textOf(buy->requires[0], "stat"), "coin");
             EXPECT_EQ(intOf(buy->requires[0], "current"), 3);
             EXPECT_EQ(intOf(buy->requires[0], "needed"), 5);
@@ -629,7 +630,7 @@ namespace pg
             EXPECT_EQ(textOf(*rations, "rate"), "\xE2\x88\x92" "1 / mo");
             EXPECT_EQ(textOf(*letter, "rate"), "");
 
-            for (const char* key : {"id", "group", "groupLabel", "glyph", "name", "tone", "rate"})
+            for (const char* key : {"id", "group", "groupLabel", "glyph", "name", "tone", "rate", "limit"})
                 EXPECT_TRUE(coin->count(key)) << key;
         }
 
@@ -650,10 +651,16 @@ namespace pg
             ASSERT_EQ(month.entries.size(), 1u);
             EXPECT_EQ(textOf(month.entries[0], "kind"), "loss");
 
+            EXPECT_TRUE(month.hurt.empty());
+
             ASSERT_TRUE(f.rules.month({{"vit", ElementType{12}}, {"rations", ElementType{0}}}, month));
             EXPECT_EQ(intOf(month.after, "rations"), 0);
             EXPECT_EQ(intOf(month.after, "vit"), 11);
             EXPECT_TRUE(month.entries.empty());
+
+            // A month that took from what the life hangs on says so
+            ASSERT_EQ(month.hurt.size(), 1u);
+            EXPECT_EQ(month.hurt[0], "vit");
 
             // Nothing goes below zero
             ASSERT_TRUE(f.rules.month({{"vit", ElementType{0}}, {"rations", ElementType{0}}}, month));
@@ -662,6 +669,229 @@ namespace pg
             ASSERT_TRUE(f.rules.month({{"vit", ElementType{12}}}, month));
             EXPECT_EQ(intOf(month.after, "vit"), 12);
             EXPECT_EQ(month.after.count("rations"), 0u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A holding says what it is for when hovered: what he holds, its limit, what it brings or uses.
+        TEST(rules_test, month_glosses_and_limits)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            auto rowOf = [](const RuleGloss& gloss, const std::string& label) -> std::string {
+                for (const auto& r : gloss.rows)
+                {
+                    if (textOf(r, "label") == label)
+                        return textOf(r, "value");
+                }
+
+                return "<none>";
+            };
+
+            auto glossOf = [](const RuleMonth& month, const std::string& id) -> const RuleGloss* {
+                for (const auto& g : month.glosses)
+                {
+                    if (textOf(g.fields, "id") == id)
+                        return &g;
+                }
+
+                return nullptr;
+            };
+
+            RuleMonth month;
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{12}}, {"coin", ElementType{3}}, {"letter", ElementType{2}}, {"rations", ElementType{5}}}, month)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+
+            const RuleGloss* coin = glossOf(month, "coin");
+            const RuleGloss* rations = glossOf(month, "rations");
+            const RuleGloss* letter = glossOf(month, "letter");
+
+            ASSERT_NE(coin, nullptr);
+            ASSERT_NE(rations, nullptr);
+            ASSERT_NE(letter, nullptr);
+
+            EXPECT_EQ(textOf(coin->fields, "title"), "Coin");
+            EXPECT_EQ(rowOf(*coin, "Held"), "3");
+            EXPECT_EQ(rowOf(*coin, "Limit"), "none");
+            EXPECT_EQ(rowOf(*coin, "From The Guild's letter"), "+4 / mo");
+
+            EXPECT_EQ(rowOf(*rations, "Held"), "5");
+            EXPECT_EQ(rowOf(*rations, "Limit"), "60");
+            EXPECT_EQ(rowOf(*rations, "A month uses"), "1");
+            EXPECT_EQ(rowOf(*rations, "Lasts"), "5 mo");
+            EXPECT_EQ(rowOf(*rations, "With none, Vitality"), "\xE2\x88\x92" "1 / mo");
+
+            // What makes something else every month says so
+            EXPECT_EQ(rowOf(*letter, "Each brings Coin"), "+2 / mo");
+            EXPECT_NE(textOf(letter->fields, "footnote").find("GENERATOR"), std::string::npos);
+            EXPECT_FALSE(textOf(letter->fields, "text").empty());
+
+            EXPECT_EQ(intOf(*byId(month.rows, "rations"), "limit"), 60);
+            EXPECT_EQ(intOf(*byId(month.rows, "coin"), "limit"), 0);
+
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{12}}, {"rations", ElementType{60}}}, month));
+            EXPECT_NE(textOf(glossOf(month, "rations")->fields, "footnote").find("FULL"), std::string::npos);
+
+            // What he holds past the limit is his: the month only eats from it
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{12}}, {"rations", ElementType{64}}}, month));
+            EXPECT_EQ(intOf(month.after, "rations"), 63);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What brings a stat with a limit is closed while he is full of it. With any room left it is
+        // open, and brings all it brings: past the limit if need be.
+        TEST(rules_test, activities_full_store_locks_what_fills_it)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            auto find = [&f](ElementMap character, const std::string& id) {
+                std::vector<RuleActivity> activities;
+                EXPECT_TRUE(f.rules.activities(character, activities)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+
+                for (const auto& a : activities)
+                {
+                    if (textOf(a.fields, "id") == id)
+                        return a;
+                }
+
+                return RuleActivity{};
+            };
+
+            ElementMap character = aldren();
+            character["coin"] = ElementType{20};
+            character["rations"] = ElementType{58};
+
+            RuleActivity buy = find(character, "buy.rations");
+
+            EXPECT_FALSE(buy.fields.at("locked").get<bool>());
+            ASSERT_EQ(buy.requires.size(), 2u);
+            EXPECT_EQ(textOf(buy.requires[1], "label"), "Room for Rations");
+            EXPECT_EQ(intOf(buy.requires[1], "current"), 2);
+            EXPECT_EQ(intOf(buy.requires[1], "needed"), 1);
+
+            // Two short of full, six more: he ends past the limit
+            RuleForecast forecast;
+            ASSERT_TRUE(f.rules.forecast(17.5f, character, "buy.rations", 0, forecast));
+            EXPECT_EQ(intOf(forecast.atTerm, "rations"), 64);
+
+            for (int held : {60, 64})
+            {
+                character["rations"] = ElementType{held};
+
+                buy = find(character, "buy.rations");
+
+                EXPECT_TRUE(buy.fields.at("locked").get<bool>()) << held;
+                EXPECT_EQ(intOf(buy.requires[1], "current"), 0) << held;
+                EXPECT_TRUE(find(character, "work.carters").fields.at("locked").get<bool>()) << held;
+            }
+
+            // What brings nothing with a limit asks for no room
+            EXPECT_TRUE(find(character, "work.smithy").requires.empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A stat with a cap mends toward it, one every two months; a month that takes from it mends
+        // nothing and starts the count again. What raises it for good raises the cap with it.
+        TEST(rules_test, month_mends_toward_the_cap)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            RuleMonth month;
+
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{9}}, {"vitmax", ElementType{12}}, {"rations", ElementType{5}}}, month)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+            EXPECT_EQ(intOf(month.after, "vit"), 9);
+            EXPECT_EQ(intOf(month.after, "vitrest"), 1);
+            EXPECT_TRUE(month.hurt.empty());
+
+            ASSERT_EQ(month.caps.size(), 1u);
+            EXPECT_EQ(textOf(month.caps[0], "stat"), "vit");
+            EXPECT_EQ(intOf(month.caps[0], "most"), 12);
+
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{9}}, {"vitmax", ElementType{12}}, {"vitrest", ElementType{1}}, {"rations", ElementType{5}}}, month));
+            EXPECT_EQ(intOf(month.after, "vit"), 10);
+            EXPECT_EQ(intOf(month.after, "vitmax"), 12);
+            EXPECT_EQ(intOf(month.after, "vitrest"), 0);
+
+            // Starving: nothing mends, the count starts again
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{9}}, {"vitmax", ElementType{12}}, {"vitrest", ElementType{1}}, {"rations", ElementType{0}}}, month));
+            EXPECT_EQ(intOf(month.after, "vit"), 8);
+            EXPECT_EQ(intOf(month.after, "vitmax"), 12);
+            EXPECT_EQ(intOf(month.after, "vitrest"), 0);
+
+            // Whole: it stays
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{12}}, {"vitmax", ElementType{12}}, {"vitrest", ElementType{1}}}, month));
+            EXPECT_EQ(intOf(month.after, "vit"), 12);
+
+            // A character from before the cap takes what he has as his most
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{7}}}, month));
+            EXPECT_EQ(intOf(month.after, "vitmax"), 7);
+
+            // No such stat, no cap
+            ASSERT_TRUE(f.rules.month({{"coin", ElementType{3}}}, month));
+            EXPECT_TRUE(month.caps.empty());
+
+            // The yard brings Vitality: the most it can be rises with it
+            RuleForecast forecast;
+            ASSERT_TRUE(f.rules.forecast(17.5f, {{"str", ElementType{14}}, {"vit", ElementType{9}}, {"vitmax", ElementType{12}}}, "train.yard", 0, forecast));
+            EXPECT_EQ(intOf(forecast.atTerm, "vit"), 10);
+            EXPECT_EQ(intOf(forecast.atTerm, "vitmax"), 13);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A life ends when nothing is left of what it needs: the character as given, not a month later.
+        TEST(rules_test, month_death)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            RuleMonth month;
+
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{1}}, {"rations", ElementType{0}}}, month));
+            EXPECT_EQ(intOf(month.after, "vit"), 0);
+            EXPECT_TRUE(month.death.empty());
+
+            ASSERT_TRUE(f.rules.month({{"vit", ElementType{0}}, {"rations", ElementType{0}}}, month));
+            EXPECT_FALSE(month.death.empty());
+
+            // A character with no such stat at all is not dead of it
+            ASSERT_TRUE(f.rules.month({{"coin", ElementType{3}}}, month));
+            EXPECT_TRUE(month.death.empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // How often an activity was done, and what is left of a limited one, as its row writes it.
+        TEST(rules_test, activities_tally)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            f.rules.done = {{"train.guard", ElementType{4}}};
+
+            std::vector<RuleActivity> activities;
+            ASSERT_TRUE(f.rules.activities(aldren(), activities)) << (f.rules.errors.empty() ? "" : f.rules.errors.front());
+
+            for (const auto& a : activities)
+            {
+                const std::string id = textOf(a.fields, "id");
+
+                if (id == "train.guard")
+                    EXPECT_EQ(textOf(a.fields, "tally"), "DONE 4");
+                else if (id == "train.yard")
+                    EXPECT_EQ(textOf(a.fields, "tally"), "DONE 0");
+                else if (id == "adventure.forest")
+                    EXPECT_EQ(textOf(a.fields, "tally"), "DONE 0 \xC2\xB7 1 LEFT");
+            }
         }
 
         // ----------------------------------------------------------------------------------------

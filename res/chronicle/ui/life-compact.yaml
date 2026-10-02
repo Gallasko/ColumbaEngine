@@ -8,7 +8,8 @@
 # with the note on the age. Under the tabs, two columns: on the left the work at hand over the
 # choice, which takes the window's width and height; on the right a column of 320 showing one
 # panel at a time - his parts, what he holds, the years, the log - picked by the small tabs on
-# top of it. The side panels have no heading: the tab names them. The scene sets the widths,
+# top of it. The side panels have no heading: the tab names them. His Vitality leads his parts,
+# the panel the side column opens on; the doors (the WindowMeters) are not on this page. The scene sets the widths,
 # the heights and which side panel shows on every resize. z: page 0, panels 10, content 20.
 name: life
 children:
@@ -128,10 +129,11 @@ children:
       - {side: right, target: __MainWindow, targetSide: right, margin: 24}
       - {side: top, target: __MainWindow, targetSide: top, margin: 180}
     children:
+      - {kind: StatLine, name: vit, glossKey: parts/vit, label: Vitality, glyph: vitality, value: 12, max: 30}
+      - {kind: Ornament, ornament: divider, knot: false}
       - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30}
       - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30}
       - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30}
-      - {kind: StatLine, name: vit, glossKey: parts/vit, label: Vitality, glyph: vitality, value: 12, max: 30}
       - {kind: Ornament, ornament: divider, knot: false}
       - kind: ResourceLedger
         name: skills
@@ -169,8 +171,6 @@ children:
           - {age: 25}
           - {age: 40}
           - {age: 43}
-      - {kind: WindowMeter, name: window.ruins, glossKey: window/ruins, label: The ruins at Harrow, from: 15, to: 19, age: 17.5, state: open, note: "Open 18 more months. Six attempts fit; seven do not."}
-      - {kind: WindowMeter, name: window.tourney, glossKey: window/tourney, label: The spring tourney, from: 17, to: 21, age: 17.5, state: open, note: "Open 42 more months. Fourteen attempts fit; fifteen do not."}
 
   - kind: Panel
     name: happened

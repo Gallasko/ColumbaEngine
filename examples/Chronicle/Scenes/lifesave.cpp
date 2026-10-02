@@ -279,7 +279,7 @@ namespace chronicle
         life.age = 17.5f;
 
         life.stats = {
-            {"str", 15}, {"dex", 11}, {"int", 9}, {"vit", 12},
+            {"str", 15}, {"dex", 11}, {"int", 9}, {"vit", 12}, {"vitmax", 12},
             {"swd", 3}, {"ride", 1}, {"letters", 2}, {"haggle", 1},
             {"letter", 0}, {"coin", 412}, {"rations", 18},
         };
@@ -331,15 +331,19 @@ namespace chronicle
         life.age = 7.0f;
 
         life.stats = {
-            {"str", 6}, {"dex", 6}, {"int", 6}, {"vit", 8},
+            {"str", 6}, {"dex", 6}, {"int", 6}, {"vit", 8}, {"vitmax", 8},
             {"swd", 0}, {"ride", 0}, {"letters", 0}, {"haggle", 0},
-            {"letter", 0}, {"coin", 0},
+            {"letter", 0}, {"coin", 0}, {"rations", 24},
         };
 
         life.parts = {"str", "dex", "int", "vit"};
         life.skills = skillRows();
 
-        // Nothing earned yet: the ledger shows nothing
+        // Nothing earned yet: the ledger shows only what he was sent off with
+        life.resources = {
+            {"purse", "PURSE", "rations", "trade", "Rations", "", "", 0, false},
+        };
+
         life.log = {{7.0f, "Childhood", LogKind::Milestone, "", ""}};
 
         return life;

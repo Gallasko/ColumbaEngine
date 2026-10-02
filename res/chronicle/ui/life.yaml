@@ -8,7 +8,10 @@
 # The page follows the window (__MainWindow, the viewport): margins 48, the left column 320 and
 # the right one 360 hold their width, the right one anchored to the window's right edge, and the
 # middle column - the choice alone, what he may do - takes the rest. The scene widens it and sets
-# the heights of the choice and the log on every resize. Panels stack 16 apart, each anchored
+# the heights of the choice and the log on every resize. His Vitality stands under the clock's
+# age, at the top of the right column: it is what the life hangs on. His other parts close that
+# column, under the log. The doors (the WindowMeters) are not on this page: the clock keeps
+# their bands. Panels stack 16 apart, each anchored
 # under the one above it, so a panel that grows pushes the next one down. z: page 0, panels 10,
 # their content 20.
 name: life
@@ -83,37 +86,33 @@ children:
       - {label: Adventure, glyph: adventure}
       - {label: Chronicle, glyph: study}
 
-  # ── Left: his parts and skills, what he holds ────────────────────────────────
-  - kind: Panel
-    name: parts
-    x: 48
-    y: 178
-    frame: ruled
-    width: 320
-    heading: Parts
-    glyph: strength
-    children:
-      - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30}
-      - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30}
-      - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30}
-      - {kind: StatLine, name: vit, glossKey: parts/vit, label: Vitality, glyph: vitality, value: 12, max: 30}
-      - {kind: Ornament, ornament: divider, knot: false}
-      - kind: ResourceLedger
-        name: skills
-
+  # ── Left: what he holds, what he has learned ─────────────────────────────────
   - kind: Panel
     name: holds
+    x: 48
+    y: 178
     frame: ruled
     width: 320
     heading: What he holds
     glyph: gold
     aside: LEDGER
-    anchors:
-      - {side: top, target: parts, targetSide: bottom, margin: 16}
-      - {side: left, target: parts, targetSide: left}
     children:
       - kind: ResourceLedger
         name: ledger
+
+  - kind: Panel
+    name: learned
+    frame: ruled
+    width: 320
+    heading: What he has learned
+    glyph: study
+    aside: SKILLS
+    anchors:
+      - {side: top, target: holds, targetSide: bottom, margin: 16}
+      - {side: left, target: holds, targetSide: left}
+    children:
+      - kind: ResourceLedger
+        name: skills
 
   # ── Middle: the choice ───────────────────────────────────────────────────────
   - kind: Panel
@@ -132,7 +131,7 @@ children:
         height: 740
         stripes: false        # one ground for every row: the tint is the hover's, the edge the selection's
 
-  # ── Right: the years and their doors, the work at hand, what has happened ─────
+  # ── Right: the years and his life, the work at hand, what has happened, his other parts ──
   - kind: Panel
     name: clockPanel
     frame: ruled
@@ -155,8 +154,8 @@ children:
           - {age: 25}
           - {age: 40}
           - {age: 43}
-      - {kind: WindowMeter, name: window.ruins, glossKey: window/ruins, label: The ruins at Harrow, from: 15, to: 19, age: 17.5, state: open, note: "Open 18 more months. Six attempts fit; seven do not."}
-      - {kind: WindowMeter, name: window.tourney, glossKey: window/tourney, label: The spring tourney, from: 17, to: 21, age: 17.5, state: open, note: "Open 42 more months. Fourteen attempts fit; fifteen do not."}
+      # His life, under his age: at nothing, this life is lost. The hatch is what will mend
+      - {kind: StatLine, name: vit, glossKey: parts/vit, label: Vitality, glyph: vitality, value: 12, max: 30, width: 328}
 
   - kind: Panel
     name: working
@@ -188,3 +187,15 @@ children:
         name: log
         height: 300
         footnote: THE CHRONICLE IS WRITTEN FROM THIS LOG
+
+  - kind: Panel
+    name: parts
+    frame: ruled
+    width: 360
+    anchors:
+      - {side: top, target: happened, targetSide: bottom, margin: 16}
+      - {side: left, target: happened, targetSide: left}
+    children:
+      - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30, width: 328}
+      - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30, width: 328}
+      - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30, width: 328}

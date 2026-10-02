@@ -212,7 +212,24 @@ namespace chronicle
         if (not spec.glossKey.empty())
             attachGloss(ecs, sl.root, spec.glossKey);
 
+        if (spec.alert)
+        {
+            sl.spec.alert = false;
+            sl.setAlert(ecs, true);
+        }
+
         return sl;
+    }
+
+    void StatLine::setAlert(EntitySystem* ecs, bool alert)
+    {
+        if (spec.alert == alert)
+            return;
+
+        spec.alert = alert;
+
+        name.setColor(ecs, alert ? "status-loss" : "ink-muted");
+        figure.setColor(ecs, alert ? "status-loss" : "ink");
     }
 
     void StatLine::placeFigureRight(EntitySystem*)

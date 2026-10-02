@@ -4,10 +4,18 @@
 // Output: `month`:
 //           after    every stat of the character once one month has passed
 //           entries  [{text, kind, figure, glyph}]: the log lines that month writes
+//           hurt     [stat]: the stats a life needs (`mortal`) that this month took from
+//         `caps`, the most each capped stat of the character can be: [{stat, most}].
 //         `rows`, one table per holding the ledger can show, in the order it lists them:
-//           {id, group, groupLabel, glyph, name, tone, rate}
+//           {id, group, groupLabel, glyph, name, tone, rate, limit}
 //           tone: 0 none, 1 coin, 2 guild, 3 relic; rate: "" or "+2 / mo", what the coming
-//           month does to it as things stand.
+//           month does to it as things stand; limit: the most he can hold, 0 for none.
+//         `glosses`, one table per holding, what hovering its row says:
+//           {id, title, text, footnote, rows [{label, value}]}
+//           rows: what he holds, its limit, what the month does to it and where that comes
+//           from, what it brings, what it uses and how long it lasts, what running out costs.
+//         `death`: "" or the line the next life opens with, when the character as he is has
+//           nothing left of a stat a life needs (`mortal`).
 //
 // A holding is a stat with a place in the ledger. Optional fields:
 //   produces: [{stat, amount, per}]   while he holds it, every `per` of it brings `amount` of
@@ -17,6 +25,9 @@
 //                                     what running out costs: the entry is written the month it
 //                                     reaches 0, the effects land every month it stays there.
 //                                     A character who never held any is not out of it.
+//   about: "text"                     what it is, in a sentence, for its gloss.
+// The most he can hold of a stat is lib.pg's `statLimits`: what a month produces stops at it,
+// and what he already holds past it (an activity may carry him there) is left alone.
 //
 // The numbers are placeholders for the game's balance: change them here, nothing in C++ moves.
 
@@ -28,12 +39,27 @@ import "lib"
 var errors = []
 
 var holdings = [
-    {id: "coin", group: "purse", groupLabel: "PURSE", glyph: "gold", name: "Coin", tone: 1},
+    {id: "coin", group: "purse", groupLabel: "PURSE", glyph: "gold", name: "Coin", tone: 1,
+     about: "What work pays him in, and what the market takes."},
     {id: "rations", group: "purse", groupLabel: "PURSE", glyph: "trade", name: "Rations", tone: 0,
+     about: "Food for the month. With none left, his Vitality pays for it.",
      decays: 1,
      empty: {effects: [{stat: "vit", amount: -1}], entry: "The rations ran out"}},
     {id: "letter", group: "standing", groupLabel: "STANDING", glyph: "seal", name: "The Guild's letter", tone: 2,
+     about: "The Guild's word for him. It pays a wage every month he holds it.",
      produces: [{stat: "coin", amount: 2, per: 1}]}
+]
+
+// What comes back with time: a stat under its cap (lib.pg's `statCaps`) gains `amount` every
+// `every` months, counted in the stat "<stat>rest". A month that took from it mends nothing and
+// starts the count again.
+var mending = [
+    {stat: "vit", amount: 1, every: 2}
+]
+
+// What a life cannot go on without: with none of it left the life ends, and a new one begins
+var mortal = [
+    {stat: "vit", entry: "The last life ended, his vitality spent"}
 ]
 
 // Every stat as it is, then the month on top
@@ -57,11 +83,30 @@ fun shiftStat(stat, amount)
         now = 0
     }
 
+    var limit = limitOf(stat)
+
+    if (limit > 0 and amount > 0 and now > limit)
+    {
+        // Up to the limit, or where he already stood past it
+        var top = now - amount
+
+        if (top < limit)
+        {
+            top = limit
+        }
+
+        amount = amount - (now - top)
+        now = top
+    }
+
     after[stat] = now
     change[stat] = lookup(change, stat, 0) + amount
 }
 
 var entries = []
+
+// What each holding makes this month: {stat, name, amount}
+var yields = []
 
 for (var i = 0; i < len(holdings); i++)
 {
@@ -85,6 +130,7 @@ for (var i = 0; i < len(holdings); i++)
             if (made != 0)
             {
                 shiftStat(product.stat, made)
+                push(yields, {stat: product.stat, name: h.name, amount: made})
             }
         }
     }
@@ -113,7 +159,61 @@ for (var i = 0; i < len(holdings); i++)
     }
 }
 
-var month = {after: after, entries: entries}
+// A month that took from what a life needs: the screen says so
+var hurt = []
+
+for (var m = 0; m < len(mortal); m++)
+{
+    if (lookup(change, mortal[m].stat, 0) < 0)
+    {
+        push(hurt, mortal[m].stat)
+    }
+}
+
+for (var r = 0; r < len(mending); r++)
+{
+    var mend = mending[r]
+
+    if (capOf(mend.stat) != "" and has(character, mend.stat))
+    {
+        var most = mostOf(character, mend.stat)
+        var rest = mend.stat + "rest"
+        var rested = 0
+
+        // A character from before the cap takes what he has as his most
+        after[capOf(mend.stat)] = most
+
+        if (lookup(change, mend.stat, 0) >= 0 and after[mend.stat] < most)
+        {
+            rested = lookup(character, rest, 0) + 1
+
+            if (rested >= mend.every)
+            {
+                shiftStat(mend.stat, mend.amount)
+                rested = 0
+
+                if (after[mend.stat] > most)
+                {
+                    after[mend.stat] = most
+                }
+            }
+        }
+
+        after[rest] = rested
+    }
+}
+
+var month = {after: after, entries: entries, hurt: hurt}
+
+var caps = []
+
+for (var c : statCaps)
+{
+    if (has(character, c))
+    {
+        push(caps, {stat: c, most: mostOf(character, c)})
+    }
+}
 
 var rows = []
 
@@ -128,5 +228,101 @@ for (var j = 0; j < len(holdings); j++)
         rate = signed(delta) + " / mo"
     }
 
-    push(rows, {id: h.id, group: h.group, groupLabel: h.groupLabel, glyph: h.glyph, name: h.name, tone: h.tone, rate: rate})
+    push(rows, {id: h.id, group: h.group, groupLabel: h.groupLabel, glyph: h.glyph, name: h.name, tone: h.tone, rate: rate, limit: limitOf(h.id)})
+}
+
+// What hovering a holding says: the figures behind its row
+var glosses = []
+
+for (var g = 0; g < len(holdings); g++)
+{
+    var h = holdings[g]
+    var held = statOf(character, h.id)
+    var limit = limitOf(h.id)
+    var delta = lookup(change, h.id, 0)
+    var footnote = ""
+
+    var notes = [{label: "Held", value: toString(held)}]
+
+    if (limit > 0)
+    {
+        push(notes, {label: "Limit", value: toString(limit)})
+    }
+    else
+    {
+        push(notes, {label: "Limit", value: "none"})
+    }
+
+    if (delta != 0)
+    {
+        push(notes, {label: "This month", value: signed(delta)})
+    }
+
+    for (var y = 0; y < len(yields); y++)
+    {
+        if (yields[y].stat == h.id)
+        {
+            push(notes, {label: "From " + yields[y].name, value: signed(yields[y].amount) + " / mo"})
+        }
+    }
+
+    var produces = listOf(h, "produces")
+
+    for (var p = 0; p < len(produces); p++)
+    {
+        var product = produces[p]
+        var label = "Each brings " + statName(product.stat)
+
+        if (product.per > 1)
+        {
+            label = "Every " + toString(product.per) + " bring " + statName(product.stat)
+        }
+
+        push(notes, {label: label, value: signed(product.amount) + " / mo"})
+        footnote = "A GENERATOR: IT WORKS EVERY MONTH HE HOLDS IT"
+    }
+
+    var decays = lookup(h, "decays", 0)
+
+    if (decays > 0)
+    {
+        push(notes, {label: "A month uses", value: toString(decays)})
+
+        if (held > 0)
+        {
+            push(notes, {label: "Lasts", value: fmtMonths(toInt(floor((held + decays - 1) / decays)))})
+        }
+
+        if (has(h, "empty"))
+        {
+            for (var e = 0; e < len(h.empty.effects); e++)
+            {
+                var effect = h.empty.effects[e]
+                push(notes, {label: "With none, " + statName(effect.stat), value: signed(effect.amount) + " / mo"})
+            }
+
+            if (held <= 0 and has(character, h.id))
+            {
+                footnote = "NONE LEFT: HE PAYS FOR IT EVERY MONTH"
+            }
+        }
+    }
+
+    if (limit > 0 and held >= limit)
+    {
+        footnote = "FULL: WHAT BRINGS MORE IS CLOSED TO HIM"
+    }
+
+    push(glosses, {id: h.id, title: h.name, text: lookup(h, "about", ""), footnote: footnote, rows: notes})
+}
+
+// The character as he is: a life with nothing left of what it needs is over
+var death = ""
+
+for (var m = 0; m < len(mortal); m++)
+{
+    if (death == "" and has(character, mortal[m].stat) and statOf(character, mortal[m].stat) <= 0)
+    {
+        death = mortal[m].entry
+    }
 }

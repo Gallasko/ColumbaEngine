@@ -28,6 +28,7 @@ namespace chronicle
         int threshold = 0;             // 0 = none; clamped to [1, max]
         std::string note = "";         // "" = none; caps ("WARRIOR AT 18 ASKS 18")
         std::string glossKey = "";     // "" = none; else attachGloss(root, key)
+        bool alert = false;            // the name and the figure in status-loss: the scene flashes it on a loss
         int z = 20;                    // root z; head parts z+1 (texts z+2); groove z+1; threshold z+6
     };
 
@@ -46,6 +47,7 @@ namespace chronicle
         void setProjected(pg::EntitySystem*, int projected);
         void setThreshold(pg::EntitySystem*, int threshold);
         void setNote(pg::EntitySystem*, const std::string&);
+        void setAlert(pg::EntitySystem*, bool alert);   // tokens only; nothing moves
         float height(pg::EntitySystem*) const;
 
         // internal

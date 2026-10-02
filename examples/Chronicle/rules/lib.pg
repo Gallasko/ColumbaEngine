@@ -183,6 +183,20 @@ var statShort = {
     rations: "RATIONS"
 }
 
+// The most of a stat he can hold at once. A stat not listed has no limit. The limit closes
+// what would bring more (activities.pg) and stops what a month produces (resources.pg); an
+// activity begun with room left may still carry him past it.
+var statLimits = {
+    rations: 60
+}
+
+// A stat that is spent and comes back has a cap: the stat holding the most it can be. What
+// takes from the stat leaves the cap alone, what raises the stat for good raises both
+// (forecast.pg), and it mends toward the cap with time (resources.pg's `mending`).
+var statCaps = {
+    vit: "vitmax"
+}
+
 // A missing key reads as false, not as an error: look names up explicitly.
 fun lookup(table, key, fallback)
 {
@@ -231,4 +245,28 @@ fun statShortName(stat)
 fun statOf(character, stat)
 {
     return lookup(character, stat, 0)
+}
+
+// The most of a stat he can hold, 0 when it has no limit.
+fun limitOf(stat)
+{
+    return lookup(statLimits, stat, 0)
+}
+
+// How much more of a stat he can take in, 0 when it is full. Only for a stat with a limit.
+fun roomFor(character, stat)
+{
+    return clamp(limitOf(stat) - statOf(character, stat), 0, limitOf(stat))
+}
+
+// The stat holding the most a stat can be, "" when it has no cap.
+fun capOf(stat)
+{
+    return lookup(statCaps, stat, "")
+}
+
+// The most a stat of a character can be: its cap, or what it is when the character has none yet.
+fun mostOf(character, stat)
+{
+    return lookup(character, capOf(stat), statOf(character, stat))
 }

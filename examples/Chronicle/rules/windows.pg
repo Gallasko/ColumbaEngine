@@ -1,7 +1,7 @@
 // Chronicle rules: the doors that close
 // -------------------------------------
 // Input:  `age` (years), `character` (a table of stats and flags), `done` (activity id -> terms
-//         completed, read by activities.pg).
+//         completed, read by activitytable.pg).
 // Output: `windows`, one table per age-limited chance:
 //         {id, name, from, to, state, note, attempts}
 //         state: "upcoming" before `from`, "open" until `to`, "closed" after: a closed door stays
@@ -13,7 +13,7 @@ import "string"
 import "math"
 import "algorithm"
 import "lib"
-import "activities"
+import "activitytable"
 
 var errors = []
 

@@ -796,6 +796,7 @@ namespace chronicle
                 {"label",    ""},       // the display name: `name` is the node's handle
                 {"glyph",    "training"},
                 {"rank",     ""},
+                {"count",    ""},
                 {"months",   1},
                 {"each",     ""},
                 {"percent",  0.0f},
@@ -820,6 +821,7 @@ namespace chronicle
                     s.name     = stringProp(spec.props, "label", s.name);
                     s.glyph    = stringProp(spec.props, "glyph", s.glyph);
                     s.rank     = stringProp(spec.props, "rank", s.rank);
+                    s.count    = stringProp(spec.props, "count", s.count);
                     s.months   = getParamInt(spec.props, "months", s.months);
                     s.each     = stringProp(spec.props, "each", s.each);
                     s.percent  = getParamFloat(spec.props, "percent", s.percent);

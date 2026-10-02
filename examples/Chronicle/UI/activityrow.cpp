@@ -98,6 +98,15 @@ namespace chronicle
             return std::to_string(months) + " mo";
         }
 
+        // "RANK 2 \xC2\xB7 DONE 3": the rank, then how often it was done, on one label
+        std::string rankText(const ActivityRowSpec& spec)
+        {
+            if (spec.rank.empty() or spec.count.empty())
+                return spec.rank + spec.count;
+
+            return spec.rank + " \xC2\xB7 " + spec.count;
+        }
+
         // EntityRef::has looks an entity created during the frame up in the pool and dereferences
         // the miss. The arrow falls back to the pointer the ref holds, so go through it.
         template <typename Comp>
@@ -533,9 +542,9 @@ namespace chronicle
         prefab->addToPrefab(row.name.entity);
         state->name = row.name.entity.id;
 
-        if (not spec.rank.empty())
+        if (not spec.rank.empty() or not spec.count.empty())
         {
-            row.rank = makeActivityText(ecs, "caption", "activity.rank", spec.rank, z + 4);
+            row.rank = makeActivityText(ecs, "caption", "activity.rank", rankText(spec), z + 4);
 
             auto anchor = row.rank->entity->get<UiAnchor>();
 
@@ -813,6 +822,24 @@ namespace chronicle
 
             r.spec.each = text;
             r.each->setText(ecs, text);
+            r.fitName(ecs);
+        });
+    }
+
+    void ActivityRow::setCount(EntitySystem* ecs, const std::string& text)
+    {
+        onLive(this, [ecs, &text](ActivityRow& r) {
+            if (r.spec.count == text)
+                return;
+
+            if (not r.rank)
+            {
+                LOG_WARNING(DOM, "Row '" << r.spec.id << "' was built without a rank or a count; setCount ignored");
+                return;
+            }
+
+            r.spec.count = text;
+            r.rank->setText(ecs, rankText(r.spec));
             r.fitName(ecs);
         });
     }

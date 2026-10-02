@@ -38,6 +38,7 @@ namespace chronicle
         std::string name;              // "Train at the yard"
         std::string glyph = "training";
         std::string rank;              // "" or "RANK 2" (caps)
+        std::string count;             // "" or "DONE 2 · 1 LEFT" (caps): written after the rank, on its label
         int months = 1;                // 0 = done at once: the cost reads "NOW"
         std::string each;              // "" or "AT THE YARD"
         std::vector<Gain> gains;       // Shown when Idle
@@ -127,6 +128,7 @@ namespace chronicle
         void setGlyph(pg::EntitySystem*, const std::string& name);
         void setMonths(pg::EntitySystem*, int);
         void setEach(pg::EntitySystem*, const std::string&);            // Only on a row built with an `each` line
+        void setCount(pg::EntitySystem*, const std::string&);           // Only on a row built with a rank or a count
         void setWidth(pg::EntitySystem*, float width);                  // The name re-fits, the rule follows
         float height(pg::EntitySystem*) const;       // Idle 68, Running 81, Locked 24 + 4 + list + 24
 

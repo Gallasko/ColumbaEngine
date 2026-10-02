@@ -59,6 +59,7 @@ namespace chronicle
     // The design mockup's life: Aldren of Bellmoor at 17.5, the page of the Main Life screen.
     LifeSave firstLife();
 
-    // The true first frame of the game: 7 years old, nothing earned, one line in the log.
+    // The true first frame of the game: 7 years old, two years of rations and nothing earned,
+    // one line in the log.
     LifeSave freshLife();
 }

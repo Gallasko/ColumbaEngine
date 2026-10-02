@@ -41,7 +41,7 @@ namespace chronicle
         void execute() override;       // The deeds reached since the last frame; months tick on TickEvent
 
         // Public for the tests and the dev keys
-        void onMonth();                // One month passes
+        void onMonth();                // One month passes; a life with nothing left to live on ends
         bool saveNow();                // Writes the save (not with --no-save)
         void newLife();                // A fresh life, rebuilt and republished
 
@@ -82,14 +82,19 @@ namespace chronicle
         void addToLedger(const LifeResource& resource);   // One row of what he holds
         void fillSkills();             // The skills he has any of; one at 0 is not shown
         void fillActivities();         // The rows of what he may do; a spent activity has none
-        void refreshHoldings();        // resources.pg's rows and rates for the character as he is
+        void refreshHoldings();        // resources.pg's rows, rates, glosses and verdict for the character as he is
+        void endLife();                // The life is lost: a new one begins, and says why
+        void alert(const std::vector<std::string>& stats);   // The parts a month took from, in red for a moment; the months stop at the first
+        void clearAlert();             // Back to ink
         void registerDeeds();          // The deeds not reached yet, handed to the AchievementSys
         void reachDeed(const std::string& id);   // What a deed gives, its line in the log
         void takeStats(const pg::ElementMap& stats);     // A script's numbers become the character's
         void writeEntries(const pg::RecordList& entries); // A script's lines become the log's
-        void publish();                // refreshHoldings + publishCharacter + publishRules
+        void publish();                // refreshHoldings + publishAll
+        void publishAll();             // glossHoldings + publishCharacter + publishRules + the ghosts of what is selected
+        void publishProjected(const RuleForecast* forecast);   // character.parts.<p>.projected: what the activity brings it to, else what it mends back to
         void publishCharacter();       // save -> character.*, life.*, skills.*, resources.*, stat.*, log.size, activity.running.*
-        void publishRules();           // scripts -> life.next.*, life.headline.*, window.*, activity.<id>.state and .requirement.<n>, done.<id>, thresholds
+        void publishRules();           // scripts -> life.next.*, life.headline.*, window.*, activity.<id>.state, .count and .requirement.<n>, done.<id>, thresholds
         void publishRunning();         // forecast for the activity at work -> activity.running.*
 
         void onSelect(const ActivitySelectedEvent& event);
@@ -100,6 +105,7 @@ namespace chronicle
         // The hover glosses: what the numbers mean, from the same outputs
         void glossParts(const RuleForecast* forecast, const std::string& activity);   // parts/<p>
         void glossActivities();                                                         // activity/<id>
+        void glossHoldings();                                                           // resource/<id>
         void glossWindows(const pg::RecordList& windows);                               // window/<id>
 
         void appendLog(const LogEntry& entry);
@@ -110,11 +116,17 @@ namespace chronicle
 
         std::vector<RuleActivity> activities;    // The last activities.pg output
         pg::RecordList holdings;                  // The last resources.pg rows
+        std::vector<RuleGloss> holdingGlosses;    // And what hovering each says
+        std::string death;                        // "" or why the character as he is cannot go on
+        std::unordered_map<std::string, int> caps;   // The most each capped stat can be
         std::vector<RuleAchievement> deeds;       // The achievements.pg output
         std::vector<std::string> reached;         // Deeds unlocked, waiting for execute()
         pg::ElementMap next;                      // The last next milestone
         pg::RecordList nextAsks;                  // What it asks of the path he is headed for
         std::unordered_map<std::string, pg::EntityRef> handles;
         float sinceMonth = 0.0f;
+        std::vector<std::string> alerted;         // The parts in red
+        float alertLeft = 0.0f;                   // Milliseconds of red left
+        bool endangered = false;                  // The last month took from what the life hangs on
     };
 }

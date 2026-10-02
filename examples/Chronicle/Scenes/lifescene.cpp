@@ -57,8 +57,10 @@ namespace chronicle
         constexpr float PanelChrome = 83.0f;
         constexpr float MinMiddle = 420.0f;
         constexpr float MinList = 200.0f;
-        constexpr float MinLog = 160.0f;
-        constexpr float ClockPanel = 240.0f;       // The clock and two doors, until the panel has measured itself
+        constexpr float MinLog = 120.0f;
+        constexpr float PartsPanel = 160.0f;       // Three parts, until the panel has measured itself
+        constexpr float ClockPanel = 160.0f;       // The clock and his life, until the panel has measured itself
+        constexpr float AlertMs = 900.0f;          // How long a part stays in red after a month took from it
         constexpr float RunningPanel = 164.0f;     // "At work now" holding a running row
         constexpr float LogFootnote = 19.0f;       // 4 + a caption line
         constexpr const char * const TabsTag = "life.tabs";
@@ -66,7 +68,7 @@ namespace chronicle
         // Below the three columns' least size the page is life-compact.yaml: margins 24, the head
         // on two lines, the work at hand over the choice, and a side column of one panel at a time
         constexpr float FullMinWidth = 2.0f * PageMargin + LeftColumn + RightColumn + 2.0f * ColumnGap + MinMiddle;          // That is 1244
-        constexpr float FullMinHeight = ColumnsTop + ClockPanel + StackGap + RunningPanel + StackGap + PanelChrome + LogFootnote + MinLog + PageMargin;   // That is 924
+        constexpr float FullMinHeight = ColumnsTop + ClockPanel + StackGap + RunningPanel + StackGap + PanelChrome + LogFootnote + MinLog + StackGap + PartsPanel + PageMargin;   // That is 980
         constexpr float CompactMargin = 24.0f;
         constexpr float CompactTop = 128.0f;       // Under the tabs
         constexpr float SideColumn = 320.0f;
@@ -311,6 +313,15 @@ namespace chronicle
 
         // The month loop: one month every opt.monthMs while it runs
         listenToEvent<TickEvent>([this](const TickEvent& e) {
+            // The red of a loss fades whether the months run or not
+            if (alertLeft > 0.0f)
+            {
+                alertLeft -= e.tick;
+
+                if (alertLeft <= 0.0f)
+                    clearAlert();
+            }
+
             if (paused)
                 return;
 
@@ -431,9 +442,6 @@ namespace chronicle
         {
             rebuild();
             publish();
-
-            for (const auto& p : save.parts)
-                setFact("character.parts." + p + ".projected", -1);
         }
     }
 
@@ -458,13 +466,18 @@ namespace chronicle
                 list->setSize(ecs, may->innerWidth(), listHeight);
         }
 
-        // The log takes the height left under the years and the work at hand
+        // The log takes the height left between the years and the work at hand above it and his
+        // parts under it
+        float parts = PartsPanel;
         float clock = ClockPanel;
+
+        if (EntityRef partsPanel = named("parts"); not partsPanel.empty())
+            parts = std::max(parts, partsPanel->get<PositionComponent>()->height);
 
         if (EntityRef clockPanel = named("clockPanel"); not clockPanel.empty())
             clock = std::max(clock, clockPanel->get<PositionComponent>()->height);
 
-        const float logHeight = std::max(MinLog, height - ColumnsTop - clock - StackGap - workingHeight() - StackGap - PanelChrome - LogFootnote - StackGap);
+        const float logHeight = std::max(MinLog, height - ColumnsTop - clock - StackGap - parts - StackGap - workingHeight() - StackGap - PanelChrome - LogFootnote - StackGap);
 
         if (auto log = piece<EventLog>("log"))
             log->setHeight(ecs, logHeight);
@@ -620,10 +633,10 @@ namespace chronicle
                 label->setText(ecs, v.toString());
         }));
 
-        // His parts: character.parts.<p>, and .projected, .threshold, .note
+        // His parts: character.parts.<p>, and .projected, .threshold, .note, .alert
         subs.push_back(router->onPrefix("character.parts.", [this, ecs](const std::string& path, const ElementType& v) {
             std::string key, field;
-            splitPath(path.substr(std::string("character.parts.").size()), {"projected", "threshold", "note"}, key, field);
+            splitPath(path.substr(std::string("character.parts.").size()), {"projected", "threshold", "note", "alert"}, key, field);
 
             auto line = piece<StatLine>(key);
 
@@ -638,6 +651,8 @@ namespace chronicle
                 line->setThreshold(ecs, intOf(v));
             else if (field == "note")
                 line->setNote(ecs, v.toString());
+            else if (field == "alert")
+                line->setAlert(ecs, v.type == UnionType::BOOL and v.get<bool>());
         }));
 
         // His skills: skills.<id>, shown once he has any of it
@@ -713,6 +728,7 @@ namespace chronicle
                 row.name = textOf(a.fields, "name");
                 row.glyph = textOf(a.fields, "glyph");
                 row.rank = textOf(a.fields, "rank");
+                row.count = textOf(a.fields, "tally");
                 row.each = textOf(a.fields, "each");
                 row.months = intOf(a.fields, "months");
                 row.state = ActivityState::Running;
@@ -755,7 +771,8 @@ namespace chronicle
             }
         }));
 
-        // Each activity's state and what it still asks: activity.<id>.state, .requirement.<n>
+        // Each activity's state, how often it was done and what it still asks: activity.<id>.state,
+        // .count, .requirement.<n>
         subs.push_back(router->onPrefix("activity.", [this, ecs](const std::string& path, const ElementType& v) {
             const std::string rest = path.substr(std::string("activity.").size());
             const std::string asked = ".requirement.";
@@ -776,11 +793,22 @@ namespace chronicle
 
             std::string id, field;
 
-            if (not splitPath(rest, {"state"}, id, field) or id == "running")
+            if (not splitPath(rest, {"state", "count"}, id, field) or id == "running")
                 return;
 
-            if (auto list = piece<ActivityList>("activities"))
+            auto list = piece<ActivityList>("activities");
+
+            if (not list)
+                return;
+
+            if (field == "state")
+            {
                 list->setRowState(ecs, id, stateOf(v.toString()));
+            }
+            else if (auto row = list->find(ecs, id))
+            {
+                row->setCount(ecs, v.toString());
+            }
         }));
 
         // The doors: window.<id>.state, .note
@@ -914,6 +942,7 @@ namespace chronicle
             row.name = textOf(a.fields, "name");
             row.glyph = textOf(a.fields, "glyph");
             row.rank = textOf(a.fields, "rank");
+            row.count = textOf(a.fields, "tally");
             row.each = textOf(a.fields, "each");
             row.months = intOf(a.fields, "months");
             row.state = boolOf(a.fields, "locked") ? ActivityState::Locked : ActivityState::Idle;
@@ -945,11 +974,39 @@ namespace chronicle
         if (rules.month(save.character(), month))
         {
             holdings = month.rows;
+            holdingGlosses = month.glosses;
+            death = month.death;
+
+            caps.clear();
+
+            for (const auto& cap : month.caps)
+                caps[textOf(cap, "stat")] = intOf(cap, "most");
             return;
         }
 
         for (const auto& e : rules.errors)
             LOG_ERROR(DOM, e);
+    }
+
+    void LifeScene::endLife()
+    {
+        // The line the new life opens with, and the age the last one ended at as the head wrote it
+        const std::string ending = death;
+        std::string age;
+
+        if (auto facts = ecsRef->getSystem<WorldFacts>())
+            age = facts->getFact<std::string>("life.headline.ageText", "");
+
+        LOG_INFO(DOM, "The life ended at " << age << ": " << ending);
+
+        // The months stop: the new life starts when the player says so
+        paused = true;
+        sinceMonth = 0.0f;
+
+        clearAlert();
+        newLife();
+
+        appendLog({save.age, ending, LogKind::Loss, age, ""});
     }
 
     void LifeScene::registerDeeds()
@@ -1051,6 +1108,7 @@ namespace chronicle
         row.rate = resource.rate;
         row.tone = static_cast<LedgerTone>(resource.tone);
         row.muted = resource.muted;
+        row.glossKey = "resource/" + resource.id;
 
         ledger->addRow(ecsRef, resource.group, row, resource.groupLabel);
     }
@@ -1084,13 +1142,84 @@ namespace chronicle
         }
     }
 
+    void LifeScene::alert(const std::vector<std::string>& stats)
+    {
+        // A month that took from what the life hangs on: the part turns red for a moment, and
+        // the months stop the first time, so the loss is not run past
+        for (const auto& stat : stats)
+        {
+            setFact("character.parts." + stat + ".alert", true);
+
+            if (std::find(alerted.begin(), alerted.end(), stat) == alerted.end())
+                alerted.push_back(stat);
+        }
+
+        alertLeft = AlertMs;
+
+        if (not endangered)
+        {
+            paused = true;
+            sinceMonth = 0.0f;
+        }
+    }
+
+    void LifeScene::clearAlert()
+    {
+        for (const auto& stat : alerted)
+            setFact("character.parts." + stat + ".alert", false);
+
+        alerted.clear();
+        alertLeft = 0.0f;
+    }
+
     // ---- publish: the save and the scripts to paths ------------------------------------------------------
 
     void LifeScene::publish()
     {
         refreshHoldings();
+        publishAll();
+    }
+
+    void LifeScene::publishAll()
+    {
+        glossHoldings();
         publishCharacter();
         publishRules();
+
+        // The ghosts: of the activity chosen if one is, else of what mends
+        auto list = piece<ActivityList>("activities");
+        const std::string chosen = list ? list->selected() : std::string();
+
+        RuleForecast forecast;
+
+        if (not chosen.empty() and rules.forecast(save.age, save.character(), chosen, 0, forecast))
+            publishProjected(&forecast);
+        else
+            publishProjected(nullptr);
+    }
+
+    void LifeScene::publishProjected(const RuleForecast* forecast)
+    {
+        for (const auto& p : save.parts)
+        {
+            const int now = save.stats[p];
+            int ghost = -1;
+
+            // A part that was taken from mends back to the most it can be
+            if (auto cap = caps.find(p); cap != caps.end() and cap->second > now)
+                ghost = cap->second;
+
+            // What the chosen activity would bring it to says more
+            if (forecast)
+            {
+                auto it = forecast->atTerm.find(p);
+
+                if (it != forecast->atTerm.end() and intOf(it->second) > now)
+                    ghost = intOf(it->second);
+            }
+
+            setFact("character.parts." + p + ".projected", ghost);
+        }
     }
 
     void LifeScene::publishCharacter()
@@ -1224,6 +1353,7 @@ namespace chronicle
                     continue;
 
                 setFact("activity." + id + ".state", state);
+                setFact("activity." + id + ".count", textOf(a.fields, "tally"));
 
                 for (size_t i = 0; i < a.requires.size(); ++i)
                     setFact("activity." + id + ".requirement." + std::to_string(i), intOf(a.requires[i], "current"));
@@ -1243,11 +1373,10 @@ namespace chronicle
         if (event.list != ActivitiesList)
             return;
 
-        // Nothing chosen: no ghosts on the parts
+        // Nothing chosen: no ghosts on the parts but what mends
         if (event.id.empty())
         {
-            for (const auto& p : save.parts)
-                setFact("character.parts." + p + ".projected", -1);
+            publishProjected(nullptr);
 
             glossParts(nullptr, "");
             return;
@@ -1259,13 +1388,7 @@ namespace chronicle
             return;
 
         // The ghost of each part the chosen activity would raise
-        for (const auto& p : save.parts)
-        {
-            auto it = forecast.atTerm.find(p);
-            const int atTerm = it == forecast.atTerm.end() ? save.stats[p] : intOf(it->second);
-
-            setFact("character.parts." + p + ".projected", atTerm > save.stats[p] ? atTerm : -1);
-        }
+        publishProjected(&forecast);
 
         glossParts(&forecast, activityName(event.id));
     }
@@ -1296,8 +1419,7 @@ namespace chronicle
         if (auto list = piece<ActivityList>("activities"))
             list->select(ecsRef, "");
 
-        for (const auto& p : save.parts)
-            setFact("character.parts." + p + ".projected", -1);
+        publishProjected(nullptr);
 
         setFact("activity." + event.id + ".state", std::string("running"));
 
@@ -1333,6 +1455,13 @@ namespace chronicle
 
         refreshHoldings();
 
+        // What it took was the last of what he lived on
+        if (not death.empty())
+        {
+            endLife();
+            return;
+        }
+
         for (const auto& r : save.holdEarned(holdings))
             addToLedger(r);
 
@@ -1355,7 +1484,7 @@ namespace chronicle
         if (changed)
             fillActivities();
 
-        publish();
+        publishAll();
     }
 
     void LifeScene::onTab(const TabSelectedEvent& event)
@@ -1424,11 +1553,27 @@ namespace chronicle
             }
         }
 
+        // The character as the month leaves him: with nothing left to live on, this life is lost
+        // and a new one begins
+        refreshHoldings();
+
+        if (not death.empty())
+        {
+            endLife();
+            return;
+        }
+
         // What he holds for the first time gets its row
         for (const auto& r : save.holdEarned(month.rows))
             addToLedger(r);
 
-        publish();
+        publishAll();
+
+        // The month took from what the life hangs on: he is in danger, and the page says so
+        if (not month.hurt.empty())
+            alert(month.hurt);
+
+        endangered = not month.hurt.empty();
     }
 
     // ---- the glosses -----------------------------------------------------------------------------------------
@@ -1447,6 +1592,9 @@ namespace chronicle
             GlossSpec gloss;
             gloss.title = line ? line->spec.label : p;
             gloss.rows.push_back({"Now", std::to_string(save.stats[p])});
+
+            if (auto cap = caps.find(p); cap != caps.end())
+                gloss.rows.push_back({"At most", std::to_string(cap->second)});
 
             for (const auto& ask : nextAsks)
             {
@@ -1488,6 +1636,12 @@ namespace chronicle
             for (const auto& r : a.requires)
                 gloss.rows.push_back({textOf(r, "label"), std::to_string(intOf(r, "current")) + " / " + std::to_string(intOf(r, "needed"))});
 
+            gloss.rows.push_back({"Done", std::to_string(intOf(a.fields, "done"))});
+
+            // -1: as often as he likes
+            if (intOf(a.fields, "left") >= 0)
+                gloss.rows.push_back({"Left", std::to_string(intOf(a.fields, "left"))});
+
             if (textOf(a.fields, "id") == save.running)
                 gloss.footnote = "AT WORK NOW";
             else if (boolOf(a.fields, "locked"))
@@ -1496,6 +1650,41 @@ namespace chronicle
                 gloss.footnote = "SELECT, THEN CONFIRM TO BEGIN";
 
             registry->set("activity/" + textOf(a.fields, "id"), gloss);
+        }
+    }
+
+    void LifeScene::glossHoldings()
+    {
+        auto registry = ecsRef->getSystem<GlossRegistry>();
+
+        if (not registry)
+            return;
+
+        // Every row of the ledger has one: what the rules follow says what it does, the rest what
+        // he holds of it
+        for (const auto& r : save.resources)
+        {
+            auto stat = save.stats.find(r.id);
+
+            GlossSpec gloss;
+            gloss.title = r.name;
+            gloss.rows.push_back({"Held", stat != save.stats.end() ? std::to_string(stat->second) : r.value});
+
+            for (const auto& g : holdingGlosses)
+            {
+                if (textOf(g.fields, "id") != r.id)
+                    continue;
+
+                gloss.title = textOf(g.fields, "title");
+                gloss.text = textOf(g.fields, "text");
+                gloss.footnote = textOf(g.fields, "footnote");
+                gloss.rows.clear();
+
+                for (const auto& row : g.rows)
+                    gloss.rows.push_back({textOf(row, "label"), textOf(row, "value")});
+            }
+
+            registry->set("resource/" + r.id, gloss);
         }
     }
 
@@ -1563,6 +1752,7 @@ namespace chronicle
     void LifeScene::newLife()
     {
         save = freshLife();
+        endangered = false;
 
         rules.done = save.terms();
 
