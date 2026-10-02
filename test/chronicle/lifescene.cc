@@ -1389,8 +1389,9 @@ namespace pg
             f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "buy.rations"});
             f.settle();
 
+            // Nothing taken, nothing brought: the rations a new life starts with, untouched
             EXPECT_EQ(life->save.stats["coin"], 0);
-            EXPECT_EQ(life->save.stats["rations"], 0);
+            EXPECT_EQ(life->save.stats["rations"], 24);
             EXPECT_EQ(life->save.done.count("buy.rations"), 0u);
         }
 
