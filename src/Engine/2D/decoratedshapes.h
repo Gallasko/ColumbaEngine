@@ -19,6 +19,9 @@ namespace pg
     // Hatch fill (45-degree by default)
     // ---------------------------------------------------------------------------
 
+    // Compiled once in decoratedshapes.cpp
+    extern template struct GenericRenderSystem<HatchRect2DObject, HatchRect2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>;
+
     struct HatchRect2DObjectSystem : public GenericRenderSystem<HatchRect2DObject, HatchRect2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>
     {
         HatchRect2DObjectSystem(MasterRenderer* masterRenderer) : GenericRenderSystem(masterRenderer) {}
@@ -54,6 +57,9 @@ namespace pg
     // Dotted leader
     // ---------------------------------------------------------------------------
 
+    // Compiled once in decoratedshapes.cpp
+    extern template struct GenericRenderSystem<DottedLine2DObject, DottedLine2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>;
+
     struct DottedLine2DObjectSystem : public GenericRenderSystem<DottedLine2DObject, DottedLine2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>
     {
         DottedLine2DObjectSystem(MasterRenderer* masterRenderer) : GenericRenderSystem(masterRenderer) {}
@@ -88,6 +94,9 @@ namespace pg
     // ---------------------------------------------------------------------------
     // Stroke-only rectangle (optionally doubled)
     // ---------------------------------------------------------------------------
+
+    // Compiled once in decoratedshapes.cpp
+    extern template struct GenericRenderSystem<StrokeRect2DObject, StrokeRect2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>;
 
     struct StrokeRect2DObjectSystem : public GenericRenderSystem<StrokeRect2DObject, StrokeRect2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>
     {

@@ -133,6 +133,10 @@ namespace pg
         }
     }
 
+    const std::unordered_map<std::string, AnchorType> StringToAnchorTypeMap = invertMap(AnchorTypeToStringMap);
+
+    const std::unordered_map<std::string, PosOpType> StringToPosOpTypeMap = invertMap(PosOpTypeToStringMap);
+
     // Serialize function for UiAnchor
     template <>
     void serialize(Archive& archive, const UiAnchor& value)

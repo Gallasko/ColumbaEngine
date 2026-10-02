@@ -107,7 +107,8 @@ namespace pg
         {FactCheckEquality::GreaterEqual, "GreaterEqual"},
     };
 
-    const static std::unordered_map<std::string, FactCheckEquality> stringToEquality = invertMap(equalityToString);
+    // Built once in gamefacts.cpp
+    extern const std::unordered_map<std::string, FactCheckEquality> stringToEquality;
 
     struct FactChecker
     {

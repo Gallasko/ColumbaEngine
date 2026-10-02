@@ -11,6 +11,8 @@ namespace pg
         static constexpr char const * DOM = "Achievement";
     }
 
+    const std::unordered_map<std::string, AchievementRewardType> stringToAchievementRewardType = invertMap(achievementRewardTypeToString);
+
     void AchievementReward::call(EntitySystem* ecsRef) const
     {
         switch (type)

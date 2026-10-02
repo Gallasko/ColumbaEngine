@@ -1,5 +1,7 @@
 #include "enemy.h"
 
+#include <array>
+
 namespace pg
 {
     constexpr float EPSILON = 1e-5f;

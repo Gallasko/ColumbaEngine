@@ -24,71 +24,9 @@ namespace pg
 
         virtual void setup() = 0;
 
-        virtual void init() override final
-        {
-            setup();
+        virtual void init() override final;
 
-            auto group = this->template registerGroup<OwnedComp, Comp2>();
-
-            group->addOnGroup([this](EntityRef entity) {
-                auto c1 = entity->template get<OwnedComp>();
-                auto c2 = entity->template get<Comp2>();
-
-                entityRenderCalls[entity->id] = createRenderCall(c1, c2);
-                entitiesInRenderGroup.push_back(entity->id);
-
-                std::sort(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end());
-
-                changed = true;
-            });
-
-            group->removeOfGroup([this](EntitySystem*, _unique_id id) {
-                // Remove render call from the map
-                entityRenderCalls.erase(id);
-                entitiesInRenderGroup.erase(std::remove(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), id), entitiesInRenderGroup.end());
-
-                changed = true;
-            });
-        }
-
-        virtual void execute() override final
-        {
-            if (not changed)
-            {
-                return;
-            }
-
-            std::vector<_unique_id> updateQueue = drainIntersectSorted(updateSet, entitiesInRenderGroup);
-
-            for (const auto& entityId : updateQueue)
-            {
-                auto entity = this->ecsRef->getEntity(entityId);
-
-                if (not entity)
-                {
-                    LOG_WARNING("GenericRenderSystem", "Entity " << entityId << " NOT FOUND in ECS! Skipping...");
-                    continue;
-                }
-
-                auto c1 = entity->template get<OwnedComp>();
-                auto c2 = entity->template get<Comp2>();
-
-                // Store render call directly in the system's map (no component needed!)
-                entityRenderCalls[entityId] = createRenderCall(c1, c2);
-            }
-
-            renderCallList.clear();
-
-            // Build render call list from the system's map
-            renderCallList.reserve(entityRenderCalls.size());
-
-            for (const auto& [entityId, renderCall] : entityRenderCalls)
-            {
-                renderCallList.push_back(renderCall);
-            }
-
-            finishChanges();
-        }
+        virtual void execute() override final;
 
         virtual RenderCall createRenderCall(CompRef<OwnedComp>, CompRef<Comp2>) = 0;
 
@@ -125,70 +63,9 @@ namespace pg
 
         virtual void setup() = 0;
 
-        virtual void init() override final
-        {
-            setup();
+        virtual void init() override final;
 
-            auto group = this->template registerGroup<OwnedComp, Comp2, Comp3>();
-
-            group->addOnGroup([this](EntityRef entity) {
-                auto c1 = entity->template get<OwnedComp>();
-                auto c2 = entity->template get<Comp2>();
-                auto c3 = entity->template get<Comp3>();
-
-                entityRenderCalls[entity->id] = createRenderCall(c1, c2, c3);
-                entitiesInRenderGroup.push_back(entity->id);
-
-                std::sort(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end());
-
-                changed = true;
-            });
-
-            group->removeOfGroup([this](EntitySystem*, _unique_id id) {
-                entityRenderCalls.erase(id);
-                entitiesInRenderGroup.erase(std::remove(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), id), entitiesInRenderGroup.end());
-
-                changed = true;
-            });
-        }
-
-        virtual void execute() override final
-        {
-            if (not changed)
-            {
-                return;
-            }
-
-            std::vector<_unique_id> updateQueue = drainIntersectSorted(updateSet, entitiesInRenderGroup);
-
-            for (const auto& entityId : updateQueue)
-            {
-                auto entity = this->ecsRef->getEntity(entityId);
-
-                if (not entity)
-                {
-                    LOG_WARNING("GenericRenderSystem", "Entity " << entityId << " NOT FOUND in ECS! Skipping...");
-                    continue;
-                }
-
-                auto c1 = entity->template get<OwnedComp>();
-                auto c2 = entity->template get<Comp2>();
-                auto c3 = entity->template get<Comp3>();
-
-                entityRenderCalls[entityId] = createRenderCall(c1, c2, c3);
-            }
-
-            renderCallList.clear();
-
-            renderCallList.reserve(entityRenderCalls.size());
-
-            for (const auto& [entityId, renderCall] : entityRenderCalls)
-            {
-                renderCallList.push_back(renderCall);
-            }
-
-            finishChanges();
-        }
+        virtual void execute() override final;
 
         virtual RenderCall createRenderCall(CompRef<OwnedComp>, CompRef<Comp2>, CompRef<Comp3>) = 0;
 
@@ -219,4 +96,139 @@ namespace pg
         std::unordered_map<_unique_id, RenderCall> entityRenderCalls;
         std::vector<_unique_id> entitiesInRenderGroup;
     };
+
+    template <typename OwnedComp, typename Event1, typename Comp2, typename Event2>
+    void GenericRenderSystem<OwnedComp, Event1, Comp2, Event2, void, void>::init()
+    {
+        setup();
+
+        auto group = this->template registerGroup<OwnedComp, Comp2>();
+
+        group->addOnGroup([this](EntityRef entity) {
+            auto c1 = entity->template get<OwnedComp>();
+            auto c2 = entity->template get<Comp2>();
+
+            entityRenderCalls[entity->id] = createRenderCall(c1, c2);
+            entitiesInRenderGroup.push_back(entity->id);
+
+            std::sort(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end());
+
+            changed = true;
+        });
+
+        group->removeOfGroup([this](EntitySystem*, _unique_id id) {
+            // Remove render call from the map
+            entityRenderCalls.erase(id);
+            entitiesInRenderGroup.erase(std::remove(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), id), entitiesInRenderGroup.end());
+
+            changed = true;
+        });
+    }
+
+    template <typename OwnedComp, typename Event1, typename Comp2, typename Event2>
+    void GenericRenderSystem<OwnedComp, Event1, Comp2, Event2, void, void>::execute()
+    {
+        if (not changed)
+        {
+            return;
+        }
+
+        std::vector<_unique_id> updateQueue = drainIntersectSorted(updateSet, entitiesInRenderGroup);
+
+        for (const auto& entityId : updateQueue)
+        {
+            auto entity = this->ecsRef->getEntity(entityId);
+
+            if (not entity)
+            {
+                LOG_WARNING("GenericRenderSystem", "Entity " << entityId << " NOT FOUND in ECS! Skipping...");
+                continue;
+            }
+
+            auto c1 = entity->template get<OwnedComp>();
+            auto c2 = entity->template get<Comp2>();
+
+            // Store render call directly in the system's map (no component needed!)
+            entityRenderCalls[entityId] = createRenderCall(c1, c2);
+        }
+
+        renderCallList.clear();
+
+        // Build render call list from the system's map
+        renderCallList.reserve(entityRenderCalls.size());
+
+        for (const auto& [entityId, renderCall] : entityRenderCalls)
+        {
+            renderCallList.push_back(renderCall);
+        }
+
+        finishChanges();
+    }
+
+    template <typename OwnedComp, typename Event1, typename Comp2, typename Event2, typename Comp3, typename Event3>
+    void GenericRenderSystem<OwnedComp, Event1, Comp2, Event2, Comp3, Event3>::init()
+    {
+        setup();
+
+        auto group = this->template registerGroup<OwnedComp, Comp2, Comp3>();
+
+        group->addOnGroup([this](EntityRef entity) {
+            auto c1 = entity->template get<OwnedComp>();
+            auto c2 = entity->template get<Comp2>();
+            auto c3 = entity->template get<Comp3>();
+
+            entityRenderCalls[entity->id] = createRenderCall(c1, c2, c3);
+            entitiesInRenderGroup.push_back(entity->id);
+
+            std::sort(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end());
+
+            changed = true;
+        });
+
+        group->removeOfGroup([this](EntitySystem*, _unique_id id) {
+            entityRenderCalls.erase(id);
+            entitiesInRenderGroup.erase(std::remove(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), id), entitiesInRenderGroup.end());
+
+            changed = true;
+        });
+    }
+
+    template <typename OwnedComp, typename Event1, typename Comp2, typename Event2, typename Comp3, typename Event3>
+    void GenericRenderSystem<OwnedComp, Event1, Comp2, Event2, Comp3, Event3>::execute()
+    {
+        if (not changed)
+        {
+            return;
+        }
+
+        std::vector<_unique_id> updateQueue = drainIntersectSorted(updateSet, entitiesInRenderGroup);
+
+        for (const auto& entityId : updateQueue)
+        {
+            auto entity = this->ecsRef->getEntity(entityId);
+
+            if (not entity)
+            {
+                LOG_WARNING("GenericRenderSystem", "Entity " << entityId << " NOT FOUND in ECS! Skipping...");
+                continue;
+            }
+
+            auto c1 = entity->template get<OwnedComp>();
+            auto c2 = entity->template get<Comp2>();
+            auto c3 = entity->template get<Comp3>();
+
+            entityRenderCalls[entityId] = createRenderCall(c1, c2, c3);
+        }
+
+        renderCallList.clear();
+
+        renderCallList.reserve(entityRenderCalls.size());
+
+        for (const auto& [entityId, renderCall] : entityRenderCalls)
+        {
+            renderCallList.push_back(renderCall);
+        }
+
+        finishChanges();
+    }
 }

@@ -13,6 +13,8 @@
 
 #include "Systems/coresystems.h"
 
+#include "Compiler/ecsserialization.h"
+
 #include "Prefabs/foldablecard.h"
 
 namespace pg

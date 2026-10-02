@@ -9,6 +9,7 @@
 #include "reciperegistry.h"
 #include "worldfacts.h"
 
+#include <array>
 #include <functional>
 #include <cstdint>
 

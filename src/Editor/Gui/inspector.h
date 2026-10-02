@@ -9,8 +9,6 @@
 #include "UI/prefab.h"
 #include "Input/keyconfig.h"
 
-#include "Compiler/ecsserialization.h"
-
 namespace pg
 {
     struct NewSceneLoaded;

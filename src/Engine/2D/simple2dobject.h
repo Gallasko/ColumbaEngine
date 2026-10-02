@@ -16,6 +16,9 @@
 
 namespace pg
 {
+    // Compiled once in simple2dobject.cpp
+    extern template struct GenericRenderSystem<Simple2DObject, Simple2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>;
+
     struct Simple2DObjectSystem : public GenericRenderSystem<Simple2DObject, Simple2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>
     {
         Simple2DObjectSystem(MasterRenderer* masterRenderer) : GenericRenderSystem(masterRenderer) { }
@@ -74,6 +77,9 @@ namespace pg
     // ---------------------------------------------------------------------------
     // Rounded rectangle
     // ---------------------------------------------------------------------------
+
+    // Compiled once in simple2dobject.cpp
+    extern template struct GenericRenderSystem<RoundedRect2DObject, RoundedRect2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>;
 
     struct RoundedRect2DObjectSystem : public GenericRenderSystem<RoundedRect2DObject, RoundedRect2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>
     {

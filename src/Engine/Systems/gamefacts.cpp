@@ -4,6 +4,8 @@
 
 namespace pg
 {
+    const std::unordered_map<std::string, FactCheckEquality> stringToEquality = invertMap(equalityToString);
+
     template <>
     void serialize(Archive& archive, const FactMetadata& value)
     {

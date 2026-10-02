@@ -2,6 +2,7 @@
 
 #include "collisionsystem.h"
 #include <unordered_set>
+#include <limits>
 
 #include "Compiler/ecsserialization.h"
 

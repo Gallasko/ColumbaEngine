@@ -16,6 +16,8 @@ namespace fs = std::filesystem;
 
 #include "Loaders/stb_image.h"
 
+#include "Memory/concurrentqueue.h"
+
 #include "UI/uisystem.h"
 
 #include "2D/position.h"
@@ -94,7 +96,12 @@ namespace pg
         masterRenderer->addRenderer(this);
     }
 
-    MasterRenderer::MasterRenderer(const std::string& noneTexturePath)
+    struct MasterRenderer::TextureRegisteringQueue
+    {
+        moodycamel::ConcurrentQueue<TextureRegisteringQueueItem> queue;
+    };
+
+    MasterRenderer::MasterRenderer(const std::string& noneTexturePath) : textureRegisteringQueue(std::make_unique<TextureRegisteringQueue>())
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -117,7 +124,7 @@ namespace pg
         // no render pass to run the callback, so defer instead of dereferencing ecsRef
         // or uploading immediately. Real setup (attached, not yet running) still uploads.
         if (not ecsRef or ecsRef->isRunning())
-            textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback});
+            textureRegisteringQueue->queue.enqueue(TextureRegisteringQueueItem{name, callback});
         else
             registerTexture(name, callback);
     }
@@ -427,13 +434,13 @@ namespace pg
     {
         TextureRegisteringQueueItem item;
 
-        bool found = textureRegisteringQueue.try_dequeue(item);
+        bool found = textureRegisteringQueue->queue.try_dequeue(item);
 
         while (found)
         {
             registerTexture(item.name, item.callback);
 
-            found = textureRegisteringQueue.try_dequeue(item);
+            found = textureRegisteringQueue->queue.try_dequeue(item);
         }
     }
 

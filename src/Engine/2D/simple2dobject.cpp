@@ -15,6 +15,9 @@ namespace pg
         static constexpr char const * DOM = "Shape 2D";
     }
 
+    template struct GenericRenderSystem<Simple2DObject, Simple2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>;
+    template struct GenericRenderSystem<RoundedRect2DObject, RoundedRect2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>;
+
     void Simple2DObjectSystem::setup()
     {
         LOG_THIS_MEMBER(DOM);

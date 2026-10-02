@@ -30,7 +30,8 @@ namespace pg
         {AchievementRewardType::Increase, "Increase"},
     };
 
-    const static auto stringToAchievementRewardType = invertMap(achievementRewardTypeToString);
+    // Built once in achievement.cpp
+    extern const std::unordered_map<std::string, AchievementRewardType> stringToAchievementRewardType;
 
     static const std::string AchievementUnlockEventName = "achievementUnlocked";
 

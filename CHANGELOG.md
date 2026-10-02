@@ -13,6 +13,16 @@ First tagged release. Everything below describes the state of the engine at the 
   the page).
 
 ### Changed
+- Compile time: the component registry stores its per-component and per-event callbacks through one
+  function-pointer type per signature instead of one lambda type each, `ECS/entitysystem.h` no longer
+  includes `Renderer/rendercall.h`, and `Compiler/vm.h` no longer includes the lexer or the AST pass
+  headers (`VM::astPassManager` is now a `std::unique_ptr`). `ECS/entitysystem.h`, `ECS/commanddispatcher.h`
+  and `Renderer/renderer.h` no longer include `Memory/concurrentqueue.h` (the queues live in the `.cpp`
+  files), the six shape render systems compile their `GenericRenderSystem` base once, and the
+  `stringToX` enum maps of generated components, `position.h`, `gamefacts.h` and `achievement.h` are
+  declared `extern` and built once. Migration: include `Renderer/rendercall.h`, `Interpreter/lexer.h`,
+  `Compiler/ast/ast_pass.h`, `Memory/concurrentqueue.h` or the standard headers you use (`<array>`,
+  `<limits>`, ...) directly instead of relying on these headers to bring them in.
 - Achievements: `Achievement`, `AchievementReward` and `AchievementSys` live in `Systems/achievement.h`,
   promoted from the GameOff example. An achievement is a list of `FactChecker` on the world facts and a list
   of rewards (a `StandardEvent`, or `AddFact` / `IncreaseFact` / `RemoveFact`); unlocking sends the

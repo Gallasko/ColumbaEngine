@@ -22,6 +22,8 @@
 #include "system.h"
 #include "scriptregistry.h"
 
+#include "Memory/concurrentqueue.h"
+
 #include "Systems/coresystems.h"
 
 #ifndef PG_MINIMAL_BUILD
@@ -105,6 +107,30 @@ namespace pg
 
         TaskflowImpl() : executor(NBEXECUTORTHREADS) {}
     };
+
+    struct EntitySystem::EventDispatcher::EventQueue
+    {
+        moodycamel::ConcurrentQueue<std::function<void()>> queue;
+    };
+
+    EntitySystem::EventDispatcher::EventDispatcher() : events(std::make_unique<EventQueue>()) {}
+
+    EntitySystem::EventDispatcher::~EventDispatcher() = default;
+
+    bool EntitySystem::EventDispatcher::enqueueEvent(std::function<void()>&& event)
+    {
+        return events->queue.enqueue(event);
+    }
+
+    void EntitySystem::EventDispatcher::process()
+    {
+        std::function<void()> event;
+
+        while (events->queue.try_dequeue(event))
+        {
+            event();
+        }
+    }
 
     // Todo maybe
     // template <>

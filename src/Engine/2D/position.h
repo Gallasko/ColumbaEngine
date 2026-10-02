@@ -78,8 +78,8 @@ namespace pg
         {AnchorType::HorizontalCenter, "HorizontalCenter"}
     };
 
-    // String to AnchorType map
-    const static auto StringToAnchorTypeMap = invertMap(AnchorTypeToStringMap);
+    // String to AnchorType map, built once in position.cpp
+    extern const std::unordered_map<std::string, AnchorType> StringToAnchorTypeMap;
 
     // PosOpType to string map
     const static std::unordered_map<PosOpType, std::string> PosOpTypeToStringMap = {
@@ -90,8 +90,8 @@ namespace pg
         {PosOpType::Div, "Div"}
     };
 
-    // String to PosOpType map
-    const static auto StringToPosOpTypeMap = invertMap(PosOpTypeToStringMap);
+    // String to PosOpType map, built once in position.cpp
+    extern const std::unordered_map<std::string, PosOpType> StringToPosOpTypeMap;
 
     // inline static std::string getType() { return "UiComponent"; }
 

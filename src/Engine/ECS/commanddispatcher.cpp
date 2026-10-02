@@ -5,11 +5,68 @@
 #include "entity.h"
 #include "entitysystem.h"
 
+#include "Memory/concurrentqueue.h"
+
 namespace pg
 {
     namespace
     {
         constexpr const char * const DOM = "Command Dispatcher";
+    }
+
+    struct CommandDispatcher::Queues
+    {
+        /** Queue for the entity creation commands */
+        moodycamel::ConcurrentQueue<EntityCommand> entityCQueue;
+
+        /** Queue for the entity deletion commands */
+        moodycamel::ConcurrentQueue<EntityCommand> entityDQueue;
+
+        /** Queue for the component creation commands */
+        moodycamel::ConcurrentQueue<ComponentCreateCommand> componentCQueue;
+
+        /** Queue for the component deletion commands */
+        moodycamel::ConcurrentQueue<ComponentDeleteCommand> componentDQueue;
+
+        /** Queue for the system commands */
+        moodycamel::ConcurrentQueue<SysCommand> sysQueue;
+    };
+
+    CommandDispatcher::CommandDispatcher(EntitySystem *ecs) : ecsRef(ecs), queues(std::make_unique<Queues>())
+    {
+        LOG_THIS_MEMBER(DOM);
+    }
+
+    CommandDispatcher::~CommandDispatcher() = default;
+
+    bool CommandDispatcher::enqueueComponentCreation(const ComponentCreateCommand& command)
+    {
+        return queues->componentCQueue.enqueue(command);
+    }
+
+    void CommandDispatcher::detachComp(Entity* entity, _unique_id compId)
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        if (not queues->componentDQueue.enqueue(ComponentDeleteCommand{entity, compId}))
+        {
+            LOG_ERROR(DOM, "Could not enqueue the deletion of component " << compId);
+        }
+    }
+
+    bool CommandDispatcher::enqueueCommand(const SysCommand& cmd)
+    {
+        return queues->sysQueue.enqueue(cmd);
+    }
+
+    bool CommandDispatcher::enqueueCommand(SysCommand&& cmd)
+    {
+        return queues->sysQueue.enqueue(cmd);
+    }
+
+    bool CommandDispatcher::enqueueCommand(const CommandToken& token, const SysCommand& cmd)
+    {
+        return queues->sysQueue.enqueue(token, cmd);
     }
 
     /**
@@ -23,7 +80,7 @@ namespace pg
 
         auto entity = new Entity(ecsRef->registry.idGenerator.generateId(), ecsRef);
 
-        if (not entityCQueue.enqueue(EntityCommand{entity, EntityCommand::EntityCommandType::creation}))
+        if (not queues->entityCQueue.enqueue(EntityCommand{entity, EntityCommand::EntityCommandType::creation}))
         {
             LOG_ERROR(DOM, "Could not enqueue the creation of entity " << entity->id);
             return nullptr;
@@ -41,7 +98,7 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        if (not entityDQueue.enqueue(EntityCommand{entity, EntityCommand::EntityCommandType::deletion}))
+        if (not queues->entityDQueue.enqueue(EntityCommand{entity, EntityCommand::EntityCommandType::deletion}))
         {
             LOG_ERROR(DOM, "Could not enqueue the deletion of entity " << entity->id);
         }
@@ -58,15 +115,15 @@ namespace pg
         EntityCommand item1(nullptr, EntityCommand::EntityCommandType::creation);
         EntityCommand item2(nullptr, EntityCommand::EntityCommandType::deletion);
 
-        bool found1 = entityCQueue.try_dequeue(item1);
-        bool found2 = entityDQueue.try_dequeue(item2);
+        bool found1 = queues->entityCQueue.try_dequeue(item1);
+        bool found2 = queues->entityDQueue.try_dequeue(item2);
 
         // Component commands
         ComponentCreateCommand item3;
         ComponentDeleteCommand item4;
 
-        bool found3 = componentCQueue.try_dequeue(item3);
-        bool found4 = componentDQueue.try_dequeue(item4);
+        bool found3 = queues->componentCQueue.try_dequeue(item3);
+        bool found4 = queues->componentDQueue.try_dequeue(item4);
 
         // Put all the components in this map to be sure to only delete the components once even if two different system ask to remove it at the same time !
         std::map<Entity*, _unique_id> componentsToBeDeleted;
@@ -77,7 +134,7 @@ namespace pg
             componentsToBeDeleted.emplace(item4.entity, item4.compId);
             // ecsRef->registry.detachComponentFromEntity(item4.entity, item4.compId);
 
-            found4 = componentDQueue.try_dequeue(item4);
+            found4 = queues->componentDQueue.try_dequeue(item4);
         }
 
         for (const auto& comp : componentsToBeDeleted)
@@ -94,7 +151,7 @@ namespace pg
             entitiesToBeDeleted.insert(item2.entity);
             // ecsRef->deleteEntityFromPool(item2.entity);
 
-            found2 = entityDQueue.try_dequeue(item2);
+            found2 = queues->entityDQueue.try_dequeue(item2);
         }
 
         for (auto entity : entitiesToBeDeleted)
@@ -108,7 +165,7 @@ namespace pg
             ecsRef->addEntityToPool(item1.entity);
             delete item1.entity;
 
-            found1 = entityCQueue.try_dequeue(item1);
+            found1 = queues->entityCQueue.try_dequeue(item1);
         }
 
         // Finally try to create all the components requested
@@ -120,7 +177,7 @@ namespace pg
 
             item3.clear();
 
-            found3 = componentCQueue.try_dequeue(item3);
+            found3 = queues->componentCQueue.try_dequeue(item3);
         }
     }
 }

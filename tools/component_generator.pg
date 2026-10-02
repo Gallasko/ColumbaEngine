@@ -196,9 +196,9 @@ class HeaderGenerator
                 }
                 code += "};\n\n"
 
-                // string -> EnumName map  (e.g. stringToShape)
+                // string -> EnumName map  (e.g. stringToShape), built once in the .generated.cpp
                 var revMapName = "stringTo" + enumName
-                code += "const static auto " + revMapName + " = invertMap(" + mapName + ");\n\n"
+                code += "extern const std::unordered_map<std::string, " + enumName + "> " + revMapName + ";\n\n"
 
                 // Serialization template declarations for this enum
                 if (serializationEnabled(schema))
@@ -1299,6 +1299,16 @@ class CppGenerator
         if (contain(schema, "namespace"))
         {
             code += "namespace " + schema.namespace + "\n{\n\n"
+        }
+
+        // string -> EnumName maps declared extern in the header, so invertMap is compiled once
+        if (contain(schema, "enums") and typeOf(schema["enums"]) == "array")
+        {
+            for (var ei = 0; ei < len(schema["enums"]); ei = ei + 1)
+            {
+                var enumName = schema["enums"][ei]["name"]
+                code += "const std::unordered_map<std::string, " + enumName + "> stringTo" + enumName + " = invertMap(" + lowerize(enumName) + "ToString);\n\n"
+            }
         }
 
         // Enum serialize / deserialize implementations

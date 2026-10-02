@@ -24,14 +24,15 @@ if(USE_CCACHE)
     if(CCACHE_PROGRAM)
         message(STATUS "Found ccache: ${CCACHE_PROGRAM}")
         message(STATUS "Enabling ccache to speed up rebuilds")
-        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-
-        # ccache + GCC/MinGW PCH need extra sloppiness, otherwise PCH-built TUs
-        # always miss the cache. These settings are safe for normal builds and
-        # are required for the PCH on ColumbaEngine to actually pay off.
+        # ccache + PCH need extra sloppiness, otherwise every PCH-built TU is
+        # reported as "could not use precompiled header" and never cached.
+        # The variable has to be in the environment of each compile, so it is
+        # passed through the launcher: set(ENV{...}) here would only reach the
+        # configure step.
         # See: https://ccache.dev/manual/latest.html#_precompiled_headers
-        set(ENV{CCACHE_SLOPPINESS} "pch_defines,time_macros,include_file_mtime,include_file_ctime")
+        set(CCACHE_LAUNCHER "${CMAKE_COMMAND}" -E env "CCACHE_SLOPPINESS=pch_defines,time_macros,include_file_mtime,include_file_ctime" "${CCACHE_PROGRAM}")
+        set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_LAUNCHER})
+        set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_LAUNCHER})
     else()
         message(WARNING "ccache requested but not found - install with: sudo apt install ccache")
     endif()
@@ -600,6 +601,12 @@ add_library(ColumbaEngine STATIC ${ENGINESOURCE} ${GENERATED_COMPONENT_SOURCES})
 # build errors on MinGW, the most common cause is ccache: make sure
 # CCACHE_SLOPPINESS includes pch_defines,time_macros (configured above).
 target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
+
+# Clang stamps the PCH with its build time, which ccache rejects. Without the stamp
+# the TUs using the PCH can be served from the cache.
+if(USE_CCACHE AND CCACHE_PROGRAM AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(ColumbaEngine PRIVATE "SHELL:-Xclang -fno-pch-timestamp")
+endif()
 
 # # Unity build: batch source files together to share template instantiations
 # # and reduce redundant header parsing. Combined with PCH this is the biggest

@@ -3,6 +3,10 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <memory>
+#include <functional>
+#include <atomic>
+#include <thread>
 
 #include "componentregistry.h"
 #include "entity.h"
@@ -26,7 +30,6 @@
 #include "Helpers/demangle.h"
 
 #ifdef PROFILE
-#include <atomic>
 #include <mutex>
 extern std::mutex profileMutex;
 // Profiling data
@@ -100,25 +103,19 @@ namespace pg
         class EventDispatcher
         {
         public:
-            EventDispatcher() {};
+            EventDispatcher();
 
-            inline bool enqueueEvent(std::function<void()>&& event)
-            {
-                return events.enqueue(event);
-            }
+            ~EventDispatcher();
 
-            void process()
-            {
-                std::function<void()> event;
+            bool enqueueEvent(std::function<void()>&& event);
 
-                while (events.try_dequeue(event))
-                {
-                    event();
-                }
-            }
+            void process();
 
         private:
-            moodycamel::ConcurrentQueue<std::function<void()>> events;
+            // The lock-free queue lives in entitysystem.cpp
+            struct EventQueue;
+
+            std::unique_ptr<EventQueue> events;
         };
 
     public:

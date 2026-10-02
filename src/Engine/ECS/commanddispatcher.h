@@ -1,12 +1,18 @@
 #pragma once
 
-#include "entity.h"
+#include <memory>
 
-#include "Memory/concurrentqueue.h"
+#include "entity.h"
 
 #include "component.h"
 
 #include "logger.h"
+
+// The lock-free queues live in commanddispatcher.cpp, only the token type is needed here
+namespace moodycamel
+{
+    struct ProducerToken;
+}
 
 namespace pg
 {
@@ -45,7 +51,7 @@ namespace pg
     class CommandDispatcher
     {
     public:
-        typedef moodycamel::ConcurrentQueue<SysCommand>::producer_token_t CommandToken;
+        typedef moodycamel::ProducerToken CommandToken;
 
         /**
          * @brief Structure holding the different types of entity commands that the dispatcher can handle
@@ -130,7 +136,9 @@ namespace pg
         };
 
     public:
-        CommandDispatcher(EntitySystem *ecs) : ecsRef(ecs) { LOG_THIS_MEMBER("Command Dispatcher"); }
+        CommandDispatcher(EntitySystem *ecs);
+
+        ~CommandDispatcher();
 
         /** Enqueue the creation of a new entity */
         EntityRef createEntity();
@@ -154,7 +162,7 @@ namespace pg
 
             Type* comp = new Type(std::forward<Args>(args)...);
 
-            if (not componentCQueue.enqueue(ComponentCreateCommand{entity, comp}))
+            if (not enqueueComponentCreation(ComponentCreateCommand{entity, comp}))
             {
                 LOG_ERROR("Command Dispatcher", "Could not enqueue the creation of component " << typeid(Type).name());
                 return nullptr;
@@ -169,15 +177,7 @@ namespace pg
          * @param entity Entity of the component to be detached
          * @param compid Id of the component to be detached
          */
-        void detachComp(Entity* entity, _unique_id compId)
-        {
-            LOG_THIS_MEMBER("Command Dispatcher");
-
-            if (not componentDQueue.enqueue(ComponentDeleteCommand{entity, compId}))
-            {
-                LOG_ERROR("Command Dispatcher", "Could not enqueue the deletion of component " << compId);
-            }
-        }
+        void detachComp(Entity* entity, _unique_id compId);
 
         /**
          * @brief Enqueue a new system command in the dispatcher
@@ -185,10 +185,7 @@ namespace pg
          * @param cmd Command to execute
          * @return true if the command was successfully enqueued, false otherwise
          */
-        inline bool enqueueCommand(const SysCommand& cmd)
-        {
-            return sysQueue.enqueue(cmd);
-        }
+        bool enqueueCommand(const SysCommand& cmd);
 
         /**
          * @brief Enqueue a new system command in the dispatcher
@@ -198,10 +195,7 @@ namespace pg
          * @param cmd Command to execute
          * @return true if the command was successfully enqueued, false otherwise
          */
-        inline bool enqueueCommand(SysCommand&& cmd)
-        {
-            return sysQueue.enqueue(cmd);
-        }
+        bool enqueueCommand(SysCommand&& cmd);
 
          /**
          * @brief Enqueue a new system command in the dispatcher
@@ -212,31 +206,20 @@ namespace pg
          * @param cmd Command to execute
          * @return true if the command was successfully enqueued, false otherwise
          */
-        inline bool enqueueCommand(const CommandToken& token, const SysCommand& cmd)
-        {
-            return sysQueue.enqueue(token, cmd);
-        }
+        bool enqueueCommand(const CommandToken& token, const SysCommand& cmd);
 
         /** Process all the pending commands */
         void process();
 
     private:
+        bool enqueueComponentCreation(const ComponentCreateCommand& command);
+
         /** Pointer to the entity system */
         EntitySystem *const ecsRef;
 
-        /** Queue for the entity creation commands */
-        moodycamel::ConcurrentQueue<EntityCommand> entityCQueue;
+        /** The command queues, defined in commanddispatcher.cpp */
+        struct Queues;
 
-        /** Queue for the entity deletion commands */
-        moodycamel::ConcurrentQueue<EntityCommand> entityDQueue;
-
-        /** Queue for the component creation commands */
-        moodycamel::ConcurrentQueue<ComponentCreateCommand> componentCQueue;
-
-        /** Queue for the component deletion commands */
-        moodycamel::ConcurrentQueue<ComponentDeleteCommand> componentDQueue;
-
-        /** Queue for the system commands */
-        moodycamel::ConcurrentQueue<SysCommand> sysQueue;
+        std::unique_ptr<Queues> queues;
     };
 }

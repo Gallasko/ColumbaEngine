@@ -13,6 +13,10 @@ namespace pg
         static constexpr char const * DOM = "Decorated Shapes";
     }
 
+    template struct GenericRenderSystem<HatchRect2DObject, HatchRect2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>;
+    template struct GenericRenderSystem<DottedLine2DObject, DottedLine2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>;
+    template struct GenericRenderSystem<StrokeRect2DObject, StrokeRect2DObjectChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>;
+
     // ---------------------------------------------------------------------------
     // HatchRect2DObjectSystem
     // ---------------------------------------------------------------------------

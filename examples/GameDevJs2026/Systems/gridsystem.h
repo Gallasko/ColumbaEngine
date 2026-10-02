@@ -8,6 +8,7 @@
 #include "terrain.h"
 #include "saveserialization.h"
 
+#include <array>
 #include <unordered_map>
 
 // Viewport index for the game camera (FollowCamera2D registers as cameraList[0] = viewport 1)

@@ -31,6 +31,8 @@ namespace pg
         }
     }
 
+    template struct GenericRenderSystem<Texture2DComponent, TextureChangedEvent, PositionComponent, PositionSettledEvent, ViewportComponent, ViewportComponentChangedEvent>;
+
     void Texture2DComponent::setTexture(const std::string& textureName)
     {
         if (this->textureName != textureName)

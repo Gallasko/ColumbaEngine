@@ -8,8 +8,7 @@
 #include <variant>
 
 #include <cstdarg>
-
-#include "Memory/concurrentqueue.h"
+#include <memory>
 
 #include "Renderer/rendercall.h"
 
@@ -354,7 +353,10 @@ namespace pg
 
         std::vector<_unique_id> cameraRegisterQueue;
 
-        moodycamel::ConcurrentQueue<TextureRegisteringQueueItem> textureRegisteringQueue;
+        // The lock-free queue lives in renderer.cpp
+        struct TextureRegisteringQueue;
+
+        std::unique_ptr<TextureRegisteringQueue> textureRegisteringQueue;
 
         size_t nbRegisteredMaterials = 0;
 

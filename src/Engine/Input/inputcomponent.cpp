@@ -326,6 +326,79 @@ namespace pg
         }
     }
 
+    void MouseLeaveClickSystem::init()
+    {
+        LOG_THIS_MEMBER("MouseLeaveClickSystem");
+
+        auto group = registerGroup<PositionComponent, MouseLeaveClickComponent>();
+
+        group->addOnGroup([this](EntityRef entity) {
+            LOG_MILE("MouseLeaveClickSystem", "Add entity " << entity->id << " to ui - mouse leave click group !");
+
+            CompRef<ViewportComponent> vp;
+            if (entity->has<ViewportComponent>())
+                vp = entity->get<ViewportComponent>();
+
+            mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>(), vp);
+        });
+
+        group->removeOfGroup([this](EntitySystem*, _unique_id id) {
+            LOG_MILE("MouseLeaveClickSystem", "Remove entity " << id << " of ui - mouse leave click group !");
+
+            const auto& it = std::find_if(mouseAreaHolder.begin(), mouseAreaHolder.end(), [id](const MouseAreaZ& area) { return area.id == id; });
+
+            if (it != mouseAreaHolder.end())
+            {
+                mouseAreaHolder.erase(it);
+            }
+        });
+    }
+
+    void MouseLeaveClickSystem::onEvent(const OnMouseClick&)
+    {
+        LOG_THIS_MEMBER("MouseLeaveClickSystem");
+
+        auto mousePos = inputHandler->getMousePos();
+
+        for (auto mouseArea : mouseAreaHolder)
+        {
+            if (not inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
+            {
+                auto comp = getComponent(mouseArea.id);
+
+                comp->callback->call(world());
+            }
+        }
+    }
+
+    void MouseWheelSystem::init()
+    {
+        LOG_THIS_MEMBER("MouseWheelSystem");
+
+        auto group = registerGroup<PositionComponent, MouseWheelComponent>();
+
+        group->addOnGroup([this](EntityRef entity) {
+            LOG_MILE("MouseWheelSystem", "Add entity " << entity->id << " to ui - mouse wheel group !");
+
+            CompRef<ViewportComponent> vp;
+            if (entity->has<ViewportComponent>())
+                vp = entity->get<ViewportComponent>();
+
+            mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>(), vp);
+        });
+
+        group->removeOfGroup([this](EntitySystem*, _unique_id id) {
+            LOG_MILE("MouseWheelSystem", "Remove entity " << id << " of ui - mouse wheel group !");
+
+            const auto& it = std::find_if(mouseAreaHolder.begin(), mouseAreaHolder.end(), [id](const MouseAreaZ& area) { return area.id == id; });
+
+            if (it != mouseAreaHolder.end())
+            {
+                mouseAreaHolder.erase(it);
+            }
+        });
+    }
+
     void MouseWheelSystem::onEvent(const OnSDLMouseWheel& event)
     {
         size_t highestViewport = 0;
@@ -391,6 +464,42 @@ namespace pg
             return lhs.id > rhs.id;
         else
             return z > rhsZ;
+    }
+
+    void MouseHoverSystem::init()
+    {
+        // Register group for entities with PositionComponent and MouseEnterComponent.
+        auto groupEnter = registerGroup<PositionComponent, MouseEnterComponent>();
+
+        groupEnter->addOnGroup([this](EntityRef entity) {
+            // Insert the entity into our hover state map.
+            hoverState[entity->id] = false;
+        });
+
+        groupEnter->removeOfGroup([this](EntitySystem*, _unique_id id) {
+            auto entity = ecsRef->getEntity(id);
+            // Only remove from hoverState if the entity no longer has either hover component.
+            if (not entity or (not entity->has<MouseEnterComponent>() and not entity->has<MouseLeaveComponent>()))
+            {
+                hoverState.erase(id);
+            }
+        });
+
+        // Register group for entities with PositionComponent and MouseLeaveComponent.
+        auto groupLeave = registerGroup<PositionComponent, MouseLeaveComponent>();
+
+        groupLeave->addOnGroup([this](EntityRef entity) {
+            // Insert the entity into our hover state map.
+            hoverState[entity->id] = false;
+        });
+
+        groupLeave->removeOfGroup([this](EntitySystem*, _unique_id id) {
+            auto entity = ecsRef->getEntity(id);
+            if (not entity or (not entity->has<MouseEnterComponent>() and not entity->has<MouseLeaveComponent>()))
+            {
+                hoverState.erase(id);
+            }
+        });
     }
 
     void MouseHoverSystem::onEvent(const OnMouseMove& event)

@@ -54,7 +54,7 @@ namespace pg
 
         virtual void init() override;
 
-        virtual void onEvent(const SetThemeEvent& event);
+        virtual void onEvent(const SetThemeEvent& event) override;
 
         virtual void onProcessEvent(const ThemeComponentChangedEvent& event) override;
 
