@@ -6,7 +6,6 @@
 #include "ECS/loggersystem.h"
 #include "Systems/coresystems.h"
 #include "UI/focusable.h"
-#include "Interpreter/pginterpreter.h"
 
 namespace pg
 {
@@ -20,7 +19,6 @@ namespace pg
         ecs->createSystem<OnEventComponentSystem>();
 
         // Ordering
-        ecs->succeed<TickingSystem, PgInterpreter>();
         ecs->succeed<TimerSystem, TickingSystem>();
     }
 }

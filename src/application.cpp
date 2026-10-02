@@ -26,7 +26,8 @@
 #include "UI/ttftext.h"
 #include "UI/namedanchor.h"
 
-#include "Systems/thememodule.h"
+#include "Compiler/vm.h"
+#include "Systems/themenativemodule.h"
 #include "UI/themesystem.h"
 
 #include "UI/utils.h"
@@ -553,9 +554,9 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
         auto theme = ecs.getSystem<ThemeSystem>();
         theme->loadTheme("res/editor/theme.json");
 
-        window.interpreter->addSystemModule("theme", ThemeModule{theme});
+        window.vm->addNativeModule("theme", ThemeNativeModule{theme});
 
-        window.interpreter->interpretFromFile("res/sysThema.pg");
+        window.vm->interpretFromFile("res/sysThema.pg");
 
         #ifdef __EMSCRIPTEN__
             // Need to fix this

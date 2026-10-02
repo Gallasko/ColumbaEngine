@@ -1,5 +1,5 @@
+// Runs on the script vm of the window, the commented samples below target the legacy interpreter modules
 import "ecs"
-import "core"
 
 // class CustomSystem
 // {
@@ -76,7 +76,7 @@ import "core"
 // 
 // connectToTick(onTickE)
 
-import "time"
+// import "time"
 
 // * Works *
 // var timer = newTimer();

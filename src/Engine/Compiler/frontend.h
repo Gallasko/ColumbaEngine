@@ -12,8 +12,7 @@ namespace pg
      *        whole-program optimization passes can run before emission.
      *
      * Both emit the same bytecode representation and share the
-     * pass/decode/run pipeline; kept selectable until benchmarks decide a
-     * winner.
+     * pass/decode/run pipeline. Ast is the default; Pratt stays selectable.
      */
     enum class ScriptFrontEnd : uint8_t
     {

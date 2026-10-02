@@ -26,6 +26,16 @@ First tagged release. Everything below describes the state of the engine at the 
   silently.
 
 ### Changed
+- Boot scripts run on the bytecode VM: `Window` owns a `VM` (`window.vm`, set up with `EntitySystem::setupVm`)
+  instead of a `PgInterpreter`, and `res/logManager.pg`, `res/setupRenderer.pg`, `res/sysRegister.pg` and the
+  editor's `res/sysThema.pg` go through it. The `log`, `renderer` and `theme` modules are ported to
+  `NativeModule` (`Systems/lognativemodule.h`, `Renderer/renderernativemodule.h`,
+  `Systems/themenativemodule.h`). Migration: `window.interpreter` is gone, and so are the interpreter-only
+  modules it carried (`core`, `time`, `2Dshapes`, `2Dtexture`, `scene`, `audio`, the interpreter `input` and
+  `ecs`); use `window.vm->addNativeModule(...)` and `window.vm->interpretFromFile(...)`, or create a
+  `PgInterpreter` system yourself as GameOff does. `registerRenderSystems` takes a `VM*`.
+- The AST front-end (`ScriptFrontEnd::Ast`) is the default for `VM` and `EntitySystem`; select the Pratt
+  compiler with `setVMFrontEnd(ScriptFrontEnd::Pratt)` / `VM::setFrontEnd`.
 - Script bridge: `Compiler/ecsserialization.h` is split by concern into `Compiler/componentproxy.h`
   (proxies and their metadata), `Compiler/componentattach.h` (`attachComp` handlers) and
   `Compiler/tableserialization.h` (table copies); it still includes all three. A component proxy now holds

@@ -3,8 +3,8 @@
 namespace pg
 {
     class EntitySystem;
-    class PgInterpreter;
     class MasterRenderer;
+    struct VM;
 
-    MasterRenderer* registerRenderSystems(EntitySystem* ecs, PgInterpreter* interpreter, int width, int height);
+    MasterRenderer* registerRenderSystems(EntitySystem* ecs, VM* vm, int width, int height);
 }

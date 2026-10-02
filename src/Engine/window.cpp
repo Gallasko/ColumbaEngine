@@ -9,13 +9,11 @@
 
 #include "ECS/entitysystem.h"
 #include "ECS/loggersystem.h"
-#include "ECS/ecsmodule.h"
 
 #include "Renderer/renderer.h"
 
 #include "Input/input.h"
 #include "Input/inputcomponent.h"
-#include "Input/inputmodule.h"
 
 #include "UI/focusable.h"
 
@@ -25,19 +23,12 @@
 
 #include "2D/position.h"
 
-#include "Interpreter/pginterpreter.h"
-#include "Interpreter/systemfunction.h"
+#include "Compiler/vm.h"
 
 #include "Systems/coresystems.h"
-#include "Systems/coremodule.h"
-#include "Systems/logmodule.h"
-#include "Systems/shape2Dmodule.h"
-#include "Systems/timemodule.h"
-#include "Systems/texture2Dmodule.h"
-#include "Systems/scenemodule.h"
+#include "Systems/lognativemodule.h"
 
 #include "Audio/audiosystem.h"
-#include "Audio/audiomodule.h"
 
 #include "Init/coresystems.h"
 #include "Init/rendersystems.h"
@@ -55,62 +46,6 @@ namespace pg
     namespace
     {
         static const char * const DOM = "Window";
-
-        class OpenTextFileFunction : public Function
-        {
-            using Function::Function;
-        public:
-            void setUp()
-            {
-                setArity(1, 1);
-            }
-
-            virtual ValuablePtr call(ValuableQueue& args) override
-            {
-                auto name = args.front()->getElement();
-                args.pop();
-
-                auto file = UniversalFileAccessor::openTextFile(name.toString());
-
-                return makeVar(file.data);
-            }
-        };
-
-        class OpenTextFolderFunction : public Function
-        {
-            using Function::Function;
-        public:
-            void setUp()
-            {
-                setArity(1, 1);
-            }
-
-            virtual ValuablePtr call(ValuableQueue& args) override
-            {
-                auto name = args.front()->getElement();
-                args.pop();
-
-                auto folder = UniversalFileAccessor::openTextFolder(name.toString());
-
-                auto list = makeList(this, {});
-
-                for (auto file : folder)
-                {
-                    addToList(list, token, {file.filepath, file.data});
-                }
-
-                return list;
-            }
-        };
-
-        struct FileModule : public SysModule
-        {
-            FileModule()
-            {
-                addSystemFunction<OpenTextFileFunction>("openTextFile");
-                addSystemFunction<OpenTextFolderFunction>("openTextFolder");
-            }
-        };
 
         void getAllControllers(Input *inputHandler)
         {
@@ -141,33 +76,21 @@ namespace pg
 
         inputHandler = new Input();
 
-        LOG_INFO(DOM, "Initializing interpreter");
+        LOG_INFO(DOM, "Initializing script vm");
 
-        // [Start] Interpreter definition
-        interpreter = ecs->createSystem<PgInterpreter>();
+        // [Start] Script vm definition
+        vm = new VM();
 
-        interpreter->addSystemFunction<TestPrint>("print");
-        interpreter->addSystemFunction<DebugPrint>("debugPrint");
-        interpreter->addSystemFunction<ToString>("toString");
+        ecs->setupVm(*vm);
 
-        interpreter->addSystemModule("log", LogModule{*static_cast<std::shared_ptr<pg::Logger::LogSink>*>(terminalSink)});
-        // interpreter->addSystemModule("ui", UiModule{ecs});
-        interpreter->addSystemModule("2Dshapes", Shape2DModule{ecs});
-        interpreter->addSystemModule("2Dtexture", Texture2DModule{ecs});
-        interpreter->addSystemModule("time", TimeModule{ecs});
-        interpreter->addSystemModule("ecs", EcsModule{ecs});
-        interpreter->addSystemModule("core", CoreModule{ecs});
-        interpreter->addSystemModule("input", InputModule{ecs});
-        // interpreter->addSystemModule("uitext", SentenceModule{ecs});
-        interpreter->addSystemModule("scene", SceneModule{ecs});
-        interpreter->addSystemModule("audio", AudioModule{ecs});
+        vm->addNativeModule("log", LogNativeModule{*static_cast<std::shared_ptr<pg::Logger::LogSink>*>(terminalSink)});
 
         // Script to configure the logger
         {
             PROFILE_SCOPE("logManager.pg", "Init");
-            interpreter->interpretFromFile("res/logManager.pg");
+            vm->interpretFromFile("res/logManager.pg");
         }
-        // [End] Interpreter definition
+        // [End] Script vm definition
 
         LOG_INFO(DOM, "Window creation done");
     }
@@ -195,6 +118,10 @@ namespace pg
         if (audioSystem != nullptr)
             audioSystem->closeSDLMixer();
         audioSystem = nullptr;
+
+        // The vm modules hold references to the ecs, so it goes first
+        delete vm;
+        vm = nullptr;
 
         {
             PROFILE_SCOPE("EcsDelete", "Shutdown");
@@ -403,7 +330,7 @@ namespace pg
 
         {
             PROFILE_SCOPE("registerRenderSystems", "Init");
-            masterRenderer = registerRenderSystems(ecs, interpreter, width, height);
+            masterRenderer = registerRenderSystems(ecs, vm, width, height);
         }
 
         {
@@ -424,7 +351,7 @@ namespace pg
         // Script to configure all the users systems
         {
             PROFILE_SCOPE("sysRegister.pg", "Init");
-            interpreter->interpretFromFile("res/sysRegister.pg");
+            vm->interpretFromFile("res/sysRegister.pg");
         }
 
         // // Log taskflow for this window

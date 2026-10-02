@@ -714,7 +714,7 @@ namespace pg
         // Compiler front-end selection (see frontend.h)
         using FrontEnd = ScriptFrontEnd;
 
-        FrontEnd frontEnd = FrontEnd::Pratt;
+        FrontEnd frontEnd = FrontEnd::Ast;
 
         inline void setFrontEnd(FrontEnd fe) { frontEnd = fe; }
 

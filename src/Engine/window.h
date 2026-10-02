@@ -32,7 +32,7 @@ namespace pg
     class EntitySystem;
     class Input;
     // class UiComponent;
-    class PgInterpreter;
+    struct VM;
     class MasterRenderer;
     struct AudioSystem;
     using _unique_id = uint64_t;
@@ -77,7 +77,8 @@ namespace pg
     public:
         EntitySystem* ecs;
 
-        PgInterpreter *interpreter = nullptr;
+        /** Script vm of the window, runs the boot scripts (res/logManager.pg, res/setupRenderer.pg, res/sysRegister.pg) */
+        VM* vm = nullptr;
 
         MasterRenderer *masterRenderer = nullptr;
 
