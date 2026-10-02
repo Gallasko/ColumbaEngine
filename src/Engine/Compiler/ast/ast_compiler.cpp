@@ -5,6 +5,8 @@
 #include "../vm.h"
 #include "../chunk.h"
 
+#include "ast_pass.h"
+
 #include "Interpreter/parser.h"
 
 #include "logger.h"
@@ -40,7 +42,7 @@ namespace pg
         // with the bytecode passes.
         if (vm->enableOptimizations)
         {
-            vm->astPassManager.runAllPasses(vm, statements);
+            vm->astPassManager->runAllPasses(vm, statements);
         }
 
         return compileAst(std::move(statements));

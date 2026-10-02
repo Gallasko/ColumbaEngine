@@ -2,13 +2,9 @@
 
 #include "frontend.h"
 
-#include "ast/ast_pass.h"
-
 #include "chunk.h"
 
 #include "decoded_chunk.h"
-
-#include "Interpreter/lexer.h"
 
 #include "logger.h"
 
@@ -21,6 +17,9 @@
 #include "vm_profiler.h"   // Bytecode profiling
 
 #include <stack>
+#include <queue>
+#include <stdexcept>
+#include <memory>
 #include <functional>
 #include <map>
 #include <unordered_map>
@@ -44,6 +43,11 @@ namespace pg
     // OpDecodedHandler typedef come from decoded_chunk.h (single source of
     // truth for the handler calling convention).
     struct VM;
+
+    // The AST and the lexer are only used inside the VM sources, they stay out of this header
+    class AstPass;
+    class AstPassManager;
+    struct Token;
 
     // Operation information structure
     struct OpCodeInfo
@@ -288,47 +292,9 @@ namespace pg
             // They will be loaded when explicitly imported via: import moduleName
         }
 
-        InterpretResult interpretFromText(const std::string& source, bool compileOnly = false, const std::string& dumpByteCode = "")
-        {
-            currentFileName = "text_source";
+        InterpretResult interpretFromText(const std::string& source, bool compileOnly = false, const std::string& dumpByteCode = "");
 
-            Lexer lexer;
-
-            try
-            {
-                lexer.readFromText(source);
-            }
-            catch (const std::exception& e)
-            {
-                LOG_ERROR("VM", e.what());
-                return InterpretResult::COMPILE_ERROR;
-            }
-
-            auto tokens = lexer.getTokens();
-
-            return interpret(tokens, compileOnly, dumpByteCode);
-        }
-
-        InterpretResult interpretFromFile(const std::string& filename, bool compileOnly = false, const std::string& dumpByteCode = "")
-        {
-            currentFileName = filename;
-
-            Lexer lexer;
-
-            try
-            {
-                lexer.readFromFile(filename);
-            }
-            catch (const std::exception& e)
-            {
-                LOG_ERROR("VM", e.what());
-                return InterpretResult::COMPILE_ERROR;
-            }
-
-            auto tokens = lexer.getTokens();
-
-            return interpret(tokens, compileOnly, dumpByteCode);
-        }
+        InterpretResult interpretFromFile(const std::string& filename, bool compileOnly = false, const std::string& dumpByteCode = "");
 
         InterpretResult interpret(const std::queue<Token>& tokens, bool compileOnly = false, const std::string& dumpByteCode = "");
 
@@ -725,7 +691,7 @@ namespace pg
 
         // AST-level optimization (runs only on the AST front-end path,
         // between parsing and emission; see ast/ast_pass.h)
-        AstPassManager astPassManager;
+        std::unique_ptr<AstPassManager> astPassManager;
 
         // Decode-time superinstruction fusion (see decoded_fusion.h). On by
         // default — part of decoding, applies to compiled AND deserialized
@@ -807,10 +773,7 @@ namespace pg
             passManager.addPass(std::move(pass));
         }
 
-        inline void addAstPass(std::unique_ptr<AstPass> pass)
-        {
-            astPassManager.addPass(std::move(pass));
-        }
+        void addAstPass(std::unique_ptr<AstPass> pass);
 
         inline void registerNative(const std::string& name, NativeFn function)
         {

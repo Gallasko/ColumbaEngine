@@ -51,6 +51,25 @@ namespace pg
     // Note: serialize specializations for StandardEvent and StandardComponent are in serialization.h
     struct Own<StandardComponent>;
 
+    /**
+     * @brief Function pointer plus context, stored in the std::function maps of the registry
+     *
+     * A lambda is a new type each time, so storing one in a std::function map instantiates a new std::function constructor and map emplace for every component and event.
+     * This callable has one type per signature: only the small static trampoline it points to is instantiated per component or event.
+     */
+    template <typename Signature>
+    struct ErasedCallback;
+
+    template <typename Ret, typename... Args>
+    struct ErasedCallback<Ret(Args...)>
+    {
+        Ret operator()(Args... args) const { return call(context, std::forward<Args>(args)...); }
+
+        Ret (*call)(void*, Args...) = nullptr;
+
+        void* context = nullptr;
+    };
+
     class ComponentRegistry
     {
     public:
@@ -152,10 +171,7 @@ namespace pg
 
             const auto& id = getTypeId<Event>();
 
-            eventStorageMap[id].emplace((intptr_t)listener, [listener](const std::any& event)
-            {
-                listener->onEvent(std::any_cast<const Event&>(event));
-            });
+            eventStorageMap[id].emplace((intptr_t)listener, ErasedCallback<void(const std::any&)>{&callEventListener<Event, EventListener>, listener});
         }
 
         template <typename Event, typename EventListener>
@@ -180,10 +196,7 @@ namespace pg
         {
             LOG_THIS_MEMBER("Component Registry");
 
-            standardEventStorageMap[name].emplace((intptr_t)listener, [listener](const StandardEvent& event)
-            {
-                listener->onEvent(event);
-            });
+            standardEventStorageMap[name].emplace((intptr_t)listener, ErasedCallback<void(const StandardEvent&)>{&callStandardEventListener<EventListener>, listener});
         }
 
         template <typename EventListener>
@@ -591,6 +604,36 @@ namespace pg
         void saveRegistry() const { systemSerializer.save(); }
 
     private:
+        // Trampolines stored through ErasedCallback, the context is the listener, the owner or the registry itself
+        template <typename Event, typename EventListener>
+        static void callEventListener(void* listener, const std::any& event)
+        {
+            static_cast<EventListener*>(listener)->onEvent(std::any_cast<const Event&>(event));
+        }
+
+        template <typename EventListener>
+        static void callStandardEventListener(void* listener, const StandardEvent& event)
+        {
+            static_cast<EventListener*>(listener)->onEvent(event);
+        }
+
+        template <typename Type>
+        static void callComponentDelete(void* owner, Entity* entity);
+
+        template <typename Type>
+        static void callComponentSerialize(void* owner, Archive& archive, const Entity* entity);
+
+        template <typename Type>
+        static void callComponentDeserialize(void* registry, const UnserializedObject& serializedStr, EntityRef entity);
+
+        template <typename Type>
+        static void callComponentDetach(void* registry, EntityRef entity);
+
+#ifdef PROFILE
+        template <typename Type>
+        static size_t callComponentCount(void* owner);
+#endif
+
         template <typename Type>
         _unique_id getGlobalGenericId() const noexcept
         {

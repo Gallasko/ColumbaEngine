@@ -16,8 +16,6 @@
 #include "commanddispatcher.h"
 #include "savemanager.h"
 
-#include "Renderer/rendercall.h"
-
 #include "Compiler/frontend.h"
 
 #include <iostream>
@@ -59,6 +57,7 @@ namespace pg
     class ClassInstance;
     class StandardSystemImpl;
     class ScriptRegistry;
+    class BaseAbstractRenderer;
 
     struct VM;
     typedef uint64_t Value;
@@ -299,10 +298,7 @@ namespace pg
 
             internalCreateSystem(sys);
 
-            if (auto* abr = dynamic_cast<BaseAbstractRenderer*>(sys))
-            {
-                autoSucceedMasterRenderer(abr, sys->_id);
-            }
+            autoSucceedIfRenderer(sys);
 
             return sys;
         }
@@ -921,6 +917,9 @@ namespace pg
 
         void autoSucceedMasterRenderer(BaseAbstractRenderer* abr, _unique_id subId);
 
+        // Runtime check for systems whose type is not known at compile time, kept in the .cpp so this header does not need the renderer
+        void autoSucceedIfRenderer(AbstractSystem* system);
+
         void addEntityToPool(Entity* entity)
         {
             LOG_THIS_MEMBER("ECS");
@@ -1269,52 +1268,18 @@ namespace pg
         }
 #endif
 
-        componentDeleteMap.emplace(id, [owner](Entity* entity) {
-            if constexpr(std::is_base_of_v<Dtor, Type>)
-            {
-                auto res = owner->getComponent(entity->id);
-                res->onDeletion(entity);
-            }
+        componentDeleteMap.emplace(id, ErasedCallback<void(Entity*)>{&callComponentDelete<Type>, owner});
 
-            owner->internalRemoveComponent(entity);
-        });
-
-        componentSerializeMap.emplace(id, [owner](Archive& archive, const Entity* entity) {
-            if constexpr(HasStaticName<Type>::value)
-            {
-                serialize(archive, *(owner->getComponent(entity->id)));
-            }
-            else
-            {
-                (void)owner;
-                (void)archive;
-                (void)entity;
-            }
-        });
+        componentSerializeMap.emplace(id, ErasedCallback<void(Archive&, const Entity*)>{&callComponentSerialize<Type>, owner});
 
         // Store component type name for fast lookup
         if constexpr(HasStaticName<Type>::value)
         {
             componentTypeNameMap.emplace(id, Type::getType());
 
-            componentDeserializeMap.emplace(Type::getType(), [this](const UnserializedObject& serializedStr, EntityRef entity) {
-                if (serializedStr.isNull())
-                    return;
+            componentDeserializeMap.emplace(Type::getType(), ErasedCallback<void(const UnserializedObject&, EntityRef)>{&callComponentDeserialize<Type>, this});
 
-                auto comp = deserialize<Type>(serializedStr);
-
-                if constexpr(std::is_base_of_v<Component, Type>)
-                {
-                    comp.entityId = entity.id;
-                    comp.ecsRef = entity.ecsRef;
-                }
-
-                ecsRef->attach<Type>(entity, comp);
-            });
-
-            componentDetachMap.emplace(Type::getType(), [this](EntityRef entity) {
-                ecsRef->detach<Type>(entity);
-            });
+            componentDetachMap.emplace(Type::getType(), ErasedCallback<void(EntityRef)>{&callComponentDetach<Type>, this});
         }
 
         componentStorageMap.emplace(id, owner);
@@ -1329,12 +1294,72 @@ namespace pg
                 countName = prettyTypeName(typeid(Type).name());
 
             // Slot 0 of the component set is reserved, hence the -1
-            registerComponentCounter(id, countName, [owner]() { return owner->components.nbElements() - 1; });
+            registerComponentCounter(id, countName, ErasedCallback<size_t()>{&callComponentCount<Type>, owner});
         }
 #endif
 
         owner->_componentId = id;
     }
+
+    template <typename Type>
+    void ComponentRegistry::callComponentDelete(void* owner, Entity* entity)
+    {
+        auto typedOwner = static_cast<Own<Type>*>(owner);
+
+        if constexpr(std::is_base_of_v<Dtor, Type>)
+        {
+            auto res = typedOwner->getComponent(entity->id);
+            res->onDeletion(entity);
+        }
+
+        typedOwner->internalRemoveComponent(entity);
+    }
+
+    template <typename Type>
+    void ComponentRegistry::callComponentSerialize(void* owner, Archive& archive, const Entity* entity)
+    {
+        if constexpr(HasStaticName<Type>::value)
+        {
+            serialize(archive, *(static_cast<Own<Type>*>(owner)->getComponent(entity->id)));
+        }
+        else
+        {
+            (void)owner;
+            (void)archive;
+            (void)entity;
+        }
+    }
+
+    template <typename Type>
+    void ComponentRegistry::callComponentDeserialize(void* registry, const UnserializedObject& serializedStr, EntityRef entity)
+    {
+        if (serializedStr.isNull())
+            return;
+
+        auto comp = deserialize<Type>(serializedStr);
+
+        if constexpr(std::is_base_of_v<Component, Type>)
+        {
+            comp.entityId = entity.id;
+            comp.ecsRef = entity.ecsRef;
+        }
+
+        static_cast<ComponentRegistry*>(registry)->ecsRef->attach<Type>(entity, comp);
+    }
+
+    template <typename Type>
+    void ComponentRegistry::callComponentDetach(void* registry, EntityRef entity)
+    {
+        static_cast<ComponentRegistry*>(registry)->ecsRef->detach<Type>(entity);
+    }
+
+#ifdef PROFILE
+    template <typename Type>
+    size_t ComponentRegistry::callComponentCount(void* owner)
+    {
+        return static_cast<Own<Type>*>(owner)->components.nbElements() - 1;
+    }
+#endif
 
     template <typename Type>
     void ComponentRegistry::unstore(Own<Type>*) noexcept
@@ -1521,15 +1546,20 @@ namespace pg
 
         // Todo fix this ( it is called multiple times when it should be only called once per set)
         // In case of texture it is called twice once for ui and once for tex comp
-        setN->onComponentCreation.emplace(id, [](EntityRef entity) {
+        // Converted to plain function pointers first so the map emplace is not instantiated once per lambda
+        void (*onCreation)(EntityRef) = [](EntityRef entity) {
             LOG_MILE("Group", "On component creation for entity " << entity->id << ", sending event !");
             entity->world()->sendEvent(OnCompCreatedCheckForGroup<Group<Type, Types...>>{entity}, true);
-        });
+        };
 
-        setN->onComponentDeletion.emplace(id, [](EntityRef entity) {
+        void (*onDeletion)(EntityRef) = [](EntityRef entity) {
             LOG_MILE("Group", "On component deletion for entity " << entity->id << ", sending event !");
             entity->world()->sendEvent(OnCompDeletionCheckForGroup<Group<Type, Types...>>{entity->id, entity->componentList}, true);
-        });
+        };
+
+        setN->onComponentCreation.emplace(id, onCreation);
+
+        setN->onComponentDeletion.emplace(id, onDeletion);
     }
 
     template <typename Type, typename... Types>

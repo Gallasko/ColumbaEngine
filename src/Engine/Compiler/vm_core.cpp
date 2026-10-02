@@ -7,6 +7,9 @@
 #include "compiler.h"
 
 #include "ast/ast_compiler.h"
+#include "ast/ast_pass.h"
+
+#include "Interpreter/lexer.h"
 
 #include "compiler_debug.h"
 
@@ -58,7 +61,7 @@ namespace pg
 
 namespace pg
 {
-    VM::VM()
+    VM::VM() : astPassManager(std::make_unique<AstPassManager>())
     {
         // Initialize function pointer dispatch table
         register_builtin_operations();
@@ -121,6 +124,53 @@ namespace pg
         // }
 
         pools.customPointerPool.clear();
+    }
+
+    void VM::addAstPass(std::unique_ptr<AstPass> pass)
+    {
+        astPassManager->addPass(std::move(pass));
+    }
+
+    InterpretResult VM::interpretFromText(const std::string& source, bool compileOnly, const std::string& dumpByteCode)
+    {
+        currentFileName = "text_source";
+
+        Lexer lexer;
+
+        try
+        {
+            lexer.readFromText(source);
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("VM", e.what());
+            return InterpretResult::COMPILE_ERROR;
+        }
+
+        auto tokens = lexer.getTokens();
+
+        return interpret(tokens, compileOnly, dumpByteCode);
+    }
+
+    InterpretResult VM::interpretFromFile(const std::string& filename, bool compileOnly, const std::string& dumpByteCode)
+    {
+        currentFileName = filename;
+
+        Lexer lexer;
+
+        try
+        {
+            lexer.readFromFile(filename);
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("VM", e.what());
+            return InterpretResult::COMPILE_ERROR;
+        }
+
+        auto tokens = lexer.getTokens();
+
+        return interpret(tokens, compileOnly, dumpByteCode);
     }
 
     InterpretResult VM::interpret(const std::queue<Token>& tokens, bool compileOnly, const std::string& dumpByteCode)

@@ -1127,6 +1127,19 @@ namespace pg
 #endif // PG_MINIMAL_BUILD
     }
 
+    void EntitySystem::autoSucceedIfRenderer(AbstractSystem* system)
+    {
+#ifndef PG_MINIMAL_BUILD
+        if (auto abr = dynamic_cast<BaseAbstractRenderer*>(system))
+        {
+            autoSucceedMasterRenderer(abr, system->_id);
+        }
+#else
+        // The minimal engine has no renderer; nothing to succeed.
+        (void) system;
+#endif // PG_MINIMAL_BUILD
+    }
+
     Value ComponentSerializerRegistry::createComponentProxy(const std::string& componentName, VM* vm, void* componentPtr) const
     {
         auto factory = getProxyFactory(componentName);
