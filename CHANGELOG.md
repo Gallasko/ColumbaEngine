@@ -11,6 +11,12 @@ First tagged release. Everything below describes the state of the engine at the 
   entity follows the container's z, so after the first frame every node of a built tree sat on one depth and
   shapes of the same material drew in an arbitrary order (in Chronicle, the panel grounds vanished behind
   the page).
+- Prefab trees: `flow` on a node without a kind (a bare container) now chains its children from the
+  container; it was silently ignored. When two nodes of one scope take the same name the first keeps it
+  (a sibling used to replace the earlier one, and a child could replace its parent node's own name), with
+  the same error log as before. A reserved name (`main`, `parent`) on a child of a layout node is now
+  reported, and anchors on the children of a layout node are reported once instead of being dropped
+  silently.
 
 ### Changed
 - Compile time: the component registry stores its per-component and per-event callbacks through one

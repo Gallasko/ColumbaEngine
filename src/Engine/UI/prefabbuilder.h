@@ -31,7 +31,9 @@ namespace pg
      * @param ecs The entity system the tree is created in
      * @param spec The root node of the tree to build
      *
-     * @return The root entity, or an empty ref when the root kind is unknown.
+     * @return The root entity. A kind the registry does not know, or a factory that refuses the
+     *         node, still gives a bare container with no main entity (an error is logged) and its
+     *         children are built. Only an unknown Layout: kind returns an empty ref.
      */
     EntityRef buildTree(EntitySystem* ecs, const NodeSpec& spec);
 }

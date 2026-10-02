@@ -138,7 +138,7 @@ namespace pg
         }
 
         // ----------------------------------------------------------------------------------------
-        TEST(prefab_builder_test, build_unknown_kind_returns_empty)
+        TEST(prefab_builder_test, build_unknown_kind_returns_bare_container)
         {
             // MockLogger<TerminalSink> logger;
 

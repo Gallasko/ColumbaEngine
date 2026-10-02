@@ -33,6 +33,11 @@ namespace pg
             return s.size() >= prefix.size() and s.compare(0, prefix.size(), prefix) == 0;
         }
 
+        bool isReservedName(const std::string& name)
+        {
+            return name == ReservedMain or name == ReservedParent;
+        }
+
         PosAnchor pickSide(UiAnchor* a, _unique_id id, AnchorType side)
         {
             switch (side)
@@ -313,6 +318,8 @@ namespace pg
             if (hasParam(spec.props, "visibility"))
                 layoutEnt->get<PositionComponent>()->setVisibility(getParam(spec.props, "visibility", true));
 
+            bool warnedAnchors = false;
+
             // A layout declares no childDefaults of its own, it forwards what it inherited
             for (const auto& childSpec : spec.children)
             {
@@ -324,7 +331,19 @@ namespace pg
                 if (not childEnt)
                     continue;
 
-                if (not child.name.empty())
+                if (not child.anchors.empty() and not warnedAnchors)
+                {
+                    LOG_WARNING(DOM, "Children of '" << spec.kind << "' are placed by the layout; their anchors are ignored");
+
+                    warnedAnchors = true;
+                }
+
+                // The first node to take a name keeps it
+                if (isReservedName(child.name))
+                    LOG_ERROR(DOM, "Reserved name used for child: '" << child.name << "'");
+                else if (names.count(child.name))
+                    LOG_ERROR(DOM, "Name collision: '" << child.name << "'");
+                else if (not child.name.empty())
                     names[child.name] = unwrapToMain(childEnt);
 
                 if (orient == "Horizontal")
@@ -341,7 +360,8 @@ namespace pg
         {
             for (const auto& [name, ent] : lifted)
             {
-                if (name == ReservedMain or name == ReservedParent)
+                // Already reported by the layout that lifted it
+                if (isReservedName(name))
                     continue;
 
                 if (nameToEntity.count(name))
@@ -431,7 +451,7 @@ namespace pg
             auto registerNamed = [&](EntityRef wrap, const std::string& name) {
                 prefab->addToPrefab(wrap);
 
-                if (name == ReservedMain or name == ReservedParent)
+                if (isReservedName(name))
                 {
                     LOG_ERROR(DOM, "Reserved name used for child: '" << name << "'");
 
@@ -441,8 +461,13 @@ namespace pg
                 if (name.empty())
                     return;
 
+                // The first node to take a name keeps it, the node's own name included
                 if (nameToEntity.count(name))
+                {
                     LOG_ERROR(DOM, "Name collision: '" << name << "'");
+
+                    return;
+                }
 
                 EntityRef leafOfChild = unwrapToMain(wrap);
 
@@ -484,8 +509,9 @@ namespace pg
             }
 
             // Flow synthesis: auto-anchor the children with no anchors of their own, chained through
-            // the previous in-flow sibling (see prefabspec.h for the rule)
-            if (not useSlot and spec.flow != Flow::None and leafEnt)
+            // the previous in-flow sibling (see prefabspec.h for the rule). Without a leaf the chain
+            // starts from the container, which is what main resolves to
+            if (not useSlot and spec.flow != Flow::None)
             {
                 EntityRef prevFlow{};
 

@@ -522,5 +522,178 @@ namespace pg
             EXPECT_FLOAT_EQ(container->width, layoutPos->width);
             EXPECT_FLOAT_EQ(container->height, layoutPos->height);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_tree_test, flow_on_a_bare_container_chains_children)
+        {
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            // No kind: there is no leaf, the chain starts from the container
+            NodeSpec spec;
+            spec.flow = Flow::Vertical;
+            spec.padding = 4.0f;
+            spec.spacing = 2.0f;
+            spec.children.push_back(shapeNode("a", 10.0f, 10.0f));
+            spec.children.push_back(shapeNode("b", 10.0f, 10.0f));
+
+            EntityRef root = buildTree(&ecs, spec);
+            settle(ecs);
+            settle(ecs);
+
+            ASSERT_FALSE(root.empty());
+
+            auto a = root->get<Prefab>()->getEntity("a")->get<PositionComponent>();
+            auto b = root->get<Prefab>()->getEntity("b")->get<PositionComponent>();
+
+            EXPECT_FLOAT_EQ(a->x, 4.0f);
+            EXPECT_FLOAT_EQ(a->y, 4.0f);
+
+            EXPECT_FLOAT_EQ(b->x, 4.0f);
+            EXPECT_FLOAT_EQ(b->y, 16.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_tree_test, name_collision_between_siblings_keeps_the_first)
+        {
+            MockLogger<CaptureSink> logger;
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            NodeSpec spec = shapeNode("bg", 100.0f, 100.0f);
+            spec.children.push_back(shapeNode("dup", 10.0f, 10.0f));
+            spec.children.push_back(shapeNode("dup", 20.0f, 20.0f));
+
+            CaptureSink::messages().clear();
+            EntityRef root = buildTree(&ecs, spec);
+            settle(ecs);
+
+            EXPECT_EQ(countLogs("Name collision"), 1u) << allLogs();
+
+            // Both children are built and tracked, the name stays on the first one
+            EXPECT_EQ(childWraps(ecs, root).size(), 2u);
+
+            auto dup = root->get<Prefab>()->getEntity("dup")->get<PositionComponent>();
+
+            EXPECT_FLOAT_EQ(dup->width, 10.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_tree_test, child_cannot_take_the_name_of_its_parent_node)
+        {
+            MockLogger<CaptureSink> logger;
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            NodeSpec spec = shapeNode("bg", 100.0f, 100.0f);
+            spec.children.push_back(shapeNode("bg", 5.0f, 5.0f));
+
+            CaptureSink::messages().clear();
+            EntityRef root = buildTree(&ecs, spec);
+            settle(ecs);
+
+            EXPECT_EQ(countLogs("Name collision"), 1u) << allLogs();
+
+            auto prefab = root->get<Prefab>();
+
+            EXPECT_EQ(prefab->getEntity("bg").id, prefab->getEntity("MainEntity").id);
+            EXPECT_FLOAT_EQ(prefab->getEntity("bg")->get<PositionComponent>()->width, 100.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_tree_test, name_collision_inside_a_layout_keeps_the_first)
+        {
+            MockLogger<CaptureSink> logger;
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            NodeSpec column = node("Layout:Vertical", "column");
+            column.children.push_back(shapeNode("dup", 10.0f, 10.0f));
+            column.children.push_back(shapeNode("dup", 20.0f, 20.0f));
+
+            CaptureSink::messages().clear();
+            EntityRef root = buildTree(&ecs, column);
+            settle(ecs);
+
+            EXPECT_EQ(countLogs("Name collision"), 1u) << allLogs();
+
+            auto dup = root->get<Prefab>()->getEntity("dup")->get<PositionComponent>();
+
+            EXPECT_FLOAT_EQ(dup->width, 10.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_tree_test, reserved_name_inside_a_layout_is_reported)
+        {
+            MockLogger<CaptureSink> logger;
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            NodeSpec column = node("Layout:Vertical", "column");
+            column.children.push_back(shapeNode("main", 10.0f, 10.0f));
+            column.children.push_back(shapeNode("parent", 10.0f, 10.0f));
+
+            NodeSpec spec = shapeNode("bg", 100.0f, 100.0f);
+            spec.children.push_back(column);
+
+            CaptureSink::messages().clear();
+            EntityRef root = buildTree(&ecs, spec);
+            settle(ecs);
+
+            EXPECT_EQ(countLogs("Reserved name used for child"), 2u) << allLogs();
+
+            // The children are still built and placed by the layout, they are only unnamed
+            EntityRef layout = root->get<Prefab>()->getEntity("column");
+
+            ASSERT_FALSE(layout.empty());
+            ASSERT_TRUE(layout->has<VerticalLayout>());
+            EXPECT_EQ(layout->get<VerticalLayout>()->entities.size(), 2u);
+
+            EXPECT_EQ(root->get<Prefab>()->namedChildrenIds.count("main"), 0u);
+            EXPECT_EQ(root->get<Prefab>()->namedChildrenIds.count("parent"), 0u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_tree_test, anchors_on_layout_children_are_ignored_and_warned_once)
+        {
+            MockLogger<CaptureSink> logger;
+            EntitySystem ecs;
+            bootstrap(ecs);
+
+            NodeSpec column = node("Layout:Vertical", "column");
+
+            NodeSpec a = shapeNode("a", 10.0f, 10.0f);
+            a.anchors = {AnchorSpec{"main", AnchorType::Left, 30.0f}};
+
+            NodeSpec b = shapeNode("b", 10.0f, 10.0f);
+            b.anchors = {AnchorSpec{"main", AnchorType::Top, 30.0f}};
+
+            column.children.push_back(a);
+            column.children.push_back(b);
+
+            CaptureSink::messages().clear();
+            EntityRef root = buildTree(&ecs, column);
+            settle(ecs);
+
+            EXPECT_EQ(countLogs("their anchors are ignored"), 1u) << allLogs();
+            EXPECT_EQ(countLogs("Anchor target not found"), 0u) << allLogs();
+
+            EntityRef layout = root->get<Prefab>()->getEntity("column");
+
+            ASSERT_FALSE(layout.empty());
+            EXPECT_EQ(layout->get<VerticalLayout>()->entities.size(), 2u);
+        }
     }
 }
