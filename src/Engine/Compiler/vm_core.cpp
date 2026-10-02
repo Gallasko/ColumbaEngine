@@ -1392,8 +1392,8 @@ namespace pg
 
         auto name = vm->asString(nameValue);
 
-        VM::GlobalCell* cell = vm->findGlobalCell(name);
-        if (cell == nullptr or not cell->defined)
+        VM::GlobalCell* cell = vm->findDefinedGlobal(name);
+        if (cell == nullptr)
         {
             vm->releaseAndDelete(nameValue);
             vm->pop();
@@ -1425,8 +1425,8 @@ namespace pg
             return vm->raiseError("Global variable name must be a litteral.");
         }
 
-        VM::GlobalCell* cell = vm->findGlobalCell(name.toString());
-        if (cell == nullptr or not cell->defined)
+        VM::GlobalCell* cell = vm->findDefinedGlobal(name.toString());
+        if (cell == nullptr)
         {
             vm->releaseAndDelete(nameValue);
             return vm->raiseError("Undefined global variable '" + name.toString() + "'.");

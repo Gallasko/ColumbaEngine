@@ -282,7 +282,7 @@ std::optional<NodeSpec> loadNodeSpec(EntitySystem* ecs, const std::string& yamlP
     Loader loader{vm, options.errors, yamlPath};
 
     // Parser diagnostics first: they explain any structural oddity below.
-    if (VM::GlobalCell* errs = vm.findGlobalCell("errors"); errs != nullptr and errs->defined and IS_VECTOR(errs->value))
+    if (VM::GlobalCell* errs = vm.findDefinedGlobal("errors"); errs != nullptr and IS_VECTOR(errs->value))
     {
         for (Value e : vm.asVector(errs->value)->fields)
         {
@@ -291,8 +291,8 @@ std::optional<NodeSpec> loadNodeSpec(EntitySystem* ecs, const std::string& yamlP
         }
     }
 
-    VM::GlobalCell* doc = vm.findGlobalCell("doc");
-    if (doc == nullptr or not doc->defined)
+    VM::GlobalCell* doc = vm.findDefinedGlobal("doc");
+    if (doc == nullptr)
     {
         loader.fail("the loader script defined no `doc`");
         return std::nullopt;

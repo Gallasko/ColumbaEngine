@@ -516,6 +516,9 @@ namespace pg
         Value createBoundMethod(const Value& receiver, Closure* method);
         Value createVector();
 
+        // Create an empty instance of the built-in __Table class. Throws if the class is missing.
+        Value createTable();
+
         template <typename Type>
         Value createCustomPtr(Type* ptr)
         {
@@ -608,9 +611,11 @@ namespace pg
             auto it = globalSlots.find(name);
             if (it != globalSlots.end())
                 return it->second;
+
             const uint32_t slot = static_cast<uint32_t>(globalCells.size());
             globalCells.push_back(GlobalCell{});
             globalSlots.emplace(name, slot);
+
             return slot;
         }
 
@@ -622,8 +627,10 @@ namespace pg
         inline void defineGlobal(const std::string& name, const Value& v)
         {
             GlobalCell& c = globalCells[globalSlot(name)];
+
             if (c.defined)
                 releaseAndDelete(c.value);
+
             c.value = v;
             c.defined = true;
         }
@@ -635,12 +642,35 @@ namespace pg
             return it == globalSlots.end() ? nullptr : &globalCells[it->second];
         }
 
+        // Look up a global that holds a value (nullptr if never declared or not assigned yet).
+        inline GlobalCell* findDefinedGlobal(const std::string& name)
+        {
+            auto cell = findGlobalCell(name);
+
+            if (cell == nullptr or not cell->defined)
+                return nullptr;
+
+            return cell;
+        }
+
+        // Look up a class stored in a global (nullptr if missing or not a class).
+        inline Klass* findGlobalClass(const std::string& name)
+        {
+            auto cell = findDefinedGlobal(name);
+
+            if (cell == nullptr or not IS_CLASS(cell->value))
+                return nullptr;
+
+            return asClass(cell->value);
+        }
+
         // Reverse map slot -> name. Cold path only (error messages); O(n).
         inline std::string globalNameForSlot(uint32_t slot) const
         {
             for (const auto& [name, s] : globalSlots)
                 if (s == slot)
                     return name;
+
             return "<unknown>";
         }
 
@@ -815,7 +845,7 @@ namespace pg
         void defineNative(const std::string& name, NativeFn function)
         {
             // Skip if already defined in globals
-            if (GlobalCell* c = findGlobalCell(name); c != nullptr and c->defined)
+            if (findDefinedGlobal(name) != nullptr)
             {
                 return;
             }
@@ -900,8 +930,7 @@ namespace pg
             for (const auto& [name, value] : it->second.variables)
             {
                 // Skip if already defined in globals
-                GlobalCell* c = findGlobalCell(name);
-                if (c == nullptr or not c->defined)
+                if (findDefinedGlobal(name) == nullptr)
                 {
                     defineGlobal(name, elementToValue(value));
                 }

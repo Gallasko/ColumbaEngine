@@ -1170,8 +1170,8 @@ namespace pg
     {
         uint8_t pairCount = instr.operands.byte;
 
-        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-        if (cell == nullptr or not cell->defined)
+        VM::GlobalCell* cell = vm->findDefinedGlobal("__Table");
+        if (cell == nullptr)
         {
             vm->runtimeError("Table class not found - was initializeTableClass() called?");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);

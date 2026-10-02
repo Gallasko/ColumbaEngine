@@ -36,22 +36,17 @@ namespace pg
         ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
         // Create a VM table to hold system data
-        VM::GlobalCell* cell = vm.findGlobalCell("__Table");
-        if (cell != nullptr and cell->defined)
+        Value dataTableValue = vm.createTable();
+        ObjInstance* dataTable = vm.asInstance(dataTableValue);
+
+        // Copy all C++ ElementMap entries to VM table
+        for (const auto& [key, elemValue] : sysData)
         {
-            Klass* tableClass = vm.asClass(cell->value);
-            Value dataTableValue = vm.createInstance(tableClass);
-            ObjInstance* dataTable = vm.asInstance(dataTableValue);
-
-            // Copy all C++ ElementMap entries to VM table
-            for (const auto& [key, elemValue] : sysData)
-            {
-                dataTable->setField(key, vm.retainValue(vm.elementToValue(elemValue)));
-            }
-
-            // Overwrites (and releases) any sysData table from a previous run.
-            vm.defineGlobal("sysData", dataTableValue);
+            dataTable->setField(key, vm.retainValue(vm.elementToValue(elemValue)));
         }
+
+        // Overwrites (and releases) any sysData table from a previous run.
+        vm.defineGlobal("sysData", dataTableValue);
     }
 
     // ========================================================================
@@ -67,8 +62,8 @@ namespace pg
 
         ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
-        VM::GlobalCell* cell = vm.findGlobalCell("sysData");
-        if (cell != nullptr and cell->defined and IS_INSTANCE(cell->value))
+        VM::GlobalCell* cell = vm.findDefinedGlobal("sysData");
+        if (cell != nullptr and IS_INSTANCE(cell->value))
         {
             ObjInstance* dataTable = vm.asInstance(cell->value);
 

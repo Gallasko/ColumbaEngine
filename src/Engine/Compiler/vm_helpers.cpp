@@ -554,6 +554,16 @@ namespace pg
         return trackNewValue(val);
     }
 
+    Value VM::createTable()
+    {
+        auto tableClass = findGlobalClass("__Table");
+
+        if (tableClass == nullptr)
+            throw std::runtime_error("Table class not found in VM globals");
+
+        return createInstance(tableClass);
+    }
+
     Value VM::elementToValue(const ElementType& element)
     {
         if (element.isBool())

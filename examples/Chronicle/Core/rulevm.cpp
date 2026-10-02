@@ -170,12 +170,7 @@ namespace chronicle
     uint64_t RuleScript::makeValue(const Input& input)
     {
         auto makeTable = [this](const ElementMap& map) -> Value {
-            VM::GlobalCell* tableClass = vm->findGlobalCell("__Table");
-
-            if (tableClass == nullptr or not tableClass->defined)
-                return vm->elementToValue(ElementType{std::string()});
-
-            Value table = vm->createInstance(vm->asClass(tableClass->value));
+            Value table = vm->createTable();
             ObjInstance* instance = vm->asInstance(table);
 
             for (const auto& [key, value] : map)
@@ -239,9 +234,9 @@ namespace chronicle
         }
 
         // A script reports what it refuses in an `errors` list rather than throwing
-        VM::GlobalCell* errs = vm->findGlobalCell("errors");
+        VM::GlobalCell* errs = vm->findDefinedGlobal("errors");
 
-        if (errs != nullptr and errs->defined and IS_VECTOR(errs->value))
+        if (errs != nullptr and IS_VECTOR(errs->value))
         {
             bool failed = false;
 
@@ -274,9 +269,9 @@ namespace chronicle
             return false;
         }
 
-        VM::GlobalCell* cell = vm->findGlobalCell(parts[0]);
+        VM::GlobalCell* cell = vm->findDefinedGlobal(parts[0]);
 
-        if (cell == nullptr or not cell->defined)
+        if (cell == nullptr)
         {
             error("no output global `" + parts[0] + "`");
             return false;

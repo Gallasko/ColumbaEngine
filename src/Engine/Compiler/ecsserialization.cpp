@@ -348,13 +348,11 @@ namespace pg
         ecsRef->getComponentRegistry()->serializeComponentFromEntity(archive, entity, componentId);
 
         // Get the Table class
-        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-        if (cell == nullptr or not cell->defined)
+        Klass* tableClass = vm->findGlobalClass("__Table");
+        if (tableClass == nullptr)
         {
             throw std::runtime_error("Table class not found in VM globals");
         }
-
-        Klass* tableClass = vm->asClass(cell->value);
 
         // Create the table instance
         Value tableValue = vm->createInstance(tableClass);
@@ -404,17 +402,8 @@ namespace pg
 
     Value serializeEntityToTable(VM* vm, EntitySystem* ecsRef, Entity* entity)
     {
-        // Get the Table class
-        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-        if (cell == nullptr or not cell->defined)
-        {
-            throw std::runtime_error("Table class not found in VM globals");
-        }
-
-        Klass* tableClass = vm->asClass(cell->value);
-
         // Create the entity table
-        Value entityTableValue = vm->createInstance(tableClass);
+        Value entityTableValue = vm->createTable();
         ObjInstance* entityTable = vm->asInstance(entityTableValue);
 
         LOG_MILE("ECS Serialization", "Serializing entity ID " << entity->id);
@@ -506,16 +495,7 @@ namespace pg
     Value serializeEntityViewToTable(VM* vm, EntitySystem* ecsRef, _unique_id entityId,
         const std::vector<std::string>& componentNames)
     {
-        // Get the Table class
-        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-        if (cell == nullptr or not cell->defined)
-        {
-            throw std::runtime_error("Table class not found in VM globals");
-        }
-
-        Klass* tableClass = vm->asClass(cell->value);
-
-        Value entityTableValue = vm->createInstance(tableClass);
+        Value entityTableValue = vm->createTable();
         ObjInstance* entityTable = vm->asInstance(entityTableValue);
 
         Value idValue = makeIntValue(static_cast<int64_t>(entityId));
@@ -735,17 +715,8 @@ namespace pg
 
     Value serializeEntitiesToTable(VM* vm, EntitySystem* ecsRef, const std::vector<Entity*>& entities)
     {
-        // Get the Table class
-        VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-        if (cell == nullptr or not cell->defined)
-        {
-            throw std::runtime_error("Table class not found in VM globals");
-        }
-
-        Klass* tableClass = vm->asClass(cell->value);
-
         // Create the entities table
-        Value entitiesTableValue = vm->createInstance(tableClass);
+        Value entitiesTableValue = vm->createTable();
         ObjInstance* entitiesTable = vm->asInstance(entitiesTableValue);
 
         size_t index = 0;
@@ -980,13 +951,11 @@ namespace pg
     Value ComponentProxy::createProxy(VM* vm, const std::string& typeName, void* componentPtr)
     {
         // Get the ComponentProxy class
-        VM::GlobalCell* cell = vm->findGlobalCell("ComponentProxy");
-        if (cell == nullptr or not cell->defined)
+        Klass* proxyClass = vm->findGlobalClass("ComponentProxy");
+        if (proxyClass == nullptr)
         {
             throw std::runtime_error("ComponentProxy class not registered with VM");
         }
-
-        Klass* proxyClass = vm->asClass(cell->value);
 
         // Create a new proxy instance
         Value proxyInstance = vm->createInstance(proxyClass);

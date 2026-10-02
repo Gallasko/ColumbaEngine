@@ -709,13 +709,11 @@ namespace pg
                 auto systemName = vm->asString(args[0]);
 
                 // Get the StandardSysClass
-                VM::GlobalCell* cell = vm->findGlobalCell("__StandardSysClass");
-                if (cell == nullptr or not cell->defined)
+                Klass* standardSysKlass = vm->findGlobalClass("__StandardSysClass");
+                if (standardSysKlass == nullptr)
                 {
                     throw std::runtime_error("Standard sys class not found in VM globals");
                 }
-
-                Klass* standardSysKlass = vm->asClass(cell->value);
 
                 // Create instance of __StandardSysClass
                 auto inst = vm->createInstance(standardSysKlass);

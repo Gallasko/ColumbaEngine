@@ -680,11 +680,7 @@ class ProxyMetadataGenerator
         else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
         {
             code += "                // Convert Vector3D to table\n"
-            code += "                VM::GlobalCell* cell = vm->findGlobalCell(\"__Table\");\n"
-            code += "                if (cell == nullptr or not cell->defined)\n"
-            code += "                    return INT_VAL(0);\n\n"
-            code += "                Klass* tableClass = vm->asClass(cell->value);\n"
-            code += "                Value tableValue = vm->createInstance(tableClass);\n"
+            code += "                Value tableValue = vm->createTable();\n"
             code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
             code += "                auto vec = c->" + getterName + "();\n\n"
             code += "                table->setField(\"x\", makeFloatValue(vec.x), vm, true);\n"
@@ -695,11 +691,7 @@ class ProxyMetadataGenerator
         else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
         {
             code += "                // Convert Vector4D to table\n"
-            code += "                VM::GlobalCell* cell = vm->findGlobalCell(\"__Table\");\n"
-            code += "                if (cell == nullptr or not cell->defined)\n"
-            code += "                    return INT_VAL(0);\n\n"
-            code += "                Klass* tableClass = vm->asClass(cell->value);\n"
-            code += "                Value tableValue = vm->createInstance(tableClass);\n"
+            code += "                Value tableValue = vm->createTable();\n"
             code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
             code += "                auto vec = c->" + getterName + "();\n\n"
             code += "                table->setField(\"x\", makeFloatValue(vec.x), vm, true);\n"
