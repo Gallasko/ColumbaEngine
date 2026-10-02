@@ -1562,8 +1562,24 @@ namespace pg
                 funcObj->name = moduleName;
                 funcObj->arity = 0;
                 funcObj->upvalueCount = 0;
+                funcObj->precompiled = true;
 
                 allocatedFunction.push_back(funcValue);
+
+                // The native modules the module was compiled against, for it and for whoever loads our bytecode
+                for (const auto& nativeModule : chunk.importedModules)
+                {
+                    if (not vm->loadNativeModule(nativeModule))
+                    {
+                        LOG_ERROR("CParser", "Compiled module '" << moduleName << "' needs the native module '" << nativeModule << "', which is not available");
+                        continue;
+                    }
+
+                    auto& imported = Compiler::current->getCurrentChunk().importedModules;
+
+                    if (std::find(imported.begin(), imported.end(), nativeModule) == imported.end())
+                        imported.push_back(nativeModule);
+                }
 
                 // Emit bytecode to call the imported script immediately
                 // This will execute it in the same VM and populate globals

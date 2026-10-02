@@ -27,6 +27,8 @@ namespace pg
 {
     UniqueIdGenerator VM::globalIdGenerator;
 
+    static void predecodeFunctionTree(ObjFunction* funcObj, VM* vm);
+
     bool isValueNumber(const Value& val)
     {
         if (IS_INT(val) or IS_DOUBLE(val))
@@ -226,6 +228,19 @@ namespace pg
         for (auto f : useAstFrontEnd ? astCompiler.allocatedFunctions() : compiler.parser.allocatedFunction)
         {
             auto *func = asFunction(f);
+
+            // A module imported from its .pgc is already optimized: the passes expect fresh
+            // compiler output and must not run on it again. The functions nested in its
+            // constants came with the file and are in no compiler's list, so decode the tree.
+            if (func->precompiled)
+            {
+                predecodeFunctionTree(func, this);
+
+                if (profiler.isEnabled())
+                    compiledFunctions.push_back(func);
+
+                continue;
+            }
 
             if (enableOptimizations and not func->chunk.code.empty())
             {

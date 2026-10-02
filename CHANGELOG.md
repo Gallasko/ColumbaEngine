@@ -7,6 +7,10 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Fixed
+- PgScript: `import` of a module that has a compiled `.pgc` beside it no longer breaks when the module
+  defines functions. The imported bytecode was run through the optimization passes a second time (a crash in
+  `PoppingJumpPass`) and the functions it carried were never decoded (a crash at the first call). It is now
+  taken as compiled, its function tree decoded, and the native modules it was compiled against are loaded.
 - Table copies (`serializeToTable`): an empty string field is kept instead of being dropped, an empty
   vector element or map value no longer stores an uninitialized value, nested tables inside vectors and
   maps no longer leak a reference, and a malformed number reads as 0 instead of throwing.

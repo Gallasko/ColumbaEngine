@@ -469,6 +469,9 @@ namespace pg
         // Pre-decoded chunk for faster execution (lazily created)
         DecodedChunk* decodedChunk = nullptr;
 
+        // Loaded from a .pgc: its bytecode went through the passes when it was compiled
+        bool precompiled = false;
+
         ~ObjFunction();
     };
 }

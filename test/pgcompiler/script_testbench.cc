@@ -319,6 +319,7 @@ private:
         return "test/pgcompiler/examples/" + dir + "/" + name + ".expected";
     }
 
+protected:
     std::string trim(const std::string& str) {
         size_t first = str.find_first_not_of(" \t\n\r");
         if (first == std::string::npos) return "";
@@ -900,6 +901,83 @@ TEST_F(ScriptTestBench, ImportLocalScope)
 // {
 //     testScript("compiled_import");
 // }
+
+// A module imported from its .pgc: the bytecode is written here, by this build, so the file
+// can never be stale. The module defines functions and imports a native module of its own:
+// the importer must not optimize it a second time, must decode the functions it carries, and
+// must load what it was compiled against. The importer's own bytecode then runs in a fresh VM.
+TEST_F(ScriptTestBench, ImportCompiledModule)
+{
+    const std::string dir = "test/pgcompiler/scripts/";
+
+    const std::string module =
+        "import \"algorithm\"\n"
+        "\n"
+        "fun add(a, b)\n"
+        "{\n"
+        "    return a + b\n"
+        "}\n"
+        "\n"
+        "fun sumTo(n)\n"
+        "{\n"
+        "    var total = 0\n"
+        "\n"
+        "    for (var i = 1; i <= n; i++)\n"
+        "    {\n"
+        "        if (i > 0 and i <= n)\n"
+        "        {\n"
+        "            total = add(total, i)\n"
+        "        }\n"
+        "    }\n"
+        "\n"
+        "    return total\n"
+        "}\n"
+        "\n"
+        "fun size(list)\n"
+        "{\n"
+        "    return len(list)\n"
+        "}\n"
+        "\n"
+        "var answer = sumTo(3)\n";
+
+    const std::string importer =
+        "import \"test/pgcompiler/scripts/gen_compiled_module\"\n"
+        "\n"
+        "fun twice(x)\n"
+        "{\n"
+        "    return add(x, x)\n"
+        "}\n"
+        "\n"
+        "__dprint(add(3, 1))\n"
+        "__dprint(sumTo(4))\n"
+        "__dprint(size([1, 2, 3]))\n"
+        "__dprint(twice(answer))\n";
+
+    const std::string expected = "4\n10\n3\n12";
+
+    {
+        VM compiler;
+        registerNativeFunctions(&compiler);
+
+        ASSERT_EQ(compiler.interpretFromText(module, true, dir + "gen_compiled_module.pgc"), InterpretResult::OK);
+    }
+
+    ASSERT_TRUE(std::filesystem::exists(dir + "gen_compiled_module.pgc"));
+
+    delete vm;
+    vm = new VM();
+    registerNativeFunctions(vm);
+
+    EXPECT_EQ(vm->interpretFromText(importer, false, dir + "gen_compiled_importer.pgc"), InterpretResult::OK);
+    EXPECT_EQ(trim(vm->testOutput), expected);
+
+    delete vm;
+    vm = new VM();
+    registerNativeFunctions(vm);
+
+    EXPECT_EQ(vm->interpretFromBytecodeFile(dir + "gen_compiled_importer.pgc"), InterpretResult::OK);
+    EXPECT_EQ(trim(vm->testOutput), expected);
+}
 
 // TEST_F(ScriptTestBench, ImportNativeModule)
 // {
