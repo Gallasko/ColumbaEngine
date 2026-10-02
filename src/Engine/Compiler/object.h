@@ -39,6 +39,7 @@ namespace pg
     struct Klass;
     struct ObjInstance;
     struct ObjBoundMethod;
+    struct ComponentProxyMetadata;
     struct VM;
 
     // Value is now defined in value_nanbox.h as uint64_t
@@ -133,6 +134,11 @@ namespace pg
         std::vector<Value> fieldValues;
         std::unordered_map<std::string, size_t> internedFields;
         std::vector<std::string> fieldNames;
+
+        // Only set on component proxies (see componentproxy.h): the C++ component the instance forwards to and its property table
+        void* proxyTarget = nullptr;
+
+        const ComponentProxyMetadata* proxyMeta = nullptr;
 
         // Helper to set a field value (creates or updates)
         void setField(const std::string& name, Value value, VM *vm = nullptr, bool deleteOld = false);

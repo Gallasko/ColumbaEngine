@@ -587,6 +587,9 @@ namespace pg
         // sees a stale value — same hazard as the old nextInstructionIndex.
         const DecodedInstruction* pendingCallResume = nullptr;
 
+        // Class of the component proxies, cached by ComponentProxy::registerWithVM so that creating a proxy needs no global lookup
+        Klass* componentProxyClass = nullptr;
+
         /* The stack of the VM */
         IndexableStack stack;
 

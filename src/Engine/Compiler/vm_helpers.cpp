@@ -2,7 +2,7 @@
 
 #include "vm.h"
 #include "decoded_chunk.h"
-#include "ecsserialization.h"
+#include "componentproxy.h"
 
 namespace pg
 {
@@ -467,7 +467,7 @@ namespace pg
         Value tableClass = createClass("__Table");
         defineGlobal("__Table", retainValue(tableClass));
 
-        // Register ComponentProxy class for zero-copy component access
+        // Class of the proxies that give scripts direct access to the C++ components
         ComponentProxy::registerWithVM(this);
     }
 

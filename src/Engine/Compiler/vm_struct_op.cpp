@@ -2,9 +2,19 @@
 
 #include "vm.h"
 #include "decoded_chunk.h"
+#include "componentproxy.h"
 
 namespace pg
 {
+    namespace
+    {
+        // Names starting with '__' always address the instance itself, never a metamethod nor a proxied component
+        inline bool isInternalName(const std::string& name)
+        {
+            return name.length() >= 2 and name[0] == '_' and name[1] == '_';
+        }
+    }
+
     bool invoke(VM* vm, const std::string& name, uint8_t argCount)
     {
         auto receiverValue = vm->peek(argCount);
@@ -101,6 +111,18 @@ namespace pg
         // Property name pre-resolved at decode time — no chunk.constantStrings
         // lookup, no *ip++.
         const std::string& nameStr = *instr.propertyNamePtr;
+
+        // Component proxy: forward straight to the C++ component, a proxy holds no field and needs no metamethod call
+        if (instance->proxyMeta != nullptr and not isInternalName(nameStr))
+        {
+            Value result = ComponentProxy::getProperty(vm, instance, nameStr);
+
+            auto inst = vm->pop();
+            vm->releaseAndDelete(inst);
+
+            vm->push(result);
+            return &instr + 1;
+        }
 
         // Field-found branch (no frame change).
         auto fieldIt = instance->internedFields.find(nameStr);
@@ -223,8 +245,23 @@ namespace pg
         // Fields starting with '__' bypass metamethods to allow metamethod
         // implementations to write through to internal storage without
         // re-triggering themselves.
-        bool isInternalField  = (nameStr.length() >= 2 and nameStr[0] == '_' and nameStr[1] == '_');
+        bool isInternalField  = isInternalName(nameStr);
         bool isInternalAccess = isInternalField;
+
+        // Component proxy: write through the component setter, which fires its change events
+        if (instance->proxyMeta != nullptr and not isInternalField)
+        {
+            if (not ComponentProxy::setProperty(vm, instance, nameStr, vm->peek(0)))
+                return vm->raiseError("Property '" + nameStr + "' is read-only");
+
+            // The assigned value stays on the stack as the result of the expression
+            Value value = vm->pop();
+            auto inst = vm->pop();
+            vm->releaseAndDelete(inst);
+
+            vm->push(value);
+            return &instr + 1;
+        }
 
         if (not isInternalAccess and vm->frameCount > 1)
         {

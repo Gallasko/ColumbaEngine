@@ -193,7 +193,10 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/ast/pass/loop_invariant_hoisting.cpp
     src/Engine/Compiler/ast/pass/static_loop_evaluation.cpp
     src/Engine/Compiler/ast/pass/entity_loop_lowering.cpp
+    src/Engine/Compiler/componentattach.cpp
+    src/Engine/Compiler/componentproxy.cpp
     src/Engine/Compiler/ecsserialization.cpp
+    src/Engine/Compiler/tableserialization.cpp
     # Minimal interpreter (lexer/token + the AST front-end shared with the
     # bytecode compiler; the tree-walking runtime itself is excluded)
     src/Engine/Interpreter/lexer.cpp
@@ -259,7 +262,10 @@ set(ENGINESOURCE
     src/Engine/Compiler/vmreaders.cpp
     src/Engine/Compiler/compiler.cpp
     src/Engine/Compiler/decoded_chunk.cpp
+    src/Engine/Compiler/componentattach.cpp
+    src/Engine/Compiler/componentproxy.cpp
     src/Engine/Compiler/ecsserialization.cpp
+    src/Engine/Compiler/tableserialization.cpp
     src/Engine/Compiler/object.cpp
     src/Engine/Compiler/cparser.cpp
     src/Engine/Compiler/bytecode_pass.cpp
@@ -1499,6 +1505,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             # test/sentencesystem.cc
             test/achievement.cc
             test/collision2d.cc
+            test/componentproxy.cc
             test/ecssystem.cc
             test/filemanager.cc
             test/framelimiter.cc
@@ -1699,6 +1706,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_sources(bench PRIVATE
             benchmark/memorypool.cc
+            benchmark/componentproxy.cc
             benchmark/serialization.cc
             benchmark/script_performance.cc
             benchmark/frontend_comparison.cc

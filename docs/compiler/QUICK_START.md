@@ -207,8 +207,8 @@ for (var bullet : bullets) {
     var pos = bullet["PositionComponent"]
 
     // Update position
-    pos.setX(pos.x + bulletComp.vx * deltaTime)
-    pos.setY(pos.y + bulletComp.vy * deltaTime)
+    pos.x = pos.x + bulletComp.vx * deltaTime
+    pos.y = pos.y + bulletComp.vy * deltaTime
 
     // Update lifetime
     bulletComp.lifetime = bulletComp.lifetime - deltaTime
@@ -401,19 +401,17 @@ for (var bullet : bullets) {
 }
 ```
 
-### 3. Use Setters for Component Updates
+### 3. Assign Component Properties Directly
 ```javascript
-// Components have auto-generated setters that trigger events
+// A component is a proxy on the C++ component: an assignment calls its setter
 var pos = entity["PositionComponent"]
 
-// Good - triggers PositionComponentChangedEvent
-pos.setX(100)
-pos.setY(200)
-
-// Also works - direct assignment
+// Triggers PositionComponentChangedEvent
 pos.x = 100
 pos.y = 200
 ```
+
+There are no `setX()` style methods on a component: assignment is the only way to write a property.
 
 ### 4. Batch Operations
 ```javascript

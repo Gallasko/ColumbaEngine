@@ -7,6 +7,13 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Fixed
+- Table copies (`serializeToTable`): an empty string field is kept instead of being dropped, an empty
+  vector element or map value no longer stores an uninitialized value, nested tables inside vectors and
+  maps no longer leak a reference, and a malformed number reads as 0 instead of throwing.
+- `deserializeTo` and `deserializeComponentFromTable` skip the table fields that have no serialized form
+  (functions) instead of emitting an untyped attribute, and write doubles with full precision.
+- `deserializeEntityFromTable` with `createNew = false` reuses the entity named by `__entityId`; the id was
+  read from the raw value and never matched.
 - Prefab trees: a node keeps the z its factory gave it. The wrapping container was left at z 0 and its main
   entity follows the container's z, so after the first frame every node of a built tree sat on one depth and
   shapes of the same material drew in an arbitrary order (in Chronicle, the panel grounds vanished behind
@@ -19,6 +26,22 @@ First tagged release. Everything below describes the state of the engine at the 
   silently.
 
 ### Changed
+- Script bridge: `Compiler/ecsserialization.h` is split by concern into `Compiler/componentproxy.h`
+  (proxies and their metadata), `Compiler/componentattach.h` (`attachComp` handlers) and
+  `Compiler/tableserialization.h` (table copies); it still includes all three. A component proxy now holds
+  its component and metadata pointers directly (`ObjInstance::proxyTarget` / `proxyMeta`) and the property
+  opcodes forward to the component without a field lookup, a metamethod call or a name string. See
+  `docs/COMPONENT_PROXY_SYSTEM.md`. Migration: `ComponentProxyRegistry::getMetadata()` is replaced by
+  `findMetadata()` (returns a pointer, null when missing), `ComponentProxyMetadata::properties` is a vector
+  in declaration order with `addProperty()` / `findProperty()`, the accessors of `PropertyMetadata` are
+  function pointers, and `ComponentProxy::createProxy()` takes the metadata pointer. Generated components
+  pick all of this up on the next build; refresh the committed seed with `SnapshotComponents`.
+- Script bridge: the table-with-setters fallback is removed (`ComponentSerializerRegistry`,
+  `REGISTER_COMPONENT_SERIALIZER`, `REGISTER_COMPONENT_PROXY`, the `REGISTER_*_SETTER` macros and the
+  generated `serialize<Name>WithSetters` functions). Components are written from scripts by assignment
+  (`pos.x = 10`), which calls the component setter; `pos.setX(10)` is not available. The
+  `customSerializationSetter` key of a `.pgcomp` field is no longer read. A write to a read-only proxy
+  property now stops the script with a runtime error.
 - Compile time: the component registry stores its per-component and per-event callbacks through one
   function-pointer type per signature instead of one lambda type each, `ECS/entitysystem.h` no longer
   includes `Renderer/rendercall.h`, and `Compiler/vm.h` no longer includes the lexer or the AST pass

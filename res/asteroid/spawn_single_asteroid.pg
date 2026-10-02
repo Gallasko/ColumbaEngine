@@ -112,8 +112,8 @@ if (contain(sysData, "spawnAsteroidX") and contain(sysData, "spawnAsteroidY"))
 {
     spawnX = sysData["spawnAsteroidX"]
     spawnY = sysData["spawnAsteroidY"]
-    asteroid["PositionComponent"].setX(spawnX)
-    asteroid["PositionComponent"].setY(spawnY)
+    asteroid["PositionComponent"].x = spawnX
+    asteroid["PositionComponent"].y = spawnY
 
     // Clear the position override
     sysData.remove("spawnAsteroidX")

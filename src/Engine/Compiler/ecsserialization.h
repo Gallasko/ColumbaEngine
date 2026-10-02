@@ -2,1126 +2,174 @@
 
 /**
  * @file ecsserialization.h
- * @brief Helper functions for serializing/deserializing ECS entities and components to/from tables (VM/Compiler)
- * @version 1.0
- * @date 2025-11-07
+ * @brief Expose ECS entities to the scripting VM, and build entities back from script tables
  *
- * This provides helper functions to convert ECS entities and components into VM table structures
- * (ObjInstance with fields) for use in the PgCompiler VM system.
+ * An entity is given to a script as a table:
+ *
+ *     {
+ *         "__entityId": 42,
+ *         "attachComp": native function,
+ *         "has": native function,
+ *         "PositionComponent": component,
+ *         "Velocity": component
+ *     }
+ *
+ * Each component is a proxy on the live C++ component (see componentproxy.h): reading or writing one of its
+ * properties goes straight to the component. A component type without proxy metadata is given as a copy
+ * (see tableserialization.h), in which case writes stay in the script.
+ *
+ * The other pieces of the script bridge are included from here:
+ * - componentproxy.h: the proxy class and the per-type property metadata
+ * - componentattach.h: the attachComp() handlers
+ * - tableserialization.h: plain copies between C++ objects and script tables
  */
 
+#include <string>
+#include <vector>
+
 #include "ECS/entitysystem_fwd.h"
-
-#include "object.h"
-#include "vm.h"
-#include "serialization.h"
-
 #include "ECS/entity.h"
 
-#include <fstream>
+#include "componentattach.h"
+#include "componentproxy.h"
+#include "tableserialization.h"
 
 namespace pg
 {
-    // ============================================================================
-    // Internal helper functions for ECS serialization
-    // ============================================================================
-
-    using ComponentSerializerFunc = std::function<void(VM*, ObjInstance*, void*)>;
-    using ComponentRetrieverFunc = std::function<void*(EntitySystem*, _unique_id)>;
-
-    // Function signature for custom component attach handlers
-    // Returns true if the component was attached successfully, false otherwise
-    using ComponentAttachFunc = std::function<bool(VM*, EntitySystem*, Entity*, int argCount, Value* args)>;
-
     /**
-     * @brief Registry for custom component attach handlers
+     * @brief Give a script access to one component of an entity
      *
-     * This registry allows registering custom attachment logic for specific components
-     * that need special handling beyond the default StandardComponent attachment.
-     *
-     * Example:
-     * ```cpp
-     * bool attachPositionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args) {
-     *     float x = 0.0f, y = 0.0f;
-     *     // Parse arguments...
-     *     ecs->_attach<PositionComponent>(entity, x, y);
-     *     return true;
-     * }
-     *
-     * REGISTER_COMPONENT_ATTACH_HANDLER("Position", attachPositionComponent);
-     * ```
+     * @param vm VM that will own the returned value
+     * @param ecsRef Entity system owning the entity
+     * @param entity Entity owning the component
+     * @param componentId Id of the component type
+     * @return A proxy on the component, or a table copy if the type has no proxy metadata
      */
-    class ComponentAttachRegistry
-    {
-    public:
-        static ComponentAttachRegistry& instance()
-        {
-            static ComponentAttachRegistry registry;
-            return registry;
-        }
-
-        void registerHandler(const std::string& componentName, ComponentAttachFunc handler)
-        {
-            handlers_[componentName] = handler;
-        }
-
-        bool hasHandler(const std::string& componentName) const
-        {
-            return handlers_.find(componentName) != handlers_.end();
-        }
-
-        ComponentAttachFunc getHandler(const std::string& componentName) const
-        {
-            auto it = handlers_.find(componentName);
-
-            if (it != handlers_.end())
-            {
-                return it->second;
-            }
-
-            return nullptr;
-        }
-
-    private:
-        std::unordered_map<std::string, ComponentAttachFunc> handlers_;
-    };
-
-    // ============================================================================
-    // Component Proxy System (Zero-Copy Direct Memory Access)
-    // ============================================================================
+    Value serializeComponentToTable(VM* vm, EntitySystem* ecsRef, const Entity* entity, _unique_id componentId);
 
     /**
-     * @brief Enum for supported property types in component proxies
+     * @brief Build the script table of an entity, with all its components
+     *
+     * @param vm VM that will own the table
+     * @param ecsRef Entity system owning the entity
+     * @param entity Entity to expose
+     * @return The entity table
      */
-    enum class PropertyType
-    {
-        Float,
-        Double,
-        Int,
-        Bool,
-        String,
-        UnsignedInt,
-        Vector3D,
-        Vector4D,
-        UniqueId,
-        Enum,
-        Custom
-    };
+    Value serializeEntityToTable(VM* vm, EntitySystem* ecsRef, Entity* entity);
 
     /**
-     * @brief Metadata for a single property in a component
+     * @brief Build a reduced script table of an entity, holding only the requested components
      *
-     * Contains all information needed to read/write a property via metamethods.
-     * Uses offset-based memory access for zero-copy performance.
-     */
-    struct PropertyMetadata
-    {
-        std::string name;
-        PropertyType type;
-
-        bool writable;
-
-        using GetterFn = std::function<Value(void* component, VM* vm)>;
-        GetterFn getter = nullptr; // Optional getter function for custom access logic (e.g., computed properties)
-
-        // Setter function that calls the component's setter method (which may fire events)
-        // ALWAYS provided for writable properties to ensure events are fired correctly
-        using SetterFn = std::function<void(void* component, VM* vm, Value value)>;
-        SetterFn setter = nullptr; // Required for writable properties
-
-        // String Getter / Setter for properties
-        using SGetterFn = std::function<std::string(void* component)>;
-        SGetterFn sGetter = nullptr; // Optional getter function for custom access logic (e.g., computed properties)
-
-        using SSetterFn = std::function<void(void* component, const std::string&)>;
-        SSetterFn sSetter = nullptr; // Required for writable properties
-
-    };
-
-    /**
-     * @brief Complete metadata for a component type
+     * Used by the entity loop lowering (__ecsEntityView): no attachComp nor has native is added.
+     * An entity that no longer exists gives a table holding only "__entityId".
      *
-     * Contains all properties and provides fast lookup for the single ComponentProxy class.
-     */
-    struct ComponentProxyMetadata
-    {
-        std::string componentTypeName;
-        size_t componentSize;
-
-        std::map<std::string, PropertyMetadata> properties;
-
-        // Fallback handlers for components with dynamic properties (e.g. StandardComponent)
-        // Called when the requested property name is not found in the static `properties` map.
-        using DynamicGetterFn = std::function<Value(void* component, const std::string& propName, VM* vm)>;
-        using DynamicSetterFn = std::function<void(void* component, const std::string& propName, VM* vm, Value value)>;
-        DynamicGetterFn dynamicGetter = nullptr;
-        DynamicSetterFn dynamicSetter = nullptr;
-    };
-
-    /**
-     * @brief Registry for component proxy metadata
-     *
-     * Stores metadata for all components that support the zero-copy proxy system.
-     * Used by the single ComponentProxy class to dynamically access component properties.
-     */
-    class ComponentProxyRegistry
-    {
-    public:
-        static ComponentProxyRegistry& instance()
-        {
-            static ComponentProxyRegistry registry;
-            return registry;
-        }
-
-        void registerMetadata(const ComponentProxyMetadata& metadata)
-        {
-            metadata_[metadata.componentTypeName] = metadata;
-        }
-
-        const ComponentProxyMetadata& getMetadata(const std::string& typeName) const
-        {
-            auto it = metadata_.find(typeName);
-
-            if (it == metadata_.end())
-            {
-                throw std::runtime_error("No proxy metadata for component: " + typeName);
-            }
-
-            return it->second;
-        }
-
-        bool hasMetadata(const std::string& typeName) const
-        {
-            return metadata_.find(typeName) != metadata_.end();
-        }
-
-    private:
-        std::unordered_map<std::string, ComponentProxyMetadata> metadata_;
-    };
-
-    /**
-     * @brief Single universal proxy class for all components
-     *
-     * Uses metadata-driven property access via __get and __set metamethods.
-     * Provides zero-copy direct memory access to C++ component fields.
-     */
-    class ComponentProxy
-    {
-    public:
-        /**
-         * @brief Register the ComponentProxy class with the VM
-         *
-         * Called once at VM startup. Creates the class and installs __get and __set metamethods.
-         */
-        static void registerWithVM(VM* vm);
-
-        /**
-         * @brief Create a proxy instance for a component
-         *
-         * @param vm VM instance
-         * @param typeName Component type name (e.g., "PositionComponent")
-         * @param componentPtr Pointer to the C++ component
-         * @return Value containing the proxy instance
-         */
-        static Value createProxy(VM* vm, const std::string& typeName, void* componentPtr);
-    };
-
-    namespace detail
-    {
-        // Helper functions for extracting arguments from VM values
-        inline float extractFloatArg(Value* args, int index = 0)
-        {
-            if (IS_DOUBLE(args[index]))
-                return static_cast<float>(AS_DOUBLE(args[index]));
-            else if (IS_INT(args[index]))
-                return static_cast<float>(AS_INT(args[index]));
-
-            LOG_ERROR("ECS Serialization", "Expected float argument at index " << index);
-            return 0.0f;
-        }
-
-        inline bool extractBoolArg(Value* args, int index = 0)
-        {
-            if (IS_BOOL(args[index]))
-                return AS_BOOL(args[index]);
-
-            LOG_ERROR("ECS Serialization", "Expected bool argument at index " << index);
-            return false;
-        }
-
-        inline int extractIntArg(Value* args, int index = 0)
-        {
-            if (IS_INT(args[index]))
-                return static_cast<int>(AS_INT(args[index]));
-
-            LOG_ERROR("ECS Serialization", "Expected int argument at index " << index);
-            return 0;
-        }
-
-        inline std::string extractStringArg(VM *vm, Value* args, int index = 0)
-        {
-            if (IS_STRING(args[index]))
-                return vm->asString(args[index]);
-
-            LOG_ERROR("ECS Serialization", "Expected string argument at index " << index);
-            return "";
-        }
-
-        bool registryHasComponent(const std::string& name);
-
-        ComponentSerializerFunc getSerializerFuncFromRegistry(const std::string& name);
-
-        /**
-         * @brief Create a native attachComp function that holds entity pointer
-         *
-         * This allows scripts to attach components immediately without entity lookup.
-         *
-         * @param entityPtr Pointer to the entity
-         * @param ecsRef Pointer to the entity system
-         * @return NativeFn Lambda function that can be registered as a native function
-         */
-        NativeFn createAttachCompFunction(Entity* entityPtr, EntitySystem* ecsRef);
-
-        /**
-         * @brief Check if a SerializedInfoHolder node represents an ElementType
-         */
-        inline bool isElementType(const SerializedInfoHolder& node)
-        {
-            if (node.className != "ElementType")
-                return false;
-
-            bool hasType = false;
-            bool hasData = false;
-
-            for (const auto& child : node.children)
-            {
-                if (child.name == "type")
-                    hasType = true;
-                if (child.name == "data")
-                    hasData = true;
-            }
-            return hasType and hasData;
-        }
-
-        /**
-         * @brief Extract the data value from an ElementType node and convert to VM Value
-         */
-        inline Value extractElementTypeValue(VM* vm, const SerializedInfoHolder& node)
-        {
-            for (const auto& child : node.children)
-            {
-                if (child.name == "data" and not child.value.empty())
-                {
-                    if (child.type == "int")
-                        return makeIntValue(std::stoi(child.value));
-                    else if (child.type == "bool")
-                        return makeBoolValue(child.value == "true");
-                    else if (child.type == "float" or child.type == "double")
-                        return makeDoubleValue(std::stod(child.value));
-                    else if (child.type == "size_t" or child.type == "unsigned int")
-                        return makeIntValue(std::stoull(child.value));
-                    else if (child.type == "string")
-                        return vm->createString(child.value);
-                    else
-                        return vm->createString(child.value);
-                }
-            }
-
-            return makeIntValue(0); // Default
-        }
-
-        /**
-         * @brief Convert a primitive value node to VM Value
-         */
-        inline Value convertPrimitiveToValue(VM* vm, const SerializedInfoHolder& node)
-        {
-            if (node.type == "int")
-                return makeIntValue(std::stoi(node.value));
-            else if (node.type == "bool")
-                return makeBoolValue(node.value == "true");
-            else if (node.type == "float" or node.type == "double")
-                return makeDoubleValue(std::stod(node.value));
-            else if (node.type == "size_t" or node.type == "unsigned int")
-                return makeIntValue(std::stoull(node.value));
-            else if (node.type == "string")
-                return vm->createString(node.value);
-            else
-                return vm->createString(node.value);
-        }
-
-        /**
-         * @brief Process a SerializedInfoHolder node and populate a VM table
-         * This is the core recursive function that handles all serialization cases
-         */
-        inline void processNodeToTable(VM* vm, Klass* tableClass, const SerializedInfoHolder& node,
-            ObjInstance* currentTable, bool retainValues = false)
-        {
-            // Check if this is an ElementType - flatten it to just the data value
-            if (detail::isElementType(node) and not node.name.empty())
-            {
-                Value value = detail::extractElementTypeValue(vm, node);
-                if (retainValues)
-                {
-                    currentTable->setField(node.name, vm->retainValue(value));
-                    if (IS_STRING(value))
-                        vm->releaseAndDelete(value);
-                }
-                else
-                {
-                    currentTable->setField(node.name, value);
-                }
-                return;
-            }
-
-            // If this node has a value (it's a leaf property), add it
-            if (not node.value.empty() and not node.name.empty())
-            {
-                Value value = detail::convertPrimitiveToValue(vm, node);
-
-                if (retainValues)
-                {
-                    currentTable->setField(node.name, vm->retainValue(value));
-                    if (IS_STRING(value))
-                        vm->releaseAndDelete(value);
-                }
-                else
-                {
-                    currentTable->setField(node.name, value);
-                }
-            }
-
-            // If this node has children, process them
-            if (node.children.size() > 0)
-            {
-                // Check if this is a Vector (array-like structure)
-                if (node.className == "Vector" and not node.name.empty())
-                {
-                    Value nestedTableValue = vm->createInstance(tableClass);
-                    ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
-
-                    // Add elements with numeric indices [0], [1], etc.
-                    for (size_t i = 0; i < node.children.size(); i++)
-                    {
-                        const auto& child = node.children[i];
-                        Value elementValue;
-
-                        if (detail::isElementType(child))
-                        {
-                            elementValue = detail::extractElementTypeValue(vm, child);
-                        }
-                        else if (not child.value.empty())
-                        {
-                            elementValue = detail::convertPrimitiveToValue(vm, child);
-                        }
-                        else if (child.children.size() > 0)
-                        {
-                            // Complex element - create nested table
-                            Value childTableValue = vm->createInstance(tableClass);
-                            ObjInstance* childTable = vm->asInstance(childTableValue);
-                            detail::processNodeToTable(vm, tableClass, child, childTable, retainValues);
-                            elementValue = childTableValue;
-                        }
-
-                        if (retainValues)
-                        {
-                            nestedTable->setField(std::to_string(i), vm->retainValue(elementValue));
-                            if (IS_STRING(elementValue))
-                                vm->releaseAndDelete(elementValue);
-                        }
-                        else
-                        {
-                            nestedTable->setField(std::to_string(i), elementValue);
-                        }
-                    }
-
-                    if (retainValues)
-                    {
-                        currentTable->setField(node.name, vm->retainValue(nestedTableValue));
-                        vm->releaseAndDelete(nestedTableValue);
-                    }
-                    else
-                    {
-                        currentTable->setField(node.name, nestedTableValue, vm, true);
-                    }
-                }
-                // Check if this is an UnorderedMap
-                else if (node.className == "UnorderedMap" and not node.name.empty())
-                {
-                    Value nestedTableValue = vm->createInstance(tableClass);
-                    ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
-
-                    // Find nbElements to determine how many key-value pairs
-                    size_t nbElements = 0;
-                    for (const auto& child : node.children)
-                    {
-                        if (child.name == "nbElements" and not child.value.empty())
-                        {
-                            nbElements = std::stoull(child.value);
-                            break;
-                        }
-                    }
-
-                    // Extract key-value pairs and use actual keys as indices
-                    for (size_t i = 0; i < nbElements; i++)
-                    {
-                        std::string keyName = "key" + std::to_string(i);
-                        std::string valueName = "value" + std::to_string(i);
-
-                        std::string actualKey;
-                        Value actualValue;
-
-                        // Find the key and value in children
-                        for (const auto& child : node.children)
-                        {
-                            if (child.name == keyName and not child.value.empty())
-                            {
-                                actualKey = child.value;
-                            }
-                            else if (child.name == valueName)
-                            {
-                                // Check if value is an ElementType - flatten it
-                                if (detail::isElementType(child))
-                                {
-                                    actualValue = detail::extractElementTypeValue(vm, child);
-                                }
-                                else if (not child.value.empty())
-                                {
-                                    actualValue = detail::convertPrimitiveToValue(vm, child);
-                                }
-                                else if (child.children.size() > 0)
-                                {
-                                    // Complex value - create nested table
-                                    Value childTableValue = vm->createInstance(tableClass);
-                                    ObjInstance* childTable = vm->asInstance(childTableValue);
-                                    detail::processNodeToTable(vm, tableClass, child, childTable, retainValues);
-                                    actualValue = childTableValue;
-                                }
-                            }
-                        }
-
-                        if (not actualKey.empty())
-                        {
-                            if (retainValues)
-                            {
-                                nestedTable->setField(actualKey, vm->retainValue(actualValue));
-                                if (IS_STRING(actualValue))
-                                    vm->releaseAndDelete(actualValue);
-                            }
-                            else
-                            {
-                                nestedTable->setField(actualKey, actualValue);
-                            }
-                        }
-                    }
-
-                    if (retainValues)
-                    {
-                        currentTable->setField(node.name, vm->retainValue(nestedTableValue));
-                        vm->releaseAndDelete(nestedTableValue);
-                    }
-                    else
-                    {
-                        currentTable->setField(node.name, nestedTableValue, vm, true);
-                    }
-                }
-                // If the node has a name, create a nested table for the children
-                else if (not node.name.empty())
-                {
-                    Value nestedTableValue = vm->createInstance(tableClass);
-                    ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
-
-                    for (const auto& child : node.children)
-                    {
-                        detail::processNodeToTable(vm, tableClass, child, nestedTable, retainValues);
-                    }
-
-                    if (retainValues)
-                    {
-                        currentTable->setField(node.name, vm->retainValue(nestedTableValue));
-                        vm->releaseAndDelete(nestedTableValue);
-                    }
-                    else
-                    {
-                        currentTable->setField(node.name, nestedTableValue, vm, true);
-                    }
-                }
-                else
-                {
-                    // Node has no name, so add children directly to current table
-                    for (const auto& child : node.children)
-                    {
-                        detail::processNodeToTable(vm, tableClass, child, currentTable, retainValues);
-                    }
-                }
-            }
-        }
-    } // namespace detail
-
-    // Macros to create and register setter functions
-    // These macros reduce boilerplate when creating native setter functions for components
-
-    // Macro to create and register a float setter function
-    // Usage: REGISTER_FLOAT_SETTER(vm, table, component, setX);
-    #define REGISTER_FLOAT_SETTER(vm, table, component, methodName) \
-        do { \
-            auto setterFunc = [component](VM*, int argCount, Value* args) -> Value { \
-                if (argCount != 1) return INT_VAL(0); \
-                float value = detail::extractFloatArg(args, 0); \
-                component->methodName(value); \
-                return INT_VAL(0); \
-            }; \
-            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
-        } while(0)
-
-    // Macro to create and register a bool setter function
-    // Usage: REGISTER_BOOL_SETTER(vm, table, component, setVisible);
-    #define REGISTER_BOOL_SETTER(vm, table, component, methodName) \
-        do { \
-            auto setterFunc = [component](VM*, int argCount, Value* args) -> Value { \
-                if (argCount != 1) return INT_VAL(0); \
-                bool value = detail::extractBoolArg(args, 0); \
-                component->methodName(value); \
-                return INT_VAL(0); \
-            }; \
-            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
-        } while(0)
-
-    // Macro to create and register an int setter function
-    // Usage: REGISTER_INT_SETTER(vm, table, component, setLevel);
-    #define REGISTER_INT_SETTER(vm, table, component, methodName) \
-        do { \
-            auto setterFunc = [component](VM*, int argCount, Value* args) -> Value { \
-                if (argCount != 1) return INT_VAL(0); \
-                int value = detail::extractIntArg(args, 0); \
-                component->methodName(value); \
-                return INT_VAL(0); \
-            }; \
-            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
-        } while(0)
-
-    // Macro to create and register a string setter function
-    // Usage: REGISTER_STRING_SETTER(vm, table, component, setText);
-    #define REGISTER_STRING_SETTER(vm, table, component, methodName) \
-        do { \
-            auto setterFunc = [component](VM* vmPtr, int argCount, Value* args) -> Value { \
-                if (argCount != 1) return INT_VAL(0); \
-                std::string value = detail::extractStringArg(vmPtr, args, 0); \
-                component->methodName(value); \
-                return INT_VAL(0); \
-            }; \
-            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
-        } while(0)
-
-    /**
-     * @brief Macro to register a custom component attach handler
-     *
-     * This macro registers a function that will be called when attachComp() is used
-     * with the specified component name. The handler receives the VM, ECS, entity,
-     * and all arguments passed to attachComp() after the component name.
-     *
-     * Usage:
-     * ```cpp
-     * bool attachPositionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args) {
-     *     // argCount and args contain all arguments AFTER the component name
-     *     // Parse key-value pairs from args
-     *     float x = 0.0f, y = 0.0f;
-     *     for (int i = 0; i < argCount; i += 2) {
-     *         if (i + 1 >= argCount) break;
-     *         std::string key = vm->asString(args[i]);
-     *         if (key == "x") x = detail::extractFloatArg(&args[i + 1], 0);
-     *         if (key == "y") y = detail::extractFloatArg(&args[i + 1], 0);
-     *     }
-     *     ecs->_attach<PositionComponent>(entity, x, y);
-     *     return true;
-     * }
-     *
-     * REGISTER_COMPONENT_ATTACH_HANDLER("Position", attachPositionComponent);
-     * ```
-     */
-    #define REGISTER_COMPONENT_ATTACH_HANDLER(ComponentName, HandlerFunc) \
-        namespace { \
-            struct ComponentName##AttachRegistrar { \
-                ComponentName##AttachRegistrar() { \
-                    pg::ComponentAttachRegistry::instance() \
-                        .registerHandler(#ComponentName, HandlerFunc); \
-                } \
-            }; \
-            static ComponentName##AttachRegistrar ComponentName##_attach_registrar_instance; \
-        }
-
-    // ============================================================================
-    // Public API functions
-    // ============================================================================
-
-    /**
-     * @brief Serialize a single component to a VM table (ObjInstance)
-     *
-     * Converts a component into an ObjInstance with fields representing the component's properties.
-     * Uses the existing Archive-based serialization system to extract component data.
-     *
-     * Example result (for a Transform component):
-     * {
-     *   "__className": "Transform",
-     *   "x": 100,
-     *   "y": 200,
-     *   "rotation": 0.0
-     * }
-     *
-     * @param vm Pointer to the VM (needed for creating strings and values)
-     * @param ecsRef Pointer to the entity system
-     * @param entity Pointer to the entity owning the component
-     * @param componentId The unique ID of the component type
-     * @return Value A VM Value containing the table (ObjInstance) representing the component
-     */
-    extern Value serializeComponentToTable(VM* vm, EntitySystem* ecsRef, const Entity* entity, _unique_id componentId);
-
-    /**
-     * @brief Serialize all components of an entity to a VM table
-     *
-     * Converts an entity and all its components into a table where:
-     * - "__entityId" contains the entity ID
-     * - Each component type name is a key with a nested table of properties
-     *
-     * Example result:
-     * {
-     *   "__entityId": 42,
-     *   "Transform": { "__className": "Transform", "x": 100, "y": 200 },
-     *   "Velocity": { "__className": "Velocity", "dx": 5.0, "dy": -3.0 }
-     * }
-     *
-     * @param vm Pointer to the VM
-     * @param ecsRef Pointer to the entity system
-     * @param entity Pointer to the entity to serialize
-     * @return Value A VM Value containing the entity table
-     */
-    extern Value serializeEntityToTable(VM* vm, EntitySystem* ecsRef, Entity* entity);
-
-    /**
-     * @brief Serialize a FILTERED view of an entity to a VM table (lazy entity iteration)
-     *
-     * Lightweight counterpart of serializeEntityToTable used by the AST
-     * front-end's entity-loop lowering (__ecsEntityView native): only the
-     * requested component names are serialized (same resolution and
-     * serialization path, so per-field behavior is identical), and no
-     * attachComp/has native closures are attached. A deleted entity yields
-     * a table containing only "__entityId".
-     *
-     * @param vm Pointer to the VM
-     * @param ecsRef Pointer to the entity system
-     * @param entityId Id of the entity (from an __ecsEntityIds snapshot)
+     * @param vm VM that will own the table
+     * @param ecsRef Entity system owning the entity
+     * @param entityId Id of the entity
      * @param componentNames Component type names to include
-     * @return Value A VM Value containing the filtered entity table
+     * @return The entity table
      */
-    extern Value serializeEntityViewToTable(VM* vm, EntitySystem* ecsRef, _unique_id entityId,
-        const std::vector<std::string>& componentNames);
+    Value serializeEntityViewToTable(VM* vm, EntitySystem* ecsRef, _unique_id entityId, const std::vector<std::string>& componentNames);
 
     /**
-     * @brief Deserialize a component from a VM table and attach it to an entity
+     * @brief Build the table holding several entities
      *
-     * Takes a VM table (ObjInstance) representing a component and attaches it to the specified entity.
-     * The table must have a "__className" field to identify the component type.
-     *
-     * @param vm Pointer to the VM
-     * @param ecsRef Pointer to the entity system
-     * @param entity Reference to the entity to attach the component to
-     * @param componentTable VM Value containing the component table
-     * @param componentTypeName Optional explicit component type name (if not in table)
-     * @return bool True if successful, false if component type not found
+     * The entity tables are stored under "0", "1", ... and their number under "count".
      */
-    extern bool deserializeComponentFromTable(VM* vm, EntitySystem* ecsRef, EntityRef entity,
-        Value componentTable, const std::string& componentTypeName = "");
+    Value serializeEntitiesToTable(VM* vm, EntitySystem* ecsRef, const std::vector<Entity*>& entities);
 
     /**
-     * @brief Deserialize an entity from a VM table
+     * @brief Attach a component described by a script table to an entity
      *
-     * Takes a VM table representing an entity with all its components and creates/populates an entity.
-     *
-     * Expected table format:
-     * {
-     *   "__entityId": 42,  // Optional: if provided, tries to use this ID
-     *   "Transform": { "__className": "Transform", "x": 100, "y": 200 },
-     *   "Velocity": { "__className": "Velocity", "dx": 5.0, "dy": -3.0 }
-     * }
-     *
-     * @param vm Pointer to the VM
-     * @param ecsRef Pointer to the entity system
-     * @param entityTable VM Value containing the entity table
-     * @param createNew If true, always creates a new entity
-     * @return EntityRef Reference to the created/populated entity
+     * @param vm VM owning the table
+     * @param ecsRef Entity system owning the entity
+     * @param entity Entity to attach the component to
+     * @param componentTable Table holding the component fields
+     * @param componentTypeName Type of the component, read from the "__className" field of the table when empty
+     * @return false if the value is not a table or if no type name could be found
      */
-    extern EntityRef deserializeEntityFromTable(VM* vm, EntitySystem* ecsRef, Value entityTable, bool createNew = false);
+    bool deserializeComponentFromTable(VM* vm, EntitySystem* ecsRef, EntityRef entity, Value componentTable, const std::string& componentTypeName = "");
 
     /**
-     * @brief Batch serialize multiple entities to a VM table (array of entities)
+     * @brief Build an entity from a script table
      *
-     * Creates a table with numeric indices containing entity tables.
+     * Every field holding a table is attached as a component named after the field.
      *
-     * Example result:
-     * {
-     *   "0": { "__entityId": 1, "Transform": {...}, ... },
-     *   "1": { "__entityId": 2, "Velocity": {...}, ... },
-     *   "count": 2
-     * }
-     *
-     * @param vm Pointer to the VM
-     * @param ecsRef Pointer to the entity system
-     * @param entities Vector of entity pointers to serialize
-     * @return Value A VM Value containing the entities table
+     * @param vm VM owning the table
+     * @param ecsRef Entity system that receives the entity
+     * @param entityTable Table describing the entity
+     * @param createNew If false, the entity named by "__entityId" is reused when it exists
+     * @return The created, or reused, entity
      */
-    extern Value serializeEntitiesToTable(VM* vm, EntitySystem* ecsRef, const std::vector<Entity*>& entities);
+    EntityRef deserializeEntityFromTable(VM* vm, EntitySystem* ecsRef, Value entityTable, bool createNew = false);
 
     /**
-     * @brief Batch deserialize multiple entities from a VM table
-     *
-     * Expects a table with numeric indices containing entity tables.
-     *
-     * @param vm Pointer to the VM
-     * @param ecsRef Pointer to the entity system
-     * @param entitiesTable VM Value containing the entities table
-     * @param createNew If true, always creates new entities
-     * @return std::vector<EntityRef> Vector of created/populated entity references
+     * @brief Build the entities stored under the numeric keys of a script table
      */
-    extern std::vector<EntityRef> deserializeEntitiesFromTable(VM* vm, EntitySystem* ecsRef, Value entitiesTable, bool createNew = true);
-
-    /**
-     * @brief Deserialize a VM table directly to a known component type
-     *
-     * Similar to the interpreter's deserializeTo() function, this allows you to deserialize
-     * a VM table to a specific component type when you know the type at compile time.
-     *
-     * Example usage:
-     * ```cpp
-     * Value table = ...; // VM table containing Transform data
-     * Transform transform = deserializeTo<Transform>(vm, table);
-     * ```
-     *
-     * @tparam Type The component type to deserialize to
-     * @param vm Pointer to the VM
-     * @param table VM Value containing the table (ObjInstance) to deserialize
-     * @return Type Instance of the deserialized component
-     */
-    template <typename Type>
-    Type deserializeTo(VM* vm, Value table)
-    {
-        if (not IS_INSTANCE(table))
-        {
-            LOG_ERROR("ECS Serialization", "Table value is not an instance");
-            return Type{};
-        }
-
-        ObjInstance* objTable = vm->asInstance(table);
-
-        // Get the class name (component type)
-        std::string typeName = Type::getType();
-
-        if (objTable->hasField("__className"))
-        {
-            typeName = vm->asString(objTable->getField("__className"));
-        }
-
-        // Create the root unserialized object
-        // Create a dummy serialized string that parseString() can parse correctly
-        std::string dummySerializedString = typeName + ": " + typeName + " {";
-        UnserializedObject obj(typeName, typeName, dummySerializedString);
-
-        // Helper function to convert table fields to UnserializedObject
-        std::function<void(ObjInstance*, UnserializedObject&)> processTable;
-        processTable = [&](ObjInstance* currentTable, UnserializedObject& currentObj) {
-            for (const auto& [key, v] : currentTable->internedFields)
-            {
-                // Skip special fields
-                if (key == "__className")
-                    continue;
-
-                auto value = currentTable->fieldValues[v];
-
-                if (IS_INSTANCE(value))
-                {
-                    // Nested table - create child object
-                    UnserializedObject child(key, "", "");
-                    processTable(vm->asInstance(value), child);
-                    currentObj.children.push_back(std::move(child));
-                }
-                else
-                {
-                    // Leaf value - create as an attribute (isClass=false)
-                    std::string valueStr;
-                    std::string typeStr;
-
-                    if (IS_INT(value))
-                    {
-                        valueStr = std::to_string(AS_INT(value));
-                        typeStr = "int";
-                    }
-                    else if (IS_BOOL(value))
-                    {
-                        valueStr = AS_BOOL(value) ? "true" : "false";
-                        typeStr = "bool";
-                    }
-                    else if (IS_DOUBLE(value))
-                    {
-                        valueStr = std::to_string(AS_DOUBLE(value));
-                        typeStr = "float";
-                    }
-                    else if (IS_STRING(value))
-                    {
-                        valueStr = vm->asString(value);
-                        typeStr = "string";
-                    }
-
-                    // Format as: __PGSA type {value}
-                    std::string serializedStr = "__PGSA " + typeStr + " {" + valueStr + "}";
-                    UnserializedObject attr(serializedStr, key, false);
-                    currentObj.children.push_back(std::move(attr));
-                }
-            }
-        };
-
-        processTable(objTable, obj);
-
-        // Use the existing deserialize function to convert to the component type
-        return deserialize<Type>(obj);
-    }
-
-    /**
-     * @brief Serialize a component directly to a VM table (templated version)
-     *
-     * Serialize a component of a known type directly to a VM table.
-     * This is useful when you have a component object and want to convert it to a table.
-     *
-     * This function automatically checks the ComponentSerializerRegistry and adds
-     * dynamic setter methods if a serializer is registered for this component type.
-     *
-     * Example usage:
-     * ```cpp
-     * Transform transform;
-     * transform.x = 100;
-     * transform.y = 200;
-     * Value table = serializeToTable<Transform>(vm, transform);
-     * ```
-     *
-     * @tparam Type The component type to serialize
-     * @param vm Pointer to the VM
-     * @param component The component instance to serialize
-     * @return Value VM Value containing the table representation
-     */
-    template <typename Type, typename = std::enable_if_t<!std::is_same_v<Type, StandardComponent>>>
-    Value serializeToTable(VM* vm, const Type& component)
-    {
-        // Get the Table class
-        Klass* tableClass = vm->findGlobalClass("__Table");
-        if (tableClass == nullptr)
-        {
-            throw std::runtime_error("Table class not found in VM globals");
-        }
-
-        // Create an Archive and serialize the component
-        InspectorArchive archive;
-        serialize(archive, component);
-
-        // Create the table instance
-        Value tableValue = vm->createInstance(tableClass);
-        ObjInstance* table = vm->asInstance(tableValue);
-
-        // Helper function to add field to table
-        auto addField = [&](const std::string& key, Value value) {
-            table->setField(key, vm->retainValue(value));
-        };
-
-        // Parse the archive and populate the table
-        std::string componentTypeName;
-        if (archive.mainNode.children.size() > 0)
-        {
-            auto& compNode = archive.mainNode.children[0];
-
-            // Add the class name (component type)
-            if (not compNode.className.empty())
-            {
-                componentTypeName = compNode.className;
-                Value classNameKey = vm->createString("__className");
-                Value classNameValue = vm->createString(compNode.className);
-                addField(vm->asString(classNameKey), classNameValue);
-                vm->releaseAndDelete(classNameKey);
-                vm->releaseAndDelete(classNameValue);  // Release initial reference
-            }
-
-            // Process all component properties using the shared helper (with retain mode)
-            detail::processNodeToTable(vm, tableClass, compNode, table, true);
-        }
-
-        // Check if there's a registered serializer to add dynamic setters
-        if (detail::registryHasComponent(componentTypeName))
-        {
-            auto serializerFunc = detail::getSerializerFuncFromRegistry(componentTypeName);
-            serializerFunc(vm, table, (void*)&component);
-        }
-
-        return tableValue;
-    }
-
-    /**
-     * @brief Helper to serialize StandardComponent without setters (internal use)
-     */
-    inline Value serializeToTableBasic(VM* vm, const StandardComponent& component)
-    {
-        // Get the Table class
-        Klass* tableClass = vm->findGlobalClass("__Table");
-        if (tableClass == nullptr)
-        {
-            throw std::runtime_error("Table class not found in VM globals");
-        }
-
-        // Create an Archive and serialize the component
-        InspectorArchive archive;
-        serialize(archive, component);
-
-        // Create the table instance
-        Value tableValue = vm->createInstance(tableClass);
-        ObjInstance* table = vm->asInstance(tableValue);
-
-        // Helper function to add field to table
-        auto addField = [&](const std::string& key, Value value) {
-            table->setField(key, vm->retainValue(value));
-        };
-
-        // Parse the archive and populate the table
-        if (archive.mainNode.children.size() > 0)
-        {
-            auto& compNode = archive.mainNode.children[0];
-
-            // Add the class name (component type)
-            if (not compNode.className.empty())
-            {
-                Value classNameKey = vm->createString("__className");
-                Value classNameValue = vm->createString(compNode.className);
-                addField(vm->asString(classNameKey), classNameValue);
-                vm->releaseAndDelete(classNameKey);
-                vm->releaseAndDelete(classNameValue);  // Release initial reference
-            }
-
-            // Process all component properties using the shared helper (with retain mode)
-            detail::processNodeToTable(vm, tableClass, compNode, table, true);
-        }
-
-        return tableValue;
-    }
-
-    /**
-     * @brief Specialized serializeToTable for StandardComponent with setter generation
-     *
-     * This overload generates dynamic setter methods for StandardComponent properties
-     * that automatically trigger change events when called from scripts.
-     * Uses the component's own ecsRef and entityId members.
-     *
-     * @param vm Pointer to the VM
-     * @param component The StandardComponent to serialize
-     * @return Value VM Value containing the table with setter methods
-     */
-    extern Value serializeToTable(VM* vm, const StandardComponent& component);
-
-    // ============================================================================
-    // Helper functions for CompList serialization
-    // ============================================================================
+    std::vector<EntityRef> deserializeEntitiesFromTable(VM* vm, EntitySystem* ecsRef, Value entitiesTable, bool createNew = true);
 
     namespace detail
     {
         /**
-         * @brief Helper function to serialize a single component from CompList to entity table
+         * @brief Create an entity table holding "__entityId" and the attachComp / has natives, without any component
          */
+        Value createEntityTable(VM* vm, EntitySystem* ecsRef, Entity* entity);
+
         template <typename Comp, typename... Comps>
         void serializeCompListComponent(VM* vm, ObjInstance* entityTable, const CompList<Comps...>& compList)
         {
-            // Get the component from the CompList
             CompRef<Comp> comp = compList.template get<Comp>();
 
-            if (comp)
+            if (not comp)
+                return;
+
+            const std::string typeName = Comp::getType();
+
+            auto metadata = ComponentProxyRegistry::instance().findMetadata(typeName);
+
+            if (metadata != nullptr)
             {
-                // Get the component type name
-                std::string componentTypeName = Comp::getType();
-
-                Value componentTableValue;
-
-                // Check if this component has proxy metadata registered
-                auto& proxyRegistry = ComponentProxyRegistry::instance();
-
-                if (proxyRegistry.hasMetadata(componentTypeName))
-                {
-                    LOG_MILE("ECS Serialization", "Using ComponentProxy for " << componentTypeName);
-
-                    // Get the component pointer directly from the CompRef
-                    void* componentPtr = comp.operator->();
-
-                    if (componentPtr)
-                    {
-                        // Create a proxy instead of a table copy
-                        componentTableValue = ComponentProxy::createProxy(vm, componentTypeName, componentPtr);
-                    }
-                    else
-                    {
-                        LOG_WARNING("ECS Serialization", "Could not retrieve component pointer for proxy, falling back to table");
-                        // Fallback to table serialization
-                        componentTableValue = serializeToTable(vm, *comp);
-                    }
-                }
-                else
-                {
-                    // No proxy metadata registered, use traditional table serialization
-                    componentTableValue = serializeToTable(vm, *comp);
-                }
-
-                // Add to entity table
-                entityTable->setField(componentTypeName, componentTableValue);
-
-                LOG_INFO("ECS Serialization", "Serialized component: " << componentTypeName);
+                entityTable->setField(typeName, ComponentProxy::createProxy(vm, metadata, comp.operator->()));
+            }
+            else
+            {
+                entityTable->setField(typeName, serializeToTable(vm, *comp));
             }
         }
-    } // namespace detail
+    }
 
     /**
-     * @brief Serialize an entity with specific components to a VM table (templated version)
+     * @brief Build the script table of an entity from a CompList, holding only the components of the list
      *
-     * Takes a CompList (e.g., CompList<PositionComponent, UiAnchor, Texture2DComponent>)
-     * and serializes all the components in the list to a VM table. This is useful when
-     * you have a CompList from helper functions like makeUiTexture and want to serialize
-     * only those specific components.
+     * @code
+     * auto tex = make2DTexture(ecs, 100, 100, "texture.png");
      *
-     * Example usage:
-     * ```cpp
-     * auto compList = makeUiTexture(ecs, 100, 100, "texture.png");
-     * Value table = serializeEntityToTable<PositionComponent, UiAnchor, Texture2DComponent>(vm, ecs, compList);
-     * ```
+     * Value table = serializeEntityToTable(vm, ecs, tex);
+     * @endcode
      *
-     * @tparam Comps The component types in the CompList
-     * @param vm Pointer to the VM
-     * @param ecsRef Pointer to the entity system
-     * @param compList The CompList containing the entity and component references
-     * @return Value VM Value containing the entity table with specified components
+     * @tparam Comps The component types of the CompList
+     * @param vm VM that will own the table
+     * @param compList Entity and component references, as returned by the make functions
+     * @return The entity table
      */
     template <typename... Comps>
     Value serializeEntityToTable(VM* vm, EntitySystem*, const CompList<Comps...>& compList)
     {
-        // Create the entity table
-        Value entityTableValue = vm->createTable();
-        ObjInstance* entityTable = vm->asInstance(entityTableValue);
+        if (compList.entity.empty())
+        {
+            LOG_ERROR("ECS Serialization", "Cannot serialize a CompList without entity");
 
-        LOG_INFO("ECS Serialization", "Serializing entity ID " << compList.id << " with CompList");
+            return vm->createTable();
+        }
 
-        // Add the entity ID
-        Value idValue = makeIntValue(static_cast<int64_t>(compList.id));
-        entityTable->setField("__entityId", idValue);
+        Entity* entity = compList.entity.entity;
 
-        // Add native attachComp function that holds the entity pointer
-        // This allows scripts to attach components immediately without entity lookup
-        Entity* entityPtr = compList.entity.entity;
-        EntitySystem* ecsRef = entityPtr->world();
-        Value attachCompFuncValue = vm->createNativeFunction(detail::createAttachCompFunction(entityPtr, ecsRef));
-        entityTable->setField("attachComp", attachCompFuncValue);
+        Value entityTableValue = detail::createEntityTable(vm, entity->world(), entity);
 
-        // Serialize each component in the CompList using fold expression
-        // Pass ecsRef to enable proxy-aware serialization
+        auto entityTable = vm->asInstance(entityTableValue);
+
         (detail::serializeCompListComponent<Comps>(vm, entityTable, compList), ...);
 
         return entityTableValue;
     }
-
-} // namespace pg
+}

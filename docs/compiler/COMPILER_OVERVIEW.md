@@ -482,7 +482,7 @@ for (var bullet : bullets) {
     var pos = bullet["PositionComponent"]
 
     // Modify components
-    pos.setX(pos.x + bulletComp.velocity * deltaTime)
+    pos.x = pos.x + bulletComp.velocity * deltaTime
     bulletComp.lifetime = bulletComp.lifetime - deltaTime
 
     // Remove dead bullets
@@ -601,8 +601,8 @@ for (var bullet : bullets) {
     var pos = bullet["PositionComponent"]
 
     // Update position
-    pos.setX(pos.x + b.vx * deltaTime)
-    pos.setY(pos.y + b.vy * deltaTime)
+    pos.x = pos.x + b.vx * deltaTime
+    pos.y = pos.y + b.vy * deltaTime
 
     // Update lifetime
     b.lifetime = b.lifetime - deltaTime

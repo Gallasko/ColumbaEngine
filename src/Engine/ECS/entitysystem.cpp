@@ -1166,15 +1166,4 @@ namespace pg
 #endif // PG_MINIMAL_BUILD
     }
 
-    Value ComponentSerializerRegistry::createComponentProxy(const std::string& componentName, VM* vm, void* componentPtr) const
-    {
-        auto factory = getProxyFactory(componentName);
-
-        if (factory)
-        {
-            return factory(vm, componentPtr);
-        }
-
-        return INT_VAL(-1);  // Return sentinel value if no factory
-    }
 }

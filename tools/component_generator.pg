@@ -531,8 +531,10 @@ class ProxyMetadataGenerator
         code += "struct " + schema.name + "ProxyMetadataRegistrar\n{\n"
         code += "    " + schema.name + "ProxyMetadataRegistrar()\n    {\n"
         code += "        pg::ComponentProxyMetadata metadata;\n"
-        code += "        metadata.componentTypeName = \"" + schema.name + "\";\n"
-        code += "        metadata.componentSize = sizeof(" + schema.name + ");\n\n"
+        code += "        metadata.componentTypeName = \"" + schema.name + "\";\n\n"
+        code += "        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {\n"
+        code += "            return ecs->getComponent<" + schema.name + ">(entityId);\n"
+        code += "        };\n\n"
 
         // Generate property metadata for each field
         for (var i = 0; i < len(schema.fields); i += 1)
@@ -559,7 +561,7 @@ class ProxyMetadataGenerator
             }
 
             code += "        // Property: " + fieldName + "\n"
-            code += "        metadata.properties.emplace(\"" + fieldName + "\", PropertyMetadata{\n"
+            code += "        metadata.addProperty(PropertyMetadata{\n"
             code += "            \"" + fieldName + "\",\n"
             code += "            pg::PropertyType::" + propType + ",\n"
             code += "            " + toString(writable) + ",\n"
@@ -760,7 +762,7 @@ class ProxyMetadataGenerator
         else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
         {
             code += "                auto vec = c->" + getterName + "();\n"
-            code += "                return std::to_string(vec.x) + \",\" + std::to_string(vec.y) + \",\" + std::to_string(vec.z); + \",\" + std::to_string(vec.w);\n"
+            code += "                return std::to_string(vec.x) + \",\" + std::to_string(vec.y) + \",\" + std::to_string(vec.z) + \",\" + std::to_string(vec.w);\n"
         }
         else if (isEnumType(this.schema, fieldType))
         {
@@ -985,91 +987,6 @@ class SerializationGenerator
         {
             code += "namespace " + schema["namespace"] + "\n{\n\n"
         }
-
-        // Generate serialization function with setters
-        code += "void serialize" + schema.name + "WithSetters(VM* vm, ObjInstance* table, " + schema.name + "* component)\n"
-        code += "{\n"
-        code += "    // Get component context\n"
-        code += "    _unique_id entityId = component->entityId;\n\n"
-        code += "    LOG_MILE(\"ECS Serialization\", \"Generating setters for " + schema.name + " on entity \" << entityId);\n\n"
-        code += "    // Generate setter methods for each property using macros\n"
-
-        // Generate setter registrations for each field with a setter
-        for (var i = 0; i < len(schema.fields); i = i + 1)
-        {
-            var field = schema.fields[i]
-            var fieldName = field["name"]
-            var fieldType = getFieldType(field)
-            var setterName = "set" + capitalize(fieldName)
-
-            if (contain(field, "setter") and field["setter"] != "none" and not contain(field, "customSerializationSetter"))
-            {
-                var macroName = ""
-
-                // Determine the appropriate macro based on field type
-                if (fieldType == "float")
-                {
-                    macroName = "REGISTER_FLOAT_SETTER"
-                }
-                else if (fieldType == "bool")
-                {
-                    macroName = "REGISTER_BOOL_SETTER"
-                }
-                else if (fieldType == "int" or fieldType == "_unique_id" or fieldType == "size_t")
-                {
-                    macroName = "REGISTER_INT_SETTER"
-                }
-                else if (fieldType == "double")
-                {
-                    macroName = "REGISTER_DOUBLE_SETTER"
-                }
-                else if (fieldType == "std::string" or fieldType == "string")
-                {
-                    macroName = "REGISTER_STRING_SETTER"
-                }
-                else
-                {
-                    // For other types, use a generic comment
-                    code += "    // TODO: Add setter registration for " + fieldName + " (" + fieldType + ")\n"
-                }
-
-                if (len(macroName) > 0)
-                {
-                    code += "    " + macroName + "(vm, table, component, " + setterName + ");\n"
-                }
-                else if (isEnumType(schema, fieldType))
-                {
-                    // Enum: generate a custom VM setter that converts string -> enum
-                    var revMapName = "stringTo" + fieldType
-                    code += "    auto " + fieldName + "EnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {\n"
-                    code += "        if (argCount > 0 && IS_STRING(args[0]))\n"
-                    code += "        {\n"
-                    code += "            auto it = " + revMapName + ".find(vm->asString(args[0]));\n"
-                    code += "            if (it != " + revMapName + ".end())\n"
-                    code += "                component->" + setterName + "(it->second);\n"
-                    code += "        }\n\n"
-                    code += "        return INT_VAL(0);\n"
-                    code += "    };\n"
-                    code += "    table->setField(\"" + setterName + "\", vm->createNativeFunction(" + fieldName + "EnumSetter));\n"
-                }
-            }
-            else if (contain(field, "customSerializationSetter"))
-            {
-                code += "    auto " + fieldName + "CustomSetter = [component](VM* vm, int argCount, Value* args) -> Value {\n"
-
-                var customCode = field["customSerializationSetter"]
-                code += "    " + customCode + "\n"
-
-                code += "    };\n\n"
-                code += "    table->setField(\"" + setterName + "\", vm->createNativeFunction(" + fieldName + "CustomSetter));\n"
-            }
-        }
-
-        code += "}\n\n"
-
-        // Register component serializer
-        code += "// Register " + schema.name + " serializer at static initialization time\n"
-        code += "REGISTER_COMPONENT_SERIALIZER(" + schema.name + ", serialize" + schema.name + "WithSetters);\n\n"
 
         // Generate attach handler function
         code += "bool attach" + schema.name + "(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)\n"

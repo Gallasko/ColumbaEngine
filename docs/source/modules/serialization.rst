@@ -89,7 +89,7 @@ Components declared in ``.pgcomp`` schema files get their serialization generate
 
 - ``<Name>.generated.h`` — the struct plus ``serialize``/``deserialize`` declarations and a force-link shim so static registration always runs
 - ``<Name>.generated.cpp`` — field-by-field ``serialize``/``defaultDeserialize`` bodies (the same pattern shown above)
-- ``<Name>.serialization.cpp`` — VM glue: script setters, ``REGISTER_COMPONENT_SERIALIZER``, attach-from-script handlers, and ``ComponentProxyRegistry`` metadata for the inspector
+- ``<Name>.serialization.cpp`` — VM glue: the attach-from-script handler and the ``ComponentProxyRegistry`` metadata used by scripts and the inspector
 
 If you add fields to a ``.pgcomp``, regeneration keeps C++, saves, scripts, and the inspector in sync — this is why hand-editing generated files is never the right move. See ``docs/COMPONENT_SCHEMA_REFERENCE.md`` for the schema format.
 

@@ -29,14 +29,10 @@ namespace pg
 
             static void* getRawComponentPtr(EntitySystem* ecs, _unique_id entityId, const std::string& typeName)
             {
-                auto& reg = ComponentSerializerRegistry::instance();
+                auto metadata = ComponentProxyRegistry::instance().findMetadata(typeName);
 
-                if (reg.hasSerializer(typeName))
-                {
-                    auto fn = reg.getRetriever(typeName);
-                    if (fn)
-                        return fn(ecs, entityId);
-                }
+                if (metadata != nullptr and metadata->retriever)
+                    return metadata->retriever(ecs, entityId);
 
                 auto* owner = ecs->getComponentRegistry()->retrieveStandardComponent(typeName);
 
@@ -285,14 +281,16 @@ namespace pg
                 if (binding.propertyName  != propName)
                     continue;
 
-                auto& propMeta = ComponentProxyRegistry::instance().getMetadata(compType).properties.at(propName);
-                if (not propMeta.sSetter)
+                auto meta = ComponentProxyRegistry::instance().findMetadata(compType);
+                auto propMeta = meta ? meta->findProperty(propName) : nullptr;
+
+                if (not propMeta or not propMeta->sSetter)
                     break;
 
                 if (binding.inputIds.size() == 1)
                 {
                     // Scalar: just call with the new value directly
-                    propMeta.sSetter(binding.componentPtr, newVal);
+                    propMeta->sSetter(binding.componentPtr, newVal);
                 }
                 else
                 {
@@ -312,7 +310,7 @@ namespace pg
                         combined += v;
                     }
 
-                    propMeta.sSetter(binding.componentPtr, combined);
+                    propMeta->sSetter(binding.componentPtr, combined);
                 }
                 break;
             }
@@ -748,15 +746,24 @@ namespace pg
             // auto customIt = customDrawers.find(typeName);
             // if (customIt != customDrawers.end())
             // {
-            //     customIt->second(this, ComponentProxyRegistry::instance().getMetadata(typeName), panel.layout);
+            //     customIt->second(this, *ComponentProxyRegistry::instance().findMetadata(typeName), panel.layout);
             //     panel.initialized = true;
             //     return fold;
             // }
 
-            auto& meta = ComponentProxyRegistry::instance().getMetadata(typeName);
+            auto meta = ComponentProxyRegistry::instance().findMetadata(typeName);
 
-            for (auto& [propName, propMeta] : meta.properties)
+            if (not meta)
             {
+                LOG_ERROR(DOM, "No proxy metadata for component: " << typeName);
+
+                return fold;
+            }
+
+            for (const auto& propMeta : meta->properties)
+            {
+                const auto& propName = propMeta.name;
+
                 InspectorPropertyWidget widget;
                 widget.propertyName = propName;
                 widget.type = propMeta.type;
@@ -807,7 +814,7 @@ namespace pg
             auto& panel = componentPanels[typeName];
             fold.get<PositionComponent>()->setVisibility(true);
 
-            auto& meta = ComponentProxyRegistry::instance().getMetadata(typeName);
+            auto meta = ComponentProxyRegistry::instance().findMetadata(typeName);
 
             for (const auto& widget : panel.widgets)
             {
@@ -820,10 +827,11 @@ namespace pg
                 activeBindings.push_back(binding);
 
                 // Refresh displayed value(s)
-                auto& propMeta = meta.properties.at(widget.propertyName);
-                if (propMeta.sGetter)
+                auto propMeta = meta ? meta->findProperty(widget.propertyName) : nullptr;
+
+                if (propMeta and propMeta->sGetter)
                 {
-                    std::string val = propMeta.sGetter(componentPtr);
+                    std::string val = propMeta->sGetter(componentPtr);
                     // For scalar: fill inputIds[0]
                     // For Vec3/Vec4: val is "x,y,z" — split by comma
                     auto parts = splitComma(val);
