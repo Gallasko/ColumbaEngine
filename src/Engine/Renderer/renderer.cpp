@@ -133,7 +133,7 @@ namespace pg
     {
         for (auto id : cameraRegisterQueue)
         {
-            auto* camera = ecsRef->getComponent<BaseCamera2D>(id);
+            auto camera = ecsRef->getComponent<BaseCamera2D>(id);
 
             if (not camera)
             {
@@ -298,7 +298,7 @@ namespace pg
         {
             const auto& calls = renderer->getRenderCalls();
 
-            for (auto& rc : calls)
+            for (const auto& rc : calls)
             {
                 auto& group = buckets[rc.key];
                 bool found = false;
@@ -313,13 +313,15 @@ namespace pg
                     }
                 }
 
+                // The renderer keeps its call list between frames so this has to be a copy
                 if (not found)
-                    group.emplace_back(std::move(rc));
+                    group.push_back(rc);
             }
         }
 
         std::vector<RenderCall> merged;
-        merged.reserve(renderCallList[tempRenderList].size());
+        // The list being rendered is the best estimate of this frame's call count
+        merged.reserve(renderCallList[currentRenderList].size());
 
         for (auto& pair : buckets)
         {
@@ -423,7 +425,7 @@ namespace pg
         const int screenWidth = rTable["ScreenWidth"].get<int>();
         const int screenHeight = rTable["ScreenHeight"].get<int>();
 
-        std::vector<unsigned char> pixels(screenWidth * screenHeight * 4); // RGB24 format
+        std::vector<unsigned char> pixels(screenWidth * screenHeight * 4); // RGBA format
 
         glReadPixels(0, 0, screenWidth, screenHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
 
@@ -450,7 +452,7 @@ namespace pg
 
         processTextureRegister();
 
-        for (auto* camera : cameraList)
+        for (auto camera : cameraList)
         {
             if (camera->dirty)
             {
@@ -624,12 +626,10 @@ namespace pg
 
     void MasterRenderer::registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath, std::unique_ptr<LoadedAtlas> atlas)
     {
-        if (atlas == nullptr) {
+        if (atlas == nullptr)
             atlasMap.emplace(name, atlasFilePath);
-        }
-        else {
+        else
             atlasMap.emplace(name, *atlas);
-        }
 
         registerTexture(name, texturePath);
     }
@@ -703,6 +703,13 @@ namespace pg
         // if (not call.getVisibility())
         //     return;
 
+        if (not call.mesh)
+        {
+            LOG_ERROR(DOM, "Mesh not set for render call with key: " << call.key);
+
+            return;
+        }
+
         // Todo initialize material in another call !
         if (not call.mesh->initialized)
         {
@@ -764,8 +771,11 @@ namespace pg
                 float camW = cameraList[camIdx]->getWidth();
                 float camH = cameraList[camIdx]->getHeight();
 
-                if (camW > 0.0f) effectiveWidth = camW;
-                if (camH > 0.0f) effectiveHeight = camH;
+                if (camW > 0.0f)
+                    effectiveWidth = camW;
+
+                if (camH > 0.0f)
+                    effectiveHeight = camH;
             }
         }
 
@@ -794,49 +804,59 @@ namespace pg
         {
             switch (uniform.second.type)
             {
-                case UniformType::INT:
-                    shaderProgram->setUniformValue(uniform.first, std::get<int>(uniform.second.value));
-                    break;
-                case UniformType::FLOAT:
-                    shaderProgram->setUniformValue(uniform.first, std::get<float>(uniform.second.value));
-                    break;
-                case UniformType::VEC2D:
-                    shaderProgram->setUniformValue(uniform.first, std::get<glm::vec2>(uniform.second.value));
-                    break;
-                case UniformType::VEC3D:
-                    shaderProgram->setUniformValue(uniform.first, std::get<glm::vec3>(uniform.second.value));
-                    break;
-                case UniformType::VEC4D:
-                    shaderProgram->setUniformValue(uniform.first, std::get<glm::vec4>(uniform.second.value));
-                    break;
-                case UniformType::MAT4D:
-                    shaderProgram->setUniformValue(uniform.first, std::get<glm::mat4>(uniform.second.value));
-                    break;
-                case UniformType::ID:
+            case UniformType::INT:
+                shaderProgram->setUniformValue(uniform.first, std::get<int>(uniform.second.value));
+                break;
+
+            case UniformType::FLOAT:
+                shaderProgram->setUniformValue(uniform.first, std::get<float>(uniform.second.value));
+                break;
+
+            case UniformType::VEC2D:
+                shaderProgram->setUniformValue(uniform.first, std::get<glm::vec2>(uniform.second.value));
+                break;
+
+            case UniformType::VEC3D:
+                shaderProgram->setUniformValue(uniform.first, std::get<glm::vec3>(uniform.second.value));
+                break;
+
+            case UniformType::VEC4D:
+                shaderProgram->setUniformValue(uniform.first, std::get<glm::vec4>(uniform.second.value));
+                break;
+
+            case UniformType::MAT4D:
+                shaderProgram->setUniformValue(uniform.first, std::get<glm::mat4>(uniform.second.value));
+                break;
+
+            case UniformType::ID:
+            {
+                std::string id = std::get<std::string>(uniform.second.value);
+
+                const auto& value = rTable.at(id);
+
+                switch (value.type)
                 {
-                    std::string id = std::get<std::string>(uniform.second.value);
+                case UnionType::FLOAT:
+                    shaderProgram->setUniformValue(uniform.first, value.get<float>());
+                    break;
 
-                    const auto& value = rTable.at(id);
+                case UnionType::INT:
+                case UnionType::SIZE_T:
+                    shaderProgram->setUniformValue(uniform.first, value.get<int>());
+                    break;
 
-                    switch(value.type)
-                    {
-                        case UnionType::FLOAT:
-                            shaderProgram->setUniformValue(uniform.first, value.get<float>());
-                            break;
-                        case UnionType::INT:
-                        case UnionType::SIZE_T:
-                            shaderProgram->setUniformValue(uniform.first, value.get<int>());
-                            break;
-                        case UnionType::BOOL:
-                            shaderProgram->setUniformValue(uniform.first, value.get<bool>());
-                            break;
-                        case UnionType::STRING:
-                        default:
-                        {
-                            LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());
-                        }
-                    }
+                case UnionType::BOOL:
+                    shaderProgram->setUniformValue(uniform.first, value.get<bool>());
+                    break;
+
+                case UnionType::STRING:
+                default:
+                    LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());
+                    break;
                 }
+
+                break;
+            }
             }
         }
 
@@ -848,12 +868,6 @@ namespace pg
         // Override sWidth/sHeight with camera viewport dimensions for zoom support
         shaderProgram->setUniformValue("sWidth", effectiveWidth);
         shaderProgram->setUniformValue("sHeight", effectiveHeight);
-
-        if (not call.mesh)
-        {
-            LOG_ERROR(DOM, "Mesh not set for render call with key: " << call.key);
-            return;
-        }
 
         call.mesh->bind();
 
