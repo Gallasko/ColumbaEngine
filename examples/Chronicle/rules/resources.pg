@@ -1,7 +1,8 @@
 // Chronicle rules: what he holds, and what a month does to it
 // ----------------------------------------------------------
-// Input:  `character` (a table of stats and flags), `board` (true when the month is spent at an
-//         activity that feeds him: activitytable.pg's `board`).
+// Input:  `age` (years, at the end of the month), `character` (a table of stats and flags),
+//         `board` (true when the month is spent at an activity that feeds him:
+//         activitytable.pg's `board`).
 // Output: `month`:
 //           after    every stat of the character once one month has passed
 //           entries  [{text, kind, figure, glyph}]: the log lines that month writes
@@ -72,10 +73,20 @@ var mending = [
     {stat: "vit", amount: 1, every: 2}
 ]
 
-// What a life cannot go on without: with none of it left the life ends, and a new one begins
-var mortal = [
-    {stat: "vit", entry: "The last life ended, his vitality spent"}
+// Old age: from `fromAge` on, the most a stat can be (its cap) falls by `amount` every `every`
+// months, and the stat with it, so nothing mends it back. It is not a hurt (`month.hurt`): the
+// years take it, the page does not stop for it.
+var aging = [
+    {stat: "vit", fromAge: lastAge, amount: 1, every: 2}
 ]
+
+// What a life cannot go on without: with none of it left the life ends, and a new one begins.
+// `aged` is the line of a life that ended in its old age.
+var mortal = [
+    {stat: "vit", entry: "The last life ended, his vitality spent", aged: "The last life ended in old age, its chronicle written"}
+]
+
+var lived = monthOf(age)
 
 // Every stat as it is, then the month on top
 var after = {}
@@ -185,6 +196,29 @@ for (var r = 0; r < len(mending); r++)
         }
 
         after[rest] = rested
+    }
+}
+
+for (var o = 0; o < len(aging); o++)
+{
+    var old = aging[o]
+    var since = lived - old.fromAge * 12
+
+    if (capOf(old.stat) != "" and has(character, old.stat) and since > 0 and since % old.every == 0)
+    {
+        var most = mostOf(after, old.stat) - old.amount
+
+        if (most < 0)
+        {
+            most = 0
+        }
+
+        after[capOf(old.stat)] = most
+
+        if (after[old.stat] > most)
+        {
+            shiftIn(after, change, old.stat, most - after[old.stat])
+        }
     }
 }
 
@@ -314,5 +348,10 @@ for (var m = 0; m < len(mortal); m++)
     if (death == "" and has(character, mortal[m].stat) and statOf(character, mortal[m].stat) <= 0)
     {
         death = mortal[m].entry
+
+        if (lived >= lastAge * 12)
+        {
+            death = mortal[m].aged
+        }
     }
 }

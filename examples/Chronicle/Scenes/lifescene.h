@@ -22,6 +22,7 @@ namespace chronicle
         std::string rulesRoot = "examples/Chronicle/rules";
         std::string pageFile = "res/chronicle/ui/life.yaml";
         std::string compactFile = "res/chronicle/ui/life-compact.yaml";   // Below the three columns' size
+        std::string endingFile = "res/chronicle/ui/ending.yaml";          // Over the page, when a life ends
         float monthMs = 2000.0f;       // One month every so many ms while the loop runs (--month-ms)
     };
 
@@ -41,9 +42,10 @@ namespace chronicle
         void execute() override;       // The deeds reached since the last frame; months tick on TickEvent
 
         // Public for the tests and the dev keys
-        void onMonth();                // One month passes; a life with nothing left to live on ends, one at its last milestone stops
+        void onMonth();                // One month passes; a life with nothing left to live on ends
         bool saveNow();                // Writes the save (not with --no-save)
         void newLife();                // A fresh life, rebuilt and republished
+        void beginAgain();             // From the ending: it closes, the next life begins and says how the last one ended
 
         pg::EntityRef named(const std::string& name) const;   // A handle from the page, empty if none
 
@@ -62,8 +64,11 @@ namespace chronicle
         LifeSave save;
         Rules rules;
         pg::EntityRef page;
+        pg::EntityRef ending;          // The veil and the leaf over the page, while `ended`
+        RuleEpitaph epitaph;           // What the ending says, from epitaph.pg
         std::vector<FactRouter::SubId> subs;
         bool paused = true;
+        bool ended = false;            // The life is over and its ending is up: nothing passes until the next begins
         bool compact = false;          // Which file the page is: opt.compactFile or opt.pageFile
         int sideTab = 0;               // Compact: the side panel in view (parts, holds, years, log)
         float windowWidth = 1320.0f;   // As the last fit saw it
@@ -85,9 +90,10 @@ namespace chronicle
         void fillWindows();            // The doors on the clock, as the rules list them for his path
         void refreshHoldings();        // resources.pg's rows, rates, glosses and verdict for the character as he is
         bool boarded() const;          // The activity at work feeds him
-        bool lifeOver() const;         // No milestone left ahead: the life is written to its end
         const RuleActivity* activityOf(const std::string& id) const;   // From the last activities.pg output, nullptr if none
-        void endLife();                // The life is lost: a new one begins, and says why
+        void endLife();                // The life is lost: the months stop and its ending comes up
+        bool showEnding();             // The ending from its file, over the page, saying what epitaph.pg says
+        void closeEnding();            // The ending leaves
         void alert(const std::vector<std::string>& stats);   // The parts a month took from, in red for a moment; the months stop at the first
         void clearAlert();             // Back to ink
         void registerDeeds();          // The deeds not reached yet, handed to the AchievementSys
@@ -125,6 +131,8 @@ namespace chronicle
         pg::RecordList holdings;                  // The last resources.pg rows
         std::vector<RuleGloss> holdingGlosses;    // And what hovering each says
         std::string death;                        // "" or why the character as he is cannot go on
+        std::string endedLine;                    // The line the next life opens with: how this one ended
+        std::string endedAge;                     // And the age it ended at, as the head wrote it
         std::unordered_map<std::string, int> caps;   // The most each capped stat can be
         std::vector<RuleAchievement> deeds;       // The achievements.pg output
         std::vector<std::string> reached;         // Deeds unlocked, waiting for execute()

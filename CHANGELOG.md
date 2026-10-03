@@ -105,15 +105,25 @@ First tagged release. Everything below describes the state of the engine at the 
   skills at 10; a life with no Vitality left ends before the term pays. An activity is listed once he is
   of age for it and holds most of what it asks (75% on average, costs aside), so a child is not shown
   every locked door at once. A fresh life starts with 12
-  rations, and a life is written up to 30, where the months stop. The Guild's letter and its wage are gone.
+  rations. The Guild's letter and its wage are gone.
   Migration: a save from before holds the old stats (`swd`, `ride`, `haggle`, `letter`); start a new
   life.
 - Chronicle: confirming an activity starts the months, one every 2 seconds (`--month-ms N` to change
   it), and they stop when its term ends. The running row's progress rule fills through each month in
-  the month's time (`ProgressRule::setGlide`, `ActivityRow::setGlide`). `SPACE` still pauses and
-  resumes, keeping what the month had run, and `M` passes one month. The head of "At work now" reads
+  the month's time (`ProgressRule::setGlide`, `ActivityRow::setGlide`). `SPACE` pauses and resumes
+  work under way, keeping what the month had run; at nothing it does nothing, and a *Pass a month*
+  button in "At work now" passes one. The head of "At work now" reads
   `RUNNING`, `PAUSED · SPACE` or `IDLE` (`Panel::setAsideColor`), and a month that stops the work
   because it took from Vitality says so in the log, with the key that goes on.
+- Chronicle: a life no longer stops at 30. The last milestone ends his prime: every activity of it
+  closes, an *Old age* group (tales at the inn, a garden, teaching) and the market's rations stay,
+  and the most his Vitality can be falls by one every two months (`aging` in `rules/resources.pg`)
+  until the life ends, with its own line in the next life's log. `resources.pg` takes `age`.
+  Migration: `Rules::month` takes the age first (`month(age, character, board, out)`).
+- Chronicle: a life that ends is no longer replaced at once. Its ending comes up over the page
+  (`res/chronicle/ui/ending.yaml`): who he was, how it ended, what he became, the work he went
+  back to most, what he left, the deeds told of him and his figures, written by the new
+  `rules/epitaph.pg`. Nothing passes until *Begin a new life* (or `N`).
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written

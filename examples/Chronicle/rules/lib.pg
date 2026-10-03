@@ -354,9 +354,13 @@ fun openNote(monthsLeft, attempts)
     return note + numberWord(attempts + 1) + " do not."
 }
 
-// The age a life is written up to: the last milestone (milestonetable.pg), and the latest an
-// activity may finish by (activitytable.pg's `finishBy`).
+// The age his prime is written up to: the last milestone (milestonetable.pg), the latest an
+// activity may finish by unless it says otherwise (activitytable.pg's `finishBy`), and where old
+// age begins (resources.pg's `aging`). The life goes on past it, until it has nothing left.
 var lastAge = 30
+
+// The `finishBy` of what an old man may still do: no age closes it.
+var anyAge = 200
 
 // The names a stat or a flag is written with.
 var statNames = {

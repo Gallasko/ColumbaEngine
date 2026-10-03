@@ -352,11 +352,12 @@ namespace chronicle
 
     void LifeClock::setAge(EntitySystem* ecs, float a, bool animate)
     {
+        // The figure is the fact and changes at once, past the track's end too: a life may outlast
+        // its scale. The fill catches up, and stops at the end.
+        age.setText(ecs, ageText(std::max(a, spec.startAge)));
+
         a = std::clamp(a, spec.startAge, spec.endAge);
         spec.age = a;
-
-        // The figure is the fact and changes at once; the fill catches up.
-        age.setText(ecs, ageText(a));
 
         if (auto entity = ecs->getEntity(lived.id); entity and entity->has<TweenComponent>())
             ecs->detach<TweenComponent>(entity);

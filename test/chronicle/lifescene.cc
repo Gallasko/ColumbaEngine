@@ -209,7 +209,7 @@ namespace pg
                 "parts", "str", "dex", "int", "vit", "skills", "holds", "ledger",
                 "may", "activities",
                 "clockPanel", "clock",
-                "working", "running", "happened", "log",
+                "working", "running", "skip", "happened", "log",
             };
 
             struct Box
@@ -698,6 +698,7 @@ namespace pg
             life->save.stats["rations"] = 24;
 
             const float age = life->save.age;
+            const int yardBefore = life->save.done["yard"];
 
             auto working = life->piece<Panel>("working");
             ASSERT_NE(working, nullptr);
@@ -765,11 +766,87 @@ namespace pg
             f.ecs.sendEvent(TickEvent{life->opt.monthMs * 10.0f});
             f.settle();
 
+            // One term: the mockup's life had done one at the yard already
             EXPECT_TRUE(life->save.running.empty());
             EXPECT_TRUE(life->paused);
-            EXPECT_EQ(life->save.done["yard"], 1);
+            EXPECT_EQ(life->save.done["yard"], yardBefore + 1);
             EXPECT_NEAR(life->save.age, age + 0.5f, 0.001f);
             EXPECT_EQ(working->aside->spec.text, "IDLE");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // At nothing, no key makes the months run: a month passes by its button, which stands in "At
+        // work now" in the running row's place and leaves when work begins.
+        TEST(lifescene_test, a_month_passes_by_its_button)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            life->save.stats["rations"] = 24;
+
+            auto button = life->piece<Button>("skip");
+            ASSERT_NE(button, nullptr);
+            ASSERT_FALSE(life->named("skip").empty());
+
+            const float age = life->save.age;
+
+            // Idle: the button is there, under the head of the panel
+            EXPECT_TRUE(f.pos(life->named("skip"))->visible);
+            EXPECT_FALSE(button->spec.disabled);
+            EXPECT_NEAR(f.pos(life->named("working"))->height, 83.0f + 36.0f + 12.0f, 0.5f);
+
+            // SPACE does not start the months
+            f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_SPACE, 0});
+            f.ecs.sendEvent(TickEvent{life->opt.monthMs * 2.0f});
+            f.settle();
+
+            EXPECT_TRUE(life->paused);
+            EXPECT_FLOAT_EQ(life->save.age, age);
+
+            // The button passes one month, and the months stay stopped
+            f.ecs.sendEvent(ButtonActivatedEvent{button->face.id, "life.skip"});
+            f.settle();
+
+            EXPECT_NEAR(life->save.age, age + 1.0f / 12.0f, 0.0001f);
+            EXPECT_TRUE(life->paused);
+            EXPECT_EQ(life->save.stats["rations"], 23);
+
+            f.ecs.sendEvent(TickEvent{life->opt.monthMs * 2.0f});
+            f.settle();
+
+            EXPECT_NEAR(life->save.age, age + 1.0f / 12.0f, 0.0001f);
+
+            // At work: the button leaves, the row takes its place, and it passes nothing
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "yard");
+            EXPECT_FALSE(f.pos(life->named("skip"))->visible);
+            EXPECT_TRUE(button->spec.disabled);
+
+            // The panel holds the row alone: the button's place in the stack is gone with it
+            ActivityRow* row = life->piece<ActivityList>("running")->find(&f.ecs, "yard");
+            ASSERT_NE(row, nullptr);
+            EXPECT_NEAR(f.pos(life->named("working"))->height, 83.0f + f.pos(row->root)->height, 0.5f);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{button->face.id, "life.skip"});
+            f.settle();
+
+            EXPECT_EQ(life->save.monthsIn, 0);
+
+            // The term over, it is back
+            for (int i = 0; i < 6; ++i)
+                life->onMonth();
+            f.settle();
+
+            ASSERT_TRUE(life->save.running.empty());
+            EXPECT_TRUE(f.pos(life->named("skip"))->visible);
+            EXPECT_FALSE(button->spec.disabled);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -1203,6 +1280,14 @@ namespace pg
             life->onMonth();
             f.settle();
 
+            // Over: its ending is up, and the next life waits for it to be left
+            EXPECT_TRUE(life->ended);
+            EXPECT_GT(life->save.age, 17.5f);
+
+            life->beginAgain();
+            f.settle();
+
+            EXPECT_FALSE(life->ended);
             EXPECT_FLOAT_EQ(life->save.age, 7.0f);
             EXPECT_FLOAT_EQ(f.fact<float>("life.age"), 7.0f);
             EXPECT_EQ(life->save.stats["vit"], 8);
@@ -1981,6 +2066,13 @@ namespace pg
             life->onMonth();
             f.settle();
 
+            // Over, with the mill still under way
+            EXPECT_TRUE(life->ended);
+            EXPECT_EQ(life->save.running, "mill");
+
+            life->beginAgain();
+            f.settle();
+
             // A new life, and the mill's term never came
             EXPECT_FLOAT_EQ(life->save.age, 7.0f);
             EXPECT_TRUE(life->save.running.empty());
@@ -1992,9 +2084,10 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // At the last milestone the chronicle is written: its line, the months stop, and no month
-        // comes after.
-        TEST(lifescene_test, the_life_stops_at_thirty)
+        // The last milestone ends his prime, not his life: its line, the work of an old man in place
+        // of every other, and from there his Vitality leaves him, a little every two months, with
+        // no red and no stop, until the life ends in its old age.
+        TEST(lifescene_test, old_age_begins_at_thirty)
         {
             MockLogger logger;
             LifeFixture f;
@@ -2004,42 +2097,196 @@ namespace pg
 
             life->save.age = 30.0f - 1.0f / 12.0f;
             life->save.stats["rations"] = 24;
-            life->paused = false;
+            life->save.stats["vit"] = 20;
+            life->save.stats["vitmax"] = 20;
 
             life->onMonth();
             f.settle();
 
             EXPECT_EQ(life->piece<Label>("age")->spec.text, "30.0");
-            EXPECT_TRUE(life->paused);
             EXPECT_EQ(f.fact<std::string>("life.next.label"), "");
+            EXPECT_EQ(life->save.stats["vit"], 20);
 
             bool written = false;
 
             for (const auto& entry : life->save.log)
             {
-                if (entry.kind == LogKind::Milestone and entry.text == "His chronicle is written to its thirtieth year")
+                if (entry.kind == LogKind::Milestone and entry.text.find("old age begins") != std::string::npos)
                     written = true;
             }
 
             EXPECT_TRUE(written);
 
-            // Nothing with a term is left to begin
-            EXPECT_EQ(life->piece<ActivityList>("activities")->row(&f.ecs, "carters"), nullptr);
-            EXPECT_NE(life->piece<ActivityList>("activities")->row(&f.ecs, "buy.rations"), nullptr);
+            // The work of his prime is closed, an old man's is there, and he can still buy his rations
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
 
-            // No month after: the age stays, one line says how to go on, once
-            const float age = life->save.age;
-            const size_t lines = life->save.log.size();
+            EXPECT_EQ(list->find(&f.ecs, "carters"), nullptr);
+            EXPECT_NE(list->find(&f.ecs, "buy.rations"), nullptr);
+            EXPECT_NE(list->find(&f.ecs, "tales"), nullptr);
+            EXPECT_NE(list->find(&f.ecs, "garden"), nullptr);
+            EXPECT_NE(list->find(&f.ecs, "teach"), nullptr);
 
-            life->paused = false;
-            life->onMonth();
+            // The months go on: he tells his tales, fed, and the second month takes from his Vitality
+            const int coin = life->save.stats["coin"];
+            const int rations = life->save.stats["rations"];
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "tales"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "tales");
+
             life->onMonth();
             f.settle();
 
-            EXPECT_FLOAT_EQ(life->save.age, age);
+            EXPECT_EQ(life->save.stats["vit"], 20);
+            EXPECT_FALSE(life->paused);
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["vit"], 19);
+            EXPECT_EQ(life->save.stats["vitmax"], 19);
+            EXPECT_EQ(life->save.done["tales"], 1);
+            EXPECT_EQ(life->save.stats["coin"], coin + 2);
+            EXPECT_EQ(life->save.stats["rations"], rations);
+
+            // The years took it: no part in red
+            EXPECT_FALSE(life->piece<StatLine>("vit")->spec.alert);
+            EXPECT_EQ(life->piece<StatLine>("vit")->figure.spec.text, "19");
+
+            // A year into his old age: the clock's figure goes past the end of its track
+            for (int i = 0; i < 10; ++i)
+                life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->piece<Label>("age")->spec.text, "31.0");
+            EXPECT_EQ(life->piece<LifeClock>("clock")->age.spec.text, "31");
+            EXPECT_EQ(life->save.stats["vit"], 14);
+            EXPECT_NE(list->find(&f.ecs, "tales"), nullptr);
+
+            // The last of it: the life ends, and the next one says it ended old
+            life->save.stats["vit"] = 1;
+            life->save.stats["vitmax"] = 1;
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_GT(life->save.age, 31.0f);
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_TRUE(life->ended);
+            EXPECT_NE(life->epitaph.cause.find("old man"), std::string::npos) << life->epitaph.cause;
+
+            life->beginAgain();
+            f.settle();
+
+            EXPECT_FLOAT_EQ(life->save.age, 7.0f);
             EXPECT_TRUE(life->paused);
-            ASSERT_EQ(life->save.log.size(), lines + 1);
-            EXPECT_EQ(life->save.log.back().kind, LogKind::Note);
+            EXPECT_NE(life->save.log.back().text.find("old age"), std::string::npos) << life->save.log.back().text;
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A life that ends is not replaced at once: its ending comes up over the page, a leaf in the
+        // middle of the window saying who he was, how it ended and what the chronicle keeps of him,
+        // on a veil that takes the mouse. Nothing passes until its button begins the next life.
+        TEST(lifescene_test, a_life_ends_on_its_ending)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            EXPECT_FALSE(life->ended);
+            EXPECT_TRUE(life->ending.empty());
+
+            // The mockup's life (23 terms, the carters' most of all, sworn to the Keep, three deeds),
+            // with nothing left to eat
+            life->save.stats["rations"] = 0;
+            life->save.stats["vit"] = 1;
+
+            life->onMonth();
+            f.settle();
+
+            ASSERT_TRUE(life->ended);
+            ASSERT_FALSE(life->ending.empty());
+            EXPECT_TRUE(life->paused);
+
+            // The page under it is the life as it ended
+            EXPECT_EQ(life->save.stats["vit"], 0);
+            EXPECT_EQ(life->piece<StatLine>("vit")->figure.spec.text, "0");
+
+            auto part = [&](const char* name) { return life->ending->get<Prefab>()->findEntity(name); };
+            auto said = [&](const char* name) { return part(name)->get<Label>()->spec.text; };
+
+            for (const char* name : {"veil", "leaf", "endName", "endCause", "endStory", "endTally", "again"})
+                ASSERT_FALSE(part(name).empty()) << name;
+
+            // What it says is the save's and the rules'
+            EXPECT_EQ(said("endName"), life->save.name);
+            EXPECT_EQ(said("endCause"), life->epitaph.cause);
+            EXPECT_NE(said("endCause").find("His strength gave out"), std::string::npos) << said("endCause");
+            EXPECT_EQ(said("endStory"), life->epitaph.text);
+            EXPECT_NE(said("endStory").find("He swore himself to the Keep"), std::string::npos) << said("endStory");
+            EXPECT_NE(said("endStory").find("Carry for the Carters"), std::string::npos) << said("endStory");
+            EXPECT_NE(said("endStory").find("The carters' road"), std::string::npos) << said("endStory");
+            EXPECT_EQ(said("endTally"), life->epitaph.tally);
+            EXPECT_EQ(said("endTally").rfind("AGE 17 \xC2\xB7 WORKS 23 \xC2\xB7 COIN ", 0), 0u) << said("endTally");
+
+            // The veil covers the window, over the page, and takes the mouse; the leaf stands in its
+            // middle, over the veil
+            auto veil = f.pos(part("veil"));
+            auto leaf = f.pos(part("leaf"));
+
+            EXPECT_NEAR(veil->x, 0.0f, 0.5f);
+            EXPECT_NEAR(veil->y, 0.0f, 0.5f);
+            EXPECT_NEAR(veil->width, 1320.0f, 0.5f);
+            EXPECT_NEAR(veil->height, 1020.0f, 0.5f);
+            EXPECT_TRUE(part("veil")->has<MouseEnterComponent>());
+            EXPECT_GT(veil->z, f.pos(life->named("may"))->z + 50.0f);
+            EXPECT_GT(leaf->z, veil->z);
+            EXPECT_NEAR(leaf->x + leaf->width / 2.0f, 660.0f, 1.0f);
+            EXPECT_NEAR(leaf->y + leaf->height / 2.0f, 510.0f, 1.0f);
+            EXPECT_GT(leaf->height, 150.0f);
+
+            // Nothing passes: no month, no work, no key
+            const float age = life->save.age;
+
+            life->onMonth();
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
+            f.ecs.sendEvent(ButtonActivatedEvent{life->piece<Button>("skip")->face.id, "life.skip"});
+            f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_SPACE, 0});
+            f.ecs.sendEvent(TickEvent{life->opt.monthMs * 3.0f});
+            f.settle();
+
+            EXPECT_TRUE(life->ended);
+            EXPECT_FLOAT_EQ(life->save.age, age);
+            EXPECT_TRUE(life->save.running.empty());
+
+            // Its button begins the next life, which says how the last one ended
+            Button again = *part("again")->get<Button>().component;
+
+            f.ecs.sendEvent(ButtonActivatedEvent{again.face.id, "life.again"});
+            f.settle();
+
+            EXPECT_FALSE(life->ended);
+            EXPECT_TRUE(life->ending.empty());
+            EXPECT_FLOAT_EQ(life->save.age, 7.0f);
+            EXPECT_TRUE(life->save.done.empty());
+            ASSERT_EQ(life->save.log.size(), 2u);
+            EXPECT_EQ(life->save.log.back().kind, LogKind::Loss);
+            EXPECT_NE(life->save.log.back().text.find("life ended"), std::string::npos);
+
+            // And the page takes work again
+            f.ecs.sendEvent(ButtonActivatedEvent{life->piece<Button>("skip")->face.id, "life.skip"});
+            f.settle();
+
+            EXPECT_GT(life->save.age, 7.0f);
         }
 
         // ----------------------------------------------------------------------------------------

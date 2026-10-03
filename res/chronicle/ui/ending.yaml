@@ -1,0 +1,52 @@
+# The end of a life: a veil over the Life page and, in its middle, what the chronicle keeps of him.
+#
+# Built by LifeScene (examples/Chronicle/Scenes/lifescene.cpp) over the page when a life ends,
+# and removed when the next one begins. This file is layout and placeholder content only: the
+# name is the save's, the cause, the story and the figures are rules/epitaph.pg's.
+#
+# The veil fills the window (__MainWindow, the viewport) and takes the mouse, so nothing of the
+# page under it is hovered or clicked; the leaf stands in the window's middle and grows with what
+# it says. z: the Overlay band, 100-129 (the veil 100, the leaf 104, its content 114), over the
+# page's panels (10-59) and under the tooltips (200).
+name: ending
+children:
+
+  - kind: Shape2D
+    name: veil
+    width: 1320
+    height: 1020
+    z: 100
+    theme: ending.veil
+    anchors:
+      - {side: left, target: __MainWindow, targetSide: left}
+      - {side: right, target: __MainWindow, targetSide: right}
+      - {side: top, target: __MainWindow, targetSide: top}
+      - {side: bottom, target: __MainWindow, targetSide: bottom}
+
+  - kind: Panel
+    name: leaf
+    frame: illuminated
+    width: 520
+    heading: The chronicle closes
+    glyph: skull
+    z: 104
+    contentZ: 114
+    anchors:
+      - {side: horizontalCenter, target: __MainWindow, targetSide: horizontalCenter}
+      - {side: verticalCenter, target: __MainWindow, targetSide: verticalCenter}
+    children:
+      - {kind: Label, name: endName, style: title, overflow: wrap, text: Aldren of Bellmoor}
+      - {kind: Label, name: endCause, style: gloss, color: ink-muted, overflow: wrap, text: "He died an old man, in his thirty-third year."}
+      - {kind: Ornament, ornament: divider, knot: false}
+      - kind: Label
+        name: endStory
+        style: body
+        overflow: wrap
+        text: "He chose no path, and lived by the work of his hands. Nothing he did was written down. He left nothing but his name."
+      - {kind: Label, name: endTally, style: label, color: ink-muted, overflow: wrap, text: "AGE 33 · WORKS 0 · COIN 0 · DEEDS 0"}
+      - kind: Button
+        name: again
+        variant: seal
+        label: Begin a new life
+        glyph: seal
+        tag: life.again

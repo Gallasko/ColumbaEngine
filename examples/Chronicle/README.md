@@ -20,12 +20,17 @@ With no `--dev` the game opens on the **Life scene** (`--dev LifeScene` names it
 `--dev <Scene>` picks a dev gallery instead; an unknown name exits with code 2 before a
 window opens. On the Life scene, confirming an activity starts the months (one every 2 s,
 `--month-ms`), and they stop when its term ends, waiting for the next choice. The running
-row's rule fills through each month in the month's own time. `SPACE` pauses or resumes the
-months (a paused month keeps what it ran), and the head of *At work now* says which:
-`RUNNING`, `PAUSED · SPACE` in red, or `IDLE` between two works. `M` passes one month, `T` switches the theme, `R` reduced motion, `S` saves, `N` starts
-a new life. A life whose Vitality reaches 0 is lost: a new one begins at 7 with 12 rations, the
-months stopped and a line in its log saying how the last one ended. A life is written up to 30:
-there the months stop, the page stays as the life left it, and `N` begins the next. Vitality stands under the
+row's rule fills through each month in the month's own time. `SPACE` pauses or resumes work
+under way (a paused month keeps what it ran), and the head of *At work now* says which:
+`RUNNING`, `PAUSED · SPACE` in red, or `IDLE` between two works. At nothing no key runs the
+months: *Pass a month*, the button standing in *At work now* in the running row's place, passes
+one. `M` passes one month at any time (a dev key), `T` switches the theme, `R` reduced motion, `S` saves, `N` starts
+a new life. A life whose Vitality reaches 0 is lost: its **ending** comes up over the page, a leaf
+saying who he was, how it ended and what the chronicle keeps of him, and nothing passes until
+*Begin a new life* (or `N`). The next one begins at 7 with 12 rations, the
+months stopped and a line in its log saying how the last one ended. His prime ends at 30: every
+activity of it closes, only an old man's work and the market are left, and from there the most
+his Vitality can be falls by one every two months, until that life ends too. Vitality stands under the
 clock's age at the top of the right column, his other parts in a panel under the log. A month
 that takes from it turns it red for a moment, and the first such month stops the running
 months, with a line in the log naming the part and the key that goes on. What was taken mends, one every two months, up to the most it can be: the hatch on its
@@ -373,13 +378,14 @@ which hold everything and are what `windows.pg` and `forecast.pg` import. `lib.p
 
 | script | inputs | outputs |
 |---|---|---|
-| `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthOf` (whole months lived), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup`, `raised` (a gain stopped at the stat's ceiling), `byId`, `pathFlagOf`, `asksOf`, `openNote`, `shiftIn` (a month's change to a stat); `lastAge` (30) |
+| `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthOf` (whole months lived), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup`, `raised` (a gain stopped at the stat's ceiling), `byId`, `pathFlagOf`, `asksOf`, `openNote`, `shiftIn` (a month's change to a stat); `lastAge` (30, where his prime ends), `anyAge` (the `finishBy` of what no age closes) |
 | `activities.pg` (`activitytable.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own) | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label}], costs[{stat, amount, label}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, tally ("DONE 2", "DONE 0 · 1 LEFT"), after[step]}` |
 | `milestones.pg` (`milestonetable.pg`) | `age` | `milestones`: `{age, id, label, passed, entry, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
 | `windows.pg` | `age`, `character`, `done`, `activityId` (`""`) | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}`, one per door of an activity whose path is open to him |
 | `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atStart{stats}, atTerm{stats}, percent, months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
-| `resources.pg` | `character`, `board` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
+| `resources.pg` | `age`, `character`, `board` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
 | `achievements.pg` | - | `achievements`: `{id, name, entry, asks[{fact, op, value}], gives[{stat, amount}]}` |
+| `epitaph.pg` | `age`, `character`, `done`, `activityId` (`""`), `deeds` (the names of the deeds reached) | `epitaph`: `{cause ("He died an old man, in his thirty-third year."), story[text] (what he became, worked at, left, and what is told of him), text (the story as one paragraph), tally ("AGE 33 · WORKS 14 · COIN 31 · DEEDS 2")}` |
 
 **Repetition** (`activities.pg`). `done` is the save's count of terms completed per activity.
 An activity may carry two optional fields:
@@ -402,7 +408,7 @@ done while another activity runs. Its row reads `NOW` where the others read thei
 **Ages and paths** (`activities.pg`). `fromAge` (default 7) is the youngest he may begin it:
 younger, the first thing it asks is the age. `finishBy` (default `lastAge`) is the latest its
 term may end, inclusive: an 18-month activity with `finishBy: 20` is begun by 18.5. Past that
-it is `closed`. `path` puts an activity on one of `paths` (`warrior`, `mage`, `thief`, each with
+it is `closed` (`anyAge` for what no age closes). `path` puts an activity on one of `paths` (`warrior`, `mage`, `thief`, each with
 the flag that makes him one of it); the one that `enters` it is open until he is one of any
 path, the others only once he is one of theirs (`pathOpen`). The paths exclude each other. A row
 is `listed` while its path is open, it is neither spent nor closed, he is of age for it, and
@@ -457,9 +463,32 @@ the cap takes what it has as its most.
 month of a run of them.
 `death` is the entry of the first one the character as given has none left of, else `""`. The
 scene asks after every month, **before the term of the activity at work pays**, and after every
-activity done at once; on a death it starts a fresh life, pauses the months and writes the entry
-in the new log, with the age the last life ended at. The last milestone (`lastAge`, 30) ends the
-life too, without a death: its `entry` is written, the months stop, and no month passes after.
+activity done at once; on a death it pauses the months and shows the ending, and the life that
+begins from it writes the entry in its log, with the age the last life ended at (`mortal`'s
+`aged` entry when it ended past `lastAge`).
+
+**The ending** (`epitaph.pg`, `res/chronicle/ui/ending.yaml`). When a life ends the scene runs
+`epitaph.pg` on the character as he died and builds `ending.yaml` over the page, in the Overlay
+band: a veil over the whole window (`ending.veil`) and an illuminated leaf in its middle with his
+name (the save's), `cause`, `text` and `tally`, and one Seal button. The page under it is
+published once more, so it shows the life as it ended. The veil takes the mouse (hover is
+topmost-only, so no row or button under it is hovered or clicked), and the scene refuses months,
+confirms and `SPACE` while `ended`. *Begin a new life* (tag `life.again`) or `N` removes the
+ending and starts the next life. A save written at an ending opens on it. If the ending cannot
+be built, the next life begins at once, as it did before there was one. The words are table
+driven in the script: `standings` (the highest flag he holds is the one said), `legacies` (by the
+coin he held), the work he went back to most (terms of timed activities, the table's order on a
+tie) and the deeds by name.
+
+**Old age** (`lib.pg`, `resources.pg`, `activities.pg`). The last milestone (`lastAge`, 30) ends
+his prime, not his life: its `entry` is written and the months go on. Every activity closes there
+unless it says otherwise (`finishBy` defaults to `lastAge`); the *Old age* group and the market's
+rations carry `finishBy: anyAge` and stay. The group is listed from `lastAge - 1`: the last
+months of his prime are too short for any other work, and the months only run while he works.
+`aging [{stat, fromAge, amount, every}]` takes `amount` from the stat's cap every `every` months
+past `fromAge`, and from the stat when it stood above: nothing mends it back, so a life always
+ends. It is not in `month.hurt`: no red, no pause. The clock's track stops at 30; its age
+figure does not.
 
 **Deeds** (`achievements.pg`). Each deed asks facts the Life scene publishes (`stat.<key>`,
 `done.<activity id>`, `life.age`) with an `op` of `>=`, `>`, `<=`, `<` or `==`. The scene hands

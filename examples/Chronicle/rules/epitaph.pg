@@ -1,0 +1,158 @@
+// Chronicle rules: what is said of a life when it ends
+// ----------------------------------------------------
+// Input:  `age` (years, when it ended), `character` (a table of stats and flags), `done` (activity
+//         id -> terms completed, read by activitytable.pg), `activityId` (""), `deeds` (the names
+//         of the deeds he reached, in the order he reached them).
+// Output: `epitaph`:
+//           cause   how it ended, in a sentence: "He died an old man, in his thirty-third year."
+//           story   [text]: what the chronicle keeps of him, a sentence each: what he became,
+//                   what he worked at, what he left, what is told of him
+//           text    the story as one paragraph
+//           tally   his figures on one line of caps: "AGE 33 · WORKS 14 · COIN 31 · DEEDS 2"
+//
+// No function here: lib.pg holds them all, ahead of every table (see there why).
+//
+// The words are placeholders for the game's writing: change them here, nothing in C++ moves.
+
+import "string"
+import "math"
+import "algorithm"
+import "lib"
+import "activitytable"
+
+var errors = []
+
+// What he became, the highest first: the first flag he holds is the one that is said
+var standings = [
+    {flag: "captain", text: "He rose to Captain of Bellmoor, and the Keep kept his name."},
+    {flag: "mage_of_harrow", text: "He performed the Harrow Working, and the Collegium does not speak of it lightly."},
+    {flag: "master_thief", text: "He emptied the Bellmoor Vault, and no one ever proved it."},
+    {flag: "keep_oath", text: "He swore himself to the Keep and served it under arms."},
+    {flag: "collegium", text: "He sat among the scholars of the Collegium."},
+    {flag: "hidden_hand", text: "He worked for the Hidden Hand, and the town never knew."}
+]
+
+// What he left, by the coin he held: the first he reaches is the one that is said
+var legacies = [
+    {coin: 100, before: "He died a rich man, with ", after: " coin to his name."},
+    {coin: 20, before: "He left ", after: " coin behind him."},
+    {coin: 1, before: "He left little: ", after: " coin."}
+]
+
+// The age a path may be chosen from: younger, he had no time to choose
+var pathAge = 16
+
+// `lived`, the months of his life, is activitytable.pg's
+var year = toInt(floor(lived / 12))
+
+var cause = "His strength gave out in his " + ordinalWord(year) + " year."
+
+if (lived >= lastAge * 12)
+{
+    cause = "He died an old man, in his " + ordinalWord(year) + " year."
+}
+
+var story = []
+
+var became = "He chose no path, and lived by the work of his hands."
+
+if (year < pathAge)
+{
+    became = "He did not live to choose a path."
+}
+
+var standing = false
+
+for (var s = 0; s < len(standings); s++)
+{
+    if (not standing and statOf(character, standings[s].flag) > 0)
+    {
+        became = standings[s].text
+        standing = true
+    }
+}
+
+push(story, became)
+
+// The terms he completed, and the work he went back to most: the first of the table on a tie.
+// What is done at once is not a work
+var works = 0
+var mostDone = 0
+var mostName = ""
+
+for (var i = 0; i < len(activities); i++)
+{
+    var a = activities[i]
+
+    if (a.months > 0)
+    {
+        works = works + a.done
+
+        if (a.done > mostDone)
+        {
+            mostDone = a.done
+            mostName = a.name
+        }
+    }
+}
+
+if (works == 0)
+{
+    push(story, "Nothing he did was written down.")
+}
+else if (works == 1)
+{
+    push(story, "One work is written under his name: " + mostName + ".")
+}
+else
+{
+    push(story, "Of his " + toString(works) + " works, the one he went back to most was " + mostName + ".")
+}
+
+var coin = statOf(character, "coin")
+var left = "He left nothing but his name."
+var legacy = false
+
+for (var l = 0; l < len(legacies); l++)
+{
+    if (not legacy and coin >= legacies[l].coin)
+    {
+        left = legacies[l].before + toString(coin) + legacies[l].after
+        legacy = true
+    }
+}
+
+push(story, left)
+
+if (len(deeds) > 0)
+{
+    var told = "They still tell of it: "
+
+    for (var d = 0; d < len(deeds); d++)
+    {
+        if (d > 0)
+        {
+            told = told + ", "
+        }
+
+        told = told + deeds[d]
+    }
+
+    push(story, told + ".")
+}
+
+var text = ""
+
+for (var t = 0; t < len(story); t++)
+{
+    if (t > 0)
+    {
+        text = text + " "
+    }
+
+    text = text + story[t]
+}
+
+var tally = "AGE " + toString(year) + " · WORKS " + toString(works) + " · COIN " + toString(coin) + " · DEEDS " + toString(len(deeds))
+
+var epitaph = {cause: cause, story: story, text: text, tally: tally}

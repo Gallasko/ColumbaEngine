@@ -5,7 +5,8 @@
 // Output: `milestones`, every milestone {age, id, label, passed, entry, asks}, where `asks` lists
 //         what each path asks at it: [{path, stat, label, needed}] (the doors of
 //         activitytable.pg it opens onto), and `entry` is "" or the line the log writes when he
-//         reaches it. The last one is lib.pg's `lastAge`: the life is written up to there;
+//         reaches it. The last one is lib.pg's `lastAge`: his prime ends there and old age
+//         begins (resources.pg's `aging`), the life goes on;
 //         `next`, the first milestone after `age`: {id, label, age, in} with `in` the whole
 //         months to it; past the last one: {id: "", label: "", age: -1, in: -1};
 //         `headline`, the page's head at `age`: {ageText ("17.5"), subtitle ("THE SEVENTEENTH
@@ -53,7 +54,7 @@ var milestoneTable = [
         {path: "thief", stat: "stealth", label: "Stealth", needed: 8},
         {path: "thief", stat: "guile", label: "Guile", needed: 7}
     ]},
-    {age: lastAge, id: "end", label: "The end", entry: "His chronicle is written to its thirtieth year", asks: []}
+    {age: lastAge, id: "old", label: "Old age", entry: "His thirtieth year: old age begins, and his strength leaves him", asks: []}
 ]
 
 // Counted in whole months, so an age that is a sum of twelfths reaches its milestone on time

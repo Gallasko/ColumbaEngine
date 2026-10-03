@@ -442,7 +442,8 @@ namespace chronicle
                                     {&windowsScript, "windows.pg"},
                                     {&forecastScript, "forecast.pg"},
                                     {&resourcesScript, "resources.pg"},
-                                    {&achievementsScript, "achievements.pg"}})
+                                    {&achievementsScript, "achievements.pg"},
+                                    {&epitaphScript, "epitaph.pg"}})
         {
             if (not script->load(ecs, root + "/" + file))
             {
@@ -577,12 +578,13 @@ namespace chronicle
         return true;
     }
 
-    bool Rules::month(const ElementMap& character, bool board, RuleMonth& out)
+    bool Rules::month(float age, const ElementMap& character, bool board, RuleMonth& out)
     {
         RuleScript& s = resourcesScript;
         s.clearErrors();
         out = RuleMonth{};
 
+        s.set("age", ElementType{age});
         s.set("character", character);
         s.set("board", ElementType{board});
 
@@ -638,6 +640,39 @@ namespace chronicle
 
             out.push_back(std::move(achievement));
         }
+
+        return true;
+    }
+
+    bool Rules::epitaph(float age, const ElementMap& character, const std::vector<std::string>& deeds, RuleEpitaph& out)
+    {
+        RuleScript& s = epitaphScript;
+        s.clearErrors();
+        out = RuleEpitaph{};
+
+        std::vector<ElementType> names;
+
+        for (const auto& deed : deeds)
+            names.push_back(ElementType{deed});
+
+        s.set("age", ElementType{age});
+        s.set("character", character);
+        s.set("done", done);
+        s.set("activityId", ElementType{std::string()});
+        s.set("deeds", names);
+
+        ElementMap head;
+        std::vector<ElementType> story;
+
+        if (not s.run() or not s.get("epitaph", head) or not s.get("epitaph.story", story))
+            return fail(s);
+
+        out.cause = text(head, "cause");
+        out.text = text(head, "text");
+        out.tally = text(head, "tally");
+
+        for (const auto& line : story)
+            out.story.push_back(line.toString());
 
         return true;
     }

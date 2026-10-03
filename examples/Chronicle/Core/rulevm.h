@@ -126,6 +126,15 @@ namespace chronicle
         std::string death;             // "" or the line the next life opens with: the character as given cannot go on
     };
 
+    // What is said of a life when it ends, from epitaph.pg.
+    struct RuleEpitaph
+    {
+        std::string cause;             // "He died an old man, in his thirty-third year."
+        std::vector<std::string> story;   // What he became, worked at, left, and what is told of him
+        std::string text;              // The story as one paragraph
+        std::string tally;             // "AGE 33 · WORKS 14 · COIN 31 · DEEDS 2"
+    };
+
     // A deed from achievements.pg: {id, name, entry}, what it asks and what it gives.
     struct RuleAchievement
     {
@@ -157,13 +166,17 @@ namespace chronicle
         // forecast.pg: `activityId` for `character` at `age`, `monthsIn` months already spent.
         bool forecast(float age, const pg::ElementMap& character, const std::string& activityId, int monthsIn, RuleForecast& out);
 
-        // resources.pg: what one month does to what `character` holds (fed by his work when
-        // `board`), the ledger's rows and their glosses, and whether the character as he is can
-        // go on.
-        bool month(const pg::ElementMap& character, bool board, RuleMonth& out);
+        // resources.pg: what the month that ends at `age` does to what `character` holds (fed by
+        // his work when `board`; old age takes from him past the last milestone), the ledger's
+        // rows and their glosses, and whether the character as he is can go on.
+        bool month(float age, const pg::ElementMap& character, bool board, RuleMonth& out);
 
         // achievements.pg: every deed, what it asks and what it gives.
         bool achievements(std::vector<RuleAchievement>& out);
+
+        // epitaph.pg: what is said of `character`, whose life ended at `age`, with the names of the
+        // deeds he reached.
+        bool epitaph(float age, const pg::ElementMap& character, const std::vector<std::string>& deeds, RuleEpitaph& out);
 
         std::vector<std::string> errors;   // The last failed call's
 
@@ -173,6 +186,7 @@ namespace chronicle
         RuleScript forecastScript;
         RuleScript resourcesScript;
         RuleScript achievementsScript;
+        RuleScript epitaphScript;
 
     private:
         bool fail(RuleScript& script);

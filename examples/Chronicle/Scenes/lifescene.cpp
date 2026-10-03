@@ -15,9 +15,11 @@
 
 #include "ECS/entitysystem.h"
 #include "ECS/entitysystem_fwd.h"
+#include "ECS/callable.h"
 #include "Input/sdlevents.h"
 #include "2D/position.h"
 #include "UI/prefab.h"
+#include "UI/sizer.h"
 #include "UI/prefabloader.h"
 #include "UI/prefabbuilder.h"
 #include "UI/themesystem.h"
@@ -33,6 +35,7 @@
 #include "UI/resourceledger.h"
 #include "UI/eventlog.h"
 #include "UI/panel.h"
+#include "UI/button.h"
 #include "UI/gloss.h"
 #include "Core/motion.h"
 
@@ -62,6 +65,12 @@ namespace chronicle
         constexpr float ClockPanel = 160.0f;       // The clock and his life, until the panel has measured itself
         constexpr float AlertMs = 900.0f;          // How long a part stays in red after a month took from it
         constexpr float RunningPanel = 164.0f;     // "At work now" holding a running row
+        constexpr float SkipButton = 48.0f;        // "At work now" idle: the button to pass a month (36) and the body's gap (12)
+        constexpr const char * const SkipTag = "life.skip";
+        constexpr const char * const AgainTag = "life.again";
+
+        // What the ending's veil calls when the mouse enters or leaves it: nothing
+        struct EndingNoOp {};
         constexpr float LogFootnote = 19.0f;       // 4 + a caption line
         constexpr const char * const TabsTag = "life.tabs";
 
@@ -220,6 +229,30 @@ namespace chronicle
             return false;
         }
 
+        // In a file a piece stands in its panel's body inside a wrap, and the wrap is what the
+        // layout holds: to take the piece out of the stack it is the wrap that is hidden
+        EntityRef wrapIn(EntityRef body, EntityRef piece)
+        {
+            if (body.empty() or not body->has<VerticalLayout>())
+                return piece;
+
+            for (auto& child : body->get<VerticalLayout>()->entities)
+            {
+                if (child.id == piece.id)
+                    return child;
+
+                if (not child->has<Prefab>())
+                    continue;
+
+                auto prefab = child->get<Prefab>();
+
+                if (prefab->namedChildrenIds.count("MainEntity") > 0 and prefab->getEntity("MainEntity").id == piece.id)
+                    return child;
+            }
+
+            return piece;
+        }
+
         // A running row is built with the percent and caption already published: a row is not in
         // its list until the next frame, so the paths' own handlers would not find it
         void runningProgress(EntitySystem* ecs, ActivityRowSpec& row)
@@ -318,6 +351,15 @@ namespace chronicle
         listenToEvent<ActivityActivatedEvent>([this](const ActivityActivatedEvent& e) { onConfirm(e); });
         listenToEvent<TabSelectedEvent>([this](const TabSelectedEvent& e) { onTab(e); });
 
+        // At nothing, a month passes when he says so; at work the months run on their own. The
+        // ending's one button begins the next life
+        listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e) {
+            if (e.tag == AgainTag)
+                beginAgain();
+            else if (e.tag == SkipTag and save.running.empty())
+                onMonth();
+        });
+
         // A deed reached: taken in execute(), never while the facts are being handed around
         listenToStandardEvent(AchievementUnlockEventName, [this](const StandardEvent& e) {
             auto name = e.values.find("name");
@@ -354,9 +396,11 @@ namespace chronicle
 
             switch (e.key)
             {
-            // The month under way keeps what it ran: the rule goes on from where it stopped
+            // Work only: at nothing a month passes by the button, never on its own. The month
+            // under way keeps what it ran: the rule goes on from where it stopped
             case SDL_SCANCODE_SPACE:
-                pause(not paused);
+                if (not save.running.empty() and not ended)
+                    pause(not paused);
                 break;
 
             case SDL_SCANCODE_M:
@@ -376,8 +420,12 @@ namespace chronicle
                 saveNow();
                 break;
 
+            // From an ending the next life says how the last one ended, as its button does
             case SDL_SCANCODE_N:
-                newLife();
+                if (ended)
+                    beginAgain();
+                else
+                    newLife();
                 break;
 
             default:
@@ -424,6 +472,10 @@ namespace chronicle
         wire();
         publish();
         registerDeeds();
+
+        // A save written at an ending opens on it
+        if (not death.empty())
+            endLife();
     }
 
     void LifeScene::fit(float width, float height)
@@ -462,7 +514,7 @@ namespace chronicle
 
     float LifeScene::workingHeight() const
     {
-        return save.running.empty() ? PanelChrome : RunningPanel;
+        return save.running.empty() ? PanelChrome + SkipButton : RunningPanel;
     }
 
     void LifeScene::fitFull(float width, float height)
@@ -567,6 +619,9 @@ namespace chronicle
 
         if (auto achievements = ecsRef->getSystem<AchievementSys>())
             achievements->clear();
+
+        // The ending leaves with the scene, as a scene element
+        ending = EntityRef{};
     }
 
     void LifeScene::execute()
@@ -820,6 +875,18 @@ namespace chronicle
                 working->setAside(ecs, pace == "running" ? "RUNNING" : "IDLE");
                 working->setAsideColor(ecs, "ink-muted");
             }
+
+            // The button to pass a month stands in the running row's place, at nothing only
+            const bool idle = save.running.empty();
+
+            if (EntityRef skip = named("skip"); not skip.empty())
+            {
+                wrapIn(working->body, skip)->get<PositionComponent>()->setVisibility(idle);
+                skip->get<PositionComponent>()->setVisibility(idle);
+            }
+
+            if (auto button = piece<Button>("skip"))
+                button->setDisabled(ecs, not idle);
         }));
 
         subs.push_back(router->on("activity.running.caption", [this, ecs](const ElementType& v) {
@@ -1057,7 +1124,7 @@ namespace chronicle
     {
         RuleMonth month;
 
-        if (rules.month(save.character(), boarded(), month))
+        if (rules.month(save.age, save.character(), boarded(), month))
         {
             holdings = month.rows;
             holdingGlosses = month.glosses;
@@ -1095,30 +1162,130 @@ namespace chronicle
         return at and boolOf(at->fields, "board");
     }
 
-    bool LifeScene::lifeOver() const
-    {
-        return not milestones.empty() and textOf(next, "id").empty();
-    }
-
     void LifeScene::endLife()
     {
+        // The months stop, and the page stays as the life left it under its ending: the next
+        // life starts when the player says so
+        sinceMonth = 0.0f;
+        clearAlert();
+        paused = true;
+
+        publishAll();
+
         // The line the new life opens with, and the age the last one ended at as the head wrote it
-        const std::string ending = death;
-        std::string age;
+        endedLine = death;
+        endedAge.clear();
 
         if (auto facts = ecsRef->getSystem<WorldFacts>())
-            age = facts->getFact<std::string>("life.headline.ageText", "");
+            endedAge = facts->getFact<std::string>("life.headline.ageText", "");
 
-        LOG_INFO(DOM, "The life ended at " << age << ": " << ending);
+        LOG_INFO(DOM, "The life ended at " << endedAge << ": " << endedLine);
 
-        // The months stop: the new life starts when the player says so
-        paused = true;
-        sinceMonth = 0.0f;
+        ended = true;
 
-        clearAlert();
+        // Without its ending the life would have no way on: the next one begins at once
+        if (not showEnding())
+            beginAgain();
+    }
+
+    bool LifeScene::showEnding()
+    {
+        closeEnding();
+
+        // The deeds he reached, by the names they are told with
+        std::vector<std::string> told;
+
+        for (const auto& id : save.achieved)
+        {
+            for (const auto& deed : deeds)
+            {
+                if (textOf(deed.fields, "id") == id)
+                    told.push_back(textOf(deed.fields, "name"));
+            }
+        }
+
+        if (not rules.epitaph(save.age, save.character(), told, epitaph))
+        {
+            for (const auto& e : rules.errors)
+                LOG_ERROR(DOM, e);
+
+            return false;
+        }
+
+        std::vector<std::string> errors;
+        PrefabLoadOptions options;
+        options.errors = &errors;
+
+        auto spec = loadNodeSpec(ecsRef, opt.endingFile, options);
+
+        if (not spec)
+        {
+            LOG_ERROR(DOM, "Could not load the ending " << opt.endingFile);
+            return false;
+        }
+
+        for (const auto& e : errors)
+            LOG_ERROR(DOM, opt.endingFile << ": " << e);
+
+        ending = buildTree(ecsRef, *spec);
+
+        if (ending.empty() or not ending->has<Prefab>())
+        {
+            LOG_ERROR(DOM, "Could not build the ending " << opt.endingFile);
+            ending = EntityRef{};
+
+            return false;
+        }
+
+        // It leaves with the scene, like the page
+        ecsRef->attach<SceneElement>(ending);
+
+        auto prefab = ending->get<Prefab>();
+
+        auto write = [this, &prefab](const std::string& name, const std::string& text) {
+            EntityRef ent = prefab->findEntity(name);
+
+            if (not ent.empty() and ent->has<Label>())
+                ent->get<Label>()->setText(ecsRef, text);
+        };
+
+        write("endName", save.name);
+        write("endCause", epitaph.cause);
+        write("endStory", epitaph.text);
+        write("endTally", epitaph.tally);
+
+        // The veil takes the mouse: what is under it is neither hovered nor clicked
+        if (EntityRef veil = prefab->findEntity("veil"); not veil.empty())
+        {
+            if (not veil->has<MouseEnterComponent>())
+                ecsRef->attach<MouseEnterComponent>(veil, makeCallable<EndingNoOp>(EndingNoOp{}));
+
+            if (not veil->has<MouseLeaveComponent>())
+                ecsRef->attach<MouseLeaveComponent>(veil, makeCallable<EndingNoOp>(EndingNoOp{}));
+        }
+
+        return true;
+    }
+
+    void LifeScene::closeEnding()
+    {
+        if (not ending.empty())
+            ecsRef->removeEntity(ending);
+
+        ending = EntityRef{};
+    }
+
+    void LifeScene::beginAgain()
+    {
+        if (not ended)
+            return;
+
+        const std::string line = endedLine;
+        const std::string age = endedAge;
+
         newLife();
 
-        appendLog({save.age, ending, LogKind::Loss, age, ""});
+        appendLog({save.age, line, LogKind::Loss, age, ""});
     }
 
     void LifeScene::registerDeeds()
@@ -1560,7 +1727,8 @@ namespace chronicle
 
     void LifeScene::onConfirm(const ActivityActivatedEvent& event)
     {
-        if (event.list != ActivitiesList)
+        // Over: the keyboard may still reach a row under the ending
+        if (event.list != ActivitiesList or ended)
             return;
 
         // What takes no time is done now, whatever else he is at
@@ -1690,17 +1858,9 @@ namespace chronicle
 
     void LifeScene::onMonth()
     {
-        // Written to its end: no month comes after the last milestone
-        if (lifeOver())
-        {
-            sinceMonth = 0.0f;
-            pause(true);
-
-            if (save.log.empty() or save.log.back().kind != LogKind::Note)
-                appendLog({save.age, "The chronicle is written to its end: a new life begins with N", LogKind::Note, "", ""});
-
+        // Over: no month passes until the next life begins
+        if (ended)
             return;
-        }
 
         // The milestones already passed, to write the line of one the month passes
         std::vector<std::string> passed;
@@ -1722,7 +1882,7 @@ namespace chronicle
         // rations
         RuleMonth month;
 
-        if (rules.month(save.character(), boarded(), month))
+        if (rules.month(save.age, save.character(), boarded(), month))
         {
             takeStats(month.after);
             writeEntries(month.entries);
@@ -1784,19 +1944,14 @@ namespace chronicle
 
         publishAll();
 
-        // A milestone passed: the line it writes, and at the last one the months stop
+        // A milestone passed: the line it writes. The last one ends nothing: old age begins, and
+        // the life goes on until it has nothing left to live on
         for (const auto& m : milestones)
         {
             const std::string id = textOf(m.fields, "id");
 
             if (boolOf(m.fields, "passed") and std::find(passed.begin(), passed.end(), id) == passed.end() and not textOf(m.fields, "entry").empty())
                 appendLog({save.age, textOf(m.fields, "entry"), LogKind::Milestone, "", ""});
-        }
-
-        if (lifeOver())
-        {
-            sinceMonth = 0.0f;
-            pause(true);
         }
 
         // The month took from what the life hangs on: he is in danger, and the page says so
@@ -1991,9 +2146,13 @@ namespace chronicle
     {
         const LifeSave last = save;
 
-        // A life begins at rest, whatever the last one was doing
+        // A life begins at rest, whatever the last one was doing, and the ending of the last one
+        // leaves with it
         paused = true;
         sinceMonth = 0.0f;
+
+        closeEnding();
+        ended = false;
 
         save = freshLife();
 

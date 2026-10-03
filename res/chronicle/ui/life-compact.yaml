@@ -89,6 +89,14 @@ children:
       - kind: ActivityList
         name: running
         id: life.running
+      # At nothing, a month passes only when he says so: shown while idle, in the row's place
+      - kind: Button
+        name: skip
+        variant: quiet
+        label: Pass a month
+        glyph: time
+        months: 1
+        tag: life.skip
 
   - kind: Panel
     name: may

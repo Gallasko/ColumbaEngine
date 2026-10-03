@@ -31,6 +31,7 @@
 //   fromAge: N       he may begin it from that age (default 7). Younger, it asks for the age.
 //   finishBy: N      its term must fall at that age or before (default lib.pg's `lastAge`): an
 //                    activity of 18 months with finishBy 25 is begun by 23.5 at the latest.
+//                    lib.pg's `anyAge` for what old age does not close.
 //   board: true      meals provided: a month at it takes no ration and costs no Vitality, held
 //                    rations or not (resources.pg).
 //   path, enters     a path's activities are listed once he is one of it (holds its flag); the
@@ -153,7 +154,7 @@ var activities = [
      gains: [{stat: "stealth", amount: 1}, {stat: "guile", amount: 1}, {stat: "street_known", amount: 1}],
      requires: [{stat: "dex", needed: 8}]},
 
-    {id: "buy.rations", group: "Market", name: "Buy rations", glyph: "trade", months: 0, rank: "", each: "AT THE MARKET", path: "",
+    {id: "buy.rations", group: "Market", name: "Buy rations", glyph: "trade", months: 0, rank: "", each: "AT THE MARKET", path: "", finishBy: anyAge,
      gains: [{stat: "rations", amount: 6}],
      requires: [],
      costs: [{stat: "coin", amount: 5}]},
@@ -283,7 +284,20 @@ var activities = [
      costs: [{stat: "favors", amount: 3}, {stat: "coin", amount: 25}]},
     {id: "vault", group: "The Hidden Hand", name: "Empty the Bellmoor Vault", glyph: "gold", months: 24, rank: "", each: "MEALS PROVIDED", path: "thief", board: true, fromAge: 26, uses: 1,
      gains: [{stat: "coin", amount: 200}, {stat: "master_thief", amount: 1}],
-     requires: [{stat: "crew_ready", needed: 1}, {stat: "stealth", needed: 8}, {stat: "guile", needed: 7}]}
+     requires: [{stat: "crew_ready", needed: 1}, {stat: "stealth", needed: 8}, {stat: "guile", needed: 7}]},
+
+    // What is left to an old man, whatever he was: nothing closes it, and it asks nothing. Listed
+    // a year before his prime ends, so its last months, too short for any other work, are never
+    // without something to do
+    {id: "tales", group: "Old age", name: "Tell Tales at the Inn", glyph: "town", months: 2, rank: "", each: "MEALS PROVIDED", path: "", board: true, fromAge: lastAge - 1, finishBy: anyAge,
+     gains: [{stat: "coin", amount: 2}],
+     requires: []},
+    {id: "garden", group: "Old age", name: "Tend a Garden", glyph: "work", months: 3, rank: "", each: "", path: "", fromAge: lastAge - 1, finishBy: anyAge,
+     gains: [{stat: "rations", amount: 4}],
+     requires: []},
+    {id: "teach", group: "Old age", name: "Teach the Young", glyph: "academy", months: 4, rank: "", each: "", path: "", fromAge: lastAge - 1, finishBy: anyAge,
+     gains: [{stat: "coin", amount: 6}],
+     requires: []}
 ]
 
 // Whether he is one of any path yet
