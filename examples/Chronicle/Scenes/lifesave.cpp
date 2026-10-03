@@ -261,31 +261,42 @@ namespace chronicle
         std::vector<LifeResource> skillRows()
         {
             return {
-                {"skills", "", "swd", "swordsmanship", "Swordsmanship", "", "", 0, false},
-                {"skills", "", "ride", "work", "Riding", "", "", 0, false},
+                {"skills", "", "arms", "swordsmanship", "Arms", "", "", 0, false},
+                {"skills", "", "discipline", "training", "Discipline", "", "", 0, false},
                 {"skills", "", "letters", "quill", "Letters", "", "", 0, false},
-                {"skills", "", "haggle", "trade", "Haggling", "", "", 0, false},
+                {"skills", "", "lore", "study", "Lore", "", "", 0, false},
+                {"skills", "", "arcana", "magic", "Arcana", "", "", 0, false},
+                {"skills", "", "stealth", "dexterity", "Stealth", "", "", 0, false},
+                {"skills", "", "guile", "trade", "Guile", "", "", 0, false},
+                {"skills", "", "renown", "reputation", "Renown", "", "", 0, false},
             };
         }
     }
 
+    // The life of the balance's good Warrior (res/chronicle/chronicle-balance, Warrior-good) the
+    // month he swore to the Keep
     LifeSave firstLife()
     {
         LifeSave life;
         life.name = "Aldren of Bellmoor";
-        life.profession = "Apprentice at the Bellmoor Guild";
+        life.profession = "Sworn man of the Keep at Bellmoor";
         life.origin = "Second son of the miller, born at the mill on the Bell.";
-        life.aim = "squire";
+        life.aim = "warrior";
         life.age = 17.5f;
 
         life.stats = {
-            {"str", 15}, {"dex", 11}, {"int", 9}, {"vit", 12}, {"vitmax", 12},
-            {"swd", 3}, {"ride", 1}, {"letters", 2}, {"haggle", 1},
-            {"letter", 0}, {"coin", 412}, {"rations", 18},
+            {"str", 12}, {"dex", 8}, {"int", 6}, {"vit", 10}, {"vitmax", 10},
+            {"arms", 5}, {"discipline", 2}, {"letters", 0}, {"lore", 0}, {"arcana", 0}, {"stealth", 0}, {"guile", 0}, {"renown", 1},
+            {"watch_known", 1}, {"edric_support", 1}, {"keep_oath", 1},
+            {"coin", 46}, {"rations", 3},
         };
 
-        // He is past his first wages
-        life.achieved = {"first.coin"};
+        life.done = {
+            {"mill", 3}, {"messages", 2}, {"carters", 13}, {"watch", 1}, {"yard", 1}, {"edric", 2}, {"keep", 1},
+        };
+
+        // He is past his first wages, knows the carters' road, and has sworn
+        life.achieved = {"first.coin", "carters.road", "sworn"};
 
         life.parts = {"str", "dex", "int", "vit"};
         life.skills = skillRows();
@@ -293,29 +304,24 @@ namespace chronicle
         life.resources = {
             {"purse", "PURSE", "coin", "gold", "Coin", "", "", static_cast<int>(LedgerTone::Coin), false},
             {"purse", "PURSE", "rations", "trade", "Rations", "", "", 0, false},
-            {"standing", "STANDING", "guild.bellmoor", "guild", "Bellmoor Guild", "3", "", static_cast<int>(LedgerTone::Guild), false},
-            {"standing", "STANDING", "guild.academy", "academy", "The Academy", "1", "", static_cast<int>(LedgerTone::Guild), true},
+            {"standing", "STANDING", "keep_oath", "seal", "Sworn to the Keep", "", "", static_cast<int>(LedgerTone::Guild), false},
             {"stores", "STORES", "iron", "forge", "Iron", "6", "", 0, false},
             {"kept", "KEPT BETWEEN LIVES", "relic.sunstone", "relic", "Sunstone relic", "1 of 3", "", static_cast<int>(LedgerTone::Relic), false},
         };
 
-        const std::string minus = "\xE2\x88\x92";
-
         life.log = {
             {7.0f, "Born to the miller's wife at Bellmoor", LogKind::Milestone, "", ""},
+            {7.5f, "Help at the Mill", LogKind::Gain, "+1 str +1 vit +8 coin", "work"},
             {7.6f, "Fell in the millrace and was pulled out", LogKind::Note, "", ""},
-            {8.2f, "Carried sacks for the mill", LogKind::Gain, "+1 str", ""},
-            {9.3f, "Learned his letters from the priest", LogKind::Gain, "+1 let", ""},
-            {9.8f, "A fever that took the winter", LogKind::Loss, minus + "2 vit", ""},
+            {8.5f, "Run Messages", LogKind::Gain, "+1 dex +5 coin", "town"},
+            {10.0f, "Every carter on the Bell road knows him by name", LogKind::Milestone, "", ""},
             {10.1f, "His father went north and did not come back", LogKind::Note, "", ""},
-            {10.7f, "Sold the old mule", LogKind::Coin, "+9", ""},
-            {12.2f, "Taken on by the Bellmoor Guild", LogKind::Milestone, "", ""},
-            {13.5f, "Wages from the guild", LogKind::Coin, "+15", ""},
-            {14.0f, "Apprenticeship", LogKind::Milestone, "", ""},
-            {14.3f, "Gored in the North Forest", LogKind::Loss, minus + "9 vit", ""},
-            {14.9f, "Walked again by midsummer", LogKind::Gain, "+3 vit", ""},
-            {16.1f, "Trained at the yard", LogKind::Gain, "+2 str", "training"},
-            {17.2f, "Sparred with the guard at the gate", LogKind::Gain, "+1 swd", "swordsmanship"},
+            {11.0f, "Carry for the Watch", LogKind::Gain, "+1 arms +1 str +1 watch", "gate"},
+            {11.5f, "Train at the Yard", LogKind::Gain, "+1 str +1 arms", "training"},
+            {15.0f, "Train under Sergeant Edric", LogKind::Gain, "+1 arms +1 disc +1 str", "training"},
+            {15.0f, "Sergeant Edric will speak for him at the Keep", LogKind::Milestone, "", "training"},
+            {17.5f, "Swear Service to the Keep", LogKind::Gain, "+1 oath +1 renown +1 arms", "seal"},
+            {17.5f, "Swore his service to the Keep", LogKind::Milestone, "", ""},
         };
 
         return life;
@@ -327,13 +333,13 @@ namespace chronicle
         life.name = "Aldren of Bellmoor";
         life.profession = "The miller's second son";
         life.origin = "Born at the mill on the Bell.";
-        life.aim = "squire";
+        life.aim = "warrior";
         life.age = 7.0f;
 
         life.stats = {
             {"str", 6}, {"dex", 6}, {"int", 6}, {"vit", 8}, {"vitmax", 8},
-            {"swd", 0}, {"ride", 0}, {"letters", 0}, {"haggle", 0},
-            {"letter", 0}, {"coin", 0}, {"rations", 24},
+            {"arms", 0}, {"discipline", 0}, {"letters", 0}, {"lore", 0}, {"arcana", 0}, {"stealth", 0}, {"guile", 0}, {"renown", 0},
+            {"coin", 0}, {"rations", 12},
         };
 
         life.parts = {"str", "dex", "int", "vit"};

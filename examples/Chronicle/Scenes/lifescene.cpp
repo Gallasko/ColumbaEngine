@@ -870,9 +870,6 @@ namespace chronicle
             log->clear(ecs);
 
         // The clock's ticks and bands, the doors' ranges
-        std::vector<RuleMilestone> milestones;
-        ElementMap next;
-
         if (rules.milestones(save.age, milestones, next))
         {
             std::vector<ClockMilestone> ticks;
@@ -884,30 +881,40 @@ namespace chronicle
                 clock->setMilestones(ecs, ticks);
         }
 
-        RecordList windows;
-
-        if (rules.windows(save.age, save.character(), windows))
-        {
-            std::vector<ClockWindow> bands;
-
-            for (const auto& w : windows)
-            {
-                const std::string id = textOf(w, "id");
-
-                bands.push_back({static_cast<float>(intOf(w, "from")), static_cast<float>(intOf(w, "to")), id, textOf(w, "state") == "closed"});
-
-                if (auto meter = piece<WindowMeter>("window." + id))
-                    meter->setRange(ecs, static_cast<float>(intOf(w, "from")), static_cast<float>(intOf(w, "to")));
-            }
-
-            if (auto clock = piece<LifeClock>("clock"))
-                clock->setWindows(ecs, bands);
-        }
-
+        fillWindows();
         fillActivities();
 
         if (auto running = piece<ActivityList>("running"))
             running->setRows(ecs, {});
+    }
+
+    void LifeScene::fillWindows()
+    {
+        EntitySystem* ecs = ecsRef;
+        RecordList windows;
+
+        if (not rules.windows(save.age, save.character(), windows))
+        {
+            for (const auto& e : rules.errors)
+                LOG_ERROR(DOM, e);
+
+            return;
+        }
+
+        std::vector<ClockWindow> bands;
+
+        for (const auto& w : windows)
+        {
+            const std::string id = textOf(w, "id");
+
+            bands.push_back({static_cast<float>(intOf(w, "from")), static_cast<float>(intOf(w, "to")), id, textOf(w, "state") == "closed"});
+
+            if (auto meter = piece<WindowMeter>("window." + id))
+                meter->setRange(ecs, static_cast<float>(intOf(w, "from")), static_cast<float>(intOf(w, "to")));
+        }
+
+        if (auto clock = piece<LifeClock>("clock"))
+            clock->setWindows(ecs, bands);
 
         // The window meters the page holds, found once so life.age reaches them
         for (const auto& w : windows)
@@ -916,7 +923,7 @@ namespace chronicle
 
     void LifeScene::fillActivities()
     {
-        if (not rules.activities(save.character(), activities))
+        if (not rules.activities(save.age, save.character(), activities))
         {
             for (const auto& e : rules.errors)
                 LOG_ERROR(DOM, e);
@@ -924,13 +931,18 @@ namespace chronicle
             return;
         }
 
-        // Grouped as the table orders them; what he can no longer do is not listed
+        // Grouped as the table orders them; what the rules do not list (spent, too late, another
+        // path's) has no row
         std::vector<ActivityGroup> groups;
+
+        listedRows.clear();
 
         for (const auto& a : activities)
         {
-            if (boolOf(a.fields, "spent"))
+            if (not boolOf(a.fields, "listed"))
                 continue;
+
+            listedRows += textOf(a.fields, "id") + ":" + std::to_string(a.requires.size()) + ";";
 
             const std::string group = textOf(a.fields, "group");
 
@@ -945,11 +957,15 @@ namespace chronicle
             row.count = textOf(a.fields, "tally");
             row.each = textOf(a.fields, "each");
             row.months = intOf(a.fields, "months");
-            row.state = boolOf(a.fields, "locked") ? ActivityState::Locked : ActivityState::Idle;
+            row.state = row.id == save.running ? ActivityState::Running : boolOf(a.fields, "locked") ? ActivityState::Locked : ActivityState::Idle;
             row.glossKey = "activity/" + row.id;
 
             for (const auto& g : a.gains)
-                row.gains.push_back({upper(textOf(g, "stat")), intOf(g, "amount")});
+                row.gains.push_back({textOf(g, "label"), intOf(g, "amount")});
+
+            // What it takes when it begins, beside what it brings
+            for (const auto& c : a.costs)
+                row.gains.push_back({textOf(c, "label"), -intOf(c, "amount")});
 
             for (const auto& r : a.requires)
             {
@@ -971,7 +987,7 @@ namespace chronicle
     {
         RuleMonth month;
 
-        if (rules.month(save.character(), month))
+        if (rules.month(save.character(), boarded(), month))
         {
             holdings = month.rows;
             holdingGlosses = month.glosses;
@@ -986,6 +1002,32 @@ namespace chronicle
 
         for (const auto& e : rules.errors)
             LOG_ERROR(DOM, e);
+    }
+
+    const RuleActivity* LifeScene::activityOf(const std::string& id) const
+    {
+        for (const auto& a : activities)
+        {
+            if (textOf(a.fields, "id") == id)
+                return &a;
+        }
+
+        return nullptr;
+    }
+
+    bool LifeScene::boarded() const
+    {
+        if (save.running.empty())
+            return false;
+
+        const RuleActivity* at = activityOf(save.running);
+
+        return at and boolOf(at->fields, "board");
+    }
+
+    bool LifeScene::lifeOver() const
+    {
+        return not milestones.empty() and textOf(next, "id").empty();
     }
 
     void LifeScene::endLife()
@@ -1289,7 +1331,6 @@ namespace chronicle
 
     void LifeScene::publishRules()
     {
-        std::vector<RuleMilestone> milestones;
         ElementMap headline;
 
         if (rules.milestones(save.age, milestones, next, &headline))
@@ -1339,8 +1380,10 @@ namespace chronicle
             glossWindows(windows);
         }
 
-        if (rules.activities(save.character(), activities))
+        if (rules.activities(save.age, save.character(), activities))
         {
+            std::string listed;
+
             for (const auto& a : activities)
             {
                 const std::string id = textOf(a.fields, "id");
@@ -1348,9 +1391,11 @@ namespace chronicle
 
                 setFact("done." + id, intOf(a.fields, "done"));
 
-                // A spent activity has no row to tell
-                if (boolOf(a.fields, "spent"))
+                // An activity the rules do not list has no row to tell
+                if (not boolOf(a.fields, "listed"))
                     continue;
+
+                listed += id + ":" + std::to_string(a.requires.size()) + ";";
 
                 setFact("activity." + id + ".state", state);
                 setFact("activity." + id + ".count", textOf(a.fields, "tally"));
@@ -1358,6 +1403,11 @@ namespace chronicle
                 for (size_t i = 0; i < a.requires.size(); ++i)
                     setFact("activity." + id + ".requirement." + std::to_string(i), intOf(a.requires[i], "current"));
             }
+
+            // A door opened or closed with the months, or a row asks more or less than its row
+            // shows: the rows again
+            if (listed != listedRows)
+                fillActivities();
 
             glossActivities();
         }
@@ -1413,17 +1463,24 @@ namespace chronicle
             return;
         }
 
+        // The list refuses a locked row, a key or a script may not
+        const RuleActivity* chosen = activityOf(event.id);
+
+        if (not chosen or boolOf(chosen->fields, "locked") or not boolOf(chosen->fields, "listed"))
+            return;
+
         save.running = event.id;
         save.monthsIn = 0;
+
+        // What it costs is taken as it begins
+        takeStats(forecast.atStart);
 
         if (auto list = piece<ActivityList>("activities"))
             list->select(ecsRef, "");
 
-        publishProjected(nullptr);
-
         setFact("activity." + event.id + ".state", std::string("running"));
 
-        publishRunning();
+        publish();
     }
 
     void LifeScene::doAtOnce(const std::string& id, const RuleForecast& forecast)
@@ -1438,7 +1495,7 @@ namespace chronicle
                 continue;
 
             // The list refuses a locked row, a key or a script may not
-            if (boolOf(a.fields, "locked") or boolOf(a.fields, "spent"))
+            if (boolOf(a.fields, "locked") or not boolOf(a.fields, "listed"))
                 return;
 
             rank = textOf(a.fields, "rank");
@@ -1466,7 +1523,7 @@ namespace chronicle
             addToLedger(r);
 
         // Rebuilt only when it left or changed: the selection stays for the next time otherwise
-        bool changed = not rules.activities(save.character(), activities);
+        bool changed = not rules.activities(save.age, save.character(), activities);
 
         for (const auto& a : activities)
         {
@@ -1478,7 +1535,7 @@ namespace chronicle
             for (const auto& g : a.gains)
                 now.push_back(intOf(g, "amount"));
 
-            changed = changed or boolOf(a.fields, "spent") or textOf(a.fields, "rank") != rank or now != amounts;
+            changed = changed or not boolOf(a.fields, "listed") or textOf(a.fields, "rank") != rank or now != amounts;
         }
 
         if (changed)
@@ -1514,12 +1571,39 @@ namespace chronicle
 
     void LifeScene::onMonth()
     {
+        // Written to its end: no month comes after the last milestone
+        if (lifeOver())
+        {
+            paused = true;
+            sinceMonth = 0.0f;
+
+            if (save.log.empty() or save.log.back().kind != LogKind::Note)
+                appendLog({save.age, "The chronicle is written to its end: a new life begins with N", LogKind::Note, "", ""});
+
+            return;
+        }
+
+        // The milestones already passed, to write the line of one the month passes
+        std::vector<std::string> passed;
+        std::vector<RuleMilestone> before;
+        ElementMap ahead;
+
+        if (rules.milestones(save.age, before, ahead))
+        {
+            for (const auto& m : before)
+            {
+                if (boolOf(m.fields, "passed"))
+                    passed.push_back(textOf(m.fields, "id"));
+            }
+        }
+
         save.age += 1.0f / 12.0f;
 
-        // What he holds works or wastes, whatever he is doing
+        // What he holds works or wastes, whatever he is doing; work that feeds him spares his
+        // rations
         RuleMonth month;
 
-        if (rules.month(save.character(), month))
+        if (rules.month(save.character(), boarded(), month))
         {
             takeStats(month.after);
             writeEntries(month.entries);
@@ -1528,6 +1612,16 @@ namespace chronicle
         {
             for (const auto& e : rules.errors)
                 LOG_ERROR(DOM, e);
+        }
+
+        // The character as the month leaves him: with nothing left to live on, this life is lost
+        // before any term pays him, and a new one begins
+        refreshHoldings();
+
+        if (not death.empty())
+        {
+            endLife();
+            return;
         }
 
         if (not save.running.empty())
@@ -1542,32 +1636,45 @@ namespace chronicle
                 takeStats(forecast.atTerm);
                 writeEntries(forecast.entries);
 
+                // The way into a path, done: he is one of it, and its asks stand on his parts
+                if (const RuleActivity* at = activityOf(save.running); at and boolOf(at->fields, "enters"))
+                    save.aim = textOf(at->fields, "path");
+
                 ++save.done[save.running];
                 rules.done = save.terms();
 
                 save.running.clear();
                 save.monthsIn = 0;
 
-                // One more term done: a row may have left, another may have changed
+                // One more term done: a row may have left, another may have changed, a path's
+                // doors may be his
                 fillActivities();
+                fillWindows();
             }
-        }
 
-        // The character as the month leaves him: with nothing left to live on, this life is lost
-        // and a new one begins
-        refreshHoldings();
-
-        if (not death.empty())
-        {
-            endLife();
-            return;
+            refreshHoldings();
         }
 
         // What he holds for the first time gets its row
-        for (const auto& r : save.holdEarned(month.rows))
+        for (const auto& r : save.holdEarned(holdings))
             addToLedger(r);
 
         publishAll();
+
+        // A milestone passed: the line it writes, and at the last one the months stop
+        for (const auto& m : milestones)
+        {
+            const std::string id = textOf(m.fields, "id");
+
+            if (boolOf(m.fields, "passed") and std::find(passed.begin(), passed.end(), id) == passed.end() and not textOf(m.fields, "entry").empty())
+                appendLog({save.age, textOf(m.fields, "entry"), LogKind::Milestone, "", ""});
+        }
+
+        if (lifeOver())
+        {
+            paused = true;
+            sinceMonth = 0.0f;
+        }
 
         // The month took from what the life hangs on: he is in danger, and the page says so
         if (not month.hurt.empty())
@@ -1631,10 +1738,18 @@ namespace chronicle
             gloss.rows.push_back({"Time", intOf(a.fields, "months") > 0 ? std::to_string(intOf(a.fields, "months")) + " mo" : std::string("At once")});
 
             for (const auto& g : a.gains)
-                gloss.rows.push_back({upper(textOf(g, "stat")) + " at term", signedText(intOf(g, "amount"))});
+                gloss.rows.push_back({textOf(g, "label") + " at term", signedText(intOf(g, "amount"))});
+
+            for (const auto& c : a.costs)
+                gloss.rows.push_back({textOf(c, "label") + " to begin", signedText(-intOf(c, "amount"))});
 
             for (const auto& r : a.requires)
                 gloss.rows.push_back({textOf(r, "label"), std::to_string(intOf(r, "current")) + " / " + std::to_string(intOf(r, "needed"))});
+
+            if (intOf(a.fields, "months") > 0)
+                gloss.rows.push_back({"Meals", boolOf(a.fields, "board") ? std::string("Provided") : std::string("His own rations")});
+
+            gloss.rows.push_back({"Done by", std::to_string(intOf(a.fields, "finishBy"))});
 
             gloss.rows.push_back({"Done", std::to_string(intOf(a.fields, "done"))});
 
@@ -1751,7 +1866,17 @@ namespace chronicle
 
     void LifeScene::newLife()
     {
+        const LifeSave last = save;
+
         save = freshLife();
+
+        // What the last life held and this one has no stat for reads 0, not the last life's
+        // figure: a deed must not be reached on what is gone
+        for (const auto& [key, value] : last.stats)
+        {
+            if (save.stats.count(key) == 0)
+                setFact("stat." + key, 0);
+        }
         endangered = false;
 
         rules.done = save.terms();

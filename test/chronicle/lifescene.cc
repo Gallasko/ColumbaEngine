@@ -1,5 +1,6 @@
 #include "stdafx.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <regex>
@@ -288,10 +289,10 @@ namespace pg
             EXPECT_LE(box("vit").bottom, box("clockPanel").bottom);
             EXPECT_GE(box("str").top, box("parts").top);
             EXPECT_LE(box("int").bottom, box("parts").bottom);
-            EXPECT_TRUE(life->named("window.ruins").empty());
+            EXPECT_TRUE(life->named("window.keep").empty());
 
             // The head: what he is, between the title and the year
-            EXPECT_EQ(life->piece<Label>("about")->spec.text, "Apprentice at the Bellmoor Guild \xC2\xB7 Second son of the miller, born at the mill on the Bell.");
+            EXPECT_EQ(life->piece<Label>("about")->spec.text, "Sworn man of the Keep at Bellmoor \xC2\xB7 Second son of the miller, born at the mill on the Bell.");
 
             // One ground for every row of the choice
             for (const auto& group : life->piece<ActivityList>("activities")->spec.groups)
@@ -341,7 +342,7 @@ namespace pg
             // The rows follow the list's width; the choice and the log take the new height
             auto list = life->piece<ActivityList>("activities");
             EXPECT_NEAR(list->spec.width, 1600.0f - 96.0f - 320.0f - 360.0f - 48.0f - 32.0f, 0.5f);
-            ActivityRow* yard = list->row(&f.ecs, "train.yard");
+            ActivityRow* yard = list->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
             EXPECT_NEAR(f.pos(yard->root)->width, list->spec.width, 0.5f);
 
@@ -416,7 +417,7 @@ namespace pg
 
             // The rows follow the narrower list
             auto list = life->piece<ActivityList>("activities");
-            ActivityRow* yard = list->row(&f.ecs, "train.yard");
+            ActivityRow* yard = list->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
             EXPECT_NEAR(f.pos(yard->root)->width, 416.0f - 32.0f, 0.5f);
 
@@ -443,10 +444,10 @@ namespace pg
             // At work: "At work now" grows and the choice gives it the room
             const float idleList = list->spec.height;
 
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "train.yard"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
             f.settle();
 
-            EXPECT_NE(life->piece<ActivityList>("running")->row(&f.ecs, "train.yard"), nullptr);
+            EXPECT_NE(life->piece<ActivityList>("running")->row(&f.ecs, "yard"), nullptr);
             EXPECT_LT(list->spec.height, idleList);
             EXPECT_NEAR(box("may").top, box("working").bottom + 16.0f, 0.5f);
             EXPECT_LE(box("may").bottom, 600.0f);
@@ -461,7 +462,7 @@ namespace pg
             EXPECT_NEAR(box("may").right - box("may").left, 496.0f, 0.5f);
             EXPECT_TRUE(shown("parts"));
             EXPECT_TRUE(shown("happened"));
-            EXPECT_NE(life->piece<ActivityList>("running")->row(&f.ecs, "train.yard"), nullptr);
+            EXPECT_NE(life->piece<ActivityList>("running")->row(&f.ecs, "yard"), nullptr);
             EXPECT_EQ(life->piece<EventLog>("log")->size(), life->save.log.size());
         }
 
@@ -482,7 +483,7 @@ namespace pg
             EXPECT_TRUE(life->compact);
             EXPECT_TRUE(life->named("about").empty());
 
-            ActivityRow* yard = life->piece<ActivityList>("activities")->row(&f.ecs, "train.yard");
+            ActivityRow* yard = life->piece<ActivityList>("activities")->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
             EXPECT_NEAR(f.pos(yard->root)->width, 416.0f - 32.0f, 0.5f);
 
@@ -502,24 +503,27 @@ namespace pg
             ASSERT_NE(life, nullptr);
 
             EXPECT_FLOAT_EQ(f.fact<float>("life.age"), 17.5f);
-            EXPECT_EQ(f.fact<int>("character.parts.str"), 15);
-            EXPECT_EQ(f.fact<std::string>("resources.coin.value"), "412");
+            EXPECT_EQ(f.fact<int>("character.parts.str"), 12);
+            EXPECT_EQ(f.fact<std::string>("resources.coin.value"), "46");
 
             ASSERT_NE(life->piece<StatLine>("str"), nullptr);
-            EXPECT_EQ(life->piece<StatLine>("str")->figure.spec.text, "15");
+            EXPECT_EQ(life->piece<StatLine>("str")->figure.spec.text, "12");
 
             auto ledger = life->piece<ResourceLedger>("ledger");
             ASSERT_NE(ledger, nullptr);
             ASSERT_NE(ledger->row("coin"), nullptr);
-            EXPECT_EQ(ledger->row("coin")->figure.spec.text, "412");
+            EXPECT_EQ(ledger->row("coin")->figure.spec.text, "46");
             EXPECT_EQ(ledger->groups.size(), 4u);
+            EXPECT_NE(ledger->row("keep_oath"), nullptr);
 
-            // The skills have no heading
+            // The skills have no heading; one he has none of is not shown
             auto skills = life->piece<ResourceLedger>("skills");
             ASSERT_NE(skills, nullptr);
             ASSERT_EQ(skills->groups.size(), 1u);
             EXPECT_FLOAT_EQ(f.pos(skills->groups[0].heading)->height, 0.0f);
-            EXPECT_EQ(skills->row("swd")->figure.spec.text, "3");
+            ASSERT_NE(skills->row("arms"), nullptr);
+            EXPECT_EQ(skills->row("arms")->figure.spec.text, "5");
+            EXPECT_EQ(skills->row("lore"), nullptr);
 
             // The head and the log, from the save
             EXPECT_EQ(life->piece<Label>("age")->spec.text, "17.5");
@@ -539,21 +543,23 @@ namespace pg
 
             auto list = life->piece<ActivityList>("activities");
             ASSERT_NE(list, nullptr);
-            EXPECT_NE(list->row(&f.ecs, "train.yard"), nullptr);
-            EXPECT_NE(list->row(&f.ecs, "adventure.forest"), nullptr);
+            EXPECT_NE(list->row(&f.ecs, "yard"), nullptr);
+            EXPECT_NE(list->row(&f.ecs, "carters"), nullptr);
 
-            // Squiring asks more than he has: the script locks it
-            ASSERT_NE(list->row(&f.ecs, "train.squire"), nullptr);
-            EXPECT_EQ(list->row(&f.ecs, "train.squire")->spec.state, ActivityState::Locked);
+            // Sworn: no other path, no childhood door, and the Keep's service not before 18
+            for (const char* id : {"keep", "collegium", "hand", "study", "run", "letters", "watch", "serve"})
+                EXPECT_EQ(list->row(&f.ecs, id), nullptr) << id;
 
-            EXPECT_EQ(f.fact<std::string>("window.ruins.state"), "open");
-            EXPECT_EQ(f.fact<int>("life.next.in"), 6);
-            EXPECT_EQ(f.fact<std::string>("life.next.label"), "Choose a path");
-            EXPECT_EQ(life->piece<LifeClock>("clock")->spec.nextIn, 6);
+            EXPECT_EQ(f.fact<std::string>("window.keep.state"), "closed");
+            EXPECT_EQ(f.fact<std::string>("window.campaign.state"), "upcoming");
+            EXPECT_EQ(f.fact<int>("life.next.in"), 42);
+            EXPECT_EQ(f.fact<std::string>("life.next.label"), "The proving");
+            EXPECT_EQ(life->piece<LifeClock>("clock")->spec.nextIn, 42);
+            EXPECT_EQ(life->piece<LifeClock>("clock")->spec.endAge, 30.0f);
             EXPECT_EQ(life->piece<Label>("subtitle")->spec.text, "THE SEVENTEENTH YEAR \xC2\xB7 SUMMER \xC2\xB7 BELLMOOR");
 
-            // The Squire's asks at 18 stand on his parts
-            EXPECT_EQ(life->piece<StatLine>("str")->spec.threshold, 18);
+            // The proving asks the Warrior no part: no threshold stands on them
+            EXPECT_EQ(life->piece<StatLine>("str")->spec.threshold, 0);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -567,14 +573,14 @@ namespace pg
             LifeScene* life = f.life();
             ASSERT_NE(life, nullptr);
 
-            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "train.yard"});
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "yard"});
             f.settle();
 
-            EXPECT_EQ(f.fact<int>("character.parts.str.projected"), 17);
+            EXPECT_EQ(f.fact<int>("character.parts.str.projected"), 13);
 
             auto str = life->piece<StatLine>("str");
             ASSERT_TRUE(str->projected.has_value());
-            EXPECT_EQ(str->projected->spec.text, "\xE2\x86\x92 17");
+            EXPECT_EQ(str->projected->spec.text, "\xE2\x86\x92 13");
 
             // A part the activity does not raise has no ghost
             EXPECT_EQ(f.fact<int>("character.parts.int.projected"), -1);
@@ -603,20 +609,23 @@ namespace pg
             ASSERT_NE(clock, nullptr);
             ASSERT_NE(running, nullptr);
 
+            // Fed for the whole term: only the term writes in the log
+            life->save.stats["rations"] = 24;
+
             const size_t logRows = life->piece<EventLog>("log")->size();
 
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "train.yard"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
             f.settle();
 
-            EXPECT_EQ(f.fact<std::string>("activity.running.id"), "train.yard");
+            EXPECT_EQ(f.fact<std::string>("activity.running.id"), "yard");
             ASSERT_EQ(running->spec.groups.size(), 1u);
             ASSERT_EQ(running->spec.groups[0].rows.size(), 1u);
-            EXPECT_NE(running->row(&f.ecs, "train.yard"), nullptr);
+            EXPECT_NE(running->row(&f.ecs, "yard"), nullptr);
             EXPECT_FLOAT_EQ(clock->spec.runningMonths, 6.0f);
-            EXPECT_EQ(life->piece<ActivityList>("activities")->row(&f.ecs, "train.yard")->spec.state, ActivityState::Running);
+            EXPECT_EQ(life->piece<ActivityList>("activities")->row(&f.ecs, "yard")->spec.state, ActivityState::Running);
 
             // The running row is built with its caption and percent: they came in the same update
-            ActivityRow* at = running->find(&f.ecs, "train.yard");
+            ActivityRow* at = running->find(&f.ecs, "yard");
             ASSERT_NE(at, nullptr);
             EXPECT_EQ(at->spec.caption, f.fact<std::string>("activity.running.caption"));
             EXPECT_EQ(at->spec.caption.rfind("MONTH 0 OF 6", 0), 0u) << at->spec.caption;
@@ -631,7 +640,7 @@ namespace pg
             EXPECT_FLOAT_EQ(f.fact<float>("activity.running.percent"), 50.0f);
             EXPECT_NEAR(clock->shownAge, 17.75f, 0.001f);
             EXPECT_FLOAT_EQ(clock->spec.runningMonths, 3.0f);
-            EXPECT_EQ(running->row(&f.ecs, "train.yard")->spec.percent, 50.0f);
+            EXPECT_EQ(running->row(&f.ecs, "yard")->spec.percent, 50.0f);
 
             for (int i = 0; i < 3; ++i)
                 life->onMonth();
@@ -640,12 +649,12 @@ namespace pg
             // At term: the row is done, the stat is the script's, the log has the line
             EXPECT_EQ(f.fact<std::string>("activity.running.id"), "");
             EXPECT_TRUE(running->spec.groups.empty());
-            EXPECT_EQ(life->save.stats["str"], 17);
-            EXPECT_EQ(life->piece<StatLine>("str")->figure.spec.text, "17");
+            EXPECT_EQ(life->save.stats["str"], 13);
+            EXPECT_EQ(life->piece<StatLine>("str")->figure.spec.text, "13");
             EXPECT_EQ(life->piece<EventLog>("log")->size(), logRows + 1);
             EXPECT_EQ(life->save.log.back().kind, LogKind::Gain);
-            EXPECT_EQ(life->save.log.back().text, "Train at the yard");
-            EXPECT_EQ(life->piece<ActivityList>("activities")->row(&f.ecs, "train.yard")->spec.state, ActivityState::Idle);
+            EXPECT_EQ(life->save.log.back().text, "Train at the Yard");
+            EXPECT_EQ(life->piece<ActivityList>("activities")->row(&f.ecs, "yard")->spec.state, ActivityState::Idle);
 
             // The promise: the lived edge is where the hatch ended
             EXPECT_NEAR(clock->shownAge, 18.0f, 0.001f);
@@ -655,54 +664,29 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The guild's errands raise Haggling to 2, which unlocks the Guild's letter: a row going
-        // from locked to idle when a term ends.
+        // His letters bring the chapel: a row that was not listed comes, ready, when a term ends.
         TEST(lifescene_test, a_term_that_unlocks_an_activity)
         {
             MockLogger logger;
             LifeFixture f;
 
-            LifeScene* life = f.life();
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
 
-            auto list = life->piece<ActivityList>("activities");
-            ASSERT_NE(list, nullptr);
-            ASSERT_EQ(list->row(&f.ecs, "guild.letter")->spec.state, ActivityState::Locked);
-
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "guild.errands"});
+            // A month short of 9: the month that passes makes him old enough for the chapel
+            life->save.age = 9.0f - 1.0f / 12.0f;
+            life->onMonth();
             f.settle();
 
-            for (int i = 0; i < 3; ++i)
-            {
-                life->onMonth();
-                f.settle();
-            }
-
-            f.settle();
-
-            EXPECT_EQ(life->save.running, "");
-            EXPECT_EQ(life->save.stats["haggle"], 2);
-            EXPECT_EQ(list->row(&f.ecs, "guild.letter")->spec.state, ActivityState::Idle);
-            EXPECT_EQ(life->piece<ResourceLedger>("skills")->row("haggle")->figure.spec.text, "2");
-        }
-
-        // ----------------------------------------------------------------------------------------
-        // ---------------------------        Test separator        -------------------------------
-        // ----------------------------------------------------------------------------------------
-        // The yard raises Strength to 17: the keep still asks 18, and its row says 17 / 18.
-        TEST(lifescene_test, a_locked_row_follows_what_it_asks)
-        {
-            MockLogger logger;
-            LifeFixture f;
-
-            LifeScene* life = f.life();
-            ASSERT_NE(life, nullptr);
-
+            // Of age, but without his letters the chapel is out of reach
             auto list = life->piece<ActivityList>("activities");
             ASSERT_NE(list, nullptr);
-            ASSERT_EQ(list->row(&f.ecs, "train.squire")->spec.requirements[0].current, 15);
+            EXPECT_EQ(list->row(&f.ecs, "chapel"), nullptr);
 
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "train.yard"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "letters"});
             f.settle();
 
             for (int i = 0; i < 6; ++i)
@@ -713,22 +697,67 @@ namespace pg
 
             f.settle();
 
-            auto row = list->row(&f.ecs, "train.squire");
-            ASSERT_NE(row, nullptr);
-
-            EXPECT_EQ(life->save.stats["str"], 17);
-            EXPECT_EQ(row->spec.state, ActivityState::Locked);
-            EXPECT_EQ(row->spec.requirements[0].current, 17);
-            EXPECT_EQ(row->spec.requirements[0].needed, 18);
-            ASSERT_TRUE(row->reqs.has_value());
-            EXPECT_EQ(row->reqs->rows[0].item.current, 17);
+            EXPECT_EQ(life->save.running, "");
+            EXPECT_EQ(life->save.stats["letters"], 1);
+            ASSERT_NE(list->row(&f.ecs, "chapel"), nullptr);
+            EXPECT_EQ(list->row(&f.ecs, "chapel")->spec.state, ActivityState::Idle);
+            EXPECT_EQ(life->piece<ResourceLedger>("skills")->row("letters")->figure.spec.text, "1");
         }
 
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // A fresh life shows no skill and holds nothing; the first coin and the first point of a
-        // skill each bring their row.
+        // At 9 the smithy is listed, locked at Strength 6 of 8; the mill raises it to 7, and the row
+        // says 7 / 8.
+        TEST(lifescene_test, a_locked_row_follows_what_it_asks)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            life->save.age = 9.0f - 1.0f / 12.0f;
+            life->onMonth();
+            f.settle();
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(list->row(&f.ecs, "smithy"), nullptr);
+            EXPECT_EQ(list->row(&f.ecs, "smithy")->spec.state, ActivityState::Locked);
+            ASSERT_EQ(list->row(&f.ecs, "smithy")->spec.requirements[0].current, 6);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "mill"});
+            f.settle();
+
+            for (int i = 0; i < 6; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.settle();
+
+            auto row = list->row(&f.ecs, "smithy");
+            ASSERT_NE(row, nullptr);
+
+            EXPECT_EQ(life->save.stats["str"], 7);
+            EXPECT_EQ(row->spec.state, ActivityState::Locked);
+            EXPECT_EQ(row->spec.requirements[0].label, "Strength");
+            EXPECT_EQ(row->spec.requirements[0].current, 7);
+            EXPECT_EQ(row->spec.requirements[0].needed, 8);
+            ASSERT_TRUE(row->reqs.has_value());
+            EXPECT_EQ(row->reqs->rows[0].item.current, 7);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A fresh life shows no skill and holds nothing but rations; the first coin and the first
+        // point of a skill each bring their row.
         TEST(lifescene_test, first_earnings_get_their_rows)
         {
             MockLogger logger;
@@ -747,10 +776,10 @@ namespace pg
 
             EXPECT_EQ(ledger->row("coin"), nullptr);
 
-            for (const char* id : {"swd", "ride", "letters", "haggle"})
+            for (const char* id : {"arms", "discipline", "letters", "lore", "arcana", "stealth", "guile", "renown"})
                 EXPECT_EQ(skills->row(id), nullptr) << id;
 
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "work.carters"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
             f.settle();
 
             for (int i = 0; i < 3; ++i)
@@ -762,80 +791,9 @@ namespace pg
             f.settle();
 
             ASSERT_NE(ledger->row("coin"), nullptr);
-            EXPECT_EQ(ledger->row("coin")->figure.spec.text, "9");
+            EXPECT_EQ(ledger->row("coin")->figure.spec.text, "6");
 
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "guild.errands"});
-            f.settle();
-
-            for (int i = 0; i < 3; ++i)
-            {
-                life->onMonth();
-                f.settle();
-            }
-
-            f.settle();
-
-            ASSERT_NE(skills->row("haggle"), nullptr);
-            EXPECT_EQ(skills->row("haggle")->figure.spec.text, "1");
-            EXPECT_EQ(skills->row("swd"), nullptr);
-        }
-
-        // ----------------------------------------------------------------------------------------
-        // ---------------------------        Test separator        -------------------------------
-        // ----------------------------------------------------------------------------------------
-        // The forest is gone into once: its row leaves the list when the term ends.
-        TEST(lifescene_test, a_spent_activity_leaves_the_list)
-        {
-            MockLogger logger;
-            LifeFixture f;
-
-            LifeScene* life = f.life();
-            ASSERT_NE(life, nullptr);
-
-            auto list = life->piece<ActivityList>("activities");
-            ASSERT_NE(list, nullptr);
-            ASSERT_NE(list->find(&f.ecs, "adventure.forest"), nullptr);
-
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "adventure.forest"});
-            f.settle();
-
-            for (int i = 0; i < 3; ++i)
-            {
-                life->onMonth();
-                f.settle();
-            }
-
-            f.settle();
-
-            EXPECT_EQ(life->save.running, "");
-            EXPECT_EQ(life->save.done["adventure.forest"], 1);
-            EXPECT_EQ(list->find(&f.ecs, "adventure.forest"), nullptr);
-            EXPECT_NE(list->find(&f.ecs, "train.yard"), nullptr);
-            EXPECT_EQ(f.fact<int>("done.adventure.forest"), 1);
-        }
-
-        // ----------------------------------------------------------------------------------------
-        // ---------------------------        Test separator        -------------------------------
-        // ----------------------------------------------------------------------------------------
-        // Three terms at the yard: the row changes its rank and what it brings.
-        TEST(lifescene_test, repetition_upgrades_an_activity)
-        {
-            MockLogger logger;
-            LifeFixture f;
-
-            LifeScene* life = f.life();
-            ASSERT_NE(life, nullptr);
-
-            auto list = life->piece<ActivityList>("activities");
-            ASSERT_NE(list, nullptr);
-            ASSERT_EQ(list->row(&f.ecs, "train.yard")->spec.rank, "RANK 2");
-
-            life->save.done["train.yard"] = 2;
-            life->rules.done = life->save.terms();
-
-            const size_t logEntries = life->save.log.size();
-
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "train.yard"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "letters"});
             f.settle();
 
             for (int i = 0; i < 6; ++i)
@@ -846,23 +804,60 @@ namespace pg
 
             f.settle();
 
-            auto row = list->row(&f.ecs, "train.yard");
-            ASSERT_NE(row, nullptr);
-
-            EXPECT_EQ(life->save.done["train.yard"], 3);
-            EXPECT_EQ(row->spec.rank, "RANK 3");
-            ASSERT_FALSE(row->spec.gains.empty());
-            EXPECT_EQ(row->spec.gains[0].amount, 3);
-
-            // The term's own line, and the step's
-            EXPECT_GE(life->save.log.size(), logEntries + 2);
+            ASSERT_NE(skills->row("letters"), nullptr);
+            EXPECT_EQ(skills->row("letters")->figure.spec.text, "1");
+            EXPECT_EQ(skills->row("arms"), nullptr);
         }
 
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The Guild's letter brings coin every month, and the ledger says at what rate.
-        TEST(lifescene_test, a_holding_produces_each_month)
+        // The Watch takes a carrier once: its row leaves the list when the term ends.
+        TEST(lifescene_test, a_spent_activity_leaves_the_list)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            life->save.age = 10.0f - 1.0f / 12.0f;
+            life->save.stats["str"] = 8;
+            life->save.stats["rations"] = 24;
+            life->onMonth();
+            f.settle();
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(list->find(&f.ecs, "watch"), nullptr);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "watch"});
+            f.settle();
+
+            for (int i = 0; i < 12; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.settle();
+
+            EXPECT_EQ(life->save.running, "");
+            EXPECT_EQ(life->save.done["watch"], 1);
+            EXPECT_EQ(list->find(&f.ecs, "watch"), nullptr);
+            EXPECT_NE(list->find(&f.ecs, "carters"), nullptr);
+            EXPECT_EQ(f.fact<int>("done.watch"), 1);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Two terms at the yard: the third takes nine months, and once three are done the row asks
+        // twelve.
+        TEST(lifescene_test, repetition_upgrades_an_activity)
         {
             MockLogger logger;
             LifeFixture f;
@@ -870,25 +865,78 @@ namespace pg
             LifeScene* life = f.life();
             ASSERT_NE(life, nullptr);
 
-            life->save.stats["letter"] = 1;
+            life->save.stats["rations"] = 24;
 
-            life->onMonth();
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_EQ(list->row(&f.ecs, "yard")->spec.months, 6);
+
+            life->save.done["yard"] = 2;
+            life->rules.done = life->save.terms();
+
+            const size_t logEntries = life->save.log.size();
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
             f.settle();
 
-            EXPECT_EQ(life->save.stats["coin"], 414);
+            EXPECT_FLOAT_EQ(f.fact<float>("activity.running.months"), 9.0f);
 
-            life->onMonth();
+            for (int i = 0; i < 9; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
             f.settle();
 
-            EXPECT_EQ(life->save.stats["coin"], 416);
+            auto row = list->row(&f.ecs, "yard");
+            ASSERT_NE(row, nullptr);
+
+            EXPECT_EQ(life->save.running, "");
+            EXPECT_EQ(life->save.done["yard"], 3);
+            EXPECT_EQ(row->spec.months, 12);
+
+            // The term's own line
+            EXPECT_EQ(life->save.log.size(), logEntries + 1);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Work that feeds him leaves his rations be, and the ledger says so; idle, he eats again.
+        TEST(lifescene_test, work_with_meals_spares_the_rations)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
 
             auto ledger = life->piece<ResourceLedger>("ledger");
             ASSERT_NE(ledger, nullptr);
-            ASSERT_NE(ledger->row("coin"), nullptr);
-            ASSERT_NE(ledger->row("letter"), nullptr);
+            ASSERT_NE(ledger->row("rations"), nullptr);
 
-            EXPECT_EQ(ledger->row("coin")->figure.spec.text, "416");
-            EXPECT_EQ(ledger->row("coin")->spec.rate, "+2 / mo");
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
+            f.settle();
+
+            EXPECT_EQ(ledger->row("rations")->spec.rate, "");
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            EXPECT_EQ(life->save.running, "");
+            EXPECT_EQ(life->save.stats["rations"], 3);
+            EXPECT_EQ(life->save.stats["coin"], 46 + 6);
+            EXPECT_EQ(ledger->row("rations")->spec.rate, "\xE2\x88\x92" "1 / mo");
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["rations"], 2);
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "2");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -982,7 +1030,7 @@ namespace pg
             EXPECT_FLOAT_EQ(f.fact<float>("life.age"), 7.0f);
             EXPECT_EQ(life->save.stats["vit"], 8);
             EXPECT_TRUE(life->save.running.empty());
-            EXPECT_EQ(life->save.stats["rations"], 24);
+            EXPECT_EQ(life->save.stats["rations"], 12);
             EXPECT_TRUE(life->paused);
             EXPECT_FALSE(life->piece<StatLine>("vit")->spec.alert);
 
@@ -994,7 +1042,7 @@ namespace pg
             auto ledger = life->piece<ResourceLedger>("ledger");
             ASSERT_NE(ledger, nullptr);
             ASSERT_NE(ledger->row("rations"), nullptr);
-            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "24");
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "12");
             EXPECT_EQ(ledger->row("coin"), nullptr);
 
             // The new life goes on as any other
@@ -1018,6 +1066,8 @@ namespace pg
             LifeScene* life = f.life();
             ASSERT_NE(life, nullptr);
 
+            life->save.stats["rations"] = 24;
+
             auto vit = [&]() { return life->piece<StatLine>("vit"); };
             ASSERT_NE(vit(), nullptr);
 
@@ -1025,32 +1075,32 @@ namespace pg
             EXPECT_EQ(f.fact<int>("character.parts.vit.projected"), -1);
             EXPECT_FALSE(vit()->projected.has_value());
 
-            life->save.stats["vit"] = 10;
+            life->save.stats["vit"] = 8;
 
             life->onMonth();
             f.settle();
 
-            EXPECT_EQ(life->save.stats["vit"], 10);
-            EXPECT_EQ(vit()->spec.value, 10);
-            EXPECT_EQ(f.fact<int>("character.parts.vit.projected"), 12);
+            EXPECT_EQ(life->save.stats["vit"], 8);
+            EXPECT_EQ(vit()->spec.value, 8);
+            EXPECT_EQ(f.fact<int>("character.parts.vit.projected"), 10);
             ASSERT_TRUE(vit()->projected.has_value());
-            EXPECT_EQ(vit()->spec.projected, 12);
+            EXPECT_EQ(vit()->spec.projected, 10);
             EXPECT_FALSE(vit()->spec.alert);
 
             life->onMonth();
             f.settle();
 
-            EXPECT_EQ(life->save.stats["vit"], 11);
-            EXPECT_EQ(vit()->spec.value, 11);
-            EXPECT_EQ(vit()->spec.projected, 12);
+            EXPECT_EQ(life->save.stats["vit"], 9);
+            EXPECT_EQ(vit()->spec.value, 9);
+            EXPECT_EQ(vit()->spec.projected, 10);
 
             life->onMonth();
             life->onMonth();
             f.settle();
 
             // Whole again: the most it can be did not move, and it stops there
-            EXPECT_EQ(life->save.stats["vit"], 12);
-            EXPECT_EQ(life->save.stats["vitmax"], 12);
+            EXPECT_EQ(life->save.stats["vit"], 10);
+            EXPECT_EQ(life->save.stats["vitmax"], 10);
             EXPECT_EQ(f.fact<int>("character.parts.vit.projected"), -1);
             EXPECT_FALSE(vit()->projected.has_value());
 
@@ -1058,7 +1108,7 @@ namespace pg
             life->onMonth();
             f.settle();
 
-            EXPECT_EQ(life->save.stats["vit"], 12);
+            EXPECT_EQ(life->save.stats["vit"], 10);
 
             // The gloss says both
             auto registry = f.ecs.getSystem<GlossRegistry>();
@@ -1073,7 +1123,7 @@ namespace pg
             {
                 if (r.label == "At most")
                 {
-                    EXPECT_EQ(r.value, "12");
+                    EXPECT_EQ(r.value, "10");
                     most = true;
                 }
             }
@@ -1110,9 +1160,9 @@ namespace pg
             ASSERT_NE(rations, nullptr);
             EXPECT_EQ(rations->title, "Rations");
             EXPECT_FALSE(rations->text.empty());
-            EXPECT_EQ(rowOf(rations, "Held"), "18");
+            EXPECT_EQ(rowOf(rations, "Held"), "3");
             EXPECT_EQ(rowOf(rations, "Limit"), "60");
-            EXPECT_EQ(rowOf(rations, "Lasts"), "18 mo");
+            EXPECT_EQ(rowOf(rations, "Lasts"), "3 mo");
 
             const GlossSpec* coin = registry->find("resource/coin");
             ASSERT_NE(coin, nullptr);
@@ -1134,20 +1184,21 @@ namespace pg
             life->onMonth();
             f.settle();
 
-            EXPECT_EQ(rowOf(registry->find("resource/rations"), "Held"), "17");
+            EXPECT_EQ(rowOf(registry->find("resource/rations"), "Held"), "2");
 
             // A holding earned later gets its gloss with its row
-            life->save.stats["letter"] = 1;
+            life->save.stats["favors"] = 2;
 
             life->onMonth();
             f.settle();
 
-            ASSERT_NE(ledger->row("letter"), nullptr);
+            ASSERT_NE(ledger->row("favors"), nullptr);
 
-            const GlossSpec* letter = registry->find("resource/letter");
-            ASSERT_NE(letter, nullptr);
-            EXPECT_EQ(rowOf(letter, "Each brings Coin"), "+2 / mo");
-            EXPECT_NE(letter->footnote.find("GENERATOR"), std::string::npos);
+            const GlossSpec* favors = registry->find("resource/favors");
+            ASSERT_NE(favors, nullptr);
+            EXPECT_EQ(favors->title, "Favors");
+            EXPECT_EQ(rowOf(favors, "Held"), "2");
+            EXPECT_FALSE(favors->text.empty());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -1159,18 +1210,26 @@ namespace pg
             MockLogger logger;
             LifeFixture f;
 
-            LifeScene* life = f.life();
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
+
+            // At 8, with coin for the market
+            life->save.age = 8.0f - 1.0f / 12.0f;
+            life->save.stats["coin"] = 10;
+            life->onMonth();
+            f.settle();
 
             auto list = life->piece<ActivityList>("activities");
             ASSERT_NE(list, nullptr);
 
-            ActivityRow* forest = list->row(&f.ecs, "adventure.forest");
-            ASSERT_NE(forest, nullptr);
-            EXPECT_EQ(forest->spec.rank, "ONCE");
-            EXPECT_EQ(forest->spec.count, "DONE 0 \xC2\xB7 1 LEFT");
-            ASSERT_TRUE(forest->rank.has_value());
-            EXPECT_EQ(forest->rank->spec.text, "ONCE \xC2\xB7 DONE 0 \xC2\xB7 1 LEFT");
+            ActivityRow* roam = list->row(&f.ecs, "roam");
+            ASSERT_NE(roam, nullptr);
+            EXPECT_EQ(roam->spec.count, "DONE 0 \xC2\xB7 2 LEFT");
+            ASSERT_TRUE(roam->rank.has_value());
+            EXPECT_EQ(roam->rank->spec.text, "DONE 0 \xC2\xB7 2 LEFT");
 
             ActivityRow* buy = list->row(&f.ecs, "buy.rations");
             ASSERT_NE(buy, nullptr);
@@ -1192,7 +1251,7 @@ namespace pg
             auto registry = f.ecs.getSystem<GlossRegistry>();
             ASSERT_NE(registry, nullptr);
 
-            const GlossSpec* gloss = registry->find("activity/adventure.forest");
+            const GlossSpec* gloss = registry->find("activity/roam");
             ASSERT_NE(gloss, nullptr);
 
             bool left = false;
@@ -1201,7 +1260,7 @@ namespace pg
             {
                 if (r.label == "Left")
                 {
-                    EXPECT_EQ(r.value, "1");
+                    EXPECT_EQ(r.value, "2");
                     left = true;
                 }
             }
@@ -1226,7 +1285,7 @@ namespace pg
 
             EXPECT_TRUE(life->save.achieved.empty());
 
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "work.carters"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
             f.settle();
 
             for (int i = 0; i < 3; ++i)
@@ -1252,7 +1311,7 @@ namespace pg
             EXPECT_EQ(life->piece<EventLog>("log")->size(), life->save.log.size());
 
             // More coin: nothing more to reach
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "work.carters"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
             f.settle();
 
             for (int i = 0; i < 3; ++i)
@@ -1286,7 +1345,7 @@ namespace pg
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
 
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "work.carters"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
             f.settle();
 
             for (int i = 0; i < 3; ++i)
@@ -1313,7 +1372,7 @@ namespace pg
             f.frames(8);
 
             EXPECT_EQ(again->save.achieved.size(), 1u);
-            EXPECT_EQ(again->save.done["work.carters"], 1);
+            EXPECT_EQ(again->save.done["carters"], 1);
             EXPECT_EQ(again->save.stats["coin"], coin);
             EXPECT_EQ(again->save.log.size(), writtenLog);
 
@@ -1337,7 +1396,7 @@ namespace pg
             ASSERT_NE(list->row(&f.ecs, "buy.rations"), nullptr);
             EXPECT_EQ(list->row(&f.ecs, "buy.rations")->cost.spec.text, "NOW");
 
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "train.yard"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
             f.settle();
 
             const float age = life->save.age;
@@ -1349,7 +1408,7 @@ namespace pg
             f.settle();
 
             EXPECT_FLOAT_EQ(life->save.age, age);
-            EXPECT_EQ(life->save.running, "train.yard");
+            EXPECT_EQ(life->save.running, "yard");
             EXPECT_EQ(life->save.stats["coin"], coin - 5);
             EXPECT_EQ(life->save.stats["rations"], rations + 6);
             EXPECT_EQ(life->save.done["buy.rations"], 1);
@@ -1391,7 +1450,7 @@ namespace pg
 
             // Nothing taken, nothing brought: the rations a new life starts with, untouched
             EXPECT_EQ(life->save.stats["coin"], 0);
-            EXPECT_EQ(life->save.stats["rations"], 24);
+            EXPECT_EQ(life->save.stats["rations"], 12);
             EXPECT_EQ(life->save.done.count("buy.rations"), 0u);
         }
 
@@ -1406,18 +1465,18 @@ namespace pg
             LifeScene* life = f.life();
             ASSERT_NE(life, nullptr);
 
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "train.yard"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
             f.settle();
 
             const size_t logEntries = life->save.log.size();
 
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "study.letters"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
             f.settle();
 
-            EXPECT_EQ(life->save.running, "train.yard");
-            EXPECT_EQ(f.fact<std::string>("activity.running.id"), "train.yard");
+            EXPECT_EQ(life->save.running, "yard");
+            EXPECT_EQ(f.fact<std::string>("activity.running.id"), "yard");
             ASSERT_EQ(life->save.log.size(), logEntries + 1);
-            EXPECT_EQ(life->save.log.back().text, "Already at work: Train at the yard");
+            EXPECT_EQ(life->save.log.back().text, "Already at work: Train at the Yard");
             EXPECT_EQ(life->piece<EventLog>("log")->size(), life->save.log.size());
         }
 
@@ -1439,7 +1498,7 @@ namespace pg
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
 
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "train.yard"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
             f.settle();
             life->onMonth();
             f.settle();
@@ -1455,14 +1514,14 @@ namespace pg
             ASSERT_NE(again, nullptr);
 
             EXPECT_NEAR(again->save.age, written.age, 0.0001f);
-            EXPECT_EQ(again->save.running, "train.yard");
+            EXPECT_EQ(again->save.running, "yard");
             EXPECT_EQ(again->save.monthsIn, 1);
             EXPECT_EQ(again->save.stats, written.stats);
             EXPECT_EQ(again->save.log.size(), writtenLog);
             EXPECT_EQ(again->save.resources.size(), written.resources.size());
 
             EXPECT_NEAR(f.fact<float>("life.age"), written.age, 0.0001f);
-            EXPECT_EQ(f.fact<std::string>("activity.running.id"), "train.yard");
+            EXPECT_EQ(f.fact<std::string>("activity.running.id"), "yard");
             EXPECT_EQ(again->piece<EventLog>("log")->size(), writtenLog);
 
             std::remove(path.c_str());
@@ -1516,7 +1575,7 @@ namespace pg
             ASSERT_NE(ledger, nullptr);
             ASSERT_EQ(ledger->groups.size(), 1u);
             ASSERT_NE(ledger->row("rations"), nullptr);
-            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "24");
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "12");
             EXPECT_EQ(ledger->row("coin"), nullptr);
 
             // One year rubric, one milestone row
@@ -1528,7 +1587,7 @@ namespace pg
             EXPECT_EQ(std::get<EventLog::Row>(log->items[1]).entry.kind, LogKind::Milestone);
 
             // Every door is still ahead
-            for (const char* id : {"choir", "ruins", "squire", "tourney", "academy"})
+            for (const char* id : {"choir", "watch", "boys", "keep", "collegium", "hand"})
                 EXPECT_EQ(f.fact<std::string>(std::string("window.") + id + ".state"), "upcoming") << id;
         }
 
@@ -1568,7 +1627,7 @@ namespace pg
 
             const std::string outside = source.substr(0, wireStart) + source.substr(wireEnd);
 
-            for (const char* stat : {"\"str\"", "\"dex\"", "\"int\"", "\"vit\"", "\"swd\"", "\"ride\"", "\"letters\"", "\"haggle\"", "\"letter\""})
+            for (const char* stat : {"\"str\"", "\"dex\"", "\"int\"", "\"vit\"", "\"arms\"", "\"discipline\"", "\"letters\"", "\"lore\"", "\"arcana\"", "\"stealth\"", "\"guile\"", "\"renown\"", "\"rations\"", "\"favors\"", "\"reagents\"", "\"keep_oath\""})
                 EXPECT_EQ(outside.find(stat), std::string::npos) << stat;
         }
 
@@ -1597,42 +1656,257 @@ namespace pg
                 return "<none>";
             };
 
-            // A part: where it is, what the next milestone asks of it
+            // A part: where it is, and when the next milestone comes
             const GlossSpec* str = registry->find("parts/str");
             ASSERT_NE(str, nullptr);
             EXPECT_EQ(str->title, "Strength");
-            EXPECT_EQ(rowOf(str, "Now"), "15");
-            EXPECT_EQ(rowOf(str, "Choose a path asks"), "18");
-            EXPECT_EQ(str->footnote, "IN 6 MO: CHOOSE A PATH");
+            EXPECT_EQ(rowOf(str, "Now"), "12");
+            EXPECT_EQ(str->footnote, "IN 42 MO: THE PROVING");
 
             // Selected, it says what the activity brings it to
-            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "train.yard"});
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "yard"});
             f.settle();
-            EXPECT_EQ(rowOf(registry->find("parts/str"), "Train at the yard brings it to"), "17");
+            EXPECT_EQ(rowOf(registry->find("parts/str"), "Train at the Yard brings it to"), "13");
 
-            // An activity: its time, its gains, what it asks
-            const GlossSpec* squire = registry->find("activity/train.squire");
-            ASSERT_NE(squire, nullptr);
-            EXPECT_EQ(squire->title, "Squire at the keep");
-            EXPECT_EQ(rowOf(squire, "Time"), "12 mo");
-            EXPECT_EQ(rowOf(squire, "Strength"), "15 / 18");
-            EXPECT_EQ(squire->footnote, "NOT YET: IT ASKS MORE THAN HE HAS");
+            // An activity: its time, what it brings and costs, what it asks, whether it feeds him
+            const GlossSpec* campaign = registry->find("activity/campaign");
+            ASSERT_NE(campaign, nullptr);
+            EXPECT_EQ(campaign->title, "Join the Border Campaign");
+            EXPECT_EQ(rowOf(campaign, "Time"), "24 mo");
+            EXPECT_EQ(rowOf(campaign, "COIN at term"), "+50");
+            EXPECT_EQ(rowOf(campaign, "COIN to begin"), "\xE2\x88\x92" "10");
+            EXPECT_EQ(rowOf(campaign, "Age"), "17 / 21");
+            EXPECT_EQ(rowOf(campaign, "Arms"), "5 / 6");
+            EXPECT_EQ(rowOf(campaign, "Meals"), "Provided");
+            EXPECT_EQ(rowOf(campaign, "Done by"), "26");
+            EXPECT_EQ(campaign->footnote, "NOT YET: IT ASKS MORE THAN HE HAS");
+
+            EXPECT_EQ(rowOf(registry->find("activity/yard"), "Meals"), "His own rations");
 
             // A door: its note, its ages, what fits
-            const GlossSpec* ruins = registry->find("window/ruins");
-            ASSERT_NE(ruins, nullptr);
-            EXPECT_EQ(ruins->text, f.fact<std::string>("window.ruins.note"));
-            EXPECT_EQ(rowOf(ruins, "Opens at"), "15");
-            EXPECT_EQ(rowOf(ruins, "Attempts that fit"), "6");
+            const GlossSpec* door = registry->find("window/campaign");
+            ASSERT_NE(door, nullptr);
+            EXPECT_EQ(door->text, f.fact<std::string>("window.campaign.note"));
+            EXPECT_EQ(rowOf(door, "Opens at"), "21");
+            EXPECT_EQ(rowOf(door, "Closes at"), "26");
+            EXPECT_EQ(rowOf(door, "Attempts that fit"), "2");
 
             // And the pieces carry them
             EXPECT_TRUE(life->piece<StatLine>("str")->root->has<TooltipComponent>());
             EXPECT_EQ(life->piece<StatLine>("str")->root->get<TooltipComponent>()->text, "parts/str");
 
-            ActivityRow* yard = life->piece<ActivityList>("activities")->row(&f.ecs, "train.yard");
+            ActivityRow* yard = life->piece<ActivityList>("activities")->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
             ASSERT_TRUE(yard->root->has<TooltipComponent>());
-            EXPECT_EQ(yard->root->get<TooltipComponent>()->text, "activity/train.yard");
+            EXPECT_EQ(yard->root->get<TooltipComponent>()->text, "activity/yard");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A cost is taken the month it begins; the way into a path, done, makes him one of it: the
+        // other ways close, his path's rows come, its asks stand on his parts.
+        TEST(lifescene_test, a_path_is_entered)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            life->save.age = 16.0f - 1.0f / 12.0f;
+            life->save.aim = "";
+            life->save.stats["str"] = 12;
+            life->save.stats["arms"] = 3;
+            life->save.stats["discipline"] = 2;
+            life->save.stats["coin"] = 30;
+            life->onMonth();
+            f.settle();
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(list->row(&f.ecs, "keep"), nullptr);
+            EXPECT_EQ(list->row(&f.ecs, "keep")->spec.state, ActivityState::Idle);
+            EXPECT_EQ(list->row(&f.ecs, "serve"), nullptr);
+
+            // A strong boy: the Collegium is out of his reach, and not listed
+            EXPECT_EQ(list->row(&f.ecs, "collegium"), nullptr);
+
+            const int rations = life->save.stats["rations"];
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "keep"});
+            f.settle();
+
+            // Paid as it begins
+            EXPECT_EQ(life->save.running, "keep");
+            EXPECT_EQ(life->save.stats["coin"], 20);
+            EXPECT_EQ(life->piece<ResourceLedger>("ledger")->row("coin")->figure.spec.text, "20");
+
+            for (int i = 0; i < 18; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.frames(8);
+
+            // Fed by the Keep: not a ration eaten, and not paid twice
+            EXPECT_EQ(life->save.running, "");
+            EXPECT_EQ(life->save.stats["rations"], rations);
+            EXPECT_EQ(life->save.stats["coin"], 20);
+            EXPECT_EQ(life->save.stats["keep_oath"], 1);
+            EXPECT_EQ(life->save.aim, "warrior");
+
+            EXPECT_EQ(list->row(&f.ecs, "hand"), nullptr);
+
+            EXPECT_NE(life->piece<ResourceLedger>("ledger")->row("keep_oath"), nullptr);
+            EXPECT_EQ(f.fact<std::string>("window.keep.state"), "closed");
+            EXPECT_NE(std::find(life->save.achieved.begin(), life->save.achieved.end(), "sworn"), life->save.achieved.end());
+
+            // The Keep's service is his at 18
+            EXPECT_EQ(list->row(&f.ecs, "serve"), nullptr);
+
+            for (int i = 0; i < 6; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            ASSERT_NE(list->row(&f.ecs, "serve"), nullptr);
+            EXPECT_EQ(list->row(&f.ecs, "serve")->spec.state, ActivityState::Idle);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A life with nothing left ends before the term pays: the mill's Vitality comes too late.
+        TEST(lifescene_test, death_comes_before_the_term)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "mill"});
+            f.settle();
+
+            life->save.monthsIn = 5;
+            life->save.stats["rations"] = 0;
+            life->save.stats["vit"] = 1;
+
+            life->onMonth();
+            f.settle();
+
+            // A new life, and the mill's term never came
+            EXPECT_FLOAT_EQ(life->save.age, 7.0f);
+            EXPECT_TRUE(life->save.running.empty());
+            EXPECT_EQ(life->save.done.count("mill"), 0u);
+            ASSERT_EQ(life->save.log.size(), 2u);
+            EXPECT_NE(life->save.log.back().text.find("life ended"), std::string::npos);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // At the last milestone the chronicle is written: its line, the months stop, and no month
+        // comes after.
+        TEST(lifescene_test, the_life_stops_at_thirty)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            life->save.age = 30.0f - 1.0f / 12.0f;
+            life->save.stats["rations"] = 24;
+            life->paused = false;
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->piece<Label>("age")->spec.text, "30.0");
+            EXPECT_TRUE(life->paused);
+            EXPECT_EQ(f.fact<std::string>("life.next.label"), "");
+
+            bool written = false;
+
+            for (const auto& entry : life->save.log)
+            {
+                if (entry.kind == LogKind::Milestone and entry.text == "His chronicle is written to its thirtieth year")
+                    written = true;
+            }
+
+            EXPECT_TRUE(written);
+
+            // Nothing with a term is left to begin
+            EXPECT_EQ(life->piece<ActivityList>("activities")->row(&f.ecs, "carters"), nullptr);
+            EXPECT_NE(life->piece<ActivityList>("activities")->row(&f.ecs, "buy.rations"), nullptr);
+
+            // No month after: the age stays, one line says how to go on, once
+            const float age = life->save.age;
+            const size_t lines = life->save.log.size();
+
+            life->paused = false;
+            life->onMonth();
+            life->onMonth();
+            f.settle();
+
+            EXPECT_FLOAT_EQ(life->save.age, age);
+            EXPECT_TRUE(life->paused);
+            ASSERT_EQ(life->save.log.size(), lines + 1);
+            EXPECT_EQ(life->save.log.back().kind, LogKind::Note);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What the next milestone asks of the path he is headed for stands on his parts.
+        TEST(lifescene_test, the_next_milestone_stands_on_his_parts)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            // A boy: the apprenticeship asks nothing
+            EXPECT_EQ(life->piece<StatLine>("str")->spec.threshold, 0);
+
+            life->save.age = 15.5f - 1.0f / 12.0f;
+            life->onMonth();
+            f.settle();
+
+            // Choosing a path at 16 asks the Warrior Strength 12
+            EXPECT_EQ(f.fact<std::string>("life.next.label"), "Choose a path");
+            EXPECT_EQ(life->piece<StatLine>("str")->spec.threshold, 12);
+            EXPECT_EQ(life->piece<StatLine>("int")->spec.threshold, 0);
+
+            auto registry = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(registry, nullptr);
+
+            bool asked = false;
+
+            for (const auto& r : registry->find("parts/str")->rows)
+            {
+                if (r.label == "Choose a path asks")
+                {
+                    EXPECT_EQ(r.value, "12");
+                    asked = true;
+                }
+            }
+
+            EXPECT_TRUE(asked);
         }
 
         // ----------------------------------------------------------------------------------------

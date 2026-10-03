@@ -2,8 +2,10 @@
 // -----------------------------------------
 // Imported by forecast.pg, and loaded by the game through milestones.pg.
 // Input:  `age` (years, a number).
-// Output: `milestones`, every milestone {age, id, label, passed, asks}, where `asks` lists what
-//         each path asks at it: [{path, stat, label, needed}];
+// Output: `milestones`, every milestone {age, id, label, passed, entry, asks}, where `asks` lists
+//         what each path asks at it: [{path, stat, label, needed}] (the doors of
+//         activitytable.pg it opens onto), and `entry` is "" or the line the log writes when he
+//         reaches it. The last one is lib.pg's `lastAge`: the life is written up to there;
 //         `next`, the first milestone after `age`: {id, label, age, in} with `in` the whole
 //         months to it; past the last one: {id: "", label: "", age: -1, in: -1};
 //         `headline`, the page's head at `age`: {ageText ("17.5"), subtitle ("THE SEVENTEENTH
@@ -18,22 +20,44 @@ import "lib"
 var errors = []
 
 var milestoneTable = [
-    {age: 7, id: "childhood", label: "Childhood", asks: []},
-    {age: 14, id: "apprenticeship", label: "Apprenticeship", asks: []},
-    {age: 18, id: "path", label: "Choose a path", asks: [
-        {path: "squire", stat: "str", label: "Strength", needed: 18},
-        {path: "squire", stat: "swd", label: "Swordsmanship", needed: 4},
-        {path: "squire", stat: "letter", label: "The Guild's letter", needed: 1},
-        {path: "scholar", stat: "int", label: "Intelligence", needed: 12},
-        {path: "scholar", stat: "letters", label: "Letters", needed: 3},
-        {path: "guild", stat: "haggle", label: "Haggling", needed: 3},
-        {path: "guild", stat: "coin", label: "Coin", needed: 40}
+    {age: 7, id: "childhood", label: "Childhood", entry: "", asks: []},
+    {age: 13, id: "apprenticeship", label: "Apprenticeship", entry: "", asks: []},
+    {age: 16, id: "path", label: "Choose a path", entry: "", asks: [
+        {path: "warrior", stat: "str", label: "Strength", needed: 12},
+        {path: "warrior", stat: "arms", label: "Arms", needed: 3},
+        {path: "warrior", stat: "discipline", label: "Discipline", needed: 2},
+        {path: "mage", stat: "int", label: "Intelligence", needed: 12},
+        {path: "mage", stat: "letters", label: "Letters", needed: 3},
+        {path: "mage", stat: "lore", label: "Lore", needed: 2},
+        {path: "thief", stat: "dex", label: "Dexterity", needed: 12},
+        {path: "thief", stat: "stealth", label: "Stealth", needed: 2},
+        {path: "thief", stat: "guile", label: "Guile", needed: 2}
     ]},
-    {age: 25, id: "journeyman", label: "Journeyman", asks: []},
-    {age: 40, id: "elder", label: "Elder", asks: []},
-    {age: 43, id: "end", label: "The end", asks: []}
+    {age: 21, id: "proving", label: "The proving", entry: "", asks: [
+        {path: "warrior", stat: "arms", label: "Arms", needed: 6},
+        {path: "warrior", stat: "discipline", label: "Discipline", needed: 4},
+        {path: "warrior", stat: "renown", label: "Renown", needed: 3},
+        {path: "mage", stat: "lore", label: "Lore", needed: 6},
+        {path: "mage", stat: "arcana", label: "Arcana", needed: 3},
+        {path: "thief", stat: "stealth", label: "Stealth", needed: 6},
+        {path: "thief", stat: "guile", label: "Guile", needed: 5},
+        {path: "thief", stat: "favors", label: "Favors", needed: 3}
+    ]},
+    {age: 26, id: "mastery", label: "Mastery", entry: "", asks: [
+        {path: "warrior", stat: "arms", label: "Arms", needed: 8},
+        {path: "warrior", stat: "discipline", label: "Discipline", needed: 6},
+        {path: "warrior", stat: "renown", label: "Renown", needed: 7},
+        {path: "mage", stat: "arcana", label: "Arcana", needed: 6},
+        {path: "mage", stat: "lore", label: "Lore", needed: 7},
+        {path: "mage", stat: "discipline", label: "Discipline", needed: 4},
+        {path: "thief", stat: "stealth", label: "Stealth", needed: 8},
+        {path: "thief", stat: "guile", label: "Guile", needed: 7}
+    ]},
+    {age: lastAge, id: "end", label: "The end", entry: "His chronicle is written to its thirtieth year", asks: []}
 ]
 
+// Counted in whole months, so an age that is a sum of twelfths reaches its milestone on time
+var lived = monthOf(age)
 var milestones = []
 var next = {id: "", label: "", age: -1, in: -1}
 
@@ -41,17 +65,17 @@ for (var i = 0; i < len(milestoneTable); i++)
 {
     var m = milestoneTable[i]
 
-    push(milestones, {age: m.age, id: m.id, label: m.label, passed: m.age <= age, asks: m.asks})
+    push(milestones, {age: m.age, id: m.id, label: m.label, passed: m.age * 12 <= lived, entry: m.entry, asks: m.asks})
 
-    if (m.age > age and next.age < 0)
+    if (m.age * 12 > lived and next.age < 0)
     {
-        next = {id: m.id, label: m.label, age: m.age, in: monthsBetween(age, m.age)}
+        next = {id: m.id, label: m.label, age: m.age, in: m.age * 12 - lived}
     }
 }
 
 var place = "BELLMOOR"
-var year = toInt(floor(age + 0.001))
-var monthOfYear = monthsBetween(year, age)
+var year = toInt(floor(lived / 12))
+var monthOfYear = lived % 12
 
 var headline = {
     ageText: ageText(age),

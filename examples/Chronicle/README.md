@@ -19,8 +19,9 @@ With no `--dev` the game opens on the **Life scene** (`--dev LifeScene` names it
 `--dev <Scene>` picks a dev gallery instead; an unknown name exits with code 2 before a
 window opens. On the Life scene: `SPACE` runs or pauses the months (one every 800 ms),
 `M` passes one month, `T` switches the theme, `R` reduced motion, `S` saves, `N` starts
-a new life. A life whose Vitality reaches 0 is lost: a new one begins at 7 with 24 rations, the
-months stopped and a line in its log saying how the last one ended. Vitality stands under the
+a new life. A life whose Vitality reaches 0 is lost: a new one begins at 7 with 12 rations, the
+months stopped and a line in its log saying how the last one ended. A life is written up to 30:
+there the months stop, the page stays as the life left it, and `N` begins the next. Vitality stands under the
 clock's age at the top of the right column, his other parts in a panel under the log. A month
 that takes from it turns it red for a moment, and the first such month stops the running
 months. What was taken mends, one every two months, up to the most it can be: the hatch on its
@@ -325,7 +326,9 @@ an activity costs and gives, what a milestone asks, which doors are open and how
 fit, what a stat will be at term - comes from `examples/Chronicle/rules/*.pg`, never from C++.
 C++ owns the clock, the save, the scene and the events; the scripts own the content and the
 evaluation, so a rule change or a mod is a `.pg` edit with a test, not a rebuild. The numbers
-in the tables are the design mockup's placeholders.
+are the 7-30 alpha balance of `res/chronicle/chronicle-balance` (`chronicle-nine-lives.md`,
+`tasks.json`): fifty activities on three paths (the Keep, the Collegium, the Hidden Hand), with
+Vitality mending kept on top of it.
 
 **The contract** (`Core/rulevm.h`, the prefab loader's seam): *inputs are globals the C++ side
 defines, outputs are globals the script leaves behind*, read back by a dotted path
@@ -345,6 +348,11 @@ nothing between runs because each run redefines everything it leaves.
   script's path. A compile error fails `load()`, with the VM's message in the log.
 - Language notes: `from` is a keyword (`w["from"]`), a one-line `{ ... }` block needs a newline
   before `}`, numbers print as `std::to_string` does (`17.500000`), so text is worded with ints.
+- **Every function lives in `lib.pg`, ahead of its tables.** A function is a constant of the
+  script that declares it, and its index must fit in a byte (`Chunk::addConstantIndex`): one
+  declared after the 256th constant does not compile, and an import is compiled into the
+  importing script, so a `fun` after `import "activitytable"` (hundreds of strings) is past it.
+  The functions read the tables by name when they are called.
 
 **Loaded scripts are never imported.** Loading a script writes its bytecode beside it (`x.pgc`),
 and an `import "x"` that finds an `x.pgc` takes it instead of the source. That path does not
@@ -355,12 +363,12 @@ which hold everything and are what `windows.pg` and `forecast.pg` import. `lib.p
 
 | script | inputs | outputs |
 |---|---|---|
-| `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup` |
-| `activities.pg` (`activitytable.pg`) | `character`, `done` | `activities`: `{id, group, name, glyph, months, rank, each, path, gains[{stat, amount}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, tally ("DONE 2", "DONE 0 · 1 LEFT"), after[step]}` |
-| `milestones.pg` (`milestonetable.pg`) | `age` | `milestones`: `{age, id, label, passed, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
-| `windows.pg` | `age`, `character`, `done` | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}` |
-| `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atTerm{stats}, percent, months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
-| `resources.pg` | `character` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
+| `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthOf` (whole months lived), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup`, `raised` (a gain stopped at the stat's ceiling), `byId`, `pathFlagOf`, `asksOf`, `openNote`, `shiftIn` (a month's change to a stat); `lastAge` (30) |
+| `activities.pg` (`activitytable.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own) | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label}], costs[{stat, amount, label}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, tally ("DONE 2", "DONE 0 · 1 LEFT"), after[step]}` |
+| `milestones.pg` (`milestonetable.pg`) | `age` | `milestones`: `{age, id, label, passed, entry, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
+| `windows.pg` | `age`, `character`, `done`, `activityId` (`""`) | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}`, one per door of an activity whose path is open to him |
+| `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atStart{stats}, atTerm{stats}, percent, months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
+| `resources.pg` | `character`, `board` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
 | `achievements.pg` | - | `achievements`: `{id, name, entry, asks[{fact, op, value}], gives[{stat, amount}]}` |
 
 **Repetition** (`activities.pg`). `done` is the save's count of terms completed per activity.
@@ -374,13 +382,41 @@ An activity may carry two optional fields:
   effects to `atTerm` and the entry to `entries`.
 
 **Costs and things done at once** (`activities.pg`). `costs: [{stat, amount}]` is what an
-activity takes: it is listed in `requires` (he must hold that much, or the row is locked) and
-leaves with the gains, as a negative entry. `months: 0` is an activity done at once: confirming
-it applies it immediately, no month passes, and it can be done while another activity runs.
-Its row reads `NOW` where the others read their months.
+activity takes: it is listed in `requires` (he must hold that much, or the row is locked) and is
+taken **the moment it begins**: `forecast.atStart` is the character once it is paid, and the
+scene takes it on confirm; `atTerm` does not take it again. The row shows each cost as a
+negative figure beside the gains. `months: 0` is an activity done at once: confirming it applies
+`atTerm` (its gains on what is left once it is paid) immediately, no month passes, and it can be
+done while another activity runs. Its row reads `NOW` where the others read their months.
 
-**Holdings** (`resources.pg`). A holding is a stat with a row in the ledger. `produces
-[{stat, amount, per}]` brings `amount` of `stat` every month for each `per` of it he holds;
+**Ages and paths** (`activities.pg`). `fromAge` (default 7) is the youngest he may begin it:
+younger, the first thing it asks is the age. `finishBy` (default `lastAge`) is the latest its
+term may end, inclusive: an 18-month activity with `finishBy: 20` is begun by 18.5. Past that
+it is `closed`. `path` puts an activity on one of `paths` (`warrior`, `mage`, `thief`, each with
+the flag that makes him one of it); the one that `enters` it is open until he is one of any
+path, the others only once he is one of theirs (`pathOpen`). The paths exclude each other. A row
+is `listed` while its path is open, it is neither spent nor closed, he is of age for it, and
+he has most of what it asks: `reach` is the average share (each up to 100) of its requirements
+he meets, costs and room left out, and the row shows from `reachShown` (75). A boy is not shown
+a life of locked rows; the doors on the clock still say what is coming. The scene shows the
+listed rows only, and rebuilds the list whenever what is listed, or what a row asks, changes. A requirement
+may be `eased: {flag, needed}` (with the flag it asks less) or `anyOf: [flags]` (any one will
+do); `bonus: {stat, needed, gains}` replaces the gains when the stat is high enough. Every age
+test counts whole months (`monthOf`), so an age summed a twelfth at a time meets its doors on
+time.
+
+**Meals** (`activities.pg`, `resources.pg`). `board: true` is work that feeds him: a month at it
+takes no ration and costs no Vitality, held rations or not. The scene runs `resources.pg` with
+`board` for the activity at work. Eating the last ration is still a fed month: only a month
+begun with none costs Vitality.
+
+**Ceilings** (`lib.pg`). `statCeilings` is the most a stat can ever be: parts 30, skills 10;
+renown, favors and what he holds have none. A term's gain stops there (`raised`), what already
+stood past it stays, and nothing is locked by it.
+
+**Holdings** (`resources.pg`). A holding is a stat with a row in the ledger: coin, rations and
+reagents in the purse, favors and the paths' standings. `produces
+[{stat, amount, per}]` (no holding uses it in this balance) brings `amount` of `stat` every month for each `per` of it he holds;
 `decays: N` takes N from it every month, never below 0; `empty {effects, entry}` says what
 running out costs: the entry the month it reaches 0, the effects every month it stays there.
 The script runs once per month for `month.after`, and once per publish for the rows' rates.
@@ -410,8 +446,10 @@ the cap takes what it has as its most.
 (`StatLine::setAlert`, through `character.parts.<p>.alert`) and pauses the months at the first
 month of a run of them.
 `death` is the entry of the first one the character as given has none left of, else `""`. The
-scene asks after every month and every activity done at once; on a death it starts a fresh
-life, pauses the months and writes the entry in the new log, with the age the last life ended at.
+scene asks after every month, **before the term of the activity at work pays**, and after every
+activity done at once; on a death it starts a fresh life, pauses the months and writes the entry
+in the new log, with the age the last life ended at. The last milestone (`lastAge`, 30) ends the
+life too, without a death: its `entry` is written, the months stop, and no month passes after.
 
 **Deeds** (`achievements.pg`). Each deed asks facts the Life scene publishes (`stat.<key>`,
 `done.<activity id>`, `life.age`) with an `op` of `>=`, `>`, `<=`, `<` or `==`. The scene hands
@@ -421,7 +459,7 @@ reached the scene applies `gives`, writes `entry` in the log and keeps the id in
 `Rules` loads them once from a root (`examples/Chronicle/rules` from the repo root, where
 the game runs; `rules` beside `test_chronicle`, where CMake copies them) and gives each a typed
 call. The forecast runs once per month tick, not per frame; `rules_test.timing_ceiling` keeps
-100 runs under 50 ms. The compiled `.pgc` files land beside the scripts and are git-ignored.
+100 runs under 100 ms (each run rebuilds the whole activity table: about 0.55 ms). The compiled `.pgc` files land beside the scripts and are git-ignored.
 
 ## Patterns
 
@@ -466,11 +504,11 @@ In `wire()`, the one function with every subscription, it subscribes each widget
 game events: select (the forecast's ghosts on the parts), confirm (the activity at work,
 refused while one runs), a month passes. It computes nothing about the game: every number
 it writes is a script's output or the save's (`lifescene_test.no_scene_arithmetic` scans
-the source for it). A month: the age moves a twelfth, the running activity's forecast is
-re-run and written, and at term its `atTerm` becomes the character, its lines the log's,
-and the milestones, doors and locks are run again. Before that, every month, `resources.pg`
-is run and its `month.after` becomes the character: what he holds produces or wastes
-whatever he is doing. A term ended also counts in the save's `done`, and the activity rows
+the source for it). A month: the age moves a twelfth, `resources.pg` is run (fed or not by the work at
+hand) and its `month.after` becomes the character, a life with nothing left ends there, then
+the running activity's forecast is re-run and written, and at term its `atTerm` becomes the
+character, its lines the log's, and the milestones, doors and locks are run again. The term of
+a path's way in sets the save's `aim`, the path whose asks stand on his parts. A term ended also counts in the save's `done`, and the activity rows
 are rebuilt so a spent one leaves and an upgraded one shows what it has become. `onLeave`
 drops every subscription and the page leaves with the scene. The save (`Scenes/lifesave.h`,
 `save/chronicle/life.sz`) holds the character, the life, what he holds, the log, the terms

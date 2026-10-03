@@ -1,16 +1,26 @@
 // Chronicle rules: the activities
 // -------------------------------
 // Imported by windows.pg and forecast.pg, and loaded by the game through activities.pg.
-// Input:  `character` (a table of stats and flags), `done` (a table: activity id -> the terms
-//         already completed; an activity never done has no key).
+// Input:  `age` (years), `character` (a table of stats and flags), `done` (a table: activity id
+//         -> the terms already completed; an activity never done has no key), `activityId` (""
+//         for every activity; the forecast's one id, to shape that one only).
 // Output: `activities`, one table per thing the character may spend months doing, in the order
 //         the Life screen lists them:
-//           id, group, name, glyph, months, rank ("" or caps), each ("" or caps), path (the
-//           milestone path it leads toward, "" if none), gains [{stat, amount}] (at term),
-//           requires [{stat, label, current, needed}] (current: the character's),
+//           id, group, name, glyph, months, rank ("" or caps), each ("" or caps), path ("" or the
+//           path it belongs to, `paths` below), enters (true for the activity that makes him one
+//           of a path), board (true when it feeds him), fromAge, finishBy,
+//           gains [{stat, amount, label}] (at term; label: the stat's short name),
+//           costs [{stat, amount, label}] (taken when it begins),
+//           requires [{stat, label, current, needed, room}] (current: the character's; flat:
+//           eased and anyOf are weighed here and not passed on),
 //           locked (true while a requirement is unmet),
 //           done (the terms completed), uses (0 = as often as he likes), left (-1 = no limit),
-//           spent (true once a limited activity has no use left: the screen drops it),
+//           spent (true once a limited activity has no use left),
+//           closed (true once it can no longer finish by its `finishBy`),
+//           pathOpen (true while its path is his, or open to him),
+//           reach (0-100: how much of what it asks he has, on average),
+//           listed (true while the screen has a row for it: its path open, neither spent nor
+//           closed, he is of age for it and has `reachShown` of what it asks),
 //           tally (how often it was done and, for a limited one, what is left, as the row
 //           writes it: "DONE 2", "DONE 0 · 1 LEFT"),
 //           after (its steps, as below).
@@ -18,10 +28,23 @@
 // `months: 0` is an activity done at once: it takes no time, and can be done while another runs.
 //
 // Optional fields of an activity:
+//   fromAge: N       he may begin it from that age (default 7). Younger, it asks for the age.
+//   finishBy: N      its term must fall at that age or before (default lib.pg's `lastAge`): an
+//                    activity of 18 months with finishBy 25 is begun by 23.5 at the latest.
+//   board: true      meals provided: a month at it takes no ration and costs no Vitality, held
+//                    rations or not (resources.pg).
+//   path, enters     a path's activities are listed once he is one of it (holds its flag); the
+//                    one that enters it is listed until he is one of any. The paths exclude
+//                    each other.
 //   costs: [{stat, amount}]
-//                    what it takes from him. He must hold that much to begin (it is listed in
-//                    `requires`), and it leaves with the gains (a negative entry in `gains`).
+//                    what it takes from him when it begins. He must hold that much to begin (it
+//                    is listed in `requires`).
 //   uses: N          it can be done N times, then it is spent.
+//   requires entries may carry:
+//     eased: {flag, needed}   with the flag held, it asks `needed` instead.
+//     anyOf: [flag]           one of the flags is enough: current is 1 when he holds any.
+//   bonus: {stat, needed, gains}
+//                    with the stat at `needed` or more, the term brings these gains instead.
 //
 // An activity that brings a stat with a limit (lib.pg's `statLimits`) asks for room for it: one
 // more requirement, {stat, label "Room for Rations", current (the room left), needed 1, room
@@ -34,8 +57,11 @@
 //                                            happen once, at the term that makes it N
 //                                            (forecast.pg applies them).
 //
-// The numbers are the design mockup's placeholders for the game's balance: change them here,
-// nothing in C++ moves.
+// No function here: lib.pg holds them all, ahead of every table (see there why).
+//
+// The numbers are the balance of res/chronicle/chronicle-balance (tasks.json): change them here,
+// nothing in C++ moves. Buy Silence ("silence") is a stub: nothing comes after the robbery yet for
+// silence to quiet; it is kept as the place a Guild's pursuit will hang from.
 
 import "string"
 import "math"
@@ -44,50 +70,250 @@ import "lib"
 
 var errors = []
 
+// A row is listed once he has, on average, this much (in percent) of what it asks: each
+// requirement counts its share up to 100, costs and room are left out (they are bought, not
+// grown). Further from it, the row stays hidden, so a boy is not shown a life of locked rows;
+// the doors on the clock still say what is coming.
+var reachShown = 75
+
+// The paths a life may take: the flag that makes him one of it
+var paths = [
+    {id: "warrior", name: "The Keep", flag: "keep_oath"},
+    {id: "mage", name: "The Collegium", flag: "collegium"},
+    {id: "thief", name: "The Hidden Hand", flag: "hidden_hand"}
+]
+
 var activities = [
-    {id: "train.yard", group: "Training", name: "Train at the yard", glyph: "training", months: 6, rank: "RANK 2", each: "AT THE YARD", path: "squire",
-     gains: [{stat: "str", amount: 2}, {stat: "vit", amount: 1}],
+    {id: "carters", group: "Work", name: "Carry for the Carters", glyph: "work", months: 3, rank: "", each: "MEALS PROVIDED", path: "", board: true,
+     gains: [{stat: "coin", amount: 6}],
+     requires: []},
+    {id: "mill", group: "Work", name: "Help at the Mill", glyph: "work", months: 6, rank: "", each: "", path: "",
+     gains: [{stat: "str", amount: 1}, {stat: "vit", amount: 1}, {stat: "coin", amount: 8}],
      requires: [],
-     after: [{uses: 3, rank: "RANK 3", gains: [{stat: "str", amount: 3}, {stat: "vit", amount: 1}], entry: "The yard has no more to teach a beginner"}]},
-    {id: "train.guard", group: "Training", name: "Spar with the guard", glyph: "swordsmanship", months: 3, rank: "", each: "AT THE GATE", path: "squire",
-     gains: [{stat: "swd", amount: 1}, {stat: "dex", amount: 1}],
-     requires: [{stat: "str", needed: 12}]},
-    {id: "train.squire", group: "Training", name: "Squire at the keep", glyph: "swordsmanship", months: 12, rank: "", each: "", path: "squire",
-     gains: [{stat: "swd", amount: 2}, {stat: "ride", amount: 2}],
-     requires: [{stat: "str", needed: 18}, {stat: "swd", needed: 4}]},
+     after: [{uses: 2, months: 9, gains: [{stat: "coin", amount: 6}]}]},
+    {id: "messages", group: "Work", name: "Run Messages", glyph: "town", months: 3, rank: "", each: "", path: "",
+     gains: [{stat: "dex", amount: 1}, {stat: "coin", amount: 3}],
+     requires: [],
+     after: [{uses: 2, gains: [{stat: "coin", amount: 5}]}]},
+    {id: "market", group: "Work", name: "Help at the Market", glyph: "trade", months: 6, rank: "", each: "", path: "", fromAge: 8,
+     gains: [{stat: "guile", amount: 1}, {stat: "coin", amount: 8}],
+     requires: [],
+     after: [{uses: 2, gains: [{stat: "coin", amount: 12}]}]},
+    {id: "smithy", group: "Work", name: "Work the Smithy", glyph: "forge", months: 9, rank: "", each: "", path: "", fromAge: 9,
+     gains: [{stat: "str", amount: 1}, {stat: "coin", amount: 18}],
+     requires: [{stat: "str", needed: 8}]},
+    {id: "night", group: "Work", name: "Work the Night Market", glyph: "trade", months: 6, rank: "", each: "", path: "", fromAge: 13, finishBy: 18, uses: 2,
+     gains: [{stat: "guile", amount: 1}, {stat: "coin", amount: 12}],
+     requires: [{stat: "guile", needed: 1}],
+     after: [{uses: 2, effects: [{stat: "night_contacts", amount: 1}], entry: "The night market knows his face"}]},
 
-    {id: "study.academy", group: "Study", name: "Read at the academy", glyph: "academy", months: 6, rank: "", each: "AT THE ACADEMY", path: "scholar",
-     gains: [{stat: "int", amount: 2}],
-     requires: [{stat: "int", needed: 10}]},
-    {id: "study.letters", group: "Study", name: "Letters with the priest", glyph: "quill", months: 6, rank: "", each: "AT THE CHAPEL", path: "scholar",
+    {id: "blades", group: "Training", name: "Practice with Wooden Blades", glyph: "swordsmanship", months: 6, rank: "", each: "", path: "", fromAge: 8, finishBy: 14, uses: 3,
+     gains: [{stat: "arms", amount: 1}, {stat: "dex", amount: 1}],
+     requires: [{stat: "str", needed: 7}]},
+    {id: "yard", group: "Training", name: "Train at the Yard", glyph: "training", months: 6, rank: "", each: "", path: "", fromAge: 10,
+     gains: [{stat: "str", amount: 1}, {stat: "arms", amount: 1}],
+     requires: [{stat: "str", needed: 9}],
+     after: [{uses: 2, months: 9}, {uses: 3, months: 12}]},
+    {id: "watch", group: "Training", name: "Carry for the Watch", glyph: "gate", months: 12, rank: "", each: "", path: "", fromAge: 10, finishBy: 13, uses: 1,
+     gains: [{stat: "arms", amount: 1}, {stat: "str", amount: 1}, {stat: "watch_known", amount: 1}],
+     requires: [{stat: "str", needed: 8}]},
+    {id: "edric", group: "Training", name: "Train under Sergeant Edric", glyph: "training", months: 12, rank: "", each: "", path: "", fromAge: 13, finishBy: 18, uses: 2,
+     gains: [{stat: "arms", amount: 1}, {stat: "discipline", amount: 1}, {stat: "str", amount: 1}],
+     requires: [{stat: "str", needed: 10}, {stat: "arms", needed: 2, eased: {flag: "watch_known", needed: 1}}],
+     after: [{uses: 2, effects: [{stat: "edric_support", amount: 1}], entry: "Sergeant Edric will speak for him at the Keep"}]},
+
+    {id: "letters", group: "Study", name: "Learn Your Letters", glyph: "quill", months: 6, rank: "", each: "", path: "", finishBy: 14,
      gains: [{stat: "letters", amount: 1}, {stat: "int", amount: 1}],
-     requires: []},
+     requires: [],
+     after: [{uses: 3, gains: [{stat: "letters", amount: 1}]}]},
+    {id: "chapel", group: "Study", name: "Serve at the Chapel", glyph: "study", months: 9, rank: "", each: "", path: "", fromAge: 9, finishBy: 15, uses: 2,
+     gains: [{stat: "letters", amount: 1}, {stat: "discipline", amount: 1}],
+     requires: [{stat: "letters", needed: 1}]},
+    {id: "choir", group: "Study", name: "Choir of Saint Orun", glyph: "study", months: 12, rank: "", each: "", path: "", fromAge: 9, finishBy: 12, uses: 1,
+     gains: [{stat: "letters", amount: 1}, {stat: "discipline", amount: 1}, {stat: "choir", amount: 1}],
+     requires: [{stat: "letters", needed: 1}]},
+    {id: "chronicle", group: "Study", name: "Read the Old Chronicle", glyph: "study", months: 9, rank: "", each: "", path: "", fromAge: 10, finishBy: 16, uses: 2,
+     gains: [{stat: "lore", amount: 1}, {stat: "int", amount: 2}],
+     requires: [{stat: "letters", needed: 1}]},
+    {id: "copy", group: "Study", name: "Copy for Father Anselm", glyph: "quill", months: 9, rank: "", each: "", path: "", fromAge: 13, finishBy: 18, uses: 2,
+     gains: [{stat: "letters", amount: 1}, {stat: "lore", amount: 1}, {stat: "coin", amount: 8}],
+     requires: [{stat: "letters", needed: 2}],
+     after: [{uses: 2, effects: [{stat: "library_access", amount: 1}], entry: "Father Anselm opens the chapel library to him"}]},
+    {id: "mara", group: "Study", name: "Lessons with Mara", glyph: "magic", months: 12, rank: "", each: "", path: "", fromAge: 15, finishBy: 17, uses: 1,
+     gains: [{stat: "lore", amount: 2}, {stat: "discipline", amount: 1}, {stat: "mara_student", amount: 1}],
+     requires: [{stat: "lore", needed: 1}, {stat: "letters", needed: 1}]},
 
-    {id: "work.smithy", group: "Work", name: "Work the smithy", glyph: "forge", months: 6, rank: "", each: "AT THE SMITHY", path: "guild",
-     gains: [{stat: "str", amount: 1}, {stat: "coin", amount: 24}],
+    {id: "roam", group: "The streets", name: "Roam Bellmoor", glyph: "adventure", months: 6, rank: "", each: "", path: "", fromAge: 8, finishBy: 14, uses: 2,
+     gains: [{stat: "dex", amount: 1}, {stat: "lore", amount: 1}],
      requires: []},
-    {id: "work.carters", group: "Work", name: "Carry for the carters", glyph: "work", months: 3, rank: "", each: "", path: "",
-     gains: [{stat: "vit", amount: 1}, {stat: "coin", amount: 9}, {stat: "rations", amount: 6}],
-     requires: []},
+    {id: "hunters", group: "The streets", name: "Follow the Hunters", glyph: "adventure", months: 9, rank: "", each: "", path: "", fromAge: 10, finishBy: 15, uses: 2,
+     gains: [{stat: "stealth", amount: 1}, {stat: "vit", amount: 1}, {stat: "dex", amount: 1}],
+     requires: [{stat: "dex", needed: 8}]},
+    {id: "boys", group: "The streets", name: "Run with the Bellmoor Boys", glyph: "town", months: 12, rank: "", each: "", path: "", fromAge: 10, finishBy: 14, uses: 1,
+     gains: [{stat: "stealth", amount: 1}, {stat: "guile", amount: 1}, {stat: "street_known", amount: 1}],
+     requires: [{stat: "dex", needed: 8}]},
 
     {id: "buy.rations", group: "Market", name: "Buy rations", glyph: "trade", months: 0, rank: "", each: "AT THE MARKET", path: "",
      gains: [{stat: "rations", amount: 6}],
      requires: [],
      costs: [{stat: "coin", amount: 5}]},
-
-    {id: "guild.errands", group: "Guild", name: "Run the guild's errands", glyph: "guild", months: 3, rank: "", each: "", path: "guild",
-     gains: [{stat: "haggle", amount: 1}],
+    {id: "buy.reagents", group: "Market", name: "Buy reagents", glyph: "trade", months: 0, rank: "", each: "AT THE COLLEGIUM", path: "mage",
+     gains: [{stat: "reagents", amount: 2}],
      requires: [],
-     after: [{uses: 2, effects: [{stat: "coin", amount: 5}], entry: "The guild master tips him for his trouble"}]},
-    {id: "guild.letter", group: "Guild", name: "Earn the Guild's letter", glyph: "seal", months: 6, rank: "", each: "", path: "squire",
-     gains: [{stat: "letter", amount: 1}],
-     requires: [{stat: "haggle", needed: 2}]},
+     costs: [{stat: "coin", amount: 6}]},
 
-    {id: "adventure.forest", group: "Adventure", name: "Into the North Forest", glyph: "adventure", months: 3, rank: "ONCE", each: "", path: "",
-     gains: [{stat: "dex", amount: 1}, {stat: "swd", amount: 1}],
-     requires: [{stat: "vit", needed: 10}],
-     uses: 1}
+    {id: "keep", group: "A path", name: "Swear Service to the Keep", glyph: "seal", months: 18, rank: "", each: "MEALS PROVIDED", path: "warrior", enters: true, board: true, fromAge: 16, finishBy: 20, uses: 1,
+     gains: [{stat: "keep_oath", amount: 1}, {stat: "renown", amount: 1}, {stat: "arms", amount: 1}],
+     requires: [{stat: "str", needed: 12, eased: {flag: "edric_support", needed: 11}}, {stat: "arms", needed: 3}, {stat: "discipline", needed: 2}],
+     costs: [{stat: "coin", amount: 10}]},
+    {id: "collegium", group: "A path", name: "Enter the Collegium", glyph: "academy", months: 24, rank: "", each: "MEALS PROVIDED", path: "mage", enters: true, board: true, fromAge: 16, finishBy: 20, uses: 1,
+     gains: [{stat: "collegium", amount: 1}, {stat: "arcana", amount: 1}, {stat: "lore", amount: 1}],
+     requires: [{stat: "int", needed: 12}, {stat: "letters", needed: 3}, {stat: "lore", needed: 2, eased: {flag: "mara_student", needed: 1}}],
+     costs: [{stat: "coin", amount: 35}]},
+    {id: "hand", group: "A path", name: "Earn the Hidden Hand's Trust", glyph: "guild", months: 18, rank: "", each: "MEALS PROVIDED", path: "thief", enters: true, board: true, fromAge: 16, finishBy: 21, uses: 1,
+     gains: [{stat: "hidden_hand", amount: 1}, {stat: "favors", amount: 1}, {stat: "stealth", amount: 1}],
+     requires: [{stat: "dex", needed: 12}, {stat: "stealth", needed: 2}, {stat: "guile", needed: 2},
+                {stat: "street_known", label: "Known on the street or at the night market", needed: 1, anyOf: ["street_known", "night_contacts"]}],
+     costs: [{stat: "coin", amount: 15}]},
+
+    {id: "serve", group: "The Keep", name: "Serve at the Keep", glyph: "swordsmanship", months: 12, rank: "", each: "MEALS PROVIDED", path: "warrior", board: true, fromAge: 18,
+     gains: [{stat: "arms", amount: 1}, {stat: "discipline", amount: 1}, {stat: "coin", amount: 12}],
+     requires: [],
+     after: [{uses: 2, gains: [{stat: "arms", amount: 1}, {stat: "coin", amount: 8}], effects: [{stat: "renown", amount: 1}], entry: "The Keep speaks well of his service"}]},
+    {id: "patrol", group: "The Keep", name: "Patrol the North Road", glyph: "gate", months: 9, rank: "", each: "", path: "warrior", fromAge: 18, finishBy: 25, uses: 2,
+     gains: [{stat: "renown", amount: 1}, {stat: "coin", amount: 22}, {stat: "vit", amount: 1}],
+     requires: [{stat: "arms", needed: 5}, {stat: "vit", needed: 10}]},
+    {id: "tourney", group: "The Keep", name: "Spring Tourney", glyph: "reputation", months: 6, rank: "", each: "", path: "warrior", fromAge: 19, finishBy: 23, uses: 1,
+     gains: [{stat: "renown", amount: 1}, {stat: "coin", amount: 20}],
+     requires: [{stat: "arms", needed: 5}],
+     bonus: {stat: "arms", needed: 7, gains: [{stat: "renown", amount: 2}, {stat: "coin", amount: 20}, {stat: "tourney_victor", amount: 1}]}},
+    {id: "escort", group: "The Keep", name: "Escort the Merchant Road", glyph: "adventure", months: 12, rank: "", each: "", path: "warrior", fromAge: 20, finishBy: 27, uses: 2,
+     gains: [{stat: "coin", amount: 35}, {stat: "renown", amount: 1}],
+     requires: [{stat: "arms", needed: 5}, {stat: "discipline", needed: 3}]},
+    {id: "master", group: "The Keep", name: "Train with the Master-at-Arms", glyph: "training", months: 18, rank: "", each: "MEALS PROVIDED", path: "warrior", board: true, fromAge: 19, uses: 1,
+     gains: [{stat: "arms", amount: 2}, {stat: "discipline", amount: 1}],
+     requires: [{stat: "arms", needed: 5}, {stat: "discipline", needed: 3}, {stat: "renown", needed: 2}]},
+    {id: "campaign", group: "The Keep", name: "Join the Border Campaign", glyph: "swordsmanship", months: 24, rank: "", each: "MEALS PROVIDED", path: "warrior", board: true, fromAge: 21, finishBy: 26, uses: 1,
+     gains: [{stat: "arms", amount: 1}, {stat: "discipline", amount: 1}, {stat: "vit", amount: 1}, {stat: "renown", amount: 2}, {stat: "coin", amount: 50}, {stat: "veteran", amount: 1}],
+     requires: [{stat: "arms", needed: 6}, {stat: "discipline", needed: 4}, {stat: "renown", needed: 3}],
+     costs: [{stat: "coin", amount: 10}]},
+    {id: "lead", group: "The Keep", name: "Lead the Watch", glyph: "reputation", months: 18, rank: "", each: "MEALS PROVIDED", path: "warrior", board: true, fromAge: 24, uses: 1,
+     gains: [{stat: "renown", amount: 2}, {stat: "discipline", amount: 1}, {stat: "watch_commander", amount: 1}],
+     requires: [{stat: "veteran", needed: 1}, {stat: "arms", needed: 7}, {stat: "discipline", needed: 5}]},
+    {id: "captain", group: "The Keep", name: "Take the Captain's Chain", glyph: "seal", months: 24, rank: "", each: "MEALS PROVIDED", path: "warrior", board: true, fromAge: 26, uses: 1,
+     gains: [{stat: "captain", amount: 1}, {stat: "coin", amount: 80}],
+     requires: [{stat: "watch_commander", needed: 1}, {stat: "arms", needed: 8}, {stat: "discipline", needed: 6}, {stat: "renown", needed: 7}],
+     costs: [{stat: "coin", amount: 20}]},
+
+    {id: "scribework", group: "The Collegium", name: "Copy Paid Manuscripts", glyph: "quill", months: 6, rank: "", each: "MEALS PROVIDED", path: "mage", board: true, fromAge: 18,
+     gains: [{stat: "coin", amount: 30}],
+     requires: [{stat: "letters", needed: 4}]},
+    {id: "study", group: "The Collegium", name: "Study at the Collegium", glyph: "academy", months: 12, rank: "", each: "MEALS PROVIDED", path: "mage", board: true, fromAge: 18,
+     gains: [{stat: "lore", amount: 1}, {stat: "letters", amount: 1}],
+     requires: [],
+     costs: [{stat: "coin", amount: 10}],
+     after: [{uses: 2, gains: [{stat: "lore", amount: 1}]}]},
+    {id: "workings", group: "The Collegium", name: "Practice Minor Workings", glyph: "magic", months: 6, rank: "", each: "", path: "mage", fromAge: 18,
+     gains: [{stat: "arcana", amount: 1}],
+     requires: [{stat: "arcana", needed: 1}, {stat: "lore", needed: 3}],
+     costs: [{stat: "reagents", amount: 2}],
+     after: [{uses: 2, months: 9}]},
+    {id: "treatise", group: "The Collegium", name: "Copy the Black Treatise", glyph: "quill", months: 12, rank: "", each: "", path: "mage", fromAge: 19, finishBy: 25, uses: 1,
+     gains: [{stat: "lore", amount: 2}, {stat: "black_treatise", amount: 1}],
+     requires: [{stat: "letters", needed: 4}, {stat: "lore", needed: 4}],
+     costs: [{stat: "coin", amount: 20}]},
+    {id: "orin", group: "The Collegium", name: "Assist Magister Orin", glyph: "magic", months: 18, rank: "", each: "MEALS PROVIDED", path: "mage", board: true, fromAge: 19, finishBy: 26, uses: 1,
+     gains: [{stat: "arcana", amount: 1}, {stat: "discipline", amount: 1}, {stat: "orin_known", amount: 1}],
+     requires: [{stat: "arcana", needed: 2}, {stat: "letters", needed: 4}],
+     costs: [{stat: "reagents", amount: 3}]},
+    {id: "fragments", group: "The Collegium", name: "Examine the Harrow Fragments", glyph: "relic", months: 12, rank: "", each: "", path: "mage", fromAge: 20, uses: 1,
+     gains: [{stat: "lore", amount: 1}, {stat: "harrow_fragments", amount: 1}],
+     requires: [{stat: "lore", needed: 5}, {stat: "library_access", label: "The chapel library or the Collegium", needed: 1, anyOf: ["library_access", "collegium"]}]},
+    {id: "harrow", group: "The Collegium", name: "Expedition to Harrow", glyph: "adventure", months: 18, rank: "", each: "MEALS PROVIDED", path: "mage", board: true, fromAge: 21, finishBy: 26, uses: 1,
+     gains: [{stat: "arcana", amount: 1}, {stat: "lore", amount: 1}, {stat: "harrow_truth", amount: 1}, {stat: "harrow_relic", amount: 1}],
+     requires: [{stat: "harrow_fragments", needed: 1}, {stat: "lore", needed: 6}, {stat: "arcana", needed: 3}],
+     costs: [{stat: "coin", amount: 20}, {stat: "rations", amount: 8}, {stat: "reagents", amount: 4}]},
+    {id: "relic", group: "The Collegium", name: "Study the Harrow Relic", glyph: "relic", months: 18, rank: "", each: "MEALS PROVIDED", path: "mage", board: true, fromAge: 23, uses: 1,
+     gains: [{stat: "arcana", amount: 2}, {stat: "discipline", amount: 1}],
+     requires: [{stat: "harrow_relic", needed: 1}, {stat: "arcana", needed: 4}],
+     costs: [{stat: "reagents", amount: 5}]},
+    {id: "ritual", group: "The Collegium", name: "Perform the Harrow Working", glyph: "magic", months: 24, rank: "", each: "MEALS PROVIDED", path: "mage", board: true, fromAge: 26, uses: 1,
+     gains: [{stat: "mage_of_harrow", amount: 1}],
+     requires: [{stat: "harrow_truth", needed: 1}, {stat: "arcana", needed: 6}, {stat: "lore", needed: 7}, {stat: "discipline", needed: 4}],
+     costs: [{stat: "reagents", amount: 10}]},
+
+    {id: "run", group: "The Hidden Hand", name: "Run for the Hand", glyph: "work", months: 6, rank: "", each: "", path: "thief", fromAge: 18,
+     gains: [{stat: "favors", amount: 1}, {stat: "coin", amount: 18}],
+     requires: [],
+     after: [{uses: 3, gains: [{stat: "coin", amount: 20}]}]},
+    {id: "network", group: "The Hidden Hand", name: "Cultivate Informants", glyph: "town", months: 6, rank: "", each: "", path: "thief", fromAge: 18,
+     gains: [{stat: "favors", amount: 2}],
+     requires: [],
+     costs: [{stat: "coin", amount: 8}]},
+    {id: "drill", group: "The Hidden Hand", name: "Practice the Hidden Ways", glyph: "training", months: 9, rank: "", each: "", path: "thief", fromAge: 18, uses: 3,
+     gains: [{stat: "stealth", amount: 1}, {stat: "guile", amount: 1}],
+     requires: [],
+     costs: [{stat: "coin", amount: 6}]},
+    {id: "vey", group: "The Hidden Hand", name: "Learn from Old Vey", glyph: "guild", months: 12, rank: "", each: "", path: "thief", fromAge: 18, finishBy: 24, uses: 1,
+     gains: [{stat: "stealth", amount: 2}, {stat: "guile", amount: 1}],
+     requires: [],
+     costs: [{stat: "favors", amount: 2}]},
+    {id: "smuggle", group: "The Hidden Hand", name: "Smuggle Through the North Gate", glyph: "gate", months: 9, rank: "", each: "", path: "thief", fromAge: 19, finishBy: 27, uses: 3,
+     gains: [{stat: "coin", amount: 35}, {stat: "favors", amount: 2}],
+     requires: [{stat: "stealth", needed: 4}, {stat: "guile", needed: 4}]},
+    {id: "blackmail", group: "The Hidden Hand", name: "Blackmail a Guild Clerk", glyph: "skull", months: 9, rank: "", each: "", path: "thief", fromAge: 19, finishBy: 25, uses: 1,
+     gains: [{stat: "coin", amount: 45}, {stat: "guild_clerk", amount: 1}],
+     requires: [{stat: "guile", needed: 5}],
+     costs: [{stat: "favors", amount: 1}]},
+    {id: "rob", group: "The Hidden Hand", name: "Rob the Counting House", glyph: "gold", months: 18, rank: "", each: "", path: "thief", fromAge: 21, finishBy: 25, uses: 1,
+     gains: [{stat: "coin", amount: 100}, {stat: "guild_ledgers", amount: 1}, {stat: "guild_enemy", amount: 1}],
+     requires: [{stat: "stealth", needed: 6}, {stat: "guile", needed: 5}],
+     costs: [{stat: "favors", amount: 3}]},
+    {id: "silence", group: "The Hidden Hand", name: "Buy Silence", glyph: "gold", months: 0, rank: "", each: "", path: "thief", fromAge: 22, uses: 1,
+     gains: [{stat: "heat_reduced", amount: 1}],
+     requires: [{stat: "guild_enemy", needed: 1}],
+     costs: [{stat: "coin", amount: 40}]},
+    {id: "plan", group: "The Hidden Hand", name: "Plan the Bellmoor Job", glyph: "time", months: 12, rank: "", each: "", path: "thief", fromAge: 23, uses: 1,
+     gains: [{stat: "great_job_planned", amount: 1}],
+     requires: [{stat: "guild_ledgers", needed: 1}, {stat: "guile", needed: 6}],
+     costs: [{stat: "favors", amount: 2}]},
+    {id: "crew", group: "The Hidden Hand", name: "Gather the Crew", glyph: "guild", months: 12, rank: "", each: "", path: "thief", fromAge: 24, uses: 1,
+     gains: [{stat: "crew_ready", amount: 1}],
+     requires: [{stat: "great_job_planned", needed: 1}],
+     costs: [{stat: "favors", amount: 3}, {stat: "coin", amount: 25}]},
+    {id: "vault", group: "The Hidden Hand", name: "Empty the Bellmoor Vault", glyph: "gold", months: 24, rank: "", each: "MEALS PROVIDED", path: "thief", board: true, fromAge: 26, uses: 1,
+     gains: [{stat: "coin", amount: 200}, {stat: "master_thief", amount: 1}],
+     requires: [{stat: "crew_ready", needed: 1}, {stat: "stealth", needed: 8}, {stat: "guile", needed: 7}]}
 ]
+
+// Whether he is one of any path yet
+var committed = false
+
+for (var p = 0; p < len(paths); p++)
+{
+    if (statOf(character, paths[p].flag) > 0)
+    {
+        committed = true
+    }
+}
+
+var lived = monthOf(age)
+
+// The forecast asks after one activity: only that one is shaped
+if (activityId != "")
+{
+    var shaped = []
+
+    for (var i = 0; i < len(activities); i++)
+    {
+        if (activities[i].id == activityId)
+        {
+            push(shaped, activities[i])
+        }
+    }
+
+    activities = shaped
+}
 
 // What each activity still asks of this character
 for (var i = 0; i < len(activities); i++)
@@ -123,24 +349,57 @@ for (var i = 0; i < len(activities); i++)
         }
     }
 
-    // What it costs: asked before, taken with the gains
+    // Done well enough, the term brings more
+    if (has(a, "bonus"))
+    {
+        if (statOf(character, a.bonus.stat) >= a.bonus.needed)
+        {
+            a.gains = a.bonus.gains
+        }
+    }
+
+    var requires = []
+
+    // Too young for it: the age is the first thing it asks
+    a.fromAge = lookup(a, "fromAge", 7)
+    a.finishBy = lookup(a, "finishBy", lastAge)
+
+    if (lived < a.fromAge * 12)
+    {
+        push(requires, {stat: "age", needed: a.fromAge})
+    }
+
+    for (var r = 0; r < len(a.requires); r++)
+    {
+        push(requires, a.requires[r])
+    }
+
+    // What it costs: asked before, taken when it begins
     var costs = listOf(a, "costs")
 
     for (var c = 0; c < len(costs); c++)
     {
-        push(a.requires, {stat: costs[c].stat, needed: costs[c].amount})
-        push(a.gains, {stat: costs[c].stat, amount: 0 - costs[c].amount})
+        var cost = costs[c]
+        cost.label = statShortName(cost.stat)
+        push(requires, {stat: cost.stat, needed: cost.amount, cost: true})
     }
 
     // What it would bring to a store already full: asked as room for one more
     for (var g = 0; g < len(a.gains); g++)
     {
-        if (a.gains[g].amount > 0 and limitOf(a.gains[g].stat) > 0)
+        var gain = a.gains[g]
+        gain.label = statShortName(gain.stat)
+
+        if (gain.amount > 0 and limitOf(gain.stat) > 0)
         {
-            push(a.requires, {stat: a.gains[g].stat, needed: 1, room: true})
+            push(requires, {stat: gain.stat, needed: 1, room: true})
         }
     }
 
+    a.requires = requires
+    a.costs = costs
+    a.board = lookup(a, "board", false)
+    a.enters = lookup(a, "enters", false)
     a.done = count
     a.uses = uses
     a.after = steps
@@ -156,11 +415,72 @@ for (var i = 0; i < len(activities); i++)
         a.tally = a.tally + " · " + toString(a.left) + " LEFT"
     }
 
-    for (var r = 0; r < len(a.requires); r++)
+    // Begun now, its term would come too late
+    a.closed = (lived + a.months) > (a.finishBy * 12)
+
+    // A path's activities are his once he is one of it; the way in, until he is one of any
+    a.pathOpen = true
+
+    if (a.path != "")
     {
-        var req = a.requires[r]
-        req.label = statName(req.stat)
+        if (pathFlagOf(paths, a.path) == "")
+        {
+            push(errors, "activity " + a.id + ": unknown path " + a.path)
+        }
+
+        if (a.enters)
+        {
+            a.pathOpen = not committed
+        }
+        else
+        {
+            a.pathOpen = statOf(character, pathFlagOf(paths, a.path)) > 0
+        }
+    }
+
+    // What the screen reads: flat records, the table's eased and anyOf already weighed
+    var asked = []
+
+    // How near he is: each requirement's share of what it asks, costs, room and age left out
+    var shares = 0
+    var counted = 0
+
+    for (var q = 0; q < len(a.requires); q++)
+    {
+        var req = a.requires[q]
+
+        if (not has(req, "label"))
+        {
+            req.label = statName(req.stat)
+        }
+
         req.current = statOf(character, req.stat)
+
+        if (req.stat == "age")
+        {
+            req.current = toInt(floor(lived / 12))
+        }
+
+        if (has(req, "eased"))
+        {
+            if (statOf(character, req.eased.flag) > 0)
+            {
+                req.needed = req.eased.needed
+            }
+        }
+
+        if (has(req, "anyOf"))
+        {
+            req.current = 0
+
+            for (var f = 0; f < len(req.anyOf); f++)
+            {
+                if (statOf(character, req.anyOf[f]) > 0)
+                {
+                    req.current = 1
+                }
+            }
+        }
 
         if (lookup(req, "room", false))
         {
@@ -172,7 +492,27 @@ for (var i = 0; i < len(activities); i++)
         {
             locked = true
         }
+
+        if (req.stat != "age" and not lookup(req, "cost", false) and not lookup(req, "room", false) and req.needed > 0)
+        {
+            shares = shares + toInt(floor(clamp(req.current, 0, req.needed) * 100 / req.needed))
+            counted = counted + 1
+        }
+
+        push(asked, {stat: req.stat, label: req.label, current: req.current, needed: req.needed, room: lookup(req, "room", false)})
     }
+
+    a.requires = asked
+
+    a.reach = 100
+
+    if (counted > 0)
+    {
+        a.reach = toInt(floor(shares / counted))
+    }
+
+    // Too young for it, or too far from what it asks: no row yet
+    a.listed = a.pathOpen and not a.spent and not a.closed and lived >= a.fromAge * 12 and a.reach >= reachShown
 
     a.locked = locked
 }

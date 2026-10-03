@@ -4,9 +4,14 @@
 //         completed, read by activitytable.pg), `activityId`, `monthsIn` (the months already spent
 //         in it).
 // Output: `forecast`:
+//           atStart  every stat of the character once the activity's costs are taken: what
+//                    beginning it leaves him with
 //           atTerm   every stat of the character after the activity's gains, and after the
-//                    effects of a step of its `after` list that this term reaches. A gain to
-//                    a stat with a cap (lib.pg's `statCaps`) raises the cap with it. A limit
+//                    effects of a step of its `after` list that this term reaches. The costs
+//                    were taken when it began, so they are not taken again, but for an
+//                    activity done at once (atStart is then where its gains land). A gain to
+//                    a stat with a cap (lib.pg's `statCaps`) raises the cap with it; no gain
+//                    goes past a stat's ceiling (lib.pg's `statCeilings`). A limit
 //                    (lib.pg's `statLimits`) does not stop them: what an activity brings may
 //                    go past it, activities.pg only refuses to begin one when there is no room
 //           percent  monthsIn / months x 100 (100 for an activity done at once)
@@ -28,35 +33,8 @@ import "milestonetable"
 
 var errors = []
 
-fun findActivity(id)
-{
-    for (var i = 0; i < len(activities); i++)
-    {
-        if (activities[i].id == id)
-        {
-            return activities[i]
-        }
-    }
-
-    return {id: ""}
-}
-
-// What the next milestone (milestonetable.pg, at `age`) asks, every path.
-fun nextAsks()
-{
-    for (var i = 0; i < len(milestones); i++)
-    {
-        if (milestones[i].id == next.id)
-        {
-            return milestones[i].asks
-        }
-    }
-
-    return []
-}
-
-var forecast = {atTerm: {}, percent: 0, months: 0, caption: "", gaps: [], entries: [], error: ""}
-var activity = findActivity(activityId)
+var forecast = {atStart: {}, atTerm: {}, percent: 0, months: 0, caption: "", gaps: [], entries: [], error: ""}
+var activity = byId(activities, activityId)
 
 if (activity.id == "")
 {
@@ -67,12 +45,33 @@ else
     var months = activity.months
     var spent = clamp(monthsIn, 0, months)
 
-    // Every stat as it is, then the term's gains on top
-    var atTerm = {}
+    // Every stat as it is, less what beginning it takes
+    var atStart = {}
 
     for (var k : character)
     {
-        atTerm[k] = character[k]
+        atStart[k] = character[k]
+    }
+
+    for (var c = 0; c < len(activity.costs); c++)
+    {
+        var cost = activity.costs[c]
+        atStart[cost.stat] = clamp(statOf(character, cost.stat) - cost.amount, 0, statOf(character, cost.stat))
+    }
+
+    // Then the term's gains on top: of what is left once it is paid for when it is done at once,
+    // of the character as he is when it was paid for at its start
+    var atTerm = {}
+    var base = character
+
+    if (months <= 0)
+    {
+        base = atStart
+    }
+
+    for (var k : base)
+    {
+        atTerm[k] = base[k]
     }
 
     var figure = ""
@@ -80,12 +79,12 @@ else
     for (var g = 0; g < len(activity.gains); g++)
     {
         var gain = activity.gains[g]
-        atTerm[gain.stat] = statOf(character, gain.stat) + gain.amount
+        atTerm[gain.stat] = raised(statOf(base, gain.stat), gain.stat, gain.amount)
 
         // What raises a stat for good raises the most it can be with it
         if (gain.amount > 0 and capOf(gain.stat) != "")
         {
-            atTerm[capOf(gain.stat)] = mostOf(character, gain.stat) + gain.amount
+            atTerm[capOf(gain.stat)] = raised(mostOf(base, gain.stat), capOf(gain.stat), gain.amount)
         }
 
         if (figure != "")
@@ -96,17 +95,26 @@ else
         figure = figure + signed(gain.amount) + " " + toLowerCase(statShortName(gain.stat))
     }
 
+    // An activity done at once writes what it cost with what it brought
+    if (months <= 0)
+    {
+        for (var c = 0; c < len(activity.costs); c++)
+        {
+            figure = figure + " " + signed(0 - activity.costs[c].amount) + " " + toLowerCase(statShortName(activity.costs[c].stat))
+        }
+    }
+
     var caption = "MONTH " + toString(spent) + " OF " + toString(months)
 
     if (len(activity.gains) > 0)
     {
         var first = activity.gains[0]
-        caption = caption + " · " + toUpperCase(statName(first.stat)) + " " + toString(statOf(character, first.stat)) + " → " + toString(atTerm[first.stat]) + " AT TERM"
+        caption = caption + " · " + toUpperCase(statName(first.stat)) + " " + toString(statOf(base, first.stat)) + " → " + toString(atTerm[first.stat]) + " AT TERM"
     }
 
     // What the next milestone asks of the path this leads toward, against the character now
     var gaps = []
-    var asks = nextAsks()
+    var asks = asksOf(milestones, next.id)
 
     for (var a = 0; a < len(asks); a++)
     {
@@ -170,5 +178,5 @@ else
         percent = spent * 100.0 / months
     }
 
-    forecast = {atTerm: atTerm, percent: percent, months: months, caption: caption, gaps: gaps, entries: entries, error: ""}
+    forecast = {atStart: atStart, atTerm: atTerm, percent: percent, months: months, caption: caption, gaps: gaps, entries: entries, error: ""}
 }

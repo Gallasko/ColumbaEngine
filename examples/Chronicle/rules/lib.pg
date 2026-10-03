@@ -1,6 +1,13 @@
 // Chronicle rules: shared helpers
 // -------------------------------
-// Pure functions only: no state, no ecs, no events. Imported by the other rule scripts.
+// Pure functions and the stat tables: no state, no ecs, no events. Imported by the other rule
+// scripts, first.
+//
+// Every function of the rules is declared here, ahead of the tables. A function is a constant of
+// the script that declares it, and its index must fit in a byte: declared after the 256th
+// constant (the activity table alone holds more), it does not compile. An import is compiled into
+// the importing script, so a function after `import "activitytable"` is past it too. The
+// functions read the tables below by name, when they are called.
 
 import "string"
 import "math"
@@ -45,6 +52,13 @@ fun ordinal(n)
     }
 
     return toString(n) + suffix
+}
+
+// The whole months lived at `age`, counted from birth: an age is a sum of twelfths, and the
+// nearest month is the one meant.
+fun monthOf(age)
+{
+    return toInt(floor(age * 12 + 0.5))
 }
 
 // Whole months from one age to another: never negative.
@@ -130,8 +144,9 @@ fun ordinalWord(n)
 // An age as the head writes it: one decimal ("17.5").
 fun ageText(age)
 {
-    var whole = toInt(floor(age))
-    var tenth = toInt(floor(age * 10 + 0.001)) % 10
+    var months = monthOf(age)
+    var whole = toInt(floor(months / 12))
+    var tenth = toInt(floor((months % 12) * 10 / 12))
 
     return toString(whole) + "." + toString(tenth)
 }
@@ -154,58 +169,13 @@ fun capitalised(word)
     return toUpperCase(substring(word, 0, 1)) + substring(word, 1, strlen(word))
 }
 
-// The names a stat or a flag is written with.
-var statNames = {
-    str: "Strength",
-    dex: "Dexterity",
-    int: "Intelligence",
-    vit: "Vitality",
-    swd: "Swordsmanship",
-    ride: "Riding",
-    letters: "Letters",
-    haggle: "Haggling",
-    letter: "The Guild's letter",
-    coin: "Coin",
-    rations: "Rations"
-}
-
-var statShort = {
-    str: "STR",
-    dex: "DEX",
-    int: "INT",
-    vit: "VIT",
-    swd: "SWD",
-    ride: "RIDE",
-    letters: "LET",
-    haggle: "HAG",
-    letter: "LETTER",
-    coin: "COIN",
-    rations: "RATIONS"
-}
-
-// The most of a stat he can hold at once. A stat not listed has no limit. The limit closes
-// what would bring more (activities.pg) and stops what a month produces (resources.pg); an
-// activity begun with room left may still carry him past it.
-var statLimits = {
-    rations: 60
-}
-
-// A stat that is spent and comes back has a cap: the stat holding the most it can be. What
-// takes from the stat leaves the cap alone, what raises the stat for good raises both
-// (forecast.pg), and it mends toward the cap with time (resources.pg's `mending`).
-var statCaps = {
-    vit: "vitmax"
-}
-
-// A missing key reads as false, not as an error: look names up explicitly.
+// A missing key reads as false, not as an error: look names up explicitly. `contain` asks the
+// table itself, without walking its keys: the rules look names up thousands of times a run.
 fun lookup(table, key, fallback)
 {
-    for (var k : table)
+    if (contain(table, key))
     {
-        if (k == key)
-        {
-            return table[k]
-        }
+        return table[key]
     }
 
     return fallback
@@ -214,15 +184,7 @@ fun lookup(table, key, fallback)
 // Whether a table holds a key at all.
 fun has(table, key)
 {
-    for (var k : table)
-    {
-        if (k == key)
-        {
-            return true
-        }
-    }
-
-    return false
+    return contain(table, key)
 }
 
 // A list field of a table, empty when the table has none.
@@ -259,6 +221,31 @@ fun roomFor(character, stat)
     return clamp(limitOf(stat) - statOf(character, stat), 0, limitOf(stat))
 }
 
+// The most a stat can ever be, 0 when it has no ceiling.
+fun ceilingOf(stat)
+{
+    return lookup(statCeilings, stat, 0)
+}
+
+// A stat raised by `amount`, never past its ceiling; what already stood past it is left alone.
+fun raised(current, stat, amount)
+{
+    var now = current + amount
+    var most = ceilingOf(stat)
+
+    if (amount > 0 and most > 0 and now > most)
+    {
+        now = most
+
+        if (current > most)
+        {
+            now = current
+        }
+    }
+
+    return now
+}
+
 // The stat holding the most a stat can be, "" when it has no cap.
 fun capOf(stat)
 {
@@ -269,4 +256,230 @@ fun capOf(stat)
 fun mostOf(character, stat)
 {
     return lookup(character, capOf(stat), statOf(character, stat))
+}
+
+// The table of a list with that id, {id: ""} when there is none.
+fun byId(list, id)
+{
+    for (var i = 0; i < len(list); i++)
+    {
+        if (list[i].id == id)
+        {
+            return list[i]
+        }
+    }
+
+    return {id: ""}
+}
+
+// The flag that makes him one of a path (activitytable.pg's `paths`), "" for none.
+fun pathFlagOf(paths, path)
+{
+    return lookup(byId(paths, path), "flag", "")
+}
+
+// What the milestone `id` asks, every path; nothing for none.
+fun asksOf(milestones, id)
+{
+    for (var i = 0; i < len(milestones); i++)
+    {
+        if (milestones[i].id == id)
+        {
+            return milestones[i].asks
+        }
+    }
+
+    return []
+}
+
+// A month's change to one stat: `after` (every stat once the month has passed) moves by
+// `amount`, never below 0 and, upward, never past the stat's limit (or past where he already stood
+// over it); `change` keeps what each stat really moved, for the rates.
+fun shiftIn(after, change, stat, amount)
+{
+    var now = lookup(after, stat, 0) + amount
+
+    if (now < 0)
+    {
+        amount = amount - now
+        now = 0
+    }
+
+    var limit = limitOf(stat)
+
+    if (limit > 0 and amount > 0 and now > limit)
+    {
+        // Up to the limit, or where he already stood past it
+        var top = now - amount
+
+        if (top < limit)
+        {
+            top = limit
+        }
+
+        amount = amount - (now - top)
+        now = top
+    }
+
+    after[stat] = now
+    change[stat] = lookup(change, stat, 0) + amount
+}
+
+// "Open 22 more months. One attempt fits; two do not."
+fun openNote(monthsLeft, attempts)
+{
+    var note = "Open " + toString(monthsLeft) + " more month"
+
+    if (monthsLeft != 1)
+    {
+        note = note + "s"
+    }
+
+    note = note + ". "
+
+    if (attempts == 0)
+    {
+        return note + "No attempt fits."
+    }
+
+    if (attempts == 1)
+    {
+        note = note + "One attempt fits; "
+    }
+    else
+    {
+        note = note + capitalised(numberWord(attempts)) + " attempts fit; "
+    }
+
+    return note + numberWord(attempts + 1) + " do not."
+}
+
+// The age a life is written up to: the last milestone (milestonetable.pg), and the latest an
+// activity may finish by (activitytable.pg's `finishBy`).
+var lastAge = 30
+
+// The names a stat or a flag is written with.
+var statNames = {
+    str: "Strength",
+    dex: "Dexterity",
+    int: "Intelligence",
+    vit: "Vitality",
+    arms: "Arms",
+    discipline: "Discipline",
+    letters: "Letters",
+    lore: "Lore",
+    arcana: "Arcana",
+    stealth: "Stealth",
+    guile: "Guile",
+    renown: "Renown",
+    favors: "Favors",
+    coin: "Coin",
+    rations: "Rations",
+    reagents: "Reagents",
+    age: "Age",
+    watch_known: "Known to the Watch",
+    street_known: "Known on the street",
+    choir: "Sang in the choir",
+    edric_support: "Edric's word",
+    library_access: "The chapel library",
+    night_contacts: "Friends at the night market",
+    mara_student: "Mara's pupil",
+    keep_oath: "Sworn to the Keep",
+    collegium: "Of the Collegium",
+    hidden_hand: "Of the Hidden Hand",
+    veteran: "A veteran",
+    watch_commander: "Commander of the Watch",
+    captain: "Captain of Bellmoor",
+    tourney_victor: "Victor of the tourney",
+    black_treatise: "The Black Treatise",
+    orin_known: "Orin's assistant",
+    harrow_fragments: "The Harrow fragments",
+    harrow_truth: "The truth of Harrow",
+    harrow_relic: "The Harrow relic",
+    mage_of_harrow: "Mage of Harrow",
+    guild_clerk: "A clerk in his pocket",
+    guild_ledgers: "The Guild's ledgers",
+    guild_enemy: "The Guild's enemy",
+    heat_reduced: "Silence bought",
+    great_job_planned: "The Bellmoor job, planned",
+    crew_ready: "A crew, ready",
+    master_thief: "Master Thief"
+}
+
+var statShort = {
+    str: "STR",
+    dex: "DEX",
+    int: "INT",
+    vit: "VIT",
+    arms: "ARMS",
+    discipline: "DISC",
+    letters: "LET",
+    lore: "LORE",
+    arcana: "ARC",
+    stealth: "STEALTH",
+    guile: "GUILE",
+    renown: "RENOWN",
+    favors: "FAVORS",
+    coin: "COIN",
+    rations: "RATIONS",
+    reagents: "REAGENTS",
+    watch_known: "WATCH",
+    street_known: "STREET",
+    choir: "CHOIR",
+    edric_support: "EDRIC",
+    library_access: "LIBRARY",
+    night_contacts: "CONTACTS",
+    mara_student: "MARA",
+    keep_oath: "OATH",
+    collegium: "COLLEGIUM",
+    hidden_hand: "HAND",
+    veteran: "VETERAN",
+    watch_commander: "COMMAND",
+    captain: "CAPTAIN",
+    tourney_victor: "VICTOR",
+    black_treatise: "TREATISE",
+    orin_known: "ORIN",
+    harrow_fragments: "FRAGMENTS",
+    harrow_truth: "TRUTH",
+    harrow_relic: "RELIC",
+    mage_of_harrow: "MAGE",
+    guild_clerk: "CLERK",
+    guild_ledgers: "LEDGERS",
+    guild_enemy: "ENEMY",
+    heat_reduced: "SILENCE",
+    great_job_planned: "PLAN",
+    crew_ready: "CREW",
+    master_thief: "MASTER"
+}
+
+// The most of a stat he can hold at once. A stat not listed has no limit. The limit closes
+// what would bring more (activities.pg) and stops what a month produces (resources.pg); an
+// activity begun with room left may still carry him past it.
+var statLimits = {
+    rations: 60
+}
+
+// The most a stat can ever be: what a term brings stops there (forecast.pg). Unlike a limit it
+// closes nothing, the rest of what the term brings still comes. Parts stop at 30, skills at 10;
+// renown, favors and what he holds have none.
+var statCeilings = {
+    str: 30,
+    dex: 30,
+    int: 30,
+    vit: 30,
+    vitmax: 30,
+    arms: 10,
+    discipline: 10,
+    letters: 10,
+    lore: 10,
+    arcana: 10,
+    stealth: 10,
+    guile: 10
+}
+
+// A stat that is spent and comes back has a cap: the stat holding the most it can be. What
+// takes from the stat leaves the cap alone, what raises the stat for good raises both
+// (forecast.pg), and it mends toward the cap with time (resources.pg's `mending`).
+var statCaps = {
+    vit: "vitmax"
 }

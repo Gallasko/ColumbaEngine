@@ -454,14 +454,16 @@ namespace chronicle
         return ok;
     }
 
-    bool Rules::activities(const ElementMap& character, std::vector<RuleActivity>& out)
+    bool Rules::activities(float age, const ElementMap& character, std::vector<RuleActivity>& out)
     {
         RuleScript& s = activitiesScript;
         s.clearErrors();
         out.clear();
 
+        s.set("age", ElementType{age});
         s.set("character", character);
         s.set("done", done);
+        s.set("activityId", ElementType{std::string()});
 
         size_t n = 0;
 
@@ -474,7 +476,7 @@ namespace chronicle
 
             RuleActivity activity;
 
-            if (not s.get(at, activity.fields) or not s.get(at + ".gains", activity.gains) or not s.get(at + ".requires", activity.requires))
+            if (not s.get(at, activity.fields) or not s.get(at + ".gains", activity.gains) or not s.get(at + ".costs", activity.costs) or not s.get(at + ".requires", activity.requires))
                 return fail(s);
 
             out.push_back(std::move(activity));
@@ -532,6 +534,7 @@ namespace chronicle
         s.set("age", ElementType{age});
         s.set("character", character);
         s.set("done", done);
+        s.set("activityId", ElementType{std::string()});
 
         if (not s.run() or not s.get("windows", out))
             return fail(s);
@@ -568,19 +571,20 @@ namespace chronicle
         out.months = static_cast<int>(number(head, "months", 0.0f));
         out.caption = text(head, "caption");
 
-        if (not s.get("forecast.atTerm", out.atTerm) or not s.get("forecast.gaps", out.gaps) or not s.get("forecast.entries", out.entries))
+        if (not s.get("forecast.atStart", out.atStart) or not s.get("forecast.atTerm", out.atTerm) or not s.get("forecast.gaps", out.gaps) or not s.get("forecast.entries", out.entries))
             return fail(s);
 
         return true;
     }
 
-    bool Rules::month(const ElementMap& character, RuleMonth& out)
+    bool Rules::month(const ElementMap& character, bool board, RuleMonth& out)
     {
         RuleScript& s = resourcesScript;
         s.clearErrors();
         out = RuleMonth{};
 
         s.set("character", character);
+        s.set("board", ElementType{board});
 
         if (not s.run() or not s.get("month.after", out.after) or not s.get("month.entries", out.entries) or not s.get("rows", out.rows))
             return fail(s);

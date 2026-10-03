@@ -30,7 +30,7 @@ namespace chronicle
         std::string name;
         std::string profession;
         std::string origin;
-        std::string aim;               // The path he is headed for ("squire"): the stat lines' thresholds
+        std::string aim;               // The path he is headed for ("warrior"), set when he enters one: the stat lines' thresholds
         float age = 7.0f;
         std::string running;           // The activity at work, "" for none
         int monthsIn = 0;              // Months already spent in it
@@ -56,10 +56,11 @@ namespace chronicle
         bool load(const std::string& path);
     };
 
-    // The design mockup's life: Aldren of Bellmoor at 17.5, the page of the Main Life screen.
+    // The design mockup's life: Aldren of Bellmoor at 17.5, the page of the Main Life screen, as
+    // the balance's good Warrior stands the month he swears to the Keep.
     LifeSave firstLife();
 
-    // The true first frame of the game: 7 years old, two years of rations and nothing earned,
-    // one line in the log.
+    // The true first frame of the game: 7 years old, a year of rations and nothing earned, one
+    // line in the log.
     LifeSave freshLife();
 }

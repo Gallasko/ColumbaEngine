@@ -77,11 +77,13 @@ namespace chronicle
     };
 
     // An activity from activities.pg: its scalar fields (id, group, name, glyph, months, rank,
-    // each, path, locked, done, uses, left, spent, tally) and its two lists.
+    // each, path, enters, board, fromAge, finishBy, locked, done, uses, left, spent, closed,
+    // pathOpen, listed, tally) and its three lists.
     struct RuleActivity
     {
         pg::ElementMap fields;
-        pg::RecordList gains;          // {stat, amount}: what the activity brings at term
+        pg::RecordList gains;          // {stat, amount, label}: what the activity brings at term
+        pg::RecordList costs;          // {stat, amount, label}: what it takes when it begins
         pg::RecordList requires;       // {stat, label, current, needed}: what it asks before it can start
     };
 
@@ -95,6 +97,7 @@ namespace chronicle
     // What an activity does to the character, from forecast.pg.
     struct RuleForecast
     {
+        pg::ElementMap atStart;        // Every stat of the character, once the activity's costs are taken
         pg::ElementMap atTerm;         // Every stat of the character, after the activity's gains
         float percent = 0.0f;          // monthsIn / months x 100
         int months = 0;                // The activity's term
@@ -140,8 +143,8 @@ namespace chronicle
         // The terms completed, by activity: handed to every script that reads the activities.
         pg::ElementMap done;
 
-        // activities.pg: the activity table, and what each still asks of `character`.
-        bool activities(const pg::ElementMap& character, std::vector<RuleActivity>& out);
+        // activities.pg: the activity table, and what each still asks of `character` at `age`.
+        bool activities(float age, const pg::ElementMap& character, std::vector<RuleActivity>& out);
 
         // milestones.pg: every milestone (with `passed`), and the next one after `age`
         // ({id, label, age, in}: `in` is the months to it; "", "", -1, -1 past the last), and the
@@ -154,9 +157,10 @@ namespace chronicle
         // forecast.pg: `activityId` for `character` at `age`, `monthsIn` months already spent.
         bool forecast(float age, const pg::ElementMap& character, const std::string& activityId, int monthsIn, RuleForecast& out);
 
-        // resources.pg: what one month does to what `character` holds, the ledger's rows and
-        // their glosses, and whether the character as he is can go on.
-        bool month(const pg::ElementMap& character, RuleMonth& out);
+        // resources.pg: what one month does to what `character` holds (fed by his work when
+        // `board`), the ledger's rows and their glosses, and whether the character as he is can
+        // go on.
+        bool month(const pg::ElementMap& character, bool board, RuleMonth& out);
 
         // achievements.pg: every deed, what it asks and what it gives.
         bool achievements(std::vector<RuleAchievement>& out);

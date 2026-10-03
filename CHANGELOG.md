@@ -90,11 +90,22 @@ First tagged release. Everything below describes the state of the engine at the 
   any other. Migration: include `Systems/achievement.h` instead of the example's `achievement.h`. The
   Chronicle example uses it for its deeds, next to tasks with limited uses, tasks that change with
   repetition and holdings that produce or deplete each month (`examples/Chronicle/rules/`).
-- Chronicle: a life whose Vitality reaches 0 is lost and a new one begins, with 24 rations. Vitality
+- Chronicle: a life whose Vitality reaches 0 is lost and a new one begins. Vitality
   stands under the clock's age, turns red when a month takes from it, and the first such month stops the
   running months; what was taken mends, one every two months, up to the most it can be (`vitmax`). The ledger rows have a tooltip (what is held, its limit, what it brings or uses), holdings can
   have a limit (`statLimits` in `rules/lib.pg`) that locks what would fill them, and an activity row shows
   how often it was done and what is left of a limited one. The door meters left the Life page.
+- Chronicle: the 7-30 alpha balance of `res/chronicle/chronicle-balance`. Fifty activities on three
+  exclusive paths (the Keep, the Collegium, the Hidden Hand) replace the mockup's table, with the
+  Warrior, Mage and Thief skills (Arms, Discipline, Lore, Arcana, Stealth, Guile, Renown), reagents and
+  favors. An activity's costs are taken when it begins; work with meals provided eats no ration and costs
+  no Vitality; an activity opens at its `fromAge` and must end by its `finishBy`; parts stop at 30 and
+  skills at 10; a life with no Vitality left ends before the term pays. An activity is listed once he is
+  of age for it and holds most of what it asks (75% on average, costs aside), so a child is not shown
+  every locked door at once. A fresh life starts with 12
+  rations, and a life is written up to 30, where the months stop. The Guild's letter and its wage are gone.
+  Migration: a save from before holds the old stats (`swd`, `ride`, `haggle`, `letter`); start a new
+  life.
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written

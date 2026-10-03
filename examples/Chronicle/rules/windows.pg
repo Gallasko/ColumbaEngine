@@ -4,10 +4,15 @@
 //         completed, read by activitytable.pg).
 // Output: `windows`, one table per age-limited chance:
 //         {id, name, from, to, state, note, attempts}
-//         state: "upcoming" before `from`, "open" until `to`, "closed" after: a closed door stays
-//         listed for the rest of the life. The note says what still fits, in attempts of the
-//         window's activity, never in percentages; before the door opens it names what the door
-//         asks.
+//         A door is an activity's: it opens at the activity's `fromAge` and its last chance is a
+//         term that ends by its `finishBy`, the door's `to`. A door of a path is listed while
+//         the activity's path is open to him (activitytable.pg's `pathOpen`), and once he has
+//         been through it: the way into his own path stays on his clock.
+//         state: "upcoming" before `from`, "open" while one term still fits before `to`,
+//         "closed" after, or once he has been through it (its activity spent): a closed door
+//         stays listed for the rest of the life. The note says
+//         what still fits, in attempts of the window's activity, never in percentages; before
+//         the door opens it names what the door asks.
 
 import "string"
 import "math"
@@ -18,93 +23,71 @@ import "activitytable"
 var errors = []
 
 var windowTable = [
-    {id: "choir", name: "Choir", from: 9, to: 13, activity: "study.letters",
-     asks: "Asks a clear voice and a letter from the priest.", closed: "The choir took boys until 13. That door is shut."},
-    {id: "ruins", name: "The ruins at Harrow", from: 15, to: 19, activity: "adventure.forest",
-     asks: "Asks Vitality 10 and a sword.", closed: "The ruins were picked clean by 19. That door is shut."},
-    {id: "squire", name: "Squire", from: 16, to: 22, activity: "train.yard",
-     asks: "Asks Strength 12 and a knight who will have him.", closed: "No knight takes a squire past 22. That door is shut."},
-    {id: "tourney", name: "The spring tourney", from: 17, to: 21, activity: "train.guard",
-     asks: "Asks Swordsmanship 3 and a horse.", closed: "The tourney is for the young, and he is 21. That door is shut."},
-    {id: "academy", name: "Academy", from: 20, to: 28, activity: "study.academy",
-     asks: "Asks Intellect 12 and 40 coin at the door.", closed: "The Academy takes no one past 28. That door is shut."}
+    {activity: "choir", name: "The choir",
+     asks: "Asks a boy who has his letters.", closed: "The choir takes boys until 12. That door is shut."},
+    {activity: "watch", name: "The Watch",
+     asks: "Asks Strength 8 of a boy who will carry.", closed: "The Watch wants its carriers young. That door is shut."},
+    {activity: "boys", name: "The Bellmoor Boys",
+     asks: "Asks Dexterity 8 and quick feet.", closed: "The Bellmoor Boys grew up. That door is shut."},
+    {activity: "keep", name: "The Keep",
+     asks: "Asks Strength 12, Arms 3, Discipline 2, and 10 coin.", closed: "The Keep swears in no one past 20. That door is shut."},
+    {activity: "collegium", name: "The Collegium",
+     asks: "Asks Intelligence 12, Letters 3, Lore 2, and 35 coin.", closed: "The Collegium admits no one past 20. That door is shut."},
+    {activity: "hand", name: "The Hidden Hand",
+     asks: "Asks Dexterity 12, Stealth 2, Guile 2, a friend on the street, and 15 coin.", closed: "The Hidden Hand stopped asking. That door is shut."},
+    {activity: "campaign", name: "The border campaign",
+     asks: "Asks Arms 6, Discipline 4 and Renown 3.", closed: "The campaign marched without him. That door is shut."},
+    {activity: "harrow", name: "The ruins at Harrow",
+     asks: "Asks Lore 6, Arcana 3 and the Harrow fragments.", closed: "Harrow was picked clean. That door is shut."},
+    {activity: "rob", name: "The Counting House",
+     asks: "Asks Stealth 6, Guile 5 and 3 Favors.", closed: "The Counting House changed its locks. That door is shut."}
 ]
 
-fun monthsOf(activityId)
-{
-    for (var i = 0; i < len(activities); i++)
-    {
-        if (activities[i].id == activityId)
-        {
-            return activities[i].months
-        }
-    }
-
-    return 0
-}
-
-// "Open 22 more months. One attempt fits; two do not."
-fun openNote(monthsLeft, attempts)
-{
-    var note = "Open " + toString(monthsLeft) + " more month"
-
-    if (monthsLeft != 1)
-    {
-        note = note + "s"
-    }
-
-    note = note + ". "
-
-    if (attempts == 0)
-    {
-        return note + "No attempt fits."
-    }
-
-    if (attempts == 1)
-    {
-        note = note + "One attempt fits; "
-    }
-    else
-    {
-        note = note + capitalised(numberWord(attempts)) + " attempts fit; "
-    }
-
-    return note + numberWord(attempts + 1) + " do not."
-}
-
+// `lived`, the months of his life so far, is activitytable.pg's
 var windows = []
 
 for (var i = 0; i < len(windowTable); i++)
 {
     var w = windowTable[i]
-    var cost = monthsOf(w.activity)
+    var a = byId(activities, w.activity)
 
-    if (cost <= 0)
+    if (a.id == "" or a.months <= 0)
     {
-        push(errors, "window " + w.id + ": unknown activity " + w.activity)
+        push(errors, "window " + w.activity + ": unknown activity")
     }
+    else if (a.pathOpen or a.spent)
+    {
+        var state = "open"
+        var note = ""
+        var attempts = 0
+        var last = a.finishBy * 12
 
-    var state = "open"
-    var note = ""
-    var attempts = 0
+        if (lived < a.fromAge * 12)
+        {
+            state = "upcoming"
+            note = w.asks
+            attempts = monthsToAttempts(last - a.fromAge * 12, a.months)
+        }
+        else if (a.spent)
+        {
+            state = "closed"
+            note = "He has been through that door."
+        }
+        else if (lived + a.months > last)
+        {
+            state = "closed"
+            note = w.closed
+        }
+        else
+        {
+            attempts = monthsToAttempts(last - lived, a.months)
+            note = openNote(last - lived, attempts)
+        }
 
-    if (age < w["from"])
-    {
-        state = "upcoming"
-        note = w.asks
-        attempts = monthsToAttempts(monthsBetween(w["from"], w["to"]), cost)
-    }
-    else if (age >= w["to"])
-    {
-        state = "closed"
-        note = w.closed
-    }
-    else
-    {
-        var left = monthsBetween(age, w["to"])
-        attempts = monthsToAttempts(left, cost)
-        note = openNote(left, attempts)
-    }
+        // `from` is a keyword: the key is written by index
+        var door = {id: a.id, name: w.name, to: a.finishBy, state: state, note: note, attempts: attempts}
+        door["from"] = a.fromAge
 
-    push(windows, {id: w.id, name: w.name, from: w["from"], to: w["to"], state: state, note: note, attempts: attempts})
+        push(windows, door)
+    }
 }

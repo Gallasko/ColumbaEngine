@@ -143,17 +143,17 @@ children:
       - kind: LifeClock
         name: clock
         startAge: 7
-        endAge: 43
+        endAge: 30
         age: 17.5
-        nextLabel: Choose a path
-        nextIn: 6
+        nextLabel: The proving
+        nextIn: 42
         milestones:
           - {age: 7}
-          - {age: 14}
-          - {age: 18}
-          - {age: 25}
-          - {age: 40}
-          - {age: 43}
+          - {age: 13}
+          - {age: 16}
+          - {age: 21}
+          - {age: 26}
+          - {age: 30}
       # His life, under his age: at nothing, this life is lost. The hatch is what will mend
       - {kind: StatLine, name: vit, glossKey: parts/vit, label: Vitality, glyph: vitality, value: 12, max: 30, width: 328}
 

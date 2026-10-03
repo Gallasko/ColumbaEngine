@@ -41,7 +41,7 @@ namespace chronicle
         void execute() override;       // The deeds reached since the last frame; months tick on TickEvent
 
         // Public for the tests and the dev keys
-        void onMonth();                // One month passes; a life with nothing left to live on ends
+        void onMonth();                // One month passes; a life with nothing left to live on ends, one at its last milestone stops
         bool saveNow();                // Writes the save (not with --no-save)
         void newLife();                // A fresh life, rebuilt and republished
 
@@ -81,8 +81,12 @@ namespace chronicle
         void rebuild();                // The rows only the save and the rules know: ledgers, lists, log, clock
         void addToLedger(const LifeResource& resource);   // One row of what he holds
         void fillSkills();             // The skills he has any of; one at 0 is not shown
-        void fillActivities();         // The rows of what he may do; a spent activity has none
+        void fillActivities();         // The rows of what he may do; an activity the rules do not list has none
+        void fillWindows();            // The doors on the clock, as the rules list them for his path
         void refreshHoldings();        // resources.pg's rows, rates, glosses and verdict for the character as he is
+        bool boarded() const;          // The activity at work feeds him
+        bool lifeOver() const;         // No milestone left ahead: the life is written to its end
+        const RuleActivity* activityOf(const std::string& id) const;   // From the last activities.pg output, nullptr if none
         void endLife();                // The life is lost: a new one begins, and says why
         void alert(const std::vector<std::string>& stats);   // The parts a month took from, in red for a moment; the months stop at the first
         void clearAlert();             // Back to ink
@@ -115,12 +119,14 @@ namespace chronicle
         void setFact(const std::string& path, const Type& value);
 
         std::vector<RuleActivity> activities;    // The last activities.pg output
+        std::string listedRows;                   // What the list was built from: each listed row and how much it asks
         pg::RecordList holdings;                  // The last resources.pg rows
         std::vector<RuleGloss> holdingGlosses;    // And what hovering each says
         std::string death;                        // "" or why the character as he is cannot go on
         std::unordered_map<std::string, int> caps;   // The most each capped stat can be
         std::vector<RuleAchievement> deeds;       // The achievements.pg output
         std::vector<std::string> reached;         // Deeds unlocked, waiting for execute()
+        std::vector<RuleMilestone> milestones;    // The last milestones.pg output
         pg::ElementMap next;                      // The last next milestone
         pg::RecordList nextAsks;                  // What it asks of the path he is headed for
         std::unordered_map<std::string, pg::EntityRef> handles;

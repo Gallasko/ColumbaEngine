@@ -1,6 +1,7 @@
 // Chronicle rules: what he holds, and what a month does to it
 // ----------------------------------------------------------
-// Input:  `character` (a table of stats and flags).
+// Input:  `character` (a table of stats and flags), `board` (true when the month is spent at an
+//         activity that feeds him: activitytable.pg's `board`).
 // Output: `month`:
 //           after    every stat of the character once one month has passed
 //           entries  [{text, kind, figure, glyph}]: the log lines that month writes
@@ -20,7 +21,8 @@
 // A holding is a stat with a place in the ledger. Optional fields:
 //   produces: [{stat, amount, per}]   while he holds it, every `per` of it brings `amount` of
 //                                     `stat` each month.
-//   decays: N                         it loses N each month, never below 0.
+//   decays: N                         it loses N each month, never below 0. Not in a month at
+//                                     board: he is fed, and running out costs nothing either.
 //   empty: {effects [{stat, amount}], entry "text"}
 //                                     what running out costs: the entry is written the month it
 //                                     reaches 0, the effects land every month it stays there.
@@ -42,12 +44,25 @@ var holdings = [
     {id: "coin", group: "purse", groupLabel: "PURSE", glyph: "gold", name: "Coin", tone: 1,
      about: "What work pays him in, and what the market takes."},
     {id: "rations", group: "purse", groupLabel: "PURSE", glyph: "trade", name: "Rations", tone: 0,
-     about: "Food for the month. With none left, his Vitality pays for it.",
+     about: "Food for the month. With none left, his Vitality pays for it. Work that feeds him leaves them be.",
      decays: 1,
      empty: {effects: [{stat: "vit", amount: -1}], entry: "The rations ran out"}},
-    {id: "letter", group: "standing", groupLabel: "STANDING", glyph: "seal", name: "The Guild's letter", tone: 2,
-     about: "The Guild's word for him. It pays a wage every month he holds it.",
-     produces: [{stat: "coin", amount: 2, per: 1}]}
+    {id: "reagents", group: "purse", groupLabel: "PURSE", glyph: "magic", name: "Reagents", tone: 0,
+     about: "What a working burns. Bought at the Collegium, spent when a working begins."},
+    {id: "favors", group: "standing", groupLabel: "STANDING", glyph: "guild", name: "Favors", tone: 2,
+     about: "What the Hidden Hand owes him. A big job asks for them before it begins."},
+    {id: "keep_oath", group: "standing", groupLabel: "STANDING", glyph: "seal", name: "Sworn to the Keep", tone: 2,
+     about: "His oath to the Keep at Bellmoor: its service and its campaigns are open to him."},
+    {id: "collegium", group: "standing", groupLabel: "STANDING", glyph: "academy", name: "The Collegium", tone: 2,
+     about: "A place among the scholars of the Collegium, and their table."},
+    {id: "hidden_hand", group: "standing", groupLabel: "STANDING", glyph: "guild", name: "The Hidden Hand", tone: 2,
+     about: "The thieves of Bellmoor trust him with their work."},
+    {id: "captain", group: "standing", groupLabel: "STANDING", glyph: "reputation", name: "Captain of Bellmoor", tone: 3,
+     about: "The captain's chain of the Keep."},
+    {id: "mage_of_harrow", group: "standing", groupLabel: "STANDING", glyph: "relic", name: "Mage of Harrow", tone: 3,
+     about: "The one who performed the Harrow Working."},
+    {id: "master_thief", group: "standing", groupLabel: "STANDING", glyph: "gold", name: "Master Thief", tone: 3,
+     about: "The one who emptied the Bellmoor Vault."}
 ]
 
 // What comes back with time: a stat under its cap (lib.pg's `statCaps`) gains `amount` every
@@ -72,36 +87,6 @@ for (var k : character)
 
 // What the month changes, by stat: the rates come from it
 var change = {}
-
-fun shiftStat(stat, amount)
-{
-    var now = lookup(after, stat, 0) + amount
-
-    if (now < 0)
-    {
-        amount = amount - now
-        now = 0
-    }
-
-    var limit = limitOf(stat)
-
-    if (limit > 0 and amount > 0 and now > limit)
-    {
-        // Up to the limit, or where he already stood past it
-        var top = now - amount
-
-        if (top < limit)
-        {
-            top = limit
-        }
-
-        amount = amount - (now - top)
-        now = top
-    }
-
-    after[stat] = now
-    change[stat] = lookup(change, stat, 0) + amount
-}
 
 var entries = []
 
@@ -129,7 +114,7 @@ for (var i = 0; i < len(holdings); i++)
 
             if (made != 0)
             {
-                shiftStat(product.stat, made)
+                shiftIn(after, change, product.stat, made)
                 push(yields, {stat: product.stat, name: h.name, amount: made})
             }
         }
@@ -137,11 +122,11 @@ for (var i = 0; i < len(holdings); i++)
 
     var decays = lookup(h, "decays", 0)
 
-    if (decays > 0 and has(character, h.id))
+    if (decays > 0 and has(character, h.id) and not board)
     {
         if (held > 0)
         {
-            shiftStat(h.id, 0 - decays)
+            shiftIn(after, change, h.id, 0 - decays)
 
             if (after[h.id] == 0 and has(h, "empty"))
             {
@@ -153,7 +138,7 @@ for (var i = 0; i < len(holdings); i++)
             for (var e = 0; e < len(h.empty.effects); e++)
             {
                 var effect = h.empty.effects[e]
-                shiftStat(effect.stat, effect.amount)
+                shiftIn(after, change, effect.stat, effect.amount)
             }
         }
     }
@@ -189,7 +174,7 @@ for (var r = 0; r < len(mending); r++)
 
             if (rested >= mend.every)
             {
-                shiftStat(mend.stat, mend.amount)
+                shiftIn(after, change, mend.stat, mend.amount)
                 rested = 0
 
                 if (after[mend.stat] > most)
@@ -305,6 +290,11 @@ for (var g = 0; g < len(holdings); g++)
             {
                 footnote = "NONE LEFT: HE PAYS FOR IT EVERY MONTH"
             }
+        }
+
+        if (board)
+        {
+            footnote = "MEALS PROVIDED: THIS MONTH USES NONE"
         }
     }
 
