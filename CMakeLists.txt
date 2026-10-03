@@ -372,6 +372,9 @@ file(GLOB COMPONENT_DEFINITIONS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.pgcomp"
 )
 
+# columba_generate_components(), shared by the engine and the examples that have their own .pgcomp
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ColumbaComponents.cmake)
+
 # Note: ColumbaEngine library will be created AFTER component generation
 
 # Output generated files into the build directory instead of the source tree
@@ -498,45 +501,13 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     if(SKIP_COMPONENT_GENERATION)
         message(STATUS "SKIP_COMPONENT_GENERATION is ON: skipping component regeneration (using existing generated files)")
     elseif(COMPONENT_DEFINITIONS)
-        set(ALL_GENERATED_FILES "")
-
-        foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
-            get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
-
-            # Define the output files (in build directory)
-            set(GENERATED_HEADER "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.generated.h")
-            set(GENERATED_CPP "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.generated.cpp")
-            set(GENERATED_SER "${GENERATED_COMPONENTS_DIR}/${COMP_NAME}.serialization.cpp")
-
-            # Add custom command that only runs when inputs change
-            add_custom_command(
-                OUTPUT ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-                COMMAND ${CMAKE_COMMAND} -E echo "Regenerating ${COMP_NAME}..."
-                COMMAND $<TARGET_FILE:PgCompilerBootstrap>
-                        ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-                        ${COMP_DEF}
-                DEPENDS
-                    PgCompilerBootstrap
-                    ${COMP_DEF}
-                    ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-                WORKING_DIRECTORY ${GENERATED_COMPONENTS_DIR}
-                COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
-                VERBATIM
-            )
-
-            # Create a target for this component (for manual regeneration)
-            add_custom_target(Regenerate_${COMP_NAME}
-                DEPENDS ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-            )
-
-            list(APPEND ALL_GENERATED_FILES ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER})
-
-            # Mark the generated files as GENERATED so CMake knows they'll be created
-            set_source_files_properties(
-                ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-                PROPERTIES GENERATED TRUE
-            )
-        endforeach()
+        # Regenerate_<Name> targets regenerate a single component by hand
+        columba_generate_components(
+            DEFINITIONS ${COMPONENT_DEFINITIONS}
+            OUTPUT_DIR ${GENERATED_COMPONENTS_DIR}
+            OUTPUTS_VAR ALL_GENERATED_FILES
+            TARGET_PREFIX Regenerate_
+        )
 
         # Create a target to regenerate all components (for manual use)
         add_custom_target(RegenerateComponents
@@ -557,6 +528,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
             VERBATIM
         )
 
+        list(LENGTH COMPONENT_DEFINITIONS NUM_DEFINITIONS)
         message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
         message(STATUS "  Components will regenerate only when .pgcomp files change")
         message(STATUS "  Manual regeneration: cmake --build . --target RegenerateComponents")
@@ -1364,55 +1336,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
 
-        # ===============================================
-        # COMPONENT GENERATION BUILD STEP
-        # ===============================================
-        # Populate the GenerateComponents target now that PgCompiler exists
-        if(COMPONENT_DEFINITIONS AND TARGET GenerateComponents)
-            # Make GenerateComponents depend on PgCompiler being built
-            add_dependencies(GenerateComponents PgCompiler)
-
-            foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
-                get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
-
-                # Expected output files
-                set(GENERATED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.h")
-                set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp")
-                set(GENERATED_SER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp")
-
-                # Add custom command to generate this component
-                add_custom_command(
-                    OUTPUT ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-                    COMMAND ${CMAKE_COMMAND} -E echo "Generating ${COMP_NAME} component..."
-                    COMMAND $<TARGET_FILE:PgCompiler>
-                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-                            ${COMP_DEF}
-                    COMMAND ${CMAKE_COMMAND} -E copy
-                            ${CMAKE_CURRENT_BINARY_DIR}/${COMP_NAME}.generated.h
-                            ${GENERATED_HEADER}
-                    COMMAND ${CMAKE_COMMAND} -E copy
-                            ${CMAKE_CURRENT_BINARY_DIR}/${COMP_NAME}.generated.cpp
-                            ${GENERATED_CPP}
-                    COMMAND ${CMAKE_COMMAND} -E copy
-                            ${CMAKE_CURRENT_BINARY_DIR}/${COMP_NAME}.serialization.cpp
-                            ${GENERATED_SER}
-                    DEPENDS PgCompiler ${COMP_DEF} ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-                    COMMENT "Generating ${COMP_NAME} from ${COMP_DEF}"
-                    VERBATIM
-                )
-
-                # Add the outputs to the GenerateComponents target
-                add_custom_target(Generate_${COMP_NAME}
-                    DEPENDS ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-                )
-                add_dependencies(GenerateComponents Generate_${COMP_NAME})
-            endforeach()
-
-            message(STATUS "Component generation configured for ${NUM_DEFINITIONS} components")
-            message(STATUS "Run 'cmake --build . --target GenerateComponents' to generate components")
-        endif()
-
         ###
 
         add_executable(EcsSerializationExample examples/PgCompiler/ecs_serialization_example.cpp)
@@ -1585,38 +1508,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             "${CMAKE_CURRENT_SOURCE_DIR}/examples/Chronicle/Components/*.pgcomp"
         )
         set(CHRONICLE_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/ChronicleComponents")
-        file(MAKE_DIRECTORY ${CHRONICLE_GENERATED_DIR})
 
-        set(CHRONICLE_GENERATED_SOURCES "")
-        foreach(COMP_DEF ${CHRONICLE_COMPONENT_DEFINITIONS})
-            get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
-
-            set(GENERATED_HEADER "${CHRONICLE_GENERATED_DIR}/${COMP_NAME}.generated.h")
-            set(GENERATED_CPP "${CHRONICLE_GENERATED_DIR}/${COMP_NAME}.generated.cpp")
-            set(GENERATED_SER "${CHRONICLE_GENERATED_DIR}/${COMP_NAME}.serialization.cpp")
-
-            add_custom_command(
-                OUTPUT ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-                COMMAND ${CMAKE_COMMAND} -E echo "Regenerating ${COMP_NAME}..."
-                COMMAND $<TARGET_FILE:PgCompilerBootstrap>
-                        ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-                        ${COMP_DEF}
-                DEPENDS
-                    PgCompilerBootstrap
-                    ${COMP_DEF}
-                    ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-                WORKING_DIRECTORY ${CHRONICLE_GENERATED_DIR}
-                COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
-                VERBATIM
-            )
-
-            set_source_files_properties(
-                ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-                PROPERTIES GENERATED TRUE
-            )
-
-            list(APPEND CHRONICLE_GENERATED_SOURCES ${GENERATED_CPP} ${GENERATED_SER})
-        endforeach()
+        columba_generate_components(
+            DEFINITIONS ${CHRONICLE_COMPONENT_DEFINITIONS}
+            OUTPUT_DIR ${CHRONICLE_GENERATED_DIR}
+            SOURCES_VAR CHRONICLE_GENERATED_SOURCES
+        )
 
         add_executable(Chronicle examples/Chronicle/main.cpp)
         target_include_directories(Chronicle PUBLIC examples/Chronicle examples/Chronicle/Core examples/Chronicle/Scenes ${CHRONICLE_GENERATED_DIR})
