@@ -234,13 +234,13 @@ namespace chronicle
         }
 
         // A script reports what it refuses in an `errors` list rather than throwing
-        VM::GlobalCell* errs = vm->findDefinedGlobal("errors");
+        const Value errs = vm->findGlobal("errors");
 
-        if (errs != nullptr and IS_VECTOR(errs->value))
+        if (IS_VECTOR(errs))
         {
             bool failed = false;
 
-            for (Value e : vm->asVector(errs->value)->fields)
+            for (Value e : vm->asVector(errs)->fields)
             {
                 error(IS_STRING(e) ? vm->asString(e) : std::string("an error that is not a string"));
                 failed = true;
@@ -269,15 +269,13 @@ namespace chronicle
             return false;
         }
 
-        VM::GlobalCell* cell = vm->findDefinedGlobal(parts[0]);
+        Value v = vm->findGlobal(parts[0]);
 
-        if (cell == nullptr)
+        if (IS_UNDEFINED(v))
         {
             error("no output global `" + parts[0] + "`");
             return false;
         }
-
-        Value v = cell->value;
 
         for (size_t i = 1; i < parts.size(); ++i)
         {

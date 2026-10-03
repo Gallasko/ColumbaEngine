@@ -64,13 +64,12 @@ std::vector<char> compileToBytecode(const std::string& source,
 
 int64_t readIntGlobal(VM& vm, const std::string& name)
 {
-    VM::GlobalCell* cell = vm.findGlobalCell(name);
-    EXPECT_NE(cell, nullptr) << "global '" << name << "' not found";
-    if (cell == nullptr)
+    const Value value = vm.findGlobal(name);
+    EXPECT_FALSE(IS_UNDEFINED(value)) << "global '" << name << "' not defined";
+    EXPECT_TRUE(IS_INT(value)) << "global '" << name << "' is not an int";
+    if (not IS_INT(value))
         return INT64_MIN;
-    EXPECT_TRUE(cell->defined) << "global '" << name << "' not defined";
-    EXPECT_TRUE(IS_INT(cell->value)) << "global '" << name << "' is not an int";
-    return AS_INT(cell->value);
+    return AS_INT(value);
 }
 
 // Live refcount of a heap value (-1 if not ref-counted).
@@ -209,10 +208,9 @@ TEST(VMPreparedTest, PerRunHeapTemporariesAreReclaimed)
     EXPECT_EQ(stringLive.back(), steady) << "string pool grew across runs (leak)";
 
     // The single live global string is held at refcount 1 (not over-retained).
-    VM::GlobalCell* cell = vm.findGlobalCell("s");
-    ASSERT_NE(cell, nullptr);
-    ASSERT_TRUE(cell->defined);
-    EXPECT_EQ(refCountOf(vm, cell->value), 1);
+    const Value global = vm.findGlobal("s");
+    ASSERT_FALSE(IS_UNDEFINED(global));
+    EXPECT_EQ(refCountOf(vm, global), 1);
 
     vm.cleanupFunction(fn);
 }

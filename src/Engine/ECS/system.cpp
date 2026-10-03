@@ -62,10 +62,10 @@ namespace pg
 
         ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
-        VM::GlobalCell* cell = vm.findDefinedGlobal("sysData");
-        if (cell != nullptr and IS_INSTANCE(cell->value))
+        const Value sysDataValue = vm.findGlobal("sysData");
+        if (IS_INSTANCE(sysDataValue))
         {
-            ObjInstance* dataTable = vm.asInstance(cell->value);
+            ObjInstance* dataTable = vm.asInstance(sysDataValue);
 
             // Copy all fields from VM table back to C++ ElementMap
             // This overwrites existing keys and adds new ones

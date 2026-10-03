@@ -941,10 +941,9 @@ namespace pg
 
             for (const auto& [key, slot] : vm->globalSlots)
             {
-                const VM::GlobalCell& globalCell = vm->globalCells[slot];
-                if (not globalCell.defined)
+                const Value value = vm->globalCells[slot];
+                if (IS_UNDEFINED(value))
                     continue;
-                const Value value = globalCell.value;
                 std::string valStr;
                 if (IS_STRING(value))
                     valStr = vm->asString(value);

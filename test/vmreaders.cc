@@ -31,11 +31,10 @@ namespace pg
 
                 Value global(const std::string& name)
                 {
-                    VM::GlobalCell* cell = vm->findGlobalCell(name);
-                    EXPECT_NE(cell, nullptr) << name;
-                    EXPECT_TRUE(cell and cell->defined) << name;
+                    const Value value = vm->findGlobal(name);
+                    EXPECT_FALSE(IS_UNDEFINED(value)) << name;
 
-                    return cell ? cell->value : Value{};
+                    return value;
                 }
 
                 InterpretResult result;

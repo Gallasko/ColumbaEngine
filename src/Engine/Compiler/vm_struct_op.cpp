@@ -1207,15 +1207,14 @@ namespace pg
     {
         uint8_t pairCount = instr.operands.byte;
 
-        VM::GlobalCell* cell = vm->findDefinedGlobal("__Table");
-        if (cell == nullptr)
+        Value tableClassVal = vm->findGlobal("__Table");
+        if (IS_UNDEFINED(tableClassVal))
         {
             vm->runtimeError("Table class not found - was initializeTableClass() called?");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return nullptr;
         }
 
-        Value tableClassVal = cell->value;
         if (!IS_CLASS(tableClassVal))
         {
             vm->runtimeError("Table is not a class");

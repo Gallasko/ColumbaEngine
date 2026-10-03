@@ -135,12 +135,11 @@ namespace pg
 
                 Value global(const std::string& name)
                 {
-                    VM::GlobalCell* cell = vm->findGlobalCell(name);
+                    const Value value = vm->findGlobal(name);
 
-                    EXPECT_NE(cell, nullptr) << name;
-                    EXPECT_TRUE(cell and cell->defined) << name;
+                    EXPECT_FALSE(IS_UNDEFINED(value)) << name;
 
-                    return cell ? cell->value : Value{};
+                    return value;
                 }
 
                 EntitySystem ecs;
@@ -355,8 +354,8 @@ namespace pg
 
             ASSERT_EQ(result, InterpretResult::OK);
 
-            EXPECT_EQ(AS_INT(vm->findGlobalCell("hp")->value), 10);
-            EXPECT_EQ(AS_INT(vm->findGlobalCell("missing")->value), -1);
+            EXPECT_EQ(AS_INT(vm->findGlobal("hp")), 10);
+            EXPECT_EQ(AS_INT(vm->findGlobal("missing")), -1);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -392,11 +391,11 @@ namespace pg
 
             ASSERT_EQ(result, InterpretResult::OK);
 
-            EXPECT_EQ(static_cast<_unique_id>(AS_INT(vm->findGlobalCell("id")->value)), entity.id);
-            EXPECT_DOUBLE_EQ(AS_DOUBLE(vm->findGlobalCell("x")->value), 10.0);
-            EXPECT_TRUE(AS_BOOL(vm->findGlobalCell("hasPos")->value));
-            EXPECT_FALSE(AS_BOOL(vm->findGlobalCell("hasOther")->value));
-            EXPECT_EQ(vm->asString(vm->findGlobalCell("name")->value), "PositionComponent");
+            EXPECT_EQ(static_cast<_unique_id>(AS_INT(vm->findGlobal("id"))), entity.id);
+            EXPECT_DOUBLE_EQ(AS_DOUBLE(vm->findGlobal("x")), 10.0);
+            EXPECT_TRUE(AS_BOOL(vm->findGlobal("hasPos")));
+            EXPECT_FALSE(AS_BOOL(vm->findGlobal("hasOther")));
+            EXPECT_EQ(vm->asString(vm->findGlobal("name")), "PositionComponent");
 
             // The write reached the C++ component
             EXPECT_FLOAT_EQ(pos->y, 50.0f);

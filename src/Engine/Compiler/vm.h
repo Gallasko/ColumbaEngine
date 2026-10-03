@@ -258,8 +258,7 @@ namespace pg
             // Free all Values stored in globals before destruction
             for (auto& cell : globalCells)
             {
-                if (cell.defined)
-                    releaseAndDelete(cell.value);
+                releaseAndDelete(cell);
             }
 
             globalCells.clear();
@@ -597,14 +596,10 @@ namespace pg
         // path (constant-global ops) indexes `globalCells` directly with a slot
         // resolved once at decode time — no string work, no hashing. The cold
         // `globalSlots` registry maps a name (by CONTENT) to its slot and is
-        // touched only at decode time and registration. `defined` distinguishes
-        // a declared-but-unset slot (there is no nil sentinel Value).
-        struct GlobalCell
-        {
-            Value value = 0;
-            bool  defined = false;
-        };
-        std::vector<GlobalCell>                   globalCells;
+        // touched only at decode time and registration. A declared-but-unset
+        // slot holds UndefinedValue, which no script value can be (a global
+        // set to none is a defined global).
+        std::vector<Value>                        globalCells;
         std::unordered_map<std::string, uint32_t> globalSlots;
 
         // Get-or-create the slot for `name`. Slots are append-only, so a
@@ -616,7 +611,7 @@ namespace pg
                 return it->second;
 
             const uint32_t slot = static_cast<uint32_t>(globalCells.size());
-            globalCells.push_back(GlobalCell{});
+            globalCells.push_back(UndefinedValue);
             globalSlots.emplace(name, slot);
 
             return slot;
@@ -629,42 +624,36 @@ namespace pg
         // borrowed one. Any previously defined occupant is released.
         inline void defineGlobal(const std::string& name, const Value& v)
         {
-            GlobalCell& c = globalCells[globalSlot(name)];
+            Value& cell = globalCells[globalSlot(name)];
 
-            if (c.defined)
-                releaseAndDelete(c.value);
+            // Releasing an undefined cell is a no-op, it is not refcounted
+            releaseAndDelete(cell);
 
-            c.value = v;
-            c.defined = true;
+            cell = v;
         }
 
-        // Look up an existing global cell by name (nullptr if never declared).
-        inline GlobalCell* findGlobalCell(const std::string& name)
+        // Value of a global, UndefinedValue if it was never declared or not assigned yet.
+        // The value is borrowed: retainValue(...) it to keep it past the next write of that global.
+        // To write a global in place, index globalCells with globalSlot(name) instead.
+        inline Value findGlobal(const std::string& name) const
         {
             auto it = globalSlots.find(name);
-            return it == globalSlots.end() ? nullptr : &globalCells[it->second];
-        }
 
-        // Look up a global that holds a value (nullptr if never declared or not assigned yet).
-        inline GlobalCell* findDefinedGlobal(const std::string& name)
-        {
-            auto cell = findGlobalCell(name);
+            if (it == globalSlots.end())
+                return UndefinedValue;
 
-            if (cell == nullptr or not cell->defined)
-                return nullptr;
-
-            return cell;
+            return globalCells[it->second];
         }
 
         // Look up a class stored in a global (nullptr if missing or not a class).
         inline Klass* findGlobalClass(const std::string& name)
         {
-            auto cell = findDefinedGlobal(name);
+            const Value value = findGlobal(name);
 
-            if (cell == nullptr or not IS_CLASS(cell->value))
+            if (not IS_CLASS(value))
                 return nullptr;
 
-            return asClass(cell->value);
+            return asClass(value);
         }
 
         // Reverse map slot -> name. Cold path only (error messages); O(n).
@@ -848,7 +837,7 @@ namespace pg
         void defineNative(const std::string& name, NativeFn function)
         {
             // Skip if already defined in globals
-            if (findDefinedGlobal(name) != nullptr)
+            if (not IS_UNDEFINED(findGlobal(name)))
             {
                 return;
             }
@@ -933,7 +922,7 @@ namespace pg
             for (const auto& [name, value] : it->second.variables)
             {
                 // Skip if already defined in globals
-                if (findDefinedGlobal(name) == nullptr)
+                if (IS_UNDEFINED(findGlobal(name)))
                 {
                     defineGlobal(name, elementToValue(value));
                 }

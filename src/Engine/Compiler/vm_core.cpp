@@ -91,8 +91,7 @@ namespace pg
         // Free all Values stored in globals before destruction
         for (auto& cell : globalCells)
         {
-            if (cell.defined)
-                releaseAndDelete(cell.value);
+            releaseAndDelete(cell);
         }
 
         // Clean up any remaining Values on the stack
@@ -1213,10 +1212,10 @@ namespace pg
         // Slot pre-resolved at decode time (operands.dword); the constant value
         // to define is pre-resolved into constantPtr. No name lookup at runtime.
         auto& cell = vm->globalCells[instr.operands.dword];
-        if (cell.defined)
-            vm->releaseAndDelete(cell.value);
-        cell.value = vm->retainValue(*instr.constantPtr);
-        cell.defined = true;
+
+        // Releasing an undefined cell is a no-op, it is not refcounted
+        vm->releaseAndDelete(cell);
+        cell = vm->retainValue(*instr.constantPtr);
         return &instr + 1;
     }
 
@@ -1266,10 +1265,9 @@ namespace pg
 
         for (const auto& [globalName, slot] : importerVm.globalSlots)
         {
-            const VM::GlobalCell& srcCell = importerVm.globalCells[slot];
-            if (not srcCell.defined)
+            const Value srcValue = importerVm.globalCells[slot];
+            if (IS_UNDEFINED(srcValue))
                 continue;
-            const Value srcValue = srcCell.value;
 
             // Skip special globals
             if (globalName == "__Table")
@@ -1414,15 +1412,15 @@ namespace pg
 
         auto name = vm->asString(nameValue);
 
-        VM::GlobalCell* cell = vm->findDefinedGlobal(name);
-        if (cell == nullptr)
+        const Value global = vm->findGlobal(name);
+        if (IS_UNDEFINED(global))
         {
             vm->releaseAndDelete(nameValue);
             vm->pop();
             return vm->raiseError("Undefined global variable '" + name + "'.");
         }
 
-        vm->changeTop(vm->retainValue(cell->value));
+        vm->changeTop(vm->retainValue(global));
         vm->releaseAndDelete(nameValue);
         return &instr + 1;
     }
@@ -1447,15 +1445,15 @@ namespace pg
             return vm->raiseError("Global variable name must be a litteral.");
         }
 
-        VM::GlobalCell* cell = vm->findDefinedGlobal(name.toString());
-        if (cell == nullptr)
+        Value& cell = vm->globalCells[vm->globalSlot(name.toString())];
+        if (IS_UNDEFINED(cell))
         {
             vm->releaseAndDelete(nameValue);
             return vm->raiseError("Undefined global variable '" + name.toString() + "'.");
         }
 
-        vm->releaseAndDelete(cell->value);
-        cell->value = vm->retainValue(value);
+        vm->releaseAndDelete(cell);
+        cell = vm->retainValue(value);
         vm->releaseAndDelete(nameValue);
         return &instr + 1;
     }
@@ -1574,13 +1572,13 @@ namespace pg
     {
         // Slot pre-resolved at decode time — a single cell index, no string work.
         auto& cell = vm->globalCells[instr.operands.dword];
-        if (not cell.defined)
+        if (IS_UNDEFINED(cell))
         {
             return vm->raiseError("Undefined global variable '"
                                   + vm->globalNameForSlot(instr.operands.dword) + "'.");
         }
 
-        vm->push(vm->retainValue(cell.value));
+        vm->push(vm->retainValue(cell));
         return &instr + 1;
     }
 
@@ -1592,14 +1590,14 @@ namespace pg
         // Slot pre-resolved at decode time; the constant value to store is in
         // constantPtr. No name lookup at runtime.
         auto& cell = vm->globalCells[instr.operands.dword];
-        if (not cell.defined)
+        if (IS_UNDEFINED(cell))
         {
             return vm->raiseError("Undefined global variable '"
                                   + vm->globalNameForSlot(instr.operands.dword) + "'.");
         }
 
-        vm->releaseAndDelete(cell.value);
-        cell.value = vm->retainValue(*instr.constantPtr);
+        vm->releaseAndDelete(cell);
+        cell = vm->retainValue(*instr.constantPtr);
         vm->push(vm->retainValue(*instr.constantPtr));
         return &instr + 1;
     }

@@ -25,6 +25,22 @@ namespace pg
                 });
             }
 
+            // Live refcount of a heap value, -1 if it is not refcounted
+            int refCountOf(VM& vm, Value v)
+            {
+                if (not requiresRefCount(v))
+                    return -1;
+
+                const uint32_t index = GET_INDEX(v);
+
+                auto& refCounts = vm.pools.getRefCountVector(v);
+
+                if (index >= refCounts.size())
+                    return -1;
+
+                return static_cast<int>(refCounts[index]);
+            }
+
             // Run a script on a fresh vm and return what it printed with __dprint
             std::string runNoneScript(const std::string& source, InterpretResult& result)
             {
@@ -196,6 +212,62 @@ namespace pg
 
             // A default initialized Value is the double 0.0
             EXPECT_FALSE(IS_UNDEFINED(Value{0}));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(undefined_value_test, declared_global_is_undefined)
+        {
+            VM vm;
+
+            EXPECT_TRUE(IS_UNDEFINED(vm.findGlobal("neverDeclared")));
+
+            // Decoding a script reserves the slot of a global before anything is assigned to it
+            const uint32_t slot = vm.globalSlot("declared");
+
+            EXPECT_TRUE(IS_UNDEFINED(vm.globalCells[slot]));
+            EXPECT_TRUE(IS_UNDEFINED(vm.findGlobal("declared")));
+
+            // Asking for the slot again must not create a second cell
+            EXPECT_EQ(vm.globalSlot("declared"), slot);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(undefined_value_test, global_set_to_none_is_defined)
+        {
+            VM vm;
+
+            vm.defineGlobal("empty", makeNoneValue());
+
+            const Value value = vm.findGlobal("empty");
+
+            EXPECT_TRUE(IS_NONE(value));
+            EXPECT_FALSE(IS_UNDEFINED(value));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(undefined_value_test, redefined_global_releases_the_old_value)
+        {
+            VM vm;
+
+            // Keep a reference of our own so the count stays readable after the global lets go
+            Value text = vm.createString("a string long enough to live in the pool");
+
+            vm.defineGlobal("text", vm.retainValue(text));
+
+            EXPECT_EQ(refCountOf(vm, text), 2);
+
+            vm.defineGlobal("text", makeIntValue(3));
+
+            EXPECT_TRUE(IS_INT(vm.findGlobal("text")));
+            EXPECT_EQ(refCountOf(vm, text), 1);
+
+            vm.releaseAndDelete(text);
         }
 
         // ----------------------------------------------------------------------------------------

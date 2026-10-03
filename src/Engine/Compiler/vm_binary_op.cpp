@@ -246,22 +246,22 @@ namespace pg
             return vm->raiseError("Global variable name must be a litteral.");
         }
 
-        VM::GlobalCell* cell = vm->findDefinedGlobal(name.toString());
-        if (cell == nullptr)
+        Value& cell = vm->globalCells[vm->globalSlot(name.toString())];
+        if (IS_UNDEFINED(cell))
         {
             vm->releaseAndDelete(nameValue);
             return vm->raiseError("Undefined global variable '" + name.toString() + "'.");
         }
 
-        if (not isValueNumber(cell->value))
+        if (not isValueNumber(cell))
         {
             vm->releaseAndDelete(nameValue);
             return vm->raiseError("Operand after an unary (++) must be a number.");
         }
 
-        auto newValue = vm->addValues(cell->value, INT_VAL(1));
-        vm->releaseAndDelete(cell->value);
-        cell->value = vm->retainValue(newValue);
+        auto newValue = vm->addValues(cell, INT_VAL(1));
+        vm->releaseAndDelete(cell);
+        cell = vm->retainValue(newValue);
 
         vm->releaseAndDelete(nameValue);
         return &instr + 1;
@@ -286,22 +286,22 @@ namespace pg
             return vm->raiseError("Global variable name must be a litteral.");
         }
 
-        VM::GlobalCell* cell = vm->findDefinedGlobal(name.toString());
-        if (cell == nullptr)
+        Value& cell = vm->globalCells[vm->globalSlot(name.toString())];
+        if (IS_UNDEFINED(cell))
         {
             vm->releaseAndDelete(nameValue);
             return vm->raiseError("Undefined global variable '" + name.toString() + "'.");
         }
 
-        if (not isValueNumber(cell->value))
+        if (not isValueNumber(cell))
         {
             vm->releaseAndDelete(nameValue);
             return vm->raiseError("Operand after an unary (++) must be a number.");
         }
 
-        auto newValue = vm->addValues(cell->value, INT_VAL(1));
-        vm->releaseAndDelete(cell->value);
-        cell->value = vm->retainValue(newValue);
+        auto newValue = vm->addValues(cell, INT_VAL(1));
+        vm->releaseAndDelete(cell);
+        cell = vm->retainValue(newValue);
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(nameValue);
@@ -327,22 +327,22 @@ namespace pg
             return vm->raiseError("Global variable name must be a litteral.");
         }
 
-        VM::GlobalCell* cell = vm->findDefinedGlobal(name.toString());
-        if (cell == nullptr)
+        Value& cell = vm->globalCells[vm->globalSlot(name.toString())];
+        if (IS_UNDEFINED(cell))
         {
             vm->releaseAndDelete(nameValue);
             return vm->raiseError("Undefined global variable '" + name.toString() + "'.");
         }
 
-        if (not isValueNumber(cell->value))
+        if (not isValueNumber(cell))
         {
             vm->releaseAndDelete(nameValue);
             return vm->raiseError("Operand after an unary (--) must be a number.");
         }
 
-        auto newValue = vm->subtractValues(cell->value, INT_VAL(1));
-        vm->releaseAndDelete(cell->value);
-        cell->value = vm->retainValue(newValue);
+        auto newValue = vm->subtractValues(cell, INT_VAL(1));
+        vm->releaseAndDelete(cell);
+        cell = vm->retainValue(newValue);
 
         vm->releaseAndDelete(nameValue);
         return &instr + 1;
@@ -367,22 +367,22 @@ namespace pg
             return vm->raiseError("Global variable name must be a litteral.");
         }
 
-        VM::GlobalCell* cell = vm->findDefinedGlobal(name.toString());
-        if (cell == nullptr)
+        Value& cell = vm->globalCells[vm->globalSlot(name.toString())];
+        if (IS_UNDEFINED(cell))
         {
             vm->releaseAndDelete(nameValue);
             return vm->raiseError("Undefined global variable '" + name.toString() + "'.");
         }
 
-        if (not isValueNumber(cell->value))
+        if (not isValueNumber(cell))
         {
             vm->releaseAndDelete(nameValue);
             return vm->raiseError("Operand after an unary (--) must be a number.");
         }
 
-        auto newValue = vm->subtractValues(cell->value, INT_VAL(1));
-        vm->releaseAndDelete(cell->value);
-        cell->value = vm->retainValue(newValue);
+        auto newValue = vm->subtractValues(cell, INT_VAL(1));
+        vm->releaseAndDelete(cell);
+        cell = vm->retainValue(newValue);
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(nameValue);

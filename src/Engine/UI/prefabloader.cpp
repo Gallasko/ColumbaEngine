@@ -282,30 +282,30 @@ std::optional<NodeSpec> loadNodeSpec(EntitySystem* ecs, const std::string& yamlP
     Loader loader{vm, options.errors, yamlPath};
 
     // Parser diagnostics first: they explain any structural oddity below.
-    if (VM::GlobalCell* errs = vm.findDefinedGlobal("errors"); errs != nullptr and IS_VECTOR(errs->value))
+    if (const Value errs = vm.findGlobal("errors"); IS_VECTOR(errs))
     {
-        for (Value e : vm.asVector(errs->value)->fields)
+        for (Value e : vm.asVector(errs)->fields)
         {
             if (IS_STRING(e))
                 loader.fail(vm.asString(e));
         }
     }
 
-    VM::GlobalCell* doc = vm.findDefinedGlobal("doc");
-    if (doc == nullptr)
+    const Value doc = vm.findGlobal("doc");
+    if (IS_UNDEFINED(doc))
     {
         loader.fail("the loader script defined no `doc`");
         return std::nullopt;
     }
 
-    if (not IS_INSTANCE(doc->value))
+    if (not IS_INSTANCE(doc))
     {
         loader.fail("the file must hold a map at the top level (a single node)");
         return std::nullopt;
     }
 
     NodeSpec spec;
-    if (not loader.node(doc->value, spec, "doc"))
+    if (not loader.node(doc, spec, "doc"))
         return std::nullopt;
 
     return spec;
