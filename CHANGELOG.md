@@ -124,6 +124,10 @@ First tagged release. Everything below describes the state of the engine at the 
   (`res/chronicle/ui/ending.yaml`): who he was, how it ended, what he became, the work he went
   back to most, what he left, the deeds told of him and his figures, written by the new
   `rules/epitaph.pg`. Nothing passes until *Begin a new life* (or `N`).
+- Chronicle: nothing is cut or runs out of its row any more. A log line wraps instead of ending in
+  an ellipsis, and its row grows; a figure too long to share the line goes under the text. An
+  activity's gains wrap in the row, which grows by the lines they take. In a log figure an amount
+  holds to its stat by a no-break space.
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written

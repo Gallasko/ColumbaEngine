@@ -629,7 +629,9 @@ namespace chronicle
 
         case ActivityState::Idle:
         default:
-            gains = makeActivityText(ecs, "tick", "activity.gains", gainsText(spec.gains), z + 4);
+            // What it brings wraps in the room between the mark and the cost: a gain keeps its
+            // figure (a no-break space joins them), a long list takes a second line
+            gains = makeActivityText(ecs, "tick", "activity.gains", gainsText(spec.gains), z + 4, Overflow::Wrap, middle);
             placeIn(gains->entity, root.id, x, y, 4.0f);
             prefab->addToPrefab(gains->entity);
             clipLike(ecs, root, gains->entity);
@@ -662,7 +664,7 @@ namespace chronicle
         else if (reqs)
             middle = reqs->height(ecs);
         else if (gains)
-            middle = static_cast<float>(gains->lineHeightPx);   // An empty gains line keeps its height
+            middle = std::max(static_cast<float>(gains->lineHeightPx), gains->entity.get<PositionComponent>()->height);   // An empty gains line keeps its height
 
         const float height = Pad + TitleHeight + MiddleGap + middle + Pad;
         auto pos = root.get<PositionComponent>();
@@ -767,7 +769,10 @@ namespace chronicle
             r.spec.gains = newGains;
 
             if (r.gains)
+            {
                 r.gains->setText(ecs, gainsText(newGains));
+                r.resize(ecs);
+            }
         });
     }
 
@@ -875,6 +880,12 @@ namespace chronicle
 
             if (r.progress)
                 r.progress->setWidth(ecs, r.middleWidth());
+
+            if (r.gains)
+                r.gains->setWidth(ecs, r.middleWidth());
+
+            // The caption or the gains may wrap differently at the new width
+            r.resize(ecs);
         });
     }
 

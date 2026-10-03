@@ -34,6 +34,7 @@ namespace chronicle
         constexpr float RubricLine = 22.0f;       // The gloss-title line
         constexpr float RubricAbove = 12.0f;      // space-3, none for the first item
         constexpr float FootnoteGap = 4.0f;       // space-1
+        constexpr float FigureShare = 0.5f;       // A figure wider than this share of a line goes under the text
 
         // Whole months lived. The small bias keeps an age summed from twelfths (16.9 + 1/12 + ...)
         // from falling a hair short of the month it names.
@@ -424,12 +425,23 @@ namespace chronicle
         row.mark.entity->get<ThemeComponent>()->setElement(markKey(entry.kind));
         addPart(row.line, row.mark.entity);
 
-        // The figure, right-anchored; the text is elided in what it leaves
+        const float textX = AgeWidth + Gap + px(MarkSize::S14) + Gap;
+        const float room = std::max(1.0f, LW - textX);
+
+        // The figure, right-anchored; the text wraps in what it leaves. A figure too long to share
+        // the line (many things gained at once) goes under the text instead, wrapped, on the same
+        // right edge
+        const bool under = not entry.figure.empty() and textWidth(ecs, "figure-sm", entry.figure) > room * FigureShare;
+
         float figureRoom = 0.0f;
 
         if (not entry.figure.empty())
         {
-            row.figure = makeLogText(ecs, "figure-sm", figureKey(entry.kind), entry.figure, z + 3);
+            row.figure = makeLogText(ecs, "figure-sm", figureKey(entry.kind), entry.figure, z + 3, under ? Overflow::Wrap : Overflow::Grow, under ? room : 0.0f);
+
+            if (under)
+                row.figure->setAlign(ecs, Align::Right);
+
             {
                 auto anchor = row.figure->entity->get<UiAnchor>();
 
@@ -440,15 +452,27 @@ namespace chronicle
             }
             addPart(row.line, row.figure->entity);
 
-            figureRoom = row.figure->entity.get<PositionComponent>()->width + Gap;
+            if (not under)
+                figureRoom = row.figure->entity.get<PositionComponent>()->width + Gap;
         }
 
-        const float textX = AgeWidth + Gap + px(MarkSize::S14) + Gap;
-        const float textWidth = std::max(1.0f, LW - textX - figureRoom);
-
-        row.text = makeLogText(ecs, style, textKey(entry.kind), entry.text, z + 3, Overflow::Ellipsis, textWidth);
+        // A long line is read whole: it wraps, and the row grows by the lines it takes. The age, the
+        // mark and a figure beside the text stay on its first line
+        row.text = makeLogText(ecs, style, textKey(entry.kind), entry.text, z + 3, Overflow::Wrap, std::max(1.0f, room - figureRoom));
         placeIn(row.text.entity, lineId, textX, 0.0f, 3.0f);
         addPart(row.line, row.text.entity);
+
+        float height = std::max(RowHeight, row.text.entity.get<PositionComponent>()->height);
+
+        if (under)
+        {
+            row.figure->entity->get<UiAnchor>()->setTopMargin(height);
+
+            height += row.figure->entity.get<PositionComponent>()->height;
+        }
+
+        if (height > RowHeight)
+            row.line.get<PositionComponent>()->setHeight(height);
 
         layout->addEntity(row.line);
         items.push_back(row);

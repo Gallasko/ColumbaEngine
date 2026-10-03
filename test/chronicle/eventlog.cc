@@ -420,7 +420,9 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(eventlog_test, text_leaves_room_for_figure)
+        // A long line is read whole: it wraps in the room the figure leaves, the row grows by the
+        // lines it takes, and the next row stands under it. Nothing is cut.
+        TEST(eventlog_test, text_wraps_in_the_room_the_figure_leaves)
         {
             MockLogger logger;
             LogFixture s;
@@ -428,12 +430,16 @@ namespace pg
             const std::string longText = "Gored in the North Forest by a boar he had been told twice to leave alone";
 
             EventLogSpec spec;
-            spec.entries = {entry(14.3f, longText, LogKind::Loss, "\xE2\x88\x92" "9 vit")};
+            spec.entries = {
+                entry(14.3f, longText, LogKind::Loss, "\xE2\x88\x92" "9 vit"),
+                entry(14.4f, "Stronger for the winter", LogKind::Gain, "+1 str"),
+            };
             EventLog log = s.make(spec);
 
             const auto& row = rowAt(log, 1);
+            const auto& next = rowAt(log, 2);
 
-            // The text is cut to the room the figure leaves, and the figure is whole
+            // On one line it would not fit; wrapped, it is whole
             TextLayoutParams params;
             params.maxWidth = row.text.spec.width;
             params.overflow = Overflow::Ellipsis;
@@ -441,10 +447,65 @@ namespace pg
             params.spacing = row.text.lineSpacingPx;
             EXPECT_TRUE(s.ttf->measureText(row.text.fontAlias, longText, params).elided);
 
+            EXPECT_EQ(row.text.spec.overflow, Overflow::Wrap);
             EXPECT_EQ(row.text.spec.text, longText);
+
+            // The row is as tall as its text, several lines of 20
+            const float textHeight = s.pos(row.text.entity)->height;
+
+            EXPECT_GE(textHeight, 40.0f);
+            EXPECT_NEAR(s.pos(row.line)->height, textHeight, 0.01f);
+
+            // The figure is whole, on the first line, and the text keeps clear of it
             EXPECT_EQ(row.figure->spec.text, "\xE2\x88\x92" "9 vit");
             EXPECT_LE(s.right(row.text.entity), s.pos(row.figure->entity)->x - 8.0f + 0.01f);
             EXPECT_NEAR(s.right(row.figure->entity), s.right(row.line), 0.01f);
+            EXPECT_LT(s.pos(row.figure->entity)->y, s.pos(row.line)->y + 20.0f);
+            EXPECT_LT(s.pos(row.age.entity)->y, s.pos(row.line)->y + 20.0f);
+
+            // The next row stands under the whole of it, one pixel apart, and a short one is one line
+            EXPECT_NEAR(s.pos(next.line)->y, s.pos(row.line)->y + textHeight + 1.0f, 0.01f);
+            EXPECT_FLOAT_EQ(s.pos(next.line)->height, 20.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A figure too long to share the line (many things gained at once) goes under the text,
+        // wrapped on the same right edge: the text takes the whole line, and the row is as tall as
+        // the two.
+        TEST(eventlog_test, a_long_figure_goes_under_the_text)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            const std::string many = "+100\xC2\xA0" "coin +1\xC2\xA0" "ledgers +1\xC2\xA0" "enemy +1\xC2\xA0" "stealth +1\xC2\xA0" "guile";
+
+            EventLogSpec spec;
+            spec.entries = {
+                entry(22.5f, "Rob the Counting House", LogKind::Gain, many),
+                entry(22.6f, "Lay low", LogKind::Note),
+            };
+            EventLog log = s.make(spec);
+
+            const auto& row = rowAt(log, 1);
+            const auto& next = rowAt(log, 2);
+
+            ASSERT_TRUE(row.figure.has_value());
+            EXPECT_EQ(row.figure->spec.text, many);
+            EXPECT_EQ(row.figure->spec.overflow, Overflow::Wrap);
+            EXPECT_EQ(row.figure->spec.align, Align::Right);
+
+            // The text has the whole line, the figure the same room under it
+            EXPECT_NEAR(row.text.spec.width, row.figure->spec.width, 0.01f);
+            EXPECT_FLOAT_EQ(s.pos(row.text.entity)->height, 20.0f);
+            EXPECT_NEAR(s.pos(row.figure->entity)->y, s.pos(row.line)->y + 20.0f, 0.01f);
+            EXPECT_NEAR(s.right(row.figure->entity), s.right(row.line), 0.01f);
+            EXPECT_GE(s.pos(row.figure->entity)->height, 40.0f);
+
+            // The row holds both, and the next one stands under it
+            EXPECT_NEAR(s.pos(row.line)->height, 20.0f + s.pos(row.figure->entity)->height, 0.01f);
+            EXPECT_NEAR(s.pos(next.line)->y, s.pos(row.line)->y + s.pos(row.line)->height + 1.0f, 0.01f);
         }
 
         // ----------------------------------------------------------------------------------------

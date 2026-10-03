@@ -20,7 +20,8 @@
 //           gaps     [{stat, label, current, needed}]: the next milestone's asks for the path the
 //                    activity leads toward, against the character as he is (atTerm says after)
 //           entries  [{text, kind, figure, glyph}]: the log lines the term writes, the reached
-//                    steps' after the activity's own
+//                    steps' after the activity's own. In a figure an amount holds to its stat by
+//                    a no-break space (lib.pg's `noBreak`), and a plain space parts two gains
 //           error    "" or "unknown activity"
 // Run once per month tick; it keeps nothing between runs.
 
@@ -92,7 +93,7 @@ else
             figure = figure + " "
         }
 
-        figure = figure + signed(gain.amount) + " " + toLowerCase(statShortName(gain.stat))
+        figure = figure + signed(gain.amount) + noBreak + toLowerCase(statShortName(gain.stat))
     }
 
     // An activity done at once writes what it cost with what it brought
@@ -100,7 +101,7 @@ else
     {
         for (var c = 0; c < len(activity.costs); c++)
         {
-            figure = figure + " " + signed(0 - activity.costs[c].amount) + " " + toLowerCase(statShortName(activity.costs[c].stat))
+            figure = figure + " " + signed(0 - activity.costs[c].amount) + noBreak + toLowerCase(statShortName(activity.costs[c].stat))
         }
     }
 
@@ -161,7 +162,7 @@ else
                     stepFigure = stepFigure + " "
                 }
 
-                stepFigure = stepFigure + signed(effect.amount) + " " + toLowerCase(statShortName(effect.stat))
+                stepFigure = stepFigure + signed(effect.amount) + noBreak + toLowerCase(statShortName(effect.stat))
             }
 
             if (has(step, "entry"))

@@ -579,7 +579,8 @@ namespace pg
             EXPECT_EQ(intOf(forecast.atTerm, "coin"), 7);
             EXPECT_EQ(intOf(forecast.atTerm, "rations"), 6);
             ASSERT_EQ(forecast.entries.size(), 1u);
-            EXPECT_EQ(textOf(forecast.entries[0], "figure"), "+6 rations \xE2\x88\x92" "5 coin");
+            // An amount holds to its stat by a no-break space; a plain space parts the two
+            EXPECT_EQ(textOf(forecast.entries[0], "figure"), "+6\xC2\xA0" "rations \xE2\x88\x92" "5\xC2\xA0" "coin");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -814,7 +815,7 @@ namespace pg
             EXPECT_EQ(intOf(forecast.atTerm, "renown"), 2);
             ASSERT_EQ(forecast.entries.size(), 2u);
             EXPECT_EQ(textOf(forecast.entries[1], "kind"), "milestone");
-            EXPECT_EQ(textOf(forecast.entries[1], "figure"), "+1 renown");
+            EXPECT_EQ(textOf(forecast.entries[1], "figure"), "+1\xC2\xA0" "renown");
 
             // Past the step: the new gains, and the line is not written again
             f.rules.done = {{"serve", ElementType{2}}};
@@ -852,7 +853,7 @@ namespace pg
             ASSERT_TRUE(f.rules.forecast(14.0f, pupil, "edric", 0, forecast));
             EXPECT_EQ(intOf(forecast.atTerm, "edric_support"), 1);
             ASSERT_EQ(forecast.entries.size(), 2u);
-            EXPECT_EQ(textOf(forecast.entries[1], "figure"), "+1 edric");
+            EXPECT_EQ(textOf(forecast.entries[1], "figure"), "+1\xC2\xA0" "edric");
         }
 
         // ----------------------------------------------------------------------------------------

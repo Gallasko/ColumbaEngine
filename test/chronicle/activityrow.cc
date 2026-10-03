@@ -241,6 +241,51 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A long list of gains takes another line in the room between the mark and the cost: the row
+        // grows by it and nothing runs out of the row. Wider, or with less to say, it is one line.
+        TEST(activityrow_test, gains_wrap_in_a_narrow_row)
+        {
+            MockLogger logger;
+            ActivityFixture s;
+
+            ActivityRowSpec spec = idleSpec("rob", "Rob the Counting House");
+            spec.width = 300.0f;
+            spec.gains = {{"COIN", 100}, {"LEDGERS", 1}, {"ENEMY", 1}, {"STEALTH", 1}, {"GUILE", 1}};
+            ActivityRow row = s.place(spec);
+
+            ASSERT_TRUE(row.gains.has_value());
+            EXPECT_EQ(row.gains->spec.overflow, Overflow::Wrap);
+            EXPECT_NEAR(row.gains->spec.width, row.middleWidth(), 0.5f);
+
+            // Lines of 16, more than one, and the row is as tall as they make it
+            const float wrapped = s.pos(row.gains->entity)->height;
+
+            EXPECT_GE(wrapped, 32.0f);
+            EXPECT_NEAR(s.pos(row.root)->height, 12.0f + 24.0f + 4.0f + wrapped + 12.0f, 0.5f);
+            EXPECT_LE(s.pos(row.gains->entity)->x + s.pos(row.gains->entity)->width, s.pos(row.cost.entity)->x);
+
+            // Wider: one line again
+            row.setWidth(&s.ecs, 900.0f);
+            s.pump();
+
+            EXPECT_FLOAT_EQ(s.pos(row.gains->entity)->height, 16.0f);
+            EXPECT_FLOAT_EQ(s.pos(row.root)->height, 68.0f);
+
+            // Narrow again, with less to say: one line too
+            row.setWidth(&s.ecs, 300.0f);
+            s.pump();
+
+            EXPECT_GE(s.pos(row.root)->height, 84.0f);
+
+            row.setGains(&s.ecs, {{"COIN", 100}});
+            s.pump();
+
+            EXPECT_FLOAT_EQ(s.pos(row.root)->height, 68.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(activityrow_test, idle_geometry)
         {
             MockLogger logger;

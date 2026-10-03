@@ -362,6 +362,10 @@ var lastAge = 30
 // The `finishBy` of what an old man may still do: no age closes it.
 var anyAge = 200
 
+// A no-break space (U+00A0, between the quotes): what joins an amount to its stat in a log figure
+// ("+1 str"), so a figure that wraps breaks between two gains and never inside one.
+var noBreak = " "
+
 // The names a stat or a flag is written with.
 var statNames = {
     str: "Strength",

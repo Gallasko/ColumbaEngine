@@ -219,7 +219,8 @@ come from `rules/*.pg` through the scene, never from the component.
 
 - **ActivityRow** (`UI/activityrow.h`) - the game's main verb: one thing the character
   could spend months doing, in four states. Idle shows the gains (`tick`, `"STR +1   VIT
-  -1"` with a real minus); running draws a verdigris edge and mark and a `ProgressRule`
+  -1"` with a real minus; they wrap in the room between the mark and the cost, a gain never
+  parted from its figure, and the row grows by the lines they take); running draws a verdigris edge and mark and a `ProgressRule`
   whose caption names what the activity reaches at term; locked keeps the row fully
   legible in `state-locked` and states what it still needs as a dense
   `RequirementList` in place; selected is a 3 px `focus-ink` edge inside the row's left.
@@ -303,8 +304,11 @@ come from `rules/*.pg` through the scene, never from the component.
   `rule-hair` left edge, and inside it (inset 8 / 12) a scrollable `VerticalLayout` of lines
   one pixel apart. A row is age (`caption`, a 30 px column, written year.month with the month
   1 to 12: `14.4`, `16.12`, then `17.1`) · mark (S14) · text
-  (`body-sm`, elided to the room the figure leaves) · figure (`figure-sm`, right edge), on one
-  baseline. **Kinds → glyph / element**: note → `quill`, `log.text.note` (`gloss`, italic,
+  (`body-sm`, wrapped in the room the figure leaves: a long line is read whole and its row grows
+  by the lines it takes) · figure (`figure-sm`, right edge), on the baseline of the text's first
+  line. A figure wider than half the line (many things gained at once) goes **under** the text
+  instead, wrapped and right-aligned on the same edge; the rules join an amount to its stat with
+  a no-break space (`lib.pg`'s `noBreak`), so it breaks between two gains, never inside one. **Kinds → glyph / element**: note → `quill`, `log.text.note` (`gloss`, italic,
   muted: what happened *to* him); gain → `check`, loss → `cross` (mark, text and figure in
   `status-gain` / `status-loss`); coin → `gold` (ochre mark and figure, plain text);
   milestone → `seal` in gold-edge, the text in `figure-sm` for full ink and weight. An
