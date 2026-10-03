@@ -126,6 +126,7 @@ namespace chronicle
                 life.fresh = opt.fresh;
                 life.noSave = opt.noSave;
                 life.savePath = opt.savePath;
+                life.monthMs = opt.monthMs;
 
                 ecs.getSystem<SceneElementSystem>()->loadSystemScene<LifeScene>(life);
             }

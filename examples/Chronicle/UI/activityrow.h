@@ -44,6 +44,8 @@ namespace chronicle
         std::vector<Gain> gains;       // Shown when Idle
         std::vector<Requirement> requirements;   // Shown when Locked, as a dense list
         float percent = 0.0f;          // Running
+        float glideTo = 0.0f;          // Running: where the fill is moving to, from percent
+        float glideMs = 0.0f;          // Running: in so many ms; 0 = not moving
         std::string caption;           // Running: "MONTH 3 OF 6"
         ActivityState state = ActivityState::Idle;
         bool stripe = false;           // Even-row ground; the list sets it
@@ -119,7 +121,8 @@ namespace chronicle
         ActivityRowSpec spec;
 
         void setState(pg::EntitySystem*, ActivityState);                 // Swaps the middle block, repaints
-        void setPercent(pg::EntitySystem*, float percent, bool animate = true);   // Running only
+        void setPercent(pg::EntitySystem*, float percent, bool animate = true);   // Running only; ends a glide
+        void setGlide(pg::EntitySystem*, float percent, float ms);   // Running only: the fill moves to percent in ms; 0 holds it
         void setCaption(pg::EntitySystem*, const std::string&);
         void setGains(pg::EntitySystem*, const std::vector<Gain>&);
         void setRequirements(pg::EntitySystem*, const std::vector<Requirement>&);

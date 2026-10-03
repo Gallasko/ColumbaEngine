@@ -12,19 +12,23 @@ Run from the repo root (assets are read relative to the working directory):
 ./release/Chronicle --no-save                 # the mockup's life, never written
 ./release/Chronicle --fresh                   # a new life at 7
 ./release/Chronicle --save save/other.sz      # another save file
+./release/Chronicle --month-ms 1000           # a month every second instead of every 2
 ./release/Chronicle --dev TypeSpecimen --theme candle
 ```
 
 With no `--dev` the game opens on the **Life scene** (`--dev LifeScene` names it too).
 `--dev <Scene>` picks a dev gallery instead; an unknown name exits with code 2 before a
-window opens. On the Life scene: `SPACE` runs or pauses the months (one every 800 ms),
-`M` passes one month, `T` switches the theme, `R` reduced motion, `S` saves, `N` starts
+window opens. On the Life scene, confirming an activity starts the months (one every 2 s,
+`--month-ms`), and they stop when its term ends, waiting for the next choice. The running
+row's rule fills through each month in the month's own time. `SPACE` pauses or resumes the
+months (a paused month keeps what it ran), and the head of *At work now* says which:
+`RUNNING`, `PAUSED · SPACE` in red, or `IDLE` between two works. `M` passes one month, `T` switches the theme, `R` reduced motion, `S` saves, `N` starts
 a new life. A life whose Vitality reaches 0 is lost: a new one begins at 7 with 12 rations, the
 months stopped and a line in its log saying how the last one ended. A life is written up to 30:
 there the months stop, the page stays as the life left it, and `N` begins the next. Vitality stands under the
 clock's age at the top of the right column, his other parts in a panel under the log. A month
 that takes from it turns it red for a moment, and the first such month stops the running
-months. What was taken mends, one every two months, up to the most it can be: the hatch on its
+months, with a line in the log naming the part and the key that goes on. What was taken mends, one every two months, up to the most it can be: the hatch on its
 line and the `-> 12` beside its figure.
 
 Tests:
@@ -104,7 +108,8 @@ come from `rules/*.pg` through the scene, never from the component.
   frame + four inset corners, `space-5` padding — the five gold events only).
   The panel never sets a child's z: the caller builds children at
   `z ≥ spec.contentZ`, which must clear the head band (`> z + 4`). A nested panel
-  is a child like any other, at `contentZ` and `contentZ + 10`. There is no
+  is a child like any other, at `contentZ` and `contentZ + 10`. `setAside` rewrites the aside
+  and re-fits the title beside it (`""` removes it for good); `setAsideColor` repaints it. There is no
   `setFrame` (an illuminated panel is a different object, not a state) and no
   shadow (separation comes from the rule).
 
@@ -141,7 +146,10 @@ come from `rules/*.pg` through the scene, never from the component.
   riding that head, and a caption of figures. Setters only (the phase-2 rule):
   `setPercent(p, animate)` tweens the fill linearly at `Motion::kMsPerPercent`
   (6 ms/point; jumps under `Motion::reduced()`), `setForecast` never animates (a
-  forecast is a statement), `setCaption`/`setNib`/`setWidth` re-lay. The fill's
+  forecast is a statement), `setCaption`/`setNib`/`setWidth` re-lay. `setGlide(p, ms)` moves
+  the drawn fill to `p` in exactly `ms`, linearly, without touching the figure (`spec.percent`):
+  it is how a running month fills in the month's time. `ms` 0 holds the fill where it is drawn;
+  a glide never runs back, and under `Motion::reduced()` it does nothing. The fill's
   left corners are rounded 2px in the design system — not distinguishable under a
   1px frame at 8px height, so noted not implemented. The tween lives on the fill
   entity and captures the `ProgressRule` by pointer, so keep it at a stable address
@@ -219,7 +227,9 @@ come from `rules/*.pg` through the scene, never from the component.
   between the mark and the cost. The mark is S24 (the design system draws 22; the kit
   registers 18 and 24). `count` (`"DONE 2 · 1 LEFT"`) is how often it was done and what is
   left of a limited one: it follows the rank on the rank's label (`"RANK 2 · DONE 2"`), and
-  `setCount` rewrites it in place on a row built with a rank or a count.
+  `setCount` rewrites it in place on a row built with a rank or a count. A running row may glide
+  (`setGlide`, or `glideTo`/`glideMs` in its spec, started on the live row once it is attached);
+  `setPercent` ends a glide.
 
 - **ActivityList** (`UI/activityrow.h`) - the rows in groups, headed in the display face
   (`activity.group`, 24 px, `space-3` above all but the first, `space-1` below), with

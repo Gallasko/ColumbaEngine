@@ -28,9 +28,11 @@ int main(int argc, char* argv[])
             opt.savePath = argv[++i];
         else if (a == "--size" and i + 1 < argc and std::sscanf(argv[i + 1], "%dx%d", &opt.width, &opt.height) == 2 and opt.width > 0 and opt.height > 0)
             ++i;
+        else if (a == "--month-ms" and i + 1 < argc and std::sscanf(argv[i + 1], "%f", &opt.monthMs) == 1 and opt.monthMs > 0.0f)
+            ++i;
         else
         {
-            std::fprintf(stderr, "usage: Chronicle [--dev <Scene>] [--theme day|candle] [--reduced-motion] [--fresh] [--no-save] [--save <path>] [--size WxH]\n");
+            std::fprintf(stderr, "usage: Chronicle [--dev <Scene>] [--theme day|candle] [--reduced-motion] [--fresh] [--no-save] [--save <path>] [--size WxH] [--month-ms N]\n");
             return 2;
         }
     }

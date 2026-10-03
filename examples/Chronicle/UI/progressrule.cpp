@@ -174,6 +174,24 @@ namespace chronicle
             nullptr, 1, false, false, TweenLinear});
     }
 
+    void ProgressRule::setGlide(EntitySystem* ecs, float percent, float ms)
+    {
+        percent = clampPct(percent);
+
+        if (auto e = ecs->getEntity(fill.id); e and e->has<TweenComponent>())
+            ecs->detach<TweenComponent>(e);
+
+        // Held: the fill stays where it is drawn. A glide never runs back, and it is motion
+        if (ms <= 0.0f or Motion::reduced() or percent <= shown)
+            return;
+
+        ProgressRule* self = this;
+        ecs->attach<TweenComponent>(ecs->getEntity(fill.id), TweenComponent{
+            TweenValue{shown}, TweenValue{percent}, ms,
+            [self](const TweenValue& v) { self->shown = std::get<float>(v); self->layoutAt(self->shown); },
+            nullptr, 1, false, false, TweenLinear});
+    }
+
     void ProgressRule::setForecast(EntitySystem*, float forecastPercent)
     {
         spec.forecastPercent = clampPct(forecastPercent);

@@ -14,6 +14,7 @@ namespace chronicle
         bool fresh = false;            // --fresh: a new life at 7
         bool noSave = false;           // --no-save: the mockup's life, never written
         std::string savePath = "save/chronicle/life.sz";
+        float monthMs = 2000.0f;       // --month-ms N: one month every N ms while the months run
         int width = 1320;              // --size WxH: the window at launch
         int height = 1020;
     };

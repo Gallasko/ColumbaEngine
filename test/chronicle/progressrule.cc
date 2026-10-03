@@ -303,6 +303,52 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A glide takes the time it is given, whatever the distance; 0 holds the fill where it is
+        // drawn, and the figure (spec.percent) is not touched.
+        TEST(progressrule_test, glide_follows_its_time)
+        {
+            MockLogger logger;
+            ProgressFixture s;
+
+            ProgressRule r = makeProgressRule(&s.ecs, {240.0f, false, 20.0f});
+
+            r.setGlide(&s.ecs, 40.0f, 4000.0f);
+            ASSERT_TRUE(s.hasTween(r.fill));
+            EXPECT_FLOAT_EQ(s.ecs.getEntity(r.fill.id)->get<TweenComponent>()->duration, 4000.0f);
+
+            s.tick(1000.0f);
+            EXPECT_NEAR(r.shown, 25.0f, 0.1f);
+            EXPECT_NEAR(s.pos(r.fill)->width, 238.0f * 0.25f, 0.5f);
+            EXPECT_FLOAT_EQ(r.spec.percent, 20.0f);
+
+            // Held: it stays where it was drawn
+            r.setGlide(&s.ecs, 40.0f, 0.0f);
+            EXPECT_FALSE(s.hasTween(r.fill));
+
+            s.tick(1000.0f);
+            EXPECT_NEAR(r.shown, 25.0f, 0.1f);
+
+            // Going on: the rest of the way in the time left
+            r.setGlide(&s.ecs, 40.0f, 3000.0f);
+            s.tick(3000.0f);
+            EXPECT_NEAR(r.shown, 40.0f, 0.01f);
+
+            // Never back
+            r.setGlide(&s.ecs, 30.0f, 1000.0f);
+            EXPECT_FALSE(s.hasTween(r.fill));
+            EXPECT_NEAR(r.shown, 40.0f, 0.01f);
+
+            // Reduced motion: no glide, the figure moves month by month
+            Motion::setReduced(true);
+            r.setGlide(&s.ecs, 60.0f, 1000.0f);
+            EXPECT_FALSE(s.hasTween(r.fill));
+            EXPECT_NEAR(r.shown, 40.0f, 0.01f);
+            Motion::setReduced(false);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(progressrule_test, forecast_shrinks_as_fill_grows)
         {
             MockLogger logger;

@@ -219,6 +219,21 @@ namespace chronicle
             field.clear();
             return false;
         }
+
+        // A running row is built with the percent and caption already published: a row is not in
+        // its list until the next frame, so the paths' own handlers would not find it
+        void runningProgress(EntitySystem* ecs, ActivityRowSpec& row)
+        {
+            auto facts = ecs->getSystem<WorldFacts>();
+
+            if (not facts)
+                return;
+
+            row.percent = facts->hasFact("activity.running.percent") ? floatOf(facts->factMap["activity.running.percent"]) : 0.0f;
+            row.caption = facts->getFact<std::string>("activity.running.caption", "");
+            row.glideTo = facts->hasFact("activity.running.toward") ? floatOf(facts->factMap["activity.running.toward"]) : 0.0f;
+            row.glideMs = facts->hasFact("activity.running.glideMs") ? floatOf(facts->factMap["activity.running.glideMs"]) : 0.0f;
+        }
     }
 
     LifeScene::LifeScene(LifeSceneOptions options) : opt(std::move(options)) {}
@@ -339,9 +354,9 @@ namespace chronicle
 
             switch (e.key)
             {
+            // The month under way keeps what it ran: the rule goes on from where it stopped
             case SDL_SCANCODE_SPACE:
-                paused = not paused;
-                sinceMonth = 0.0f;
+                pause(not paused);
                 break;
 
             case SDL_SCANCODE_M:
@@ -734,13 +749,7 @@ namespace chronicle
                 row.state = ActivityState::Running;
                 row.glossKey = "activity/" + id;
 
-                // Built with the percent and caption of the same update: the row is not in its list
-                // until the next frame, so their own handlers would not find it
-                if (auto facts = ecs->getSystem<WorldFacts>())
-                {
-                    row.percent = facts->hasFact("activity.running.percent") ? floatOf(facts->factMap["activity.running.percent"]) : 0.0f;
-                    row.caption = facts->getFact<std::string>("activity.running.caption", "");
-                }
+                runningProgress(ecs, row);
 
                 running->setRows(ecs, {{"", {row}}});
             }
@@ -751,22 +760,80 @@ namespace chronicle
                 clock->setRunning(ecs, floatOf(v));
         }));
 
+        // The running row is in both lists: "At work now" and the choice, where it stands in its place
         subs.push_back(router->on("activity.running.percent", [this, ecs](const ElementType& v) {
-            auto running = piece<ActivityList>("running");
+            if (save.running.empty())
+                return;
 
-            if (running and not save.running.empty())
+            for (const char* name : {"running", "activities"})
             {
-                if (auto row = running->find(ecs, save.running))
+                auto list = piece<ActivityList>(name);
+
+                if (not list)
+                    continue;
+
+                // Republished unchanged within the month: the glide goes on
+                if (auto row = list->find(ecs, save.running); row and row->spec.percent != floatOf(v))
                     row->setPercent(ecs, floatOf(v));
             }
         }));
 
-        subs.push_back(router->on("activity.running.caption", [this, ecs](const ElementType& v) {
-            auto running = piece<ActivityList>("running");
+        // The month under way: the rule moves to activity.running.toward as the month runs out,
+        // and stays where it is while the months stop
+        subs.push_back(router->on("activity.running.glideMs", [this, ecs](const ElementType& v) {
+            auto facts = ecs->getSystem<WorldFacts>();
 
-            if (running and not save.running.empty())
+            if (save.running.empty() or not facts)
+                return;
+
+            const float toward = facts->hasFact("activity.running.toward") ? floatOf(facts->factMap["activity.running.toward"]) : 0.0f;
+
+            for (const char* name : {"running", "activities"})
             {
-                if (auto row = running->find(ecs, save.running))
+                auto list = piece<ActivityList>(name);
+
+                if (not list)
+                    continue;
+
+                if (auto row = list->find(ecs, save.running))
+                    row->setGlide(ecs, toward, floatOf(v));
+            }
+        }));
+
+        // Whether the months run, said in the head of "At work now"; stopped, with the key that
+        // goes on
+        subs.push_back(router->on("activity.running.pace", [this, ecs](const ElementType& v) {
+            auto working = piece<Panel>("working");
+
+            if (not working)
+                return;
+
+            const std::string pace = v.toString();
+
+            if (pace == "paused")
+            {
+                working->setAside(ecs, "PAUSED \xC2\xB7 SPACE");
+                working->setAsideColor(ecs, "status-loss");
+            }
+            else
+            {
+                working->setAside(ecs, pace == "running" ? "RUNNING" : "IDLE");
+                working->setAsideColor(ecs, "ink-muted");
+            }
+        }));
+
+        subs.push_back(router->on("activity.running.caption", [this, ecs](const ElementType& v) {
+            if (save.running.empty())
+                return;
+
+            for (const char* name : {"running", "activities"})
+            {
+                auto list = piece<ActivityList>(name);
+
+                if (not list)
+                    continue;
+
+                if (auto row = list->find(ecs, save.running))
                     row->setCaption(ecs, v.toString());
             }
         }));
@@ -959,6 +1026,9 @@ namespace chronicle
             row.months = intOf(a.fields, "months");
             row.state = row.id == save.running ? ActivityState::Running : boolOf(a.fields, "locked") ? ActivityState::Locked : ActivityState::Idle;
             row.glossKey = "activity/" + row.id;
+
+            if (row.state == ActivityState::Running)
+                runningProgress(ecsRef, row);
 
             for (const auto& g : a.gains)
                 row.gains.push_back({textOf(g, "label"), intOf(g, "amount")});
@@ -1198,11 +1268,27 @@ namespace chronicle
 
         alertLeft = AlertMs;
 
-        if (not endangered)
+        if (endangered)
+            return;
+
+        // The log says why the months stopped, and which key goes on
+        if (not paused)
         {
-            paused = true;
-            sinceMonth = 0.0f;
+            std::string parts;
+
+            for (const auto& stat : stats)
+            {
+                const auto line = piece<StatLine>(stat);
+                const std::string name = line ? line->spec.label : stat;
+
+                parts += parts.empty() ? name : " and " + name;
+            }
+
+            appendLog({save.age, parts + " is failing: the months stop. SPACE goes on", LogKind::Note, "", ""});
         }
+
+        sinceMonth = 0.0f;
+        pause(true);
     }
 
     void LifeScene::clearAlert()
@@ -1310,12 +1396,15 @@ namespace chronicle
         {
             setFact("activity.running.id", std::string());
             setFact("activity.running.months", 0.0f);
+            publishPace();
             return;
         }
 
         RuleForecast forecast;
+        RuleForecast coming;
 
-        if (not rules.forecast(save.age, save.character(), save.running, save.monthsIn, forecast))
+        // Where the rule stands, and where the month under way takes it
+        if (not rules.forecast(save.age, save.character(), save.running, save.monthsIn, forecast) or not rules.forecast(save.age, save.character(), save.running, save.monthsIn + 1, coming))
         {
             for (const auto& e : rules.errors)
                 LOG_ERROR(DOM, e);
@@ -1327,6 +1416,32 @@ namespace chronicle
         setFact("activity.running.months", static_cast<float>(forecast.months - save.monthsIn));
         setFact("activity.running.percent", forecast.percent);
         setFact("activity.running.caption", forecast.caption);
+        setFact("activity.running.toward", coming.percent);
+
+        publishPace();
+    }
+
+    void LifeScene::publishPace()
+    {
+        // At rest between two works is not a pause: only stopped work, or the months running on
+        // their own, are said
+        if (save.running.empty())
+        {
+            setFact("activity.running.pace", std::string(paused ? "idle" : "running"));
+            return;
+        }
+
+        setFact("activity.running.pace", std::string(paused ? "paused" : "running"));
+
+        // The rule reaches next month's figure as the month ends, and holds while the months stop
+        setFact("activity.running.glideMs", paused ? 0.0f : std::max(0.0f, opt.monthMs - sinceMonth));
+    }
+
+    void LifeScene::pause(bool on)
+    {
+        paused = on;
+
+        publishPace();
     }
 
     void LifeScene::publishRules()
@@ -1480,6 +1595,10 @@ namespace chronicle
 
         setFact("activity." + event.id + ".state", std::string("running"));
 
+        // The months run on their own while he works, from the start of a month
+        paused = false;
+        sinceMonth = 0.0f;
+
         publish();
     }
 
@@ -1574,8 +1693,8 @@ namespace chronicle
         // Written to its end: no month comes after the last milestone
         if (lifeOver())
         {
-            paused = true;
             sinceMonth = 0.0f;
+            pause(true);
 
             if (save.log.empty() or save.log.back().kind != LogKind::Note)
                 appendLog({save.age, "The chronicle is written to its end: a new life begins with N", LogKind::Note, "", ""});
@@ -1646,6 +1765,10 @@ namespace chronicle
                 save.running.clear();
                 save.monthsIn = 0;
 
+                // The work is done: the months wait for the next choice
+                paused = true;
+                sinceMonth = 0.0f;
+
                 // One more term done: a row may have left, another may have changed, a path's
                 // doors may be his
                 fillActivities();
@@ -1672,8 +1795,8 @@ namespace chronicle
 
         if (lifeOver())
         {
-            paused = true;
             sinceMonth = 0.0f;
+            pause(true);
         }
 
         // The month took from what the life hangs on: he is in danger, and the page says so
@@ -1867,6 +1990,10 @@ namespace chronicle
     void LifeScene::newLife()
     {
         const LifeSave last = save;
+
+        // A life begins at rest, whatever the last one was doing
+        paused = true;
+        sinceMonth = 0.0f;
 
         save = freshLife();
 

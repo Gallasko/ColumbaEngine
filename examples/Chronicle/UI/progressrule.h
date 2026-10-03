@@ -36,6 +36,7 @@ namespace chronicle
 
         // Setters - the whole public surface. No getters that compute.
         void setPercent(pg::EntitySystem*, float percent, bool animate = true);
+        void setGlide(pg::EntitySystem*, float percent, float ms);   // The fill moves to percent in ms, linearly; ms 0 holds it where it is drawn
         void setForecast(pg::EntitySystem*, float forecastPercent);
         void setCaption(pg::EntitySystem*, const std::string&);
         void setNib(pg::EntitySystem*, bool);

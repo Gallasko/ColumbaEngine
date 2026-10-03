@@ -570,6 +570,10 @@ namespace chronicle
         registerActivityComponents(ecs);
         ecs->attachGeneric<ActivityRow>(row.root, row);
 
+        // The glide's tween holds the rule by address: started on the live row, never on this copy
+        if (spec.state == ActivityState::Running and spec.glideMs > 0.0f)
+            row.setGlide(ecs, spec.glideTo, spec.glideMs);
+
         return row;
     }
 
@@ -726,9 +730,21 @@ namespace chronicle
     {
         onLive(this, [ecs, percent, animate](ActivityRow& r) {
             r.spec.percent = std::clamp(percent, 0.0f, 100.0f);
+            r.spec.glideMs = 0.0f;
 
             if (r.progress)
                 r.progress->setPercent(ecs, r.spec.percent, animate);
+        });
+    }
+
+    void ActivityRow::setGlide(EntitySystem* ecs, float percent, float ms)
+    {
+        onLive(this, [ecs, percent, ms](ActivityRow& r) {
+            r.spec.glideTo = std::clamp(percent, 0.0f, 100.0f);
+            r.spec.glideMs = std::max(0.0f, ms);
+
+            if (r.progress)
+                r.progress->setGlide(ecs, r.spec.glideTo, r.spec.glideMs);
         });
     }
 

@@ -22,7 +22,7 @@ namespace chronicle
         std::string rulesRoot = "examples/Chronicle/rules";
         std::string pageFile = "res/chronicle/ui/life.yaml";
         std::string compactFile = "res/chronicle/ui/life-compact.yaml";   // Below the three columns' size
-        float monthMs = 800.0f;        // One month every so many ms while the loop runs
+        float monthMs = 2000.0f;       // One month every so many ms while the loop runs (--month-ms)
     };
 
     // The Life screen: the page is res/chronicle/ui/life.yaml, built as it is; the scene does the
@@ -100,6 +100,8 @@ namespace chronicle
         void publishCharacter();       // save -> character.*, life.*, skills.*, resources.*, stat.*, log.size, activity.running.*
         void publishRules();           // scripts -> life.next.*, life.headline.*, window.*, activity.<id>.state, .count and .requirement.<n>, done.<id>, thresholds
         void publishRunning();         // forecast for the activity at work -> activity.running.*
+        void publishPace();            // -> activity.running.pace (idle, running, paused) and .glideMs: the rule follows the month's clock
+        void pause(bool on);           // The months stop or run, and the page says which
 
         void onSelect(const ActivitySelectedEvent& event);
         void onConfirm(const ActivityActivatedEvent& event);

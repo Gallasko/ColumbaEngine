@@ -319,7 +319,18 @@ namespace chronicle
         }
 
         if (aside)
+        {
             aside->setText(ecs, text);
+
+            // The title takes the room a longer or shorter aside leaves
+            setWidth(ecs, spec.width);
+        }
+    }
+
+    void Panel::setAsideColor(EntitySystem* ecs, const std::string& token)
+    {
+        if (aside)
+            aside->setColor(ecs, token);
     }
 
     void Panel::setWidth(EntitySystem* ecs, float w)

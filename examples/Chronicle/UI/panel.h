@@ -44,7 +44,8 @@ namespace chronicle
         void addChild(pg::EntitySystem*, pg::EntityRef);
         void removeChild(pg::EntitySystem*, pg::EntityRef);
         void setHeading(pg::EntitySystem*, const std::string&);
-        void setAside(pg::EntitySystem*, const std::string&);
+        void setAside(pg::EntitySystem*, const std::string&);         // "" removes it for good
+        void setAsideColor(pg::EntitySystem*, const std::string& token);   // ink-muted as built
         void setWidth(pg::EntitySystem*, float);
         float width(pg::EntitySystem*) const;
         float height(pg::EntitySystem*) const;

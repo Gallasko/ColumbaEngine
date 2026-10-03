@@ -1,5 +1,11 @@
 #include "stdafx.h"
 
+#ifdef __linux__
+#include <SDL2/SDL.h>
+#elif _WIN32
+#include <SDL.h>
+#endif
+
 #include <algorithm>
 #include <cstdio>
 #include <fstream>
@@ -40,6 +46,7 @@
 #include "UI/enginefactories.h"
 #include "UI/tooltip.h"
 #include "UI/focusable.h"
+#include "Input/sdlevents.h"
 #include "Systems/gamefacts.h"
 #include "Systems/achievement.h"
 #include "Systems/tween.h"
@@ -624,6 +631,9 @@ namespace pg
             EXPECT_FLOAT_EQ(clock->spec.runningMonths, 6.0f);
             EXPECT_EQ(life->piece<ActivityList>("activities")->row(&f.ecs, "yard")->spec.state, ActivityState::Running);
 
+            // The months run on their own while he works
+            EXPECT_FALSE(life->paused);
+
             // The running row is built with its caption and percent: they came in the same update
             ActivityRow* at = running->find(&f.ecs, "yard");
             ASSERT_NE(at, nullptr);
@@ -642,11 +652,22 @@ namespace pg
             EXPECT_FLOAT_EQ(clock->spec.runningMonths, 3.0f);
             EXPECT_EQ(running->row(&f.ecs, "yard")->spec.percent, 50.0f);
 
+            // The same row in the choice fills with it, caption and all
+            ActivityRow* chosen = life->piece<ActivityList>("activities")->row(&f.ecs, "yard");
+            ASSERT_NE(chosen, nullptr);
+            EXPECT_EQ(chosen->spec.percent, 50.0f);
+            ASSERT_TRUE(chosen->progress.has_value());
+            EXPECT_FLOAT_EQ(chosen->progress->shown, 50.0f);
+            EXPECT_EQ(chosen->spec.caption, f.fact<std::string>("activity.running.caption"));
+
             for (int i = 0; i < 3; ++i)
                 life->onMonth();
             f.settle();
 
-            // At term: the row is done, the stat is the script's, the log has the line
+            // At term: the row is done, the months wait for the next choice
+            EXPECT_TRUE(life->paused);
+
+            // The stat is the script's, the log has the line
             EXPECT_EQ(f.fact<std::string>("activity.running.id"), "");
             EXPECT_TRUE(running->spec.groups.empty());
             EXPECT_EQ(life->save.stats["str"], 13);
@@ -659,6 +680,162 @@ namespace pg
             // The promise: the lived edge is where the hatch ended
             EXPECT_NEAR(clock->shownAge, 18.0f, 0.001f);
             EXPECT_FLOAT_EQ(clock->spec.runningMonths, 0.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Work begun runs a month every opt.monthMs, with no key pressed, and nothing passes while
+        // he is at nothing.
+        TEST(lifescene_test, work_runs_the_months)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            life->save.stats["rations"] = 24;
+
+            const float age = life->save.age;
+
+            auto working = life->piece<Panel>("working");
+            ASSERT_NE(working, nullptr);
+            ASSERT_TRUE(working->aside.has_value());
+
+            // At nothing, the time goes by without a month
+            EXPECT_TRUE(life->paused);
+            EXPECT_EQ(working->aside->spec.text, "IDLE");
+
+            f.ecs.sendEvent(TickEvent{life->opt.monthMs * 2.0f});
+            f.settle();
+
+            EXPECT_FLOAT_EQ(life->save.age, age);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "yard");
+            EXPECT_EQ(life->save.monthsIn, 0);
+            EXPECT_EQ(working->aside->spec.text, "RUNNING");
+
+            // Both rows head for the first month's figure, in the month's time
+            for (const char* name : {"running", "activities"})
+            {
+                ActivityRow* row = life->piece<ActivityList>(name)->find(&f.ecs, "yard");
+                ASSERT_NE(row, nullptr) << name;
+                EXPECT_FLOAT_EQ(row->spec.percent, 0.0f) << name;
+                EXPECT_NEAR(row->spec.glideTo, 100.0f / 6.0f, 0.01f) << name;
+                EXPECT_FLOAT_EQ(row->spec.glideMs, life->opt.monthMs) << name;
+            }
+
+            // Just short of a month, then the month
+            f.ecs.sendEvent(TickEvent{life->opt.monthMs - 1.0f});
+            f.settle();
+
+            EXPECT_EQ(life->save.monthsIn, 0);
+
+            f.ecs.sendEvent(TickEvent{1.0f});
+            f.settle();
+
+            EXPECT_EQ(life->save.monthsIn, 1);
+            EXPECT_NEAR(f.fact<float>("activity.running.percent"), 100.0f / 6.0f, 0.01f);
+            EXPECT_NEAR(f.fact<float>("activity.running.toward"), 200.0f / 6.0f, 0.01f);
+            EXPECT_NEAR(life->piece<ActivityList>("running")->find(&f.ecs, "yard")->spec.glideTo, 200.0f / 6.0f, 0.01f);
+
+            // Stopped mid-month: the rule holds, the head says so; going on keeps what the month ran
+            f.ecs.sendEvent(TickEvent{life->opt.monthMs / 2.0f});
+            f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_SPACE, 0});
+            f.settle();
+
+            EXPECT_TRUE(life->paused);
+            EXPECT_EQ(working->aside->spec.text, "PAUSED \xC2\xB7 SPACE");
+            EXPECT_EQ(working->aside->spec.color, "status-loss");
+            EXPECT_FLOAT_EQ(life->piece<ActivityList>("running")->find(&f.ecs, "yard")->spec.glideMs, 0.0f);
+
+            f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_SPACE, 0});
+            f.settle();
+
+            EXPECT_FALSE(life->paused);
+            EXPECT_EQ(working->aside->spec.text, "RUNNING");
+            EXPECT_EQ(working->aside->spec.color, "ink-muted");
+            EXPECT_FLOAT_EQ(life->piece<ActivityList>("running")->find(&f.ecs, "yard")->spec.glideMs, life->opt.monthMs / 2.0f);
+
+            // The rest of the term in one long frame: it stops at the term, not past it
+            f.ecs.sendEvent(TickEvent{life->opt.monthMs * 10.0f});
+            f.settle();
+
+            EXPECT_TRUE(life->save.running.empty());
+            EXPECT_TRUE(life->paused);
+            EXPECT_EQ(life->save.done["yard"], 1);
+            EXPECT_NEAR(life->save.age, age + 0.5f, 0.001f);
+            EXPECT_EQ(working->aside->spec.text, "IDLE");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Work that leaves him unfed stops the months at the first month that takes from his
+        // Vitality: the head of "At work now" says it is paused, the log says why and which key
+        // goes on.
+        TEST(lifescene_test, a_failing_part_pauses_the_work)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            life->save.stats["rations"] = 0;
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "yard");
+            ASSERT_FALSE(life->paused);
+
+            const size_t logEntries = life->save.log.size();
+
+            f.ecs.sendEvent(TickEvent{life->opt.monthMs});
+            f.settle();
+
+            EXPECT_TRUE(life->paused);
+            EXPECT_EQ(life->save.running, "yard");
+
+            auto working = life->piece<Panel>("working");
+            ASSERT_NE(working, nullptr);
+            ASSERT_TRUE(working->aside.has_value());
+            EXPECT_EQ(working->aside->spec.text, "PAUSED \xC2\xB7 SPACE");
+
+            // The month's own lines, then the pause's, last
+            ASSERT_GT(life->save.log.size(), logEntries);
+            EXPECT_EQ(life->save.log.back().kind, LogKind::Note);
+            EXPECT_EQ(life->save.log.back().text, "Vitality is failing: the months stop. SPACE goes on");
+
+            // Stopped, no month passes
+            const int monthsIn = life->save.monthsIn;
+
+            f.ecs.sendEvent(TickEvent{life->opt.monthMs * 3.0f});
+            f.settle();
+
+            EXPECT_EQ(life->save.monthsIn, monthsIn);
+
+            // SPACE goes on; a second failing month does not stop it again, nor write the line again
+            f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_SPACE, 0});
+            f.settle();
+
+            EXPECT_FALSE(life->paused);
+
+            const size_t afterPause = life->save.log.size();
+
+            f.ecs.sendEvent(TickEvent{life->opt.monthMs});
+            f.settle();
+
+            EXPECT_FALSE(life->paused);
+            EXPECT_EQ(life->save.monthsIn, monthsIn + 1);
+
+            for (size_t i = afterPause; i < life->save.log.size(); ++i)
+                EXPECT_EQ(life->save.log[i].text.find("SPACE goes on"), std::string::npos);
         }
 
         // ----------------------------------------------------------------------------------------

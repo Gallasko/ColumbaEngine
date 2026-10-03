@@ -28,6 +28,8 @@ First tagged release. Everything below describes the state of the engine at the 
   the same error log as before. A reserved name (`main`, `parent`) on a child of a layout node is now
   reported, and anchors on the children of a layout node are reported once instead of being dropped
   silently.
+- Chronicle: the running activity's progress rule in the activity list stayed empty for the whole term;
+  only the copy under "At work now" was fed. Both rows now fill month by month.
 
 ### Removed
 - The tree-walking interpreter: `PgInterpreter`, `Interpreter`, `InterpreterSystem`, `Environment`,
@@ -106,6 +108,12 @@ First tagged release. Everything below describes the state of the engine at the 
   rations, and a life is written up to 30, where the months stop. The Guild's letter and its wage are gone.
   Migration: a save from before holds the old stats (`swd`, `ride`, `haggle`, `letter`); start a new
   life.
+- Chronicle: confirming an activity starts the months, one every 2 seconds (`--month-ms N` to change
+  it), and they stop when its term ends. The running row's progress rule fills through each month in
+  the month's time (`ProgressRule::setGlide`, `ActivityRow::setGlide`). `SPACE` still pauses and
+  resumes, keeping what the month had run, and `M` passes one month. The head of "At work now" reads
+  `RUNNING`, `PAUSED · SPACE` or `IDLE` (`Panel::setAsideColor`), and a month that stops the work
+  because it took from Vitality says so in the log, with the key that goes on.
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written
