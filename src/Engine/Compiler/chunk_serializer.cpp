@@ -136,6 +136,11 @@ namespace pg
             writeUint8(out, AS_BOOL(value) ? 1 : 0);
             return true;
         }
+        else if (IS_NONE(value))
+        {
+            writeUint8(out, static_cast<uint8_t>(ValueType::NONE));
+            return true;
+        }
         else if (IS_INTERNED_STRING(value))
         {
             // Interned strings: serialize the index into VM's constantStrings
@@ -204,6 +209,11 @@ namespace pg
             {
                 uint8_t boolVal = readUint8(in);
                 value = makeBoolValue(boolVal != 0);
+                return true;
+            }
+            case ValueType::NONE:
+            {
+                value = makeNoneValue();
                 return true;
             }
             case ValueType::INTERNED_STRING:

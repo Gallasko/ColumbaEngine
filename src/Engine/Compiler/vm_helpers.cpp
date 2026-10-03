@@ -618,6 +618,8 @@ namespace pg
         }
         else if (IS_LONG_STRING(value))
             return *asStringPtr(value);
+        else if (IS_NONE(value))
+            throw std::runtime_error("Cannot convert a none value to ElementType");
         else
             throw std::runtime_error("Cannot convert Value to ElementType - unsupported type");
     }

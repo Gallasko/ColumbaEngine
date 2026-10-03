@@ -168,7 +168,7 @@ namespace pg
         /**
          * Get the type of a value as a string
          * Usage: typeOf(value)
-         * Returns: string describing the type ("int", "double", "string", "bool", "array", "table", "function", "class", etc.)
+         * Returns: string describing the type ("int", "double", "string", "bool", "none", "array", "table", "function", "class", etc.)
          */
         static Value nativeTypeOf(VM* vm, int argCount, Value* args)
         {
@@ -204,6 +204,8 @@ namespace pg
                 typeName = "bound_method";
             else if (IS_UPVALUE(v))
                 typeName = "upvalue";
+            else if (IS_NONE(v))
+                typeName = "none";
             else
                 typeName = "unknown";
 

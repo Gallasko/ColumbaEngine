@@ -37,6 +37,10 @@ namespace pg
                 std::cout << (AS_BOOL(value) ? "true" : "false");
             else if (IS_DOUBLE(value))
                 std::cout << AS_DOUBLE(value);
+            else if (IS_NONE(value))
+                std::cout << "none";
+            else if (IS_UNDEFINED(value))
+                std::cout << "<undefined>";
             else
                 std::cout << "<unknown>";
             return;
@@ -130,6 +134,14 @@ namespace pg
         else if (IS_DOUBLE(value))
         {
             std::cout << AS_DOUBLE(value);
+        }
+        else if (IS_NONE(value))
+        {
+            std::cout << "none";
+        }
+        else if (IS_UNDEFINED(value))
+        {
+            std::cout << "<undefined>";
         }
         else
         {

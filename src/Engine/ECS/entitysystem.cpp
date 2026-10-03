@@ -867,6 +867,8 @@ namespace pg
                     std::cout << "<upvalue>";
                 else if (IS_CUSTOM_PTR(value))
                     std::cout << "<custom pointer>";
+                else if (IS_NONE(value))
+                    std::cout << "none";
                 else
                     std::cout << "<value>";
             }
@@ -894,6 +896,8 @@ namespace pg
                         valStr = std::to_string(AS_DOUBLE(value));
                     else if (IS_BOOL(value))
                         valStr = AS_BOOL(value) ? "true" : "false";
+                    else if (IS_NONE(value))
+                        valStr = "none";
                     else
                         valStr = "<complex type>";
 
@@ -916,6 +920,8 @@ namespace pg
                         valStr = std::to_string(AS_DOUBLE(value));
                     else if (IS_BOOL(value))
                         valStr = AS_BOOL(value) ? "true" : "false";
+                    else if (IS_NONE(value))
+                        valStr = "none";
                     else
                         valStr = "<complex type>";
 
@@ -948,6 +954,8 @@ namespace pg
                     valStr = std::to_string(AS_DOUBLE(value));
                 else if (IS_BOOL(value))
                     valStr = AS_BOOL(value) ? "true" : "false";
+                else if (IS_NONE(value))
+                    valStr = "none";
                 else
                     valStr = "<complex type>";
 
@@ -971,6 +979,8 @@ namespace pg
                 valStr = std::to_string(AS_DOUBLE(value));
             else if (IS_BOOL(value))
                 valStr = AS_BOOL(value) ? "true" : "false";
+            else if (IS_NONE(value))
+                valStr = "none";
             else
                 valStr = "<complex type>";
 

@@ -12,8 +12,8 @@
  * Encoding scheme:
  * - Doubles: Standard IEEE 754 representation
  * - Tagged values: [Sign][0x7FF][1][unused][TAG(3)][INDEX(47)]
- *   - Sign=0: Primary types (int, bool, string, closure, function, upvalue, class, native)
- *   - Sign=1: Extended types (instance, bound_method, + 6 reserved slots)
+ *   - Sign=0: Primary types, all refcounted (string, closure, function, upvalue, class, instance, bound_method, vector)
+ *   - Sign=1: Extended types, never refcounted (int, bool, native, small_string, interned_string, custom_ptr, none, undefined)
  *   - Bit 50: Unused (avoids Intel QNaN Indefinite pattern)
  *   - Bits [49:47]: 3-bit type tag
  *   - Bits [46:0]: 47-bit payload/index
@@ -96,6 +96,9 @@ namespace pg
     /**
      * Extended value tags (Sign bit = 1) — non-refcounted: immediates and
      * pool-managed lifetime types (natives live until VM teardown).
+     *
+     * The 8 slots are full; a new non-refcounted type has to live behind
+     * TAG_CUSTOM_PTR, which keeps a 15-bit type field of its own.
      */
     enum ValueTagExt : uint8_t
     {
@@ -105,8 +108,8 @@ namespace pg
         TAG_SMALL_STRING    = 3,  // Inline string (up to 5 chars, immediate)
         TAG_INTERNED_STRING = 4,  // Index into chunk's constantStrings vector
         TAG_CUSTOM_PTR      = 5,  // User-defined pointer (caller-managed lifetime)
-        TAG_RESERVED_6      = 6,  // Reserved for future use
-        TAG_RESERVED_7      = 7,  // Reserved for future use
+        TAG_NONE            = 6,  // Absence of a value (immediate, no payload)
+        TAG_UNDEFINED       = 7,  // Internal marker for a slot that holds nothing yet, never visible to a script
     };
 
     /**
@@ -114,6 +117,18 @@ namespace pg
      * Can represent doubles, integers, booleans, or pool indices
      */
     typedef uint64_t Value;
+
+    /**
+     * The none value. It carries no payload so there is a single bit pattern for it,
+     * which makes the none check a plain compare
+     */
+    static constexpr Value NoneValue = NEG_TAG_BASE | (static_cast<uint64_t>(TAG_NONE) << TAG_SHIFT);
+
+    /**
+     * The undefined marker. Unlike none it is not a script value: the VM stores it in a slot
+     * that was declared but never assigned, so a slot holding none still counts as assigned
+     */
+    static constexpr Value UndefinedValue = NEG_TAG_BASE | (static_cast<uint64_t>(TAG_UNDEFINED) << TAG_SHIFT);
 
     // ============================================================================
     // Type Checking
@@ -239,6 +254,16 @@ namespace pg
         return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_CUSTOM_PTR;
     }
 
+    inline bool IS_NONE(Value v)
+    {
+        return v == NoneValue;
+    }
+
+    inline bool IS_UNDEFINED(Value v)
+    {
+        return v == UndefinedValue;
+    }
+
     // Unified string check (long, small, and interned strings)
     inline bool IS_STRING(Value v)
     {
@@ -276,6 +301,22 @@ namespace pg
         // Mask to 47 bits (preserves sign bit in bit 46)
         uint64_t index = static_cast<uint64_t>(i) & INDEX_MASK;
         return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_INT) << TAG_SHIFT) | index;
+    }
+
+    /**
+     * Create the none value (non-refcounted, sign bit = 1)
+     */
+    inline Value makeNoneValue()
+    {
+        return NoneValue;
+    }
+
+    /**
+     * Create the undefined marker (non-refcounted, sign bit = 1)
+     */
+    inline Value makeUndefinedValue()
+    {
+        return UndefinedValue;
     }
 
     /**
@@ -632,7 +673,7 @@ namespace pg
         // type lives on the sign-bit=0 side of the NaN-boxed encoding, this
         // collapses to a single mask + compare. Doubles fail IS_TAGGED on
         // their own (their QNAN bits aren't fully set); non-refcounted tagged
-        // types (int, bool, native, small_string, interned_string, custom_ptr)
+        // types (int, bool, native, small_string, interned_string, custom_ptr, none, undefined)
         // fail because their sign bit is 1.
         return IS_POS_TAGGED(v);
     }
@@ -655,6 +696,8 @@ namespace pg
         if (IS_BOUND_METHOD(v)) return "bound_method";
         if (IS_VECTOR(v)) return "vector";
         if (IS_CUSTOM_PTR(v)) return "custom_ptr";
+        if (IS_NONE(v)) return "none";
+        if (IS_UNDEFINED(v)) return "undefined";
         return "unknown";
     }
 }

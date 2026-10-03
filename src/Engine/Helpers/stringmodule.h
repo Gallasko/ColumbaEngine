@@ -54,6 +54,9 @@ namespace pg
                 return vm->createString(strRepr);
             }
 
+            if (IS_NONE(args[0]))
+                return vm->createString("none");
+
             // For other types, use ElementType conversion
             auto element = vm->valueToElement(args[0]);
             std::string strRepr = element.toString();
@@ -381,6 +384,10 @@ namespace pg
                 else if (IS_BOOL(vector->fields[i]))
                 {
                     result += AS_BOOL(vector->fields[i]) ? "true" : "false";
+                }
+                else if (IS_NONE(vector->fields[i]))
+                {
+                    result += "none";
                 }
                 else
                 {

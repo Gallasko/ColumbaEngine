@@ -42,6 +42,9 @@ namespace pg
         if (IS_BOOL(val))
             return AS_BOOL(val);
 
+        if (IS_NONE(val))
+            return false;
+
         if (IS_INT(val))
             return AS_INT(val) != 0;
 
@@ -1097,6 +1100,10 @@ namespace pg
             int64_t val = AS_INT(value);
             vm->testOutput += std::to_string(val) + "\n";
         }
+        else if (IS_NONE(value))
+        {
+            vm->testOutput += "none\n";
+        }
         else
         {
             ElementType elem = vm->valueToElement(value);
@@ -1269,7 +1276,7 @@ namespace pg
             {
                 continue;
             }
-            else if (IS_INT(srcValue) or IS_BOOL(srcValue) or IS_DOUBLE(srcValue))
+            else if (IS_INT(srcValue) or IS_BOOL(srcValue) or IS_DOUBLE(srcValue) or IS_NONE(srcValue))
             {
                 LOG_INFO("VM", "Importing primitive global: " << globalName);
                 // Primitives can be copied directly

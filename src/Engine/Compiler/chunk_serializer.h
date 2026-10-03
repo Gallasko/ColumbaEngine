@@ -59,6 +59,7 @@ namespace pg
             STRING = 3,
             FUNCTION = 4,
             INTERNED_STRING = 5,  // Index into VM's constantStrings (compile-time constants)
+            NONE = 6,             // No payload
             // Other types are not serializable (closures, native functions, etc.)
         };
 
