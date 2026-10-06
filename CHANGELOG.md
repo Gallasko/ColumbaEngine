@@ -145,6 +145,18 @@ First tagged release. Everything below describes the state of the engine at the 
   an ellipsis, and its row grows; a figure too long to share the line goes under the text. An
   activity's gains wrap in the row, which grows by the lines they take. In a log figure an amount
   holds to its stat by a no-break space.
+- Chronicle: the great step of each age is listed ahead of its time, whatever he has of what it
+  asks: the three ways into a path from 13, a path's proving from 16, its mastery from 21. The row
+  stands locked with what it asks, the age first. An activity sets it with `showAge` and `showFrom`
+  (`rules/activitytable.pg`).
+- Chronicle: an activity says when it closes. From two years before he can no longer begin it, its
+  row carries a line counting the months down (`CLOSES IN 14 MO`), in red for the last six
+  (`ActivityRow::setUntil`, `until` and `urgent` from the rules), so no row leaves the list
+  unannounced.
+- Chronicle: tooltips read in colour and in sections. A gloss row may carry a tone (`gain`, `loss`,
+  `time`, `muted`) that colours its value, or be a section heading (`GlossRow::tone`, `heading`);
+  an activity's gloss is laid out as what it brings, takes and asks, a requirement green when he
+  has it and red when he is short, and a holding's rows come toned from `rules/resources.pg`.
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written

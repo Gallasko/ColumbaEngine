@@ -927,7 +927,7 @@ namespace chronicle
 
             std::string id, field;
 
-            if (not splitPath(rest, {"state", "count"}, id, field) or id == "running")
+            if (not splitPath(rest, {"state", "count", "until"}, id, field) or id == "running")
                 return;
 
             auto list = piece<ActivityList>("activities");
@@ -941,7 +941,18 @@ namespace chronicle
             }
             else if (auto row = list->find(ecs, id))
             {
-                row->setCount(ecs, v.toString());
+                if (field == "count")
+                {
+                    row->setCount(ecs, v.toString());
+                }
+                else
+                {
+                    // When it closes, and whether that is near: activity.<id>.urgent came with it
+                    auto facts = ecs->getSystem<WorldFacts>();
+                    const std::string urgent = "activity." + id + ".urgent";
+
+                    row->setUntil(ecs, v.toString(), facts and facts->getFact<bool>(urgent, false));
+                }
             }
         }));
 
@@ -1095,7 +1106,15 @@ namespace chronicle
             row.glossKey = "activity/" + row.id;
 
             if (row.state == ActivityState::Running)
+            {
                 runningProgress(ecsRef, row);
+            }
+            else
+            {
+                // When it closes, once that is near: nothing to say of the one he is at
+                row.until = textOf(a.fields, "until");
+                row.urgent = boolOf(a.fields, "urgent");
+            }
 
             for (const auto& g : a.gains)
                 row.gains.push_back({textOf(g, "label"), intOf(g, "amount")});
@@ -1682,6 +1701,10 @@ namespace chronicle
                 setFact("activity." + id + ".state", state);
                 setFact("activity." + id + ".count", textOf(a.fields, "tally"));
 
+                // When it closes, month by month: nothing to say of the one he is at
+                setFact("activity." + id + ".urgent", boolOf(a.fields, "urgent"));
+                setFact("activity." + id + ".until", id == save.running ? std::string() : textOf(a.fields, "until"));
+
                 for (size_t i = 0; i < a.requires.size(); ++i)
                     setFact("activity." + id + ".requirement." + std::to_string(i), intOf(a.requires[i], "current"));
             }
@@ -1979,12 +2002,13 @@ namespace chronicle
             gloss.rows.push_back({"Now", std::to_string(save.stats[p])});
 
             if (auto cap = caps.find(p); cap != caps.end())
-                gloss.rows.push_back({"At most", std::to_string(cap->second)});
+                gloss.rows.push_back({"At most", std::to_string(cap->second), "muted"});
 
+            // What the next milestone asks of it: met in the gain's colour, short in the loss's
             for (const auto& ask : nextAsks)
             {
                 if (textOf(ask, "stat") == p)
-                    gloss.rows.push_back({textOf(next, "label") + " asks", std::to_string(intOf(ask, "needed"))});
+                    gloss.rows.push_back({textOf(next, "label") + " asks", std::to_string(intOf(ask, "needed")), save.stats[p] < intOf(ask, "needed") ? "loss" : "gain"});
             }
 
             if (forecast)
@@ -1992,7 +2016,7 @@ namespace chronicle
                 auto it = forecast->atTerm.find(p);
 
                 if (it != forecast->atTerm.end() and intOf(it->second) != save.stats[p])
-                    gloss.rows.push_back({activity + " brings it to", std::to_string(intOf(it->second))});
+                    gloss.rows.push_back({activity + " brings it to", std::to_string(intOf(it->second)), intOf(it->second) < save.stats[p] ? "loss" : "gain"});
             }
 
             if (not textOf(next, "label").empty())
@@ -2013,27 +2037,40 @@ namespace chronicle
         {
             GlossSpec gloss;
             gloss.title = textOf(a.fields, "name");
-            gloss.rows.push_back({"Time", intOf(a.fields, "months") > 0 ? std::to_string(intOf(a.fields, "months")) + " mo" : std::string("At once")});
-
-            for (const auto& g : a.gains)
-                gloss.rows.push_back({textOf(g, "label") + " at term", signedText(intOf(g, "amount"))});
-
-            for (const auto& c : a.costs)
-                gloss.rows.push_back({textOf(c, "label") + " to begin", signedText(-intOf(c, "amount"))});
-
-            for (const auto& r : a.requires)
-                gloss.rows.push_back({textOf(r, "label"), std::to_string(intOf(r, "current")) + " / " + std::to_string(intOf(r, "needed"))});
+            // What it is in time: how long, who feeds him, by when
+            gloss.rows.push_back({"Time", intOf(a.fields, "months") > 0 ? std::to_string(intOf(a.fields, "months")) + " mo" : std::string("At once"), "time"});
 
             if (intOf(a.fields, "months") > 0)
-                gloss.rows.push_back({"Meals", boolOf(a.fields, "board") ? std::string("Provided") : std::string("His own rations")});
+                gloss.rows.push_back({"Meals", boolOf(a.fields, "board") ? std::string("Provided") : std::string("His own rations"), boolOf(a.fields, "board") ? "gain" : ""});
 
-            gloss.rows.push_back({"Done by", std::to_string(intOf(a.fields, "finishBy"))});
+            gloss.rows.push_back({"Done by", std::to_string(intOf(a.fields, "finishBy")), "time"});
 
+            // In sections, each figure in the colour of the way it goes
+            if (not a.gains.empty())
+                gloss.rows.push_back({"IT BRINGS", "", "", true});
+
+            for (const auto& g : a.gains)
+                gloss.rows.push_back({textOf(g, "label") + " at term", signedText(intOf(g, "amount")), intOf(g, "amount") < 0 ? "loss" : "gain"});
+
+            if (not a.costs.empty())
+                gloss.rows.push_back({"IT TAKES", "", "", true});
+
+            for (const auto& c : a.costs)
+                gloss.rows.push_back({textOf(c, "label") + " to begin", signedText(-intOf(c, "amount")), "loss"});
+
+            if (not a.requires.empty())
+                gloss.rows.push_back({"IT ASKS", "", "", true});
+
+            // What he has of it against what it asks: met in the gain's colour, short in the loss's
+            for (const auto& r : a.requires)
+                gloss.rows.push_back({textOf(r, "label"), std::to_string(intOf(r, "current")) + " / " + std::to_string(intOf(r, "needed")), intOf(r, "current") < intOf(r, "needed") ? "loss" : "gain"});
+
+            gloss.rows.push_back({"SO FAR", "", "", true});
             gloss.rows.push_back({"Done", std::to_string(intOf(a.fields, "done"))});
 
             // -1: as often as he likes
             if (intOf(a.fields, "left") >= 0)
-                gloss.rows.push_back({"Left", std::to_string(intOf(a.fields, "left"))});
+                gloss.rows.push_back({"Left", std::to_string(intOf(a.fields, "left")), intOf(a.fields, "left") > 0 ? "" : "muted"});
 
             if (textOf(a.fields, "id") == save.running)
                 gloss.footnote = "AT WORK NOW";
@@ -2073,8 +2110,9 @@ namespace chronicle
                 gloss.footnote = textOf(g.fields, "footnote");
                 gloss.rows.clear();
 
+                // The rules say which way each figure goes
                 for (const auto& row : g.rows)
-                    gloss.rows.push_back({textOf(row, "label"), textOf(row, "value")});
+                    gloss.rows.push_back({textOf(row, "label"), textOf(row, "value"), textOf(row, "tone")});
             }
 
             registry->set("resource/" + r.id, gloss);
@@ -2093,11 +2131,12 @@ namespace chronicle
             GlossSpec gloss;
             gloss.title = textOf(w, "name");
             gloss.text = textOf(w, "note");
-            gloss.rows.push_back({"Opens at", std::to_string(intOf(w, "from"))});
-            gloss.rows.push_back({"Closes at", std::to_string(intOf(w, "to"))});
+            gloss.rows.push_back({"Opens at", std::to_string(intOf(w, "from")), "time"});
+            gloss.rows.push_back({"Closes at", std::to_string(intOf(w, "to")), "time"});
 
+            // None left to fit is the loss's colour
             if (textOf(w, "state") != "closed")
-                gloss.rows.push_back({"Attempts that fit", std::to_string(intOf(w, "attempts"))});
+                gloss.rows.push_back({"Attempts that fit", std::to_string(intOf(w, "attempts")), intOf(w, "attempts") > 0 ? "" : "loss"});
 
             gloss.footnote = upper(textOf(w, "state"));
 

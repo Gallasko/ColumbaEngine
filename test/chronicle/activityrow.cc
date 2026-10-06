@@ -241,6 +241,63 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // When it closes is a line of its own under the middle block, in every state: the row grows by
+        // it, an urgent one is written in the loss's colour, and with nothing to say the line goes.
+        TEST(activityrow_test, closing_line)
+        {
+            MockLogger logger;
+            ActivityFixture s;
+
+            ActivityRowSpec spec = idleSpec("train.yard");
+            spec.until = "CLOSES IN 14 MO";
+            ActivityRow row = s.place(spec);
+
+            const float y = s.pos(row.root)->y;
+
+            ASSERT_TRUE(row.until.has_value());
+            EXPECT_EQ(row.until->spec.text, "CLOSES IN 14 MO");
+            EXPECT_EQ(s.element(row.until->entity), "activity.until");
+
+            // Under the gains, two pixels apart, on the text's left edge; the row holds it
+            EXPECT_NEAR(s.pos(row.until->entity)->y, y + 12.0f + 24.0f + 4.0f + 16.0f + 2.0f, 0.5f);
+            EXPECT_NEAR(s.pos(row.until->entity)->x, s.pos(row.name.entity)->x, 0.5f);
+            EXPECT_FLOAT_EQ(s.pos(row.root)->height, 68.0f + 2.0f + 16.0f);
+
+            // Near: the same line, in the loss's colour
+            row.setUntil(&s.ecs, "LAST MONTH TO BEGIN", true);
+            s.pump();
+
+            EXPECT_EQ(row.until->spec.text, "LAST MONTH TO BEGIN");
+            EXPECT_EQ(s.element(row.until->entity), "activity.until.urgent");
+            EXPECT_FLOAT_EQ(s.pos(row.root)->height, 86.0f);
+
+            // Locked: it stands under the list of what the row asks
+            row.setRequirements(&s.ecs, {{"Strength", 8, 12}});
+            row.setState(&s.ecs, ActivityState::Locked);
+            s.pump();
+
+            ASSERT_TRUE(row.reqs.has_value());
+            ASSERT_TRUE(row.until.has_value());
+            EXPECT_NEAR(s.pos(row.until->entity)->y, s.pos(row.reqs->root)->y + row.reqs->height(&s.ecs) + 2.0f, 0.5f);
+
+            // Nothing to say: the line goes, and the row is as it was without one
+            row.setState(&s.ecs, ActivityState::Idle);
+            row.setUntil(&s.ecs, "");
+            s.pump();
+
+            EXPECT_FALSE(row.until.has_value());
+            EXPECT_FLOAT_EQ(s.pos(row.root)->height, 68.0f);
+
+            // A row built without one has none
+            ActivityRow plain = s.place(idleSpec("mill"));
+
+            EXPECT_FALSE(plain.until.has_value());
+            EXPECT_FLOAT_EQ(s.pos(plain.root)->height, 68.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A long list of gains takes another line in the room between the mark and the cost: the row
         // grows by it and nothing runs out of the row. Wider, or with less to say, it is one line.
         TEST(activityrow_test, gains_wrap_in_a_narrow_row)

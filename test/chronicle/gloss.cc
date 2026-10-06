@@ -160,6 +160,66 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A row's value is written in the colour its tone names, its label never; a heading opens a
+        // section: caps, faint, with more room above it than a row has.
+        TEST(gloss_test, tooltip_tones_and_sections)
+        {
+            MockLogger logger;
+            GlossFixture s;
+
+            GlossSpec spec; spec.kind = GlossKind::Tooltip; spec.title = "Train at the Yard";
+            spec.rows = {
+                {"Time", "6 mo", "time"},
+                {"IT BRINGS", "", "", true},
+                {"STR at term", "+1", "gain"},
+                {"IT TAKES", "", "", true},
+                {"COIN to begin", "\xE2\x88\x92" "2", "loss"},
+                {"Done", "3"},
+                {"Left", "0", "muted"},
+                {"Odd", "1", "no such tone"},
+            };
+            Gloss g = makeGloss(&s.ecs, spec);
+            s.settle();
+
+            // One built row for each given, the headings too
+            ASSERT_EQ(g.rows.size(), 8u);
+
+            EXPECT_EQ(g.rows[0].second.spec.color, "status-time");
+            EXPECT_EQ(g.rows[2].second.spec.color, "status-gain");
+            EXPECT_EQ(g.rows[4].second.spec.color, "status-loss");
+            EXPECT_EQ(g.rows[5].second.spec.color, "ink");
+            EXPECT_EQ(g.rows[6].second.spec.color, "ink-faint");
+            EXPECT_EQ(g.rows[7].second.spec.color, "ink");
+
+            // The label keeps its own, whatever the tone
+            for (size_t i : {0u, 2u, 4u, 5u, 6u})
+            {
+                EXPECT_EQ(g.rows[i].first.spec.color, "ink-muted") << i;
+                EXPECT_EQ(g.rows[i].first.spec.style, "body-sm") << i;
+            }
+
+            // A heading: the caps style, faint, no value
+            for (size_t i : {1u, 3u})
+            {
+                EXPECT_EQ(g.rows[i].first.spec.style, "label") << i;
+                EXPECT_EQ(g.rows[i].first.spec.color, "ink-faint") << i;
+                EXPECT_EQ(g.rows[i].second.spec.text, "") << i;
+            }
+
+            auto top = [&](EntityRef e) { return s.pos(e)->y; };
+            auto bottom = [&](EntityRef e) { return s.pos(e)->y + s.pos(e)->height; };
+
+            // 8 above a heading, 4 above a row, the first of a section included
+            EXPECT_NEAR(top(g.rows[1].first.entity), bottom(g.rows[0].first.entity) + 8.0f, 0.5f);
+            EXPECT_NEAR(top(g.rows[2].first.entity), bottom(g.rows[1].first.entity) + 4.0f, 0.5f);
+            EXPECT_NEAR(top(g.rows[3].first.entity), bottom(g.rows[2].first.entity) + 8.0f, 0.5f);
+            EXPECT_NEAR(top(g.rows[6].first.entity), bottom(g.rows[5].first.entity) + 4.0f, 0.5f);
+            EXPECT_NEAR(s.pos(g.root)->height, bottom(g.rows[7].first.entity) + 12.0f - s.pos(g.root)->y, 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(gloss_test, tooltip_row_values_right_aligned)
         {
             MockLogger logger;

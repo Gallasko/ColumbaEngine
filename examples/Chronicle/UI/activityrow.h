@@ -43,6 +43,8 @@ namespace chronicle
         std::string each;              // "" or "AT THE YARD"
         std::vector<Gain> gains;       // Shown when Idle
         std::vector<Requirement> requirements;   // Shown when Locked, as a dense list
+        std::string until;             // "" or "CLOSES IN 14 MO" (caps): a line of its own under the middle, in every state
+        bool urgent = false;           // The closing is near: the line in the loss's colour
         float percent = 0.0f;          // Running
         float glideTo = 0.0f;          // Running: where the fill is moving to, from percent
         float glideMs = 0.0f;          // Running: in so many ms; 0 = not moving
@@ -118,6 +120,7 @@ namespace chronicle
         std::optional<Label> gains;                  // Idle
         std::optional<ProgressRule> progress;        // Running
         std::optional<RequirementList> reqs;         // Locked
+        std::optional<Label> until;                  // When it closes, while it has something to say
         ActivityRowSpec spec;
 
         void setState(pg::EntitySystem*, ActivityState);                 // Swaps the middle block, repaints
@@ -132,6 +135,7 @@ namespace chronicle
         void setMonths(pg::EntitySystem*, int);
         void setEach(pg::EntitySystem*, const std::string&);            // Only on a row built with an `each` line
         void setCount(pg::EntitySystem*, const std::string&);           // Only on a row built with a rank or a count
+        void setUntil(pg::EntitySystem*, const std::string&, bool urgent = false);   // "" removes the line; the row follows its height
         void setWidth(pg::EntitySystem*, float width);                  // The name re-fits, the rule follows
         float height(pg::EntitySystem*) const;       // Idle 68 (16 more a wrapped line of gains), Running 81 (15 more a wrapped line of caption), Locked 24 + 4 + list + 24
 
@@ -139,6 +143,7 @@ namespace chronicle
         float middleWidth() const;
         void buildMiddle(pg::EntitySystem*);
         void clearMiddle(pg::EntitySystem*);
+        void buildUntil(pg::EntitySystem*);          // The closing line as the spec says: made, rewritten or removed
         void fitName(pg::EntitySystem*);             // Grows to its text, or elides in the room left
         void resize(pg::EntitySystem*);
     };

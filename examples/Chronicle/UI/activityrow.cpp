@@ -78,6 +78,7 @@ namespace chronicle
         constexpr float RingInset = 2.0f;
         constexpr float CostMarkGap = 4.0f;
         constexpr float EachGap = 2.0f;
+        constexpr float UntilGap = 2.0f;         // Above the line saying when it closes
         constexpr float MaxRequirementWidth = 300.0f;
         constexpr float DoubleReleaseMs = 400.0f;
         constexpr float HeadingHeight = 24.0f;
@@ -559,6 +560,7 @@ namespace chronicle
         row.fitName(ecs);
 
         row.buildMiddle(ecs);
+        row.buildUntil(ecs);
         row.resize(ecs);
 
         if (not spec.glossKey.empty())
@@ -655,6 +657,33 @@ namespace chronicle
         reqs.reset();
     }
 
+    void ActivityRow::buildUntil(EntitySystem* ecs)
+    {
+        if (spec.until.empty())
+        {
+            if (until)
+                removeChild(ecs, root, until->entity.id);
+
+            until.reset();
+
+            return;
+        }
+
+        if (until)
+        {
+            until->setText(ecs, spec.until);
+        }
+        else
+        {
+            until = makeActivityText(ecs, "tick", "activity.until", spec.until, spec.z + 4);
+            placeIn(until->entity, root.id, Pad + MarkColumn + Gap, 0.0f, 4.0f);
+            root->get<Prefab>()->addToPrefab(until->entity);
+            clipLike(ecs, root, until->entity);
+        }
+
+        setElement(until->entity, spec.urgent ? "activity.until.urgent" : "activity.until");
+    }
+
     void ActivityRow::resize(EntitySystem* ecs)
     {
         float middle = 0.0f;
@@ -666,7 +695,16 @@ namespace chronicle
         else if (gains)
             middle = std::max(static_cast<float>(gains->lineHeightPx), gains->entity.get<PositionComponent>()->height);   // An empty gains line keeps its height
 
-        const float height = Pad + TitleHeight + MiddleGap + middle + Pad;
+        float height = Pad + TitleHeight + MiddleGap + middle + Pad;
+
+        // The closing line stands under the middle block, whatever that is, and the row holds it
+        if (until)
+        {
+            until->entity->get<UiAnchor>()->setTopMargin(Pad + TitleHeight + MiddleGap + middle + UntilGap);
+
+            height += UntilGap + static_cast<float>(until->lineHeightPx);
+        }
+
         auto pos = root.get<PositionComponent>();
 
         if (std::abs(pos->height - height) > 0.01f)
@@ -862,6 +900,20 @@ namespace chronicle
             r.spec.count = text;
             r.rank->setText(ecs, rankText(r.spec));
             r.fitName(ecs);
+        });
+    }
+
+    void ActivityRow::setUntil(EntitySystem* ecs, const std::string& text, bool urgent)
+    {
+        onLive(this, [ecs, &text, urgent](ActivityRow& r) {
+            if (r.spec.until == text and r.spec.urgent == urgent)
+                return;
+
+            r.spec.until = text;
+            r.spec.urgent = urgent;
+
+            r.buildUntil(ecs);
+            r.resize(ecs);
         });
     }
 

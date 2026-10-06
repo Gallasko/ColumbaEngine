@@ -777,6 +777,73 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A row says when it closes, and counts the months down as they pass: no work leaves the list
+        // without having said so. What no age closes says nothing.
+        TEST(lifescene_test, a_row_says_when_it_closes)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            // At 17 his prime is far from its end: the carters say nothing
+            ASSERT_NE(list->find(&f.ecs, "carters"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "carters")->spec.until, "");
+            EXPECT_FALSE(list->find(&f.ecs, "carters")->until.has_value());
+
+            // A year and a half from 30, a month at a time: three months of work, begun by 29.75
+            life->save.age = 28.5f;
+            life->save.stats["rations"] = 60;
+
+            life->onMonth();
+            f.settle();
+
+            ActivityRow* carters = list->find(&f.ecs, "carters");
+            ASSERT_NE(carters, nullptr);
+            EXPECT_EQ(carters->spec.until, "CLOSES IN 14 MO");
+            EXPECT_FALSE(carters->spec.urgent);
+            ASSERT_TRUE(carters->until.has_value());
+            EXPECT_EQ(carters->until->spec.text, "CLOSES IN 14 MO");
+
+            life->onMonth();
+            f.settle();
+
+            carters = list->find(&f.ecs, "carters");
+            ASSERT_NE(carters, nullptr);
+            EXPECT_EQ(carters->spec.until, "CLOSES IN 13 MO");
+
+            // Half a year left: urgent
+            life->save.age = 29.25f - 1.0f / 12.0f;
+
+            life->onMonth();
+            f.settle();
+
+            carters = list->find(&f.ecs, "carters");
+            ASSERT_NE(carters, nullptr);
+            EXPECT_EQ(carters->spec.until, "CLOSES IN 6 MO");
+            EXPECT_TRUE(carters->spec.urgent);
+
+            // An old man's work is listed by now, and is never closed
+            ActivityRow* tales = list->find(&f.ecs, "tales");
+            ASSERT_NE(tales, nullptr);
+            EXPECT_EQ(tales->spec.until, "");
+            EXPECT_FALSE(tales->until.has_value());
+
+            // At work, the running row says nothing of its closing
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "carters");
+            EXPECT_EQ(list->find(&f.ecs, "carters")->spec.until, "");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // At nothing, no key makes the months run: a month passes by its button, which stands in "At
         // work now" in the running row's place and leaves when work begins.
         TEST(lifescene_test, a_month_passes_by_its_button)
@@ -1943,6 +2010,33 @@ namespace pg
             EXPECT_EQ(rowOf(campaign, "Done by"), "26");
             EXPECT_EQ(campaign->footnote, "NOT YET: IT ASKS MORE THAN HE HAS");
 
+            // Each figure in the colour of the way it goes, in sections
+            auto toneOf = [](const GlossSpec* g, const std::string& label) -> std::string {
+                for (const auto& r : g->rows)
+                {
+                    if (r.label == label)
+                        return r.heading ? "<heading>" : r.tone;
+                }
+
+                return "<none>";
+            };
+
+            EXPECT_EQ(toneOf(campaign, "Time"), "time");
+            EXPECT_EQ(toneOf(campaign, "IT BRINGS"), "<heading>");
+            EXPECT_EQ(toneOf(campaign, "COIN at term"), "gain");
+            EXPECT_EQ(toneOf(campaign, "IT TAKES"), "<heading>");
+            EXPECT_EQ(toneOf(campaign, "COIN to begin"), "loss");
+            EXPECT_EQ(toneOf(campaign, "IT ASKS"), "<heading>");
+            EXPECT_EQ(toneOf(campaign, "Age"), "loss");
+            EXPECT_EQ(toneOf(campaign, "Arms"), "loss");
+            EXPECT_EQ(toneOf(campaign, "Discipline"), "loss");
+            EXPECT_EQ(toneOf(campaign, "Meals"), "gain");
+            EXPECT_EQ(toneOf(campaign, "SO FAR"), "<heading>");
+
+            // What a holding's month does to it comes coloured from the rules
+            EXPECT_EQ(toneOf(registry->find("resource/rations"), "A month uses"), "loss");
+            EXPECT_EQ(toneOf(registry->find("resource/rations"), "Lasts"), "time");
+
             EXPECT_EQ(rowOf(registry->find("activity/yard"), "Meals"), "His own rations");
 
             // A door: its note, its ages, what fits
@@ -1994,8 +2088,10 @@ namespace pg
             EXPECT_EQ(list->row(&f.ecs, "keep")->spec.state, ActivityState::Idle);
             EXPECT_EQ(list->row(&f.ecs, "serve"), nullptr);
 
-            // A strong boy: the Collegium is out of his reach, and not listed
-            EXPECT_EQ(list->row(&f.ecs, "collegium"), nullptr);
+            // A strong boy: the Collegium is far from him, and listed all the same, locked: a way into
+            // a path shows whatever he has
+            ASSERT_NE(list->row(&f.ecs, "collegium"), nullptr);
+            EXPECT_EQ(list->row(&f.ecs, "collegium")->spec.state, ActivityState::Locked);
 
             const int rations = life->save.stats["rations"];
 

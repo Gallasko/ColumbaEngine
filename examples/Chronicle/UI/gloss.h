@@ -15,7 +15,15 @@ namespace chronicle
 {
     enum class GlossKind : uint8_t { Margin, Tooltip };
 
-    struct GlossRow { std::string label; std::string value; };   // "Time", "6 mo" - value set in figure-sm
+    // "Time", "6 mo" - value set in figure-sm, in the colour its tone names: "" ink, "gain", "loss",
+    // "time", "muted". A heading opens a section: its label alone, in caps, with room above it.
+    struct GlossRow
+    {
+        std::string label;
+        std::string value;
+        std::string tone = "";
+        bool heading = false;
+    };
 
     struct GlossSpec
     {

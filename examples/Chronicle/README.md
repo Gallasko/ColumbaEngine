@@ -133,7 +133,11 @@ come from `rules/*.pg` through the scene, never from the component.
   is a 2px `rule-hair` left edge with italic `gloss` text (≤ 240px, flavour only).
   A **Tooltip** gloss is a folio leaf with a `rule-ruled` frame holding a title,
   text, rows of right-aligned tabular figures, and a caps footnote — where a row's
-  real numbers live. The tooltip form is registered under a **key** on
+  real numbers live. A row may carry a **tone** that colours its value (`gain`, `loss`, `time`,
+  `muted`; none or unknown is ink; the label never changes), and a row marked `heading` opens a
+  **section**: its label alone in the caps style, faint, with a footnote's room above it. The
+  Life screen's activity gloss reads in sections (IT BRINGS, IT TAKES, IT ASKS, SO FAR), a
+  requirement green when he has it and red when he is short. The tooltip form is registered under a **key** on
   `GlossRegistry` and shown through the engine's `TooltipSystem`
   (`attachGloss(entity, key)`), so delay, placement, flipping and click-to-hide are
   inherited; a missing key shows a `vermilion` fallback, like a missing mark.
@@ -235,7 +239,10 @@ come from `rules/*.pg` through the scene, never from the component.
   left of a limited one: it follows the rank on the rank's label (`"RANK 2 · DONE 2"`), and
   `setCount` rewrites it in place on a row built with a rank or a count. A running row may glide
   (`setGlide`, or `glideTo`/`glideMs` in its spec, started on the live row once it is attached);
-  `setPercent` ends a glide.
+  `setPercent` ends a glide. `until` (`"CLOSES IN 14 MO"`) is when it closes: a `tick` line of
+  its own under the middle block, in every state, 2 px apart; the row grows by it (16 + 2), an
+  `urgent` one is written in the loss's colour (`activity.until.urgent`), and `setUntil("")`
+  removes the line.
 
 - **ActivityList** (`UI/activityrow.h`) - the rows in groups, headed in the display face
   (`activity.group`, 24 px, `space-3` above all but the first, `space-1` below), with
@@ -383,11 +390,11 @@ which hold everything and are what `windows.pg` and `forecast.pg` import. `lib.p
 | script | inputs | outputs |
 |---|---|---|
 | `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthOf` (whole months lived), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup`, `raised` (a gain stopped at the stat's ceiling), `byId`, `pathFlagOf`, `asksOf`, `openNote`, `shiftIn` (a month's change to a stat); `lastAge` (30, where his prime ends), `anyAge` (the `finishBy` of what no age closes) |
-| `activities.pg` (`activitytable.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own) | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label}], costs[{stat, amount, label}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, tally ("DONE 2", "DONE 0 · 1 LEFT"), after[step]}` |
+| `activities.pg` (`activitytable.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own) | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label}], costs[{stat, amount, label}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, showAge, showFrom, tally ("DONE 2", "DONE 0 · 1 LEFT"), until ("" or "CLOSES IN 14 MO"), urgent, after[step]}` |
 | `milestones.pg` (`milestonetable.pg`) | `age` | `milestones`: `{age, id, label, passed, entry, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
 | `windows.pg` | `age`, `character`, `done`, `activityId` (`""`) | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}`, one per door of an activity whose path is open to him |
 | `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atStart{stats}, atTerm{stats}, percent, months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
-| `resources.pg` | `age`, `character`, `board` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
+| `resources.pg` | `age`, `character`, `board` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value, tone}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
 | `achievements.pg` | - | `achievements`: `{id, name, entry, asks[{fact, op, value}], gives[{stat, amount}]}` |
 | `epitaph.pg` | `age`, `character`, `done`, `activityId` (`""`), `deeds` (the names of the deeds reached) | `epitaph`: `{cause ("He died an old man, in his thirty-third year."), story[text] (what he became, worked at, left, and what is told of him), text (the story as one paragraph), tally ("AGE 33 · WORKS 14 · COIN 31 · DEEDS 2")}` |
 
@@ -412,12 +419,21 @@ done while another activity runs. Its row reads `NOW` where the others read thei
 **Ages and paths** (`activities.pg`). `fromAge` (default 7) is the youngest he may begin it:
 younger, the first thing it asks is the age. `finishBy` (default `lastAge`) is the latest its
 term may end, inclusive: an 18-month activity with `finishBy: 20` is begun by 18.5. Past that
-it is `closed` (`anyAge` for what no age closes). `path` puts an activity on one of `paths` (`warrior`, `mage`, `thief`, each with
+it is `closed` (`anyAge` for what no age closes). A closing is said ahead: `until` is the months
+he still has to begin it (`"CLOSES IN 14 MO"`, `"LAST MONTH TO BEGIN"`) from `closingShown`
+(24) down, `urgent` from `closingUrgent` (6); the scene writes it on the row
+(`activity.<id>.until`, `.urgent`) every month, so no row leaves the list unannounced, his
+prime's at 30 included. `path` puts an activity on one of `paths` (`warrior`, `mage`, `thief`, each with
 the flag that makes him one of it); the one that `enters` it is open until he is one of any
 path, the others only once he is one of theirs (`pathOpen`). The paths exclude each other. A row
 is `listed` while its path is open, it is neither spent nor closed, he is of age for it, and
 he has most of what it asks: `reach` is the average share (each up to 100) of its requirements
-he meets, costs and room left out, and the row shows from `reachShown` (75). A boy is not shown
+he meets, costs and room left out, and the row shows from `reachShown` (75). An activity may set
+its own two: `showFrom` (the share that lists it, 0 for whatever he has) and `showAge` (the age
+its row is listed from, before he may begin it: it stands locked, the age the first thing it
+asks). The great step of each age carries both, so it shows from the milestone before as what
+the years he is in lead to: the ways into a path from 13, a path's proving from 16, its mastery
+from 21. A boy is not shown
 a life of locked rows; the doors on the clock still say what is coming. The scene shows the
 listed rows only, and rebuilds the list whenever what is listed, or what a row asks, changes. A requirement
 may be `eased: {flag, needed}` (with the flag it asks less) or `anyOf: [flags]` (any one will

@@ -281,6 +281,116 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // An activity says when it closes once he has two years or less to begin it, and says it as
+        // urgent from six months: no row leaves the list without having said so. What no age closes
+        // says nothing.
+        TEST(rules_test, closing_is_said_ahead)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            const float month = 1.0f / 12.0f;
+
+            // The carters: three months, closed with his prime at 30. Far from it, nothing
+            RuleActivity carters = activityAt(f.rules, 20.0f, boy(), "carters");
+
+            EXPECT_EQ(textOf(carters.fields, "until"), "");
+            EXPECT_FALSE(flag(carters.fields, "urgent"));
+
+            // Two years to begin it: said. Six months: urgent
+            EXPECT_EQ(textOf(activityAt(f.rules, 28.0f - 4.0f * month, boy(), "carters").fields, "until"), "");
+
+            carters = activityAt(f.rules, 28.0f - 3.0f * month, boy(), "carters");
+
+            EXPECT_EQ(textOf(carters.fields, "until"), "CLOSES IN 24 MO");
+            EXPECT_FALSE(flag(carters.fields, "urgent"));
+
+            carters = activityAt(f.rules, 29.0f, boy(), "carters");
+
+            EXPECT_EQ(textOf(carters.fields, "until"), "CLOSES IN 9 MO");
+            EXPECT_FALSE(flag(carters.fields, "urgent"));
+
+            carters = activityAt(f.rules, 29.5f, boy(), "carters");
+
+            EXPECT_EQ(textOf(carters.fields, "until"), "CLOSES IN 3 MO");
+            EXPECT_TRUE(flag(carters.fields, "urgent"));
+
+            // The last month he may begin it, then closed: nothing more to say
+            carters = activityAt(f.rules, 29.75f, boy(), "carters");
+
+            EXPECT_EQ(textOf(carters.fields, "until"), "LAST MONTH TO BEGIN");
+            EXPECT_TRUE(flag(carters.fields, "urgent"));
+            EXPECT_FALSE(flag(carters.fields, "closed"));
+
+            carters = activityAt(f.rules, 29.75f + month, boy(), "carters");
+
+            EXPECT_TRUE(flag(carters.fields, "closed"));
+            EXPECT_EQ(textOf(carters.fields, "until"), "");
+
+            // The Keep swears no one past 20, and its service is 18 months: said from 16 and a half
+            EXPECT_EQ(textOf(activityAt(f.rules, 16.0f, boy(), "keep").fields, "until"), "");
+            EXPECT_EQ(textOf(activityAt(f.rules, 16.5f, boy(), "keep").fields, "until"), "CLOSES IN 24 MO");
+
+            // An old man's work is never closed
+            EXPECT_EQ(textOf(activityAt(f.rules, 29.5f, boy(), "tales").fields, "until"), "");
+            EXPECT_EQ(textOf(activityAt(f.rules, 29.5f, boy(), "buy.rations").fields, "until"), "");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The great step of each age (the way into a path, its proving, its mastery) is listed from
+        // the milestone before it, whatever he has of what it asks: locked, the age the first thing
+        // it asks, so he knows what the years he is in lead to.
+        TEST(rules_test, the_great_steps_show_ahead)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            const float month = 1.0f / 12.0f;
+
+            // An ordinary activity: listed from the age he may begin it, with three quarters of what it asks
+            RuleActivity carters = activityAt(f.rules, 12.0f, boy(), "carters");
+
+            EXPECT_EQ(intOf(carters.fields, "showAge"), 7);
+            EXPECT_EQ(intOf(carters.fields, "showFrom"), 75);
+
+            // The ways into a path: from 13, three years before he may take one
+            for (const char* id : {"keep", "collegium", "hand"})
+            {
+                EXPECT_FALSE(flag(activityAt(f.rules, 13.0f - month, boy(), id).fields, "listed")) << id;
+
+                RuleActivity way = activityAt(f.rules, 13.0f, boy(), id);
+
+                EXPECT_EQ(intOf(way.fields, "showAge"), 13) << id;
+                EXPECT_EQ(intOf(way.fields, "showFrom"), 0) << id;
+                EXPECT_TRUE(flag(way.fields, "listed")) << id;
+                EXPECT_TRUE(flag(way.fields, "locked")) << id;
+
+                ASSERT_FALSE(way.requires.empty()) << id;
+                EXPECT_EQ(textOf(way.requires[0], "stat"), "age") << id;
+                EXPECT_EQ(intOf(way.requires[0], "needed"), 16) << id;
+                EXPECT_EQ(intOf(way.requires[0], "current"), 13) << id;
+            }
+
+            // Sworn at 17: his proving shows, four years ahead; his mastery not yet, and no other path's
+            EXPECT_TRUE(flag(activityAt(f.rules, 17.5f, sworn(), "campaign").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 17.5f, sworn(), "campaign").fields, "locked"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 17.5f, sworn(), "captain").fields, "listed"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 17.5f, sworn(), "harrow").fields, "listed"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 17.5f, sworn(), "rob").fields, "listed"));
+
+            // At 21 his mastery shows, five years ahead
+            EXPECT_TRUE(flag(activityAt(f.rules, 21.0f, sworn(), "captain").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 21.0f, sworn(), "captain").fields, "locked"));
+
+            // A boy of no path sees no path's proving
+            EXPECT_FALSE(flag(activityAt(f.rules, 17.5f, boy(), "campaign").fields, "listed"));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A row is listed once he is of age for it and has, on average, three quarters of what it
         // asks; costs are not counted, they are bought rather than grown.
         TEST(rules_test, activities_shown_within_reach)
@@ -308,7 +418,7 @@ namespace pg
 
             EXPECT_TRUE(flag(activityAt(f.rules, 9.0f, lettered, "chapel").fields, "listed"));
 
-            // A strong boy at 16 sees the Keep, though he cannot pay its coin yet; not the Collegium
+            // A strong boy at 16 sees the Keep, though he cannot pay its coin yet
             const ElementMap squire = {{"str", ElementType{12}}, {"arms", ElementType{3}}, {"discipline", ElementType{2}}, {"int", ElementType{6}}};
 
             RuleActivity keep = activityAt(f.rules, 16.0f, squire, "keep");
@@ -316,7 +426,13 @@ namespace pg
             EXPECT_EQ(intOf(keep.fields, "reach"), 100);
             EXPECT_TRUE(flag(keep.fields, "listed"));
             EXPECT_TRUE(flag(keep.fields, "locked"));
-            EXPECT_FALSE(flag(activityAt(f.rules, 16.0f, squire, "collegium").fields, "listed"));
+
+            // The Collegium is far from him, and listed all the same: a way into a path shows whatever he has
+            RuleActivity collegium = activityAt(f.rules, 16.0f, squire, "collegium");
+
+            EXPECT_LT(intOf(collegium.fields, "reach"), 75);
+            EXPECT_TRUE(flag(collegium.fields, "listed"));
+            EXPECT_TRUE(flag(collegium.fields, "locked"));
 
             // What asks nothing is always in reach
             EXPECT_EQ(intOf(activityAt(f.rules, 7.0f, boy(), "carters").fields, "reach"), 100);

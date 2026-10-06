@@ -13,7 +13,7 @@
 //           tone: 0 none, 1 coin, 2 guild, 3 relic; rate: "" or "+2 / mo", what the coming
 //           month does to it as things stand; limit: the most he can hold, 0 for none.
 //         `glosses`, one table per holding, what hovering its row says:
-//           {id, title, text, footnote, rows [{label, value}]}
+//           {id, title, text, footnote, rows [{label, value, tone}]}
 //           rows: what he holds, its limit, what the month does to it and where that comes
 //           from, what it brings, what it uses and how long it lasts, what running out costs.
 //         `death`: "" or the line the next life opens with, when the character as he is has
@@ -261,27 +261,42 @@ for (var g = 0; g < len(holdings); g++)
     var delta = lookup(change, h.id, 0)
     var footnote = ""
 
-    var notes = [{label: "Held", value: toString(held)}]
+    // A row's tone says which way its figure goes: "" plain, "gain", "loss", "time", "muted"
+    var notes = [{label: "Held", value: toString(held), tone: ""}]
 
     if (limit > 0)
     {
-        push(notes, {label: "Limit", value: toString(limit)})
+        push(notes, {label: "Limit", value: toString(limit), tone: ""})
     }
     else
     {
-        push(notes, {label: "Limit", value: "none"})
+        push(notes, {label: "Limit", value: "none", tone: "muted"})
     }
 
     if (delta != 0)
     {
-        push(notes, {label: "This month", value: signed(delta)})
+        var way = "gain"
+
+        if (delta < 0)
+        {
+            way = "loss"
+        }
+
+        push(notes, {label: "This month", value: signed(delta), tone: way})
     }
 
     for (var y = 0; y < len(yields); y++)
     {
         if (yields[y].stat == h.id)
         {
-            push(notes, {label: "From " + yields[y].name, value: signed(yields[y].amount) + " / mo"})
+            var way = "gain"
+
+            if (yields[y].amount < 0)
+            {
+                way = "loss"
+            }
+
+            push(notes, {label: "From " + yields[y].name, value: signed(yields[y].amount) + " / mo", tone: way})
         }
     }
 
@@ -297,7 +312,7 @@ for (var g = 0; g < len(holdings); g++)
             label = "Every " + toString(product.per) + " bring " + statName(product.stat)
         }
 
-        push(notes, {label: label, value: signed(product.amount) + " / mo"})
+        push(notes, {label: label, value: signed(product.amount) + " / mo", tone: "gain"})
         footnote = "A GENERATOR: IT WORKS EVERY MONTH HE HOLDS IT"
     }
 
@@ -305,11 +320,11 @@ for (var g = 0; g < len(holdings); g++)
 
     if (decays > 0)
     {
-        push(notes, {label: "A month uses", value: toString(decays)})
+        push(notes, {label: "A month uses", value: toString(decays), tone: "loss"})
 
         if (held > 0)
         {
-            push(notes, {label: "Lasts", value: fmtMonths(toInt(floor((held + decays - 1) / decays)))})
+            push(notes, {label: "Lasts", value: fmtMonths(toInt(floor((held + decays - 1) / decays))), tone: "time"})
         }
 
         if (has(h, "empty"))
@@ -317,7 +332,14 @@ for (var g = 0; g < len(holdings); g++)
             for (var e = 0; e < len(h.empty.effects); e++)
             {
                 var effect = h.empty.effects[e]
-                push(notes, {label: "With none, " + statName(effect.stat), value: signed(effect.amount) + " / mo"})
+                var way = "gain"
+
+                if (effect.amount < 0)
+                {
+                    way = "loss"
+                }
+
+                push(notes, {label: "With none, " + statName(effect.stat), value: signed(effect.amount) + " / mo", tone: way})
             }
 
             if (held <= 0 and has(character, h.id))

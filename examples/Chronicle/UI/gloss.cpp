@@ -43,6 +43,25 @@ namespace chronicle
         constexpr float OFFSTAGE = -10000.0f;
 
         float boxH(const Label& l) { EntityRef e = l.entity; return e->get<PositionComponent>()->height; }
+
+        // The colour a row's value is written in: the figure says which way it goes. An unknown
+        // tone is plain ink
+        std::string toneColor(const std::string& tone)
+        {
+            if (tone == "gain")
+                return "status-gain";
+
+            if (tone == "loss")
+                return "status-loss";
+
+            if (tone == "time")
+                return "status-time";
+
+            if (tone == "muted")
+                return "ink-faint";
+
+            return "ink";
+        }
     }
 
     Gloss makeGloss(EntitySystem* ecs, const GlossSpec& spec)
@@ -162,9 +181,22 @@ namespace chronicle
         }
         for (const auto& row : spec.rows)
         {
+            // A heading opens a section: caps, faint, with a footnote's room above it. It keeps an
+            // empty value, so the rows built stay one for one with the rows given
+            if (row.heading)
+            {
+                y += GAP2;
+                Label head = stack("label", row.label, "ink-faint", Overflow::Grow, 0.0f, false);
+                Label none = stack("figure-sm", "", "ink", Overflow::Grow, 0.0f, true);
+                y += boxH(head);
+                g.rows.emplace_back(head, none);
+
+                continue;
+            }
+
             y += GAP1;
             Label lbl = stack("body-sm", row.label, "ink-muted", Overflow::Grow, 0.0f, false);
-            Label val = stack("figure-sm", row.value, "ink", Overflow::Grow, 0.0f, true);
+            Label val = stack("figure-sm", row.value, toneColor(row.tone), Overflow::Grow, 0.0f, true);
             y += std::max(boxH(lbl), boxH(val));
             g.rows.emplace_back(lbl, val);
         }

@@ -801,6 +801,8 @@ namespace chronicle
                 {"each",     ""},
                 {"percent",  0.0f},
                 {"caption",  ""},
+                {"until",    ""},
+                {"urgent",   false},
                 {"state",    "idle"},
                 {"stripe",   false},
                 {"glossKey", ""},
@@ -826,6 +828,8 @@ namespace chronicle
                     s.each     = stringProp(spec.props, "each", s.each);
                     s.percent  = getParamFloat(spec.props, "percent", s.percent);
                     s.caption  = stringProp(spec.props, "caption", s.caption);
+                    s.until    = stringProp(spec.props, "until", s.until);
+                    s.urgent   = getParamBool(spec.props, "urgent", s.urgent);
                     s.state    = enumProp(spec.props, "state", STATE, s.state);
                     s.stripe   = getParamBool(spec.props, "stripe", s.stripe);
                     s.glossKey = stringProp(spec.props, "glossKey", s.glossKey);
