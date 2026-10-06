@@ -9,8 +9,9 @@
 //           id, group, name, glyph, months, rank ("" or caps), each ("" or caps), path ("" or the
 //           path it belongs to, `paths` below), enters (true for the activity that makes him one
 //           of a path), board (true when it feeds him), fromAge, finishBy,
-//           gains [{stat, amount, label}] (at term; label: the stat's short name),
-//           costs [{stat, amount, label}] (taken when it begins),
+//           gains [{stat, amount, label, name}] (at term; label: the stat's short name, for a
+//           row; name: its full one, for a gloss),
+//           costs [{stat, amount, label, name}] (taken when it begins),
 //           requires [{stat, label, current, needed, room}] (current: the character's; flat:
 //           eased and anyOf are weighed here and not passed on),
 //           locked (true while a requirement is unmet),
@@ -124,6 +125,15 @@ var activities = [
      requires: [{stat: "guile", needed: 1}],
      after: [{uses: 2, effects: [{stat: "night_contacts", amount: 1}], entry: "The night market knows his face"}]},
 
+    {id: "buy.rations", group: "Market", name: "Buy rations", glyph: "trade", months: 0, rank: "", each: "AT THE MARKET", path: "", finishBy: anyAge,
+     gains: [{stat: "rations", amount: 6}],
+     requires: [],
+     costs: [{stat: "coin", amount: 5}]},
+    {id: "buy.reagents", group: "Market", name: "Buy reagents", glyph: "trade", months: 0, rank: "", each: "AT THE COLLEGIUM", path: "mage",
+     gains: [{stat: "reagents", amount: 2}],
+     requires: [],
+     costs: [{stat: "coin", amount: 6}]},
+
     {id: "blades", group: "Training", name: "Practice with Wooden Blades", glyph: "swordsmanship", months: 6, rank: "", each: "", path: "", fromAge: 8, finishBy: 14, uses: 3,
      gains: [{stat: "arms", amount: 1}, {stat: "dex", amount: 1}],
      requires: [{stat: "str", needed: 7}]},
@@ -169,15 +179,6 @@ var activities = [
     {id: "boys", group: "The streets", name: "Run with the Bellmoor Boys", glyph: "town", months: 12, rank: "", each: "", path: "", fromAge: 10, finishBy: 14, uses: 1,
      gains: [{stat: "stealth", amount: 1}, {stat: "guile", amount: 1}, {stat: "street_known", amount: 1}],
      requires: [{stat: "dex", needed: 8}]},
-
-    {id: "buy.rations", group: "Market", name: "Buy rations", glyph: "trade", months: 0, rank: "", each: "AT THE MARKET", path: "", finishBy: anyAge,
-     gains: [{stat: "rations", amount: 6}],
-     requires: [],
-     costs: [{stat: "coin", amount: 5}]},
-    {id: "buy.reagents", group: "Market", name: "Buy reagents", glyph: "trade", months: 0, rank: "", each: "AT THE COLLEGIUM", path: "mage",
-     gains: [{stat: "reagents", amount: 2}],
-     requires: [],
-     costs: [{stat: "coin", amount: 6}]},
 
     {id: "keep", group: "A path", name: "Swear Service to the Keep", glyph: "seal", months: 18, rank: "", each: "MEALS PROVIDED", path: "warrior", enters: true, board: true, fromAge: 16, showAge: 13, showFrom: 0, finishBy: 20, uses: 1,
      gains: [{stat: "keep_oath", amount: 1}, {stat: "renown", amount: 1}, {stat: "arms", amount: 1}],
@@ -411,6 +412,7 @@ for (var i = 0; i < len(activities); i++)
     {
         var cost = costs[c]
         cost.label = statShortName(cost.stat)
+        cost.name = statName(cost.stat)
         push(requires, {stat: cost.stat, needed: cost.amount, cost: true})
     }
 
@@ -419,6 +421,7 @@ for (var i = 0; i < len(activities); i++)
     {
         var gain = a.gains[g]
         gain.label = statShortName(gain.stat)
+        gain.name = statName(gain.stat)
 
         if (gain.amount > 0 and limitOf(gain.stat) > 0)
         {

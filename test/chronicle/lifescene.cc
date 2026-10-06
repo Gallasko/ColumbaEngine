@@ -206,7 +206,7 @@ namespace pg
 
             const char* const Names[] = {
                 "title", "about", "subtitle", "age", "ageNote", "tabs",
-                "parts", "str", "dex", "int", "vit", "skills", "holds", "ledger",
+                "str", "dex", "int", "vit", "skills", "holds", "ledger",
                 "may", "activities",
                 "clockPanel", "clock",
                 "working", "running", "skip", "happened", "log",
@@ -244,7 +244,7 @@ namespace pg
             const std::vector<std::vector<const char*>> columns = {
                 {"holds", "learned"},
                 {"may"},
-                {"clockPanel", "working", "happened", "parts"},
+                {"clockPanel", "working", "happened"},
             };
 
             float columnRight = 0.0f;
@@ -273,7 +273,7 @@ namespace pg
             // The page under the panels, each panel's ground under what it holds
             const float pageZ = f.pos(life->named("page"))->z;
 
-            for (const char* name : {"parts", "holds", "learned", "may", "clockPanel", "working", "happened"})
+            for (const char* name : {"holds", "learned", "may", "clockPanel", "working", "happened"})
             {
                 auto panel = life->piece<Panel>(name);
                 ASSERT_NE(panel, nullptr) << name;
@@ -287,15 +287,26 @@ namespace pg
             EXPECT_NEAR(box("clockPanel").left, 912.0f, 0.5f);
             EXPECT_NEAR(box("learned").top, box("holds").bottom + 16.0f, 0.5f);
             EXPECT_NEAR(box("working").top, box("clockPanel").bottom + 16.0f, 0.5f);
-            EXPECT_NEAR(box("parts").top, box("happened").bottom + 16.0f, 0.5f);
-            EXPECT_NEAR(box("parts").left, 912.0f, 0.5f);
+            EXPECT_NEAR(box("happened").top, box("working").bottom + 16.0f, 0.5f);
+            EXPECT_NEAR(box("happened").left, 912.0f, 0.5f);
 
-            // His Vitality stands under the clock's age, in its panel; his other parts close the
-            // column under the log; the doors are not on this page
+            // The log closes the right column, down to the bottom of the page: no panel of parts
+            // under it any more
+            EXPECT_TRUE(life->named("parts").empty());
+            EXPECT_LE(box("happened").bottom, 1020.0f);
+            EXPECT_GT(box("happened").bottom, 1020.0f - 32.0f);
+
+            // His Vitality stands under the clock's age, in its panel; his other parts stand with
+            // what he has learned, over his skills, in the left column; the doors are not on this page
             EXPECT_GE(box("vit").top, box("clock").bottom);
             EXPECT_LE(box("vit").bottom, box("clockPanel").bottom);
-            EXPECT_GE(box("str").top, box("parts").top);
-            EXPECT_LE(box("int").bottom, box("parts").bottom);
+            EXPECT_GE(box("str").top, box("learned").top);
+            EXPECT_GE(box("dex").top, box("str").bottom);
+            EXPECT_GE(box("int").top, box("dex").bottom);
+            EXPECT_LE(box("int").bottom, box("skills").top);
+            EXPECT_LE(box("skills").bottom, box("learned").bottom + 0.5f);
+            EXPECT_NEAR(box("str").left, box("learned").left + 16.0f, 0.5f);
+            EXPECT_LE(box("str").right, box("learned").right - 16.0f + 0.5f);
             EXPECT_TRUE(life->named("window.keep").empty());
 
             // The head: what he is, between the title and the year
@@ -360,8 +371,8 @@ namespace pg
             EXPECT_LE(bottom("may"), 1100.0f);
             EXPECT_GT(bottom("may"), 1100.0f - 32.0f);
             EXPECT_NEAR(life->piece<EventLog>("log")->spec.height, logAt1020 + 80.0f, 0.5f);
-            EXPECT_LE(bottom("parts"), 1100.0f);
-            EXPECT_GT(bottom("parts"), 1100.0f - 32.0f);
+            EXPECT_LE(bottom("happened"), 1100.0f);
+            EXPECT_GT(bottom("happened"), 1100.0f - 32.0f);
 
             // And back
             f.resize(1320.0f, 1020.0f);
@@ -1091,11 +1102,17 @@ namespace pg
             const GlossSpec* smithy = registry->find("activity/smithy");
             ASSERT_NE(smithy, nullptr);
 
+            // Under IT ASKS: the smithy brings Strength too, under the same name in its own section
+            bool asking = false;
             bool asked = false;
 
             for (const auto& r : smithy->rows)
             {
-                if (r.label == "Strength")
+                if (r.heading)
+                {
+                    asking = r.label == "IT ASKS";
+                }
+                else if (asking and r.label == "Strength")
                 {
                     EXPECT_EQ(r.value, "7 / 8");
                     EXPECT_EQ(r.tone, "loss");
@@ -2020,15 +2037,25 @@ namespace pg
             ASSERT_NE(campaign, nullptr);
             EXPECT_EQ(campaign->title, "Join the Border Campaign");
             EXPECT_EQ(rowOf(campaign, "Time"), "24 mo");
-            EXPECT_EQ(rowOf(campaign, "COIN at term"), "+50");
-            EXPECT_EQ(rowOf(campaign, "COIN to begin"), "\xE2\x88\x92" "10");
-            EXPECT_EQ(rowOf(campaign, "Age"), "17 / 21");
-            EXPECT_EQ(rowOf(campaign, "Arms"), "5 / 6");
             EXPECT_EQ(rowOf(campaign, "Meals"), "Provided");
-            EXPECT_EQ(rowOf(campaign, "Done by"), "26");
             EXPECT_EQ(campaign->footnote, "NOT YET: IT ASKS MORE THAN HE HAS");
 
-            // Each figure in the colour of the way it goes, in sections
+            // In sections, under the stat's full name: a gain and a thing asked may share it, the
+            // section says which. Each figure in the colour of the way it goes
+            auto in = [](const GlossSpec* g, const std::string& section, const std::string& label) -> std::pair<std::string, std::string> {
+                bool inside = false;
+
+                for (const auto& r : g->rows)
+                {
+                    if (r.heading)
+                        inside = r.label == section;
+                    else if (inside and r.label == label)
+                        return {r.value, r.tone};
+                }
+
+                return {"<none>", "<none>"};
+            };
+
             auto toneOf = [](const GlossSpec* g, const std::string& label) -> std::string {
                 for (const auto& r : g->rows)
                 {
@@ -2040,15 +2067,33 @@ namespace pg
             };
 
             EXPECT_EQ(toneOf(campaign, "Time"), "time");
-            EXPECT_EQ(toneOf(campaign, "IT BRINGS"), "<heading>");
-            EXPECT_EQ(toneOf(campaign, "COIN at term"), "gain");
-            EXPECT_EQ(toneOf(campaign, "IT TAKES"), "<heading>");
-            EXPECT_EQ(toneOf(campaign, "COIN to begin"), "loss");
-            EXPECT_EQ(toneOf(campaign, "IT ASKS"), "<heading>");
-            EXPECT_EQ(toneOf(campaign, "Age"), "loss");
-            EXPECT_EQ(toneOf(campaign, "Arms"), "loss");
-            EXPECT_EQ(toneOf(campaign, "Discipline"), "loss");
             EXPECT_EQ(toneOf(campaign, "Meals"), "gain");
+            EXPECT_EQ(toneOf(campaign, "IT BRINGS"), "<heading>");
+            EXPECT_EQ(toneOf(campaign, "IT TAKES"), "<heading>");
+            EXPECT_EQ(toneOf(campaign, "IT ASKS"), "<heading>");
+
+            EXPECT_EQ(in(campaign, "IT BRINGS", "Coin").first, "+50");
+            EXPECT_EQ(in(campaign, "IT BRINGS", "Coin").second, "gain");
+            EXPECT_EQ(in(campaign, "IT TAKES", "Coin").first, "\xE2\x88\x92" "10");
+            EXPECT_EQ(in(campaign, "IT TAKES", "Coin").second, "loss");
+            EXPECT_EQ(in(campaign, "IT ASKS", "Age").first, "17 / 21");
+            EXPECT_EQ(in(campaign, "IT ASKS", "Age").second, "loss");
+            EXPECT_EQ(in(campaign, "IT ASKS", "Arms").first, "5 / 6");
+            EXPECT_EQ(in(campaign, "IT ASKS", "Arms").second, "loss");
+            EXPECT_EQ(in(campaign, "IT ASKS", "Discipline").second, "loss");
+
+            // No short name with "at term" any more, no age it is done by, and nothing said of how
+            // to begin what he can begin
+            for (const auto& r : campaign->rows)
+            {
+                EXPECT_EQ(r.label.find("at term"), std::string::npos) << r.label;
+                EXPECT_EQ(r.label.find("to begin"), std::string::npos) << r.label;
+                EXPECT_NE(r.label, "Done by");
+            }
+
+            ASSERT_NE(registry->find("activity/yard"), nullptr);
+            EXPECT_EQ(registry->find("activity/yard")->footnote, "");
+            EXPECT_EQ(in(registry->find("activity/yard"), "IT BRINGS", "Strength").first, "+1");
 
             // Its head: how often it was done beside the name, the kind of thing it is under it,
             // and a rule before the first figures

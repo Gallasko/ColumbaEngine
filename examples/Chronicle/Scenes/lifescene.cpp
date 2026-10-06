@@ -61,7 +61,7 @@ namespace chronicle
         constexpr float MinMiddle = 420.0f;
         constexpr float MinList = 200.0f;
         constexpr float MinLog = 120.0f;
-        constexpr float PartsPanel = 160.0f;       // Three parts, until the panel has measured itself
+        constexpr float PartsPanel = 160.0f;       // Three parts: what the left column holds over his skills, and needs the height for
         constexpr float ClockPanel = 160.0f;       // The clock and his life, until the panel has measured itself
         constexpr float AlertMs = 900.0f;          // How long a part stays in red after a month took from it
         constexpr float RunningPanel = 164.0f;     // "At work now" holding a running row
@@ -533,18 +533,14 @@ namespace chronicle
                 list->setSize(ecs, may->innerWidth(), listHeight);
         }
 
-        // The log takes the height left between the years and the work at hand above it and his
-        // parts under it
-        float parts = PartsPanel;
+        // The log takes the height left under the years and the work at hand, down to the bottom:
+        // his parts stand with what he has learned, in the left column
         float clock = ClockPanel;
-
-        if (EntityRef partsPanel = named("parts"); not partsPanel.empty())
-            parts = std::max(parts, partsPanel->get<PositionComponent>()->height);
 
         if (EntityRef clockPanel = named("clockPanel"); not clockPanel.empty())
             clock = std::max(clock, clockPanel->get<PositionComponent>()->height);
 
-        const float logHeight = std::max(MinLog, height - ColumnsTop - clock - StackGap - parts - StackGap - workingHeight() - StackGap - PanelChrome - LogFootnote - StackGap);
+        const float logHeight = std::max(MinLog, height - ColumnsTop - clock - StackGap - workingHeight() - StackGap - PanelChrome - LogFootnote - StackGap);
 
         if (auto log = piece<EventLog>("log"))
             log->setHeight(ecs, logHeight);
@@ -2043,27 +2039,27 @@ namespace chronicle
             gloss.aside = textOf(a.fields, "tally");
             gloss.text = textOf(a.fields, "group");
 
-            // A rule under the head, then what it is in time: how long, who feeds him, by when
+            // A rule under the head, then what it is in time: how long, and who feeds him. When it
+            // closes is the tile's to say
             gloss.rows.push_back({"", "", "", true});
             gloss.rows.push_back({"Time", intOf(a.fields, "months") > 0 ? std::to_string(intOf(a.fields, "months")) + " mo" : std::string("At once"), "time"});
 
             if (intOf(a.fields, "months") > 0)
                 gloss.rows.push_back({"Meals", boolOf(a.fields, "board") ? std::string("Provided") : std::string("His own rations"), boolOf(a.fields, "board") ? "gain" : ""});
 
-            gloss.rows.push_back({"Done by", std::to_string(intOf(a.fields, "finishBy")), "time"});
-
-            // In sections, a rule between two, each figure in the colour of the way it goes
+            // In sections, a rule between two, each figure in the colour of the way it goes and
+            // under the stat's full name: the section says whether it is brought or taken
             if (not a.gains.empty())
                 gloss.rows.push_back({"IT BRINGS", "", "", true});
 
             for (const auto& g : a.gains)
-                gloss.rows.push_back({textOf(g, "label") + " at term", signedText(intOf(g, "amount")), intOf(g, "amount") < 0 ? "loss" : "gain"});
+                gloss.rows.push_back({textOf(g, "name"), signedText(intOf(g, "amount")), intOf(g, "amount") < 0 ? "loss" : "gain"});
 
             if (not a.costs.empty())
                 gloss.rows.push_back({"IT TAKES", "", "", true});
 
             for (const auto& c : a.costs)
-                gloss.rows.push_back({textOf(c, "label") + " to begin", signedText(-intOf(c, "amount")), "loss"});
+                gloss.rows.push_back({textOf(c, "name"), signedText(-intOf(c, "amount")), "loss"});
 
             if (not a.requires.empty())
                 gloss.rows.push_back({"IT ASKS", "", "", true});
@@ -2072,12 +2068,11 @@ namespace chronicle
             for (const auto& r : a.requires)
                 gloss.rows.push_back({textOf(r, "label"), std::to_string(intOf(r, "current")) + " / " + std::to_string(intOf(r, "needed")), intOf(r, "current") < intOf(r, "needed") ? "loss" : "gain"});
 
+            // A footnote only for what stands in his way, or what he is at
             if (textOf(a.fields, "id") == save.running)
                 gloss.footnote = "AT WORK NOW";
             else if (boolOf(a.fields, "locked"))
                 gloss.footnote = "NOT YET: IT ASKS MORE THAN HE HAS";
-            else
-                gloss.footnote = "SELECT, THEN CONFIRM TO BEGIN";
 
             registry->set("activity/" + textOf(a.fields, "id"), gloss);
         }

@@ -168,6 +168,11 @@ First tagged release. Everything below describes the state of the engine at the 
   window widens. A tile is the name over the time and the closing; the tiles of a line are level,
   and another width lays them again. The last month an activity may be begun reads
   `CLOSES THIS MONTH`.
+- Chronicle: on the Life page his Strength, Dexterity and Intelligence stand in "What he has
+  learned", over his skills, and the panel of parts under the log is gone: the log takes the
+  column to the bottom. The market's group comes right under Work. An activity's gloss names a
+  gain or a cost by the stat's full name (`Strength  +1`, from the new `name` of `gains` and
+  `costs`), and no longer says the age it is done by nor how to begin it.
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written

@@ -166,6 +166,7 @@ namespace pg
             ASSERT_EQ(mill.gains.size(), 3u);
             EXPECT_EQ(textOf(mill.gains[0], "stat"), "str");
             EXPECT_EQ(textOf(mill.gains[0], "label"), "STR");
+            EXPECT_EQ(textOf(mill.gains[0], "name"), "Strength");
             EXPECT_EQ(intOf(mill.gains[0], "amount"), 1);
             EXPECT_TRUE(mill.requires.empty());
             EXPECT_TRUE(mill.costs.empty());

@@ -140,8 +140,10 @@ come from `rules/*.pg` through the scene, never from the component.
   stands at the title's right, on its baseline (`caption`, `ink-muted`), and the title elides in
   the room it leaves. The Life screen's activity gloss carries everything its row does not: the
   name with how often it was done beside it (`DONE 0 · 2 LEFT`), its group under it, a rule,
-  the time, the meals and the age it is done by, then a ruled section for each of IT BRINGS,
-  IT TAKES and IT ASKS, a requirement green when he has it and red when he is short. The tooltip form is registered under a **key** on
+  the time and the meals, then a ruled section for each of IT BRINGS, IT TAKES and IT ASKS,
+  each row under the stat's full name (`Strength  +1`), a requirement green when he has it and
+  red when he is short. Its footnote speaks only of what stands in his way (`NOT YET`) or of
+  the work he is at; when it closes is the tile's to say. The tooltip form is registered under a **key** on
   `GlossRegistry` and shown through the engine's `TooltipSystem`
   (`attachGloss(entity, key)`), so delay, placement, flipping and click-to-hide are
   inherited; a missing key shows a `vermilion` fallback, like a missing mark.
@@ -417,7 +419,7 @@ which hold everything and are what `windows.pg` and `forecast.pg` import. `lib.p
 | script | inputs | outputs |
 |---|---|---|
 | `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthOf` (whole months lived), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup`, `raised` (a gain stopped at the stat's ceiling), `byId`, `pathFlagOf`, `asksOf`, `openNote`, `shiftIn` (a month's change to a stat); `lastAge` (30, where his prime ends), `anyAge` (the `finishBy` of what no age closes) |
-| `activities.pg` (`activitytable.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own) | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label}], costs[{stat, amount, label}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, showAge, showFrom, tally ("DONE 2", "DONE 0 · 1 LEFT"), until ("" or "CLOSES IN 14 MO"), urgent, after[step]}` |
+| `activities.pg` (`activitytable.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own) | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label, name}], costs[{stat, amount, label, name}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, showAge, showFrom, tally ("DONE 2", "DONE 0 · 1 LEFT"), until ("" or "CLOSES IN 14 MO"), urgent, after[step]}` |
 | `milestones.pg` (`milestonetable.pg`) | `age` | `milestones`: `{age, id, label, passed, entry, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
 | `windows.pg` | `age`, `character`, `done`, `activityId` (`""`) | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}`, one per door of an activity whose path is open to him |
 | `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atStart{stats}, atTerm{stats}, percent, months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
@@ -579,13 +581,14 @@ all tested (133 `test_chronicle` + engine `t1` green):
 
 `Scenes/lifescene.h`. The page is `res/chronicle/ui/life.yaml`, built as it is: the head
 (title, what he is and where he comes from, the year line, the age), the tabs, and three
-columns of panels anchored 16 apart. Left (320): his parts and skills in one panel, then
-what he holds. Middle (496): the choice alone, *What Aldren may do*, as a grid of tiles
+columns of panels anchored 16 apart. Left (320): what he holds, then what he has learned:
+his parts (Strength, Dexterity, Intelligence) over his skills, in one panel. Middle (496): the choice alone, *What Aldren may do*, as a grid of tiles
 (`compact: true`, `tileWidth: 148`): three to a line at 1320, more as the window widens, each
 a name, a time and a closing on the ground of its kind (work that takes months, a thing done
 at once, what he cannot do yet), everything else in its gloss. The running tile draws no rule
 there: the rule is *At work now*'s. Right
-(360): the years (the clock and the doors), the work at hand, the log. The scene does the
+(360): the years (the clock, with his Vitality under his age), the work at hand, and the log,
+which takes the rest of the column down to the bottom. The scene does the
 three things a file cannot. In `startUp` it runs the rules and the save and fills the
 rows only they know: the ledgers, the activity lists, the log, the clock's ticks and bands.
 In `wire()`, the one function with every subscription, it subscribes each widget to a
