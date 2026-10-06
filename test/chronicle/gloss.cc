@@ -198,11 +198,11 @@ namespace pg
                 EXPECT_EQ(g.rows[i].first.spec.style, "body-sm") << i;
             }
 
-            // A heading: the caps style, faint, no value
+            // A heading: the figures' weight, full ink, no value: it stands over its rows
             for (size_t i : {1u, 3u})
             {
-                EXPECT_EQ(g.rows[i].first.spec.style, "label") << i;
-                EXPECT_EQ(g.rows[i].first.spec.color, "ink-faint") << i;
+                EXPECT_EQ(g.rows[i].first.spec.style, "figure-sm") << i;
+                EXPECT_EQ(g.rows[i].first.spec.color, "ink") << i;
                 EXPECT_EQ(g.rows[i].second.spec.text, "") << i;
             }
 
@@ -252,7 +252,7 @@ namespace pg
             ASSERT_TRUE(g.title.has_value());
             ASSERT_TRUE(g.aside.has_value());
             EXPECT_EQ(g.aside->spec.text, "DONE 0 \xC2\xB7 1 LEFT");
-            EXPECT_EQ(g.aside->spec.style, "caption");
+            EXPECT_EQ(g.aside->spec.style, "figure-sm");
             EXPECT_EQ(g.aside->spec.color, "ink-muted");
 
             // Right edge of the gloss's inner width, the title kept clear of it by 8
@@ -276,6 +276,46 @@ namespace pg
 
             EXPECT_FALSE(plain.aside.has_value());
             EXPECT_NEAR(plain.title->spec.width, s.pos(plain.root)->width - 24.0f, 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The values stand in a column at the right edge, or, inline, each after its label, 8 from
+        // it, on its line and in its tone all the same.
+        TEST(gloss_test, tooltip_values_inline)
+        {
+            MockLogger logger;
+            GlossFixture s;
+
+            GlossSpec spec; spec.kind = GlossKind::Tooltip; spec.title = "Train at the Yard";
+            spec.rows = {{"Time", "6 mo", "time"}, {"Strength", "+1", "gain"}};
+
+            Gloss column = makeGloss(&s.ecs, spec);
+
+            spec.inlineValues = true;
+            Gloss inlined = makeGloss(&s.ecs, spec);
+            s.settle();
+
+            auto right = [&](EntityRef e) { return s.pos(e)->x + s.pos(e)->width; };
+
+            // The kit's column: the right edge of the gloss's inner width
+            for (const auto& row : column.rows)
+                EXPECT_NEAR(right(row.second.entity), s.pos(column.root)->x + s.pos(column.root)->width - 12.0f, 0.5f);
+
+            // Inline: after the label, wherever that ends
+            for (const auto& row : inlined.rows)
+            {
+                EXPECT_NEAR(s.pos(row.second.entity)->x, right(row.first.entity) + 8.0f, 0.5f);
+                EXPECT_NEAR(s.pos(row.second.entity)->y, s.pos(row.first.entity)->y, 0.5f);
+                EXPECT_LT(right(row.second.entity), s.pos(inlined.root)->x + s.pos(inlined.root)->width - 12.0f);
+            }
+
+            EXPECT_EQ(inlined.rows[0].second.spec.color, "status-time");
+            EXPECT_EQ(inlined.rows[1].second.spec.color, "status-gain");
+            EXPECT_EQ(inlined.rows[1].second.spec.align, Align::Left);
+            EXPECT_EQ(column.rows[1].second.spec.align, Align::Right);
+            EXPECT_NEAR(s.pos(inlined.root)->height, s.pos(column.root)->height, 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------

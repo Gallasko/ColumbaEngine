@@ -17,7 +17,7 @@ namespace chronicle
 
     // "Time", "6 mo" - value set in figure-sm, in the colour its tone names: "" ink, "gain", "loss",
     // "time", "muted". A heading opens a section: a hair rule across the gloss, then its label
-    // alone, in caps; with no label it is the rule alone.
+    // alone, in caps and in the figures' weight; with no label it is the rule alone.
     struct GlossRow
     {
         std::string label;
@@ -30,12 +30,13 @@ namespace chronicle
     {
         GlossKind kind = GlossKind::Margin;
         std::string title;                 // Tooltip only: gloss-title, ink
-        std::string aside;                 // Tooltip only: caption caps, ink-muted, at the right of the title (how often it was done)
+        std::string aside;                 // Tooltip only: figure-sm, ink-muted, at the right of the title (how often it was done)
         std::string text;                  // Margin: gloss italic, ink-muted, wraps. Tooltip: body-sm, ink-muted, wraps
         std::vector<GlossRow> rows;        // Tooltip only
         std::string footnote;              // Tooltip only: caption, ink-faint
         float width = 0.0f;                // 0 -> 240 (Margin) / 280 (Tooltip)
         int z = 20;                        // Margin: content band. Tooltip: ignored (placed at 200)
+        bool inlineValues = false;         // Tooltip only: false, the values in a column at the right edge; true, each after its label
     };
 
     struct Gloss

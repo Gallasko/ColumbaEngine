@@ -318,6 +318,14 @@ namespace pg
             EXPECT_EQ(s.element(e->ground), "activity.kind.instant");
             EXPECT_EQ(s.element(a->ground), "activity.kind.timed");
 
+            // Done at once: no time and no time mark where the others say their months, and the
+            // tile as tall as one that does
+            EXPECT_EQ(a->cost.spec.text, "6 mo");
+            EXPECT_TRUE(s.pos(a->costMark.entity)->isVisible());
+            EXPECT_EQ(e->cost.spec.text, "");
+            EXPECT_FALSE(s.pos(e->costMark.entity)->isVisible());
+            EXPECT_NEAR(e->natural, a->natural, 0.5f);
+
             // A closing on one tile: its line grows with it, and what is under moves down
             const float marketY = s.pos(e->root)->y;
 

@@ -136,14 +136,17 @@ come from `rules/*.pg` through the scene, never from the component.
   real numbers live. A row may carry a **tone** that colours its value (`gain`, `loss`, `time`,
   `muted`; none or unknown is ink; the label never changes), and a row marked `heading` opens a
   **section**: a `rule-hair` rule across the gloss (`gloss.rule`), a footnote's room above it,
-  then its label alone in the caps style, faint; with no label it is the rule alone. An `aside`
-  stands at the title's right, on its baseline (`caption`, `ink-muted`), and the title elides in
-  the room it leaves. The Life screen's activity gloss carries everything its row does not: the
-  name with how often it was done beside it (`DONE 0 · 2 LEFT`), its group under it, a rule,
+  then its label alone, in caps, in the figures' weight and full ink (`figure-sm`), so it stands
+  over its rows; with no label it is the rule alone. An `aside` stands at the title's right, on
+  its baseline (`figure-sm`, `ink-muted`), and the title elides in the room it leaves. The
+  values stand in a column at the right edge, or with `inlineValues` each after its label, 8
+  from it: the Life screen's glosses are inline. The Life screen's activity gloss carries everything its row does not: the
+  name with how often it was done beside it (the number alone: `3`, or `0/2` for one that
+  can be done twice), its group under it, a rule,
   the time and the meals, then a ruled section for each of IT BRINGS, IT TAKES and IT ASKS,
   each row under the stat's full name (`Strength  +1`), a requirement green when he has it and
-  red when he is short. Its footnote speaks only of what stands in his way (`NOT YET`) or of
-  the work he is at; when it closes is the tile's to say. The tooltip form is registered under a **key** on
+  red when he is short. Its only footnote is `AT WORK NOW`, on the work he is at: what a locked
+  one still asks is in red under IT ASKS, and when it closes is the tile's to say. The tooltip form is registered under a **key** on
   `GlossRegistry` and shown through the engine's `TooltipSystem`
   (`attachGloss(entity, key)`), so delay, placement, flipping and click-to-hide are
   inherited; a missing key shows a `vermilion` fallback, like a missing mark.
@@ -579,10 +582,12 @@ all tested (133 `test_chronicle` + engine `t1` green):
 
 ## The Life scene
 
-`Scenes/lifescene.h`. The page is `res/chronicle/ui/life.yaml`, built as it is: the head
-(title, what he is and where he comes from, the year line, the age), the tabs, and three
-columns of panels anchored 16 apart. Left (320): what he holds, then what he has learned:
-his parts (Strength, Dexterity, Intelligence) over his skills, in one panel. Middle (496): the choice alone, *What Aldren may do*, as a grid of tiles
+`Scenes/lifescene.h`. The page is `res/chronicle/ui/life.yaml`, built as it is: a head of
+two lines (the title in the heading face, then the year with what he is after it, the age at
+the right) and three columns of panels from 70 down, 12 apart, 16 from the window's edges. Left
+(300): what he holds, then what he has learned:
+his parts (Strength, Dexterity, Intelligence) over his skills, in one panel. Middle (604, the rest of the width): the choice alone, with no heading: the tabs (the book's
+chapters) stand at its head, over a grid of tiles
 (`compact: true`, `tileWidth: 148`): three to a line at 1320, more as the window widens, each
 a name, a time and a closing on the ground of its kind (work that takes months, a thing done
 at once, what he cannot do yet), everything else in its gloss. The running tile draws no rule

@@ -216,6 +216,14 @@ namespace chronicle
         }
     }
 
+    void Tabs::setWidth(EntitySystem*, float width)
+    {
+        spec.width = width;
+
+        root->get<PositionComponent>()->setWidth(width);
+        rule->get<PositionComponent>()->setWidth(width);
+    }
+
     void Tabs::setBadge(EntitySystem* ecs, int index, int count)
     {
         if (index < 0 or index >= static_cast<int>(tabs.size()))

@@ -5,9 +5,11 @@
 # names, values and rows come from the save and the rules (examples/Chronicle/rules/*.pg) in the
 # scene's startUp, and the rows of the ledgers, the activity lists and the log are added there.
 #
-# The page follows the window (__MainWindow, the viewport): margins 48, the left column 320 and
-# the right one 360 hold their width, the right one anchored to the window's right edge, and the
-# middle column - the choice alone, what he may do - takes the rest. The scene widens it and sets
+# The page follows the window (__MainWindow, the viewport): margins 16, columns 12 apart, the
+# left column 300 and the right one 360 hold their width, the right one anchored to the window's
+# right edge, and the middle column - the choice alone, what he may do - takes the rest. The head
+# is two lines (the title, then the year with what he is beside it), and the columns start at 70.
+# The chapters (the tabs) stand at the head of the choice, in place of a heading. The scene widens it and sets
 # the heights of the choice and the log on every resize. His Vitality stands under the clock's
 # age, at the top of the right column: it is what the life hangs on. His other parts stand with
 # his skills, in what he has learned. The doors (the WindowMeters) are not on this page: the clock keeps
@@ -27,25 +29,15 @@ children:
   # ── Head: who, how old, what he is ───────────────────────────────────────────
   - kind: Label
     name: title
-    x: 48
-    y: 32
-    style: title
+    x: 16
+    y: 10
+    style: heading
     text: The Chronicle of Aldren of Bellmoor
 
   - kind: Label
-    name: about
-    x: 48
-    y: 70
-    style: gloss
-    color: ink-muted
-    overflow: ellipsis
-    width: 860
-    text: "Apprentice at the Bellmoor Guild · Second son of the miller, born at the mill on the Bell."
-
-  - kind: Label
     name: subtitle
-    x: 48
-    y: 94
+    x: 16
+    y: 42
     style: label
     color: ink-muted
     text: "THE SEVENTEENTH YEAR · SPRING · BELLMOOR"
@@ -58,8 +50,20 @@ children:
     align: right
     text: "17.5"
     anchors:
-      - {side: right, target: __MainWindow, targetSide: right, margin: 48}
-      - {side: top, target: __MainWindow, targetSide: top, margin: 32}
+      - {side: right, target: __MainWindow, targetSide: right, margin: 16}
+      - {side: top, target: __MainWindow, targetSide: top, margin: 6}
+
+  # What he is and where he comes from, on the year's line, after it
+  - kind: Label
+    name: about
+    style: gloss
+    color: ink-muted
+    overflow: ellipsis
+    width: 520
+    text: "Apprentice at the Bellmoor Guild · Second son of the miller, born at the mill on the Bell."
+    anchors:
+      - {side: left, target: subtitle, targetSide: right, margin: 16}
+      - {side: top, target: __MainWindow, targetSide: top, margin: 40}
 
   - kind: Label
     name: ageNote
@@ -70,29 +74,16 @@ children:
     align: right
     text: years · 7 mo to the eighteenth
     anchors:
-      - {side: right, target: __MainWindow, targetSide: right, margin: 48}
-      - {side: top, target: __MainWindow, targetSide: top, margin: 70}
-
-  - kind: Tabs
-    name: tabs
-    x: 48
-    y: 118
-    tag: life.tabs
-    items:
-      - {label: Life, glyph: quill}
-      - {label: Kit, glyph: equipment}
-      - {label: Town, glyph: town}
-      - {label: Guild, glyph: guild}
-      - {label: Adventure, glyph: adventure}
-      - {label: Chronicle, glyph: study}
+      - {side: right, target: __MainWindow, targetSide: right, margin: 16}
+      - {side: top, target: __MainWindow, targetSide: top, margin: 42}
 
   # ── Left: what he holds, what he has learned ─────────────────────────────────
   - kind: Panel
     name: holds
-    x: 48
-    y: 178
+    x: 16
+    y: 70
     frame: ruled
-    width: 320
+    width: 300
     heading: What he holds
     glyph: gold
     aside: LEDGER
@@ -103,7 +94,7 @@ children:
   - kind: Panel
     name: learned
     frame: ruled
-    width: 320
+    width: 300
     heading: What he has learned
     glyph: study
     aside: SKILLS
@@ -112,9 +103,9 @@ children:
       - {side: left, target: holds, targetSide: left}
     children:
       # His parts first, then the skills: what he is and what he has learned read as one
-      - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30, width: 288}
-      - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30, width: 288}
-      - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30, width: 288}
+      - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30, width: 268}
+      - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30, width: 268}
+      - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30, width: 268}
       - {kind: Ornament, ornament: divider, knot: false}
       - kind: ResourceLedger
         name: skills
@@ -122,21 +113,29 @@ children:
   # ── Middle: the choice ───────────────────────────────────────────────────────
   - kind: Panel
     name: may
-    x: 392
-    y: 178
+    x: 328
+    y: 70
     frame: ruled
-    width: 496
-    heading: What Aldren may do
-    glyph: town
-    aside: CHOOSE ONE
+    width: 604
     children:
+      # The chapters of the book, in place of a heading: the choice is the Life chapter's page
+      - kind: Tabs
+        name: tabs
+        tag: life.tabs
+        items:
+          - {label: Life, glyph: quill}
+          - {label: Kit, glyph: equipment}
+          - {label: Town, glyph: town}
+          - {label: Guild, glyph: guild}
+          - {label: Adventure, glyph: adventure}
+          - {label: Chronicle, glyph: study}
       - kind: ActivityList
         name: activities
         id: life.activities
-        height: 740
+        height: 846
         stripes: false
         compact: true         # a row is its name, its time and its closing, on a ground that says its kind: work that takes months, a thing done at once, what he cannot do yet. The rest is its gloss
-        tileWidth: 148        # and the rows are tiles, as many to a line as fit at that width or more: three at 1320, more as the window widens
+        tileWidth: 148        # and the rows are tiles, as many to a line as fit at that width or more: three at 1320 (the list is 572 wide), more as the window widens
 
   # ── Right: the years and his life, the work at hand, what has happened ──
   - kind: Panel
@@ -144,8 +143,8 @@ children:
     frame: ruled
     width: 360
     anchors:
-      - {side: right, target: __MainWindow, targetSide: right, margin: 48}
-      - {side: top, target: __MainWindow, targetSide: top, margin: 178}
+      - {side: right, target: __MainWindow, targetSide: right, margin: 16}
+      - {side: top, target: __MainWindow, targetSide: top, margin: 70}
     children:
       - kind: LifeClock
         name: clock

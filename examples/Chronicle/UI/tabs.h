@@ -64,6 +64,7 @@ namespace chronicle
         int active() const;
         void setActive(pg::EntitySystem*, int);                   // programmatic: repaints, sends no event
         void setBadge(pg::EntitySystem*, int index, int count);   // 0 removes; re-measures the face
+        void setWidth(pg::EntitySystem*, float width);            // The row and its hairline; the faces keep their size
     };
 
     Tabs makeTabs(pg::EntitySystem*, const TabsSpec&);

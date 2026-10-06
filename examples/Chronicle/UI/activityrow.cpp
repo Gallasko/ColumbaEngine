@@ -103,6 +103,16 @@ namespace chronicle
             return std::to_string(months) + " mo";
         }
 
+        // What a row writes for its time. A tile done at once writes nothing there: its ground
+        // already says it is a thing done at once
+        std::string costText(const ActivityRowSpec& spec)
+        {
+            if (spec.tile and spec.months <= 0)
+                return "";
+
+            return monthsText(spec.months);
+        }
+
         // "RANK 2 \xC2\xB7 DONE 3": the rank, then how often it was done, on one label
         std::string rankText(const ActivityRowSpec& spec)
         {
@@ -298,6 +308,8 @@ namespace chronicle
             setElement(entityOf(ecs, st.name), nameElement(st));
             setElement(entityOf(ecs, st.cost), locked ? "activity.cost.locked" : "activity.cost");
 
+            // No time, no time mark: a tile done at once leaves that line empty
+            setVisible(entityOf(ecs, st.costMark), not (st.tile and st.instant));
             setVisible(entityOf(ecs, st.rule), not st.last and not st.tile);
             setVisible(entityOf(ecs, st.ring), st.keyboardFocus and not locked);
         }
@@ -318,6 +330,7 @@ namespace chronicle
             setElement(row.name.entity, nameElement(st));
             setElement(row.cost.entity, locked ? "activity.cost.locked" : "activity.cost");
 
+            setVisible(row.costMark.entity, not (st.tile and st.instant));
             setVisible(row.rule, not st.last and not st.tile);
             setVisible(row.ring, st.keyboardFocus and not locked);
         }
@@ -590,7 +603,7 @@ namespace chronicle
 
         // The cost and its time mark. On a row: the right column, on the title line's baseline, `each`
         // under it. On a tile: at the left, under the name (resize sets how far down)
-        row.cost = makeActivityText(ecs, "control", "activity.cost", monthsText(spec.months), z + 4);
+        row.cost = makeActivityText(ecs, "control", "activity.cost", costText(spec), z + 4);
         row.costMark = makeMark(ecs, {"time", MarkSize::S14, "status-time", z + 3});
 
         {
@@ -837,7 +850,8 @@ namespace chronicle
 
             cost.entity->get<UiAnchor>()->setTopMargin(costTop);
 
-            content = costTop + cost.entity.get<PositionComponent>()->height;
+            // The time's line is kept when it says nothing: a tile done at once is as tall as the others
+            content = costTop + std::max(static_cast<float>(cost.lineHeightPx), cost.entity.get<PositionComponent>()->height);
             pad = TilePad;
         }
         else if (not spec.compact)
@@ -1034,7 +1048,7 @@ namespace chronicle
     {
         onLive(this, [ecs, months](ActivityRow& r) {
             r.spec.months = std::max(0, months);
-            r.cost.setText(ecs, monthsText(r.spec.months));
+            r.cost.setText(ecs, costText(r.spec));
             r.fitName(ecs);
 
             // Done at once or not is its kind, and a compact row's ground says it

@@ -261,7 +261,7 @@ namespace pg
                     EXPECT_GE(b.left, columnRight) << name;
                     EXPECT_GE(b.top, above) << name;
                     EXPECT_LE(b.bottom, 1020.0f) << name;
-                    EXPECT_LE(b.right, 1320.0f - 48.0f + 0.5f) << name;
+                    EXPECT_LE(b.right, 1320.0f - 16.0f + 0.5f) << name;
 
                     above = b.bottom;
                     right = std::max(right, b.right);
@@ -282,13 +282,36 @@ namespace pg
                 EXPECT_GT(f.pos(panel->body)->z, f.pos(panel->ground)->z) << name;
             }
 
-            EXPECT_NEAR(box("holds").left, 48.0f, 0.5f);
-            EXPECT_NEAR(box("may").left, 392.0f, 0.5f);
-            EXPECT_NEAR(box("clockPanel").left, 912.0f, 0.5f);
+            EXPECT_NEAR(box("holds").left, 16.0f, 0.5f);
+            EXPECT_NEAR(box("holds").right, 316.0f, 0.5f);
+            EXPECT_NEAR(box("may").left, 328.0f, 0.5f);
+
+            // A head of two lines over columns that start at 70: the title, then the year with what
+            // he is after it on the same line
+            EXPECT_NEAR(box("holds").top, 70.0f, 0.5f);
+            EXPECT_NEAR(box("may").top, 70.0f, 0.5f);
+            EXPECT_NEAR(box("clockPanel").top, 70.0f, 0.5f);
+            EXPECT_LE(box("title").bottom, box("subtitle").top + 0.5f);
+            EXPECT_LE(box("subtitle").bottom, 70.0f);
+            EXPECT_GE(box("about").left, box("subtitle").right);
+            EXPECT_LE(box("about").bottom, 70.0f);
+            EXPECT_LE(box("ageNote").bottom, 70.0f);
+
+            // The chapters stand at the head of the choice, in place of a heading, over the list
+            auto choice = life->piece<Panel>("may");
+            ASSERT_NE(choice, nullptr);
+            EXPECT_FALSE(choice->title.has_value());
+            EXPECT_NEAR(box("tabs").top, box("may").top + 16.0f, 0.5f);
+            EXPECT_NEAR(box("tabs").left, box("may").left + 16.0f, 0.5f);
+            EXPECT_NEAR(box("tabs").right, box("may").right - 16.0f, 0.5f);
+            EXPECT_NEAR(box("activities").top, box("tabs").bottom + 12.0f, 0.5f);
+            EXPECT_LE(box("may").bottom, 1020.0f);
+            EXPECT_GT(box("may").bottom, 1020.0f - 32.0f);
+            EXPECT_NEAR(box("clockPanel").left, 944.0f, 0.5f);
             EXPECT_NEAR(box("learned").top, box("holds").bottom + 16.0f, 0.5f);
             EXPECT_NEAR(box("working").top, box("clockPanel").bottom + 16.0f, 0.5f);
             EXPECT_NEAR(box("happened").top, box("working").bottom + 16.0f, 0.5f);
-            EXPECT_NEAR(box("happened").left, 912.0f, 0.5f);
+            EXPECT_NEAR(box("happened").left, 944.0f, 0.5f);
 
             // The log closes the right column, down to the bottom of the page: no panel of parts
             // under it any more
@@ -341,31 +364,31 @@ namespace pg
             auto bottom = [&](const char* name) { auto p = f.pos(life->named(name)); return p->y + p->height; };
 
             // As designed, at 1320 x 1020
-            EXPECT_NEAR(f.pos(life->named("may"))->width, 496.0f, 0.5f);
-            EXPECT_NEAR(right("clockPanel"), 1272.0f, 0.5f);
-            EXPECT_NEAR(right("age"), 1272.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("may"))->width, 604.0f, 0.5f);
+            EXPECT_NEAR(right("clockPanel"), 1304.0f, 0.5f);
+            EXPECT_NEAR(right("age"), 1304.0f, 0.5f);
 
             const float logAt1020 = life->piece<EventLog>("log")->spec.height;
 
             f.resize(1600.0f, 1100.0f);
 
             // The middle column takes the new width, the right one moves with the edge
-            EXPECT_NEAR(f.pos(life->named("may"))->width, 1600.0f - 96.0f - 320.0f - 360.0f - 48.0f, 0.5f);
-            EXPECT_NEAR(f.pos(life->named("may"))->x, 392.0f, 0.5f);
-            EXPECT_NEAR(right("clockPanel"), 1552.0f, 0.5f);
-            EXPECT_NEAR(right("age"), 1552.0f, 0.5f);
-            EXPECT_NEAR(right("ageNote"), 1552.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("may"))->width, 1600.0f - 32.0f - 300.0f - 360.0f - 24.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("may"))->x, 328.0f, 0.5f);
+            EXPECT_NEAR(right("clockPanel"), 1584.0f, 0.5f);
+            EXPECT_NEAR(right("age"), 1584.0f, 0.5f);
+            EXPECT_NEAR(right("ageNote"), 1584.0f, 0.5f);
             EXPECT_NEAR(f.pos(life->named("page"))->width, 1600.0f, 0.5f);
 
-            // The tiles follow the list's width: a wider list holds one more to a line (four of 180
-            // in 744, 8 apart); the choice and the log take the new height
+            // The tiles follow the list's width: a wider list holds more to a line (five of 164 in
+            // 852, 8 apart); the choice and the log take the new height
             auto list = life->piece<ActivityList>("activities");
-            EXPECT_NEAR(list->spec.width, 1600.0f - 96.0f - 320.0f - 360.0f - 48.0f - 32.0f, 0.5f);
-            EXPECT_EQ(list->columns(), 4);
+            EXPECT_NEAR(list->spec.width, 1600.0f - 32.0f - 300.0f - 360.0f - 24.0f - 32.0f, 0.5f);
+            EXPECT_EQ(list->columns(), 5);
             ActivityRow* yard = list->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
             EXPECT_TRUE(yard->spec.tile);
-            EXPECT_NEAR(f.pos(yard->root)->width, 180.0f, 0.5f);
+            EXPECT_NEAR(f.pos(yard->root)->width, 164.0f, 0.5f);
             EXPECT_NEAR(f.pos(yard->root)->width, list->tileSize(), 0.5f);
 
             EXPECT_LE(bottom("may"), 1100.0f);
@@ -376,14 +399,14 @@ namespace pg
 
             // And back
             f.resize(1320.0f, 1020.0f);
-            EXPECT_NEAR(f.pos(life->named("may"))->width, 496.0f, 0.5f);
-            EXPECT_NEAR(right("clockPanel"), 1272.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("may"))->width, 604.0f, 0.5f);
+            EXPECT_NEAR(right("clockPanel"), 1304.0f, 0.5f);
 
-            // Three to a line again in 464: the tiles were laid again, the row is another
+            // Three to a line again in 572: the tiles were laid again, the row is another
             EXPECT_EQ(list->columns(), 3);
             yard = list->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
-            EXPECT_NEAR(f.pos(yard->root)->width, (464.0f - 16.0f) / 3.0f, 0.5f);
+            EXPECT_NEAR(f.pos(yard->root)->width, (572.0f - 16.0f) / 3.0f, 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -487,7 +510,7 @@ namespace pg
             EXPECT_FALSE(life->compact);
             EXPECT_FALSE(life->named("about").empty());
             EXPECT_TRUE(life->named("sideTabs").empty());
-            EXPECT_NEAR(box("may").right - box("may").left, 496.0f, 0.5f);
+            EXPECT_NEAR(box("may").right - box("may").left, 604.0f, 0.5f);
             EXPECT_TRUE(shown("parts"));
             EXPECT_TRUE(shown("happened"));
             EXPECT_NE(life->piece<ActivityList>("running")->row(&f.ecs, "yard"), nullptr);
@@ -1613,13 +1636,13 @@ namespace pg
             EXPECT_FALSE(roam->rank.has_value());
 
             ASSERT_NE(registry->find("activity/roam"), nullptr);
-            EXPECT_EQ(registry->find("activity/roam")->aside, "DONE 0 \xC2\xB7 2 LEFT");
+            EXPECT_EQ(registry->find("activity/roam")->aside, "0/2");
 
             ActivityRow* buy = list->row(&f.ecs, "buy.rations");
             ASSERT_NE(buy, nullptr);
             EXPECT_EQ(buy->spec.count, "DONE 0");
             EXPECT_FALSE(buy->rank.has_value());
-            EXPECT_EQ(registry->find("activity/buy.rations")->aside, "DONE 0");
+            EXPECT_EQ(registry->find("activity/buy.rations")->aside, "0");
 
             // Done at once: the same row, one more
             f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "buy.rations"});
@@ -1629,7 +1652,7 @@ namespace pg
             ASSERT_NE(buy, nullptr);
             EXPECT_EQ(buy->spec.count, "DONE 1");
             EXPECT_EQ(f.fact<std::string>("activity.buy.rations.count"), "DONE 1");
-            EXPECT_EQ(registry->find("activity/buy.rations")->aside, "DONE 1");
+            EXPECT_EQ(registry->find("activity/buy.rations")->aside, "1");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2038,7 +2061,9 @@ namespace pg
             EXPECT_EQ(campaign->title, "Join the Border Campaign");
             EXPECT_EQ(rowOf(campaign, "Time"), "24 mo");
             EXPECT_EQ(rowOf(campaign, "Meals"), "Provided");
-            EXPECT_EQ(campaign->footnote, "NOT YET: IT ASKS MORE THAN HE HAS");
+
+            // Locked, and no footnote to say so: what it still asks is in red under IT ASKS
+            EXPECT_EQ(campaign->footnote, "");
 
             // In sections, under the stat's full name: a gain and a thing asked may share it, the
             // section says which. Each figure in the colour of the way it goes
@@ -2097,7 +2122,8 @@ namespace pg
 
             // Its head: how often it was done beside the name, the kind of thing it is under it,
             // and a rule before the first figures
-            EXPECT_EQ(campaign->aside, "DONE 0 \xC2\xB7 1 LEFT");
+            EXPECT_EQ(campaign->aside, "0/1");
+            EXPECT_TRUE(campaign->inlineValues);
             EXPECT_EQ(campaign->text, "The Keep");
             ASSERT_FALSE(campaign->rows.empty());
             EXPECT_TRUE(campaign->rows[0].heading);

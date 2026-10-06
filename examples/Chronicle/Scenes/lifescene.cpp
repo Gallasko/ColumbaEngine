@@ -51,14 +51,16 @@ namespace chronicle
 
         // The page's frame (life.yaml): margins, the fixed columns, where the columns start, and the
         // chrome of a panel with a heading (16 + the 51 head block + 16)
-        constexpr float PageMargin = 48.0f;
-        constexpr float ColumnGap = 24.0f;
-        constexpr float LeftColumn = 320.0f;
+        constexpr float PageMargin = 16.0f;
+        constexpr float ColumnGap = 12.0f;
+        constexpr float LeftColumn = 300.0f;
         constexpr float RightColumn = 360.0f;
-        constexpr float ColumnsTop = 178.0f;
+        constexpr float ColumnsTop = 70.0f;        // Under a head of two lines
         constexpr float StackGap = 16.0f;
         constexpr float PanelChrome = 83.0f;
-        constexpr float MinMiddle = 420.0f;
+        constexpr float PlainChrome = 32.0f;       // A panel without a heading: 16 + 16
+        constexpr float TabsRow = 56.0f;           // The chapters at the head of the choice (44) and the body's gap (12)
+        constexpr float MinMiddle = 568.0f;        // The six chapters fit in its inner width
         constexpr float MinList = 200.0f;
         constexpr float MinLog = 120.0f;
         constexpr float PartsPanel = 160.0f;       // Three parts: what the left column holds over his skills, and needs the height for
@@ -76,8 +78,8 @@ namespace chronicle
 
         // Below the three columns' least size the page is life-compact.yaml: margins 24, the head
         // on two lines, the work at hand over the choice, and a side column of one panel at a time
-        constexpr float FullMinWidth = 2.0f * PageMargin + LeftColumn + RightColumn + 2.0f * ColumnGap + MinMiddle;          // That is 1244
-        constexpr float FullMinHeight = ColumnsTop + ClockPanel + StackGap + RunningPanel + StackGap + PanelChrome + LogFootnote + MinLog + StackGap + PartsPanel + PageMargin;   // That is 980
+        constexpr float FullMinWidth = 2.0f * PageMargin + LeftColumn + RightColumn + 2.0f * ColumnGap + MinMiddle;          // That is 1284
+        constexpr float FullMinHeight = ColumnsTop + ClockPanel + StackGap + RunningPanel + StackGap + PanelChrome + LogFootnote + MinLog + StackGap + PartsPanel + PageMargin;   // That is 840
         constexpr float CompactMargin = 24.0f;
         constexpr float CompactTop = 128.0f;       // Under the tabs
         constexpr float SideColumn = 320.0f;
@@ -523,11 +525,15 @@ namespace chronicle
 
         // The middle column takes what the two fixed ones leave; the choice fills it to the bottom
         const float middle = std::max(MinMiddle, width - 2.0f * PageMargin - LeftColumn - RightColumn - 2.0f * ColumnGap);
-        const float listHeight = std::max(MinList, height - ColumnsTop - PanelChrome - StackGap);
+        // The choice has no heading: the chapters stand at its head, over the list
+        const float listHeight = std::max(MinList, height - ColumnsTop - PlainChrome - TabsRow - StackGap);
 
         if (auto may = piece<Panel>("may"))
         {
             may->setWidth(ecs, middle);
+
+            if (auto tabs = piece<Tabs>("tabs"))
+                tabs->setWidth(ecs, may->innerWidth());
 
             if (auto list = piece<ActivityList>("activities"))
                 list->setSize(ecs, may->innerWidth(), listHeight);
@@ -1994,6 +2000,7 @@ namespace chronicle
             auto line = piece<StatLine>(p);
 
             GlossSpec gloss;
+            gloss.inlineValues = true;
             gloss.title = line ? line->spec.label : p;
             gloss.rows.push_back({"Now", std::to_string(save.stats[p])});
 
@@ -2032,12 +2039,19 @@ namespace chronicle
         for (const auto& a : activities)
         {
             GlossSpec gloss;
+            gloss.inlineValues = true;
             // The head: its name, how often it was done beside it, the kind of thing it is under it.
             // The row itself says none of this: the gloss carries everything but the name, the time
             // and the closing
             gloss.title = textOf(a.fields, "name");
-            gloss.aside = textOf(a.fields, "tally");
             gloss.text = textOf(a.fields, "group");
+
+            // The number of times alone, over how many it can be done when that is limited (0: as
+            // often as he likes)
+            gloss.aside = std::to_string(intOf(a.fields, "done"));
+
+            if (intOf(a.fields, "uses") > 0)
+                gloss.aside += "/" + std::to_string(intOf(a.fields, "uses"));
 
             // A rule under the head, then what it is in time: how long, and who feeds him. When it
             // closes is the tile's to say
@@ -2068,11 +2082,9 @@ namespace chronicle
             for (const auto& r : a.requires)
                 gloss.rows.push_back({textOf(r, "label"), std::to_string(intOf(r, "current")) + " / " + std::to_string(intOf(r, "needed")), intOf(r, "current") < intOf(r, "needed") ? "loss" : "gain"});
 
-            // A footnote only for what stands in his way, or what he is at
+            // A footnote only for the work he is at: what a locked one still asks is in red above
             if (textOf(a.fields, "id") == save.running)
                 gloss.footnote = "AT WORK NOW";
-            else if (boolOf(a.fields, "locked"))
-                gloss.footnote = "NOT YET: IT ASKS MORE THAN HE HAS";
 
             registry->set("activity/" + textOf(a.fields, "id"), gloss);
         }
@@ -2092,6 +2104,7 @@ namespace chronicle
             auto stat = save.stats.find(r.id);
 
             GlossSpec gloss;
+            gloss.inlineValues = true;
             gloss.title = r.name;
             gloss.rows.push_back({"Held", stat != save.stats.end() ? std::to_string(stat->second) : r.value});
 
@@ -2124,6 +2137,7 @@ namespace chronicle
         for (const auto& w : windows)
         {
             GlossSpec gloss;
+            gloss.inlineValues = true;
             gloss.title = textOf(w, "name");
             gloss.text = textOf(w, "note");
             gloss.rows.push_back({"Opens at", std::to_string(intOf(w, "from")), "time"});

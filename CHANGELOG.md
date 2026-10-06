@@ -173,6 +173,15 @@ First tagged release. Everything below describes the state of the engine at the 
   column to the bottom. The market's group comes right under Work. An activity's gloss names a
   gain or a cost by the stat's full name (`Strength  +1`, from the new `name` of `gains` and
   `costs`), and no longer says the age it is done by nor how to begin it.
+- Chronicle: in the Life screen's glosses a value follows its label instead of standing in a
+  column at the right (`GlossSpec::inlineValues`), and a section's heading is set in the figures'
+  weight and full ink. An activity's gloss shows the number of times it was done alone beside the
+  name (`3`, `0/2` for one that can be done twice), and no footnote on a locked one.
+- Chronicle: the Life page is tighter. Its head is two lines (the title in the heading face, the
+  year with what he is beside it), the columns start at 70 instead of 178, stand 12 apart and 16
+  from the window's edges, and the left one is 300 wide. The choice has no heading: the tabs stand
+  at its head (`Tabs::setWidth`). A tile done at once leaves its time line empty instead of
+  writing `NOW`. The page turns compact under 1284 x 840.
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written

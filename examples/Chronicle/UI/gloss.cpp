@@ -179,8 +179,8 @@ namespace chronicle
 
             if (not spec.aside.empty())
             {
-                g.aside = stack("caption", spec.aside, "ink-muted", Overflow::Grow, 0.0f, true);
-                g.aside->entity->get<UiAnchor>()->setTopMargin(y + baselineShift(ecs, "gloss-title", "caption"));
+                g.aside = stack("figure-sm", spec.aside, "ink-muted", Overflow::Grow, 0.0f, true);
+                g.aside->entity->get<UiAnchor>()->setTopMargin(y + baselineShift(ecs, "gloss-title", "figure-sm"));
 
                 titleWidth = std::max(1.0f, inner - g.aside->entity->get<PositionComponent>()->width - GAP2);
             }
@@ -196,8 +196,9 @@ namespace chronicle
         for (const auto& row : spec.rows)
         {
             // A heading opens a section: a hair rule across the gloss, a footnote's room above it,
-            // then its label in caps, faint; with no label, the rule alone. It keeps a label and an
-            // empty value either way, so the rows built stay one for one with the rows given
+            // then its label in caps, in the figures' weight and full ink so it stands over its
+            // rows; with no label, the rule alone. It keeps a label and an empty value either way,
+            // so the rows built stay one for one with the rows given
             if (row.heading)
             {
                 y += GAP2;
@@ -222,7 +223,7 @@ namespace chronicle
                 if (not row.label.empty())
                     y += GAP1;
 
-                Label head = stack("label", row.label, "ink-faint", Overflow::Grow, 0.0f, false);
+                Label head = stack("figure-sm", row.label, "ink", Overflow::Grow, 0.0f, false);
                 Label none = stack("figure-sm", "", "ink", Overflow::Grow, 0.0f, true);
 
                 if (not row.label.empty())
@@ -235,7 +236,17 @@ namespace chronicle
 
             y += GAP1;
             Label lbl = stack("body-sm", row.label, "ink-muted", Overflow::Grow, 0.0f, false);
-            Label val = stack("figure-sm", row.value, toneColor(row.tone), Overflow::Grow, 0.0f, true);
+            Label val = stack("figure-sm", row.value, toneColor(row.tone), Overflow::Grow, 0.0f, not spec.inlineValues);
+
+            // Inline, the value follows its label on the line instead of standing in the column
+            if (spec.inlineValues)
+            {
+                auto a = val.entity->get<UiAnchor>();
+
+                a->setLeftAnchor(PosAnchor{lbl.entity.id, AnchorType::Right});
+                a->setLeftMargin(GAP2);
+            }
+
             y += std::max(boxH(lbl), boxH(val));
             g.rows.emplace_back(lbl, val);
         }
