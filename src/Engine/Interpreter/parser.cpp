@@ -538,9 +538,7 @@ namespace pg
 
         if (match(TokenType::KEYTRUE)) return std::make_shared<Atom>(true);
         if (match(TokenType::KEYFALSE)) return std::make_shared<Atom>(false);
-
-        //TODO see if it is relevant to create a null expression
-        //if(match(TokenType::NULL)) return std::make_shared<Atom>(nullptr)
+        if (match(TokenType::KEYNONE)) return std::make_shared<NoneAtom>();
 
         if (match(TokenType::NUMBER)) return std::make_shared<Atom>(std::stoi(previousToken.text));
         if (match(TokenType::FLOAT)) return std::make_shared<Atom>(std::stof(previousToken.text));

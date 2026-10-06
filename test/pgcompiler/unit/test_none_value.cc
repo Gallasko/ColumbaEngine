@@ -17,7 +17,7 @@ namespace pg
     {
         namespace
         {
-            // None has no literal in the language yet, so the scripts get it from a native
+            // These scripts get none from a native, the literal has its own script test (none_literal.pg)
             void registerNoneNative(VM& vm)
             {
                 vm.registerNative("getNone", [](VM*, int, Value*) -> Value {

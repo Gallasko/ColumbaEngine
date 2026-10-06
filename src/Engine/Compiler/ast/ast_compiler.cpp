@@ -426,6 +426,11 @@ namespace pg
             root.parser.writeConstant(expr->value);
     }
 
+    void AstCompiler::visit(NoneAtom*)
+    {
+        root.parser.writeByte(OpCode::OP_None);
+    }
+
     void AstCompiler::visit(List* expr)
     {
         // Mirror createTable/createTableBrace: for each entry push the value

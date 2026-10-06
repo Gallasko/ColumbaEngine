@@ -63,6 +63,7 @@ namespace pg
         virtual void visit(PostFixExpression* expr) override;
         virtual void visit(CompoundAtom* expr) override;
         virtual void visit(Atom* expr) override;
+        virtual void visit(NoneAtom* expr) override;
         virtual void visit(List* expr) override;
         virtual void visit(This* expr) override;
         virtual void visit(Var* expr) override;

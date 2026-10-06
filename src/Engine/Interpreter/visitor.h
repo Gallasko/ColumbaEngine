@@ -26,6 +26,7 @@ namespace pg
         virtual void visit(PostFixExpression *expr) = 0;
         virtual void visit(CompoundAtom *expr) = 0;
         virtual void visit(Atom *expr) = 0;
+        virtual void visit(NoneAtom *expr) = 0;
         virtual void visit(List *expr) = 0;
         virtual void visit(This *expr) = 0;
         virtual void visit(Var *expr) = 0;

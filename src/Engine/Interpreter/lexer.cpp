@@ -29,6 +29,7 @@ namespace pg
         const std::unordered_map<std::string, TokenType> keywords = {
             {"true",     TokenType::KEYTRUE},
             {"false",    TokenType::KEYFALSE},
+            {"none",     TokenType::KEYNONE},
             {"if",       TokenType::TOK_IF},
             {"else",     TokenType::TOK_ELSE},
             {"var",      TokenType::TOK_VAR},

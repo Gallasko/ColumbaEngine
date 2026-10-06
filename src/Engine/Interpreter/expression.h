@@ -141,6 +141,18 @@ namespace pg
         ElementType value;
     };
 
+    // The none literal. It is not an Atom because ElementType has no none type, an Atom would read as the int 0 in the passes
+    struct NoneAtom : public Expression
+    {
+        NoneAtom() : Expression() {}
+        ~NoneAtom() {}
+
+        virtual void accept(Visitor* visitor) override;
+        virtual std::string prettyPrint() const override { return "none"; }
+        virtual std::string getName() const override { return "none"; }
+        virtual std::string getType() const override { return "NoneAtom"; }
+    };
+
     struct List : public Expression
     {
         List(ExprPtr self, const Token& token, const std::queue<ListElement>& elements) : Expression(), self(self), squareBracket(token), entries(elements) { }

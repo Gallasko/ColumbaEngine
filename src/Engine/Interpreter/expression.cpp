@@ -40,6 +40,11 @@ namespace pg
         visitor->visit(this);
     }
 
+    void NoneAtom::accept(Visitor* visitor)
+    {
+        visitor->visit(this);
+    }
+
     void List::accept(Visitor* visitor)
     {
         visitor->visit(this);

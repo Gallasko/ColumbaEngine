@@ -133,6 +133,9 @@ namespace pg
         OP_Less_RRR,         // Compare less to register: <dest_slot> <src1_slot> <src2_slot> (no push)
         OP_Jump_If_False_R,  // Jump if register is false: <slot> <offset_high> <offset_low>
 
+        // Appended after the existing opcodes so that already compiled .pgc files keep their numbering
+        OP_None,             // Push the none value
+
         OP_Custom = 255, // Custom opcode for extensions (not used by core VM)
     };
 
@@ -348,6 +351,7 @@ namespace pg
             case OpCode::OP_Modulo:
             case OpCode::OP_True:
             case OpCode::OP_False:
+            case OpCode::OP_None:
             case OpCode::OP_Not:
             case OpCode::OP_And:
             case OpCode::OP_Or:

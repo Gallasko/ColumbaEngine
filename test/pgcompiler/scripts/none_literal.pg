@@ -1,0 +1,68 @@
+// The none literal: printing, comparison, truthiness, calls, containers, reassignment
+__dprint(none)
+
+var value = none
+__dprint(value)
+__dprint(value == none)
+__dprint(value != none)
+__dprint(value == 0)
+__dprint(value == false)
+__dprint(0 == none)
+
+if (value)
+{
+    __dprint("truthy")
+}
+else
+{
+    __dprint("falsy")
+}
+
+fun identity(x)
+{
+    var local = x
+
+    return local
+}
+
+__dprint(identity(none))
+__dprint(identity(none) == none)
+
+fun lookup(wanted)
+{
+    if (wanted == 3)
+    {
+        return none
+    }
+
+    return wanted
+}
+
+__dprint(lookup(3))
+__dprint(lookup(4))
+
+var table = {a: none, b: 3}
+__dprint(table.a)
+__dprint(table.a == none)
+__dprint(table.b)
+
+var list = [none, 7]
+__dprint(list[0])
+__dprint(list[1])
+
+value = 5
+__dprint(value)
+value = none
+__dprint(value)
+
+var count = 0
+for (var i = 0; i < 3; i++)
+{
+    var current = none
+
+    if (current == none)
+    {
+        count = count + 1
+    }
+}
+__dprint(count)

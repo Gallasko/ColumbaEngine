@@ -370,6 +370,11 @@ TEST_F(ScriptTestBench, BooleanNot)
     testScript("boolean_not");
 }
 
+TEST_F(ScriptTestBench, NoneLiteral)
+{
+    testScript("none_literal");
+}
+
 // ============================================================================
 // Comparison Operations
 // ============================================================================

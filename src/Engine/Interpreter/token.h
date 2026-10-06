@@ -72,6 +72,7 @@ namespace pg
         FLOAT,
         KEYTRUE,
         KEYFALSE,
+        KEYNONE,
         NOOP,
         INVALID,
 

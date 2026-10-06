@@ -200,6 +200,7 @@ namespace pg
     const DecodedInstruction* op_or_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_true_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_false_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_none_decoded(VM* vm, const DecodedInstruction& instr);
 
     const DecodedInstruction* op_post_incr_global_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_incr_global_decoded(VM* vm, const DecodedInstruction& instr);

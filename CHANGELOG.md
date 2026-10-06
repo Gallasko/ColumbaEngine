@@ -58,6 +58,14 @@ First tagged release. Everything below describes the state of the engine at the 
   nothing.
 - The AST front-end (`ScriptFrontEnd::Ast`) is the default for `VM` and `EntitySystem`; select the Pratt
   compiler with `setVMFrontEnd(ScriptFrontEnd::Pratt)` / `VM::setFrontEnd`.
+- PgScript: `none` is a value and a literal for the absence of a value. It is falsy, equal only to itself
+  (`none == 0` and `none == false` are false), printed as `none`, and `typeOf(none)` is `"none"`. `none` is now
+  a reserved word. A missing table field, a `var` without an initializer and a function without `return` still
+  read as `0`. From C++: `makeNoneValue()` and `IS_NONE`.
+- VM globals: `VM::findGlobal(name)` replaces `findDefinedGlobal` and `findGlobalCell`. It returns the `Value`
+  itself, which is `IS_UNDEFINED` when the global was never declared or not assigned yet; `VM::GlobalCell` is
+  gone and `globalCells` is a `std::vector<Value>`. Migration: `cell->value` becomes the returned value, and
+  the `nullptr` / `defined` checks become `IS_UNDEFINED(value)`.
 - Script bridge: `Compiler/ecsserialization.h` is split by concern into `Compiler/componentproxy.h`
   (proxies and their metadata), `Compiler/componentattach.h` (`attachComp` handlers) and
   `Compiler/tableserialization.h` (table copies); it still includes all three. A component proxy now holds

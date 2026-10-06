@@ -41,6 +41,9 @@ namespace pg
             case TokenType::KEYFALSE:
                 parser.writeByte(OpCode::OP_False);
                 break;
+            case TokenType::KEYNONE:
+                parser.writeByte(OpCode::OP_None);
+                break;
             default:
                 return; // Unreachable
         }
@@ -725,6 +728,7 @@ namespace pg
         {TokenType::FLOAT,        {floatNumber, NULL,       Precedence::NONE}},
         {TokenType::KEYTRUE,      {litteral,    NULL,       Precedence::NONE}},
         {TokenType::KEYFALSE,     {litteral,    NULL,       Precedence::NONE}},
+        {TokenType::KEYNONE,      {litteral,    NULL,       Precedence::NONE}},
         {TokenType::NOOP,         {NULL,        NULL,       Precedence::NONE}},
         {TokenType::INVALID,      {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_CONST,    {NULL,        NULL,       Precedence::NONE}},

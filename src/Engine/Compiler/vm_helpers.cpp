@@ -375,6 +375,7 @@ namespace pg
         // Pure & batchable: Boolean ops
         register_operation(static_cast<uint8_t>(OpCode::OP_True), op_true_decoded, OpCodeInfo::PURE_BATCH);
         register_operation(static_cast<uint8_t>(OpCode::OP_False), op_false_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_None), op_none_decoded, OpCodeInfo::PURE_BATCH);
         register_operation(static_cast<uint8_t>(OpCode::OP_Not), op_not_decoded, OpCodeInfo::PURE_BATCH);
         register_operation(static_cast<uint8_t>(OpCode::OP_And), op_and_decoded, OpCodeInfo::PURE_BATCH);
         register_operation(static_cast<uint8_t>(OpCode::OP_Or), op_or_decoded, OpCodeInfo::PURE_BATCH);

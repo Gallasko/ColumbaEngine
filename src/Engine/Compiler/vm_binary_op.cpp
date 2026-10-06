@@ -161,6 +161,12 @@ namespace pg
         return &instr + 1;
     }
 
+    const DecodedInstruction* op_none_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        vm->push(makeNoneValue());
+        return &instr + 1;
+    }
+
     // The base stack/stack handlers are GENERATED from the kernel spec in
     // /tools/vm_ops_def.pg: they delegate to the same always_inline fusion
     // functors, so the dominant int/double cases never leave the handler.

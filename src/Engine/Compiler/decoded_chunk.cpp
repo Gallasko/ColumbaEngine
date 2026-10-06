@@ -859,6 +859,7 @@ namespace pg
                 case OpCode::OP_Short_Int:
                 case OpCode::OP_True:
                 case OpCode::OP_False:
+                case OpCode::OP_None:
                     pops = 0; pushes = 1;
                     return true;
                 case OpCode::OP_Add:

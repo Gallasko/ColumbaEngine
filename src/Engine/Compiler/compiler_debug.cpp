@@ -314,6 +314,9 @@ namespace pg
             case OpCode::OP_False:
                 return simpleInstruction("OP_False", offset);
 
+            case OpCode::OP_None:
+                return simpleInstruction("OP_None", offset);
+
             case OpCode::OP_Not:
                 return simpleInstruction("OP_Not", offset);
 
@@ -623,6 +626,7 @@ namespace pg
             case OpCode::OP_Modulo: return "OP_Modulo";
             case OpCode::OP_True: return "OP_True";
             case OpCode::OP_False: return "OP_False";
+            case OpCode::OP_None: return "OP_None";
             case OpCode::OP_Not: return "OP_Not";
             case OpCode::OP_And: return "OP_And";
             case OpCode::OP_Or: return "OP_Or";

@@ -41,7 +41,15 @@ __dprint("Sum: " + sum)  // "Sum: 30"
 // Math operations
 var result = (x + y) * 2 - 5
 __dprint(result)  // 55
+
+// No value
+var target = none
+__dprint(target == none)  // true
 ```
+
+`none` stands for the absence of a value. It is falsy and equal only to itself: `none == 0` and
+`none == false` are both false. A missing table field, a `var` without an initializer and a function
+without `return` still read as `0`, not `none`.
 
 ### 3. Functions
 
