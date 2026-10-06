@@ -803,6 +803,7 @@ namespace chronicle
                 {"caption",  ""},
                 {"until",    ""},
                 {"urgent",   false},
+                {"compact",  false},
                 {"state",    "idle"},
                 {"stripe",   false},
                 {"glossKey", ""},
@@ -830,6 +831,7 @@ namespace chronicle
                     s.caption  = stringProp(spec.props, "caption", s.caption);
                     s.until    = stringProp(spec.props, "until", s.until);
                     s.urgent   = getParamBool(spec.props, "urgent", s.urgent);
+                    s.compact  = getParamBool(spec.props, "compact", s.compact);
                     s.state    = enumProp(spec.props, "state", STATE, s.state);
                     s.stripe   = getParamBool(spec.props, "stripe", s.stripe);
                     s.glossKey = stringProp(spec.props, "glossKey", s.glossKey);
@@ -878,6 +880,7 @@ namespace chronicle
                 {"width",  620.0f},
                 {"height", 0.0f},      // > 0: the list keeps that height and its rows scroll
                 {"stripes", true},     // false: every row on the same ground
+                {"compact", false},    // true: rows of a name, a time and a closing, on a ground that says their kind
                 {"z",      20},
             };
 
@@ -890,6 +893,7 @@ namespace chronicle
                     s.width  = numberProp(spec.props, "width", theme, s.width);
                     s.height = numberProp(spec.props, "height", theme, s.height);
                     s.stripes = getParamBool(spec.props, "stripes", s.stripes);
+                    s.compact = getParamBool(spec.props, "compact", s.compact);
                     s.z      = getParamInt(spec.props, "z", s.z);
 
                     ActivityList list = makeActivityList(ecs, s);
@@ -906,8 +910,9 @@ namespace chronicle
                     r.entity = list.root;
                     r.slot   = list.body;
                     r.childDefaults = {
-                        {"width", ElementType{s.width}},
-                        {"z",     ElementType{s.z}},
+                        {"width",   ElementType{s.width}},
+                        {"z",       ElementType{s.z}},
+                        {"compact", ElementType{s.compact}},
                     };
                     keep(ecs, list.root, std::move(list));
                     return r;

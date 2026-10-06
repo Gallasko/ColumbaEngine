@@ -2036,8 +2036,15 @@ namespace chronicle
         for (const auto& a : activities)
         {
             GlossSpec gloss;
+            // The head: its name, how often it was done beside it, the kind of thing it is under it.
+            // The row itself says none of this: the gloss carries everything but the name, the time
+            // and the closing
             gloss.title = textOf(a.fields, "name");
-            // What it is in time: how long, who feeds him, by when
+            gloss.aside = textOf(a.fields, "tally");
+            gloss.text = textOf(a.fields, "group");
+
+            // A rule under the head, then what it is in time: how long, who feeds him, by when
+            gloss.rows.push_back({"", "", "", true});
             gloss.rows.push_back({"Time", intOf(a.fields, "months") > 0 ? std::to_string(intOf(a.fields, "months")) + " mo" : std::string("At once"), "time"});
 
             if (intOf(a.fields, "months") > 0)
@@ -2045,7 +2052,7 @@ namespace chronicle
 
             gloss.rows.push_back({"Done by", std::to_string(intOf(a.fields, "finishBy")), "time"});
 
-            // In sections, each figure in the colour of the way it goes
+            // In sections, a rule between two, each figure in the colour of the way it goes
             if (not a.gains.empty())
                 gloss.rows.push_back({"IT BRINGS", "", "", true});
 
@@ -2064,13 +2071,6 @@ namespace chronicle
             // What he has of it against what it asks: met in the gain's colour, short in the loss's
             for (const auto& r : a.requires)
                 gloss.rows.push_back({textOf(r, "label"), std::to_string(intOf(r, "current")) + " / " + std::to_string(intOf(r, "needed")), intOf(r, "current") < intOf(r, "needed") ? "loss" : "gain"});
-
-            gloss.rows.push_back({"SO FAR", "", "", true});
-            gloss.rows.push_back({"Done", std::to_string(intOf(a.fields, "done"))});
-
-            // -1: as often as he likes
-            if (intOf(a.fields, "left") >= 0)
-                gloss.rows.push_back({"Left", std::to_string(intOf(a.fields, "left")), intOf(a.fields, "left") > 0 ? "" : "muted"});
 
             if (textOf(a.fields, "id") == save.running)
                 gloss.footnote = "AT WORK NOW";

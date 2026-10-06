@@ -113,7 +113,8 @@ children:
         name: activities
         id: life.activities
         height: 200
-        stripes: false        # one ground for every row: the tint is the hover's, the edge the selection's
+        stripes: false
+        compact: true         # a row is its name, its time and its closing, on a ground that says its kind: work that takes months, a thing done at once, what he cannot do yet. The rest is its gloss
 
   # ── Side: one panel at a time ─────────────────────────────────────────────────
   - kind: Tabs

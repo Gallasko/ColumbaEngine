@@ -652,13 +652,14 @@ namespace pg
             EXPECT_FLOAT_EQ(clock->spec.runningMonths, 3.0f);
             EXPECT_EQ(running->row(&f.ecs, "yard")->spec.percent, 50.0f);
 
-            // The same row in the choice fills with it, caption and all
+            // The same row in the choice is told of it too, and draws no rule: the choice's rows are a
+            // name, a time and a closing, the rule is "At work now"'s
             ActivityRow* chosen = life->piece<ActivityList>("activities")->row(&f.ecs, "yard");
             ASSERT_NE(chosen, nullptr);
+            EXPECT_TRUE(chosen->spec.compact);
             EXPECT_EQ(chosen->spec.percent, 50.0f);
-            ASSERT_TRUE(chosen->progress.has_value());
-            EXPECT_FLOAT_EQ(chosen->progress->shown, 50.0f);
             EXPECT_EQ(chosen->spec.caption, f.fact<std::string>("activity.running.caption"));
+            EXPECT_FALSE(chosen->progress.has_value());
 
             for (int i = 0; i < 3; ++i)
                 life->onMonth();
@@ -1070,8 +1071,29 @@ namespace pg
             EXPECT_EQ(row->spec.requirements[0].label, "Strength");
             EXPECT_EQ(row->spec.requirements[0].current, 7);
             EXPECT_EQ(row->spec.requirements[0].needed, 8);
-            ASSERT_TRUE(row->reqs.has_value());
-            EXPECT_EQ(row->reqs->rows[0].item.current, 7);
+
+            // The row itself lists nothing: its gloss says what it asks, with what he has now
+            EXPECT_FALSE(row->reqs.has_value());
+
+            auto registry = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(registry, nullptr);
+
+            const GlossSpec* smithy = registry->find("activity/smithy");
+            ASSERT_NE(smithy, nullptr);
+
+            bool asked = false;
+
+            for (const auto& r : smithy->rows)
+            {
+                if (r.label == "Strength")
+                {
+                    EXPECT_EQ(r.value, "7 / 8");
+                    EXPECT_EQ(r.tone, "loss");
+                    asked = true;
+                }
+            }
+
+            EXPECT_TRUE(asked);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -1554,17 +1576,23 @@ namespace pg
             auto list = life->piece<ActivityList>("activities");
             ASSERT_NE(list, nullptr);
 
+            auto registry = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(registry, nullptr);
+
+            // The row keeps the count and writes none: it stands in its gloss, beside the name
             ActivityRow* roam = list->row(&f.ecs, "roam");
             ASSERT_NE(roam, nullptr);
             EXPECT_EQ(roam->spec.count, "DONE 0 \xC2\xB7 2 LEFT");
-            ASSERT_TRUE(roam->rank.has_value());
-            EXPECT_EQ(roam->rank->spec.text, "DONE 0 \xC2\xB7 2 LEFT");
+            EXPECT_FALSE(roam->rank.has_value());
+
+            ASSERT_NE(registry->find("activity/roam"), nullptr);
+            EXPECT_EQ(registry->find("activity/roam")->aside, "DONE 0 \xC2\xB7 2 LEFT");
 
             ActivityRow* buy = list->row(&f.ecs, "buy.rations");
             ASSERT_NE(buy, nullptr);
             EXPECT_EQ(buy->spec.count, "DONE 0");
-            ASSERT_TRUE(buy->rank.has_value());
-            EXPECT_EQ(buy->rank->spec.text, "DONE 0");
+            EXPECT_FALSE(buy->rank.has_value());
+            EXPECT_EQ(registry->find("activity/buy.rations")->aside, "DONE 0");
 
             // Done at once: the same row, one more
             f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "buy.rations"});
@@ -1573,28 +1601,8 @@ namespace pg
             buy = list->row(&f.ecs, "buy.rations");
             ASSERT_NE(buy, nullptr);
             EXPECT_EQ(buy->spec.count, "DONE 1");
-            EXPECT_EQ(buy->rank->spec.text, "DONE 1");
             EXPECT_EQ(f.fact<std::string>("activity.buy.rations.count"), "DONE 1");
-
-            // The gloss has the same figures
-            auto registry = f.ecs.getSystem<GlossRegistry>();
-            ASSERT_NE(registry, nullptr);
-
-            const GlossSpec* gloss = registry->find("activity/roam");
-            ASSERT_NE(gloss, nullptr);
-
-            bool left = false;
-
-            for (const auto& r : gloss->rows)
-            {
-                if (r.label == "Left")
-                {
-                    EXPECT_EQ(r.value, "2");
-                    left = true;
-                }
-            }
-
-            EXPECT_TRUE(left);
+            EXPECT_EQ(registry->find("activity/buy.rations")->aside, "DONE 1");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2031,7 +2039,15 @@ namespace pg
             EXPECT_EQ(toneOf(campaign, "Arms"), "loss");
             EXPECT_EQ(toneOf(campaign, "Discipline"), "loss");
             EXPECT_EQ(toneOf(campaign, "Meals"), "gain");
-            EXPECT_EQ(toneOf(campaign, "SO FAR"), "<heading>");
+
+            // Its head: how often it was done beside the name, the kind of thing it is under it,
+            // and a rule before the first figures
+            EXPECT_EQ(campaign->aside, "DONE 0 \xC2\xB7 1 LEFT");
+            EXPECT_EQ(campaign->text, "The Keep");
+            ASSERT_FALSE(campaign->rows.empty());
+            EXPECT_TRUE(campaign->rows[0].heading);
+            EXPECT_EQ(campaign->rows[0].label, "");
+            EXPECT_EQ(toneOf(campaign, "Done"), "<none>");
 
             // What a holding's month does to it comes coloured from the rules
             EXPECT_EQ(toneOf(registry->find("resource/rations"), "A month uses"), "loss");

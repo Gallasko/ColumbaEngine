@@ -45,6 +45,7 @@ namespace chronicle
         std::vector<Requirement> requirements;   // Shown when Locked, as a dense list
         std::string until;             // "" or "CLOSES IN 14 MO" (caps): a line of its own under the middle, in every state
         bool urgent = false;           // The closing is near: the line in the loss's colour
+        bool compact = false;          // The name, the time and the closing only: no rank, no `each`, no middle block (its gloss says the rest), on a ground that says its kind
         float percent = 0.0f;          // Running
         float glideTo = 0.0f;          // Running: where the fill is moving to, from percent
         float glideMs = 0.0f;          // Running: in so many ms; 0 = not moving
@@ -84,6 +85,8 @@ namespace chronicle
         bool pressed = false;
         bool keyboardFocus = false;
         bool last = false;             // The last row of its list hides its rule
+        bool compact = false;          // Its ground says its kind
+        bool instant = false;          // Done at once (months 0): a transaction, not work
 
         pg::_unique_id list = 0;       // The list root, once a list adopts the row
 
@@ -165,6 +168,7 @@ namespace chronicle
         float width = 620.0f;
         float height = 0.0f;           // 0 = as tall as its rows; > 0 = that tall, and the rows scroll
         bool stripes = true;           // Alternate grounds like an account book; false: every row on the same ground
+        bool compact = false;          // Every row compact (ActivityRowSpec::compact), whatever its own spec says
         std::vector<ActivityGroup> groups;
         int z = 20;                    // Root, body and rows; the scroll thumb z+6
     };

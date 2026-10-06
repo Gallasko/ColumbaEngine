@@ -157,6 +157,12 @@ First tagged release. Everything below describes the state of the engine at the 
   `time`, `muted`) that colours its value, or be a section heading (`GlossRow::tone`, `heading`);
   an activity's gloss is laid out as what it brings, takes and asks, a requirement green when he
   has it and red when he is short, and a holding's rows come toned from `rules/resources.pg`.
+- Chronicle: the rows of the choice are compact (`ActivityRowSpec::compact`, `compact: true` on an
+  `ActivityList`): a name, the time it takes and when it closes, on a ground that says its kind
+  (work that takes months, a thing done at once, what he cannot do yet). The gains, the count, the
+  requirements and the progress rule left the row for its gloss, which gains a head (the count
+  beside the name, `GlossSpec::aside`, the group under it) and a hair rule between its sections.
+  The progress rule stays in "At work now".
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written

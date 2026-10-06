@@ -16,7 +16,8 @@ namespace chronicle
     enum class GlossKind : uint8_t { Margin, Tooltip };
 
     // "Time", "6 mo" - value set in figure-sm, in the colour its tone names: "" ink, "gain", "loss",
-    // "time", "muted". A heading opens a section: its label alone, in caps, with room above it.
+    // "time", "muted". A heading opens a section: a hair rule across the gloss, then its label
+    // alone, in caps; with no label it is the rule alone.
     struct GlossRow
     {
         std::string label;
@@ -29,6 +30,7 @@ namespace chronicle
     {
         GlossKind kind = GlossKind::Margin;
         std::string title;                 // Tooltip only: gloss-title, ink
+        std::string aside;                 // Tooltip only: caption caps, ink-muted, at the right of the title (how often it was done)
         std::string text;                  // Margin: gloss italic, ink-muted, wraps. Tooltip: body-sm, ink-muted, wraps
         std::vector<GlossRow> rows;        // Tooltip only
         std::string footnote;              // Tooltip only: caption, ink-faint
@@ -41,8 +43,9 @@ namespace chronicle
         pg::EntityRef root;
         pg::EntityRef edge;                // Margin only: the rule-hair left edge
         pg::EntityRef ground, frame;       // Tooltip only
-        std::optional<Label> title, text, footnote;
+        std::optional<Label> title, aside, text, footnote;
         std::vector<std::pair<Label, Label>> rows;
+        std::vector<pg::EntityRef> rules;  // Tooltip only: the hair rule of each heading, in the rows' order
         GlossSpec spec;
 
         float height(pg::EntitySystem*) const;

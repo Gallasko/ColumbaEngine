@@ -223,6 +223,21 @@ namespace chronicle
 
         std::string groundElement(const ActivityRowState& st)
         {
+            // A compact row's ground says its kind: work that takes months, a thing done at once,
+            // what he cannot do yet, the work he is at
+            if (st.compact)
+            {
+                if (st.state == ActivityState::Running)
+                    return "activity.kind.running";
+
+                if (st.state == ActivityState::Locked)
+                    return "activity.kind.locked";
+
+                const std::string kind = st.instant ? "activity.kind.instant" : "activity.kind.timed";
+
+                return st.hovered ? kind + ".hover" : kind;
+            }
+
             if (st.state == ActivityState::Running)
                 return "activity.row.ground.running";
 
@@ -413,6 +428,8 @@ namespace chronicle
         state->id = spec.id;
         state->state = spec.state;
         state->stripe = spec.stripe;
+        state->compact = spec.compact;
+        state->instant = spec.months <= 0;
 
         ecs->attach<FocusableComponent>(root.entity);
 
@@ -523,7 +540,8 @@ namespace chronicle
         prefab->addToPrefab(row.costMark.entity);
         state->costMark = row.costMark.entity.id;
 
-        if (not spec.each.empty())
+        // A compact row keeps the name, the time and the closing: the rest is its gloss's
+        if (not spec.each.empty() and not spec.compact)
         {
             row.each = makeActivityText(ecs, "caption", "activity.each", spec.each, z + 4);
 
@@ -543,7 +561,7 @@ namespace chronicle
         prefab->addToPrefab(row.name.entity);
         state->name = row.name.entity.id;
 
-        if (not spec.rank.empty() or not spec.count.empty())
+        if ((not spec.rank.empty() or not spec.count.empty()) and not spec.compact)
         {
             row.rank = makeActivityText(ecs, "caption", "activity.rank", rankText(spec), z + 4);
 
@@ -590,6 +608,10 @@ namespace chronicle
 
     void ActivityRow::buildMiddle(EntitySystem* ecs)
     {
+        // A compact row has no middle block, in any state: its gloss says what this would
+        if (spec.compact)
+            return;
+
         const float x = Pad + MarkColumn + Gap;
         const float y = Pad + TitleHeight + MiddleGap;
         const float middle = middleWidth();
@@ -695,12 +717,18 @@ namespace chronicle
         else if (gains)
             middle = std::max(static_cast<float>(gains->lineHeightPx), gains->entity.get<PositionComponent>()->height);   // An empty gains line keeps its height
 
-        float height = Pad + TitleHeight + MiddleGap + middle + Pad;
+        // The title line, then the middle block; a compact row has the title line alone
+        float content = Pad + TitleHeight;
 
-        // The closing line stands under the middle block, whatever that is, and the row holds it
+        if (not spec.compact)
+            content += MiddleGap + middle;
+
+        float height = content + Pad;
+
+        // The closing line stands under what the row holds, whatever that is, and the row holds it
         if (until)
         {
-            until->entity->get<UiAnchor>()->setTopMargin(Pad + TitleHeight + MiddleGap + middle + UntilGap);
+            until->entity->get<UiAnchor>()->setTopMargin(content + UntilGap);
 
             height += UntilGap + static_cast<float>(until->lineHeightPx);
         }
@@ -867,6 +895,10 @@ namespace chronicle
             r.spec.months = std::max(0, months);
             r.cost.setText(ecs, monthsText(r.spec.months));
             r.fitName(ecs);
+
+            // Done at once or not is its kind, and a compact row's ground says it
+            r.root.get<ActivityRowState>()->instant = r.spec.months <= 0;
+            paintRow(r);
         });
     }
 
@@ -890,6 +922,13 @@ namespace chronicle
         onLive(this, [ecs, &text](ActivityRow& r) {
             if (r.spec.count == text)
                 return;
+
+            // A compact row keeps the count for whoever says it (its gloss), and shows none
+            if (r.spec.compact)
+            {
+                r.spec.count = text;
+                return;
+            }
 
             if (not r.rank)
             {
@@ -1113,6 +1152,7 @@ namespace chronicle
             {
                 rowSpec.width = spec.width;
                 rowSpec.z = spec.z;
+                rowSpec.compact = rowSpec.compact or spec.compact;
 
                 layout->addEntity(makeActivityRow(ecs, rowSpec).root);
             }

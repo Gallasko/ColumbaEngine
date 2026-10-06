@@ -241,6 +241,104 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A compact row is its name, its time and its closing: no rank, no `each`, no gains, no rule
+        // and no list of what it asks, whatever its state. Its ground says what kind of thing it is:
+        // work that takes months, a thing done at once, what he cannot do yet, the work he is at.
+        TEST(activityrow_test, compact_row_and_its_kinds)
+        {
+            MockLogger logger;
+            ActivityFixture s;
+
+            ActivityRowSpec spec = idleSpec("train.yard");
+            spec.compact = true;
+            spec.rank = "RANK 2";
+            spec.count = "DONE 2";
+            spec.each = "AT THE YARD";
+            ActivityRow timed = s.place(spec, 100.0f, 100.0f);
+
+            // The title line alone, between its paddings
+            EXPECT_FLOAT_EQ(s.pos(timed.root)->height, 12.0f + 24.0f + 12.0f);
+            EXPECT_FALSE(timed.rank.has_value());
+            EXPECT_FALSE(timed.each.has_value());
+            EXPECT_FALSE(timed.gains.has_value());
+            EXPECT_FALSE(timed.progress.has_value());
+            EXPECT_FALSE(timed.reqs.has_value());
+            EXPECT_EQ(timed.name.spec.text, "Train at the yard");
+            EXPECT_EQ(timed.cost.spec.text, "6 mo");
+
+            // What it does not show it still keeps, for whoever says it
+            EXPECT_EQ(timed.spec.count, "DONE 2");
+            timed.setCount(&s.ecs, "DONE 3");
+            EXPECT_EQ(timed.spec.count, "DONE 3");
+            EXPECT_FALSE(timed.rank.has_value());
+
+            ActivityRowSpec bought = idleSpec("buy.rations", "Buy rations");
+            bought.compact = true;
+            bought.months = 0;
+            ActivityRow instant = s.place(bought, 100.0f, 200.0f);
+
+            ActivityRowSpec barred = lockedSpec("train.squire");
+            barred.compact = true;
+            ActivityRow locked = s.place(barred, 100.0f, 300.0f);
+
+            ActivityRowSpec begun = runningSpec("study.letters");
+            begun.compact = true;
+            ActivityRow running = s.place(begun, 100.0f, 400.0f);
+
+            // Three grounds at rest, and the one of the work he is at
+            EXPECT_EQ(s.element(timed.ground), "activity.kind.timed");
+            EXPECT_EQ(s.element(instant.ground), "activity.kind.instant");
+            EXPECT_EQ(s.element(locked.ground), "activity.kind.locked");
+            EXPECT_EQ(s.element(running.ground), "activity.kind.running");
+            EXPECT_EQ(instant.cost.spec.text, "NOW");
+
+            // Locked and running rows are as short: the gloss says what they ask and where they are
+            EXPECT_FLOAT_EQ(s.pos(locked.root)->height, 48.0f);
+            EXPECT_FALSE(locked.reqs.has_value());
+            EXPECT_FLOAT_EQ(s.pos(running.root)->height, 48.0f);
+            EXPECT_FALSE(running.progress.has_value());
+
+            // Hover deepens the kind's own ground; a locked row has no hover
+            s.hover(300.0f, 120.0f);
+            EXPECT_EQ(s.element(timed.ground), "activity.kind.timed.hover");
+
+            s.hover(300.0f, 220.0f);
+            EXPECT_EQ(s.element(timed.ground), "activity.kind.timed");
+            EXPECT_EQ(s.element(instant.ground), "activity.kind.instant.hover");
+
+            s.hover(300.0f, 320.0f);
+            EXPECT_EQ(s.element(instant.ground), "activity.kind.instant");
+            EXPECT_EQ(s.element(locked.ground), "activity.kind.locked");
+
+            s.hover(1000.0f, 800.0f);
+
+            // A state change repaints the ground and builds nothing
+            timed.setState(&s.ecs, ActivityState::Locked);
+            s.pump();
+
+            EXPECT_EQ(s.element(timed.ground), "activity.kind.locked");
+            EXPECT_FALSE(timed.reqs.has_value());
+            EXPECT_FLOAT_EQ(s.pos(timed.root)->height, 48.0f);
+
+            // Its closing stands under the title line, and the row holds it
+            timed.setState(&s.ecs, ActivityState::Idle);
+            timed.setUntil(&s.ecs, "CLOSES IN 14 MO");
+            s.pump();
+
+            ASSERT_TRUE(timed.until.has_value());
+            EXPECT_NEAR(s.pos(timed.until->entity)->y, s.pos(timed.root)->y + 12.0f + 24.0f + 2.0f, 0.5f);
+            EXPECT_FLOAT_EQ(s.pos(timed.root)->height, 48.0f + 2.0f + 16.0f);
+
+            // A thing done at once that comes to take months changes its kind
+            instant.setMonths(&s.ecs, 3);
+            s.pump();
+
+            EXPECT_EQ(s.element(instant.ground), "activity.kind.timed");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // When it closes is a line of its own under the middle block, in every state: the row grows by
         // it, an urgent one is written in the loss's colour, and with nothing to say the line goes.
         TEST(activityrow_test, closing_line)

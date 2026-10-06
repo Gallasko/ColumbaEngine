@@ -14,6 +14,8 @@
 #include "UI/tooltip.h"
 #include "UI/themesystem.h"
 
+#include "Core/textmetrics.h"
+
 using namespace pg;
 
 namespace chronicle
@@ -171,7 +173,19 @@ namespace chronicle
 
         if (not spec.title.empty())
         {
-            g.title = stack("gloss-title", spec.title, "ink", Overflow::Ellipsis, inner, false);
+            // The aside stands at the title's right, on its baseline; the title elides in the room
+            // it leaves
+            float titleWidth = inner;
+
+            if (not spec.aside.empty())
+            {
+                g.aside = stack("caption", spec.aside, "ink-muted", Overflow::Grow, 0.0f, true);
+                g.aside->entity->get<UiAnchor>()->setTopMargin(y + baselineShift(ecs, "gloss-title", "caption"));
+
+                titleWidth = std::max(1.0f, inner - g.aside->entity->get<PositionComponent>()->width - GAP2);
+            }
+
+            g.title = stack("gloss-title", spec.title, "ink", Overflow::Ellipsis, titleWidth, false);
             y += boxH(*g.title) + GAP1;
         }
         if (not spec.text.empty())
@@ -181,14 +195,39 @@ namespace chronicle
         }
         for (const auto& row : spec.rows)
         {
-            // A heading opens a section: caps, faint, with a footnote's room above it. It keeps an
-            // empty value, so the rows built stay one for one with the rows given
+            // A heading opens a section: a hair rule across the gloss, a footnote's room above it,
+            // then its label in caps, faint; with no label, the rule alone. It keeps a label and an
+            // empty value either way, so the rows built stay one for one with the rows given
             if (row.heading)
             {
                 y += GAP2;
+
+                auto rule = makeUiSimple2DShape(ecs, Shape2D::Square, inner, 1.0f);
+                offstage(rule.entity);
+                {
+                    auto a = rule.get<UiAnchor>();
+
+                    a->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
+                    a->setLeftMargin(PAD);
+                    a->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
+                    a->setTopMargin(y);
+                    a->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 2.0f});
+                }
+                ecs->attach<ThemeComponent>(rule.entity, "gloss.rule");
+                root.get<Prefab>()->addToPrefab(rule.entity);
+                g.rules.push_back(rule.entity);
+
+                y += 1.0f;
+
+                if (not row.label.empty())
+                    y += GAP1;
+
                 Label head = stack("label", row.label, "ink-faint", Overflow::Grow, 0.0f, false);
                 Label none = stack("figure-sm", "", "ink", Overflow::Grow, 0.0f, true);
-                y += boxH(head);
+
+                if (not row.label.empty())
+                    y += boxH(head);
+
                 g.rows.emplace_back(head, none);
 
                 continue;

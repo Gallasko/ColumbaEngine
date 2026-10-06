@@ -209,12 +209,73 @@ namespace pg
             auto top = [&](EntityRef e) { return s.pos(e)->y; };
             auto bottom = [&](EntityRef e) { return s.pos(e)->y + s.pos(e)->height; };
 
-            // 8 above a heading, 4 above a row, the first of a section included
-            EXPECT_NEAR(top(g.rows[1].first.entity), bottom(g.rows[0].first.entity) + 8.0f, 0.5f);
+            // A section opens on a hair rule across the gloss, 8 under what came before; its heading
+            // 4 under the rule; a row 4 under what is above it, the first of a section included
+            ASSERT_EQ(g.rules.size(), 2u);
+            EXPECT_EQ(s.token(g.rules[0]), "rule-hair");
+            EXPECT_FLOAT_EQ(s.pos(g.rules[0])->height, 1.0f);
+            EXPECT_NEAR(s.pos(g.rules[0])->width, s.pos(g.root)->width - 24.0f, 0.5f);
+            EXPECT_NEAR(s.pos(g.rules[0])->x, s.pos(g.root)->x + 12.0f, 0.5f);
+
+            EXPECT_NEAR(top(g.rules[0]), bottom(g.rows[0].first.entity) + 8.0f, 0.5f);
+            EXPECT_NEAR(top(g.rows[1].first.entity), bottom(g.rules[0]) + 4.0f, 0.5f);
             EXPECT_NEAR(top(g.rows[2].first.entity), bottom(g.rows[1].first.entity) + 4.0f, 0.5f);
-            EXPECT_NEAR(top(g.rows[3].first.entity), bottom(g.rows[2].first.entity) + 8.0f, 0.5f);
+            EXPECT_NEAR(top(g.rules[1]), bottom(g.rows[2].first.entity) + 8.0f, 0.5f);
             EXPECT_NEAR(top(g.rows[6].first.entity), bottom(g.rows[5].first.entity) + 4.0f, 0.5f);
             EXPECT_NEAR(s.pos(g.root)->height, bottom(g.rows[7].first.entity) + 12.0f - s.pos(g.root)->y, 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The aside stands at the title's right, on its baseline, and the title elides in the room
+        // it leaves. A heading with no label is a rule alone: the rows go on 4 under it.
+        TEST(gloss_test, tooltip_aside_and_bare_rule)
+        {
+            MockLogger logger;
+            GlossFixture s;
+
+            GlossSpec spec; spec.kind = GlossKind::Tooltip;
+            spec.title = "Earn the Hidden Hand's Trust at the North Gate";
+            spec.aside = "DONE 0 \xC2\xB7 1 LEFT";
+            spec.text = "A path";
+            spec.rows = {
+                {"", "", "", true},
+                {"Time", "18 mo", "time"},
+            };
+            Gloss g = makeGloss(&s.ecs, spec);
+            s.settle();
+
+            auto right = [&](EntityRef e) { return s.pos(e)->x + s.pos(e)->width; };
+            auto bottom = [&](EntityRef e) { return s.pos(e)->y + s.pos(e)->height; };
+
+            ASSERT_TRUE(g.title.has_value());
+            ASSERT_TRUE(g.aside.has_value());
+            EXPECT_EQ(g.aside->spec.text, "DONE 0 \xC2\xB7 1 LEFT");
+            EXPECT_EQ(g.aside->spec.style, "caption");
+            EXPECT_EQ(g.aside->spec.color, "ink-muted");
+
+            // Right edge of the gloss's inner width, the title kept clear of it by 8
+            EXPECT_NEAR(right(g.aside->entity), s.pos(g.root)->x + s.pos(g.root)->width - 12.0f, 0.5f);
+            EXPECT_NEAR(g.title->spec.width, s.pos(g.root)->width - 24.0f - s.pos(g.aside->entity)->width - 8.0f, 0.5f);
+            EXPECT_LE(right(g.title->entity), s.pos(g.aside->entity)->x - 8.0f + 0.5f);
+
+            // On the title's line, under its top (a smaller face on the same baseline)
+            EXPECT_GT(s.pos(g.aside->entity)->y, s.pos(g.title->entity)->y);
+            EXPECT_LE(bottom(g.aside->entity), bottom(g.title->entity) + 3.0f);
+
+            // The bare rule: 8 under the text, the row 4 under it, and no room taken by a label
+            ASSERT_EQ(g.rules.size(), 1u);
+            ASSERT_EQ(g.rows.size(), 2u);
+            EXPECT_NEAR(s.pos(g.rules[0])->y, bottom(g.text->entity) + 8.0f, 0.5f);
+            EXPECT_NEAR(s.pos(g.rows[1].first.entity)->y, s.pos(g.rules[0])->y + 1.0f + 4.0f, 0.5f);
+
+            // Without an aside the title has the whole width
+            spec.aside = "";
+            Gloss plain = makeGloss(&s.ecs, spec);
+
+            EXPECT_FALSE(plain.aside.has_value());
+            EXPECT_NEAR(plain.title->spec.width, s.pos(plain.root)->width - 24.0f, 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------

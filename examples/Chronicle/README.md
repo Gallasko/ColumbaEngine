@@ -135,9 +135,13 @@ come from `rules/*.pg` through the scene, never from the component.
   text, rows of right-aligned tabular figures, and a caps footnote — where a row's
   real numbers live. A row may carry a **tone** that colours its value (`gain`, `loss`, `time`,
   `muted`; none or unknown is ink; the label never changes), and a row marked `heading` opens a
-  **section**: its label alone in the caps style, faint, with a footnote's room above it. The
-  Life screen's activity gloss reads in sections (IT BRINGS, IT TAKES, IT ASKS, SO FAR), a
-  requirement green when he has it and red when he is short. The tooltip form is registered under a **key** on
+  **section**: a `rule-hair` rule across the gloss (`gloss.rule`), a footnote's room above it,
+  then its label alone in the caps style, faint; with no label it is the rule alone. An `aside`
+  stands at the title's right, on its baseline (`caption`, `ink-muted`), and the title elides in
+  the room it leaves. The Life screen's activity gloss carries everything its row does not: the
+  name with how often it was done beside it (`DONE 0 · 2 LEFT`), its group under it, a rule,
+  the time, the meals and the age it is done by, then a ruled section for each of IT BRINGS,
+  IT TAKES and IT ASKS, a requirement green when he has it and red when he is short. The tooltip form is registered under a **key** on
   `GlossRegistry` and shown through the engine's `TooltipSystem`
   (`attachGloss(entity, key)`), so delay, placement, flipping and click-to-hide are
   inherited; a missing key shows a `vermilion` fallback, like a missing mark.
@@ -242,7 +246,15 @@ come from `rules/*.pg` through the scene, never from the component.
   `setPercent` ends a glide. `until` (`"CLOSES IN 14 MO"`) is when it closes: a `tick` line of
   its own under the middle block, in every state, 2 px apart; the row grows by it (16 + 2), an
   `urgent` one is written in the loss's colour (`activity.until.urgent`), and `setUntil("")`
-  removes the line.
+  removes the line. A **compact** row (`compact`, or every row of a list with `compact: true`)
+  is its name, its time and its closing, and nothing else: no rank or count, no `each`, no gains,
+  no rule and no list of what it asks, in any state (48 px, 66 with a closing). Its gloss says
+  the rest, and its ground says what kind of thing it is, three at rest: `activity.kind.timed`
+  (work that takes months, a lapis wash), `activity.kind.instant` (a thing done at once, a
+  transaction: ochre) and `activity.kind.locked` (what he cannot do yet: ink, faint), with
+  `activity.kind.running` for the work he is at. Hover deepens the kind's own ground (`.hover`).
+  The setters still keep what a compact row does not show (`setCount`, `setPercent`,
+  `setRequirement`), for whoever says it.
 
 - **ActivityList** (`UI/activityrow.h`) - the rows in groups, headed in the display face
   (`activity.group`, 24 px, `space-3` above all but the first, `space-1` below), with
@@ -553,8 +565,10 @@ all tested (133 `test_chronicle` + engine `t1` green):
 `Scenes/lifescene.h`. The page is `res/chronicle/ui/life.yaml`, built as it is: the head
 (title, what he is and where he comes from, the year line, the age), the tabs, and three
 columns of panels anchored 16 apart. Left (320): his parts and skills in one panel, then
-what he holds. Middle (496): the choice alone, *What Aldren may do*, every row on one ground
-(`stripes: false`) so the only tint is the hover's and the only edge the selection's. Right
+what he holds. Middle (496): the choice alone, *What Aldren may do*, in compact rows
+(`compact: true`): a name, a time and a closing each, on the ground of its kind (work that
+takes months, a thing done at once, what he cannot do yet), everything else in its gloss. The
+running row draws no rule there: the rule is *At work now*'s. Right
 (360): the years (the clock and the doors), the work at hand, the log. The scene does the
 three things a file cannot. In `startUp` it runs the rules and the save and fills the
 rows only they know: the ledgers, the activity lists, the log, the clock's ticks and bands.
