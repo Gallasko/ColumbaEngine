@@ -254,7 +254,22 @@ come from `rules/*.pg` through the scene, never from the component.
   transaction: ochre) and `activity.kind.locked` (what he cannot do yet: ink, faint), with
   `activity.kind.running` for the work he is at. Hover deepens the kind's own ground (`.hover`).
   The setters still keep what a compact row does not show (`setCount`, `setPercent`,
-  `setRequirement`), for whoever says it.
+  `setRequirement`), for whoever says it. A **tile** (`tile`, a compact row stacked for a grid)
+  has no mark: its name is set in `control` (`activity.tile.name`) at its left edge, wrapped in
+  its width over two lines at most, then elided; the time stands under the name, the closing
+  under the time (padding 8, 58 px with a one-line name). `natural` is the height its content
+  asks and `minHeight` what its list asks of it: `setMinHeight` keeps a line's tiles level.
+
+- **Tiles in a list** (`ActivityListSpec::tileWidth`, `tileWidth:` in a file) - with a tile
+  width the rows a list is given (`setRows`) are tiles, as many to a line as fit at that width
+  or more (`columns()`), sharing the list's width 8 apart (`tileSize()`), a new line with every
+  group. A line is a prefab in the list's body (`ActivityLineState`) its tiles are anchored on,
+  so the list's clip and scroll reach them through it, and the list finds its rows through it.
+  Every frame the system levels each line (`ActivitySystem::level`): its tiles are as tall as
+  the tallest asks, and the line holds them with the 8 to the next, so a closing that comes or
+  goes moves what is under it and nothing else. Another width lays the tiles again
+  (`setSize`): each as it stands (state, closing), the selection let go. Rows that are children
+  of the list in a file are not tiles.
 
 - **ActivityList** (`UI/activityrow.h`) - the rows in groups, headed in the display face
   (`activity.group`, 24 px, `space-3` above all but the first, `space-1` below), with
@@ -432,7 +447,7 @@ done while another activity runs. Its row reads `NOW` where the others read thei
 younger, the first thing it asks is the age. `finishBy` (default `lastAge`) is the latest its
 term may end, inclusive: an 18-month activity with `finishBy: 20` is begun by 18.5. Past that
 it is `closed` (`anyAge` for what no age closes). A closing is said ahead: `until` is the months
-he still has to begin it (`"CLOSES IN 14 MO"`, `"LAST MONTH TO BEGIN"`) from `closingShown`
+he still has to begin it (`"CLOSES IN 14 MO"`, `"CLOSES THIS MONTH"`) from `closingShown`
 (24) down, `urgent` from `closingUrgent` (6); the scene writes it on the row
 (`activity.<id>.until`, `.urgent`) every month, so no row leaves the list unannounced, his
 prime's at 30 included. `path` puts an activity on one of `paths` (`warrior`, `mage`, `thief`, each with
@@ -565,10 +580,11 @@ all tested (133 `test_chronicle` + engine `t1` green):
 `Scenes/lifescene.h`. The page is `res/chronicle/ui/life.yaml`, built as it is: the head
 (title, what he is and where he comes from, the year line, the age), the tabs, and three
 columns of panels anchored 16 apart. Left (320): his parts and skills in one panel, then
-what he holds. Middle (496): the choice alone, *What Aldren may do*, in compact rows
-(`compact: true`): a name, a time and a closing each, on the ground of its kind (work that
-takes months, a thing done at once, what he cannot do yet), everything else in its gloss. The
-running row draws no rule there: the rule is *At work now*'s. Right
+what he holds. Middle (496): the choice alone, *What Aldren may do*, as a grid of tiles
+(`compact: true`, `tileWidth: 148`): three to a line at 1320, more as the window widens, each
+a name, a time and a closing on the ground of its kind (work that takes months, a thing done
+at once, what he cannot do yet), everything else in its gloss. The running tile draws no rule
+there: the rule is *At work now*'s. Right
 (360): the years (the clock and the doors), the work at hand, the log. The scene does the
 three things a file cannot. In `startUp` it runs the rules and the save and fills the
 rows only they know: the ledgers, the activity lists, the log, the clock's ticks and bands.

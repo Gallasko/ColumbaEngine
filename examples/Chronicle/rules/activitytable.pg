@@ -24,8 +24,8 @@
 //           showAge, showFrom (the two it is listed by, as below),
 //           tally (how often it was done and, for a limited one, what is left, as the row
 //           writes it: "DONE 2", "DONE 0 · 1 LEFT"),
-//           until ("" or when it closes, as the row writes it: "CLOSES IN 14 MO", "LAST MONTH TO
-//           BEGIN": the months he still has to begin it, from `closingShown` down), urgent (true
+//           until ("" or when it closes, as the row writes it: "CLOSES IN 14 MO", "CLOSES THIS
+//           MONTH": the months he still has to begin it, from `closingShown` down), urgent (true
 //           from `closingUrgent` down),
 //           after (its steps, as below).
 //
@@ -462,7 +462,7 @@ for (var i = 0; i < len(activities); i++)
 
         if (toBegin == 0)
         {
-            a.until = "LAST MONTH TO BEGIN"
+            a.until = "CLOSES THIS MONTH"
         }
     }
 

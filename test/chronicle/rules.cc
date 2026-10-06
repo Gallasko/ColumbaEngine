@@ -318,7 +318,7 @@ namespace pg
             // The last month he may begin it, then closed: nothing more to say
             carters = activityAt(f.rules, 29.75f, boy(), "carters");
 
-            EXPECT_EQ(textOf(carters.fields, "until"), "LAST MONTH TO BEGIN");
+            EXPECT_EQ(textOf(carters.fields, "until"), "CLOSES THIS MONTH");
             EXPECT_TRUE(flag(carters.fields, "urgent"));
             EXPECT_FALSE(flag(carters.fields, "closed"));
 

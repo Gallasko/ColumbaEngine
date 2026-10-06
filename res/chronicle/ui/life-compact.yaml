@@ -115,6 +115,7 @@ children:
         height: 200
         stripes: false
         compact: true         # a row is its name, its time and its closing, on a ground that says its kind: work that takes months, a thing done at once, what he cannot do yet. The rest is its gloss
+        tileWidth: 148        # and the rows are tiles, as many to a line as fit at that width or more: three at 1320, more as the window widens
 
   # ── Side: one panel at a time ─────────────────────────────────────────────────
   - kind: Tabs

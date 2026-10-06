@@ -346,12 +346,16 @@ namespace pg
             EXPECT_NEAR(right("ageNote"), 1552.0f, 0.5f);
             EXPECT_NEAR(f.pos(life->named("page"))->width, 1600.0f, 0.5f);
 
-            // The rows follow the list's width; the choice and the log take the new height
+            // The tiles follow the list's width: a wider list holds one more to a line (four of 180
+            // in 744, 8 apart); the choice and the log take the new height
             auto list = life->piece<ActivityList>("activities");
             EXPECT_NEAR(list->spec.width, 1600.0f - 96.0f - 320.0f - 360.0f - 48.0f - 32.0f, 0.5f);
+            EXPECT_EQ(list->columns(), 4);
             ActivityRow* yard = list->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
-            EXPECT_NEAR(f.pos(yard->root)->width, list->spec.width, 0.5f);
+            EXPECT_TRUE(yard->spec.tile);
+            EXPECT_NEAR(f.pos(yard->root)->width, 180.0f, 0.5f);
+            EXPECT_NEAR(f.pos(yard->root)->width, list->tileSize(), 0.5f);
 
             EXPECT_LE(bottom("may"), 1100.0f);
             EXPECT_GT(bottom("may"), 1100.0f - 32.0f);
@@ -363,7 +367,12 @@ namespace pg
             f.resize(1320.0f, 1020.0f);
             EXPECT_NEAR(f.pos(life->named("may"))->width, 496.0f, 0.5f);
             EXPECT_NEAR(right("clockPanel"), 1272.0f, 0.5f);
-            EXPECT_NEAR(f.pos(yard->root)->width, 464.0f, 0.5f);
+
+            // Three to a line again in 464: the tiles were laid again, the row is another
+            EXPECT_EQ(list->columns(), 3);
+            yard = list->row(&f.ecs, "yard");
+            ASSERT_NE(yard, nullptr);
+            EXPECT_NEAR(f.pos(yard->root)->width, (464.0f - 16.0f) / 3.0f, 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -422,11 +431,12 @@ namespace pg
 
             EXPECT_LE(box("happened").bottom, 600.0f);
 
-            // The rows follow the narrower list
+            // The tiles follow the narrower list: two to a line in 384
             auto list = life->piece<ActivityList>("activities");
+            EXPECT_EQ(list->columns(), 2);
             ActivityRow* yard = list->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
-            EXPECT_NEAR(f.pos(yard->root)->width, 416.0f - 32.0f, 0.5f);
+            EXPECT_NEAR(f.pos(yard->root)->width, (416.0f - 32.0f - 8.0f) / 2.0f, 0.5f);
 
             // One side panel at a time: his parts first, the log on its tab
             EXPECT_TRUE(shown("parts"));
@@ -492,7 +502,7 @@ namespace pg
 
             ActivityRow* yard = life->piece<ActivityList>("activities")->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
-            EXPECT_NEAR(f.pos(yard->root)->width, 416.0f - 32.0f, 0.5f);
+            EXPECT_NEAR(f.pos(yard->root)->width, (416.0f - 32.0f - 8.0f) / 2.0f, 0.5f);
 
             auto p = f.pos(life->named("may"));
             EXPECT_LE(p->y + p->height, 600.0f);

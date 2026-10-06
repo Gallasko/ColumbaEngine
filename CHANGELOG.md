@@ -163,6 +163,11 @@ First tagged release. Everything below describes the state of the engine at the 
   requirements and the progress rule left the row for its gloss, which gains a head (the count
   beside the name, `GlossSpec::aside`, the group under it) and a hair rule between its sections.
   The progress rule stays in "At work now".
+- Chronicle: the choice is a grid. With a tile width (`ActivityListSpec::tileWidth`, `tileWidth:`
+  in a file) a list lays its rows as tiles, as many to a line as fit: three at 1320, more as the
+  window widens. A tile is the name over the time and the closing; the tiles of a line are level,
+  and another width lays them again. The last month an activity may be begun reads
+  `CLOSES THIS MONTH`.
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written

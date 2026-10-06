@@ -79,6 +79,10 @@ namespace chronicle
         constexpr float CostMarkGap = 4.0f;
         constexpr float EachGap = 2.0f;
         constexpr float UntilGap = 2.0f;         // Above the line saying when it closes
+        constexpr float TilePad = 8.0f;          // space-2 padding of a tile
+        constexpr float TileLineGap = 2.0f;      // Between a tile's name and its time
+        constexpr float TileGap = 8.0f;          // space-2 between two tiles, on a line and from line to line
+        constexpr int TileNameLines = 2;         // A tile's name wraps to that many lines, then elides
         constexpr float MaxRequirementWidth = 300.0f;
         constexpr float DoubleReleaseMs = 400.0f;
         constexpr float HeadingHeight = 24.0f;
@@ -271,6 +275,14 @@ namespace chronicle
             }
         }
 
+        // A tile's name is set in the control face, a row's in the display one
+        std::string nameElement(const ActivityRowState& st)
+        {
+            const std::string name = st.tile ? "activity.tile.name" : "activity.name";
+
+            return st.state == ActivityState::Locked ? name + ".locked" : name;
+        }
+
         // State and flags -> the element of every part. Also the rule of the last row and the ring.
         void paint(EntitySystem* ecs, EntityRef root)
         {
@@ -283,10 +295,10 @@ namespace chronicle
             setElement(entityOf(ecs, st.ground), groundElement(st));
             setElement(entityOf(ecs, st.edge), edgeElement(st));
             setElement(entityOf(ecs, st.mark), markElement(st));
-            setElement(entityOf(ecs, st.name), locked ? "activity.name.locked" : "activity.name");
+            setElement(entityOf(ecs, st.name), nameElement(st));
             setElement(entityOf(ecs, st.cost), locked ? "activity.cost.locked" : "activity.cost");
 
-            setVisible(entityOf(ecs, st.rule), not st.last);
+            setVisible(entityOf(ecs, st.rule), not st.last and not st.tile);
             setVisible(entityOf(ecs, st.ring), st.keyboardFocus and not locked);
         }
 
@@ -303,10 +315,10 @@ namespace chronicle
             setElement(row.ground, groundElement(st));
             setElement(row.edge, edgeElement(st));
             setElement(row.mark.entity, markElement(st));
-            setElement(row.name.entity, locked ? "activity.name.locked" : "activity.name");
+            setElement(row.name.entity, nameElement(st));
             setElement(row.cost.entity, locked ? "activity.cost.locked" : "activity.cost");
 
-            setVisible(row.rule, not st.last);
+            setVisible(row.rule, not st.last and not st.tile);
             setVisible(row.ring, st.keyboardFocus and not locked);
         }
 
@@ -336,6 +348,54 @@ namespace chronicle
             return nullptr;
         }
 
+        // A line of tiles: a prefab the tiles stand on side by side, so the list's clip and its
+        // scroll reach them through it. The list's body stacks the lines.
+        EntityRef makeTileLine(EntitySystem* ecs, float width, int z)
+        {
+            auto line = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(z));
+            line.get<PositionComponent>()->setWidth(width);
+            ecs->attach<ActivityLineState>(line.entity);
+
+            return line.entity;
+        }
+
+        void placeTile(EntityRef line, EntityRef tile, float x)
+        {
+            auto anchor = tile->get<UiAnchor>();
+
+            anchor->setLeftAnchor(PosAnchor{line.id, AnchorType::Left});
+            anchor->setLeftMargin(x);
+            anchor->setTopAnchor(PosAnchor{line.id, AnchorType::Top});
+            anchor->setZConstrain(PosConstrain{line.id, AnchorType::Z});
+
+            line->get<Prefab>()->addToPrefab(tile);
+            line->get<ActivityLineState>()->tiles.push_back(tile);
+        }
+
+        // The tiles of a line are as tall as the tallest asks to be, and the line holds them with
+        // the gap to the next. Nothing moves when they already are.
+        void levelLine(EntitySystem* ecs, EntityRef line)
+        {
+            float tallest = 0.0f;
+
+            for (auto& tile : line->get<ActivityLineState>()->tiles)
+            {
+                if (hasComp<ActivityRow>(tile))
+                    tallest = std::max(tallest, tile->get<ActivityRow>()->natural);
+            }
+
+            for (auto& tile : line->get<ActivityLineState>()->tiles)
+            {
+                if (hasComp<ActivityRow>(tile))
+                    tile->get<ActivityRow>()->setMinHeight(ecs, tallest);
+            }
+
+            auto pos = line->get<PositionComponent>();
+
+            if (std::abs(pos->height - (tallest + TileGap)) > 0.01f)
+                pos->setHeight(tallest + TileGap);
+        }
+
         // Collects the refs the layouts hold, not ids: the rows of a list built during a frame
         // are not in the entity pool yet.
         void walkList(EntityRef entity, std::vector<EntityRef>& rows, std::vector<EntityRef>& headings)
@@ -352,6 +412,15 @@ namespace chronicle
             if (entity->has<ActivityHeadingState>())
             {
                 headings.push_back(entity);
+                return;
+            }
+
+            // A line of tiles: its rows, left to right
+            if (entity->has<ActivityLineState>())
+            {
+                for (auto& tile : entity->get<ActivityLineState>()->tiles)
+                    walkList(tile, rows, headings);
+
                 return;
             }
 
@@ -401,6 +470,7 @@ namespace chronicle
         ActivityRowSpec spec = specIn;
         spec.months = std::max(0, spec.months);
         spec.percent = std::clamp(spec.percent, 0.0f, 100.0f);
+        spec.compact = spec.compact or spec.tile;   // A tile is a compact row, stacked
 
         if (not ecs->getSystem<ActivitySystem>())
         {
@@ -430,6 +500,7 @@ namespace chronicle
         state->stripe = spec.stripe;
         state->compact = spec.compact;
         state->instant = spec.months <= 0;
+        state->tile = spec.tile;
 
         ecs->attach<FocusableComponent>(root.entity);
 
@@ -499,43 +570,61 @@ namespace chronicle
         row.ring = ring.entity;
         state->ring = ring.entity.id;
 
-        // Mark: S24 (the design system draws 22; the kit registers 18 and 24), centred in its column
-        row.mark = makeMark(ecs, {spec.glyph, MarkSize::S24, "ink-muted", z + 3});
+        // Mark: S24 (the design system draws 22; the kit registers 18 and 24), centred in its column.
+        // A tile has none: its width is the name's
+        if (not spec.tile)
         {
-            auto anchor = row.mark.entity->get<UiAnchor>();
+            row.mark = makeMark(ecs, {spec.glyph, MarkSize::S24, "ink-muted", z + 3});
+            {
+                auto anchor = row.mark.entity->get<UiAnchor>();
 
-            anchor->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
-            anchor->setLeftMargin(Pad + (MarkColumn - px(MarkSize::S24)) / 2.0f);
-            anchor->setVerticalCenter(PosAnchor{rootId, AnchorType::VerticalCenter});
-            anchor->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
+                anchor->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
+                anchor->setLeftMargin(Pad + (MarkColumn - px(MarkSize::S24)) / 2.0f);
+                anchor->setVerticalCenter(PosAnchor{rootId, AnchorType::VerticalCenter});
+                anchor->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
+            }
+            row.mark.entity->get<ThemeComponent>()->setElement("activity.mark");
+            prefab->addToPrefab(row.mark.entity);
+            state->mark = row.mark.entity.id;
         }
-        row.mark.entity->get<ThemeComponent>()->setElement("activity.mark");
-        prefab->addToPrefab(row.mark.entity);
-        state->mark = row.mark.entity.id;
 
-        // Right column: the cost on the title line's baseline, `each` under it
+        // The cost and its time mark. On a row: the right column, on the title line's baseline, `each`
+        // under it. On a tile: at the left, under the name (resize sets how far down)
         row.cost = makeActivityText(ecs, "control", "activity.cost", monthsText(spec.months), z + 4);
+        row.costMark = makeMark(ecs, {"time", MarkSize::S14, "status-time", z + 3});
+
         {
             auto anchor = row.cost.entity->get<UiAnchor>();
+            auto markAnchor = row.costMark.entity->get<UiAnchor>();
 
-            anchor->setRightAnchor(PosAnchor{rootId, AnchorType::Right});
-            anchor->setRightMargin(Pad);
             anchor->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
-            anchor->setTopMargin(Pad + baselineShift(ecs, "tab", "control"));
             anchor->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 4.0f});
+
+            markAnchor->setVerticalCenter(PosAnchor{row.cost.entity.id, AnchorType::VerticalCenter});
+            markAnchor->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
+
+            if (spec.tile)
+            {
+                markAnchor->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
+                markAnchor->setLeftMargin(TilePad);
+
+                anchor->setLeftAnchor(PosAnchor{row.costMark.entity.id, AnchorType::Right});
+                anchor->setLeftMargin(CostMarkGap);
+            }
+            else
+            {
+                anchor->setRightAnchor(PosAnchor{rootId, AnchorType::Right});
+                anchor->setRightMargin(Pad);
+                anchor->setTopMargin(Pad + baselineShift(ecs, "tab", "control"));
+
+                markAnchor->setRightAnchor(PosAnchor{row.cost.entity.id, AnchorType::Left});
+                markAnchor->setRightMargin(CostMarkGap);
+            }
         }
+
         prefab->addToPrefab(row.cost.entity);
         state->cost = row.cost.entity.id;
 
-        row.costMark = makeMark(ecs, {"time", MarkSize::S14, "status-time", z + 3});
-        {
-            auto anchor = row.costMark.entity->get<UiAnchor>();
-
-            anchor->setRightAnchor(PosAnchor{row.cost.entity.id, AnchorType::Left});
-            anchor->setRightMargin(CostMarkGap);
-            anchor->setVerticalCenter(PosAnchor{row.cost.entity.id, AnchorType::VerticalCenter});
-            anchor->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
-        }
         row.costMark.entity->get<ThemeComponent>()->setElement("activity.cost.mark");
         prefab->addToPrefab(row.costMark.entity);
         state->costMark = row.costMark.entity.id;
@@ -555,9 +644,28 @@ namespace chronicle
             prefab->addToPrefab(row.each->entity);
         }
 
-        // Title line: the name, then the rank on its baseline
-        row.name = makeActivityText(ecs, "tab", "activity.name", spec.name, z + 4);
-        placeIn(row.name.entity, rootId, Pad + MarkColumn + Gap, Pad, 4.0f);
+        // Title line: the name, then the rank on its baseline. A tile's name is set smaller, at the
+        // tile's left edge, and wraps in its width
+        if (spec.tile)
+        {
+            LabelSpec ls;
+            ls.style = "control";
+            ls.text = spec.name;
+            ls.z = z + 4;
+            ls.overflow = Overflow::Wrap;
+            ls.width = std::max(1.0f, W - 2.0f * TilePad);
+            ls.maxLines = TileNameLines;
+
+            row.name = makeLabel(ecs, ls);
+            row.name.entity->get<ThemeComponent>()->setElement("activity.tile.name");
+            placeIn(row.name.entity, rootId, TilePad, TilePad, 4.0f);
+        }
+        else
+        {
+            row.name = makeActivityText(ecs, "tab", "activity.name", spec.name, z + 4);
+            placeIn(row.name.entity, rootId, Pad + MarkColumn + Gap, Pad, 4.0f);
+        }
+
         prefab->addToPrefab(row.name.entity);
         state->name = row.name.entity.id;
 
@@ -698,7 +806,7 @@ namespace chronicle
         else
         {
             until = makeActivityText(ecs, "tick", "activity.until", spec.until, spec.z + 4);
-            placeIn(until->entity, root.id, Pad + MarkColumn + Gap, 0.0f, 4.0f);
+            placeIn(until->entity, root.id, spec.tile ? TilePad : Pad + MarkColumn + Gap, 0.0f, 4.0f);
             root->get<Prefab>()->addToPrefab(until->entity);
             clipLike(ecs, root, until->entity);
         }
@@ -717,13 +825,27 @@ namespace chronicle
         else if (gains)
             middle = std::max(static_cast<float>(gains->lineHeightPx), gains->entity.get<PositionComponent>()->height);   // An empty gains line keeps its height
 
-        // The title line, then the middle block; a compact row has the title line alone
+        // The title line, then the middle block; a compact row has the title line alone, and a
+        // tile its name, on as many lines as it takes, over its time
         float content = Pad + TitleHeight;
+        float pad = Pad;
 
-        if (not spec.compact)
+        if (spec.tile)
+        {
+            const float nameHeight = std::max(static_cast<float>(name.lineHeightPx), name.entity.get<PositionComponent>()->height);
+            const float costTop = TilePad + nameHeight + TileLineGap;
+
+            cost.entity->get<UiAnchor>()->setTopMargin(costTop);
+
+            content = costTop + cost.entity.get<PositionComponent>()->height;
+            pad = TilePad;
+        }
+        else if (not spec.compact)
+        {
             content += MiddleGap + middle;
+        }
 
-        float height = content + Pad;
+        float height = content + pad;
 
         // The closing line stands under what the row holds, whatever that is, and the row holds it
         if (until)
@@ -732,6 +854,10 @@ namespace chronicle
 
             height += UntilGap + static_cast<float>(until->lineHeightPx);
         }
+
+        // What it asks for itself, then what the list asks of it: the tiles of a line are level
+        natural = height;
+        height = std::max(height, spec.minHeight);
 
         auto pos = root.get<PositionComponent>();
 
@@ -746,6 +872,14 @@ namespace chronicle
 
     void ActivityRow::fitName(EntitySystem* ecs)
     {
+        // A tile's name has the tile's width, and wraps in it
+        if (spec.tile)
+        {
+            name.setWidth(ecs, std::max(1.0f, spec.width - 2.0f * TilePad));
+
+            return;
+        }
+
         // The name hugs its text, so the rank follows it; it is elided only when the room
         // between the mark and the cost is too small for it.
         const float rankWidth = rank ? rank->entity.get<PositionComponent>()->width + RankGap : 0.0f;
@@ -878,6 +1012,10 @@ namespace chronicle
             r.spec.name = text;
             r.name.setText(ecs, text);
             r.fitName(ecs);
+
+            // A tile's name may take another line, or one less
+            if (r.spec.tile)
+                r.resize(ecs);
         });
     }
 
@@ -885,7 +1023,10 @@ namespace chronicle
     {
         onLive(this, [ecs, &glyph](ActivityRow& r) {
             r.spec.glyph = glyph;
-            r.mark.setName(ecs, glyph);
+
+            // A tile keeps the glyph and draws no mark
+            if (not r.mark.entity.empty())
+                r.mark.setName(ecs, glyph);
         });
     }
 
@@ -939,6 +1080,17 @@ namespace chronicle
             r.spec.count = text;
             r.rank->setText(ecs, rankText(r.spec));
             r.fitName(ecs);
+        });
+    }
+
+    void ActivityRow::setMinHeight(EntitySystem* ecs, float height)
+    {
+        onLive(this, [ecs, height](ActivityRow& r) {
+            if (std::abs(r.spec.minHeight - height) < 0.01f)
+                return;
+
+            r.spec.minHeight = std::max(0.0f, height);
+            r.resize(ecs);
         });
     }
 
@@ -1143,24 +1295,79 @@ namespace chronicle
 
         spec.groups = groups;
 
+        const int perLine = columns();
+        const float tile = tileSize();
+
         for (const auto& group : groups)
         {
             if (not group.label.empty())
                 layout->addEntity(makeActivityHeading(ecs, group.label, spec.width, spec.z));
 
+            // Tiles: as many to a line as fit, a new line when one is full and with every group
+            EntityRef line;
+            int onLine = 0;
+
             for (auto rowSpec : group.rows)
             {
-                rowSpec.width = spec.width;
                 rowSpec.z = spec.z;
                 rowSpec.compact = rowSpec.compact or spec.compact;
 
-                layout->addEntity(makeActivityRow(ecs, rowSpec).root);
+                if (perLine <= 0)
+                {
+                    rowSpec.width = spec.width;
+
+                    layout->addEntity(makeActivityRow(ecs, rowSpec).root);
+
+                    continue;
+                }
+
+                if (line.empty() or onLine == perLine)
+                {
+                    if (not line.empty())
+                        levelLine(ecs, line);
+
+                    line = makeTileLine(ecs, spec.width, spec.z);
+                    layout->addEntity(line);
+                    onLine = 0;
+                }
+
+                rowSpec.width = tile;
+                rowSpec.tile = true;
+                rowSpec.minHeight = 0.0f;
+
+                placeTile(line, makeActivityRow(ecs, rowSpec).root, static_cast<float>(onLine) * (tile + TileGap));
+
+                ++onLine;
             }
+
+            if (not line.empty())
+                levelLine(ecs, line);
         }
+    }
+
+    int ActivityList::columns() const
+    {
+        if (spec.tileWidth <= 0.0f)
+            return 0;
+
+        // One more tile needs its width and the gap before it
+        return std::max(1, static_cast<int>(std::floor((spec.width + TileGap) / (spec.tileWidth + TileGap))));
+    }
+
+    float ActivityList::tileSize() const
+    {
+        const int perLine = columns();
+
+        if (perLine <= 0)
+            return spec.width;
+
+        return (spec.width - static_cast<float>(perLine - 1) * TileGap) / static_cast<float>(perLine);
     }
 
     void ActivityList::setSize(EntitySystem* ecs, float width, float height)
     {
+        const bool widened = std::abs(spec.width - width) > 0.5f;
+
         spec.width = width;
         root.get<PositionComponent>()->setWidth(width);   // The body is anchored to both sides
 
@@ -1175,6 +1382,32 @@ namespace chronicle
         std::vector<EntityRef> rows;
         std::vector<EntityRef> headings;
         walkList(body, rows, headings);
+
+        // Tiles: another width is another number to a line, or other tiles. They are laid again,
+        // each as it stands now (its state, its closing), the selection let go
+        if (spec.tileWidth > 0.0f)
+        {
+            if (not widened)
+                return;
+
+            std::vector<ActivityGroup> groups = spec.groups;
+
+            for (auto& group : groups)
+            {
+                for (auto& row : group.rows)
+                {
+                    for (auto& entity : rows)
+                    {
+                        if (entity->has<ActivityRow>() and entity->get<ActivityRow>()->spec.id == row.id)
+                            row = entity->get<ActivityRow>()->spec;
+                    }
+                }
+            }
+
+            setRows(ecs, groups);
+
+            return;
+        }
 
         for (auto& entity : rows)
         {
@@ -1293,7 +1526,25 @@ namespace chronicle
         for (auto list : view<ActivityListState>())
         {
             if (auto entity = ecsRef->getEntity(list->entityId))
+            {
                 adopt(entity);
+                level(entity);
+            }
+        }
+    }
+
+    void ActivitySystem::level(EntityRef listRoot)
+    {
+        EntityRef body = listRoot->get<Prefab>()->getEntity("body");
+
+        if (body.empty() or not body->has<VerticalLayout>())
+            return;
+
+        // A tile that gained or lost a line (its closing, its name) changes what its line asks
+        for (auto& child : body->get<VerticalLayout>()->entities)
+        {
+            if (hasComp<ActivityLineState>(child))
+                levelLine(ecsRef, child);
         }
     }
 

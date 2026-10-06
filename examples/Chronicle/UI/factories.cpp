@@ -881,6 +881,7 @@ namespace chronicle
                 {"height", 0.0f},      // > 0: the list keeps that height and its rows scroll
                 {"stripes", true},     // false: every row on the same ground
                 {"compact", false},    // true: rows of a name, a time and a closing, on a ground that says their kind
+                {"tileWidth", 0.0f},   // > 0: the rows given by setRows are tiles, as many to a line as fit at that width or more
                 {"z",      20},
             };
 
@@ -894,6 +895,7 @@ namespace chronicle
                     s.height = numberProp(spec.props, "height", theme, s.height);
                     s.stripes = getParamBool(spec.props, "stripes", s.stripes);
                     s.compact = getParamBool(spec.props, "compact", s.compact);
+                    s.tileWidth = numberProp(spec.props, "tileWidth", theme, s.tileWidth);
                     s.z      = getParamInt(spec.props, "z", s.z);
 
                     ActivityList list = makeActivityList(ecs, s);

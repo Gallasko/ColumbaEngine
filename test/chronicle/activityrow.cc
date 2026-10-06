@@ -241,6 +241,130 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A list with a tile width lays its rows as tiles, as many to a line as fit, 8 apart: the name
+        // (two lines at most) over the time, no mark. The tiles of a line are as tall as the
+        // tallest, a group starts a line of its own, and another width lays them again.
+        TEST(activityrow_test, tiles_on_lines)
+        {
+            MockLogger logger;
+            ActivityFixture s;
+
+            ActivityRowSpec bought = idleSpec("e", "Buy");
+            bought.months = 0;
+
+            ActivityListSpec spec;
+            spec.id = "choice";
+            spec.width = 464.0f;
+            spec.tileWidth = 148.0f;
+            spec.groups = {
+                {"Work", {idleSpec("a", "Carry"), idleSpec("b", "Practice with Wooden Blades and with Shields"), idleSpec("c", "Mill"), idleSpec("d", "Yard")}},
+                {"Market", {bought}},
+            };
+            ActivityList list = s.placeList(spec);
+            s.pump();
+
+            // Three of 149 and a third fit in 464, 8 apart
+            EXPECT_EQ(list.columns(), 3);
+            EXPECT_NEAR(list.tileSize(), (464.0f - 16.0f) / 3.0f, 0.01f);
+
+            ActivityRow* a = list.row(&s.ecs, "a");
+            ActivityRow* b = list.row(&s.ecs, "b");
+            ActivityRow* c = list.row(&s.ecs, "c");
+            ActivityRow* d = list.row(&s.ecs, "d");
+            ActivityRow* e = list.row(&s.ecs, "e");
+
+            for (ActivityRow* row : {a, b, c, d, e})
+            {
+                ASSERT_NE(row, nullptr);
+                EXPECT_TRUE(row->spec.tile);
+                EXPECT_TRUE(row->spec.compact);
+                EXPECT_NEAR(s.pos(row->root)->width, list.tileSize(), 0.5f);
+
+                // A tile: no mark, no rank, no gains, its name in the control face
+                EXPECT_TRUE(row->mark.entity.empty());
+                EXPECT_FALSE(row->rank.has_value());
+                EXPECT_FALSE(row->gains.has_value());
+                EXPECT_EQ(row->name.spec.style, "control");
+            }
+
+            // Side by side on the first line, then the fourth under the first
+            const float step = list.tileSize() + 8.0f;
+
+            EXPECT_NEAR(s.pos(a->root)->x, s.pos(list.root)->x, 0.5f);
+            EXPECT_NEAR(s.pos(b->root)->x, s.pos(a->root)->x + step, 0.5f);
+            EXPECT_NEAR(s.pos(c->root)->x, s.pos(a->root)->x + 2.0f * step, 0.5f);
+            EXPECT_NEAR(s.pos(b->root)->y, s.pos(a->root)->y, 0.5f);
+            EXPECT_NEAR(s.pos(c->root)->y, s.pos(a->root)->y, 0.5f);
+            EXPECT_NEAR(s.pos(d->root)->x, s.pos(a->root)->x, 0.5f);
+
+            // The long name takes two lines; its line's tiles are as tall as it is
+            EXPECT_GT(b->natural, a->natural);
+            EXPECT_NEAR(s.pos(b->root)->height, b->natural, 0.5f);
+            EXPECT_NEAR(s.pos(a->root)->height, b->natural, 0.5f);
+            EXPECT_NEAR(s.pos(c->root)->height, b->natural, 0.5f);
+            EXPECT_NEAR(s.pos(d->root)->y, s.pos(a->root)->y + b->natural + 8.0f, 0.5f);
+            EXPECT_NEAR(s.pos(d->root)->height, d->natural, 0.5f);
+
+            // The time under the name, from the tile's left edge
+            EXPECT_NEAR(s.pos(a->name.entity)->x, s.pos(a->root)->x + 8.0f, 0.5f);
+            EXPECT_NEAR(s.pos(a->name.entity)->y, s.pos(a->root)->y + 8.0f, 0.5f);
+            EXPECT_NEAR(s.pos(a->cost.entity)->y, s.pos(a->name.entity)->y + s.pos(a->name.entity)->height + 2.0f, 0.5f);
+            EXPECT_NEAR(s.pos(a->costMark.entity)->x, s.pos(a->root)->x + 8.0f, 0.5f);
+            EXPECT_GT(s.pos(a->cost.entity)->x, s.pos(a->costMark.entity)->x);
+
+            // Another group, another line, under its heading; its kind on its ground
+            EXPECT_NEAR(s.pos(e->root)->x, s.pos(a->root)->x, 0.5f);
+            EXPECT_GT(s.pos(e->root)->y, s.pos(d->root)->y + s.pos(d->root)->height);
+            EXPECT_EQ(s.element(e->ground), "activity.kind.instant");
+            EXPECT_EQ(s.element(a->ground), "activity.kind.timed");
+
+            // A closing on one tile: its line grows with it, and what is under moves down
+            const float marketY = s.pos(e->root)->y;
+
+            d->setUntil(&s.ecs, "CLOSES IN 3 MO", true);
+            s.pump();
+            s.pump();
+
+            EXPECT_NEAR(s.pos(d->root)->height, d->natural, 0.5f);
+            EXPECT_NEAR(s.pos(e->root)->y, marketY + 18.0f, 0.5f);
+
+            // Selection is the list's, as with rows
+            list.select(&s.ecs, "c");
+            s.pump();
+
+            EXPECT_EQ(list.selected(), "c");
+
+            // Wider: four to a line, the tiles laid again as they stood
+            list.setSize(&s.ecs, 620.0f, 0.0f);
+            s.pump();
+            s.pump();
+
+            EXPECT_EQ(list.columns(), 4);
+
+            a = list.row(&s.ecs, "a");
+            d = list.row(&s.ecs, "d");
+            ASSERT_NE(a, nullptr);
+            ASSERT_NE(d, nullptr);
+
+            EXPECT_NEAR(s.pos(a->root)->width, (620.0f - 24.0f) / 4.0f, 0.5f);
+            EXPECT_NEAR(s.pos(d->root)->y, s.pos(a->root)->y, 0.5f);
+            EXPECT_NEAR(s.pos(d->root)->x, s.pos(a->root)->x + 3.0f * ((620.0f - 24.0f) / 4.0f + 8.0f), 0.5f);
+            EXPECT_EQ(d->spec.until, "CLOSES IN 3 MO");
+            EXPECT_TRUE(d->spec.urgent);
+
+            // Without a tile width the rows are rows
+            ActivityListSpec plain;
+            plain.groups = {{"Training", {idleSpec("x"), idleSpec("y")}}};
+            ActivityList rows = s.placeList(plain, 100.0f, 600.0f);
+
+            EXPECT_EQ(rows.columns(), 0);
+            EXPECT_FALSE(rows.row(&s.ecs, "x")->spec.tile);
+            EXPECT_NEAR(s.pos(rows.row(&s.ecs, "y")->root)->y, s.pos(rows.row(&s.ecs, "x")->root)->y + 68.0f, 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A compact row is its name, its time and its closing: no rank, no `each`, no gains, no rule
         // and no list of what it asks, whatever its state. Its ground says what kind of thing it is:
         // work that takes months, a thing done at once, what he cannot do yet, the work he is at.
@@ -362,10 +486,10 @@ namespace pg
             EXPECT_FLOAT_EQ(s.pos(row.root)->height, 68.0f + 2.0f + 16.0f);
 
             // Near: the same line, in the loss's colour
-            row.setUntil(&s.ecs, "LAST MONTH TO BEGIN", true);
+            row.setUntil(&s.ecs, "CLOSES THIS MONTH", true);
             s.pump();
 
-            EXPECT_EQ(row.until->spec.text, "LAST MONTH TO BEGIN");
+            EXPECT_EQ(row.until->spec.text, "CLOSES THIS MONTH");
             EXPECT_EQ(s.element(row.until->entity), "activity.until.urgent");
             EXPECT_FLOAT_EQ(s.pos(row.root)->height, 86.0f);
 

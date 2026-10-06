@@ -46,6 +46,8 @@ namespace chronicle
         std::string until;             // "" or "CLOSES IN 14 MO" (caps): a line of its own under the middle, in every state
         bool urgent = false;           // The closing is near: the line in the loss's colour
         bool compact = false;          // The name, the time and the closing only: no rank, no `each`, no middle block (its gloss says the rest), on a ground that says its kind
+        bool tile = false;             // A compact row stacked for a grid: the name over the time (two lines of name at most), no mark. A list with a tileWidth makes its rows tiles
+        float minHeight = 0.0f;        // The row is at least that tall: a list keeps the tiles of one line level
         float percent = 0.0f;          // Running
         float glideTo = 0.0f;          // Running: where the fill is moving to, from percent
         float glideMs = 0.0f;          // Running: in so many ms; 0 = not moving
@@ -87,6 +89,7 @@ namespace chronicle
         bool last = false;             // The last row of its list hides its rule
         bool compact = false;          // Its ground says its kind
         bool instant = false;          // Done at once (months 0): a transaction, not work
+        bool tile = false;             // One of several on a line: no rule under it
 
         pg::_unique_id list = 0;       // The list root, once a list adopts the row
 
@@ -125,6 +128,7 @@ namespace chronicle
         std::optional<RequirementList> reqs;         // Locked
         std::optional<Label> until;                  // When it closes, while it has something to say
         ActivityRowSpec spec;
+        float natural = 0.0f;                        // The height its content asks, before spec.minHeight
 
         void setState(pg::EntitySystem*, ActivityState);                 // Swaps the middle block, repaints
         void setPercent(pg::EntitySystem*, float percent, bool animate = true);   // Running only; ends a glide
@@ -140,6 +144,7 @@ namespace chronicle
         void setCount(pg::EntitySystem*, const std::string&);           // Only on a row built with a rank or a count
         void setUntil(pg::EntitySystem*, const std::string&, bool urgent = false);   // "" removes the line; the row follows its height
         void setWidth(pg::EntitySystem*, float width);                  // The name re-fits, the rule follows
+        void setMinHeight(pg::EntitySystem*, float height);             // At least that tall, whatever it holds
         float height(pg::EntitySystem*) const;       // Idle 68 (16 more a wrapped line of gains), Running 81 (15 more a wrapped line of caption), Locked 24 + 4 + list + 24
 
         // Internal
@@ -169,6 +174,7 @@ namespace chronicle
         float height = 0.0f;           // 0 = as tall as its rows; > 0 = that tall, and the rows scroll
         bool stripes = true;           // Alternate grounds like an account book; false: every row on the same ground
         bool compact = false;          // Every row compact (ActivityRowSpec::compact), whatever its own spec says
+        float tileWidth = 0.0f;        // > 0: the rows are tiles, as many to a line as fit at that width or more, 8 apart; the tiles of a line are level
         std::vector<ActivityGroup> groups;
         int z = 20;                    // Root, body and rows; the scroll thumb z+6
     };
@@ -184,6 +190,15 @@ namespace chronicle
         bool stripes = true;
         std::vector<pg::_unique_id> rows;        // Row roots, in list order
         std::vector<pg::_unique_id> headings;    // Heading blocks, in list order
+    };
+
+    // A line of tiles in a list's body: the tiles stand side by side on it, and it is as tall as
+    // the tallest. The list builds it; a row is found through it.
+    struct ActivityLineState : public pg::Component
+    {
+        ActivityLineState() = default;
+
+        std::vector<pg::EntityRef> tiles;        // Row roots, left to right
     };
 
     // A heading block: the group's name in the display face, 24 tall with space-3 above (none
@@ -211,7 +226,9 @@ namespace chronicle
         ActivityRow* find(pg::EntitySystem*, const std::string& id);    // nullptr when unknown or not laid out yet (quiet)
         void setRowState(pg::EntitySystem*, const std::string& id, ActivityState);   // Clears the selection if it was that row
         void setRows(pg::EntitySystem*, const std::vector<ActivityGroup>& groups);   // Rebuilds
-        void setSize(pg::EntitySystem*, float width, float height);      // Rows and headings follow the width; height only on a list that scrolls
+        void setSize(pg::EntitySystem*, float width, float height);      // Rows and headings follow the width; height only on a list that scrolls. Tiles are laid again when the width changes how many fit
+        int columns() const;           // The tiles a line holds at this width: 0 when the rows are not tiles
+        float tileSize() const;        // And how wide each is: the width shared out, 8 between two
     };
 
     ActivityList makeActivityList(pg::EntitySystem*, const ActivityListSpec&);
@@ -219,7 +236,7 @@ namespace chronicle
     // The heading block of a group, for the list and for the ActivityGroup prefab kind.
     pg::EntityRef makeActivityHeading(pg::EntitySystem*, const std::string& label, float width, int z);
 
-    struct ActivitySystem : public pg::System<pg::Own<ActivityRowState>, pg::Own<ActivityListState>, pg::Own<ActivityHeadingState>,
+    struct ActivitySystem : public pg::System<pg::Own<ActivityRowState>, pg::Own<ActivityListState>, pg::Own<ActivityHeadingState>, pg::Own<ActivityLineState>,
         pg::Listener<pg::HoverChangedEvent>, pg::Listener<pg::OnMouseClick>, pg::Listener<pg::OnMouseRelease>,
         pg::Listener<pg::OnSDLScanCode>, pg::Listener<KeyboardFocusChangedEvent>, pg::Listener<pg::TickEvent>, pg::InitSys>
     {
@@ -247,6 +264,7 @@ namespace chronicle
         void activate(pg::EntityRef row);
 
         void adopt(pg::EntityRef listRoot);                             // Walks the body: owner, stripes, last rule, first heading
+        void level(pg::EntityRef listRoot);                             // The tiles of a line as tall as the tallest, and the line with them
 
         float now = 0.0f;              // Milliseconds of TickEvent received
         float lastReleaseAt = -1000.0f;
