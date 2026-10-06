@@ -48,8 +48,9 @@ __dprint(target == none)  // true
 ```
 
 `none` stands for the absence of a value. It is falsy and equal only to itself: `none == 0` and
-`none == false` are both false. A missing table field, a `var` without an initializer and a function
-without `return` still read as `0`, not `none`.
+`none == false` are both false, and `not none` is `true`. A function that ends without a `return`, or
+runs a bare `return`, returns `none`. A missing table field and a `var` without an initializer still
+read as `0`, not `none`.
 
 ### 3. Functions
 

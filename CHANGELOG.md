@@ -60,8 +60,9 @@ First tagged release. Everything below describes the state of the engine at the 
   compiler with `setVMFrontEnd(ScriptFrontEnd::Pratt)` / `VM::setFrontEnd`.
 - PgScript: `none` is a value and a literal for the absence of a value. It is falsy, equal only to itself
   (`none == 0` and `none == false` are false), printed as `none`, and `typeOf(none)` is `"none"`. `none` is now
-  a reserved word. A missing table field, a `var` without an initializer and a function without `return` still
-  read as `0`. From C++: `makeNoneValue()` and `IS_NONE`.
+  a reserved word. A function that ends without a `return`, or runs a bare `return`, returns `none` (it was
+  `0`), and `not none` is `true`. A missing table field and a `var` without an initializer still read as `0`.
+  From C++: `makeNoneValue()` and `IS_NONE`.
 - VM globals: `VM::findGlobal(name)` replaces `findDefinedGlobal` and `findGlobalCell`. It returns the `Value`
   itself, which is `IS_UNDEFINED` when the global was never declared or not assigned yet; `VM::GlobalCell` is
   gone and `globalCells` is a `std::vector<Value>`. Migration: `cell->value` becomes the returned value, and

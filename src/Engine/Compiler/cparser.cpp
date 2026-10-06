@@ -1819,7 +1819,10 @@ namespace pg
             writeByte(0);
         }
         else
-            writeConstant(0);
+        {
+            // A function that returns nothing returns none
+            writeByte(OpCode::OP_None);
+        }
 
         writeByte(OpCode::OP_Return);
     }

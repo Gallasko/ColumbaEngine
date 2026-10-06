@@ -524,9 +524,9 @@ namespace fusion
 
         if constexpr (U == UnOp::Not)
         {
-            if (not IS_BOOL(a))
+            if (not IS_BOOL(a) and not IS_NONE(a))
             {
-                vm->runtimeError("Operand after an unary (!) must be a boolean.");
+                vm->runtimeError("Operand after an unary (!) must be a boolean or none.");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
                 return nullptr;
             }

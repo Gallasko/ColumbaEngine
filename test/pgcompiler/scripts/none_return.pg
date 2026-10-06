@@ -1,0 +1,72 @@
+// A function that returns nothing returns none, and not accepts none
+
+fun noReturn()
+{
+    var unused = 1
+}
+
+fun bareReturn()
+{
+    return
+}
+
+fun earlyBareReturn(x)
+{
+    if (x > 0)
+    {
+        return
+    }
+
+    return x
+}
+
+__dprint(noReturn())
+__dprint(bareReturn())
+__dprint(earlyBareReturn(1))
+__dprint(earlyBareReturn(-2))
+__dprint(noReturn() == none)
+__dprint(noReturn() == 0)
+
+class Counter
+{
+    init()
+    {
+        this.count = 0
+    }
+
+    bump()
+    {
+        this.count = this.count + 1
+    }
+}
+
+var counter = Counter()
+__dprint(counter.bump())
+__dprint(counter.count)
+
+var anonymous = fun() {
+    var unused = 2
+}
+__dprint(anonymous())
+
+__dprint(not none)
+__dprint(not noReturn())
+
+var missing = none
+__dprint(not missing)
+
+if (not missing)
+{
+    __dprint("no value")
+}
+
+fun notOfLocal()
+{
+    var local = none
+
+    return not local
+}
+
+__dprint(notOfLocal())
+__dprint(not true)
+__dprint(not (not none))

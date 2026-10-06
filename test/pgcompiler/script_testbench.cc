@@ -375,6 +375,11 @@ TEST_F(ScriptTestBench, NoneLiteral)
     testScript("none_literal");
 }
 
+TEST_F(ScriptTestBench, NoneReturn)
+{
+    testScript("none_return");
+}
+
 // ============================================================================
 // Comparison Operations
 // ============================================================================

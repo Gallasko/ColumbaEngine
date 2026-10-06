@@ -191,9 +191,10 @@ namespace pg
 
     const DecodedInstruction* op_not_decoded(VM* vm, const DecodedInstruction& instr)
     {
-        if (not IS_BOOL(vm->peek(0)))
+        // None is accepted so that a missing value can be tested with "not value"
+        if (not IS_BOOL(vm->peek(0)) and not IS_NONE(vm->peek(0)))
         {
-            vm->runtimeError("Operand after an unary (!) must be a boolean.");
+            vm->runtimeError("Operand after an unary (!) must be a boolean or none.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return nullptr;
         }
