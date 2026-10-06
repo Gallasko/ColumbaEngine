@@ -283,13 +283,12 @@ namespace pg
 
             ProxyRun run;
 
-            // Reads as -1, and a write is ignored
+            // Reads as none, and a write is ignored
             auto result = run.run("var u = target.missing\ntarget.missing = 5\n");
 
             ASSERT_EQ(result, InterpretResult::OK);
 
-            ASSERT_TRUE(IS_INT(run.global("u")));
-            EXPECT_EQ(AS_INT(run.global("u")), -1);
+            EXPECT_TRUE(IS_NONE(run.global("u")));
 
             EXPECT_EQ(run.target.nbWrites, 0);
         }
@@ -355,7 +354,7 @@ namespace pg
             ASSERT_EQ(result, InterpretResult::OK);
 
             EXPECT_EQ(AS_INT(vm->findGlobal("hp")), 10);
-            EXPECT_EQ(AS_INT(vm->findGlobal("missing")), -1);
+            EXPECT_TRUE(IS_NONE(vm->findGlobal("missing")));
         }
 
         // ----------------------------------------------------------------------------------------

@@ -49,8 +49,9 @@ __dprint(target == none)  // true
 
 `none` stands for the absence of a value. It is falsy and equal only to itself: `none == 0` and
 `none == false` are both false, and `not none` is `true`. A function that ends without a `return`, or
-runs a bare `return`, returns `none`. A missing table field and a `var` without an initializer still
-read as `0`, not `none`.
+runs a bare `return`, returns `none`. Reading something that is not there gives `none` too: a missing
+table field or key, and a vector or string index past either end. A `var` without an initializer still
+reads as `0`, not `none`.
 
 ### 3. Functions
 
@@ -498,11 +499,15 @@ __dprint(x)
 ```
 
 ### Error: "Vector index out of bounds"
-**Solution**: Check vector size before accessing
+**Solution**: Only writing past the end is an error, reading there gives `none`. Grow the vector with
+`push` instead of assigning to a new index
 ```javascript
-if (index >= 0 and index < vec.length()) {
-    __dprint(vec[index])
-}
+import "algorithm"
+
+var vec = [1, 2]
+__dprint(vec[5])  // none
+
+push(vec, 3)      // OK
 ```
 
 ### Error: "Cannot use 'return' outside function"

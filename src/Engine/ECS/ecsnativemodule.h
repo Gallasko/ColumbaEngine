@@ -563,7 +563,7 @@ namespace pg
                 LOG_MILE("Ecs Compiled Module", "Sending event: " << eventName);
                 ecsRefCopy->sendEvent(event);
 
-                return makeIntValue(0);
+                return makeNoneValue();
             });
 
             addNativeFunction("attachComp", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {

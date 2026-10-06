@@ -135,7 +135,7 @@ namespace pg
             auto& rng = RandomNumberGenerator::generator();
             rng->setSeed(seed);
 
-            return makeIntValue(0);
+            return makeNoneValue();
         }
     };
 }

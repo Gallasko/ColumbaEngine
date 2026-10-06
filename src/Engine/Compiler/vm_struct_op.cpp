@@ -220,10 +220,13 @@ namespace pg
         // Fallback: bind a regular method by name.
         if (not bindMethod(vm, instance->klass, nameStr))
         {
-            vm->runtimeError("Undefined property '" + nameStr + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            // Neither a field nor a method: a missing property reads as none
+            auto inst = vm->pop();
+            vm->releaseAndDelete(inst);
+
+            vm->push(makeNoneValue());
         }
+
         return &instr + 1;
     }
 
@@ -420,16 +423,19 @@ namespace pg
             int idx = AS_INT(index);
             if (idx < 0) idx = static_cast<int>(vec->fields.size()) + idx;
 
+            // Reading past either end gives none, there is nothing there
             if (idx < 0 || idx >= static_cast<int>(vec->fields.size()))
             {
                 vm->releaseAndDelete(target);
-                vm->runtimeError("Vector index out of bounds");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return nullptr;
+                vm->push(makeNoneValue());
+                return &instr + 1;
             }
 
+            // Retain the element before letting go of the vector, it may be its last owner
+            Value element = vm->retainValue(vec->fields[idx]);
+
             vm->releaseAndDelete(target);
-            vm->push(vm->retainValue(vec->fields[idx]));
+            vm->push(element);
             return &instr + 1;
         }
 
@@ -449,12 +455,12 @@ namespace pg
             int idx = AS_INT(index);
             if (idx < 0) idx = static_cast<int>(str.length()) + idx;
 
+            // Same as a vector: reading past either end gives none
             if (idx < 0 || idx >= static_cast<int>(str.length()))
             {
                 if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
-                vm->runtimeError("String index out of bounds");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return nullptr;
+                vm->push(makeNoneValue());
+                return &instr + 1;
             }
 
             if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
@@ -600,10 +606,10 @@ namespace pg
             }
         }
 
-        // No metamethod, no field — soft-fail by pushing false.
+        // No metamethod, no field: a missing key reads as none
         vm->releaseAndDelete(index);
         vm->releaseAndDelete(target);
-        vm->push(BOOL_VAL(false));
+        vm->push(makeNoneValue());
         return &instr + 1;
     }
 
@@ -1311,11 +1317,11 @@ namespace pg
 
         for (const auto& pair : pairs)
         {
-            // Pad with zeros so the value lands at its target index even
+            // Pad with none so the value lands at its target index even
             // when the keys aren't a contiguous 0..N-1 sequence.
             while (vector->fields.size() <= static_cast<size_t>(pair.first))
             {
-                vector->fields.push_back(makeIntValue(0));
+                vector->fields.push_back(makeNoneValue());
             }
 
             vector->fields[pair.first] = vm->retainValue(pair.second);

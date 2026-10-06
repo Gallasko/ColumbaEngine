@@ -682,10 +682,13 @@ Error at line 20: Cannot use 'return' outside function
 
 ```
 Runtime error: Division by zero
-Runtime error: Undefined property 'foo'
+Runtime error: Method 'foo' not found.
 Runtime error: Vector index out of bounds
 Runtime error: Cannot call non-function value
 ```
+
+Reading a missing field or key, or a vector or string index past the end, is not an error: it gives `none`.
+`Vector index out of bounds` is only raised when writing past the end.
 
 ### Best Practices
 

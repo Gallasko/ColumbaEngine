@@ -873,7 +873,7 @@ namespace pg
                     std::cout << "<value>";
             }
             std::cout << std::endl;
-            return makeIntValue(0);
+            return makeNoneValue();
         });
 
         vm.registerNative("debugTable", [](VM *vm, int argCount, Value* args) -> Value {

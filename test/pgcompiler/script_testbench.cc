@@ -380,6 +380,11 @@ TEST_F(ScriptTestBench, NoneReturn)
     testScript("none_return");
 }
 
+TEST_F(ScriptTestBench, NoneLookup)
+{
+    testScript("none_lookup");
+}
+
 // ============================================================================
 // Comparison Operations
 // ============================================================================

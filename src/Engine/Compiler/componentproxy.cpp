@@ -19,7 +19,7 @@ namespace pg
             if (comp->has(name))
                 return vm->elementToValue(comp->properties.at(name));
 
-            return INT_VAL(-1);
+            return makeNoneValue();
         }
 
         void setStandardComponentProperty(void* component, const std::string& name, VM* vm, Value value)
@@ -131,7 +131,7 @@ namespace pg
 
             LOG_WARNING(DOM, "No getter function for property '" << name << "' !");
 
-            return INT_VAL(-1);
+            return makeNoneValue();
         }
 
         if (name == "__className")
@@ -140,7 +140,7 @@ namespace pg
         if (metadata->dynamicGetter)
             return metadata->dynamicGetter(proxy->proxyTarget, name, vm);
 
-        return INT_VAL(-1);
+        return makeNoneValue();
     }
 
     bool ComponentProxy::setProperty(VM* vm, ObjInstance* proxy, const std::string& name, Value value)

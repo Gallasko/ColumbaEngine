@@ -143,7 +143,7 @@ namespace pg
         // Helper to set a field value (creates or updates)
         void setField(const std::string& name, Value value, VM *vm = nullptr, bool deleteOld = false);
 
-        // Helper to get a field value (returns nullptr-like value if not found)
+        // Helper to get a field value (none if not found)
         inline Value getField(const std::string& name) const
         {
             auto it = internedFields.find(name);
@@ -153,7 +153,7 @@ namespace pg
                 return fieldValues[it->second];
             }
 
-            return makeIntValue(0);  // Return a default value
+            return makeNoneValue();
         }
 
         inline bool hasField(const std::string& name) const

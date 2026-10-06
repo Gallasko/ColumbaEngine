@@ -1,0 +1,72 @@
+// Reading something that is not there gives none: a missing field or key, an index past the end
+import "algorithm"
+
+var table = {a: 1}
+__dprint(table.a)
+__dprint(table.missing)
+__dprint(table["missing"])
+__dprint(table.missing == none)
+__dprint(contain(table, "missing"))
+
+if (not table.missing)
+{
+    __dprint("no such field")
+}
+
+var list = [10, 20, 30]
+__dprint(list[0])
+__dprint(list[3])
+__dprint(list[-1])
+__dprint(list[-4])
+__dprint(list[99] == none)
+
+var text = "abc"
+__dprint(text[0])
+__dprint(text[3])
+__dprint(text[-4])
+
+class Point
+{
+    init()
+    {
+        this.x = 1
+    }
+
+    getX()
+    {
+        return this.x
+    }
+}
+
+var point = Point()
+__dprint(point.x)
+__dprint(point.y)
+__dprint(point.getX())
+
+// A field holding none is still a field
+table.empty = none
+__dprint(table.empty)
+__dprint(contain(table, "empty"))
+
+// Walking a list until it runs out
+var i = 0
+var total = 0
+while (list[i] != none)
+{
+    total = total + list[i]
+    i = i + 1
+}
+__dprint(total)
+
+fun valueOr(found, fallback)
+{
+    if (found == none)
+    {
+        return fallback
+    }
+
+    return found
+}
+
+__dprint(valueOr(table.a, 5))
+__dprint(valueOr(table.missing, 5))

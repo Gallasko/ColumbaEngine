@@ -61,8 +61,16 @@ First tagged release. Everything below describes the state of the engine at the 
 - PgScript: `none` is a value and a literal for the absence of a value. It is falsy, equal only to itself
   (`none == 0` and `none == false` are false), printed as `none`, and `typeOf(none)` is `"none"`. `none` is now
   a reserved word. A function that ends without a `return`, or runs a bare `return`, returns `none` (it was
-  `0`), and `not none` is `true`. A missing table field and a `var` without an initializer still read as `0`.
-  From C++: `makeNoneValue()` and `IS_NONE`.
+  `0`), and `not none` is `true`. A `var` without an initializer still reads as `0`. From C++:
+  `makeNoneValue()` and `IS_NONE`.
+- PgScript: reading something that is not there gives `none`, so a lookup no longer needs a `contain` guard.
+  `t.missing` and `v[i]` or `s[i]` past either end were runtime errors, `t["missing"]` gave `false`, an unknown
+  property of a component proxy gave `-1`, and the holes of a sparse vector literal were `0`. Writing past the
+  end of a vector is still an error. A field set to `none` stays a field (`contain` is true, for-in visits
+  it). Migration: a test like `t["k"] == false` on a missing key is now false; compare with `none` or use
+  `not t["k"]`. From C++: `ObjInstance::getField` returns none for a missing field (it was the int `0`).
+- PgScript natives that have nothing to return give `none` instead of `0`: `print`, `sendEvent` and
+  `randomSeed`.
 - VM globals: `VM::findGlobal(name)` replaces `findDefinedGlobal` and `findGlobalCell`. It returns the `Value`
   itself, which is `IS_UNDEFINED` when the global was never declared or not assigned yet; `VM::GlobalCell` is
   gone and `globalCells` is a `std::vector<Value>`. Migration: `cell->value` becomes the returned value, and
