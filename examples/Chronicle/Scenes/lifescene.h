@@ -18,6 +18,7 @@ namespace chronicle
     {
         bool fresh = false;            // --fresh: age 7, nothing earned
         bool noSave = false;           // --no-save: the mockup's life, never written
+        bool freshWithoutSave = false; // No save to load: a new life at 7, not the mockup's (the web build)
         std::string savePath = "save/chronicle/life.sz";
         std::string rulesRoot = "examples/Chronicle/rules";
         std::string pageFile = "res/chronicle/ui/life.yaml";
@@ -44,6 +45,7 @@ namespace chronicle
         // Public for the tests and the dev keys
         void onMonth();                // One month passes; a life with nothing left to live on ends
         bool saveNow();                // Writes the save (not with --no-save)
+        void autoSave();               // The same with no line in the log: after a month, a choice, a thing done at once, a new life
         void newLife();                // A fresh life, rebuilt and republished
         void beginAgain();             // From the ending: it closes, the next life begins and says how the last one ended
 

@@ -429,7 +429,10 @@ namespace chronicle
                 if (ended)
                     beginAgain();
                 else
+                {
                     newLife();
+                    autoSave();
+                }
                 break;
 
             default:
@@ -455,8 +458,10 @@ namespace chronicle
 
         if (opt.fresh)
             save = freshLife();
-        else if (opt.noSave or not save.load(opt.savePath))
+        else if (opt.noSave)
             save = firstLife();
+        else if (not save.load(opt.savePath))
+            save = opt.freshWithoutSave ? freshLife() : firstLife();
 
         rules.done = save.terms();
         rules.world = save.world;
@@ -1351,6 +1356,8 @@ namespace chronicle
         newLife();
 
         appendLog({save.age, line, LogKind::Loss, age, ""});
+
+        autoSave();
     }
 
     void LifeScene::registerDeeds()
@@ -1838,6 +1845,8 @@ namespace chronicle
         sinceMonth = 0.0f;
 
         publish();
+
+        autoSave();
     }
 
     void LifeScene::doAtOnce(const std::string& id, const RuleForecast& forecast)
@@ -1899,6 +1908,8 @@ namespace chronicle
             fillActivities();
 
         publishAll();
+
+        autoSave();
     }
 
     void LifeScene::onTab(const TabSelectedEvent& event)
@@ -2033,6 +2044,9 @@ namespace chronicle
             alert(month.hurt);
 
         endangered = not month.hurt.empty();
+
+        // A life that ended above is not written: loaded again, its last month ends it again
+        autoSave();
     }
 
     // ---- the glosses -----------------------------------------------------------------------------------------
@@ -2237,6 +2251,15 @@ namespace chronicle
             LOG_ERROR(DOM, "Could not save to " << opt.savePath);
 
         return ok;
+    }
+
+    void LifeScene::autoSave()
+    {
+        if (opt.noSave)
+            return;
+
+        if (not save.save(opt.savePath))
+            LOG_ERROR(DOM, "Could not save to " << opt.savePath);
     }
 
     void LifeScene::newLife()

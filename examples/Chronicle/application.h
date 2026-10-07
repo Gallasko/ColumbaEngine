@@ -13,6 +13,7 @@ namespace chronicle
         std::string theme = "day";
         bool fresh = false;            // --fresh: a new life at 7
         bool noSave = false;           // --no-save: the mockup's life, never written
+        bool freshWithoutSave = false; // No save to load: a new life at 7, not the mockup's (the web build)
         std::string savePath = "save/chronicle/life.sz";
         float monthMs = 2000.0f;       // --month-ms N: one month every N ms while the months run
         int width = 1320;              // --size WxH: the window at launch

@@ -1168,6 +1168,17 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             set_property(TARGET Chronicle APPEND PROPERTY LINK_DEPENDS ${WEB_FILE_DEPENDS})
         endforeach()
 
+        # What is published: chronicle-web/ and chronicle-web.zip, the page and the three files it loads
+        add_custom_target(ChronicleWeb
+            COMMAND ${CMAKE_COMMAND} -E make_directory chronicle-web
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/examples/Chronicle/web/index.html Chronicle.js Chronicle.wasm Chronicle.data chronicle-web
+            COMMAND ${CMAKE_COMMAND} -E chdir chronicle-web ${CMAKE_COMMAND} -E tar cf ../chronicle-web.zip --format=zip index.html Chronicle.js Chronicle.wasm Chronicle.data
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            COMMENT "Packing chronicle-web.zip"
+            VERBATIM
+        )
+        add_dependencies(ChronicleWeb Chronicle)
+
         ###
 
     else()

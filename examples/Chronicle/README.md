@@ -25,7 +25,8 @@ under way (a paused month keeps what it ran), and the head of *At work now* says
 `RUNNING`, `PAUSED · SPACE` in red, or `IDLE` between two works. At nothing no key runs the
 months: *Pass a month*, the button standing in *At work now* in the running row's place, passes
 one. `M` passes one month at any time (a dev key), `T` switches the theme, `R` reduced motion, `S` saves, `N` starts
-a new life. A life whose Vitality reaches 0 is lost: its **ending** comes up over the page, a leaf
+a new life. The life is also saved on its own, with no line in the log: after every month, every choice, every thing done
+at once and every new life (never with `--no-save`); `S` writes it and says so. A life whose Vitality reaches 0 is lost: its **ending** comes up over the page, a leaf
 saying who he was, how it ended and what the chronicle keeps of him, and nothing passes until
 *Begin a new life* (or `N`). The next one begins at 7 with 12 rations, the
 months stopped and a line in its log saying how the last one ended. His prime ends at 30: every
@@ -54,10 +55,13 @@ make Chronicle
 emrun Chronicle.html
 ```
 
-To publish, zip `web/index.html` with `Chronicle.js`, `Chronicle.wasm` and `Chronicle.data`,
-`index.html` at the root of the zip. Its canvas fills the frame and the game is resized to it.
-`Chronicle.html` is Emscripten's test page and is not published. On itch.io the project has to
-have *SharedArrayBuffer support* ticked in its frame options.
+To publish, `make ChronicleWeb` builds the game and packs `chronicle-web.zip` (and the same
+files in `chronicle-web/`, to try with `emrun chronicle-web/index.html`): `web/index.html`
+with `Chronicle.js`, `Chronicle.wasm` and `Chronicle.data`. The page's canvas fills the frame
+and the game is resized to it; it keeps black behind the canvas, since a light ground shows
+through every blended pixel and fades the text. `Chronicle.html` is Emscripten's test page and
+is not published. On itch.io the project has to have *SharedArrayBuffer support* ticked in its
+frame options.
 
 - **The pack** (`Chronicle.data`) holds what the game reads at run time, taken from the
   source tree under the same paths: the shaders, the boot scripts, the two font families,
@@ -71,6 +75,9 @@ have *SharedArrayBuffer support* ticked in its frame options.
   `emrun` sends both; another host has to be set up to.
 - **Save**: `save/chronicle/life.sz` is kept in the browser's origin private file system,
   per site and per browser. The launch flags of the native build have no equivalent yet.
+  With no save a web player begins a new life at 7 (`LaunchOptions::freshWithoutSave`), not
+  the mockup's life the native build opens on. The life is saved on its own as it goes, so a
+  closed tab loses a month at most.
 
 ## Layout
 

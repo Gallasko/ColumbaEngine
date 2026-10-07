@@ -7,12 +7,16 @@
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #ece0c8; }
 
-    /* The canvas is the whole frame. SDL follows this box: the game is resized to it, never scaled. */
-    #canvas { display: block; width: 100vw; height: 100vh; outline: none; }
+    /* The canvas is the whole frame. SDL follows this box: the game is resized to it, never scaled.
+       Black behind it, always: the engine leaves an alpha under 1 on every blended pixel (the edge of
+       a glyph, a wash), and the browser lets what is behind the canvas through there. On a light
+       ground the text comes out faded; on black it comes out as drawn. */
+    #canvas { display: block; width: 100vw; height: 100vh; outline: none; background: #000; }
 
+    /* Over the canvas until the game is there */
     #status {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-      padding: 24px; text-align: center; pointer-events: none;
+      padding: 24px; text-align: center; pointer-events: none; background: #ece0c8;
       font: 18px/1.5 Georgia, "Times New Roman", serif; color: #2b2219;
     }
     #status[hidden] { display: none; }

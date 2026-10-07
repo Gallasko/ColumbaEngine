@@ -11,6 +11,11 @@ int main(int argc, char* argv[])
 
     chronicle::LaunchOptions opt;
 
+#ifdef __EMSCRIPTEN__
+    // A browser gives no command line: a player with no save begins a life of his own
+    opt.freshWithoutSave = true;
+#endif
+
     for (int i = 1; i < argc; ++i)
     {
         std::string a = argv[i];

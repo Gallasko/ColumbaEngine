@@ -49,6 +49,12 @@ First tagged release. Everything below describes the state of the engine at the 
   `EntitySystem::registerCustomVmModule`; systems written in script go through `StandardSystem`.
 
 ### Changed
+- Chronicle: a life is saved on its own, after every month, every choice, every thing done at once and every
+  new life, with no line in the log (`LifeScene::autoSave`; never with `--no-save`). `S` still writes it and
+  says so. A life that has just ended is not written: loaded again, its last month ends it again.
+- Chronicle on the web: with no save a player begins a new life at 7 (`LaunchOptions::freshWithoutSave`)
+  instead of the mockup's life, and `make ChronicleWeb` packs `chronicle-web.zip` (`web/index.html` and the
+  three built files) ready to upload.
 - Chronicle has a web target: `make Chronicle` in an Emscripten build tree gives `Chronicle.html`. Its pack
   holds only what the game reads (shaders, boot scripts, its fonts, icons, pages and `rules/*.pg`), taken
   from the source tree (`CHRONICLE_WEB_FILES` in `CMakeLists.txt`), and the target relinks when one of those
