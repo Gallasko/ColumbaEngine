@@ -714,14 +714,29 @@ write the dates: the head's (`headline.date` "YEAR 10", `headline.dateNote` "MON
 BELLMOOR") and each activity's closing. A fresh life started with `--fresh` begins at Year 0;
 the mockup's stands at month 126.
 
+**The three columns at every size.** The three columns are the page down to a window of
+680 x 566. They come in three widths and three heights (`Widths`, `Heights` in `lifescene.cpp`),
+and a window gets the roomiest step it holds of each:
+
+| width from | left | right | margin | gap | | height from | between panels | least log |
+|---|---|---|---|---|---|---|---|---|
+| 1136 | 300 | 360 | 16 | 12 | | 664 | 16 | 120 |
+| 916 | 248 | 296 | 10 | 8 | | 610 | 10 | 84 |
+| 680 | 200 | 280 | 6 | 4 | | 566 | 4 | 56 |
+
+`life.yaml` is drawn at the first step. For another the scene writes the widths, margins and gaps
+into the page before it is built (`shapeColumns`), so a step is the page built again, as the
+compact page is; what stands in a panel takes its width from the panel. In the narrowed columns
+the row at work keeps its name and its time and leaves the rest to its gloss, and at the
+narrowest the log has no footnote and a pause reads `PAUSED`.
+
 **The compact page.** Under the three columns' least size the page is
 `res/chronicle/ui/life-compact.yaml`: the work at hand over the choice, and a side column of one
-panel at a time. The least width is 1136. The least height is the right column's, 664 (the years,
-the work at hand with a row in it, a log of its least size). The left column has no least height:
+panel at a time (Stats, Inventory, Timeline, Log). The left column has no least height:
 it grows with what he holds and has learned. Once a page has settled the scene measures it
-(`measureLeft`, `leftNeed`), and a window too short for it gets the compact page, until the
-window is tall enough again or a new life begins. So a short, wide window (a browser frame 717
-high) shows a new life on three columns and a man of seventeen with his holdings on the compact page.
+(`measureLeft`, `leftNeed`), and a window too short for it gets the compact page too, until the
+window is tall enough again or a new life begins: a man of seventeen with all his holdings needs
+about 830 of height for his left column, whatever the step.
 
 z on the page: page 0, panels 10, their content 20–59, tooltips 200.
 

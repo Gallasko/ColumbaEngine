@@ -425,10 +425,10 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // Below the three columns' size the page is the compact file: the work at hand over the
-        // choice, a side column of one panel at a time, and everything the life wrote still there.
-        // It swaps back when the window grows.
-        TEST(lifescene_test, compact_page_at_800x600)
+        // Below the three columns' least size (680 wide, their narrowest step) the page is the compact
+        // file: the work at hand over the choice, a side column of one panel at a time, and everything
+        // the life wrote still there. It swaps back when the window grows.
+        TEST(lifescene_test, compact_page_at_640x600)
         {
             MockLogger logger;
             LifeFixture f;
@@ -437,7 +437,7 @@ namespace pg
             ASSERT_NE(life, nullptr);
             EXPECT_FALSE(life->compact);
 
-            f.resize(800.0f, 600.0f);
+            f.resize(640.0f, 600.0f);
             f.settle();
 
             ASSERT_TRUE(life->compact);
@@ -465,7 +465,7 @@ namespace pg
 
             // Two columns inside the window: the work at hand over the choice, the side at the right
             EXPECT_NEAR(box("working").left, 24.0f, 0.5f);
-            EXPECT_NEAR(box("working").right, 800.0f - 24.0f - 320.0f - 16.0f, 0.5f);
+            EXPECT_NEAR(box("working").right, 640.0f - 24.0f - 320.0f - 16.0f, 0.5f);
             EXPECT_NEAR(box("may").top, box("working").bottom + 16.0f, 0.5f);
             EXPECT_NEAR(box("may").right, box("working").right, 0.5f);
             EXPECT_LE(box("may").bottom, 600.0f);
@@ -487,7 +487,7 @@ namespace pg
             EXPECT_EQ(list->columns(), 2);
             ActivityRow* yard = list->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
-            EXPECT_NEAR(f.pos(yard->root)->width, (416.0f - 32.0f - 8.0f) / 2.0f, 0.5f);
+            EXPECT_NEAR(f.pos(yard->root)->width, 256.0f - 32.0f, 0.5f);
 
             // One side panel at a time: his parts first, the log on its tab
             EXPECT_TRUE(shown("parts"));
@@ -543,7 +543,7 @@ namespace pg
             MockLogger logger;
             LifeFixture f;
 
-            f.window->get<PositionComponent>()->setWidth(800.0f);
+            f.window->get<PositionComponent>()->setWidth(640.0f);
             f.window->get<PositionComponent>()->setHeight(600.0f);
 
             LifeScene* life = f.life();
@@ -553,10 +553,52 @@ namespace pg
 
             ActivityRow* yard = life->piece<ActivityList>("activities")->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
-            EXPECT_NEAR(f.pos(yard->root)->width, (416.0f - 32.0f - 8.0f) / 2.0f, 0.5f);
+            EXPECT_NEAR(f.pos(yard->root)->width, 256.0f - 32.0f, 0.5f);
 
             auto p = f.pos(life->named("may"));
             EXPECT_LE(p->y + p->height, 600.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The three columns are the page down to a small window: at 800 x 600 they are built at their
+        // narrowest step, the two fixed columns 200 and 280 wide, 6 from the window's edges and 4 apart.
+        TEST(lifescene_test, three_columns_at_800x600)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            f.window->get<PositionComponent>()->setWidth(800.0f);
+            f.window->get<PositionComponent>()->setHeight(600.0f);
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            EXPECT_FALSE(life->compact);
+            EXPECT_EQ(life->widthStep, 2);
+            EXPECT_EQ(life->heightStep, 2);
+
+            EXPECT_NEAR(f.pos(life->named("holds"))->x, 6.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("holds"))->width, 200.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("may"))->x, 6.0f + 200.0f + 4.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("may"))->width, 800.0f - 12.0f - 200.0f - 280.0f - 8.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("clockPanel"))->width, 280.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("clockPanel"))->x + 280.0f, 800.0f - 6.0f, 0.5f);
+
+            // Back to the roomiest step when the window is
+            f.resize(1320.0f, 1020.0f);
+            f.frames(12);
+
+            EXPECT_FALSE(life->compact);
+            EXPECT_EQ(life->widthStep, 0);
+            EXPECT_NEAR(f.pos(life->named("holds"))->width, 300.0f, 0.5f);
+            EXPECT_NEAR(f.pos(life->named("may"))->width, 604.0f, 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------

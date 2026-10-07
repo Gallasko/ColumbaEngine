@@ -54,6 +54,14 @@ First tagged release. Everything below describes the state of the engine at the 
   `EntitySystem::registerCustomVmModule`; systems written in script go through `StandardSystem`.
 
 ### Changed
+- Chronicle: the three columns are the page down to a window of 680 x 566 (it was 1136 x 664). They come
+  in three widths and three heights, the roomiest the window holds: the two fixed columns narrow from
+  300 / 360 to 200 / 280, the margins from 16 to 6 and the gaps from 12 to 4. The scene writes a step into
+  the page before it builds it (`shapeColumns`); the compact page is only what is left under that, or for a
+  left column the window is too short for.
+- Chronicle: plain names. The panels are Inventory, Stats and Log (they were "What he holds", "What he has
+  learned" and "What has happened"), the compact page's tabs Stats, Inventory, Timeline and Log, and its
+  choice Activities. The row at work shows its name first: no tally in a column of the three.
 - Chronicle: play sessions are sent to the analytics proxy from a browser (`Core/analytics.h`, after
   GameDevJs2026's): `chronicle.session_start`, `chronicle.session_end` every time the page is hidden or
   closed, with the time the page was in view and a one-line digest of where the life stood

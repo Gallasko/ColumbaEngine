@@ -10,6 +10,10 @@
 # right edge, and the middle column - the choice alone, what he may do - takes the rest. The head
 # is two lines (the title, then what he is; the world's date at the right), and the columns start
 # at 70. His age is the clock's to say.
+# These are the measures of the roomiest window. In a smaller one the scene writes narrower
+# columns, margins and gaps over them before it builds the page (lifescene.cpp, shapeColumns):
+# what stands in a panel takes its width from the panel, so nothing here gives one of its own.
+# The headings say what a panel is in the plainest word (Inventory, Stats, Log).
 # The chapters (the tabs) stand at the head of the choice, in place of a heading. The scene widens it and sets
 # the heights of the choice and the log on every resize. His Vitality stands under the clock's
 # age, at the top of the right column: it is what the life hangs on. His other parts stand with
@@ -78,9 +82,8 @@ children:
     y: 70
     frame: ruled
     width: 300
-    heading: What he holds
+    heading: Inventory
     glyph: gold
-    aside: LEDGER
     children:
       - kind: ResourceLedger
         name: ledger
@@ -89,7 +92,7 @@ children:
     name: learned
     frame: ruled
     width: 300
-    heading: What he has learned
+    heading: Stats
     glyph: study
     aside: SKILLS
     anchors:
@@ -97,9 +100,9 @@ children:
       - {side: left, target: holds, targetSide: left}
     children:
       # His parts first, then the skills: what he is and what he has learned read as one
-      - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30, width: 268}
-      - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30, width: 268}
-      - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30, width: 268}
+      - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30}
+      - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30}
+      - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30}
       - {kind: Ornament, ornament: divider, knot: false}
       - kind: ResourceLedger
         name: skills
@@ -149,7 +152,7 @@ children:
           - {age: 26}
           - {age: 30}
       # His life, under his age: at nothing, this life is lost. The hatch is what will mend
-      - {kind: StatLine, name: vit, glossKey: parts/vit, label: Vitality, glyph: vitality, value: 12, max: 30, width: 328}
+      - {kind: StatLine, name: vit, glossKey: parts/vit, label: Vitality, glyph: vitality, value: 12, max: 30}
 
   - kind: Panel
     name: working
@@ -178,9 +181,8 @@ children:
     name: happened
     frame: ruled
     width: 360
-    heading: What has happened
+    heading: Log
     glyph: quill
-    aside: LOG
     anchors:
       - {side: top, target: working, targetSide: bottom, margin: 16}
       - {side: left, target: working, targetSide: left}

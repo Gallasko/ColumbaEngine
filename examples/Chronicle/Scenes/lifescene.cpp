@@ -52,20 +52,18 @@ namespace chronicle
 
         constexpr const char * const ActivitiesList = "life.activities";
 
-        // The page's frame (life.yaml): margins, the fixed columns, where the columns start, and the
-        // chrome of a panel with a heading (16 + the 51 head block + 16)
-        constexpr float PageMargin = 16.0f;
-        constexpr float ColumnGap = 12.0f;
-        constexpr float LeftColumn = 300.0f;
-        constexpr float RightColumn = 360.0f;
+        // The page's frame (life.yaml): where the columns start, and the chrome of a panel with a
+        // heading (16 + the 51 head block + 16). The columns' own measures are the steps below
         constexpr float ColumnsTop = 70.0f;        // Under a head of two lines
-        constexpr float StackGap = 16.0f;
+        constexpr float StackGap = 16.0f;          // The compact page's, between two panels
         constexpr float PanelChrome = 83.0f;
         constexpr float PlainChrome = 32.0f;       // A panel without a heading: 16 + 16
         constexpr float TabsRow = 56.0f;           // The chapters at the head of the choice (44) and the body's gap (12)
-        constexpr float MinMiddle = 420.0f;
         constexpr float MinList = 200.0f;
-        constexpr float MinLog = 120.0f;
+        constexpr float MinLog = 120.0f;           // The compact page's log
+        constexpr float DateRoom = 300.0f;         // The world's date at the top right, and air before it
+        constexpr float EachRoom = 320.0f;         // The inner width of "At work now" from which its row says the line under its time
+        constexpr float TallyRoom = 420.0f;        // And from which it says its tally too
         constexpr float ClockPanel = 160.0f;       // The clock and his life, until the panel has measured itself
         constexpr float AlertMs = 900.0f;          // How long a part stays in red after a month took from it
         constexpr float RunningPanel = 164.0f;     // "At work now" holding a running row
@@ -82,13 +80,70 @@ namespace chronicle
         constexpr float LogFootnote = 19.0f;       // 4 + a caption line
         constexpr const char * const TabsTag = "life.tabs";
 
-        // Below the three columns' least size the page is life-compact.yaml: margins 24, the head
-        // on two lines, the work at hand over the choice, and a side column of one panel at a time
-        constexpr float FullMinWidth = 2.0f * PageMargin + LeftColumn + RightColumn + 2.0f * ColumnGap + MinMiddle;          // That is 1136
-        // The height is the right column's: the years, the work at hand with a row in it, and a log of its
-        // least size. The left column has no least height, it grows with what he holds and has learned:
-        // it is measured once the page has settled (measureLeft)
-        constexpr float FullMinHeight = ColumnsTop + ClockPanel + StackGap + RunningPanel + StackGap + PanelChrome + LogFootnote + MinLog + PageMargin;   // That is 664
+        // The three columns are the page at every size they can be: as the window shrinks the two
+        // fixed columns narrow and everything stands closer, a step at a time, the roomiest step the
+        // window holds. life.yaml is drawn at the first step; the scene writes the others into the
+        // page before it is built (shapeColumns), so a step is a page built again, as the compact one is.
+        struct ColumnWidths
+        {
+            float left;                // The left column
+            float right;               // The right column
+            float margin;              // From the window's left and right edges
+            float gap;                 // Between two columns
+            float minMiddle;           // The least the choice takes: a tile is 148 and the panel's chrome 32
+            bool logFootnote;          // The line under the log: it takes two lines in the narrowest column, and goes
+
+            constexpr float least() const { return 2.0f * margin + left + right + 2.0f * gap + minMiddle; }
+        };
+
+        // The height is the right column's: the years, the work at hand with a row in it, and a log of
+        // its least size. The left column has no least height, it grows with what he holds and has
+        // learned: it is measured once the page has settled (measureLeft)
+        struct ColumnHeights
+        {
+            float stack;               // Between two panels of a column
+            float minLog;              // The least the log's well takes
+            float margin;              // Under the columns
+
+            constexpr float least() const { return ColumnsTop + ClockPanel + stack + RunningPanel + stack + PanelChrome + LogFootnote + minLog + margin; }
+        };
+
+        constexpr ColumnWidths Widths[] = {
+            {300.0f, 360.0f, 16.0f, 12.0f, 420.0f, true},    // From 1136: the page as it is drawn
+            {248.0f, 296.0f, 10.0f, 8.0f, 336.0f, true},     // From 916: two tiles to a line
+            {200.0f, 280.0f, 6.0f, 4.0f, 180.0f, false},     // From 680: one tile to a line
+        };
+
+        constexpr ColumnHeights Heights[] = {
+            {16.0f, 120.0f, 16.0f},                   // From 664
+            {10.0f, 84.0f, 10.0f},                    // From 610
+            {4.0f, 56.0f, 6.0f},                      // From 566
+        };
+
+        // The roomiest step a size holds, -1 when it holds none: the compact page
+        // (life-compact.yaml: the work at hand over the choice, a side column of one panel at a time)
+        int widthStepFor(float width)
+        {
+            for (int i = 0; i < static_cast<int>(std::size(Widths)); ++i)
+            {
+                if (width >= Widths[i].least())
+                    return i;
+            }
+
+            return -1;
+        }
+
+        int heightStepFor(float height)
+        {
+            for (int i = 0; i < static_cast<int>(std::size(Heights)); ++i)
+            {
+                if (height >= Heights[i].least())
+                    return i;
+            }
+
+            return -1;
+        }
+
         constexpr int SettlePasses = 6;            // What the layout takes to place a page just built or filled
         constexpr float CompactMargin = 24.0f;
         constexpr float CompactTop = 128.0f;       // Under the tabs
@@ -102,7 +157,73 @@ namespace chronicle
 
         bool needsCompact(float width, float height)
         {
-            return width < FullMinWidth or height < FullMinHeight;
+            return widthStepFor(width) < 0 or heightStepFor(height) < 0;
+        }
+
+        NodeSpec* childNamed(NodeSpec& page, const std::string& name)
+        {
+            for (auto& child : page.children)
+            {
+                if (child.name == name)
+                    return &child;
+            }
+
+            return nullptr;
+        }
+
+        void setMargin(NodeSpec* node, AnchorType side, float margin)
+        {
+            if (not node)
+                return;
+
+            for (auto& anchor : node->anchors)
+            {
+                if (anchor.side == side)
+                    anchor.margin = margin;
+            }
+        }
+
+        void setProp(NodeSpec* node, const std::string& key, float value)
+        {
+            if (node)
+                node->props[key] = value;
+        }
+
+        // The three columns' page at a step: the fixed columns' widths, the margins and the gaps,
+        // written over the ones life.yaml is drawn with. What stands in a panel takes its width
+        // from it. The choice's width and the heights are the fit's, on every resize.
+        void shapeColumns(NodeSpec& page, const ColumnWidths& widths, const ColumnHeights& heights)
+        {
+            for (const char* name : {"title", "about"})
+                setProp(childNamed(page, name), "x", widths.margin);
+
+            for (const char* name : {"date", "dateNote"})
+                setMargin(childNamed(page, name), AnchorType::Right, widths.margin);
+
+            setProp(childNamed(page, "holds"), "x", widths.margin);
+            setProp(childNamed(page, "holds"), "width", widths.left);
+            setProp(childNamed(page, "learned"), "width", widths.left);
+            setMargin(childNamed(page, "learned"), AnchorType::Top, heights.stack);
+
+            setProp(childNamed(page, "may"), "x", widths.margin + widths.left + widths.gap);
+
+            setProp(childNamed(page, "clockPanel"), "width", widths.right);
+            setMargin(childNamed(page, "clockPanel"), AnchorType::Right, widths.margin);
+
+            for (const char* name : {"working", "happened"})
+            {
+                setProp(childNamed(page, name), "width", widths.right);
+                setMargin(childNamed(page, name), AnchorType::Top, heights.stack);
+            }
+
+            if (not widths.logFootnote)
+            {
+                if (NodeSpec* happened = childNamed(page, "happened"))
+                {
+                    if (NodeSpec* log = childNamed(*happened, "log"))
+                        log->props["footnote"] = std::string("");
+                }
+            }
         }
 
         void windowSize(EntitySystem* ecs, float& width, float& height)
@@ -329,6 +450,9 @@ namespace chronicle
         for (const auto& e : errors)
             LOG_ERROR(DOM, file << ": " << e);
 
+        if (not compactPage)
+            shapeColumns(*spec, Widths[widthStep], Heights[heightStep]);
+
         EntityRef built = buildTree(ecsRef, *spec);
 
         if (built.empty())
@@ -355,6 +479,9 @@ namespace chronicle
     {
         float width, height;
         windowSize(ecsRef, width, height);
+
+        widthStep = std::max(0, widthStepFor(width));
+        heightStep = std::max(0, heightStepFor(height));
 
         if (not buildPage(needsCompact(width, height)))
             return;
@@ -508,11 +635,21 @@ namespace chronicle
         windowHeight = height;
         runningShown = not save.running.empty();
 
-        // Across the breakpoint the other file replaces the page, sized, then its rows and every
-        // path again
-        const bool swap = wantsCompact(width, height) != compact;
+        // Across a breakpoint the page is built again, sized, then its rows and every path again:
+        // the other file for the compact page, the same at another step for the three columns
+        const bool wantCompact = wantsCompact(width, height);
+        const int wantedWidth = widthStepFor(width);
+        const int wantedHeight = heightStepFor(height);
 
-        if (swap and not buildPage(not compact))
+        const bool swap = wantCompact != compact or (not wantCompact and (wantedWidth != widthStep or wantedHeight != heightStep));
+
+        if (swap and not wantCompact)
+        {
+            widthStep = wantedWidth;
+            heightStep = wantedHeight;
+        }
+
+        if (swap and not buildPage(wantCompact))
             return;
 
         measureIn = SettlePasses;
@@ -534,6 +671,14 @@ namespace chronicle
         {
             rebuild();
             publish();
+        }
+        else if (not save.running.empty() and workRoom() != rowRoom)
+        {
+            // The panel of the work at hand is wide enough for its row to say more, or no longer is
+            if (auto running = piece<ActivityList>("running"))
+                running->setRows(ecsRef, {});
+
+            showRunning(save.running);
         }
     }
 
@@ -559,7 +704,7 @@ namespace chronicle
             return;
 
         // What he has learned is the last panel of the column, under what he holds
-        leftNeed = pos->y + pos->height + PageMargin;
+        leftNeed = pos->y + pos->height + Heights[heightStep].margin;
 
         if (wantsCompact(windowWidth, windowHeight))
             ecsRef->sendEvent(RefitEvent{});
@@ -582,6 +727,58 @@ namespace chronicle
         }
     }
 
+    int LifeScene::workRoom()
+    {
+        auto working = piece<Panel>("working");
+
+        if (not working)
+            return 0;
+
+        if (working->innerWidth() >= TallyRoom)
+            return 2;
+
+        return working->innerWidth() >= EachRoom ? 1 : 0;
+    }
+
+    void LifeScene::showRunning(const std::string& id)
+    {
+        auto running = piece<ActivityList>("running");
+
+        if (not running)
+            return;
+
+        for (const auto& a : activities)
+        {
+            if (textOf(a.fields, "id") != id)
+                continue;
+
+            const int room = workRoom();
+
+            ActivityRowSpec row;
+            row.id = id;
+            row.name = textOf(a.fields, "name");
+            row.glyph = textOf(a.fields, "glyph");
+            row.rank = textOf(a.fields, "rank");
+            row.months = intOf(a.fields, "months");
+            row.state = ActivityState::Running;
+            row.glossKey = "activity/" + id;
+
+            // The name first. The line under the time and the tally are said where the panel is
+            // wide enough to leave the name its room, and by the gloss everywhere
+            if (room >= 1)
+                row.each = textOf(a.fields, "each");
+
+            if (room >= 2)
+                row.count = textOf(a.fields, "tally");
+
+            runningProgress(ecsRef, row);
+
+            running->setRows(ecsRef, {{"", {row}}});
+
+            rowRoom = room;
+        }
+    }
+
     float LifeScene::workingHeight() const
     {
         return save.running.empty() ? PanelChrome + SkipButton : RunningPanel;
@@ -591,10 +788,17 @@ namespace chronicle
     {
         EntitySystem* ecs = ecsRef;
 
+        const ColumnWidths& widths = Widths[widthStep];
+        const ColumnHeights& heights = Heights[heightStep];
+
+        // What he is, beside the date: it ends where the date's own room begins
+        if (auto about = piece<Label>("about"))
+            about->setWidth(ecs, std::max(0.0f, width - 2.0f * widths.margin - DateRoom));
+
         // The middle column takes what the two fixed ones leave; the choice fills it to the bottom
-        const float middle = std::max(MinMiddle, width - 2.0f * PageMargin - LeftColumn - RightColumn - 2.0f * ColumnGap);
+        const float middle = std::max(widths.minMiddle, width - 2.0f * widths.margin - widths.left - widths.right - 2.0f * widths.gap);
         // The choice has no heading: the chapters stand at its head, over the list
-        const float listHeight = std::max(MinList, height - ColumnsTop - PlainChrome - TabsRow - StackGap);
+        const float listHeight = std::max(MinList, height - ColumnsTop - PlainChrome - TabsRow - heights.margin);
 
         if (auto may = piece<Panel>("may"))
         {
@@ -614,7 +818,7 @@ namespace chronicle
         if (EntityRef clockPanel = named("clockPanel"); not clockPanel.empty())
             clock = std::max(clock, clockPanel->get<PositionComponent>()->height);
 
-        const float logHeight = std::max(MinLog, height - ColumnsTop - clock - StackGap - workingHeight() - StackGap - PanelChrome - LogFootnote - StackGap);
+        const float logHeight = std::max(heights.minLog, height - ColumnsTop - clock - heights.stack - workingHeight() - heights.stack - PanelChrome - LogFootnote - heights.margin);
 
         if (auto log = piece<EventLog>("log"))
             log->setHeight(ecs, logHeight);
@@ -869,26 +1073,7 @@ namespace chronicle
             if (not running->spec.groups.empty() and not running->spec.groups[0].rows.empty() and running->spec.groups[0].rows[0].id == id)
                 return;
 
-            for (const auto& a : activities)
-            {
-                if (textOf(a.fields, "id") != id)
-                    continue;
-
-                ActivityRowSpec row;
-                row.id = id;
-                row.name = textOf(a.fields, "name");
-                row.glyph = textOf(a.fields, "glyph");
-                row.rank = textOf(a.fields, "rank");
-                row.count = textOf(a.fields, "tally");
-                row.each = textOf(a.fields, "each");
-                row.months = intOf(a.fields, "months");
-                row.state = ActivityState::Running;
-                row.glossKey = "activity/" + id;
-
-                runningProgress(ecs, row);
-
-                running->setRows(ecs, {{"", {row}}});
-            }
+            showRunning(id);
         }));
 
         subs.push_back(router->on("activity.running.months", [this, ecs](const ElementType& v) {
@@ -948,7 +1133,8 @@ namespace chronicle
 
             if (pace == "paused")
             {
-                working->setAside(ecs, "PAUSED \xC2\xB7 SPACE");
+                // The key that goes on, where the head has the room to say it
+                working->setAside(ecs, workRoom() == 0 ? "PAUSED" : "PAUSED \xC2\xB7 SPACE");
                 working->setAsideColor(ecs, "status-loss");
             }
             else

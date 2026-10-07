@@ -76,6 +76,9 @@ namespace chronicle
         int sideTab = 0;               // Compact: the side panel in view (parts, holds, years, log)
         float windowWidth = 1320.0f;   // As the last fit saw it
         float windowHeight = 1020.0f;
+        int rowRoom = -1;              // The room the row at work was made for
+        int widthStep = 0;             // The three columns as built: which of their widths and heights (the roomiest the window held)
+        int heightStep = 0;
         float leftNeed = 0.0f;         // The window's height the left column asked for when the three columns were last measured: 0 before, and for a new life
         int measureIn = 0;             // Passes left before the left column is measured: the page settles first
         bool runningShown = false;     // "At work now" holds a row: the page is fitted to it
@@ -89,6 +92,8 @@ namespace chronicle
         void fitCompact(float width, float height);   // The main column's width, the choice's and the log's heights
         void fitEnding(float width, float height);    // The ending's veil to the window
         float workingHeight() const;   // "At work now": its chrome alone, or with a running row
+        int workRoom();                // What its row has the room to say beside its name: 0 its time, 1 the line under it too, 2 the tally as well
+        void showRunning(const std::string& id);   // The row of the work at hand, made for the room there is
         void showSide(int index);      // Compact: one side panel in view, the others hidden
         void wire();                   // THE one function with every subscription
         void rebuild();                // The rows only the save and the rules know: ledgers, lists, log, clock

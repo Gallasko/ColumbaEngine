@@ -98,7 +98,7 @@ children:
     name: may
     frame: ruled
     width: 436
-    heading: What Aldren may do
+    heading: Activities
     glyph: town
     aside: CHOOSE ONE
     anchors:
@@ -122,9 +122,9 @@ children:
       - {side: left, target: parts, targetSide: left}
       - {side: top, target: __MainWindow, targetSide: top, margin: 128}
     items:
-      - {label: Parts}
-      - {label: Holds}
-      - {label: Years}
+      - {label: Stats}
+      - {label: Inventory}
+      - {label: Timeline}
       - {label: Log}
 
   - kind: Panel
