@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chronicle</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #ece0c8; }
+
+    /* The canvas is the whole frame. SDL follows this box: the game is resized to it, never scaled. */
+    #canvas { display: block; width: 100vw; height: 100vh; outline: none; }
+
+    #status {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      padding: 24px; text-align: center; pointer-events: none;
+      font: 18px/1.5 Georgia, "Times New Roman", serif; color: #2b2219;
+    }
+    #status[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" tabindex="0"></canvas>
+  <div id="status">Chronicle is loading...</div>
+
+  <script>
+    // Published next to Chronicle.js, Chronicle.wasm and Chronicle.data
+    var GLUE = 'Chronicle.js';
+
+    var statusLine = document.getElementById('status');
+    var canvas = document.getElementById('canvas');
+
+    function say(text) {
+      statusLine.textContent = text;
+      statusLine.hidden = text === '';
+    }
+
+    var Module = {
+      canvas: canvas,
+      mainScriptUrlOrBlob: GLUE,
+
+      // "Downloading data... (done/total)" while the pack comes in, then '' when everything is there
+      setStatus: function (text) {
+        var progress = /\((\d+(?:\.\d+)?)\/(\d+)\)/.exec(text);
+
+        if (progress)
+          say('Chronicle is loading... ' + Math.round(100 * progress[1] / progress[2]) + '%');
+        else
+          say(text === '' ? '' : 'Chronicle is loading...');
+      },
+
+      onAbort: function (what) {
+        say('Chronicle stopped: ' + what);
+      }
+    };
+
+    canvas.addEventListener('contextmenu', function (event) { event.preventDefault(); });
+    canvas.addEventListener('pointerdown', function () { canvas.focus(); });
+
+    // The engine runs on threads, which a browser only gives to a cross-origin isolated page
+    if (self.crossOriginIsolated) {
+      var glue = document.createElement('script');
+
+      glue.src = GLUE;
+      glue.onerror = function () { say('Chronicle could not be loaded: ' + GLUE + ' is missing.'); };
+
+      document.body.appendChild(glue);
+    } else {
+      say('Chronicle cannot start here: this page is not cross-origin isolated, so the browser gives it no threads (SharedArrayBuffer).');
+    }
+  </script>
+</body>
+</html>

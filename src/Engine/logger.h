@@ -39,9 +39,10 @@
 #define LOG_MILE(scope, msg) (void)(scope); (void)(pg::Strfy() << msg);
 
 #ifdef __EMSCRIPTEN__
-#define LOG_INFO(scope, msg) (void)(scope); (void)(pg::Strfy() << msg);
-#define LOG_ERROR(scope, msg) (void)(scope); (void)(pg::Strfy() << msg);
-#define LOG_WARNING(scope, msg) (void)(scope); (void)(pg::Strfy() << msg);
+// One expression each, as the logging versions are: a braceless if / else or for body takes the whole macro
+#define LOG_INFO(scope, msg) ((void)(scope), (void)(pg::Strfy() << msg))
+#define LOG_ERROR(scope, msg) ((void)(scope), (void)(pg::Strfy() << msg))
+#define LOG_WARNING(scope, msg) ((void)(scope), (void)(pg::Strfy() << msg))
 // #define LOG_INFO(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::info)
 // #define LOG_ERROR(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::error)
 #else

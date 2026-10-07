@@ -1,6 +1,8 @@
 #include "ledgergallery.h"
 
-#ifdef __linux__
+#ifdef __EMSCRIPTEN__
+#include <SDL2/SDL.h>
+#elif __linux__
 #include <SDL2/SDL.h>
 #elif _WIN32
 #include <SDL.h>
