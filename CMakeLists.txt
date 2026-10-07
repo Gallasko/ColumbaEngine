@@ -11,6 +11,7 @@ option(BUILD_STATIC_LIB "Build static library only" OFF)
 option(BUILD_EXAMPLES "Build example applications" ON)
 option(BUILD_EDITOR "Build the ColumbaEngineEditor scene editor (native builds only)" ON)
 option(USE_CCACHE "Use ccache to speed up rebuilds" ON)
+option(WEB_THREADS "Web builds run the ecs on threads, which needs a cross-origin isolated page. OFF: everything on the main thread, saves kept in IndexedDB" ON)
 option(SKIP_COMPONENT_GENERATION "Skip regeneration of component files (use existing generated files)" OFF)
 option(PGE_BUILD_COMPARISON_BENCHMARKS "Build cross-engine comparison benchmarks (PgEngine vs EnTT/flecs/Bevy)" OFF)
 
@@ -66,11 +67,29 @@ find_package(OpenGL REQUIRED)
 
 # Emscripten-specific setup
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    # Set flags separately to avoid concatenation issues
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+    # With threads the page has to be cross-origin isolated (SharedArrayBuffer), which a page framed by
+    # another site cannot be. Without them (-DWEB_THREADS=OFF, a build tree of its own) the engine is built
+    # with PG_NO_THREADS: the ecs runs in the frame callback and the save folder is kept in IndexedDB.
+    if(WEB_THREADS)
+        set(WEB_THREAD_COMPILE_FLAGS "-sUSE_PTHREADS=1")
+        set(WEB_THREAD_LINK_FLAGS "-sUSE_PTHREADS=1")
 
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -O3 -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1 --use-preload-plugins")
+        # The file system and the thread runtime of every web example
+        set(WEB_RUNTIME_LINK "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread")
+    else()
+        set(WEB_THREAD_COMPILE_FLAGS "-DPG_NO_THREADS")
+        set(WEB_THREAD_LINK_FLAGS "")
+
+        set(WEB_RUNTIME_LINK "-s FORCE_FILESYSTEM=1 -lidbfs.js")
+
+        message(STATUS "Web build without threads (PG_NO_THREADS)")
+    endif()
+
+    # Set flags separately to avoid concatenation issues
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions ${WEB_THREAD_COMPILE_FLAGS}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions ${WEB_THREAD_COMPILE_FLAGS}")
+
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -O3 -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions ${WEB_THREAD_LINK_FLAGS} --use-preload-plugins")
 
     # The res/, scripts/ and shader/ copied into the build directory, packed by the web
     # examples. Per target and not in the flags above, so that a game can pack its own
@@ -535,9 +554,12 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 else()
     if(NOT PREGENERATED_COMPONENTS_DIR)
         # No native build available to generate from: fall back to the committed
-        # component seed, kept fresh via the SnapshotComponents target.
-        set(GENERATED_COMPONENTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/generated")
-        message(STATUS "Emscripten build: using committed generated components from ${GENERATED_COMPONENTS_DIR}")
+        # component seed, kept fresh via the SnapshotComponents target. It is copied
+        # under generated/Components, as a native tree lays it out: the engine includes
+        # "Components/X.generated.h", which the seed's own folder name does not give.
+        set(GENERATED_COMPONENTS_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/Components")
+        file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/generated/" DESTINATION "${GENERATED_COMPONENTS_DIR}")
+        message(STATUS "Emscripten build: using committed generated components from ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/generated")
         message(STATUS "  Override with -DPREGENERATED_COMPONENTS_DIR=<native-build-dir>/generated/Components")
     endif()
 endif()
@@ -925,7 +947,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(GMTK2025
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "${WEB_RUNTIME_LINK} -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
 
         ###
 
@@ -941,7 +963,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(BoxBouncer
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "${WEB_RUNTIME_LINK} -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
 
         ###
 
@@ -957,7 +979,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(RenderingTest
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "${WEB_RUNTIME_LINK} -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
 
         ###
 
@@ -973,7 +995,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(IconAtlasTest
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "${WEB_RUNTIME_LINK} -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
 
         ###
 
@@ -989,7 +1011,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(ShapesTest
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "${WEB_RUNTIME_LINK} -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
 
         ###
 
@@ -1005,7 +1027,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(Asteroid
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "${WEB_RUNTIME_LINK} -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
 
         ###
 
@@ -1021,7 +1043,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(InvadersBreaker
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "${WEB_RUNTIME_LINK} -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
 
         ###
 
@@ -1044,7 +1066,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(VoxelTest
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "${WEB_RUNTIME_LINK} -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
 
         ###
 
@@ -1103,7 +1125,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(GameDevJs2026
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "${WEB_RUNTIME_LINK} -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
 
         ###
 
@@ -1119,10 +1141,19 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_link_libraries(Chronicle PRIVATE ColumbaEngine)
 
         # 1 MB of stack for the main thread and for each worker: the default is 64 KB, and the
-        # rules are compiled and the pages built from the ECS workers.
+        # rules are compiled and the pages built from the ECS workers (from the main thread
+        # without WEB_THREADS).
+        # SAFE_HEAP checks every memory access, a debugging aid the other web examples link with.
+        # Without threads the whole game runs in the frame callback and it costs too much there.
+        if(WEB_THREADS)
+            set(CHRONICLE_WEB_HEAP_CHECK "-s SAFE_HEAP=1")
+        else()
+            set(CHRONICLE_WEB_HEAP_CHECK "")
+        endif()
+
         set_target_properties(Chronicle
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -sSTACK_SIZE=1048576 -sDEFAULT_PTHREAD_STACK_SIZE=1048576 ${USE_FLAGS}")
+            LINK_FLAGS "${WEB_RUNTIME_LINK} -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 ${CHRONICLE_WEB_HEAP_CHECK} -sSTACK_SIZE=1048576 -sDEFAULT_PTHREAD_STACK_SIZE=1048576 ${USE_FLAGS}")
 
         # Everything Chronicle reads at run time, packed from the source tree under the
         # same paths (no WEB_DEFAULT_PRELOAD: nothing comes from the build directory).
@@ -1169,9 +1200,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         endforeach()
 
         # What is published: chronicle-web/ and chronicle-web.zip, the page and the three files it loads
+        # The page is told whether the build needs threads: without them it starts on any page
+        if(WEB_THREADS)
+            set(CHRONICLE_WEB_NEEDS_THREADS "true")
+        else()
+            set(CHRONICLE_WEB_NEEDS_THREADS "false")
+        endif()
+
+        configure_file(${CMAKE_SOURCE_DIR}/examples/Chronicle/web/index.html.in ${CMAKE_CURRENT_BINARY_DIR}/chronicle-page/index.html @ONLY)
+
         add_custom_target(ChronicleWeb
             COMMAND ${CMAKE_COMMAND} -E make_directory chronicle-web
-            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/examples/Chronicle/web/index.html Chronicle.js Chronicle.wasm Chronicle.data chronicle-web
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/chronicle-page/index.html Chronicle.js Chronicle.wasm Chronicle.data chronicle-web
             COMMAND ${CMAKE_COMMAND} -E chdir chronicle-web ${CMAKE_COMMAND} -E tar cf ../chronicle-web.zip --format=zip index.html Chronicle.js Chronicle.wasm Chronicle.data
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
             COMMENT "Packing chronicle-web.zip"

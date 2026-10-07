@@ -642,11 +642,15 @@ namespace pg
         {
             PROFILE_SCOPE("SwapBuffer", "GL Error Checking");
 #endif
+            // In a browser glGetError waits for the GPU to be done with the whole frame, every frame, and a
+            // release web build logs nothing: the check is only kept where its message can be read
+#if !defined(__EMSCRIPTEN__) || defined(DEBUG)
             GLenum err;
             while ((err = glGetError()) != GL_NO_ERROR)
             {
                 LOG_ERROR(DOM, "OpenGL error: " << err);
             }
+#endif
 #ifdef PROFILE
         }
 

@@ -56,8 +56,8 @@ emrun Chronicle.html
 ```
 
 To publish, `make ChronicleWeb` builds the game and packs `chronicle-web.zip` (and the same
-files in `chronicle-web/`, to try with `emrun chronicle-web/index.html`): `web/index.html`
-with `Chronicle.js`, `Chronicle.wasm` and `Chronicle.data`. The page's canvas fills the frame
+files in `chronicle-web/`, to try with `emrun chronicle-web/index.html`): the page made from
+`web/index.html.in` with `Chronicle.js`, `Chronicle.wasm` and `Chronicle.data`. The page's canvas fills the frame
 and the game is resized to it; it keeps black behind the canvas, since a light ground shows
 through every blended pixel and fades the text. `Chronicle.html` is Emscripten's test page and
 is not published. On itch.io the project has to have *SharedArrayBuffer support* ticked in its
@@ -72,9 +72,24 @@ frame options.
 - **Relinking**: the pack is made at link time, and editing a packed file relinks the target.
 - **Threads**: the build uses pthreads, so the page must be cross-origin isolated
   (`Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`).
-  `emrun` sends both; another host has to be set up to.
-- **Save**: `save/chronicle/life.sz` is kept in the browser's origin private file system,
-  per site and per browser. The launch flags of the native build have no equivalent yet.
+  `emrun` sends both; another host has to be set up to. A page framed by a site that is not
+  isolated itself (galaxy.click) can never be: that is what the build without threads is for.
+- **Without threads**: a second build tree configured with `-DWEB_THREADS=OFF` builds the
+  engine with `PG_NO_THREADS`, and the same `make ChronicleWeb` packs a game that starts on any
+  page, framed or not, with no header to send:
+
+  ```bash
+  emcmake cmake -S . -B em-nothreads -DCMAKE_BUILD_TYPE=Release -DWEB_THREADS=OFF
+  cd em-nothreads
+  make ChronicleWeb
+  ```
+
+  There the systems run in the frame callback (`src/Engine/ECS/serialtaskflow.h` stands in for
+  taskflow, a few passes a frame), the window is made without the init thread, and the save
+  folder is kept in IndexedDB instead of the origin private file system, so a save does not
+  pass from one build to the other. The game is the same.
+- **Save**: `save/chronicle/life.sz` is kept in the browser's origin private file system
+  (in IndexedDB without threads), per site and per browser. The launch flags of the native build have no equivalent yet.
   With no save a web player begins a new life at 7 (`LaunchOptions::freshWithoutSave`), not
   the mockup's life the native build opens on. The life is saved on its own as it goes, so a
   closed tab loses a month at most.

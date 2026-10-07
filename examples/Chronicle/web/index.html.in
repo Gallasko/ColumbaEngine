@@ -20,22 +20,41 @@
       font: 18px/1.5 Georgia, "Times New Roman", serif; color: #2b2219;
     }
     #status[hidden] { display: none; }
+
+    /* The way out of a frame the game cannot run in */
+    #own-tab {
+      display: inline-block; margin-top: 16px; padding: 8px 20px; pointer-events: auto;
+      border: 1px solid #2b2219; color: #2b2219; text-decoration: none;
+    }
+    #own-tab:hover, #own-tab:focus { background: #2b2219; color: #ece0c8; }
+    #own-tab[hidden] { display: none; }
   </style>
 </head>
 <body>
   <canvas id="canvas" tabindex="0"></canvas>
-  <div id="status">Chronicle is loading...</div>
+  <div id="status">
+    <div>
+      <div id="line">Chronicle is loading...</div>
+      <a id="own-tab" target="_blank" rel="noopener" hidden>Play Chronicle in its own tab</a>
+    </div>
+  </div>
 
   <script>
     // Published next to Chronicle.js, Chronicle.wasm and Chronicle.data
     var GLUE = 'Chronicle.js';
 
-    var statusLine = document.getElementById('status');
+    // Written when the page is packed (make ChronicleWeb). A build with threads only starts on a
+    // cross-origin isolated page; a build without them (-DWEB_THREADS=OFF) starts anywhere.
+    var NEEDS_THREADS = @CHRONICLE_WEB_NEEDS_THREADS@;
+
+    var statusBox = document.getElementById('status');   // Not 'status': that name is the window's own
+    var line = document.getElementById('line');
+    var ownTab = document.getElementById('own-tab');
     var canvas = document.getElementById('canvas');
 
     function say(text) {
-      statusLine.textContent = text;
-      statusLine.hidden = text === '';
+      line.textContent = text;
+      statusBox.hidden = text === '';
     }
 
     var Module = {
@@ -57,17 +76,28 @@
       }
     };
 
+    function canStart() {
+      return NEEDS_THREADS === false || self.crossOriginIsolated;
+    }
+
     canvas.addEventListener('contextmenu', function (event) { event.preventDefault(); });
     canvas.addEventListener('pointerdown', function () { canvas.focus(); });
 
-    // The engine runs on threads, which a browser only gives to a cross-origin isolated page
-    if (self.crossOriginIsolated) {
+    // Threads are only given to a cross-origin isolated page
+    if (canStart()) {
       var glue = document.createElement('script');
 
       glue.src = GLUE;
       glue.onerror = function () { say('Chronicle could not be loaded: ' + GLUE + ' is missing.'); };
 
       document.body.appendChild(glue);
+    } else if (window.self !== window.top) {
+      // Framed by a page that is not isolated itself: no header of ours can change that, but
+      // the same address opened as its own tab can be
+      say('Chronicle cannot run inside this frame: the browser gives it no threads here.');
+
+      ownTab.href = location.href;
+      ownTab.hidden = false;
     } else {
       say('Chronicle cannot start here: this page is not cross-origin isolated, so the browser gives it no threads (SharedArrayBuffer).');
     }

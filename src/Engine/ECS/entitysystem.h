@@ -121,6 +121,9 @@ namespace pg
 
         /**
          * @brief Start the running thread of the ecs and loop through the taskflow
+         *
+         * With PG_NO_THREADS there is no running thread: the ecs is marked as running and
+         * whoever owns the main loop calls executeOnce() for every pass.
          */
         inline void start()
         {
@@ -132,7 +135,9 @@ namespace pg
             stopRequested = false;
             running = true;
 
+#ifndef PG_NO_THREADS
             runningThread = std::thread(&EntitySystem::executeAll, this);
+#endif
         }
 
         /**

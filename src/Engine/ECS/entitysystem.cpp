@@ -14,7 +14,11 @@
 #include "entitysystem.h"
 
 // Include taskflow here instead of in header for compilation time optimization
+#ifdef PG_NO_THREADS
+#include "serialtaskflow.h"
+#else
 #include "taskflow/taskflow.hpp"
+#endif
 
 // For type-name demangling in dumbTaskflow()
 #include "Helpers/demangle.h"
@@ -42,7 +46,7 @@ namespace
 {
     static constexpr char const * DOM = "ECS";
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(PG_NO_THREADS)
     static constexpr size_t NBEXECUTORTHREADS = 1;
 #else
     #ifdef __EMSCRIPTEN__
@@ -50,6 +54,17 @@ namespace
     #else
         static  size_t NBEXECUTORTHREADS = std::thread::hardware_concurrency() > 1 ? std::thread::hardware_concurrency() - 1 : 1;
     #endif
+#endif
+
+#ifdef PG_NO_THREADS
+    // No thread to give to a taskflow executor: the same graph, run by whoever calls executeOnce
+    using TaskGraph = pg::serial::Taskflow;
+    using TaskRunner = pg::serial::Executor;
+    using GraphTask = pg::serial::Task;
+#else
+    using TaskGraph = tf::Taskflow;
+    using TaskRunner = tf::Executor;
+    using GraphTask = tf::Task;
 #endif
 }
 
@@ -92,16 +107,16 @@ namespace pg
     struct EntitySystem::TaskflowImpl
     {
         /** Taskflow of all the system of the ecs */
-        tf::Taskflow taskflow;
+        TaskGraph taskflow;
 
         /** Main executor of the ecs */
-        tf::Executor executor;
+        TaskRunner executor;
 
         /** Map of all the task associated to systems */
-        std::unordered_map<_unique_id, tf::Task> tasks;
+        std::unordered_map<_unique_id, GraphTask> tasks;
 
         /** Last task of the mandatory ecs base systems */
-        tf::Task basicTask;
+        GraphTask basicTask;
 
         TaskflowImpl() : executor(NBEXECUTORTHREADS) {}
     };
@@ -525,7 +540,7 @@ namespace pg
                 entityPool.addComponentsParallel(idList, std::back_inserter(result),
                     [this](size_t n, auto body)
                     {
-                        tf::Taskflow tfLocal;
+                        TaskGraph tfLocal;
                         const size_t chunkSize = (n + NBEXECUTORTHREADS - 1) / NBEXECUTORTHREADS;
                         for (size_t t = 0; t < NBEXECUTORTHREADS and t * chunkSize < n; ++t)
                         {

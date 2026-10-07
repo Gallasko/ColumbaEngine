@@ -99,13 +99,16 @@ namespace pg
 
     public:
         void initializeECS();
+
+        // Public for callback access: with PG_NO_THREADS the frame callback makes the window, there is no init thread
+        void initializeWindow();
 #else
     private:
         void initializeECS();
+        void initializeWindow();
 #endif
 
     private:
-        void initializeWindow();
         void setupFilesystem();
         std::string constructSavePath() const;
     };

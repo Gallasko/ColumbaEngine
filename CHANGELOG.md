@@ -49,6 +49,20 @@ First tagged release. Everything below describes the state of the engine at the 
   `EntitySystem::registerCustomVmModule`; systems written in script go through `StandardSystem`.
 
 ### Changed
+- Web builds without threads: `-DWEB_THREADS=OFF` (a build tree of its own) builds the engine with
+  `PG_NO_THREADS`. The ecs has no thread and no taskflow executor: `EntitySystem::start()` only marks it as
+  running and the frame callback runs the systems through `executeOnce()`, a few passes a frame, on a serial
+  scheduler (`ECS/serialtaskflow.h`) that keeps the order the task graph asks for. The window is made without
+  the init thread, and the save folder is mounted from IndexedDB (written back on its own) instead of OPFS.
+  Such a build starts on a page that is not cross-origin isolated, a frame on another site included. Saves
+  do not pass between a build with threads and one without.
+- Web builds: `Window::swapBuffer()` no longer calls `glGetError` every frame in a release build. In a
+  browser that call waits for the GPU to finish the frame, and the message it would log is compiled out there.
+- Web builds: a fresh build tree finds the generated components again. The committed seed is copied under
+  `generated/Components`, the layout the engine's includes expect (`-DPREGENERATED_COMPONENTS_DIR` is no
+  longer needed for that).
+- Chronicle: `web/index.html` is now `web/index.html.in`: the page is told at configure time whether its
+  build needs threads, and only then asks for a cross-origin isolated page.
 - Chronicle: a life is saved on its own, after every month, every choice, every thing done at once and every
   new life, with no line in the log (`LifeScene::autoSave`; never with `--no-save`). `S` still writes it and
   says so. A life that has just ended is not written: loaded again, its last month ends it again.

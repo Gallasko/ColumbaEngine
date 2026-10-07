@@ -10,7 +10,9 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <emscripten/html5.h>
+#ifndef PG_NO_THREADS
 #include <emscripten/wasmfs.h>
+#endif
 #endif
 
 using namespace pg;
@@ -18,6 +20,13 @@ using namespace pg;
 namespace
 {
     static const char* const DOM = "Engine";
+
+#ifdef PG_NO_THREADS
+    // Without an ecs thread the systems run in the frame callback: a few passes a frame, so that an event and
+    // what answers it land in the same frame, as long as they leave the frame its time to be drawn
+    constexpr int SerialPassesPerFrame = 4;
+    constexpr double SerialPassBudgetMs = 6.0;
+#endif
 }
 
 Engine::Engine(const std::string& name, const EngineConfig& engineConfig)
@@ -114,7 +123,9 @@ EntitySystem* Engine::getECS() const
 
 void Engine::setupFilesystem()
 {
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) && defined(PG_NO_THREADS)
+    printf("Setting up the IndexedDB save folder...\n");
+#elif defined(__EMSCRIPTEN__)
     printf("Setting up WasmFS filesystem (OPFS mount will happen in init thread)...\n");
 #else
     LOG_INFO(DOM, "Desktop save path: " << config.saveFolder);
@@ -261,6 +272,21 @@ static void mainLoopCallback(void* arg)
     void** args = static_cast<void**>(arg);
     Engine* engine = static_cast<Engine*>(args[0]);
 
+#ifdef PG_NO_THREADS
+    // No init thread: the window is made here, once the saves kept by the browser are back in the save folder
+    static bool windowAsked = false;
+
+    if (not windowAsked)
+    {
+        if (not EM_ASM_INT({ return Module.pgSavesReady ? 1 : 0; }))
+            return;
+
+        windowAsked = true;
+
+        engine->initializeWindow();
+    }
+#endif
+
     if (not engine->windowReady.load())
     {
         printf("Window not ready, returning early\n");
@@ -340,6 +366,23 @@ static void mainLoopCallback(void* arg)
 
     }
 
+#ifdef PG_NO_THREADS
+    if (engine->ecsReady.load())
+    {
+        const double passesStart = emscripten_get_now();
+
+        int pass = 0;
+
+        do
+        {
+            engine->mainWindow->ecs->executeOnce();
+
+            ++pass;
+        }
+        while (pass < SerialPassesPerFrame and emscripten_get_now() - passesStart < SerialPassBudgetMs);
+    }
+#endif
+
     engine->mainWindow->render();
 
     if (engine->mainWindow->requestQuit())
@@ -360,6 +403,35 @@ int Engine::exec()
 #ifdef __EMSCRIPTEN__
     printf("Starting Emscripten build...\n");
 
+#ifdef PG_NO_THREADS
+    // OPFS needs a thread. The save folder is kept in IndexedDB instead: what the browser holds is read back
+    // before the window is made (see the frame callback), and every file written there is stored on its own.
+    printf("Mounting IndexedDB at /%s...\n", config.saveFolder.c_str());
+    std::string savePath = "/" + config.saveFolder;
+
+    EM_ASM({
+        var path = UTF8ToString($0);
+
+        try { FS.mkdir(path); } catch (e) {}
+
+        Module.pgSavesReady = false;
+
+        try {
+            FS.mount(IDBFS, { autoPersist: true }, path);
+
+            FS.syncfs(true, function (err) {
+                if (err) console.error('The saves could not be read back:', err);
+
+                Module.pgSavesReady = true;
+            });
+        } catch (e) {
+            // No IndexedDB here (a private window, a locked down frame): the game runs, and keeps nothing
+            console.error('The save folder is not kept by this browser:', e);
+
+            Module.pgSavesReady = true;
+        }
+    }, savePath.c_str());
+#else
     // OPFS must be mounted from a pthread (not the main thread)
     printf("Mounting OPFS backend at /%s...\n", config.saveFolder.c_str());
     std::string savePath = "/" + config.saveFolder;
@@ -369,6 +441,7 @@ int Engine::exec()
         printf("Warning: OPFS directory creation returned %d (errno=%d)\n", err, errno);
     else
         printf("OPFS backend mounted at %s\n", savePath.c_str());
+#endif
 
     printf("Initializing SDL...\n");
     if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) != 0)
@@ -411,6 +484,9 @@ int Engine::exec()
         return -1;
     }
 
+#ifdef PG_NO_THREADS
+    printf("SDL window created, the window is initialized by the frame callback...\n");
+#else
     printf("SDL window created, starting init thread...\n");
 
     // Start the init thread AFTER SDL setup so OPFS promises can resolve
@@ -423,6 +499,7 @@ int Engine::exec()
 
         printf("Window init thread completed\n");
     });
+#endif
 
     auto args = new void*[2]{this, pWindow};
 
