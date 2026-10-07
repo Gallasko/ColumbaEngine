@@ -67,6 +67,14 @@ namespace chronicle
     };
 
     // Confirm to run: a second release on the selected row within 400 ms, or Enter / Space on it.
+    // Sent when the mouse comes onto a row or leaves the rows: what it is on, "" for none. Locked
+    // and running rows say so too: a look costs nothing.
+    struct ActivityHoveredEvent
+    {
+        std::string list;
+        std::string id;
+    };
+
     struct ActivityActivatedEvent
     {
         std::string list;

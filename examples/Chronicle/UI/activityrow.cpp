@@ -1660,13 +1660,29 @@ namespace chronicle
 
     void ActivitySystem::onEvent(const HoverChangedEvent& event)
     {
+        // The list of a row, by its id, for the event that says what the mouse is on
+        auto listOf = [this](_unique_id listId) -> std::string {
+            if (auto listEntity = ecsRef->getEntity(listId); listEntity and listEntity->has<ActivityListState>())
+                return listEntity->get<ActivityListState>()->id;
+
+            return "";
+        };
+
+        bool changed = false;
+        std::string list, on;
+
         // Locked rows take the hover, so nothing under them lights, but they never change.
         for (auto id : event.entered)
         {
             if (auto entity = ecsRef->getEntity(id); entity and entity->has<ActivityRowState>())
             {
-                entity->get<ActivityRowState>()->hovered = true;
+                auto st = entity->get<ActivityRowState>();
+                st->hovered = true;
                 applyVisual(entity);
+
+                changed = true;
+                list = listOf(st->list);
+                on = st->id;
             }
         }
 
@@ -1678,8 +1694,18 @@ namespace chronicle
                 st->hovered = false;
                 st->pressed = false;   // A drag off cancels
                 applyVisual(entity);
+
+                // Off this row and onto none: a row entered in the same move has the last word
+                if (on.empty())
+                {
+                    changed = true;
+                    list = listOf(st->list);
+                }
             }
         }
+
+        if (changed)
+            ecsRef->sendEvent(ActivityHoveredEvent{list, on});
     }
 
     void ActivitySystem::onEvent(const OnMouseClick& event)

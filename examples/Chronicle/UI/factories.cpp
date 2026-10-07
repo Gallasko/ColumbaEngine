@@ -1150,6 +1150,7 @@ namespace chronicle
                 {"width",      300.0f},
                 {"height",     560.0f},
                 {"yearPrefix", "IN HIS "},
+                {"years",      true},
                 {"footnote",   ""},
                 {"z",          20},
             };
@@ -1167,6 +1168,7 @@ namespace chronicle
                     s.width      = numberProp(spec.props, "width", theme, s.width);
                     s.height     = numberProp(spec.props, "height", theme, s.height);
                     s.yearPrefix = stringProp(spec.props, "yearPrefix", s.yearPrefix);
+                    s.years      = getParamBool(spec.props, "years", s.years);
                     s.footnote   = stringProp(spec.props, "footnote", s.footnote);
                     s.z          = getParamInt(spec.props, "z", s.z);
 

@@ -340,7 +340,8 @@ namespace chronicle
         auto layout = list.get<VerticalLayout>();
         const float viewport = list.get<PositionComponent>()->height;
 
-        return layout->yOffset >= layout->contentHeight - viewport - 1.0f;
+        // Within a line of the end is at the end: the offset the wheel leaves is not to the pixel
+        return layout->yOffset >= layout->contentHeight - viewport - RowHeight;
     }
 
     size_t EventLog::size() const
@@ -368,7 +369,7 @@ namespace chronicle
         if (year < lastYear)
             LOG_WARNING(DOM, "Entry at " << entry.age << " is older than the year " << lastYear << " it follows; entered under that year");
 
-        if (year > lastYear)
+        if (spec.years and year > lastYear)
         {
             const float above = items.empty() ? 0.0f : RubricAbove;
 
@@ -533,6 +534,57 @@ namespace chronicle
             footnote->entity.get<UiAnchor>()->setTopMargin(height + FootnoteGap);
 
         setRootHeight(*this);
+    }
+
+    EntityRef EventLog::lightLast(EntitySystem* ecs)
+    {
+        for (auto it = items.rbegin(); it != items.rend(); ++it)
+        {
+            if (not std::holds_alternative<Row>(*it))
+                continue;
+
+            const _unique_id lineId = std::get<Row>(*it).line.id;
+
+            // As wide and as tall as its line, under what the line says
+            auto light = makeUiSimple2DShape(ecs, Shape2D::Square, lineWidth(), RowHeight);
+            auto anchor = light.get<UiAnchor>();
+
+            anchor->setLeftAnchor(PosAnchor{lineId, AnchorType::Left});
+            anchor->setTopAnchor(PosAnchor{lineId, AnchorType::Top});
+            anchor->setWidthConstrain(PosConstrain{lineId, AnchorType::Width});
+            anchor->setHeightConstrain(PosConstrain{lineId, AnchorType::Height});
+            anchor->setZConstrain(PosConstrain{lineId, AnchorType::Z, PosOpType::Add, 1.0f});
+
+            ecs->attach<ThemeComponent>(light.entity, "log.line.new");
+            addPart(std::get<Row>(*it).line, light.entity);
+
+            return light.entity;
+        }
+
+        return EntityRef{};
+    }
+
+    void EventLog::dim(EntitySystem* ecs, _unique_id light)
+    {
+        if (not ecs->getEntity(light))
+            return;
+
+        for (auto& item : items)
+        {
+            if (not std::holds_alternative<Row>(item))
+                continue;
+
+            auto prefab = std::get<Row>(item).line->get<Prefab>();
+
+            if (prefab->childrenIds.count(light) > 0)
+            {
+                prefab->childrenIds.erase(light);
+
+                break;
+            }
+        }
+
+        ecs->removeEntity(light);
     }
 
     void EventLog::scrollToEnd(EntitySystem* ecs)

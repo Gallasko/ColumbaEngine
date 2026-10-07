@@ -594,13 +594,15 @@ namespace chronicle
             return fail(s);
 
         ElementType death;
+        ElementType warning;
         std::vector<ElementType> hurt;
         size_t n = 0;
 
-        if (not s.get("death", death) or not s.get("month.hurt", hurt) or not s.get("caps", out.caps) or not s.size("glosses", n))
+        if (not s.get("death", death) or not s.get("warning", warning) or not s.get("month.hurt", hurt) or not s.get("caps", out.caps) or not s.size("glosses", n))
             return fail(s);
 
         out.death = death.toString();
+        out.warning = warning.toString();
 
         for (const auto& stat : hurt)
             out.hurt.push_back(stat.toString());

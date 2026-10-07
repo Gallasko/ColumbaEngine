@@ -124,6 +124,7 @@ namespace chronicle
         pg::RecordList rows;           // The holdings the ledger can show: {id, group, groupLabel, glyph, name, tone, rate, limit}
         std::vector<RuleGloss> glosses;   // One per holding, in the rows' order
         std::string death;             // "" or the line the next life opens with: the character as given cannot go on
+        std::string warning;           // "" or what is about to run out, in caps: "RATIONS FOR 2 MONTHS", "NO RATIONS LEFT"
     };
 
     // What is said of a life when it ends, from epitaph.pg.

@@ -7,6 +7,10 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Fixed
+- Chronicle: the log no longer loses its end. When a work began, "At work now" took 46 px from the log,
+  whose last lines were cut off; no longer at its end, it stopped following what was written, and a long
+  life's new lines came in out of sight. A reader at the end is kept there when the log changes height and
+  when a line is written (`LifeScene::followLog`), and "at the end" is within a line of it.
 - Chronicle: a short, wide window showed the compact page whatever the life. The three columns asked for
   a window 840 high, a figure that still counted the parts panel under the log, where it no longer is. The
   least height is the right column's, and the left column scrolls instead of asking for one (see Changed).
@@ -52,6 +56,20 @@ First tagged release. Everything below describes the state of the engine at the 
   `EntitySystem::registerCustomVmModule`; systems written in script go through `StandardSystem`.
 
 ### Changed
+- Chronicle: what happens is shown, and what would happen is said before it does.
+  - **Begin**: a tile chosen in the list puts a Begin button in "At work now" (Do it now for what takes no
+    time), in the place of the one that passes a month. A second click or Enter still begins it.
+  - **Gains**: a figure that rises (a part, a skill, a holding) lifts a "+2" beside it for a second.
+  - **The log**: the line just written is lit for a moment (`EventLog::lightLast`, `log.line.new`), and
+    the Life page's log has no year rubrics (`years: false`): a line's age says the year.
+  - **Toasts**: a deed, a milestone and an activity that has just become possible are said on a slip at
+    the foot of the window for a few seconds, and the new activity's tile reads NEW until it is chosen.
+  - **Preview on hover**: the mouse on a tile is enough for the ghosts on his parts
+    (`ActivityHoveredEvent`), and what the activity would leave of what he holds reads "46 -> 36" on its row.
+  - **Locked tiles** say the first thing they still ask of him ("NEEDS AGE 21").
+  - **Running out**: from three months of rations left the rules say so (`warning` in `resources.pg`),
+    under his Vitality, and a part the coming month would take from is in red before the month, not after.
+  None of the motion plays under `--reduced-motion`; the toasts still do.
 - Chronicle: the three columns are the page down to a window of 680 x 566 (it was 1136 x 664). They come
   in three widths and three heights, the roomiest the window holds: the two fixed columns narrow from
   300 / 360 to 200 / 280, the margins from 16 to 6 and the gaps from 12 to 4. The scene writes a step into

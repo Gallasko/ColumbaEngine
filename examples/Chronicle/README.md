@@ -714,6 +714,23 @@ write the dates: the head's (`headline.date` "YEAR 10", `headline.dateNote` "MON
 BELLMOOR") and each activity's closing. A fresh life started with `--fresh` begins at Year 0;
 the mockup's stands at month 126.
 
+**Feedback and feedforward.** What happens is shown and what would happen is said first, all of
+it in `lifescene.cpp` over the widgets as they are:
+
+- A tile chosen in the list puts a **Begin** button in "At work now" (`showWorkButtons`), in
+  the place of the one that passes a month; a second click or Enter still begins it.
+- The mouse on a tile is a **preview** (`ActivityHoveredEvent`, `preview`): the ghosts on his
+  parts, and "46 -> 36" on the holdings it would change. What is chosen says more than what the
+  mouse is on.
+- A tile says under its name what matters most of it (`tileNote`): what it still asks when he
+  cannot do it ("NEEDS AGE 21"), that it is `NEW` until it is chosen, or when it closes.
+- The rules say what is **running out** (`warning` from `resources.pg`, "RATIONS FOR 2 MONTHS"),
+  written under his Vitality, and a part the coming month would take from is in red before it does.
+- A figure that rises lifts a **"+2"** beside it (`showGain`), the log's new line is **lit** for a
+  moment (`EventLog::lightLast`), and a deed, a milestone or a new activity is a **toast** at the
+  foot of the window (`toast`). These last a moment each (`passing`, run by the ticks), wait out
+  the second a page takes to arrive (`quiet`), and do not move under `--reduced-motion`.
+
 **The three columns at every size.** The three columns are the page down to a window of
 680 x 566. They come in three widths and three heights (`Widths`, `Heights` in `lifescene.cpp`),
 and a window gets the roomiest step it holds of each:

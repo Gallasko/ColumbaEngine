@@ -2284,13 +2284,12 @@ namespace pg
             EXPECT_EQ(ledger->row("rations")->figure.spec.text, "12");
             EXPECT_EQ(ledger->row("coin"), nullptr);
 
-            // One year rubric, one milestone row
+            // One milestone row, and no year rubric over it: the Life page's log is its lines alone
             auto log = life->piece<EventLog>("log");
-            ASSERT_EQ(log->items.size(), 2u);
-            EXPECT_TRUE(std::holds_alternative<EventLog::Year>(log->items[0]));
-            ASSERT_TRUE(std::holds_alternative<EventLog::Row>(log->items[1]));
-            EXPECT_EQ(std::get<EventLog::Row>(log->items[1]).entry.text, "Childhood");
-            EXPECT_EQ(std::get<EventLog::Row>(log->items[1]).entry.kind, LogKind::Milestone);
+            ASSERT_EQ(log->items.size(), 1u);
+            ASSERT_TRUE(std::holds_alternative<EventLog::Row>(log->items[0]));
+            EXPECT_EQ(std::get<EventLog::Row>(log->items[0]).entry.text, "Childhood");
+            EXPECT_EQ(std::get<EventLog::Row>(log->items[0]).entry.kind, LogKind::Milestone);
 
             // Every door is still ahead
             for (const char* id : {"choir", "watch", "boys", "keep", "collegium", "hand"})

@@ -88,6 +88,7 @@ namespace chronicle
         void fitCompact(float width, float height);   // The main column's width, the choice's and the log's heights
         void fitEnding(float width, float height);    // The ending's veil to the window
         float workingHeight() const;   // "At work now": its chrome alone, or with a running row
+        void showWorkButtons();        // At nothing: the button that begins what is chosen, or the one that passes a month
         int workRoom();                // What its row has the room to say beside its name: 0 its time, 1 the line under it too, 2 the tally as well
         void showRunning(const std::string& id);   // The row of the work at hand, made for the room there is
         void showSide(int index);      // Compact: one side panel in view, the others hidden
@@ -101,11 +102,23 @@ namespace chronicle
         bool boarded() const;          // The activity at work feeds him
         bool titled(const std::string& id) const;   // A holding he has or has not (a standing, a tie): the rules say so, and its row shows no figure
         const RuleActivity* activityOf(const std::string& id) const;   // From the last activities.pg output, nullptr if none
+        std::string tileNote(const RuleActivity& activity, bool& urgent) const;   // What a tile says under its name and time: what it asks, that it is new, or when it closes
+        void onHover(const ActivityHoveredEvent& event);   // The mouse came onto a tile or left them
+        void preview();                // What the chosen activity, or the one the mouse is on, would make of his parts and of what he holds
+        void previewHoldings(const RuleForecast* forecast);   // "46 -> 36" on the rows it would change; nullptr: the figures as they are
+        void followLog();              // The log taken to its end in a moment, for a reader who was there
+        void runPassing(float ms);     // What lasts a moment, a tick further
+        void endPassing();             // All of it ended at once: the scene leaves
+        int roseOf(const std::string& key, const std::string& text);   // By how much a figure rose since it was last written, 0 if it did not
+        void showGain(pg::EntityRef over, int amount);   // "+2" lifting off the figure that rose
+        void toast(const std::string& text);            // A slip at the foot of the window, for a few seconds
+        std::string asksOf(const RuleActivity& activity) const;   // What a tile he cannot do yet says under its name: "NEEDS ARMS 6", "" when it asks nothing more
         void endLife();                // The life is lost: the months stop and its ending comes up
         bool showEnding();             // The ending from its file, over the page, saying what epitaph.pg says
         void closeEnding();            // The ending leaves
         void alert(const std::vector<std::string>& stats);   // The parts a month took from, in red for a moment; the months stop at the first
         void clearAlert();             // Back to ink
+        void publishThreat();          // The coming month's warning under his life, and in red what it would take from
         void registerDeeds();          // The deeds not reached yet, handed to the AchievementSys
         void reachDeed(const std::string& id);   // What a deed gives, its line in the log
         void takeStats(const pg::ElementMap& stats);     // A script's numbers become the character's
@@ -141,6 +154,27 @@ namespace chronicle
         pg::RecordList holdings;                  // The last resources.pg rows
         std::vector<RuleGloss> holdingGlosses;    // And what hovering each says
         std::string death;                        // "" or why the character as he is cannot go on
+        std::vector<std::string> threat;          // The parts the coming month would take from, as things stand
+        std::vector<std::string> threatShown;     // The ones of them in red for it
+        std::string warning;                      // What the rules say of the coming month ("RATIONS FOR 2 MONTHS"), "" for nothing
+        std::string chosen;                       // The activity chosen in the list, "" for none: what the Begin button begins
+        std::string hovered;                      // The one the mouse is on, "" for none: previewed when nothing is chosen
+        std::vector<std::string> known;           // The activities he could do when the list was last filled
+        std::vector<std::string> fresh;           // The ones that came since and have not been looked at: "NEW" on their tile
+
+        // Something that lasts a moment (a gain lifting off its figure, a lit line, a toast): the
+        // milliseconds left, what each tick does with the ones it is given, what its end does
+        struct Passing
+        {
+            float left = 0.0f;
+            std::function<void(float)> each;
+            std::function<void()> done;
+        };
+
+        std::vector<Passing> passing;
+        float quiet = 0.0f;                       // Milliseconds left of a page arriving: nothing is shown as a gain meanwhile
+        std::unordered_map<std::string, int> figures;   // The figure each skill and holding last had on the page, to see it rise
+        int toasts = 0;                           // The toasts up, one over another
         std::string endedLine;                    // The line the next life opens with: how this one ended
         std::string endedAge;                     // And the age it ended at, as the head wrote it
         std::unordered_map<std::string, int> caps;   // The most each capped stat can be

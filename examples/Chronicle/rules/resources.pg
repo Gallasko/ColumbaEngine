@@ -7,6 +7,8 @@
 //           after    every stat of the character once one month has passed
 //           entries  [{text, kind, figure, glyph}]: the log lines that month writes
 //           hurt     [stat]: the stats a life needs (`mortal`) that this month took from
+//         `warning`, "" or what he lives on that is running out, in caps and said from three
+//         months of it left: "RATIONS FOR 2 MONTHS", "NO RATIONS LEFT".
 //         `caps`, the most each capped stat of the character can be: [{stat, most}].
 //         `rows`, one table per holding the ledger can show, in the order it lists them:
 //           {id, group, groupLabel, glyph, name, tone, rate, limit, title}
@@ -120,6 +122,9 @@ var entries = []
 // What each holding makes this month: {stat, name, amount}
 var yields = []
 
+// What is about to run out of what a life hangs on, "" for nothing: the first holding that says so
+var warning = ""
+
 for (var i = 0; i < len(holdings); i++)
 {
     var h = holdings[i]
@@ -159,6 +164,21 @@ for (var i = 0; i < len(holdings); i++)
             {
                 push(entries, {text: h.empty.entry, kind: "loss", figure: "", glyph: h.glyph})
             }
+
+            // What a life hangs on is said to be running out from three months of it left
+            if (has(h, "empty") and warning == "")
+            {
+                var lasts = toInt(floor((held + decays - 1) / decays))
+
+                if (lasts == 1)
+                {
+                    warning = toUpperCase(h.name) + " FOR 1 MONTH"
+                }
+                else if (lasts <= 3)
+                {
+                    warning = toUpperCase(h.name) + " FOR " + toString(lasts) + " MONTHS"
+                }
+            }
         }
         else if (has(h, "empty"))
         {
@@ -166,6 +186,11 @@ for (var i = 0; i < len(holdings); i++)
             {
                 var effect = h.empty.effects[e]
                 shiftIn(after, change, effect.stat, effect.amount)
+            }
+
+            if (warning == "")
+            {
+                warning = "NO " + toUpperCase(h.name) + " LEFT"
             }
         }
     }

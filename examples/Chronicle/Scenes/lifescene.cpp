@@ -70,6 +70,7 @@ namespace chronicle
         constexpr float RunningPanel = 164.0f;     // "At work now" holding a running row
         constexpr float SkipButton = 48.0f;        // "At work now" idle: the button to pass a month (36) and the body's gap (12)
         constexpr const char * const SkipTag = "life.skip";
+        constexpr const char * const BeginTag = "life.begin";
         constexpr const char * const AgainTag = "life.again";
 
         // What the ending's veil calls when the mouse enters or leaves it: nothing
@@ -142,6 +143,22 @@ namespace chronicle
             return -1;
         }
 
+        // What happens is shown as it happens (nothing of it under reduced motion but the toast)
+        constexpr float QuietMs = 700.0f;          // After a page is filled, what its figures do is not a gain: they are only arriving
+        constexpr float GainMs = 1000.0f;          // A "+2" beside the figure that rose: it lifts and goes
+        constexpr float GainRise = 0.01f;          // By so many pixels a millisecond: less than a row in all
+        constexpr float GainInset = 46.0f;         // Its left edge, from the right edge of what it stands over
+        constexpr float GainZ = 150.0f;            // Over the page, under the tooltips
+        constexpr float FollowMs = 120.0f;         // Before the log is taken to its new end: the list has to measure the line first
+        constexpr float LitMs = 1800.0f;           // The line the log has just written keeps its light that long
+        constexpr float ToastMs = 3600.0f;         // A toast: a deed, a milestone, something new to do
+        constexpr float ToastZ = 170.0f;
+        constexpr float ToastHeight = 36.0f;
+        constexpr float ToastPad = 18.0f;          // Left and right of its text
+        constexpr float ToastStep = 44.0f;         // One toast over another
+        constexpr float ToastBottom = 26.0f;       // The lowest one, from the window's bottom
+        const std::string Arrow = " \xE2\x86\x92 ";  // U+2192 between spaces: what a figure would become
+
         constexpr float LeftScroll = 4.0f;         // The left column's thumb, past the panels' right edge
         constexpr float LeftScrollZ = 60.0f;       // Over the panels and what they hold
         constexpr float CompactMargin = 24.0f;
@@ -160,6 +177,20 @@ namespace chronicle
         }
 
         // A node of the page by its name, the ones a layout holds as well
+        // The whole number a figure starts with ("46", "46 -> 52" while a choice is previewed), -1 for none
+        int figureOf(const std::string& text)
+        {
+            size_t digits = 0;
+
+            while (digits < text.size() and text[digits] >= '0' and text[digits] <= '9')
+                ++digits;
+
+            if (digits == 0 or digits > 9)
+                return -1;
+
+            return std::atoi(text.substr(0, digits).c_str());
+        }
+
         NodeSpec* childNamed(NodeSpec& page, const std::string& name)
         {
             for (auto& child : page.children)
@@ -509,6 +540,7 @@ namespace chronicle
             return;
 
         listenToEvent<ActivitySelectedEvent>([this](const ActivitySelectedEvent& e) { onSelect(e); });
+        listenToEvent<ActivityHoveredEvent>([this](const ActivityHoveredEvent& e) { onHover(e); });
         listenToEvent<ActivityActivatedEvent>([this](const ActivityActivatedEvent& e) { onConfirm(e); });
         listenToEvent<TabSelectedEvent>([this](const TabSelectedEvent& e) { onTab(e); });
 
@@ -519,6 +551,8 @@ namespace chronicle
                 beginAgain();
             else if (e.tag == SkipTag and save.running.empty())
                 onMonth();
+            else if (e.tag == BeginTag and not chosen.empty())
+                onConfirm(ActivityActivatedEvent{ActivitiesList, chosen});
         });
 
         // A deed reached: taken in execute(), never while the facts are being handed around
@@ -531,6 +565,12 @@ namespace chronicle
 
         // The month loop: one month every opt.monthMs while it runs
         listenToEvent<TickEvent>([this](const TickEvent& e) {
+            // What lasts a moment runs its course whether the months run or not
+            if (quiet > 0.0f)
+                quiet -= e.tick;
+
+            runPassing(e.tick);
+
             // The red of a loss fades whether the months run or not
             if (alertLeft > 0.0f)
             {
@@ -718,6 +758,193 @@ namespace chronicle
         }
     }
 
+    void LifeScene::followLog()
+    {
+        // Once the list has measured its lines and its own height: sooner, the end is not yet where it will be
+        passing.push_back({FollowMs, nullptr, [this]() {
+            if (auto log = piece<EventLog>("log"))
+                log->scrollToEnd(ecsRef);
+        }});
+    }
+
+    void LifeScene::runPassing(float ms)
+    {
+        // By index: what ends may start something else
+        for (size_t i = 0; i < passing.size();)
+        {
+            passing[i].left -= ms;
+
+            if (passing[i].each)
+                passing[i].each(ms);
+
+            if (passing[i].left > 0.0f)
+            {
+                ++i;
+
+                continue;
+            }
+
+            auto done = passing[i].done;
+
+            passing.erase(passing.begin() + i);
+
+            if (done)
+                done();
+        }
+    }
+
+    void LifeScene::endPassing()
+    {
+        std::vector<Passing> ending;
+        ending.swap(passing);
+
+        for (const auto& p : ending)
+        {
+            if (p.done)
+                p.done();
+        }
+    }
+
+    int LifeScene::roseOf(const std::string& key, const std::string& text)
+    {
+        // Against the figure it last had here, not the one on its row: a preview may be written there
+        const int is = figureOf(text);
+        const auto last = figures.find(key);
+        const int was = last == figures.end() ? -1 : last->second;
+
+        figures[key] = is;
+
+        return was >= 0 and is > was ? is - was : 0;
+    }
+
+    void LifeScene::showGain(EntityRef over, int amount)
+    {
+        if (amount <= 0 or quiet > 0.0f or Motion::reduced() or over.empty() or not over->has<PositionComponent>())
+            return;
+
+        auto where = over->get<PositionComponent>();
+
+        // Scrolled out of its column, or out of the window: nothing to stand over
+        if (where->y < ColumnsTop or where->y > windowHeight)
+            return;
+
+        LabelSpec spec;
+        spec.style = "figure-sm";
+        spec.color = "status-gain";
+        spec.text = "+" + std::to_string(amount);
+        spec.z = static_cast<int>(GainZ);
+
+        Label gain = makeLabel(ecsRef, spec);
+
+        auto pos = gain.entity.get<PositionComponent>();
+        pos->setX(where->x + where->width - GainInset);
+        pos->setY(where->y);
+
+        const _unique_id id = gain.entity.id;
+
+        // It lifts off the figure and goes
+        passing.push_back({GainMs,
+            [this, id](float ms) {
+                if (auto entity = ecsRef->getEntity(id))
+                {
+                    auto p = entity->get<PositionComponent>();
+
+                    p->setY(p->y - ms * GainRise);
+                }
+            },
+            [this, id]() {
+                if (ecsRef->getEntity(id))
+                    ecsRef->removeEntity(id);
+            }});
+    }
+
+    void LifeScene::toast(const std::string& text)
+    {
+        auto window = ecsRef->getEntity("__MainWindow");
+
+        if (text.empty() or quiet > 0.0f or not window)
+            return;
+
+        // A dark slip at the foot of the window, its text in the paper's colour: one over another
+        // when two come together
+        LabelSpec spec;
+        spec.style = "control";
+        spec.color = "folio";
+        spec.text = text;
+        spec.z = static_cast<int>(ToastZ) + 1;
+
+        Label label = makeLabel(ecsRef, spec);
+
+        auto anchor = label.entity.get<UiAnchor>();
+        anchor->setHorizontalCenter(PosAnchor{window->id, AnchorType::HorizontalCenter});
+        anchor->setBottomAnchor(PosAnchor{window->id, AnchorType::Bottom});
+        anchor->setBottomMargin(ToastBottom + static_cast<float>(toasts) * ToastStep);
+
+        auto ground = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1.0f, ToastHeight);
+        ground.get<PositionComponent>()->setZ(ToastZ);
+        ecsRef->attach<ThemeComponent>(ground.entity, "toast.ground");
+
+        auto under = ground.get<UiAnchor>();
+        under->setHorizontalCenter(PosAnchor{label.entity.id, AnchorType::HorizontalCenter});
+        under->setVerticalCenter(PosAnchor{label.entity.id, AnchorType::VerticalCenter});
+        under->setWidthConstrain(PosConstrain{label.entity.id, AnchorType::Width, PosOpType::Add, 2.0f * ToastPad});
+
+        ++toasts;
+
+        const _unique_id textId = label.entity.id;
+        const _unique_id groundId = ground.entity.id;
+
+        passing.push_back({ToastMs, nullptr, [this, textId, groundId]() {
+            for (auto id : {textId, groundId})
+            {
+                if (ecsRef->getEntity(id))
+                    ecsRef->removeEntity(id);
+            }
+
+            --toasts;
+        }});
+    }
+
+    void LifeScene::showWorkButtons()
+    {
+        auto working = piece<Panel>("working");
+
+        if (not working)
+            return;
+
+        // At nothing one button stands in the running row's place: the one that begins what is
+        // chosen in the list, or the one that passes a month when nothing is
+        const bool idle = save.running.empty();
+        const RuleActivity* pick = chosen.empty() ? nullptr : activityOf(chosen);
+        const bool begins = idle and pick and not ended;
+
+        auto show = [this, &working](const char* name, bool shown) {
+            if (EntityRef button = named(name); not button.empty())
+            {
+                wrapIn(working->body, button)->get<PositionComponent>()->setVisibility(shown);
+                button->get<PositionComponent>()->setVisibility(shown);
+            }
+
+            if (auto button = piece<Button>(name))
+                button->setDisabled(ecsRef, not shown);
+        };
+
+        show("skip", idle and not begins);
+        show("begin", begins);
+
+        if (not begins)
+            return;
+
+        if (auto begin = piece<Button>("begin"))
+        {
+            // What takes no time is done on the spot, and says so
+            const int months = intOf(pick->fields, "months");
+
+            begin->setLabel(ecsRef, months > 0 ? "Begin" : "Do it now");
+            begin->setMonths(ecsRef, months > 0 ? months : -1);
+        }
+    }
+
     int LifeScene::workRoom()
     {
         auto working = piece<Panel>("working");
@@ -816,7 +1043,16 @@ namespace chronicle
         const float logHeight = std::max(heights.minLog, height - ColumnsTop - clock - heights.stack - workingHeight() - heights.stack - PanelChrome - LogFootnote - heights.margin);
 
         if (auto log = piece<EventLog>("log"))
+        {
+            // A reader at the end stays at the end when the well changes its height: "At work now"
+            // takes room from it as a work begins, and the last lines would be cut off
+            const bool atEnd = log->atEnd(ecs);
+
             log->setHeight(ecs, logHeight);
+
+            if (atEnd)
+                followLog();
+        }
     }
 
     void LifeScene::fitCompact(float width, float height)
@@ -849,7 +1085,14 @@ namespace chronicle
 
         // The log fills the side column to the bottom
         if (auto log = piece<EventLog>("log"))
+        {
+            const bool atEnd = log->atEnd(ecs);
+
             log->setHeight(ecs, std::max(MinLog, height - SideTop - SideChrome - LogFootnote - CompactMargin));
+
+            if (atEnd)
+                followLog();
+        }
 
         showSide(sideTab);
     }
@@ -891,6 +1134,9 @@ namespace chronicle
 
         // The ending leaves with the scene, as a scene element
         ending = EntityRef{};
+
+        // And what was passing ends now
+        endPassing();
     }
 
     void LifeScene::execute()
@@ -991,7 +1237,12 @@ namespace chronicle
                 return;
 
             if (field.empty())
+            {
+                const int before = line->spec.value;
+
                 line->setValue(ecs, intOf(v));
+                showGain(line->root, line->spec.value - before);
+            }
             else if (field == "projected")
                 line->setProjected(ecs, intOf(v));
             else if (field == "threshold")
@@ -1013,9 +1264,14 @@ namespace chronicle
             const bool shown = skills->row(id) != nullptr;
 
             if (shown != (intOf(v) > 0))
+            {
                 fillSkills();
+            }
             else if (shown)
+            {
                 skills->setValue(ecs, id, v.toString());
+                showGain(skills->row(id)->line, roseOf("skills." + id, v.toString()));
+            }
         }));
 
         // What he holds: resources.<id>.value, .rate, .muted
@@ -1031,7 +1287,10 @@ namespace chronicle
                 return;
 
             if (field == "value")
+            {
                 ledger->setValue(ecs, id, v.toString());
+                showGain(ledger->row(id)->line, roseOf("resources." + id, v.toString()));
+            }
             else if (field == "rate")
                 ledger->setRate(ecs, id, v.toString());
             else if (field == "muted")
@@ -1135,17 +1394,13 @@ namespace chronicle
                 working->setAsideColor(ecs, "ink-muted");
             }
 
-            // The button to pass a month stands in the running row's place, at nothing only
-            const bool idle = save.running.empty();
+            showWorkButtons();
+        }));
 
-            if (EntityRef skip = named("skip"); not skip.empty())
-            {
-                wrapIn(working->body, skip)->get<PositionComponent>()->setVisibility(idle);
-                skip->get<PositionComponent>()->setVisibility(idle);
-            }
-
-            if (auto button = piece<Button>("skip"))
-                button->setDisabled(ecs, not idle);
+        // What the coming month would do, said before it does: a line under his life
+        subs.push_back(router->on("life.warning", [this, ecs](const ElementType& v) {
+            if (auto life = piece<StatLine>("vit"))
+                life->setNote(ecs, v.toString());
         }));
 
         subs.push_back(router->on("activity.running.caption", [this, ecs](const ElementType& v) {
@@ -1249,8 +1504,30 @@ namespace chronicle
 
             const size_t n = std::min(static_cast<size_t>(intOf(v)), save.log.size());
 
+            const bool wrote = log->size() < n;
+            const bool follows = wrote and log->atEnd(ecs);
+
             for (size_t i = log->size(); i < n; ++i)
                 log->append(ecs, save.log[i]);
+
+            // A reader at the end is taken to the new end, once the list has measured what it was
+            // given: the layout's own following falls a line short on a long log
+            if (follows)
+                followLog();
+
+            // The line just written is lit for a moment: the eye finds what is new
+            if (wrote and quiet <= 0.0f and not Motion::reduced())
+            {
+                if (EntityRef light = log->lightLast(ecs); not light.empty())
+                {
+                    const _unique_id id = light.id;
+
+                    passing.push_back({LitMs, nullptr, [this, id]() {
+                        if (auto log = piece<EventLog>("log"))
+                            log->dim(ecsRef, id);
+                    }});
+                }
+            }
         }));
     }
 
@@ -1290,6 +1567,13 @@ namespace chronicle
 
         if (auto running = piece<ActivityList>("running"))
             running->setRows(ecs, {});
+
+        // A list just filled has nothing chosen, and its figures are arriving, not rising
+        chosen.clear();
+        hovered.clear();
+        figures.clear();
+        quiet = QuietMs;
+        showWorkButtons();
     }
 
     void LifeScene::fillWindows()
@@ -1334,6 +1618,30 @@ namespace chronicle
 
             return;
         }
+
+        // What the list did not have a moment ago is new: said by a toast, and on its tile until
+        // it is looked at. The first list of a page is all he has always had
+        std::vector<std::string> ids;
+
+        for (const auto& a : activities)
+        {
+            if (boolOf(a.fields, "listed") and not boolOf(a.fields, "locked"))
+                ids.push_back(textOf(a.fields, "id"));
+        }
+
+        if (not known.empty())
+        {
+            for (const auto& id : ids)
+            {
+                if (std::find(known.begin(), known.end(), id) != known.end())
+                    continue;
+
+                fresh.push_back(id);
+                toast("New: " + activityName(id));
+            }
+        }
+
+        known = ids;
 
         // Grouped as the table orders them; what the rules do not list (spent, too late, another
         // path's) has no row
@@ -1392,11 +1700,46 @@ namespace chronicle
                 row.requirements.push_back(req);
             }
 
+            if (row.state != ActivityState::Running)
+                row.until = tileNote(a, row.urgent);
+
             groups.back().rows.push_back(row);
         }
 
         if (auto list = piece<ActivityList>("activities"))
             list->setRows(ecsRef, groups);
+    }
+
+    std::string LifeScene::asksOf(const RuleActivity& activity) const
+    {
+        if (not boolOf(activity.fields, "locked"))
+            return "";
+
+        // The first thing it still asks of him: the whole list is its gloss's
+        for (const auto& r : activity.requires)
+        {
+            if (intOf(r, "current") < intOf(r, "needed"))
+                return "NEEDS " + upper(textOf(r, "label")) + " " + std::to_string(intOf(r, "needed"));
+        }
+
+        return "";
+    }
+
+    std::string LifeScene::tileNote(const RuleActivity& activity, bool& urgent) const
+    {
+        urgent = false;
+
+        // What he cannot do yet says what it still asks of him; what has just come says it is new
+        if (const std::string asks = asksOf(activity); not asks.empty())
+            return asks;
+
+        if (std::find(fresh.begin(), fresh.end(), textOf(activity.fields, "id")) != fresh.end())
+            return "NEW";
+
+        // When it closes, once that is near
+        urgent = boolOf(activity.fields, "urgent");
+
+        return textOf(activity.fields, "until");
     }
 
     void LifeScene::refreshHoldings()
@@ -1408,6 +1751,10 @@ namespace chronicle
             holdings = month.rows;
             holdingGlosses = month.glosses;
             death = month.death;
+
+            // The coming month, as things stand: what it would take from, and what the rules say of it
+            threat = month.hurt;
+            warning = month.warning;
 
             caps.clear();
 
@@ -1641,6 +1988,8 @@ namespace chronicle
 
             save.log.push_back({save.age, textOf(deed.fields, "entry"), LogKind::Milestone, "", ""});
 
+            toast("Deed: " + textOf(deed.fields, "name"));
+
             refreshHoldings();
 
             for (const auto& r : save.holdEarned(holdings))
@@ -1754,11 +2103,32 @@ namespace chronicle
 
     void LifeScene::clearAlert()
     {
+        // A part the coming month would take from again keeps its red
         for (const auto& stat : alerted)
-            setFact("character.parts." + stat + ".alert", false);
+            setFact("character.parts." + stat + ".alert", std::find(threat.begin(), threat.end(), stat) != threat.end());
 
         alerted.clear();
         alertLeft = 0.0f;
+    }
+
+    void LifeScene::publishThreat()
+    {
+        setFact("life.warning", warning);
+
+        // In red before the month takes from it, not only after; back to ink when it no longer would
+        for (const auto& stat : threatShown)
+        {
+            const bool still = std::find(threat.begin(), threat.end(), stat) != threat.end();
+            const bool flashing = std::find(alerted.begin(), alerted.end(), stat) != alerted.end();
+
+            if (not still and not flashing)
+                setFact("character.parts." + stat + ".alert", false);
+        }
+
+        for (const auto& stat : threat)
+            setFact("character.parts." + stat + ".alert", true);
+
+        threatShown = threat;
     }
 
     // ---- publish: the save and the scripts to paths ------------------------------------------------------
@@ -1771,20 +2141,13 @@ namespace chronicle
 
     void LifeScene::publishAll()
     {
+        publishThreat();
         glossHoldings();
         publishCharacter();
         publishRules();
 
-        // The ghosts: of the activity chosen if one is, else of what mends
-        auto list = piece<ActivityList>("activities");
-        const std::string chosen = list ? list->selected() : std::string();
-
-        RuleForecast forecast;
-
-        if (not chosen.empty() and rules.forecast(save.age, save.character(), chosen, 0, forecast))
-            publishProjected(&forecast);
-        else
-            publishProjected(nullptr);
+        // The ghosts: of the activity chosen if one is, of the one the mouse is on, else of what mends
+        preview();
     }
 
     void LifeScene::publishProjected(const RuleForecast* forecast)
@@ -1977,9 +2340,13 @@ namespace chronicle
                 setFact("activity." + id + ".state", state);
                 setFact("activity." + id + ".count", textOf(a.fields, "tally"));
 
-                // When it closes, month by month: nothing to say of the one he is at
-                setFact("activity." + id + ".urgent", boolOf(a.fields, "urgent"));
-                setFact("activity." + id + ".until", id == save.running ? std::string() : textOf(a.fields, "until"));
+                // When it closes, month by month, or what it still asks of him: nothing to say of the
+                // one he is at
+                bool urgent = false;
+                const std::string note = tileNote(a, urgent);
+
+                setFact("activity." + id + ".urgent", urgent);
+                setFact("activity." + id + ".until", id == save.running ? std::string() : note);
 
                 for (size_t i = 0; i < a.requires.size(); ++i)
                     setFact("activity." + id + ".requirement." + std::to_string(i), intOf(a.requires[i], "current"));
@@ -2004,24 +2371,94 @@ namespace chronicle
         if (event.list != ActivitiesList)
             return;
 
-        // Nothing chosen: no ghosts on the parts but what mends
-        if (event.id.empty())
-        {
-            publishProjected(nullptr);
+        chosen = event.id;
 
-            glossParts(nullptr, "");
-            return;
+        // Looked at: no longer new
+        if (auto it = std::find(fresh.begin(), fresh.end(), chosen); it != fresh.end())
+        {
+            fresh.erase(it);
+
+            if (const RuleActivity* seen = activityOf(chosen))
+            {
+                bool urgent = false;
+                const std::string note = tileNote(*seen, urgent);
+
+                setFact("activity." + chosen + ".urgent", urgent);
+                setFact("activity." + chosen + ".until", note);
+            }
         }
+
+        showWorkButtons();
+        preview();
+    }
+
+    void LifeScene::onHover(const ActivityHoveredEvent& event)
+    {
+        if (event.list != ActivitiesList)
+            return;
+
+        hovered = event.id;
+
+        preview();
+    }
+
+    void LifeScene::preview()
+    {
+        // What is chosen says more than what the mouse is on. Nothing of either: no ghosts on the
+        // parts but what mends, and what he holds as it is
+        const std::string id = chosen.empty() ? hovered : chosen;
 
         RuleForecast forecast;
 
-        if (not rules.forecast(save.age, save.character(), event.id, 0, forecast))
+        if (id.empty() or ended or not rules.forecast(save.age, save.character(), id, 0, forecast))
+        {
+            publishProjected(nullptr);
+            previewHoldings(nullptr);
+            glossParts(nullptr, "");
+
+            return;
+        }
+
+        // The ghost of each part it would raise, and what it would leave of what he holds
+        publishProjected(&forecast);
+        previewHoldings(&forecast);
+        glossParts(&forecast, activityName(id));
+    }
+
+    void LifeScene::previewHoldings(const RuleForecast* forecast)
+    {
+        auto ledger = piece<ResourceLedger>("ledger");
+        auto facts = ecsRef->getSystem<WorldFacts>();
+
+        if (not ledger or not facts)
             return;
 
-        // The ghost of each part the chosen activity would raise
-        publishProjected(&forecast);
+        for (const auto& r : save.resources)
+        {
+            if (not ledger->row(r.id))
+                continue;
 
-        glossParts(&forecast, activityName(event.id));
+            // The figure as the page has it, and after it what the activity would make of it
+            std::string value = facts->getFact<std::string>("resources." + r.id + ".value", "");
+
+            auto now = save.stats.find(r.id);
+
+            if (forecast and now != save.stats.end() and value == std::to_string(now->second))
+            {
+                auto after = forecast->atTerm.find(r.id);
+
+                if (after != forecast->atTerm.end() and intOf(after->second) != now->second)
+                    value += Arrow + std::to_string(intOf(after->second));
+            }
+
+            // Only to write what it would become, or to take that away: the figure itself is the page's to write
+            const std::string& shown = ledger->row(r.id)->spec.value;
+            const bool previewed = shown.find(Arrow) != std::string::npos;
+            const bool previews = value.find(Arrow) != std::string::npos;
+
+            if ((previews or previewed) and shown != value)
+                ledger->setValue(ecsRef, r.id, value);
+        }
     }
 
     void LifeScene::onConfirm(const ActivityActivatedEvent& event)
@@ -2260,7 +2697,10 @@ namespace chronicle
             const std::string id = textOf(m.fields, "id");
 
             if (boolOf(m.fields, "passed") and std::find(passed.begin(), passed.end(), id) == passed.end() and not textOf(m.fields, "entry").empty())
+            {
                 appendLog({save.age, textOf(m.fields, "entry"), LogKind::Milestone, "", ""});
+                toast(textOf(m.fields, "entry"));
+            }
         }
 
         // The month took from what the life hangs on: he is in danger, and the page says so
@@ -2530,6 +2970,9 @@ namespace chronicle
         endangered = false;
 
         rules.done = save.terms();
+
+        known.clear();
+        fresh.clear();
 
         rebuild();
         publish();

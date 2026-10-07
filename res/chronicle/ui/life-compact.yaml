@@ -93,6 +93,15 @@ children:
         glyph: time
         months: 1
         tag: life.skip
+      # What is chosen in the list begins from here: in the place of the button above while a
+      # tile is chosen, so that nobody has to know that a second click or Enter begins it too
+      - kind: Button
+        name: begin
+        variant: seal
+        label: Begin
+        glyph: quill
+        months: 3
+        tag: life.begin
 
   - kind: Panel
     name: may
@@ -187,4 +196,5 @@ children:
       - kind: EventLog
         name: log
         height: 300
+        years: false          # no "IN HIS 14TH YEAR" over each year: a line's age says it, and the log keeps its room for the lines
         footnote: THE CHRONICLE IS WRITTEN FROM THIS LOG

@@ -36,6 +36,7 @@ namespace chronicle
         float width = 300.0f;
         float height = 560.0f;         // The gutter's fixed height; the list scrolls inside it
         std::string yearPrefix = "IN HIS ";   // Rubric = prefix + ordinal(year) + " YEAR" ("IN HIS 14TH YEAR")
+        bool years = true;             // A rubric at each new year. false: the lines alone, their age says the year
         std::vector<LogEntry> entries;
         std::string footnote;
         int z = 20;                    // Root and gutter z; edge z+1; list and lines z+2 (a layout holds its children at its z); marks and ages z+4; texts, figures and rubrics z+5; footnote z+1
@@ -89,6 +90,8 @@ namespace chronicle
         void setFootnote(pg::EntitySystem*, const std::string&);   // "" removes
         void setHeight(pg::EntitySystem*, float height);            // The well's; the list inside follows
         void scrollToEnd(pg::EntitySystem*);
+        pg::EntityRef lightLast(pg::EntitySystem*);            // A ground under the last line, log.line.new: the caller's to dim again
+        void dim(pg::EntitySystem*, pg::_unique_id light);    // The ground lightLast gave, gone; nothing if its line already is
         bool atEnd(pg::EntitySystem*) const;                // scrollOffset >= contentHeight - viewport - 1
         size_t size() const;                                 // Rows, not rubrics
 
