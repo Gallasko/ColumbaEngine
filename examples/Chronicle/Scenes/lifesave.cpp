@@ -1,7 +1,9 @@
 #include "lifesave.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <filesystem>
+#include <sstream>
 
 #include "logger.h"
 #include "serialization.h"
@@ -207,6 +209,25 @@ namespace chronicle
         }
 
         return earned;
+    }
+
+    std::string LifeSave::digest() const
+    {
+        int terms = 0;
+
+        for (const auto& [id, count] : done)
+            terms += count;
+
+        char years[16];
+        std::snprintf(years, sizeof(years), "%.2f", age);
+
+        // The ids are the rules' own, plain words: nothing in them to escape
+        std::ostringstream line;
+
+        line << "{\"age\":" << years << ",\"world\":" << world << ",\"aim\":\"" << aim << "\",\"running\":\"" << running << "\",\"monthsIn\":" << monthsIn
+             << ",\"terms\":" << terms << ",\"deeds\":" << achieved.size() << ",\"log\":" << log.size() << "}";
+
+        return line.str();
     }
 
     bool LifeSave::save(const std::string& path) const

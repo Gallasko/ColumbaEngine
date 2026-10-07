@@ -97,6 +97,40 @@ frame options.
   the mockup's life the native build opens on. The life is saved on its own as it goes, so a
   closed tab loses a month at most.
 
+## Analytics
+
+`Core/analytics.h`. From a browser the game tells the analytics proxy (the Cloudflare worker
+that holds the database, the one GameDevJs2026 uses, `Analytics::ProxyUrl`) how long it is
+played and where the life stood when the player stopped. A native build sends nothing, and
+neither does a page served from `localhost` or `127.0.0.1`: it writes in the console what it
+would have sent.
+
+One row an event, in the `analytics_events` table of `analytics-server/schema.sql`, the events
+of this game told apart by their `chronicle.` prefix:
+
+| event | when | what the row says |
+|---|---|---|
+| `chronicle.session_start` | the first pass | the time already played in this browser |
+| `chronicle.session_end` | every time the page is hidden or closed | the session's time, the total, the digest |
+| `chronicle.life_end` | a life is lost | the same, at his death |
+
+- **The session's id** is random and new for every page load: it ties the rows of one session
+  and says nothing of the player. The last `session_end` of an id is where he stopped.
+- **The time** is the time the page was in view, counted by the browser's clock between the
+  moments it is shown and hidden. `total_play_time_ms` adds the sessions before, kept with the
+  systems' save.
+- **The digest** (`LifeSave::digest`, in `save_snapshot`) is one line of JSON:
+  `{"age":12.50,"world":66,"aim":"warrior","running":"yard","monthsIn":2,"terms":14,"deeds":2,"log":31}`.
+  The scene gives it after every month, choice, thing done at once and new life.
+
+```sql
+-- How long a session lasts, and how old he was when they stopped
+SELECT session_id, MAX(session_duration_ms) / 60000.0 AS minutes,
+       (ARRAY_AGG(save_snapshot ORDER BY timestamp_ms DESC))[1] AS stopped_at
+FROM analytics_events WHERE event_type = 'chronicle.session_end'
+GROUP BY session_id ORDER BY MIN(timestamp_ms) DESC;
+```
+
 ## Layout
 
 - `Core/` — data with no rendering: `textmetrics` (ascender and baseline helpers

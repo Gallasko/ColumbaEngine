@@ -20,6 +20,7 @@
 #include "ECS/callable.h"
 #include "Input/sdlevents.h"
 #include "2D/position.h"
+#include "Core/analytics.h"
 #include "UI/prefab.h"
 #include "UI/sizer.h"
 #include "UI/prefabloader.h"
@@ -490,6 +491,8 @@ namespace chronicle
         wire();
         publish();
         registerDeeds();
+
+        tellAnalytics();
 
         // A save written at an ending opens on it
         if (not death.empty())
@@ -1925,6 +1928,7 @@ namespace chronicle
         // What it took was the last of what he lived on
         if (not death.empty())
         {
+            tellAnalytics("life_end");
             endLife();
             return;
         }
@@ -2028,6 +2032,7 @@ namespace chronicle
 
         if (not death.empty())
         {
+            tellAnalytics("life_end");
             endLife();
             return;
         }
@@ -2297,8 +2302,24 @@ namespace chronicle
         return ok;
     }
 
+    void LifeScene::tellAnalytics(const std::string& event)
+    {
+        auto analytics = ecsRef->getSystem<Analytics>();
+
+        if (not analytics)
+            return;
+
+        analytics->note(save.digest());
+
+        if (not event.empty())
+            analytics->send(event);
+    }
+
     void LifeScene::autoSave()
     {
+        // Told whether or not the life is written: what is played is played
+        tellAnalytics();
+
         if (opt.noSave)
             return;
 

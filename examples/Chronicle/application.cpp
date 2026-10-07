@@ -29,6 +29,7 @@
 #include "Scenes/lifescene.h"
 #include "UI/sizer.h"   // LayoutSystem
 #include "Core/factrouter.h"
+#include "Core/analytics.h"
 
 using namespace pg;
 
@@ -79,6 +80,9 @@ namespace chronicle
             ecs.createSystem<TweenSystem>();
             ecs.createSystem<WorldFacts>();
             ecs.createSystem<FactRouter>();   // Paths to the widgets that follow them
+
+            // How long a session lasts and where the life stood when it stopped (a browser build only)
+            ecs.createSystem<Analytics>();
 
             // The deeds of a life, watched against the facts. What is reached is kept by the
             // life's own save, not by the systems' file.

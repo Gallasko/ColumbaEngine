@@ -54,6 +54,11 @@ First tagged release. Everything below describes the state of the engine at the 
   `EntitySystem::registerCustomVmModule`; systems written in script go through `StandardSystem`.
 
 ### Changed
+- Chronicle: play sessions are sent to the analytics proxy from a browser (`Core/analytics.h`, after
+  GameDevJs2026's): `chronicle.session_start`, `chronicle.session_end` every time the page is hidden or
+  closed, with the time the page was in view and a one-line digest of where the life stood
+  (`LifeSave::digest`), and `chronicle.life_end`. The session id is random and new for every page load.
+  Nothing is sent from a native build or from a page served from localhost.
 - Web builds without threads: `-DWEB_THREADS=OFF` (a build tree of its own) builds the engine with
   `PG_NO_THREADS`. The ecs has no thread and no taskflow executor: `EntitySystem::start()` only marks it as
   running and the frame callback runs the systems through `executeOnce()`, a few passes a frame, on a serial

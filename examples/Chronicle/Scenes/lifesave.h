@@ -53,6 +53,10 @@ namespace chronicle
         // he has any of and the ledger does not show yet. Added to `resources`, and returned.
         std::vector<LifeResource> holdEarned(const pg::RecordList& rows);
 
+        // Where the life stands, in one short line of JSON for the analytics: his age, the world's
+        // month, his path, the work at hand, how much he has done. Nothing of his name.
+        std::string digest() const;
+
         bool save(const std::string& path) const;
         bool load(const std::string& path);
     };
