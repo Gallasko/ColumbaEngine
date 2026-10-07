@@ -562,6 +562,64 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // The left column has no least height: it grows with what he holds and has learned. A short
+        // window is compact when the column, as it was measured on the three columns' page, does not
+        // fit it, and takes the three columns back when it does.
+        TEST(lifescene_test, a_short_window_is_compact_when_the_left_column_overflows)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            // The mockup's life, measured once its page has settled
+            f.frames(12);
+
+            ASSERT_FALSE(life->compact);
+            ASSERT_GT(life->leftNeed, 0.0f);
+
+            const float need = life->leftNeed;
+
+            f.resize(1320.0f, need - 8.0f);
+            f.frames(12);
+
+            EXPECT_TRUE(life->compact);
+
+            f.resize(1320.0f, need + 8.0f);
+            f.frames(12);
+
+            EXPECT_FALSE(life->compact);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A new life holds little: a window as short as 700 keeps its three columns.
+        TEST(lifescene_test, a_new_life_keeps_three_columns_in_a_short_window)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            f.window->get<PositionComponent>()->setWidth(1320.0f);
+            f.window->get<PositionComponent>()->setHeight(700.0f);
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            EXPECT_FALSE(life->compact);
+            EXPECT_GT(life->leftNeed, 0.0f);
+            EXPECT_LT(life->leftNeed, 700.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(lifescene_test, start_up_publishes_from_save)
         {
             MockLogger logger;

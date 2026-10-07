@@ -65,7 +65,6 @@ namespace chronicle
         constexpr float MinMiddle = 420.0f;
         constexpr float MinList = 200.0f;
         constexpr float MinLog = 120.0f;
-        constexpr float PartsPanel = 160.0f;       // Three parts: what the left column holds over his skills, and needs the height for
         constexpr float ClockPanel = 160.0f;       // The clock and his life, until the panel has measured itself
         constexpr float AlertMs = 900.0f;          // How long a part stays in red after a month took from it
         constexpr float RunningPanel = 164.0f;     // "At work now" holding a running row
@@ -75,13 +74,21 @@ namespace chronicle
 
         // What the ending's veil calls when the mouse enters or leaves it: nothing
         struct EndingNoOp {};
+
+        // The page has to be fitted again and the window did not change: sent from execute, where a
+        // page built on the spot would have its pieces made a pass late, after the panels were hidden
+        struct RefitEvent {};
         constexpr float LogFootnote = 19.0f;       // 4 + a caption line
         constexpr const char * const TabsTag = "life.tabs";
 
         // Below the three columns' least size the page is life-compact.yaml: margins 24, the head
         // on two lines, the work at hand over the choice, and a side column of one panel at a time
         constexpr float FullMinWidth = 2.0f * PageMargin + LeftColumn + RightColumn + 2.0f * ColumnGap + MinMiddle;          // That is 1136
-        constexpr float FullMinHeight = ColumnsTop + ClockPanel + StackGap + RunningPanel + StackGap + PanelChrome + LogFootnote + MinLog + StackGap + PartsPanel + PageMargin;   // That is 840
+        // The height is the right column's: the years, the work at hand with a row in it, and a log of its
+        // least size. The left column has no least height, it grows with what he holds and has learned:
+        // it is measured once the page has settled (measureLeft)
+        constexpr float FullMinHeight = ColumnsTop + ClockPanel + StackGap + RunningPanel + StackGap + PanelChrome + LogFootnote + MinLog + PageMargin;   // That is 664
+        constexpr int SettlePasses = 6;            // What the layout takes to place a page just built or filled
         constexpr float CompactMargin = 24.0f;
         constexpr float CompactTop = 128.0f;       // Under the tabs
         constexpr float SideColumn = 320.0f;
@@ -441,6 +448,7 @@ namespace chronicle
         });
 
         listenToEvent<ResizeEvent>([this](const ResizeEvent& e) { fit(e.width, e.height); });
+        listenToEvent<RefitEvent>([this](const RefitEvent&) { fit(windowWidth, windowHeight); });
     }
 
     // ---- startUp: rules, save, rows, wiring, paths ------------------------------------------------
@@ -499,10 +507,12 @@ namespace chronicle
 
         // Across the breakpoint the other file replaces the page, sized, then its rows and every
         // path again
-        const bool swap = needsCompact(width, height) != compact;
+        const bool swap = wantsCompact(width, height) != compact;
 
         if (swap and not buildPage(not compact))
             return;
+
+        measureIn = SettlePasses;
 
         if (EntityRef background = named("page"); not background.empty())
         {
@@ -522,6 +532,34 @@ namespace chronicle
             rebuild();
             publish();
         }
+    }
+
+    bool LifeScene::wantsCompact(float width, float height) const
+    {
+        return needsCompact(width, height) or (leftNeed > 0.0f and height < leftNeed);
+    }
+
+    void LifeScene::measureLeft()
+    {
+        // Only the three columns' page shows the left column as it is; under an ending nothing moves
+        if (compact or ended or page.empty())
+            return;
+
+        EntityRef learned = named("learned");
+
+        if (learned.empty())
+            return;
+
+        auto pos = learned->get<PositionComponent>();
+
+        if (pos->height <= 0.0f)
+            return;
+
+        // What he has learned is the last panel of the column, under what he holds
+        leftNeed = pos->y + pos->height + PageMargin;
+
+        if (wantsCompact(windowWidth, windowHeight))
+            ecsRef->sendEvent(RefitEvent{});
     }
 
     void LifeScene::fitEnding(float width, float height)
@@ -655,6 +693,9 @@ namespace chronicle
 
     void LifeScene::execute()
     {
+        if (measureIn > 0 and --measureIn == 0)
+            measureLeft();
+
         if (reached.empty())
             return;
 
@@ -1549,6 +1590,9 @@ namespace chronicle
 
     void LifeScene::publishAll()
     {
+        // What he holds or has learned may have grown: the left column is looked at again
+        measureIn = SettlePasses;
+
         glossHoldings();
         publishCharacter();
         publishRules();
@@ -2291,8 +2335,20 @@ namespace chronicle
 
         rules.done = save.terms();
 
-        rebuild();
-        publish();
+        // A new life holds little: the three columns come back if only the last life's holdings kept them
+        // away. The other page comes with its rows, filled once: filling them twice in a pass doubles them
+        leftNeed = 0.0f;
+
+        if (wantsCompact(windowWidth, windowHeight) != compact)
+        {
+            fit(windowWidth, windowHeight);
+        }
+        else
+        {
+            rebuild();
+            publish();
+        }
+
         registerDeeds();
     }
 }

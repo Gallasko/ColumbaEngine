@@ -7,6 +7,11 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Fixed
+- Chronicle: a short, wide window showed the compact page whatever the life. The three columns asked for
+  a window 840 high, a figure that still counted the parts panel under the log, where it no longer is. The
+  least height is the right column's (664), and the left column, which grows with what he holds and has
+  learned, is measured once the page has settled: the compact page comes only when the window is too
+  short for it, and the three columns come back when the window grows or a new life begins.
 - Chronicle: the ending's veil covered 1320 x 1020 whatever the window's size (anchors on both sides
   do not stretch a shape); the scene sizes it to the window, on every resize, and it dims the page
   (`ink` at 40%) instead of washing it out.
@@ -61,8 +66,11 @@ First tagged release. Everything below describes the state of the engine at the 
 - Web builds: a fresh build tree finds the generated components again. The committed seed is copied under
   `generated/Components`, the layout the engine's includes expect (`-DPREGENERATED_COMPONENTS_DIR` is no
   longer needed for that).
-- Chronicle: `web/index.html` is now `web/index.html.in`: the page is told at configure time whether its
-  build needs threads, and only then asks for a cross-origin isolated page.
+- Chronicle: `web/index.html` is now `web/index.html.in`: the page is written when the game is packed
+  (`web/packpage.cmake`). It is told whether its build needs threads, and only then asks for a cross-origin
+  isolated page, and it asks for `Chronicle.js`, `.wasm` and `.data` under a stamp made from the three, so
+  that a browser which kept one file of the build before never pairs it with a new one (a `LinkError` on
+  hosts that cache `.js` longer than `.wasm`).
 - Chronicle: a life is saved on its own, after every month, every choice, every thing done at once and every
   new life, with no line in the log (`LifeScene::autoSave`; never with `--no-save`). `S` still writes it and
   says so. A life that has just ended is not written: loaded again, its last month ends it again.

@@ -75,11 +75,15 @@ namespace chronicle
         int sideTab = 0;               // Compact: the side panel in view (parts, holds, years, log)
         float windowWidth = 1320.0f;   // As the last fit saw it
         float windowHeight = 1020.0f;
+        float leftNeed = 0.0f;         // The window's height the left column asked for when the three columns were last measured: 0 before, and for a new life
+        int measureIn = 0;             // Passes left before the left column is measured: the page settles first
         bool runningShown = false;     // "At work now" holds a row: the page is fitted to it
 
     private:
         bool buildPage(bool compact);  // The page from its file, in place of the one there was
         void fit(float width, float height);   // The page to the window, swapping it at the breakpoint
+        bool wantsCompact(float width, float height) const;   // Under the columns' least size, or under what the left column was seen to need
+        void measureLeft();            // The left column as it stands on the three columns' page; the compact page takes over if the window is too short for it
         void fitFull(float width, float height);      // The middle column's width, the choice's and the log's heights
         void fitCompact(float width, float height);   // The main column's width, the choice's and the log's heights
         void fitEnding(float width, float height);    // The ending's veil to the window

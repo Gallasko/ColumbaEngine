@@ -59,7 +59,10 @@ To publish, `make ChronicleWeb` builds the game and packs `chronicle-web.zip` (a
 files in `chronicle-web/`, to try with `emrun chronicle-web/index.html`): the page made from
 `web/index.html.in` with `Chronicle.js`, `Chronicle.wasm` and `Chronicle.data`. The page's canvas fills the frame
 and the game is resized to it; it keeps black behind the canvas, since a light ground shows
-through every blended pixel and fades the text. `Chronicle.html` is Emscripten's test page and
+through every blended pixel and fades the text. The page asks for the three files under a stamp made from them
+(`web/packpage.cmake`, `Chronicle.js?v=...`): a host may let browsers keep the `.js` for hours and
+not the `.wasm`, and a new one would then meet the other of the build before and fail to link.
+`Chronicle.html` is Emscripten's test page and
 is not published. On itch.io the project has to have *SharedArrayBuffer support* ticked in its
 frame options.
 
@@ -676,6 +679,15 @@ to the rules (`Rules::world`, the `world` input of every script that reads the t
 write the dates: the head's (`headline.date` "YEAR 10", `headline.dateNote` "MONTH 7 · SUMMER ·
 BELLMOOR") and each activity's closing. A fresh life started with `--fresh` begins at Year 0;
 the mockup's stands at month 126.
+
+**The compact page.** Under the three columns' least size the page is
+`res/chronicle/ui/life-compact.yaml`: the work at hand over the choice, and a side column of one
+panel at a time. The least width is 1136. The least height is the right column's, 664 (the years,
+the work at hand with a row in it, a log of its least size). The left column has no least height:
+it grows with what he holds and has learned. Once a page has settled the scene measures it
+(`measureLeft`, `leftNeed`), and a window too short for it gets the compact page, until the
+window is tall enough again or a new life begins. So a short, wide window (a browser frame 717
+high) shows a new life on three columns and a man of seventeen with his holdings on the compact page.
 
 z on the page: page 0, panels 10, their content 20–59, tooltips 200.
 

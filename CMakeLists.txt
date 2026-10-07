@@ -1207,11 +1207,11 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             set(CHRONICLE_WEB_NEEDS_THREADS "false")
         endif()
 
-        configure_file(${CMAKE_SOURCE_DIR}/examples/Chronicle/web/index.html.in ${CMAKE_CURRENT_BINARY_DIR}/chronicle-page/index.html @ONLY)
-
+        # The page is written when the game is packed, with the stamp of the three files it loads
         add_custom_target(ChronicleWeb
             COMMAND ${CMAKE_COMMAND} -E make_directory chronicle-web
-            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/chronicle-page/index.html Chronicle.js Chronicle.wasm Chronicle.data chronicle-web
+            COMMAND ${CMAKE_COMMAND} -E copy Chronicle.js Chronicle.wasm Chronicle.data chronicle-web
+            COMMAND ${CMAKE_COMMAND} -DTEMPLATE=${CMAKE_SOURCE_DIR}/examples/Chronicle/web/index.html.in -DOUT=${CMAKE_CURRENT_BINARY_DIR}/chronicle-web/index.html -DFILES=${CMAKE_CURRENT_BINARY_DIR}/chronicle-web -DNEEDS_THREADS=${CHRONICLE_WEB_NEEDS_THREADS} -P ${CMAKE_SOURCE_DIR}/examples/Chronicle/web/packpage.cmake
             COMMAND ${CMAKE_COMMAND} -E chdir chronicle-web ${CMAKE_COMMAND} -E tar cf ../chronicle-web.zip --format=zip index.html Chronicle.js Chronicle.wasm Chronicle.data
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
             COMMENT "Packing chronicle-web.zip"

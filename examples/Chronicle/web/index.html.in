@@ -40,12 +40,14 @@
   </div>
 
   <script>
-    // Published next to Chronicle.js, Chronicle.wasm and Chronicle.data
-    var GLUE = 'Chronicle.js';
-
     // Written when the page is packed (make ChronicleWeb). A build with threads only starts on a
     // cross-origin isolated page; a build without them (-DWEB_THREADS=OFF) starts anywhere.
     var NEEDS_THREADS = @CHRONICLE_WEB_NEEDS_THREADS@;
+
+    // Published next to Chronicle.js, Chronicle.wasm and Chronicle.data, asked for under the stamp
+    // of their build: a browser that kept a file of the build before never pairs it with a new one
+    var STAMP = '?v=@CHRONICLE_WEB_STAMP@';
+    var GLUE = 'Chronicle.js' + STAMP;
 
     var statusBox = document.getElementById('status');   // Not 'status': that name is the window's own
     var line = document.getElementById('line');
@@ -60,6 +62,11 @@
     var Module = {
       canvas: canvas,
       mainScriptUrlOrBlob: GLUE,
+
+      // The .wasm and the .data, beside the script
+      locateFile: function (path, folder) {
+        return folder + path + STAMP;
+      },
 
       // "Downloading data... (done/total)" while the pack comes in, then '' when everything is there
       setStatus: function (text) {
@@ -88,7 +95,7 @@
       var glue = document.createElement('script');
 
       glue.src = GLUE;
-      glue.onerror = function () { say('Chronicle could not be loaded: ' + GLUE + ' is missing.'); };
+      glue.onerror = function () { say('Chronicle could not be loaded: Chronicle.js is missing.'); };
 
       document.body.appendChild(glue);
     } else if (window.self !== window.top) {
