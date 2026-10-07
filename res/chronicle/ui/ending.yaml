@@ -4,7 +4,8 @@
 # and removed when the next one begins. This file is layout and placeholder content only: the
 # name is the save's, the cause, the story and the figures are rules/epitaph.pg's.
 #
-# The veil fills the window (__MainWindow, the viewport) and takes the mouse, so nothing of the
+# The veil is sized to the window by the scene (LifeScene::fitEnding, on every resize: anchors
+# on both sides do not stretch a shape) and takes the mouse, so nothing of the
 # page under it is hovered or clicked; the leaf stands in the window's middle and grows with what
 # it says. z: the Overlay band, 100-129 (the veil 100, the leaf 104, its content 114), over the
 # page's panels (10-59) and under the tooltips (200).
@@ -17,11 +18,6 @@ children:
     height: 1020
     z: 100
     theme: ending.veil
-    anchors:
-      - {side: left, target: __MainWindow, targetSide: left}
-      - {side: right, target: __MainWindow, targetSide: right}
-      - {side: top, target: __MainWindow, targetSide: top}
-      - {side: bottom, target: __MainWindow, targetSide: bottom}
 
   - kind: Panel
     name: leaf

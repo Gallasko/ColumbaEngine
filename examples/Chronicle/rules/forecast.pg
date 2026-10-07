@@ -105,13 +105,8 @@ else
         }
     }
 
+    // Where he is in it: what it brings is its gloss's to say
     var caption = "MONTH " + toString(spent) + " OF " + toString(months)
-
-    if (len(activity.gains) > 0)
-    {
-        var first = activity.gains[0]
-        caption = caption + " · " + toUpperCase(statName(first.stat)) + " " + toString(statOf(base, first.stat)) + " → " + toString(atTerm[first.stat]) + " AT TERM"
-    }
 
     // What the next milestone asks of the path this leads toward, against the character now
     var gaps = []

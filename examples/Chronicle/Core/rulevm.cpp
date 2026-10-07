@@ -462,6 +462,7 @@ namespace chronicle
         s.set("age", ElementType{age});
         s.set("character", character);
         s.set("done", done);
+        s.set("world", ElementType{world});
         s.set("activityId", ElementType{std::string()});
 
         size_t n = 0;
@@ -492,6 +493,7 @@ namespace chronicle
         next.clear();
 
         s.set("age", ElementType{age});
+        s.set("world", ElementType{world});
 
         size_t n = 0;
 
@@ -533,6 +535,7 @@ namespace chronicle
         s.set("age", ElementType{age});
         s.set("character", character);
         s.set("done", done);
+        s.set("world", ElementType{world});
         s.set("activityId", ElementType{std::string()});
 
         if (not s.run() or not s.get("windows", out))
@@ -550,6 +553,7 @@ namespace chronicle
         s.set("age", ElementType{age});
         s.set("character", character);
         s.set("done", done);
+        s.set("world", ElementType{world});
         s.set("activityId", ElementType{activityId});
         s.set("monthsIn", ElementType{monthsIn});
 
@@ -656,6 +660,7 @@ namespace chronicle
         s.set("age", ElementType{age});
         s.set("character", character);
         s.set("done", done);
+        s.set("world", ElementType{world});
         s.set("activityId", ElementType{std::string()});
         s.set("deeds", names);
 

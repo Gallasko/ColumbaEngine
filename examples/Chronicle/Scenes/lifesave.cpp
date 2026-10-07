@@ -97,6 +97,7 @@ namespace pg
         serialize(archive, "origin", value.origin);
         serialize(archive, "aim", value.aim);
         serialize(archive, "age", value.age);
+        serialize(archive, "world", value.world);
         serialize(archive, "running", value.running);
         serialize(archive, "monthsIn", value.monthsIn);
         serialize(archive, "stats", value.stats);
@@ -123,6 +124,7 @@ namespace pg
         defaultDeserialize(serialized, "origin", data.origin);
         defaultDeserialize(serialized, "aim", data.aim);
         defaultDeserialize(serialized, "age", data.age);
+        defaultDeserialize(serialized, "world", data.world);
         defaultDeserialize(serialized, "running", data.running);
         defaultDeserialize(serialized, "monthsIn", data.monthsIn);
         defaultDeserialize(serialized, "stats", data.stats);
@@ -283,6 +285,7 @@ namespace chronicle
         life.origin = "Second son of the miller, born at the mill on the Bell.";
         life.aim = "warrior";
         life.age = 17.5f;
+        life.world = 126;   // Ten and a half years since he was 7, when the world's count began
 
         life.stats = {
             {"str", 12}, {"dex", 8}, {"int", 6}, {"vit", 10}, {"vitmax", 10},

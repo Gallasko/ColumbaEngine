@@ -23,6 +23,7 @@
 #include "UI/themesystem.h"
 
 #include "Core/textmetrics.h"
+#include "Core/offstage.h"
 #include "gloss.h"
 
 using namespace pg;
@@ -184,6 +185,9 @@ namespace chronicle
             Label label = makeLabel(ecs, ls);
             label.entity->get<ThemeComponent>()->setElement(element);
 
+            // A row is often made while the game runs (the list filled again, the work begun)
+            offstage(label.entity);
+
             return label;
         }
 
@@ -263,7 +267,9 @@ namespace chronicle
 
         std::string edgeElement(const ActivityRowState& st)
         {
-            if (st.state == ActivityState::Running)
+            // A compact row's ground already says it is the work he is at: its edge is the
+            // selection's alone, so the two are never taken for one another
+            if (st.state == ActivityState::Running and not st.compact)
                 return "activity.row.edge.running";
 
             return st.selected ? "activity.row.edge.selected" : "activity.row.edge";
@@ -365,7 +371,7 @@ namespace chronicle
         // scroll reach them through it. The list's body stacks the lines.
         EntityRef makeTileLine(EntitySystem* ecs, float width, int z)
         {
-            auto line = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(z));
+            auto line = makeAnchoredPrefab(ecs, Offstage, Offstage, static_cast<float>(z));
             line.get<PositionComponent>()->setWidth(width);
             ecs->attach<ActivityLineState>(line.entity);
 
@@ -500,7 +506,9 @@ namespace chronicle
         ActivityRow row;
         row.spec = spec;
 
-        auto root = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(z));
+        // Born off the stage, like every part of it: the list places it a frame later, and until
+        // then nothing of it shows where it was made
+        auto root = makeAnchoredPrefab(ecs, Offstage, Offstage, static_cast<float>(z));
         root.get<PositionComponent>()->setWidth(W);
         row.root = root.entity;
 
@@ -525,6 +533,7 @@ namespace chronicle
 
         // Ground, rule, edge and ring follow the root's size through their anchors
         auto ground = makeUiSimple2DShape(ecs, Shape2D::Square, W, 1.0f);
+        offstage(ground.entity);
         ground.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
         ground.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z});
         ecs->attach<ThemeComponent>(ground.entity, "activity.row.ground");
@@ -533,6 +542,7 @@ namespace chronicle
         state->ground = ground.entity.id;
 
         auto rule = makeUiSimple2DShape(ecs, Shape2D::Square, W, 1.0f);
+        offstage(rule.entity);
         {
             auto anchor = rule.get<UiAnchor>();
 
@@ -548,6 +558,7 @@ namespace chronicle
         state->rule = rule.entity.id;
 
         auto edge = makeUiSimple2DShape(ecs, Shape2D::Square, EdgeWidth, 1.0f);
+        offstage(edge.entity);
         {
             auto anchor = edge.get<UiAnchor>();
 
@@ -564,6 +575,7 @@ namespace chronicle
 
         // The focus ring sits inside the row, so rows stacked edge to edge never overlap it
         auto ring = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, {255.0f, 255.0f, 255.0f, 255.0f}, ecs->getSystem<ThemeSystem>()->border("border-rule"));
+        offstage(ring.entity);
         {
             auto anchor = ring.get<UiAnchor>();
 
@@ -588,6 +600,7 @@ namespace chronicle
         if (not spec.tile)
         {
             row.mark = makeMark(ecs, {spec.glyph, MarkSize::S24, "ink-muted", z + 3});
+            offstage(row.mark.entity);
             {
                 auto anchor = row.mark.entity->get<UiAnchor>();
 
@@ -605,6 +618,7 @@ namespace chronicle
         // under it. On a tile: at the left, under the name (resize sets how far down)
         row.cost = makeActivityText(ecs, "control", "activity.cost", costText(spec), z + 4);
         row.costMark = makeMark(ecs, {"time", MarkSize::S14, "status-time", z + 3});
+        offstage(row.costMark.entity);
 
         {
             auto anchor = row.cost.entity->get<UiAnchor>();
@@ -670,6 +684,7 @@ namespace chronicle
             ls.maxLines = TileNameLines;
 
             row.name = makeLabel(ecs, ls);
+            offstage(row.name.entity);
             row.name.entity->get<ThemeComponent>()->setElement("activity.tile.name");
             placeIn(row.name.entity, rootId, TilePad, TilePad, 4.0f);
         }
@@ -818,7 +833,12 @@ namespace chronicle
         }
         else
         {
-            until = makeActivityText(ecs, "tick", "activity.until", spec.until, spec.z + 4);
+            // On a tile it wraps in the tile's width: a date is longer than a tile may be wide
+            if (spec.tile)
+                until = makeActivityText(ecs, "tick", "activity.until", spec.until, spec.z + 4, Overflow::Wrap, std::max(1.0f, spec.width - 2.0f * TilePad));
+            else
+                until = makeActivityText(ecs, "tick", "activity.until", spec.until, spec.z + 4);
+
             placeIn(until->entity, root.id, spec.tile ? TilePad : Pad + MarkColumn + Gap, 0.0f, 4.0f);
             root->get<Prefab>()->addToPrefab(until->entity);
             clipLike(ecs, root, until->entity);
@@ -866,7 +886,7 @@ namespace chronicle
         {
             until->entity->get<UiAnchor>()->setTopMargin(content + UntilGap);
 
-            height += UntilGap + static_cast<float>(until->lineHeightPx);
+            height += UntilGap + std::max(static_cast<float>(until->lineHeightPx), until->entity.get<PositionComponent>()->height);
         }
 
         // What it asks for itself, then what the list asks of it: the tiles of a line are level
@@ -886,10 +906,13 @@ namespace chronicle
 
     void ActivityRow::fitName(EntitySystem* ecs)
     {
-        // A tile's name has the tile's width, and wraps in it
+        // A tile's name has the tile's width, and wraps in it; its closing too
         if (spec.tile)
         {
             name.setWidth(ecs, std::max(1.0f, spec.width - 2.0f * TilePad));
+
+            if (until)
+                until->setWidth(ecs, std::max(1.0f, spec.width - 2.0f * TilePad));
 
             return;
         }
@@ -1153,7 +1176,7 @@ namespace chronicle
 
     EntityRef makeActivityHeading(EntitySystem* ecs, const std::string& text, float width, int z)
     {
-        auto block = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(z));
+        auto block = makeAnchoredPrefab(ecs, Offstage, Offstage, static_cast<float>(z));
         block.get<PositionComponent>()->setWidth(width);
         block.get<PositionComponent>()->setHeight(HeadingAbove + HeadingHeight + HeadingBelow);
 

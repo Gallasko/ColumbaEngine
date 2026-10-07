@@ -1,7 +1,8 @@
 // Chronicle rules: the milestones of a life
 // -----------------------------------------
 // Imported by forecast.pg, and loaded by the game through milestones.pg.
-// Input:  `age` (years, a number).
+// Input:  `age` (years, a number), `world` (months since the world's Year 0: its calendar, which
+//         runs on from life to life and which no death rewinds).
 // Output: `milestones`, every milestone {age, id, label, passed, entry, asks}, where `asks` lists
 //         what each path asks at it: [{path, stat, label, needed}] (the doors of
 //         activitytable.pg it opens onto), and `entry` is "" or the line the log writes when he
@@ -11,7 +12,9 @@
 //         months to it; past the last one: {id: "", label: "", age: -1, in: -1};
 //         `headline`, the page's head at `age`: {ageText ("17.5"), subtitle ("THE SEVENTEENTH
 //         YEAR · SPRING · BELLMOOR"), ageNote ("years · 6 mo to the eighteenth", or "years"
-//         past the last milestone)}.
+//         past the last milestone), ageUnit (what follows his whole years: "YEARS 10 MONTHS OLD",
+//         "YEARS 1 MONTH OLD", "YEARS OLD" on his birthday), date ("YEAR 10", the world's), dateNote ("MONTH 7 · SUMMER ·
+//         BELLMOOR": the month of that year, 1 to 12, and its season)}.
 
 import "string"
 import "math"
@@ -88,3 +91,23 @@ if (next.age > 0)
 {
     headline.ageNote = "years · " + toString(next.in) + " mo to the " + ordinalWord(next.age)
 }
+
+// His age past the whole years: the months of the year he is in
+headline.ageUnit = "YEARS OLD"
+
+if (monthOfYear == 1)
+{
+    headline.ageUnit = "YEARS 1 MONTH OLD"
+}
+
+if (monthOfYear > 1)
+{
+    headline.ageUnit = "YEARS " + toString(monthOfYear) + " MONTHS OLD"
+}
+
+// The world's date: its year from 0, the month of that year from 1, and the month's season
+var worldYear = toInt(floor(world / 12))
+var worldMonth = world % 12
+
+headline.date = "YEAR " + toString(worldYear)
+headline.dateNote = "MONTH " + toString(worldMonth + 1) + " · " + seasonOf(worldMonth) + " · " + place

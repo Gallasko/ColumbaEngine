@@ -80,6 +80,7 @@ namespace chronicle
         void fit(float width, float height);   // The page to the window, swapping it at the breakpoint
         void fitFull(float width, float height);      // The middle column's width, the choice's and the log's heights
         void fitCompact(float width, float height);   // The main column's width, the choice's and the log's heights
+        void fitEnding(float width, float height);    // The ending's veil to the window
         float workingHeight() const;   // "At work now": its chrome alone, or with a running row
         void showSide(int index);      // Compact: one side panel in view, the others hidden
         void wire();                   // THE one function with every subscription
@@ -90,6 +91,7 @@ namespace chronicle
         void fillWindows();            // The doors on the clock, as the rules list them for his path
         void refreshHoldings();        // resources.pg's rows, rates, glosses and verdict for the character as he is
         bool boarded() const;          // The activity at work feeds him
+        bool titled(const std::string& id) const;   // A holding he has or has not (a standing, a tie): the rules say so, and its row shows no figure
         const RuleActivity* activityOf(const std::string& id) const;   // From the last activities.pg output, nullptr if none
         void endLife();                // The life is lost: the months stop and its ending comes up
         bool showEnding();             // The ending from its file, over the page, saying what epitaph.pg says

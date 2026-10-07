@@ -205,7 +205,7 @@ namespace pg
             };
 
             const char* const Names[] = {
-                "title", "about", "subtitle", "age", "ageNote", "tabs",
+                "title", "about", "tabs",
                 "str", "dex", "int", "vit", "skills", "holds", "ledger",
                 "may", "activities",
                 "clockPanel", "clock",
@@ -291,11 +291,24 @@ namespace pg
             EXPECT_NEAR(box("holds").top, 70.0f, 0.5f);
             EXPECT_NEAR(box("may").top, 70.0f, 0.5f);
             EXPECT_NEAR(box("clockPanel").top, 70.0f, 0.5f);
-            EXPECT_LE(box("title").bottom, box("subtitle").top + 0.5f);
-            EXPECT_LE(box("subtitle").bottom, 70.0f);
-            EXPECT_GE(box("about").left, box("subtitle").right);
+            EXPECT_LE(box("title").bottom, box("about").top + 0.5f);
+            EXPECT_NEAR(box("about").left, box("title").left, 0.5f);
             EXPECT_LE(box("about").bottom, 70.0f);
-            EXPECT_LE(box("ageNote").bottom, 70.0f);
+
+            // The world's date at the top right, its month and season under its year; his age is
+            // the clock's to say, and the head has no line for it
+            ASSERT_FALSE(life->named("date").empty());
+            ASSERT_FALSE(life->named("dateNote").empty());
+            EXPECT_TRUE(life->named("age").empty());
+            EXPECT_TRUE(life->named("ageNote").empty());
+            EXPECT_TRUE(life->named("subtitle").empty());
+            EXPECT_NEAR(box("date").right, 1304.0f, 0.5f);
+            EXPECT_NEAR(box("dateNote").right, 1304.0f, 0.5f);
+            EXPECT_LE(box("date").bottom, box("dateNote").top + 0.5f);
+            EXPECT_LE(box("dateNote").bottom, 70.0f);
+            EXPECT_LE(box("about").right, box("dateNote").left);
+            EXPECT_EQ(life->piece<Label>("date")->spec.text, "YEAR 10");
+            EXPECT_EQ(life->piece<Label>("dateNote")->spec.text, "MONTH 7 \xC2\xB7 SUMMER \xC2\xB7 BELLMOOR");
 
             // The chapters stand at the head of the choice, in place of a heading, over the list
             auto choice = life->piece<Panel>("may");
@@ -366,7 +379,7 @@ namespace pg
             // As designed, at 1320 x 1020
             EXPECT_NEAR(f.pos(life->named("may"))->width, 604.0f, 0.5f);
             EXPECT_NEAR(right("clockPanel"), 1304.0f, 0.5f);
-            EXPECT_NEAR(right("age"), 1304.0f, 0.5f);
+            EXPECT_NEAR(right("date"), 1304.0f, 0.5f);
 
             const float logAt1020 = life->piece<EventLog>("log")->spec.height;
 
@@ -376,8 +389,8 @@ namespace pg
             EXPECT_NEAR(f.pos(life->named("may"))->width, 1600.0f - 32.0f - 300.0f - 360.0f - 24.0f, 0.5f);
             EXPECT_NEAR(f.pos(life->named("may"))->x, 328.0f, 0.5f);
             EXPECT_NEAR(right("clockPanel"), 1584.0f, 0.5f);
-            EXPECT_NEAR(right("age"), 1584.0f, 0.5f);
-            EXPECT_NEAR(right("ageNote"), 1584.0f, 0.5f);
+            EXPECT_NEAR(right("date"), 1584.0f, 0.5f);
+            EXPECT_NEAR(right("dateNote"), 1584.0f, 0.5f);
             EXPECT_NEAR(f.pos(life->named("page"))->width, 1600.0f, 0.5f);
 
             // The tiles follow the list's width: a wider list holds more to a line (five of 164 in
@@ -435,6 +448,10 @@ namespace pg
             };
 
             auto shown = [&](const char* name) { return f.pos(life->named(name))->isRenderable(); };
+
+            // The compact page keeps his age and his year in its head
+            for (const char* name : {"subtitle", "age", "ageNote"})
+                EXPECT_FALSE(life->named(name).empty()) << name;
 
             // The same names, but the about line, and the side column's tabs
             for (const char* name : Names)
@@ -564,8 +581,23 @@ namespace pg
             ASSERT_NE(ledger, nullptr);
             ASSERT_NE(ledger->row("coin"), nullptr);
             EXPECT_EQ(ledger->row("coin")->figure.spec.text, "46");
-            EXPECT_EQ(ledger->groups.size(), 4u);
             EXPECT_NE(ledger->row("keep_oath"), nullptr);
+
+            // What his works left him besides figures has its rows too, under TIES: whom he is
+            // known to, who speaks for him
+            EXPECT_EQ(ledger->groups.size(), 5u);
+            ASSERT_NE(ledger->row("watch_known"), nullptr);
+            ASSERT_NE(ledger->row("edric_support"), nullptr);
+            EXPECT_EQ(ledger->row("watch_known")->name.spec.text, "Known to the Watch");
+
+            // A tie or a standing is had or not: its row is its name, with no figure and no leader
+            // to one; what is counted keeps both
+            EXPECT_EQ(ledger->row("edric_support")->figure.spec.text, "");
+            EXPECT_EQ(ledger->row("keep_oath")->figure.spec.text, "");
+            EXPECT_FALSE(f.pos(ledger->row("keep_oath")->leader)->isVisible());
+            EXPECT_FALSE(f.pos(ledger->row("watch_known")->leader)->isVisible());
+            EXPECT_TRUE(f.pos(ledger->row("coin")->leader)->isVisible());
+            EXPECT_EQ(ledger->row("mara_student"), nullptr);
 
             // The skills have no heading; one he has none of is not shown
             auto skills = life->piece<ResourceLedger>("skills");
@@ -577,7 +609,8 @@ namespace pg
             EXPECT_EQ(skills->row("lore"), nullptr);
 
             // The head and the log, from the save
-            EXPECT_EQ(life->piece<Label>("age")->spec.text, "17.5");
+            EXPECT_EQ(f.fact<std::string>("life.headline.ageText"), "17.5");
+            EXPECT_EQ(life->piece<Label>("date")->spec.text, "YEAR 10");
             EXPECT_EQ(life->piece<EventLog>("log")->size(), life->save.log.size());
         }
 
@@ -605,9 +638,16 @@ namespace pg
             EXPECT_EQ(f.fact<std::string>("window.campaign.state"), "upcoming");
             EXPECT_EQ(f.fact<int>("life.next.in"), 42);
             EXPECT_EQ(f.fact<std::string>("life.next.label"), "The proving");
-            EXPECT_EQ(life->piece<LifeClock>("clock")->spec.nextIn, 42);
+
+            // The clock says his age to the month, and nothing of the next milestone: its tick is
+            // on the track
+            EXPECT_EQ(life->piece<LifeClock>("clock")->age.spec.text, "17");
+            EXPECT_EQ(life->piece<LifeClock>("clock")->unit.spec.text, "YEARS 6 MONTHS OLD");
+            EXPECT_EQ(life->piece<LifeClock>("clock")->spec.nextLabel, "");
+            EXPECT_EQ(life->piece<LifeClock>("clock")->spec.nextIn, -1);
             EXPECT_EQ(life->piece<LifeClock>("clock")->spec.endAge, 30.0f);
-            EXPECT_EQ(life->piece<Label>("subtitle")->spec.text, "THE SEVENTEENTH YEAR \xC2\xB7 SUMMER \xC2\xB7 BELLMOOR");
+            EXPECT_EQ(f.fact<std::string>("life.headline.subtitle"), "THE SEVENTEENTH YEAR \xC2\xB7 SUMMER \xC2\xB7 BELLMOOR");
+            EXPECT_EQ(life->piece<Label>("dateNote")->spec.text, "MONTH 7 \xC2\xB7 SUMMER \xC2\xB7 BELLMOOR");
 
             // The proving asks the Warrior no part: no threshold stands on them
             EXPECT_EQ(life->piece<StatLine>("str")->spec.threshold, 0);
@@ -822,8 +862,173 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // A row says when it closes, and counts the months down as they pass: no work leaves the list
-        // without having said so. What no age closes says nothing.
+        // The work he is at keeps its tile, even once it could no longer be begun: it leaves the
+        // list when its term ends, not under him.
+        TEST(lifescene_test, the_work_he_is_at_keeps_its_tile)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            // The last month the carters' three months may be begun: 29 years and 9 months
+            life->save.age = 29.75f - 1.0f / 12.0f;
+            life->save.stats["rations"] = 60;
+
+            life->onMonth();
+            f.settle();
+
+            ASSERT_NE(list->find(&f.ecs, "carters"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "carters")->spec.until, "CLOSES THIS MONTH");
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "carters");
+
+            // A month in, it could not be begun any more: its tile stays, running
+            life->onMonth();
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "carters");
+
+            ActivityRow* carters = list->find(&f.ecs, "carters");
+            ASSERT_NE(carters, nullptr);
+            EXPECT_EQ(carters->spec.state, ActivityState::Running);
+            EXPECT_EQ(carters->spec.until, "");
+
+            // Its ground says it is the work he is at; the edge is the selection's alone
+            EXPECT_EQ(f.ecs.getEntity(carters->ground.id)->get<ThemeComponent>()->element, "activity.kind.running");
+            EXPECT_EQ(f.ecs.getEntity(carters->edge.id)->get<ThemeComponent>()->element, "activity.row.edge");
+
+            // At term it is done, and closed: the tile goes
+            life->onMonth();
+            life->onMonth();
+            f.settle();
+
+            EXPECT_TRUE(life->save.running.empty());
+            EXPECT_EQ(list->find(&f.ecs, "carters"), nullptr);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What a work leaves him besides a figure has its row in the ledger: taught by Mara, he is
+        // Mara's pupil there.
+        TEST(lifescene_test, a_tie_gets_its_row)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            auto ledger = life->piece<ResourceLedger>("ledger");
+            ASSERT_NE(ledger, nullptr);
+            EXPECT_EQ(ledger->row("mara_student"), nullptr);
+
+            // As a term's gains would leave it
+            life->save.stats["rations"] = 24;
+            life->save.stats["mara_student"] = 1;
+
+            life->onMonth();
+            f.settle();
+
+            ASSERT_NE(ledger->row("mara_student"), nullptr);
+            EXPECT_EQ(ledger->row("mara_student")->name.spec.text, "Mara's pupil");
+            EXPECT_EQ(ledger->row("mara_student")->figure.spec.text, "");
+            EXPECT_FALSE(f.pos(ledger->row("mara_student")->leader)->isVisible());
+
+            // Its gloss is its name: nothing held to count, no limit to state
+            auto registry = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(registry, nullptr);
+            ASSERT_NE(registry->find("resource/mara_student"), nullptr);
+            EXPECT_EQ(registry->find("resource/mara_student")->title, "Mara's pupil");
+            EXPECT_TRUE(registry->find("resource/mara_student")->rows.empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The world's calendar begins at Year 0 with the first life and never rewinds: a life that
+        // ends leaves its months counted, and the next one goes on from that date. It is how long
+        // the chronicle has been kept.
+        TEST(lifescene_test, the_world_date_outlives_a_life)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            auto date = [&]() { return life->piece<Label>("date")->spec.text; };
+            auto note = [&]() { return life->piece<Label>("dateNote")->spec.text; };
+
+            EXPECT_EQ(life->save.world, 0);
+            EXPECT_EQ(date(), "YEAR 0");
+            EXPECT_EQ(note(), "MONTH 1 \xC2\xB7 WINTER \xC2\xB7 BELLMOOR");
+
+            // Fourteen months: the third month of Year 1
+            life->save.stats["rations"] = 60;
+
+            for (int i = 0; i < 14; ++i)
+                life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.world, 14);
+            EXPECT_EQ(life->rules.world, 14);
+            EXPECT_EQ(date(), "YEAR 1");
+            EXPECT_EQ(note(), "MONTH 3 \xC2\xB7 WINTER \xC2\xB7 BELLMOOR");
+            EXPECT_EQ(f.fact<std::string>("life.headline.date"), "YEAR 1");
+
+            // He dies the month after: the world has that month too
+            life->save.stats["rations"] = 0;
+            life->save.stats["vit"] = 1;
+
+            life->onMonth();
+            f.settle();
+
+            ASSERT_TRUE(life->ended);
+            EXPECT_EQ(life->save.world, 15);
+
+            // The next life begins at 7, on the same calendar
+            life->beginAgain();
+            f.settle();
+
+            EXPECT_FLOAT_EQ(life->save.age, 7.0f);
+            EXPECT_EQ(life->save.world, 15);
+            EXPECT_EQ(life->rules.world, 15);
+            EXPECT_EQ(date(), "YEAR 1");
+            EXPECT_EQ(note(), "MONTH 4 \xC2\xB7 SPRING \xC2\xB7 BELLMOOR");
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.world, 16);
+            EXPECT_EQ(note(), "MONTH 5 \xC2\xB7 SPRING \xC2\xB7 BELLMOOR");
+
+            // A life begun anew by hand keeps it as well
+            life->newLife();
+            f.settle();
+
+            EXPECT_FLOAT_EQ(life->save.age, 7.0f);
+            EXPECT_EQ(life->save.world, 16);
+            EXPECT_EQ(note(), "MONTH 5 \xC2\xB7 SPRING \xC2\xB7 BELLMOOR");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A row says when it closes, as the world's date of the last month he may begin it: the date
+        // stays as the months pass, and turns urgent. No work leaves the list without having said so.
+        // What no age closes says nothing.
         TEST(lifescene_test, a_row_says_when_it_closes)
         {
             MockLogger logger;
@@ -849,17 +1054,18 @@ namespace pg
 
             ActivityRow* carters = list->find(&f.ecs, "carters");
             ASSERT_NE(carters, nullptr);
-            EXPECT_EQ(carters->spec.until, "CLOSES IN 14 MO");
+            EXPECT_EQ(carters->spec.until, "CLOSES 10/11");
             EXPECT_FALSE(carters->spec.urgent);
             ASSERT_TRUE(carters->until.has_value());
-            EXPECT_EQ(carters->until->spec.text, "CLOSES IN 14 MO");
+            EXPECT_EQ(carters->until->spec.text, "CLOSES 10/11");
 
             life->onMonth();
             f.settle();
 
             carters = list->find(&f.ecs, "carters");
             ASSERT_NE(carters, nullptr);
-            EXPECT_EQ(carters->spec.until, "CLOSES IN 13 MO");
+            // A month on, the date it closes on is the same date
+            EXPECT_EQ(carters->spec.until, "CLOSES 10/11");
 
             // Half a year left: urgent
             life->save.age = 29.25f - 1.0f / 12.0f;
@@ -869,7 +1075,7 @@ namespace pg
 
             carters = list->find(&f.ecs, "carters");
             ASSERT_NE(carters, nullptr);
-            EXPECT_EQ(carters->spec.until, "CLOSES IN 6 MO");
+            EXPECT_EQ(carters->spec.until, "CLOSES 4/11");
             EXPECT_TRUE(carters->spec.urgent);
 
             // An old man's work is listed by now, and is never closed
@@ -1561,13 +1767,15 @@ namespace pg
             ASSERT_NE(rations, nullptr);
             EXPECT_EQ(rations->title, "Rations");
             EXPECT_FALSE(rations->text.empty());
-            EXPECT_EQ(rowOf(rations, "Held"), "3");
-            EXPECT_EQ(rowOf(rations, "Limit"), "60");
+            // What he holds over the most he can, on one row
+            EXPECT_EQ(rowOf(rations, "Held"), "3/60");
+            EXPECT_EQ(rowOf(rations, "Limit"), "<none>");
             EXPECT_EQ(rowOf(rations, "Lasts"), "3 mo");
 
             const GlossSpec* coin = registry->find("resource/coin");
             ASSERT_NE(coin, nullptr);
-            EXPECT_EQ(rowOf(coin, "Limit"), "none");
+            EXPECT_EQ(rowOf(coin, "Held"), "46");
+            EXPECT_EQ(rowOf(coin, "Limit"), "<none>");
 
             // What the rules do not follow still says what he holds of it
             const GlossSpec* iron = registry->find("resource/iron");
@@ -1585,7 +1793,7 @@ namespace pg
             life->onMonth();
             f.settle();
 
-            EXPECT_EQ(rowOf(registry->find("resource/rations"), "Held"), "2");
+            EXPECT_EQ(rowOf(registry->find("resource/rations"), "Held"), "2/60");
 
             // A holding earned later gets its gloss with its row
             life->save.stats["favors"] = 2;
@@ -1901,6 +2109,8 @@ namespace pg
             ASSERT_NE(again, nullptr);
 
             EXPECT_NEAR(again->save.age, written.age, 0.0001f);
+            EXPECT_EQ(again->save.world, 127);
+            EXPECT_EQ(again->save.world, written.world);
             EXPECT_EQ(again->save.running, "yard");
             EXPECT_EQ(again->save.monthsIn, 1);
             EXPECT_EQ(again->save.stats, written.stats);
@@ -1955,7 +2165,12 @@ namespace pg
             ASSERT_NE(life, nullptr);
 
             EXPECT_FLOAT_EQ(f.fact<float>("life.age"), 7.0f);
-            EXPECT_EQ(life->piece<Label>("age")->spec.text, "7.0");
+            EXPECT_EQ(f.fact<std::string>("life.headline.ageText"), "7.0");
+
+            // The world begins with him: Year 0, its first month
+            EXPECT_EQ(life->save.world, 0);
+            EXPECT_EQ(life->piece<Label>("date")->spec.text, "YEAR 0");
+            EXPECT_EQ(life->piece<Label>("dateNote")->spec.text, "MONTH 1 \xC2\xB7 WINTER \xC2\xB7 BELLMOOR");
 
             // Nothing earned: only the rations he was sent off with
             auto ledger = life->piece<ResourceLedger>("ledger");
@@ -2296,7 +2511,7 @@ namespace pg
             life->onMonth();
             f.settle();
 
-            EXPECT_EQ(life->piece<Label>("age")->spec.text, "30.0");
+            EXPECT_EQ(f.fact<std::string>("life.headline.ageText"), "30.0");
             EXPECT_EQ(f.fact<std::string>("life.next.label"), "");
             EXPECT_EQ(life->save.stats["vit"], 20);
 
@@ -2353,7 +2568,7 @@ namespace pg
                 life->onMonth();
             f.settle();
 
-            EXPECT_EQ(life->piece<Label>("age")->spec.text, "31.0");
+            EXPECT_EQ(f.fact<std::string>("life.headline.ageText"), "31.0");
             EXPECT_EQ(life->piece<LifeClock>("clock")->age.spec.text, "31");
             EXPECT_EQ(life->save.stats["vit"], 14);
             EXPECT_NE(list->find(&f.ecs, "tales"), nullptr);
@@ -2438,6 +2653,21 @@ namespace pg
 
             EXPECT_NEAR(veil->x, 0.0f, 0.5f);
             EXPECT_NEAR(veil->y, 0.0f, 0.5f);
+            EXPECT_NEAR(veil->width, 1320.0f, 0.5f);
+            EXPECT_NEAR(veil->height, 1020.0f, 0.5f);
+
+            // A larger window: the veil is the window's size still, the leaf in its middle
+            f.resize(1600.0f, 1100.0f);
+
+            EXPECT_NEAR(veil->x, 0.0f, 0.5f);
+            EXPECT_NEAR(veil->y, 0.0f, 0.5f);
+            EXPECT_NEAR(veil->width, 1600.0f, 0.5f);
+            EXPECT_NEAR(veil->height, 1100.0f, 0.5f);
+            EXPECT_NEAR(leaf->x + leaf->width / 2.0f, 800.0f, 1.0f);
+            EXPECT_NEAR(leaf->y + leaf->height / 2.0f, 550.0f, 1.0f);
+
+            f.resize(1320.0f, 1020.0f);
+
             EXPECT_NEAR(veil->width, 1320.0f, 0.5f);
             EXPECT_NEAR(veil->height, 1020.0f, 0.5f);
             EXPECT_TRUE(part("veil")->has<MouseEnterComponent>());
@@ -2542,12 +2772,17 @@ namespace pg
 
             const size_t logEntries = life->save.log.size();
 
+            // Only Life for now: the other chapters come back as their pages are built
+            ASSERT_EQ(tabs->tabs.size(), 1u);
+            EXPECT_EQ(tabs->tabs[0].label.spec.text, "Life");
+
+            // A chapter with no page yet, should one be selected, says so and Life stays open
             f.ecs.sendEvent(TabSelectedEvent{tabs->root.id, "life.tabs", 3});
             f.settle();
 
             EXPECT_EQ(tabs->active(), 0);
             ASSERT_EQ(life->save.log.size(), logEntries + 1);
-            EXPECT_EQ(life->save.log.back().text, "Guild has no page yet");
+            EXPECT_EQ(life->save.log.back().text, "That page has no page yet");
         }
     }
 }

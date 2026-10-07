@@ -33,6 +33,7 @@ namespace chronicle
         float runningMonths = 0.0f;    // 0 = nothing running; drawn from age forward, clipped to endAge
         std::vector<ClockMilestone> milestones;   // Outside the span: dropped with a log
         std::vector<ClockWindow> windows;         // Wholly outside the span: dropped with a log
+        std::string unit = "YEARS";    // What follows the age's figure: "YEARS", or "YEARS 10 MONTHS OLD" (caps)
         std::string nextLabel;         // "Choose a path"; "" = no right-hand line
         int nextIn = -1;               // Months; < 0 = no figure
         int z = 20;                    // Root; head marks z+1, texts z+2; track z+1, lived z+2, wash z+3, running z+4, running edge and window edges z+5, frame z+6; tick marks z+1, tick labels z+2
@@ -66,7 +67,7 @@ namespace chronicle
 
         pg::EntityRef root;            // Width = spec.width; height = 34 + 8 + 14 + 20 = 76
         Label age;                     // clock.age, the whole years
-        Label unit;                    // clock.unit, "YEARS"
+        Label unit;                    // clock.unit, "YEARS" or what the scene says after the figure
         Mark nextMark;                 // time S14, clock.next.mark; hidden with the right-hand line
         Label next;                    // clock.next
         Label nextIn;                  // clock.next.in, "14 mo"
@@ -81,6 +82,7 @@ namespace chronicle
         float shownAge = 0.0f;         // The age drawn while the lived fill animates
 
         void setAge(pg::EntitySystem*, float age, bool animate = true);          // Lived fill, tick states; the running segment re-anchors
+        void setUnit(pg::EntitySystem*, const std::string& text);                // What follows the figure, on its baseline
         void setRunning(pg::EntitySystem*, float months);                        // 0 clears; never animated
         void setNext(pg::EntitySystem*, const std::string& label, int months);   // "" hides the right-hand line
         void setWindows(pg::EntitySystem*, const std::vector<ClockWindow>& windows);

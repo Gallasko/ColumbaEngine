@@ -7,6 +7,12 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Fixed
+- Chronicle: the ending's veil covered 1320 x 1020 whatever the window's size (anchors on both sides
+  do not stretch a shape); the scene sizes it to the window, on every resize, and it dims the page
+  (`ink` at 40%) instead of washing it out.
+- Chronicle: a tile, a heading, a running row or its progress rule made while the game runs showed
+  for a frame at the window's top left, before its anchors placed it. They are made off the stage
+  (`Core/offstage.h`), as the tooltip gloss already was.
 - PgScript: `import` of a module that has a compiled `.pgc` beside it no longer breaks when the module
   defines functions. The imported bytecode was run through the optimization passes a second time (a crash in
   `PoppingJumpPass`) and the functions it carried were never decoded (a crash at the first call). It is now
@@ -150,7 +156,7 @@ First tagged release. Everything below describes the state of the engine at the 
   stands locked with what it asks, the age first. An activity sets it with `showAge` and `showFrom`
   (`rules/activitytable.pg`).
 - Chronicle: an activity says when it closes. From two years before he can no longer begin it, its
-  row carries a line counting the months down (`CLOSES IN 14 MO`), in red for the last six
+  row carries a line saying when (`CLOSES 5/11`: month/year of the world's date), in red for the last six
   (`ActivityRow::setUntil`, `until` and `urgent` from the rules), so no row leaves the list
   unannounced.
 - Chronicle: tooltips read in colour and in sections. A gloss row may carry a tone (`gain`, `loss`,
@@ -182,6 +188,19 @@ First tagged release. Everything below describes the state of the engine at the 
   from the window's edges, and the left one is 300 wide. The choice has no heading: the tabs stand
   at its head (`Tabs::setWidth`). A tile done at once leaves its time line empty instead of
   writing `NOW`. The page turns compact under 1284 x 840.
+- Chronicle: the world has a calendar. It begins at Year 0 with the first life and runs on from
+  life to life (`LifeSave::world`, the `world` input of the rules): a death does not rewind it. The
+  Life page shows it at the top right (the year, then the month and its season) in place of his
+  age, and an activity that closes says the date it closes on. The clock says his age to the
+  month (`9 YEARS 10 MONTHS OLD`, `LifeClock::setUnit`) and no longer the next milestone.
+- Chronicle: what a work leaves him besides a figure ("Mara's pupil", "Known to the Watch") has
+  its row in the ledger, under TIES (`ties` in `rules/resources.pg`). A tie, a standing or a title
+  (`title: true`) shows its name alone, with no `1` beside it, and its gloss states no count and
+  no limit. A holding with a limit says both on one row of its gloss (`3/60`); one without says
+  no limit at all. The work he is at keeps its
+  tile when it could no longer be begun, and a running tile carries no edge: the edge is the
+  selection's. The running row's caption is `MONTH 3 OF 6` alone. Only the Life tab is shown
+  until the other pages exist.
 - Facts: `WorldFacts`, `FactChecker` and the `AddFact` / `IncreaseFact` / `RemoveFact` events live in
   `Systems/gamefacts.h`, promoted from the GameOff example together with fact metadata and the event
   serializers. It replaces `Systems/factsystem.h`. Migration: include `Systems/gamefacts.h`; a save written

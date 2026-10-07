@@ -152,6 +152,10 @@ namespace chronicle
         // The terms completed, by activity: handed to every script that reads the activities.
         pg::ElementMap done;
 
+        // The world's calendar: months since its Year 0, handed to every script that writes a date
+        // (the page's head, when an activity closes). It runs on from life to life.
+        int world = 0;
+
         // activities.pg: the activity table, and what each still asks of `character` at `age`.
         bool activities(float age, const pg::ElementMap& character, std::vector<RuleActivity>& out);
 

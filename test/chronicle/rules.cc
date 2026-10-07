@@ -282,15 +282,18 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // An activity says when it closes once he has two years or less to begin it, and says it as
-        // urgent from six months: no row leaves the list without having said so. What no age closes
-        // says nothing.
+        // An activity says when it closes once he has two years or less to begin it, as the world's
+        // date (month/year) of the last month he may begin it, and says it as urgent from six months: no row
+        // leaves the list without having said so. What no age closes says nothing.
         TEST(rules_test, closing_is_said_ahead)
         {
             MockLogger logger;
             RulesFixture f;
 
             const float month = 1.0f / 12.0f;
+
+            // The world is at its hundredth month: Year 8, month 5
+            f.rules.world = 100;
 
             // The carters: three months, closed with his prime at 30. Far from it, nothing
             RuleActivity carters = activityAt(f.rules, 20.0f, boy(), "carters");
@@ -303,17 +306,17 @@ namespace pg
 
             carters = activityAt(f.rules, 28.0f - 3.0f * month, boy(), "carters");
 
-            EXPECT_EQ(textOf(carters.fields, "until"), "CLOSES IN 24 MO");
+            EXPECT_EQ(textOf(carters.fields, "until"), "CLOSES 5/10");
             EXPECT_FALSE(flag(carters.fields, "urgent"));
 
             carters = activityAt(f.rules, 29.0f, boy(), "carters");
 
-            EXPECT_EQ(textOf(carters.fields, "until"), "CLOSES IN 9 MO");
+            EXPECT_EQ(textOf(carters.fields, "until"), "CLOSES 2/9");
             EXPECT_FALSE(flag(carters.fields, "urgent"));
 
             carters = activityAt(f.rules, 29.5f, boy(), "carters");
 
-            EXPECT_EQ(textOf(carters.fields, "until"), "CLOSES IN 3 MO");
+            EXPECT_EQ(textOf(carters.fields, "until"), "CLOSES 8/8");
             EXPECT_TRUE(flag(carters.fields, "urgent"));
 
             // The last month he may begin it, then closed: nothing more to say
@@ -330,7 +333,11 @@ namespace pg
 
             // The Keep swears no one past 20, and its service is 18 months: said from 16 and a half
             EXPECT_EQ(textOf(activityAt(f.rules, 16.0f, boy(), "keep").fields, "until"), "");
-            EXPECT_EQ(textOf(activityAt(f.rules, 16.5f, boy(), "keep").fields, "until"), "CLOSES IN 24 MO");
+            EXPECT_EQ(textOf(activityAt(f.rules, 16.5f, boy(), "keep").fields, "until"), "CLOSES 5/10");
+
+            // From the world's first month: two years on is the first month of Year 2
+            f.rules.world = 0;
+            EXPECT_EQ(textOf(activityAt(f.rules, 16.5f, boy(), "keep").fields, "until"), "CLOSES 1/2");
 
             // An old man's work is never closed
             EXPECT_EQ(textOf(activityAt(f.rules, 29.5f, boy(), "tales").fields, "until"), "");
@@ -557,6 +564,42 @@ namespace pg
             EXPECT_EQ(textOf(headline, "subtitle"), "THE SEVENTEENTH YEAR \xC2\xB7 SUMMER \xC2\xB7 BELLMOOR");
             EXPECT_EQ(textOf(headline, "ageNote"), "years \xC2\xB7 42 mo to the twenty-first");
 
+            // His age to the month, after the figure of his whole years
+            EXPECT_EQ(textOf(headline, "ageUnit"), "YEARS 6 MONTHS OLD");
+
+            ASSERT_TRUE(f.rules.milestones(9.0f + 1.0f / 12.0f, milestones, next, &headline));
+            EXPECT_EQ(textOf(headline, "ageText"), "9.0");
+            EXPECT_EQ(textOf(headline, "ageUnit"), "YEARS 1 MONTH OLD");
+
+            ASSERT_TRUE(f.rules.milestones(9.0f + 10.0f / 12.0f, milestones, next, &headline));
+            EXPECT_EQ(textOf(headline, "ageUnit"), "YEARS 10 MONTHS OLD");
+
+            ASSERT_TRUE(f.rules.milestones(9.0f, milestones, next, &headline));
+            EXPECT_EQ(textOf(headline, "ageUnit"), "YEARS OLD");
+
+            // The world's date beside it: Year 0 at its first month, in the winter
+            EXPECT_EQ(textOf(headline, "date"), "YEAR 0");
+            EXPECT_EQ(textOf(headline, "dateNote"), "MONTH 1 \xC2\xB7 WINTER \xC2\xB7 BELLMOOR");
+
+            // Ten years and six months on, whoever is living then
+            f.rules.world = 126;
+            ASSERT_TRUE(f.rules.milestones(9.0f, milestones, next, &headline));
+            EXPECT_EQ(textOf(headline, "date"), "YEAR 10");
+            EXPECT_EQ(textOf(headline, "dateNote"), "MONTH 7 \xC2\xB7 SUMMER \xC2\xB7 BELLMOOR");
+
+            // The last month of a year, then the first of the next
+            f.rules.world = 23;
+            ASSERT_TRUE(f.rules.milestones(9.0f, milestones, next, &headline));
+            EXPECT_EQ(textOf(headline, "date"), "YEAR 1");
+            EXPECT_EQ(textOf(headline, "dateNote"), "MONTH 12 \xC2\xB7 AUTUMN \xC2\xB7 BELLMOOR");
+
+            f.rules.world = 24;
+            ASSERT_TRUE(f.rules.milestones(9.0f, milestones, next, &headline));
+            EXPECT_EQ(textOf(headline, "date"), "YEAR 2");
+            EXPECT_EQ(textOf(headline, "dateNote"), "MONTH 1 \xC2\xB7 WINTER \xC2\xB7 BELLMOOR");
+
+            f.rules.world = 0;
+
             // The last one is 30, and it writes a line
             EXPECT_EQ(intOf(milestones.back().fields, "age"), 30);
             EXPECT_FALSE(textOf(milestones.back().fields, "entry").empty());
@@ -647,7 +690,8 @@ namespace pg
             EXPECT_EQ(intOf(forecast.atTerm, "dex"), 6);   // Untouched stats carried over
             EXPECT_FLOAT_EQ(forecast.percent, 0.0f);
             EXPECT_EQ(forecast.months, 6);
-            EXPECT_EQ(forecast.caption, "MONTH 0 OF 6 \xC2\xB7 STRENGTH 6 \xE2\x86\x92 7 AT TERM");
+            // Where he is in it, and no more: what it brings is its gloss's to say
+            EXPECT_EQ(forecast.caption, "MONTH 0 OF 6");
             EXPECT_EQ(forecast.error, "");
 
             ASSERT_EQ(forecast.entries.size(), 1u);
@@ -1040,6 +1084,34 @@ namespace pg
             for (const char* id : {"reagents", "favors", "keep_oath", "collegium", "hidden_hand"})
                 EXPECT_NE(byId(month.rows, id), nullptr) << id;
 
+            // A standing, a title or a tie is had or not: the rules say so. What is counted is not one
+            for (const char* id : {"keep_oath", "collegium", "hidden_hand", "captain", "mage_of_harrow", "master_thief", "mara_student", "watch_known", "crew_ready"})
+            {
+                ASSERT_NE(byId(month.rows, id), nullptr) << id;
+                EXPECT_TRUE(flag(*byId(month.rows, id), "title")) << id;
+            }
+
+            for (const char* id : {"coin", "rations", "reagents", "favors"})
+                EXPECT_FALSE(flag(*byId(month.rows, id), "title")) << id;
+
+            EXPECT_EQ(textOf(*byId(month.rows, "mara_student"), "name"), "Mara's pupil");
+            EXPECT_EQ(textOf(*byId(month.rows, "mara_student"), "groupLabel"), "TIES");
+
+            // And its gloss counts nothing and states no limit: its name, and what it is
+            for (const auto& gloss : month.glosses)
+            {
+                const std::string id = textOf(gloss.fields, "id");
+
+                if (id == "keep_oath" or id == "mara_student")
+                {
+                    EXPECT_TRUE(gloss.rows.empty()) << id;
+                    EXPECT_EQ(textOf(gloss.fields, "footnote"), "") << id;
+                }
+
+                if (id == "coin")
+                    EXPECT_FALSE(gloss.rows.empty());
+            }
+
             // Fed by his work
             ASSERT_TRUE(f.rules.month(20.0f, character, true, month));
             EXPECT_EQ(intOf(month.after, "rations"), 5);
@@ -1132,11 +1204,13 @@ namespace pg
             ASSERT_NE(rations, nullptr);
 
             EXPECT_EQ(textOf(coin->fields, "title"), "Coin");
+            // No limit: what he holds, and no row for a limit there is not
             EXPECT_EQ(rowOf(*coin, "Held"), "3");
-            EXPECT_EQ(rowOf(*coin, "Limit"), "none");
+            EXPECT_EQ(rowOf(*coin, "Limit"), "<none>");
 
-            EXPECT_EQ(rowOf(*rations, "Held"), "5");
-            EXPECT_EQ(rowOf(*rations, "Limit"), "60");
+            // A limit: what he holds over the most he can, on one row
+            EXPECT_EQ(rowOf(*rations, "Held"), "5/60");
+            EXPECT_EQ(rowOf(*rations, "Limit"), "<none>");
             EXPECT_EQ(rowOf(*rations, "A month uses"), "1");
             EXPECT_EQ(rowOf(*rations, "Lasts"), "5 mo");
             EXPECT_EQ(rowOf(*rations, "With none, Vitality"), "\xE2\x88\x92" "1 / mo");

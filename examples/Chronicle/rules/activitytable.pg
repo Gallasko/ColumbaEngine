@@ -3,7 +3,8 @@
 // Imported by windows.pg and forecast.pg, and loaded by the game through activities.pg.
 // Input:  `age` (years), `character` (a table of stats and flags), `done` (a table: activity id
 //         -> the terms already completed; an activity never done has no key), `activityId` (""
-//         for every activity; the forecast's one id, to shape that one only).
+//         for every activity; the forecast's one id, to shape that one only), `world` (months
+//         since the world's Year 0: the date a closing is written with).
 // Output: `activities`, one table per thing the character may spend months doing, in the order
 //         the Life screen lists them:
 //           id, group, name, glyph, months, rank ("" or caps), each ("" or caps), path ("" or the
@@ -25,9 +26,9 @@
 //           showAge, showFrom (the two it is listed by, as below),
 //           tally (how often it was done and, for a limited one, what is left, as the row
 //           writes it: "DONE 2", "DONE 0 · 1 LEFT"),
-//           until ("" or when it closes, as the row writes it: "CLOSES IN 14 MO", "CLOSES THIS
-//           MONTH": the months he still has to begin it, from `closingShown` down), urgent (true
-//           from `closingUrgent` down),
+//           until ("" or when it closes, as the row writes it: "CLOSES 5/11", the world's date
+//           (month/year) of the last month he may begin it, or "CLOSES THIS MONTH"; said from
+//           `closingShown` months before it), urgent (true from `closingUrgent` months before),
 //           after (its steps, as below).
 //
 // `months: 0` is an activity done at once: it takes no time, and can be done while another runs.
@@ -460,7 +461,10 @@ for (var i = 0; i < len(activities); i++)
 
     if (a.finishBy < anyAge and not a.closed and toBegin <= closingShown)
     {
-        a.until = "CLOSES IN " + toString(toBegin) + " MO"
+        // The date of the last month he may begin it: it does not move as the months pass
+        var closing = world + toBegin
+
+        a.until = "CLOSES " + toString(closing % 12 + 1) + "/" + toString(toInt(floor(closing / 12)))
         a.urgent = toBegin <= closingUrgent
 
         if (toBegin == 0)

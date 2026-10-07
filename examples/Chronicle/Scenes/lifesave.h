@@ -32,6 +32,7 @@ namespace chronicle
         std::string origin;
         std::string aim;               // The path he is headed for ("warrior"), set when he enters one: the stat lines' thresholds
         float age = 7.0f;
+        int world = 0;                 // Months since the world's Year 0. It runs on from life to life: a death does not rewind it
         std::string running;           // The activity at work, "" for none
         int monthsIn = 0;              // Months already spent in it
         std::unordered_map<std::string, int> stats;   // Parts, skills, flags and coin, by key

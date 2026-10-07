@@ -69,11 +69,7 @@ children:
     tag: life.tabs
     items:
       - {label: Life, glyph: quill}
-      - {label: Kit, glyph: equipment}
-      - {label: Town, glyph: town}
-      - {label: Guild, glyph: guild}
-      - {label: Adventure, glyph: adventure}
-      - {label: Chronicle, glyph: study}
+      # Kit, Town, Guild, Adventure and Chronicle come back as their pages are built
 
   # ── Main: the work at hand, then the choice ───────────────────────────────────
   - kind: Panel
@@ -172,8 +168,6 @@ children:
         startAge: 7
         endAge: 30
         age: 17.5
-        nextLabel: The proving
-        nextIn: 42
         milestones:
           - {age: 7}
           - {age: 13}

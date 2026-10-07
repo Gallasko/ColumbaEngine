@@ -13,6 +13,7 @@
 #include "UI/themesystem.h"
 
 #include "Core/motion.h"
+#include "Core/offstage.h"
 
 using namespace pg;
 
@@ -52,7 +53,9 @@ namespace chronicle
         p.spec = spec;
         p.shown = spec.percent;
 
-        auto root = makeAnchoredPrefab(ecs, 0.0f, 0.0f, static_cast<float>(z));
+        // Born off the stage, like its parts: a rule is made when work begins, while the game
+        // runs, and would show for a frame where it was made
+        auto root = makeAnchoredPrefab(ecs, Offstage, Offstage, static_cast<float>(z));
         root.get<PositionComponent>()->setWidth(W);
         root.get<PositionComponent>()->setHeight(H);   // grown below if there is a caption
         const _unique_id rootId = root.id;
@@ -60,6 +63,7 @@ namespace chronicle
 
         // track
         auto track = makeUiSimple2DShape(ecs, Shape2D::Square, W, H);
+        offstage(track.entity);
         track.get<UiAnchor>()->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
         track.get<UiAnchor>()->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
         track.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z});
@@ -69,6 +73,7 @@ namespace chronicle
 
         // fill (progress-ink), inside the frame
         auto fill = makeUiSimple2DShape(ecs, Shape2D::Square, 1.0f, H - 2.0f);
+        offstage(fill.entity);
         {
             auto fa = fill.get<UiAnchor>();
             fa->setLeftAnchor(PosAnchor{rootId, AnchorType::Left}); fa->setLeftMargin(1.0f);
@@ -83,6 +88,7 @@ namespace chronicle
         // forecast (hatch), starting where the fill ends
         auto forecast = makeHatchRect2DShape(ecs, 1.0f, H - 2.0f, {255.0f, 255.0f, 255.0f, 255.0f}, 6.0f, 2.0f);
         forecast.get<HatchRect2DObject>()->setAngle(45.0f);
+        offstage(forecast.entity);
         {
             auto fca = forecast.get<UiAnchor>();
             fca->setLeftAnchor(PosAnchor{rootId, AnchorType::Left}); fca->setLeftMargin(1.0f);
@@ -96,6 +102,7 @@ namespace chronicle
 
         // frame (above fill and forecast so the hairline is never covered)
         auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, {255.0f, 255.0f, 255.0f, 255.0f}, 1.0f);
+        offstage(frame.entity);
         frame.get<UiAnchor>()->fillIn(track.get<UiAnchor>());
         frame.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
         ecs->attach<ThemeComponent>(frame.entity, "progress.frame");
@@ -106,6 +113,7 @@ namespace chronicle
         if (spec.nib)
         {
             Mark m = makeMark(ecs, {"quill", MarkSize::S14, "ink", z + 4});
+            offstage(m.entity);
             auto ma = m.entity->get<UiAnchor>();
             ma->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             ma->setTopAnchor(PosAnchor{rootId, AnchorType::Top}); ma->setTopMargin(H / 2.0f - NIB_DY);
@@ -120,6 +128,7 @@ namespace chronicle
             LabelSpec cs; cs.style = "caption"; cs.text = spec.caption; cs.color = "ink-muted";
             cs.overflow = Overflow::Wrap; cs.width = W; cs.z = z + 2;
             Label c = makeLabel(ecs, cs);
+            offstage(c.entity);
             auto ca = c.entity->get<UiAnchor>();
             ca->setLeftAnchor(PosAnchor{rootId, AnchorType::Left});
             ca->setTopAnchor(PosAnchor{rootId, AnchorType::Top}); ca->setTopMargin(H + CAP_GAP);

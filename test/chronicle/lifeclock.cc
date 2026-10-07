@@ -363,6 +363,40 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // What follows the age's figure is the scene's to say: YEARS as built, or his age to the
+        // month. It stays after the figure, on the head line.
+        TEST(lifeclock_test, unit_after_the_figure)
+        {
+            MockLogger logger;
+            LifeClockFixture s;
+
+            LifeClock clock = s.make(lifeSpec(17.4f));
+
+            EXPECT_EQ(clock.age.spec.text, "17");
+            EXPECT_EQ(clock.unit.spec.text, "YEARS");
+            EXPECT_EQ(s.element(clock.unit.entity), "clock.unit");
+
+            const float gap = s.left(clock.unit.entity, clock) - s.right(clock.age.entity, clock);
+
+            clock.setUnit(&s.ecs, "YEARS 10 MONTHS OLD");
+            s.settle();
+
+            EXPECT_EQ(clock.unit.spec.text, "YEARS 10 MONTHS OLD");
+            EXPECT_EQ(clock.spec.unit, "YEARS 10 MONTHS OLD");
+            EXPECT_NEAR(s.left(clock.unit.entity, clock) - s.right(clock.age.entity, clock), gap, 0.5f);
+            EXPECT_LE(s.right(clock.unit.entity, clock), 640.0f);
+
+            // Built with it
+            LifeClockSpec spec = lifeSpec(9.9f);
+            spec.unit = "YEARS 10 MONTHS OLD";
+            LifeClock other = s.make(spec);
+
+            EXPECT_EQ(other.unit.spec.text, "YEARS 10 MONTHS OLD");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(lifeclock_test, age_animates_and_running_follows)
         {
             MockLogger logger;

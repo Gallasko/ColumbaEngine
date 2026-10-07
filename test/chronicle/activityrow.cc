@@ -424,6 +424,11 @@ namespace pg
             EXPECT_EQ(s.element(running.ground), "activity.kind.running");
             EXPECT_EQ(instant.cost.spec.text, "NOW");
 
+            // The work he is at is said by its ground alone: the edge is the selection's, so the
+            // two are never taken for one another
+            EXPECT_EQ(s.element(running.edge), "activity.row.edge");
+            EXPECT_EQ(s.element(timed.edge), "activity.row.edge");
+
             // Locked and running rows are as short: the gloss says what they ask and where they are
             EXPECT_FLOAT_EQ(s.pos(locked.root)->height, 48.0f);
             EXPECT_FALSE(locked.reqs.has_value());

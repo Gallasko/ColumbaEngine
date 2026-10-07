@@ -9,12 +9,12 @@
 //           hurt     [stat]: the stats a life needs (`mortal`) that this month took from
 //         `caps`, the most each capped stat of the character can be: [{stat, most}].
 //         `rows`, one table per holding the ledger can show, in the order it lists them:
-//           {id, group, groupLabel, glyph, name, tone, rate, limit}
+//           {id, group, groupLabel, glyph, name, tone, rate, limit, title}
 //           tone: 0 none, 1 coin, 2 guild, 3 relic; rate: "" or "+2 / mo", what the coming
 //           month does to it as things stand; limit: the most he can hold, 0 for none.
 //         `glosses`, one table per holding, what hovering its row says:
 //           {id, title, text, footnote, rows [{label, value, tone}]}
-//           rows: what he holds, its limit, what the month does to it and where that comes
+//           rows: what he holds (over its limit when it has one: "3/60"), what the month does to it and where that comes
 //           from, what it brings, what it uses and how long it lasts, what running out costs.
 //         `death`: "" or the line the next life opens with, when the character as he is has
 //           nothing left of a stat a life needs (`mortal`).
@@ -29,6 +29,9 @@
 //                                     reaches 0, the effects land every month it stays there.
 //                                     A character who never held any is not out of it.
 //   about: "text"                     what it is, in a sentence, for its gloss.
+//   title: true                       he has it or he has not: a standing, a tie, a title. Its
+//                                     row shows no figure, and its gloss says neither how many he
+//                                     holds nor a limit.
 // The most he can hold of a stat is lib.pg's `statLimits`: what a month produces stops at it,
 // and what he already holds past it (an activity may carry him there) is left alone.
 //
@@ -52,19 +55,32 @@ var holdings = [
      about: "What a working burns. Bought at the Collegium, spent when a working begins."},
     {id: "favors", group: "standing", groupLabel: "STANDING", glyph: "guild", name: "Favors", tone: 2,
      about: "What the Hidden Hand owes him. A big job asks for them before it begins."},
-    {id: "keep_oath", group: "standing", groupLabel: "STANDING", glyph: "seal", name: "Sworn to the Keep", tone: 2,
+    {id: "keep_oath", group: "standing", groupLabel: "STANDING", glyph: "seal", name: "Sworn to the Keep", tone: 2, title: true,
      about: "His oath to the Keep at Bellmoor: its service and its campaigns are open to him."},
-    {id: "collegium", group: "standing", groupLabel: "STANDING", glyph: "academy", name: "The Collegium", tone: 2,
+    {id: "collegium", group: "standing", groupLabel: "STANDING", glyph: "academy", name: "The Collegium", tone: 2, title: true,
      about: "A place among the scholars of the Collegium, and their table."},
-    {id: "hidden_hand", group: "standing", groupLabel: "STANDING", glyph: "guild", name: "The Hidden Hand", tone: 2,
+    {id: "hidden_hand", group: "standing", groupLabel: "STANDING", glyph: "guild", name: "The Hidden Hand", tone: 2, title: true,
      about: "The thieves of Bellmoor trust him with their work."},
-    {id: "captain", group: "standing", groupLabel: "STANDING", glyph: "reputation", name: "Captain of Bellmoor", tone: 3,
+    {id: "captain", group: "standing", groupLabel: "STANDING", glyph: "reputation", name: "Captain of Bellmoor", tone: 3, title: true,
      about: "The captain's chain of the Keep."},
-    {id: "mage_of_harrow", group: "standing", groupLabel: "STANDING", glyph: "relic", name: "Mage of Harrow", tone: 3,
+    {id: "mage_of_harrow", group: "standing", groupLabel: "STANDING", glyph: "relic", name: "Mage of Harrow", tone: 3, title: true,
      about: "The one who performed the Harrow Working."},
-    {id: "master_thief", group: "standing", groupLabel: "STANDING", glyph: "gold", name: "Master Thief", tone: 3,
+    {id: "master_thief", group: "standing", groupLabel: "STANDING", glyph: "gold", name: "Master Thief", tone: 3, title: true,
      about: "The one who emptied the Bellmoor Vault."}
 ]
+
+// What a work leaves him besides a figure: whom he is known to, what he was taught, what he
+// carries. Each is a holding like the others, so it has its row in the ledger once he has it
+// ("Mara's pupil", "Known to the Watch"), under the name lib.pg writes it with.
+var ties = ["watch_known", "street_known", "choir", "edric_support", "library_access", "night_contacts", "mara_student",
+            "veteran", "watch_commander", "tourney_victor",
+            "black_treatise", "orin_known", "harrow_fragments", "harrow_truth", "harrow_relic",
+            "guild_clerk", "guild_ledgers", "guild_enemy", "heat_reduced", "great_job_planned", "crew_ready"]
+
+for (var t = 0; t < len(ties); t++)
+{
+    push(holdings, {id: ties[t], group: "ties", groupLabel: "TIES", glyph: "reputation", name: statName(ties[t]), tone: 0, title: true})
+}
 
 // What comes back with time: a stat under its cap (lib.pg's `statCaps`) gains `amount` every
 // `every` months, counted in the stat "<stat>rest". A month that took from it mends nothing and
@@ -247,7 +263,7 @@ for (var j = 0; j < len(holdings); j++)
         rate = signed(delta) + " / mo"
     }
 
-    push(rows, {id: h.id, group: h.group, groupLabel: h.groupLabel, glyph: h.glyph, name: h.name, tone: h.tone, rate: rate, limit: limitOf(h.id)})
+    push(rows, {id: h.id, group: h.group, groupLabel: h.groupLabel, glyph: h.glyph, name: h.name, tone: h.tone, rate: rate, limit: limitOf(h.id), title: lookup(h, "title", false)})
 }
 
 // What hovering a holding says: the figures behind its row
@@ -262,16 +278,15 @@ for (var g = 0; g < len(holdings); g++)
     var footnote = ""
 
     // A row's tone says which way its figure goes: "" plain, "gain", "loss", "time", "muted"
-    var notes = [{label: "Held", value: toString(held), tone: ""}]
+    // What he holds, over the most he can hold when there is one: "3/60"
+    var holds = toString(held)
 
     if (limit > 0)
     {
-        push(notes, {label: "Limit", value: toString(limit), tone: ""})
+        holds = holds + "/" + toString(limit)
     }
-    else
-    {
-        push(notes, {label: "Limit", value: "none", tone: "muted"})
-    }
+
+    var notes = [{label: "Held", value: holds, tone: ""}]
 
     if (delta != 0)
     {
@@ -357,6 +372,13 @@ for (var g = 0; g < len(holdings); g++)
     if (limit > 0 and held >= limit)
     {
         footnote = "FULL: WHAT BRINGS MORE IS CLOSED TO HIM"
+    }
+
+    // A title is had or not: nothing to count, no limit to state
+    if (lookup(h, "title", false))
+    {
+        notes = []
+        footnote = ""
     }
 
     push(glosses, {id: h.id, title: h.name, text: lookup(h, "about", ""), footnote: footnote, rows: notes})

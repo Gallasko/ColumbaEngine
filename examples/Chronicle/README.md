@@ -210,7 +210,8 @@ come from `rules/*.pg` through the scene, never from the component.
   tokens only — nothing moves.
 
 - **LifeClock** (`UI/lifeclock.h`) - one whole life on a single track, the spine of
-  the Life screen. The head line: the age in `figure-xl` with `YEARS` beside it on
+  the Life screen (which feeds `setUnit` his age to the month, `YEARS 10 MONTHS OLD`, and shows
+  no next milestone). The head line: the age in `figure-xl` with `YEARS` beside it on
   one baseline, and at the right the next milestone with the `time` mark and the
   months to it. The track (14 px, framed): months lived solid, the running activity
   hatched ahead of them with a 1 px hairline at its start, age-limited windows as a
@@ -336,7 +337,8 @@ come from `rules/*.pg` through the scene, never from the component.
   (`id`, `glyph`, `label`, `value`, `rate`, `tone`, `muted`, `glossKey`). Neither builds
   anything of its own; each adds to the ledger it is nested in. Elements: `ledger.group`,
   `ledger.mark` (`.coin`, `.guild`, `.relic`, `.muted`), `ledger.name` (`.muted`),
-  `ledger.leader`, `ledger.figure` (`.relic`, `.muted`), `ledger.rate` (`.loss`).
+  `ledger.leader`, `ledger.figure` (`.relic`, `.muted`), `ledger.rate` (`.loss`). A row whose
+  value is `""` is its name alone: no figure and no leader.
 
 - **EventLog** (`UI/eventlog.h`) - the running account of everything that has happened in
   this life, entered under the year it happened in: a `vellum-worn` well with a 2 px
@@ -422,8 +424,8 @@ which hold everything and are what `windows.pg` and `forecast.pg` import. `lib.p
 | script | inputs | outputs |
 |---|---|---|
 | `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthOf` (whole months lived), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup`, `raised` (a gain stopped at the stat's ceiling), `byId`, `pathFlagOf`, `asksOf`, `openNote`, `shiftIn` (a month's change to a stat); `lastAge` (30, where his prime ends), `anyAge` (the `finishBy` of what no age closes) |
-| `activities.pg` (`activitytable.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own) | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label, name}], costs[{stat, amount, label, name}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, showAge, showFrom, tally ("DONE 2", "DONE 0 · 1 LEFT"), until ("" or "CLOSES IN 14 MO"), urgent, after[step]}` |
-| `milestones.pg` (`milestonetable.pg`) | `age` | `milestones`: `{age, id, label, passed, entry, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
+| `activities.pg` (`activitytable.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own), `world` | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label, name}], costs[{stat, amount, label, name}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, showAge, showFrom, tally ("DONE 2", "DONE 0 · 1 LEFT"), until ("" or "CLOSES IN 14 MO"), urgent, after[step]}` |
+| `milestones.pg` (`milestonetable.pg`) | `age`, `world` | `milestones`: `{age, id, label, passed, entry, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
 | `windows.pg` | `age`, `character`, `done`, `activityId` (`""`) | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}`, one per door of an activity whose path is open to him |
 | `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atStart{stats}, atTerm{stats}, percent, months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
 | `resources.pg` | `age`, `character`, `board` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value, tone}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
@@ -451,9 +453,10 @@ done while another activity runs. Its row reads `NOW` where the others read thei
 **Ages and paths** (`activities.pg`). `fromAge` (default 7) is the youngest he may begin it:
 younger, the first thing it asks is the age. `finishBy` (default `lastAge`) is the latest its
 term may end, inclusive: an 18-month activity with `finishBy: 20` is begun by 18.5. Past that
-it is `closed` (`anyAge` for what no age closes). A closing is said ahead: `until` is the months
-he still has to begin it (`"CLOSES IN 14 MO"`, `"CLOSES THIS MONTH"`) from `closingShown`
-(24) down, `urgent` from `closingUrgent` (6); the scene writes it on the row
+it is `closed` (`anyAge` for what no age closes). A closing is said ahead: `until` is the
+world's date of the last month he may begin it, month/year (`"CLOSES 5/11"`, or `"CLOSES THIS
+MONTH"`), said from `closingShown` (24) months before it, `urgent` from `closingUrgent` (6).
+The date does not move as the months pass; the scene writes it on the row
 (`activity.<id>.until`, `.urgent`) every month, so no row leaves the list unannounced, his
 prime's at 30 included. `path` puts an activity on one of `paths` (`warrior`, `mage`, `thief`, each with
 the flag that makes him one of it); the one that `enters` it is open until he is one of any
@@ -483,13 +486,17 @@ renown, favors and what he holds have none. A term's gain stops there (`raised`)
 stood past it stays, and nothing is locked by it.
 
 **Holdings** (`resources.pg`). A holding is a stat with a row in the ledger: coin, rations and
-reagents in the purse, favors and the paths' standings. `produces
+reagents in the purse, favors and the paths' standings, and under TIES (`ties`) every flag a
+work may leave him (`mara_student` "Mara's pupil", `watch_known` "Known to the Watch"...), so
+what a term's log line says he gained is then on the page. A standing, a title or a tie is a
+`title: true` holding: he has it or he has not, so its row shows its name alone (no figure, and
+the ledger draws no leader to an empty one) and its gloss counts nothing and states no limit. `produces
 [{stat, amount, per}]` (no holding uses it in this balance) brings `amount` of `stat` every month for each `per` of it he holds;
 `decays: N` takes N from it every month, never below 0; `empty {effects, entry}` says what
 running out costs: the entry the month it reaches 0, the effects every month it stays there.
 The script runs once per month for `month.after`, and once per publish for the rows' rates.
 `about` is a sentence on what the holding is. Each holding leaves a **gloss** (`glosses`): what
-he holds, its limit, what the month does to it and where that comes from, what it brings
+he holds (over its limit when it has one, on one row: `3/60`), what the month does to it and where that comes from, what it brings
 (a holding that `produces` is footnoted as a generator), what it uses and how long it lasts,
 and what running out costs. The Life screen registers it as `resource/<id>` on the ledger row;
 a row the rules do not follow says only what he holds.
@@ -583,8 +590,8 @@ all tested (133 `test_chronicle` + engine `t1` green):
 ## The Life scene
 
 `Scenes/lifescene.h`. The page is `res/chronicle/ui/life.yaml`, built as it is: a head of
-two lines (the title in the heading face, then the year with what he is after it, the age at
-the right) and three columns of panels from 70 down, 12 apart, 16 from the window's edges. Left
+two lines (the title in the heading face, then what he is; the world's date at the top right,
+its month and season under its year: his age is the clock's to say) and three columns of panels from 70 down, 12 apart, 16 from the window's edges. Left
 (300): what he holds, then what he has learned:
 his parts (Strength, Dexterity, Intelligence) over his skills, in one panel. Middle (604, the rest of the width): the choice alone, with no heading: the tabs (the book's
 chapters) stand at its head, over a grid of tiles
@@ -609,7 +616,15 @@ a path's way in sets the save's `aim`, the path whose asks stand on his parts. A
 are rebuilt so a spent one leaves and an upgraded one shows what it has become. `onLeave`
 drops every subscription and the page leaves with the scene. The save (`Scenes/lifesave.h`,
 `save/chronicle/life.sz`) holds the character, the life, what he holds, the log, the terms
-done and the deeds reached; nothing a script outputs is saved.
+done, the deeds reached and the world's month (`world`); nothing a script outputs is saved.
+
+**The world's calendar.** `LifeSave::world` counts the months since the world's Year 0. It
+moves with every month that passes and a new life keeps the last one's count (`newLife`): a
+death does not rewind it, so it says how long the chronicle has been kept. The scene hands it
+to the rules (`Rules::world`, the `world` input of every script that reads the two tables), which
+write the dates: the head's (`headline.date` "YEAR 10", `headline.dateNote` "MONTH 7 · SUMMER ·
+BELLMOOR") and each activity's closing. A fresh life started with `--fresh` begins at Year 0;
+the mockup's stands at month 126.
 
 z on the page: page 0, panels 10, their content 20–59, tooltips 200.
 

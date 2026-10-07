@@ -237,7 +237,11 @@ namespace chronicle
             prefab->addToPrefab(leader.entity);
             row.leader = leader.entity;
 
-            checkLeader(row, width);
+            // No figure, no leader to it: a title's row is its name
+            if (spec.value.empty())
+                leader.get<PositionComponent>()->setVisible(false);
+            else
+                checkLeader(row, width);
 
             if (not spec.glossKey.empty())
                 attachGloss(ecs, row.line, spec.glossKey);
@@ -438,7 +442,12 @@ namespace chronicle
 
         // Right-anchored: the figure widens leftward and the leader gives way.
         r->figure.setText(ecs, value);
-        checkLeader(*r, spec.width);
+
+        // No figure, no leader to it: a title's row is its name
+        r->leader->get<PositionComponent>()->setVisible(not value.empty());
+
+        if (not value.empty())
+            checkLeader(*r, spec.width);
     }
 
     void ResourceLedger::setRate(EntitySystem* ecs, const std::string& id, const std::string& rate)

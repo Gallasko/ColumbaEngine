@@ -159,7 +159,7 @@ namespace chronicle
         clock.age = makeClockText(ecs, clock.root, "figure-xl", "clock.age", ageText(spec.age), z + 2);
         place(clock.age.entity, rootId, 0.0f, 0.0f, 2.0f);
 
-        clock.unit = makeClockText(ecs, clock.root, "label", "clock.unit", "YEARS", z + 2);
+        clock.unit = makeClockText(ecs, clock.root, "label", "clock.unit", spec.unit, z + 2);
         {
             auto anchor = clock.unit.entity->get<UiAnchor>();
 
@@ -348,6 +348,12 @@ namespace chronicle
             ticks.push_back(tick);
             spec.milestones.push_back(milestone);
         }
+    }
+
+    void LifeClock::setUnit(EntitySystem* ecs, const std::string& text)
+    {
+        spec.unit = text;
+        unit.setText(ecs, text);
     }
 
     void LifeClock::setAge(EntitySystem* ecs, float a, bool animate)

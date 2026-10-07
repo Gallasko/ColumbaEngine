@@ -60,7 +60,7 @@ namespace chronicle
         constexpr float PanelChrome = 83.0f;
         constexpr float PlainChrome = 32.0f;       // A panel without a heading: 16 + 16
         constexpr float TabsRow = 56.0f;           // The chapters at the head of the choice (44) and the body's gap (12)
-        constexpr float MinMiddle = 568.0f;        // The six chapters fit in its inner width
+        constexpr float MinMiddle = 420.0f;
         constexpr float MinList = 200.0f;
         constexpr float MinLog = 120.0f;
         constexpr float PartsPanel = 160.0f;       // Three parts: what the left column holds over his skills, and needs the height for
@@ -78,7 +78,7 @@ namespace chronicle
 
         // Below the three columns' least size the page is life-compact.yaml: margins 24, the head
         // on two lines, the work at hand over the choice, and a side column of one panel at a time
-        constexpr float FullMinWidth = 2.0f * PageMargin + LeftColumn + RightColumn + 2.0f * ColumnGap + MinMiddle;          // That is 1284
+        constexpr float FullMinWidth = 2.0f * PageMargin + LeftColumn + RightColumn + 2.0f * ColumnGap + MinMiddle;          // That is 1136
         constexpr float FullMinHeight = ColumnsTop + ClockPanel + StackGap + RunningPanel + StackGap + PanelChrome + LogFootnote + MinLog + StackGap + PartsPanel + PageMargin;   // That is 840
         constexpr float CompactMargin = 24.0f;
         constexpr float CompactTop = 128.0f;       // Under the tabs
@@ -457,6 +457,7 @@ namespace chronicle
             save = firstLife();
 
         rules.done = save.terms();
+        rules.world = save.world;
 
         // A save from before the ledger followed the stats
         refreshHoldings();
@@ -507,10 +508,29 @@ namespace chronicle
         else
             fitFull(width, height);
 
+        fitEnding(width, height);
+
         if (swap)
         {
             rebuild();
             publish();
+        }
+    }
+
+    void LifeScene::fitEnding(float width, float height)
+    {
+        if (ending.empty() or not ending->has<Prefab>())
+            return;
+
+        // The veil is the window's size, from its corner: nothing of the page shows past it
+        if (EntityRef veil = ending->get<Prefab>()->findEntity("veil"); not veil.empty())
+        {
+            auto pos = veil->get<PositionComponent>();
+
+            pos->setX(0.0f);
+            pos->setY(0.0f);
+            pos->setWidth(width);
+            pos->setHeight(height);
         }
     }
 
@@ -684,14 +704,22 @@ namespace chronicle
                 label->setText(ecs, v.toString());
         }));
 
-        subs.push_back(router->on("life.next.label", [this, ecs](const ElementType& v) {
-            if (auto clock = piece<LifeClock>("clock"))
-                clock->setNext(ecs, v.toString(), clock->spec.nextIn);
+        // The world's date, at the top right of the page: its year, then the month and its season
+        subs.push_back(router->on("life.headline.date", [this, ecs](const ElementType& v) {
+            if (auto label = piece<Label>("date"))
+                label->setText(ecs, v.toString());
         }));
 
-        subs.push_back(router->on("life.next.in", [this, ecs](const ElementType& v) {
+        subs.push_back(router->on("life.headline.dateNote", [this, ecs](const ElementType& v) {
+            if (auto label = piece<Label>("dateNote"))
+                label->setText(ecs, v.toString());
+        }));
+
+        // His age on the clock, to the month: the figure is the clock's, what follows it the
+        // rules'. The next milestone is not said there: its tick is on the track
+        subs.push_back(router->on("life.headline.ageUnit", [this, ecs](const ElementType& v) {
             if (auto clock = piece<LifeClock>("clock"))
-                clock->setNext(ecs, clock->spec.nextLabel, intOf(v));
+                clock->setUnit(ecs, v.toString());
         }));
 
         // Who he is: the title, and under it what he is and where he comes from
@@ -1086,7 +1114,8 @@ namespace chronicle
 
         for (const auto& a : activities)
         {
-            if (not boolOf(a.fields, "listed"))
+            // The work he is at keeps its place, even when it could no longer be begun
+            if (not boolOf(a.fields, "listed") and textOf(a.fields, "id") != save.running)
                 continue;
 
             listedRows += textOf(a.fields, "id") + ":" + std::to_string(a.requires.size()) + ";";
@@ -1160,6 +1189,17 @@ namespace chronicle
 
         for (const auto& e : rules.errors)
             LOG_ERROR(DOM, e);
+    }
+
+    bool LifeScene::titled(const std::string& id) const
+    {
+        for (const auto& h : holdings)
+        {
+            if (textOf(h, "id") == id)
+                return boolOf(h, "title");
+        }
+
+        return false;
     }
 
     const RuleActivity* LifeScene::activityOf(const std::string& id) const
@@ -1274,6 +1314,8 @@ namespace chronicle
         write("endCause", epitaph.cause);
         write("endStory", epitaph.text);
         write("endTally", epitaph.tally);
+
+        fitEnding(windowWidth, windowHeight);
 
         // The veil takes the mouse: what is under it is neither hovered nor clicked
         if (EntityRef veil = prefab->findEntity("veil"); not veil.empty())
@@ -1404,7 +1446,7 @@ namespace chronicle
         row.id = resource.id;
         row.glyph = resource.glyph;
         row.name = resource.name;
-        row.value = stat != save.stats.end() ? std::to_string(stat->second) : resource.value;
+        row.value = titled(resource.id) ? std::string() : stat != save.stats.end() ? std::to_string(stat->second) : resource.value;
         row.rate = resource.rate;
         row.tone = static_cast<LedgerTone>(resource.tone);
         row.muted = resource.muted;
@@ -1564,7 +1606,8 @@ namespace chronicle
                     rate = textOf(h, "rate");
             }
 
-            setFact("resources." + r.id + ".value", stat != save.stats.end() ? std::to_string(stat->second) : r.value);
+            // A title is had or not: its row shows no figure
+            setFact("resources." + r.id + ".value", titled(r.id) ? std::string() : stat != save.stats.end() ? std::to_string(stat->second) : r.value);
             setFact("resources." + r.id + ".rate", rate);
             setFact("resources." + r.id + ".muted", r.muted);
         }
@@ -1694,8 +1737,8 @@ namespace chronicle
 
                 setFact("done." + id, intOf(a.fields, "done"));
 
-                // An activity the rules do not list has no row to tell
-                if (not boolOf(a.fields, "listed"))
+                // An activity the rules do not list has no row to tell, but the one he is at
+                if (not boolOf(a.fields, "listed") and id != save.running)
                     continue;
 
                 listed += id + ":" + std::to_string(a.requires.size()) + ";";
@@ -1902,6 +1945,10 @@ namespace chronicle
         }
 
         save.age += 1.0f / 12.0f;
+
+        // The world's calendar moves with him, and goes on when he is gone
+        ++save.world;
+        rules.world = save.world;
 
         // What he holds works or wastes, whatever he is doing; work that feeds him spares his
         // rations
@@ -2203,6 +2250,10 @@ namespace chronicle
         ended = false;
 
         save = freshLife();
+
+        // The world did not begin again with him: its date runs on from the last life's
+        save.world = last.world;
+        rules.world = save.world;
 
         // What the last life held and this one has no stat for reads 0, not the last life's
         // figure: a deed must not be reached on what is gone
