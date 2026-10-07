@@ -49,6 +49,12 @@ First tagged release. Everything below describes the state of the engine at the 
   `EntitySystem::registerCustomVmModule`; systems written in script go through `StandardSystem`.
 
 ### Changed
+- Chronicle has a web target: `make Chronicle` in an Emscripten build tree gives `Chronicle.html`. Its pack
+  holds only what the game reads (shaders, boot scripts, its fonts, icons, pages and `rules/*.pg`), taken
+  from the source tree (`CHRONICLE_WEB_FILES` in `CMakeLists.txt`), and the target relinks when one of those
+  files changes. See `examples/Chronicle/README.md`.
+- Web builds: the `res/`, `scripts/` and `shader/` preloads are no longer in the global linker flags. Each
+  web example adds them through `WEB_DEFAULT_PRELOAD`, so a target can pack its own files instead.
 - Boot scripts run on the bytecode VM: `Window` owns a `VM` (`window.vm`, set up with `EntitySystem::setupVm`)
   instead of a `PgInterpreter`, and `res/logManager.pg`, `res/setupRenderer.pg`, `res/sysRegister.pg` and the
   editor's `res/sysThema.pg` go through it. The `log`, `renderer` and `theme` modules are ported to
