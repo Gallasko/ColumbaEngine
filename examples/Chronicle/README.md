@@ -43,33 +43,6 @@ cmake --build . --target test_chronicle
 ctest -R "theme" --output-on-failure
 ```
 
-## Web build
-
-Chronicle also builds with Emscripten, as the `Chronicle` target of a web build tree
-(`em/` here; any directory configured with `emcmake cmake -DCMAKE_BUILD_TYPE=Release ..`):
-
-```bash
-cd em
-make Chronicle
-emrun Chronicle.html
-```
-
-The four files to publish are `Chronicle.html`, `Chronicle.js`, `Chronicle.wasm` and
-`Chronicle.data`.
-
-- **The pack** (`Chronicle.data`) holds what the game reads at run time, taken from the
-  source tree under the same paths: the shaders, the boot scripts, the two font families,
-  the icon sets, `res/chronicle/` (tokens, manifest, pages) and `rules/`. The list is
-  `CHRONICLE_WEB_FILES` in `CMakeLists.txt`; a file read from a new place has to be added
-  there. Nothing comes from the `res/` and `shader/` copied into the build directory.
-- **Rules** are packed as `.pg` only and compile in the browser, never from a `.pgc`.
-- **Relinking**: the pack is made at link time, and editing a packed file relinks the target.
-- **Threads**: the build uses pthreads, so the page must be cross-origin isolated
-  (`Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`).
-  `emrun` sends both; another host has to be set up to.
-- **Save**: `save/chronicle/life.sz` is kept in the browser's origin private file system,
-  per site and per browser. The launch flags of the native build have no equivalent yet.
-
 ## Layout
 
 - `Core/` — data with no rendering: `textmetrics` (ascender and baseline helpers

@@ -10,32 +10,6 @@
 namespace pg
 {
 
-void serializeSimple2DObjectWithSetters(VM* vm, ObjInstance* table, Simple2DObject* component)
-{
-    // Get component context
-    _unique_id entityId = component->entityId;
-
-    LOG_MILE("ECS Serialization", "Generating setters for Simple2DObject on entity " << entityId);
-
-    // Generate setter methods for each property using macros
-    // TODO: Add setter registration for shape (Shape2D)
-    auto shapeEnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {
-        if (argCount > 0 && IS_STRING(args[0]))
-        {
-            auto it = stringToShape2D.find(vm->asString(args[0]));
-            if (it != stringToShape2D.end())
-                component->setShape(it->second);
-        }
-
-        return INT_VAL(0);
-    };
-    table->setField("setShape", vm->createNativeFunction(shapeEnumSetter));
-    // TODO: Add setter registration for colors (constant::Vector4D)
-}
-
-// Register Simple2DObject serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(Simple2DObject, serializeSimple2DObjectWithSetters);
-
 bool attachSimple2DObject(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
     Shape2D shape = Shape2D::Triangle;
@@ -95,10 +69,13 @@ struct Simple2DObjectProxyMetadataRegistrar
     {
         pg::ComponentProxyMetadata metadata;
         metadata.componentTypeName = "Simple2DObject";
-        metadata.componentSize = sizeof(Simple2DObject);
+
+        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {
+            return ecs->getComponent<Simple2DObject>(entityId);
+        };
 
         // Property: shape
-        metadata.properties.emplace("shape", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "shape",
             pg::PropertyType::String,
             true,
@@ -126,19 +103,14 @@ struct Simple2DObjectProxyMetadataRegistrar
         });
 
         // Property: colors
-        metadata.properties.emplace("colors", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "colors",
             pg::PropertyType::Vector4D,
             true,
             [](void* comp, VM* vm) -> Value {
                 auto* c = static_cast<Simple2DObject*>(comp);
                 // Convert Vector4D to table
-                VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-                if (cell == nullptr or not cell->defined)
-                    return INT_VAL(0);
-
-                Klass* tableClass = vm->asClass(cell->value);
-                Value tableValue = vm->createInstance(tableClass);
+                Value tableValue = vm->createTable();
                 ObjInstance* table = vm->asInstance(tableValue);
 
                 auto vec = c->getColors();
@@ -179,7 +151,7 @@ struct Simple2DObjectProxyMetadataRegistrar
             [](void* comp) -> std::string {
                 auto* c = static_cast<Simple2DObject*>(comp);
                 auto vec = c->getColors();
-                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z); + "," + std::to_string(vec.w);
+                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z) + "," + std::to_string(vec.w);
             },
             [](void* comp, const std::string& val) {
                 auto* c = static_cast<Simple2DObject*>(comp);

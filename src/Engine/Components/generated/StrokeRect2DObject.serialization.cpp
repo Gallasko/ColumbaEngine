@@ -10,24 +10,6 @@
 namespace pg
 {
 
-void serializeStrokeRect2DObjectWithSetters(VM* vm, ObjInstance* table, StrokeRect2DObject* component)
-{
-    // Get component context
-    _unique_id entityId = component->entityId;
-
-    LOG_MILE("ECS Serialization", "Generating setters for StrokeRect2DObject on entity " << entityId);
-
-    // Generate setter methods for each property using macros
-    // TODO: Add setter registration for colors (constant::Vector4D)
-    REGISTER_FLOAT_SETTER(vm, table, component, setStrokeWidth);
-    REGISTER_FLOAT_SETTER(vm, table, component, setGap);
-    REGISTER_BOOL_SETTER(vm, table, component, setDoubled);
-    REGISTER_FLOAT_SETTER(vm, table, component, setCornerRadius);
-}
-
-// Register StrokeRect2DObject serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(StrokeRect2DObject, serializeStrokeRect2DObjectWithSetters);
-
 bool attachStrokeRect2DObject(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
     constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f};
@@ -92,22 +74,20 @@ struct StrokeRect2DObjectProxyMetadataRegistrar
     {
         pg::ComponentProxyMetadata metadata;
         metadata.componentTypeName = "StrokeRect2DObject";
-        metadata.componentSize = sizeof(StrokeRect2DObject);
+
+        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {
+            return ecs->getComponent<StrokeRect2DObject>(entityId);
+        };
 
         // Property: colors
-        metadata.properties.emplace("colors", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "colors",
             pg::PropertyType::Vector4D,
             true,
             [](void* comp, VM* vm) -> Value {
                 auto* c = static_cast<StrokeRect2DObject*>(comp);
                 // Convert Vector4D to table
-                VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-                if (cell == nullptr or not cell->defined)
-                    return INT_VAL(0);
-
-                Klass* tableClass = vm->asClass(cell->value);
-                Value tableValue = vm->createInstance(tableClass);
+                Value tableValue = vm->createTable();
                 ObjInstance* table = vm->asInstance(tableValue);
 
                 auto vec = c->getColors();
@@ -148,7 +128,7 @@ struct StrokeRect2DObjectProxyMetadataRegistrar
             [](void* comp) -> std::string {
                 auto* c = static_cast<StrokeRect2DObject*>(comp);
                 auto vec = c->getColors();
-                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z); + "," + std::to_string(vec.w);
+                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z) + "," + std::to_string(vec.w);
             },
             [](void* comp, const std::string& val) {
                 auto* c = static_cast<StrokeRect2DObject*>(comp);
@@ -171,7 +151,7 @@ struct StrokeRect2DObjectProxyMetadataRegistrar
         });
 
         // Property: strokeWidth
-        metadata.properties.emplace("strokeWidth", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "strokeWidth",
             pg::PropertyType::Float,
             true,
@@ -197,7 +177,7 @@ struct StrokeRect2DObjectProxyMetadataRegistrar
         });
 
         // Property: gap
-        metadata.properties.emplace("gap", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "gap",
             pg::PropertyType::Float,
             true,
@@ -223,7 +203,7 @@ struct StrokeRect2DObjectProxyMetadataRegistrar
         });
 
         // Property: doubled
-        metadata.properties.emplace("doubled", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "doubled",
             pg::PropertyType::Bool,
             true,
@@ -248,7 +228,7 @@ struct StrokeRect2DObjectProxyMetadataRegistrar
         });
 
         // Property: cornerRadius
-        metadata.properties.emplace("cornerRadius", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "cornerRadius",
             pg::PropertyType::Float,
             true,

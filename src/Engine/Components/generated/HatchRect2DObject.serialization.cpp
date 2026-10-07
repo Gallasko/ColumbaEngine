@@ -10,24 +10,6 @@
 namespace pg
 {
 
-void serializeHatchRect2DObjectWithSetters(VM* vm, ObjInstance* table, HatchRect2DObject* component)
-{
-    // Get component context
-    _unique_id entityId = component->entityId;
-
-    LOG_MILE("ECS Serialization", "Generating setters for HatchRect2DObject on entity " << entityId);
-
-    // Generate setter methods for each property using macros
-    // TODO: Add setter registration for colors (constant::Vector4D)
-    REGISTER_FLOAT_SETTER(vm, table, component, setSpacing);
-    REGISTER_FLOAT_SETTER(vm, table, component, setLineWidth);
-    REGISTER_FLOAT_SETTER(vm, table, component, setAngle);
-    REGISTER_FLOAT_SETTER(vm, table, component, setCornerRadius);
-}
-
-// Register HatchRect2DObject serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(HatchRect2DObject, serializeHatchRect2DObjectWithSetters);
-
 bool attachHatchRect2DObject(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
     constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f};
@@ -92,22 +74,20 @@ struct HatchRect2DObjectProxyMetadataRegistrar
     {
         pg::ComponentProxyMetadata metadata;
         metadata.componentTypeName = "HatchRect2DObject";
-        metadata.componentSize = sizeof(HatchRect2DObject);
+
+        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {
+            return ecs->getComponent<HatchRect2DObject>(entityId);
+        };
 
         // Property: colors
-        metadata.properties.emplace("colors", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "colors",
             pg::PropertyType::Vector4D,
             true,
             [](void* comp, VM* vm) -> Value {
                 auto* c = static_cast<HatchRect2DObject*>(comp);
                 // Convert Vector4D to table
-                VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-                if (cell == nullptr or not cell->defined)
-                    return INT_VAL(0);
-
-                Klass* tableClass = vm->asClass(cell->value);
-                Value tableValue = vm->createInstance(tableClass);
+                Value tableValue = vm->createTable();
                 ObjInstance* table = vm->asInstance(tableValue);
 
                 auto vec = c->getColors();
@@ -148,7 +128,7 @@ struct HatchRect2DObjectProxyMetadataRegistrar
             [](void* comp) -> std::string {
                 auto* c = static_cast<HatchRect2DObject*>(comp);
                 auto vec = c->getColors();
-                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z); + "," + std::to_string(vec.w);
+                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z) + "," + std::to_string(vec.w);
             },
             [](void* comp, const std::string& val) {
                 auto* c = static_cast<HatchRect2DObject*>(comp);
@@ -171,7 +151,7 @@ struct HatchRect2DObjectProxyMetadataRegistrar
         });
 
         // Property: spacing
-        metadata.properties.emplace("spacing", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "spacing",
             pg::PropertyType::Float,
             true,
@@ -197,7 +177,7 @@ struct HatchRect2DObjectProxyMetadataRegistrar
         });
 
         // Property: lineWidth
-        metadata.properties.emplace("lineWidth", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "lineWidth",
             pg::PropertyType::Float,
             true,
@@ -223,7 +203,7 @@ struct HatchRect2DObjectProxyMetadataRegistrar
         });
 
         // Property: angle
-        metadata.properties.emplace("angle", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "angle",
             pg::PropertyType::Float,
             true,
@@ -249,7 +229,7 @@ struct HatchRect2DObjectProxyMetadataRegistrar
         });
 
         // Property: cornerRadius
-        metadata.properties.emplace("cornerRadius", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "cornerRadius",
             pg::PropertyType::Float,
             true,

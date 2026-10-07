@@ -10,46 +10,6 @@
 namespace pg
 {
 
-void serializeTexture2DComponentWithSetters(VM* vm, ObjInstance* table, Texture2DComponent* component)
-{
-    // Get component context
-    _unique_id entityId = component->entityId;
-
-    LOG_MILE("ECS Serialization", "Generating setters for Texture2DComponent on entity " << entityId);
-
-    // Generate setter methods for each property using macros
-    REGISTER_STRING_SETTER(vm, table, component, setTextureName);
-    REGISTER_FLOAT_SETTER(vm, table, component, setOpacity);
-    auto overlappingColorCustomSetter = [component](VM* vm, int argCount, Value* args) -> Value {
-        // Add special setter for overlappingColor (takes 4 args: r, g, b, ratio)
-        // Create native function directly without polluting globals
-        if (argCount != 4) return INT_VAL(0); // Expecting r, g, b, ratio
-
-        float r = 0.0f, g = 0.0f, b = 0.0f, ratio = 0.0f;
-
-        if (IS_DOUBLE(args[0])) r = static_cast<float>(AS_DOUBLE(args[0]));
-        else if (IS_INT(args[0])) r = static_cast<float>(AS_INT(args[0]));
-
-        if (IS_DOUBLE(args[1])) g = static_cast<float>(AS_DOUBLE(args[1]));
-        else if (IS_INT(args[1])) g = static_cast<float>(AS_INT(args[1]));
-
-        if (IS_DOUBLE(args[2])) b = static_cast<float>(AS_DOUBLE(args[2]));
-        else if (IS_INT(args[2])) b = static_cast<float>(AS_INT(args[2]));
-
-        if (IS_DOUBLE(args[3])) ratio = static_cast<float>(AS_DOUBLE(args[3]));
-        else if (IS_INT(args[3])) ratio = static_cast<float>(AS_INT(args[3]));
-
-        component->setOverlappingColor(constant::Vector3D{r, g, b}, ratio);
-        return INT_VAL(0);
-    };
-
-    table->setField("setOverlappingColor", vm->createNativeFunction(overlappingColorCustomSetter));
-    REGISTER_FLOAT_SETTER(vm, table, component, setOverlappingColorRatio);
-}
-
-// Register Texture2DComponent serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(Texture2DComponent, serializeTexture2DComponentWithSetters);
-
 bool attachTexture2DComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
     std::string textureName = "";
@@ -108,10 +68,13 @@ struct Texture2DComponentProxyMetadataRegistrar
     {
         pg::ComponentProxyMetadata metadata;
         metadata.componentTypeName = "Texture2DComponent";
-        metadata.componentSize = sizeof(Texture2DComponent);
+
+        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {
+            return ecs->getComponent<Texture2DComponent>(entityId);
+        };
 
         // Property: textureName
-        metadata.properties.emplace("textureName", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "textureName",
             pg::PropertyType::String,
             true,
@@ -134,7 +97,7 @@ struct Texture2DComponentProxyMetadataRegistrar
         });
 
         // Property: opacity
-        metadata.properties.emplace("opacity", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "opacity",
             pg::PropertyType::Float,
             true,
@@ -160,19 +123,14 @@ struct Texture2DComponentProxyMetadataRegistrar
         });
 
         // Property: overlappingColor
-        metadata.properties.emplace("overlappingColor", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "overlappingColor",
             pg::PropertyType::Vector3D,
             true,
             [](void* comp, VM* vm) -> Value {
                 auto* c = static_cast<Texture2DComponent*>(comp);
                 // Convert Vector3D to table
-                VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-                if (cell == nullptr or not cell->defined)
-                    return INT_VAL(0);
-
-                Klass* tableClass = vm->asClass(cell->value);
-                Value tableValue = vm->createInstance(tableClass);
+                Value tableValue = vm->createTable();
                 ObjInstance* table = vm->asInstance(tableValue);
 
                 auto vec = c->getOverlappingColor();
@@ -231,7 +189,7 @@ struct Texture2DComponentProxyMetadataRegistrar
         });
 
         // Property: overlappingColorRatio
-        metadata.properties.emplace("overlappingColorRatio", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "overlappingColorRatio",
             pg::PropertyType::Float,
             true,

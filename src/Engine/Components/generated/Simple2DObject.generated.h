@@ -22,7 +22,7 @@ const static std::unordered_map<Shape2D, std::string> shape2DToString = {
     {Shape2D::None, "None"},
 };
 
-const static auto stringToShape2D = invertMap(shape2DToString);
+extern const std::unordered_map<std::string, Shape2D> stringToShape2D;
 
 template <>
 void serialize(Archive& archive, const Shape2D& value);

@@ -10,22 +10,6 @@
 namespace pg
 {
 
-void serializeDottedLine2DObjectWithSetters(VM* vm, ObjInstance* table, DottedLine2DObject* component)
-{
-    // Get component context
-    _unique_id entityId = component->entityId;
-
-    LOG_MILE("ECS Serialization", "Generating setters for DottedLine2DObject on entity " << entityId);
-
-    // Generate setter methods for each property using macros
-    // TODO: Add setter registration for colors (constant::Vector4D)
-    REGISTER_FLOAT_SETTER(vm, table, component, setPeriod);
-    REGISTER_FLOAT_SETTER(vm, table, component, setDotRadius);
-}
-
-// Register DottedLine2DObject serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(DottedLine2DObject, serializeDottedLine2DObjectWithSetters);
-
 bool attachDottedLine2DObject(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
     constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f};
@@ -82,22 +66,20 @@ struct DottedLine2DObjectProxyMetadataRegistrar
     {
         pg::ComponentProxyMetadata metadata;
         metadata.componentTypeName = "DottedLine2DObject";
-        metadata.componentSize = sizeof(DottedLine2DObject);
+
+        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {
+            return ecs->getComponent<DottedLine2DObject>(entityId);
+        };
 
         // Property: colors
-        metadata.properties.emplace("colors", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "colors",
             pg::PropertyType::Vector4D,
             true,
             [](void* comp, VM* vm) -> Value {
                 auto* c = static_cast<DottedLine2DObject*>(comp);
                 // Convert Vector4D to table
-                VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-                if (cell == nullptr or not cell->defined)
-                    return INT_VAL(0);
-
-                Klass* tableClass = vm->asClass(cell->value);
-                Value tableValue = vm->createInstance(tableClass);
+                Value tableValue = vm->createTable();
                 ObjInstance* table = vm->asInstance(tableValue);
 
                 auto vec = c->getColors();
@@ -138,7 +120,7 @@ struct DottedLine2DObjectProxyMetadataRegistrar
             [](void* comp) -> std::string {
                 auto* c = static_cast<DottedLine2DObject*>(comp);
                 auto vec = c->getColors();
-                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z); + "," + std::to_string(vec.w);
+                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z) + "," + std::to_string(vec.w);
             },
             [](void* comp, const std::string& val) {
                 auto* c = static_cast<DottedLine2DObject*>(comp);
@@ -161,7 +143,7 @@ struct DottedLine2DObjectProxyMetadataRegistrar
         });
 
         // Property: period
-        metadata.properties.emplace("period", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "period",
             pg::PropertyType::Float,
             true,
@@ -187,7 +169,7 @@ struct DottedLine2DObjectProxyMetadataRegistrar
         });
 
         // Property: dotRadius
-        metadata.properties.emplace("dotRadius", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "dotRadius",
             pg::PropertyType::Float,
             true,

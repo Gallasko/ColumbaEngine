@@ -10,73 +10,6 @@
 namespace pg
 {
 
-void serializeTTFTextWithSetters(VM* vm, ObjInstance* table, TTFText* component)
-{
-    // Get component context
-    _unique_id entityId = component->entityId;
-
-    LOG_MILE("ECS Serialization", "Generating setters for TTFText on entity " << entityId);
-
-    // Generate setter methods for each property using macros
-    REGISTER_STRING_SETTER(vm, table, component, setText);
-    REGISTER_STRING_SETTER(vm, table, component, setFontPath);
-    REGISTER_FLOAT_SETTER(vm, table, component, setScale);
-    auto colorsCustomSetter = [component](VM* vm, int argCount, Value* args) -> Value {
-        // Special setter with default alpha
-        if (argCount < 3)
-            throw std::runtime_error("setColor expects at least 3 arguments: r, g, b, [a]");
-
-        constant::Vector4D colors;
-        for (int i = 0; i < 3; i++)
-        {
-            colors[i] = detail::extractFloatArg(args, i);
-        }
-
-        // Alpha (optional, default 255)
-        colors[3] = 255.0f;
-        if (argCount >= 4)
-        {
-            colors[3] = detail::extractFloatArg(args, 3);
-        }
-
-        component->setColors(colors);
-
-        return INT_VAL(0);
-    };
-
-    table->setField("setColors", vm->createNativeFunction(colorsCustomSetter));
-    // TODO: Add setter registration for overflow (TextOverflow)
-    auto overflowEnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {
-        if (argCount > 0 && IS_STRING(args[0]))
-        {
-            auto it = stringToTextOverflow.find(vm->asString(args[0]));
-            if (it != stringToTextOverflow.end())
-                component->setOverflow(it->second);
-        }
-
-        return INT_VAL(0);
-    };
-    table->setField("setOverflow", vm->createNativeFunction(overflowEnumSetter));
-    // TODO: Add setter registration for align (TextAlign)
-    auto alignEnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {
-        if (argCount > 0 && IS_STRING(args[0]))
-        {
-            auto it = stringToTextAlign.find(vm->asString(args[0]));
-            if (it != stringToTextAlign.end())
-                component->setAlign(it->second);
-        }
-
-        return INT_VAL(0);
-    };
-    table->setField("setAlign", vm->createNativeFunction(alignEnumSetter));
-    REGISTER_INT_SETTER(vm, table, component, setMaxLines);
-    REGISTER_FLOAT_SETTER(vm, table, component, setSpacing);
-    REGISTER_FLOAT_SETTER(vm, table, component, setLetterSpacing);
-}
-
-// Register TTFText serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(TTFText, serializeTTFTextWithSetters);
-
 bool attachTTFText(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
     std::string text = "";
@@ -179,10 +112,13 @@ struct TTFTextProxyMetadataRegistrar
     {
         pg::ComponentProxyMetadata metadata;
         metadata.componentTypeName = "TTFText";
-        metadata.componentSize = sizeof(TTFText);
+
+        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {
+            return ecs->getComponent<TTFText>(entityId);
+        };
 
         // Property: text
-        metadata.properties.emplace("text", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "text",
             pg::PropertyType::String,
             true,
@@ -205,7 +141,7 @@ struct TTFTextProxyMetadataRegistrar
         });
 
         // Property: fontPath
-        metadata.properties.emplace("fontPath", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "fontPath",
             pg::PropertyType::String,
             true,
@@ -228,7 +164,7 @@ struct TTFTextProxyMetadataRegistrar
         });
 
         // Property: scale
-        metadata.properties.emplace("scale", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "scale",
             pg::PropertyType::Float,
             true,
@@ -254,19 +190,14 @@ struct TTFTextProxyMetadataRegistrar
         });
 
         // Property: colors
-        metadata.properties.emplace("colors", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "colors",
             pg::PropertyType::Vector4D,
             true,
             [](void* comp, VM* vm) -> Value {
                 auto* c = static_cast<TTFText*>(comp);
                 // Convert Vector4D to table
-                VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-                if (cell == nullptr or not cell->defined)
-                    return INT_VAL(0);
-
-                Klass* tableClass = vm->asClass(cell->value);
-                Value tableValue = vm->createInstance(tableClass);
+                Value tableValue = vm->createTable();
                 ObjInstance* table = vm->asInstance(tableValue);
 
                 auto vec = c->getColors();
@@ -307,7 +238,7 @@ struct TTFTextProxyMetadataRegistrar
             [](void* comp) -> std::string {
                 auto* c = static_cast<TTFText*>(comp);
                 auto vec = c->getColors();
-                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z); + "," + std::to_string(vec.w);
+                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z) + "," + std::to_string(vec.w);
             },
             [](void* comp, const std::string& val) {
                 auto* c = static_cast<TTFText*>(comp);
@@ -330,7 +261,7 @@ struct TTFTextProxyMetadataRegistrar
         });
 
         // Property: overflow
-        metadata.properties.emplace("overflow", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "overflow",
             pg::PropertyType::String,
             true,
@@ -358,7 +289,7 @@ struct TTFTextProxyMetadataRegistrar
         });
 
         // Property: align
-        metadata.properties.emplace("align", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "align",
             pg::PropertyType::String,
             true,
@@ -386,7 +317,7 @@ struct TTFTextProxyMetadataRegistrar
         });
 
         // Property: maxLines
-        metadata.properties.emplace("maxLines", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "maxLines",
             pg::PropertyType::Int,
             true,
@@ -411,7 +342,7 @@ struct TTFTextProxyMetadataRegistrar
         });
 
         // Property: spacing
-        metadata.properties.emplace("spacing", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "spacing",
             pg::PropertyType::Float,
             true,
@@ -437,7 +368,7 @@ struct TTFTextProxyMetadataRegistrar
         });
 
         // Property: letterSpacing
-        metadata.properties.emplace("letterSpacing", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "letterSpacing",
             pg::PropertyType::Float,
             true,

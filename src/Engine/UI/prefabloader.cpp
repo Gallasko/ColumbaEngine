@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <memory>
 
 namespace pg
 {
@@ -266,10 +265,7 @@ std::optional<NodeSpec> loadNodeSpec(EntitySystem* ecs, const std::string& yamlP
         return std::nullopt;
     }
 
-    // A VM holds its 2 MB value stack inline: it lives on the heap, a thread stack can be far smaller (64 KB on the web)
-    auto vmStorage = std::make_unique<VM>();
-    VM& vm = *vmStorage;
-
+    VM vm;
     ecs->setupVm(vm);
 
     vm.defineGlobal("uiFile", vm.createString(yamlPath));

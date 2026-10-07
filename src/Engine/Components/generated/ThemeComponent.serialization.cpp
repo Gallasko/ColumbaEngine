@@ -10,20 +10,6 @@
 namespace pg
 {
 
-void serializeThemeComponentWithSetters(VM* vm, ObjInstance* table, ThemeComponent* component)
-{
-    // Get component context
-    _unique_id entityId = component->entityId;
-
-    LOG_MILE("ECS Serialization", "Generating setters for ThemeComponent on entity " << entityId);
-
-    // Generate setter methods for each property using macros
-    REGISTER_STRING_SETTER(vm, table, component, setElement);
-}
-
-// Register ThemeComponent serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(ThemeComponent, serializeThemeComponentWithSetters);
-
 bool attachThemeComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
     std::string element = "";
@@ -72,10 +58,13 @@ struct ThemeComponentProxyMetadataRegistrar
     {
         pg::ComponentProxyMetadata metadata;
         metadata.componentTypeName = "ThemeComponent";
-        metadata.componentSize = sizeof(ThemeComponent);
+
+        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {
+            return ecs->getComponent<ThemeComponent>(entityId);
+        };
 
         // Property: element
-        metadata.properties.emplace("element", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "element",
             pg::PropertyType::String,
             true,

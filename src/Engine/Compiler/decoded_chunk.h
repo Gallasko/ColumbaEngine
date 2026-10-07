@@ -74,9 +74,8 @@ namespace pg
 
     // Dispatch reads this struct once per instruction — keep it lean. If a
     // new field is genuinely hot, it must fit here; anything else belongs
-    // in DecodedInstructionMeta. It is 24 bytes with 64-bit pointers and
-    // 12 with 32-bit ones (wasm32), hence the upper bound.
-    static_assert(sizeof(DecodedInstruction) <= 24,
+    // in DecodedInstructionMeta.
+    static_assert(sizeof(DecodedInstruction) == 24,
                   "DecodedInstruction grew past 24 bytes — move cold fields to DecodedInstructionMeta");
 
     // Cold half: decode-time bookkeeping and debug/profiling metadata,

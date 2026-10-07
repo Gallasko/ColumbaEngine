@@ -7,6 +7,8 @@
 namespace pg
 {
 
+const std::unordered_map<std::string, Shape2D> stringToShape2D = invertMap(shape2DToString);
+
 template <>
 void serialize(Archive& archive, const Shape2D& value)
 {

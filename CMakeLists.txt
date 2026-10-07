@@ -70,12 +70,13 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
 
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -O3 -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1 --use-preload-plugins")
-
-    # The res/, scripts/ and shader/ copied into the build directory, packed by the web
-    # examples. Per target and not in the flags above, so that a game can pack its own
-    # files instead (see Chronicle).
-    set(WEB_DEFAULT_PRELOAD "--preload-file res --preload-file scripts --preload-file shader --preload-file res/setupRenderer.pg --preload-file res/sysRegister.pg --preload-file res/logManager.pg")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -O3 -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1 --use-preload-plugins \
+        --preload-file res \
+        --preload-file scripts \
+        --preload-file shader \
+        --preload-file res/setupRenderer.pg \
+        --preload-file res/sysRegister.pg \
+        --preload-file res/logManager.pg")
 
     set(CMAKE_EXECUTABLE_SUFFIX .html)
 else()
@@ -862,54 +863,6 @@ install(FILES
 
 # Only build examples if not building static lib only
 if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
-    # Chronicle's sources, shared by its native target, its web target and test_chronicle
-    set(CHRONICLE_CORE
-        examples/Chronicle/Core/textmetrics.cpp
-        examples/Chronicle/Core/motion.cpp
-        examples/Chronicle/Core/rulevm.cpp
-        examples/Chronicle/Core/factrouter.cpp
-        examples/Chronicle/Scenes/lifesave.cpp
-        examples/Chronicle/Scenes/lifescene.cpp
-        examples/Chronicle/UI/label.cpp
-        examples/Chronicle/UI/mark.cpp
-        examples/Chronicle/UI/ornament.cpp
-        examples/Chronicle/UI/panel.cpp
-        examples/Chronicle/UI/focusorder.cpp
-        examples/Chronicle/UI/button.cpp
-        examples/Chronicle/UI/gloss.cpp
-        examples/Chronicle/UI/tabs.cpp
-        examples/Chronicle/UI/progressrule.cpp
-        examples/Chronicle/UI/statline.cpp
-        examples/Chronicle/UI/requirementlist.cpp
-        examples/Chronicle/UI/lifeclock.cpp
-        examples/Chronicle/UI/activityrow.cpp
-        examples/Chronicle/UI/windowmeter.cpp
-        examples/Chronicle/UI/resourceledger.cpp
-        examples/Chronicle/UI/eventlog.cpp
-        examples/Chronicle/UI/factories.cpp
-    )
-
-    set(CHRONICLE_APP
-        examples/Chronicle/application.cpp
-        examples/Chronicle/Scenes/typespecimen.cpp
-        examples/Chronicle/Scenes/devscenes.cpp
-        examples/Chronicle/Scenes/labelgallery.cpp
-        examples/Chronicle/Scenes/markgallery.cpp
-        examples/Chronicle/Scenes/ornamentgallery.cpp
-        examples/Chronicle/Scenes/panelgallery.cpp
-        examples/Chronicle/Scenes/buttongallery.cpp
-        examples/Chronicle/Scenes/tabsglossgallery.cpp
-        examples/Chronicle/Scenes/progressgallery.cpp
-        examples/Chronicle/Scenes/statgallery.cpp
-        examples/Chronicle/Scenes/requirementgallery.cpp
-        examples/Chronicle/Scenes/prefabfilegallery.cpp
-        examples/Chronicle/Scenes/clockgallery.cpp
-        examples/Chronicle/Scenes/activitygallery.cpp
-        examples/Chronicle/Scenes/windowgallery.cpp
-        examples/Chronicle/Scenes/ledgergallery.cpp
-        examples/Chronicle/Scenes/loggallery.cpp
-    )
-
     if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         add_executable(GMTK2025 examples/GMTK2025/main.cpp)
 
@@ -925,7 +878,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(GMTK2025
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -941,7 +894,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(BoxBouncer
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -957,7 +910,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(RenderingTest
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -973,7 +926,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(IconAtlasTest
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -989,7 +942,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(ShapesTest
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -1005,7 +958,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(Asteroid
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -1021,7 +974,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(InvadersBreaker
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -1044,7 +997,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(VoxelTest
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -1103,70 +1056,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(GameDevJs2026
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS} ${WEB_DEFAULT_PRELOAD}")
-
-        ###
-
-        add_executable(Chronicle examples/Chronicle/main.cpp)
-
-        target_include_directories(Chronicle PUBLIC examples/Chronicle examples/Chronicle/Core examples/Chronicle/Scenes)
-
-        target_sources(Chronicle PRIVATE
-            ${CHRONICLE_APP}
-            ${CHRONICLE_CORE}
-        )
-
-        target_link_libraries(Chronicle PRIVATE ColumbaEngine)
-
-        # 1 MB of stack for the main thread and for each worker: the default is 64 KB, and the
-        # rules are compiled and the pages built from the ECS workers.
-        set_target_properties(Chronicle
-            PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -sSTACK_SIZE=1048576 -sDEFAULT_PTHREAD_STACK_SIZE=1048576 ${USE_FLAGS}")
-
-        # Everything Chronicle reads at run time, packed from the source tree under the
-        # same paths (no WEB_DEFAULT_PRELOAD: nothing comes from the build directory).
-        # A file read from a new place has to be added here, or it is missing in the browser.
-        # The textures are the ones res/setupRenderer.pg loads at boot.
-        set(CHRONICLE_WEB_FILES
-            shader
-            res/None.png
-            res/logManager.pg
-            res/setupRenderer.pg
-            res/sysRegister.pg
-            res/scripts/ui_loader.pg
-            tools/yaml_parser.pg
-            res/menu/LightBlueTexture.png
-            res/object/cursor.png
-            res/object/slider.png
-            res/TetrisRes/tiles
-            res/font/font.png
-            res/font/CormorantGaramond
-            res/font/EBGaramond
-            res/icons/chronicle
-            res/icons/chronicle-ornaments
-            res/chronicle/manifest.json
-            res/chronicle/tokens.json
-            res/chronicle/ui
-            examples/Chronicle/rules
-        )
-
-        # No compiled script is packed, the browser compiles them from their source
-        target_link_options(Chronicle PRIVATE "--exclude-file=*.pgc")
-
-        foreach(WEB_FILE ${CHRONICLE_WEB_FILES})
-            target_link_options(Chronicle PRIVATE "--preload-file=${CMAKE_SOURCE_DIR}/${WEB_FILE}@${WEB_FILE}")
-
-            # The pack is made at link time: link again when one of its files changes
-            if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/${WEB_FILE})
-                file(GLOB_RECURSE WEB_FILE_DEPENDS ${CMAKE_SOURCE_DIR}/${WEB_FILE}/*)
-                list(FILTER WEB_FILE_DEPENDS EXCLUDE REGEX "\\.pgc$")
-            else()
-                set(WEB_FILE_DEPENDS ${CMAKE_SOURCE_DIR}/${WEB_FILE})
-            endif()
-
-            set_property(TARGET Chronicle APPEND PROPERTY LINK_DEPENDS ${WEB_FILE_DEPENDS})
-        endforeach()
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -1585,10 +1475,35 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###  Chronicle
 
+        set(CHRONICLE_CORE
+            examples/Chronicle/Core/textmetrics.cpp
+            examples/Chronicle/Core/motion.cpp
+            examples/Chronicle/Core/rulevm.cpp
+            examples/Chronicle/Core/factrouter.cpp
+            examples/Chronicle/Scenes/lifesave.cpp
+            examples/Chronicle/Scenes/lifescene.cpp
+            examples/Chronicle/UI/label.cpp
+            examples/Chronicle/UI/mark.cpp
+            examples/Chronicle/UI/ornament.cpp
+            examples/Chronicle/UI/panel.cpp
+            examples/Chronicle/UI/focusorder.cpp
+            examples/Chronicle/UI/button.cpp
+            examples/Chronicle/UI/gloss.cpp
+            examples/Chronicle/UI/tabs.cpp
+            examples/Chronicle/UI/progressrule.cpp
+            examples/Chronicle/UI/statline.cpp
+            examples/Chronicle/UI/requirementlist.cpp
+            examples/Chronicle/UI/lifeclock.cpp
+            examples/Chronicle/UI/activityrow.cpp
+            examples/Chronicle/UI/windowmeter.cpp
+            examples/Chronicle/UI/resourceledger.cpp
+            examples/Chronicle/UI/eventlog.cpp
+            examples/Chronicle/UI/factories.cpp
+        )
+
         # Chronicle's own generated components: .pgcomp specs generated with the
         # same bootstrap pipeline as the engine's, but compiled into the game
-        # targets instead of ColumbaEngine. Native-only: the web target has no
-        # bootstrap to run and would need a committed seed of them.
+        # targets instead of ColumbaEngine. Native-only, like the Chronicle target.
         file(GLOB CHRONICLE_COMPONENT_DEFINITIONS
             "${CMAKE_CURRENT_SOURCE_DIR}/examples/Chronicle/Components/*.pgcomp"
         )
@@ -1604,7 +1519,24 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_include_directories(Chronicle PUBLIC examples/Chronicle examples/Chronicle/Core examples/Chronicle/Scenes ${CHRONICLE_GENERATED_DIR})
         target_sources(Chronicle PRIVATE
             ${CHRONICLE_GENERATED_SOURCES}
-            ${CHRONICLE_APP}
+            examples/Chronicle/application.cpp
+            examples/Chronicle/Scenes/typespecimen.cpp
+            examples/Chronicle/Scenes/devscenes.cpp
+            examples/Chronicle/Scenes/labelgallery.cpp
+            examples/Chronicle/Scenes/markgallery.cpp
+            examples/Chronicle/Scenes/ornamentgallery.cpp
+            examples/Chronicle/Scenes/panelgallery.cpp
+            examples/Chronicle/Scenes/buttongallery.cpp
+            examples/Chronicle/Scenes/tabsglossgallery.cpp
+            examples/Chronicle/Scenes/progressgallery.cpp
+            examples/Chronicle/Scenes/statgallery.cpp
+            examples/Chronicle/Scenes/requirementgallery.cpp
+            examples/Chronicle/Scenes/prefabfilegallery.cpp
+            examples/Chronicle/Scenes/clockgallery.cpp
+            examples/Chronicle/Scenes/activitygallery.cpp
+            examples/Chronicle/Scenes/windowgallery.cpp
+            examples/Chronicle/Scenes/ledgergallery.cpp
+            examples/Chronicle/Scenes/loggallery.cpp
             ${CHRONICLE_CORE}
         )
         target_link_libraries(Chronicle PRIVATE ColumbaEngine)

@@ -10,22 +10,6 @@
 namespace pg
 {
 
-void serializeIconComponentWithSetters(VM* vm, ObjInstance* table, IconComponent* component)
-{
-    // Get component context
-    _unique_id entityId = component->entityId;
-
-    LOG_MILE("ECS Serialization", "Generating setters for IconComponent on entity " << entityId);
-
-    // Generate setter methods for each property using macros
-    REGISTER_STRING_SETTER(vm, table, component, setIconSet);
-    REGISTER_STRING_SETTER(vm, table, component, setIconName);
-    // TODO: Add setter registration for colors (constant::Vector4D)
-}
-
-// Register IconComponent serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(IconComponent, serializeIconComponentWithSetters);
-
 bool attachIconComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
     std::string iconSet = "";
@@ -78,10 +62,13 @@ struct IconComponentProxyMetadataRegistrar
     {
         pg::ComponentProxyMetadata metadata;
         metadata.componentTypeName = "IconComponent";
-        metadata.componentSize = sizeof(IconComponent);
+
+        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {
+            return ecs->getComponent<IconComponent>(entityId);
+        };
 
         // Property: iconSet
-        metadata.properties.emplace("iconSet", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "iconSet",
             pg::PropertyType::String,
             true,
@@ -104,7 +91,7 @@ struct IconComponentProxyMetadataRegistrar
         });
 
         // Property: iconName
-        metadata.properties.emplace("iconName", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "iconName",
             pg::PropertyType::String,
             true,
@@ -127,19 +114,14 @@ struct IconComponentProxyMetadataRegistrar
         });
 
         // Property: colors
-        metadata.properties.emplace("colors", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "colors",
             pg::PropertyType::Vector4D,
             true,
             [](void* comp, VM* vm) -> Value {
                 auto* c = static_cast<IconComponent*>(comp);
                 // Convert Vector4D to table
-                VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-                if (cell == nullptr or not cell->defined)
-                    return INT_VAL(0);
-
-                Klass* tableClass = vm->asClass(cell->value);
-                Value tableValue = vm->createInstance(tableClass);
+                Value tableValue = vm->createTable();
                 ObjInstance* table = vm->asInstance(tableValue);
 
                 auto vec = c->getColors();
@@ -180,7 +162,7 @@ struct IconComponentProxyMetadataRegistrar
             [](void* comp) -> std::string {
                 auto* c = static_cast<IconComponent*>(comp);
                 auto vec = c->getColors();
-                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z); + "," + std::to_string(vec.w);
+                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z) + "," + std::to_string(vec.w);
             },
             [](void* comp, const std::string& val) {
                 auto* c = static_cast<IconComponent*>(comp);

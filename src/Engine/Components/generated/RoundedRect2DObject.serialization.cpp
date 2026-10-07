@@ -10,21 +10,6 @@
 namespace pg
 {
 
-void serializeRoundedRect2DObjectWithSetters(VM* vm, ObjInstance* table, RoundedRect2DObject* component)
-{
-    // Get component context
-    _unique_id entityId = component->entityId;
-
-    LOG_MILE("ECS Serialization", "Generating setters for RoundedRect2DObject on entity " << entityId);
-
-    // Generate setter methods for each property using macros
-    REGISTER_FLOAT_SETTER(vm, table, component, setCornerRadius);
-    // TODO: Add setter registration for colors (constant::Vector4D)
-}
-
-// Register RoundedRect2DObject serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(RoundedRect2DObject, serializeRoundedRect2DObjectWithSetters);
-
 bool attachRoundedRect2DObject(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
     float cornerRadius = 0.0f;
@@ -77,10 +62,13 @@ struct RoundedRect2DObjectProxyMetadataRegistrar
     {
         pg::ComponentProxyMetadata metadata;
         metadata.componentTypeName = "RoundedRect2DObject";
-        metadata.componentSize = sizeof(RoundedRect2DObject);
+
+        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {
+            return ecs->getComponent<RoundedRect2DObject>(entityId);
+        };
 
         // Property: cornerRadius
-        metadata.properties.emplace("cornerRadius", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "cornerRadius",
             pg::PropertyType::Float,
             true,
@@ -106,19 +94,14 @@ struct RoundedRect2DObjectProxyMetadataRegistrar
         });
 
         // Property: colors
-        metadata.properties.emplace("colors", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "colors",
             pg::PropertyType::Vector4D,
             true,
             [](void* comp, VM* vm) -> Value {
                 auto* c = static_cast<RoundedRect2DObject*>(comp);
                 // Convert Vector4D to table
-                VM::GlobalCell* cell = vm->findGlobalCell("__Table");
-                if (cell == nullptr or not cell->defined)
-                    return INT_VAL(0);
-
-                Klass* tableClass = vm->asClass(cell->value);
-                Value tableValue = vm->createInstance(tableClass);
+                Value tableValue = vm->createTable();
                 ObjInstance* table = vm->asInstance(tableValue);
 
                 auto vec = c->getColors();
@@ -159,7 +142,7 @@ struct RoundedRect2DObjectProxyMetadataRegistrar
             [](void* comp) -> std::string {
                 auto* c = static_cast<RoundedRect2DObject*>(comp);
                 auto vec = c->getColors();
-                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z); + "," + std::to_string(vec.w);
+                return std::to_string(vec.x) + "," + std::to_string(vec.y) + "," + std::to_string(vec.z) + "," + std::to_string(vec.w);
             },
             [](void* comp, const std::string& val) {
                 auto* c = static_cast<RoundedRect2DObject*>(comp);

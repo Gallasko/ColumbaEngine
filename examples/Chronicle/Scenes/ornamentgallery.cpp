@@ -1,8 +1,6 @@
 #include "ornamentgallery.h"
 
-#ifdef __EMSCRIPTEN__
-#include <SDL2/SDL.h>
-#elif __linux__
+#ifdef __linux__
 #include <SDL2/SDL.h>
 #elif _WIN32
 #include <SDL.h>

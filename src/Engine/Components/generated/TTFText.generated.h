@@ -21,7 +21,7 @@ const static std::unordered_map<TextOverflow, std::string> textOverflowToString 
     {TextOverflow::Ellipsis, "Ellipsis"},
 };
 
-const static auto stringToTextOverflow = invertMap(textOverflowToString);
+extern const std::unordered_map<std::string, TextOverflow> stringToTextOverflow;
 
 template <>
 void serialize(Archive& archive, const TextOverflow& value);
@@ -42,7 +42,7 @@ const static std::unordered_map<TextAlign, std::string> textAlignToString = {
     {TextAlign::Right, "Right"},
 };
 
-const static auto stringToTextAlign = invertMap(textAlignToString);
+extern const std::unordered_map<std::string, TextAlign> stringToTextAlign;
 
 template <>
 void serialize(Archive& archive, const TextAlign& value);

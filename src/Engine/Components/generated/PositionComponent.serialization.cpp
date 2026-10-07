@@ -10,27 +10,6 @@
 namespace pg
 {
 
-void serializePositionComponentWithSetters(VM* vm, ObjInstance* table, PositionComponent* component)
-{
-    // Get component context
-    _unique_id entityId = component->entityId;
-
-    LOG_MILE("ECS Serialization", "Generating setters for PositionComponent on entity " << entityId);
-
-    // Generate setter methods for each property using macros
-    REGISTER_FLOAT_SETTER(vm, table, component, setX);
-    REGISTER_FLOAT_SETTER(vm, table, component, setY);
-    REGISTER_FLOAT_SETTER(vm, table, component, setZ);
-    REGISTER_FLOAT_SETTER(vm, table, component, setWidth);
-    REGISTER_FLOAT_SETTER(vm, table, component, setHeight);
-    REGISTER_FLOAT_SETTER(vm, table, component, setRotation);
-    REGISTER_BOOL_SETTER(vm, table, component, setVisible);
-    REGISTER_BOOL_SETTER(vm, table, component, setObservable);
-}
-
-// Register PositionComponent serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(PositionComponent, serializePositionComponentWithSetters);
-
 bool attachPositionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
     float x = 0.0f;
@@ -109,10 +88,13 @@ struct PositionComponentProxyMetadataRegistrar
     {
         pg::ComponentProxyMetadata metadata;
         metadata.componentTypeName = "PositionComponent";
-        metadata.componentSize = sizeof(PositionComponent);
+
+        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {
+            return ecs->getComponent<PositionComponent>(entityId);
+        };
 
         // Property: x
-        metadata.properties.emplace("x", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "x",
             pg::PropertyType::Float,
             true,
@@ -138,7 +120,7 @@ struct PositionComponentProxyMetadataRegistrar
         });
 
         // Property: y
-        metadata.properties.emplace("y", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "y",
             pg::PropertyType::Float,
             true,
@@ -164,7 +146,7 @@ struct PositionComponentProxyMetadataRegistrar
         });
 
         // Property: z
-        metadata.properties.emplace("z", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "z",
             pg::PropertyType::Float,
             true,
@@ -190,7 +172,7 @@ struct PositionComponentProxyMetadataRegistrar
         });
 
         // Property: width
-        metadata.properties.emplace("width", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "width",
             pg::PropertyType::Float,
             true,
@@ -216,7 +198,7 @@ struct PositionComponentProxyMetadataRegistrar
         });
 
         // Property: height
-        metadata.properties.emplace("height", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "height",
             pg::PropertyType::Float,
             true,
@@ -242,7 +224,7 @@ struct PositionComponentProxyMetadataRegistrar
         });
 
         // Property: rotation
-        metadata.properties.emplace("rotation", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "rotation",
             pg::PropertyType::Float,
             true,
@@ -268,7 +250,7 @@ struct PositionComponentProxyMetadataRegistrar
         });
 
         // Property: visible
-        metadata.properties.emplace("visible", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "visible",
             pg::PropertyType::Bool,
             true,
@@ -293,7 +275,7 @@ struct PositionComponentProxyMetadataRegistrar
         });
 
         // Property: observable
-        metadata.properties.emplace("observable", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "observable",
             pg::PropertyType::Bool,
             true,

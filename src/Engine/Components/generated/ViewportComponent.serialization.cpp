@@ -10,20 +10,6 @@
 namespace pg
 {
 
-void serializeViewportComponentWithSetters(VM* vm, ObjInstance* table, ViewportComponent* component)
-{
-    // Get component context
-    _unique_id entityId = component->entityId;
-
-    LOG_MILE("ECS Serialization", "Generating setters for ViewportComponent on entity " << entityId);
-
-    // Generate setter methods for each property using macros
-    REGISTER_INT_SETTER(vm, table, component, setViewport);
-}
-
-// Register ViewportComponent serializer at static initialization time
-REGISTER_COMPONENT_SERIALIZER(ViewportComponent, serializeViewportComponentWithSetters);
-
 bool attachViewportComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
 {
     size_t viewport = 0;
@@ -72,10 +58,13 @@ struct ViewportComponentProxyMetadataRegistrar
     {
         pg::ComponentProxyMetadata metadata;
         metadata.componentTypeName = "ViewportComponent";
-        metadata.componentSize = sizeof(ViewportComponent);
+
+        metadata.retriever = [](EntitySystem* ecs, _unique_id entityId) -> void* {
+            return ecs->getComponent<ViewportComponent>(entityId);
+        };
 
         // Property: viewport
-        metadata.properties.emplace("viewport", PropertyMetadata{
+        metadata.addProperty(PropertyMetadata{
             "viewport",
             pg::PropertyType::UnsignedInt,
             true,

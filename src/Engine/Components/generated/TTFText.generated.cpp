@@ -7,6 +7,10 @@
 namespace pg
 {
 
+const std::unordered_map<std::string, TextOverflow> stringToTextOverflow = invertMap(textOverflowToString);
+
+const std::unordered_map<std::string, TextAlign> stringToTextAlign = invertMap(textAlignToString);
+
 template <>
 void serialize(Archive& archive, const TextOverflow& value)
 {
