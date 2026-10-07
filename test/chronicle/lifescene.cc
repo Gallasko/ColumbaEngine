@@ -31,6 +31,7 @@
 #include "UI/tabs.h"
 #include "UI/gloss.h"
 #include "UI/focusorder.h"
+#include "UI/sizer.h"
 #include "Core/motion.h"
 #include "Core/factrouter.h"
 
@@ -604,10 +605,9 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The left column has no least height: it grows with what he holds and has learned. A short
-        // window is compact when the column, as it was measured on the three columns' page, does not
-        // fit it, and takes the three columns back when it does.
-        TEST(lifescene_test, a_short_window_is_compact_when_the_left_column_overflows)
+        // The left column has no least height: it grows with what he holds and has learned, and in a
+        // window too short for it the column scrolls. The three columns stay.
+        TEST(lifescene_test, the_left_column_scrolls_in_a_short_window)
         {
             MockLogger logger;
             LifeFixture f;
@@ -615,23 +615,24 @@ namespace pg
             LifeScene* life = f.life();
             ASSERT_NE(life, nullptr);
 
-            // The mockup's life, measured once its page has settled
-            f.frames(12);
-
-            ASSERT_FALSE(life->compact);
-            ASSERT_GT(life->leftNeed, 0.0f);
-
-            const float need = life->leftNeed;
-
-            f.resize(1320.0f, need - 8.0f);
-            f.frames(12);
-
-            EXPECT_TRUE(life->compact);
-
-            f.resize(1320.0f, need + 8.0f);
+            f.resize(1320.0f, 700.0f);
             f.frames(12);
 
             EXPECT_FALSE(life->compact);
+
+            EntityRef left = life->named("left");
+            ASSERT_FALSE(left.empty());
+            ASSERT_TRUE(left->has<VerticalLayout>());
+
+            // The column is the window's height under the head, and what the mockup's life holds is taller
+            EXPECT_NEAR(f.pos(left)->height, 700.0f - 70.0f - 16.0f, 0.5f);
+            EXPECT_GT(left->get<VerticalLayout>()->contentHeight, f.pos(left)->height);
+
+            // Its two panels, the second 16 under the first
+            auto holds = f.pos(life->named("holds"));
+            auto learned = f.pos(life->named("learned"));
+
+            EXPECT_NEAR(learned->y, holds->y + holds->height + 16.0f, 0.5f);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -655,8 +656,11 @@ namespace pg
             f.frames(12);
 
             EXPECT_FALSE(life->compact);
-            EXPECT_GT(life->leftNeed, 0.0f);
-            EXPECT_LT(life->leftNeed, 700.0f);
+
+            // And nothing to scroll: what he holds fits the column
+            EntityRef left = life->named("left");
+            ASSERT_FALSE(left.empty());
+            EXPECT_LE(left->get<VerticalLayout>()->contentHeight, f.pos(left)->height);
         }
 
         // ----------------------------------------------------------------------------------------

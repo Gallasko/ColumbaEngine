@@ -20,6 +20,7 @@
 #include "ECS/callable.h"
 #include "Input/sdlevents.h"
 #include "2D/position.h"
+#include "2D/simple2dobject.h"
 #include "Core/analytics.h"
 #include "UI/prefab.h"
 #include "UI/sizer.h"
@@ -74,9 +75,6 @@ namespace chronicle
         // What the ending's veil calls when the mouse enters or leaves it: nothing
         struct EndingNoOp {};
 
-        // The page has to be fitted again and the window did not change: sent from execute, where a
-        // page built on the spot would have its pieces made a pass late, after the panels were hidden
-        struct RefitEvent {};
         constexpr float LogFootnote = 19.0f;       // 4 + a caption line
         constexpr const char * const TabsTag = "life.tabs";
 
@@ -97,8 +95,8 @@ namespace chronicle
         };
 
         // The height is the right column's: the years, the work at hand with a row in it, and a log of
-        // its least size. The left column has no least height, it grows with what he holds and has
-        // learned: it is measured once the page has settled (measureLeft)
+        // its least size. The left column has no least height: it grows with what he holds and has
+        // learned, and scrolls when the window is too short for it
         struct ColumnHeights
         {
             float stack;               // Between two panels of a column
@@ -144,7 +142,8 @@ namespace chronicle
             return -1;
         }
 
-        constexpr int SettlePasses = 6;            // What the layout takes to place a page just built or filled
+        constexpr float LeftScroll = 4.0f;         // The left column's thumb, past the panels' right edge
+        constexpr float LeftScrollZ = 60.0f;       // Over the panels and what they hold
         constexpr float CompactMargin = 24.0f;
         constexpr float CompactTop = 128.0f;       // Under the tabs
         constexpr float SideColumn = 320.0f;
@@ -160,12 +159,19 @@ namespace chronicle
             return widthStepFor(width) < 0 or heightStepFor(height) < 0;
         }
 
+        // A node of the page by its name, the ones a layout holds as well
         NodeSpec* childNamed(NodeSpec& page, const std::string& name)
         {
             for (auto& child : page.children)
             {
                 if (child.name == name)
                     return &child;
+
+                if (child.kind.rfind("Layout:", 0) == 0)
+                {
+                    if (NodeSpec* inner = childNamed(child, name))
+                        return inner;
+                }
             }
 
             return nullptr;
@@ -200,10 +206,12 @@ namespace chronicle
             for (const char* name : {"date", "dateNote"})
                 setMargin(childNamed(page, name), AnchorType::Right, widths.margin);
 
-            setProp(childNamed(page, "holds"), "x", widths.margin);
+            // The left column and its two panels, the thumb's lane past them
+            setProp(childNamed(page, "left"), "x", widths.margin);
+            setProp(childNamed(page, "left"), "width", widths.left + LeftScroll);
+            setProp(childNamed(page, "left"), "spacing", heights.stack);
             setProp(childNamed(page, "holds"), "width", widths.left);
             setProp(childNamed(page, "learned"), "width", widths.left);
-            setMargin(childNamed(page, "learned"), AnchorType::Top, heights.stack);
 
             setProp(childNamed(page, "may"), "x", widths.margin + widths.left + widths.gap);
 
@@ -472,6 +480,20 @@ namespace chronicle
         // The page leaves with the scene; its pieces follow it as its prefab children.
         ecsRef->attach<SceneElement>(page);
 
+        // The left column's thumb: a faint bar at its right edge, sized to what is in view and hidden
+        // while everything fits. The layout places it, and dragging it scrolls the column.
+        if (EntityRef left = named("left"); not compactPage and not left.empty() and left->has<VerticalLayout>() and page->has<Prefab>())
+        {
+            auto thumb = makeUiSimple2DShape(ecsRef, Shape2D::Square, LeftScroll, 1.0f);
+
+            thumb.get<PositionComponent>()->setZ(LeftScrollZ);
+            thumb.get<PositionComponent>()->setVisibility(false);
+            ecsRef->attach<ThemeComponent>(thumb.entity, "log.scroll");
+            page->get<Prefab>()->addToPrefab(thumb.entity, "leftScroll");
+
+            left->get<VerticalLayout>()->setVerticalScrollBar(thumb.entity);
+        }
+
         return true;
     }
 
@@ -576,7 +598,6 @@ namespace chronicle
         });
 
         listenToEvent<ResizeEvent>([this](const ResizeEvent& e) { fit(e.width, e.height); });
-        listenToEvent<RefitEvent>([this](const RefitEvent&) { fit(windowWidth, windowHeight); });
     }
 
     // ---- startUp: rules, save, rows, wiring, paths ------------------------------------------------
@@ -637,7 +658,7 @@ namespace chronicle
 
         // Across a breakpoint the page is built again, sized, then its rows and every path again:
         // the other file for the compact page, the same at another step for the three columns
-        const bool wantCompact = wantsCompact(width, height);
+        const bool wantCompact = needsCompact(width, height);
         const int wantedWidth = widthStepFor(width);
         const int wantedHeight = heightStepFor(height);
 
@@ -651,8 +672,6 @@ namespace chronicle
 
         if (swap and not buildPage(wantCompact))
             return;
-
-        measureIn = SettlePasses;
 
         if (EntityRef background = named("page"); not background.empty())
         {
@@ -680,34 +699,6 @@ namespace chronicle
 
             showRunning(save.running);
         }
-    }
-
-    bool LifeScene::wantsCompact(float width, float height) const
-    {
-        return needsCompact(width, height) or (leftNeed > 0.0f and height < leftNeed);
-    }
-
-    void LifeScene::measureLeft()
-    {
-        // Only the three columns' page shows the left column as it is; under an ending nothing moves
-        if (compact or ended or page.empty())
-            return;
-
-        EntityRef learned = named("learned");
-
-        if (learned.empty())
-            return;
-
-        auto pos = learned->get<PositionComponent>();
-
-        if (pos->height <= 0.0f)
-            return;
-
-        // What he has learned is the last panel of the column, under what he holds
-        leftNeed = pos->y + pos->height + Heights[heightStep].margin;
-
-        if (wantsCompact(windowWidth, windowHeight))
-            ecsRef->sendEvent(RefitEvent{});
     }
 
     void LifeScene::fitEnding(float width, float height)
@@ -794,6 +785,10 @@ namespace chronicle
         // What he is, beside the date: it ends where the date's own room begins
         if (auto about = piece<Label>("about"))
             about->setWidth(ecs, std::max(0.0f, width - 2.0f * widths.margin - DateRoom));
+
+        // The left column runs to the bottom, and scrolls what does not fit
+        if (EntityRef left = named("left"); not left.empty())
+            left->get<PositionComponent>()->setHeight(std::max(1.0f, height - ColumnsTop - heights.margin));
 
         // The middle column takes what the two fixed ones leave; the choice fills it to the bottom
         const float middle = std::max(widths.minMiddle, width - 2.0f * widths.margin - widths.left - widths.right - 2.0f * widths.gap);
@@ -900,9 +895,6 @@ namespace chronicle
 
     void LifeScene::execute()
     {
-        if (measureIn > 0 and --measureIn == 0)
-            measureLeft();
-
         if (reached.empty())
             return;
 
@@ -1779,9 +1771,6 @@ namespace chronicle
 
     void LifeScene::publishAll()
     {
-        // What he holds or has learned may have grown: the left column is looked at again
-        measureIn = SettlePasses;
-
         glossHoldings();
         publishCharacter();
         publishRules();
@@ -2542,20 +2531,8 @@ namespace chronicle
 
         rules.done = save.terms();
 
-        // A new life holds little: the three columns come back if only the last life's holdings kept them
-        // away. The other page comes with its rows, filled once: filling them twice in a pass doubles them
-        leftNeed = 0.0f;
-
-        if (wantsCompact(windowWidth, windowHeight) != compact)
-        {
-            fit(windowWidth, windowHeight);
-        }
-        else
-        {
-            rebuild();
-            publish();
-        }
-
+        rebuild();
+        publish();
         registerDeeds();
     }
 }

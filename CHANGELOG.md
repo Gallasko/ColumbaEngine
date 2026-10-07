@@ -9,9 +9,7 @@ First tagged release. Everything below describes the state of the engine at the 
 ### Fixed
 - Chronicle: a short, wide window showed the compact page whatever the life. The three columns asked for
   a window 840 high, a figure that still counted the parts panel under the log, where it no longer is. The
-  least height is the right column's (664), and the left column, which grows with what he holds and has
-  learned, is measured once the page has settled: the compact page comes only when the window is too
-  short for it, and the three columns come back when the window grows or a new life begins.
+  least height is the right column's, and the left column scrolls instead of asking for one (see Changed).
 - Chronicle: the ending's veil covered 1320 x 1020 whatever the window's size (anchors on both sides
   do not stretch a shape); the scene sizes it to the window, on every resize, and it dims the page
   (`ink` at 40%) instead of washing it out.
@@ -57,8 +55,10 @@ First tagged release. Everything below describes the state of the engine at the 
 - Chronicle: the three columns are the page down to a window of 680 x 566 (it was 1136 x 664). They come
   in three widths and three heights, the roomiest the window holds: the two fixed columns narrow from
   300 / 360 to 200 / 280, the margins from 16 to 6 and the gaps from 12 to 4. The scene writes a step into
-  the page before it builds it (`shapeColumns`); the compact page is only what is left under that, or for a
-  left column the window is too short for.
+  the page before it builds it (`shapeColumns`); the compact page is only what is left under that.
+- Chronicle: the left column scrolls. Inventory and Stats stand in one scrolling layout, as tall as the
+  window leaves it, with a thumb at its right edge; what a life holds no longer sends a short window to the
+  compact page (the measure of the left column that did is gone).
 - Chronicle: plain names. The panels are Inventory, Stats and Log (they were "What he holds", "What he has
   learned" and "What has happened"), the compact page's tabs Stats, Inventory, Timeline and Log, and its
   choice Activities. The row at work shows its name first: no tally in a column of the three.

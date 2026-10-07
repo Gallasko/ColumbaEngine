@@ -76,36 +76,45 @@ children:
       - {side: top, target: __MainWindow, targetSide: top, margin: 44}
 
   # ── Left: what he holds, what he has learned ─────────────────────────────────
-  - kind: Panel
-    name: holds
+  # One column that scrolls: it grows with him and the window does not. The two panels stack 16
+  # apart in it, and when they are taller than the window leaves them the wheel moves them, a thumb
+  # at the column's right edge (4 past the panels, the scene makes it) showing where. The scene
+  # sets the height on every resize.
+  - kind: Layout:Vertical
+    name: left
     x: 16
     y: 70
-    frame: ruled
-    width: 300
-    heading: Inventory
-    glyph: gold
+    width: 304
+    height: 934
+    z: 10                 # the panels' depth: a layout gives its own to what it holds, and at the page's 0 their grounds would tie with it
+    scrollable: true
+    spacing: 16
     children:
-      - kind: ResourceLedger
-        name: ledger
+      - kind: Panel
+        name: holds
+        frame: ruled
+        width: 300
+        heading: Inventory
+        glyph: gold
+        children:
+          - kind: ResourceLedger
+            name: ledger
 
-  - kind: Panel
-    name: learned
-    frame: ruled
-    width: 300
-    heading: Stats
-    glyph: study
-    aside: SKILLS
-    anchors:
-      - {side: top, target: holds, targetSide: bottom, margin: 16}
-      - {side: left, target: holds, targetSide: left}
-    children:
-      # His parts first, then the skills: what he is and what he has learned read as one
-      - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30}
-      - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30}
-      - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30}
-      - {kind: Ornament, ornament: divider, knot: false}
-      - kind: ResourceLedger
-        name: skills
+      - kind: Panel
+        name: learned
+        frame: ruled
+        width: 300
+        heading: Stats
+        glyph: study
+        aside: SKILLS
+        children:
+          # His parts first, then the skills: what he is and what he has learned read as one
+          - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30}
+          - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30}
+          - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30}
+          - {kind: Ornament, ornament: divider, knot: false}
+          - kind: ResourceLedger
+            name: skills
 
   # ── Middle: the choice ───────────────────────────────────────────────────────
   - kind: Panel

@@ -730,13 +730,16 @@ compact page is; what stands in a panel takes its width from the panel. In the n
 the row at work keeps its name and its time and leaves the rest to its gloss, and at the
 narrowest the log has no footnote and a pause reads `PAUSED`.
 
-**The compact page.** Under the three columns' least size the page is
+**The left column scrolls.** It has no least height: it grows with what he holds and has
+learned. Its two panels stand in one scrolling layout (`left` in `life.yaml`, at the panels'
+depth: a layout gives its own to what it holds), as tall as the window leaves it. When they are
+taller the wheel moves them, and a thumb at the column's right edge, which the scene makes when
+it builds the page, shows where and can be dragged.
+
+**The compact page.** Under the three columns' least size (680 x 566) the page is
 `res/chronicle/ui/life-compact.yaml`: the work at hand over the choice, and a side column of one
-panel at a time (Stats, Inventory, Timeline, Log). The left column has no least height:
-it grows with what he holds and has learned. Once a page has settled the scene measures it
-(`measureLeft`, `leftNeed`), and a window too short for it gets the compact page too, until the
-window is tall enough again or a new life begins: a man of seventeen with all his holdings needs
-about 830 of height for his left column, whatever the step.
+panel at a time (Stats, Inventory, Timeline, Log). It is the fallback of a very small window
+and nothing else: what a life holds never sends the page there.
 
 z on the page: page 0, panels 10, their content 20–59, tooltips 200.
 
