@@ -12,6 +12,8 @@ First tagged release. Everything below describes the state of the engine at the 
   inventory over the stats). A layout settles over several passes and a frame ran four at most: the passes
   now go on while the last ones left events or commands behind, up to 16 passes or 200 ms
   (`EntitySystem::hasPendingWork`).
+- Chronicle: the Begin button always wrote "3 mo", whatever was chosen. `Button::setMonths` only logged that
+  it could not: it now writes the time on a button made with a cost, and hides it for a thing done at once.
 - Profiler: the event buffer is bounded where an event is written, not only at the end of a frame. With
   `PG_PROFILE=ON` a threaded web page left in the background drew no frame while its systems ran on, the
   buffer grew until memory ran out, and the page stopped with `Aborted()` (`Profiler::trimEvents`).

@@ -62,7 +62,7 @@ namespace chronicle
 
         void setDisabled(pg::EntitySystem*, bool, const std::string& reason = "");
         void setLabel(pg::EntitySystem*, const std::string&);
-        void setMonths(pg::EntitySystem*, int);
+        void setMonths(pg::EntitySystem*, int);    // On a button made with a cost: the time it writes, < 0 hides it
         float faceWidth(pg::EntitySystem*) const;
     };
 

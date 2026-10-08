@@ -455,6 +455,46 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A button made with a cost writes the time it is given, and hides it when there is none.
+        TEST(button_test, set_months_rewrites_the_cost)
+        {
+            MockLogger logger;
+            ButtonFixture s;
+
+            ButtonSpec spec; spec.variant = ButtonVariant::Seal; spec.label = "Begin"; spec.months = 3;
+            Button b = s.place(spec);
+
+            ASSERT_TRUE(b.cost.has_value());
+            EXPECT_EQ(b.cost->spec.text, "3 mo");
+
+            b.setMonths(&s.ecs, 12);
+            s.pump();
+
+            EXPECT_EQ(b.cost->spec.text, "12 mo");
+            EXPECT_EQ(b.spec.months, 12);
+            EXPECT_TRUE(s.pos(b.cost->entity)->visible);
+
+            const float withCost = s.pos(b.face)->width;
+
+            // Done at once: no time to write, and the face closes on its label
+            b.setMonths(&s.ecs, -1);
+            s.pump();
+
+            EXPECT_FALSE(s.pos(b.cost->entity)->visible);
+            EXPECT_FALSE(s.pos(b.costMark->entity)->visible);
+            EXPECT_LT(s.pos(b.face)->width, withCost);
+
+            b.setMonths(&s.ecs, 6);
+            s.pump();
+
+            EXPECT_EQ(b.cost->spec.text, "6 mo");
+            EXPECT_TRUE(s.pos(b.cost->entity)->visible);
+            EXPECT_GT(s.pos(b.face)->width, withCost - 20.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(button_test, z_bands)
         {
             MockLogger logger;

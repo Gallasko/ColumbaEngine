@@ -2093,7 +2093,8 @@ namespace pg
             auto list = life->piece<ActivityList>("activities");
             ASSERT_NE(list, nullptr);
             ASSERT_NE(list->row(&f.ecs, "buy.rations"), nullptr);
-            EXPECT_EQ(list->row(&f.ecs, "buy.rations")->cost.spec.text, "NOW");
+            // A tile done at once leaves its time line empty
+            EXPECT_EQ(list->row(&f.ecs, "buy.rations")->cost.spec.text, "");
 
             f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
             f.settle();

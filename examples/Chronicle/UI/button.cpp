@@ -79,6 +79,32 @@ namespace chronicle
         {
             e->get<ThemeComponent>()->setElement(element);
         }
+
+        // The face as wide as what stands on it, the cost pair after the label. The cost pair of a
+        // button that costs nothing for now is kept, hidden, and takes no room
+        void layFace(Button& b)
+        {
+            const float labelW = b.label.entity->get<PositionComponent>()->width;
+            const bool hasGlyph = b.glyph.has_value();
+            const bool hasPair = b.cost.has_value() and b.costMark.has_value();
+            const bool hasCost = hasPair and b.spec.months >= 0;
+            const float costTextW = hasCost ? b.cost->entity->get<PositionComponent>()->width : 0.0f;
+
+            const float faceW = PAD_X + (hasGlyph ? GLYPH + GAP : 0.0f) + labelW + (hasCost ? GAP + COST_MARK + COST_GAP + costTextW : 0.0f) + PAD_X;
+
+            b.root->get<PositionComponent>()->setWidth(faceW);
+
+            if (not hasPair)
+                return;
+
+            const float x = PAD_X + (hasGlyph ? GLYPH + GAP : 0.0f) + labelW + GAP;
+
+            b.costMark->entity->get<UiAnchor>()->setLeftMargin(x);
+            b.cost->entity->get<UiAnchor>()->setLeftMargin(x + COST_MARK + COST_GAP);
+
+            b.costMark->entity->get<PositionComponent>()->setVisible(hasCost);
+            b.cost->entity->get<PositionComponent>()->setVisible(hasCost);
+        }
     }
 
     Button makeButton(EntitySystem* ecs, const ButtonSpec& spec)
@@ -280,31 +306,29 @@ namespace chronicle
     void Button::setLabel(EntitySystem* ecs, const std::string& text)
     {
         label.setText(ecs, text);
-        // Re-measure and regrow the face; the glyph/cost anchors reflow from the new label width.
-        const float labelW = label.entity->get<PositionComponent>()->width;
-        const bool hasGlyph = glyph.has_value();
-        const bool hasCost = cost.has_value();
-        float costTextW = hasCost ? cost->entity->get<PositionComponent>()->width : 0.0f;
-        const float faceW = PAD_X + (hasGlyph ? GLYPH + GAP : 0.0f) + labelW
-            + (hasCost ? GAP + COST_MARK + COST_GAP + costTextW : 0.0f) + PAD_X;
-        root->get<PositionComponent>()->setWidth(faceW);
-
-        // Shift the cost pair to follow the new label right edge.
-        if (hasCost)
-        {
-            float x = PAD_X + (hasGlyph ? GLYPH + GAP : 0.0f) + labelW + GAP;
-            costMark->entity->get<UiAnchor>()->setLeftMargin(x);
-            x += COST_MARK + COST_GAP;
-            cost->entity->get<UiAnchor>()->setLeftMargin(x);
-        }
         spec.label = text;
+
+        // Re-measure and regrow the face; the cost pair follows the new label right edge.
+        layFace(*this);
     }
 
-    void Button::setMonths(EntitySystem*, int months)
+    void Button::setMonths(EntitySystem* ecs, int months)
     {
-        // Full add/remove of the cost pair is a rebuild; the gallery rebuilds instead.
         spec.months = months;
-        LOG_WARNING(DOM, "setMonths after construction is not supported; rebuild the button");
+
+        // The cost pair is made with the button: one made without it has nothing to write the time on
+        if (not cost.has_value() or not costMark.has_value())
+        {
+            if (months >= 0)
+                LOG_WARNING(DOM, "A button made without a cost cannot be given one; rebuild the button");
+
+            return;
+        }
+
+        if (months >= 0)
+            cost->setText(ecs, monthsText(months));
+
+        layFace(*this);
     }
 
     float Button::faceWidth(EntitySystem* ecs) const
