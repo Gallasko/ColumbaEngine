@@ -836,20 +836,23 @@ namespace chronicle
 
         Label gain = makeLabel(ecsRef, spec);
 
-        auto pos = gain.entity.get<PositionComponent>();
-        pos->setX(where->x + where->width - GainInset);
-        pos->setY(where->y);
+        // Hung on what it stands over, not put where that stood: the month that brings the gain may
+        // move the line too (a new row over it), and the figure goes with it
+        auto anchor = gain.entity.get<UiAnchor>();
+        anchor->setTopAnchor(PosAnchor{over.id, AnchorType::Top});
+        anchor->setLeftAnchor(PosAnchor{over.id, AnchorType::Right});
+        anchor->setLeftMargin(-GainInset);
 
         const _unique_id id = gain.entity.id;
 
         // It lifts off the figure and goes
         passing.push_back({GainMs,
-            [this, id](float ms) {
+            [this, id, risen = 0.0f](float ms) mutable {
                 if (auto entity = ecsRef->getEntity(id))
                 {
-                    auto p = entity->get<PositionComponent>();
+                    risen += ms * GainRise;
 
-                    p->setY(p->y - ms * GainRise);
+                    entity->get<UiAnchor>()->setTopMargin(-risen);
                 }
             },
             [this, id]() {

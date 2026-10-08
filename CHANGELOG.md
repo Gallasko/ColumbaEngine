@@ -7,6 +7,8 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Fixed
+- Chronicle: the "+1" of a gain stood a line too high when the same month added a row over the stats (a
+  first coin). It was put where the line stood before the page moved; it hangs on the line now.
 - Memory pool: `AllocatorPool::allocateWithIndex` walked the whole pool, index by index, to find the index
   of every slot it took back from its free list. The script VM makes every string, table and list that way,
   so a script that builds and drops tables paid for it on every one: the index is now computed from the
