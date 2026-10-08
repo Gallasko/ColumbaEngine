@@ -120,7 +120,8 @@ of this game told apart by their `chronicle.` prefix:
   moments it is shown and hidden. `total_play_time_ms` adds the sessions before, kept with the
   systems' save.
 - **The digest** (`LifeSave::digest`, in `save_snapshot`) is one line of JSON:
-  `{"age":12.50,"world":66,"aim":"warrior","running":"yard","monthsIn":2,"terms":14,"deeds":2,"log":31}`.
+  `{"age":12.50,"world":66,"aim":"warrior","running":"yard","monthsIn":2,"terms":14,"deeds":2,"log":31,"lives":3}`.
+  `lives` counts the lives of this browser, this one included (1 for a save older than the count).
   The scene gives it after every month, choice, thing done at once and new life.
 
 ```sql
@@ -129,6 +130,14 @@ SELECT session_id, MAX(session_duration_ms) / 60000.0 AS minutes,
        (ARRAY_AGG(save_snapshot ORDER BY timestamp_ms DESC))[1] AS stopped_at
 FROM analytics_events WHERE event_type = 'chronicle.session_end'
 GROUP BY session_id ORDER BY MIN(timestamp_ms) DESC;
+```
+
+`tools/chronicle_stats.pg` makes the whole report from a CSV export of the `chronicle.%` rows
+(the query is in its header): sessions and their length, the days, where a session stopped
+and the lives lost.
+
+```bash
+build/PgCompilerBootstrap tools/chronicle_stats.pg chronicle-events.csv report.txt
 ```
 
 ## Layout
@@ -727,7 +736,7 @@ it in `lifescene.cpp` over the widgets as they are:
 - A tile chosen in the list puts a **Begin** button in "At work now" (`showWorkButtons`), in
   the place of the one that passes a month; a second click or Enter still begins it.
 - The mouse on a tile is a **preview** (`ActivityHoveredEvent`, `preview`): the ghosts on his
-  parts, and "46 -> 52" on the holdings it would add to (what it costs is said by its gloss, not
+  parts, and "46 -> 52" ("6/60 -> 12/60") on the holdings it would add to (what it costs is said by its gloss, not
   on his purse). What is chosen says more than what the mouse is on.
 - What has a most he can hold shows it in its row (`holdingText`): "12/60", "64/60" past it.
 - A tile says under its name what matters most of it (`tileNote`): what it still asks when he

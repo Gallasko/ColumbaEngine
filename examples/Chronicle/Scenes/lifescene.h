@@ -107,7 +107,7 @@ namespace chronicle
         std::string tileNote(const RuleActivity& activity, bool& urgent) const;   // What a tile says under its name and time: what it asks, that it is new, or when it closes
         void onHover(const ActivityHoveredEvent& event);   // The mouse came onto a tile or left them
         void preview();                // What the chosen activity, or the one the mouse is on, would make of his parts and of what he holds
-        void previewHoldings(const RuleForecast* forecast);   // "46 -> 52" on the rows it would add to; nullptr: the figures as they are
+        void previewHoldings(const RuleForecast* forecast);   // "46 -> 52" ("6/60 -> 12/60") on the rows it would add to; nullptr: the figures as they are
         std::string holdingText(const std::string& id, int amount) const;   // "12", or "12/60" for what has a most he can hold
         void followLog();              // The log taken to its end in a moment, for a reader who was there
         void runPassing(float ms);     // What lasts a moment, a tick further

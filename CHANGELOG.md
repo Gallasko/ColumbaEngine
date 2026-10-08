@@ -95,7 +95,8 @@ First tagged release. Everything below describes the state of the engine at the 
 - Chronicle: a holding with a most he can hold shows it in its row ("12/60", "64/60" past it), not only
   in its gloss. Choosing or pointing at an activity no longer writes what it would cost on his purse
   ("7 -> 1"): the cost is the gloss's to say, the row keeps what he has; what a work would add is still
-  shown. A tile that has just come no longer reads NEW (the toast still says it).
+  shown, written as the figure is ("6/60 -> 12/60"). A tile that has just come no longer reads NEW (the
+  toast still says it).
 - ECS: an opt-in **settle phase**. A system added with `EntitySystem::addSettleSystem<Sys>()` is run again
   at the end of every Basic Task, round after round, until a round sends no event (32 at most). Events are
   delivered on the spot there, so a chain that crosses those systems (a layout places its children, the
@@ -104,7 +105,8 @@ First tagged release. Everything below describes the state of the engine at the 
   with no settle system behaves as before. `PositionComponentSystem` and `WorldFacts` take their pending
   lists before they send, so what a listener marks while the event is delivered is kept for the next round.
 - Chronicle: the page comes to rest in the pass where it changes (`Core/settle.h`: the facts, the prefab,
-  activity, layout and position systems in the settle phase). A work reaching its term took 8 passes to
+  activity, layout, position and theme systems in the settle phase; the theme so that a part made in a
+  pass is painted in it, where the threaded build drew new tiles once without their ground). A work reaching its term took 8 passes to
   place, each one drawn; it takes 2, the second for the deed it earns.
 - Chronicle: the rules are asked once. `Rules` keeps each answer while what it was asked with stands (the
   age, the character, `done`, `world`, the call's arguments), one run of `windows.pg` answers both the
@@ -139,7 +141,9 @@ First tagged release. Everything below describes the state of the engine at the 
   GameDevJs2026's): `chronicle.session_start`, `chronicle.session_end` every time the page is hidden or
   closed, with the time the page was in view and a one-line digest of where the life stood
   (`LifeSave::digest`), and `chronicle.life_end`. The session id is random and new for every page load.
-  Nothing is sent from a native build or from a page served from localhost.
+  Nothing is sent from a native build or from a page served from localhost. The digest says which life
+  of the browser it is (`lives`, kept in the save and counted from 1; a save from before the count
+  starts again at 1). `tools/chronicle_stats.pg` makes a report from a CSV export of the rows.
 - Web builds without threads: `-DWEB_THREADS=OFF` (a build tree of its own) builds the engine with
   `PG_NO_THREADS`. The ecs has no thread and no taskflow executor: `EntitySystem::start()` only marks it as
   running and the frame callback runs the systems through `executeOnce()`, a few passes a frame, on a serial

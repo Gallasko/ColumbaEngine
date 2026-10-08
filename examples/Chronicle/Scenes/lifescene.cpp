@@ -2461,8 +2461,9 @@ namespace chronicle
                 auto after = forecast->atTerm.find(r.id);
 
                 // Only what it would add: what it costs is its gloss's to say, not his purse's
+                // Written as the figure is, most and all: a work that raises the most will show it here
                 if (after != forecast->atTerm.end() and intOf(after->second) > now->second)
-                    value += Arrow + std::to_string(intOf(after->second));
+                    value += Arrow + holdingText(r.id, intOf(after->second));
             }
 
             // Only to write what it would become, or to take that away: the figure itself is the page's to write
@@ -2970,8 +2971,10 @@ namespace chronicle
 
         save = freshLife();
 
-        // The world did not begin again with him: its date runs on from the last life's
+        // The world did not begin again with him: its date runs on from the last life's, and he
+        // is one more of its lives
         save.world = last.world;
+        save.lives = last.lives + 1;
         rules.world = save.world;
 
         // What the last life held and this one has no stat for reads 0, not the last life's
