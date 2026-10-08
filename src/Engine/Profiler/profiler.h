@@ -120,6 +120,9 @@ namespace pg
     private:
         double getCurrentTimeMs() const;
         uint32_t getCurrentThreadId() const;
+
+        // Drops the oldest events once the buffer is over its limit. The caller holds eventMutex
+        void trimEvents();
     };
 
     // RAII scope timer

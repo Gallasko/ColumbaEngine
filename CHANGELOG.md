@@ -7,6 +7,9 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Fixed
+- Profiler: the event buffer is bounded where an event is written, not only at the end of a frame. With
+  `PG_PROFILE=ON` a threaded web page left in the background drew no frame while its systems ran on, the
+  buffer grew until memory ran out, and the page stopped with `Aborted()` (`Profiler::trimEvents`).
 - Chronicle: the log no longer loses its end. When a work began, "At work now" took 46 px from the log,
   whose last lines were cut off; no longer at its end, it stopped following what was written, and a long
   life's new lines came in out of sight. A reader at the end is kept there when the log changes height and

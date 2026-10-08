@@ -39,14 +39,20 @@ namespace pg
 
         recordEnd("Frame", "Frame");
 
-        // Limit buffer size (keep only recent events)
         std::lock_guard<std::mutex> lock(eventMutex);
-        if (events.size() > maxEvents)
-        {
-            // Remove oldest 20% when we hit the limit
-            size_t removeCount = maxEvents / 5;
-            events.erase(events.begin(), events.begin() + removeCount);
-        }
+
+        trimEvents();
+    }
+
+    void Profiler::trimEvents()
+    {
+        // Limit buffer size (keep only recent events)
+        if (events.size() <= maxEvents)
+            return;
+
+        // Remove oldest 20% when we hit the limit
+        size_t removeCount = maxEvents / 5;
+        events.erase(events.begin(), events.begin() + removeCount);
     }
 
     void Profiler::recordBegin(const std::string& name, const std::string& category)
@@ -67,6 +73,8 @@ namespace pg
 
         std::lock_guard<std::mutex> lock(eventMutex);
         events.emplace_back(name, currentFrame, getCurrentEcsPass(), now, 0.0, category, tid);
+
+        trimEvents();
     }
 
     void Profiler::recordEnd(const std::string& name, const std::string& category)
@@ -112,6 +120,9 @@ namespace pg
                 if (shouldStore)
                 {
                     events.emplace_back(name, it->frameNumber, it->ecsPass, it->startMs, duration, category, tid);
+
+                    // Not only at the end of a frame: the systems run on while no frame is drawn (a web page in the background)
+                    trimEvents();
                 }
 
                 // Remove the pending event
