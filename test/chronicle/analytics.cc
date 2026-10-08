@@ -45,6 +45,7 @@ namespace pg
             life.monthsIn = 2;
             life.done["mill"] = 2;
             life.done["messages"] = 1;
+            life.lives = 3;
 
             ASSERT_FALSE(life.name.empty());
 
@@ -52,6 +53,7 @@ namespace pg
 
             EXPECT_EQ(digest.find("{\"age\":7.00,\"world\":0,"), 0u);
             EXPECT_NE(digest.find("\"running\":\"carters\",\"monthsIn\":2,\"terms\":3,"), std::string::npos);
+            EXPECT_NE(digest.find(",\"lives\":3}"), std::string::npos);
             EXPECT_EQ(digest.find(life.name), std::string::npos);
         }
     }

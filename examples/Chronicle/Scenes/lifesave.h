@@ -33,6 +33,7 @@ namespace chronicle
         std::string aim;               // The path he is headed for ("warrior"), set when he enters one: the stat lines' thresholds
         float age = 7.0f;
         int world = 0;                 // Months since the world's Year 0. It runs on from life to life: a death does not rewind it
+        int lives = 1;                 // The lives lived in this world, this one counted. A save from before the count reads 1
         std::string running;           // The activity at work, "" for none
         int monthsIn = 0;              // Months already spent in it
         std::unordered_map<std::string, int> stats;   // Parts, skills, flags and coin, by key
@@ -54,7 +55,8 @@ namespace chronicle
         std::vector<LifeResource> holdEarned(const pg::RecordList& rows);
 
         // Where the life stands, in one short line of JSON for the analytics: his age, the world's
-        // month, his path, the work at hand, how much he has done. Nothing of his name.
+        // month, which life this is, his path, the work at hand, how much he has done. Nothing of
+        // his name.
         std::string digest() const;
 
         bool save(const std::string& path) const;

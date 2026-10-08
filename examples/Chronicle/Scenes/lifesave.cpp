@@ -100,6 +100,7 @@ namespace pg
         serialize(archive, "aim", value.aim);
         serialize(archive, "age", value.age);
         serialize(archive, "world", value.world);
+        serialize(archive, "lives", value.lives);
         serialize(archive, "running", value.running);
         serialize(archive, "monthsIn", value.monthsIn);
         serialize(archive, "stats", value.stats);
@@ -127,6 +128,7 @@ namespace pg
         defaultDeserialize(serialized, "aim", data.aim);
         defaultDeserialize(serialized, "age", data.age);
         defaultDeserialize(serialized, "world", data.world);
+        defaultDeserialize(serialized, "lives", data.lives);
         defaultDeserialize(serialized, "running", data.running);
         defaultDeserialize(serialized, "monthsIn", data.monthsIn);
         defaultDeserialize(serialized, "stats", data.stats);
@@ -225,7 +227,7 @@ namespace chronicle
         std::ostringstream line;
 
         line << "{\"age\":" << years << ",\"world\":" << world << ",\"aim\":\"" << aim << "\",\"running\":\"" << running << "\",\"monthsIn\":" << monthsIn
-             << ",\"terms\":" << terms << ",\"deeds\":" << achieved.size() << ",\"log\":" << log.size() << "}";
+             << ",\"terms\":" << terms << ",\"deeds\":" << achieved.size() << ",\"log\":" << log.size() << ",\"lives\":" << lives << "}";
 
         return line.str();
     }

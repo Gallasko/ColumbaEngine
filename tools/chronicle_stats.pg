@@ -1,0 +1,1229 @@
+// chronicle_stats.pg - statistics over the play sessions Chronicle sent to the analytics.
+//
+// Chronicle's web build writes one row an event in the analytics_events table of the Neon
+// database (examples/Chronicle/Core/analytics.h): chronicle.session_start, chronicle.session_end
+// and chronicle.life_end, each with the time the page was in view and a digest of the life
+// (LifeSave::digest). The page can only insert, so the rows are read from an export.
+//
+// Export, from the Neon SQL editor (run the query, then export the result as CSV):
+//
+//     SELECT session_id, event_type, session_duration_ms, total_play_time_ms, timestamp_ms, save_snapshot
+//     FROM analytics_events WHERE event_type LIKE 'chronicle.%' ORDER BY timestamp_ms;
+//
+// or with psql:
+//
+//     \copy (<the query, without its ;>) TO 'chronicle-events.csv' CSV HEADER
+//
+// The columns are found by the names of the header line: more columns or another order are
+// fine, and the rows of another game are skipped. Days are UTC.
+//
+// Usage:  PgCompilerBootstrap tools/chronicle_stats.pg <export.csv> [report.txt]
+//
+// The report is printed, and written to report.txt when one is given.
+
+import "string"
+import "file"
+import "algorithm"
+import "math"
+
+// ============================================================================
+// Formatting
+// ============================================================================
+
+fun padLeft(text, width)
+{
+    var pad = ""
+
+    while (len(pad) + len(text) < width)
+    {
+        pad = pad + " "
+    }
+
+    return pad + text
+}
+
+fun padRight(text, width)
+{
+    var out = text
+
+    while (len(out) < width)
+    {
+        out = out + " "
+    }
+
+    return out
+}
+
+fun zero2(value)
+{
+    if (value < 10)
+    {
+        return "0" + toString(value)
+    }
+
+    return toString(value)
+}
+
+// A positive number with one decimal.
+fun fmt1(value)
+{
+    var scaled = floor(value * 10 + 0.5)
+
+    return toString(scaled / 10) + "." + toString(scaled % 10)
+}
+
+fun percent(part, total)
+{
+    if (total == 0)
+    {
+        return "0.0%"
+    }
+
+    return fmt1(part * 100.0 / total) + "%"
+}
+
+// Milliseconds as "2h 05m", "12m 30s" or "45s".
+fun formatDuration(ms)
+{
+    var seconds = toInt(ms) / 1000
+    var hours = seconds / 3600
+    var minutes = (seconds % 3600) / 60
+
+    if (hours > 0)
+    {
+        return toString(hours) + "h " + zero2(minutes) + "m"
+    }
+
+    if (minutes > 0)
+    {
+        return toString(minutes) + "m " + zero2(seconds % 60) + "s"
+    }
+
+    return toString(seconds) + "s"
+}
+
+// A day counted from 1970-01-01 as "2026-10-08".
+fun formatDay(day)
+{
+    var z = day + 719468
+    var era = z / 146097
+    var doe = z - era * 146097
+    var yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    var doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    var mp = (5 * doy + 2) / 153
+    var d = doy - (153 * mp + 2) / 5 + 1
+    var m = mp + 3
+    var y = yoe + era * 400
+
+    if (mp >= 10)
+    {
+        m = mp - 9
+    }
+
+    if (m <= 2)
+    {
+        y = y + 1
+    }
+
+    return toString(y) + "-" + zero2(m) + "-" + zero2(d)
+}
+
+// A value as its kind reads: "time" (milliseconds), "years" or a plain number.
+fun formatValue(kind, value)
+{
+    if (kind == "time")
+    {
+        return formatDuration(value)
+    }
+
+    if (kind == "years")
+    {
+        return fmt1(value) + " y"
+    }
+
+    return fmt1(value)
+}
+
+fun bar(count, most, width)
+{
+    var out = ""
+
+    if (most == 0)
+    {
+        return out
+    }
+
+    var n = (count * width + most - 1) / most
+
+    for (var i = 0; i < n; i = i + 1)
+    {
+        out = out + "#"
+    }
+
+    return out
+}
+
+// ============================================================================
+// Numbers
+// ============================================================================
+
+// A sorted copy, smallest first (merge sort, bottom up).
+fun sortNumbers(values)
+{
+    var n = len(values)
+    var current = []
+    var merged = []
+
+    for (var v : values)
+    {
+        push(current, v)
+        push(merged, v)
+    }
+
+    var width = 1
+
+    while (width < n)
+    {
+        var left = 0
+
+        while (left < n)
+        {
+            var mid = left + width
+            var right = left + 2 * width
+
+            if (mid > n)
+            {
+                mid = n
+            }
+
+            if (right > n)
+            {
+                right = n
+            }
+
+            var i = left
+            var j = mid
+
+            for (var k = left; k < right; k = k + 1)
+            {
+                if (i < mid and (j >= right or current[i] <= current[j]))
+                {
+                    merged[k] = current[i]
+                    i = i + 1
+                }
+                else
+                {
+                    merged[k] = current[j]
+                    j = j + 1
+                }
+            }
+
+            left = right
+        }
+
+        var swap = current
+        current = merged
+        merged = swap
+
+        width = width * 2
+    }
+
+    return current
+}
+
+// The value under which a share q (0 to 1) of a sorted list falls, between two neighbours.
+fun quantile(sorted, q)
+{
+    var n = len(sorted)
+    var pos = q * (n - 1)
+    var low = floor(pos)
+    var high = low + 1
+
+    if (high >= n)
+    {
+        high = low
+    }
+
+    return sorted[low] + (sorted[high] - sorted[low]) * (pos - low)
+}
+
+fun sum(values)
+{
+    var total = 0
+
+    for (var v : values)
+    {
+        total = total + v
+    }
+
+    return total
+}
+
+// The slot of a value among limits: the first limit it is under, or one past the last.
+fun bucketOf(value, limits)
+{
+    var n = len(limits)
+
+    for (var i = 0; i < n; i = i + 1)
+    {
+        if (value < limits[i])
+        {
+            return i
+        }
+    }
+
+    return n
+}
+
+// ============================================================================
+// Tallies (how many of each name, in the order first seen)
+// ============================================================================
+
+fun newTally()
+{
+    var tally = {}
+    tally["keys"] = []
+    tally["counts"] = {}
+
+    return tally
+}
+
+fun bump(tally, key)
+{
+    var counts = tally["counts"]
+
+    if (counts[key] == none)
+    {
+        counts[key] = 0
+        push(tally["keys"], key)
+    }
+
+    counts[key] = counts[key] + 1
+}
+
+// The names of a tally, the most counted first.
+fun rankedKeys(tally)
+{
+    var keys = []
+    var counts = tally["counts"]
+
+    for (var key : tally["keys"])
+    {
+        push(keys, key)
+    }
+
+    var n = len(keys)
+
+    for (var i = 0; i < n; i = i + 1)
+    {
+        for (var j = i + 1; j < n; j = j + 1)
+        {
+            if (counts[keys[j]] > counts[keys[i]])
+            {
+                var tmp = keys[i]
+                keys[i] = keys[j]
+                keys[j] = tmp
+            }
+        }
+    }
+
+    return keys
+}
+
+// ============================================================================
+// CSV and digest reading
+// ============================================================================
+
+// The fields of one record: quoted fields keep their commas and newlines, "" is a quote.
+fun parseCsvRecord(text)
+{
+    var fields = []
+    var n = len(text)
+    var field = ""
+    var quoted = false
+    var pos = 0
+
+    while (pos < n)
+    {
+        var c = charAt(text, pos)
+
+        if (quoted)
+        {
+            if (c != "\"")
+            {
+                field = field + c
+            }
+            else if (pos + 1 < n and charAt(text, pos + 1) == "\"")
+            {
+                field = field + "\""
+                pos = pos + 1
+            }
+            else
+            {
+                quoted = false
+            }
+        }
+        else if (c == "\"")
+        {
+            quoted = true
+        }
+        else if (c == ",")
+        {
+            push(fields, field)
+            field = ""
+        }
+        else
+        {
+            field = field + c
+        }
+
+        pos = pos + 1
+    }
+
+    push(fields, field)
+
+    return fields
+}
+
+// The records of a CSV text, one string each: a record whose quoted field holds a newline
+// runs over several lines, and ends on the line that closes the quote.
+fun readRecords(text)
+{
+    var records = []
+    var pending = ""
+    var inQuotes = false
+
+    for (var raw : splitLines(text))
+    {
+        var line = raw
+
+        if (endsWith(line, "\r"))
+        {
+            line = substring(line, 0, len(line) - 1)
+        }
+
+        var quotes = 0
+
+        if (contains(line, "\""))
+        {
+            quotes = len(split(line, "\"")) - 1
+        }
+
+        if (inQuotes)
+        {
+            pending = pending + "\n" + line
+        }
+        else
+        {
+            pending = line
+        }
+
+        if (quotes % 2 == 1)
+        {
+            inQuotes = not inQuotes
+        }
+
+        if (not inQuotes and pending != "")
+        {
+            push(records, pending)
+        }
+    }
+
+    return records
+}
+
+fun isNumberText(text)
+{
+    var n = len(text)
+
+    if (n == 0)
+    {
+        return false
+    }
+
+    for (var i = 0; i < n; i = i + 1)
+    {
+        if (not contains("0123456789.-", charAt(text, i)))
+        {
+            return false
+        }
+    }
+
+    return true
+}
+
+fun unquote(text)
+{
+    var n = len(text)
+
+    if (n >= 2 and startsWith(text, "\"") and endsWith(text, "\""))
+    {
+        return substring(text, 1, n - 1)
+    }
+
+    return text
+}
+
+// The digest is one flat JSON object of numbers and plain words (LifeSave::digest): a table of
+// its members, the numbers as numbers. none when the text is not one.
+fun parseDigest(text)
+{
+    var n = len(text)
+
+    if (n < 2 or charAt(text, 0) != "{" or charAt(text, n - 1) != "}")
+    {
+        return none
+    }
+
+    var digest = {}
+
+    for (var member : split(substring(text, 1, n - 1), ","))
+    {
+        var colon = indexOf(member, ":")
+
+        if (colon > 0)
+        {
+            var key = unquote(trim(substring(member, 0, colon)))
+            var value = trim(substring(member, colon + 1))
+
+            if (startsWith(value, "\""))
+            {
+                digest[key] = unquote(value)
+            }
+            else if (isNumberText(value))
+            {
+                digest[key] = toFloat(value)
+            }
+        }
+    }
+
+    return digest
+}
+
+// The column of each name of the header, by name. An "error" entry when one the report
+// cannot do without is missing.
+fun readColumns(header)
+{
+    var columns = {}
+    var n = len(header)
+
+    for (var i = 0; i < n; i = i + 1)
+    {
+        columns[toLowerCase(trim(header[i]))] = i
+    }
+
+    for (var needed : ["session_id", "event_type", "session_duration_ms", "total_play_time_ms", "timestamp_ms", "save_snapshot"])
+    {
+        if (columns[needed] == none)
+        {
+            columns["error"] = "no '" + needed + "' column in the header: " + join(header, ", ")
+        }
+    }
+
+    return columns
+}
+
+// A whole number field, or none when the field is empty (a NULL of the table).
+fun numberField(fields, column)
+{
+    var text = fields[column]
+
+    if (text == none or not isNumberText(text))
+    {
+        return none
+    }
+
+    return toInt(text)
+}
+
+// ============================================================================
+// Sessions
+// ============================================================================
+
+// The page counts its time on 32 bits: a browser whose clock leaps years ahead fills them, and
+// neither the time nor the clock of such a row means anything.
+fun isBrokenClock(durationMs)
+{
+    return durationMs != none and durationMs >= 65536 * 65536 - 1
+}
+
+fun newSession(id)
+{
+    var session = {}
+    session["id"] = id
+    session["started"] = false
+    session["ends"] = 0
+    session["deaths"] = 0
+    session["durationMs"] = 0
+    session["playedBeforeMs"] = none
+    session["firstMs"] = none
+    session["digestMs"] = none
+    session["digest"] = none
+    session["furthestAge"] = none
+    session["mostTerms"] = 0
+
+    return session
+}
+
+// Reads every chronicle row of the records into the data the report is made of.
+fun collect(records, columns)
+{
+    var data = {}
+    data["rows"] = 0
+    data["skipped"] = 0
+    data["broken"] = 0
+    data["events"] = newTally()
+    data["sessions"] = []
+    data["deaths"] = []
+    data["firstMs"] = none
+    data["lastMs"] = none
+
+    var byId = {}
+    var n = len(records)
+
+    for (var r = 1; r < n; r = r + 1)
+    {
+        var fields = []
+
+        // A row of another game is not worth reading: its snapshot is a whole save
+        if (contains(records[r], "chronicle."))
+        {
+            fields = parseCsvRecord(records[r])
+        }
+
+        var event = fields[columns["event_type"]]
+
+        if (event == none or not startsWith(event, "chronicle."))
+        {
+            data["skipped"] = data["skipped"] + 1
+        }
+        else if (isBrokenClock(numberField(fields, columns["session_duration_ms"])))
+        {
+            data["broken"] = data["broken"] + 1
+        }
+        else
+        {
+            event = substring(event, len("chronicle."))
+
+            var id = fields[columns["session_id"]]
+            var durationMs = numberField(fields, columns["session_duration_ms"])
+            var totalMs = numberField(fields, columns["total_play_time_ms"])
+            var clockMs = numberField(fields, columns["timestamp_ms"])
+            var snapshot = fields[columns["save_snapshot"]]
+            var digest = none
+
+            if (snapshot != none)
+            {
+                digest = parseDigest(snapshot)
+            }
+
+            data["rows"] = data["rows"] + 1
+            bump(data["events"], event)
+
+            var session = byId[id]
+
+            if (session == none)
+            {
+                session = newSession(id)
+                byId[id] = session
+                push(data["sessions"], session)
+            }
+
+            if (durationMs != none and durationMs > session["durationMs"])
+            {
+                session["durationMs"] = durationMs
+            }
+
+            if (durationMs != none and totalMs != none)
+            {
+                var before = totalMs - durationMs
+
+                if (session["playedBeforeMs"] == none or before < session["playedBeforeMs"])
+                {
+                    session["playedBeforeMs"] = before
+                }
+            }
+
+            if (clockMs != none)
+            {
+                if (session["firstMs"] == none or clockMs < session["firstMs"])
+                {
+                    session["firstMs"] = clockMs
+                }
+
+                if (data["firstMs"] == none or clockMs < data["firstMs"])
+                {
+                    data["firstMs"] = clockMs
+                }
+
+                if (data["lastMs"] == none or clockMs > data["lastMs"])
+                {
+                    data["lastMs"] = clockMs
+                }
+            }
+
+            // Where the session stopped is the digest of its latest row
+            if (digest != none and clockMs != none and (session["digestMs"] == none or clockMs >= session["digestMs"]))
+            {
+                session["digestMs"] = clockMs
+                session["digest"] = digest
+            }
+
+            // How far it got is the most of all its rows: after a death the last one is a child again
+            if (digest != none)
+            {
+                if (digest["age"] != none and (session["furthestAge"] == none or digest["age"] > session["furthestAge"]))
+                {
+                    session["furthestAge"] = digest["age"]
+                }
+
+                if (digest["terms"] != none and digest["terms"] > session["mostTerms"])
+                {
+                    session["mostTerms"] = digest["terms"]
+                }
+            }
+
+            if (event == "session_start")
+            {
+                session["started"] = true
+            }
+            else if (event == "session_end")
+            {
+                session["ends"] = session["ends"] + 1
+            }
+            else if (event == "life_end")
+            {
+                session["deaths"] = session["deaths"] + 1
+
+                var death = {}
+                death["digest"] = digest
+                death["totalMs"] = totalMs
+                push(data["deaths"], death)
+            }
+        }
+    }
+
+    return data
+}
+
+// ============================================================================
+// Report
+// ============================================================================
+
+fun line(out, text)
+{
+    push(out, text)
+}
+
+fun title(out, text)
+{
+    var rule = ""
+
+    while (len(rule) < len(text))
+    {
+        rule = rule + "-"
+    }
+
+    push(out, "")
+    push(out, text)
+    push(out, rule)
+}
+
+fun entry(out, label, value)
+{
+    push(out, "  " + padRight(label, 24) + value)
+}
+
+// Mean, median and spread of a list, one entry each.
+fun describe(out, kind, values)
+{
+    if (len(values) == 0)
+    {
+        entry(out, "no data", "")
+        return
+    }
+
+    var sorted = sortNumbers(values)
+    var n = len(sorted)
+
+    entry(out, "mean", formatValue(kind, sum(sorted) * 1.0 / n))
+    entry(out, "median", formatValue(kind, quantile(sorted, 0.5)))
+    entry(out, "quarter under", formatValue(kind, quantile(sorted, 0.25)))
+    entry(out, "quarter over", formatValue(kind, quantile(sorted, 0.75)))
+    entry(out, "one in ten over", formatValue(kind, quantile(sorted, 0.9)))
+    entry(out, "least / most", formatValue(kind, sorted[0]) + " / " + formatValue(kind, sorted[n - 1]))
+}
+
+// How many values fall in each slot of the limits, drawn as bars.
+fun histogram(out, labels, limits, values)
+{
+    var counts = []
+    var most = 0
+    var total = len(values)
+
+    for (var label : labels)
+    {
+        push(counts, 0)
+    }
+
+    for (var v : values)
+    {
+        var slot = bucketOf(v, limits)
+
+        counts[slot] = counts[slot] + 1
+
+        if (counts[slot] > most)
+        {
+            most = counts[slot]
+        }
+    }
+
+    var n = len(labels)
+
+    for (var i = 0; i < n; i = i + 1)
+    {
+        push(out, "  " + padRight(labels[i], 14) + padLeft(toString(counts[i]), 6) + padLeft(percent(counts[i], total), 8) + "  " + bar(counts[i], most, 30))
+    }
+}
+
+// The names of a tally, the most counted first, `limit` of them at most.
+fun ranking(out, tally, limit)
+{
+    var keys = rankedKeys(tally)
+    var counts = tally["counts"]
+    var n = len(keys)
+    var total = 0
+    var most = 0
+
+    for (var key : keys)
+    {
+        total = total + counts[key]
+
+        if (counts[key] > most)
+        {
+            most = counts[key]
+        }
+    }
+
+    if (n == 0)
+    {
+        entry(out, "no data", "")
+        return
+    }
+
+    var shown = n
+
+    if (shown > limit)
+    {
+        shown = limit
+    }
+
+    for (var i = 0; i < shown; i = i + 1)
+    {
+        var count = counts[keys[i]]
+
+        push(out, "  " + padRight(keys[i], 20) + padLeft(toString(count), 6) + padLeft(percent(count, total), 8) + "  " + bar(count, most, 30))
+    }
+
+    if (shown < n)
+    {
+        push(out, "  ... and " + toString(n - shown) + " more")
+    }
+}
+
+// A word of the digest, or how its absence reads.
+fun wordOf(digest, key, missing)
+{
+    var word = digest[key]
+
+    if (word == none or word == "")
+    {
+        return missing
+    }
+
+    return word
+}
+
+fun reportOverview(out, data)
+{
+    var sessions = data["sessions"]
+    var first = 0
+    var returning = 0
+    var unended = 0
+    var playedMs = 0
+
+    for (var session : sessions)
+    {
+        playedMs = playedMs + session["durationMs"]
+
+        if (session["ends"] == 0)
+        {
+            unended = unended + 1
+        }
+
+        if (session["playedBeforeMs"] != none)
+        {
+            if (session["playedBeforeMs"] == 0)
+            {
+                first = first + 1
+            }
+            else
+            {
+                returning = returning + 1
+            }
+        }
+    }
+
+    var events = ""
+    var counts = data["events"]["counts"]
+
+    for (var key : rankedKeys(data["events"]))
+    {
+        if (events != "")
+        {
+            events = events + ", "
+        }
+
+        events = events + key + " " + toString(counts[key])
+    }
+
+    title(out, "Overview")
+    entry(out, "rows", toString(data["rows"]) + "  (" + events + ")")
+
+    if (data["skipped"] > 0)
+    {
+        entry(out, "rows of another game", toString(data["skipped"]) + "  (skipped)")
+    }
+
+    if (data["broken"] > 0)
+    {
+        entry(out, "rows of a broken clock", toString(data["broken"]) + "  (skipped: the time counter is full)")
+    }
+
+    if (data["firstMs"] != none)
+    {
+        var firstDay = data["firstMs"] / 86400000
+        var lastDay = data["lastMs"] / 86400000
+
+        entry(out, "from / to", formatDay(firstDay) + " / " + formatDay(lastDay) + "  (" + toString(lastDay - firstDay + 1) + " days)")
+    }
+
+    entry(out, "sessions", toString(len(sessions)))
+    entry(out, "first sessions", toString(first) + "  (nothing played before in this browser: about one a player)")
+    entry(out, "returning sessions", toString(returning))
+    entry(out, "never hidden or closed", toString(unended) + "  (no session_end: the row was lost, or the tab is still open)")
+    entry(out, "time played", formatDuration(playedMs))
+    entry(out, "lives lost", toString(len(data["deaths"])))
+}
+
+fun reportLengths(out, data)
+{
+    var lengths = []
+    var minutes = []
+
+    for (var session : data["sessions"])
+    {
+        if (session["ends"] > 0 or session["deaths"] > 0)
+        {
+            push(lengths, session["durationMs"])
+            push(minutes, session["durationMs"] / 60000.0)
+        }
+    }
+
+    title(out, "Session length (" + toString(len(lengths)) + " sessions that sent more than their start)")
+    describe(out, "time", lengths)
+    line(out, "")
+    histogram(out, ["under 1 min", "1-5 min", "5-15 min", "15-30 min", "30-60 min", "1-2 h", "over 2 h"], [1, 5, 15, 30, 60, 120], minutes)
+}
+
+fun reportDays(out, data)
+{
+    var days = []
+    var byDay = {}
+
+    for (var session : data["sessions"])
+    {
+        if (session["firstMs"] != none)
+        {
+            var day = session["firstMs"] / 86400000
+            var key = toString(day)
+            var row = byDay[key]
+
+            if (row == none)
+            {
+                row = {}
+                row["sessions"] = 0
+                row["first"] = 0
+                row["deaths"] = 0
+                row["playedMs"] = 0
+                byDay[key] = row
+                push(days, day)
+            }
+
+            row["sessions"] = row["sessions"] + 1
+            row["deaths"] = row["deaths"] + session["deaths"]
+            row["playedMs"] = row["playedMs"] + session["durationMs"]
+
+            if (session["playedBeforeMs"] != none and session["playedBeforeMs"] == 0)
+            {
+                row["first"] = row["first"] + 1
+            }
+        }
+    }
+
+    title(out, "By day (UTC, a session counted on the day it began)")
+    line(out, "  " + padRight("day", 12) + padLeft("sessions", 10) + padLeft("first", 8) + padLeft("lives lost", 12) + padLeft("played", 10))
+
+    for (var day : sortNumbers(days))
+    {
+        var row = byDay[toString(day)]
+
+        line(out, "  " + padRight(formatDay(day), 12) + padLeft(toString(row["sessions"]), 10) + padLeft(toString(row["first"]), 8) + padLeft(toString(row["deaths"]), 12) + padLeft(formatDuration(row["playedMs"]), 10))
+    }
+}
+
+fun reachedLine(out, label, reached, total, firstReached, firstTotal)
+{
+    line(out, "  " + padRight(label, 26) + padLeft(toString(reached), 6) + padLeft(percent(reached, total), 8) + padLeft(toString(firstReached), 8) + padLeft(percent(firstReached, firstTotal), 8))
+}
+
+// How many sessions got as far as each step, over all of them and over the first ones of a
+// browser: the furthest of a session's rows, so a life lost in it still counts for its years.
+fun reportReach(out, data)
+{
+    var labels = ["sent a digest", "passed the first month", "finished a term", "finished 3 terms", "finished 10 terms", "reached 10", "reached 16", "reached 30", "lost a life"]
+    var all = []
+    var first = []
+
+    for (var label : labels)
+    {
+        push(all, 0)
+        push(first, 0)
+    }
+
+    for (var session : data["sessions"])
+    {
+        var age = session["furthestAge"]
+
+        if (age != none)
+        {
+            var terms = session["mostTerms"]
+            var steps = [true, age > 7.0 or terms > 0, terms >= 1, terms >= 3, terms >= 10, age >= 10, age >= 16, age >= 30, session["deaths"] > 0]
+            var isFirst = session["playedBeforeMs"] != none and session["playedBeforeMs"] == 0
+            var n = len(steps)
+
+            for (var i = 0; i < n; i = i + 1)
+            {
+                if (steps[i])
+                {
+                    all[i] = all[i] + 1
+
+                    if (isFirst)
+                    {
+                        first[i] = first[i] + 1
+                    }
+                }
+            }
+        }
+    }
+
+    title(out, "How far a session got (all sessions, then the first ones of a browser)")
+    line(out, "  " + padRight("", 26) + padLeft("all", 6) + padLeft("", 8) + padLeft("first", 8))
+
+    var n = len(labels)
+
+    for (var i = 0; i < n; i = i + 1)
+    {
+        reachedLine(out, labels[i], all[i], all[0], first[i], first[0])
+    }
+}
+
+fun reportStops(out, data)
+{
+    var ages = []
+    var terms = []
+    var deeds = []
+    var aims = newTally()
+    var running = newTally()
+    var lives = []
+
+    for (var session : data["sessions"])
+    {
+        var digest = session["digest"]
+
+        if (digest != none)
+        {
+            if (digest["age"] != none)
+            {
+                push(ages, digest["age"])
+            }
+
+            if (digest["terms"] != none)
+            {
+                push(terms, digest["terms"])
+            }
+
+            if (digest["deeds"] != none)
+            {
+                push(deeds, digest["deeds"])
+            }
+
+            if (digest["lives"] != none)
+            {
+                push(lives, digest["lives"])
+            }
+
+            bump(aims, wordOf(digest, "aim", "(no path yet)"))
+            bump(running, wordOf(digest, "running", "(nothing at hand)"))
+        }
+    }
+
+    title(out, "Where a session stopped (" + toString(len(ages)) + " sessions with a digest)")
+    line(out, "  His age")
+    describe(out, "years", ages)
+    line(out, "")
+    histogram(out, ["under 10", "10-12", "13-15", "16-19", "20-24", "25-29", "30 and over"], [10, 13, 16, 20, 25, 30], ages)
+
+    if (len(terms) > 0)
+    {
+        line(out, "")
+        entry(out, "terms done, median", fmt1(quantile(sortNumbers(terms), 0.5)))
+        entry(out, "deeds reached, median", fmt1(quantile(sortNumbers(deeds), 0.5)))
+    }
+
+    // Rows from before the digest counted the lives have none
+    if (len(lives) > 0)
+    {
+        line(out, "")
+        line(out, "  Which life of the browser it was (" + toString(len(lives)) + " sessions that say)")
+        histogram(out, ["the first", "the second", "the third", "4th or 5th", "6th to 10th", "past the 10th"], [2, 3, 4, 6, 11], lives)
+    }
+
+    line(out, "")
+    line(out, "  His path")
+    ranking(out, aims, 10)
+    line(out, "")
+    line(out, "  The work at hand")
+    ranking(out, running, 15)
+}
+
+fun reportDeaths(out, data)
+{
+    var ages = []
+    var played = []
+    var aims = newTally()
+    var running = newTally()
+
+    for (var death : data["deaths"])
+    {
+        var digest = death["digest"]
+
+        if (death["totalMs"] != none)
+        {
+            push(played, death["totalMs"])
+        }
+
+        if (digest != none)
+        {
+            if (digest["age"] != none)
+            {
+                push(ages, digest["age"])
+            }
+
+            bump(aims, wordOf(digest, "aim", "(no path yet)"))
+            bump(running, wordOf(digest, "running", "(nothing at hand)"))
+        }
+    }
+
+    title(out, "Lives lost (" + toString(len(data["deaths"])) + ")")
+
+    if (len(data["deaths"]) == 0)
+    {
+        entry(out, "none in this export", "")
+        return
+    }
+
+    line(out, "  His age at death")
+    describe(out, "years", ages)
+    line(out, "")
+    histogram(out, ["under 10", "10-12", "13-15", "16-19", "20-24", "25-29", "30 and over"], [10, 13, 16, 20, 25, 30], ages)
+    line(out, "")
+    line(out, "  Time played in this browser when he died")
+    describe(out, "time", played)
+    line(out, "")
+    line(out, "  His path")
+    ranking(out, aims, 10)
+    line(out, "")
+    line(out, "  The work he died at")
+    ranking(out, running, 15)
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+fun main()
+{
+    if (getArgCount() < 3)
+    {
+        print("Usage: PgCompilerBootstrap chronicle_stats.pg <export.csv> [report.txt]")
+        return
+    }
+
+    var exportFile = getArg(2)
+
+    if (not fileExists(exportFile))
+    {
+        print("Error: file not found: " + exportFile)
+        return
+    }
+
+    var records = readRecords(readFile(exportFile))
+
+    if (len(records) < 2)
+    {
+        print("Error: " + exportFile + " has no row under its header")
+        return
+    }
+
+    var columns = readColumns(parseCsvRecord(records[0]))
+
+    if (columns["error"] != none)
+    {
+        print("Error: " + columns["error"])
+        return
+    }
+
+    var data = collect(records, columns)
+
+    if (data["rows"] == 0)
+    {
+        print("Error: no chronicle.* event among the " + toString(len(records) - 1) + " rows of " + exportFile)
+        return
+    }
+
+    var out = []
+
+    line(out, "Chronicle analytics: " + exportFile)
+
+    reportOverview(out, data)
+    reportLengths(out, data)
+    reportDays(out, data)
+    reportReach(out, data)
+    reportStops(out, data)
+    reportDeaths(out, data)
+
+    for (var text : out)
+    {
+        print(text)
+    }
+
+    if (getArgCount() > 3)
+    {
+        writeFile(getArg(3), join(out, "\n") + "\n")
+        print("")
+        print("Written to " + getArg(3))
+    }
+}
+
+main()

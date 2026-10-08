@@ -1188,6 +1188,7 @@ namespace pg
             auto note = [&]() { return life->piece<Label>("dateNote")->spec.text; };
 
             EXPECT_EQ(life->save.world, 0);
+            EXPECT_EQ(life->save.lives, 1);
             EXPECT_EQ(date(), "YEAR 0");
             EXPECT_EQ(note(), "MONTH 1 \xC2\xB7 WINTER \xC2\xB7 BELLMOOR");
 
@@ -1220,6 +1221,7 @@ namespace pg
 
             EXPECT_FLOAT_EQ(life->save.age, 7.0f);
             EXPECT_EQ(life->save.world, 15);
+            EXPECT_EQ(life->save.lives, 2);
             EXPECT_EQ(life->rules.world, 15);
             EXPECT_EQ(date(), "YEAR 1");
             EXPECT_EQ(note(), "MONTH 4 \xC2\xB7 SPRING \xC2\xB7 BELLMOOR");
