@@ -39,6 +39,11 @@ namespace pg
 
     CommandDispatcher::~CommandDispatcher() = default;
 
+    bool CommandDispatcher::empty() const
+    {
+        return queues->entityCQueue.size_approx() == 0 and queues->entityDQueue.size_approx() == 0 and queues->componentCQueue.size_approx() == 0 and queues->componentDQueue.size_approx() == 0 and queues->sysQueue.size_approx() == 0;
+    }
+
     bool CommandDispatcher::enqueueComponentCreation(const ComponentCreateCommand& command)
     {
         return queues->componentCQueue.enqueue(command);

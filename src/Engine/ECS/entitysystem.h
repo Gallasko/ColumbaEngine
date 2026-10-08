@@ -108,6 +108,8 @@ namespace pg
 
             void process();
 
+            bool empty() const;
+
         private:
             // The lock-free queue lives in entitysystem.cpp
             struct EventQueue;
@@ -718,6 +720,16 @@ namespace pg
         void executeOnce();
 
         void executeAll();
+
+        /**
+         * @brief Whether the last pass left work for the next one
+         *
+         * Events and commands sent while the systems run wait for the next pass. A caller that runs the
+         * passes itself (executeOnce) can go on until nothing waits before it draws.
+         *
+         * @return true if an event or a command is waiting
+         */
+        bool hasPendingWork() const;
 
         /** Cap the ECS graph loop to a target FPS (0 = uncapped, the default).
          *  Thread-safe; can be changed at runtime (e.g. from the profiler overlay).

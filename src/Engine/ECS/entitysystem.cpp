@@ -135,6 +135,11 @@ namespace pg
         return events->queue.enqueue(event);
     }
 
+    bool EntitySystem::EventDispatcher::empty() const
+    {
+        return events->queue.size_approx() == 0;
+    }
+
     void EntitySystem::EventDispatcher::process()
     {
         std::function<void()> event;
@@ -742,6 +747,11 @@ namespace pg
         taskflowImpl->executor.run(taskflowImpl->taskflow).wait();
 
         running = keepRunning;
+    }
+
+    bool EntitySystem::hasPendingWork() const
+    {
+        return not eventDispatcher.empty() or not deferredEventDispatcher.empty() or not cmdDispatcher.empty();
     }
 
     void EntitySystem::executeAll()

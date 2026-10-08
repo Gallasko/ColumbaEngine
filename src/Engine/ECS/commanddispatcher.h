@@ -211,6 +211,9 @@ namespace pg
         /** Process all the pending commands */
         void process();
 
+        /** Whether no command waits for the next process() */
+        bool empty() const;
+
     private:
         bool enqueueComponentCreation(const ComponentCreateCommand& command);
 

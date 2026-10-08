@@ -1234,5 +1234,40 @@ namespace pg
             EXPECT_EQ(ecs.getEntity(id), nullptr);
         }
 
+        // ----------------------------------------------------------------------------------------
+        // What is sent while the systems run waits for the next pass, and the ecs says so until
+        // that pass took it.
+        TEST(system_test, pending_work_is_told_until_the_next_pass)
+        {
+            MockLogger logger;
+
+            EntitySystem ecs;
+            ecs.createSystem<ASystem>();
+            ecs.fakeStart();
+
+            ecs.executeOnce();
+            ecs.executeOnce();
+
+            EXPECT_FALSE(ecs.hasPendingWork());
+
+            // A command: the entity is made by the next pass
+            ecs.createEntity();
+
+            EXPECT_TRUE(ecs.hasPendingWork());
+
+            ecs.executeOnce();
+
+            EXPECT_FALSE(ecs.hasPendingWork());
+
+            // An event
+            ecs.sendEvent(ResizeEvent{800.0f, 600.0f});
+
+            EXPECT_TRUE(ecs.hasPendingWork());
+
+            ecs.executeOnce();
+
+            EXPECT_FALSE(ecs.hasPendingWork());
+        }
+
     }
 }

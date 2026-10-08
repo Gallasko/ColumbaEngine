@@ -26,6 +26,16 @@ namespace
     // what answers it land in the same frame, as long as they leave the frame its time to be drawn
     constexpr int SerialPassesPerFrame = 4;
     constexpr double SerialPassBudgetMs = 6.0;
+
+    // A change that moves the page is answered over several passes (a layout places its children, they resize,
+    // what hangs on them follows). Drawn in between it shows half placed, so the passes go on past the figures
+    // above while the last ones left work behind, up to these. The passes of such a change are the heavy ones
+    // (rows built again, text set): a frame held back once is better than a few drawn wrong
+    constexpr int SerialSettlePasses = 16;
+    constexpr double SerialSettleBudgetMs = 200.0;
+
+    // A system that already ran may hold an event for its next pass: one quiet pass is not yet the end
+    constexpr int SerialQuietPasses = 2;
 #endif
 }
 
@@ -372,14 +382,25 @@ static void mainLoopCallback(void* arg)
         const double passesStart = emscripten_get_now();
 
         int pass = 0;
+        int quiet = 0;
+        bool again = false;
 
         do
         {
             engine->mainWindow->ecs->executeOnce();
 
             ++pass;
+
+            quiet = engine->mainWindow->ecs->hasPendingWork() ? 0 : quiet + 1;
+
+            const double spent = emscripten_get_now() - passesStart;
+
+            const bool usual = pass < SerialPassesPerFrame and spent < SerialPassBudgetMs;
+            const bool settling = quiet < SerialQuietPasses and pass < SerialSettlePasses and spent < SerialSettleBudgetMs;
+
+            again = usual or settling;
         }
-        while (pass < SerialPassesPerFrame and emscripten_get_now() - passesStart < SerialPassBudgetMs);
+        while (again);
     }
 #endif
 

@@ -7,6 +7,11 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Fixed
+- Web build without threads: a change that moved the page was drawn half placed for a few frames (in
+  Chronicle, a work reaching its term showed its tiles twice, the log's ground under its panel and the
+  inventory over the stats). A layout settles over several passes and a frame ran four at most: the passes
+  now go on while the last ones left events or commands behind, up to 16 passes or 200 ms
+  (`EntitySystem::hasPendingWork`).
 - Profiler: the event buffer is bounded where an event is written, not only at the end of a frame. With
   `PG_PROFILE=ON` a threaded web page left in the background drew no frame while its systems ran on, the
   buffer grew until memory ran out, and the page stopped with `Aborted()` (`Profiler::trimEvents`).
