@@ -1,7 +1,18 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Chronicle",
   "changelog": [
+    {
+      "version": "0.2.0",
+      "changes": [
+        "A new life opens on its first work, chosen, with a Begin button and a line that says what to do",
+        "Paths are called classes, and the three of them show in the list from the first day",
+        "A fourth class, the Renegade, for who missed the three others",
+        "Preview on hover, gains lifting off their figure, toasts, warnings before rations run out",
+        "The three columns fit windows down to 680 x 566, and the left column scrolls",
+        "Fixes: a crash, the Begin button's time, the log losing its end"
+      ]
+    },
     {
       "version": "0.1.0",
       "changes": [
