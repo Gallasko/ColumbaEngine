@@ -29,6 +29,7 @@
 #include "Scenes/lifescene.h"
 #include "UI/sizer.h"   // LayoutSystem
 #include "Core/factrouter.h"
+#include "Core/settle.h"
 #include "Core/analytics.h"
 
 using namespace pg;
@@ -111,6 +112,11 @@ namespace chronicle
             ecs.succeed<MouseHoverSystem, ActivitySystem>();
             // It walks the lists' layouts every frame: never while the layout system changes them
             ecs.succeed<LayoutSystem, ActivitySystem>();
+
+            // The page comes to rest in the pass where it changes: the facts reach their widgets, the
+            // rows their list, the layouts and the solver each other, before anything is drawn. Without
+            // this a month's end took six passes to place, each one drawn
+            settleThePage(&ecs);
 
             // Gloss tooltips go through the engine's TooltipSystem (created by the UI boot).
             if (auto* tip = ecs.getSystem<TooltipSystem>())

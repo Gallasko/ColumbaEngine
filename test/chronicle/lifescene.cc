@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <fstream>
+#include <iostream>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -34,6 +35,7 @@
 #include "UI/sizer.h"
 #include "Core/motion.h"
 #include "Core/factrouter.h"
+#include "Core/settle.h"
 
 #include "ECS/entitysystem.h"
 #include "ECS/entitysystem_fwd.h"   // ResizeEvent
@@ -93,7 +95,8 @@ namespace pg
                     frames(6);
                 }
 
-                LifeFixture()
+                // `settles`: with the game's settle phase, or pass by pass as an ecs without one
+                LifeFixture(bool settles = true)
                 {
                     Motion::setReduced(true);
                     ecs.createSystem<PositionComponentSystem>();
@@ -127,7 +130,12 @@ namespace pg
                     ecs.createSystem<ButtonSystem>();
                     ecs.createSystem<TabsSystem>();
                     ecs.createSystem<ActivitySystem>();
+                    ecs.succeed<LayoutSystem, ActivitySystem>();
                     installIconEntries();
+
+                    // As the game does
+                    if (settles)
+                        settleThePage(&ecs);
 
                     auto* registry = ecs.createSystem<PrefabFactoryRegistry>();
                     registerEnginePrefabFactories(registry);
@@ -194,6 +202,49 @@ namespace pg
 
                 // Lets the paths just written reach their widgets
                 void settle() { frames(4); }
+
+                // Where everything on the page stands: every entity's box, and whether it is drawn
+                std::string placed()
+                {
+                    std::ostringstream out;
+                    const auto& entities = ecs.view();
+
+                    for (size_t i = 1; i <= ecs.getNbEntities(); ++i)
+                    {
+                        auto entity = entities[i];
+
+                        if (not entity or not entity->has<PositionComponent>())
+                            continue;
+
+                        auto pos = entity->get<PositionComponent>();
+
+                        out << entity->id << ":" << pos->x << "," << pos->y << "," << pos->width << "," << pos->height << "," << (pos->isRenderable() ? 1 : 0) << ";";
+                    }
+
+                    return out.str();
+                }
+
+                // The passes it takes for the page to stop moving, `most` when it never does
+                int passesToRest(int most = 40)
+                {
+                    std::string last = placed();
+                    int still = 0;
+                    int passes = 0;
+
+                    // At rest once it has not moved for a few passes: a link of a chain may leave a pass idle
+                    while (passes < most and still < 6)
+                    {
+                        ecs.executeOnce();
+                        ++passes;
+
+                        const std::string now = placed();
+
+                        still = now == last ? still + 1 : 0;
+                        last = now;
+                    }
+
+                    return passes - still;
+                }
 
                 template <typename Type>
                 Type fact(const std::string& path)
@@ -307,7 +358,8 @@ namespace pg
             EXPECT_NEAR(box("dateNote").right, 1304.0f, 0.5f);
             EXPECT_LE(box("date").bottom, box("dateNote").top + 0.5f);
             EXPECT_LE(box("dateNote").bottom, 70.0f);
-            EXPECT_LE(box("about").right, box("dateNote").left);
+            // The line of who he is ends where the date's room begins: the note's box is wider than what it writes
+            EXPECT_LE(box("about").right, 1320.0f - 16.0f - 300.0f + 0.5f);
             EXPECT_EQ(life->piece<Label>("date")->spec.text, "YEAR 10");
             EXPECT_EQ(life->piece<Label>("dateNote")->spec.text, "MONTH 7 \xC2\xB7 SUMMER \xC2\xB7 BELLMOOR");
 
@@ -448,7 +500,15 @@ namespace pg
                 return Box{p->x, p->y, p->x + p->width, p->y + p->height};
             };
 
-            auto shown = [&](const char* name) { return f.pos(life->named(name))->isRenderable(); };
+            auto shown = [&](const char* name) {
+                if (life->named(name).empty())
+                {
+                    ADD_FAILURE() << "nothing on the page is named " << name;
+                    return false;
+                }
+
+                return f.pos(life->named(name))->isRenderable();
+            };
 
             // The compact page keeps his age and his year in its head
             for (const char* name : {"subtitle", "age", "ageNote"})
@@ -471,21 +531,21 @@ namespace pg
             EXPECT_NEAR(box("may").right, box("working").right, 0.5f);
             EXPECT_LE(box("may").bottom, 600.0f);
             EXPECT_GT(box("may").bottom, 600.0f - 32.0f);
-            EXPECT_NEAR(box("age").right, 776.0f, 0.5f);
+            EXPECT_NEAR(box("age").right, 616.0f, 0.5f);
             EXPECT_LE(box("title").right, box("age").left);
 
             for (const char* side : {"parts", "holds", "clockPanel", "happened"})
             {
-                EXPECT_NEAR(box(side).right, 776.0f, 0.5f) << side;
-                EXPECT_NEAR(box(side).left, 456.0f, 0.5f) << side;
+                EXPECT_NEAR(box(side).right, 616.0f, 0.5f) << side;
+                EXPECT_NEAR(box(side).left, 296.0f, 0.5f) << side;
                 EXPECT_GE(box(side).top, box("sideTabs").bottom) << side;
             }
 
             EXPECT_LE(box("happened").bottom, 600.0f);
 
-            // The tiles follow the narrower list: two to a line in 384
+            // The tiles follow the narrower list: one to a line in 224
             auto list = life->piece<ActivityList>("activities");
-            EXPECT_EQ(list->columns(), 2);
+            EXPECT_EQ(list->columns(), 1);
             ActivityRow* yard = list->row(&f.ecs, "yard");
             ASSERT_NE(yard, nullptr);
             EXPECT_NEAR(f.pos(yard->root)->width, 256.0f - 32.0f, 0.5f);
@@ -529,7 +589,8 @@ namespace pg
             EXPECT_FALSE(life->named("about").empty());
             EXPECT_TRUE(life->named("sideTabs").empty());
             EXPECT_NEAR(box("may").right - box("may").left, 604.0f, 0.5f);
-            EXPECT_TRUE(shown("parts"));
+            EXPECT_TRUE(life->named("parts").empty());
+            EXPECT_TRUE(shown("learned"));
             EXPECT_TRUE(shown("happened"));
             EXPECT_NE(life->piece<ActivityList>("running")->row(&f.ecs, "yard"), nullptr);
             EXPECT_EQ(life->piece<EventLog>("log")->size(), life->save.log.size());
@@ -786,6 +847,57 @@ namespace pg
 
             EXPECT_EQ(f.fact<int>("character.parts.str.projected"), -1);
             EXPECT_FALSE(str->projected.has_value());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A work reaching its term changes the whole page: the tiles, the work at hand, the log, the
+        // inventory. With the settle phase all of it is in place after the pass that follows; an ecs
+        // without one places it link by link, a pass each.
+        TEST(lifescene_test, a_term_is_placed_in_one_pass)
+        {
+            int passes[2] = {0, 0};
+            std::string rest[2];
+
+            for (int settles = 0; settles < 2; ++settles)
+            {
+                MockLogger logger;
+                LifeFixture f(settles == 1);
+
+                LifeSceneOptions opt = LifeFixture::mockup();
+                opt.fresh = true;
+
+                LifeScene* life = f.life(opt);
+                ASSERT_NE(life, nullptr);
+
+                f.frames(20);
+
+                // "Run Messages": three months, his first coin and the deed that goes with it
+                f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "messages"});
+                f.frames(20);
+
+                ASSERT_EQ(life->save.running, "messages");
+
+                life->onMonth();
+                f.frames(20);
+                life->onMonth();
+                f.frames(20);
+
+                life->onMonth();
+
+                ASSERT_TRUE(life->save.running.empty());
+
+                passes[settles] = f.passesToRest();
+                rest[settles] = f.placed();
+
+                std::cout << "[ life     ] a term is placed in " << passes[settles] << " passes " << (settles == 1 ? "with" : "without") << " the settle phase" << std::endl;
+            }
+
+            // The deed is taken in the scene's execute, at the end of the first pass: what it writes is
+            // placed by the second
+            EXPECT_LE(passes[1], 2);
+            EXPECT_GT(passes[0], passes[1]);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -1182,11 +1294,10 @@ namespace pg
             EXPECT_EQ(carters->spec.until, "CLOSES 4/11");
             EXPECT_TRUE(carters->spec.urgent);
 
-            // An old man's work is listed by now, and is never closed
+            // An old man's work is listed by now: it says it is new, and never that it closes
             ActivityRow* tales = list->find(&f.ecs, "tales");
             ASSERT_NE(tales, nullptr);
-            EXPECT_EQ(tales->spec.until, "");
-            EXPECT_FALSE(tales->until.has_value());
+            EXPECT_EQ(tales->spec.until, "NEW");
 
             // At work, the running row says nothing of its closing
             f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
@@ -1716,12 +1827,12 @@ namespace pg
             EXPECT_EQ(vit->figure.spec.color, "status-loss");
             EXPECT_FALSE(life->piece<StatLine>("str")->spec.alert);
 
-            // The red fades
+            // The red stays past the flash: with nothing to eat the month to come takes from it again
             f.ecs.sendEvent(TickEvent{2000.0f});
             f.settle();
 
-            EXPECT_FALSE(life->piece<StatLine>("vit")->spec.alert);
-            EXPECT_EQ(life->piece<StatLine>("vit")->figure.spec.color, "ink");
+            EXPECT_TRUE(life->piece<StatLine>("vit")->spec.alert);
+            EXPECT_EQ(life->piece<StatLine>("vit")->figure.spec.color, "status-loss");
             EXPECT_TRUE(life->paused);
 
             life->paused = false;

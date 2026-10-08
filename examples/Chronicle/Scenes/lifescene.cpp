@@ -1040,6 +1040,8 @@ namespace chronicle
         if (EntityRef clockPanel = named("clockPanel"); not clockPanel.empty())
             clock = std::max(clock, clockPanel->get<PositionComponent>()->height);
 
+        clockFitted = clock;
+
         const float logHeight = std::max(heights.minLog, height - ColumnsTop - clock - heights.stack - workingHeight() - heights.stack - PanelChrome - LogFootnote - heights.margin);
 
         if (auto log = piece<EventLog>("log"))
@@ -1141,6 +1143,21 @@ namespace chronicle
 
     void LifeScene::execute()
     {
+        // A page just built stacked its buttons before its layouts held them: the one that is not
+        // shown still had its room. Shown again now that they do
+        if (buttonsDue)
+        {
+            buttonsDue = false;
+            showWorkButtons();
+        }
+
+        // The years' panel measured itself after the log was fitted under it: fitted again
+        if (not compact and not page.empty())
+        {
+            if (EntityRef clockPanel = named("clockPanel"); not clockPanel.empty() and std::abs(std::max(ClockPanel, clockPanel->get<PositionComponent>()->height) - clockFitted) > 0.5f)
+                fit(windowWidth, windowHeight);
+        }
+
         if (reached.empty())
             return;
 
@@ -1574,6 +1591,7 @@ namespace chronicle
         figures.clear();
         quiet = QuietMs;
         showWorkButtons();
+        buttonsDue = true;
     }
 
     void LifeScene::fillWindows()

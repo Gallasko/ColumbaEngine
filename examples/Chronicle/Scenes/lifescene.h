@@ -80,6 +80,8 @@ namespace chronicle
         int widthStep = 0;             // The three columns as built: which of their widths and heights (the roomiest the window held)
         int heightStep = 0;
         bool runningShown = false;     // "At work now" holds a row: the page is fitted to it
+        float clockFitted = 0.0f;      // The height of the years' panel the log was fitted under
+        bool buttonsDue = false;       // A page just built: its buttons are shown again once its layouts hold them
 
     private:
         bool buildPage(bool compact);  // The page from its file, in place of the one there was

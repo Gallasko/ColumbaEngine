@@ -7,6 +7,11 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Fixed
+- Chronicle: after the page was built again at another size, the button that is not shown in "At work now"
+  kept its room (the panel was 48 px too tall until the next month), and the log was fitted under the
+  years' panel before that panel had measured itself (13 px too tall at the start). Both are set right at
+  the end of the pass. Four life scene tests that had never been run against the polish are brought up to
+  date.
 - Web build without threads: a change that moved the page was drawn half placed for a few frames (in
   Chronicle, a work reaching its term showed its tiles twice, the log's ground under its panel and the
   inventory over the stats). A layout settles over several passes and a frame ran four at most: the passes
@@ -73,6 +78,9 @@ First tagged release. Everything below describes the state of the engine at the 
   taking a pass a link. `settleUiInBasicTask(ecs)` adds the prefab, layout and position systems; an ecs
   with no settle system behaves as before. `PositionComponentSystem` and `WorldFacts` take their pending
   lists before they send, so what a listener marks while the event is delivered is kept for the next round.
+- Chronicle: the page comes to rest in the pass where it changes (`Core/settle.h`: the facts, the prefab,
+  activity, layout and position systems in the settle phase). A work reaching its term took 8 passes to
+  place, each one drawn; it takes 2, the second for the deed it earns.
 - Chronicle: the rules are asked once. `Rules` keeps each answer while what it was asked with stands (the
   age, the character, `done`, `world`, the call's arguments), one run of `windows.pg` answers both the
   activities and the doors (`activities.pg` is gone), a list of tables is read back in one walk, and one
