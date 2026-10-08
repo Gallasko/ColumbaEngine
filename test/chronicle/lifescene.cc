@@ -1294,10 +1294,11 @@ namespace pg
             EXPECT_EQ(carters->spec.until, "CLOSES 4/11");
             EXPECT_TRUE(carters->spec.urgent);
 
-            // An old man's work is listed by now: it says it is new, and never that it closes
+            // An old man's work is listed by now, and is never closed
             ActivityRow* tales = list->find(&f.ecs, "tales");
             ASSERT_NE(tales, nullptr);
-            EXPECT_EQ(tales->spec.until, "NEW");
+            EXPECT_EQ(tales->spec.until, "");
+            EXPECT_FALSE(tales->until.has_value());
 
             // At work, the running row says nothing of its closing
             f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
@@ -1750,7 +1751,66 @@ namespace pg
             f.settle();
 
             EXPECT_EQ(life->save.stats["rations"], 2);
-            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "2");
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "2/60");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Rations have a limit, and a purchase begun with room left may carry him past it. Under
+        // it, at it and past it the row that sells them goes through every state it has (it asks
+        // for room, is locked, is chosen and confirmed all the same) and the months pass over it.
+        TEST(lifescene_test, a_holding_at_its_limit)
+        {
+            for (int settles = 0; settles < 2; ++settles)
+            {
+                MockLogger logger;
+                LifeFixture f(settles == 1);
+
+                LifeScene* life = f.life();
+                ASSERT_NE(life, nullptr);
+
+                auto list = life->piece<ActivityList>("activities");
+                auto ledger = life->piece<ResourceLedger>("ledger");
+                ASSERT_NE(list, nullptr);
+                ASSERT_NE(ledger, nullptr);
+
+                life->save.stats["coin"] = 500;
+
+                for (int rations : {50, 53, 54, 55, 56, 58, 59, 60, 61, 62, 66, 120, 60, 54, 1})
+                {
+                    // A month tells the page of it (and eats one)
+                    life->save.stats["rations"] = rations;
+                    life->onMonth();
+                    f.settle();
+
+                    // Under the mouse, chosen, begun twice, and a month over it
+                    f.ecs.sendEvent(ActivityHoveredEvent{"life.activities", "buy.rations"});
+                    f.settle();
+                    f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "buy.rations"});
+                    f.settle();
+
+                    // What it costs is its gloss's to say: his purse shows what he has
+                    ASSERT_NE(ledger->row("coin"), nullptr);
+                    EXPECT_EQ(ledger->row("coin")->spec.value, std::to_string(life->save.stats["coin"]));
+
+                    f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "buy.rations"});
+                    f.settle();
+                    f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "buy.rations"});
+                    f.settle();
+                    f.ecs.sendEvent(ActivityHoveredEvent{"life.activities", ""});
+                    life->onMonth();
+                    f.settle();
+
+                    // Begun with any room left it brings all it brings, past the limit: full, it is refused
+                    EXPECT_LE(life->save.stats["rations"], std::max(59 + 6, rations)) << rations;
+                    ASSERT_NE(ledger->row("rations"), nullptr);
+                    ASSERT_NE(list->find(&f.ecs, "buy.rations"), nullptr) << rations;
+
+                    // In the column, over the most he can hold, past it too
+                    EXPECT_EQ(ledger->row("rations")->figure.spec.text, std::to_string(life->save.stats["rations"]) + "/60");
+                }
+            }
         }
 
         // ----------------------------------------------------------------------------------------
@@ -1778,7 +1838,7 @@ namespace pg
             f.settle();
 
             EXPECT_EQ(life->save.stats["rations"], 1);
-            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "1");
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "1/60");
             EXPECT_EQ(life->save.log.size(), logEntries);
 
             life->onMonth();
@@ -1864,7 +1924,7 @@ namespace pg
             auto ledger = life->piece<ResourceLedger>("ledger");
             ASSERT_NE(ledger, nullptr);
             ASSERT_NE(ledger->row("rations"), nullptr);
-            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "12");
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "12/60");
             EXPECT_EQ(ledger->row("coin"), nullptr);
 
             // The new life goes on as any other
@@ -2228,7 +2288,7 @@ namespace pg
             auto ledger = life->piece<ResourceLedger>("ledger");
             ASSERT_NE(ledger, nullptr);
             EXPECT_EQ(ledger->row("coin")->figure.spec.text, std::to_string(coin - 5));
-            EXPECT_EQ(ledger->row("rations")->figure.spec.text, std::to_string(rations + 6));
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, std::to_string(rations + 6) + "/60");
 
             // Still there to be done again
             EXPECT_NE(list->find(&f.ecs, "buy.rations"), nullptr);
@@ -2393,7 +2453,7 @@ namespace pg
             ASSERT_NE(ledger, nullptr);
             ASSERT_EQ(ledger->groups.size(), 1u);
             ASSERT_NE(ledger->row("rations"), nullptr);
-            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "12");
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "12/60");
             EXPECT_EQ(ledger->row("coin"), nullptr);
 
             // One milestone row, and no year rubric over it: the Life page's log is its lines alone

@@ -727,10 +727,11 @@ it in `lifescene.cpp` over the widgets as they are:
 - A tile chosen in the list puts a **Begin** button in "At work now" (`showWorkButtons`), in
   the place of the one that passes a month; a second click or Enter still begins it.
 - The mouse on a tile is a **preview** (`ActivityHoveredEvent`, `preview`): the ghosts on his
-  parts, and "46 -> 36" on the holdings it would change. What is chosen says more than what the
-  mouse is on.
+  parts, and "46 -> 52" on the holdings it would add to (what it costs is said by its gloss, not
+  on his purse). What is chosen says more than what the mouse is on.
+- What has a most he can hold shows it in its row (`holdingText`): "12/60", "64/60" past it.
 - A tile says under its name what matters most of it (`tileNote`): what it still asks when he
-  cannot do it ("NEEDS AGE 21"), that it is `NEW` until it is chosen, or when it closes.
+  cannot do it ("NEEDS AGE 21"), or when it closes.
 - The rules say what is **running out** (`warning` from `resources.pg`, "RATIONS FOR 2 MONTHS"),
   written under his Vitality, and a part the coming month would take from is in red before it does.
 - A figure that rises lifts a **"+2"** beside it (`showGain`), the log's new line is **lit** for a

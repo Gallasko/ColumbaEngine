@@ -11,7 +11,8 @@ First tagged release. Everything below describes the state of the engine at the 
   only refused an id when the set was empty: for any other id it took the size down, moved the last
   element into the place of an unrelated one and handed that place back to be released. A component of
   another entity was freed while still listed, and a later attach to a reused id followed a null pointer:
-  the "Segmentation fault" players met in Chronicle when its rows were built again (a store filling up). An
+  very likely the "Segmentation fault" players met in Chronicle when its rows were built again (a store
+  filling up), which a memory checker reproduces on that path. An
   id that is not in the set is now refused, a removed id points at nothing, and the arrays start zeroed.
   `EntityRef` built from a null entity left its id and its ecs unset; they are 0 and null, and a copy
   no longer looks an entity up in an ecs it does not have. `test/sparsesettest.cc` was never built: it
@@ -86,6 +87,10 @@ First tagged release. Everything below describes the state of the engine at the 
   `EntitySystem::registerCustomVmModule`; systems written in script go through `StandardSystem`.
 
 ### Changed
+- Chronicle: a holding with a most he can hold shows it in its row ("12/60", "64/60" past it), not only
+  in its gloss. Choosing or pointing at an activity no longer writes what it would cost on his purse
+  ("7 -> 1"): the cost is the gloss's to say, the row keeps what he has; what a work would add is still
+  shown. A tile that has just come no longer reads NEW (the toast still says it).
 - ECS: an opt-in **settle phase**. A system added with `EntitySystem::addSettleSystem<Sys>()` is run again
   at the end of every Basic Task, round after round, until a round sends no event (32 at most). Events are
   delivered on the spot there, so a chain that crosses those systems (a layout places its children, the
@@ -110,7 +115,7 @@ First tagged release. Everything below describes the state of the engine at the 
   - **Toasts**: a deed, a milestone and an activity that has just become possible are said on a slip at
     the foot of the window for a few seconds.
   - **Preview on hover**: the mouse on a tile is enough for the ghosts on his parts
-    (`ActivityHoveredEvent`), and what the activity would leave of what he holds reads "46 -> 36" on its row.
+    (`ActivityHoveredEvent`), and what the activity would add to what he holds reads "46 -> 52" on its row.
   - **Locked tiles** say the first thing they still ask of him ("NEEDS AGE 21").
   - **Running out**: from three months of rations left the rules say so (`warning` in `resources.pg`),
     under his Vitality, and a part the coming month would take from is in red before the month, not after.

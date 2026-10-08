@@ -107,7 +107,8 @@ namespace chronicle
         std::string tileNote(const RuleActivity& activity, bool& urgent) const;   // What a tile says under its name and time: what it asks, that it is new, or when it closes
         void onHover(const ActivityHoveredEvent& event);   // The mouse came onto a tile or left them
         void preview();                // What the chosen activity, or the one the mouse is on, would make of his parts and of what he holds
-        void previewHoldings(const RuleForecast* forecast);   // "46 -> 36" on the rows it would change; nullptr: the figures as they are
+        void previewHoldings(const RuleForecast* forecast);   // "46 -> 52" on the rows it would add to; nullptr: the figures as they are
+        std::string holdingText(const std::string& id, int amount) const;   // "12", or "12/60" for what has a most he can hold
         void followLog();              // The log taken to its end in a moment, for a reader who was there
         void runPassing(float ms);     // What lasts a moment, a tick further
         void endPassing();             // All of it ended at once: the scene leaves
@@ -162,7 +163,6 @@ namespace chronicle
         std::string chosen;                       // The activity chosen in the list, "" for none: what the Begin button begins
         std::string hovered;                      // The one the mouse is on, "" for none: previewed when nothing is chosen
         std::vector<std::string> known;           // The activities he could do when the list was last filled
-        std::vector<std::string> fresh;           // The ones that came since and have not been looked at: "NEW" on their tile
 
         // Something that lasts a moment (a gain lifting off its figure, a lit line, a toast): the
         // milliseconds left, what each tick does with the ones it is given, what its end does

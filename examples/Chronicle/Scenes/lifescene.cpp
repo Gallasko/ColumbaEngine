@@ -1640,8 +1640,8 @@ namespace chronicle
             return;
         }
 
-        // What the list did not have a moment ago is new: said by a toast, and on its tile until
-        // it is looked at. The first list of a page is all he has always had
+        // What the list did not have a moment ago is new: said by a toast. The first list of a page
+        // is all he has always had
         std::vector<std::string> ids;
 
         for (const auto& a : activities)
@@ -1657,7 +1657,6 @@ namespace chronicle
                 if (std::find(known.begin(), known.end(), id) != known.end())
                     continue;
 
-                fresh.push_back(id);
                 toast("New: " + activityName(id));
             }
         }
@@ -1750,12 +1749,9 @@ namespace chronicle
     {
         urgent = false;
 
-        // What he cannot do yet says what it still asks of him; what has just come says it is new
+        // What he cannot do yet says what it still asks of him
         if (const std::string asks = asksOf(activity); not asks.empty())
             return asks;
-
-        if (std::find(fresh.begin(), fresh.end(), textOf(activity.fields, "id")) != fresh.end())
-            return "NEW";
 
         // When it closes, once that is near
         urgent = boolOf(activity.fields, "urgent");
@@ -2047,7 +2043,7 @@ namespace chronicle
         row.id = resource.id;
         row.glyph = resource.glyph;
         row.name = resource.name;
-        row.value = titled(resource.id) ? std::string() : stat != save.stats.end() ? std::to_string(stat->second) : resource.value;
+        row.value = titled(resource.id) ? std::string() : stat != save.stats.end() ? holdingText(resource.id, stat->second) : resource.value;
         row.rate = resource.rate;
         row.tone = static_cast<LedgerTone>(resource.tone);
         row.muted = resource.muted;
@@ -2222,7 +2218,7 @@ namespace chronicle
             }
 
             // A title is had or not: its row shows no figure
-            setFact("resources." + r.id + ".value", titled(r.id) ? std::string() : stat != save.stats.end() ? std::to_string(stat->second) : r.value);
+            setFact("resources." + r.id + ".value", titled(r.id) ? std::string() : stat != save.stats.end() ? holdingText(r.id, stat->second) : r.value);
             setFact("resources." + r.id + ".rate", rate);
             setFact("resources." + r.id + ".muted", r.muted);
         }
@@ -2393,21 +2389,6 @@ namespace chronicle
 
         chosen = event.id;
 
-        // Looked at: no longer new
-        if (auto it = std::find(fresh.begin(), fresh.end(), chosen); it != fresh.end())
-        {
-            fresh.erase(it);
-
-            if (const RuleActivity* seen = activityOf(chosen))
-            {
-                bool urgent = false;
-                const std::string note = tileNote(*seen, urgent);
-
-                setFact("activity." + chosen + ".urgent", urgent);
-                setFact("activity." + chosen + ".until", note);
-            }
-        }
-
         showWorkButtons();
         preview();
     }
@@ -2445,6 +2426,18 @@ namespace chronicle
         glossParts(&forecast, activityName(id));
     }
 
+    std::string LifeScene::holdingText(const std::string& id, int amount) const
+    {
+        // Over the most he can hold when the rules give one: "12/60", and "64/60" past it
+        for (const auto& h : holdings)
+        {
+            if (textOf(h, "id") == id and intOf(h, "limit") > 0)
+                return std::to_string(amount) + "/" + std::to_string(intOf(h, "limit"));
+        }
+
+        return std::to_string(amount);
+    }
+
     void LifeScene::previewHoldings(const RuleForecast* forecast)
     {
         auto ledger = piece<ResourceLedger>("ledger");
@@ -2463,11 +2456,12 @@ namespace chronicle
 
             auto now = save.stats.find(r.id);
 
-            if (forecast and now != save.stats.end() and value == std::to_string(now->second))
+            if (forecast and now != save.stats.end() and value == holdingText(r.id, now->second))
             {
                 auto after = forecast->atTerm.find(r.id);
 
-                if (after != forecast->atTerm.end() and intOf(after->second) != now->second)
+                // Only what it would add: what it costs is its gloss's to say, not his purse's
+                if (after != forecast->atTerm.end() and intOf(after->second) > now->second)
                     value += Arrow + std::to_string(intOf(after->second));
             }
 
@@ -2992,7 +2986,6 @@ namespace chronicle
         rules.done = save.terms();
 
         known.clear();
-        fresh.clear();
 
         rebuild();
         publish();
