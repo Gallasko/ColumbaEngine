@@ -69,6 +69,11 @@ fun validateOps(ops)
             log("ERROR: op '" + name + "' has neither `op` shorthand nor kernels")
             return false
         }
+        if (contain(op, "orderedIf") and not op["commutative"])
+        {
+            log("ERROR: op '" + name + "' has `orderedIf` but is not commutative")
+            return false
+        }
 
         var kernels = expandKernels(op)
         for (var k = 0; k < len(kernels); k = k + 1)
@@ -252,6 +257,15 @@ fun renderFunctor(op)
         code += "\n"
         code += renderApplyCond(op, "        ")
     }
+    if (contain(op, "orderedIf"))
+    {
+        code += "\n"
+        code += "        // The operands this op does not commute on: they keep their order.\n"
+        code += "        PG_FUSION_INLINE static bool isOrdered(const Value& a, const Value& b)\n"
+        code += "        {\n"
+        code += "            return " + op["orderedIf"] + ";\n"
+        code += "        }\n"
+    }
     code += "    };\n"
     code += "\n"
     return code
@@ -410,6 +424,30 @@ fun renderSelectFile(ops)
     code += "            case BinOp::None: return nullptr;\n"
     code += "        }\n"
     code += "        return nullptr;\n"
+    code += "    }\n"
+    code += "\n"
+
+    code += "    // `x = operand <op> x`, commutative ops only: the same in-place handler as\n"
+    code += "    // `x = x <op> operand`, or the swapped one when the op has an ordered case.\n"
+    code += "    inline OpDecodedHandler selectFusedLocalCompoundSwapped(BinOp op, Src a)\n"
+    code += "    {\n"
+    code += "        switch (op)\n"
+    code += "        {\n"
+    for (var i = 0; i < len(ops); i = i + 1)
+    {
+        if (ops[i]["commutative"])
+        {
+            var picker = "pickCompoundB"
+            if (contain(ops[i], "orderedIf"))
+            {
+                picker = "pickCompoundSwappedA"
+            }
+
+            code += "            case BinOp::" + enumName(ops[i]) + ": return " + picker + "<" + functorName(ops[i]) + ">(a);\n"
+        }
+    }
+    code += "            default: return nullptr;\n"
+    code += "        }\n"
     code += "    }\n"
 
     return code

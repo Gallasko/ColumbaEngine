@@ -42,3 +42,17 @@
         }
         return nullptr;
     }
+
+    // `x = operand <op> x`, commutative ops only: the same in-place handler as
+    // `x = x <op> operand`, or the swapped one when the op has an ordered case.
+    inline OpDecodedHandler selectFusedLocalCompoundSwapped(BinOp op, Src a)
+    {
+        switch (op)
+        {
+            case BinOp::Add: return pickCompoundSwappedA<FAdd>(a);
+            case BinOp::Multiply: return pickCompoundB<FMultiply>(a);
+            case BinOp::Equal: return pickCompoundB<FEqual>(a);
+            case BinOp::NotEqual: return pickCompoundB<FNotEqual>(a);
+            default: return nullptr;
+        }
+    }

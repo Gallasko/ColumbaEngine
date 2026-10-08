@@ -661,6 +661,11 @@ TEST_F(ScriptTestBench, StringConcatenation)
     testScript("string_concatenation");
 }
 
+TEST_F(ScriptTestBench, StringPrependLocal)
+{
+    testScript("string_prepend_local");
+}
+
 TEST_F(ScriptTestBench, StringInVariables)
 {
     testScript("string_in_variables");

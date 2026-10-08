@@ -411,20 +411,26 @@ namespace pg
         // In-place compound assignment: when the store destination is also a
         // Local source (`x = x <op> operand`, or `x = operand <op> x` for a
         // commutative op), collapse to a single read-modify-write handler that
-        // updates the slot in place. `outB` reports the operand source used
+        // updates the slot in place. A commutative op with an ordered case (add
+        // on strings) takes a swapped handler that keeps the operand on the left
+        // for that case only. `outB` reports the operand source used
         // (for the profiler name). Returns false when no in-place form applies.
         auto buildCompound = [&](BinOp op, const SrcDesc& a, const SrcDesc& b,
                                  uint8_t dstSlot, DecodedInstruction& out, Src& outB) -> bool
         {
-            const SrcDesc* other = nullptr; // becomes right operand B (byte2 / const)
+            const SrcDesc* other = nullptr; // the operand that is not the destination (byte2 / const)
+            bool swapped = false; // other is the left operand in the source
             if (a.kind == Src::Local and a.byteVal == dstSlot)
                 other = &b;
             else if (isCommutative(op) and b.kind == Src::Local and b.byteVal == dstSlot)
+            {
                 other = &a;
+                swapped = true;
+            }
             else
                 return false;
 
-            OpDecodedHandler handler = selectFusedLocalCompound(op, other->kind);
+            OpDecodedHandler handler = swapped ? selectFusedLocalCompoundSwapped(op, other->kind) : selectFusedLocalCompound(op, other->kind);
             if (handler == nullptr)
                 return false;
 

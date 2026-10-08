@@ -9,7 +9,7 @@ and rendered by `/tools/gen_vm_ops.pg` (a PgScript program, run by
 |---|---|---|
 | `ops_functors.inc` | `decoded_fusion.h` | `FAdd`… functor structs: inline typed kernels + `applyCond` for comparisons |
 | `ops_binop_tables.inc` | `decoded_fusion.h` | `BinOp` enum, `classifyBinary`, `isComparison`, `isCommutative`, `binOpName` |
-| `ops_select.inc` | `decoded_fusion.h` | `selectFusedBinary` / `selectFusedLocalCompound` switches |
+| `ops_select.inc` | `decoded_fusion.h` | `selectFusedBinary` / `selectFusedLocalCompound` / `selectFusedLocalCompoundSwapped` switches |
 | `ops_base_handlers.inc` | `vm_binary_op.cpp` | base stack/stack `op_*_decoded` handlers |
 | `ops_values_helpers.inc` | `vm_binary_op.cpp` | `VM::*Values` bodies (kernel ladder + handwritten `*ValuesTail` fallback) |
 

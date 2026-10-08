@@ -17,6 +17,12 @@
                 return FLOAT_VAL(AS_DOUBLE(a) + static_cast<double>(AS_INT(b)));
             return vm->addValues(a, b);
         }
+
+        // The operands this op does not commute on: they keep their order.
+        PG_FUSION_INLINE static bool isOrdered(const Value& a, const Value& b)
+        {
+            return IS_STRING(a) and IS_STRING(b);
+        }
     };
 
     // op: subtract (arith; helper: subtractValues)

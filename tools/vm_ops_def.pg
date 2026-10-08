@@ -14,6 +14,9 @@
 //   helper      the VM::*Values slow-path function (single source of truth
 //               for types not covered by kernels)
 //   commutative used by the fusion pass to match `x = b op x` compounds
+//   orderedIf   only with commutative: C++ condition over a/b for the operands
+//               the op does NOT commute on. `x = b op x` then keeps b on the
+//               left when it holds and runs swapped otherwise
 //   op          shorthand: derives the 4 numeric kernels
 //               (int/int, dbl/dbl, int/dbl promote, dbl/int promote), inline
 //   kernels     explicit list, mutually exclusive with `op`
@@ -33,8 +36,10 @@ fun binaryOps()
 {
     var ops = []
 
+    // Commutative on numbers; on strings `+` concatenates and keeps its order.
     push(ops, { name: "add", opcode: "OP_Add", kind: "arith", op: "+",
                 helper: "addValues", commutative: true,
+                orderedIf: "IS_STRING(a) and IS_STRING(b)",
                 tail: "addValuesTail" })
 
     push(ops, { name: "subtract", opcode: "OP_Subtract", kind: "arith", op: "-",

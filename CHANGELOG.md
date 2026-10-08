@@ -17,6 +17,11 @@ First tagged release. Everything below describes the state of the engine at the 
   `EntityRef` built from a null entity left its id and its ecs unset; they are 0 and null, and a copy
   no longer looks an entity up in an ecs it does not have. `test/sparsesettest.cc` was never built: it
   is in `t1` now.
+- PgScript: `out = " " + out` on a local appended instead of prepending. The decode-time fusion took `+`
+  for commutative and turned `x = operand + x` into the in-place `x = x + operand`, which is wrong for
+  strings. `add` stays commutative and declares strings as its ordered case (`orderedIf` in
+  `tools/vm_ops_def.pg`): `fusedLocalCompoundSwapped` keeps the operand on the left for two strings and
+  swaps as before for everything else. Numbers were never affected.
 - Chronicle: the "+1" of a gain stood a line too high when the same month added a row over the stats (a
   first coin). It was put where the line stood before the page moved; it hangs on the line now.
 - Memory pool: `AllocatorPool::allocateWithIndex` walked the whole pool, index by index, to find the index

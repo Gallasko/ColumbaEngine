@@ -416,6 +416,23 @@ namespace fusion
         return &instr + 1;
     }
 
+    // slot = operand <op> slot, for a commutative op that has operand types it
+    // does not commute on (Op::isOrdered: add on strings). Those keep the operand
+    // on the left; every other type runs swapped, as slot <op> operand.
+    template <typename Op, Src A>
+    const DecodedInstruction* fusedLocalCompoundSwapped(VM* vm, const DecodedInstruction& instr)
+    {
+        const uint8_t slot = instr.operands.indexed.byte1; // local == dst == src B
+        Value& val = vm->currentFrame->slots[slot];
+        Value a = readSrc<A>(vm, instr, instr.operands.indexed.byte2);
+        Value r = Op::isOrdered(a, val) ? Op::apply(vm, a, val) : Op::apply(vm, val, a); // read val BEFORE releasing it
+        releaseSrc<A>(vm, a);
+        if (requiresRefCount(val))
+            vm->releaseAndDelete(val);
+        val = r;
+        return &instr + 1;
+    }
+
     // Comparison + popping conditional jump: the condition value never
     // touches the stack (it's a primitive bool — nothing to release).
     //
@@ -637,6 +654,21 @@ namespace fusion
             case Src::Local:    return &fusedLocalCompound<Op, Src::Local>;
             case Src::Const:    return &fusedLocalCompound<Op, Src::Const>;
             case Src::ShortInt: return &fusedLocalCompound<Op, Src::ShortInt>;
+        }
+        return nullptr;
+    }
+
+    // Same for `x = operand <op> x` when Op has an ordered case: only the left
+    // operand A varies.
+    template <typename Op>
+    inline OpDecodedHandler pickCompoundSwappedA(Src a)
+    {
+        switch (a)
+        {
+            case Src::Stack:    return &fusedLocalCompoundSwapped<Op, Src::Stack>;
+            case Src::Local:    return &fusedLocalCompoundSwapped<Op, Src::Local>;
+            case Src::Const:    return &fusedLocalCompoundSwapped<Op, Src::Const>;
+            case Src::ShortInt: return &fusedLocalCompoundSwapped<Op, Src::ShortInt>;
         }
         return nullptr;
     }

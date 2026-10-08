@@ -1,0 +1,78 @@
+// x = operand + x on a local must keep the operand on the left.
+// The in-place compound fusion used to swap it into x = x + operand.
+
+fun prependConst()
+{
+    var out = "b"
+    out = "a" + out
+
+    return out
+}
+
+fun prependLocal()
+{
+    var head = "a"
+    var out = "b"
+    out = head + out
+
+    return out
+}
+
+fun letter()
+{
+    return "a"
+}
+
+fun prependCall()
+{
+    var out = "b"
+    out = letter() + out
+
+    return out
+}
+
+fun padLeft(text, count)
+{
+    var out = text
+
+    for (var i = 0; i < count; i = i + 1)
+    {
+        out = "." + out
+    }
+
+    return out
+}
+
+// The appending form still fuses in place
+fun appendConst()
+{
+    var out = "a"
+    out = out + "b"
+
+    return out
+}
+
+// Numbers give the same result on either side
+fun addLeft()
+{
+    var n = 5
+    n = 1 + n
+
+    return n
+}
+
+fun multiplyLeft()
+{
+    var n = 5
+    n = 2 * n
+
+    return n
+}
+
+__dprint(prependConst())
+__dprint(prependLocal())
+__dprint(prependCall())
+__dprint(padLeft("7", 2))
+__dprint(appendConst())
+__dprint(addLeft())
+__dprint(multiplyLeft())
