@@ -1611,6 +1611,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/clip.cc
             test/scriptregistry.cc
             test/serialize.cc
+            test/sparsesettest.cc
             test/taskflow.cc
             test/uiconstanttest.cc
             test/uisystemtest.cc

@@ -58,7 +58,7 @@ namespace pg
         return ecsRef->registry.retrieveStandardComponent(compName)->components.has(id);
     }
 
-    EntityRef::EntityRef(Entity* ent, bool initialized) : initialized(initialized), entity(ent)
+    EntityRef::EntityRef(Entity* ent, bool initialized) : initialized(initialized), entity(ent), id(0), ecsRef(nullptr)
     {
         if (ent)
         {
@@ -89,7 +89,8 @@ namespace pg
 
             Entity* ent = nullptr;
 
-            if (id != 0)
+            // A reference to nothing has no ecs to look the entity up in
+            if (id != 0 and rhs.ecsRef)
                 ent = rhs.ecsRef->getEntity(id);
 
             if (ent)

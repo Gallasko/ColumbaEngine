@@ -21,9 +21,10 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        dense = new _unique_id[denseCapacity];
+        // Both zeroed: 0 is the id of nothing and the index of nothing
+        dense = new _unique_id[denseCapacity]();
 
-        sparse = new size_t[sparseCapacity];
+        sparse = new size_t[sparseCapacity]();
     }
 
     /**
@@ -101,12 +102,12 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        // Todo check this and that we need to see before hand that the id is in the list
-        const size_t currentSize = size--;
-
-        // Check if the id has a component
-        if (currentSize < 1 && !has(id))
+        // An id that is not in the set has nothing to remove. Going on would take the size down, put the
+        // last element in the place of another and hand back that other's index to be released
+        if (not has(id))
             return 0;
+
+        const size_t currentSize = size--;
 
         const auto index = sparse[id];
 
@@ -118,6 +119,10 @@ namespace pg
 
         dense[index] = lastElement;
         sparse[lastElement] = index;
+
+        // The id points at nothing any more
+        sparse[id] = 0;
+
         return index;
     }
 
@@ -239,6 +244,10 @@ namespace pg
 
         // Copy the current data inside of the newly created container
         memcpy(tempSparse, sparse, sparseCapacity * sizeof(size_t));
+
+        // The slots no id has taken yet point at nothing. has() never trusted what they held, but it
+        // read it: garbage there hides every other read of unset memory from a memory checker
+        memset(tempSparse + sparseCapacity, 0, (targetCapacity - sparseCapacity) * sizeof(size_t));
 
         // Delete old data to not leak memory
         delete[] sparse;

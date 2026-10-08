@@ -7,6 +7,15 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Fixed
+- ECS: removing a component from an entity that did not have one corrupted the set. `SparseSet::remove`
+  only refused an id when the set was empty: for any other id it took the size down, moved the last
+  element into the place of an unrelated one and handed that place back to be released. A component of
+  another entity was freed while still listed, and a later attach to a reused id followed a null pointer:
+  the "Segmentation fault" players met in Chronicle when its rows were built again (a store filling up). An
+  id that is not in the set is now refused, a removed id points at nothing, and the arrays start zeroed.
+  `EntityRef` built from a null entity left its id and its ecs unset; they are 0 and null, and a copy
+  no longer looks an entity up in an ecs it does not have. `test/sparsesettest.cc` was never built: it
+  is in `t1` now.
 - Chronicle: the "+1" of a gain stood a line too high when the same month added a row over the stats (a
   first coin). It was put where the line stood before the page moved; it hangs on the line now.
 - Memory pool: `AllocatorPool::allocateWithIndex` walked the whole pool, index by index, to find the index
@@ -99,7 +108,7 @@ First tagged release. Everything below describes the state of the engine at the 
   - **The log**: the line just written is lit for a moment (`EventLog::lightLast`, `log.line.new`), and
     the Life page's log has no year rubrics (`years: false`): a line's age says the year.
   - **Toasts**: a deed, a milestone and an activity that has just become possible are said on a slip at
-    the foot of the window for a few seconds, and the new activity's tile reads NEW until it is chosen.
+    the foot of the window for a few seconds.
   - **Preview on hover**: the mouse on a tile is enough for the ghosts on his parts
     (`ActivityHoveredEvent`), and what the activity would leave of what he holds reads "46 -> 36" on its row.
   - **Locked tiles** say the first thing they still ask of him ("NEEDS AGE 21").
