@@ -55,6 +55,47 @@ namespace pg
                 virtual void execute() { }
             };
 
+            struct Ping
+            {
+                int value = 0;
+            };
+
+            struct Pong
+            {
+                int value = 0;
+            };
+
+            // Two systems that answer each other, one more each time, up to `most`
+            struct PingSystem : public System<QueuedListener<Ping>>
+            {
+                virtual void onProcessEvent(const Ping& event) override
+                {
+                    last = event.value;
+
+                    if (event.value < most)
+                        ecsRef->sendEvent(Pong{event.value + 1});
+                }
+
+                virtual void execute() override { }
+
+                int most = 6;
+                int last = -1;
+            };
+
+            struct PongSystem : public System<QueuedListener<Pong>>
+            {
+                virtual void onProcessEvent(const Pong& event) override
+                {
+                    last = event.value;
+
+                    ecsRef->sendEvent(Ping{event.value + 1});
+                }
+
+                virtual void execute() override { }
+
+                int last = -1;
+            };
+
             struct C
             {
                 C(_unique_id value, const std::string& text) : value(value), text(text) {}
@@ -1267,6 +1308,96 @@ namespace pg
             ecs.executeOnce();
 
             EXPECT_FALSE(ecs.hasPendingWork());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // What a system sends while the systems run waits for the next pass: a chain of answers
+        // between two systems takes a pass a link.
+        TEST(system_test, a_chain_of_answers_takes_a_pass_a_link)
+        {
+            MockLogger logger;
+
+            EntitySystem ecs;
+            auto ping = ecs.createSystem<PingSystem>();
+            auto pong = ecs.createSystem<PongSystem>();
+            ecs.fakeStart();
+
+            ecs.sendEvent(Ping{0});
+            ecs.executeOnce();
+
+            EXPECT_EQ(ping->last, 0);
+            EXPECT_EQ(pong->last, -1);
+            EXPECT_EQ(ecs.getNbSettleRounds(), 0u);
+
+            int passes = 1;
+
+            while (ecs.hasPendingWork() and passes < 50)
+            {
+                ecs.executeOnce();
+                ++passes;
+            }
+
+            EXPECT_EQ(ping->last, 6);
+            EXPECT_EQ(pong->last, 5);
+            EXPECT_EQ(passes, 7);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // In the settle phase the same chain ends in the pass where it began: the systems are run
+        // round after round in the Basic Task, where an event is delivered on the spot.
+        TEST(system_test, the_settle_phase_ends_a_chain_in_one_pass)
+        {
+            MockLogger logger;
+
+            EntitySystem ecs;
+            auto ping = ecs.createSystem<PingSystem>();
+            auto pong = ecs.createSystem<PongSystem>();
+            ecs.addSettleSystem<PingSystem>();
+            ecs.addSettleSystem<PongSystem>();
+            ecs.fakeStart();
+
+            ecs.sendEvent(Ping{0});
+            ecs.executeOnce();
+
+            EXPECT_EQ(ping->last, 6);
+            EXPECT_EQ(pong->last, 5);
+            EXPECT_EQ(ecs.getNbSettleRounds(), 4u);
+            EXPECT_FALSE(ecs.hasPendingWork());
+
+            // Nothing to answer: one round, to see that there is nothing
+            ecs.executeOnce();
+
+            EXPECT_EQ(ecs.getNbSettleRounds(), 1u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // Two systems that never stop answering each other do not hold the pass: the phase gives
+        // up after its rounds, and what is left goes on in the passes that follow.
+        TEST(system_test, the_settle_phase_gives_up_on_an_endless_chain)
+        {
+            MockLogger logger;
+
+            EntitySystem ecs;
+            auto ping = ecs.createSystem<PingSystem>();
+            ecs.createSystem<PongSystem>();
+            ecs.addSettleSystem<PingSystem>();
+            ecs.addSettleSystem<PongSystem>();
+            ecs.fakeStart();
+
+            ping->most = 100000;
+
+            ecs.sendEvent(Ping{0});
+            ecs.executeOnce();
+
+            EXPECT_GT(ping->last, 6);
+            EXPECT_LT(ping->last, 1000);
+            EXPECT_GE(ecs.getNbSettleRounds(), 16u);
+
+            const int reached = ping->last;
+
+            ecs.executeOnce();
+
+            EXPECT_GT(ping->last, reached);
         }
 
     }

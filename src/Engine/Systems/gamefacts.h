@@ -282,10 +282,14 @@ namespace pg
         {
             if (changed)
             {
-                ecsRef->sendEvent(WorldFactsUpdate{&factMap, changedFacts});
+                // Taken before the event goes out: delivered on the spot (the settle phase), its listeners
+                // may set facts of their own, which are for the next update
+                std::vector<std::string> names;
+                names.swap(changedFacts);
 
-                changedFacts.clear();
                 changed = false;
+
+                ecsRef->sendEvent(WorldFactsUpdate{&factMap, names});
             }
         }
 

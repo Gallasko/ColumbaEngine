@@ -404,6 +404,39 @@ namespace pg
          *  @param outputFile      When non-empty, write to this file path instead of stdout. */
         void dumbTaskflow(bool showEventNodes = true, const std::string& outputFile = "") const;
 
+        /**
+         * @brief Add a system to the settle phase of the Basic Task
+         *
+         * The systems added here are run in the order they were added at the end of every Basic Task, round
+         * after round, until a round of them sends no event (MaxSettleRounds at most). No other system runs
+         * then, so their events are delivered on the spot and what they create or remove is done on the spot:
+         * a chain that crosses these systems (a layout places its children, the solver moves what hangs on
+         * them, the layout above follows) ends in the pass where it began instead of one pass a link.
+         *
+         * Opt in: an ecs with no settle system behaves as before. A system added here is still run by its
+         * own task, where it finds nothing left to do.
+         *
+         * @tparam Sys Type of the system, already created
+         */
+        template <typename Sys>
+        void addSettleSystem()
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            auto sys = getSystem<Sys>();
+
+            if (not sys)
+            {
+                LOG_ERROR("ECS", "Cannot settle with a system that was not created");
+                return;
+            }
+
+            settleSystems.push_back(sys);
+        }
+
+        /** The rounds the settle phase took in the last pass: 0 without settle systems, 1 when they had nothing to do */
+        inline size_t getNbSettleRounds() const { return nbSettleRounds; }
+
         //TODO make a template specialization capable of attaching an entity to an entity
 
         template <class Sys>
@@ -666,6 +699,8 @@ namespace pg
         void sendEvent(const Event& event, bool isDeferred = false)
         {
             LOG_THIS_MEMBER("ECS");
+
+            nbEventsSent.fetch_add(1, std::memory_order_relaxed);
 
             // Select the appropriate dispatcher based on event type
             auto& dispatcher = isDeferred ? deferredEventDispatcher : eventDispatcher;
@@ -1065,6 +1100,16 @@ namespace pg
         EventDispatcher eventDispatcher;
 
         EventDispatcher deferredEventDispatcher;
+
+        /** Every event sent through sendEvent, whichever way it was delivered */
+        std::atomic<size_t> nbEventsSent{0};
+
+        /** The systems of the settle phase, in their order */
+        std::vector<AbstractSystem*> settleSystems;
+
+        size_t nbSettleRounds = 0;
+
+        void settle();
 
         SaveManager saveManager;
 

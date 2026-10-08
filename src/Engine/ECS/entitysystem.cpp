@@ -46,6 +46,9 @@ namespace
 {
     static constexpr char const * DOM = "ECS";
 
+    // Rounds of the settle phase in one Basic Task: more than any chain of layouts is deep
+    static constexpr size_t MaxSettleRounds = 32;
+
 #if defined(DEBUG) || defined(PG_NO_THREADS)
     static constexpr size_t NBEXECUTORTHREADS = 1;
 #else
@@ -242,6 +245,15 @@ namespace pg
 
 #ifdef PROFILE
             PROFILE_END("GroupEventDispatch", "Event");
+
+            PROFILE_BEGIN("Settle", "System");
+#endif
+            // Still alone, still delivering on the spot: what the events and the commands above started
+            // is taken to its end by the systems that asked for it
+            settle();
+
+#ifdef PROFILE
+            PROFILE_END("Settle", "System");
 #endif
 
             if (not stopRequested)
@@ -747,6 +759,31 @@ namespace pg
         taskflowImpl->executor.run(taskflowImpl->taskflow).wait();
 
         running = keepRunning;
+    }
+
+    void EntitySystem::settle()
+    {
+        nbSettleRounds = 0;
+
+        if (settleSystems.empty())
+            return;
+
+        // A round that sends nothing has nothing left to answer
+        size_t sent = 0;
+
+        do
+        {
+            sent = nbEventsSent.load(std::memory_order_relaxed);
+
+            for (auto system : settleSystems)
+                system->_execute();
+
+            ++nbSettleRounds;
+        }
+        while (sent != nbEventsSent.load(std::memory_order_relaxed) and nbSettleRounds < MaxSettleRounds);
+
+        if (nbSettleRounds >= MaxSettleRounds)
+            LOG_WARNING(DOM, "The settle phase did not come to rest in " << MaxSettleRounds << " rounds: two systems answer each other without end");
     }
 
     bool EntitySystem::hasPendingWork() const

@@ -66,6 +66,13 @@ First tagged release. Everything below describes the state of the engine at the 
   `EntitySystem::registerCustomVmModule`; systems written in script go through `StandardSystem`.
 
 ### Changed
+- ECS: an opt-in **settle phase**. A system added with `EntitySystem::addSettleSystem<Sys>()` is run again
+  at the end of every Basic Task, round after round, until a round sends no event (32 at most). Events are
+  delivered on the spot there, so a chain that crosses those systems (a layout places its children, the
+  solver moves what hangs on them, the layout above follows) ends in the pass where it began instead of
+  taking a pass a link. `settleUiInBasicTask(ecs)` adds the prefab, layout and position systems; an ecs
+  with no settle system behaves as before. `PositionComponentSystem` and `WorldFacts` take their pending
+  lists before they send, so what a listener marks while the event is delivered is kept for the next round.
 - Chronicle: what happens is shown, and what would happen is said before it does.
   - **Begin**: a tile chosen in the list puts a Begin button in "At work now" (Do it now for what takes no
     time), in the place of the one that passes a month. A second click or Enter still begins it.

@@ -52,4 +52,11 @@ namespace pg
         // A repaint lands before the frame renders.
         ecs->succeed<ThemeSystem, MasterRenderer>();
     }
+
+    void settleUiInBasicTask(EntitySystem* ecs)
+    {
+        ecs->addSettleSystem<PrefabSystem>();
+        ecs->addSettleSystem<LayoutSystem>();
+        ecs->addSettleSystem<PositionComponentSystem>();
+    }
 }

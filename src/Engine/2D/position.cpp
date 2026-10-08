@@ -976,16 +976,18 @@ namespace pg
             }
         }
 
+        // Cleared before the events go out: in the settle phase they are delivered on the spot, and what
+        // a listener marks dirty then (a removed parent's children) is for the next round
+        changedIdsList.clear();
+        changedIdsSet.clear();
+        directlyChangedIds.clear();
+
         // Emit one PositionSettledEvent per entity whose final value actually changed.
         for (const auto& [id, node] : nodes)
         {
             if (node.changed)
                 ecsRef->sendEvent(PositionSettledEvent{id});
         }
-
-        changedIdsList.clear();
-        changedIdsSet.clear();
-        directlyChangedIds.clear();
     }
 
     bool inBound(EntityRef entity, float x, float y)
