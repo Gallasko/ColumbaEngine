@@ -26,7 +26,7 @@ var errors = []
 var milestoneTable = [
     {age: 7, id: "childhood", label: "Childhood", entry: "", asks: []},
     {age: 13, id: "apprenticeship", label: "Apprenticeship", entry: "", asks: []},
-    {age: 16, id: "path", label: "Choose a path", entry: "", asks: [
+    {age: 16, id: "path", label: "Choose a class", entry: "", asks: [
         {path: "warrior", stat: "str", label: "Strength", needed: 12},
         {path: "warrior", stat: "arms", label: "Arms", needed: 3},
         {path: "warrior", stat: "discipline", label: "Discipline", needed: 2},
@@ -55,7 +55,10 @@ var milestoneTable = [
         {path: "mage", stat: "lore", label: "Lore", needed: 7},
         {path: "mage", stat: "discipline", label: "Discipline", needed: 4},
         {path: "thief", stat: "stealth", label: "Stealth", needed: 8},
-        {path: "thief", stat: "guile", label: "Guile", needed: 7}
+        {path: "thief", stat: "guile", label: "Guile", needed: 7},
+        {path: "renegade", stat: "arms", label: "Arms", needed: 5},
+        {path: "renegade", stat: "stealth", label: "Stealth", needed: 5},
+        {path: "renegade", stat: "renown", label: "Renown", needed: 4}
     ]},
     {age: lastAge, id: "old", label: "Old age", entry: "His thirtieth year: old age begins, and his strength leaves him", asks: []}
 ]

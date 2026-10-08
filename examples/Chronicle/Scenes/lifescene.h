@@ -91,6 +91,9 @@ namespace chronicle
         void fitEnding(float width, float height);    // The ending's veil to the window
         float workingHeight() const;   // "At work now": its chrome alone, or with a running row
         void showWorkButtons();        // At nothing: the button that begins what is chosen, or the one that passes a month
+        bool led() const;              // A life that has done nothing yet and is at nothing: the page leads it to its first work
+        std::string firstWork() const; // The first activity of the list he may begin that takes months, "" for none
+        void lead();                   // That work chosen for him, and to a first life the line that says what the game is
         int workRoom();                // What its row has the room to say beside its name: 0 its time, 1 the line under it too, 2 the tally as well
         void showRunning(const std::string& id);   // The row of the work at hand, made for the room there is
         void showSide(int index);      // Compact: one side panel in view, the others hidden
@@ -114,7 +117,7 @@ namespace chronicle
         void endPassing();             // All of it ended at once: the scene leaves
         int roseOf(const std::string& key, const std::string& text);   // By how much a figure rose since it was last written, 0 if it did not
         void showGain(pg::EntityRef over, int amount);   // "+2" lifting off the figure that rose
-        void toast(const std::string& text);            // A slip at the foot of the window, for a few seconds
+        void toast(const std::string& text, float ms = 0.0f);   // A slip at the foot of the window, for a few seconds (its own time when given one)
         std::string asksOf(const RuleActivity& activity) const;   // What a tile he cannot do yet says under its name: "NEEDS ARMS 6", "" when it asks nothing more
         void endLife();                // The life is lost: the months stop and its ending comes up
         bool showEnding();             // The ending from its file, over the page, saying what epitaph.pg says
@@ -160,7 +163,11 @@ namespace chronicle
         std::vector<std::string> threat;          // The parts the coming month would take from, as things stand
         std::vector<std::string> threatShown;     // The ones of them in red for it
         std::string warning;                      // What the rules say of the coming month ("RATIONS FOR 2 MONTHS"), "" for nothing
+        std::string advice;                       // And what to do about it, as last said by a toast
         std::string chosen;                       // The activity chosen in the list, "" for none: what the Begin button begins
+        bool leadDue = false;                     // The page chose it for him: its tile is lit once the list holds its row
+        bool premiseDue = false;                  // A first life that has done nothing: what the game is, said once the page has arrived
+        bool premiseSaid = false;                 // And said already by this scene
         std::string hovered;                      // The one the mouse is on, "" for none: previewed when nothing is chosen
         std::vector<std::string> known;           // The activities he could do when the list was last filled
 

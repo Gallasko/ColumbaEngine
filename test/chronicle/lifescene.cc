@@ -1383,6 +1383,239 @@ namespace pg
             ASSERT_TRUE(life->save.running.empty());
             EXPECT_TRUE(f.pos(life->named("skip"))->visible);
             EXPECT_FALSE(button->spec.disabled);
+
+            // A life that has worked is not led: no line says what to do
+            ASSERT_FALSE(life->named("guide").empty());
+            EXPECT_FALSE(f.pos(life->named("guide"))->visible);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A life that has done nothing yet is led to its first work: the first of the list is chosen
+        // for him, Begin is the button of "At work now" under a line that says what to do, and there
+        // is no month to pass before a work is begun. The first term done, the page is as it always was.
+        TEST(lifescene_test, a_new_life_is_led_to_its_first_work)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_FALSE(life->named("guide").empty());
+            ASSERT_FALSE(life->named("begin").empty());
+
+            // The carters feed him: the first row of the table, chosen and lit
+            EXPECT_EQ(list->selected(), "carters");
+            EXPECT_TRUE(f.pos(life->named("guide"))->visible);
+            EXPECT_TRUE(f.pos(life->named("begin"))->visible);
+            EXPECT_FALSE(f.pos(life->named("skip"))->visible);
+            EXPECT_TRUE(life->piece<Button>("skip")->spec.disabled);
+
+            // The page chose it, not the player
+            EXPECT_EQ(life->save.picks, 0);
+
+            // Begin begins it
+            f.ecs.sendEvent(ButtonActivatedEvent{life->piece<Button>("begin")->face.id, "life.begin"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "carters");
+            EXPECT_EQ(life->save.begun, 1);
+            EXPECT_EQ(list->selected(), "");
+            EXPECT_FALSE(f.pos(life->named("guide"))->visible);
+
+            // Its term over, he is at nothing as any life is: a month to pass, nothing chosen, no line
+            for (int i = 0; i < 3; ++i)
+                life->onMonth();
+            f.frames(12);
+
+            ASSERT_TRUE(life->save.running.empty());
+            EXPECT_EQ(life->save.done["carters"], 1);
+            EXPECT_EQ(list->selected(), "");
+            EXPECT_TRUE(f.pos(life->named("skip"))->visible);
+            EXPECT_FALSE(f.pos(life->named("begin"))->visible);
+            EXPECT_FALSE(f.pos(life->named("guide"))->visible);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The three ways into a class stand in the list of a boy of 7, locked on his age.
+        TEST(lifescene_test, the_classes_show_from_the_first_day)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            for (const char* id : {"keep", "collegium", "hand"})
+            {
+                ActivityRow* way = list->find(&f.ecs, id);
+
+                ASSERT_NE(way, nullptr) << id;
+                EXPECT_EQ(way->spec.state, ActivityState::Locked) << id;
+                EXPECT_EQ(way->spec.until, "NEEDS AGE 16") << id;
+            }
+
+            // The way left to who takes none of them is not a boy's to see
+            EXPECT_EQ(list->find(&f.ecs, "greenwood"), nullptr);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The month the last class closes on a man of none, the Greenwood comes into his list, and the
+        // log says so, once.
+        TEST(lifescene_test, the_greenwood_opens_when_the_classes_have_closed)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            auto said = [&]() {
+                int lines = 0;
+
+                for (const auto& entry : life->save.log)
+                {
+                    if (entry.text.find("the Greenwood takes who is left") != std::string::npos)
+                    {
+                        EXPECT_EQ(entry.kind, LogKind::Milestone);
+                        ++lines;
+                    }
+                }
+
+                return lines;
+            };
+
+            // 19 and a half: the Hidden Hand may still be begun this month
+            life->save.age = 19.5f - 1.0f / 12.0f;
+            life->save.stats["rations"] = 30;
+            life->onMonth();
+            f.frames(12);
+
+            EXPECT_NE(list->find(&f.ecs, "hand"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "greenwood"), nullptr);
+            EXPECT_EQ(said(), 0);
+
+            // The month after it may not: the Greenwood is his to take
+            life->onMonth();
+            f.frames(12);
+
+            EXPECT_EQ(list->find(&f.ecs, "hand"), nullptr);
+            ASSERT_NE(list->find(&f.ecs, "greenwood"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "greenwood")->spec.state, ActivityState::Idle);
+            EXPECT_EQ(said(), 1);
+
+            // Said once
+            life->onMonth();
+            f.frames(12);
+
+            EXPECT_EQ(said(), 1);
+
+            // Taken: he is at it, and a year on he is of the Greenwood
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "greenwood"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "greenwood");
+
+            for (int i = 0; i < 12; ++i)
+                life->onMonth();
+            f.frames(12);
+
+            ASSERT_TRUE(life->save.running.empty());
+            EXPECT_EQ(life->save.aim, "renegade");
+            EXPECT_EQ(life->save.stats["renegade"], 1);
+            EXPECT_EQ(list->find(&f.ecs, "greenwood"), nullptr);
+            EXPECT_NE(list->find(&f.ecs, "poach"), nullptr);
+            EXPECT_EQ(said(), 1);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The save counts what the player pressed in this life, for the analytics: the tiles chosen,
+        // the works begun, the things done on the spot and the months passed by the button. A new
+        // life counts from nothing.
+        TEST(lifescene_test, the_save_counts_what_was_pressed)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            EXPECT_EQ(life->save.picks, 0);
+            EXPECT_EQ(life->save.begun, 0);
+            EXPECT_EQ(life->save.atOnce, 0);
+            EXPECT_EQ(life->save.skips, 0);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{life->piece<Button>("skip")->face.id, "life.skip"});
+            f.settle();
+
+            EXPECT_EQ(life->save.skips, 1);
+
+            // Chosen, then another, then none: two tiles were chosen
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "yard"});
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "carters"});
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", ""});
+            f.settle();
+
+            EXPECT_EQ(life->save.picks, 2);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "yard");
+            EXPECT_EQ(life->save.begun, 1);
+
+            // Bought while he works: done on the spot, and no work begun for it
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "buy.rations"});
+            f.settle();
+
+            EXPECT_EQ(life->save.atOnce, 1);
+            EXPECT_EQ(life->save.begun, 1);
+
+            // At work the button passes nothing, and counts nothing
+            f.ecs.sendEvent(ButtonActivatedEvent{life->piece<Button>("skip")->face.id, "life.skip"});
+            f.settle();
+
+            EXPECT_EQ(life->save.skips, 1);
+
+            life->newLife();
+            f.settle();
+
+            EXPECT_EQ(life->save.picks, 0);
+            EXPECT_EQ(life->save.begun, 0);
+            EXPECT_EQ(life->save.atOnce, 0);
+            EXPECT_EQ(life->save.skips, 0);
+            EXPECT_EQ(life->save.lives, 2);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -3012,7 +3245,7 @@ namespace pg
             f.settle();
 
             // Choosing a path at 16 asks the Warrior Strength 12
-            EXPECT_EQ(f.fact<std::string>("life.next.label"), "Choose a path");
+            EXPECT_EQ(f.fact<std::string>("life.next.label"), "Choose a class");
             EXPECT_EQ(life->piece<StatLine>("str")->spec.threshold, 12);
             EXPECT_EQ(life->piece<StatLine>("int")->spec.threshold, 0);
 
@@ -3023,7 +3256,7 @@ namespace pg
 
             for (const auto& r : registry->find("parts/str")->rows)
             {
-                if (r.label == "Choose a path asks")
+                if (r.label == "Choose a class asks")
                 {
                     EXPECT_EQ(r.value, "12");
                     asked = true;

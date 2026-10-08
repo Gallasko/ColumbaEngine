@@ -38,7 +38,7 @@ children:
         name: endStory
         style: body
         overflow: wrap
-        text: "He chose no path, and lived by the work of his hands. Nothing he did was written down. He left nothing but his name."
+        text: "He chose no class, and lived by the work of his hands. Nothing he did was written down. He left nothing but his name."
       - {kind: Label, name: endTally, style: label, color: ink-muted, overflow: wrap, text: "AGE 33 · WORKS 0 · COIN 0 · DEEDS 0"}
       - kind: Button
         name: again

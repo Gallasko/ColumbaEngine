@@ -1038,6 +1038,55 @@ fun reportReach(out, data)
     }
 }
 
+// What the player pressed in the life, over the digests that count it (rows from before the
+// digest did have none): the middle of each count, and the lives where months were passed by
+// the button and no work was ever begun.
+fun reportPresses(out, digests, heading)
+{
+    var picks = []
+    var begun = []
+    var atOnce = []
+    var skips = []
+    var idle = 0
+
+    for (var digest : digests)
+    {
+        if (digest != none and digest["skips"] != none and digest["begun"] != none)
+        {
+            push(skips, digest["skips"])
+            push(begun, digest["begun"])
+
+            if (digest["picks"] != none)
+            {
+                push(picks, digest["picks"])
+            }
+
+            if (digest["atOnce"] != none)
+            {
+                push(atOnce, digest["atOnce"])
+            }
+
+            if (digest["skips"] > 0 and digest["begun"] == 0)
+            {
+                idle = idle + 1
+            }
+        }
+    }
+
+    if (len(skips) == 0)
+    {
+        return
+    }
+
+    line(out, "")
+    line(out, "  " + heading + " (the middle of " + toString(len(skips)) + " that say)")
+    entry(out, "tiles chosen", fmt1(quantile(sortNumbers(picks), 0.5)))
+    entry(out, "works begun", fmt1(quantile(sortNumbers(begun), 0.5)))
+    entry(out, "done on the spot", fmt1(quantile(sortNumbers(atOnce), 0.5)))
+    entry(out, "months passed", fmt1(quantile(sortNumbers(skips), 0.5)) + "  (by the button, at nothing)")
+    entry(out, "passed months, no work", toString(idle) + "  (" + percent(idle, len(skips)) + ": months by the button and no work ever begun)")
+}
+
 fun reportStops(out, data)
 {
     var ages = []
@@ -1046,10 +1095,13 @@ fun reportStops(out, data)
     var aims = newTally()
     var running = newTally()
     var lives = []
+    var digests = []
 
     for (var session : data["sessions"])
     {
         var digest = session["digest"]
+
+        push(digests, digest)
 
         if (digest != none)
         {
@@ -1073,7 +1125,7 @@ fun reportStops(out, data)
                 push(lives, digest["lives"])
             }
 
-            bump(aims, wordOf(digest, "aim", "(no path yet)"))
+            bump(aims, wordOf(digest, "aim", "(no class yet)"))
             bump(running, wordOf(digest, "running", "(nothing at hand)"))
         }
     }
@@ -1099,8 +1151,10 @@ fun reportStops(out, data)
         histogram(out, ["the first", "the second", "the third", "4th or 5th", "6th to 10th", "past the 10th"], [2, 3, 4, 6, 11], lives)
     }
 
+    reportPresses(out, digests, "What was pressed in the life")
+
     line(out, "")
-    line(out, "  His path")
+    line(out, "  His class")
     ranking(out, aims, 10)
     line(out, "")
     line(out, "  The work at hand")
@@ -1113,10 +1167,13 @@ fun reportDeaths(out, data)
     var played = []
     var aims = newTally()
     var running = newTally()
+    var digests = []
 
     for (var death : data["deaths"])
     {
         var digest = death["digest"]
+
+        push(digests, digest)
 
         if (death["totalMs"] != none)
         {
@@ -1130,7 +1187,7 @@ fun reportDeaths(out, data)
                 push(ages, digest["age"])
             }
 
-            bump(aims, wordOf(digest, "aim", "(no path yet)"))
+            bump(aims, wordOf(digest, "aim", "(no class yet)"))
             bump(running, wordOf(digest, "running", "(nothing at hand)"))
         }
     }
@@ -1150,8 +1207,10 @@ fun reportDeaths(out, data)
     line(out, "")
     line(out, "  Time played in this browser when he died")
     describe(out, "time", played)
+
+    reportPresses(out, digests, "What was pressed in the life he lost")
     line(out, "")
-    line(out, "  His path")
+    line(out, "  His class")
     ranking(out, aims, 10)
     line(out, "")
     line(out, "  The work he died at")

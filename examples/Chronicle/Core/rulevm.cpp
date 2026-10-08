@@ -568,7 +568,7 @@ namespace chronicle
 
     bool Rules::stands(const Asked& asked, float age, const ElementMap& character) const
     {
-        return asked.known and asked.age == age and asked.world == world and sameMap(asked.character, character) and sameMap(asked.done, done);
+        return asked.known and asked.age == age and asked.world == world and asked.running == running and sameMap(asked.character, character) and sameMap(asked.done, done);
     }
 
     void Rules::keep(Asked& asked, float age, const ElementMap& character) const
@@ -578,6 +578,7 @@ namespace chronicle
         asked.character = character;
         asked.done = done;
         asked.world = world;
+        asked.running = running;
     }
 
     bool Rules::load(EntitySystem* ecs, const std::string& root)
@@ -619,6 +620,7 @@ namespace chronicle
         s.set("character", character);
         s.set("done", done);
         s.set("world", ElementType{world});
+        s.set("running", ElementType{running});
         s.set("activityId", ElementType{std::string()});
 
         ++nbRuns;
@@ -754,6 +756,7 @@ namespace chronicle
         s.set("character", character);
         s.set("done", done);
         s.set("world", ElementType{world});
+        s.set("running", ElementType{running});
         s.set("activityId", ElementType{activityId});
         s.set("monthsIn", ElementType{monthsIn});
 
@@ -811,14 +814,16 @@ namespace chronicle
 
         ElementType death;
         ElementType warning;
+        ElementType advice;
         std::vector<ElementType> hurt;
         std::vector<RuleScript::Record> glosses;
 
-        if (not s.get("death", death) or not s.get("warning", warning) or not s.get("month.hurt", hurt) or not s.get("caps", out.caps) or not s.get("glosses", {"rows"}, glosses))
+        if (not s.get("death", death) or not s.get("warning", warning) or not s.get("advice", advice) or not s.get("month.hurt", hurt) or not s.get("caps", out.caps) or not s.get("glosses", {"rows"}, glosses))
             return fail(s);
 
         out.death = death.toString();
         out.warning = warning.toString();
+        out.advice = advice.toString();
 
         for (const auto& stat : hurt)
             out.hurt.push_back(stat.toString());
@@ -894,6 +899,7 @@ namespace chronicle
         s.set("character", character);
         s.set("done", done);
         s.set("world", ElementType{world});
+        s.set("running", ElementType{running});
         s.set("activityId", ElementType{std::string()});
         s.set("deeds", names);
 

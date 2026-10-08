@@ -137,6 +137,7 @@ namespace chronicle
         std::vector<RuleGloss> glosses;   // One per holding, in the rows' order
         std::string death;             // "" or the line the next life opens with: the character as given cannot go on
         std::string warning;           // "" or what is about to run out, in caps: "RATIONS FOR 2 MONTHS", "NO RATIONS LEFT"
+        std::string advice;            // "" or what to do about it, as a sentence
     };
 
     // What is said of a life when it ends, from epitaph.pg.
@@ -172,6 +173,10 @@ namespace chronicle
         // The world's calendar: months since its Year 0, handed to every script that writes a date
         // (the page's head, when an activity closes). It runs on from life to life.
         int world = 0;
+
+        // The activity he is at, "" for none: handed to every script that reads the activities (a
+        // man on his way into a class is not one who missed them all).
+        std::string running;
 
         // windows.pg, through activitytable.pg: the activity table, and what each still asks of
         // `character` at `age`. One run answers this and windows().
@@ -228,6 +233,7 @@ namespace chronicle
             pg::ElementMap character;
             pg::ElementMap done;
             int world = 0;
+            std::string running;
         };
 
         bool stands(const Asked& asked, float age, const pg::ElementMap& character) const;

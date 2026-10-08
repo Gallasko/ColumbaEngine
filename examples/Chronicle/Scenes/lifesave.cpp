@@ -110,6 +110,10 @@ namespace pg
         serialize(archive, "log", value.log);
         serialize(archive, "done", value.done);
         serialize(archive, "achieved", value.achieved);
+        serialize(archive, "picks", value.picks);
+        serialize(archive, "begun", value.begun);
+        serialize(archive, "atOnce", value.atOnce);
+        serialize(archive, "skips", value.skips);
 
         archive.endSerialization();
     }
@@ -138,6 +142,10 @@ namespace pg
         defaultDeserialize(serialized, "log", data.log);
         defaultDeserialize(serialized, "done", data.done);
         defaultDeserialize(serialized, "achieved", data.achieved);
+        defaultDeserialize(serialized, "picks", data.picks);
+        defaultDeserialize(serialized, "begun", data.begun);
+        defaultDeserialize(serialized, "atOnce", data.atOnce);
+        defaultDeserialize(serialized, "skips", data.skips);
 
         return data;
     }
@@ -227,7 +235,8 @@ namespace chronicle
         std::ostringstream line;
 
         line << "{\"age\":" << years << ",\"world\":" << world << ",\"aim\":\"" << aim << "\",\"running\":\"" << running << "\",\"monthsIn\":" << monthsIn
-             << ",\"terms\":" << terms << ",\"deeds\":" << achieved.size() << ",\"log\":" << log.size() << ",\"lives\":" << lives << "}";
+             << ",\"terms\":" << terms << ",\"deeds\":" << achieved.size() << ",\"log\":" << log.size() << ",\"lives\":" << lives
+             << ",\"picks\":" << picks << ",\"begun\":" << begun << ",\"atOnce\":" << atOnce << ",\"skips\":" << skips << "}";
 
         return line.str();
     }

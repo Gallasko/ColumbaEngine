@@ -42,6 +42,10 @@ namespace chronicle
         std::vector<LifeResource> resources;           // The ledger, in the order first earned
         std::vector<LogEntry> log;
         std::unordered_map<std::string, int> done;    // The terms completed, by activity
+        int picks = 0;                 // What the player did in this life, for the analytics: the tiles he chose in the list,
+        int begun = 0;                 // the works he began,
+        int atOnce = 0;                // the things he did on the spot,
+        int skips = 0;                 // and the months he passed by the button, at nothing
         std::vector<std::string> achieved;             // The deeds already reached, by id
 
         // The character as the rule scripts read it: every stat.
@@ -55,8 +59,8 @@ namespace chronicle
         std::vector<LifeResource> holdEarned(const pg::RecordList& rows);
 
         // Where the life stands, in one short line of JSON for the analytics: his age, the world's
-        // month, which life this is, his path, the work at hand, how much he has done. Nothing of
-        // his name.
+        // month, which life this is, his path, the work at hand, how much he has done, and what the
+        // player pressed to get there. Nothing of his name.
         std::string digest() const;
 
         bool save(const std::string& path) const;

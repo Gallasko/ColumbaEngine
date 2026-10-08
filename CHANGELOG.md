@@ -143,7 +143,25 @@ First tagged release. Everything below describes the state of the engine at the 
   (`LifeSave::digest`), and `chronicle.life_end`. The session id is random and new for every page load.
   Nothing is sent from a native build or from a page served from localhost. The digest says which life
   of the browser it is (`lives`, kept in the save and counted from 1; a save from before the count
-  starts again at 1). `tools/chronicle_stats.pg` makes a report from a CSV export of the rows.
+  starts again at 1). `tools/chronicle_stats.pg` makes a report from a CSV export of the rows. The digest
+  also counts what the player pressed in the life: `picks` (tiles chosen in the list), `begun` (works
+  begun), `atOnce` (things done on the spot) and `skips` (months passed by the button at nothing).
+- Chronicle: a life that has done nothing yet is led to its first work. The first two days of play showed
+  that more than half of the lives lost had never finished a term: the only button of a new page was
+  "Pass a month". The first work of the list is now chosen when the page opens, so "Begin" is the button
+  of "At work now", under a line that says what to do (`guide` in `life.yaml`); "Pass a month" comes
+  once a first work is begun and done. A first life is told what the game is by a toast, and rations
+  running low or gone say what to do about it (`advice` of `resources.pg`, the holding's `low` and
+  `gone`). The three ways into a class are listed from age 7 instead of 13 (`showAge`), locked.
+- Chronicle: the page says "class" for what it called a path ("A class", "Choose a class", the ending's
+  words). The rules keep `path` for the field. A fourth class, the renegade, is left to who took none
+  of the three in time, and to no one else: "Take to the Greenwood" (`lastResort` in
+  `rules/activitytable.pg`) has no row while another way into a class can still be begun, while he is
+  at one, or once he is of a class. It comes into the list the month the last of the three closes, with
+  a line in the log and a toast (`opens`), asks nothing and is open until 29. The rules are handed the
+  work at hand for it (`Rules::running`). It has its own works (group "The Greenwood"), a proving ("Break a Man out of the
+  Keep's Gaol") and a mastery ("Hold the Greenwood", the title King of the Greenwood), two deeds and
+  its lines in the ending. Its numbers are a first guess, not the balance's.
 - Web builds without threads: `-DWEB_THREADS=OFF` (a build tree of its own) builds the engine with
   `PG_NO_THREADS`. The ecs has no thread and no taskflow executor: `EntitySystem::start()` only marks it as
   running and the frame callback runs the systems through `executeOnce()`, a few passes a frame, on a serial

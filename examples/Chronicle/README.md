@@ -120,8 +120,10 @@ of this game told apart by their `chronicle.` prefix:
   moments it is shown and hidden. `total_play_time_ms` adds the sessions before, kept with the
   systems' save.
 - **The digest** (`LifeSave::digest`, in `save_snapshot`) is one line of JSON:
-  `{"age":12.50,"world":66,"aim":"warrior","running":"yard","monthsIn":2,"terms":14,"deeds":2,"log":31,"lives":3}`.
+  `{"age":12.50,"world":66,"aim":"warrior","running":"yard","monthsIn":2,"terms":14,"deeds":2,"log":31,"lives":3,"picks":22,"begun":15,"atOnce":4,"skips":2}`.
   `lives` counts the lives of this browser, this one included (1 for a save older than the count).
+  The last four are what the player pressed in this life: the tiles he chose in the list, the
+  works begun, the things done on the spot, the months passed by the button with no work at hand.
   The scene gives it after every month, choice, thing done at once and new life.
 
 ```sql
@@ -562,17 +564,23 @@ world's date of the last month he may begin it, month/year (`"CLOSES 5/11"`, or 
 MONTH"`), said from `closingShown` (24) months before it, `urgent` from `closingUrgent` (6).
 The date does not move as the months pass; the scene writes it on the row
 (`activity.<id>.until`, `.urgent`) every month, so no row leaves the list unannounced, his
-prime's at 30 included. `path` puts an activity on one of `paths` (`warrior`, `mage`, `thief`, each with
+prime's at 30 included. `path` puts an activity on one of `paths` (`warrior`, `mage`, `thief`, `renegade`, each with
 the flag that makes him one of it); the one that `enters` it is open until he is one of any
-path, the others only once he is one of theirs (`pathOpen`). The paths exclude each other. A row
+path, the others only once he is one of theirs (`pathOpen`). The paths exclude each other. The
+page calls a path his class ("A class", "Choose a class"); the rules keep the word `path`. The
+renegade is the class of who took none of the three in time, and of no one else: its way in
+("Take to the Greenwood", `lastResort: true`) has no row while another way into a class can still
+be begun, nor while he is at one (the rules are handed the work at hand, `running`), nor once he
+is of a class. It comes into the list the month the last of the three closes (19 years and 7
+months), with a line in the log (`opens`), asks nothing and stays open until 29. A row
 is `listed` while its path is open, it is neither spent nor closed, he is of age for it, and
 he has most of what it asks: `reach` is the average share (each up to 100) of its requirements
 he meets, costs and room left out, and the row shows from `reachShown` (75). An activity may set
 its own two: `showFrom` (the share that lists it, 0 for whatever he has) and `showAge` (the age
 its row is listed from, before he may begin it: it stands locked, the age the first thing it
-asks). The great step of each age carries both, so it shows from the milestone before as what
-the years he is in lead to: the ways into a path from 13, a path's proving from 16, its mastery
-from 21. A boy is not shown
+asks). The great step of each age carries both, so it shows ahead as what the years he is in
+lead to: the three ways into a class from his first day at 7, a path's proving from 16, its
+mastery from 21 (the renegade's from 20 and 23). Apart from those, a boy is not shown
 a life of locked rows; the doors on the clock still say what is coming. The scene shows the
 listed rows only, and rebuilds the list whenever what is listed, or what a row asks, changes. A requirement
 may be `eased: {flag, needed}` (with the flag it asks less) or `anyOf: [flags]` (any one will

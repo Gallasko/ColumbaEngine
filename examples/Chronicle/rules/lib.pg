@@ -411,7 +411,10 @@ var statNames = {
     heat_reduced: "Silence bought",
     great_job_planned: "The Bellmoor job, planned",
     crew_ready: "A crew, ready",
-    master_thief: "Master Thief"
+    master_thief: "Master Thief",
+    renegade: "Gone to the Greenwood",
+    band: "A band of his own",
+    wood_king: "King of the Greenwood"
 }
 
 var statShort = {
@@ -457,7 +460,10 @@ var statShort = {
     heat_reduced: "SILENCE",
     great_job_planned: "PLAN",
     crew_ready: "CREW",
-    master_thief: "MASTER"
+    master_thief: "MASTER",
+    renegade: "GREENWOOD",
+    band: "BAND",
+    wood_king: "KING"
 }
 
 // The most of a stat he can hold at once. A stat not listed has no limit. The limit closes

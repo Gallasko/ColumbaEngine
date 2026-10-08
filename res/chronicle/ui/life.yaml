@@ -177,6 +177,9 @@ children:
       - kind: ActivityList
         name: running
         id: life.running
+      # A life that has done nothing yet: what to do, over the button that does it. One line, and
+      # gone with the first work begun
+      - {kind: Label, name: guide, style: body-sm, color: ink-muted, overflow: ellipsis, text: "Choose a work, then press Begin"}
       # At nothing, a month passes only when he says so: shown while idle, in the row's place
       - kind: Button
         name: skip

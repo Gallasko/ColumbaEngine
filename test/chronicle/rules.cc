@@ -349,9 +349,10 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The great step of each age (the way into a path, its proving, its mastery) is listed from
-        // the milestone before it, whatever he has of what it asks: locked, the age the first thing
-        // it asks, so he knows what the years he is in lead to.
+        // The great step of each age (the way into a path, its proving, its mastery) is listed ahead,
+        // whatever he has of what it asks: locked, the age the first thing it asks, so he knows what
+        // the years he is in lead to. A proving and a mastery from the milestone before; the three
+        // ways into a path from his first day.
         TEST(rules_test, the_great_steps_show_ahead)
         {
             MockLogger logger;
@@ -365,14 +366,12 @@ namespace pg
             EXPECT_EQ(intOf(carters.fields, "showAge"), 7);
             EXPECT_EQ(intOf(carters.fields, "showFrom"), 75);
 
-            // The ways into a path: from 13, three years before he may take one
+            // The ways into a path: from 7, nine years before he may take one
             for (const char* id : {"keep", "collegium", "hand"})
             {
-                EXPECT_FALSE(flag(activityAt(f.rules, 13.0f - month, boy(), id).fields, "listed")) << id;
+                RuleActivity way = activityAt(f.rules, 7.0f, boy(), id);
 
-                RuleActivity way = activityAt(f.rules, 13.0f, boy(), id);
-
-                EXPECT_EQ(intOf(way.fields, "showAge"), 13) << id;
+                EXPECT_EQ(intOf(way.fields, "showAge"), 7) << id;
                 EXPECT_EQ(intOf(way.fields, "showFrom"), 0) << id;
                 EXPECT_TRUE(flag(way.fields, "listed")) << id;
                 EXPECT_TRUE(flag(way.fields, "locked")) << id;
@@ -380,7 +379,10 @@ namespace pg
                 ASSERT_FALSE(way.requires.empty()) << id;
                 EXPECT_EQ(textOf(way.requires[0], "stat"), "age") << id;
                 EXPECT_EQ(intOf(way.requires[0], "needed"), 16) << id;
-                EXPECT_EQ(intOf(way.requires[0], "current"), 13) << id;
+                EXPECT_EQ(intOf(way.requires[0], "current"), 7) << id;
+
+                // And still there the month before he may take it
+                EXPECT_TRUE(flag(activityAt(f.rules, 16.0f - month, boy(), id).fields, "listed")) << id;
             }
 
             // Sworn at 17: his proving shows, four years ahead; his mastery not yet, and no other path's
@@ -396,6 +398,89 @@ namespace pg
 
             // A boy of no path sees no path's proving
             EXPECT_FALSE(flag(activityAt(f.rules, 17.5f, boy(), "campaign").fields, "listed"));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Who took none of the three classes in time is left a fourth, and no one else is: the way to
+        // the Greenwood has no row while another way in can still be begun, nor for a man on his way
+        // into one, nor for one of a class. From the month the last of them closes it asks nothing,
+        // and stays open until old age. Its years have their own works, a proving and a mastery.
+        TEST(rules_test, the_renegade_is_for_who_missed_the_others)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            const float month = 1.0f / 12.0f;
+
+            // The Hidden Hand's eighteen months are begun by 19 and a half at the latest: until then
+            // there is still a class to take, and no Greenwood
+            EXPECT_FALSE(flag(activityAt(f.rules, 16.0f, boy(), "greenwood").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 19.5f, boy(), "hand").fields, "listed"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 19.5f, boy(), "greenwood").fields, "listed"));
+
+            // The month after, the three are closed and it is there, asking nothing of a boy who has nothing
+            for (const char* id : {"keep", "collegium", "hand"})
+                EXPECT_FALSE(flag(activityAt(f.rules, 19.5f + month, boy(), id).fields, "listed")) << id;
+
+            RuleActivity way = activityAt(f.rules, 19.5f + month, boy(), "greenwood");
+
+            EXPECT_TRUE(flag(way.fields, "listed"));
+            EXPECT_FALSE(flag(way.fields, "locked"));
+            EXPECT_TRUE(flag(way.fields, "enters"));
+            EXPECT_TRUE(way.requires.empty());
+            EXPECT_EQ(textOf(way.fields, "path"), "renegade");
+            EXPECT_EQ(textOf(way.fields, "group"), "A class");
+            EXPECT_FALSE(textOf(way.fields, "opens").empty());
+
+            // Not for a man who began the Hand's trust in its last month and is still earning it,
+            // whatever the date; another work at hand changes nothing
+            f.rules.running = "hand";
+            EXPECT_FALSE(flag(activityAt(f.rules, 19.5f + month, boy(), "greenwood").fields, "listed"));
+
+            f.rules.running = "mill";
+            EXPECT_TRUE(flag(activityAt(f.rules, 19.5f + month, boy(), "greenwood").fields, "listed"));
+
+            f.rules.running = "";
+
+            // Never for who has a class; open until a term of it no longer fits before old age
+            EXPECT_FALSE(flag(activityAt(f.rules, 20.0f, sworn(), "greenwood").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 29.0f, boy(), "greenwood").fields, "listed"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 29.0f + month, boy(), "greenwood").fields, "listed"));
+
+            // One of the Greenwood: its works are his, no other class's, and its great steps show ahead
+            ElementMap outlaw = boy();
+            outlaw["renegade"] = ElementType{1};
+
+            f.rules.done = {{"greenwood", ElementType{1}}};
+
+            for (const char* id : {"poach", "burners", "outlaws"})
+            {
+                RuleActivity work = activityAt(f.rules, 21.0f, outlaw, id);
+
+                EXPECT_TRUE(flag(work.fields, "listed")) << id;
+                EXPECT_FALSE(flag(work.fields, "locked")) << id;
+            }
+
+            for (const char* id : {"greenwood", "keep", "serve", "study", "run"})
+                EXPECT_FALSE(flag(activityAt(f.rules, 21.0f, outlaw, id).fields, "listed")) << id;
+
+            EXPECT_FALSE(flag(activityAt(f.rules, 21.0f, boy(), "poach").fields, "listed"));
+
+            EXPECT_TRUE(flag(activityAt(f.rules, 21.0f, outlaw, "gaol").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 21.0f, outlaw, "gaol").fields, "locked"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 21.0f, outlaw, "woodking").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 23.0f, outlaw, "woodking").fields, "listed"));
+
+            // And it is what is said of him
+            RuleEpitaph epitaph;
+
+            ASSERT_TRUE(f.rules.epitaph(28.0f, {{"coin", ElementType{5}}, {"renegade", ElementType{1}}}, {}, epitaph)) << firstError(f.rules);
+            EXPECT_EQ(epitaph.story[0], "He took to the Greenwood, and lived outside the town's law.");
+
+            ASSERT_TRUE(f.rules.epitaph(28.0f, {{"coin", ElementType{5}}, {"renegade", ElementType{1}}, {"wood_king", ElementType{1}}}, {}, epitaph));
+            EXPECT_EQ(epitaph.story[0], "He held the Greenwood against the Keep, and the songs are his.");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -1171,6 +1256,44 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // What he lives on running out comes with what to do about it: one sentence while it runs
+        // low, another once it is gone, none while his work feeds him.
+        TEST(rules_test, month_says_what_to_do)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            RuleMonth month;
+
+            ASSERT_TRUE(f.rules.month(20.0f, {{"vit", ElementType{12}}, {"rations", ElementType{12}}}, false, month));
+            EXPECT_EQ(month.warning, "");
+            EXPECT_EQ(month.advice, "");
+
+            ASSERT_TRUE(f.rules.month(20.0f, {{"vit", ElementType{12}}, {"rations", ElementType{3}}}, false, month));
+            EXPECT_EQ(month.warning, "RATIONS FOR 3 MONTHS");
+            EXPECT_NE(month.advice.find("running low"), std::string::npos);
+
+            const std::string low = month.advice;
+
+            // The same sentence down to the last one: said once, not every month
+            ASSERT_TRUE(f.rules.month(20.0f, {{"vit", ElementType{12}}, {"rations", ElementType{1}}}, false, month));
+            EXPECT_EQ(month.warning, "RATIONS FOR 1 MONTH");
+            EXPECT_EQ(month.advice, low);
+
+            ASSERT_TRUE(f.rules.month(20.0f, {{"vit", ElementType{12}}, {"rations", ElementType{0}}}, false, month));
+            EXPECT_EQ(month.warning, "NO RATIONS LEFT");
+            EXPECT_NE(month.advice.find("No rations left"), std::string::npos);
+            EXPECT_NE(month.advice, low);
+
+            // Fed by his work: nothing runs out, nothing to say
+            ASSERT_TRUE(f.rules.month(20.0f, {{"vit", ElementType{12}}, {"rations", ElementType{2}}}, true, month));
+            EXPECT_EQ(month.warning, "");
+            EXPECT_EQ(month.advice, "");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A holding says what it is for when hovered: what he holds, its limit, what it uses.
         TEST(rules_test, month_glosses_and_limits)
         {
@@ -1443,7 +1566,7 @@ namespace pg
 
             EXPECT_EQ(epitaph.cause, "His strength gave out in his twelfth year.");
             ASSERT_EQ(epitaph.story.size(), 4u);
-            EXPECT_EQ(epitaph.story[0], "He did not live to choose a path.");
+            EXPECT_EQ(epitaph.story[0], "He did not live to choose a class.");
             EXPECT_EQ(epitaph.story[1], "Nothing he did was written down.");
             EXPECT_EQ(epitaph.story[2], "He left nothing but his name.");
             EXPECT_EQ(epitaph.story[3], "They still tell of it: First wages.");
@@ -1454,7 +1577,7 @@ namespace pg
 
             ASSERT_TRUE(f.rules.epitaph(24.0f, {{"coin", ElementType{5}}}, {"First wages", "Sworn"}, epitaph));
 
-            EXPECT_EQ(epitaph.story[0], "He chose no path, and lived by the work of his hands.");
+            EXPECT_EQ(epitaph.story[0], "He chose no class, and lived by the work of his hands.");
             EXPECT_EQ(epitaph.story[1], "One work is written under his name: Work the Smithy.");
             EXPECT_EQ(epitaph.story[2], "He left little: 5 coin.");
             EXPECT_EQ(epitaph.story[3], "They still tell of it: First wages, Sworn.");

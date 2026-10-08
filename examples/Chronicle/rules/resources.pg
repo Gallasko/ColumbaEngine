@@ -9,6 +9,8 @@
 //           hurt     [stat]: the stats a life needs (`mortal`) that this month took from
 //         `warning`, "" or what he lives on that is running out, in caps and said from three
 //         months of it left: "RATIONS FOR 2 MONTHS", "NO RATIONS LEFT".
+//         `advice`, "" or what to do about it, as a sentence: one while it runs low, another
+//         once it is gone. The screen says it once each time it changes.
 //         `caps`, the most each capped stat of the character can be: [{stat, most}].
 //         `rows`, one table per holding the ledger can show, in the order it lists them:
 //           {id, group, groupLabel, glyph, name, tone, rate, limit, title}
@@ -26,10 +28,12 @@
 //                                     `stat` each month.
 //   decays: N                         it loses N each month, never below 0. Not in a month at
 //                                     board: he is fed, and running out costs nothing either.
-//   empty: {effects [{stat, amount}], entry "text"}
+//   empty: {effects [{stat, amount}], entry "text", low "text", gone "text"}
 //                                     what running out costs: the entry is written the month it
 //                                     reaches 0, the effects land every month it stays there.
 //                                     A character who never held any is not out of it.
+//                                     `low` and `gone` are optional: the `advice` while it runs
+//                                     out and once it has.
 //   about: "text"                     what it is, in a sentence, for its gloss.
 //   title: true                       he has it or he has not: a standing, a tie, a title. Its
 //                                     row shows no figure, and its gloss says neither how many he
@@ -52,7 +56,9 @@ var holdings = [
     {id: "rations", group: "purse", groupLabel: "PURSE", glyph: "trade", name: "Rations", tone: 0,
      about: "Food for the month. With none left, his Vitality pays for it. Work that feeds him leaves them be.",
      decays: 1,
-     empty: {effects: [{stat: "vit", amount: -1}], entry: "The rations ran out"}},
+     empty: {effects: [{stat: "vit", amount: -1}], entry: "The rations ran out",
+             low: "Rations are running low: buy more, or take work with meals",
+             gone: "No rations left: his Vitality pays. Buy rations, or take work with meals"}},
     {id: "reagents", group: "purse", groupLabel: "PURSE", glyph: "magic", name: "Reagents", tone: 0,
      about: "What a working burns. Bought at the Collegium, spent when a working begins."},
     {id: "favors", group: "standing", groupLabel: "STANDING", glyph: "guild", name: "Favors", tone: 2,
@@ -68,7 +74,11 @@ var holdings = [
     {id: "mage_of_harrow", group: "standing", groupLabel: "STANDING", glyph: "relic", name: "Mage of Harrow", tone: 3, title: true,
      about: "The one who performed the Harrow Working."},
     {id: "master_thief", group: "standing", groupLabel: "STANDING", glyph: "gold", name: "Master Thief", tone: 3, title: true,
-     about: "The one who emptied the Bellmoor Vault."}
+     about: "The one who emptied the Bellmoor Vault."},
+    {id: "renegade", group: "standing", groupLabel: "STANDING", glyph: "adventure", name: "Gone to the Greenwood", tone: 2, title: true,
+     about: "He lives outside the town's law, among the outlaws of the Greenwood."},
+    {id: "wood_king", group: "standing", groupLabel: "STANDING", glyph: "reputation", name: "King of the Greenwood", tone: 3, title: true,
+     about: "The Greenwood answers to him, and the Keep leaves it be."}
 ]
 
 // What a work leaves him besides a figure: whom he is known to, what he was taught, what he
@@ -77,7 +87,8 @@ var holdings = [
 var ties = ["watch_known", "street_known", "choir", "edric_support", "library_access", "night_contacts", "mara_student",
             "veteran", "watch_commander", "tourney_victor",
             "black_treatise", "orin_known", "harrow_fragments", "harrow_truth", "harrow_relic",
-            "guild_clerk", "guild_ledgers", "guild_enemy", "heat_reduced", "great_job_planned", "crew_ready"]
+            "guild_clerk", "guild_ledgers", "guild_enemy", "heat_reduced", "great_job_planned", "crew_ready",
+            "band"]
 
 for (var t = 0; t < len(ties); t++)
 {
@@ -124,6 +135,9 @@ var yields = []
 
 // What is about to run out of what a life hangs on, "" for nothing: the first holding that says so
 var warning = ""
+
+// And what to do about it, "" when the holding gives no word for it
+var advice = ""
 
 for (var i = 0; i < len(holdings); i++)
 {
@@ -178,6 +192,11 @@ for (var i = 0; i < len(holdings); i++)
                 {
                     warning = toUpperCase(h.name) + " FOR " + toString(lasts) + " MONTHS"
                 }
+
+                if (warning != "")
+                {
+                    advice = lookup(h.empty, "low", "")
+                }
             }
         }
         else if (has(h, "empty"))
@@ -191,6 +210,7 @@ for (var i = 0; i < len(holdings); i++)
             if (warning == "")
             {
                 warning = "NO " + toUpperCase(h.name) + " LEFT"
+                advice = lookup(h.empty, "gone", "")
             }
         }
     }

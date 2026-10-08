@@ -46,6 +46,12 @@ var achievements = [
      gives: []},
     {id: "master.thief", name: "Master Thief", entry: "Emptied the Bellmoor Vault",
      asks: [{fact: "stat.master_thief", op: ">=", value: 1}],
+     gives: []},
+    {id: "renegade", name: "Renegade", entry: "Took to the Greenwood, past every door the town had shut",
+     asks: [{fact: "stat.renegade", op: ">=", value: 1}],
+     gives: []},
+    {id: "wood.king", name: "King of the Greenwood", entry: "Holds the Greenwood, and the Keep leaves it be",
+     asks: [{fact: "stat.wood_king", op: ">=", value: 1}],
      gives: []}
 ]
 

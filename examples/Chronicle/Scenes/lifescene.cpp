@@ -69,6 +69,7 @@ namespace chronicle
         constexpr float AlertMs = 900.0f;          // How long a part stays in red after a month took from it
         constexpr float RunningPanel = 164.0f;     // "At work now" holding a running row
         constexpr float SkipButton = 48.0f;        // "At work now" idle: the button to pass a month (36) and the body's gap (12)
+        constexpr float GuideLine = 32.0f;         // And, over it, the line that says what to do in a life that has done nothing yet (20) and the gap (12)
         constexpr const char * const SkipTag = "life.skip";
         constexpr const char * const BeginTag = "life.begin";
         constexpr const char * const AgainTag = "life.again";
@@ -152,6 +153,8 @@ namespace chronicle
         constexpr float FollowMs = 120.0f;         // Before the log is taken to its new end: the list has to measure the line first
         constexpr float LitMs = 1800.0f;           // The line the log has just written keeps its light that long
         constexpr float ToastMs = 3600.0f;         // A toast: a deed, a milestone, something new to do
+        constexpr float PremiseMs = 9000.0f;       // The one that says what the game is, to who has never played: long enough to be read
+        constexpr const char * const Premise = "His life is yours to write: choose his work, and the months pass";
         constexpr float ToastZ = 170.0f;
         constexpr float ToastHeight = 36.0f;
         constexpr float ToastPad = 18.0f;          // Left and right of its text
@@ -550,7 +553,12 @@ namespace chronicle
             if (e.tag == AgainTag)
                 beginAgain();
             else if (e.tag == SkipTag and save.running.empty())
+            {
+                if (not ended)
+                    ++save.skips;
+
                 onMonth();
+            }
             else if (e.tag == BeginTag and not chosen.empty())
                 onConfirm(ActivityActivatedEvent{ActivitiesList, chosen});
         });
@@ -568,6 +576,14 @@ namespace chronicle
             // What lasts a moment runs its course whether the months run or not
             if (quiet > 0.0f)
                 quiet -= e.tick;
+
+            // The page has arrived: what the game is, said once to a first life that has done nothing
+            if (premiseDue and quiet <= 0.0f)
+            {
+                premiseDue = false;
+                premiseSaid = true;
+                toast(Premise, PremiseMs);
+            }
 
             runPassing(e.tick);
 
@@ -662,6 +678,10 @@ namespace chronicle
 
         rules.done = save.terms();
         rules.world = save.world;
+        rules.running = save.running;
+
+        // The page is arriving: what a save was already short of is not news to say
+        quiet = QuietMs;
 
         // A save from before the ledger followed the stats
         refreshHoldings();
@@ -861,7 +881,7 @@ namespace chronicle
             }});
     }
 
-    void LifeScene::toast(const std::string& text)
+    void LifeScene::toast(const std::string& text, float ms)
     {
         auto window = ecsRef->getEntity("__MainWindow");
 
@@ -897,7 +917,7 @@ namespace chronicle
         const _unique_id textId = label.entity.id;
         const _unique_id groundId = ground.entity.id;
 
-        passing.push_back({ToastMs, nullptr, [this, textId, groundId]() {
+        passing.push_back({ms > 0.0f ? ms : ToastMs, nullptr, [this, textId, groundId]() {
             for (auto id : {textId, groundId})
             {
                 if (ecsRef->getEntity(id))
@@ -916,10 +936,13 @@ namespace chronicle
             return;
 
         // At nothing one button stands in the running row's place: the one that begins what is
-        // chosen in the list, or the one that passes a month when nothing is
+        // chosen in the list, or the one that passes a month when nothing is. A life that has done
+        // nothing yet is led to its first work: no month to pass before one is begun, and a line
+        // that says how
         const bool idle = save.running.empty();
         const RuleActivity* pick = chosen.empty() ? nullptr : activityOf(chosen);
         const bool begins = idle and pick and not ended;
+        const bool leads = led() and not firstWork().empty();
 
         auto show = [this, &working](const char* name, bool shown) {
             if (EntityRef button = named(name); not button.empty())
@@ -932,7 +955,8 @@ namespace chronicle
                 button->setDisabled(ecsRef, not shown);
         };
 
-        show("skip", idle and not begins);
+        show("guide", leads);
+        show("skip", idle and not begins and not leads);
         show("begin", begins);
 
         if (not begins)
@@ -1002,7 +1026,43 @@ namespace chronicle
 
     float LifeScene::workingHeight() const
     {
-        return save.running.empty() ? PanelChrome + SkipButton : RunningPanel;
+        if (not save.running.empty())
+            return RunningPanel;
+
+        return led() ? PanelChrome + GuideLine + SkipButton : PanelChrome + SkipButton;
+    }
+
+    bool LifeScene::led() const
+    {
+        return not ended and save.running.empty() and save.done.empty();
+    }
+
+    std::string LifeScene::firstWork() const
+    {
+        // As the table orders them: the first he may begin that takes months
+        for (const auto& a : activities)
+        {
+            if (boolOf(a.fields, "listed") and not boolOf(a.fields, "locked") and intOf(a.fields, "months") > 0)
+                return textOf(a.fields, "id");
+        }
+
+        return "";
+    }
+
+    void LifeScene::lead()
+    {
+        leadDue = false;
+
+        if (not led())
+            return;
+
+        // Chosen for him: Begin is the button the page opens on. Its tile is lit once the list
+        // holds its rows (execute)
+        chosen = firstWork();
+        leadDue = not chosen.empty();
+
+        // And to a first life, what all this is
+        premiseDue = save.lives == 1 and not premiseSaid;
     }
 
     void LifeScene::fitFull(float width, float height)
@@ -1152,6 +1212,21 @@ namespace chronicle
         {
             buttonsDue = false;
             showWorkButtons();
+        }
+
+        // The work chosen for a life that has done nothing: its tile is lit once its row is in the
+        // list, unless he has chosen another meanwhile
+        if (leadDue)
+        {
+            auto list = piece<ActivityList>("activities");
+
+            if (not list or chosen.empty() or not led())
+                leadDue = false;
+            else if (list->find(ecsRef, chosen))
+            {
+                leadDue = false;
+                list->select(ecsRef, chosen);
+            }
         }
 
         // The years' panel measured itself after the log was fitted under it: fitted again
@@ -1593,6 +1668,7 @@ namespace chronicle
         hovered.clear();
         figures.clear();
         quiet = QuietMs;
+        lead();
         showWorkButtons();
         buttonsDue = true;
     }
@@ -1657,7 +1733,19 @@ namespace chronicle
                 if (std::find(known.begin(), known.end(), id) != known.end())
                     continue;
 
-                toast("New: " + activityName(id));
+                // What comes with words of its own is written down as well: it is news of his life
+                const RuleActivity* arrived = activityOf(id);
+                const std::string opens = arrived ? textOf(arrived->fields, "opens") : "";
+
+                if (opens.empty())
+                {
+                    toast("New: " + activityName(id));
+                }
+                else
+                {
+                    appendLog({save.age, opens, LogKind::Milestone, "", ""});
+                    toast(opens);
+                }
             }
         }
 
@@ -1772,6 +1860,13 @@ namespace chronicle
             // The coming month, as things stand: what it would take from, and what the rules say of it
             threat = month.hurt;
             warning = month.warning;
+
+            // What to do about it, said when it begins to run out and again when it has
+            if (month.advice != advice)
+            {
+                advice = month.advice;
+                toast(advice);
+            }
 
             caps.clear();
 
@@ -2387,6 +2482,10 @@ namespace chronicle
         if (event.list != ActivitiesList)
             return;
 
+        // A tile he chose: not the one the page chose for him, which is `chosen` already
+        if (not event.id.empty() and event.id != chosen)
+            ++save.picks;
+
         chosen = event.id;
 
         showWorkButtons();
@@ -2505,12 +2604,18 @@ namespace chronicle
 
         save.running = event.id;
         save.monthsIn = 0;
+        ++save.begun;
+        rules.running = save.running;
 
         // What it costs is taken as it begins
         takeStats(forecast.atStart);
 
         if (auto list = piece<ActivityList>("activities"))
             list->select(ecsRef, "");
+
+        // Nothing is chosen any more, whether or not the list had its tile lit
+        this->chosen.clear();
+        leadDue = false;
 
         setFact("activity." + event.id + ".state", std::string("running"));
 
@@ -2548,6 +2653,7 @@ namespace chronicle
         writeEntries(forecast.entries);
 
         ++save.done[id];
+        ++save.atOnce;
         rules.done = save.terms();
 
         refreshHoldings();
@@ -2685,6 +2791,7 @@ namespace chronicle
 
                 save.running.clear();
                 save.monthsIn = 0;
+                rules.running.clear();
 
                 // The work is done: the months wait for the next choice
                 paused = true;
@@ -2975,7 +3082,12 @@ namespace chronicle
         // is one more of its lives
         save.world = last.world;
         save.lives = last.lives + 1;
+
         rules.world = save.world;
+        rules.running = save.running;
+
+        // "At work now" has the line of a life that has done nothing again
+        fit(windowWidth, windowHeight);
 
         // What the last life held and this one has no stat for reads 0, not the last life's
         // figure: a deed must not be reached on what is gone
