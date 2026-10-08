@@ -14,13 +14,14 @@
 //         what still fits, in attempts of the window's activity, never in percentages; before
 //         the door opens it names what the door asks.
 
+// The game asks for the activities and the doors in one run of this script (`activities` is
+// activitytable.pg's, shaped for the same character). lib.pg comes with activitytable.pg, and
+// `errors` is its list: what it refused is told here too.
+
 import "string"
 import "math"
 import "algorithm"
-import "lib"
 import "activitytable"
-
-var errors = []
 
 var windowTable = [
     {activity: "choir", name: "The choir",

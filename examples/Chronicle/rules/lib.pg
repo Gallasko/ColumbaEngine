@@ -461,7 +461,7 @@ var statShort = {
 }
 
 // The most of a stat he can hold at once. A stat not listed has no limit. The limit closes
-// what would bring more (activities.pg) and stops what a month produces (resources.pg); an
+// what would bring more (activitytable.pg) and stops what a month produces (resources.pg); an
 // activity begun with room left may still carry him past it.
 var statLimits = {
     rations: 60

@@ -54,6 +54,17 @@ namespace chronicle
         bool get(const std::string& path, std::vector<pg::ElementType>& out);
         bool size(const std::string& path, size_t& out);        // The length of a list
 
+        // A table of a list: its scalars, and the lists of records it holds under the names asked for
+        struct Record
+        {
+            pg::ElementMap fields;
+            std::vector<pg::RecordList> lists;
+        };
+
+        // A list of tables in one walk, each with its `lists` in their order. A table without one of
+        // them is an error
+        bool get(const std::string& path, const std::vector<std::string>& lists, std::vector<Record>& out);
+
         const std::vector<std::string>& errors() const { return errorList; }
         const std::string& path() const { return scriptPath; }
         bool loaded() const { return fn != nullptr; }
@@ -76,7 +87,7 @@ namespace chronicle
         std::string scriptPath;
     };
 
-    // An activity from activities.pg: its scalar fields (id, group, name, glyph, months, rank,
+    // An activity from activitytable.pg: its scalar fields (id, group, name, glyph, months, rank,
     // each, path, enters, board, fromAge, finishBy, locked, done, uses, left, spent, closed,
     // pathOpen, listed, tally) and its three lists.
     struct RuleActivity
@@ -100,6 +111,7 @@ namespace chronicle
         pg::ElementMap atStart;        // Every stat of the character, once the activity's costs are taken
         pg::ElementMap atTerm;         // Every stat of the character, after the activity's gains
         float percent = 0.0f;          // monthsIn / months x 100
+        float toward = 0.0f;           // The same a month on: where the month under way takes it
         int months = 0;                // The activity's term
         std::string caption;           // "MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"
         pg::RecordList gaps;           // {stat, label, current, needed} against the next milestone
@@ -146,6 +158,10 @@ namespace chronicle
 
     // The scene's scripts, loaded once from a rules root, each with its typed call. Every
     // number about the future or the rules comes from here, never from C++.
+    //
+    // An answer is kept while what it was asked with stands (the age, the character, `done`,
+    // `world` and the call's own arguments, compared by value): the scene asks the same thing from
+    // several places in one month, and a run builds every table of its script again.
     struct Rules
     {
         bool load(pg::EntitySystem* ecs, const std::string& root = "examples/Chronicle/rules");
@@ -157,7 +173,8 @@ namespace chronicle
         // (the page's head, when an activity closes). It runs on from life to life.
         int world = 0;
 
-        // activities.pg: the activity table, and what each still asks of `character` at `age`.
+        // windows.pg, through activitytable.pg: the activity table, and what each still asks of
+        // `character` at `age`. One run answers this and windows().
         bool activities(float age, const pg::ElementMap& character, std::vector<RuleActivity>& out);
 
         // milestones.pg: every milestone (with `passed`), and the next one after `age`
@@ -185,7 +202,6 @@ namespace chronicle
 
         std::vector<std::string> errors;   // The last failed call's
 
-        RuleScript activitiesScript;
         RuleScript milestonesScript;
         RuleScript windowsScript;
         RuleScript forecastScript;
@@ -193,7 +209,52 @@ namespace chronicle
         RuleScript achievementsScript;
         RuleScript epitaphScript;
 
+        // How many times a script was run since load(): what the kept answers spare
+        size_t nbRuns = 0;
+
     private:
         bool fail(RuleScript& script);
+
+        // The activities and the windows of one run of windows.pg
+        bool shape(float age, const pg::ElementMap& character);
+
+        void forget();
+
+        // What the scripts that read the activities were asked with
+        struct Asked
+        {
+            bool known = false;
+            float age = 0.0f;
+            pg::ElementMap character;
+            pg::ElementMap done;
+            int world = 0;
+        };
+
+        bool stands(const Asked& asked, float age, const pg::ElementMap& character) const;
+        void keep(Asked& asked, float age, const pg::ElementMap& character) const;
+
+        Asked shapedFor;
+        std::vector<RuleActivity> shapedActivities;
+        pg::RecordList shapedWindows;
+
+        bool milestonesKnown = false;
+        float milestonesAge = 0.0f;
+        int milestonesWorld = 0;
+        std::vector<RuleMilestone> keptMilestones;
+        pg::ElementMap keptNext;
+        pg::ElementMap keptHeadline;
+
+        // Several at a time: the work at hand this month and the next, and the tile under the mouse
+        Asked foreseenFor;
+        std::map<std::pair<std::string, int>, RuleForecast> foreseen;
+
+        bool monthKnown = false;
+        float monthAge = 0.0f;
+        pg::ElementMap monthCharacter;
+        bool monthBoard = false;
+        RuleMonth keptMonth;
+
+        bool deedsKnown = false;
+        std::vector<RuleAchievement> keptDeeds;
     };
 }

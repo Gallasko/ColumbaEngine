@@ -2226,10 +2226,9 @@ namespace chronicle
         }
 
         RuleForecast forecast;
-        RuleForecast coming;
 
         // Where the rule stands, and where the month under way takes it
-        if (not rules.forecast(save.age, save.character(), save.running, save.monthsIn, forecast) or not rules.forecast(save.age, save.character(), save.running, save.monthsIn + 1, coming))
+        if (not rules.forecast(save.age, save.character(), save.running, save.monthsIn, forecast))
         {
             for (const auto& e : rules.errors)
                 LOG_ERROR(DOM, e);
@@ -2241,7 +2240,7 @@ namespace chronicle
         setFact("activity.running.months", static_cast<float>(forecast.months - save.monthsIn));
         setFact("activity.running.percent", forecast.percent);
         setFact("activity.running.caption", forecast.caption);
-        setFact("activity.running.toward", coming.percent);
+        setFact("activity.running.toward", forecast.toward);
 
         publishPace();
     }

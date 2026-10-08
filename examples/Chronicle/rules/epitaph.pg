@@ -17,7 +17,6 @@
 import "string"
 import "math"
 import "algorithm"
-import "lib"
 import "activitytable"
 
 var errors = []

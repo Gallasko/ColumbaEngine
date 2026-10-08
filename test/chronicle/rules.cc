@@ -1,6 +1,8 @@
 #include "stdafx.h"
 
 #include <chrono>
+#include <functional>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -700,6 +702,7 @@ namespace pg
 
             ASSERT_TRUE(f.rules.forecast(7.0f, boy(), "mill", 3, forecast));
             EXPECT_FLOAT_EQ(forecast.percent, 50.0f);
+            EXPECT_GT(forecast.toward, forecast.percent);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -1559,6 +1562,96 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // An answer is kept while what it was asked with stands: the scene asks the same thing from
+        // several places in one month. One run of windows.pg answers the activities and the doors.
+        TEST(rules_test, answers_are_kept_while_the_inputs_stand)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            std::vector<RuleActivity> activities;
+            RecordList windows;
+
+            ASSERT_TRUE(f.rules.activities(17.4f, sworn(), activities));
+            ASSERT_TRUE(f.rules.windows(17.4f, sworn(), windows));
+
+            EXPECT_EQ(f.rules.nbRuns, 1u);
+            EXPECT_FALSE(activities.empty());
+            EXPECT_FALSE(windows.empty());
+
+            std::vector<RuleActivity> again;
+
+            ASSERT_TRUE(f.rules.activities(17.4f, sworn(), again));
+
+            EXPECT_EQ(f.rules.nbRuns, 1u);
+            ASSERT_EQ(again.size(), activities.size());
+            EXPECT_EQ(textOf(again.front().fields, "id"), textOf(activities.front().fields, "id"));
+            EXPECT_EQ(again.front().requires.size(), activities.front().requires.size());
+
+            // Another age, another character, another count of terms, another date: each asks again
+            ASSERT_TRUE(f.rules.activities(17.5f, sworn(), again));
+            EXPECT_EQ(f.rules.nbRuns, 2u);
+
+            ElementMap stronger = sworn();
+            stronger["str"] = ElementType{intOf(stronger, "str") + 1};
+
+            ASSERT_TRUE(f.rules.windows(17.5f, stronger, windows));
+            EXPECT_EQ(f.rules.nbRuns, 3u);
+
+            f.rules.done["mill"] = ElementType{1};
+
+            ASSERT_TRUE(f.rules.activities(17.5f, stronger, again));
+            EXPECT_EQ(f.rules.nbRuns, 4u);
+
+            f.rules.world = f.rules.world + 1;
+
+            ASSERT_TRUE(f.rules.activities(17.5f, stronger, again));
+            EXPECT_EQ(f.rules.nbRuns, 5u);
+
+            // The forecasts of one moment are kept together: the work at hand, its next month, a tile
+            RuleForecast first;
+            RuleForecast other;
+            RuleForecast back;
+
+            ASSERT_TRUE(f.rules.forecast(17.5f, stronger, "mill", 0, first));
+            ASSERT_TRUE(f.rules.forecast(17.5f, stronger, "mill", 1, other));
+            ASSERT_TRUE(f.rules.forecast(17.5f, stronger, "mill", 0, back));
+
+            EXPECT_EQ(f.rules.nbRuns, 7u);
+            EXPECT_EQ(back.caption, first.caption);
+            EXPECT_EQ(back.months, first.months);
+            EXPECT_NE(other.caption, first.caption);
+
+            // A month, the milestones and the deeds
+            RuleMonth month;
+
+            ASSERT_TRUE(f.rules.month(17.5f, stronger, false, month));
+            ASSERT_TRUE(f.rules.month(17.5f, stronger, false, month));
+            EXPECT_EQ(f.rules.nbRuns, 8u);
+
+            ASSERT_TRUE(f.rules.month(17.5f, stronger, true, month));
+            EXPECT_EQ(f.rules.nbRuns, 9u);
+
+            std::vector<RuleMilestone> milestones;
+            ElementMap next;
+            ElementMap headline;
+
+            ASSERT_TRUE(f.rules.milestones(17.5f, milestones, next));
+            ASSERT_TRUE(f.rules.milestones(17.5f, milestones, next, &headline));
+            EXPECT_EQ(f.rules.nbRuns, 10u);
+            EXPECT_FALSE(headline.empty());
+
+            std::vector<RuleAchievement> deeds;
+
+            ASSERT_TRUE(f.rules.achievements(deeds));
+            ASSERT_TRUE(f.rules.achievements(deeds));
+            EXPECT_EQ(f.rules.nbRuns, 11u);
+            EXPECT_FALSE(deeds.empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A ceiling, not a target: the forecast runs a few times per month tick. Every run rebuilds
         // the fifty activities of the table, which costs about half a millisecond.
         TEST(rules_test, timing_ceiling)
@@ -1577,6 +1670,44 @@ namespace pg
             const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
 
             EXPECT_LT(ms, 100) << "100 forecasts took " << ms << " ms";
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What a run of each script costs, printed for whoever works on them: nothing is expected of
+        // the figures. Every call has its own age, so that none is answered from what is kept.
+        TEST(rules_test, run_costs_are_printed)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            const int runs = 200;
+
+            auto timed = [&](const char* what, const std::function<bool(float)>& call) {
+                const auto start = std::chrono::steady_clock::now();
+
+                for (int i = 0; i < runs; ++i)
+                    ASSERT_TRUE(call(17.0f + static_cast<float>(i) / 1000.0f)) << what;
+
+                const auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+
+                std::cout << "[ rules    ] " << what << ": " << us / runs << " us a run" << std::endl;
+            };
+
+            std::vector<RuleActivity> activities;
+            RecordList windows;
+            RuleForecast forecast;
+            RuleMonth month;
+            std::vector<RuleMilestone> milestones;
+            ElementMap next;
+
+            timed("activities and windows", [&](float age) { return f.rules.activities(age, sworn(), activities) and f.rules.windows(age, sworn(), windows); });
+            timed("forecast", [&](float age) { return f.rules.forecast(age, sworn(), "mill", 0, forecast); });
+            timed("month", [&](float age) { return f.rules.month(age, sworn(), false, month); });
+            timed("milestones", [&](float age) { return f.rules.milestones(age, milestones, next); });
+
+            EXPECT_EQ(f.rules.nbRuns, static_cast<size_t>(4 * runs));
         }
     }
 }

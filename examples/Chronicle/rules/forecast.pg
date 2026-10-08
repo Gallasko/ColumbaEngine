@@ -13,8 +13,9 @@
 //                    a stat with a cap (lib.pg's `statCaps`) raises the cap with it; no gain
 //                    goes past a stat's ceiling (lib.pg's `statCeilings`). A limit
 //                    (lib.pg's `statLimits`) does not stop them: what an activity brings may
-//                    go past it, activities.pg only refuses to begin one when there is no room
+//                    go past it, activitytable.pg only refuses to begin one when there is no room
 //           percent  monthsIn / months x 100 (100 for an activity done at once)
+//           toward   the same once the month under way has passed: where the bar is headed
 //           months   the activity's term
 //           caption  "MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"
 //           gaps     [{stat, label, current, needed}]: the next milestone's asks for the path the
@@ -28,13 +29,12 @@
 import "string"
 import "math"
 import "algorithm"
-import "lib"
 import "activitytable"
 import "milestonetable"
 
 var errors = []
 
-var forecast = {atStart: {}, atTerm: {}, percent: 0, months: 0, caption: "", gaps: [], entries: [], error: ""}
+var forecast = {atStart: {}, atTerm: {}, percent: 0, toward: 0, months: 0, caption: "", gaps: [], entries: [], error: ""}
 var activity = byId(activities, activityId)
 
 if (activity.id == "")
@@ -168,11 +168,13 @@ else
     }
 
     var percent = 100.0
+    var toward = 100.0
 
     if (months > 0)
     {
         percent = spent * 100.0 / months
+        toward = clamp(monthsIn + 1, 0, months) * 100.0 / months
     }
 
-    forecast = {atStart: atStart, atTerm: atTerm, percent: percent, months: months, caption: caption, gaps: gaps, entries: entries, error: ""}
+    forecast = {atStart: atStart, atTerm: atTerm, percent: percent, toward: toward, months: months, caption: caption, gaps: gaps, entries: entries, error: ""}
 }

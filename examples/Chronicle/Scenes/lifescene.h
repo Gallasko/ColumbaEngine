@@ -101,7 +101,7 @@ namespace chronicle
         void refreshHoldings();        // resources.pg's rows, rates, glosses and verdict for the character as he is
         bool boarded() const;          // The activity at work feeds him
         bool titled(const std::string& id) const;   // A holding he has or has not (a standing, a tie): the rules say so, and its row shows no figure
-        const RuleActivity* activityOf(const std::string& id) const;   // From the last activities.pg output, nullptr if none
+        const RuleActivity* activityOf(const std::string& id) const;   // From the last answer of Rules::activities, nullptr if none
         std::string tileNote(const RuleActivity& activity, bool& urgent) const;   // What a tile says under its name and time: what it asks, that it is new, or when it closes
         void onHover(const ActivityHoveredEvent& event);   // The mouse came onto a tile or left them
         void preview();                // What the chosen activity, or the one the mouse is on, would make of his parts and of what he holds
@@ -149,7 +149,7 @@ namespace chronicle
         template <typename Type>
         void setFact(const std::string& path, const Type& value);
 
-        std::vector<RuleActivity> activities;    // The last activities.pg output
+        std::vector<RuleActivity> activities;    // The last answer of Rules::activities
         std::string listedRows;                   // What the list was built from: each listed row and how much it asks
         pg::RecordList holdings;                  // The last resources.pg rows
         std::vector<RuleGloss> holdingGlosses;    // And what hovering each says

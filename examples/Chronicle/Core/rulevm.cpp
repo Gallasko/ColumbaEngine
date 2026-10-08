@@ -45,6 +45,50 @@ namespace chronicle
             return it->second.get<std::string>();
         }
 
+        // The same keys with the same values of the same types: an answer kept for one stands for the other
+        bool sameMap(const ElementMap& a, const ElementMap& b)
+        {
+            if (a.size() != b.size())
+                return false;
+
+            for (const auto& [key, value] : a)
+            {
+                auto it = b.find(key);
+
+                if (it == b.end() or it->second.type != value.type)
+                    return false;
+
+                switch (value.type)
+                {
+                case UnionType::INT:
+                    if (value.get<int>() != it->second.get<int>())
+                        return false;
+
+                    break;
+
+                case UnionType::FLOAT:
+                    if (value.get<float>() != it->second.get<float>())
+                        return false;
+
+                    break;
+
+                case UnionType::BOOL:
+                    if (value.get<bool>() != it->second.get<bool>())
+                        return false;
+
+                    break;
+
+                default:
+                    if (value.toString() != it->second.toString())
+                        return false;
+
+                    break;
+                }
+            }
+
+            return true;
+        }
+
         float number(const ElementMap& map, const std::string& key, float fallback)
         {
             auto it = map.find(key);
@@ -404,6 +448,89 @@ namespace chronicle
         return ok;
     }
 
+    bool RuleScript::get(const std::string& path, const std::vector<std::string>& lists, std::vector<Record>& out)
+    {
+        Value v;
+
+        out.clear();
+
+        if (not resolve(path, v))
+            return false;
+
+        if (not IS_VECTOR(v))
+        {
+            error("`" + path + "` is not a list");
+            return false;
+        }
+
+        const auto& items = vm->asVector(v)->fields;
+
+        out.reserve(items.size());
+
+        for (size_t i = 0; i < items.size(); ++i)
+        {
+            const std::string at = path + "." + std::to_string(i);
+
+            if (not IS_INSTANCE(items[i]))
+            {
+                error("`" + at + "` is not a table");
+                return false;
+            }
+
+            ObjInstance* instance = vm->asInstance(items[i]);
+
+            Record record;
+            record.lists.resize(lists.size());
+
+            std::vector<bool> found(lists.size(), false);
+
+            for (size_t f = 0; f < instance->fieldValues.size(); ++f)
+            {
+                const std::string& key = instance->fieldNames[f];
+
+                if (key.empty() or key.rfind("__", 0) == 0)
+                    continue;
+
+                if (vmread::isScalar(instance->fieldValues[f]))
+                {
+                    record.fields[key] = vmread::scalar(*vm, instance->fieldValues[f]);
+                    continue;
+                }
+
+                // What it nests is read when asked for, left when not
+                for (size_t l = 0; l < lists.size(); ++l)
+                {
+                    if (lists[l] != key)
+                        continue;
+
+                    std::vector<std::string> problems;
+                    const bool ok = vmread::records(*vm, instance->fieldValues[f], record.lists[l], &problems, at + "." + key);
+
+                    for (const auto& problem : problems)
+                        error(problem);
+
+                    if (not ok)
+                        return false;
+
+                    found[l] = true;
+                }
+            }
+
+            for (size_t l = 0; l < lists.size(); ++l)
+            {
+                if (not found[l])
+                {
+                    error("`" + at + "." + lists[l] + "`: no field `" + lists[l] + "`");
+                    return false;
+                }
+            }
+
+            out.push_back(std::move(record));
+        }
+
+        return true;
+    }
+
     bool RuleScript::size(const std::string& path, size_t& out)
     {
         Value v;
@@ -429,14 +556,39 @@ namespace chronicle
         return false;
     }
 
+    void Rules::forget()
+    {
+        shapedFor.known = false;
+        foreseenFor.known = false;
+        foreseen.clear();
+        milestonesKnown = false;
+        monthKnown = false;
+        deedsKnown = false;
+    }
+
+    bool Rules::stands(const Asked& asked, float age, const ElementMap& character) const
+    {
+        return asked.known and asked.age == age and asked.world == world and sameMap(asked.character, character) and sameMap(asked.done, done);
+    }
+
+    void Rules::keep(Asked& asked, float age, const ElementMap& character) const
+    {
+        asked.known = true;
+        asked.age = age;
+        asked.character = character;
+        asked.done = done;
+        asked.world = world;
+    }
+
     bool Rules::load(EntitySystem* ecs, const std::string& root)
     {
         errors.clear();
+        forget();
+        nbRuns = 0;
 
         bool ok = true;
 
-        for (auto [script, file] : {std::pair<RuleScript*, const char*>{&activitiesScript, "activities.pg"},
-                                    {&milestonesScript, "milestones.pg"},
+        for (auto [script, file] : {std::pair<RuleScript*, const char*>{&milestonesScript, "milestones.pg"},
                                     {&windowsScript, "windows.pg"},
                                     {&forecastScript, "forecast.pg"},
                                     {&resourcesScript, "resources.pg"},
@@ -453,11 +605,15 @@ namespace chronicle
         return ok;
     }
 
-    bool Rules::activities(float age, const ElementMap& character, std::vector<RuleActivity>& out)
+    bool Rules::shape(float age, const ElementMap& character)
     {
-        RuleScript& s = activitiesScript;
+        if (stands(shapedFor, age, character))
+            return true;
+
+        RuleScript& s = windowsScript;
         s.clearErrors();
-        out.clear();
+
+        shapedFor.known = false;
 
         s.set("age", ElementType{age});
         s.set("character", character);
@@ -465,90 +621,134 @@ namespace chronicle
         s.set("world", ElementType{world});
         s.set("activityId", ElementType{std::string()});
 
-        size_t n = 0;
+        ++nbRuns;
 
-        if (not s.run() or not s.size("activities", n))
+        std::vector<RuleScript::Record> records;
+
+        // A list read is added to what its list holds
+        shapedWindows.clear();
+
+        if (not s.run() or not s.get("activities", {"gains", "costs", "requires"}, records) or not s.get("windows", shapedWindows))
             return fail(s);
 
-        for (size_t i = 0; i < n; ++i)
-        {
-            const std::string at = "activities." + std::to_string(i);
+        shapedActivities.clear();
+        shapedActivities.reserve(records.size());
 
+        for (auto& record : records)
+        {
             RuleActivity activity;
 
-            if (not s.get(at, activity.fields) or not s.get(at + ".gains", activity.gains) or not s.get(at + ".costs", activity.costs) or not s.get(at + ".requires", activity.requires))
-                return fail(s);
+            activity.fields = std::move(record.fields);
+            activity.gains = std::move(record.lists[0]);
+            activity.costs = std::move(record.lists[1]);
+            activity.requires = std::move(record.lists[2]);
 
-            out.push_back(std::move(activity));
+            shapedActivities.push_back(std::move(activity));
         }
+
+        keep(shapedFor, age, character);
+
+        return true;
+    }
+
+    bool Rules::activities(float age, const ElementMap& character, std::vector<RuleActivity>& out)
+    {
+        out.clear();
+
+        if (not shape(age, character))
+            return false;
+
+        out = shapedActivities;
 
         return true;
     }
 
     bool Rules::milestones(float age, std::vector<RuleMilestone>& out, ElementMap& next, ElementMap* headline)
     {
-        RuleScript& s = milestonesScript;
-        s.clearErrors();
         out.clear();
         next.clear();
 
-        s.set("age", ElementType{age});
-        s.set("world", ElementType{world});
-
-        size_t n = 0;
-
-        if (not s.run() or not s.size("milestones", n))
-            return fail(s);
-
-        for (size_t i = 0; i < n; ++i)
-        {
-            const std::string at = "milestones." + std::to_string(i);
-
-            RuleMilestone milestone;
-
-            if (not s.get(at, milestone.fields) or not s.get(at + ".asks", milestone.asks))
-                return fail(s);
-
-            out.push_back(std::move(milestone));
-        }
-
-        if (not s.get("next", next))
-            return fail(s);
-
         if (headline)
-        {
             headline->clear();
 
-            if (not s.get("headline", *headline))
+        if (not milestonesKnown or milestonesAge != age or milestonesWorld != world)
+        {
+            RuleScript& s = milestonesScript;
+            s.clearErrors();
+
+            milestonesKnown = false;
+
+            s.set("age", ElementType{age});
+            s.set("world", ElementType{world});
+
+            ++nbRuns;
+
+            std::vector<RuleScript::Record> records;
+
+            keptNext.clear();
+            keptHeadline.clear();
+
+            if (not s.run() or not s.get("milestones", {"asks"}, records) or not s.get("next", keptNext) or not s.get("headline", keptHeadline))
                 return fail(s);
+
+            keptMilestones.clear();
+
+            for (auto& record : records)
+            {
+                RuleMilestone milestone;
+
+                milestone.fields = std::move(record.fields);
+                milestone.asks = std::move(record.lists[0]);
+
+                keptMilestones.push_back(std::move(milestone));
+            }
+
+            milestonesKnown = true;
+            milestonesAge = age;
+            milestonesWorld = world;
         }
+
+        out = keptMilestones;
+        next = keptNext;
+
+        if (headline)
+            *headline = keptHeadline;
 
         return true;
     }
 
     bool Rules::windows(float age, const ElementMap& character, RecordList& out)
     {
-        RuleScript& s = windowsScript;
-        s.clearErrors();
         out.clear();
 
-        s.set("age", ElementType{age});
-        s.set("character", character);
-        s.set("done", done);
-        s.set("world", ElementType{world});
-        s.set("activityId", ElementType{std::string()});
+        if (not shape(age, character))
+            return false;
 
-        if (not s.run() or not s.get("windows", out))
-            return fail(s);
+        out = shapedWindows;
 
         return true;
     }
 
     bool Rules::forecast(float age, const ElementMap& character, const std::string& activityId, int monthsIn, RuleForecast& out)
     {
+        out = RuleForecast{};
+
+        if (not stands(foreseenFor, age, character))
+        {
+            foreseen.clear();
+            keep(foreseenFor, age, character);
+        }
+
+        const auto asked = std::make_pair(activityId, monthsIn);
+
+        if (auto it = foreseen.find(asked); it != foreseen.end())
+        {
+            out = it->second;
+            return true;
+        }
+
         RuleScript& s = forecastScript;
         s.clearErrors();
-        out = RuleForecast{};
 
         s.set("age", ElementType{age});
         s.set("character", character);
@@ -556,6 +756,8 @@ namespace chronicle
         s.set("world", ElementType{world});
         s.set("activityId", ElementType{activityId});
         s.set("monthsIn", ElementType{monthsIn});
+
+        ++nbRuns;
 
         ElementMap head;
 
@@ -571,24 +773,38 @@ namespace chronicle
         }
 
         out.percent = number(head, "percent", 0.0f);
+        out.toward = number(head, "toward", 0.0f);
         out.months = static_cast<int>(number(head, "months", 0.0f));
         out.caption = text(head, "caption");
 
         if (not s.get("forecast.atStart", out.atStart) or not s.get("forecast.atTerm", out.atTerm) or not s.get("forecast.gaps", out.gaps) or not s.get("forecast.entries", out.entries))
             return fail(s);
 
+        foreseen[asked] = out;
+
         return true;
     }
 
     bool Rules::month(float age, const ElementMap& character, bool board, RuleMonth& out)
     {
+        out = RuleMonth{};
+
+        if (monthKnown and monthAge == age and monthBoard == board and sameMap(monthCharacter, character))
+        {
+            out = keptMonth;
+            return true;
+        }
+
         RuleScript& s = resourcesScript;
         s.clearErrors();
-        out = RuleMonth{};
+
+        monthKnown = false;
 
         s.set("age", ElementType{age});
         s.set("character", character);
         s.set("board", ElementType{board});
+
+        ++nbRuns;
 
         if (not s.run() or not s.get("month.after", out.after) or not s.get("month.entries", out.entries) or not s.get("rows", out.rows))
             return fail(s);
@@ -596,9 +812,9 @@ namespace chronicle
         ElementType death;
         ElementType warning;
         std::vector<ElementType> hurt;
-        size_t n = 0;
+        std::vector<RuleScript::Record> glosses;
 
-        if (not s.get("death", death) or not s.get("warning", warning) or not s.get("month.hurt", hurt) or not s.get("caps", out.caps) or not s.size("glosses", n))
+        if (not s.get("death", death) or not s.get("warning", warning) or not s.get("month.hurt", hurt) or not s.get("caps", out.caps) or not s.get("glosses", {"rows"}, glosses))
             return fail(s);
 
         out.death = death.toString();
@@ -607,47 +823,62 @@ namespace chronicle
         for (const auto& stat : hurt)
             out.hurt.push_back(stat.toString());
 
-        for (size_t i = 0; i < n; ++i)
+        for (auto& record : glosses)
         {
-            const std::string at = "glosses." + std::to_string(i);
-
             RuleGloss gloss;
 
-            if (not s.get(at, gloss.fields) or not s.get(at + ".rows", gloss.rows))
-                return fail(s);
+            gloss.fields = std::move(record.fields);
+            gloss.rows = std::move(record.lists[0]);
 
             out.glosses.push_back(std::move(gloss));
         }
+
+        monthKnown = true;
+        monthAge = age;
+        monthBoard = board;
+        monthCharacter = character;
+        keptMonth = out;
 
         return true;
     }
 
     bool Rules::achievements(std::vector<RuleAchievement>& out)
     {
-        RuleScript& s = achievementsScript;
-        s.clearErrors();
         out.clear();
 
-        size_t n = 0;
-
-        if (not s.run() or not s.size("achievements", n))
-            return fail(s);
-
-        for (size_t i = 0; i < n; ++i)
+        // The deeds are the same whoever lives: read once
+        if (not deedsKnown)
         {
-            const std::string at = "achievements." + std::to_string(i);
+            RuleScript& s = achievementsScript;
+            s.clearErrors();
 
-            RuleAchievement achievement;
+            ++nbRuns;
 
-            if (not s.get(at, achievement.fields) or not s.get(at + ".asks", achievement.asks) or not s.get(at + ".gives", achievement.gives))
+            std::vector<RuleScript::Record> records;
+
+            if (not s.run() or not s.get("achievements", {"asks", "gives"}, records))
                 return fail(s);
 
-            out.push_back(std::move(achievement));
+            keptDeeds.clear();
+
+            for (auto& record : records)
+            {
+                RuleAchievement achievement;
+
+                achievement.fields = std::move(record.fields);
+                achievement.asks = std::move(record.lists[0]);
+                achievement.gives = std::move(record.lists[1]);
+
+                keptDeeds.push_back(std::move(achievement));
+            }
+
+            deedsKnown = true;
         }
+
+        out = keptDeeds;
 
         return true;
     }
-
     bool Rules::epitaph(float age, const ElementMap& character, const std::vector<std::string>& deeds, RuleEpitaph& out)
     {
         RuleScript& s = epitaphScript;
@@ -665,6 +896,8 @@ namespace chronicle
         s.set("world", ElementType{world});
         s.set("activityId", ElementType{std::string()});
         s.set("deeds", names);
+
+        ++nbRuns;
 
         ElementMap head;
         std::vector<ElementType> story;

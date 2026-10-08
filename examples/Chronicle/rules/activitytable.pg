@@ -1,6 +1,7 @@
 // Chronicle rules: the activities
 // -------------------------------
-// Imported by windows.pg and forecast.pg, and loaded by the game through activities.pg.
+// Imported by windows.pg (the game's run for the activities and the doors), forecast.pg and
+// epitaph.pg. Never loaded itself.
 // Input:  `age` (years), `character` (a table of stats and flags), `done` (a table: activity id
 //         -> the terms already completed; an activity never done has no key), `activityId` (""
 //         for every activity; the forecast's one id, to shape that one only), `world` (months

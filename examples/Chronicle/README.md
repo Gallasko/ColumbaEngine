@@ -504,23 +504,30 @@ nothing between runs because each run redefines everything it leaves.
 
 **Loaded scripts are never imported.** Loading a script writes its bytecode beside it (`x.pgc`),
 and an `import "x"` that finds an `x.pgc` takes it instead of the source. That path does not
-compile here (`windows.pg` importing a compiled `activities` fails in the compiler's
-`PoppingJumpPass`), and it would not follow an edit of `x.pg` either. So `activities.pg` and
-`milestones.pg`, which the game loads, only import `activitytable.pg` and `milestonetable.pg`,
-which hold everything and are what `windows.pg` and `forecast.pg` import. `lib.pg` is never loaded.
+compile here (a script importing a compiled module fails in the compiler's
+`PoppingJumpPass`), and it would not follow an edit of `x.pg` either. So `milestones.pg`, which
+the game loads, only imports `milestonetable.pg`, which holds everything and is what
+`forecast.pg` imports; `activitytable.pg` is imported by `windows.pg`, `forecast.pg` and
+`epitaph.pg` and never loaded. `lib.pg` is never loaded.
+
+**One run, kept.** A run executes its script's whole top level, tables and all, so `Rules`
+(`Core/rulevm.h`) asks as little as it can. `windows.pg` answers both `Rules::activities` and
+`Rules::windows` in one run (it shapes `activities` through its import), and every answer is kept
+while what it was asked with stands: the age, the character, `done`, `world` and the call's own
+arguments, compared by value. `Rules::nbRuns` counts the runs.
 
 | script | inputs | outputs |
 |---|---|---|
 | `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthOf` (whole months lived), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup`, `raised` (a gain stopped at the stat's ceiling), `byId`, `pathFlagOf`, `asksOf`, `openNote`, `shiftIn` (a month's change to a stat); `lastAge` (30, where his prime ends), `anyAge` (the `finishBy` of what no age closes) |
-| `activities.pg` (`activitytable.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own), `world` | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label, name}], costs[{stat, amount, label, name}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, showAge, showFrom, tally ("DONE 2", "DONE 0 · 1 LEFT"), until ("" or "CLOSES IN 14 MO"), urgent, after[step]}` |
+| `activitytable.pg` (through `windows.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own), `world` | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label, name}], costs[{stat, amount, label, name}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, showAge, showFrom, tally ("DONE 2", "DONE 0 · 1 LEFT"), until ("" or "CLOSES IN 14 MO"), urgent, after[step]}` |
 | `milestones.pg` (`milestonetable.pg`) | `age`, `world` | `milestones`: `{age, id, label, passed, entry, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
 | `windows.pg` | `age`, `character`, `done`, `activityId` (`""`) | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}`, one per door of an activity whose path is open to him |
-| `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atStart{stats}, atTerm{stats}, percent, months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
+| `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atStart{stats}, atTerm{stats}, percent, toward (the percent a month on), months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
 | `resources.pg` | `age`, `character`, `board` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value, tone}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
 | `achievements.pg` | - | `achievements`: `{id, name, entry, asks[{fact, op, value}], gives[{stat, amount}]}` |
 | `epitaph.pg` | `age`, `character`, `done`, `activityId` (`""`), `deeds` (the names of the deeds reached) | `epitaph`: `{cause ("He died an old man, in his thirty-third year."), story[text] (what he became, worked at, left, and what is told of him), text (the story as one paragraph), tally ("AGE 33 · WORKS 14 · COIN 31 · DEEDS 2")}` |
 
-**Repetition** (`activities.pg`). `done` is the save's count of terms completed per activity.
+**Repetition** (`activitytable.pg`). `done` is the save's count of terms completed per activity.
 An activity may carry two optional fields:
 
 - `uses: N`: it can be done N times. `left` counts down and `spent` turns true at the last
@@ -530,7 +537,7 @@ An activity may carry two optional fields:
   and `entry` happen once, at the term that makes it N (a trigger): `forecast.pg` adds the
   effects to `atTerm` and the entry to `entries`.
 
-**Costs and things done at once** (`activities.pg`). `costs: [{stat, amount}]` is what an
+**Costs and things done at once** (`activitytable.pg`). `costs: [{stat, amount}]` is what an
 activity takes: it is listed in `requires` (he must hold that much, or the row is locked) and is
 taken **the moment it begins**: `forecast.atStart` is the character once it is paid, and the
 scene takes it on confirm; `atTerm` does not take it again. The row shows each cost as a
@@ -538,7 +545,7 @@ negative figure beside the gains. `months: 0` is an activity done at once: confi
 `atTerm` (its gains on what is left once it is paid) immediately, no month passes, and it can be
 done while another activity runs. Its row reads `NOW` where the others read their months.
 
-**Ages and paths** (`activities.pg`). `fromAge` (default 7) is the youngest he may begin it:
+**Ages and paths** (`activitytable.pg`). `fromAge` (default 7) is the youngest he may begin it:
 younger, the first thing it asks is the age. `finishBy` (default `lastAge`) is the latest its
 term may end, inclusive: an 18-month activity with `finishBy: 20` is begun by 18.5. Past that
 it is `closed` (`anyAge` for what no age closes). A closing is said ahead: `until` is the
@@ -564,7 +571,7 @@ do); `bonus: {stat, needed, gains}` replaces the gains when the stat is high eno
 test counts whole months (`monthOf`), so an age summed a twelfth at a time meets its doors on
 time.
 
-**Meals** (`activities.pg`, `resources.pg`). `board: true` is work that feeds him: a month at it
+**Meals** (`activitytable.pg`, `resources.pg`). `board: true` is work that feeds him: a month at it
 takes no ration and costs no Vitality, held rations or not. The scene runs `resources.pg` with
 `board` for the activity at work. Eating the last ration is still a fed month: only a month
 begun with none costs Vitality.
@@ -591,7 +598,7 @@ a row the rules do not follow says only what he holds.
 
 **Limits** (`lib.pg`). `statLimits` is the most he can hold of a stat (`limitOf`, 0 for none;
 `roomFor` is what he can still take in). What a month produces stops at the limit
-(`resources.pg`). An activity that brings such a stat asks for room (`activities.pg`: one more
+(`resources.pg`). An activity that brings such a stat asks for room (`activitytable.pg`: one more
 requirement, `Room for Rations`, current = the room left, needed 1), so it is locked while he
 is full. Begun with any room left it brings all it brings: **an activity may carry him past the
 limit**, and what he holds past it is only eaten into, never cut.
@@ -627,7 +634,7 @@ driven in the script: `standings` (the highest flag he holds is the one said), `
 coin he held), the work he went back to most (terms of timed activities, the table's order on a
 tie) and the deeds by name.
 
-**Old age** (`lib.pg`, `resources.pg`, `activities.pg`). The last milestone (`lastAge`, 30) ends
+**Old age** (`lib.pg`, `resources.pg`, `activitytable.pg`). The last milestone (`lastAge`, 30) ends
 his prime, not his life: its `entry` is written and the months go on. Every activity closes there
 unless it says otherwise (`finishBy` defaults to `lastAge`); the *Old age* group and the market's
 rations carry `finishBy: anyAge` and stay. The group is listed from `lastAge - 1`: the last

@@ -73,6 +73,11 @@ First tagged release. Everything below describes the state of the engine at the 
   taking a pass a link. `settleUiInBasicTask(ecs)` adds the prefab, layout and position systems; an ecs
   with no settle system behaves as before. `PositionComponentSystem` and `WorldFacts` take their pending
   lists before they send, so what a listener marks while the event is delivered is kept for the next round.
+- Chronicle: the rules are asked once. `Rules` keeps each answer while what it was asked with stands (the
+  age, the character, `done`, `world`, the call's arguments), one run of `windows.pg` answers both the
+  activities and the doors (`activities.pg` is gone), a list of tables is read back in one walk, and one
+  forecast gives the bar's next month too (`toward`). A work reaching its term ran the activity table six
+  times; it runs it once.
 - Chronicle: what happens is shown, and what would happen is said before it does.
   - **Begin**: a tile chosen in the list puts a Begin button in "At work now" (Do it now for what takes no
     time), in the place of the one that passes a month. A second click or Enter still begins it.
