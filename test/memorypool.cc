@@ -375,5 +375,51 @@ namespace pg
             EXPECT_EQ(pool.getNbElements(), 0);
             EXPECT_EQ(pool.getSize(), reservedSize);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A slot taken back from the free list comes with the index it has in the pool, whichever
+        // block it is in: the blocks double in size (N == 1) or are all of N.
+        TEST(memorypool_test, an_index_comes_with_a_reused_slot)
+        {
+            AllocatorPool<BasicObject> growing;
+            AllocatorPool<BasicObject, 16> fixed;
+
+            auto check = [](auto& pool) {
+                std::vector<std::pair<BasicObject*, size_t>> slots;
+
+                for (size_t i = 0; i < 300; ++i)
+                {
+                    slots.push_back(pool.allocateWithIndex());
+
+                    EXPECT_EQ(slots[i].second, i);
+                    EXPECT_EQ(pool.getElement(slots[i].second), slots[i].first);
+                }
+
+                // Given back from every block, then taken again, last given first
+                const std::vector<size_t> given = {0, 63, 64, 65, 127, 128, 200, 255, 256, 299, 17};
+
+                for (size_t index : given)
+                    pool.release(slots[index].first);
+
+                for (size_t i = given.size(); i > 0; --i)
+                {
+                    auto [slot, index] = pool.allocateWithIndex();
+
+                    EXPECT_EQ(index, given[i - 1]);
+                    EXPECT_EQ(pool.getElement(index), slot);
+                }
+
+                // And fresh ones follow where the pool stood
+                auto [slot, index] = pool.allocateWithIndex();
+
+                EXPECT_EQ(index, 300u);
+                EXPECT_EQ(pool.getElement(index), slot);
+            };
+
+            check(growing);
+            check(fixed);
+        }
     }
 }

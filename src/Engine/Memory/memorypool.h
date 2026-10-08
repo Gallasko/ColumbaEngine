@@ -17,6 +17,7 @@
 #include <mutex>
 #include <cmath>
 #include <atomic>
+#include <cstdint>
 #include <set>
 
 #include "logger.h"
@@ -190,19 +191,9 @@ namespace pg
 
                 nbElements++;
 
-                // Find the index by calculating from chunk pointer
                 T* ptr = reinterpret_cast<T*>(chunk);
-                size_t index = 0;
-                for (size_t i = 0; i < size; i++)
-                {
-                    if (getElement(i) == ptr)
-                    {
-                        index = i;
-                        break;
-                    }
-                }
 
-                return {ptr, index};
+                return {ptr, indexOf(chunk)};
             }
 
             const size_t index = nbElements++;
@@ -381,6 +372,41 @@ namespace pg
             const uint64_t n = log2_64(index);
 #endif
             return &chunkList[n - 5][index - (size_t(1) << n)];
+        }
+
+        /**
+         * @brief The index of a chunk of the pool
+         *
+         * The inverse of getChunk: the block that holds the chunk, then its place in that block. A pool has
+         * few blocks (each as large as all those before it when N == 1), where looking the pointer up index
+         * by index walked the whole pool for every slot taken back from the free list.
+         *
+         * @param chunk A chunk of this pool
+         * @return size_t Its index, 0 when the chunk is not of this pool
+         */
+        inline size_t indexOf(const PGMemChunk<T>* chunk) const
+        {
+            const auto at = reinterpret_cast<std::uintptr_t>(chunk);
+
+            size_t first = 0;
+
+            for (size_t block = 0; block < chunkList.size(); ++block)
+            {
+                // The layout of getChunk: blocks of N, or one of 64 then each as large as all before it
+                const size_t blockSize = N >= 2 ? N : block == 0 ? 64 : first;
+
+                const auto begin = reinterpret_cast<std::uintptr_t>(chunkList[block]);
+                const auto end = reinterpret_cast<std::uintptr_t>(chunkList[block] + blockSize);
+
+                if (at >= begin and at < end)
+                    return first + static_cast<size_t>(chunk - chunkList[block]);
+
+                first += blockSize;
+            }
+
+            LOG_ERROR("Memory Pool", "Asked for the index of a chunk that is not of this pool");
+
+            return 0;
         }
 
     private:
