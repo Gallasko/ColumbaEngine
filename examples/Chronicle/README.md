@@ -31,6 +31,16 @@ to 30 at least) and what the classes are, and after its last sentence nothing of
 few lines of the town's story are written in the log on the way. The second life and every later
 one open as before: 7 years old, 12 rations, the whole list, no guide.
 
+**The town.** *Explore Bellmoor* (three months, once in a world) opens the **Town page**: it
+takes the place of the list of activities in the middle column, by the `Town` tab, and the two
+other columns stay. It shows the nine places of Bellmoor, each with three levels, and under them
+the market, where what is bought on the spot is bought (the Life page keeps a *Go to the Market*
+tile). A place is raised by a work of the Life page's last group, *The town*: months, coin, and
+for some a stat or years of his life. What is raised is the world's and outlives him: the next
+life is born into that town, with what its places give (a shorter task, a class that asks one
+less, rations or a skill point at birth), never a class for free. At his death the coin he holds
+can be left to one place, and counts toward its next level.
+
 With no `--dev` the game opens on the **Life scene** (`--dev LifeScene` names it too).
 `--dev <Scene>` picks a dev gallery instead; an unknown name exits with code 2 before a
 window opens. On the Life scene, confirming an activity starts the months (one every 2 s,
@@ -141,7 +151,9 @@ of this game told apart by their `chronicle.` prefix:
   chose in the list, the works begun, the things done on the spot, the months passed by the
   button with no work at hand. `guide` is the last step of the first life's guide that ended
   (the `order` of `rules/achievements.pg`, 0 before the first, 10 once it has said everything; a
-  later life keeps 0, and a digest from before 0.3 has no such key). `guideSkipped` is the step
+  later life keeps 0, and a digest from before 0.3 has no such key). `townKnown` is 1 once a
+  life of this browser has explored the town, and `town` the levels of its places added up (0 to
+  27). `guideSkipped` is the step
   that was being said when the player pressed *Skip tutorial* (0 when he did not): `guide` then
   reads 10. `deeds` counts the deeds
   alone, not the lore read nor the guide's words.
@@ -500,6 +512,17 @@ come from `rules/*.pg` through the scene, never from the component.
   `.loss`, `.coin`, `.milestone`), `log.text` (`.note`, `.gain`, `.loss`, `.milestone`),
   `log.figure` (`.gain`, `.loss`, `.coin`), `log.footnote`.
 
+- **PlaceTile** and **PlaceGrid** (`UI/placetile.h`) - a place of the town, as large and as
+  plain as an activity's tile: its mark and its name, a seal a level (`place.seal.earned` in
+  gold-edge, `place.seal.empty` in rule-hair) and a line of caps for what it gives now. Its gloss
+  says the rest. A click sends `PlaceSelectedEvent`; the tile does nothing with it, whoever holds
+  it lights the one chosen (`PlaceGrid::select`, `place.ground.selected`). The grid lays its
+  tiles as an `ActivityList` lays its own: as many to a line as fit at `tileWidth` or more, 8
+  apart, sharing the width. Kinds `PlaceTile` and `PlaceGrid` (records `places`); gallery
+  `--dev TownGallery` (`res/chronicle/ui/towngallery.yaml`).
+- **Tabs, a page not open yet**: `Tabs::setEnabled(ecs, index, false)` leaves a tab faint
+  (`tabs.tab.off`), out of the Tab order and deaf to clicks. The town's tab is so until a life
+  has explored the town.
 ## Game rules (`rules/*.pg`)
 
 **Balance lives here.** Every number the Life screen shows about the future or the rules - what
@@ -559,6 +582,7 @@ arguments, compared by value. `Rules::nbRuns` counts the runs.
 | `resources.pg` | `age`, `character`, `board` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value, tone}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
 | `achievements.pg` | - | `achievements`: `{id, kind (deed / guide / lore), name, entry, say, point, hold, order, asks[{fact, op, value}], gives[{stat, amount}], until[{fact, op, value}]}` |
 | `epitaph.pg` | `age`, `character`, `done`, `activityId` (`""`), `deeds` (the names of the deeds reached) | `epitaph`: `{cause ("He died an old man, in his thirty-third year."), story[text] (what he became, worked at, left, and what is told of him), text (the story as one paragraph), tally ("AGE 33 · WORKS 14 · COIN 31 · DEEDS 2")}` |
+| `town.pg` (`towntable.pg`) | `age`, `character` (with `town_known`, `town.<place>`, `fund.<place>`), `world`, `lives` | `places`: `{id, name, glyph, about, level, most, gives, line, tale, built, fund, nextWork, nextName, nextMonths, nextCoin, nextYears, nextCosts, nextGives, nextLocked, gaps[{stat, label, current, needed}]}`; `start`: `[{stat, amount}]`; `opened`, `raisedLine`, `epitaphLine`, `fundLine`; `gift`: `{stat, before, after, plain, chosen}` |
 
 **Repetition** (`activitytable.pg`). `done` is the save's count of terms completed per activity.
 An activity may carry two optional fields:
@@ -707,14 +731,45 @@ Inventory. `buy.rations` waits for the town: it asks the flag `market_known`, wh
 yet, and has no row until then. *Help in the Kitchen* (`kitchen`: 3 months, meals provided, +6
 rations) is what feeds him meanwhile.
 
+**The town** (`towntable.pg`, `town.pg`). The town is the world's, not the life's: the save
+keeps it beside `world` and `lives` (`LifeSave::townKnown`, `town` place -> level, `raisedBy`,
+`fund`) and `newLife` carries it over. The rules read it in `character`, with his stats, under
+three names: `town_known` (1 or 0), `town.<place>` (its level) and `fund.<place>` (the coin left
+to it). What a script hands back under those names is never written among his stats
+(`LifeSave::takeTown`); the one thing a script does to the town this way is to make it known.
+
+- `towntable.pg` is the table: nine places, three levels each, a level being
+  `{work, built, months, coin, costs, years?, gives, start?, lore}`. It is imported, never loaded.
+- `town.pg` (`Rules::town`) is what the Town page shows: each place's level, what it gives,
+  and its next level flattened (`nextWork`, `nextCosts`, `nextCoin` less the fund, `nextGives`,
+  `nextLocked`, `gaps`), plus `start` (what a new life is born with, every level reached),
+  and the words the scene says (`opened`, `raisedLine`, `epitaphLine`, `fundLine`, `gift`).
+- `activitytable.pg` makes the 27 works from the same table (`raise.<place>.<level>`, group
+  *The town*): listed only to who knows the town and while the place is one level below.
+  New optional fields of an activity: `place` (it stands on the Town page, at that place, once
+  the town is known), `goto` (confirming it opens a page and does nothing else), `raises` and
+  `level` (its term raises that place), `years` (years of his life taken at once when it
+  begins), `whileNot` (not listed once he holds that stat).
+- How a level's gift reaches the rules: `bonus` is now a list of steps
+  `{stat, needed, gains? months? rank? each? uses? fromAge? showAge? showFrom? finishBy? board? path? more?}`,
+  every step that holds applied in order (`more` adds to what the term brings); `eased` takes
+  an `at` level and may be a list; a requirement on `town.<place>` lists a new row; `start` in
+  `towntable.pg` gives a new life a stat or a holding; and a holding of `resources.pg` with
+  `ledger: false` works every month with no row of its own (the market hall's ration).
+
+The scene's part: `takeStats` leaves the town out of his stats, `openTown` and `raisePlace` do
+what a term did to it (a line, its lore, a toast, the page), `giveYears` moves the clock,
+`showTown` swaps the middle column, `fillTown` / `publishTown` fill the `PlaceGrid` and the
+glosses `place/<id>`, and `fillGifts` / `chooseGift` are the gift at death on the ending's leaf.
+
 **The guide and the lore** (`achievements.pg`, `kind`). An entry of the table is a deed (no
 `kind`), a step of the guide or a line of lore; the `AchievementSys` watches the asks of all
 three, and the scene does what the kind says (`reachDeed`).
 
 - `kind: "guide"`: `say` is the sentence written on the guide's leaf (plain, easy English, said
   to the player as "you"; the leaf writes it in the `body` style, no smaller than its buttons), `point` what the hand stands
-  beside (`button:begin`, `tile:<activity id>`, `holding:<id>`, `stat:<key>`, `clock`, `log`, or
-  `""`), `until` the asks that end the step, `hold` the milliseconds it lasts when it has no
+  beside (`button:begin`, `tile:<activity id>`, `holding:<id>`, `stat:<key>`, `tab:<page>`,
+  `clock`, `log`, or `""`), `until` the asks that end the step, `hold` the milliseconds it lasts when it has no
   `until` (5000 by default). A step that points at a tile may carry `pointChosen` and
   `sayChosen`: what the hand points at and what the line says once that tile is the one chosen
   (`button:begin`, and that a double click begins it too); let go of, the tile has the hand

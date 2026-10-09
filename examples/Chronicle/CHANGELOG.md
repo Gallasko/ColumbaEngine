@@ -3,6 +3,30 @@
 What changed in the game, build by build, as a player sees it. The engine's own changes are in
 the `CHANGELOG.md` at the root of the repository.
 
+## 0.4 - Unreleased
+
+### New
+
+- **The town.** *Explore Bellmoor* (three months, once) opens a Town page beside the Life page.
+  It shows nine places: the Mill, the Market, the Chapel, the Yard, the Watch Gate, the Smithy,
+  the Inn, the Collegium Gate and the Harrow Road. Each has three levels.
+- **Works for the town.** Once the town is known, a new group of works raises a place by one
+  level. They cost months and coin, and some cost a stat or years of your life. This is time you
+  do not spend on yourself.
+- **The town stays.** What you raise is kept when a life ends. The next life is born into that
+  town: tasks that are shorter or pay more, classes that ask a little less, and a few things you
+  start with (rations, a skill point, a friend at the Watch). The town never gives a class for
+  free.
+- **The gift at death.** When a life ends with coin, you can leave it to one place. It counts
+  toward that place's next level.
+- **Hover a place** to see what it gives, what its next level asks compared with what you have,
+  and who raised it.
+
+### Changed
+
+- **Buying is done in town.** *Buy rations* and *Buy reagents* are on the Town page, at the
+  market. The Life page keeps a *Go to the Market* tile that opens it.
+
 ## 0.3 - 2026-10-09
 
 ### New
