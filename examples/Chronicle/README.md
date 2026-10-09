@@ -10,11 +10,25 @@ Run from the repo root (assets are read relative to the working directory):
 ```
 ./release/Chronicle                           # the Life scene, from save/chronicle/life.sz (the mockup's life when there is none)
 ./release/Chronicle --no-save                 # the mockup's life, never written
-./release/Chronicle --fresh                   # a new life at 7
+./release/Chronicle --fresh                   # a first life: a month before 7, one task, the guide
+./release/Chronicle --fresh --guide 6         # the same, its guide already past step 6
 ./release/Chronicle --save save/other.sz      # another save file
 ./release/Chronicle --month-ms 1000           # a month every second instead of every 2
 ./release/Chronicle --dev TypeSpecimen --theme candle
 ```
+
+**A first life** (a browser with no save, or `--fresh`) opens on one tile: he is 6 years 11
+months old and holds nothing. A **guide** walks him through his first works: one short sentence
+at a time on a leaf under the one thing it is about (a tile, what he holds, a stat, the clock),
+a pointing hand beside that thing and a shade over the rest of the page, which can still be
+pressed. The leaf has two buttons: *Skip the guide* ends it for good, and *Next* passes a step
+that would otherwise wait a few seconds (a step that waits for a press has none). A work is begun in two presses, and the hand shows both: first the task
+(*Start Helping Out*), then, once it is chosen, the Begin button, while the leaf says that a
+double click on the task begins it too. That first task takes one month: he turns 7 and his
+first rations arrive. The list grows one task at a time, the three
+classes come with the fifth term, and after its last sentence nothing of the guide is left. A
+few lines of the town's story are written in the log on the way. The second life and every later
+one open as before: 7 years old, 12 rations, the whole list, no guide.
 
 With no `--dev` the game opens on the **Life scene** (`--dev LifeScene` names it too).
 `--dev <Scene>` picks a dev gallery instead; an unknown name exits with code 2 before a
@@ -120,11 +134,17 @@ of this game told apart by their `chronicle.` prefix:
   moments it is shown and hidden. `total_play_time_ms` adds the sessions before, kept with the
   systems' save.
 - **The digest** (`LifeSave::digest`, in `save_snapshot`) is one line of JSON:
-  `{"age":12.50,"world":66,"aim":"warrior","running":"yard","monthsIn":2,"terms":14,"deeds":2,"log":31,"lives":3,"picks":22,"begun":15,"atOnce":4,"skips":2}`.
+  `{"age":12.50,"world":66,"aim":"warrior","running":"yard","monthsIn":2,"terms":14,"deeds":2,"log":31,"lives":3,"picks":22,"begun":15,"atOnce":4,"skips":2,"guide":10}`.
   `lives` counts the lives of this browser, this one included (1 for a save older than the count).
-  The last four are what the player pressed in this life: the tiles he chose in the list, the
-  works begun, the things done on the spot, the months passed by the button with no work at hand.
-  The scene gives it after every month, choice, thing done at once and new life.
+  `picks`, `begun`, `atOnce` and `skips` are what the player pressed in this life: the tiles he
+  chose in the list, the works begun, the things done on the spot, the months passed by the
+  button with no work at hand. `guide` is the last step of the first life's guide that ended
+  (the `order` of `rules/achievements.pg`, 0 before the first, 10 once it has said everything; a
+  later life keeps 0, and a digest from before 0.3 has no such key). `guideSkipped` is the step
+  that was being said when the player pressed *Skip the guide* (0 when he did not): `guide` then
+  reads 10. `deeds` counts the deeds
+  alone, not the lore read nor the guide's words.
+  The scene gives it after every month, choice, thing done at once, step of the guide and new life.
 
 ```sql
 -- How long a session lasts, and how old he was when they stopped
@@ -135,11 +155,12 @@ GROUP BY session_id ORDER BY MIN(timestamp_ms) DESC;
 ```
 
 `tools/chronicle_stats.pg` makes the whole report from a CSV export of the `chronicle.%` rows
-(the query is in its header): sessions and their length, the days, where a session stopped
-and the lives lost.
+(the query is in its header): sessions and their length, the days, how far a session got, how
+many first lives got past each step of the guide (a drop between two steps is a drop between two
+sentences), where a session stopped and the lives lost.
 
 ```bash
-build/PgCompilerBootstrap tools/chronicle_stats.pg chronicle-events.csv report.txt
+release/PgCompilerBootstrap tools/chronicle_stats.pg chronicle-events.csv report.txt
 ```
 
 ## Layout
@@ -182,7 +203,7 @@ come from `rules/*.pg` through the scene, never from the component.
   live on the engine's `TTFText`; the label adds the style and the colour
   token.
 
-- **Mark** (`UI/mark.h`) — one of 27 glyphs at one of five kit sizes
+- **Mark** (`UI/mark.h`) — one of 28 glyphs at one of five kit sizes
   (14/16/18/24/48 px), registered at exactly those sizes so nothing resamples.
   `markSizeFor(style)` is the single style → size table (body → 16, figure → 18,
   title → 24, versal → 48, the small styles → 14). An unknown name draws `seal`
@@ -530,12 +551,12 @@ arguments, compared by value. `Rules::nbRuns` counts the runs.
 | script | inputs | outputs |
 |---|---|---|
 | `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthOf` (whole months lived), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup`, `raised` (a gain stopped at the stat's ceiling), `byId`, `pathFlagOf`, `asksOf`, `openNote`, `shiftIn` (a month's change to a stat); `lastAge` (30, where his prime ends), `anyAge` (the `finishBy` of what no age closes) |
-| `activitytable.pg` (through `windows.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own), `world` | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label, name}], costs[{stat, amount, label, name}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, showAge, showFrom, tally ("DONE 2", "DONE 0 · 1 LEFT"), until ("" or "CLOSES IN 14 MO"), urgent, after[step]}` |
-| `milestones.pg` (`milestonetable.pg`) | `age`, `world` | `milestones`: `{age, id, label, passed, entry, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
+| `activitytable.pg` (through `windows.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own), `world`, `lives` (1: a first life, shown its tasks one at a time), `running` | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label, name}], costs[{stat, amount, label, name}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, showAge, showFrom, tally ("DONE 2", "DONE 0 · 1 LEFT"), until ("" or "CLOSES IN 14 MO"), urgent, after[step]}` |
+| `milestones.pg` (`milestonetable.pg`) | `age`, `world`, `lives` | `milestones`: `{age, id, label, passed, entry, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
 | `windows.pg` | `age`, `character`, `done`, `activityId` (`""`) | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}`, one per door of an activity whose path is open to him |
 | `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atStart{stats}, atTerm{stats}, percent, toward (the percent a month on), months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
 | `resources.pg` | `age`, `character`, `board` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value, tone}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
-| `achievements.pg` | - | `achievements`: `{id, name, entry, asks[{fact, op, value}], gives[{stat, amount}]}` |
+| `achievements.pg` | - | `achievements`: `{id, kind (deed / guide / lore), name, entry, say, point, hold, order, asks[{fact, op, value}], gives[{stat, amount}], until[{fact, op, value}]}` |
 | `epitaph.pg` | `age`, `character`, `done`, `activityId` (`""`), `deeds` (the names of the deeds reached) | `epitaph`: `{cause ("He died an old man, in his thirty-third year."), story[text] (what he became, worked at, left, and what is told of him), text (the story as one paragraph), tally ("AGE 33 · WORKS 14 · COIN 31 · DEEDS 2")}` |
 
 **Repetition** (`activitytable.pg`). `done` is the save's count of terms completed per activity.
@@ -662,9 +683,57 @@ ends. It is not in `month.hurt`: no red, no pause. The clock's track stops at 30
 figure does not.
 
 **Deeds** (`achievements.pg`). Each deed asks facts the Life scene publishes (`stat.<key>`,
-`done.<activity id>`, `life.age`) with an `op` of `>=`, `>`, `<=`, `<` or `==`. The scene hands
-them to the engine's `AchievementSys` (`src/Engine/Systems/achievement.h`); when one is
-reached the scene applies `gives`, writes `entry` in the log and keeps the id in the save.
+`done.<activity id>`, `life.age`, `life.terms`, `life.working`, `life.lives`, `life.guide`) with
+an `op` of `>=`, `>`, `<=`, `<` or `==`. The scene hands them to the engine's `AchievementSys`
+(`src/Engine/Systems/achievement.h`); when one is reached the scene applies `gives`, writes
+`entry` in the log and keeps the id in the save.
+
+**A first life** (`lives`, `activitytable.pg`). `Rules::lives` is the save's count of lives, this
+one included; every script gets it as the `lives` input, as it gets `world`. With `lives` 1 the
+list is shown one task at a time. Two optional fields of an activity say how:
+
+- `firstLife: true`: the opening task (`helping`, *Start Helping Out*: one month, meals provided,
+  +12 rations, `uses: 1`). It is listed only in a first life that has done nothing yet.
+- `showAfter: N`: listed once N terms in all are done in this life, on top of what else lists
+  it. The carters come after 1 term, the messages after 2, the kitchen and the mill after 3, his
+  letters after 4, the three classes and what age 8 opens after 5. With `lives` above 1 it is
+  ignored and the list is whole from the first day.
+
+`freshLife(true)` (`Scenes/lifesave.h`) is that life's first frame: 6 years 11 months, no
+`rations` stat at all (so no hunger and no row until the first task brings them), an empty
+Inventory. `buy.rations` waits for the town: it asks the flag `market_known`, which nothing sets
+yet, and has no row until then. *Help in the Kitchen* (`kitchen`: 3 months, meals provided, +6
+rations) is what feeds him meanwhile.
+
+**The guide and the lore** (`achievements.pg`, `kind`). An entry of the table is a deed (no
+`kind`), a step of the guide or a line of lore; the `AchievementSys` watches the asks of all
+three, and the scene does what the kind says (`reachDeed`).
+
+- `kind: "guide"`: `say` is the sentence written on the guide's leaf, `point` what the hand stands
+  beside (`button:begin`, `tile:<activity id>`, `holding:<id>`, `stat:<key>`, `clock`, `log`, or
+  `""`), `until` the asks that end the step, `hold` the milliseconds it lasts when it has no
+  `until` (5000 by default). A step that points at a tile may carry `pointChosen` and
+  `sayChosen`: what the hand points at and what the line says once that tile is the one chosen
+  (`button:begin`, and that a double click begins it too); let go of, the tile has the hand
+  again. `order` 1..n is its place: the script adds the ask
+  `life.guide == order - 1`, so a step waits for the one before it to have ended, and refuses a
+  gap in the orders. `order: 0` is a step outside the sequence (`guide.rations_low`), kept in the
+  save like a deed. Steps are neither toasted nor logged. Only a first life registers them, and
+  only the ones past `LifeSave::guide`, so a reload resumes at the step it was on.
+- `kind: "lore"`: `entry` is written in the log as a `LogKind::Lore` line (the `gloss` style,
+  `ink-muted`, a quill, the theme element `log.lore`) and nothing else happens. Every life reads
+  them, each once.
+
+The scene's part is `runGuide` (`lifescene.cpp`): one step is said at a time, the others wait in
+`stepsDue`; `pointed` finds what a `point` names on the page as it is now, `pointAt` hangs the
+hand (the `manicule` mark) on its left edge, `shadeAround` lays the shade (`guide.veil`) over
+the page but for it, and `sayNote` puts the leaf with the sentence under it (over it where the
+window ends, at the head of the page when the step points at nothing). `nextStep` and
+`skipGuide` are the leaf's two buttons; a skipped guide is saved as past its last step, with
+the step it was left at in `LifeSave::guideSkipped`. What is not drawn (a tile not listed yet, a panel the
+compact page keeps for another tab) is not pointed at: the sentence is said alone. Lore that
+already holds when a save is opened is taken as read (`takeAsRead`), so a life from before 0.3
+does not open on a page of it.
 
 `Rules` loads them once from a root (`examples/Chronicle/rules` from the repo root, where
 the game runs; `rules` beside `test_chronicle`, where CMake copies them) and gives each a typed
@@ -735,7 +804,7 @@ moves with every month that passes and a new life keeps the last one's count (`n
 death does not rewind it, so it says how long the chronicle has been kept. The scene hands it
 to the rules (`Rules::world`, the `world` input of every script that reads the two tables), which
 write the dates: the head's (`headline.date` "YEAR 10", `headline.dateNote` "MONTH 7 · SUMMER ·
-BELLMOOR") and each activity's closing. A fresh life started with `--fresh` begins at Year 0;
+BELLMOOR") and each activity's closing. A first life (`--fresh`) begins at Year 0;
 the mockup's stands at month 126.
 
 **Feedback and feedforward.** What happens is shown and what would happen is said first, all of
@@ -794,8 +863,8 @@ z on the page: page 0, panels 10, their content 20–59, tooltips 200.
   Squire row, the log's rubrics and the skills all read from the save and the rules. Not
   compared side by side with the design system's MainLifeScreen yet: that comparison, and
   any component fix it asks for, is the first open item of the gate.
-- **A fresh life** (`--fresh`): age 7.0, WINTER, 84 months to the fourteenth; the ledger
-  empty, the log one rubric and "Childhood", every door upcoming with what it asks. The
+- **A later life** (`N` on the Life scene): age 7.0, WINTER, 84 months to the fourteenth; the ledger
+  with his rations alone, the log one rubric and "Childhood", every door upcoming with what it asks. The
   months running on `SPACE`, and the entity count over ten months, are still to be
   watched by hand (the month loop itself is covered by `lifescene_test`).
 - **A saved life**: the save round trip is covered by `lifescene_test.save_round_trip`;
@@ -813,7 +882,7 @@ z on the page: page 0, panels 10, their content 20–59, tooltips 200.
 
 ## Assets
 
-- The **mark** set (`res/icons/chronicle/`, 27 glyphs) and the **ornament** set
+- The **mark** set (`res/icons/chronicle/`, 28 glyphs, the guide's `manicule` among them) and the **ornament** set
   (`res/icons/chronicle-ornaments/`, 7 curves) are SVGs authored on **square**
   viewBoxes: `SvgLoader::rasterize` fits a document into a square and centres it,
   so a square viewBox makes the quad and the drawing coincide with no offset. The

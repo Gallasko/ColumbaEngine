@@ -3,6 +3,30 @@
 What changed in the game, build by build, as a player sees it. The engine's own changes are in
 the `CHANGELOG.md` at the root of the repository.
 
+## 0.3 - Unreleased
+
+### New
+
+- **A first life opens on one task.** One tile: *Start Helping Out* takes a month, brings you to
+  7 and gives you your first rations. The other tasks join the list one at a time
+  as you finish terms, and the three classes come with the fifth. The second life and the ones
+  after it open with the whole list, as before.
+- **A guide.** Through the first six works a short sentence under the thing it is about says
+  what to look at, a pointing hand stands beside it and the rest of the page is shaded. *Next*
+  passes a sentence without waiting for it, and *Skip the guide* ends the guide. To begin a work it
+  shows the task first, then the Begin button, and says that a double click on the task begins
+  it too. Nothing is blocked:
+  you can press anything at any time. It is said once, in the first life only, and a reload
+  resumes where it was.
+- **Lore in the log.** A few lines about Bellmoor are written in the log as a life goes by.
+- **Help in the Kitchen.** A work that feeds you while you are at it and sends you off with
+  rations.
+
+### Changed
+
+- **Buy rations is gone from the Life page until the town opens; the kitchen feeds him.**
+- The welcome line of a first life is now the guide's first sentence.
+
 ## 0.2 - 2026-10-08
 
 Everything since 0.1, the first build published on itch.io (2026-10-07).
