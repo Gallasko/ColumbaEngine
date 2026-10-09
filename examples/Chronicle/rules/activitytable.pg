@@ -21,6 +21,8 @@
 //           costs [{stat, amount, label, name}] (taken when it begins),
 //           requires [{stat, label, current, needed, room}] (current: the character's; flat:
 //           eased and anyOf are weighed here and not passed on),
+//           needs (the requirements as the table writes them, with their eased and anyOf: for
+//           the tools, tools/chronicle_graph.pg; the screen reads `requires`),
 //           locked (true while a requirement is unmet),
 //           done (the terms completed), uses (0 = as often as he likes), left (-1 = no limit),
 //           spent (true once a limited activity has no use left),
@@ -649,6 +651,9 @@ for (var i = 0; i < len(activities); i++)
     uses = lookup(a, "uses", 0)
 
     var requires = []
+
+    // What the table writes, kept as written for the tools: eased and anyOf are still on it
+    a.needs = a.requires
 
     // Too young for it: the age is the first thing it asks
     a.fromAge = lookup(a, "fromAge", 7)

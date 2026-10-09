@@ -1188,6 +1188,9 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         # No compiled script is packed, the browser compiles them from their source
         target_link_options(Chronicle PRIVATE "--exclude-file=*.pgc")
 
+        # Nor the tool that stands with the rules: the game never loads it
+        target_link_options(Chronicle PRIVATE "--exclude-file=*depgraph.pg")
+
         foreach(WEB_FILE ${CHRONICLE_WEB_FILES})
             target_link_options(Chronicle PRIVATE "--preload-file=${CMAKE_SOURCE_DIR}/${WEB_FILE}@${WEB_FILE}")
 

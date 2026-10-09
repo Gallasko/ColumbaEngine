@@ -36,3 +36,6 @@ asan/
 !src/Engine/Components/generated/*.serialization.cpp
 tools/*.pgc
 examples/Chronicle/rules/*.pgc
+
+# The graph depgraph.pg writes when no file is named, and its drawing
+chronicle-graph.*

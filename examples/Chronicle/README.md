@@ -575,7 +575,7 @@ arguments, compared by value. `Rules::nbRuns` counts the runs.
 | script | inputs | outputs |
 |---|---|---|
 | `lib.pg` | - | pure helpers: `clamp`, `ordinal` ("14th"), `monthOf` (whole months lived), `monthsBetween`, `monthsToAttempts`, `signed` ("+1" / "−2"), `fmtMonths` ("6 mo"), `numberWord`, `statName`, `statOf`, `lookup`, `raised` (a gain stopped at the stat's ceiling), `byId`, `pathFlagOf`, `asksOf`, `openNote`, `shiftIn` (a month's change to a stat); `lastAge` (30, where his prime ends), `anyAge` (the `finishBy` of what no age closes) |
-| `activitytable.pg` (through `windows.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own), `world`, `lives` (1: a first life, shown its tasks one at a time), `running` | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label, name}], costs[{stat, amount, label, name}], requires[{stat, label, current, needed}], locked, done, uses, left, spent, closed, pathOpen, listed, showAge, showFrom, tally ("DONE 2", "DONE 0 · 1 LEFT"), until ("" or "CLOSES IN 14 MO"), urgent, after[step]}` |
+| `activitytable.pg` (through `windows.pg`) | `age`, `character`, `done`, `activityId` (`""`: all; `forecast.pg` shapes only its own), `world`, `lives` (1: a first life, shown its tasks one at a time), `running` | `activities`: `{id, group, name, glyph, months, rank, each, path, enters, board, fromAge, finishBy, gains[{stat, amount, label, name}], costs[{stat, amount, label, name}], requires[{stat, label, current, needed}], needs (the requirements as written, for `depgraph.pg`), locked, done, uses, left, spent, closed, pathOpen, listed, showAge, showFrom, tally ("DONE 2", "DONE 0 · 1 LEFT"), until ("" or "CLOSES IN 14 MO"), urgent, after[step]}` |
 | `milestones.pg` (`milestonetable.pg`) | `age`, `world`, `lives` | `milestones`: `{age, id, label, passed, entry, asks[{path, stat, label, needed}]}`; `next`: `{id, label, age, in}` (`in` = months to it; `"", "", -1, -1` past the last) |
 | `windows.pg` | `age`, `character`, `done`, `activityId` (`""`) | `windows`: `{id, name, from, to, state (upcoming / open / closed), note (in attempts), attempts}`, one per door of an activity whose path is open to him |
 | `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atStart{stats}, atTerm{stats}, percent, toward (the percent a month on), months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
@@ -801,6 +801,37 @@ does not open on a page of it.
 the game runs; `rules` beside `test_chronicle`, where CMake copies them) and gives each a typed
 call. The forecast runs once per month tick, not per frame; `rules_test.timing_ceiling` keeps
 100 runs under 100 ms (each run rebuilds the whole activity table: about 0.55 ms). The compiled `.pgc` files land beside the scripts and are git-ignored.
+
+### The dependency graph (`rules/depgraph.pg`)
+
+A tool, not a rule: the game never loads it and the web build leaves it out. It reads the activity
+table and the town table and writes a Graphviz file of what leads to what.
+
+```bash
+release/PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg chronicle-graph.dot
+dot -Tsvg chronicle-graph.dot -o chronicle-graph.svg
+```
+
+- **The overview** (no third argument): tasks only. A link goes from the task that brings a flag
+  to the task that reads it, with the flag's name on it. A place of the town is one box with its
+  three works and what each level gives, linked to the tasks its levels change. A class is one
+  link from its way in to its group.
+- **Left to right along the years**: a column for each age a task can be begun from (`fromAge`),
+  the town's places in the first column, each group a band across the columns.
+- **Skills, coin and rations are not drawn.** A stat that three tasks or more bring (`skillFrom`),
+  and what a life is born with, is written in the task's box: `asks arms 5`, `brings +1 arms`.
+  Drawn, twelve tasks would point at every one that asks for Arms.
+- **A focus** as a third argument, the id of a task or the key of a stat (`keep`, `arms`,
+  `town.mill`): the detail around it, with a node for every stat, and the tasks that feed it and
+  the tasks it feeds printed. `all` draws the whole detail at once.
+- **Links**: black asks, red takes (a cost), blue brings (the detail only), green eases or
+  betters, grey opens a class, purple is the town.
+- **Loose ends** are printed without a focus: what is asked for and brought by nothing, and what
+  is brought and read by no task.
+
+It stands in `rules/` because a module's own imports are looked for beside the script that is run.
+It reads each task's `needs`, the requirements as `activitytable.pg` writes them (with `eased`
+and `anyOf`), which the table keeps for it beside the flat `requires` the screen reads.
 
 ## Patterns
 

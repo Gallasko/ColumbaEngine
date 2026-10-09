@@ -1,0 +1,1256 @@
+// depgraph.pg - what each task of Chronicle depends on, as a Graphviz file.
+//
+// A tool: the game never loads it. It stands with the rules because a module's own imports are
+// looked for beside the script that is run, and activitytable.pg imports lib.pg and towntable.pg.
+//
+// Reads the activity table and the town table of the game and writes one of three graphs.
+//
+// The overview (no focus): tasks only, and what leads to what. A link goes from the task that
+// brings a flag to the task that reads it (Carry for the Watch -> Train under Sergeant Edric,
+// "Known to the Watch"). What many tasks bring is not a link: the skills (Arms, Lore...), coin
+// and rations are written in the task's box ("asks arms 5", "brings +1 arms"), or twelve tasks
+// would point at every one that asks for Arms. A place of the town is one box with its three
+// works, linked to the tasks its levels change. A class is one link, from its way in to its group.
+// It reads left to right along the years: a column for each age a task can be begun from, the
+// town's places in the first one, and each group a band across the columns.
+//
+// A focus (the id of a task, "keep", or the key of a stat, "arms", "town.mill"): the detail
+// around it, with an ellipse for every stat. For a task: what it asks, takes and brings, the
+// tasks that bring what it asks and the tasks that read what it brings. For a stat: the tasks
+// that bring it and the tasks that read it. Both lists of tasks are printed.
+//
+// "all" as the focus: the whole detail at once. It is a ball of wool; it is there to search in.
+//
+//   black   a task asks for it
+//   red     a task takes it when it begins (a cost)
+//   blue    a task brings it (dashed: only at a later term, or with a bonus)
+//   green   it makes a task easier (dashed) or better (solid), or is one of several that will do
+//   grey    a class: its way in opens its tasks
+//   purple  the town: a work raises a place, a place gives a new life something at birth
+//
+// Usage:  PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg [out.dot] [focus]
+//         dot -Tsvg out.dot -o out.svg
+//
+// `out.dot` is chronicle-graph.dot, where it is run from, when none is given. Without a focus
+// the loose ends are printed: what is asked for and brought by nothing, and what is brought and
+// read by no task.
+
+import "string"
+import "file"
+import "algorithm"
+import "math"
+
+// ============================================================================
+// Settings
+// ============================================================================
+
+// What is written in a task's box and never drawn
+var hubStats = ["coin", "rations"]
+
+// A stat that this many tasks bring, or more, is a skill: the overview writes it in the boxes
+var skillFrom = 3
+
+// What a life holds from its first day: nothing has to bring it
+var bornWith = ["str", "dex", "int", "vit", "coin", "rations"]
+
+// How each kind of link is drawn
+var linkStyles = {
+    asks: "color=\"#1a202c\", penwidth=1.6",
+    takes: "color=\"#c53030\", fontcolor=\"#c53030\"",
+    brings: "color=\"#2b6cb0\", fontcolor=\"#2b6cb0\"",
+    later: "color=\"#2b6cb0\", fontcolor=\"#2b6cb0\", style=dashed",
+    eases: "color=\"#2f855a\", fontcolor=\"#2f855a\", style=dashed",
+    betters: "color=\"#2f855a\", fontcolor=\"#2f855a\"",
+    classOf: "color=\"#a0aec0\", style=dotted, arrowsize=0.6",
+    opens: "color=\"#718096\", fontcolor=\"#4a5568\", penwidth=2",
+    town: "color=\"#6b46c1\", fontcolor=\"#6b46c1\"",
+    birth: "color=\"#6b46c1\", fontcolor=\"#6b46c1\", style=dashed"
+}
+
+// The kinds that bring a stat, and the kinds that read one
+var bringKinds = ["brings", "later", "town", "birth"]
+var readKinds = ["asks", "takes", "eases", "betters", "classOf"]
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+fun inList(list, value)
+{
+    for (var i = 0; i < len(list); i = i + 1)
+    {
+        if (list[i] == value)
+        {
+            return true
+        }
+    }
+
+    return false
+}
+
+// A text between the double quotes of a Graphviz file. A line break is written as it reads one:
+// "\n" for a centred line, "\l" for one that starts at the left
+fun quotedAs(text, lineBreak)
+{
+    var out = ""
+
+    for (var i = 0; i < strlen(text); i = i + 1)
+    {
+        var c = substring(text, i, i + 1)
+
+        if (c == "\n")
+        {
+            c = lineBreak
+        }
+        else if (c == "\"" or c == "\\")
+        {
+            out = out + "\\"
+        }
+
+        out = out + c
+    }
+
+    return out
+}
+
+fun quoted(text)
+{
+    return quotedAs(text, "\\n")
+}
+
+fun taskNode(id)
+{
+    return "task/" + id
+}
+
+fun statNode(stat)
+{
+    return "stat/" + stat
+}
+
+fun signedText(amount)
+{
+    if (amount >= 0)
+    {
+        return "+" + toString(amount)
+    }
+
+    return toString(amount)
+}
+
+// "+1 Arms +18 Coin" for a [{stat, amount}], with the hubs only or without them
+fun amountsText(list, sign, hubs)
+{
+    var out = ""
+
+    for (var i = 0; i < len(list); i = i + 1)
+    {
+        if (inList(hubStats, list[i].stat) == hubs)
+        {
+            if (out != "")
+            {
+                out = out + " "
+            }
+
+            out = out + signedText(sign * list[i].amount) + " " + toLowerCase(statShortName(list[i].stat))
+        }
+    }
+
+    return out
+}
+
+// ============================================================================
+// The graph
+// ============================================================================
+
+fun newGraph()
+{
+    return {tasks: [], taskIds: {}, stats: [], statKeys: {}, statLabels: {}, placeLabels: {}, links: [], groups: []}
+}
+
+fun addStat(graph, stat)
+{
+    if (not contain(graph.statKeys, stat))
+    {
+        graph.statKeys[stat] = true
+        push(graph.stats, stat)
+    }
+}
+
+// A link from a stat to a task, or from a task to a stat. A hub is not drawn
+fun addLink(graph, source, target, stat, kind, label)
+{
+    if (inList(hubStats, stat))
+    {
+        return
+    }
+
+    addStat(graph, stat)
+    push(graph.links, {source: source, target: target, stat: stat, kind: kind, label: label, level: 0})
+}
+
+// What a bonus step changes, in a few words: "+4 coin", "months 4", "fromAge 8"
+fun bonusText(step)
+{
+    var out = ""
+
+    for (var key : step)
+    {
+        if (key != "stat" and key != "needed")
+        {
+            var said = ""
+
+            if (key != "gains" and key != "more")
+            {
+                said = key + " " + toString(step[key])
+            }
+            else
+            {
+                said = amountsText(step[key], 1, true)
+
+                if (said != "" and amountsText(step[key], 1, false) != "")
+                {
+                    said = said + " "
+                }
+
+                said = said + amountsText(step[key], 1, false)
+
+                if (key == "gains")
+                {
+                    said = "brings " + said
+                }
+            }
+
+            if (out != "")
+            {
+                out = out + ", "
+            }
+
+            out = out + said
+        }
+    }
+
+    return out
+}
+
+fun addTask(graph, a)
+{
+    var node = taskNode(a.id)
+
+    // Its box: its name, its time and its ages, and what it does to the hubs
+    var time = "at once"
+
+    if (a.months > 0)
+    {
+        time = toString(a.months) + " mo"
+    }
+
+    time = time + " | from " + toString(a.fromAge)
+
+    if (a.finishBy < anyAge and a.finishBy < lastAge)
+    {
+        time = time + " | by " + toString(a.finishBy)
+    }
+
+    if (a.uses > 0)
+    {
+        time = time + " | x" + toString(a.uses)
+    }
+
+    var label = a.name + "\n" + time
+
+    var hubs = amountsText(a.gains, 1, true)
+    var paid = amountsText(a.costs, -1, true)
+
+    if (hubs != "" and paid != "")
+    {
+        hubs = hubs + " "
+    }
+
+    hubs = hubs + paid
+
+    if (hubs != "")
+    {
+        label = label + "\n" + hubs
+    }
+
+    push(graph.tasks, {id: a.id, node: node, group: a.group, label: label, name: a.name, time: time, fromAge: a.fromAge, path: a.path, enters: a.enters, raises: a.raises,
+                       needs: a.needs, gains: a.gains, costs: a.costs})
+    graph.taskIds[a.id] = true
+
+    if (not inList(graph.groups, a.group))
+    {
+        push(graph.groups, a.group)
+    }
+
+    // What it brings at every term
+    var brought = {}
+
+    for (var g = 0; g < len(a.gains); g = g + 1)
+    {
+        brought[a.gains[g].stat] = true
+        addLink(graph, node, statNode(a.gains[g].stat), a.gains[g].stat, "brings", signedText(a.gains[g].amount))
+    }
+
+    // What it takes when it begins
+    for (var c = 0; c < len(a.costs); c = c + 1)
+    {
+        addLink(graph, statNode(a.costs[c].stat), node, a.costs[c].stat, "takes", signedText(0 - a.costs[c].amount))
+    }
+
+    // What it asks, as the table writes it
+    for (var r = 0; r < len(a.needs); r = r + 1)
+    {
+        var req = a.needs[r]
+
+        if (has(req, "anyOf"))
+        {
+            for (var f = 0; f < len(req.anyOf); f = f + 1)
+            {
+                addLink(graph, statNode(req.anyOf[f]), node, req.anyOf[f], "eases", "or")
+            }
+        }
+        else
+        {
+            addLink(graph, statNode(req.stat), node, req.stat, "asks", toString(req.needed))
+        }
+
+        if (has(req, "eased"))
+        {
+            var easings = req.eased
+
+            if (typeOf(easings) != "array")
+            {
+                easings = [req.eased]
+            }
+
+            for (var e = 0; e < len(easings); e = e + 1)
+            {
+                var said = toLowerCase(statShortName(req.stat)) + " " + toString(easings[e].needed)
+
+                if (has(easings[e], "at"))
+                {
+                    said = "at " + toString(easings[e].at) + ": " + said
+                }
+
+                addLink(graph, statNode(easings[e].flag), node, easings[e].flag, "eases", said)
+            }
+        }
+    }
+
+    // What repetition brings that the first term does not
+    for (var s = 0; s < len(a.after); s = s + 1)
+    {
+        var step = a.after[s]
+        var gains = listOf(step, "gains")
+        var effects = listOf(step, "effects")
+
+        for (var g = 0; g < len(gains); g = g + 1)
+        {
+            if (not contain(brought, gains[g].stat))
+            {
+                addLink(graph, node, statNode(gains[g].stat), gains[g].stat, "later", signedText(gains[g].amount) + " from term " + toString(step.uses + 1))
+            }
+        }
+
+        for (var e = 0; e < len(effects); e = e + 1)
+        {
+            addLink(graph, node, statNode(effects[e].stat), effects[e].stat, "later", signedText(effects[e].amount) + " at term " + toString(step.uses))
+        }
+    }
+
+    // What a stat he holds, or the town, makes of it
+    var bonuses = listOf(a, "bonus")
+
+    for (var b = 0; b < len(bonuses); b = b + 1)
+    {
+        var better = bonuses[b]
+        var level = lookup(better, "needed", 1)
+
+        addLink(graph, statNode(better.stat), node, better.stat, "betters", "at " + toString(level) + ": " + bonusText(better))
+
+        // The level it holds from, for the overview: a place's box says the rest in words
+        if (not inList(hubStats, better.stat))
+        {
+            graph.links[len(graph.links) - 1].level = level
+        }
+
+        for (var k = 0; k < 2; k = k + 1)
+        {
+            var more = listOf(better, "gains")
+
+            if (k == 1)
+            {
+                more = listOf(better, "more")
+            }
+
+            for (var g = 0; g < len(more); g = g + 1)
+            {
+                if (not contain(brought, more[g].stat))
+                {
+                    addLink(graph, node, statNode(more[g].stat), more[g].stat, "later", signedText(more[g].amount) + " with " + toLowerCase(statShortName(better.stat)) + " " + toString(level))
+                }
+            }
+        }
+    }
+
+    // The class it is of: its way in brings the flag, the others are listed to who holds it
+    if (a.path != "" and not a.enters)
+    {
+        var flag = pathFlagOf(paths, a.path)
+
+        addLink(graph, statNode(flag), node, flag, "classOf", "")
+    }
+
+    // A work of the town: the place it raises, and the level the place must be at
+    if (a.raises != "")
+    {
+        var place = "town." + a.raises
+
+        addLink(graph, node, statNode(place), place, "town", "to " + toString(a.level))
+
+        if (a.level > 1)
+        {
+            addLink(graph, statNode(place), node, place, "asks", toString(a.level - 1))
+        }
+    }
+}
+
+// Reads the tables the import below leaves: `activities`, `paths` and `townPlaces`
+fun buildGraph()
+{
+    var graph = newGraph()
+
+    for (var i = 0; i < len(activities); i = i + 1)
+    {
+        addTask(graph, activities[i])
+    }
+
+    for (var t = 0; t < len(townPlaces); t = t + 1)
+    {
+        var place = townPlaces[t]
+        var key = "town." + place.id
+
+        addStat(graph, key)
+        graph.statLabels[key] = place.name
+
+        // Its box in the overview: its works, a level each, and what each level gives
+        var box = place.name
+
+        for (var l = 0; l < len(place.levels); l = l + 1)
+        {
+            var step = place.levels[l]
+            var asked = toString(step.coin) + " coin"
+            var also = listOf(step, "costs")
+
+            for (var c = 0; c < len(also); c = c + 1)
+            {
+                asked = asked + ", " + toString(also[c].amount) + " " + toLowerCase(statShortName(also[c].stat))
+            }
+
+            if (lookup(step, "years", 0) > 0)
+            {
+                asked = asked + ", " + toString(step.years) + " years"
+            }
+
+            box = box + "\n" + toString(l + 1) + ": " + step.work + " | " + toString(step.months) + " mo | " + asked
+            box = box + "\n     " + step.gives
+        }
+
+        graph.placeLabels[key] = box
+
+        // What a level gives a new life at birth
+        for (var l = 0; l < len(place.levels); l = l + 1)
+        {
+            var given = listOf(place.levels[l], "start")
+
+            for (var g = 0; g < len(given); g = g + 1)
+            {
+                addLink(graph, statNode(key), statNode(given[g].stat), given[g].stat, "birth", "at " + toString(l + 1) + ": born with " + signedText(given[g].amount))
+            }
+        }
+    }
+
+    return graph
+}
+
+// ============================================================================
+// Focus
+// ============================================================================
+
+// The nodes within `steps` links of one, along the links (forward) or against them. The graph
+// loops through every skill (a task asks for Arms and brings Arms): followed to the end, any
+// node reaches nearly all of them
+fun reachFrom(graph, start, forward, steps)
+{
+    var seen = {}
+    var queue = [start]
+    var depth = {}
+    var next = 0
+
+    seen[start] = true
+    depth[start] = 0
+
+    while (next < len(queue))
+    {
+        var node = queue[next]
+        next = next + 1
+
+        if (depth[node] >= steps)
+        {
+            continue
+        }
+
+        for (var i = 0; i < len(graph.links); i = i + 1)
+        {
+            var link = graph.links[i]
+            var other = ""
+
+            if (forward and link.source == node)
+            {
+                other = link.target
+            }
+
+            if (not forward and link.target == node)
+            {
+                other = link.source
+            }
+
+            if (other != "" and not contain(seen, other))
+            {
+                seen[other] = true
+                depth[other] = depth[node] + 1
+                push(queue, other)
+            }
+        }
+    }
+
+    return seen
+}
+
+// The names of the tasks of a set of nodes, the focus left out
+fun taskNames(graph, nodes, focus)
+{
+    var out = ""
+
+    for (var i = 0; i < len(graph.tasks); i = i + 1)
+    {
+        if (contain(nodes, graph.tasks[i].node) and graph.tasks[i].node != focus)
+        {
+            if (out != "")
+            {
+                out = out + ", "
+            }
+
+            out = out + graph.tasks[i].id
+        }
+    }
+
+    if (out == "")
+    {
+        return "nothing"
+    }
+
+    return out
+}
+
+// ============================================================================
+// Output
+// ============================================================================
+
+fun statLabel(graph, stat)
+{
+    if (contain(graph.statLabels, stat))
+    {
+        return graph.statLabels[stat]
+    }
+
+    return statName(stat)
+}
+
+// The Graphviz text of the detail: all of it, or with a focus the nodes of `kept` only
+fun emitDot(graph, kept, focus)
+{
+    var all = focus == ""
+    var out = "digraph chronicle {\n"
+
+    out = out + "    rankdir=LR;\n"
+    out = out + "    labelloc=t;\n"
+    out = out + "    label=\"Chronicle: black asks, red takes, blue brings (dashed: later or with a bonus), green eases or betters, grey is of the class, purple is the town\";\n"
+    out = out + "    node [fontname=\"Helvetica\", fontsize=11];\n"
+    out = out + "    edge [fontname=\"Helvetica\", fontsize=9];\n\n"
+
+    for (var g = 0; g < len(graph.groups); g = g + 1)
+    {
+        var body = ""
+
+        for (var i = 0; i < len(graph.tasks); i = i + 1)
+        {
+            var task = graph.tasks[i]
+
+            if (task.group == graph.groups[g] and (all or contain(kept, task.node)))
+            {
+                var style = ""
+
+                if (task.node == focus)
+                {
+                    style = ", penwidth=3"
+                }
+
+                body = body + "        \"" + quoted(task.node) + "\" [label=\"" + quoted(task.label) + "\"" + style + "];\n"
+            }
+        }
+
+        if (body != "")
+        {
+            out = out + "    subgraph \"cluster_" + toString(g) + "\" {\n"
+            out = out + "        label=\"" + quoted(graph.groups[g]) + "\";\n"
+            out = out + "        color=\"#a0aec0\";\n"
+            out = out + "        node [shape=box, style=\"rounded,filled\", fillcolor=\"#f7fafc\"];\n"
+            out = out + body
+            out = out + "    }\n\n"
+        }
+    }
+
+    for (var s = 0; s < len(graph.stats); s = s + 1)
+    {
+        var node = statNode(graph.stats[s])
+
+        if (all or contain(kept, node))
+        {
+            var style = "shape=ellipse, style=filled, fillcolor=\"#fefcbf\""
+
+            if (startsWith(graph.stats[s], "town."))
+            {
+                style = "shape=house, style=filled, fillcolor=\"#e9d8fd\""
+            }
+
+            if (node == focus)
+            {
+                style = style + ", penwidth=3"
+            }
+
+            out = out + "    \"" + quoted(node) + "\" [label=\"" + quoted(statLabel(graph, graph.stats[s])) + "\", " + style + "];\n"
+        }
+    }
+
+    out = out + "\n"
+
+    for (var l = 0; l < len(graph.links); l = l + 1)
+    {
+        var link = graph.links[l]
+
+        if (all or (contain(kept, link.source) and contain(kept, link.target)))
+        {
+            out = out + "    \"" + quoted(link.source) + "\" -> \"" + quoted(link.target) + "\" [label=\"" + quoted(link.label) + "\", " + linkStyles[link.kind] + "];\n"
+        }
+    }
+
+    return out + "}\n"
+}
+
+// The stats the overview writes in the boxes: the hubs, what a life is born with (and its cap),
+// and the skills, which `skillFrom` tasks or more bring
+fun foldedStats(graph)
+{
+    var bringers = {}
+    var folded = {}
+
+    for (var l = 0; l < len(graph.links); l = l + 1)
+    {
+        var link = graph.links[l]
+
+        if (startsWith(link.source, "task/") and (link.kind == "brings" or link.kind == "later"))
+        {
+            if (not contain(bringers, link.stat))
+            {
+                bringers[link.stat] = []
+            }
+
+            if (not inList(bringers[link.stat], link.source))
+            {
+                push(bringers[link.stat], link.source)
+            }
+        }
+    }
+
+    for (var s = 0; s < len(graph.stats); s = s + 1)
+    {
+        var stat = graph.stats[s]
+
+        if (contain(bringers, stat))
+        {
+            if (len(bringers[stat]) >= skillFrom)
+            {
+                folded[stat] = true
+            }
+        }
+    }
+
+    for (var b = 0; b < len(bornWith); b = b + 1)
+    {
+        folded[bornWith[b]] = true
+        folded[capOf(bornWith[b])] = true
+    }
+
+    for (var h = 0; h < len(hubStats); h = h + 1)
+    {
+        folded[hubStats[h]] = true
+    }
+
+    return folded
+}
+
+// A task's box in the overview: its name, its time, and what it asks, takes and brings of the
+// stats that are not drawn
+fun overviewLabel(task, folded)
+{
+    var asks = ""
+    var takes = ""
+    var brings = ""
+
+    for (var r = 0; r < len(task.needs); r = r + 1)
+    {
+        var req = task.needs[r]
+
+        if (contain(folded, req.stat) and not has(req, "anyOf"))
+        {
+            if (asks != "")
+            {
+                asks = asks + ", "
+            }
+
+            asks = asks + toLowerCase(statShortName(req.stat)) + " " + toString(req.needed)
+        }
+    }
+
+    for (var c = 0; c < len(task.costs); c = c + 1)
+    {
+        if (contain(folded, task.costs[c].stat))
+        {
+            if (takes != "")
+            {
+                takes = takes + ", "
+            }
+
+            takes = takes + toString(task.costs[c].amount) + " " + toLowerCase(statShortName(task.costs[c].stat))
+        }
+    }
+
+    for (var g = 0; g < len(task.gains); g = g + 1)
+    {
+        if (contain(folded, task.gains[g].stat))
+        {
+            if (brings != "")
+            {
+                brings = brings + " "
+            }
+
+            brings = brings + signedText(task.gains[g].amount) + " " + toLowerCase(statShortName(task.gains[g].stat))
+        }
+    }
+
+    var label = task.name + "\n" + task.time
+
+    if (asks != "")
+    {
+        label = label + "\nasks " + asks
+    }
+
+    if (takes != "")
+    {
+        label = label + "\ntakes " + takes
+    }
+
+    if (brings != "")
+    {
+        label = label + "\nbrings " + brings
+    }
+
+    return label
+}
+
+// One link of the overview, written once
+fun overviewLink(seen, source, target, label, style)
+{
+    var key = source + ">" + target + ">" + label
+
+    if (source == target or contain(seen, key))
+    {
+        return ""
+    }
+
+    seen[key] = true
+
+    return "    \"" + quoted(source) + "\" -> \"" + quoted(target) + "\" [label=\"" + quoted(label) + "\", " + style + "];\n"
+}
+
+// The Graphviz text of the overview: tasks and places, and what leads to what
+fun emitOverview(graph)
+{
+    var folded = foldedStats(graph)
+    var byNode = {}
+    var seen = {}
+
+    var out = "digraph chronicle {\n"
+
+    out = out + "    rankdir=LR;\n"
+    out = out + "    compound=true;\n"
+    out = out + "    newrank=true;\n"
+    out = out + "    ranksep=0.9;\n"
+    out = out + "    labelloc=t;\n"
+    out = out + "    label=\"Chronicle, what leads to what: black asks, red takes, green eases or betters (dashed: eases, or one of several), grey opens a class, purple is the town. Skills, coin and rations are in the boxes\";\n"
+    out = out + "    node [fontname=\"Helvetica\", fontsize=11];\n"
+    out = out + "    edge [fontname=\"Helvetica\", fontsize=10];\n\n"
+
+    // The tasks, a frame a group. A work of the town is drawn with its place
+    for (var g = 0; g < len(graph.groups); g = g + 1)
+    {
+        var body = ""
+
+        for (var i = 0; i < len(graph.tasks); i = i + 1)
+        {
+            var task = graph.tasks[i]
+
+            byNode[task.node] = task
+
+            if (task.group == graph.groups[g] and task.raises == "")
+            {
+                body = body + "        \"" + quoted(task.node) + "\" [label=\"" + quoted(overviewLabel(task, folded)) + "\"];\n"
+            }
+        }
+
+        if (body != "")
+        {
+            out = out + "    subgraph \"cluster_" + toString(g) + "\" {\n"
+            out = out + "        label=\"" + quoted(graph.groups[g]) + "\";\n"
+            out = out + "        fontname=\"Helvetica-Bold\";\n"
+            out = out + "        color=\"#a0aec0\";\n"
+            out = out + "        node [shape=box, style=\"rounded,filled\", fillcolor=\"#f7fafc\"];\n"
+            out = out + body
+            out = out + "    }\n\n"
+        }
+    }
+
+    // The ages, left to right: a task stands in the column of the age it can be begun from, so
+    // a group runs along the years and what leads to a task is on its left
+    var ages = []
+
+    for (var i = 0; i < len(graph.tasks); i = i + 1)
+    {
+        if (graph.tasks[i].raises == "" and not inList(ages, graph.tasks[i].fromAge))
+        {
+            // Kept in order: each new age goes before the first greater one
+            var at = len(ages)
+
+            push(ages, graph.tasks[i].fromAge)
+
+            while (at > 0 and ages[at - 1] > ages[at])
+            {
+                var swapped = ages[at - 1]
+
+                ages[at - 1] = ages[at]
+                ages[at] = swapped
+                at = at - 1
+            }
+        }
+    }
+
+    for (var a = 0; a < len(ages); a = a + 1)
+    {
+        var column = "age/" + toString(ages[a])
+
+        out = out + "    \"" + column + "\" [label=\"AGE " + toString(ages[a]) + "\", shape=plaintext, fontname=\"Helvetica-Bold\", fontsize=16];\n"
+
+        // The town has no age: its column is the first, before the youngest
+        var before = "age/town"
+
+        if (a > 0)
+        {
+            before = "age/" + toString(ages[a - 1])
+        }
+
+        out = out + "    \"" + before + "\" -> \"" + column + "\" [color=\"#a0aec0\", arrowsize=0.6];\n"
+
+        out = out + "    { rank=same; \"" + column + "\";"
+
+        for (var i = 0; i < len(graph.tasks); i = i + 1)
+        {
+            if (graph.tasks[i].raises == "" and graph.tasks[i].fromAge == ages[a])
+            {
+                out = out + " \"" + quoted(graph.tasks[i].node) + "\";"
+            }
+        }
+
+        out = out + " }\n"
+    }
+
+    out = out + "\n"
+
+    // The places, each with its works
+    var firstPlace = ""
+
+    out = out + "    subgraph \"cluster_town\" {\n"
+    out = out + "        label=\"The town\";\n"
+    out = out + "        fontname=\"Helvetica-Bold\";\n"
+    out = out + "        color=\"#6b46c1\";\n"
+    out = out + "        node [shape=box, style=filled, fillcolor=\"#e9d8fd\"];\n"
+
+    for (var s = 0; s < len(graph.stats); s = s + 1)
+    {
+        if (contain(graph.placeLabels, graph.stats[s]))
+        {
+            var node = statNode(graph.stats[s])
+
+            if (firstPlace == "")
+            {
+                firstPlace = node
+            }
+
+            out = out + "        \"" + quoted(node) + "\" [label=\"" + quotedAs(graph.placeLabels[graph.stats[s]], "\\l") + "\\l\"];\n"
+        }
+    }
+
+    out = out + "    }\n\n"
+
+    // The places stand in one column, on the left of every age
+    out = out + "    \"age/town\" [label=\"THE TOWN\", shape=plaintext, fontname=\"Helvetica-Bold\", fontsize=16];\n"
+    out = out + "    { rank=same; \"age/town\";"
+
+    for (var s = 0; s < len(graph.stats); s = s + 1)
+    {
+        if (contain(graph.placeLabels, graph.stats[s]))
+        {
+            out = out + " \"" + quoted(statNode(graph.stats[s])) + "\";"
+        }
+    }
+
+    out = out + " }\n\n"
+
+    // A flag: from each task that brings it to each task that reads it
+    for (var s = 0; s < len(graph.stats); s = s + 1)
+    {
+        var stat = graph.stats[s]
+
+        if (contain(folded, stat) or startsWith(stat, "town."))
+        {
+            continue
+        }
+
+        for (var b = 0; b < len(graph.links); b = b + 1)
+        {
+            var brings = graph.links[b]
+
+            if (brings.target != statNode(stat) or not startsWith(brings.source, "task/"))
+            {
+                continue
+            }
+
+            // Knowing the town opens its places, all of them
+            if (stat == "town_known" and firstPlace != "")
+            {
+                out = out + overviewLink(seen, brings.source, firstPlace, "opens the town", linkStyles.town + ", constraint=false, lhead=\"cluster_town\"")
+            }
+
+            for (var r = 0; r < len(graph.links); r = r + 1)
+            {
+                var reads = graph.links[r]
+
+                if (reads.source != statNode(stat) or not startsWith(reads.target, "task/") or reads.kind == "classOf")
+                {
+                    continue
+                }
+
+                // A work of the town is in its place's box
+                var reader = reads.target
+
+                if (byNode[reader].raises != "")
+                {
+                    reader = statNode("town." + byNode[reader].raises)
+                }
+
+                var label = statLabel(graph, stat)
+
+                if (reads.kind == "asks" or reads.kind == "takes")
+                {
+                    if (reads.label != "1")
+                    {
+                        label = label + " " + reads.label
+                    }
+                }
+                else
+                {
+                    label = label + " (" + reads.label + ")"
+                }
+
+                if (brings.kind == "later")
+                {
+                    label = label + " [" + brings.label + "]"
+                }
+
+                out = out + overviewLink(seen, brings.source, reader, label, linkStyles[reads.kind])
+            }
+        }
+    }
+
+    out = out + "\n"
+
+    // A place: to each task one of its levels changes, or that asks for a level
+    for (var l = 0; l < len(graph.links); l = l + 1)
+    {
+        var link = graph.links[l]
+
+        if (startsWith(link.source, "stat/town.") and startsWith(link.target, "task/"))
+        {
+            if (byNode[link.target].raises == "")
+            {
+                var label = link.label
+
+                if (link.kind == "asks")
+                {
+                    label = "level " + link.label
+                }
+
+                if (link.kind == "betters")
+                {
+                    label = "level " + toString(link.level)
+                }
+
+                out = out + overviewLink(seen, link.source, link.target, label, linkStyles[link.kind])
+            }
+        }
+    }
+
+    out = out + "\n"
+
+    // A class: from its way in to its group, in one link when the group is all of that class
+    for (var p = 0; p < len(paths); p = p + 1)
+    {
+        for (var g = 0; g < len(graph.groups); g = g + 1)
+        {
+            var members = []
+            var whole = true
+
+            for (var i = 0; i < len(graph.tasks); i = i + 1)
+            {
+                var task = graph.tasks[i]
+
+                if (task.group == graph.groups[g] and task.raises == "")
+                {
+                    if (task.path == paths[p].id and not task.enters)
+                    {
+                        push(members, task.node)
+                    }
+                    else
+                    {
+                        whole = false
+                    }
+                }
+            }
+
+            for (var e = 0; e < len(graph.tasks); e = e + 1)
+            {
+                var way = graph.tasks[e]
+
+                if (way.path != paths[p].id or not way.enters or len(members) == 0)
+                {
+                    continue
+                }
+
+                if (whole)
+                {
+                    out = out + overviewLink(seen, way.node, members[0], "opens " + paths[p].name, linkStyles.opens + ", lhead=\"cluster_" + toString(g) + "\"")
+                }
+                else
+                {
+                    for (var m = 0; m < len(members); m = m + 1)
+                    {
+                        out = out + overviewLink(seen, way.node, members[m], "opens", linkStyles.opens)
+                    }
+                }
+            }
+        }
+    }
+
+    return out + "}\n"
+}
+
+// What is asked for and brought by nothing, and what is brought and read by no task
+fun printLooseEnds(graph)
+{
+    var brought = {}
+    var read = {}
+
+    for (var l = 0; l < len(graph.links); l = l + 1)
+    {
+        var link = graph.links[l]
+
+        if (inList(bringKinds, link.kind))
+        {
+            brought[link.stat] = true
+        }
+
+        if (inList(readKinds, link.kind))
+        {
+            read[link.stat] = true
+        }
+    }
+
+    // The most a stat can be goes with the stat (lib.pg's `statCaps`): born with, like it
+    var born = []
+
+    for (var b = 0; b < len(bornWith); b = b + 1)
+    {
+        push(born, bornWith[b])
+        push(born, capOf(bornWith[b]))
+    }
+
+    var missing = ""
+    var unread = ""
+
+    for (var s = 0; s < len(graph.stats); s = s + 1)
+    {
+        var stat = graph.stats[s]
+
+        if (contain(read, stat) and not contain(brought, stat) and not inList(born, stat))
+        {
+            missing = missing + "  " + stat + "\n"
+        }
+
+        if (contain(brought, stat) and not contain(read, stat) and not inList(born, stat))
+        {
+            unread = unread + "  " + stat + "\n"
+        }
+    }
+
+    if (missing != "")
+    {
+        print("Asked for, brought by nothing:\n" + missing)
+    }
+
+    if (unread != "")
+    {
+        print("Brought, read by no task (a milestone, a deed or the epitaph may read it):\n" + unread)
+    }
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+fun main()
+{
+    if (getArgCount() > 4)
+    {
+        print("Usage: PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg [out.dot] [focus]")
+
+        return
+    }
+
+    var outFile = "chronicle-graph.dot"
+    var focus = ""
+
+    if (getArgCount() > 2)
+    {
+        outFile = getArg(2)
+    }
+
+    if (getArgCount() > 3)
+    {
+        focus = getArg(3)
+    }
+
+    if (len(errors) > 0)
+    {
+        print("The activity table refuses itself: " + errors[0])
+
+        return
+    }
+
+    var graph = buildGraph()
+    var kept = {}
+    var focusNode = ""
+    var text = ""
+
+    if (focus == "")
+    {
+        text = emitOverview(graph)
+    }
+    else if (focus == "all")
+    {
+        text = emitDot(graph, kept, "")
+    }
+    else
+    {
+        if (contain(graph.taskIds, focus))
+        {
+            focusNode = taskNode(focus)
+        }
+        else if (contain(graph.statKeys, focus))
+        {
+            focusNode = statNode(focus)
+        }
+        else
+        {
+            print("No task and no stat is called '" + focus + "'")
+
+            return
+        }
+
+        // From a task, its stats and the tasks on their other side; from a stat, its tasks
+        var steps = 1
+
+        if (contain(graph.taskIds, focus))
+        {
+            steps = 2
+        }
+
+        var before = reachFrom(graph, focusNode, false, steps)
+        var after = reachFrom(graph, focusNode, true, steps)
+
+        for (var node : before)
+        {
+            kept[node] = true
+        }
+
+        for (var node : after)
+        {
+            kept[node] = true
+        }
+
+        print(focus + " is fed by: " + taskNames(graph, before, focusNode))
+        print(focus + " feeds: " + taskNames(graph, after, focusNode))
+        print("")
+
+        text = emitDot(graph, kept, focusNode)
+    }
+
+    writeFile(outFile, text)
+
+    print("Wrote " + outFile + ": " + toString(len(graph.tasks)) + " tasks, " + toString(len(graph.stats)) + " stats, " + toString(len(graph.links)) + " links")
+    print("Draw it with: dot -Tsvg " + outFile + " -o chronicle-graph.svg")
+    print("")
+
+    if (focus == "")
+    {
+        printLooseEnds(graph)
+    }
+}
+
+// ============================================================================
+// The tables
+// ============================================================================
+
+// What the activity table reads: a boy of 7 who holds nothing and has done nothing, so every task
+// is as the table writes it (no step of repetition, no bonus, nothing eased)
+var age = 7
+var world = 0
+var lives = 2
+var running = ""
+var activityId = ""
+var done = {}
+var character = {}
+
+import "activitytable"
+
+main()
