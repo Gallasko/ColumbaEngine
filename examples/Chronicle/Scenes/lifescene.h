@@ -114,7 +114,7 @@ namespace chronicle
         bool veiled = false;           // The shade is up
         pg::EntityRef note;            // The leaf the guide's words stand on, under what is pointed at; made with the first step
         Label noteWords;               // The sentence being said
-        Button noteSkip;               // "Skip the guide": no step is said again
+        Button noteSkip;               // "Skip tutorial": no step is said again
         Button noteNext;               // "Next": passes a step said for a time, and is not there for one that waits for him
         bool noteShown = false;        // The leaf is up
         bool nextShown = false;        // And its "Next" with it
@@ -177,7 +177,7 @@ namespace chronicle
         void runGuide();               // The step being said ends or goes on, the next one begins, the hand follows what it points at
         void endStep();                // The step being said has ended: the guide is one step further
         void nextStep();               // "Next": the step being said for a time ends now
-        void skipGuide();              // "Skip the guide": past its last step for good
+        void skipGuide();              // "Skip tutorial": past its last step for good
         void makeNote();               // The leaf, its words and its two buttons
         void sayNote(pg::EntityRef target);   // The leaf with the step's sentence under what it points at, or gone with no step
         void clearGuide();             // No step, no hand, no shade: the life is over, or another begins

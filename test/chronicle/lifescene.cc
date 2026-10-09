@@ -3449,7 +3449,9 @@ namespace pg
             EXPECT_EQ(life->step.id, "guide.begin");
             EXPECT_EQ(life->step.order, 1);
             EXPECT_FALSE(f.pos(life->named("guide"))->visible);
-            EXPECT_EQ(life->noteWords.spec.text, "His life is yours to write. Click his first task.");
+            EXPECT_FALSE(life->step.say.empty());
+            EXPECT_EQ(life->noteWords.spec.text, life->step.say);
+            EXPECT_EQ(life->noteWords.spec.style, "body");
 
             // The leaf has the button that leaves the guide; none to pass a step that waits for him
             EXPECT_FALSE(life->noteSkip.spec.disabled);
@@ -3478,7 +3480,9 @@ namespace pg
             EXPECT_EQ(begin->spec.label, "Begin");
             EXPECT_EQ(begin->spec.months, 1);
             EXPECT_TRUE(life->step.active);
-            EXPECT_EQ(life->noteWords.spec.text, "Now press Begin: the months pass while he works. A double click on a task begins it too.");
+            EXPECT_NE(life->step.sayChosen, life->step.say);
+            EXPECT_EQ(life->noteWords.spec.text, life->step.sayChosen);
+            EXPECT_NE(life->noteWords.spec.text.find("double-click"), std::string::npos) << life->noteWords.spec.text;
             EXPECT_EQ(life->handOn, begin->root.id);
             expectNoteBeside(f, life, begin->root);
             EXPECT_TRUE(f.pos(life->hand)->visible);
@@ -3492,7 +3496,7 @@ namespace pg
 
             EXPECT_FALSE(f.pos(life->named("begin"))->visible);
             EXPECT_EQ(life->handOn, helping->root.id);
-            EXPECT_EQ(life->noteWords.spec.text, "His life is yours to write. Click his first task.");
+            EXPECT_EQ(life->noteWords.spec.text, life->step.say);
             EXPECT_EQ(life->save.guide, 0);
 
             // What the guide and the lore watch
@@ -3559,7 +3563,8 @@ namespace pg
             // The second step: what he holds, the hand beside it
             ASSERT_TRUE(life->step.active);
             EXPECT_EQ(life->step.id, "guide.rations");
-            EXPECT_EQ(life->noteWords.spec.text, "Every month eats one ration. What he holds is kept here.");
+            EXPECT_FALSE(life->step.say.empty());
+            EXPECT_EQ(life->noteWords.spec.text, life->step.say);
             EXPECT_FALSE(f.pos(life->named("guide"))->visible);
             EXPECT_EQ(life->handOn, ledger->rowEntity("rations").id);
             expectNoteBeside(f, life, ledger->rowEntity("rations"));
@@ -3578,7 +3583,7 @@ namespace pg
             EXPECT_EQ(f.fact<int>("life.guide"), 2);
             ASSERT_TRUE(life->step.active);
             EXPECT_EQ(life->step.id, "guide.carters");
-            EXPECT_EQ(life->noteWords.spec.text, "Work pays in coin. Choose this one.");
+            EXPECT_EQ(life->noteWords.spec.text, life->step.say);
 
             ActivityRow* carters = list->find(&f.ecs, "carters");
             ASSERT_NE(carters, nullptr);
@@ -3593,7 +3598,7 @@ namespace pg
             f.settle();
 
             EXPECT_EQ(life->handOn, life->piece<Button>("begin")->root.id);
-            EXPECT_EQ(life->noteWords.spec.text, "Press Begin, or double-click the task.");
+            EXPECT_EQ(life->noteWords.spec.text, life->step.sayChosen);
             EXPECT_EQ(life->save.guide, 2);
 
             // And a double click on the task begins it just the same: the step ends
@@ -3609,8 +3614,9 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // Six works, each said its sentence: the list grows a task at a time, the classes come with
-        // the fifth term, and after its last step nothing of the guide is left on the page.
+        // Six works, each said its sentence: the list grows a task at a time, his age and the classes
+        // are said with the fourth term, and after its last step nothing of the guide is left on
+        // the page.
         TEST(lifescene_test, the_guide_ends_after_the_sixth_work)
         {
             MockLogger logger;
@@ -3624,7 +3630,7 @@ namespace pg
             auto list = life->piece<ActivityList>("activities");
             ASSERT_NE(list, nullptr);
 
-            // A work begun, its months, then the time for what the guide says of it
+            // A work begun, and its months
             auto work = [&](const std::string& id, int months) {
                 f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", id});
                 f.settle();
@@ -3637,46 +3643,78 @@ namespace pg
                     f.settle();
                 }
 
-                f.frames(8);
+                f.frames(12);
 
                 ASSERT_TRUE(life->save.running.empty()) << id;
+            };
 
-                f.pass(6500.0f);
+            // "Next" on the leaf: the step said for a time ends now
+            auto next = [&]() {
+                ASSERT_TRUE(life->step.active);
+                ASSERT_TRUE(life->nextShown) << life->step.id;
+
+                f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
+                f.frames(12);
             };
 
             work("helping", 1);
+            EXPECT_EQ(life->step.id, "guide.rations");
+            next();
             EXPECT_EQ(life->save.guide, 2);
             EXPECT_EQ(life->step.id, "guide.carters");
 
             work("carters", 3);
+            EXPECT_EQ(life->step.id, "guide.coin");
+            next();
             EXPECT_EQ(life->save.guide, 4);
             EXPECT_EQ(life->step.id, "guide.messages");
             ASSERT_NE(list->find(&f.ecs, "messages"), nullptr);
             EXPECT_EQ(list->find(&f.ecs, "kitchen"), nullptr);
 
             work("messages", 3);
+            EXPECT_EQ(life->step.id, "guide.dex");
+            EXPECT_EQ(life->handOn, life->piece<StatLine>("dex")->root.id);
+            next();
             EXPECT_EQ(life->save.guide, 6);
             EXPECT_EQ(life->step.id, "guide.kitchen");
             ASSERT_NE(list->find(&f.ecs, "kitchen"), nullptr);
             EXPECT_EQ(life->handOn, list->find(&f.ecs, "kitchen")->root.id);
-
-            work("kitchen", 3);
-            EXPECT_EQ(life->save.guide, 8);
-            EXPECT_FALSE(life->step.active);
             EXPECT_EQ(list->find(&f.ecs, "keep"), nullptr);
 
-            // The fifth term: the three ways into a class, and the step that says so
-            work("mill", 6);
-            EXPECT_EQ(life->save.guide, 9);
-            EXPECT_EQ(life->step.id, "guide.rest");
+            // The fourth work: his age and what the game is about, then the classes, which came
+            // into the list with this term
+            work("kitchen", 3);
+            EXPECT_EQ(life->step.id, "guide.clock");
+            EXPECT_EQ(life->handOn, life->piece<LifeClock>("clock")->root.id);
+            EXPECT_NE(life->noteWords.spec.text.find("30"), std::string::npos) << life->noteWords.spec.text;
 
             for (const char* id : {"keep", "collegium", "hand"})
                 EXPECT_NE(list->find(&f.ecs, id), nullptr) << id;
 
-            work("letters", 6);
+            next();
+            EXPECT_EQ(life->save.guide, 8);
+            EXPECT_EQ(life->step.id, "guide.doors");
+            EXPECT_EQ(life->handOn, list->find(&f.ecs, "keep")->root.id);
+            EXPECT_NE(life->noteWords.spec.text.find("classes"), std::string::npos) << life->noteWords.spec.text;
 
-            // And the word about his rations, which ran low at his letters, said too
-            f.pass(8000.0f);
+            next();
+            EXPECT_EQ(life->save.guide, 9);
+            EXPECT_EQ(life->step.id, "guide.rest");
+            EXPECT_EQ(life->handOn, 0u);
+            EXPECT_TRUE(life->noteShown);
+
+            next();
+            EXPECT_EQ(life->save.guide, 10);
+            EXPECT_FALSE(life->step.active);
+
+            // Two more works: his rations run low at his letters, and the word kept for that is said
+            work("mill", 6);
+            EXPECT_FALSE(life->step.active);
+
+            work("letters", 6);
+            EXPECT_EQ(life->step.id, "guide.rations_low");
+            EXPECT_EQ(life->step.order, 0);
+            next();
 
             EXPECT_EQ(life->save.guide, 10);
             EXPECT_EQ(f.fact<int>("life.guide"), 10);
@@ -3765,7 +3803,8 @@ namespace pg
 
             ASSERT_TRUE(again->step.active);
             EXPECT_EQ(again->step.id, "guide.coin");
-            EXPECT_EQ(again->noteWords.spec.text, "His first coin. The purse is his to spend.");
+            EXPECT_FALSE(again->step.say.empty());
+            EXPECT_EQ(again->noteWords.spec.text, again->step.say);
             EXPECT_TRUE(again->noteShown);
 
             auto ledger = again->piece<ResourceLedger>("ledger");
@@ -3960,7 +3999,7 @@ namespace pg
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
         // The leaf's two buttons: "Next" passes a step that is said for a time without waiting for
-        // it, and "Skip the guide" ends the guide for good, in this session and in the save.
+        // it, and "Skip tutorial" ends the guide for good, in this session and in the save.
         TEST(lifescene_test, the_guide_is_passed_or_skipped)
         {
             MockLogger logger;
@@ -4005,7 +4044,7 @@ namespace pg
             EXPECT_EQ(life->step.id, "guide.carters");
             EXPECT_EQ(life->save.guideSkipped, 0);
 
-            // "Skip the guide": no step, no leaf, no hand, no shade, and the guide past its last step
+            // "Skip tutorial": no step, no leaf, no hand, no shade, and the guide past its last step
             f.ecs.sendEvent(ButtonActivatedEvent{life->noteSkip.face.id, "life.guide.skip"});
             f.frames(12);
 
@@ -4161,7 +4200,7 @@ namespace pg
 
             EXPECT_TRUE(life->step.active);
             EXPECT_EQ(life->step.id, "guide.carters");
-            EXPECT_EQ(life->noteWords.spec.text, "Work pays in coin. Choose this one.");
+            EXPECT_EQ(life->noteWords.spec.text, life->step.say);
             expectNoteBeside(f, life, carters->root);
         }
     }

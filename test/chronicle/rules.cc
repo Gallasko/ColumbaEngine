@@ -1791,12 +1791,11 @@ namespace pg
             f.rules.done = {{"helping", ElementType{1}}, {"carters", ElementType{1}}, {"messages", ElementType{1}}};
             EXPECT_EQ(listed(7.5f, boy()), (std::vector<std::string>{"carters", "mill", "messages", "kitchen"}));
 
-            // Four: his letters
+            // Four: his letters, and the three ways into a class, which the guide speaks of then
             f.rules.done = {{"helping", ElementType{1}}, {"carters", ElementType{1}}, {"messages", ElementType{1}}, {"kitchen", ElementType{1}}};
-            EXPECT_EQ(listed(7.75f, boy()), (std::vector<std::string>{"carters", "mill", "messages", "kitchen", "letters"}));
+            EXPECT_EQ(listed(7.75f, boy()), (std::vector<std::string>{"carters", "mill", "messages", "kitchen", "letters", "keep", "collegium", "hand"}));
 
-            // Five: the three ways into a class, and whatever his age has opened meanwhile. The terms
-            // count, whichever they were
+            // Five: whatever his age has opened meanwhile. The terms count, whichever they were
             f.rules.done = {{"helping", ElementType{1}}, {"carters", ElementType{4}}};
 
             const std::vector<std::string> grown = listed(8.25f, boy());

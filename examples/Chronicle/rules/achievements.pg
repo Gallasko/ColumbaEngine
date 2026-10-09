@@ -27,7 +27,8 @@
 //                  ask {fact: "life.guide", op: "==", value: order - 1} is added here), so the
 //                  steps cannot come out of order. 0 is a step outside the sequence: it waits
 //                  for nothing, is kept like a deed and outlives the guide.
-//           say    the sentence on the guide's leaf, under fifteen words.
+//           say    the sentence on the guide's leaf: short, in plain and easy English, said to
+//                  the player ("you").
 //           point  what the hand points at: "button:begin", "tile:<activity id>",
 //                  "holding:<id>" (a row of what he holds), "stat:<key>" (one of his parts),
 //                  "clock", "log", or "" for nothing. What is not on the page is not pointed at:
@@ -96,47 +97,49 @@ var achievements = [
 
     // The guide of a first life
     {id: "guide.begin", kind: "guide", order: 1, point: "tile:helping", pointChosen: "button:begin",
-     say: "His life is yours to write. Click his first task.",
-     sayChosen: "Now press Begin: the months pass while he works. A double click on a task begins it too.",
+     say: "Welcome! Click this task to choose it.",
+     sayChosen: "Now press Begin. Time passes while he works. You can also double-click a task to start it.",
      asks: [{fact: "life.terms", op: "==", value: 0}],
      until: [{fact: "life.working", op: "==", value: 1}]},
     {id: "guide.rations", kind: "guide", order: 2, point: "holding:rations", hold: 5000,
-     say: "Every month eats one ration. What he holds is kept here.",
+     say: "This is your food. He eats 1 ration every month.",
      asks: [{fact: "done.helping", op: ">=", value: 1}]},
     {id: "guide.carters", kind: "guide", order: 3, point: "tile:carters", pointChosen: "button:begin",
-     say: "Work pays in coin. Choose this one.",
+     say: "Work gives you coin. Click this task.",
      sayChosen: "Press Begin, or double-click the task.",
      asks: [],
      until: [{fact: "life.working", op: "==", value: 1}]},
     {id: "guide.coin", kind: "guide", order: 4, point: "holding:coin", hold: 5000,
-     say: "His first coin. The purse is his to spend.",
+     say: "You earned your first coin. You will need coin to pay for things.",
      asks: [{fact: "done.carters", op: ">=", value: 1}]},
     {id: "guide.messages", kind: "guide", order: 5, point: "tile:messages", pointChosen: "button:begin",
-     say: "Another work builds another part of him.",
+     say: "Each task trains something different. Try this one.",
      sayChosen: "Press Begin, or double-click the task.",
      asks: [],
      until: [{fact: "life.working", op: "==", value: 1}]},
     {id: "guide.dex", kind: "guide", order: 6, point: "stat:dex", hold: 5000,
-     say: "Dexterity rose. Everything he learns is kept here.",
+     say: "Dexterity went up. Your stats are shown here.",
      asks: [{fact: "done.messages", op: ">=", value: 1}]},
     {id: "guide.kitchen", kind: "guide", order: 7, point: "tile:kitchen", pointChosen: "button:begin",
-     say: "Rations run out. This work brings them back, and feeds him meanwhile.",
+     say: "Food runs out over time. This task gives you more, and feeds him while he works.",
      sayChosen: "Press Begin, or double-click the task.",
      asks: [],
      until: [{fact: "life.working", op: "==", value: 1}]},
-    {id: "guide.clock", kind: "guide", order: 8, point: "clock", hold: 5000,
-     say: "At thirteen a boy is placed. The clock says how long he has.",
+    // His age, and what the game is about; then the classes, which come into the list with this
+    // term (activitytable.pg, `showAfter: 4`) so that the hand has them to point at
+    {id: "guide.clock", kind: "guide", order: 8, point: "clock", hold: 6000,
+     say: "This is his age. Your goal: keep him alive until he is at least 30 years old.",
      asks: [{fact: "done.kitchen", op: ">=", value: 1}]},
-    {id: "guide.doors", kind: "guide", order: 9, point: "tile:keep", hold: 6000,
-     say: "Three doors stand at the end of a childhood. Everything he learns leads to one.",
-     asks: [{fact: "life.terms", op: ">=", value: 5}]},
+    {id: "guide.doors", kind: "guide", order: 9, point: "tile:keep", hold: 9000,
+     say: "These are the three classes: the Keep (warrior), the Collegium (mage) and the Hidden Hand (thief). You can join one at 16, so train for it.",
+     asks: []},
     {id: "guide.rest", kind: "guide", order: 10, point: "", hold: 4000,
-     say: "The rest is his to find.",
+     say: "That is all. Have fun!",
      asks: []},
 
     // Outside the sequence: said once, the month his rations run low
     {id: "guide.rations_low", kind: "guide", order: 0, point: "tile:kitchen", hold: 6000,
-     say: "Rations for three months. The kitchen feeds him.",
+     say: "You only have food for 3 months. Work in the kitchen to get more.",
      asks: [{fact: "stat.rations", op: "<=", value: 3}, {fact: "life.terms", op: ">=", value: 1}]},
 
     // The town's story, a line at a time

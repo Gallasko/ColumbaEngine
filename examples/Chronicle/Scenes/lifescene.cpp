@@ -179,7 +179,7 @@ namespace chronicle
         // What a step says stands on a leaf of its own under what it points at (over it when the
         // window ends there), with the two buttons of the guide: the one that leaves it for good,
         // and the one that passes a step said for a time
-        constexpr float NoteWidth = 320.0f;
+        constexpr float NoteWidth = 360.0f;
         constexpr float NotePad = 12.0f;           // Around its words and its buttons
         constexpr float NoteGap = 10.0f;           // Between what is pointed at and the leaf, and between its words and its buttons
         constexpr float NoteButton = 36.0f;        // A button's height
@@ -1548,7 +1548,7 @@ namespace chronicle
         const int z = static_cast<int>(NoteZ) + 4;
 
         LabelSpec words;
-        words.style = "body-sm";
+        words.style = "body";
         words.color = "ink";
         words.overflow = Overflow::Wrap;
         words.width = NoteWidth - 2.0f * NotePad;
@@ -1565,7 +1565,7 @@ namespace chronicle
 
         ButtonSpec skip;
         skip.variant = ButtonVariant::Quiet;
-        skip.label = "Skip the guide";
+        skip.label = "Skip tutorial";
         skip.tag = GuideSkipTag;
         skip.z = z;
 

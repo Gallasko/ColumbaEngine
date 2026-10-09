@@ -21,12 +21,13 @@ Run from the repo root (assets are read relative to the working directory):
 months old and holds nothing. A **guide** walks him through his first works: one short sentence
 at a time on a leaf under the one thing it is about (a tile, what he holds, a stat, the clock),
 a pointing hand beside that thing and a shade over the rest of the page, which can still be
-pressed. The leaf has two buttons: *Skip the guide* ends it for good, and *Next* passes a step
+pressed. The leaf has two buttons: *Skip tutorial* ends it for good, and *Next* passes a step
 that would otherwise wait a few seconds (a step that waits for a press has none). A work is begun in two presses, and the hand shows both: first the task
 (*Start Helping Out*), then, once it is chosen, the Begin button, while the leaf says that a
 double click on the task begins it too. That first task takes one month: he turns 7 and his
 first rations arrive. The list grows one task at a time, the three
-classes come with the fifth term, and after its last sentence nothing of the guide is left. A
+classes come with the fourth term, when the guide says what the game is about (keep him alive
+to 30 at least) and what the classes are, and after its last sentence nothing of the guide is left. A
 few lines of the town's story are written in the log on the way. The second life and every later
 one open as before: 7 years old, 12 rations, the whole list, no guide.
 
@@ -141,7 +142,7 @@ of this game told apart by their `chronicle.` prefix:
   button with no work at hand. `guide` is the last step of the first life's guide that ended
   (the `order` of `rules/achievements.pg`, 0 before the first, 10 once it has said everything; a
   later life keeps 0, and a digest from before 0.3 has no such key). `guideSkipped` is the step
-  that was being said when the player pressed *Skip the guide* (0 when he did not): `guide` then
+  that was being said when the player pressed *Skip tutorial* (0 when he did not): `guide` then
   reads 10. `deeds` counts the deeds
   alone, not the lore read nor the guide's words.
   The scene gives it after every month, choice, thing done at once, step of the guide and new life.
@@ -696,7 +697,8 @@ list is shown one task at a time. Two optional fields of an activity say how:
   +12 rations, `uses: 1`). It is listed only in a first life that has done nothing yet.
 - `showAfter: N`: listed once N terms in all are done in this life, on top of what else lists
   it. The carters come after 1 term, the messages after 2, the kitchen and the mill after 3, his
-  letters after 4, the three classes and what age 8 opens after 5. With `lives` above 1 it is
+  letters and the three classes after 4 (the guide speaks of the classes then), what age 8 opens
+  after 5. With `lives` above 1 it is
   ignored and the list is whole from the first day.
 
 `freshLife(true)` (`Scenes/lifesave.h`) is that life's first frame: 6 years 11 months, no
@@ -709,7 +711,8 @@ rations) is what feeds him meanwhile.
 `kind`), a step of the guide or a line of lore; the `AchievementSys` watches the asks of all
 three, and the scene does what the kind says (`reachDeed`).
 
-- `kind: "guide"`: `say` is the sentence written on the guide's leaf, `point` what the hand stands
+- `kind: "guide"`: `say` is the sentence written on the guide's leaf (plain, easy English, said
+  to the player as "you"; the leaf writes it in the `body` style, no smaller than its buttons), `point` what the hand stands
   beside (`button:begin`, `tile:<activity id>`, `holding:<id>`, `stat:<key>`, `clock`, `log`, or
   `""`), `until` the asks that end the step, `hold` the milliseconds it lasts when it has no
   `until` (5000 by default). A step that points at a tile may carry `pointChosen` and
