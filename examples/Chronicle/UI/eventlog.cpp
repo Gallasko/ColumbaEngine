@@ -72,6 +72,7 @@ namespace chronicle
             switch (kind)
             {
             case LogKind::Note:
+            case LogKind::Lore:
                 return "gloss";
 
             case LogKind::Milestone:
@@ -110,6 +111,9 @@ namespace chronicle
             {
             case LogKind::Note:
                 return "log.text.note";
+
+            case LogKind::Lore:
+                return "log.lore";
 
             case LogKind::Gain:
                 return "log.text.gain";

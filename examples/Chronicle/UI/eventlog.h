@@ -19,7 +19,8 @@ namespace chronicle
         Gain      = 1,
         Loss      = 2,
         Coin      = 3,
-        Milestone = 4    // Full ink and weight, a gold seal
+        Milestone = 4,   // Full ink and weight, a gold seal
+        Lore      = 5    // A line of the town's story: italic, muted, a quill and no figure
     };
 
     struct LogEntry
@@ -28,7 +29,7 @@ namespace chronicle
         std::string text;              // "Gored in the North Forest"
         LogKind kind = LogKind::Note;
         std::string figure;            // "" or "−9 vit": preformatted
-        std::string glyph;             // "" -> by kind: seal / cross / check / gold / quill
+        std::string glyph;             // "" -> by kind: seal / cross / check / gold / quill (a note, lore)
     };
 
     struct EventLogSpec

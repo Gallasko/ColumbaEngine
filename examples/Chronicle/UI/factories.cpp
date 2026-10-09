@@ -1157,7 +1157,7 @@ namespace chronicle
 
             static const std::vector<std::pair<std::string, LogKind>> KIND = {
                 {"note", LogKind::Note}, {"gain", LogKind::Gain}, {"loss", LogKind::Loss},
-                {"coin", LogKind::Coin}, {"milestone", LogKind::Milestone},
+                {"coin", LogKind::Coin}, {"milestone", LogKind::Milestone}, {"lore", LogKind::Lore},
             };
 
             registry->registerFactory("EventLog", std::move(schema),
