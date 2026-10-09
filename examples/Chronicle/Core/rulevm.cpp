@@ -564,6 +564,7 @@ namespace chronicle
         milestonesKnown = false;
         monthKnown = false;
         deedsKnown = false;
+        townFor.known = false;
     }
 
     bool Rules::stands(const Asked& asked, float age, const ElementMap& character) const
@@ -595,7 +596,8 @@ namespace chronicle
                                     {&forecastScript, "forecast.pg"},
                                     {&resourcesScript, "resources.pg"},
                                     {&achievementsScript, "achievements.pg"},
-                                    {&epitaphScript, "epitaph.pg"}})
+                                    {&epitaphScript, "epitaph.pg"},
+                                    {&townScript, "town.pg"}})
         {
             if (not script->load(ecs, root + "/" + file))
             {
@@ -895,6 +897,74 @@ namespace chronicle
 
         return true;
     }
+
+    bool Rules::town(float age, const ElementMap& character, RuleTown& out)
+    {
+        out = RuleTown{};
+
+        if (stands(townFor, age, character))
+        {
+            out = keptTown;
+            return true;
+        }
+
+        RuleScript& s = townScript;
+        s.clearErrors();
+
+        townFor.known = false;
+
+        s.set("age", ElementType{age});
+        s.set("character", character);
+        s.set("world", ElementType{world});
+        s.set("lives", ElementType{lives});
+
+        ++nbRuns;
+
+        std::vector<RuleScript::Record> records;
+        ElementType opened;
+        ElementType raisedLine;
+        ElementType epitaphLine;
+        ElementType fundLine;
+
+        if (not s.run() or not s.get("places", {"gaps"}, records) or not s.get("start", out.start))
+            return fail(s);
+
+        if (not s.get("opened", opened) or not s.get("raisedLine", raisedLine) or not s.get("epitaphLine", epitaphLine) or not s.get("fundLine", fundLine))
+            return fail(s);
+
+        for (auto& record : records)
+        {
+            RulePlace place;
+
+            place.fields = std::move(record.fields);
+            place.gaps = std::move(record.lists[0]);
+
+            out.places.push_back(std::move(place));
+        }
+
+        out.opened = opened.toString();
+        out.raisedLine = raisedLine.toString();
+        out.epitaphLine = epitaphLine.toString();
+        out.fundLine = fundLine.toString();
+
+        // The words of the gift at death
+        ElementMap words;
+
+        if (not s.get("gift", words))
+            return fail(s);
+
+        out.giftStat = text(words, "stat");
+        out.giftBefore = text(words, "before");
+        out.giftAfter = text(words, "after");
+        out.giftNone = text(words, "plain");
+        out.giftChosen = text(words, "chosen");
+
+        keep(townFor, age, character);
+        keptTown = out;
+
+        return true;
+    }
+
     bool Rules::epitaph(float age, const ElementMap& character, const std::vector<std::string>& deeds, RuleEpitaph& out)
     {
         RuleScript& s = epitaphScript;

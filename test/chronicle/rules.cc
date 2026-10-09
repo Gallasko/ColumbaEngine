@@ -109,11 +109,11 @@ namespace pg
                         {"coin", ElementType{0}}, {"rations", ElementType{12}}};
             }
 
-            // The same boy once the town's market is his to buy at
+            // The same boy once a life has explored the town: its market is his to buy at
             ElementMap townsman()
             {
                 ElementMap character = boy();
-                character["market_known"] = ElementType{1};
+                character["town_known"] = ElementType{1};
 
                 return character;
             }
@@ -1143,10 +1143,10 @@ namespace pg
             EXPECT_EQ(intOf(buy.fields, "months"), 0);
             EXPECT_TRUE(flag(buy.fields, "locked"));
 
-            // The market to buy at, the coin it costs, then room for what it brings
+            // The town to buy in, the coin it costs, then room for what it brings
             ASSERT_EQ(buy.requires.size(), 3u);
-            EXPECT_EQ(textOf(buy.requires[0], "stat"), "market_known");
-            EXPECT_EQ(textOf(buy.requires[0], "label"), "The market");
+            EXPECT_EQ(textOf(buy.requires[0], "stat"), "town_known");
+            EXPECT_EQ(textOf(buy.requires[0], "label"), "The town");
             EXPECT_EQ(textOf(buy.requires[1], "stat"), "coin");
             EXPECT_EQ(intOf(buy.requires[1], "current"), 3);
             EXPECT_EQ(intOf(buy.requires[1], "needed"), 5);
@@ -1636,7 +1636,17 @@ namespace pg
                     listed.push_back(textOf(a.fields, "id"));
             }
 
-            EXPECT_EQ(listed, (std::vector<std::string>{"buy.rations", "tales", "garden", "teach"}));
+            // With what is bought in town, the tile that goes there, and the works for the town,
+            // which no age closes
+            for (const char* id : {"goto.market", "buy.rations", "tales", "garden", "teach"})
+                EXPECT_NE(std::find(listed.begin(), listed.end(), id), listed.end()) << id;
+
+            for (const auto& id : listed)
+            {
+                const bool old = id == "goto.market" or id == "buy.rations" or id == "tales" or id == "garden" or id == "teach";
+
+                EXPECT_TRUE(old or id.rfind("raise.", 0) == 0) << id;
+            }
 
             RuleActivity tales = activityAt(f.rules, 34.0f, boy(), "tales");
 
@@ -1793,7 +1803,7 @@ namespace pg
 
             // Four: his letters, and the three ways into a class, which the guide speaks of then
             f.rules.done = {{"helping", ElementType{1}}, {"carters", ElementType{1}}, {"messages", ElementType{1}}, {"kitchen", ElementType{1}}};
-            EXPECT_EQ(listed(7.75f, boy()), (std::vector<std::string>{"carters", "mill", "messages", "kitchen", "letters", "keep", "collegium", "hand"}));
+            EXPECT_EQ(listed(7.75f, boy()), (std::vector<std::string>{"carters", "mill", "messages", "kitchen", "letters", "explore", "keep", "collegium", "hand"}));
 
             // Five: whatever his age has opened meanwhile. The terms count, whichever they were
             f.rules.done = {{"helping", ElementType{1}}, {"carters", ElementType{4}}};
@@ -1807,13 +1817,13 @@ namespace pg
             f.rules.done = {};
             f.rules.lives = 2;
 
-            EXPECT_EQ(listed(7.0f, boy()), (std::vector<std::string>{"carters", "mill", "messages", "kitchen", "letters", "keep", "collegium", "hand"}));
+            EXPECT_EQ(listed(7.0f, boy()), (std::vector<std::string>{"carters", "mill", "messages", "kitchen", "letters", "explore", "keep", "collegium", "hand"}));
         }
 
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // Nobody buys at a market he does not know: the row waits for the flag the town will set.
+        // Nobody buys at a market he does not know: the row waits for a life to have explored the town.
         TEST(rules_test, buy_rations_hidden_until_the_market_is_known)
         {
             MockLogger logger;
@@ -1827,7 +1837,7 @@ namespace pg
             EXPECT_FALSE(flag(buy.fields, "listed"));
             EXPECT_EQ(intOf(buy.fields, "reach"), 0);
 
-            character["market_known"] = ElementType{1};
+            character["town_known"] = ElementType{1};
 
             buy = activityAt(f.rules, 9.0f, character, "buy.rations");
 
@@ -2043,6 +2053,427 @@ namespace pg
 
                 EXPECT_TRUE(found) << id;
             }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The town as its page shows it: nine places of three levels, what each gives at the level
+        // it stands at, and what its next level asks of him against what he has.
+        TEST(rules_test, town_places_and_levels)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            ElementMap character = townsman();
+            character["coin"] = ElementType{30};
+            character["town.market"] = ElementType{1};
+            character["town.mill"] = ElementType{3};
+
+            RuleTown town;
+            ASSERT_TRUE(f.rules.town(9.0f, character, town)) << firstError(f.rules);
+
+            ASSERT_EQ(town.places.size(), 9u);
+            EXPECT_FALSE(town.opened.empty());
+            EXPECT_FALSE(town.raisedLine.empty());
+            EXPECT_EQ(town.giftStat, "coin");
+
+            for (const auto& place : town.places)
+            {
+                EXPECT_EQ(intOf(place.fields, "most"), 3) << textOf(place.fields, "id");
+                EXPECT_FALSE(textOf(place.fields, "name").empty());
+                EXPECT_FALSE(textOf(place.fields, "glyph").empty());
+            }
+
+            auto placed = [&](const std::string& id) -> const RulePlace& {
+                for (const auto& place : town.places)
+                {
+                    if (textOf(place.fields, "id") == id)
+                        return place;
+                }
+
+                ADD_FAILURE() << "no place " << id;
+
+                return town.places.front();
+            };
+
+            // Not built: nothing given, its first level asked
+            const RulePlace& yard = placed("yard");
+
+            EXPECT_EQ(intOf(yard.fields, "level"), 0);
+            EXPECT_EQ(textOf(yard.fields, "gives"), "");
+            EXPECT_EQ(textOf(yard.fields, "line"), "NOT YET BUILT");
+            EXPECT_EQ(textOf(yard.fields, "nextWork"), "raise.yard.1");
+            EXPECT_EQ(intOf(yard.fields, "nextMonths"), 6);
+            EXPECT_EQ(intOf(yard.fields, "nextCoin"), 20);
+            EXPECT_FALSE(flag(yard.fields, "nextLocked"));
+
+            // At its first level: what it gives, and a second that asks more than he has
+            const RulePlace& market = placed("market");
+
+            EXPECT_EQ(intOf(market.fields, "level"), 1);
+            EXPECT_FALSE(textOf(market.fields, "gives").empty());
+            EXPECT_FALSE(textOf(market.fields, "tale").empty());
+            EXPECT_EQ(textOf(market.fields, "nextWork"), "raise.market.2");
+            EXPECT_TRUE(flag(market.fields, "nextLocked"));
+
+            ASSERT_EQ(market.gaps.size(), 2u);
+            EXPECT_EQ(textOf(market.gaps[0], "stat"), "coin");
+            EXPECT_EQ(intOf(market.gaps[0], "current"), 30);
+            EXPECT_EQ(intOf(market.gaps[0], "needed"), 60);
+            EXPECT_EQ(textOf(market.gaps[1], "stat"), "guile");
+
+            // At its last: nothing more to raise
+            const RulePlace& mill = placed("mill");
+
+            EXPECT_EQ(intOf(mill.fields, "level"), 3);
+            EXPECT_EQ(textOf(mill.fields, "nextWork"), "");
+            EXPECT_TRUE(mill.gaps.empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What lives left to a place at their death is counted toward its next level: the page and
+        // the work that raises it ask that much less coin, never less than none.
+        TEST(rules_test, town_fund_lowers_the_coin_asked)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            ElementMap character = townsman();
+            character["coin"] = ElementType{10};
+            character["fund.mill"] = ElementType{15};
+            character["fund.chapel"] = ElementType{84};
+
+            RuleTown town;
+            ASSERT_TRUE(f.rules.town(9.0f, character, town)) << firstError(f.rules);
+
+            for (const auto& place : town.places)
+            {
+                const std::string id = textOf(place.fields, "id");
+
+                if (id == "mill")
+                {
+                    EXPECT_EQ(intOf(place.fields, "nextCoin"), 5);
+                    EXPECT_EQ(intOf(place.fields, "fund"), 15);
+                    EXPECT_FALSE(flag(place.fields, "nextLocked"));
+                }
+
+                if (id == "chapel")
+                    EXPECT_EQ(intOf(place.fields, "nextCoin"), 0);
+
+                if (id == "yard")
+                    EXPECT_TRUE(flag(place.fields, "nextLocked"));
+            }
+
+            RuleActivity mill = activityAt(f.rules, 9.0f, character, "raise.mill.1");
+
+            ASSERT_EQ(mill.costs.size(), 1u);
+            EXPECT_EQ(textOf(mill.costs[0], "stat"), "coin");
+            EXPECT_EQ(intOf(mill.costs[0], "amount"), 5);
+            EXPECT_FALSE(flag(mill.fields, "locked"));
+
+            // Paid for whole: the work asks no coin at all
+            EXPECT_TRUE(activityAt(f.rules, 9.0f, character, "raise.chapel.1").costs.empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A work that raises a place is listed while the place is one level below, to who knows the
+        // town: hidden before, gone after.
+        TEST(rules_test, raise_rows_are_listed_only_at_the_level_below)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            // Nobody raises a town he does not know
+            EXPECT_FALSE(flag(activityAt(f.rules, 9.0f, boy(), "raise.market.1").fields, "listed"));
+
+            ElementMap character = townsman();
+
+            RuleActivity first = activityAt(f.rules, 9.0f, character, "raise.market.1");
+
+            EXPECT_TRUE(flag(first.fields, "listed"));
+            EXPECT_EQ(textOf(first.fields, "group"), "The town");
+            EXPECT_EQ(textOf(first.fields, "raises"), "market");
+            EXPECT_EQ(intOf(first.fields, "level"), 1);
+            EXPECT_EQ(intOf(first.fields, "months"), 6);
+            EXPECT_FALSE(flag(activityAt(f.rules, 9.0f, character, "raise.market.2").fields, "listed"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 9.0f, character, "raise.market.3").fields, "listed"));
+
+            character["town.market"] = ElementType{1};
+
+            EXPECT_FALSE(flag(activityAt(f.rules, 9.0f, character, "raise.market.1").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 9.0f, character, "raise.market.2").fields, "listed"));
+
+            // What it takes of him besides coin is a cost like any other
+            RuleActivity second = activityAt(f.rules, 9.0f, character, "raise.market.2");
+
+            ASSERT_EQ(second.costs.size(), 2u);
+            EXPECT_EQ(textOf(second.costs[1], "stat"), "guile");
+            EXPECT_TRUE(flag(second.fields, "locked"));
+
+            character["town.market"] = ElementType{3};
+
+            for (const char* id : {"raise.market.1", "raise.market.2", "raise.market.3"})
+                EXPECT_FALSE(flag(activityAt(f.rules, 9.0f, character, id).fields, "listed")) << id;
+
+            // Years of his life, said on the tile and handed to the scene in months
+            RuleActivity almshouse = activityAt(f.rules, 9.0f, character, "raise.chapel.3");
+
+            EXPECT_EQ(intOf(almshouse.fields, "months"), 0);
+            EXPECT_EQ(intOf(almshouse.fields, "yearMonths"), 24);
+            EXPECT_EQ(textOf(almshouse.fields, "each"), "COSTS 2 YEARS");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Exploring the town is for who does not know it.
+        TEST(rules_test, explore_hidden_once_known)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            RuleActivity explore = activityAt(f.rules, 7.0f, boy(), "explore");
+
+            EXPECT_TRUE(flag(explore.fields, "listed"));
+            EXPECT_FALSE(flag(explore.fields, "locked"));
+            EXPECT_EQ(intOf(explore.fields, "months"), 3);
+            ASSERT_EQ(explore.gains.size(), 1u);
+            EXPECT_EQ(textOf(explore.gains[0], "stat"), "town_known");
+
+            EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, townsman(), "explore").fields, "listed"));
+
+            // A first life meets it with its fourth term
+            f.rules.lives = 1;
+            f.rules.done = {{"helping", ElementType{1}}, {"carters", ElementType{2}}};
+            EXPECT_FALSE(flag(activityAt(f.rules, 7.5f, boy(), "explore").fields, "listed"));
+
+            f.rules.done = {{"helping", ElementType{1}}, {"carters", ElementType{3}}};
+            EXPECT_TRUE(flag(activityAt(f.rules, 7.75f, boy(), "explore").fields, "listed"));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What is bought on the spot is the market's: its rows say so, and the Life page keeps the
+        // tile that goes there.
+        TEST(rules_test, market_rows_carry_their_place)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            ElementMap character = townsman();
+            character["coin"] = ElementType{5};
+
+            RuleActivity buy = activityAt(f.rules, 9.0f, character, "buy.rations");
+
+            EXPECT_EQ(textOf(buy.fields, "place"), "market");
+            EXPECT_TRUE(flag(buy.fields, "listed"));
+            EXPECT_FALSE(flag(buy.fields, "locked"));
+
+            RuleActivity go = activityAt(f.rules, 9.0f, character, "goto.market");
+
+            EXPECT_EQ(textOf(go.fields, "goto"), "town");
+            EXPECT_EQ(textOf(go.fields, "place"), "");
+            EXPECT_EQ(intOf(go.fields, "months"), 0);
+            EXPECT_TRUE(flag(go.fields, "listed"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 9.0f, boy(), "goto.market").fields, "listed"));
+
+            // What the charter brings to the market is not there before it
+            EXPECT_FALSE(flag(activityAt(f.rules, 9.0f, character, "buy.sword").fields, "listed"));
+
+            character["town.market"] = ElementType{3};
+
+            RuleActivity sword = activityAt(f.rules, 9.0f, character, "buy.sword");
+
+            EXPECT_TRUE(flag(sword.fields, "listed"));
+            EXPECT_EQ(textOf(sword.fields, "place"), "market");
+
+            // Reagents are a mage's, until the Collegium sells them at its gate
+            EXPECT_FALSE(flag(activityAt(f.rules, 9.0f, character, "buy.reagents").fields, "listed"));
+
+            character["town.collegium"] = ElementType{1};
+            EXPECT_TRUE(flag(activityAt(f.rules, 9.0f, character, "buy.reagents").fields, "listed"));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What a place gives reaches a row through its `bonus` steps: its months, what it brings,
+        // how often it can be done, the age it opens at.
+        TEST(rules_test, bonus_steps_read_the_town)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            ElementMap character = boy();
+
+            EXPECT_EQ(intOf(activityAt(f.rules, 8.0f, character, "letters").fields, "months"), 6);
+            EXPECT_EQ(intOf(activityAt(f.rules, 8.0f, character, "blades").fields, "uses"), 3);
+            EXPECT_EQ(intOf(activityAt(f.rules, 8.0f, character, "smithy").fields, "fromAge"), 9);
+
+            auto coinOf = [&](const RuleActivity& a) {
+                for (const auto& gain : a.gains)
+                {
+                    if (textOf(gain, "stat") == "coin")
+                        return intOf(gain, "amount");
+                }
+
+                return 0;
+            };
+
+            EXPECT_EQ(coinOf(activityAt(f.rules, 8.0f, character, "mill")), 8);
+            EXPECT_EQ(intOf(activityAt(f.rules, 8.0f, townsman(), "buy.rations").gains[0], "amount"), 6);
+
+            character = townsman();
+            character["town.chapel"] = ElementType{1};
+            character["town.yard"] = ElementType{1};
+            character["town.smithy"] = ElementType{1};
+            character["town.mill"] = ElementType{1};
+            character["town.market"] = ElementType{1};
+
+            EXPECT_EQ(intOf(activityAt(f.rules, 8.0f, character, "letters").fields, "months"), 4);
+            EXPECT_EQ(intOf(activityAt(f.rules, 8.0f, character, "blades").fields, "uses"), 5);
+            EXPECT_EQ(intOf(activityAt(f.rules, 8.0f, character, "smithy").fields, "fromAge"), 8);
+            EXPECT_EQ(intOf(activityAt(f.rules, 8.0f, character, "buy.rations").gains[0], "amount"), 8);
+
+            // What it adds is added to what the row brings as it stands: its other gains are his still
+            RuleActivity mill = activityAt(f.rules, 8.0f, character, "mill");
+
+            EXPECT_EQ(coinOf(mill), 12);
+            EXPECT_EQ(mill.gains.size(), 3u);
+
+            // And to what repetition has made of it
+            f.rules.done = {{"mill", ElementType{2}}};
+            EXPECT_EQ(coinOf(activityAt(f.rules, 8.0f, character, "mill")), 10);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A place eases what a class asks from the level that says so, and not before.
+        TEST(rules_test, eased_at_level)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            auto asked = [&](const ElementMap& character, const std::string& id, const std::string& stat) {
+                RuleActivity a = activityAt(f.rules, 16.0f, character, id);
+
+                for (const auto& r : a.requires)
+                {
+                    if (textOf(r, "stat") == stat)
+                        return intOf(r, "needed");
+                }
+
+                return -1;
+            };
+
+            ElementMap character = townsman();
+
+            EXPECT_EQ(asked(character, "keep", "str"), 12);
+            EXPECT_EQ(asked(character, "collegium", "int"), 12);
+
+            character["town.yard"] = ElementType{1};
+            EXPECT_EQ(asked(character, "keep", "str"), 12);
+
+            character["town.yard"] = ElementType{2};
+            EXPECT_EQ(asked(character, "keep", "str"), 11);
+
+            // The sergeant's word still eases it on its own
+            EXPECT_EQ(asked({{"edric_support", ElementType{1}}}, "keep", "str"), 11);
+
+            character["town.collegium"] = ElementType{2};
+            EXPECT_EQ(asked(character, "collegium", "int"), 12);
+
+            character["town.collegium"] = ElementType{3};
+            EXPECT_EQ(asked(character, "collegium", "int"), 11);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What a new life is born with for the town: every level reached, not the last alone.
+        TEST(rules_test, start_from_the_town)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            RuleTown town;
+            ASSERT_TRUE(f.rules.town(7.0f, townsman(), town)) << firstError(f.rules);
+            EXPECT_TRUE(town.start.empty());
+            EXPECT_TRUE(town.epitaphLine.empty());
+
+            ElementMap character = townsman();
+            character["town.chapel"] = ElementType{2};
+            character["town.mill"] = ElementType{3};
+            character["town.gate"] = ElementType{1};
+            character["town.inn"] = ElementType{2};
+
+            ASSERT_TRUE(f.rules.town(7.0f, character, town)) << firstError(f.rules);
+
+            auto given = [&](const std::string& stat) {
+                int amount = 0;
+
+                for (const auto& s : town.start)
+                {
+                    if (textOf(s, "stat") == stat)
+                        amount += intOf(s, "amount");
+                }
+
+                return amount;
+            };
+
+            EXPECT_EQ(given("letters"), 1);
+            EXPECT_EQ(given("rations"), 6);
+            EXPECT_EQ(given("str"), 1);
+            EXPECT_EQ(given("watch_known"), 1);
+            EXPECT_EQ(given("arms"), 0);
+
+            // And the inn tells a new life of the one before, from its second level
+            EXPECT_FALSE(town.epitaphLine.empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The market hall sends a ration a month, to every life, with no row of its own in the
+        // ledger; and the family's room at the inn mends him every month.
+        TEST(rules_test, stall_produces_without_a_row)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            ElementMap character = townsman();
+            character["vit"] = ElementType{6};
+            character["vitrest"] = ElementType{0};
+
+            RuleMonth month;
+            ASSERT_TRUE(f.rules.month(9.0f, character, false, month)) << firstError(f.rules);
+            EXPECT_EQ(intOf(month.after, "rations"), 11);
+            EXPECT_EQ(intOf(month.after, "vit"), 6);
+
+            const size_t rows = month.rows.size();
+
+            character["town.market"] = ElementType{2};
+            character["town.inn"] = ElementType{3};
+
+            ASSERT_TRUE(f.rules.month(9.0f, character, false, month)) << firstError(f.rules);
+
+            // One eaten, one sent
+            EXPECT_EQ(intOf(month.after, "rations"), 12);
+            EXPECT_EQ(intOf(month.after, "vit"), 7);
+
+            // No row for it, and no gloss
+            EXPECT_EQ(month.rows.size(), rows);
+            EXPECT_EQ(byId(month.rows, "town.market"), nullptr);
+
+            for (const auto& gloss : month.glosses)
+                EXPECT_NE(textOf(gloss.fields, "id"), "town.market");
         }
 
         // ----------------------------------------------------------------------------------------

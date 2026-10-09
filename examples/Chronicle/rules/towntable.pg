@@ -1,0 +1,144 @@
+// Chronicle rules: the town's places and their levels
+// ----------------------------------------------------
+// Imported by town.pg (what the Town page shows) and by activitytable.pg (the works that raise a
+// place are made from this table, so the two never disagree). Never loaded itself.
+// Input:  none.
+// Output: `townPlaces`, one table per place of Bellmoor a life can raise:
+//           {id, name, glyph, about, levels [level]}
+//         A place has a level, 0 (not built) to the number of its `levels`. It is the world's,
+//         not the life's: the Life screen hands it to every script in `character` as the stat
+//         "town.<id>", with "town_known" (1 once a life has explored the town) and "fund.<id>"
+//         (the coin lives have left to the place at their death, counted toward its next level).
+//         A level is what a life gives the town, and what the town gives back:
+//           work    the name of the work that raises the place to this level
+//           built   what stands there once it is done, as the log names it
+//           months  the months the work takes: time he does not spend on himself
+//           coin    the coin it costs when it begins, less the place's fund
+//           costs   [{stat, amount}]: what else it takes from him when it begins, for good
+//           years   optional: years of his life given at once when it begins, on top of its months
+//           gives   what this level gives, in one line, as its tile and its gloss say it
+//           start   optional [{stat, amount}]: what a new life is born with for it (town.pg's
+//                   `start`), every later life and never the first of a world
+//           lore    the line the log writes when the level is reached
+//         The rule for what a level gives: it saves the next life time, and never gives a class
+//         for free. How each gift reaches the rules is said where it does: a `bonus` step or an
+//         `eased` requirement of activitytable.pg, a holding of resources.pg, or `start` here.
+//
+// The numbers and the words are placeholders for the game's balance and writing: change them
+// here, nothing in C++ moves.
+
+import "string"
+import "math"
+import "algorithm"
+import "lib"
+
+var townPlaces = [
+    {id: "mill", name: "The Mill", glyph: "work", about: "Where he was born. The town's bread starts here.",
+     levels: [
+        {work: "Mend the Mill Wheel", built: "The mended wheel", months: 6, coin: 20, costs: [],
+         gives: "Help at the Mill pays 4 more coin",
+         lore: "The wheel turns true again. The miller's boys are paid in more than flour."},
+        {work: "Raise the Mill Loft", built: "The mill loft", months: 9, coin: 50, costs: [],
+         gives: "A new life starts with 6 more rations", start: [{stat: "rations", amount: 6}],
+         lore: "The loft keeps a sack for every child of the mill."},
+        {work: "Set the Great Millstones", built: "The great millstones", months: 12, coin: 120, costs: [{stat: "str", amount: 1}],
+         gives: "A new life starts with 1 more Strength", start: [{stat: "str", amount: 1}],
+         lore: "He gave his back to the great stones. The boys who turn them grow strong."}
+     ]},
+    {id: "market", name: "The Market", glyph: "trade", about: "Where coin becomes bread. What is bought on the spot is bought here.",
+     levels: [
+        {work: "Endow the Market Stall", built: "The market stall", months: 6, coin: 20, costs: [],
+         gives: "Buy rations brings 8 rations, not 6",
+         lore: "A stall of his own name stands on the square. It weighs fair."},
+        {work: "Build the Market Hall", built: "The market hall", months: 9, coin: 60, costs: [{stat: "guile", amount: 1}],
+         gives: "The hall sends 1 ration every month, to every life",
+         lore: "The hall keeps a share for the family that built it."},
+        {work: "Grant the Market Charter", built: "The market charter", months: 12, coin: 150, costs: [],
+         gives: "A sword and a horse are sold at the market",
+         lore: "With a charter, the far merchants come: steel and horses with them."}
+     ]},
+    {id: "chapel", name: "The Chapel", glyph: "study", about: "Father Anselm's chapel, and the only school in Bellmoor.",
+     levels: [
+        {work: "Glaze the Chapel Windows", built: "The chapel windows", months: 6, coin: 15, costs: [],
+         gives: "Learn Your Letters takes 4 months, not 6",
+         lore: "There is light to read by now, even in winter."},
+        {work: "Give the Chapel a Primer", built: "The chapel primer", months: 9, coin: 40, costs: [{stat: "letters", amount: 1}],
+         gives: "A new life starts with Letters 1", start: [{stat: "letters", amount: 1}],
+         lore: "He copied out the primer himself. Children learn their letters from his hand."},
+        {work: "Found the Almshouse", built: "The almshouse", months: 0, coin: 60, costs: [], years: 2,
+         gives: "Teach the Young pays 4 more coin",
+         lore: "Two years of his life went into its walls. The old teach there, and are kept."}
+     ]},
+    {id: "yard", name: "The Yard", glyph: "training", about: "The training yard under the Keep's wall.",
+     levels: [
+        {work: "Stock the Yard with Blades", built: "The yard's racks", months: 6, coin: 20, costs: [],
+         gives: "Wooden Blades can be practiced 5 times, not 3",
+         lore: "No boy waits for a wooden blade any more."},
+        {work: "Lay the Yard's Sand", built: "The sanded yard", months: 9, coin: 60, costs: [{stat: "str", amount: 1}],
+         gives: "The Keep asks Strength 11, not 12",
+         lore: "The sergeants say a boy of the sanded yard is worth one more year."},
+        {work: "House the Sergeant", built: "The sergeant's house", months: 12, coin: 140, costs: [],
+         gives: "Sergeant Edric trains boys from age 12",
+         lore: "Edric lives by the yard now, and starts them younger."}
+     ]},
+    {id: "gate", name: "The Watch Gate", glyph: "gate", about: "The north gate, where the Watch stands.",
+     levels: [
+        {work: "Mend the Gatehouse Roof", built: "The gatehouse roof", months: 6, coin: 25, costs: [],
+         gives: "A new life starts known to the Watch", start: [{stat: "watch_known", amount: 1}],
+         lore: "The Watch does not forget who kept the rain off them."},
+        {work: "Build the Road Posts", built: "The road posts", months: 9, coin: 60, costs: [],
+         gives: "Patrol the North Road gives meals",
+         lore: "There is a fire and a pot at every post on the North Road."},
+        {work: "Raise the Gate Tower", built: "The gate tower", months: 12, coin: 150, costs: [{stat: "renown", amount: 1}],
+         gives: "The Captain's Chain asks Renown 6, not 7",
+         lore: "The tower bears the town's name, not his. The Keep remembers anyway."}
+     ]},
+    {id: "smithy", name: "The Smithy", glyph: "forge", about: "The forge by the river, loud from dawn.",
+     levels: [
+        {work: "Add a Second Bellows", built: "The second bellows", months: 6, coin: 25, costs: [],
+         gives: "Work the Smithy opens at age 8, not 9",
+         lore: "A small boy can work the second bellows."},
+        {work: "Forge the Practice Blades", built: "The practice blades", months: 9, coin: 70, costs: [],
+         gives: "A new life starts with Arms 1", start: [{stat: "arms", amount: 1}],
+         lore: "Children of the town play with blunt steel before they can read."},
+        {work: "Build the Great Forge", built: "The great forge", months: 12, coin: 160, costs: [],
+         gives: "Work the Smithy pays 6 more coin",
+         lore: "The great forge takes orders from the Keep itself."}
+     ]},
+    {id: "inn", name: "The Inn", glyph: "town", about: "The Bell and Barrel, where every tale ends up.",
+     levels: [
+        {work: "Carve the Storyteller's Chair", built: "The storyteller's chair", months: 6, coin: 15, costs: [],
+         gives: "Tell Tales at the Inn opens at age 26",
+         lore: "The chair by the fire is for whoever has a tale, young or old."},
+        {work: "Hang the Book of Names", built: "The book of names", months: 9, coin: 40, costs: [],
+         gives: "A new life is told how the last one ended",
+         lore: "The inn keeps a book. Every life of the family has a line in it."},
+        {work: "Keep a Room at the Inn", built: "The family's room", months: 12, coin: 90, costs: [],
+         gives: "Vitality mends every month, not every second month",
+         lore: "A bed, a fire and a door that locks: he mends faster there."}
+     ]},
+    {id: "collegium", name: "The Collegium Gate", glyph: "academy", about: "The gate of the scholars, shut to most of the town.",
+     levels: [
+        {work: "Open a Reagent Counter", built: "The reagent counter", months: 6, coin: 30, costs: [],
+         gives: "Buy reagents is sold to every class",
+         lore: "The scholars sell at the gate what they used to keep inside."},
+        {work: "Endow a Reading Desk", built: "The reading desk", months: 9, coin: 80, costs: [{stat: "int", amount: 1}],
+         gives: "A new life starts with Lore 1", start: [{stat: "lore", amount: 1}],
+         lore: "One desk at the gate is free to the town's children."},
+        {work: "Fund a Town Scholarship", built: "The town scholarship", months: 12, coin: 180, costs: [],
+         gives: "The Collegium asks Intelligence 11, not 12",
+         lore: "One child of Bellmoor is taken each year on promise alone."}
+     ]},
+    {id: "harrow", name: "The Harrow Road", glyph: "relic", about: "The old road east, to what is left of Harrow.",
+     levels: [
+        {work: "Clear the Harrow Road", built: "The cleared road", months: 9, coin: 40, costs: [],
+         gives: "The works of Harrow show what they ask from the start",
+         lore: "The road is open as far as the first ruins."},
+        {work: "Build the Waystation", built: "The waystation", months: 12, coin: 100, costs: [],
+         gives: "Expedition to Harrow takes 12 months, not 18",
+         lore: "Half the way is under a roof now."},
+        {work: "Raise the Harrow Shrine", built: "The Harrow shrine", months: 18, coin: 200, costs: [{stat: "vit", amount: 2}, {stat: "vitmax", amount: 2}],
+         gives: "A new life starts holding the Harrow relic", start: [{stat: "harrow_relic", amount: 1}],
+         lore: "The shrine cost him his health. What it holds is passed down."}
+     ]}
+]

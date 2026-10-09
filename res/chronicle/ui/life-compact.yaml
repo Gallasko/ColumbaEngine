@@ -69,7 +69,8 @@ children:
     tag: life.tabs
     items:
       - {label: Life, glyph: quill}
-      # Kit, Town, Guild, Adventure and Chronicle come back as their pages are built
+      - {label: Town, glyph: town}      # not open until a life has explored the town
+      # Kit, Guild, Adventure and Chronicle come back as their pages are built
 
   # ── Main: the work at hand, then the choice ───────────────────────────────────
   - kind: Panel
@@ -124,6 +125,28 @@ children:
         stripes: false
         compact: true         # a row is its name, its time and its closing, on a ground that says its kind: work that takes months, a thing done at once, what he cannot do yet. The rest is its gloss
         tileWidth: 148        # and the rows are tiles, as many to a line as fit at that width or more: three at 1320, more as the window widens
+      # The Town page: it takes the choice's place in this panel once a life has explored the town
+      # (LifeScene::showTown), as in life.yaml
+      - kind: Layout:Vertical
+        name: town
+        width: 404
+        height: 200
+        scrollable: true
+        spacing: 12
+        children:
+          - kind: PlaceGrid
+            name: places
+            width: 404
+            tileWidth: 148
+          - {kind: Label, name: marketHead, style: gloss-title, overflow: ellipsis, width: 404, text: "The Market"}
+          - kind: ActivityList
+            name: marketRows
+            id: town.market
+            width: 404
+            stripes: false
+            compact: true
+            tileWidth: 148
+          - {kind: Label, name: raised, style: label, color: ink-muted, overflow: wrap, width: 404, text: ""}
 
   # ── Side: one panel at a time ─────────────────────────────────────────────────
   - kind: Tabs

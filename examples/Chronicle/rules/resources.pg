@@ -35,6 +35,9 @@
 //                                     `low` and `gone` are optional: the `advice` while it runs
 //                                     out and once it has.
 //   about: "text"                     what it is, in a sentence, for its gloss.
+//   ledger: false                     it has no row in the ledger and no gloss: something of the
+//                                     town's (its stat is "town.<place id>", the place's level)
+//                                     that works every month, whoever lives.
 //   title: true                       he has it or he has not: a standing, a tie, a title. Its
 //                                     row shows no figure, and its gloss says neither how many he
 //                                     holds nor a limit.
@@ -78,7 +81,10 @@ var holdings = [
     {id: "renegade", group: "standing", groupLabel: "STANDING", glyph: "adventure", name: "Gone to the Greenwood", tone: 2, title: true,
      about: "He lives outside the town's law, among the outlaws of the Greenwood."},
     {id: "wood_king", group: "standing", groupLabel: "STANDING", glyph: "reputation", name: "King of the Greenwood", tone: 3, title: true,
-     about: "The Greenwood answers to him, and the Keep leaves it be."}
+     about: "The Greenwood answers to him, and the Keep leaves it be."},
+    // The market hall (towntable.pg, the market's second level) sends a ration a month
+    {id: "town.market", group: "town", groupLabel: "TOWN", glyph: "trade", name: "the market hall", tone: 0, ledger: false,
+     produces: [{stat: "rations", amount: 1, per: 2}]}
 ]
 
 // What a work leaves him besides a figure: whom he is known to, what he was taught, what he
@@ -98,8 +104,10 @@ for (var t = 0; t < len(ties); t++)
 // What comes back with time: a stat under its cap (lib.pg's `statCaps`) gains `amount` every
 // `every` months, counted in the stat "<stat>rest". A month that took from it mends nothing and
 // starts the count again.
+// `quick`: with that stat at `needed` or more it mends every `every` months instead (the
+// family's room at the inn, towntable.pg).
 var mending = [
-    {stat: "vit", amount: 1, every: 2}
+    {stat: "vit", amount: 1, every: 2, quick: {stat: "town.inn", needed: 3, every: 1}}
 ]
 
 // Old age: from `fromAge` on, the most a stat can be (its cap) falls by `amount` every `every`
@@ -236,6 +244,15 @@ for (var r = 0; r < len(mending); r++)
         var most = mostOf(character, mend.stat)
         var rest = mend.stat + "rest"
         var rested = 0
+        var every = mend.every
+
+        if (has(mend, "quick"))
+        {
+            if (statOf(character, mend.quick.stat) >= mend.quick.needed)
+            {
+                every = mend.quick.every
+            }
+        }
 
         // A character from before the cap takes what he has as his most
         after[capOf(mend.stat)] = most
@@ -244,7 +261,7 @@ for (var r = 0; r < len(mending); r++)
         {
             rested = lookup(character, rest, 0) + 1
 
-            if (rested >= mend.every)
+            if (rested >= every)
             {
                 shiftIn(after, change, mend.stat, mend.amount)
                 rested = 0
@@ -308,7 +325,10 @@ for (var j = 0; j < len(holdings); j++)
         rate = signed(delta) + " / mo"
     }
 
-    push(rows, {id: h.id, group: h.group, groupLabel: h.groupLabel, glyph: h.glyph, name: h.name, tone: h.tone, rate: rate, limit: limitOf(h.id), title: lookup(h, "title", false)})
+    if (lookup(h, "ledger", true))
+    {
+        push(rows, {id: h.id, group: h.group, groupLabel: h.groupLabel, glyph: h.glyph, name: h.name, tone: h.tone, rate: rate, limit: limitOf(h.id), title: lookup(h, "title", false)})
+    }
 }
 
 // What hovering a holding says: the figures behind its row
@@ -426,7 +446,10 @@ for (var g = 0; g < len(holdings); g++)
         footnote = ""
     }
 
-    push(glosses, {id: h.id, title: h.name, text: lookup(h, "about", ""), footnote: footnote, rows: notes})
+    if (lookup(h, "ledger", true))
+    {
+        push(glosses, {id: h.id, title: h.name, text: lookup(h, "about", ""), footnote: footnote, rows: notes})
+    }
 }
 
 // The character as he is: a life with nothing left of what it needs is over

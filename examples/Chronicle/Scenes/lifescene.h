@@ -12,6 +12,7 @@
 #include "UI/activityrow.h"   // ActivitySelectedEvent, ActivityActivatedEvent
 #include "UI/button.h"
 #include "UI/label.h"
+#include "UI/placetile.h"     // PlaceSelectedEvent
 #include "UI/tabs.h"          // TabSelectedEvent
 #include "lifesave.h"
 
@@ -119,6 +120,15 @@ namespace chronicle
         bool noteShown = false;        // The leaf is up
         bool nextShown = false;        // And its "Next" with it
 
+        // The town: the world's, kept from life to life. Its page stands in the middle column in the
+        // place of the choice, once a life has explored it
+        RuleTown town;                 // The last answer of Rules::town
+        bool townShown = false;        // The Town page is in view
+        std::string gift;              // At an ending: the place he leaves his coin to, "" for none
+        std::vector<std::pair<std::string, Button>> gifts;   // The ending's buttons: a place that can still be raised, each
+
+        void showTown(bool shown);     // The Town page in the middle column, or the choice back in it
+
         bool guiding() const;          // A first life whose guide has not said its last step
         int toastsUp() const { return toasts; }   // The toasts at the foot of the window now
 
@@ -128,6 +138,19 @@ namespace chronicle
         void fitFull(float width, float height);      // The middle column's width, the choice's and the log's heights
         void fitCompact(float width, float height);   // The main column's width, the choice's and the log's heights
         void fitEnding(float width, float height);    // The ending's veil to the window
+        void fitTown(float width, float height);      // The Town page to the middle column
+        int townTab() const;           // Which tab is the town's, -1 when the page has none
+        void fillTown();               // The places' tiles, as the rules say the town stands
+        void publishTown();            // Their levels and lines, their glosses, and who raised what
+        void openTown();               // A life has come to know the town: its tab, its page, a line and a toast
+        void raisePlace(const std::string& place, int level);   // A work for the town is done: the place is the world's at that level
+        void giveYears(int months);    // Years of his life given at once: the clock jumps, the world's with it
+        void fillGifts();              // The ending's row of places his coin can be left to
+        std::string giftStat() const;  // What of his is left to a place at his death: the rules say (coin)
+        void chooseGift(const std::string& place);   // One of them chosen, or let go of
+        bool fromLists(const std::string& list) const;      // An event of the choice's list or of the market's
+        ActivityList* listHolding(const std::string& id) const;   // The one of them that has that row, nullptr for neither
+        void clearChoice();            // Nothing chosen in either list
         float workingHeight() const;   // "At work now": its chrome alone, or with a running row
         void showWorkButtons();        // At nothing: the button that begins what is chosen, or the one that passes a month
         bool guideSaid() const;        // The guide line is up: a life led to its first work, with no guide to say so
@@ -222,6 +245,7 @@ namespace chronicle
         std::string warning;                      // What the rules say of the coming month ("RATIONS FOR 2 MONTHS"), "" for nothing
         std::string advice;                       // And what to do about it, as last said by a toast
         std::string chosen;                       // The activity chosen in the list, "" for none: what the Begin button begins
+        std::string chosenList;                   // And the list it was chosen in: the choice's, or the market's
         bool leadDue = false;                     // The page chose it for him: its tile is lit once the list holds its row
         pg::EntityRef noteEdge;                   // The leaf's edge, and its ground a pixel inside it
         pg::EntityRef noteGround;

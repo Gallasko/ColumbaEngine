@@ -101,6 +101,10 @@ namespace pg
         serialize(archive, "age", value.age);
         serialize(archive, "world", value.world);
         serialize(archive, "lives", value.lives);
+        serialize(archive, "townKnown", value.townKnown);
+        serialize(archive, "town", value.town);
+        serialize(archive, "raisedBy", value.raisedBy);
+        serialize(archive, "fund", value.fund);
         serialize(archive, "running", value.running);
         serialize(archive, "monthsIn", value.monthsIn);
         serialize(archive, "stats", value.stats);
@@ -135,6 +139,10 @@ namespace pg
         defaultDeserialize(serialized, "age", data.age);
         defaultDeserialize(serialized, "world", data.world);
         defaultDeserialize(serialized, "lives", data.lives);
+        defaultDeserialize(serialized, "townKnown", data.townKnown);
+        defaultDeserialize(serialized, "town", data.town);
+        defaultDeserialize(serialized, "raisedBy", data.raisedBy);
+        defaultDeserialize(serialized, "fund", data.fund);
         defaultDeserialize(serialized, "running", data.running);
         defaultDeserialize(serialized, "monthsIn", data.monthsIn);
         defaultDeserialize(serialized, "stats", data.stats);
@@ -163,6 +171,11 @@ namespace chronicle
 
         constexpr const char * const ObjectName = "life";
 
+        // How the town is named among the stats the rules read
+        const std::string TownKnown = "town_known";
+        const std::string TownLevel = "town.";
+        const std::string TownFund = "fund.";
+
         std::string textOf(const ElementMap& map, const std::string& key)
         {
             auto it = map.find(key);
@@ -178,7 +191,42 @@ namespace chronicle
         for (const auto& [key, value] : stats)
             map[key] = ElementType{value};
 
+        // The town, after his stats: it is the world's, and a stat of the same name would not stand
+        map[TownKnown] = ElementType{townKnown ? 1 : 0};
+
+        for (const auto& [place, level] : town)
+            map[TownLevel + place] = ElementType{level};
+
+        for (const auto& [place, coin] : fund)
+            map[TownFund + place] = ElementType{coin};
+
         return map;
+    }
+
+    bool LifeSave::ofTheTown(const std::string& key)
+    {
+        return key == TownKnown or key.rfind(TownLevel, 0) == 0 or key.rfind(TownFund, 0) == 0;
+    }
+
+    bool LifeSave::takeTown(const std::string& key, int value)
+    {
+        if (not ofTheTown(key))
+            return false;
+
+        if (key == TownKnown and value > 0)
+            townKnown = true;
+
+        return true;
+    }
+
+    int LifeSave::townLevels() const
+    {
+        int levels = 0;
+
+        for (const auto& [place, level] : town)
+            levels += level;
+
+        return levels;
     }
 
     ElementMap LifeSave::terms() const
@@ -256,7 +304,8 @@ namespace chronicle
 
         line << "{\"age\":" << years << ",\"world\":" << world << ",\"aim\":\"" << aim << "\",\"running\":\"" << running << "\",\"monthsIn\":" << monthsIn
              << ",\"terms\":" << terms << ",\"deeds\":" << deeds << ",\"log\":" << log.size() << ",\"lives\":" << lives
-             << ",\"picks\":" << picks << ",\"begun\":" << begun << ",\"atOnce\":" << atOnce << ",\"skips\":" << skips << ",\"guide\":" << guide << ",\"guideSkipped\":" << guideSkipped << "}";
+             << ",\"picks\":" << picks << ",\"begun\":" << begun << ",\"atOnce\":" << atOnce << ",\"skips\":" << skips << ",\"guide\":" << guide << ",\"guideSkipped\":" << guideSkipped
+             << ",\"town\":" << townLevels() << ",\"townKnown\":" << (townKnown ? 1 : 0) << "}";
 
         return line.str();
     }
@@ -338,11 +387,12 @@ namespace chronicle
         life.aim = "warrior";
         life.age = 17.5f;
         life.world = 126;   // Ten and a half years since he was 7, when the world's count began
+        life.townKnown = true;   // At 17 he knows Bellmoor street by street: its page is open, nothing raised yet
 
         life.stats = {
             {"str", 12}, {"dex", 8}, {"int", 6}, {"vit", 10}, {"vitmax", 10},
             {"arms", 5}, {"discipline", 2}, {"letters", 0}, {"lore", 0}, {"arcana", 0}, {"stealth", 0}, {"guile", 0}, {"renown", 1},
-            {"watch_known", 1}, {"edric_support", 1}, {"keep_oath", 1}, {"market_known", 1},
+            {"watch_known", 1}, {"edric_support", 1}, {"keep_oath", 1},
             {"coin", 46}, {"rations", 3},
         };
 

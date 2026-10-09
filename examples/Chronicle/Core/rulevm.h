@@ -170,6 +170,31 @@ namespace chronicle
         pg::RecordList until;          // {fact, op, value}: a guide step ends when these hold; none: after its `hold`
     };
 
+    // A place of the town from town.pg: {id, name, glyph, about, level, most, gives, line, tale,
+    // built, fund, nextWork, nextName, nextMonths, nextCoin, nextYears, nextCosts, nextGives,
+    // nextLocked} and what its next level takes from him.
+    struct RulePlace
+    {
+        pg::ElementMap fields;
+        pg::RecordList gaps;           // {stat, label, current, needed}: what the next level takes, against what he has
+    };
+
+    // The town as its page shows it, from town.pg.
+    struct RuleTown
+    {
+        std::vector<RulePlace> places; // In the order of towntable.pg
+        pg::RecordList start;          // {stat, amount}: what a new life is born with for the town as it stands
+        std::string opened;            // The line said the month a life comes to know the town
+        std::string raisedLine;        // What follows a level's `built` in the line the log writes for it
+        std::string epitaphLine;       // "" or what a new life's log says before how the last one ended
+        std::string fundLine;          // What a place's gloss writes before the coin left to it
+        std::string giftStat;          // What of his can be left to a place at his death ("coin")
+        std::string giftBefore;        // The ending's line for it, before the amount: "LEAVE HIS "
+        std::string giftAfter;         // And after it: " COIN TO"
+        std::string giftNone;          // What the ending's button says with no gift chosen
+        std::string giftChosen;        // And with one
+    };
+
     // The scene's scripts, loaded once from a rules root, each with its typed call. Every
     // number about the future or the rules comes from here, never from C++.
     //
@@ -215,6 +240,10 @@ namespace chronicle
         // rows and their glosses, and whether the character as he is can go on.
         bool month(float age, const pg::ElementMap& character, bool board, RuleMonth& out);
 
+        // town.pg: the places of the town for `character` (who carries their levels and their
+        // funds), and what a new life is born with for them.
+        bool town(float age, const pg::ElementMap& character, RuleTown& out);
+
         // achievements.pg: every deed, guide step and line of lore, what it asks and what it gives.
         bool achievements(std::vector<RuleAchievement>& out);
 
@@ -230,6 +259,7 @@ namespace chronicle
         RuleScript resourcesScript;
         RuleScript achievementsScript;
         RuleScript epitaphScript;
+        RuleScript townScript;
 
         // How many times a script was run since load(): what the kept answers spare
         size_t nbRuns = 0;
@@ -281,5 +311,8 @@ namespace chronicle
 
         bool deedsKnown = false;
         std::vector<RuleAchievement> keptDeeds;
+
+        Asked townFor;
+        RuleTown keptTown;
     };
 }

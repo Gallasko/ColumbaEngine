@@ -7,7 +7,8 @@
 //           kind   "deed" (the default), "guide" or "lore", as below.
 //           asks   every one must hold; `fact` is a path the Life screen publishes:
 //                  "stat.<key>" (a stat of the character), "done.<activity id>" (the terms
-//                  completed), "life.age", "life.terms" (the terms done in this life, of every
+//                  completed; the town's stats too: "stat.town_known", "stat.town.<place id>"),
+//                  "life.age", "life.terms" (the terms done in this life, of every
 //                  activity), "life.working" (1 while he is at a work, else 0), "life.lives"
 //                  (which life of the world this is) or "life.guide" (the last step of the guide
 //                  that ended, 0 before the first); `op` is one of ">=", ">", "<=", "<", "==".
@@ -31,6 +32,7 @@
 //                  the player ("you").
 //           point  what the hand points at: "button:begin", "tile:<activity id>",
 //                  "holding:<id>" (a row of what he holds), "stat:<key>" (one of his parts),
+//                  "tab:<page>" (a page's tab, by its name in small letters: "tab:town"),
 //                  "clock", "log", or "" for nothing. What is not on the page is not pointed at:
 //                  the sentence is said alone.
 //           until  the step ends when these hold; without any it ends after `hold` milliseconds
@@ -140,7 +142,15 @@ var achievements = [
     // Outside the sequence: said once, the month his rations run low
     {id: "guide.rations_low", kind: "guide", order: 0, point: "tile:kitchen", hold: 6000,
      say: "You only have food for 3 months. Work in the kitchen to get more.",
-     asks: [{fact: "stat.rations", op: "<=", value: 3}, {fact: "life.terms", op: ">=", value: 1}]},
+     asks: [{fact: "stat.rations", op: "<=", value: 3}, {fact: "life.terms", op: ">=", value: 1}, {fact: "stat.town_known", op: "<=", value: 0}]},
+    // The same once the town is known: food is bought at its market
+    {id: "guide.rations_market", kind: "guide", order: 0, point: "tile:goto.market", hold: 6000,
+     say: "You only have food for 3 months. Go to the market to buy more.",
+     asks: [{fact: "stat.rations", op: "<=", value: 3}, {fact: "life.terms", op: ">=", value: 1}, {fact: "stat.town_known", op: ">=", value: 1}]},
+    // And the town itself, the month he comes to know it
+    {id: "guide.town", kind: "guide", order: 0, point: "tab:town", hold: 8000,
+     say: "The town is open. What you build here stays for your next lives. Its page is here.",
+     asks: [{fact: "stat.town_known", op: ">=", value: 1}]},
 
     // The town's story, a line at a time
     {id: "lore.bell", kind: "lore", entry: "Bellmoor sits where the Bell meets the North Road. Everything that passes, passes here.",
@@ -173,7 +183,7 @@ var ops = [">=", ">", "<=", "<", "=="]
 
 // What the hand can point at: one of these places, or one of these kinds followed by a name
 var pointPlaces = ["", "clock", "log"]
-var pointKinds = ["button:", "tile:", "holding:", "stat:"]
+var pointKinds = ["button:", "tile:", "holding:", "stat:", "tab:"]
 
 // The steps of the guide's sequence, counted to see that their orders run 1..n without a gap
 var guideSteps = 0

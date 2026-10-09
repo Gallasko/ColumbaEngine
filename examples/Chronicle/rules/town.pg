@@ -1,0 +1,165 @@
+// Chronicle rules: the town, as its page shows it
+// -----------------------------------------------
+// Input:  `age` (years), `character` (a table of stats and flags, with the town in it:
+//         "town_known", "town.<place id>" its level, "fund.<place id>" the coin left to it),
+//         `lives`, `world` (handed as to every script; not read here).
+// Output: `places`, one table per place of towntable.pg, in its order:
+//           {id, name, glyph, about, level, most (the most its level can be),
+//            gives   "" at level 0, else what its level gives, in one line
+//            line    what its tile says: that, or "NOT YET BUILT"
+//            tale    "" or the line the log writes when its level is reached (the level's `lore`)
+//            built   "" or what stands there at its level, as the log names it
+//            fund    the coin left to it, counted toward its next level
+//            nextWork   "" at its last level, else the id of the activity that raises it
+//                       (activitytable.pg makes it from the same table: "raise.<id>.<level>")
+//            nextName, nextMonths, nextCoin (less the fund, never below 0), nextYears,
+//            nextCosts  what the next level asks, in one line: "6 mo · 20 coin · 1 Strength"
+//            nextGives  what it will give
+//            nextLocked true while he cannot pay for it
+//            gaps [{stat, label, current, needed}]: what it takes from him, against what he has}
+//         `start`, [{stat, amount}]: what a new life is born with for the town as it stands
+//         (the `start` of every level reached). The Life screen adds them to a life that is not
+//         the first of its world.
+//         `opened`, the line the log and a toast say the month a life comes to know the town.
+//         `raisedLine`, what follows a level's `built` in the line the log writes for it.
+//         `epitaphLine`, "" or what a new life's log says before how the last one ended: the
+//         inn tells it from its second level.
+//         `fundLine`, what the gloss of a place writes before the coin left to it.
+//         `gift`, the gift a life may make at its death: {stat (what of his is left to a place:
+//         it joins the place's fund), before and after (the ending's line around the amount),
+//         plain and chosen (what the ending's button says without a gift, and with one)}.
+//         (`none` is a word of the language, and cannot name a field.)
+//
+// No function here: lib.pg holds them all, ahead of every table (see there why).
+
+import "string"
+import "math"
+import "algorithm"
+import "lib"
+import "towntable"
+
+var errors = []
+
+var opened = "He knows the town street by street: the Town page is open"
+var raisedLine = " stands in Bellmoor: the town will keep it"
+var fundLine = "Left to it by those before him"
+var epitaphLine = ""
+var gift = {stat: "coin", before: "LEAVE HIS ", after: " COIN TO", plain: "Begin a new life", chosen: "Leave it, and begin a new life"}
+
+if (statOf(character, "town.inn") >= 2)
+{
+    epitaphLine = "At the inn they still tell of the one before him. "
+}
+
+var places = []
+var start = []
+
+for (var t = 0; t < len(townPlaces); t++)
+{
+    var place = townPlaces[t]
+    var most = len(place.levels)
+    var level = clamp(statOf(character, "town." + place.id), 0, most)
+    var fund = statOf(character, "fund." + place.id)
+
+    var shown = {id: place.id, name: place.name, glyph: place.glyph, about: place.about, level: level, most: most,
+                 gives: "", line: "NOT YET BUILT", tale: "", built: "", fund: fund,
+                 nextWork: "", nextName: "", nextMonths: 0, nextCoin: 0, nextYears: 0, nextCosts: "", nextGives: "", nextLocked: false,
+                 gaps: []}
+
+    if (level > 0)
+    {
+        var reached = place.levels[level - 1]
+
+        shown.gives = reached.gives
+        shown.line = toUpperCase(reached.gives)
+        shown.tale = reached.lore
+        shown.built = reached.built
+    }
+
+    // What a new life is born with: every level reached, not the last alone
+    for (var l = 0; l < level; l++)
+    {
+        var given = listOf(place.levels[l], "start")
+
+        for (var g = 0; g < len(given); g++)
+        {
+            push(start, {stat: given[g].stat, amount: given[g].amount})
+        }
+    }
+
+    if (level < most)
+    {
+        var next = place.levels[level]
+        var coin = clamp(next.coin - fund, 0, next.coin)
+        var asks = ""
+
+        shown.nextWork = "raise." + place.id + "." + toString(level + 1)
+        shown.nextName = next.work
+        shown.nextMonths = next.months
+        shown.nextCoin = coin
+        shown.nextYears = lookup(next, "years", 0)
+        shown.nextGives = next.gives
+
+        if (next.months > 0)
+        {
+            asks = fmtMonths(next.months)
+        }
+
+        if (shown.nextYears > 0)
+        {
+            if (asks != "")
+            {
+                asks = asks + " · "
+            }
+
+            asks = asks + toString(shown.nextYears) + " years of his life"
+        }
+
+        if (coin > 0)
+        {
+            if (asks != "")
+            {
+                asks = asks + " · "
+            }
+
+            asks = asks + toString(coin) + " coin"
+            push(shown.gaps, {stat: "coin", label: statName("coin"), current: statOf(character, "coin"), needed: coin})
+
+            if (statOf(character, "coin") < coin)
+            {
+                shown.nextLocked = true
+            }
+        }
+
+        var also = listOf(next, "costs")
+
+        for (var c = 0; c < len(also); c++)
+        {
+            // The most a stat can be goes with the stat: said once, under the stat's name
+            var isCap = false
+
+            for (var k : statCaps)
+            {
+                if (statCaps[k] == also[c].stat)
+                {
+                    isCap = true
+                }
+            }
+
+            if (not isCap)
+            {
+                asks = asks + " · " + toString(also[c].amount) + " " + statName(also[c].stat)
+                push(shown.gaps, {stat: also[c].stat, label: statName(also[c].stat), current: statOf(character, also[c].stat), needed: also[c].amount})
+            }
+
+            if (statOf(character, also[c].stat) < also[c].amount)
+            {
+                shown.nextLocked = true
+            }
+        }
+
+        shown.nextCosts = asks
+    }
+
+    push(places, shown)
+}

@@ -42,6 +42,8 @@
 #include "UI/panel.h"
 #include "UI/button.h"
 #include "UI/gloss.h"
+#include "UI/tabs.h"
+#include "UI/placetile.h"
 #include "Core/motion.h"
 
 using namespace pg;
@@ -53,6 +55,19 @@ namespace chronicle
         constexpr const char * const DOM = "Chronicle.Life";
 
         constexpr const char * const ActivitiesList = "life.activities";
+        constexpr const char * const MarketList = "town.market";   // The market's rows, on the Town page
+
+        // The page's pieces the town is made of (life.yaml, life-compact.yaml): the choice and the
+        // Town page take each other's place in the middle column
+        constexpr const char * const ChoiceName = "activities";
+        constexpr const char * const TownName = "town";
+        constexpr const char * const PlacesName = "places";
+        constexpr const char * const MarketName = "marketRows";
+        constexpr const char * const RaisedName = "raised";
+        constexpr const char * const GiftTag = "life.gift.";   // Followed by the place's id: the ending's buttons
+        constexpr float GiftGap = 6.0f;            // Between two of them
+        constexpr int MonthsAYear = 12;
+        const std::string PlaceGloss = "place/";
 
         // The page's frame (life.yaml): where the columns start, and the chrome of a panel with a
         // heading (16 + the 51 head block + 16). The columns' own measures are the steps below
@@ -400,6 +415,17 @@ namespace chronicle
             return (n < 0 ? std::string("\xE2\x88\x92") : std::string("+")) + std::to_string(n < 0 ? -n : n);
         }
 
+        std::string lower(std::string s)
+        {
+            for (char& c : s)
+            {
+                if (c >= 'A' and c <= 'Z')
+                    c = static_cast<char>(c - 'A' + 'a');
+            }
+
+            return s;
+        }
+
         std::string upper(std::string s)
         {
             for (char& c : s)
@@ -575,6 +601,13 @@ namespace chronicle
         listenToEvent<ActivityActivatedEvent>([this](const ActivityActivatedEvent& e) { onConfirm(e); });
         listenToEvent<TabSelectedEvent>([this](const TabSelectedEvent& e) { onTab(e); });
 
+        // A place's tile clicked: it is the one lit, and clicked again it is let go of. The works
+        // that raise it are in the choice, under "The town": its gloss names the one
+        listenToEvent<PlaceSelectedEvent>([this](const PlaceSelectedEvent& e) {
+            if (auto grid = piece<PlaceGrid>(PlacesName))
+                grid->select(ecsRef, grid->selected() == e.id ? std::string() : e.id);
+        });
+
         // At nothing, a month passes when he says so; at work the months run on their own. The
         // ending's one button begins the next life
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e) {
@@ -584,6 +617,8 @@ namespace chronicle
                 skipGuide();
             else if (e.tag == GuideNextTag)
                 nextStep();
+            else if (e.tag.rfind(GiftTag, 0) == 0)
+                chooseGift(e.tag.substr(std::string(GiftTag).size()));
             else if (e.tag == SkipTag and save.running.empty())
             {
                 if (not ended)
@@ -1156,6 +1191,8 @@ namespace chronicle
 
             if (auto list = piece<ActivityList>("activities"))
                 list->setSize(ecs, may->innerWidth(), listHeight);
+
+            fitTown(may->innerWidth(), listHeight);
         }
 
         // The log takes the height left under the years and the work at hand, down to the bottom:
@@ -1208,6 +1245,8 @@ namespace chronicle
 
             if (auto list = piece<ActivityList>("activities"))
                 list->setSize(ecs, may->innerWidth(), listHeight);
+
+            fitTown(may->innerWidth(), listHeight);
         }
 
         // The log fills the side column to the bottom
@@ -1290,6 +1329,7 @@ namespace chronicle
         {
             buttonsDue = false;
             showWorkButtons();
+            showTown(townShown);
         }
 
         // The work chosen for a life that has done nothing: its tile is lit once its row is in the
@@ -1342,8 +1382,9 @@ namespace chronicle
         // path here, and an ask about it does not hold
         ElementMap facts;
 
-        for (const auto& [key, value] : save.stats)
-            facts["stat." + key] = ElementType{value};
+        // His stats, and the town's with them, as the rules read them
+        for (const auto& [key, value] : save.character())
+            facts["stat." + key] = value;
 
         for (const auto& [id, count] : save.done)
             facts["done." + id] = ElementType{count};
@@ -1687,10 +1728,22 @@ namespace chronicle
         }
         else if (kind == "tile")
         {
-            auto list = piece<ActivityList>("activities");
+            auto list = listHolding(name);
 
             if (auto row = list ? list->find(ecsRef, name) : nullptr)
                 target = row->root;
+        }
+        else if (kind == "tab")
+        {
+            // A page's tab, by the page's name in small letters
+            if (auto tabs = piece<Tabs>("tabs"))
+            {
+                for (size_t i = 0; i < tabs->tabs.size() and i < tabs->spec.items.size(); ++i)
+                {
+                    if (lower(tabs->spec.items[i].label) == name)
+                        target = tabs->tabs[i].face;
+                }
+            }
         }
         else if (kind == "holding")
         {
@@ -2175,7 +2228,7 @@ namespace chronicle
 
             if (at != std::string::npos)
             {
-                auto list = piece<ActivityList>("activities");
+                auto list = listHolding(rest.substr(0, at));
                 auto row = list ? list->find(ecs, rest.substr(0, at)) : nullptr;
                 const size_t index = static_cast<size_t>(std::atoi(rest.substr(at + asked.size()).c_str()));
 
@@ -2191,14 +2244,18 @@ namespace chronicle
             if (not splitPath(rest, {"state", "count", "until"}, id, field) or id == "running")
                 return;
 
-            auto list = piece<ActivityList>("activities");
+            // In the choice, or at the market
+            auto list = listHolding(id);
 
             if (not list)
                 return;
 
             if (field == "state")
             {
-                list->setRowState(ecs, id, stateOf(v.toString()));
+                // A row the list was just given is not in its layout until the next pass, and was
+                // built in the state it is told here: nothing to tell it, and nothing to log
+                if (list->find(ecs, id))
+                    list->setRowState(ecs, id, stateOf(v.toString()));
             }
             else if (auto row = list->find(ecs, id))
             {
@@ -2311,12 +2368,20 @@ namespace chronicle
 
         fillWindows();
         fillActivities();
+        fillTown();
+
+        // The town's tab is open to who knows the town, and its page stands where it stood
+        if (auto tabs = piece<Tabs>("tabs"); tabs and townTab() >= 0)
+            tabs->setEnabled(ecs, townTab(), save.townKnown);
+
+        showTown(townShown);
 
         if (auto running = piece<ActivityList>("running"))
             running->setRows(ecs, {});
 
         // A list just filled has nothing chosen, and its figures are arriving, not rising
         chosen.clear();
+        chosenList.clear();
         hovered.clear();
         figures.clear();
         quiet = QuietMs;
@@ -2389,6 +2454,11 @@ namespace chronicle
                 const RuleActivity* arrived = activityOf(id);
                 const std::string opens = arrived ? textOf(arrived->fields, "opens") : "";
 
+                // The town's own rows come a dozen at a time, the month it opens or a place is
+                // raised: the line the town writes then says it for all of them
+                if (arrived and not (textOf(arrived->fields, "raises") + textOf(arrived->fields, "place") + textOf(arrived->fields, "goto")).empty())
+                    continue;
+
                 if (opens.empty())
                 {
                     toast("New: " + activityName(id));
@@ -2407,6 +2477,10 @@ namespace chronicle
         // path's) has no row
         std::vector<ActivityGroup> groups;
 
+        // What is done at a place of the town stands on the Town page once the town is known:
+        // today the market's rows, what is bought on the spot
+        std::vector<ActivityRowSpec> stalls;
+
         listedRows.clear();
 
         for (const auto& a : activities)
@@ -2418,8 +2492,9 @@ namespace chronicle
             listedRows += textOf(a.fields, "id") + ":" + std::to_string(a.requires.size()) + ";";
 
             const std::string group = textOf(a.fields, "group");
+            const bool inTown = save.townKnown and not textOf(a.fields, "place").empty();
 
-            if (groups.empty() or groups.back().label != group)
+            if (not inTown and (groups.empty() or groups.back().label != group))
                 groups.push_back({group, {}});
 
             ActivityRowSpec row;
@@ -2463,11 +2538,56 @@ namespace chronicle
             if (row.state != ActivityState::Running)
                 row.until = tileNote(a, row.urgent);
 
-            groups.back().rows.push_back(row);
+            if (inTown)
+                stalls.push_back(row);
+            else
+                groups.back().rows.push_back(row);
         }
 
         if (auto list = piece<ActivityList>("activities"))
             list->setRows(ecsRef, groups);
+
+        if (auto market = piece<ActivityList>(MarketName))
+            market->setRows(ecsRef, stalls.empty() ? std::vector<ActivityGroup>{} : std::vector<ActivityGroup>{{"", stalls}});
+    }
+
+    bool LifeScene::fromLists(const std::string& list) const
+    {
+        return list == ActivitiesList or list == MarketList;
+    }
+
+    ActivityList* LifeScene::listHolding(const std::string& id) const
+    {
+        for (const char* name : {ChoiceName, MarketName})
+        {
+            auto list = piece<ActivityList>(name);
+
+            if (not list)
+                continue;
+
+            for (const auto& group : list->spec.groups)
+            {
+                for (const auto& row : group.rows)
+                {
+                    if (row.id == id)
+                        return list;
+                }
+            }
+        }
+
+        return nullptr;
+    }
+
+    void LifeScene::clearChoice()
+    {
+        for (const char* name : {ChoiceName, MarketName})
+        {
+            if (auto list = piece<ActivityList>(name); list and not list->selected().empty())
+                list->select(ecsRef, "");
+        }
+
+        chosen.clear();
+        chosenList.clear();
     }
 
     std::string LifeScene::asksOf(const RuleActivity& activity) const
@@ -2659,6 +2779,8 @@ namespace chronicle
         write("endStory", epitaph.text);
         write("endTally", epitaph.tally);
 
+        fillGifts();
+
         fitEnding(windowWidth, windowHeight);
 
         // The veil takes the mouse: what is under it is neither hovered nor clicked
@@ -2680,6 +2802,10 @@ namespace chronicle
             ecsRef->removeEntity(ending);
 
         ending = EntityRef{};
+
+        // Its buttons went with it
+        gifts.clear();
+        gift.clear();
     }
 
     void LifeScene::beginAgain()
@@ -2690,9 +2816,21 @@ namespace chronicle
         const std::string line = endedLine;
         const std::string age = endedAge;
 
+        // What he held of it at his death, left to the place he chose: counted toward its next
+        // level, for whoever raises it
+        if (not gift.empty())
+        {
+            if (auto held = save.stats.find(giftStat()); held != save.stats.end() and held->second > 0)
+                save.fund[gift] += held->second;
+        }
+
         newLife();
 
         appendLog({save.age, line, LogKind::Loss, age, ""});
+
+        // The inn tells a new life of the one before, once it keeps its book
+        if (not town.epitaphLine.empty() and not epitaph.cause.empty())
+            appendLog({save.age, town.epitaphLine + epitaph.cause, LogKind::Lore, "", ""});
 
         autoSave();
     }
@@ -2817,7 +2955,14 @@ namespace chronicle
     void LifeScene::takeStats(const ElementMap& stats)
     {
         for (const auto& [key, value] : stats)
+        {
+            // The town comes back with his stats, as it went: it is the world's, and not written
+            // among them
+            if (save.takeTown(key, intOf(value)))
+                continue;
+
             save.stats[key] = intOf(value);
+        }
     }
 
     void LifeScene::writeEntries(const RecordList& entries)
@@ -2960,6 +3105,7 @@ namespace chronicle
         glossHoldings();
         publishCharacter();
         publishRules();
+        publishTown();
 
         // The ghosts: of the activity chosen if one is, of the one the mouse is on, else of what mends
         preview();
@@ -3021,9 +3167,10 @@ namespace chronicle
             setFact("resources." + r.id + ".muted", r.muted);
         }
 
-        // Every stat as a number, for what watches the life rather than shows it
-        for (const auto& [key, value] : save.stats)
-            setFact("stat." + key, value);
+        // Every stat as a number, for what watches the life rather than shows it: the town's too
+        // ("stat.town_known", "stat.town.<place>"), which the rules read with his
+        for (const auto& [key, value] : save.character())
+            setFact("stat." + key, intOf(value));
 
         // And where the life stands, for the deeds, the lore and the guide: the terms he has done,
         // whether he is at work, which life this is and the step of the guide he is past
@@ -3189,7 +3336,11 @@ namespace chronicle
 
     void LifeScene::onSelect(const ActivitySelectedEvent& event)
     {
-        if (event.list != ActivitiesList)
+        if (not fromLists(event.list))
+            return;
+
+        // A list that lets go of what it did not hold: the choice is the other list's
+        if (event.id.empty() and not chosenList.empty() and event.list != chosenList)
             return;
 
         // A tile he chose: not the one the page chose for him, which is `chosen` already
@@ -3197,6 +3348,17 @@ namespace chronicle
             ++save.picks;
 
         chosen = event.id;
+        chosenList = event.id.empty() ? std::string() : event.list;
+
+        // One choice on the page: the other list lets go of its own
+        if (not chosen.empty())
+        {
+            for (const char* name : {ChoiceName, MarketName})
+            {
+                if (auto list = piece<ActivityList>(name); list and list->spec.id != event.list and not list->selected().empty())
+                    list->select(ecsRef, "");
+            }
+        }
 
         showWorkButtons();
         preview();
@@ -3204,7 +3366,7 @@ namespace chronicle
 
     void LifeScene::onHover(const ActivityHoveredEvent& event)
     {
-        if (event.list != ActivitiesList)
+        if (not fromLists(event.list))
             return;
 
         hovered = event.id;
@@ -3288,8 +3450,21 @@ namespace chronicle
     void LifeScene::onConfirm(const ActivityActivatedEvent& event)
     {
         // Over: the keyboard may still reach a row under the ending
-        if (event.list != ActivitiesList or ended)
+        if (not fromLists(event.list) or ended)
             return;
+
+        // A row that only goes to a page: no term, no month, no line
+        if (const RuleActivity* asked = activityOf(event.id); asked and not textOf(asked->fields, "goto").empty())
+        {
+            if (boolOf(asked->fields, "listed") and not boolOf(asked->fields, "locked"))
+            {
+                clearChoice();
+                showTown(true);
+                showWorkButtons();
+            }
+
+            return;
+        }
 
         // What takes no time is done now, whatever else he is at
         RuleForecast forecast;
@@ -3317,14 +3492,13 @@ namespace chronicle
         ++save.begun;
         rules.running = save.running;
 
-        // What it costs is taken as it begins
+        // What it costs is taken as it begins: the years of his life some works for the town ask,
+        // then what it takes of what he holds
+        giveYears(intOf(chosen->fields, "yearMonths"));
         takeStats(forecast.atStart);
 
-        if (auto list = piece<ActivityList>("activities"))
-            list->select(ecsRef, "");
-
         // Nothing is chosen any more, whether or not the list had its tile lit
-        this->chosen.clear();
+        clearChoice();
         leadDue = false;
 
         setFact("activity." + event.id + ".state", std::string("running"));
@@ -3348,6 +3522,9 @@ namespace chronicle
         // The row as it stands, to see whether doing it changes the row itself
         std::string rank;
         std::vector<int> amounts;
+        std::string raised;
+        int raisedTo = 0;
+        int years = 0;
 
         for (const auto& a : activities)
         {
@@ -3359,17 +3536,30 @@ namespace chronicle
                 return;
 
             rank = textOf(a.fields, "rank");
+            raised = textOf(a.fields, "raises");
+            raisedTo = intOf(a.fields, "level");
+            years = intOf(a.fields, "yearMonths");
 
             for (const auto& g : a.gains)
                 amounts.push_back(intOf(g, "amount"));
         }
 
+        const bool knew = save.townKnown;
+
+        giveYears(years);
         takeStats(forecast.atTerm);
         writeEntries(forecast.entries);
 
         ++save.done[id];
         ++save.atOnce;
         rules.done = save.terms();
+
+        // What it did to the town: known now, or a place raised
+        if (not knew and save.townKnown)
+            openTown();
+
+        if (not raised.empty())
+            raisePlace(raised, raisedTo);
 
         refreshHoldings();
 
@@ -3416,19 +3606,403 @@ namespace chronicle
             return;
         }
 
-        if (event.tag != TabsTag or event.index == 0)
+        if (event.tag != TabsTag)
             return;
+
+        // The Life page, and the town's once a life has explored it: they share the middle column
+        if (event.index == 0)
+        {
+            showTown(false);
+            return;
+        }
+
+        if (event.index == townTab() and save.townKnown)
+        {
+            showTown(true);
+            return;
+        }
 
         auto tabs = piece<Tabs>("tabs");
 
         if (not tabs)
             return;
 
+        showTown(false);
+
         const std::string label = event.index >= 0 and static_cast<size_t>(event.index) < tabs->tabs.size() ? tabs->tabs[event.index].label.spec.text : "That page";
 
         tabs->setActive(ecsRef, 0);
 
         appendLog({save.age, label + " has no page yet", LogKind::Note, "", ""});
+    }
+
+    // ---- the town -------------------------------------------------------------------------------------------
+
+    int LifeScene::townTab() const
+    {
+        auto tabs = piece<Tabs>("tabs");
+
+        if (not tabs)
+            return -1;
+
+        for (size_t i = 0; i < tabs->spec.items.size(); ++i)
+        {
+            if (lower(tabs->spec.items[i].label) == TownName)
+                return static_cast<int>(i);
+        }
+
+        return -1;
+    }
+
+    void LifeScene::showTown(bool shown)
+    {
+        townShown = shown and save.townKnown;
+
+        auto may = piece<Panel>("may");
+
+        if (not may)
+            return;
+
+        // The choice and the Town page take each other's place: one is in the column, the other
+        // out of its stack
+        auto show = [this, &may](const char* name, bool visible) {
+            if (EntityRef node = named(name); not node.empty())
+            {
+                wrapIn(may->body, node)->get<PositionComponent>()->setVisibility(visible);
+                node->get<PositionComponent>()->setVisibility(visible);
+            }
+        };
+
+        show(ChoiceName, not townShown);
+        show(TownName, townShown);
+
+        const int tab = townShown ? townTab() : 0;
+
+        if (auto tabs = piece<Tabs>("tabs"); tabs and tab >= 0 and tabs->active() != tab)
+            tabs->setActive(ecsRef, tab);
+    }
+
+    void LifeScene::fitTown(float width, float height)
+    {
+        if (EntityRef body = named(TownName); not body.empty())
+        {
+            body->get<PositionComponent>()->setWidth(width);
+            body->get<PositionComponent>()->setHeight(height);
+        }
+
+        if (auto grid = piece<PlaceGrid>(PlacesName))
+            grid->setWidth(ecsRef, width);
+
+        if (auto market = piece<ActivityList>(MarketName))
+            market->setSize(ecsRef, width, 0.0f);
+
+        for (const char* name : {"marketHead", RaisedName})
+        {
+            if (auto label = piece<Label>(name))
+                label->setWidth(ecsRef, width);
+        }
+    }
+
+    void LifeScene::fillTown()
+    {
+        if (not rules.town(save.age, save.character(), town))
+        {
+            for (const auto& e : rules.errors)
+                LOG_ERROR(DOM, e);
+
+            return;
+        }
+
+        if (auto grid = piece<PlaceGrid>(PlacesName))
+        {
+            std::vector<PlaceTileSpec> places;
+
+            for (const auto& place : town.places)
+            {
+                PlaceTileSpec tile;
+                tile.id = textOf(place.fields, "id");
+                tile.name = textOf(place.fields, "name");
+                tile.glyph = textOf(place.fields, "glyph");
+                tile.level = intOf(place.fields, "level");
+                tile.of = intOf(place.fields, "most");
+                tile.line = textOf(place.fields, "line");
+                tile.glossKey = PlaceGloss + tile.id;
+
+                places.push_back(tile);
+            }
+
+            grid->setPlaces(ecsRef, places);
+        }
+
+        publishTown();
+    }
+
+    void LifeScene::publishTown()
+    {
+        // Nothing to say of a town nobody knows
+        if (not save.townKnown or not rules.town(save.age, save.character(), town))
+            return;
+
+        auto grid = piece<PlaceGrid>(PlacesName);
+        auto registry = ecsRef->getSystem<GlossRegistry>();
+
+        std::string raised;
+
+        for (const auto& place : town.places)
+        {
+            const std::string id = textOf(place.fields, "id");
+            const int level = intOf(place.fields, "level");
+            const int most = intOf(place.fields, "most");
+
+            if (auto tile = grid ? grid->tile(id) : nullptr)
+            {
+                if (tile->spec.level != level or tile->spec.of != most)
+                    tile->setLevel(ecsRef, level, most);
+
+                if (tile->spec.line != textOf(place.fields, "line"))
+                    tile->setLine(ecsRef, textOf(place.fields, "line"));
+            }
+
+            // Who raised it, and when: under the grid for every place, and in its own gloss
+            auto by = save.raisedBy.find(id);
+
+            if (by != save.raisedBy.end())
+                raised += (raised.empty() ? "" : "\n") + upper(textOf(place.fields, "name") + " \xC2\xB7 " + by->second);
+
+            if (not registry)
+                continue;
+
+            // The gloss: what it is and gives, then its next level: what it asks of him against
+            // what he has, what it will give, and the work that raises it
+            GlossSpec gloss;
+            gloss.inlineValues = true;
+            gloss.title = textOf(place.fields, "name");
+            gloss.aside = std::to_string(level) + "/" + std::to_string(most);
+            gloss.text = textOf(place.fields, "about");
+
+            if (level > 0)
+            {
+                gloss.rows.push_back({"IT GIVES", "", "", true});
+                gloss.rows.push_back({textOf(place.fields, "gives"), "", "gain"});
+            }
+
+            if (by != save.raisedBy.end())
+                gloss.rows.push_back({"Raised by", by->second, "muted"});
+
+            const std::string work = textOf(place.fields, "nextName");
+
+            if (not work.empty())
+            {
+                gloss.rows.push_back({"THE NEXT LEVEL", "", "", true});
+                gloss.rows.push_back({"It takes", textOf(place.fields, "nextCosts"), "time"});
+
+                for (const auto& gap : place.gaps)
+                    gloss.rows.push_back({textOf(gap, "label"), std::to_string(intOf(gap, "current")) + " / " + std::to_string(intOf(gap, "needed")), intOf(gap, "current") < intOf(gap, "needed") ? "loss" : "gain"});
+
+                if (intOf(place.fields, "fund") > 0)
+                    gloss.rows.push_back({town.fundLine, std::to_string(intOf(place.fields, "fund")), "gain"});
+
+                gloss.rows.push_back({"It will give", textOf(place.fields, "nextGives"), ""});
+                gloss.footnote = upper("Raised by \"" + work + "\", in the Life page under The town");
+            }
+
+            registry->set(PlaceGloss + id, gloss);
+        }
+
+        if (auto label = piece<Label>(RaisedName); label and label->spec.text != raised)
+            label->setText(ecsRef, raised);
+    }
+
+    void LifeScene::openTown()
+    {
+        if (not rules.town(save.age, save.character(), town))
+        {
+            for (const auto& e : rules.errors)
+                LOG_ERROR(DOM, e);
+        }
+
+        // Said once, the month he comes to know it: its tab opens, for this life and the next
+        if (not town.opened.empty())
+        {
+            save.log.push_back({save.age, town.opened, LogKind::Milestone, "", ""});
+            toast(town.opened);
+        }
+
+        if (auto tabs = piece<Tabs>("tabs"); tabs and townTab() >= 0)
+            tabs->setEnabled(ecsRef, townTab(), true);
+
+        fillTown();
+    }
+
+    void LifeScene::raisePlace(const std::string& place, int level)
+    {
+        save.town[place] = level;
+        save.fund.erase(place);
+
+        // Who raised it, and when: the world's year as the head writes it
+        std::vector<RuleMilestone> passed;
+        ElementMap ahead;
+        ElementMap headline;
+
+        if (rules.milestones(save.age, passed, ahead, &headline))
+            save.raisedBy[place] = save.name + " \xC2\xB7 " + textOf(headline, "date");
+
+        // The town as it stands now: what was built, and the line the place keeps of it
+        if (not rules.town(save.age, save.character(), town))
+        {
+            for (const auto& e : rules.errors)
+                LOG_ERROR(DOM, e);
+
+            return;
+        }
+
+        for (const auto& raised : town.places)
+        {
+            if (textOf(raised.fields, "id") != place)
+                continue;
+
+            const std::string built = textOf(raised.fields, "built") + town.raisedLine;
+
+            save.log.push_back({save.age, built, LogKind::Milestone, "", textOf(raised.fields, "glyph")});
+            toast(built);
+
+            if (const std::string tale = textOf(raised.fields, "tale"); not tale.empty())
+                save.log.push_back({save.age, tale, LogKind::Lore, "", ""});
+        }
+
+        fillTown();
+    }
+
+    void LifeScene::giveYears(int months)
+    {
+        // The clock jumps: years of his life given at once, and the world's with them
+        for (int given = 0; given < months; given += MonthsAYear)
+            save.age += 1.0f;
+
+        save.world += months;
+        rules.world = save.world;
+    }
+
+    std::string LifeScene::giftStat() const
+    {
+        return town.giftStat;
+    }
+
+    void LifeScene::fillGifts()
+    {
+        gifts.clear();
+        gift.clear();
+
+        if (ending.empty() or not ending->has<Prefab>())
+            return;
+
+        auto prefab = ending->get<Prefab>();
+
+        EntityRef line = prefab->findEntity("giftLabel");
+        EntityRef rows = prefab->findEntity("gifts");
+
+        if (line.empty() or rows.empty() or not rows->has<VerticalLayout>())
+            return;
+
+        // Only who knows the town has a town to leave anything to, and only what he holds of it
+        auto held = save.stats.find(giftStat());
+        const int amount = save.townKnown and held != save.stats.end() ? held->second : 0;
+
+        std::vector<const RulePlace*> open;
+
+        if (amount > 0 and rules.town(save.age, save.character(), town))
+        {
+            for (const auto& place : town.places)
+            {
+                if (intOf(place.fields, "level") < intOf(place.fields, "most"))
+                    open.push_back(&place);
+            }
+        }
+
+        const bool offered = not open.empty();
+
+        // Out of the leaf's stack when there is nothing to offer: it is their wraps that are hidden
+        EntityRef leaf = prefab->findEntity("leaf");
+
+        for (EntityRef node : {line, rows})
+        {
+            if (not leaf.empty() and leaf->has<Panel>())
+                wrapIn(leaf->get<Panel>()->body, node)->get<PositionComponent>()->setVisibility(offered);
+
+            node->get<PositionComponent>()->setVisibility(offered);
+        }
+
+        if (not offered)
+            return;
+
+        if (line->has<Label>())
+            line->get<Label>()->setText(ecsRef, town.giftBefore + std::to_string(amount) + town.giftAfter);
+
+        // One small button a place, as many to a line as the leaf holds
+        const float width = rows->get<PositionComponent>()->width;
+        const int z = static_cast<int>(rows->get<PositionComponent>()->z);
+
+        EntityRef row;
+        float used = 0.0f;
+
+        for (const RulePlace* place : open)
+        {
+            ButtonSpec spec;
+            spec.variant = ButtonVariant::Quiet;
+            spec.label = textOf(place->fields, "name");
+            spec.glyph = textOf(place->fields, "glyph");
+            spec.tag = GiftTag + textOf(place->fields, "id");
+            spec.z = z;
+
+            Button button = makeButton(ecsRef, spec);
+
+            const float face = button.root->get<PositionComponent>()->width;
+
+            if (row.empty() or used + face > width)
+            {
+                auto made = makeAnchoredPrefab(ecsRef, 0.0f, 0.0f, static_cast<float>(z));
+
+                made.get<PositionComponent>()->setWidth(width);
+                made.get<PositionComponent>()->setHeight(button.root->get<PositionComponent>()->height);
+
+                row = made.entity;
+                used = 0.0f;
+
+                rows->get<VerticalLayout>()->addEntity(row);
+
+                // It leaves with the ending, as everything on its leaf does
+                prefab->addToPrefab(row, "giftRow" + std::to_string(gifts.size()));
+            }
+
+            auto anchor = button.root->get<UiAnchor>();
+            anchor->setTopAnchor(PosAnchor{row.id, AnchorType::Top});
+            anchor->setLeftAnchor(PosAnchor{row.id, AnchorType::Left});
+            anchor->setLeftMargin(used);
+
+            row->get<Prefab>()->addToPrefab(button.root, textOf(place->fields, "id"));
+
+            used += face + GiftGap;
+
+            gifts.push_back({textOf(place->fields, "id"), button});
+        }
+    }
+
+    void LifeScene::chooseGift(const std::string& place)
+    {
+        if (not ended)
+            return;
+
+        // Chosen again, it is let go of: a gift is his to make or not
+        gift = gift == place ? std::string() : place;
+
+        for (auto& [id, button] : gifts)
+            button.setDisabled(ecsRef, not gift.empty() and id != gift);
+
+        if (ending.empty() or not ending->has<Prefab>())
+            return;
+
+        if (EntityRef again = ending->get<Prefab>()->findEntity("again"); not again.empty() and again->has<Button>())
+            again->get<Button>()->setLabel(ecsRef, gift.empty() ? town.giftNone : town.giftChosen);
     }
 
     // ---- the month ----------------------------------------------------------------------------------------
@@ -3494,12 +4068,20 @@ namespace chronicle
             if (rules.forecast(save.age, save.character(), save.running, save.monthsIn, forecast) and save.monthsIn >= forecast.months)
             {
                 // At term: the forecast's numbers become the character's, its lines the log's
+                const bool knew = save.townKnown;
+
                 takeStats(forecast.atTerm);
                 writeEntries(forecast.entries);
 
                 // The way into a path, done: he is one of it, and its asks stand on his parts
-                if (const RuleActivity* at = activityOf(save.running); at and boolOf(at->fields, "enters"))
+                const RuleActivity* at = activityOf(save.running);
+
+                if (at and boolOf(at->fields, "enters"))
                     save.aim = textOf(at->fields, "path");
+
+                // A work for the town: the place it raises, and the level it raises it to
+                const std::string raised = at ? textOf(at->fields, "raises") : std::string();
+                const int raisedTo = at ? intOf(at->fields, "level") : 0;
 
                 ++save.done[save.running];
                 rules.done = save.terms();
@@ -3511,6 +4093,14 @@ namespace chronicle
                 // The work is done: the months wait for the next choice
                 paused = true;
                 sinceMonth = 0.0f;
+
+                // What it did to the town: known now, or a place raised. Either is the world's from
+                // here on, and what reads the town changes on the spot
+                if (not knew and save.townKnown)
+                    openTown();
+
+                if (not raised.empty())
+                    raisePlace(raised, raisedTo);
 
                 // One more term done: a row may have left, another may have changed, a path's
                 // doors may be his
@@ -3798,13 +4388,27 @@ namespace chronicle
         save = freshLife();
 
         // The world did not begin again with him: its date runs on from the last life's, and he
-        // is one more of its lives
+        // is one more of its lives. The town is the world's too: what was raised stays raised
         save.world = last.world;
         save.lives = last.lives + 1;
+        save.townKnown = last.townKnown;
+        save.town = last.town;
+        save.raisedBy = last.raisedBy;
+        save.fund = last.fund;
 
         rules.world = save.world;
         rules.lives = save.lives;
         rules.running = save.running;
+
+        // And what the town gives a life at its birth: a stat, a holding, a tie
+        if (rules.town(save.age, save.character(), town))
+        {
+            for (const auto& given : town.start)
+                save.stats[textOf(given, "stat")] += intOf(given, "amount");
+        }
+
+        // The page does not open on the town
+        townShown = false;
 
         // "At work now" has the line of a life that has done nothing again
         fit(windowWidth, windowHeight);
@@ -3821,6 +4425,10 @@ namespace chronicle
         rules.done = save.terms();
 
         known.clear();
+
+        // What he is born holding has its row from the first frame
+        refreshHoldings();
+        save.holdEarned(holdings);
 
         rebuild();
         publish();

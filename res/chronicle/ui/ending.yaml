@@ -40,6 +40,13 @@ children:
         overflow: wrap
         text: "He chose no class, and lived by the work of his hands. Nothing he did was written down. He left nothing but his name."
       - {kind: Label, name: endTally, style: label, color: ink-muted, overflow: wrap, text: "AGE 33 · WORKS 0 · COIN 0 · DEEDS 0"}
+      # The gift at death: what he holds can be left to a place of the town, counted toward its
+      # next level. The scene shows the two only to who knows the town and holds any coin, and
+      # fills `gifts` with a small button a place (tags life.gift.<place id>)
+      - {kind: Label, name: giftLabel, style: label, color: ink-muted, overflow: wrap, text: "LEAVE HIS 84 COIN TO"}
+      - kind: Layout:Vertical
+        name: gifts
+        spacing: 6
       - kind: Button
         name: again
         variant: seal

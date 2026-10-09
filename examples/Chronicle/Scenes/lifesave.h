@@ -34,6 +34,14 @@ namespace chronicle
         float age = 7.0f;
         int world = 0;                 // Months since the world's Year 0. It runs on from life to life: a death does not rewind it
         int lives = 1;                 // The lives lived in this world, this one counted. A save from before the count reads 1
+
+        // The town is the world's too: what a life gave Bellmoor is kept when it ends, and the next
+        // one is born into it. A save from before the town reads an unknown town
+        bool townKnown = false;        // A life has explored the town: its page is open, for every later life as well
+        std::unordered_map<std::string, int> town;              // Place id -> its level; a place not raised yet has no key
+        std::unordered_map<std::string, std::string> raisedBy;  // Place id -> the life that raised it last and the world's year then: his name, a middle dot, "YEAR 4"
+        std::unordered_map<std::string, int> fund;              // Place id -> the coin lives left to it at their death, counted toward its next level
+
         std::string running;           // The activity at work, "" for none
         int monthsIn = 0;              // Months already spent in it
         std::unordered_map<std::string, int> stats;   // Parts, skills, flags and coin, by key
@@ -50,8 +58,21 @@ namespace chronicle
         int guideSkipped = 0;          // The step being said when the player skipped the rest of the guide, 0 when he did not
         std::vector<std::string> achieved;             // The deeds already reached, by id
 
-        // The character as the rule scripts read it: every stat.
+        // The character as the rule scripts read it: every stat, and the town with them, which is
+        // not his but which the rules read the same way: "town_known" (1 or 0), "town.<place>" its
+        // level and "fund.<place>" the coin left to it.
         pg::ElementMap character() const;
+
+        // Whether a key of what a script hands back is the town's and not a stat of his.
+        static bool ofTheTown(const std::string& key);
+
+        // A key of what a script hands back, when it is the town's: true, and it is not to be
+        // written among his stats. Coming to know the town is the one thing a script does to it
+        // this way (`townKnown`); its levels and its funds are the Life screen's to write.
+        bool takeTown(const std::string& key, int value);
+
+        // The levels of every place of the town, added up.
+        int townLevels() const;
 
         // The terms completed as the rule scripts read them.
         pg::ElementMap terms() const;

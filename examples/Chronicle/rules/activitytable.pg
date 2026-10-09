@@ -8,7 +8,9 @@
 //         since the world's Year 0: the date a closing is written with), `running` (the id of
 //         the activity he is at, "" for none), `lives` (the lives lived in this world, this one
 //         counted: 1 is a first life, which opens on one task and is shown the others one at a
-//         time).
+//         time). `character` also carries the town, which is the world's and not his:
+//         "town_known" (1 once a life has explored it), "town.<place id>" (the place's level) and
+//         "fund.<place id>" (the coin left to the place by lives that ended), as towntable.pg says.
 // Output: `activities`, one table per thing the character may spend months doing, in the order
 //         the Life screen lists them:
 //           id, group, name, glyph, months, rank ("" or caps), each ("" or caps), path ("" or the
@@ -31,6 +33,10 @@
 //           showAge, showFrom, showAfter, firstLife (what it is listed by, as below),
 //           tally (how often it was done and, for a limited one, what is left, as the row
 //           writes it: "DONE 2", "DONE 0 · 1 LEFT"),
+//           place ("" or the place of the town it is done at: the Town page lists it there, not
+//           the Life page), raises and level ("" and 0, or the place its term raises and the level
+//           it raises it to), yearMonths (0, or the months of his life it takes at once when it
+//           begins: its `years`), goto ("" or the page that confirming it opens, and nothing else),
 //           until ("" or when it closes, as the row writes it: "CLOSES 5/11", the world's date
 //           (month/year) of the last month he may begin it, or "CLOSES THIS MONTH"; said from
 //           `closingShown` months before it), urgent (true from `closingUrgent` months before),
@@ -75,10 +81,26 @@
 //                    is listed in `requires`).
 //   uses: N          it can be done N times, then it is spent.
 //   requires entries may carry:
-//     eased: {flag, needed}   with the flag held, it asks `needed` instead.
+//     eased: {flag, needed, at}   with the flag held (at `at` or more: 1 when it gives none), it
+//                             asks `needed` instead. A list of them: the least of those that hold.
 //     anyOf: [flag]           one of the flags is enough: current is 1 when he holds any.
-//   bonus: {stat, needed, gains}
-//                    with the stat at `needed` or more, the term brings these gains instead.
+//   bonus: [step]    what changes with a stat he holds, or with the town. A step is
+//                    {stat, needed, ...}: with the stat at `needed` or more it replaces the
+//                    activity's own gains, months, rank, each, uses, fromAge, showAge, showFrom,
+//                    finishBy, board or path with the ones it gives, and adds its `more`
+//                    [{stat, amount}] to what the term brings. Every step that holds is applied,
+//                    in order: the last one wins what two of them give.
+//   whileNot: "stat" its row is not listed once he holds that stat ("town_known": exploring the
+//                    town is for who does not know it).
+//   place: "id"      it is done at a place of the town: once the town is known its row stands on
+//                    the Town page, under that place, and no longer on the Life page.
+//   goto: "page"     confirming it opens that page ("town") and does nothing else: no term, no
+//                    month, no line.
+//   raises: "id", level: N
+//                    its term raises that place of the town to level N. It is listed only while
+//                    the place is one level below, and once the town is known. The works that
+//                    raise a place are not written here: they are made from towntable.pg.
+//   years: N         it takes N years of his life at once when it begins, on top of its months.
 //
 // An activity that brings a stat with a limit (lib.pg's `statLimits`) asks for room for it: one
 // more requirement, {stat, label "Room for Rations", current (the room left), needed 1, room
@@ -101,6 +123,7 @@ import "string"
 import "math"
 import "algorithm"
 import "lib"
+import "towntable"
 
 var errors = []
 
@@ -110,6 +133,9 @@ var errors = []
 // the three ways into a path are the only ones he sees from the start (`showFrom: 0`), and the
 // doors on the clock say what else is coming.
 var reachShown = 75
+
+// What a `bonus` step may replace of its activity
+var bonusFields = ["gains", "months", "rank", "each", "uses", "fromAge", "showAge", "showFrom", "finishBy", "board", "path"]
 
 // A row says when it closes once he has this many months left to begin it, or fewer, and says it
 // as urgent from the second: so no row leaves the list without having said so.
@@ -138,7 +164,8 @@ var activities = [
     {id: "mill", group: "Work", name: "Help at the Mill", glyph: "work", months: 6, rank: "", each: "", path: "", showAfter: 3,
      gains: [{stat: "str", amount: 1}, {stat: "vit", amount: 1}, {stat: "coin", amount: 8}],
      requires: [],
-     after: [{uses: 2, months: 9, gains: [{stat: "coin", amount: 6}]}]},
+     after: [{uses: 2, months: 9, gains: [{stat: "coin", amount: 6}]}],
+     bonus: [{stat: "town.mill", needed: 1, more: [{stat: "coin", amount: 4}]}]},
     {id: "messages", group: "Work", name: "Run Messages", glyph: "town", months: 3, rank: "", each: "", path: "", showAfter: 2,
      gains: [{stat: "dex", amount: 1}, {stat: "coin", amount: 3}],
      requires: [],
@@ -154,26 +181,46 @@ var activities = [
      after: [{uses: 2, gains: [{stat: "coin", amount: 12}]}]},
     {id: "smithy", group: "Work", name: "Work the Smithy", glyph: "forge", months: 9, rank: "", each: "", path: "", fromAge: 9,
      gains: [{stat: "str", amount: 1}, {stat: "coin", amount: 18}],
-     requires: [{stat: "str", needed: 8}]},
+     requires: [{stat: "str", needed: 8}],
+     bonus: [{stat: "town.smithy", needed: 1, fromAge: 8}, {stat: "town.smithy", needed: 3, more: [{stat: "coin", amount: 6}]}]},
     {id: "night", group: "Work", name: "Work the Night Market", glyph: "trade", months: 6, rank: "", each: "", path: "", fromAge: 13, finishBy: 18, uses: 2,
      gains: [{stat: "guile", amount: 1}, {stat: "coin", amount: 12}],
      requires: [{stat: "guile", needed: 1}],
      after: [{uses: 2, effects: [{stat: "night_contacts", amount: 1}], entry: "The night market knows his face"}]},
 
-    // Bought at the market, once he knows it: `market_known` is a flag nothing sets yet (the
-    // town will, from exploring the market). Until then it has no row, and the kitchen feeds him
+    // What is bought on the spot is bought in town: once the town is known these stand on its
+    // page, at the market, and the Life page keeps one tile that goes there
+    {id: "goto.market", group: "Market", name: "Go to the Market", glyph: "town", months: 0, rank: "", each: "IN TOWN", path: "", finishBy: anyAge, showFrom: 100,
+     goto: "town",
+     gains: [],
+     requires: [{stat: "town_known", label: "The town", needed: 1}]},
     {id: "buy.rations", group: "Market", name: "Buy rations", glyph: "trade", months: 0, rank: "", each: "AT THE MARKET", path: "", finishBy: anyAge, showFrom: 100,
+     place: "market",
      gains: [{stat: "rations", amount: 6}],
-     requires: [{stat: "market_known", label: "The market", needed: 1}],
-     costs: [{stat: "coin", amount: 5}]},
+     requires: [{stat: "town_known", label: "The town", needed: 1}],
+     costs: [{stat: "coin", amount: 5}],
+     bonus: [{stat: "town.market", needed: 1, gains: [{stat: "rations", amount: 8}]}]},
     {id: "buy.reagents", group: "Market", name: "Buy reagents", glyph: "trade", months: 0, rank: "", each: "AT THE COLLEGIUM", path: "mage",
+     place: "market",
      gains: [{stat: "reagents", amount: 2}],
      requires: [],
-     costs: [{stat: "coin", amount: 6}]},
+     costs: [{stat: "coin", amount: 6}],
+     bonus: [{stat: "town.collegium", needed: 1, path: ""}]},
+    {id: "buy.sword", group: "Market", name: "Buy a Sword", glyph: "swordsmanship", months: 0, rank: "", each: "AT THE MARKET", path: "", finishBy: anyAge, showFrom: 100, uses: 1,
+     place: "market",
+     gains: [{stat: "arms", amount: 1}],
+     requires: [{stat: "town.market", label: "The market charter", needed: 3}],
+     costs: [{stat: "coin", amount: 40}]},
+    {id: "buy.horse", group: "Market", name: "Buy a Horse", glyph: "adventure", months: 0, rank: "", each: "AT THE MARKET", path: "", finishBy: anyAge, showFrom: 100, uses: 1,
+     place: "market",
+     gains: [{stat: "renown", amount: 1}],
+     requires: [{stat: "town.market", label: "The market charter", needed: 3}],
+     costs: [{stat: "coin", amount: 80}]},
 
     {id: "blades", group: "Training", name: "Practice with Wooden Blades", glyph: "swordsmanship", months: 6, rank: "", each: "", path: "", fromAge: 8, finishBy: 14, uses: 3, showAfter: 5,
      gains: [{stat: "arms", amount: 1}, {stat: "dex", amount: 1}],
-     requires: [{stat: "str", needed: 7}]},
+     requires: [{stat: "str", needed: 7}],
+     bonus: [{stat: "town.yard", needed: 1, uses: 5}]},
     {id: "yard", group: "Training", name: "Train at the Yard", glyph: "training", months: 6, rank: "", each: "", path: "", fromAge: 10,
      gains: [{stat: "str", amount: 1}, {stat: "arms", amount: 1}],
      requires: [{stat: "str", needed: 9}],
@@ -184,12 +231,14 @@ var activities = [
     {id: "edric", group: "Training", name: "Train under Sergeant Edric", glyph: "training", months: 12, rank: "", each: "", path: "", fromAge: 13, finishBy: 18, uses: 2,
      gains: [{stat: "arms", amount: 1}, {stat: "discipline", amount: 1}, {stat: "str", amount: 1}],
      requires: [{stat: "str", needed: 10}, {stat: "arms", needed: 2, eased: {flag: "watch_known", needed: 1}}],
-     after: [{uses: 2, effects: [{stat: "edric_support", amount: 1}], entry: "Sergeant Edric will speak for him at the Keep"}]},
+     after: [{uses: 2, effects: [{stat: "edric_support", amount: 1}], entry: "Sergeant Edric will speak for him at the Keep"}],
+     bonus: [{stat: "town.yard", needed: 3, fromAge: 12}]},
 
     {id: "letters", group: "Study", name: "Learn Your Letters", glyph: "quill", months: 6, rank: "", each: "", path: "", finishBy: 14, showAfter: 4,
      gains: [{stat: "letters", amount: 1}, {stat: "int", amount: 1}],
      requires: [],
-     after: [{uses: 3, gains: [{stat: "letters", amount: 1}]}]},
+     after: [{uses: 3, gains: [{stat: "letters", amount: 1}]}],
+     bonus: [{stat: "town.chapel", needed: 1, months: 4}]},
     {id: "chapel", group: "Study", name: "Serve at the Chapel", glyph: "study", months: 9, rank: "", each: "", path: "", fromAge: 9, finishBy: 15, uses: 2,
      gains: [{stat: "letters", amount: 1}, {stat: "discipline", amount: 1}],
      requires: [{stat: "letters", needed: 1}]},
@@ -207,6 +256,12 @@ var activities = [
      gains: [{stat: "lore", amount: 2}, {stat: "discipline", amount: 1}, {stat: "mara_student", amount: 1}],
      requires: [{stat: "lore", needed: 1}, {stat: "letters", needed: 1}]},
 
+    // Three months to know the town street by street: its page opens, for this life and every
+    // one after it. Not listed to who knows it already
+    {id: "explore", group: "The streets", name: "Explore Bellmoor", glyph: "town", months: 3, rank: "ONCE", each: "", path: "", finishBy: anyAge, uses: 1, showAfter: 4,
+     whileNot: "town_known",
+     gains: [{stat: "town_known", amount: 1}],
+     requires: []},
     {id: "roam", group: "The streets", name: "Roam Bellmoor", glyph: "adventure", months: 6, rank: "", each: "", path: "", fromAge: 8, finishBy: 14, uses: 2, showAfter: 5,
      gains: [{stat: "dex", amount: 1}, {stat: "lore", amount: 1}],
      requires: []},
@@ -219,11 +274,11 @@ var activities = [
 
     {id: "keep", group: "A class", name: "Swear Service to the Keep", glyph: "seal", months: 18, rank: "", each: "MEALS PROVIDED", path: "warrior", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, showAfter: 4, finishBy: 20, uses: 1,
      gains: [{stat: "keep_oath", amount: 1}, {stat: "renown", amount: 1}, {stat: "arms", amount: 1}],
-     requires: [{stat: "str", needed: 12, eased: {flag: "edric_support", needed: 11}}, {stat: "arms", needed: 3}, {stat: "discipline", needed: 2}],
+     requires: [{stat: "str", needed: 12, eased: [{flag: "edric_support", needed: 11}, {flag: "town.yard", at: 2, needed: 11}]}, {stat: "arms", needed: 3}, {stat: "discipline", needed: 2}],
      costs: [{stat: "coin", amount: 10}]},
     {id: "collegium", group: "A class", name: "Enter the Collegium", glyph: "academy", months: 24, rank: "", each: "MEALS PROVIDED", path: "mage", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, showAfter: 4, finishBy: 20, uses: 1,
      gains: [{stat: "collegium", amount: 1}, {stat: "arcana", amount: 1}, {stat: "lore", amount: 1}],
-     requires: [{stat: "int", needed: 12}, {stat: "letters", needed: 3}, {stat: "lore", needed: 2, eased: {flag: "mara_student", needed: 1}}],
+     requires: [{stat: "int", needed: 12, eased: {flag: "town.collegium", at: 3, needed: 11}}, {stat: "letters", needed: 3}, {stat: "lore", needed: 2, eased: {flag: "mara_student", needed: 1}}],
      costs: [{stat: "coin", amount: 35}]},
     {id: "hand", group: "A class", name: "Earn the Hidden Hand's Trust", glyph: "guild", months: 18, rank: "", each: "MEALS PROVIDED", path: "thief", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, showAfter: 4, finishBy: 21, uses: 1,
      gains: [{stat: "hidden_hand", amount: 1}, {stat: "favors", amount: 1}, {stat: "stealth", amount: 1}],
@@ -244,11 +299,12 @@ var activities = [
      after: [{uses: 2, gains: [{stat: "arms", amount: 1}, {stat: "coin", amount: 8}], effects: [{stat: "renown", amount: 1}], entry: "The Keep speaks well of his service"}]},
     {id: "patrol", group: "The Keep", name: "Patrol the North Road", glyph: "gate", months: 9, rank: "", each: "", path: "warrior", fromAge: 18, finishBy: 25, uses: 2,
      gains: [{stat: "renown", amount: 1}, {stat: "coin", amount: 22}, {stat: "vit", amount: 1}],
-     requires: [{stat: "arms", needed: 5}, {stat: "vit", needed: 10}]},
+     requires: [{stat: "arms", needed: 5}, {stat: "vit", needed: 10}],
+     bonus: [{stat: "town.gate", needed: 2, board: true, each: "MEALS PROVIDED"}]},
     {id: "tourney", group: "The Keep", name: "Spring Tourney", glyph: "reputation", months: 6, rank: "", each: "", path: "warrior", fromAge: 19, finishBy: 23, uses: 1,
      gains: [{stat: "renown", amount: 1}, {stat: "coin", amount: 20}],
      requires: [{stat: "arms", needed: 5}],
-     bonus: {stat: "arms", needed: 7, gains: [{stat: "renown", amount: 2}, {stat: "coin", amount: 20}, {stat: "tourney_victor", amount: 1}]}},
+     bonus: [{stat: "arms", needed: 7, gains: [{stat: "renown", amount: 2}, {stat: "coin", amount: 20}, {stat: "tourney_victor", amount: 1}]}]},
     {id: "escort", group: "The Keep", name: "Escort the Merchant Road", glyph: "adventure", months: 12, rank: "", each: "", path: "warrior", fromAge: 20, finishBy: 27, uses: 2,
      gains: [{stat: "coin", amount: 35}, {stat: "renown", amount: 1}],
      requires: [{stat: "arms", needed: 5}, {stat: "discipline", needed: 3}]},
@@ -264,7 +320,7 @@ var activities = [
      requires: [{stat: "veteran", needed: 1}, {stat: "arms", needed: 7}, {stat: "discipline", needed: 5}]},
     {id: "captain", group: "The Keep", name: "Take the Captain's Chain", glyph: "seal", months: 24, rank: "", each: "MEALS PROVIDED", path: "warrior", board: true, fromAge: 26, showAge: 21, showFrom: 0, uses: 1,
      gains: [{stat: "captain", amount: 1}, {stat: "coin", amount: 80}],
-     requires: [{stat: "watch_commander", needed: 1}, {stat: "arms", needed: 8}, {stat: "discipline", needed: 6}, {stat: "renown", needed: 7}],
+     requires: [{stat: "watch_commander", needed: 1}, {stat: "arms", needed: 8}, {stat: "discipline", needed: 6}, {stat: "renown", needed: 7, eased: {flag: "town.gate", at: 3, needed: 6}}],
      costs: [{stat: "coin", amount: 20}]},
 
     {id: "scribework", group: "The Collegium", name: "Copy Paid Manuscripts", glyph: "quill", months: 6, rank: "", each: "MEALS PROVIDED", path: "mage", board: true, fromAge: 18,
@@ -290,15 +346,18 @@ var activities = [
      costs: [{stat: "reagents", amount: 3}]},
     {id: "fragments", group: "The Collegium", name: "Examine the Harrow Fragments", glyph: "relic", months: 12, rank: "", each: "", path: "mage", fromAge: 20, uses: 1,
      gains: [{stat: "lore", amount: 1}, {stat: "harrow_fragments", amount: 1}],
-     requires: [{stat: "lore", needed: 5}, {stat: "library_access", label: "The chapel library or the Collegium", needed: 1, anyOf: ["library_access", "collegium"]}]},
+     requires: [{stat: "lore", needed: 5}, {stat: "library_access", label: "The chapel library or the Collegium", needed: 1, anyOf: ["library_access", "collegium"]}],
+     bonus: [{stat: "town.harrow", needed: 1, showFrom: 0}]},
     {id: "harrow", group: "The Collegium", name: "Expedition to Harrow", glyph: "adventure", months: 18, rank: "", each: "MEALS PROVIDED", path: "mage", board: true, fromAge: 21, showAge: 16, showFrom: 0, finishBy: 26, uses: 1,
      gains: [{stat: "arcana", amount: 1}, {stat: "lore", amount: 1}, {stat: "harrow_truth", amount: 1}, {stat: "harrow_relic", amount: 1}],
      requires: [{stat: "harrow_fragments", needed: 1}, {stat: "lore", needed: 6}, {stat: "arcana", needed: 3}],
-     costs: [{stat: "coin", amount: 20}, {stat: "rations", amount: 8}, {stat: "reagents", amount: 4}]},
+     costs: [{stat: "coin", amount: 20}, {stat: "rations", amount: 8}, {stat: "reagents", amount: 4}],
+     bonus: [{stat: "town.harrow", needed: 2, months: 12}]},
     {id: "relic", group: "The Collegium", name: "Study the Harrow Relic", glyph: "relic", months: 18, rank: "", each: "MEALS PROVIDED", path: "mage", board: true, fromAge: 23, uses: 1,
      gains: [{stat: "arcana", amount: 2}, {stat: "discipline", amount: 1}],
      requires: [{stat: "harrow_relic", needed: 1}, {stat: "arcana", needed: 4}],
-     costs: [{stat: "reagents", amount: 5}]},
+     costs: [{stat: "reagents", amount: 5}],
+     bonus: [{stat: "town.harrow", needed: 1, showFrom: 0}]},
     {id: "ritual", group: "The Collegium", name: "Perform the Harrow Working", glyph: "magic", months: 24, rank: "", each: "MEALS PROVIDED", path: "mage", board: true, fromAge: 26, showAge: 21, showFrom: 0, uses: 1,
      gains: [{stat: "mage_of_harrow", amount: 1}],
      requires: [{stat: "harrow_truth", needed: 1}, {stat: "arcana", needed: 6}, {stat: "lore", needed: 7}, {stat: "discipline", needed: 4}],
@@ -375,14 +434,54 @@ var activities = [
     // without something to do
     {id: "tales", group: "Old age", name: "Tell Tales at the Inn", glyph: "town", months: 2, rank: "", each: "MEALS PROVIDED", path: "", board: true, fromAge: lastAge - 1, finishBy: anyAge,
      gains: [{stat: "coin", amount: 2}],
-     requires: []},
+     requires: [],
+     bonus: [{stat: "town.inn", needed: 1, fromAge: 26}]},
     {id: "garden", group: "Old age", name: "Tend a Garden", glyph: "work", months: 3, rank: "", each: "", path: "", fromAge: lastAge - 1, finishBy: anyAge,
      gains: [{stat: "rations", amount: 4}],
      requires: []},
     {id: "teach", group: "Old age", name: "Teach the Young", glyph: "academy", months: 4, rank: "", each: "", path: "", fromAge: lastAge - 1, finishBy: anyAge,
      gains: [{stat: "coin", amount: 6}],
-     requires: []}
+     requires: [],
+     bonus: [{stat: "town.chapel", needed: 3, more: [{stat: "coin", amount: 4}]}]}
 ]
+
+// The works that raise a place of the town, one a level, made from towntable.pg: the last group
+// of the Life page. Their months and their costs are what a life gives the town: the coin a
+// level asks, less what earlier lives left to the place (its fund), and what else it takes
+for (var t = 0; t < len(townPlaces); t++)
+{
+    var place = townPlaces[t]
+
+    for (var l = 0; l < len(place.levels); l++)
+    {
+        var step = place.levels[l]
+        var asked = []
+        var coin = step.coin - statOf(character, "fund." + place.id)
+
+        if (coin > 0)
+        {
+            push(asked, {stat: "coin", amount: coin})
+        }
+
+        var also = listOf(step, "costs")
+
+        for (var c = 0; c < len(also); c++)
+        {
+            push(asked, {stat: also[c].stat, amount: also[c].amount})
+        }
+
+        var says = "FOR THE TOWN"
+
+        if (lookup(step, "years", 0) > 0)
+        {
+            says = "COSTS " + toString(step.years) + " YEARS"
+        }
+
+        push(activities, {id: "raise." + place.id + "." + toString(l + 1), group: "The town", name: step.work, glyph: place.glyph, months: step.months, rank: "", each: says, path: "",
+                          finishBy: anyAge, raises: place.id, level: l + 1, years: lookup(step, "years", 0),
+                          gains: [], requires: [], costs: asked})
+    }
+}
 
 // Whether he is one of any path yet
 var committed = false
@@ -478,14 +577,61 @@ for (var i = 0; i < len(activities); i++)
         }
     }
 
-    // Done well enough, the term brings more
-    if (has(a, "bonus"))
+    // What a stat he holds, or the town, makes of it: every step that holds, in order
+    var bonuses = listOf(a, "bonus")
+
+    for (var b = 0; b < len(bonuses); b++)
     {
-        if (statOf(character, a.bonus.stat) >= a.bonus.needed)
+        var better = bonuses[b]
+
+        if (statOf(character, better.stat) >= better.needed)
         {
-            a.gains = a.bonus.gains
+            for (var f = 0; f < len(bonusFields); f++)
+            {
+                if (has(better, bonusFields[f]))
+                {
+                    a[bonusFields[f]] = better[bonusFields[f]]
+                }
+            }
+
+            // And what it adds to what the term brings: a copy, the table's own gains are left
+            var more = listOf(better, "more")
+
+            if (len(more) > 0)
+            {
+                var brought = []
+
+                for (var g = 0; g < len(a.gains); g++)
+                {
+                    push(brought, {stat: a.gains[g].stat, amount: a.gains[g].amount})
+                }
+
+                for (var m = 0; m < len(more); m++)
+                {
+                    var added = false
+
+                    for (var g = 0; g < len(brought); g++)
+                    {
+                        if (brought[g].stat == more[m].stat)
+                        {
+                            brought[g].amount = brought[g].amount + more[m].amount
+                            added = true
+                        }
+                    }
+
+                    if (not added)
+                    {
+                        push(brought, {stat: more[m].stat, amount: more[m].amount})
+                    }
+                }
+
+                a.gains = brought
+            }
         }
     }
+
+    // How often it can be done: read after the steps above, which may give it more
+    uses = lookup(a, "uses", 0)
 
     var requires = []
 
@@ -532,6 +678,11 @@ for (var i = 0; i < len(activities); i++)
     a.board = lookup(a, "board", false)
     a.enters = lookup(a, "enters", false)
     a.opens = lookup(a, "opens", "")
+    a.place = lookup(a, "place", "")
+    a.goto = lookup(a, "goto", "")
+    a.raises = lookup(a, "raises", "")
+    a.level = lookup(a, "level", 0)
+    a.yearMonths = lookup(a, "years", 0) * 12
     a.done = count
     a.uses = uses
     a.after = steps
@@ -623,9 +774,20 @@ for (var i = 0; i < len(activities); i++)
 
         if (has(req, "eased"))
         {
-            if (statOf(character, req.eased.flag) > 0)
+            // One, or a list of them: the least of those whose flag he holds high enough
+            var easings = req.eased
+
+            if (typeOf(easings) != "array")
             {
-                req.needed = req.eased.needed
+                easings = [req.eased]
+            }
+
+            for (var e = 0; e < len(easings); e++)
+            {
+                if (statOf(character, easings[e].flag) >= lookup(easings[e], "at", 1) and easings[e].needed < req.needed)
+                {
+                    req.needed = easings[e].needed
+                }
             }
         }
 
@@ -690,6 +852,24 @@ for (var i = 0; i < len(activities); i++)
     if (a.firstLife and (lives > 1 or termsDone > 0))
     {
         a.listed = false
+    }
+
+    // What is for who does not hold a stat yet has no row once he does
+    if (has(a, "whileNot"))
+    {
+        if (statOf(character, a.whileNot) > 0)
+        {
+            a.listed = false
+        }
+    }
+
+    // A work that raises a place: for who knows the town, while the place is one level below
+    if (a.raises != "")
+    {
+        if (statOf(character, "town_known") <= 0 or statOf(character, "town." + a.raises) != a.level - 1)
+        {
+            a.listed = false
+        }
     }
 
     a.locked = locked

@@ -61,18 +61,31 @@ namespace pg
 
             EXPECT_EQ(digest.find("{\"age\":7.00,\"world\":0,"), 0u);
             EXPECT_NE(digest.find("\"running\":\"carters\",\"monthsIn\":2,\"terms\":3,\"deeds\":1,"), std::string::npos);
-            EXPECT_NE(digest.find(",\"lives\":3,\"picks\":4,\"begun\":2,\"atOnce\":1,\"skips\":5,\"guide\":4,\"guideSkipped\":0}"), std::string::npos);
+            EXPECT_NE(digest.find(",\"lives\":3,\"picks\":4,\"begun\":2,\"atOnce\":1,\"skips\":5,\"guide\":4,\"guideSkipped\":0,\"town\":0,\"townKnown\":0}"), std::string::npos);
             EXPECT_EQ(digest.find(life.name), std::string::npos);
 
             // A first life starts a month before 7, its guide at its first step
             EXPECT_EQ(freshLife(true).digest().find("{\"age\":6.92,\"world\":0,"), 0u);
-            EXPECT_NE(freshLife(true).digest().find(",\"guide\":0,\"guideSkipped\":0}"), std::string::npos);
+            EXPECT_NE(freshLife(true).digest().find(",\"guide\":0,\"guideSkipped\":0,\"town\":0,\"townKnown\":0}"), std::string::npos);
 
             // Skipped at its third step: past the last, and where he left it
             life.guide = 10;
             life.guideSkipped = 3;
 
-            EXPECT_NE(life.digest().find(",\"guide\":10,\"guideSkipped\":3}"), std::string::npos);
+            EXPECT_NE(life.digest().find(",\"guide\":10,\"guideSkipped\":3,\"town\":0,\"townKnown\":0}"), std::string::npos);
+
+            // The town: whether a life has explored it, and the levels of its places added up
+            life.townKnown = true;
+            life.town = {{"market", 2}, {"mill", 1}};
+
+            EXPECT_NE(life.digest().find(",\"town\":3,\"townKnown\":1}"), std::string::npos);
+
+            // The rules read it with his stats, and it is never written among them
+            EXPECT_EQ(life.character().at("town_known").get<int>(), 1);
+            EXPECT_EQ(life.character().at("town.market").get<int>(), 2);
+            EXPECT_TRUE(life.takeTown("town.market", 3));
+            EXPECT_EQ(life.town["market"], 2);
+            EXPECT_FALSE(life.takeTown("coin", 3));
         }
     }
 }

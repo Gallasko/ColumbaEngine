@@ -130,6 +130,7 @@ children:
         tag: life.tabs
         items:
           - {label: Life, glyph: quill}
+          - {label: Town, glyph: town}      # not open until a life has explored the town
           # Kit, Town, Guild, Adventure and Chronicle come back as their pages are built
       - kind: ActivityList
         name: activities
@@ -138,6 +139,29 @@ children:
         stripes: false
         compact: true         # a row is its name, its time and its closing, on a ground that says its kind: work that takes months, a thing done at once, what he cannot do yet. The rest is its gloss
         tileWidth: 148        # and the rows are tiles, as many to a line as fit at that width or more: three at 1320 (the list is 572 wide), more as the window widens
+      # The Town page: it takes the choice's place in this column once a life has explored the town
+      # (LifeScene::showTown). The places, raised by the works of the choice's last group; what is
+      # bought on the spot, at the market; and who raised what
+      - kind: Layout:Vertical
+        name: town
+        width: 572
+        height: 846
+        scrollable: true
+        spacing: 12
+        children:
+          - kind: PlaceGrid
+            name: places
+            width: 572
+            tileWidth: 148
+          - {kind: Label, name: marketHead, style: gloss-title, overflow: ellipsis, width: 572, text: "The Market"}
+          - kind: ActivityList
+            name: marketRows
+            id: town.market
+            width: 572
+            stripes: false
+            compact: true
+            tileWidth: 148
+          - {kind: Label, name: raised, style: label, color: ink-muted, overflow: wrap, width: 572, text: ""}
 
   # ── Right: the years and his life, the work at hand, what has happened ──
   - kind: Panel
