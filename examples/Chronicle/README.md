@@ -629,8 +629,12 @@ lead to: the three ways into a class from his first day at 7, a path's proving f
 mastery from 21 (the renegade's from 20 and 23). Apart from those, a boy is not shown
 a life of locked rows; the doors on the clock still say what is coming. The scene shows the
 listed rows only, and rebuilds the list whenever what is listed, or what a row asks, changes. A requirement
+is `{stat, needed}`, and `needed` is 1 when it is left out (`{stat: "letters"}`: he has any). It
 may be `eased: {flag, needed}` (with the flag it asks less) or `anyOf: [flags]` (any one will
-do); `bonus: {stat, needed, gains}` replaces the gains when the stat is high enough. Every age
+do); `bonus: {stat, needed, gains}` replaces the gains when the stat is high enough (`needed`
+1 when left out, the same). Every `{stat, amount}` of the activity and town tables (gains, costs,
+`more`, `effects`, a level's `costs` and `start`) may leave `amount` out too: it is 1, filled in
+by `lib.pg`'s `amountsOf` before anything reads it. Every age
 test counts whole months (`monthOf`), so an age summed a twelfth at a time meets its doors on
 time.
 

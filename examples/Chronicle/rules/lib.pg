@@ -204,6 +204,20 @@ fun listOf(table, key)
     return lookup(table, key, [])
 }
 
+// A [{stat, amount}] field of a table, empty when the table has none: each entry is given the
+// amount it leaves out, 1. The entries are the table's own, so every later reader finds it.
+fun amountsOf(table, key)
+{
+    var list = lookup(table, key, [])
+
+    for (var i = 0; i < len(list); i++)
+    {
+        list[i].amount = lookup(list[i], "amount", 1)
+    }
+
+    return list
+}
+
 fun statName(stat)
 {
     return lookup(statNames, stat, stat)
