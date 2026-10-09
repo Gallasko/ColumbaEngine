@@ -1,10 +1,13 @@
 // Chronicle rules: the town, as its page shows it
 // -----------------------------------------------
 // Input:  `age` (years), `character` (a table of stats and flags, with the town in it:
-//         "town_known", "town.<place id>" its level, "fund.<place id>" the coin left to it),
+//         "town_known", "town.<place id>" its level, "fund.<place id>" the coin left to it,
+//         "seen.<place id>" 1 once a life has had it on its page),
 //         `lives`, `world` (handed as to every script; not read here).
 // Output: `places`, one table per place of towntable.pg, in its order:
 //           {id, name, glyph, about, level, most (the most its level can be),
+//            shown   whether it is on the Town page for him: lib.pg's `placeShown`. The page
+//                    grows with his age and his class; a place once shown stays shown
 //            gives   "" at level 0, else what its level gives, in one line
 //            line    what its tile says: that, or "NOT YET BUILT"
 //            tale    "" or the line the log writes when its level is reached (the level's `lore`)
@@ -25,6 +28,7 @@
 //         `epitaphLine`, "" or what a new life's log says before how the last one ended: the
 //         inn tells it from its second level.
 //         `fundLine`, what the gloss of a place writes before the coin left to it.
+//         `foundLine`, what follows a place's name in the line said the month it comes onto the page.
 //         `gift`, the gift a life may make at its death: {stat (what of his is left to a place:
 //         it joins the place's fund), before and after (the ending's line around the amount),
 //         plain and chosen (what the ending's button says without a gift, and with one)}.
@@ -43,6 +47,7 @@ var errors = []
 var opened = "He knows the town street by street: the Town page is open"
 var raisedLine = " stands in Bellmoor: the town will keep it"
 var fundLine = "Left to it by those before him"
+var foundLine = " is his to raise now: it has come onto the Town page"
 var epitaphLine = ""
 var gift = {stat: "coin", before: "LEAVE HIS ", after: " COIN TO", plain: "Begin a new life", chosen: "Leave it, and begin a new life"}
 
@@ -62,6 +67,7 @@ for (var t = 0; t < len(townPlaces); t++)
     var fund = statOf(character, "fund." + place.id)
 
     var shown = {id: place.id, name: place.name, glyph: place.glyph, about: place.about, level: level, most: most,
+                 shown: placeShown(place, character, monthOf(age)),
                  gives: "", line: "NOT YET BUILT", tale: "", built: "", fund: fund,
                  nextWork: "", nextName: "", nextMonths: 0, nextCoin: 0, nextYears: 0, nextCosts: "", nextGives: "", nextLocked: false,
                  gaps: []}

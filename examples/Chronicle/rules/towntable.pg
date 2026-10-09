@@ -4,7 +4,15 @@
 // place are made from this table, so the two never disagree). Never loaded itself.
 // Input:  none.
 // Output: `townPlaces`, one table per place of Bellmoor a life can raise:
-//           {id, name, glyph, about, levels [level]}
+//           {id, name, glyph, about, shows, levels [level]}
+//         in the order the Town page shows them.
+//         `shows` is optional: when the place comes onto the page. Without it, the place is
+//         there from the day the town is known. {fromAge: N}: once he is that old. {flag: "x"}:
+//         once he holds that flag (the one a class gives: "keep_oath", "collegium"). Both: both.
+//         A place a life has seen stays seen: the Life screen keeps it with the town, and hands
+//         it back in `character` as "seen.<id>". So does a place that was raised, or left coin.
+//         The page grows with the life, and with the lives: a first look at the town is three
+//         places, not nine (lib.pg's `placeShown` weighs it, for the page and for the works).
 //         A place has a level, 0 (not built) to the number of its `levels`. It is the world's,
 //         not the life's: the Life screen hands it to every script in `character` as the stat
 //         "town.<id>", with "town_known" (1 once a life has explored the town) and "fund.<id>"
@@ -34,18 +42,7 @@ import "algorithm"
 import "lib"
 
 var townPlaces = [
-    {id: "mill", name: "The Mill", glyph: "work", about: "Where he was born. The town's bread starts here.",
-     levels: [
-        {work: "Mend the Mill Wheel", built: "The mended wheel", months: 6, coin: 20, costs: [],
-         gives: "Help at the Mill pays 4 more coin",
-         lore: "The wheel turns true again. The miller's boys are paid in more than flour."},
-        {work: "Raise the Mill Loft", built: "The mill loft", months: 9, coin: 50, costs: [],
-         gives: "A new life starts with 6 more rations", start: [{stat: "rations", amount: 6}],
-         lore: "The loft keeps a sack for every child of the mill."},
-        {work: "Set the Great Millstones", built: "The great millstones", months: 12, coin: 120, costs: [{stat: "str"}],
-         gives: "A new life starts with 1 more Strength", start: [{stat: "str"}],
-         lore: "He gave his back to the great stones. The boys who turn them grow strong."}
-     ]},
+    // From the day the town is known: the three places every child of Bellmoor has grown up around
     {id: "market", name: "The Market", glyph: "trade", about: "Where coin becomes bread. What is bought on the spot is bought here.",
      levels: [
         {work: "Endow the Market Stall", built: "The market stall", months: 6, coin: 20, costs: [],
@@ -58,41 +55,17 @@ var townPlaces = [
          gives: "A sword and a horse are sold at the market",
          lore: "With a charter, the far merchants come: steel and horses with them."}
      ]},
-    {id: "chapel", name: "The Chapel", glyph: "study", about: "Father Anselm's chapel, and the only school in Bellmoor.",
+    {id: "mill", name: "The Mill", glyph: "work", about: "Where he was born. The town's bread starts here.",
      levels: [
-        {work: "Glaze the Chapel Windows", built: "The chapel windows", months: 6, coin: 15, costs: [],
-         gives: "Learn Your Letters takes 4 months, not 6",
-         lore: "There is light to read by now, even in winter."},
-        {work: "Give the Chapel a Primer", built: "The chapel primer", months: 9, coin: 40, costs: [{stat: "letters"}],
-         gives: "A new life starts with Letters 1", start: [{stat: "letters"}],
-         lore: "He copied out the primer himself. Children learn their letters from his hand."},
-        {work: "Found the Almshouse", built: "The almshouse", months: 0, coin: 60, costs: [], years: 2,
-         gives: "Teach the Young pays 4 more coin",
-         lore: "Two years of his life went into its walls. The old teach there, and are kept."}
-     ]},
-    {id: "yard", name: "The Yard", glyph: "training", about: "The training yard under the Keep's wall.",
-     levels: [
-        {work: "Stock the Yard with Blades", built: "The yard's racks", months: 6, coin: 20, costs: [],
-         gives: "Wooden Blades can be practiced 5 times, not 3",
-         lore: "No boy waits for a wooden blade any more."},
-        {work: "Lay the Yard's Sand", built: "The sanded yard", months: 9, coin: 60, costs: [{stat: "str"}],
-         gives: "The Keep asks Strength 11, not 12",
-         lore: "The sergeants say a boy of the sanded yard is worth one more year."},
-        {work: "House the Sergeant", built: "The sergeant's house", months: 12, coin: 140, costs: [],
-         gives: "Sergeant Edric trains boys from age 12",
-         lore: "Edric lives by the yard now, and starts them younger."}
-     ]},
-    {id: "gate", name: "The Watch Gate", glyph: "gate", about: "The north gate, where the Watch stands.",
-     levels: [
-        {work: "Mend the Gatehouse Roof", built: "The gatehouse roof", months: 6, coin: 25, costs: [],
-         gives: "A new life starts known to the Watch", start: [{stat: "watch_known"}],
-         lore: "The Watch does not forget who kept the rain off them."},
-        {work: "Build the Road Posts", built: "The road posts", months: 9, coin: 60, costs: [],
-         gives: "Patrol the North Road gives meals",
-         lore: "There is a fire and a pot at every post on the North Road."},
-        {work: "Raise the Gate Tower", built: "The gate tower", months: 12, coin: 150, costs: [{stat: "renown"}],
-         gives: "The Captain's Chain asks Renown 6, not 7",
-         lore: "The tower bears the town's name, not his. The Keep remembers anyway."}
+        {work: "Mend the Mill Wheel", built: "The mended wheel", months: 6, coin: 20, costs: [],
+         gives: "Help at the Mill pays 4 more coin",
+         lore: "The wheel turns true again. The miller's boys are paid in more than flour."},
+        {work: "Raise the Mill Loft", built: "The mill loft", months: 9, coin: 50, costs: [],
+         gives: "A new life starts with 6 more rations", start: [{stat: "rations", amount: 6}],
+         lore: "The loft keeps a sack for every child of the mill."},
+        {work: "Set the Great Millstones", built: "The great millstones", months: 12, coin: 120, costs: [{stat: "str"}],
+         gives: "A new life starts with 1 more Strength", start: [{stat: "str"}],
+         lore: "He gave his back to the great stones. The boys who turn them grow strong."}
      ]},
     {id: "smithy", name: "The Smithy", glyph: "forge", about: "The forge by the river, loud from dawn.",
      levels: [
@@ -106,7 +79,33 @@ var townPlaces = [
          gives: "Work the Smithy pays 6 more coin",
          lore: "The great forge takes orders from the Keep itself."}
      ]},
-    {id: "inn", name: "The Inn", glyph: "town", about: "The Bell and Barrel, where every tale ends up.",
+
+    // With the years: what a boy is not let into, or has no eye for, before he is ten, or thirteen
+    {id: "chapel", name: "The Chapel", glyph: "study", shows: {fromAge: 10}, about: "Father Anselm's chapel, and the only school in Bellmoor.",
+     levels: [
+        {work: "Glaze the Chapel Windows", built: "The chapel windows", months: 6, coin: 15, costs: [],
+         gives: "Learn Your Letters takes 4 months, not 6",
+         lore: "There is light to read by now, even in winter."},
+        {work: "Give the Chapel a Primer", built: "The chapel primer", months: 9, coin: 40, costs: [{stat: "letters"}],
+         gives: "A new life starts with Letters 1", start: [{stat: "letters"}],
+         lore: "He copied out the primer himself. Children learn their letters from his hand."},
+        {work: "Found the Almshouse", built: "The almshouse", months: 0, coin: 60, costs: [], years: 2,
+         gives: "Teach the Young pays 4 more coin",
+         lore: "Two years of his life went into its walls. The old teach there, and are kept."}
+     ]},
+    {id: "yard", name: "The Yard", glyph: "training", shows: {fromAge: 10}, about: "The training yard under the Keep's wall.",
+     levels: [
+        {work: "Stock the Yard with Blades", built: "The yard's racks", months: 6, coin: 20, costs: [],
+         gives: "Wooden Blades can be practiced 5 times, not 3",
+         lore: "No boy waits for a wooden blade any more."},
+        {work: "Lay the Yard's Sand", built: "The sanded yard", months: 9, coin: 60, costs: [{stat: "str"}],
+         gives: "The Keep asks Strength 11, not 12",
+         lore: "The sergeants say a boy of the sanded yard is worth one more year."},
+        {work: "House the Sergeant", built: "The sergeant's house", months: 12, coin: 140, costs: [],
+         gives: "Sergeant Edric trains boys from age 12",
+         lore: "Edric lives by the yard now, and starts them younger."}
+     ]},
+    {id: "inn", name: "The Inn", glyph: "town", shows: {fromAge: 13}, about: "The Bell and Barrel, where every tale ends up.",
      levels: [
         {work: "Carve the Storyteller's Chair", built: "The storyteller's chair", months: 6, coin: 15, costs: [],
          gives: "Tell Tales at the Inn opens at age 26",
@@ -118,7 +117,21 @@ var townPlaces = [
          gives: "Vitality mends every month, not every second month",
          lore: "A bed, a fire and a door that locks: he mends faster there."}
      ]},
-    {id: "collegium", name: "The Collegium Gate", glyph: "academy", about: "The gate of the scholars, shut to most of the town.",
+
+    // With his class: the places that only open their business to one of their own
+    {id: "gate", name: "The Watch Gate", glyph: "gate", shows: {flag: "keep_oath"}, about: "The north gate, where the Watch stands.",
+     levels: [
+        {work: "Mend the Gatehouse Roof", built: "The gatehouse roof", months: 6, coin: 25, costs: [],
+         gives: "A new life starts known to the Watch", start: [{stat: "watch_known"}],
+         lore: "The Watch does not forget who kept the rain off them."},
+        {work: "Build the Road Posts", built: "The road posts", months: 9, coin: 60, costs: [],
+         gives: "Patrol the North Road gives meals",
+         lore: "There is a fire and a pot at every post on the North Road."},
+        {work: "Raise the Gate Tower", built: "The gate tower", months: 12, coin: 150, costs: [{stat: "renown"}],
+         gives: "The Captain's Chain asks Renown 6, not 7",
+         lore: "The tower bears the town's name, not his. The Keep remembers anyway."}
+     ]},
+    {id: "collegium", name: "The Collegium Gate", glyph: "academy", shows: {flag: "collegium"}, about: "The gate of the scholars, shut to most of the town.",
      levels: [
         {work: "Open a Reagent Counter", built: "The reagent counter", months: 6, coin: 30, costs: [],
          gives: "Buy reagents is sold to every class",
@@ -130,7 +143,7 @@ var townPlaces = [
          gives: "The Collegium asks Intelligence 11, not 12",
          lore: "One child of Bellmoor is taken each year on promise alone."}
      ]},
-    {id: "harrow", name: "The Harrow Road", glyph: "relic", about: "The old road east, to what is left of Harrow.",
+    {id: "harrow", name: "The Harrow Road", glyph: "relic", shows: {flag: "collegium", fromAge: 18}, about: "The old road east, to what is left of Harrow.",
      levels: [
         {work: "Clear the Harrow Road", built: "The cleared road", months: 9, coin: 40, costs: [],
          gives: "The works of Harrow show what they ask from the start",

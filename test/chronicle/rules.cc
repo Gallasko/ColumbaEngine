@@ -2479,6 +2479,74 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // The Town page grows with the life: three places from the day the town is known, more with
+        // his years, more with his class; and a place that was seen, raised or left coin stays on
+        // it. A place that is not on his page has no work to show either.
+        TEST(rules_test, places_come_with_age_and_class)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            auto shown = [&](float age, const ElementMap& character) {
+                RuleTown town;
+                EXPECT_TRUE(f.rules.town(age, character, town)) << firstError(f.rules);
+
+                std::vector<std::string> ids;
+
+                for (const auto& place : town.places)
+                {
+                    if (flag(place.fields, "shown"))
+                        ids.push_back(textOf(place.fields, "id"));
+                }
+
+                return ids;
+            };
+
+            using Ids = std::vector<std::string>;
+
+            ElementMap character = townsman();
+
+            EXPECT_EQ(shown(7.0f, character), (Ids{"market", "mill", "smithy"}));
+            EXPECT_EQ(shown(10.0f - 1.0f / 12.0f, character), (Ids{"market", "mill", "smithy"}));
+            EXPECT_EQ(shown(10.0f, character), (Ids{"market", "mill", "smithy", "chapel", "yard"}));
+            EXPECT_EQ(shown(13.0f, character), (Ids{"market", "mill", "smithy", "chapel", "yard", "inn"}));
+
+            // His class brings its own
+            ElementMap warrior = character;
+            warrior["keep_oath"] = ElementType{1};
+
+            EXPECT_EQ(shown(17.5f, warrior), (Ids{"market", "mill", "smithy", "chapel", "yard", "inn", "gate"}));
+
+            ElementMap mage = character;
+            mage["collegium"] = ElementType{1};
+
+            EXPECT_EQ(shown(17.5f, mage), (Ids{"market", "mill", "smithy", "chapel", "yard", "inn", "collegium"}));
+            EXPECT_EQ(shown(18.0f, mage), (Ids{"market", "mill", "smithy", "chapel", "yard", "inn", "collegium", "harrow"}));
+
+            // Seen by a life before, raised, or left coin: on the page of a boy of 7
+            character["seen.chapel"] = ElementType{1};
+            character["town.gate"] = ElementType{1};
+            character["fund.inn"] = ElementType{3};
+
+            EXPECT_EQ(shown(7.0f, character), (Ids{"market", "mill", "smithy", "chapel", "inn", "gate"}));
+
+            // The works follow the page
+            EXPECT_TRUE(flag(activityAt(f.rules, 7.0f, character, "raise.chapel.1").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 7.0f, character, "raise.gate.2").fields, "listed"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, character, "raise.yard.1").fields, "listed"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, character, "raise.collegium.1").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 10.0f, character, "raise.yard.1").fields, "listed"));
+
+            // Every place is told of all the same: the page shows the ones that are his
+            RuleTown town;
+            ASSERT_TRUE(f.rules.town(7.0f, townsman(), town)) << firstError(f.rules);
+            EXPECT_EQ(town.places.size(), 9u);
+            EXPECT_FALSE(town.foundLine.empty());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // An answer is kept while what it was asked with stands: the scene asks the same thing from
         // several places in one month. One run of windows.pg answers the activities and the doors.
         TEST(rules_test, answers_are_kept_while_the_inputs_stand)

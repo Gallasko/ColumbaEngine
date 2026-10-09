@@ -141,6 +141,8 @@ namespace chronicle
         void fitTown(float width, float height);      // The Town page to the middle column
         int townTab() const;           // Which tab is the town's, -1 when the page has none
         void fillTown();               // The places' tiles, as the rules say the town stands
+        void layTown();                // The tiles of the places on his page: the town grows with his age and his class
+        void seeTown();                // A place on the page for the first time is kept as seen, and said when it comes later than the town itself
         void publishTown();            // Their levels and lines, their glosses, and who raised what
         void openTown();               // A life has come to know the town: its tab, its page, a line and a toast
         void raisePlace(const std::string& place, int level);   // A work for the town is done: the place is the world's at that level

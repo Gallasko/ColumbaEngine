@@ -107,7 +107,9 @@
 //                    month, no line.
 //   raises: "id", level: N
 //                    its term raises that place of the town to level N. It is listed only while
-//                    the place is one level below, and once the town is known. The works that
+//                    the place is one level below, once the town is known, and while the place
+//                    is on the Town page for him (lib.pg's `placeShown`: the town grows with
+//                    his age and his class). The works that
 //                    raise a place are not written here: they are made from towntable.pg.
 //   years: N         it takes N years of his life at once when it begins, on top of its months.
 //
@@ -889,6 +891,12 @@ for (var i = 0; i < len(activities); i++)
     if (a.raises != "")
     {
         if (statOf(character, "town_known") <= 0 or statOf(character, "town." + a.raises) != a.level - 1)
+        {
+            a.listed = false
+        }
+
+        // And a place that is not on his page yet has no work to show either
+        if (not placeShown(byId(townPlaces, a.raises), character, lived))
         {
             a.listed = false
         }

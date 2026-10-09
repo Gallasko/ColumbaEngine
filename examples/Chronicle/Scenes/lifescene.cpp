@@ -3713,28 +3713,81 @@ namespace chronicle
             return;
         }
 
-        if (auto grid = piece<PlaceGrid>(PlacesName))
+        layTown();
+        publishTown();
+    }
+
+    void LifeScene::layTown()
+    {
+        auto grid = piece<PlaceGrid>(PlacesName);
+
+        if (not grid)
+            return;
+
+        // The places on his page: the town grows with his age and his class, and the rules say
+        // which of them he has
+        std::vector<PlaceTileSpec> places;
+
+        for (const auto& place : town.places)
         {
-            std::vector<PlaceTileSpec> places;
+            if (not boolOf(place.fields, "shown"))
+                continue;
 
-            for (const auto& place : town.places)
-            {
-                PlaceTileSpec tile;
-                tile.id = textOf(place.fields, "id");
-                tile.name = textOf(place.fields, "name");
-                tile.glyph = textOf(place.fields, "glyph");
-                tile.level = intOf(place.fields, "level");
-                tile.of = intOf(place.fields, "most");
-                tile.line = textOf(place.fields, "line");
-                tile.glossKey = PlaceGloss + tile.id;
+            PlaceTileSpec tile;
+            tile.id = textOf(place.fields, "id");
+            tile.name = textOf(place.fields, "name");
+            tile.glyph = textOf(place.fields, "glyph");
+            tile.level = intOf(place.fields, "level");
+            tile.of = intOf(place.fields, "most");
+            tile.line = textOf(place.fields, "line");
+            tile.glossKey = PlaceGloss + tile.id;
 
-                places.push_back(tile);
-            }
-
-            grid->setPlaces(ecsRef, places);
+            places.push_back(tile);
         }
 
-        publishTown();
+        grid->setPlaces(ecsRef, places);
+    }
+
+    void LifeScene::seeTown()
+    {
+        // What the page shows for the first time is kept with the town: shown once, a place stays
+        // shown, in this life and in the next. The first look at the town is no news; a place
+        // that comes later is said, in the log and by a toast
+        const bool first = save.seen.empty();
+
+        std::vector<const RulePlace*> found;
+
+        for (const auto& place : town.places)
+        {
+            const std::string id = textOf(place.fields, "id");
+
+            if (boolOf(place.fields, "shown") and std::find(save.seen.begin(), save.seen.end(), id) == save.seen.end())
+            {
+                save.seen.push_back(id);
+                found.push_back(&place);
+            }
+        }
+
+        if (found.empty())
+            return;
+
+        if (not first)
+        {
+            for (const RulePlace* place : found)
+            {
+                const std::string line = textOf(place->fields, "name") + town.foundLine;
+
+                appendLog({save.age, line, LogKind::Milestone, "", textOf(place->fields, "glyph")});
+                toast(line);
+            }
+        }
+
+        // The rules read what was seen with the town: asked again, as it stands now
+        if (not rules.town(save.age, save.character(), town))
+        {
+            for (const auto& e : rules.errors)
+                LOG_ERROR(DOM, e);
+        }
     }
 
     void LifeScene::publishTown()
@@ -3743,13 +3796,38 @@ namespace chronicle
         if (not save.townKnown or not rules.town(save.age, save.character(), town))
             return;
 
+        seeTown();
+
         auto grid = piece<PlaceGrid>(PlacesName);
         auto registry = ecsRef->getSystem<GlossRegistry>();
+
+        // A place that has come onto the page, with his years or with his class: its tile with it
+        if (grid)
+        {
+            size_t shown = 0;
+            bool laid = true;
+
+            for (const auto& place : town.places)
+            {
+                if (not boolOf(place.fields, "shown"))
+                    continue;
+
+                laid = laid and shown < grid->tiles.size() and grid->tiles[shown].spec.id == textOf(place.fields, "id");
+                ++shown;
+            }
+
+            if (not laid or shown != grid->tiles.size())
+                layTown();
+        }
 
         std::string raised;
 
         for (const auto& place : town.places)
         {
+            // Not on his page: nothing to say of it yet
+            if (not boolOf(place.fields, "shown"))
+                continue;
+
             const std::string id = textOf(place.fields, "id");
             const int level = intOf(place.fields, "level");
             const int most = intOf(place.fields, "most");
@@ -3914,7 +3992,8 @@ namespace chronicle
         {
             for (const auto& place : town.places)
             {
-                if (intOf(place.fields, "level") < intOf(place.fields, "most"))
+                // The places on his page that can still be raised
+                if (boolOf(place.fields, "shown") and intOf(place.fields, "level") < intOf(place.fields, "most"))
                     open.push_back(&place);
             }
         }
@@ -4395,6 +4474,7 @@ namespace chronicle
         save.town = last.town;
         save.raisedBy = last.raisedBy;
         save.fund = last.fund;
+        save.seen = last.seen;
 
         rules.world = save.world;
         rules.lives = save.lives;

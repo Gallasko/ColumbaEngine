@@ -41,6 +41,7 @@ namespace chronicle
         std::unordered_map<std::string, int> town;              // Place id -> its level; a place not raised yet has no key
         std::unordered_map<std::string, std::string> raisedBy;  // Place id -> the life that raised it last and the world's year then: his name, a middle dot, "YEAR 4"
         std::unordered_map<std::string, int> fund;              // Place id -> the coin lives left to it at their death, counted toward its next level
+        std::vector<std::string> seen;                          // The places a life has had on its Town page: the page grows with age and class, and what it has shown it keeps showing
 
         std::string running;           // The activity at work, "" for none
         int monthsIn = 0;              // Months already spent in it
@@ -60,7 +61,8 @@ namespace chronicle
 
         // The character as the rule scripts read it: every stat, and the town with them, which is
         // not his but which the rules read the same way: "town_known" (1 or 0), "town.<place>" its
-        // level and "fund.<place>" the coin left to it.
+        // level, "fund.<place>" the coin left to it and "seen.<place>" (1) for a place already
+        // on the Town page.
         pg::ElementMap character() const;
 
         // Whether a key of what a script hands back is the town's and not a stat of his.

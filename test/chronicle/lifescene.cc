@@ -4275,6 +4275,17 @@ namespace pg
             EXPECT_NE(list->find(&f.ecs, "raise.market.1"), nullptr);
             EXPECT_NE(stall(f, life, "buy.rations"), nullptr);
 
+            // A first look at the town is three places, and their three works: the rest comes with
+            // his years and his class
+            auto grid = life->piece<PlaceGrid>("places");
+            ASSERT_NE(grid, nullptr);
+            EXPECT_EQ(grid->tiles.size(), 3u);
+            EXPECT_EQ(life->save.seen.size(), 3u);
+            EXPECT_NE(list->find(&f.ecs, "raise.mill.1"), nullptr);
+            EXPECT_NE(list->find(&f.ecs, "raise.smithy.1"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "raise.chapel.1"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "raise.gate.1"), nullptr);
+
             // And the guide's word for it, its hand on the town's tab
             ASSERT_TRUE(life->step.active);
             EXPECT_EQ(life->step.id, "guide.town");
@@ -4319,13 +4330,22 @@ namespace pg
             EXPECT_FALSE(f.pos(life->named("activities"))->visible);
             EXPECT_TRUE(f.pos(life->named("town"))->visible);
 
-            // Nine places, as the rules list them, none raised yet
+            // The places on his page, as the rules list them, none raised yet: the three every life
+            // starts with, the three his years have brought, and the Watch Gate, which is his
+            // class's. The Collegium's two are another class's, and not on his page
             auto grid = life->piece<PlaceGrid>("places");
             ASSERT_NE(grid, nullptr);
-            ASSERT_EQ(grid->tiles.size(), 9u);
             ASSERT_EQ(life->town.places.size(), 9u);
-            EXPECT_EQ(grid->tiles[0].spec.id, "mill");
-            EXPECT_EQ(grid->tiles[1].spec.id, "market");
+            ASSERT_EQ(grid->tiles.size(), 7u);
+
+            const char* const onHisPage[] = {"market", "mill", "smithy", "chapel", "yard", "inn", "gate"};
+
+            for (size_t i = 0; i < grid->tiles.size(); ++i)
+                EXPECT_EQ(grid->tiles[i].spec.id, onHisPage[i]) << i;
+
+            EXPECT_EQ(grid->tile("collegium"), nullptr);
+            EXPECT_EQ(grid->tile("harrow"), nullptr);
+            EXPECT_EQ(life->save.seen.size(), 7u);
             EXPECT_EQ(grid->columns(), 3);
 
             for (const auto& tile : grid->tiles)
@@ -4682,10 +4702,16 @@ namespace pg
             EXPECT_TRUE(f.pos(line)->visible);
             EXPECT_EQ(line->get<Label>()->spec.text, "LEAVE HIS 84 COIN TO");
 
-            ASSERT_EQ(life->gifts.size(), 8u);
+            // The six on his page that are not at their last level: the mill is, and the Collegium's
+            // two are not on his page
+            ASSERT_EQ(life->gifts.size(), 6u);
 
             for (const auto& [id, button] : life->gifts)
+            {
                 EXPECT_NE(id, "mill");
+                EXPECT_NE(id, "collegium");
+                EXPECT_NE(id, "harrow");
+            }
 
             EXPECT_TRUE(life->gift.empty());
 
@@ -4766,6 +4792,127 @@ namespace pg
 
             EXPECT_EQ(life->save.town["chapel"], 1);
             EXPECT_EQ(life->save.fund.count("chapel"), 0u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The town grows with the life: three places at first, more with his years, more with his
+        // class. A place that comes later is said; one that has been on the page stays on it, in
+        // this life and in the next.
+        TEST(lifescene_test, the_town_grows_with_the_life)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+            opt.lives = 2;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            // He knows the town, at 7: a month tells the page so
+            life->save.townKnown = true;
+            life->save.stats["rations"] = 40;
+            life->onMonth();
+            f.frames(12);
+
+            auto grid = life->piece<PlaceGrid>("places");
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(grid, nullptr);
+            ASSERT_NE(list, nullptr);
+
+            auto found = [&]() {
+                size_t lines = 0;
+
+                for (const auto& entry : life->save.log)
+                {
+                    if (entry.kind == LogKind::Milestone and entry.text.find(life->town.foundLine) != std::string::npos)
+                        ++lines;
+                }
+
+                return lines;
+            };
+
+            auto works = [&]() {
+                size_t rows = 0;
+
+                for (const auto& group : list->spec.groups)
+                {
+                    for (const auto& row : group.rows)
+                    {
+                        if (row.id.rfind("raise.", 0) == 0)
+                            ++rows;
+                    }
+                }
+
+                return rows;
+            };
+
+            ASSERT_FALSE(life->town.foundLine.empty());
+
+            // The first look: the market, the mill and the smithy, their three works, and no line
+            ASSERT_EQ(grid->tiles.size(), 3u);
+            EXPECT_EQ(grid->tiles[0].spec.id, "market");
+            EXPECT_EQ(grid->tiles[1].spec.id, "mill");
+            EXPECT_EQ(grid->tiles[2].spec.id, "smithy");
+            EXPECT_EQ(life->save.seen.size(), 3u);
+            EXPECT_EQ(works(), 3u);
+            EXPECT_EQ(found(), 0u);
+
+            // Ten years old: the chapel and the yard come onto the page, each with its work and a line
+            life->save.age = 10.0f - 1.0f / 12.0f;
+            life->onMonth();
+            f.frames(12);
+
+            ASSERT_EQ(grid->tiles.size(), 5u);
+            EXPECT_EQ(grid->tiles[3].spec.id, "chapel");
+            EXPECT_EQ(grid->tiles[4].spec.id, "yard");
+            EXPECT_EQ(life->save.seen.size(), 5u);
+            EXPECT_EQ(works(), 5u);
+            EXPECT_EQ(found(), 2u);
+            EXPECT_NE(list->find(&f.ecs, "raise.chapel.1"), nullptr);
+
+            auto registry = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(registry, nullptr);
+            EXPECT_NE(registry->find("place/chapel"), nullptr);
+
+            // Sworn to the Keep: the Watch Gate is his class's, and comes with it
+            life->save.stats["keep_oath"] = 1;
+            life->onMonth();
+            f.frames(12);
+
+            ASSERT_EQ(grid->tiles.size(), 6u);
+            EXPECT_EQ(grid->tiles[5].spec.id, "gate");
+            EXPECT_EQ(found(), 3u);
+            EXPECT_EQ(grid->tile("collegium"), nullptr);
+            EXPECT_EQ(grid->tile("inn"), nullptr);
+
+            // Nothing is said twice
+            life->onMonth();
+            f.frames(12);
+            EXPECT_EQ(found(), 3u);
+
+            // The next life is born into the town as it was seen: six places at 7, of no class
+            life->newLife();
+            f.frames(12);
+
+            grid = life->piece<PlaceGrid>("places");
+            list = life->piece<ActivityList>("activities");
+            ASSERT_NE(grid, nullptr);
+            ASSERT_NE(list, nullptr);
+
+            EXPECT_FLOAT_EQ(life->save.age, 7.0f);
+            EXPECT_EQ(life->save.stats.count("keep_oath"), 0u);
+            EXPECT_EQ(life->save.seen.size(), 6u);
+            ASSERT_EQ(grid->tiles.size(), 6u);
+            EXPECT_NE(grid->tile("gate"), nullptr);
+            EXPECT_NE(grid->tile("chapel"), nullptr);
+            EXPECT_EQ(works(), 6u);
+            EXPECT_EQ(found(), 0u);
         }
 
         // ----------------------------------------------------------------------------------------

@@ -170,7 +170,7 @@ namespace chronicle
         pg::RecordList until;          // {fact, op, value}: a guide step ends when these hold; none: after its `hold`
     };
 
-    // A place of the town from town.pg: {id, name, glyph, about, level, most, gives, line, tale,
+    // A place of the town from town.pg: {id, name, glyph, about, level, most, shown, gives, line, tale,
     // built, fund, nextWork, nextName, nextMonths, nextCoin, nextYears, nextCosts, nextGives,
     // nextLocked} and what its next level takes from him.
     struct RulePlace
@@ -188,6 +188,7 @@ namespace chronicle
         std::string raisedLine;        // What follows a level's `built` in the line the log writes for it
         std::string epitaphLine;       // "" or what a new life's log says before how the last one ended
         std::string fundLine;          // What a place's gloss writes before the coin left to it
+        std::string foundLine;         // What follows a place's name in the line said the month it comes onto the page
         std::string giftStat;          // What of his can be left to a place at his death ("coin")
         std::string giftBefore;        // The ending's line for it, before the amount: "LEAVE HIS "
         std::string giftAfter;         // And after it: " COIN TO"

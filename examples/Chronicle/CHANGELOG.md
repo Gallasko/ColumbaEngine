@@ -8,8 +8,10 @@ the `CHANGELOG.md` at the root of the repository.
 ### New
 
 - **The town.** *Explore Bellmoor* (three months, once) opens a Town page beside the Life page.
-  It shows nine places: the Mill, the Market, the Chapel, the Yard, the Watch Gate, the Smithy,
-  the Inn, the Collegium Gate and the Harrow Road. Each has three levels.
+  It has nine places of three levels each, and it grows with you. At first you see three: the
+  Market, the Mill and the Smithy. The Chapel and the Yard come at 10, the Inn at 13. The Watch
+  Gate comes with the Keep, the Collegium Gate with the Collegium, and the Harrow Road to a
+  scholar of 18. A place you have seen stays on the page for your next lives.
 - **Works for the town.** Once the town is known, a new group of works raises a place by one
   level. They cost months and coin, and some cost a stat or years of your life. This is time you
   do not spend on yourself.

@@ -105,6 +105,7 @@ namespace pg
         serialize(archive, "town", value.town);
         serialize(archive, "raisedBy", value.raisedBy);
         serialize(archive, "fund", value.fund);
+        serialize(archive, "seen", value.seen);
         serialize(archive, "running", value.running);
         serialize(archive, "monthsIn", value.monthsIn);
         serialize(archive, "stats", value.stats);
@@ -143,6 +144,7 @@ namespace pg
         defaultDeserialize(serialized, "town", data.town);
         defaultDeserialize(serialized, "raisedBy", data.raisedBy);
         defaultDeserialize(serialized, "fund", data.fund);
+        defaultDeserialize(serialized, "seen", data.seen);
         defaultDeserialize(serialized, "running", data.running);
         defaultDeserialize(serialized, "monthsIn", data.monthsIn);
         defaultDeserialize(serialized, "stats", data.stats);
@@ -175,6 +177,7 @@ namespace chronicle
         const std::string TownKnown = "town_known";
         const std::string TownLevel = "town.";
         const std::string TownFund = "fund.";
+        const std::string TownSeen = "seen.";
 
         std::string textOf(const ElementMap& map, const std::string& key)
         {
@@ -200,12 +203,15 @@ namespace chronicle
         for (const auto& [place, coin] : fund)
             map[TownFund + place] = ElementType{coin};
 
+        for (const auto& place : seen)
+            map[TownSeen + place] = ElementType{1};
+
         return map;
     }
 
     bool LifeSave::ofTheTown(const std::string& key)
     {
-        return key == TownKnown or key.rfind(TownLevel, 0) == 0 or key.rfind(TownFund, 0) == 0;
+        return key == TownKnown or key.rfind(TownLevel, 0) == 0 or key.rfind(TownFund, 0) == 0 or key.rfind(TownSeen, 0) == 0;
     }
 
     bool LifeSave::takeTown(const std::string& key, int value)

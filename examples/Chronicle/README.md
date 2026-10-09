@@ -33,13 +33,17 @@ one open as before: 7 years old, 12 rations, the whole list, no guide.
 
 **The town.** *Explore Bellmoor* (three months, once in a world) opens the **Town page**: it
 takes the place of the list of activities in the middle column, by the `Town` tab, and the two
-other columns stay. It shows the nine places of Bellmoor, each with three levels, and under them
+other columns stay. It shows the places of Bellmoor, each with three levels, and under them
 the market, where what is bought on the spot is bought (the Life page keeps a *Go to the Market*
 tile). A place is raised by a work of the Life page's last group, *The town*: months, coin, and
 for some a stat or years of his life. What is raised is the world's and outlives him: the next
 life is born into that town, with what its places give (a shorter task, a class that asks one
 less, rations or a skill point at birth), never a class for free. At his death the coin he holds
-can be left to one place, and counts toward its next level.
+can be left to one place, and counts toward its next level. The page grows with the life:
+three places the day the town is known (the Market, the Mill, the Smithy), the Chapel and the
+Yard at 10, the Inn at 13, and the places of a class with the class (the Watch Gate for the Keep,
+the Collegium Gate and, at 18, the Harrow Road for the Collegium). A place that comes later is
+said in the log and by a toast, and a place a life has seen stays on the page of every later one.
 
 With no `--dev` the game opens on the **Life scene** (`--dev LifeScene` names it too).
 `--dev <Scene>` picks a dev gallery instead; an unknown name exits with code 2 before a
@@ -582,7 +586,7 @@ arguments, compared by value. `Rules::nbRuns` counts the runs.
 | `resources.pg` | `age`, `character`, `board` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value, tone}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
 | `achievements.pg` | - | `achievements`: `{id, kind (deed / guide / lore), name, entry, say, point, hold, order, asks[{fact, op, value}], gives[{stat, amount}], until[{fact, op, value}]}` |
 | `epitaph.pg` | `age`, `character`, `done`, `activityId` (`""`), `deeds` (the names of the deeds reached) | `epitaph`: `{cause ("He died an old man, in his thirty-third year."), story[text] (what he became, worked at, left, and what is told of him), text (the story as one paragraph), tally ("AGE 33 · WORKS 14 · COIN 31 · DEEDS 2")}` |
-| `town.pg` (`towntable.pg`) | `age`, `character` (with `town_known`, `town.<place>`, `fund.<place>`), `world`, `lives` | `places`: `{id, name, glyph, about, level, most, gives, line, tale, built, fund, nextWork, nextName, nextMonths, nextCoin, nextYears, nextCosts, nextGives, nextLocked, gaps[{stat, label, current, needed}]}`; `start`: `[{stat, amount}]`; `opened`, `raisedLine`, `epitaphLine`, `fundLine`; `gift`: `{stat, before, after, plain, chosen}` |
+| `town.pg` (`towntable.pg`) | `age`, `character` (with `town_known`, `town.<place>`, `fund.<place>`), `world`, `lives` | `places`: `{id, name, glyph, about, level, most, shown, gives, line, tale, built, fund, nextWork, nextName, nextMonths, nextCoin, nextYears, nextCosts, nextGives, nextLocked, gaps[{stat, label, current, needed}]}`; `start`: `[{stat, amount}]`; `opened`, `raisedLine`, `epitaphLine`, `fundLine`, `foundLine`; `gift`: `{stat, before, after, plain, chosen}` |
 
 **Repetition** (`activitytable.pg`). `done` is the save's count of terms completed per activity.
 An activity may carry two optional fields:
@@ -737,13 +741,17 @@ rations) is what feeds him meanwhile.
 
 **The town** (`towntable.pg`, `town.pg`). The town is the world's, not the life's: the save
 keeps it beside `world` and `lives` (`LifeSave::townKnown`, `town` place -> level, `raisedBy`,
-`fund`) and `newLife` carries it over. The rules read it in `character`, with his stats, under
-three names: `town_known` (1 or 0), `town.<place>` (its level) and `fund.<place>` (the coin left
-to it). What a script hands back under those names is never written among his stats
+`fund`, `seen`) and `newLife` carries it over. The rules read it in `character`, with his stats,
+under four names: `town_known` (1 or 0), `town.<place>` (its level), `fund.<place>` (the coin
+left to it) and `seen.<place>` (1 once a life has had the place on its page). What a script hands back under those names is never written among his stats
 (`LifeSave::takeTown`); the one thing a script does to the town this way is to make it known.
 
 - `towntable.pg` is the table: nine places, three levels each, a level being
   `{work, built, months, coin, costs, years?, gives, start?, lore}`. It is imported, never loaded.
+  A place may say when it comes onto the page: `shows: {fromAge: N}`, `{flag: "keep_oath"}` or
+  both; without it, it is there from the day the town is known. `lib.pg`'s `placeShown` weighs
+  it for the page (`town.pg`'s `shown`) and for the works (a place not on his page has none
+  listed), and a place raised, left coin or seen by a life before is always shown.
 - `town.pg` (`Rules::town`) is what the Town page shows: each place's level, what it gives,
   and its next level flattened (`nextWork`, `nextCosts`, `nextCoin` less the fund, `nextGives`,
   `nextLocked`, `gaps`), plus `start` (what a new life is born with, every level reached),
@@ -763,8 +771,9 @@ to it). What a script hands back under those names is never written among his st
 
 The scene's part: `takeStats` leaves the town out of his stats, `openTown` and `raisePlace` do
 what a term did to it (a line, its lore, a toast, the page), `giveYears` moves the clock,
-`showTown` swaps the middle column, `fillTown` / `publishTown` fill the `PlaceGrid` and the
-glosses `place/<id>`, and `fillGifts` / `chooseGift` are the gift at death on the ending's leaf.
+`showTown` swaps the middle column, `fillTown` / `layTown` / `publishTown` fill the `PlaceGrid`
+with the places on his page and the glosses `place/<id>`, `seeTown` keeps a place shown for the
+first time in `LifeSave::seen` and says the ones that come after the town itself, and `fillGifts` / `chooseGift` are the gift at death on the ending's leaf.
 
 **The guide and the lore** (`achievements.pg`, `kind`). An entry of the table is a deed (no
 `kind`), a step of the guide or a line of lore; the `AchievementSys` watches the asks of all

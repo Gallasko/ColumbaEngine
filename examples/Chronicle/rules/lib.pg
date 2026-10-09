@@ -283,6 +283,34 @@ fun mostOf(character, stat)
     return lookup(character, capOf(stat), statOf(character, stat))
 }
 
+// Whether a place of the town (towntable.pg) is on the Town page for this character, `lived`
+// months old: one that was raised, was left coin or was seen by a life before stays there; else
+// its `shows` says when it comes (an age, a flag he holds, or both; neither: from the start).
+fun placeShown(place, character, lived)
+{
+    if (statOf(character, "town." + place.id) > 0 or statOf(character, "fund." + place.id) > 0 or statOf(character, "seen." + place.id) > 0)
+    {
+        return true
+    }
+
+    var shows = lookup(place, "shows", {})
+
+    if (lived < lookup(shows, "fromAge", 0) * 12)
+    {
+        return false
+    }
+
+    if (has(shows, "flag"))
+    {
+        if (statOf(character, shows.flag) <= 0)
+        {
+            return false
+        }
+    }
+
+    return true
+}
+
 // The table of a list with that id, {id: ""} when there is none.
 fun byId(list, id)
 {
