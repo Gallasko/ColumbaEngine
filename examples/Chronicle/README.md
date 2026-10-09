@@ -814,29 +814,36 @@ call. The forecast runs once per month tick, not per frame; `rules_test.timing_c
 ### The dependency graph (`rules/depgraph.pg`)
 
 A tool, not a rule: the game never loads it and the web build leaves it out. It reads the activity
-table and the town table and writes a Graphviz file of what leads to what.
+table and the town table and draws what leads to what.
 
 ```bash
-release/PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg chronicle-graph.dot
-dot -Tsvg chronicle-graph.dot -o chronicle-graph.svg
+release/PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg chronicle-graph.svg
+release/PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg keep.dot keep
+dot -Tsvg keep.dot -o keep.svg
 ```
 
-- **The overview** (no third argument): tasks only. A link goes from the task that brings a flag
-  to the task that reads it, with the flag's name on it. A place of the town is one box with its
-  three works and what each level gives, linked to the tasks its levels change. A class is one
-  link from its way in to its group.
-- **Left to right along the years**: a column for each age a task can be begun from (`fromAge`),
-  the town's places in the first column, each group a band across the columns.
-- **Skills, coin and rations are not drawn.** A stat that three tasks or more bring (`skillFrom`),
-  and what a life is born with, is written in the task's box: `asks arms 5`, `brings +1 arms`.
-  Drawn, twelve tasks would point at every one that asks for Arms.
-- **A focus** as a third argument, the id of a task or the key of a stat (`keep`, `arms`,
-  `town.mill`): the detail around it, with a node for every stat, and the tasks that feed it and
-  the tasks it feeds printed. `all` draws the whole detail at once.
-- **Links**: black asks, red takes (a cost), blue brings (the detail only), green eases or
-  betters, grey opens a class, purple is the town.
-- **Loose ends** are printed without a focus: what is asked for and brought by nothing, and what
-  is brought and read by no task.
+**The timeline** (no focus) is an SVG the tool writes itself, the years left to right:
+
+- **A bar** is a task, from the age it opens at (`fromAge`), as wide as the months it takes: two
+  bars that share a stretch of the axis cannot both be done in it. The line after a bar runs to
+  the age it must be over by (`finishBy`). What it asks, takes and brings is written on it.
+- **A frame** is a group, as wide as its tasks and as high on the page as the frames over its
+  years allow: a childhood's groups stand beside a class's, not over them. The ways into a class
+  come first, in gold; a task of a class has a stripe of the class's colour, and its group a
+  frame of it. The last resort stands where the last of the other ways in closes.
+- **An arrow** goes from the task that brings a flag (a title, a deed, a friend) to the task that
+  reads it: black asks for it, dashed green is eased by it or takes it as one of several.
+- **No arrow** for what is only a number to reach or to spend: the skills (a stat three tasks or
+  more bring, `skillFrom`), what a life is born with, and whatever a task takes as a cost (coin,
+  rations, reagents, favors).
+- **The town is not drawn yet**: a task a place changes says which (`town: The Mill`).
+
+**A focus** (the id of a task or the key of a stat: `keep`, `arms`, `town.mill`) writes a Graphviz
+file of the detail around it, with a node for every stat, and prints the tasks that feed it and
+the tasks it feeds. `all` draws the whole detail at once.
+
+**Loose ends** are printed without a focus: what is asked for and brought by nothing, and what is
+brought and read by no task.
 
 It stands in `rules/` because a module's own imports are looked for beside the script that is run.
 It reads each task's `needs`, the requirements as `activitytable.pg` writes them (with `eased`

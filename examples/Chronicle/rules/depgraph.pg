@@ -3,37 +3,43 @@
 // A tool: the game never loads it. It stands with the rules because a module's own imports are
 // looked for beside the script that is run, and activitytable.pg imports lib.pg and towntable.pg.
 //
-// Reads the activity table and the town table of the game and writes one of three graphs.
+// Reads the activity table and the town table of the game and writes one of two pictures.
 //
-// The overview (no focus): tasks only, and what leads to what. A link goes from the task that
-// brings a flag to the task that reads it (Carry for the Watch -> Train under Sergeant Edric,
-// "Known to the Watch"). What many tasks bring is not a link: the skills (Arms, Lore...), coin
-// and rations are written in the task's box ("asks arms 5", "brings +1 arms"), or twelve tasks
-// would point at every one that asks for Arms. A place of the town is one box with its three
-// works, linked to the tasks its levels change. A class is one link, from its way in to its group.
-// It reads left to right along the years: a column for each age a task can be begun from, the
-// town's places in the first one, and each group a band across the columns.
+// The timeline (no focus), an SVG: the years run left to right, a month is `monthWidth` wide.
+//   - A task is a bar from the age it opens at, as wide as the months it takes: two bars that
+//     share a stretch of the axis cannot both be done in it. The line after a bar runs to the
+//     age it must be over by. What it asks, takes and brings is written on it.
+//   - A frame a group, as wide as its tasks and as high on the page as the frames over its years
+//     allow: a childhood's groups stand beside a class's, not over them. The ways into a class
+//     come first, in gold; a task of a class has a stripe of the class's colour, and its group
+//     a frame of it.
+//   - An arrow goes from the task that brings a flag (a title, a deed, a friend) to the task that
+//     reads it, from where the first ends to where the second begins.
+//   - No arrow for what is only a number to reach or to spend: the skills, which `skillFrom` tasks
+//     or more bring, what a life is born with, and whatever a task takes as a cost (coin, rations,
+//     reagents, favors). They are written on the bars.
+//   - The town is not drawn yet: a task a place changes says which, and that is all.
 //
-// A focus (the id of a task, "keep", or the key of a stat, "arms", "town.mill"): the detail
-// around it, with an ellipse for every stat. For a task: what it asks, takes and brings, the
-// tasks that bring what it asks and the tasks that read what it brings. For a stat: the tasks
-// that bring it and the tasks that read it. Both lists of tasks are printed.
-//
-// "all" as the focus: the whole detail at once. It is a ball of wool; it is there to search in.
+// A focus (the id of a task, "keep", or the key of a stat, "arms", "town.mill"), a Graphviz file:
+// the detail around it, with a node for every stat. For a task: what it asks, takes and brings,
+// the tasks that bring what it asks and the tasks that read what it brings. For a stat: the tasks
+// that bring it and the tasks that read it. Both lists of tasks are printed. "all" as the focus
+// is the whole detail at once: a ball of wool, there to search in.
 //
 //   black   a task asks for it
 //   red     a task takes it when it begins (a cost)
 //   blue    a task brings it (dashed: only at a later term, or with a bonus)
 //   green   it makes a task easier (dashed) or better (solid), or is one of several that will do
-//   grey    a class: its way in opens its tasks
+//   grey    a task is of a class
 //   purple  the town: a work raises a place, a place gives a new life something at birth
 //
-// Usage:  PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg [out.dot] [focus]
+// Usage:  PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg [out.svg]
+//         PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg <out.dot> <focus>
 //         dot -Tsvg out.dot -o out.svg
 //
-// `out.dot` is chronicle-graph.dot, where it is run from, when none is given. Without a focus
-// the loose ends are printed: what is asked for and brought by nothing, and what is brought and
-// read by no task.
+// The file is chronicle-graph.svg, or chronicle-graph.dot with a focus, where it is run from,
+// when none is given. Without a focus the loose ends are printed: what is asked for and brought
+// by nothing, and what is brought and read by no task.
 
 import "string"
 import "file"
@@ -47,8 +53,23 @@ import "math"
 // What is written in a task's box and never drawn
 var hubStats = ["coin", "rations"]
 
-// A stat that this many tasks bring, or more, is a skill: the overview writes it in the boxes
+// A stat that this many tasks bring, or more, is a skill: the timeline writes it on the bars
 var skillFrom = 3
+
+// The timeline: the width of a month, the height of a line of text, the gap between two rows,
+// and the width a letter is counted for when a bar's text is measured
+var monthWidth = 12
+var lineHeight = 13
+var rowGap = 10
+var letterWidth = 6
+
+// The room between a frame of the timeline and the one under it, and between a frame's side
+// and its first bar
+var frameGap = 14
+var framePad = 6
+
+// The colour of each class, in the order of the table's `paths`
+var classColours = ["#2b6cb0", "#6b46c1", "#2f855a", "#975a16"]
 
 // What a life holds from its first day: nothing has to bring it
 var bornWith = ["str", "dex", "int", "vit", "coin", "rations"]
@@ -62,7 +83,6 @@ var linkStyles = {
     eases: "color=\"#2f855a\", fontcolor=\"#2f855a\", style=dashed",
     betters: "color=\"#2f855a\", fontcolor=\"#2f855a\"",
     classOf: "color=\"#a0aec0\", style=dotted, arrowsize=0.6",
-    opens: "color=\"#718096\", fontcolor=\"#4a5568\", penwidth=2",
     town: "color=\"#6b46c1\", fontcolor=\"#6b46c1\"",
     birth: "color=\"#6b46c1\", fontcolor=\"#6b46c1\", style=dashed"
 }
@@ -88,9 +108,8 @@ fun inList(list, value)
     return false
 }
 
-// A text between the double quotes of a Graphviz file. A line break is written as it reads one:
-// "\n" for a centred line, "\l" for one that starts at the left
-fun quotedAs(text, lineBreak)
+// A text between the double quotes of a Graphviz file: a line break is written as it reads one
+fun quoted(text)
 {
     var out = ""
 
@@ -100,7 +119,7 @@ fun quotedAs(text, lineBreak)
 
         if (c == "\n")
         {
-            c = lineBreak
+            c = "\\n"
         }
         else if (c == "\"" or c == "\\")
         {
@@ -113,9 +132,32 @@ fun quotedAs(text, lineBreak)
     return out
 }
 
-fun quoted(text)
+// A text of an SVG file
+fun xmlText(text)
 {
-    return quotedAs(text, "\\n")
+    var out = ""
+
+    for (var i = 0; i < strlen(text); i = i + 1)
+    {
+        var c = substring(text, i, i + 1)
+
+        if (c == "&")
+        {
+            c = "&amp;"
+        }
+        else if (c == "<")
+        {
+            c = "&lt;"
+        }
+        else if (c == ">")
+        {
+            c = "&gt;"
+        }
+
+        out = out + c
+    }
+
+    return out
 }
 
 fun taskNode(id)
@@ -165,7 +207,7 @@ fun amountsText(list, sign, hubs)
 
 fun newGraph()
 {
-    return {tasks: [], taskIds: {}, stats: [], statKeys: {}, statLabels: {}, placeLabels: {}, links: [], groups: []}
+    return {tasks: [], taskIds: {}, stats: [], statKeys: {}, statLabels: {}, links: [], groups: []}
 }
 
 fun addStat(graph, stat)
@@ -186,7 +228,7 @@ fun addLink(graph, source, target, stat, kind, label)
     }
 
     addStat(graph, stat)
-    push(graph.links, {source: source, target: target, stat: stat, kind: kind, label: label, level: 0})
+    push(graph.links, {source: source, target: target, stat: stat, kind: kind, label: label})
 }
 
 // What a bonus step changes, in a few words: "+4 coin", "months 4", "fromAge 8"
@@ -274,7 +316,8 @@ fun addTask(graph, a)
         label = label + "\n" + hubs
     }
 
-    push(graph.tasks, {id: a.id, node: node, group: a.group, label: label, name: a.name, time: time, fromAge: a.fromAge, path: a.path, enters: a.enters, raises: a.raises,
+    push(graph.tasks, {id: a.id, node: node, group: a.group, label: label, name: a.name, time: time, fromAge: a.fromAge, finishBy: a.finishBy, months: a.months, path: a.path, enters: a.enters, raises: a.raises,
+                       lastResort: lookup(a, "lastResort", false),
                        needs: a.needs, gains: a.gains, costs: a.costs})
     graph.taskIds[a.id] = true
 
@@ -369,12 +412,6 @@ fun addTask(graph, a)
 
         addLink(graph, statNode(better.stat), node, better.stat, "betters", "at " + toString(level) + ": " + bonusText(better))
 
-        // The level it holds from, for the overview: a place's box says the rest in words
-        if (not inList(hubStats, better.stat))
-        {
-            graph.links[len(graph.links) - 1].level = level
-        }
-
         for (var k = 0; k < 2; k = k + 1)
         {
             var more = listOf(better, "gains")
@@ -433,31 +470,6 @@ fun buildGraph()
 
         addStat(graph, key)
         graph.statLabels[key] = place.name
-
-        // Its box in the overview: its works, a level each, and what each level gives
-        var box = place.name
-
-        for (var l = 0; l < len(place.levels); l = l + 1)
-        {
-            var step = place.levels[l]
-            var asked = toString(step.coin) + " coin"
-            var also = listOf(step, "costs")
-
-            for (var c = 0; c < len(also); c = c + 1)
-            {
-                asked = asked + ", " + toString(also[c].amount) + " " + toLowerCase(statShortName(also[c].stat))
-            }
-
-            if (lookup(step, "years", 0) > 0)
-            {
-                asked = asked + ", " + toString(step.years) + " years"
-            }
-
-            box = box + "\n" + toString(l + 1) + ": " + step.work + " | " + toString(step.months) + " mo | " + asked
-            box = box + "\n     " + step.gives
-        }
-
-        graph.placeLabels[key] = box
 
         // What a level gives a new life at birth
         for (var l = 0; l < len(place.levels); l = l + 1)
@@ -649,8 +661,13 @@ fun emitDot(graph, kept, focus)
     return out + "}\n"
 }
 
-// The stats the overview writes in the boxes: the hubs, what a life is born with (and its cap),
-// and the skills, which `skillFrom` tasks or more bring
+// ============================================================================
+// The timeline
+// ============================================================================
+
+// The stats the timeline writes on the bars and draws no arrow for: the hubs, what a life is born
+// with (and its cap), the skills, which `skillFrom` tasks or more bring, and what a task takes as
+// a cost, which is spent and not held
 fun foldedStats(graph)
 {
     var bringers = {}
@@ -659,6 +676,11 @@ fun foldedStats(graph)
     for (var l = 0; l < len(graph.links); l = l + 1)
     {
         var link = graph.links[l]
+
+        if (link.kind == "takes")
+        {
+            folded[link.stat] = true
+        }
 
         if (startsWith(link.source, "task/") and (link.kind == "brings" or link.kind == "later"))
         {
@@ -701,13 +723,38 @@ fun foldedStats(graph)
     return folded
 }
 
-// A task's box in the overview: its name, its time, and what it asks, takes and brings of the
-// stats that are not drawn
-fun overviewLabel(task, folded)
+// The month of his life a task opens at. The last resort has no age of its own: it opens the
+// month the last of the other ways into a class can no longer be begun
+fun startMonth(graph, task)
+{
+    if (not task.lastResort)
+    {
+        return task.fromAge * 12
+    }
+
+    var latest = task.fromAge * 12
+
+    for (var i = 0; i < len(graph.tasks); i = i + 1)
+    {
+        var other = graph.tasks[i]
+
+        if (other.enters and not other.lastResort and other.finishBy * 12 - other.months > latest)
+        {
+            latest = other.finishBy * 12 - other.months
+        }
+    }
+
+    return latest
+}
+
+// What is written on a task's bar: its name, its time, what it asks, takes and brings of what
+// has no arrow, and the places of the town that change it
+fun taskLines(graph, task, folded)
 {
     var asks = ""
     var takes = ""
     var brings = ""
+    var places = ""
 
     for (var r = 0; r < len(task.needs); r = r + 1)
     {
@@ -726,15 +773,12 @@ fun overviewLabel(task, folded)
 
     for (var c = 0; c < len(task.costs); c = c + 1)
     {
-        if (contain(folded, task.costs[c].stat))
+        if (takes != "")
         {
-            if (takes != "")
-            {
-                takes = takes + ", "
-            }
-
-            takes = takes + toString(task.costs[c].amount) + " " + toLowerCase(statShortName(task.costs[c].stat))
+            takes = takes + ", "
         }
+
+        takes = takes + toString(task.costs[c].amount) + " " + toLowerCase(statShortName(task.costs[c].stat))
     }
 
     for (var g = 0; g < len(task.gains); g = g + 1)
@@ -750,189 +794,448 @@ fun overviewLabel(task, folded)
         }
     }
 
-    var label = task.name + "\n" + task.time
+    for (var l = 0; l < len(graph.links); l = l + 1)
+    {
+        var link = graph.links[l]
+
+        // Knowing the town is the town's too
+        if (link.target == task.node and startsWith(link.stat, "town"))
+        {
+            var place = statLabel(graph, link.stat)
+
+            if (indexOf(places, place) < 0)
+            {
+                if (places != "")
+                {
+                    places = places + ", "
+                }
+
+                places = places + place
+            }
+        }
+    }
+
+    var time = task.time
+
+    if (task.lastResort)
+    {
+        time = toString(task.months) + " mo | once the other classes have closed"
+    }
+
+    var lines = [task.name, time]
 
     if (asks != "")
     {
-        label = label + "\nasks " + asks
+        push(lines, "asks " + asks)
     }
 
     if (takes != "")
     {
-        label = label + "\ntakes " + takes
+        push(lines, "takes " + takes)
     }
 
     if (brings != "")
     {
-        label = label + "\nbrings " + brings
+        push(lines, "brings " + brings)
     }
 
-    return label
-}
-
-// One link of the overview, written once
-fun overviewLink(seen, source, target, label, style)
-{
-    var key = source + ">" + target + ">" + label
-
-    if (source == target or contain(seen, key))
+    if (places != "")
     {
-        return ""
+        push(lines, "town: " + places)
     }
 
-    seen[key] = true
-
-    return "    \"" + quoted(source) + "\" -> \"" + quoted(target) + "\" [label=\"" + quoted(label) + "\", " + style + "];\n"
+    return lines
 }
 
-// The Graphviz text of the overview: tasks and places, and what leads to what
-fun emitOverview(graph)
+// Where everything stands: a frame a group, the ways into a class first, and in each frame its
+// tasks on as few rows as hold them without one covering another. A frame is as wide as its
+// tasks and stands as high as the frames over its own years allow: the groups of a childhood
+// and the groups of a class share the same height of the page, side by side
+fun layoutTimeline(graph, folded)
 {
-    var folded = foldedStats(graph)
-    var byNode = {}
-    var seen = {}
+    var view = {left: 24, top: 64, firstMonth: lastAge * 12, lastMonth: (lastAge + 1) * 12, bands: [], items: {}, width: 0, height: 0}
 
-    var out = "digraph chronicle {\n"
-
-    out = out + "    rankdir=LR;\n"
-    out = out + "    compound=true;\n"
-    out = out + "    newrank=true;\n"
-    out = out + "    ranksep=0.9;\n"
-    out = out + "    labelloc=t;\n"
-    out = out + "    label=\"Chronicle, what leads to what: black asks, red takes, green eases or betters (dashed: eases, or one of several), grey opens a class, purple is the town. Skills, coin and rations are in the boxes\";\n"
-    out = out + "    node [fontname=\"Helvetica\", fontsize=11];\n"
-    out = out + "    edge [fontname=\"Helvetica\", fontsize=10];\n\n"
-
-    // The tasks, a frame a group. A work of the town is drawn with its place
-    for (var g = 0; g < len(graph.groups); g = g + 1)
+    for (var i = 0; i < len(graph.tasks); i = i + 1)
     {
-        var body = ""
+        if (graph.tasks[i].raises == "" and graph.tasks[i].fromAge * 12 < view.firstMonth)
+        {
+            view.firstMonth = graph.tasks[i].fromAge * 12
+        }
+    }
+
+    // The group of the ways into a class, then the others as the table orders them
+    var order = []
+
+    for (var pass = 0; pass < 2; pass = pass + 1)
+    {
+        for (var g = 0; g < len(graph.groups); g = g + 1)
+        {
+            var enters = false
+
+            for (var i = 0; i < len(graph.tasks); i = i + 1)
+            {
+                if (graph.tasks[i].group == graph.groups[g] and graph.tasks[i].enters)
+                {
+                    enters = true
+                }
+            }
+
+            if (enters == (pass == 0))
+            {
+                push(order, graph.groups[g])
+            }
+        }
+    }
+
+    for (var b = 0; b < len(order); b = b + 1)
+    {
+        var band = {group: order[b], heading: toUpperCase(order[b]), items: [], left: 0, right: 0, top: 0, height: 0, path: "", enters: false}
+        var mixed = false
 
         for (var i = 0; i < len(graph.tasks); i = i + 1)
         {
             var task = graph.tasks[i]
 
-            byNode[task.node] = task
-
-            if (task.group == graph.groups[g] and task.raises == "")
+            if (task.group != order[b] or task.raises != "")
             {
-                body = body + "        \"" + quoted(task.node) + "\" [label=\"" + quoted(overviewLabel(task, folded)) + "\"];\n"
+                continue
             }
-        }
 
-        if (body != "")
-        {
-            out = out + "    subgraph \"cluster_" + toString(g) + "\" {\n"
-            out = out + "        label=\"" + quoted(graph.groups[g]) + "\";\n"
-            out = out + "        fontname=\"Helvetica-Bold\";\n"
-            out = out + "        color=\"#a0aec0\";\n"
-            out = out + "        node [shape=box, style=\"rounded,filled\", fillcolor=\"#f7fafc\"];\n"
-            out = out + body
-            out = out + "    }\n\n"
-        }
-    }
+            var lines = taskLines(graph, task, folded)
+            var start = startMonth(graph, task)
+            var x = view.left + (start - view.firstMonth) * monthWidth
+            var bar = task.months * monthWidth
 
-    // The ages, left to right: a task stands in the column of the age it can be begun from, so
-    // a group runs along the years and what leads to a task is on its left
-    var ages = []
-
-    for (var i = 0; i < len(graph.tasks); i = i + 1)
-    {
-        if (graph.tasks[i].raises == "" and not inList(ages, graph.tasks[i].fromAge))
-        {
-            // Kept in order: each new age goes before the first greater one
-            var at = len(ages)
-
-            push(ages, graph.tasks[i].fromAge)
-
-            while (at > 0 and ages[at - 1] > ages[at])
+            // What is done at once still has a bar to hold its stripe
+            if (bar < 6)
             {
-                var swapped = ages[at - 1]
+                bar = 6
+            }
 
-                ages[at - 1] = ages[at]
-                ages[at] = swapped
+            // As wide as its longest line, the name in a heavier face
+            var wide = strlen(lines[0]) * (letterWidth + 1)
+
+            for (var n = 1; n < len(lines); n = n + 1)
+            {
+                if (strlen(lines[n]) * letterWidth > wide)
+                {
+                    wide = strlen(lines[n]) * letterWidth
+                }
+            }
+
+            // The age it must be over by, when it has one before old age
+            var over = 0
+
+            if (task.finishBy < lastAge)
+            {
+                over = view.left + (task.finishBy * 12 - view.firstMonth) * monthWidth
+            }
+
+            var reach = x + bar
+
+            if (x + wide + 12 > reach)
+            {
+                reach = x + wide + 12
+            }
+
+            // Its bar and its text, then with the line after them
+            var body = reach
+
+            if (over > reach)
+            {
+                reach = over
+            }
+
+            var item = {task: task, lines: lines, x: x, bar: bar, over: over, body: body, reach: reach, row: 0, y: 0, tall: len(lines) * lineHeight + 8}
+
+            if (task.enters)
+            {
+                band.enters = true
+            }
+            else if (len(band.items) == 0 and not mixed)
+            {
+                band.path = task.path
+            }
+            else if (task.path != band.path)
+            {
+                band.path = ""
+                mixed = true
+            }
+
+            // Kept in the order they open in
+            var at = len(band.items)
+
+            push(band.items, item)
+
+            while (at > 0 and band.items[at - 1].x > band.items[at].x)
+            {
+                var swapped = band.items[at - 1]
+
+                band.items[at - 1] = band.items[at]
+                band.items[at] = swapped
                 at = at - 1
             }
         }
-    }
 
-    for (var a = 0; a < len(ages); a = a + 1)
-    {
-        var column = "age/" + toString(ages[a])
-
-        out = out + "    \"" + column + "\" [label=\"AGE " + toString(ages[a]) + "\", shape=plaintext, fontname=\"Helvetica-Bold\", fontsize=16];\n"
-
-        // The town has no age: its column is the first, before the youngest
-        var before = "age/town"
-
-        if (a > 0)
+        if (len(band.items) == 0)
         {
-            before = "age/" + toString(ages[a - 1])
+            continue
         }
 
-        out = out + "    \"" + before + "\" -> \"" + column + "\" [color=\"#a0aec0\", arrowsize=0.6];\n"
+        // Each on the first row that is free where it begins; a row is as tall as its tallest bar
+        var rowEnds = []
+        var rowTalls = []
 
-        out = out + "    { rank=same; \"" + column + "\";"
-
-        for (var i = 0; i < len(graph.tasks); i = i + 1)
+        for (var n = 0; n < len(band.items); n = n + 1)
         {
-            if (graph.tasks[i].raises == "" and graph.tasks[i].fromAge == ages[a])
+            var item = band.items[n]
+            var row = -1
+
+            for (var r = 0; r < len(rowEnds); r = r + 1)
             {
-                out = out + " \"" + quoted(graph.tasks[i].node) + "\";"
+                if (row < 0 and rowEnds[r] + 14 <= item.x)
+                {
+                    row = r
+                }
+            }
+
+            if (row < 0)
+            {
+                row = len(rowEnds)
+                push(rowEnds, 0)
+                push(rowTalls, 0)
+            }
+
+            rowEnds[row] = item.reach
+            item.row = row
+            view.items[item.task.node] = item
+
+            if (item.tall > rowTalls[row])
+            {
+                rowTalls[row] = item.tall
+            }
+
+            if (item.reach > view.width)
+            {
+                view.width = item.reach
             }
         }
 
-        out = out + " }\n"
-    }
+        var rowTops = []
+        var under = 28
 
-    out = out + "\n"
-
-    // The places, each with its works
-    var firstPlace = ""
-
-    out = out + "    subgraph \"cluster_town\" {\n"
-    out = out + "        label=\"The town\";\n"
-    out = out + "        fontname=\"Helvetica-Bold\";\n"
-    out = out + "        color=\"#6b46c1\";\n"
-    out = out + "        node [shape=box, style=filled, fillcolor=\"#e9d8fd\"];\n"
-
-    for (var s = 0; s < len(graph.stats); s = s + 1)
-    {
-        if (contain(graph.placeLabels, graph.stats[s]))
+        for (var r = 0; r < len(rowTalls); r = r + 1)
         {
-            var node = statNode(graph.stats[s])
+            push(rowTops, under)
+            under = under + rowTalls[r] + rowGap
+        }
 
-            if (firstPlace == "")
+        band.height = under
+
+        // A group all of one class says which way in opens it
+        if (band.path != "" and not band.enters)
+        {
+            for (var i = 0; i < len(graph.tasks); i = i + 1)
             {
-                firstPlace = node
+                if (graph.tasks[i].enters and graph.tasks[i].path == band.path)
+                {
+                    band.heading = band.heading + "  -  opened by " + graph.tasks[i].name
+                }
+            }
+        }
+
+        // As wide as its tasks, and as its heading. A line that runs to an age ends a little past
+        // the frame: the frame of the group that opens at that age begins there, and the two
+        // stand side by side
+        band.left = band.items[0].x - framePad
+        band.right = band.left + strlen(band.heading) * 10 + 20
+
+        for (var n = 0; n < len(band.items); n = n + 1)
+        {
+            if (band.items[n].body + framePad > band.right)
+            {
+                band.right = band.items[n].body + framePad
             }
 
-            out = out + "        \"" + quoted(node) + "\" [label=\"" + quotedAs(graph.placeLabels[graph.stats[s]], "\\l") + "\\l\"];\n"
+            if (band.items[n].over - framePad > band.right)
+            {
+                band.right = band.items[n].over - framePad
+            }
         }
-    }
 
-    out = out + "    }\n\n"
+        // Under the lowest of the frames that stand over its years
+        band.top = view.top
 
-    // The places stand in one column, on the left of every age
-    out = out + "    \"age/town\" [label=\"THE TOWN\", shape=plaintext, fontname=\"Helvetica-Bold\", fontsize=16];\n"
-    out = out + "    { rank=same; \"age/town\";"
-
-    for (var s = 0; s < len(graph.stats); s = s + 1)
-    {
-        if (contain(graph.placeLabels, graph.stats[s]))
+        for (var o = 0; o < len(view.bands); o = o + 1)
         {
-            out = out + " \"" + quoted(statNode(graph.stats[s])) + "\";"
+            var other = view.bands[o]
+
+            if (other.left < band.right and band.left < other.right and other.top + other.height + frameGap > band.top)
+            {
+                band.top = other.top + other.height + frameGap
+            }
+        }
+
+        for (var n = 0; n < len(band.items); n = n + 1)
+        {
+            band.items[n].y = band.top + rowTops[band.items[n].row]
+        }
+
+        if (band.top + band.height > view.height)
+        {
+            view.height = band.top + band.height
+        }
+
+        if (band.right > view.width)
+        {
+            view.width = band.right
+        }
+
+        push(view.bands, band)
+    }
+
+    var axis = view.left + (view.lastMonth - view.firstMonth) * monthWidth
+
+    if (axis > view.width)
+    {
+        view.width = axis
+    }
+
+    view.width = view.width + 24
+    view.height = view.height + 40
+
+    return view
+}
+
+// The colour of a class, "" for none
+fun classColour(path)
+{
+    for (var p = 0; p < len(paths); p = p + 1)
+    {
+        if (paths[p].id == path)
+        {
+            return classColours[p % len(classColours)]
         }
     }
 
-    out = out + " }\n\n"
+    return ""
+}
 
-    // A flag: from each task that brings it to each task that reads it
+// The SVG text of the timeline
+fun emitTimeline(graph)
+{
+    var folded = foldedStats(graph)
+    var view = layoutTimeline(graph, folded)
+
+    var out = "<svg xmlns='http://www.w3.org/2000/svg' width='" + toString(view.width) + "' height='" + toString(view.height) + "' viewBox='0 0 " + toString(view.width) + " " + toString(view.height) + "'>\n"
+
+    out = out + "<style>\n"
+    out = out + "text { font-family: Helvetica, Arial, sans-serif; font-size: 11px; fill: #1a202c; }\n"
+    out = out + ".name { font-weight: bold; font-size: 12px; }\n"
+    out = out + ".band { font-weight: bold; font-size: 15px; }\n"
+    out = out + ".age { font-weight: bold; font-size: 13px; fill: #4a5568; }\n"
+    out = out + ".note { fill: #4a5568; }\n"
+    out = out + ".flag { font-size: 10px; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; }\n"
+    out = out + "</style>\n"
+    out = out + "<defs>\n"
+    out = out + "<marker id='asks' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='7' markerHeight='7' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='#1a202c'/></marker>\n"
+    out = out + "<marker id='eases' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='7' markerHeight='7' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='#2f855a'/></marker>\n"
+    out = out + "</defs>\n"
+    out = out + "<rect width='" + toString(view.width) + "' height='" + toString(view.height) + "' fill='#ffffff'/>\n"
+    out = out + "<text x='" + toString(view.left) + "' y='20' class='note'>A bar: the months a task takes, from the age it opens at. The line after it: the age it must be over by. Gold: a way into a class; a stripe: a task of that class. An arrow: a flag one task brings and another reads (black asks for it, dashed green is eased by it or takes it as one of several).</text>\n"
+
+    // The frames, a group each, in the colour of its class when it is all of one
+    for (var b = 0; b < len(view.bands); b = b + 1)
+    {
+        var band = view.bands[b]
+        var colour = "#a0aec0"
+
+        if (band.path != "" and not band.enters)
+        {
+            colour = classColour(band.path)
+        }
+
+        out = out + "<rect x='" + toString(band.left) + "' y='" + toString(band.top) + "' width='" + toString(band.right - band.left) + "' height='" + toString(band.height) + "' rx='8' fill='#f7fafc' stroke='" + colour + "' stroke-width='1.5'/>\n"
+    }
+
+    // The years
+    for (var month = view.firstMonth; month <= view.lastMonth; month = month + 12)
+    {
+        var x = view.left + (month - view.firstMonth) * monthWidth
+        var year = toInt(floor(month / 12))
+
+        out = out + "<line x1='" + toString(x) + "' y1='" + toString(view.top - 8) + "' x2='" + toString(x) + "' y2='" + toString(view.height - 24) + "' stroke='#cbd5e0' stroke-width='1'/>\n"
+        out = out + "<text x='" + toString(x + 4) + "' y='" + toString(view.top - 12) + "' class='age'>AGE " + toString(year) + "</text>\n"
+        out = out + "<text x='" + toString(x + 4) + "' y='" + toString(view.height - 10) + "' class='age'>AGE " + toString(year) + "</text>\n"
+    }
+
+    // The bars
+    for (var b = 0; b < len(view.bands); b = b + 1)
+    {
+        var band = view.bands[b]
+        var colour = "#1a202c"
+
+        if (band.path != "" and not band.enters)
+        {
+            colour = classColour(band.path)
+        }
+
+        out = out + "<text x='" + toString(band.left + 10) + "' y='" + toString(band.top + 19) + "' class='band' style='fill: " + colour + "'>" + xmlText(band.heading) + "</text>\n"
+
+        for (var n = 0; n < len(band.items); n = n + 1)
+        {
+            var item = band.items[n]
+            var task = item.task
+            var fill = "#dbe4f0"
+            var edge = "#a0aec0"
+            var edgeWidth = "1"
+            var stripe = classColour(task.path)
+
+            if (task.enters)
+            {
+                fill = "#f6e05e"
+                edge = stripe
+                edgeWidth = "3"
+            }
+
+            // Until when it must be over
+            if (item.over > item.x + item.bar)
+            {
+                var y = item.y + item.tall - 4
+
+                out = out + "<line x1='" + toString(item.x + item.bar) + "' y1='" + toString(y) + "' x2='" + toString(item.over) + "' y2='" + toString(y) + "' stroke='#a0aec0' stroke-width='2'/>\n"
+                out = out + "<line x1='" + toString(item.over) + "' y1='" + toString(y - 6) + "' x2='" + toString(item.over) + "' y2='" + toString(y + 6) + "' stroke='#a0aec0' stroke-width='2'/>\n"
+            }
+
+            out = out + "<rect x='" + toString(item.x) + "' y='" + toString(item.y) + "' width='" + toString(item.bar) + "' height='" + toString(item.tall) + "' rx='4' fill='" + fill + "' stroke='" + edge + "' stroke-width='" + edgeWidth + "'/>\n"
+
+            if (stripe != "" and not task.enters)
+            {
+                out = out + "<rect x='" + toString(item.x) + "' y='" + toString(item.y) + "' width='5' height='" + toString(item.tall) + "' fill='" + stripe + "'/>\n"
+            }
+
+            for (var l = 0; l < len(item.lines); l = l + 1)
+            {
+                var kind = "note"
+
+                if (l == 0)
+                {
+                    kind = "name"
+                }
+
+                out = out + "<text x='" + toString(item.x + 9) + "' y='" + toString(item.y + 15 + l * lineHeight) + "' class='" + kind + "'>" + xmlText(item.lines[l]) + "</text>\n"
+            }
+        }
+    }
+
+    // The arrows: a flag, from where the task that brings it ends to where the one that reads it begins
+    var drawn = {}
+
     for (var s = 0; s < len(graph.stats); s = s + 1)
     {
         var stat = graph.stats[s]
 
-        if (contain(folded, stat) or startsWith(stat, "town."))
+        if (contain(folded, stat) or startsWith(stat, "town"))
         {
             continue
         }
@@ -941,37 +1244,46 @@ fun emitOverview(graph)
         {
             var brings = graph.links[b]
 
-            if (brings.target != statNode(stat) or not startsWith(brings.source, "task/"))
+            if (brings.target != statNode(stat) or not contain(view.items, brings.source))
             {
                 continue
-            }
-
-            // Knowing the town opens its places, all of them
-            if (stat == "town_known" and firstPlace != "")
-            {
-                out = out + overviewLink(seen, brings.source, firstPlace, "opens the town", linkStyles.town + ", constraint=false, lhead=\"cluster_town\"")
             }
 
             for (var r = 0; r < len(graph.links); r = r + 1)
             {
                 var reads = graph.links[r]
 
-                if (reads.source != statNode(stat) or not startsWith(reads.target, "task/") or reads.kind == "classOf")
+                if (reads.source != statNode(stat) or not contain(view.items, reads.target) or reads.kind == "classOf" or reads.target == brings.source)
                 {
                     continue
                 }
 
-                // A work of the town is in its place's box
-                var reader = reads.target
-
-                if (byNode[reader].raises != "")
+                if (contain(drawn, brings.source + ">" + reads.target + ">" + stat))
                 {
-                    reader = statNode("town." + byNode[reader].raises)
+                    continue
+                }
+
+                drawn[brings.source + ">" + reads.target + ">" + stat] = true
+
+                var first = view.items[brings.source]
+                var second = view.items[reads.target]
+                var x1 = first.x + first.bar
+                var y1 = first.y + toInt(floor(first.tall / 2))
+                var x2 = second.x - 2
+                var y2 = second.y + toInt(floor(second.tall / 2))
+                var bend = toInt(floor((x2 - x1) / 2))
+
+                if (bend < 60)
+                {
+                    bend = 60
                 }
 
                 var label = statLabel(graph, stat)
+                var colour = "#1a202c"
+                var marker = "asks"
+                var dash = ""
 
-                if (reads.kind == "asks" or reads.kind == "takes")
+                if (reads.kind == "asks")
                 {
                     if (reads.label != "1")
                     {
@@ -981,6 +1293,9 @@ fun emitOverview(graph)
                 else
                 {
                     label = label + " (" + reads.label + ")"
+                    colour = "#2f855a"
+                    marker = "eases"
+                    dash = " stroke-dasharray='6 4'"
                 }
 
                 if (brings.kind == "later")
@@ -988,91 +1303,13 @@ fun emitOverview(graph)
                     label = label + " [" + brings.label + "]"
                 }
 
-                out = out + overviewLink(seen, brings.source, reader, label, linkStyles[reads.kind])
+                out = out + "<path d='M " + toString(x1) + " " + toString(y1) + " C " + toString(x1 + bend) + " " + toString(y1) + ", " + toString(x2 - bend) + " " + toString(y2) + ", " + toString(x2) + " " + toString(y2) + "' fill='none' stroke='" + colour + "' stroke-width='1.6'" + dash + " marker-end='url(#" + marker + ")'/>\n"
+                out = out + "<text x='" + toString(toInt(floor((x1 + x2) / 2))) + "' y='" + toString(toInt(floor((y1 + y2) / 2)) - 4) + "' text-anchor='middle' class='flag' style='fill: " + colour + "'>" + xmlText(label) + "</text>\n"
             }
         }
     }
 
-    out = out + "\n"
-
-    // A place: to each task one of its levels changes, or that asks for a level
-    for (var l = 0; l < len(graph.links); l = l + 1)
-    {
-        var link = graph.links[l]
-
-        if (startsWith(link.source, "stat/town.") and startsWith(link.target, "task/"))
-        {
-            if (byNode[link.target].raises == "")
-            {
-                var label = link.label
-
-                if (link.kind == "asks")
-                {
-                    label = "level " + link.label
-                }
-
-                if (link.kind == "betters")
-                {
-                    label = "level " + toString(link.level)
-                }
-
-                out = out + overviewLink(seen, link.source, link.target, label, linkStyles[link.kind])
-            }
-        }
-    }
-
-    out = out + "\n"
-
-    // A class: from its way in to its group, in one link when the group is all of that class
-    for (var p = 0; p < len(paths); p = p + 1)
-    {
-        for (var g = 0; g < len(graph.groups); g = g + 1)
-        {
-            var members = []
-            var whole = true
-
-            for (var i = 0; i < len(graph.tasks); i = i + 1)
-            {
-                var task = graph.tasks[i]
-
-                if (task.group == graph.groups[g] and task.raises == "")
-                {
-                    if (task.path == paths[p].id and not task.enters)
-                    {
-                        push(members, task.node)
-                    }
-                    else
-                    {
-                        whole = false
-                    }
-                }
-            }
-
-            for (var e = 0; e < len(graph.tasks); e = e + 1)
-            {
-                var way = graph.tasks[e]
-
-                if (way.path != paths[p].id or not way.enters or len(members) == 0)
-                {
-                    continue
-                }
-
-                if (whole)
-                {
-                    out = out + overviewLink(seen, way.node, members[0], "opens " + paths[p].name, linkStyles.opens + ", lhead=\"cluster_" + toString(g) + "\"")
-                }
-                else
-                {
-                    for (var m = 0; m < len(members); m = m + 1)
-                    {
-                        out = out + overviewLink(seen, way.node, members[m], "opens", linkStyles.opens)
-                    }
-                }
-            }
-        }
-    }
-
-    return out + "}\n"
+    return out + "</svg>\n"
 }
 
 // What is asked for and brought by nothing, and what is brought and read by no task
@@ -1142,22 +1379,24 @@ fun main()
 {
     if (getArgCount() > 4)
     {
-        print("Usage: PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg [out.dot] [focus]")
+        print("Usage: PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg [out.svg]")
+        print("       PgCompilerBootstrap examples/Chronicle/rules/depgraph.pg <out.dot> <focus>")
 
         return
     }
 
-    var outFile = "chronicle-graph.dot"
+    var outFile = "chronicle-graph.svg"
     var focus = ""
+
+    if (getArgCount() > 3)
+    {
+        outFile = "chronicle-graph.dot"
+        focus = getArg(3)
+    }
 
     if (getArgCount() > 2)
     {
         outFile = getArg(2)
-    }
-
-    if (getArgCount() > 3)
-    {
-        focus = getArg(3)
     }
 
     if (len(errors) > 0)
@@ -1174,7 +1413,7 @@ fun main()
 
     if (focus == "")
     {
-        text = emitOverview(graph)
+        text = emitTimeline(graph)
     }
     else if (focus == "all")
     {
@@ -1228,7 +1467,12 @@ fun main()
     writeFile(outFile, text)
 
     print("Wrote " + outFile + ": " + toString(len(graph.tasks)) + " tasks, " + toString(len(graph.stats)) + " stats, " + toString(len(graph.links)) + " links")
-    print("Draw it with: dot -Tsvg " + outFile + " -o chronicle-graph.svg")
+
+    if (focus != "")
+    {
+        print("Draw it with: dot -Tsvg " + outFile + " -o chronicle-graph.svg")
+    }
+
     print("")
 
     if (focus == "")
