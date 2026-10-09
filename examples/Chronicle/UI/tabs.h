@@ -38,6 +38,7 @@ namespace chronicle
         int index = 0;
         std::string tag;                     // the row's tag, carried by TabSelectedEvent
         bool active = false, hovered = false, pressed = false, keyboardFocus = false;
+        bool disabled = false;               // A page that is not open yet: faint, and neither clicked nor focused
         pg::_unique_id underline = 0, ring = 0;
         std::vector<pg::_unique_id> inked;   // glyph, label text
     };
@@ -63,6 +64,8 @@ namespace chronicle
 
         int active() const;
         void setActive(pg::EntitySystem*, int);                   // programmatic: repaints, sends no event
+        void setEnabled(pg::EntitySystem*, int index, bool enabled);   // A tab that is not enabled is faint, takes no click and no focus
+        bool enabled(int index) const;
         void setBadge(pg::EntitySystem*, int index, int count);   // 0 removes; re-measures the face
         void setWidth(pg::EntitySystem*, float width);            // The row and its hairline; the faces keep their size
     };

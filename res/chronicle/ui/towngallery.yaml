@@ -1,0 +1,59 @@
+# Dev gallery for the places of the town: `Chronicle --dev TownGallery`.
+#
+# Nine tiles as the Town page lays them, at every level from none to three, the Market chosen;
+# beside them the same kind in a column too narrow for two. A click on a tile chooses it.
+name: gallery
+children:
+
+  - kind: Shape2D
+    name: page
+    width: 1320
+    height: 860
+    z: 0
+    theme: scene.background
+
+  - kind: TTFText
+    name: note
+    x: 48
+    y: 48
+    z: 15
+    text: "T theme - click a tile to choose it - every tile on this page comes from res/chronicle/ui/towngallery.yaml"
+    theme: label.caption.ink-muted
+
+  - kind: PlaceGrid
+    name: places
+    x: 48
+    y: 90
+    width: 572
+    tileWidth: 148
+    places:
+      - {id: mill, label: The Mill, glyph: work, level: 3, line: "A NEW LIFE STARTS WITH 1 MORE STRENGTH"}
+      - {id: market, label: The Market, glyph: trade, level: 1, selected: true, line: "BUY RATIONS BRINGS 8 RATIONS, NOT 6"}
+      - {id: chapel, label: The Chapel, glyph: study, level: 2, line: "A NEW LIFE STARTS WITH LETTERS 1"}
+      - {id: yard, label: The Yard, glyph: training, level: 0, line: "NOT YET BUILT"}
+      - {id: gate, label: The Watch Gate, glyph: gate, level: 1, line: "A NEW LIFE STARTS KNOWN TO THE WATCH"}
+      - {id: smithy, label: The Smithy, glyph: forge, level: 0, line: "NOT YET BUILT"}
+      - {id: inn, label: The Inn, glyph: town, level: 2, line: "A NEW LIFE IS TOLD HOW THE LAST ONE ENDED"}
+      - {id: collegium, label: The Collegium Gate, glyph: academy, level: 0, line: "NOT YET BUILT"}
+      - {id: harrow, label: The Harrow Road, glyph: relic, level: 3, line: "A NEW LIFE STARTS HOLDING THE HARROW RELIC"}
+
+  - kind: PlaceGrid
+    name: narrow
+    x: 680
+    y: 90
+    width: 200
+    tileWidth: 148
+    places:
+      - {id: n.mill, label: The Mill, glyph: work, level: 1, line: "HELP AT THE MILL PAYS 4 MORE COIN"}
+      - {id: n.inn, label: The Inn, glyph: town, level: 0, line: "NOT YET BUILT"}
+
+  - kind: PlaceTile
+    name: alone
+    x: 940
+    y: 90
+    id: alone
+    label: A Place of Two Levels
+    glyph: seal
+    level: 1
+    of: 2
+    line: "A TILE ON ITS OWN, WITH TWO SEALS"

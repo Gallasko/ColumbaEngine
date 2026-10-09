@@ -139,7 +139,7 @@ namespace pg
             for (const auto& kind : chronicleKinds())
                 EXPECT_TRUE(f.registry->hasFactory(kind)) << kind;
 
-            EXPECT_EQ(chronicleKinds().size(), 20u);
+            EXPECT_EQ(chronicleKinds().size(), 22u);
         }
 
         // ----------------------------------------------------------------------------------------

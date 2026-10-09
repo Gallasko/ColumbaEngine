@@ -43,6 +43,8 @@ namespace chronicle
 
         // The theme defines "tabs.tab" (muted) and its ".lit" leaf (ink).
         std::string tabElement(bool lit) { return lit ? "tabs.tab.lit" : "tabs.tab"; }
+
+        constexpr const char * const TabOff = "tabs.tab.off";
     }
 
     Tabs makeTabs(EntitySystem* ecs, const TabsSpec& spec)
@@ -218,6 +220,36 @@ namespace chronicle
         }
     }
 
+    void Tabs::setEnabled(EntitySystem* ecs, int index, bool enabled)
+    {
+        if (index < 0 or index >= static_cast<int>(tabs.size()))
+            return;
+
+        auto state = tabs[index].face->get<TabState>();
+
+        state->disabled = not enabled;
+
+        if (not enabled)
+        {
+            state->hovered = false;
+            state->pressed = false;
+        }
+
+        if (auto* fo = ecs->getSystem<FocusOrderSystem>())
+            fo->setEnabled(tabs[index].face.id, enabled);
+
+        if (auto* sys = ecs->getSystem<TabsSystem>())
+            sys->applyVisual(tabs[index].face);
+    }
+
+    bool Tabs::enabled(int index) const
+    {
+        if (index < 0 or index >= static_cast<int>(tabs.size()))
+            return false;
+
+        return not tabs[index].face.get<TabState>()->disabled;
+    }
+
     void Tabs::setWidth(EntitySystem*, float width)
     {
         spec.width = width;
@@ -280,7 +312,7 @@ namespace chronicle
     void TabsSystem::applyVisual(EntityRef face)
     {
         auto st = face->get<TabState>();
-        const bool lit = st->hovered or st->active;
+        const bool lit = (st->hovered or st->active) and not st->disabled;
 
         if (auto u = ecsRef->getEntity(st->underline))
             u->get<PositionComponent>()->setVisible(st->active);
@@ -288,13 +320,13 @@ namespace chronicle
             r->get<PositionComponent>()->setVisible(st->keyboardFocus);
         for (auto id : st->inked)
             if (auto e = ecsRef->getEntity(id))
-                e->get<ThemeComponent>()->setElement(tabElement(lit));
+                e->get<ThemeComponent>()->setElement(st->disabled ? std::string(TabOff) : tabElement(lit));
     }
 
     void TabsSystem::select(EntityRef face)
     {
         auto st = face->get<TabState>();
-        if (st->active)
+        if (st->active or st->disabled)
             return;
         const _unique_id row = st->tabs;
         const int index = st->index;

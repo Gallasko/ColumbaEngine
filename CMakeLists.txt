@@ -909,6 +909,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         examples/Chronicle/UI/windowmeter.cpp
         examples/Chronicle/UI/resourceledger.cpp
         examples/Chronicle/UI/eventlog.cpp
+        examples/Chronicle/UI/placetile.cpp
         examples/Chronicle/UI/factories.cpp
     )
 
@@ -931,6 +932,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         examples/Chronicle/Scenes/windowgallery.cpp
         examples/Chronicle/Scenes/ledgergallery.cpp
         examples/Chronicle/Scenes/loggallery.cpp
+        examples/Chronicle/Scenes/towngallery.cpp
     )
 
     if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
@@ -1685,6 +1687,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/chronicle/windowmeter.cc
             test/chronicle/resourceledger.cc
             test/chronicle/eventlog.cc
+            test/chronicle/placetile.cc
             test/chronicle/rules.cc
             test/chronicle/analytics.cc
             test/chronicle/lifescene.cc

@@ -25,6 +25,7 @@
 #include "windowmeter.h"
 #include "resourceledger.h"
 #include "eventlog.h"
+#include "placetile.h"
 
 using namespace pg;
 
@@ -68,6 +69,10 @@ namespace pg
     template <> void serialize(Archive& archive, const chronicle::LifeClock& value) { (void)value; serializeEmptyPiece<chronicle::LifeClock>(archive, "LifeClock"); }
     template <> chronicle::LifeClock deserialize(const UnserializedObject&) { return chronicle::LifeClock{}; }
     template <> void serialize(Archive& archive, const chronicle::WindowMeter& value) { (void)value; serializeEmptyPiece<chronicle::WindowMeter>(archive, "WindowMeter"); }
+    template <> void serialize(Archive& archive, const chronicle::PlaceTile& value) { (void)value; serializeEmptyPiece<chronicle::PlaceTile>(archive, "PlaceTile"); }
+    template <> chronicle::PlaceTile deserialize(const UnserializedObject&) { return chronicle::PlaceTile{}; }
+    template <> void serialize(Archive& archive, const chronicle::PlaceGrid& value) { (void)value; serializeEmptyPiece<chronicle::PlaceGrid>(archive, "PlaceGrid"); }
+    template <> chronicle::PlaceGrid deserialize(const UnserializedObject&) { return chronicle::PlaceGrid{}; }
     template <> chronicle::WindowMeter deserialize(const UnserializedObject&) { return chronicle::WindowMeter{}; }
     template <> void serialize(Archive& archive, const chronicle::ResourceLedger& value) { (void)value; serializeEmptyPiece<chronicle::ResourceLedger>(archive, "ResourceLedger"); }
     template <> chronicle::ResourceLedger deserialize(const UnserializedObject&) { return chronicle::ResourceLedger{}; }
@@ -1197,6 +1202,82 @@ namespace chronicle
         }
     }
 
+    namespace
+    {
+        // A place's tile from a map of props: a PlaceTile node's own, or a record of a PlaceGrid
+        PlaceTileSpec placeSpecFrom(const ElementMap& props, const ThemeSystem* theme, const PlaceTileSpec& base)
+        {
+            PlaceTileSpec s = base;
+            s.id       = stringProp(props, "id", s.id);
+            s.name     = stringProp(props, "label", s.name);   // the display name: `name` is the node's handle
+            s.glyph    = stringProp(props, "glyph", s.glyph);
+            s.level    = getParamInt(props, "level", s.level);
+            s.of       = getParamInt(props, "of", s.of);
+            s.line     = stringProp(props, "line", s.line);
+            s.selected = getParamBool(props, "selected", s.selected);
+            s.glossKey = stringProp(props, "glossKey", s.glossKey);
+            s.width    = numberProp(props, "width", theme, s.width);
+            s.z        = getParamInt(props, "z", s.z);
+
+            return s;
+        }
+
+        void registerPlaceTile(PrefabFactoryRegistry* registry)
+        {
+            ParamSchema schema;
+            schema.entries = {
+                {"id",       ""},
+                {"label",    ""},
+                {"glyph",    "town"},
+                {"level",    0},
+                {"of",       3},
+                {"line",     ""},
+                {"selected", false},
+                {"glossKey", ""},
+                {"width",    148.0f},
+                {"z",        20},
+            };
+
+            registry->registerFactory("PlaceTile", std::move(schema),
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
+                {
+                    auto theme = ecs->getSystem<ThemeSystem>();
+
+                    PlaceTile tile = makePlaceTile(ecs, placeSpecFrom(spec.props, theme, PlaceTileSpec{}));
+                    return leaf(keep(ecs, tile.root, std::move(tile)));
+                }});
+        }
+
+        void registerPlaceGrid(PrefabFactoryRegistry* registry)
+        {
+            ParamSchema schema;
+            schema.entries = {
+                {"width",     572.0f},
+                {"tileWidth", 148.0f},
+                {"z",         20},
+            };
+
+            registry->registerFactory("PlaceGrid", std::move(schema),
+                PrefabFactoryFn{[](EntitySystem* ecs, const NodeSpec& spec) -> FactoryResult
+                {
+                    auto theme = ecs->getSystem<ThemeSystem>();
+                    PlaceGridSpec s;
+                    s.width     = numberProp(spec.props, "width", theme, s.width);
+                    s.tileWidth = numberProp(spec.props, "tileWidth", theme, s.tileWidth);
+                    s.z         = getParamInt(spec.props, "z", s.z);
+
+                    if (const RecordList* places = recordsOf(spec, "places"))
+                    {
+                        for (const auto& rec : *places)
+                            s.places.push_back(placeSpecFrom(rec, theme, PlaceTileSpec{}));
+                    }
+
+                    PlaceGrid grid = makePlaceGrid(ecs, s);
+                    return leaf(keep(ecs, grid.root, std::move(grid)));
+                }});
+        }
+    }
+
     const std::vector<std::string>& chronicleKinds()
     {
         static const std::vector<std::string> kinds = {
@@ -1204,6 +1285,7 @@ namespace chronicle
             "Tabs", "Gloss", "ProgressRule", "StatLine", "RequirementList", "LifeClock",
             "ActivityRow", "ActivityList", "ActivityGroup", "WindowMeter",
             "ResourceLedger", "LedgerGroup", "LedgerRow", "EventLog",
+            "PlaceTile", "PlaceGrid",
         };
 
         return kinds;
@@ -1240,5 +1322,7 @@ namespace chronicle
         registerLedgerGroup(registry);
         registerLedgerRow(registry);
         registerEventLog(registry);
+        registerPlaceTile(registry);
+        registerPlaceGrid(registry);
     }
 }
