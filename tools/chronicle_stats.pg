@@ -561,6 +561,8 @@ fun newSession(id)
     session["digest"] = none
     session["furthestAge"] = none
     session["mostTerms"] = 0
+    session["furthestGuide"] = none
+    session["guideSkipped"] = 0
 
     return session
 }
@@ -680,6 +682,18 @@ fun collect(records, columns)
                 if (digest["terms"] != none and digest["terms"] > session["mostTerms"])
                 {
                     session["mostTerms"] = digest["terms"]
+                }
+
+                // The guide is a first life's: the furthest step a session's first life got past
+                if (digest["guide"] != none and digest["lives"] == 1 and (session["furthestGuide"] == none or digest["guide"] > session["furthestGuide"]))
+                {
+                    session["furthestGuide"] = digest["guide"]
+                }
+
+                // And the step it was at when the player skipped the rest, if he did
+                if (digest["guideSkipped"] != none and digest["lives"] == 1 and digest["guideSkipped"] > session["guideSkipped"])
+                {
+                    session["guideSkipped"] = digest["guideSkipped"]
                 }
             }
 
@@ -1038,6 +1052,73 @@ fun reportReach(out, data)
     }
 }
 
+// How many sessions got past each step of a first life's guide (rules/achievements.pg, the steps
+// of kind "guide" by their order): of the sessions whose first life says where its guide stood,
+// the ones that reached the step or a later one. A drop between two lines is a drop between two
+// sentences. A guide that was skipped is past its last step: such sessions are counted apart, by
+// the step they were at, and left out of the steps. The digest says nothing of it before 0.3, and
+// such sessions are left out too.
+fun reportGuide(out, data)
+{
+    var furthest = []
+    var last = 0
+    var skippedAt = newTally()
+    var skipped = 0
+
+    for (var session : data["sessions"])
+    {
+        var guide = session["furthestGuide"]
+
+        if (guide != none and session["guideSkipped"] > 0)
+        {
+            skipped = skipped + 1
+            bump(skippedAt, "skipped at step " + toString(toInt(session["guideSkipped"])))
+        }
+        else if (guide != none)
+        {
+            push(furthest, guide)
+
+            if (guide > last)
+            {
+                last = guide
+            }
+        }
+    }
+
+    title(out, "The guide of a first life (sessions past each of its steps)")
+
+    if (len(furthest) == 0 and skipped == 0)
+    {
+        line(out, "  no digest says where a guide stood")
+        return
+    }
+
+    entry(out, "first lives that say", toString(len(furthest) + skipped))
+    entry(out, "skipped the guide", toString(skipped) + "  (" + percent(skipped, len(furthest) + skipped) + ")")
+
+    if (skipped > 0)
+    {
+        ranking(out, skippedAt, 12)
+    }
+
+    entry(out, "followed it", toString(len(furthest)))
+
+    for (var step = 1; step <= last; step = step + 1)
+    {
+        var past = 0
+
+        for (var guide : furthest)
+        {
+            if (guide >= step)
+            {
+                past = past + 1
+            }
+        }
+
+        line(out, "  " + padRight("past step " + toString(step), 26) + padLeft(toString(past), 6) + padLeft(percent(past, len(furthest)), 8) + "  " + bar(past, len(furthest), 30))
+    }
+}
+
 // What the player pressed in the life, over the digests that count it (rows from before the
 // digest did have none): the middle of each count, and the lives where months were passed by
 // the button and no work was ever begun.
@@ -1269,6 +1350,7 @@ fun main()
     reportLengths(out, data)
     reportDays(out, data)
     reportReach(out, data)
+    reportGuide(out, data)
     reportStops(out, data)
     reportDeaths(out, data)
 
