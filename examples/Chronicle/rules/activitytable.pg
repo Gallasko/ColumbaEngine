@@ -6,7 +6,9 @@
 //         -> the terms already completed; an activity never done has no key), `activityId` (""
 //         for every activity; the forecast's one id, to shape that one only), `world` (months
 //         since the world's Year 0: the date a closing is written with), `running` (the id of
-//         the activity he is at, "" for none).
+//         the activity he is at, "" for none), `lives` (the lives lived in this world, this one
+//         counted: 1 is a first life, which opens on one task and is shown the others one at a
+//         time).
 // Output: `activities`, one table per thing the character may spend months doing, in the order
 //         the Life screen lists them:
 //           id, group, name, glyph, months, rank ("" or caps), each ("" or caps), path ("" or the
@@ -24,8 +26,9 @@
 //           pathOpen (true while its path is his, or open to him),
 //           reach (0-100: how much of what it asks he has, on average),
 //           listed (true while the screen has a row for it: its path open, neither spent nor
-//           closed, he is of the age it shows from and has its share of what it asks),
-//           showAge, showFrom (the two it is listed by, as below),
+//           closed, he is of the age it shows from, has its share of what it asks and, in a
+//           first life, has done the terms it shows after),
+//           showAge, showFrom, showAfter, firstLife (what it is listed by, as below),
 //           tally (how often it was done and, for a limited one, what is left, as the row
 //           writes it: "DONE 2", "DONE 0 · 1 LEFT"),
 //           until ("" or when it closes, as the row writes it: "CLOSES 5/11", the world's date
@@ -46,6 +49,13 @@
 //                    he is in lead to. A proving and a mastery show from the milestone before;
 //                    the three ways into a path show from his first day, locked: they are what
 //                    a childhood is spent toward.
+//   showAfter: N     in a first life (`lives` 1), its row is listed once N terms in all are done
+//                    in this life, whatever else lists it: the list grows one task at a time
+//                    while the guide (achievements.pg) walks him through it. From the second
+//                    life it is ignored.
+//   firstLife: true  the opening task: listed only in a first life that has done nothing yet.
+//                    A later life never has its row, nor does a first life once any term is
+//                    done.
 //   finishBy: N      its term must fall at that age or before (default lib.pg's `lastAge`): an
 //                    activity of 18 months with finishBy 25 is begun by 23.5 at the latest.
 //                    lib.pg's `anyAge` for what old age does not close.
@@ -116,18 +126,29 @@ var paths = [
 ]
 
 var activities = [
-    {id: "carters", group: "Work", name: "Carry for the Carters", glyph: "work", months: 3, rank: "", each: "MEALS PROVIDED", path: "", board: true,
+    // The opening of a first life: one month that costs nothing and brings the first thing he
+    // holds. It leaves the list once done
+    {id: "helping", group: "Work", name: "Start Helping Out", glyph: "work", months: 1, rank: "", each: "AT THE MILL", path: "", fromAge: 6,
+     board: true, uses: 1, firstLife: true,
+     gains: [{stat: "rations", amount: 12}],
+     requires: []},
+    {id: "carters", group: "Work", name: "Carry for the Carters", glyph: "work", months: 3, rank: "", each: "MEALS PROVIDED", path: "", board: true, showAfter: 1,
      gains: [{stat: "coin", amount: 6}],
      requires: []},
-    {id: "mill", group: "Work", name: "Help at the Mill", glyph: "work", months: 6, rank: "", each: "", path: "",
+    {id: "mill", group: "Work", name: "Help at the Mill", glyph: "work", months: 6, rank: "", each: "", path: "", showAfter: 3,
      gains: [{stat: "str", amount: 1}, {stat: "vit", amount: 1}, {stat: "coin", amount: 8}],
      requires: [],
      after: [{uses: 2, months: 9, gains: [{stat: "coin", amount: 6}]}]},
-    {id: "messages", group: "Work", name: "Run Messages", glyph: "town", months: 3, rank: "", each: "", path: "",
+    {id: "messages", group: "Work", name: "Run Messages", glyph: "town", months: 3, rank: "", each: "", path: "", showAfter: 2,
      gains: [{stat: "dex", amount: 1}, {stat: "coin", amount: 3}],
      requires: [],
      after: [{uses: 2, gains: [{stat: "coin", amount: 5}]}]},
-    {id: "market", group: "Work", name: "Help at the Market", glyph: "trade", months: 6, rank: "", each: "", path: "", fromAge: 8,
+    // What feeds him until the market is his to buy at: meals while he is at it, and rations to
+    // take away
+    {id: "kitchen", group: "Work", name: "Help in the Kitchen", glyph: "trade", months: 3, rank: "", each: "MEALS PROVIDED", path: "", board: true, showAfter: 3,
+     gains: [{stat: "rations", amount: 6}],
+     requires: []},
+    {id: "market", group: "Work", name: "Help at the Market", glyph: "trade", months: 6, rank: "", each: "", path: "", fromAge: 8, showAfter: 5,
      gains: [{stat: "guile", amount: 1}, {stat: "coin", amount: 8}],
      requires: [],
      after: [{uses: 2, gains: [{stat: "coin", amount: 12}]}]},
@@ -139,16 +160,18 @@ var activities = [
      requires: [{stat: "guile", needed: 1}],
      after: [{uses: 2, effects: [{stat: "night_contacts", amount: 1}], entry: "The night market knows his face"}]},
 
-    {id: "buy.rations", group: "Market", name: "Buy rations", glyph: "trade", months: 0, rank: "", each: "AT THE MARKET", path: "", finishBy: anyAge,
+    // Bought at the market, once he knows it: `market_known` is a flag nothing sets yet (the
+    // town will, from exploring the market). Until then it has no row, and the kitchen feeds him
+    {id: "buy.rations", group: "Market", name: "Buy rations", glyph: "trade", months: 0, rank: "", each: "AT THE MARKET", path: "", finishBy: anyAge, showFrom: 100,
      gains: [{stat: "rations", amount: 6}],
-     requires: [],
+     requires: [{stat: "market_known", label: "The market", needed: 1}],
      costs: [{stat: "coin", amount: 5}]},
     {id: "buy.reagents", group: "Market", name: "Buy reagents", glyph: "trade", months: 0, rank: "", each: "AT THE COLLEGIUM", path: "mage",
      gains: [{stat: "reagents", amount: 2}],
      requires: [],
      costs: [{stat: "coin", amount: 6}]},
 
-    {id: "blades", group: "Training", name: "Practice with Wooden Blades", glyph: "swordsmanship", months: 6, rank: "", each: "", path: "", fromAge: 8, finishBy: 14, uses: 3,
+    {id: "blades", group: "Training", name: "Practice with Wooden Blades", glyph: "swordsmanship", months: 6, rank: "", each: "", path: "", fromAge: 8, finishBy: 14, uses: 3, showAfter: 5,
      gains: [{stat: "arms", amount: 1}, {stat: "dex", amount: 1}],
      requires: [{stat: "str", needed: 7}]},
     {id: "yard", group: "Training", name: "Train at the Yard", glyph: "training", months: 6, rank: "", each: "", path: "", fromAge: 10,
@@ -163,7 +186,7 @@ var activities = [
      requires: [{stat: "str", needed: 10}, {stat: "arms", needed: 2, eased: {flag: "watch_known", needed: 1}}],
      after: [{uses: 2, effects: [{stat: "edric_support", amount: 1}], entry: "Sergeant Edric will speak for him at the Keep"}]},
 
-    {id: "letters", group: "Study", name: "Learn Your Letters", glyph: "quill", months: 6, rank: "", each: "", path: "", finishBy: 14,
+    {id: "letters", group: "Study", name: "Learn Your Letters", glyph: "quill", months: 6, rank: "", each: "", path: "", finishBy: 14, showAfter: 4,
      gains: [{stat: "letters", amount: 1}, {stat: "int", amount: 1}],
      requires: [],
      after: [{uses: 3, gains: [{stat: "letters", amount: 1}]}]},
@@ -184,7 +207,7 @@ var activities = [
      gains: [{stat: "lore", amount: 2}, {stat: "discipline", amount: 1}, {stat: "mara_student", amount: 1}],
      requires: [{stat: "lore", needed: 1}, {stat: "letters", needed: 1}]},
 
-    {id: "roam", group: "The streets", name: "Roam Bellmoor", glyph: "adventure", months: 6, rank: "", each: "", path: "", fromAge: 8, finishBy: 14, uses: 2,
+    {id: "roam", group: "The streets", name: "Roam Bellmoor", glyph: "adventure", months: 6, rank: "", each: "", path: "", fromAge: 8, finishBy: 14, uses: 2, showAfter: 5,
      gains: [{stat: "dex", amount: 1}, {stat: "lore", amount: 1}],
      requires: []},
     {id: "hunters", group: "The streets", name: "Follow the Hunters", glyph: "adventure", months: 9, rank: "", each: "", path: "", fromAge: 10, finishBy: 15, uses: 2,
@@ -194,15 +217,15 @@ var activities = [
      gains: [{stat: "stealth", amount: 1}, {stat: "guile", amount: 1}, {stat: "street_known", amount: 1}],
      requires: [{stat: "dex", needed: 8}]},
 
-    {id: "keep", group: "A class", name: "Swear Service to the Keep", glyph: "seal", months: 18, rank: "", each: "MEALS PROVIDED", path: "warrior", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, finishBy: 20, uses: 1,
+    {id: "keep", group: "A class", name: "Swear Service to the Keep", glyph: "seal", months: 18, rank: "", each: "MEALS PROVIDED", path: "warrior", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, showAfter: 5, finishBy: 20, uses: 1,
      gains: [{stat: "keep_oath", amount: 1}, {stat: "renown", amount: 1}, {stat: "arms", amount: 1}],
      requires: [{stat: "str", needed: 12, eased: {flag: "edric_support", needed: 11}}, {stat: "arms", needed: 3}, {stat: "discipline", needed: 2}],
      costs: [{stat: "coin", amount: 10}]},
-    {id: "collegium", group: "A class", name: "Enter the Collegium", glyph: "academy", months: 24, rank: "", each: "MEALS PROVIDED", path: "mage", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, finishBy: 20, uses: 1,
+    {id: "collegium", group: "A class", name: "Enter the Collegium", glyph: "academy", months: 24, rank: "", each: "MEALS PROVIDED", path: "mage", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, showAfter: 5, finishBy: 20, uses: 1,
      gains: [{stat: "collegium", amount: 1}, {stat: "arcana", amount: 1}, {stat: "lore", amount: 1}],
      requires: [{stat: "int", needed: 12}, {stat: "letters", needed: 3}, {stat: "lore", needed: 2, eased: {flag: "mara_student", needed: 1}}],
      costs: [{stat: "coin", amount: 35}]},
-    {id: "hand", group: "A class", name: "Earn the Hidden Hand's Trust", glyph: "guild", months: 18, rank: "", each: "MEALS PROVIDED", path: "thief", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, finishBy: 21, uses: 1,
+    {id: "hand", group: "A class", name: "Earn the Hidden Hand's Trust", glyph: "guild", months: 18, rank: "", each: "MEALS PROVIDED", path: "thief", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, showAfter: 5, finishBy: 21, uses: 1,
      gains: [{stat: "hidden_hand", amount: 1}, {stat: "favors", amount: 1}, {stat: "stealth", amount: 1}],
      requires: [{stat: "dex", needed: 12}, {stat: "stealth", needed: 2}, {stat: "guile", needed: 2},
                 {stat: "street_known", label: "Known on the street or at the night market", needed: 1, anyOf: ["street_known", "night_contacts"]}],
@@ -373,6 +396,14 @@ for (var p = 0; p < len(paths); p++)
 }
 
 var lived = monthOf(age)
+
+// The terms done in this life, of every activity: what a first life's list grows by
+var termsDone = 0
+
+for (var k : done)
+{
+    termsDone = termsDone + done[k]
+}
 
 // Whether a way into a class can still be begun (a last resort is not one of them), and whether
 // he is at one now: read from the whole table, before the forecast narrows it to its activity
@@ -644,7 +675,22 @@ for (var i = 0; i < len(activities); i++)
     a.showAge = lookup(a, "showAge", a.fromAge)
     a.showFrom = lookup(a, "showFrom", reachShown)
 
-    a.listed = a.pathOpen and not a.spent and not a.closed and lived >= a.showAge * 12 and a.reach >= a.showFrom
+    // A first life is shown its tasks one at a time; a later one has them all from the start
+    a.showAfter = lookup(a, "showAfter", 0)
+    a.firstLife = lookup(a, "firstLife", false)
+
+    if (lives > 1)
+    {
+        a.showAfter = 0
+    }
+
+    a.listed = a.pathOpen and not a.spent and not a.closed and lived >= a.showAge * 12 and a.reach >= a.showFrom and termsDone >= a.showAfter
+
+    // The opening task is for who has done nothing yet, in his first life
+    if (a.firstLife and (lives > 1 or termsDone > 0))
+    {
+        a.listed = false
+    }
 
     a.locked = locked
 }

@@ -90,6 +90,7 @@ namespace chronicle
         void removeRow(pg::EntitySystem*, const std::string& id);
         void clear(pg::EntitySystem*);                                     // Every group and row
         Row* row(const std::string& id);
+        pg::EntityRef rowEntity(const std::string& id) const;              // The row's line, empty when unknown
         Group* group(const std::string& id);
         float height(pg::EntitySystem*) const;
 

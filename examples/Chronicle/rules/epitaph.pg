@@ -2,7 +2,8 @@
 // ----------------------------------------------------
 // Input:  `age` (years, when it ended), `character` (a table of stats and flags), `done` (activity
 //         id -> terms completed, read by activitytable.pg), `activityId` (""), `deeds` (the names
-//         of the deeds he reached, in the order he reached them).
+//         of the deeds he reached, in the order he reached them), `world`, `lives` and `running`
+//         (activitytable.pg's).
 // Output: `epitaph`:
 //           cause   how it ended, in a sentence: "He died an old man, in his thirty-third year."
 //           story   [text]: what the chronicle keeps of him, a sentence each: what he became,

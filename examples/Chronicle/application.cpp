@@ -134,6 +134,7 @@ namespace chronicle
             {
                 LifeSceneOptions life;
                 life.fresh = opt.fresh;
+                life.guide = opt.guide;
                 life.noSave = opt.noSave;
                 life.freshWithoutSave = opt.freshWithoutSave;
                 life.savePath = opt.savePath;

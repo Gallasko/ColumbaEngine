@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deque>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -9,6 +10,8 @@
 #include "Core/rulevm.h"
 #include "Core/factrouter.h"
 #include "UI/activityrow.h"   // ActivitySelectedEvent, ActivityActivatedEvent
+#include "UI/button.h"
+#include "UI/label.h"
 #include "UI/tabs.h"          // TabSelectedEvent
 #include "lifesave.h"
 
@@ -16,9 +19,11 @@ namespace chronicle
 {
     struct LifeSceneOptions
     {
-        bool fresh = false;            // --fresh: age 7, nothing earned
+        bool fresh = false;            // --fresh: a new life, nothing earned. A first life (`lives` 1), led by its guide
+        int lives = 1;                 // With `fresh`: which life of the world it is. From the second, the old opening: 7 years old, a year of rations, every task listed
+        int guide = 0;                 // --guide N, with `fresh`: a first life past the step N of its guide
         bool noSave = false;           // --no-save: the mockup's life, never written
-        bool freshWithoutSave = false; // No save to load: a new life at 7, not the mockup's (the web build)
+        bool freshWithoutSave = false; // No save to load: a first life, not the mockup's (the web build)
         std::string savePath = "save/chronicle/life.sz";
         std::string rulesRoot = "examples/Chronicle/rules";
         std::string pageFile = "res/chronicle/ui/life.yaml";
@@ -27,12 +32,28 @@ namespace chronicle
         float monthMs = 2000.0f;       // One month every so many ms while the loop runs (--month-ms)
     };
 
+    // A step of the guide (achievements.pg, kind "guide") as the scene holds it
+    struct GuideStep
+    {
+        std::string id;
+        int order = 0;                 // Its place in the sequence, 0 for a step outside it
+        std::string say;               // Its sentence, on the guide's leaf
+        std::string point;             // What the hand points at: "button:begin", "tile:<id>", "holding:<id>", "stat:<key>", "clock", "log", ""
+        std::string pointChosen;       // For a step that points at a tile: what the hand points at once that tile is chosen, "" to stay on it
+        std::string sayChosen;         // And what is said then, "" for the same sentence
+        pg::RecordList until;          // It ends when these hold; none: once `left` has run out
+        float left = 0.0f;             // Milliseconds left of a step that ends with time
+        bool active = false;           // Being said now
+    };
+
     // The Life screen: the page is res/chronicle/ui/life.yaml, built as it is; the scene does the
     // three things a file cannot. It runs the rules and the save in startUp, subscribes every
     // widget to a WorldFacts path in one function (wire), and turns input into game events
     // (select, confirm, a month passes). It computes nothing about the game: it calls the rule
     // scripts, writes paths, and the widgets react. The deeds (achievements.pg) are watched by
-    // the engine's AchievementSys against the paths the scene publishes.
+    // the engine's AchievementSys against the paths the scene publishes, and so are the steps of
+    // a first life's guide and the lines of lore: the scene only does what each kind asks of the
+    // page (a toast and a line, a sentence and a pointing hand, a line alone).
     struct LifeScene : public pg::Scene
     {
         explicit LifeScene(LifeSceneOptions opt = {});
@@ -83,6 +104,24 @@ namespace chronicle
         float clockFitted = 0.0f;      // The height of the years' panel the log was fitted under
         bool buttonsDue = false;       // A page just built: its buttons are shown again once its layouts hold them
 
+        // The guide of a first life: one step said at a time, the next waits for it to end
+        GuideStep step;                // The step being said, `active` while one is
+        std::deque<GuideStep> stepsDue;   // Reached, waiting for the one before to end
+        int guideSteps = 0;            // How many steps its sequence has: a save past the last has no guide left
+        pg::EntityRef hand;            // The pointing hand, made with the first step that points
+        pg::_unique_id handOn = 0;     // What it stands beside, 0 while it points at nothing
+        std::vector<pg::EntityRef> veil;   // The shade over the page around what is pointed at, a strip each
+        bool veiled = false;           // The shade is up
+        pg::EntityRef note;            // The leaf the guide's words stand on, under what is pointed at; made with the first step
+        Label noteWords;               // The sentence being said
+        Button noteSkip;               // "Skip the guide": no step is said again
+        Button noteNext;               // "Next": passes a step said for a time, and is not there for one that waits for him
+        bool noteShown = false;        // The leaf is up
+        bool nextShown = false;        // And its "Next" with it
+
+        bool guiding() const;          // A first life whose guide has not said its last step
+        int toastsUp() const { return toasts; }   // The toasts at the foot of the window now
+
     private:
         bool buildPage(bool compact);  // The page from its file, in place of the one there was
         void fit(float width, float height);   // The page to the window, swapping it at the breakpoint
@@ -91,9 +130,11 @@ namespace chronicle
         void fitEnding(float width, float height);    // The ending's veil to the window
         float workingHeight() const;   // "At work now": its chrome alone, or with a running row
         void showWorkButtons();        // At nothing: the button that begins what is chosen, or the one that passes a month
+        bool guideSaid() const;        // The guide line is up: a life led to its first work, with no guide to say so
+        float guideRoom() const;       // What the guide line takes of "At work now", 0 when it is not up
         bool led() const;              // A life that has done nothing yet and is at nothing: the page leads it to its first work
         std::string firstWork() const; // The first activity of the list he may begin that takes months, "" for none
-        void lead();                   // That work chosen for him, and to a first life the line that says what the game is
+        void lead();                   // That work chosen for him; not in a first life, whose guide has him choose it
         int workRoom();                // What its row has the room to say beside its name: 0 its time, 1 the line under it too, 2 the tally as well
         void showRunning(const std::string& id);   // The row of the work at hand, made for the room there is
         void showSide(int index);      // Compact: one side panel in view, the others hidden
@@ -125,8 +166,24 @@ namespace chronicle
         void alert(const std::vector<std::string>& stats);   // The parts a month took from, in red for a moment; the months stop at the first
         void clearAlert();             // Back to ink
         void publishThreat();          // The coming month's warning under his life, and in red what it would take from
-        void registerDeeds();          // The deeds not reached yet, handed to the AchievementSys
-        void reachDeed(const std::string& id);   // What a deed gives, its line in the log
+        void readDeeds();              // achievements.pg's entries, and how long the guide is
+        void takeAsRead();             // A life that opens past its first frame: the lore that already holds is not written now
+        void registerDeeds();          // The deeds, the lore and the guide's steps not reached yet, handed to the AchievementSys
+        void reachDeed(const std::string& id);   // What a deed gives, its line in the log; a line of lore; a step of the guide
+        void reachStep(const RuleAchievement& entry);   // A step of the guide reached: said once the one before has ended
+        bool stepChosen() const;       // The step being said points at a tile, and he has chosen it: its second half, the button that begins it
+        pg::ElementMap watched() const;                  // Where the life stands, by the paths the deeds, the lore and the guide ask after
+        bool holds(const pg::RecordList& asks) const;    // Every one of them, as the life stands now
+        void runGuide();               // The step being said ends or goes on, the next one begins, the hand follows what it points at
+        void endStep();                // The step being said has ended: the guide is one step further
+        void nextStep();               // "Next": the step being said for a time ends now
+        void skipGuide();              // "Skip the guide": past its last step for good
+        void makeNote();               // The leaf, its words and its two buttons
+        void sayNote(pg::EntityRef target);   // The leaf with the step's sentence under what it points at, or gone with no step
+        void clearGuide();             // No step, no hand, no shade: the life is over, or another begins
+        pg::EntityRef pointed(const std::string& point) const;   // What a step points at, empty when it is not on the page
+        void pointAt(pg::EntityRef target);     // The hand beside it and the shade around it, or neither for nothing
+        void shadeAround(const std::vector<pg::EntityRef>& lit);   // The page under a shade, but what is given
         void takeStats(const pg::ElementMap& stats);     // A script's numbers become the character's
         void writeEntries(const pg::RecordList& entries); // A script's lines become the log's
         void publish();                // refreshHoldings + publishAll
@@ -166,8 +223,11 @@ namespace chronicle
         std::string advice;                       // And what to do about it, as last said by a toast
         std::string chosen;                       // The activity chosen in the list, "" for none: what the Begin button begins
         bool leadDue = false;                     // The page chose it for him: its tile is lit once the list holds its row
-        bool premiseDue = false;                  // A first life that has done nothing: what the game is, said once the page has arrived
-        bool premiseSaid = false;                 // And said already by this scene
+        pg::EntityRef noteEdge;                   // The leaf's edge, and its ground a pixel inside it
+        pg::EntityRef noteGround;
+        float guideFitted = 0.0f;                 // The room the guide line had when the page was last fitted
+        float handMs = 0.0f;                      // How long the hand has pointed where it does: it moves a little, to be seen
+        std::string shaded;                       // What the shade was last laid around: laid again only when that moves
         std::string hovered;                      // The one the mouse is on, "" for none: previewed when nothing is chosen
         std::vector<std::string> known;           // The activities he could do when the list was last filled
 

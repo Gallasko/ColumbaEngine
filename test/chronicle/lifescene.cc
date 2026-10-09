@@ -200,6 +200,27 @@ namespace pg
                     return opt;
                 }
 
+                // A first life at its first frame, with its guide. The tests of what every life
+                // does ask for a later one (`fresh` with `lives` 2): the list whole, a year of rations
+                static LifeSceneOptions first()
+                {
+                    LifeSceneOptions opt = mockup();
+                    opt.fresh = true;
+                    return opt;
+                }
+
+                // So many milliseconds, a frame's worth at a time: what lasts a moment runs its course
+                void pass(float ms, float step = 250.0f)
+                {
+                    for (float left = ms; left > 0.0f; left -= step)
+                    {
+                        ecs.sendEvent(TickEvent{std::min(step, left)});
+                        frames(2);
+                    }
+
+                    frames(4);
+                }
+
                 // Lets the paths just written reach their widgets
                 void settle() { frames(4); }
 
@@ -255,6 +276,57 @@ namespace pg
 
                 CompRef<PositionComponent> pos(EntityRef e) { return ecs.getEntity(e.id)->get<PositionComponent>(); }
             };
+
+            // What happened to him, without the town's lore: the lines the tests of a life count
+            std::vector<LogEntry> happened(const LifeScene* life)
+            {
+                std::vector<LogEntry> entries;
+
+                for (const auto& entry : life->save.log)
+                {
+                    if (entry.kind != LogKind::Lore)
+                        entries.push_back(entry);
+                }
+
+                return entries;
+            }
+
+            // The deeds he reached: not the lore he read, nor what the guide told him
+            std::vector<std::string> deedsOf(const LifeScene* life)
+            {
+                std::vector<std::string> deeds;
+
+                for (const auto& id : life->save.achieved)
+                {
+                    if (id.rfind("lore.", 0) != 0 and id.rfind("guide.", 0) != 0)
+                        deeds.push_back(id);
+                }
+
+                return deeds;
+            }
+
+            // The guide's leaf is up, under what it is about (over it where the window ends) and
+            // inside the window
+            void expectNoteBeside(LifeFixture& f, LifeScene* life, EntityRef target)
+            {
+                ASSERT_FALSE(life->note.empty());
+                EXPECT_TRUE(life->noteShown);
+
+                auto note = f.pos(life->note);
+                auto where = f.pos(target);
+
+                EXPECT_TRUE(note->visible);
+                EXPECT_GE(note->x, 0.0f);
+                EXPECT_LE(note->x + note->width, life->windowWidth + 0.5f);
+                EXPECT_GE(note->y, 0.0f);
+                EXPECT_LE(note->y + note->height, life->windowHeight + 0.5f);
+                EXPECT_TRUE(note->y >= where->y + where->height or note->y + note->height <= where->y) << "the leaf covers what it points at";
+            }
+
+            bool reached(const LifeScene* life, const std::string& id)
+            {
+                return std::find(life->save.achieved.begin(), life->save.achieved.end(), id) != life->save.achieved.end();
+            }
 
             const char* const Names[] = {
                 "title", "about", "tabs",
@@ -636,6 +708,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -710,6 +783,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -867,6 +941,7 @@ namespace pg
 
                 LifeSceneOptions opt = LifeFixture::mockup();
                 opt.fresh = true;
+                opt.lives = 2;
 
                 LifeScene* life = f.life(opt);
                 ASSERT_NE(life, nullptr);
@@ -1180,6 +1255,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -1188,7 +1264,7 @@ namespace pg
             auto note = [&]() { return life->piece<Label>("dateNote")->spec.text; };
 
             EXPECT_EQ(life->save.world, 0);
-            EXPECT_EQ(life->save.lives, 1);
+            EXPECT_EQ(life->save.lives, 2);
             EXPECT_EQ(date(), "YEAR 0");
             EXPECT_EQ(note(), "MONTH 1 \xC2\xB7 WINTER \xC2\xB7 BELLMOOR");
 
@@ -1221,8 +1297,9 @@ namespace pg
 
             EXPECT_FLOAT_EQ(life->save.age, 7.0f);
             EXPECT_EQ(life->save.world, 15);
-            EXPECT_EQ(life->save.lives, 2);
+            EXPECT_EQ(life->save.lives, 3);
             EXPECT_EQ(life->rules.world, 15);
+            EXPECT_EQ(life->rules.lives, 3);
             EXPECT_EQ(date(), "YEAR 1");
             EXPECT_EQ(note(), "MONTH 4 \xC2\xB7 SPRING \xC2\xB7 BELLMOOR");
 
@@ -1402,6 +1479,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -1456,6 +1534,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -1490,6 +1569,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -1695,6 +1775,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -1739,6 +1820,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -1815,6 +1897,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -1870,6 +1953,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -2152,9 +2236,9 @@ namespace pg
             EXPECT_FALSE(life->piece<StatLine>("vit")->spec.alert);
 
             // Childhood, then what became of the last life
-            ASSERT_EQ(life->save.log.size(), 2u);
-            EXPECT_EQ(life->save.log.back().kind, LogKind::Loss);
-            EXPECT_NE(life->save.log.back().text.find("life ended"), std::string::npos);
+            ASSERT_EQ(happened(life).size(), 2u);
+            EXPECT_EQ(happened(life).back().kind, LogKind::Loss);
+            EXPECT_NE(happened(life).back().text.find("life ended"), std::string::npos);
 
             auto ledger = life->piece<ResourceLedger>("ledger");
             ASSERT_NE(ledger, nullptr);
@@ -2331,13 +2415,15 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
 
-            // At 8, with coin for the market
+            // At 8, with coin for the market, which he knows
             life->save.age = 8.0f - 1.0f / 12.0f;
             life->save.stats["coin"] = 10;
+            life->save.stats["market_known"] = 1;
             life->onMonth();
             f.settle();
 
@@ -2384,11 +2470,12 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
 
-            EXPECT_TRUE(life->save.achieved.empty());
+            EXPECT_TRUE(deedsOf(life).empty());
 
             f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
             f.settle();
@@ -2401,8 +2488,8 @@ namespace pg
 
             f.frames(8);
 
-            ASSERT_EQ(life->save.achieved.size(), 1u);
-            EXPECT_EQ(life->save.achieved[0], "first.coin");
+            ASSERT_EQ(deedsOf(life).size(), 1u);
+            EXPECT_EQ(deedsOf(life)[0], "first.coin");
 
             size_t lines = 0;
 
@@ -2427,7 +2514,7 @@ namespace pg
 
             f.frames(8);
 
-            EXPECT_EQ(life->save.achieved.size(), 1u);
+            EXPECT_EQ(deedsOf(life).size(), 1u);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2444,6 +2531,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
             opt.noSave = false;
             opt.savePath = path;
 
@@ -2461,8 +2549,10 @@ namespace pg
 
             f.frames(8);
 
-            ASSERT_EQ(life->save.achieved.size(), 1u);
+            ASSERT_EQ(deedsOf(life).size(), 1u);
             ASSERT_TRUE(life->saveNow());
+
+            const size_t kept = life->save.achieved.size();
 
             const size_t writtenLog = life->save.log.size() - 1;   // saveNow's own line came after
             const int coin = life->save.stats["coin"];
@@ -2476,7 +2566,8 @@ namespace pg
 
             f.frames(8);
 
-            EXPECT_EQ(again->save.achieved.size(), 1u);
+            EXPECT_EQ(deedsOf(again).size(), 1u);
+            EXPECT_EQ(again->save.achieved.size(), kept);
             EXPECT_EQ(again->save.done["carters"], 1);
             EXPECT_EQ(again->save.stats["coin"], coin);
             EXPECT_EQ(again->save.log.size(), writtenLog);
@@ -2540,12 +2631,18 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
 
             auto list = life->piece<ActivityList>("activities");
             ASSERT_NE(list, nullptr);
+
+            // He knows the market, and a month tells the page so (and eats a ration)
+            life->save.stats["market_known"] = 1;
+            life->onMonth();
+            f.settle();
 
             auto row = list->row(&f.ecs, "buy.rations");
             ASSERT_NE(row, nullptr);
@@ -2554,9 +2651,9 @@ namespace pg
             f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "buy.rations"});
             f.settle();
 
-            // Nothing taken, nothing brought: the rations a new life starts with, untouched
+            // Nothing taken, nothing brought: the rations he had, untouched
             EXPECT_EQ(life->save.stats["coin"], 0);
-            EXPECT_EQ(life->save.stats["rations"], 12);
+            EXPECT_EQ(life->save.stats["rations"], 11);
             EXPECT_EQ(life->save.done.count("buy.rations"), 0u);
         }
 
@@ -2671,6 +2768,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -2891,6 +2989,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -2970,6 +3069,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -2995,8 +3095,8 @@ namespace pg
             EXPECT_FLOAT_EQ(life->save.age, 7.0f);
             EXPECT_TRUE(life->save.running.empty());
             EXPECT_EQ(life->save.done.count("mill"), 0u);
-            ASSERT_EQ(life->save.log.size(), 2u);
-            EXPECT_NE(life->save.log.back().text.find("life ended"), std::string::npos);
+            ASSERT_EQ(happened(life).size(), 2u);
+            EXPECT_NE(happened(life).back().text.find("life ended"), std::string::npos);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -3103,7 +3203,7 @@ namespace pg
 
             EXPECT_FLOAT_EQ(life->save.age, 7.0f);
             EXPECT_TRUE(life->paused);
-            EXPECT_NE(life->save.log.back().text.find("old age"), std::string::npos) << life->save.log.back().text;
+            EXPECT_NE(happened(life).back().text.find("old age"), std::string::npos) << happened(life).back().text;
         }
 
         // ----------------------------------------------------------------------------------------
@@ -3211,9 +3311,9 @@ namespace pg
             EXPECT_TRUE(life->ending.empty());
             EXPECT_FLOAT_EQ(life->save.age, 7.0f);
             EXPECT_TRUE(life->save.done.empty());
-            ASSERT_EQ(life->save.log.size(), 2u);
-            EXPECT_EQ(life->save.log.back().kind, LogKind::Loss);
-            EXPECT_NE(life->save.log.back().text.find("life ended"), std::string::npos);
+            ASSERT_EQ(happened(life).size(), 2u);
+            EXPECT_EQ(happened(life).back().kind, LogKind::Loss);
+            EXPECT_NE(happened(life).back().text.find("life ended"), std::string::npos);
 
             // And the page takes work again
             f.ecs.sendEvent(ButtonActivatedEvent{life->piece<Button>("skip")->face.id, "life.skip"});
@@ -3233,6 +3333,7 @@ namespace pg
 
             LifeSceneOptions opt = LifeFixture::mockup();
             opt.fresh = true;
+            opt.lives = 2;
 
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
@@ -3293,6 +3394,775 @@ namespace pg
             EXPECT_EQ(tabs->active(), 0);
             ASSERT_EQ(life->save.log.size(), logEntries + 1);
             EXPECT_EQ(life->save.log.back().text, "That page has no page yet");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The first life of a world opens a month before 7 with nothing held and one task in its
+        // list. The guide says what the game is on a leaf under the task, its hand beside it; once
+        // he has chosen it, hand and leaf go to the button that begins it, and the leaf says a
+        // double click does too.
+        TEST(lifescene_test, a_first_life_opens_on_one_tile)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life(LifeFixture::first());
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            EXPECT_NEAR(life->save.age, 6.0f + 11.0f / 12.0f, 0.0001f);
+            EXPECT_EQ(life->save.lives, 1);
+            EXPECT_EQ(life->save.guide, 0);
+            EXPECT_TRUE(life->guiding());
+
+            // His age as the head writes it: the clock's figure, then the months of the year
+            EXPECT_EQ(life->piece<LifeClock>("clock")->age.spec.text, "6");
+            EXPECT_EQ(f.fact<std::string>("life.headline.ageUnit"), "YEARS 11 MONTHS OLD");
+
+            // Nothing held: no rations to eat, no row for them
+            auto ledger = life->piece<ResourceLedger>("ledger");
+            ASSERT_NE(ledger, nullptr);
+            EXPECT_TRUE(ledger->groups.empty());
+            EXPECT_EQ(life->save.stats.count("rations"), 0u);
+            EXPECT_FALSE(f.facts->hasFact("stat.rations"));
+
+            // One row, and nothing chosen for him: the guide has him choose it
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_EQ(list->spec.groups.size(), 1u);
+            ASSERT_EQ(list->spec.groups[0].rows.size(), 1u);
+            EXPECT_EQ(list->spec.groups[0].rows[0].id, "helping");
+            EXPECT_EQ(list->selected(), "");
+            EXPECT_EQ(life->save.picks, 0);
+
+            // No button yet: neither the one that begins, nor the one that passes a month
+            auto begin = life->piece<Button>("begin");
+            ASSERT_NE(begin, nullptr);
+            EXPECT_FALSE(f.pos(life->named("begin"))->visible);
+            EXPECT_FALSE(f.pos(life->named("skip"))->visible);
+
+            // The guide's first step: said on its own leaf, not on the line of "At work now"
+            EXPECT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.begin");
+            EXPECT_EQ(life->step.order, 1);
+            EXPECT_FALSE(f.pos(life->named("guide"))->visible);
+            EXPECT_EQ(life->noteWords.spec.text, "His life is yours to write. Click his first task.");
+
+            // The leaf has the button that leaves the guide; none to pass a step that waits for him
+            EXPECT_FALSE(life->noteSkip.spec.disabled);
+            EXPECT_FALSE(life->nextShown);
+            EXPECT_TRUE(life->noteNext.spec.disabled);
+            EXPECT_FALSE(f.pos(life->noteNext.root)->visible);
+
+            // Its hand beside the task, and the rest of the page under a shade
+            ActivityRow* helping = list->find(&f.ecs, "helping");
+            ASSERT_NE(helping, nullptr);
+            ASSERT_FALSE(life->hand.empty());
+            EXPECT_EQ(life->handOn, helping->root.id);
+            EXPECT_TRUE(f.pos(life->hand)->visible);
+            EXPECT_LE(f.pos(life->hand)->x + f.pos(life->hand)->width, f.pos(helping->root)->x + 0.5f);
+            EXPECT_TRUE(life->veiled);
+            EXPECT_FALSE(life->veil.empty());
+            expectNoteBeside(f, life, helping->root);
+
+            // The task chosen: the button that begins it, the month it takes, and the hand beside it.
+            // The line says what to press, and that a double click on a task begins it as well
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "helping"});
+            f.settle();
+
+            EXPECT_EQ(life->save.picks, 1);
+            EXPECT_TRUE(f.pos(life->named("begin"))->visible);
+            EXPECT_EQ(begin->spec.label, "Begin");
+            EXPECT_EQ(begin->spec.months, 1);
+            EXPECT_TRUE(life->step.active);
+            EXPECT_EQ(life->noteWords.spec.text, "Now press Begin: the months pass while he works. A double click on a task begins it too.");
+            EXPECT_EQ(life->handOn, begin->root.id);
+            expectNoteBeside(f, life, begin->root);
+            EXPECT_TRUE(f.pos(life->hand)->visible);
+            EXPECT_LE(f.pos(life->hand)->x + f.pos(life->hand)->width, f.pos(begin->root)->x + 0.5f);
+            EXPECT_NEAR(f.pos(life->hand)->y + f.pos(life->hand)->height / 2.0f, f.pos(begin->root)->y + f.pos(begin->root)->height / 2.0f, 1.0f);
+            EXPECT_TRUE(life->veiled);
+
+            // Let go of: the hand is on the task again
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", ""});
+            f.settle();
+
+            EXPECT_FALSE(f.pos(life->named("begin"))->visible);
+            EXPECT_EQ(life->handOn, helping->root.id);
+            EXPECT_EQ(life->noteWords.spec.text, "His life is yours to write. Click his first task.");
+            EXPECT_EQ(life->save.guide, 0);
+
+            // What the guide and the lore watch
+            EXPECT_EQ(f.fact<int>("life.terms"), 0);
+            EXPECT_EQ(f.fact<int>("life.working"), 0);
+            EXPECT_EQ(f.fact<int>("life.guide"), 0);
+            EXPECT_EQ(f.fact<int>("life.lives"), 1);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The first task takes a month and brings him to 7 with his first rations: the guide says
+        // what they are with its hand beside them, then shows the next work without choosing it.
+        TEST(lifescene_test, the_first_term_brings_the_rations_and_moves_the_hand)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life(LifeFixture::first());
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            auto ledger = life->piece<ResourceLedger>("ledger");
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(ledger, nullptr);
+            ASSERT_NE(list, nullptr);
+            ASSERT_TRUE(life->step.active);
+
+            // The task, then the button
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "helping"});
+            f.settle();
+            f.ecs.sendEvent(ButtonActivatedEvent{life->piece<Button>("begin")->face.id, "life.begin"});
+            f.settle();
+
+            // Begun: the first step ends with it, and the hand leaves
+            ASSERT_EQ(life->save.running, "helping");
+            EXPECT_EQ(life->save.guide, 1);
+            EXPECT_FALSE(life->step.active);
+            EXPECT_EQ(life->handOn, 0u);
+            EXPECT_FALSE(life->veiled);
+            EXPECT_FALSE(life->noteShown);
+            EXPECT_FALSE(f.pos(life->note)->visible);
+            EXPECT_EQ(f.fact<int>("life.working"), 1);
+
+            life->onMonth();
+            f.frames(12);
+
+            EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
+            EXPECT_TRUE(life->save.running.empty());
+            EXPECT_EQ(life->save.done["helping"], 1);
+            EXPECT_EQ(life->save.stats["rations"], 12);
+            EXPECT_EQ(f.fact<int>("life.terms"), 1);
+            EXPECT_EQ(f.fact<int>("life.working"), 0);
+
+            // His first holding has its row; the opening task is gone and the carters have come
+            ASSERT_NE(ledger->row("rations"), nullptr);
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "12/60");
+            EXPECT_EQ(list->find(&f.ecs, "helping"), nullptr);
+            ASSERT_NE(list->find(&f.ecs, "carters"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "messages"), nullptr);
+
+            // The second step: what he holds, the hand beside it
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.rations");
+            EXPECT_EQ(life->noteWords.spec.text, "Every month eats one ration. What he holds is kept here.");
+            EXPECT_FALSE(f.pos(life->named("guide"))->visible);
+            EXPECT_EQ(life->handOn, ledger->rowEntity("rations").id);
+            expectNoteBeside(f, life, ledger->rowEntity("rations"));
+
+            // Said for a time: it can be passed
+            EXPECT_TRUE(life->nextShown);
+            EXPECT_FALSE(life->noteNext.spec.disabled);
+            EXPECT_TRUE(f.pos(life->noteNext.root)->visible);
+            EXPECT_TRUE(life->veiled);
+            EXPECT_EQ(life->save.guide, 1);
+
+            // Said for five seconds; then the third shows the carters' tile, and chooses nothing
+            f.pass(5200.0f);
+
+            EXPECT_EQ(life->save.guide, 2);
+            EXPECT_EQ(f.fact<int>("life.guide"), 2);
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.carters");
+            EXPECT_EQ(life->noteWords.spec.text, "Work pays in coin. Choose this one.");
+
+            ActivityRow* carters = list->find(&f.ecs, "carters");
+            ASSERT_NE(carters, nullptr);
+            EXPECT_EQ(life->handOn, carters->root.id);
+            expectNoteBeside(f, life, carters->root);
+            EXPECT_FALSE(life->nextShown);
+            EXPECT_EQ(list->selected(), "");
+            EXPECT_TRUE(life->save.running.empty());
+
+            // Chosen, the hand goes to the button that begins it
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "carters"});
+            f.settle();
+
+            EXPECT_EQ(life->handOn, life->piece<Button>("begin")->root.id);
+            EXPECT_EQ(life->noteWords.spec.text, "Press Begin, or double-click the task.");
+            EXPECT_EQ(life->save.guide, 2);
+
+            // And a double click on the task begins it just the same: the step ends
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
+            f.settle();
+
+            EXPECT_EQ(life->save.running, "carters");
+            EXPECT_EQ(life->save.guide, 3);
+            EXPECT_FALSE(life->step.active);
+            EXPECT_EQ(life->handOn, 0u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Six works, each said its sentence: the list grows a task at a time, the classes come with
+        // the fifth term, and after its last step nothing of the guide is left on the page.
+        TEST(lifescene_test, the_guide_ends_after_the_sixth_work)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life(LifeFixture::first());
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            // A work begun, its months, then the time for what the guide says of it
+            auto work = [&](const std::string& id, int months) {
+                f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", id});
+                f.settle();
+
+                ASSERT_EQ(life->save.running, id);
+
+                for (int i = 0; i < months; ++i)
+                {
+                    life->onMonth();
+                    f.settle();
+                }
+
+                f.frames(8);
+
+                ASSERT_TRUE(life->save.running.empty()) << id;
+
+                f.pass(6500.0f);
+            };
+
+            work("helping", 1);
+            EXPECT_EQ(life->save.guide, 2);
+            EXPECT_EQ(life->step.id, "guide.carters");
+
+            work("carters", 3);
+            EXPECT_EQ(life->save.guide, 4);
+            EXPECT_EQ(life->step.id, "guide.messages");
+            ASSERT_NE(list->find(&f.ecs, "messages"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "kitchen"), nullptr);
+
+            work("messages", 3);
+            EXPECT_EQ(life->save.guide, 6);
+            EXPECT_EQ(life->step.id, "guide.kitchen");
+            ASSERT_NE(list->find(&f.ecs, "kitchen"), nullptr);
+            EXPECT_EQ(life->handOn, list->find(&f.ecs, "kitchen")->root.id);
+
+            work("kitchen", 3);
+            EXPECT_EQ(life->save.guide, 8);
+            EXPECT_FALSE(life->step.active);
+            EXPECT_EQ(list->find(&f.ecs, "keep"), nullptr);
+
+            // The fifth term: the three ways into a class, and the step that says so
+            work("mill", 6);
+            EXPECT_EQ(life->save.guide, 9);
+            EXPECT_EQ(life->step.id, "guide.rest");
+
+            for (const char* id : {"keep", "collegium", "hand"})
+                EXPECT_NE(list->find(&f.ecs, id), nullptr) << id;
+
+            work("letters", 6);
+
+            // And the word about his rations, which ran low at his letters, said too
+            f.pass(8000.0f);
+
+            EXPECT_EQ(life->save.guide, 10);
+            EXPECT_EQ(f.fact<int>("life.guide"), 10);
+            EXPECT_FALSE(life->guiding());
+            EXPECT_FALSE(life->step.active);
+            EXPECT_TRUE(life->stepsDue.empty());
+
+            // Nothing of it remains: no leaf, no line, no hand, no shade
+            EXPECT_FALSE(life->noteShown);
+            EXPECT_FALSE(f.pos(life->note)->visible);
+            EXPECT_TRUE(life->noteSkip.spec.disabled);
+            EXPECT_FALSE(f.pos(life->named("guide"))->visible);
+            EXPECT_EQ(life->handOn, 0u);
+            ASSERT_FALSE(life->hand.empty());
+            EXPECT_FALSE(f.pos(life->hand)->visible);
+            EXPECT_FALSE(life->veiled);
+
+            for (const auto& strip : life->veil)
+                EXPECT_FALSE(f.pos(strip)->visible);
+
+            // Two lines of the town's story at the least, among what happened
+            EXPECT_TRUE(reached(life, "lore.bell"));
+            EXPECT_TRUE(reached(life, "lore.gates"));
+            EXPECT_TRUE(reached(life, "lore.classes"));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The guide's place is in the save: opened again, a first life is said the step it was at,
+        // not the first.
+        TEST(lifescene_test, the_guide_resumes_after_a_reload)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const std::string path = "save/test_life_guide.sz";
+            std::remove(path.c_str());
+
+            LifeSceneOptions opt = LifeFixture::first();
+            opt.noSave = false;
+            opt.savePath = path;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            // The opening task, what the guide says of it, then the carters' term: the fourth step
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "helping"});
+            f.settle();
+            life->onMonth();
+            f.frames(12);
+            f.pass(5200.0f);
+
+            ASSERT_EQ(life->step.id, "guide.carters");
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
+            f.settle();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.frames(12);
+
+            ASSERT_TRUE(life->step.active);
+            ASSERT_EQ(life->step.id, "guide.coin");
+            ASSERT_EQ(life->save.guide, 3);
+            ASSERT_TRUE(life->saveNow());
+
+            f.load<EmptyScene>();
+
+            opt.fresh = false;
+
+            LifeScene* again = f.life(opt);
+            ASSERT_NE(again, nullptr);
+
+            f.frames(12);
+
+            EXPECT_EQ(again->save.lives, 1);
+            EXPECT_EQ(again->save.guide, 3);
+            EXPECT_EQ(f.fact<int>("life.guide"), 3);
+
+            ASSERT_TRUE(again->step.active);
+            EXPECT_EQ(again->step.id, "guide.coin");
+            EXPECT_EQ(again->noteWords.spec.text, "His first coin. The purse is his to spend.");
+            EXPECT_TRUE(again->noteShown);
+
+            auto ledger = again->piece<ResourceLedger>("ledger");
+            ASSERT_NE(ledger, nullptr);
+            ASSERT_NE(ledger->row("coin"), nullptr);
+            EXPECT_EQ(again->handOn, ledger->rowEntity("coin").id);
+
+            // And it goes on from there
+            f.pass(5200.0f);
+
+            EXPECT_EQ(again->save.guide, 4);
+            EXPECT_EQ(again->step.id, "guide.messages");
+
+            std::remove(path.c_str());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The guide is a first life's: the next one opens as every life did, at 7 with a year of
+        // rations and its list whole, led to its first work by one line and no hand.
+        TEST(lifescene_test, a_second_life_has_no_guide_and_the_old_opening)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life(LifeFixture::first());
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            ASSERT_TRUE(life->step.active);
+            ASSERT_NE(life->handOn, 0u);
+
+            life->newLife();
+            f.frames(12);
+
+            EXPECT_FLOAT_EQ(life->save.age, 7.0f);
+            EXPECT_EQ(life->save.lives, 2);
+            EXPECT_EQ(life->rules.lives, 2);
+            EXPECT_EQ(life->save.guide, 0);
+            EXPECT_EQ(life->save.stats["rations"], 12);
+            EXPECT_FALSE(life->guiding());
+
+            auto ledger = life->piece<ResourceLedger>("ledger");
+            ASSERT_NE(ledger, nullptr);
+            ASSERT_NE(ledger->row("rations"), nullptr);
+            EXPECT_EQ(ledger->row("rations")->figure.spec.text, "12/60");
+
+            // The list of a first day, whole, and the carters chosen
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            for (const char* id : {"carters", "mill", "messages", "kitchen", "letters", "keep", "collegium", "hand"})
+                EXPECT_NE(list->find(&f.ecs, id), nullptr) << id;
+
+            EXPECT_EQ(list->find(&f.ecs, "helping"), nullptr);
+            EXPECT_EQ(list->selected(), "carters");
+
+            // The line of a life led to its first work, in its own words; no step, no hand, no shade
+            EXPECT_TRUE(f.pos(life->named("guide"))->visible);
+            EXPECT_EQ(life->piece<Label>("guide")->spec.text, "Choose a work, then press Begin");
+            EXPECT_FALSE(life->step.active);
+            EXPECT_TRUE(life->stepsDue.empty());
+            EXPECT_EQ(life->handOn, 0u);
+            EXPECT_FALSE(life->veiled);
+            EXPECT_FALSE(life->noteShown);
+
+            // Nor does one come with time, or with its first work
+            f.pass(1000.0f);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{life->piece<Button>("begin")->face.id, "life.begin"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "carters");
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.frames(12);
+
+            EXPECT_FALSE(life->step.active);
+            EXPECT_TRUE(life->stepsDue.empty());
+            EXPECT_EQ(life->save.guide, 0);
+            EXPECT_EQ(life->handOn, 0u);
+            EXPECT_FALSE(f.pos(life->named("guide"))->visible);
+
+            // A later life reads the town's story as the first did
+            EXPECT_TRUE(reached(life, "lore.hand"));
+            EXPECT_TRUE(reached(life, "lore.bell"));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A line of lore is a line in the log, in its own kind, and nothing else: no toast, and
+        // never twice in a life.
+        TEST(lifescene_test, lore_is_written_not_toasted)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life(LifeFixture::first());
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            // The page has arrived: from here a toast would be shown
+            f.pass(800.0f);
+
+            auto bell = [&]() {
+                size_t lines = 0;
+
+                for (const auto& entry : life->save.log)
+                {
+                    if (entry.kind == LogKind::Lore and entry.text.find("Bellmoor sits where the Bell meets the North Road") == 0)
+                        ++lines;
+                }
+
+                return lines;
+            };
+
+            EXPECT_EQ(bell(), 0u);
+            EXPECT_FALSE(reached(life, "lore.bell"));
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "helping"});
+            f.settle();
+
+            life->onMonth();
+
+            // What the month itself toasts (the work that came into his list) is up already
+            const int toasts = life->toastsUp();
+
+            f.frames(12);
+
+            EXPECT_EQ(bell(), 1u);
+            EXPECT_TRUE(reached(life, "lore.bell"));
+            EXPECT_EQ(life->toastsUp(), toasts);
+
+            // In the log as its own kind, with the quill and no figure
+            auto log = life->piece<EventLog>("log");
+            ASSERT_NE(log, nullptr);
+            EXPECT_EQ(log->size(), life->save.log.size());
+
+            bool shown = false;
+
+            for (const auto& item : log->items)
+            {
+                if (not std::holds_alternative<EventLog::Row>(item))
+                    continue;
+
+                const auto& row = std::get<EventLog::Row>(item);
+
+                if (row.entry.kind != LogKind::Lore)
+                    continue;
+
+                shown = true;
+
+                EXPECT_EQ(row.text.spec.style, "gloss");
+                EXPECT_EQ(row.mark.spec.name, "quill");
+                EXPECT_FALSE(row.figure.has_value());
+            }
+
+            EXPECT_TRUE(shown);
+
+            // It is no deed, and the guide's steps are not kept with the deeds either
+            EXPECT_TRUE(deedsOf(life).empty());
+            EXPECT_FALSE(reached(life, "guide.begin"));
+
+            // Another term: its ask holds still, and it is not written again
+            f.pass(5200.0f);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
+            f.settle();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.frames(12);
+
+            EXPECT_EQ(life->save.done["carters"], 1);
+            EXPECT_EQ(bell(), 1u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The leaf's two buttons: "Next" passes a step that is said for a time without waiting for
+        // it, and "Skip the guide" ends the guide for good, in this session and in the save.
+        TEST(lifescene_test, the_guide_is_passed_or_skipped)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const std::string path = "save/test_life_skip.sz";
+            std::remove(path.c_str());
+
+            LifeSceneOptions opt = LifeFixture::first();
+            opt.noSave = false;
+            opt.savePath = path;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            ASSERT_TRUE(life->step.active);
+            ASSERT_FALSE(life->note.empty());
+
+            // A step that waits for him cannot be passed: the button's event does nothing
+            f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
+            f.settle();
+
+            EXPECT_EQ(life->save.guide, 0);
+            EXPECT_EQ(life->step.id, "guide.begin");
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "helping"});
+            f.settle();
+            life->onMonth();
+            f.frames(12);
+
+            // What he holds, said for five seconds: "Next" passes it at once, no tick needed
+            ASSERT_EQ(life->step.id, "guide.rations");
+            ASSERT_TRUE(life->nextShown);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
+            f.frames(12);
+
+            EXPECT_EQ(life->save.guide, 2);
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.carters");
+            EXPECT_EQ(life->save.guideSkipped, 0);
+
+            // "Skip the guide": no step, no leaf, no hand, no shade, and the guide past its last step
+            f.ecs.sendEvent(ButtonActivatedEvent{life->noteSkip.face.id, "life.guide.skip"});
+            f.frames(12);
+
+            EXPECT_EQ(life->save.guide, 10);
+            EXPECT_EQ(life->save.guideSkipped, 3);
+            EXPECT_EQ(f.fact<int>("life.guide"), 10);
+            EXPECT_FALSE(life->guiding());
+            EXPECT_FALSE(life->step.active);
+            EXPECT_TRUE(life->stepsDue.empty());
+            EXPECT_FALSE(life->noteShown);
+            EXPECT_FALSE(f.pos(life->note)->visible);
+            EXPECT_EQ(life->handOn, 0u);
+            EXPECT_FALSE(life->veiled);
+
+            // The word it kept for later is taken as said
+            EXPECT_TRUE(reached(life, "guide.rations_low"));
+
+            // The life goes on without it: the carters' term brings no step
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "carters"});
+            f.settle();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.frames(12);
+            f.pass(1000.0f);
+
+            EXPECT_EQ(life->save.done["carters"], 1);
+            EXPECT_FALSE(life->step.active);
+            EXPECT_FALSE(life->noteShown);
+
+            // Nor does it come back with the save
+            f.load<EmptyScene>();
+
+            opt.fresh = false;
+
+            LifeScene* again = f.life(opt);
+            ASSERT_NE(again, nullptr);
+
+            f.frames(12);
+
+            EXPECT_EQ(again->save.guide, 10);
+            EXPECT_EQ(again->save.guideSkipped, 3);
+            EXPECT_FALSE(again->step.active);
+            EXPECT_FALSE(again->noteShown);
+
+            std::remove(path.c_str());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Skipped before anything was done, a first life is led as a later one is: its first task
+        // chosen for it, Begin on the page, and the line of "At work now" in its own words.
+        TEST(lifescene_test, a_guide_skipped_at_once_leaves_the_lead)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life(LifeFixture::first());
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            ASSERT_TRUE(life->step.active);
+            ASSERT_FALSE(f.pos(life->named("begin"))->visible);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{life->noteSkip.face.id, "life.guide.skip"});
+            f.frames(12);
+
+            EXPECT_EQ(life->save.guide, 10);
+            EXPECT_EQ(life->save.guideSkipped, 1);
+            EXPECT_FALSE(life->step.active);
+            EXPECT_FALSE(life->noteShown);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            EXPECT_EQ(list->selected(), "helping");
+            EXPECT_TRUE(f.pos(life->named("begin"))->visible);
+            EXPECT_TRUE(f.pos(life->named("guide"))->visible);
+            EXPECT_EQ(life->piece<Label>("guide")->spec.text, "Choose a work, then press Begin");
+            EXPECT_EQ(life->save.picks, 0);
+
+            // Still his first life: the list grows a task at a time
+            f.ecs.sendEvent(ButtonActivatedEvent{life->piece<Button>("begin")->face.id, "life.begin"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "helping");
+
+            life->onMonth();
+            f.frames(12);
+
+            EXPECT_NE(list->find(&f.ecs, "carters"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "mill"), nullptr);
+            EXPECT_FALSE(life->step.active);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A page built again (another step of the three columns) has other tiles: the hand goes to
+        // the one the step points at, and the leaf with the step's words goes with it.
+        TEST(lifescene_test, the_hand_follows_a_rebuild)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life(LifeFixture::first());
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "helping"});
+            f.settle();
+            life->onMonth();
+            f.frames(12);
+            f.pass(5200.0f);
+
+            ASSERT_TRUE(life->step.active);
+            ASSERT_EQ(life->step.id, "guide.carters");
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(list->find(&f.ecs, "carters"), nullptr);
+
+            const _unique_id before = life->handOn;
+
+            ASSERT_EQ(before, list->find(&f.ecs, "carters")->root.id);
+            ASSERT_EQ(life->widthStep, 0);
+
+            // Narrower: the three columns at their second step, a page built again
+            f.resize(1000.0f, 1020.0f);
+            f.frames(12);
+
+            EXPECT_FALSE(life->compact);
+            ASSERT_EQ(life->widthStep, 1);
+
+            list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            ActivityRow* carters = list->find(&f.ecs, "carters");
+            ASSERT_NE(carters, nullptr);
+
+            EXPECT_NE(carters->root.id, before);
+            EXPECT_EQ(life->handOn, carters->root.id);
+            EXPECT_TRUE(f.pos(life->hand)->visible);
+            EXPECT_LE(f.pos(life->hand)->x + f.pos(life->hand)->width, f.pos(carters->root)->x + 0.5f);
+            EXPECT_TRUE(life->veiled);
+
+            EXPECT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.carters");
+            EXPECT_EQ(life->noteWords.spec.text, "Work pays in coin. Choose this one.");
+            expectNoteBeside(f, life, carters->root);
         }
     }
 }

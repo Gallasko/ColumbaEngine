@@ -27,6 +27,8 @@ int main(int argc, char* argv[])
             chronicle::Motion::setReduced(true);
         else if (a == "--fresh")
             opt.fresh = true;
+        else if (a == "--guide" and i + 1 < argc and std::sscanf(argv[i + 1], "%d", &opt.guide) == 1 and opt.guide >= 0)
+            ++i;
         else if (a == "--no-save")
             opt.noSave = true;
         else if (a == "--save" and i + 1 < argc)
@@ -37,7 +39,7 @@ int main(int argc, char* argv[])
             ++i;
         else
         {
-            std::fprintf(stderr, "usage: Chronicle [--dev <Scene>] [--theme day|candle] [--reduced-motion] [--fresh] [--no-save] [--save <path>] [--size WxH] [--month-ms N]\n");
+            std::fprintf(stderr, "usage: Chronicle [--dev <Scene>] [--theme day|candle] [--reduced-motion] [--fresh] [--guide N] [--no-save] [--save <path>] [--size WxH] [--month-ms N]\n");
             return 2;
         }
     }

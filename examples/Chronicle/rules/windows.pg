@@ -1,7 +1,8 @@
 // Chronicle rules: the doors that close
 // -------------------------------------
 // Input:  `age` (years), `character` (a table of stats and flags), `done` (activity id -> terms
-//         completed, read by activitytable.pg).
+//         completed, read by activitytable.pg), `world`, `lives` and `running` (activitytable.pg's:
+//         the world's month, which life of the world this is, the activity he is at).
 // Output: `windows`, one table per age-limited chance:
 //         {id, name, from, to, state, note, attempts}
 //         A door is an activity's: it opens at the activity's `fromAge` and its last chance is a

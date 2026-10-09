@@ -46,6 +46,8 @@ namespace chronicle
         int begun = 0;                 // the works he began,
         int atOnce = 0;                // the things he did on the spot,
         int skips = 0;                 // and the months he passed by the button, at nothing
+        int guide = 0;                 // The last step of a first life's guide that ended (achievements.pg's `order`), 0 before the first
+        int guideSkipped = 0;          // The step being said when the player skipped the rest of the guide, 0 when he did not
         std::vector<std::string> achieved;             // The deeds already reached, by id
 
         // The character as the rule scripts read it: every stat.
@@ -54,13 +56,16 @@ namespace chronicle
         // The terms completed as the rule scripts read them.
         pg::ElementMap terms() const;
 
+        // How many terms he has done in this life, of every activity.
+        int termsDone() const;
+
         // What he holds for the first time: every holding of the rules (resources.pg's `rows`)
         // he has any of and the ledger does not show yet. Added to `resources`, and returned.
         std::vector<LifeResource> holdEarned(const pg::RecordList& rows);
 
         // Where the life stands, in one short line of JSON for the analytics: his age, the world's
-        // month, which life this is, his path, the work at hand, how much he has done, and what the
-        // player pressed to get there. Nothing of his name.
+        // month, which life this is, his path, the work at hand, how much he has done, what the
+        // player pressed to get there, and the step of the guide he is past. Nothing of his name.
         std::string digest() const;
 
         bool save(const std::string& path) const;
@@ -71,7 +76,8 @@ namespace chronicle
     // the balance's good Warrior stands the month he swears to the Keep.
     LifeSave firstLife();
 
-    // The true first frame of the game: 7 years old, a year of rations and nothing earned, one
-    // line in the log.
-    LifeSave freshLife();
+    // A life at its first frame. A later life (`first` false): 7 years old, a year of rations and
+    // nothing earned, one line in the log. The first life of a world: a month before 7 with nothing
+    // held at all, so that its first task, a month long, brings him to 7 and his first rations.
+    LifeSave freshLife(bool first = false);
 }

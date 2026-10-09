@@ -358,9 +358,10 @@ namespace chronicle
 
     void LifeClock::setAge(EntitySystem* ecs, float a, bool animate)
     {
-        // The figure is the fact and changes at once, past the track's end too: a life may outlast
-        // its scale. The fill catches up, and stops at the end.
-        age.setText(ecs, ageText(std::max(a, spec.startAge)));
+        // The figure is the fact and changes at once, past the track's ends too: a life may outlast
+        // its scale, and a first life begins a month before it. The fill catches up, and stops at
+        // the end.
+        age.setText(ecs, ageText(a));
 
         a = std::clamp(a, spec.startAge, spec.endAge);
         spec.age = a;

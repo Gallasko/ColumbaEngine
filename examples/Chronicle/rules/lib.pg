@@ -169,6 +169,17 @@ fun capitalised(word)
     return toUpperCase(substring(word, 0, 1)) + substring(word, 1, strlen(word))
 }
 
+// Whether a text begins with another.
+fun startsWith(text, prefix)
+{
+    if (strlen(text) < strlen(prefix))
+    {
+        return false
+    }
+
+    return substring(text, 0, strlen(prefix)) == prefix
+}
+
 // A missing key reads as false, not as an error: look names up explicitly. `contain` asks the
 // table itself, without walking its keys: the rules look names up thousands of times a run.
 fun lookup(table, key, fallback)
@@ -392,6 +403,7 @@ var statNames = {
     library_access: "The chapel library",
     night_contacts: "Friends at the night market",
     mara_student: "Mara's pupil",
+    market_known: "The market",
     keep_oath: "Sworn to the Keep",
     collegium: "Of the Collegium",
     hidden_hand: "Of the Hidden Hand",

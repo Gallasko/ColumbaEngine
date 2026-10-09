@@ -1,16 +1,56 @@
-// Chronicle rules: the deeds worth a line
-// --------------------------------------
+// Chronicle rules: the deeds worth a line, the guide of a first life, the lore of the town
+// -------------------------------------------------------------------------------------
 // Input:  none.
-// Output: `achievements`, one table per deed:
-//           {id, name, entry, asks [{fact, op, value}], gives [{stat, amount}]}
+// Output: `achievements`, one table per thing the Life screen watches for:
+//           {id, kind, asks [{fact, op, value}], gives [{stat, amount}], until [{fact, op, value}],
+//            name, entry, say, point, hold, order}
+//           kind   "deed" (the default), "guide" or "lore", as below.
 //           asks   every one must hold; `fact` is a path the Life screen publishes:
 //                  "stat.<key>" (a stat of the character), "done.<activity id>" (the terms
-//                  completed) or "life.age"; `op` is one of ">=", ">", "<=", "<", "==".
-//           gives  what the character gains the moment it is reached.
-//           entry  the line it writes in the log.
-// A deed is reached once in a life and stays reached.
+//                  completed), "life.age", "life.terms" (the terms done in this life, of every
+//                  activity), "life.working" (1 while he is at a work, else 0), "life.lives"
+//                  (which life of the world this is) or "life.guide" (the last step of the guide
+//                  that ended, 0 before the first); `op` is one of ">=", ">", "<=", "<", "==".
+// Every entry is reached once in a life and stays reached.
 //
-// The numbers are placeholders for the game's balance: change them here, nothing in C++ moves.
+// A deed: {id, name, entry, asks, gives}
+//           gives  what the character gains the moment it is reached.
+//           entry  the line it writes in the log; `name` is what its toast and the ending say.
+//
+// A guide step: {id, kind: "guide", order, say, point, asks, until or hold, pointChosen, sayChosen}
+//           The guide walks a first life (`lives` 1, the screen's to check) through its first
+//           works: one step at a time, each one sentence and one thing pointed at. The sentence
+//           stands on a leaf under what is pointed at, with a button to skip the guide and, for
+//           a step that ends with time, one to pass it. A later life has none of it. A step is
+//           neither toasted nor logged.
+//           order  1, 2, 3...: its place. The step waits for the one before to have ended (the
+//                  ask {fact: "life.guide", op: "==", value: order - 1} is added here), so the
+//                  steps cannot come out of order. 0 is a step outside the sequence: it waits
+//                  for nothing, is kept like a deed and outlives the guide.
+//           say    the sentence on the guide's leaf, under fifteen words.
+//           point  what the hand points at: "button:begin", "tile:<activity id>",
+//                  "holding:<id>" (a row of what he holds), "stat:<key>" (one of his parts),
+//                  "clock", "log", or "" for nothing. What is not on the page is not pointed at:
+//                  the sentence is said alone.
+//           until  the step ends when these hold; without any it ends after `hold` milliseconds
+//                  (5000 when it gives none).
+//           pointChosen, sayChosen
+//                  for a step that points at a tile: what the hand points at, and what is said,
+//                  once he has chosen that tile in the list. A work is begun in two presses, the
+//                  task then the button: the hand shows the first, then the second, and goes
+//                  back to the tile if he lets go of it. `sayChosen` may be left out: the
+//                  sentence then stays as it is.
+//
+// Lore: {id, kind: "lore", entry, asks}
+//           entry  a line of the town's story, written in the log when its asks hold: a
+//                  sentence or two, read in a narrow column. Nothing else happens: no toast, no
+//                  gain. A later life reads them again, in its own order.
+//
+// The id of a guide step begins with "guide.", the id of a lore line with "lore.": the save and
+// the analytics tell them from the deeds by it.
+//
+// The numbers and the words are placeholders for the game's balance and writing: change them
+// here, nothing in C++ moves.
 
 import "string"
 import "math"
@@ -52,14 +92,200 @@ var achievements = [
      gives: []},
     {id: "wood.king", name: "King of the Greenwood", entry: "Holds the Greenwood, and the Keep leaves it be",
      asks: [{fact: "stat.wood_king", op: ">=", value: 1}],
-     gives: []}
+     gives: []},
+
+    // The guide of a first life
+    {id: "guide.begin", kind: "guide", order: 1, point: "tile:helping", pointChosen: "button:begin",
+     say: "His life is yours to write. Click his first task.",
+     sayChosen: "Now press Begin: the months pass while he works. A double click on a task begins it too.",
+     asks: [{fact: "life.terms", op: "==", value: 0}],
+     until: [{fact: "life.working", op: "==", value: 1}]},
+    {id: "guide.rations", kind: "guide", order: 2, point: "holding:rations", hold: 5000,
+     say: "Every month eats one ration. What he holds is kept here.",
+     asks: [{fact: "done.helping", op: ">=", value: 1}]},
+    {id: "guide.carters", kind: "guide", order: 3, point: "tile:carters", pointChosen: "button:begin",
+     say: "Work pays in coin. Choose this one.",
+     sayChosen: "Press Begin, or double-click the task.",
+     asks: [],
+     until: [{fact: "life.working", op: "==", value: 1}]},
+    {id: "guide.coin", kind: "guide", order: 4, point: "holding:coin", hold: 5000,
+     say: "His first coin. The purse is his to spend.",
+     asks: [{fact: "done.carters", op: ">=", value: 1}]},
+    {id: "guide.messages", kind: "guide", order: 5, point: "tile:messages", pointChosen: "button:begin",
+     say: "Another work builds another part of him.",
+     sayChosen: "Press Begin, or double-click the task.",
+     asks: [],
+     until: [{fact: "life.working", op: "==", value: 1}]},
+    {id: "guide.dex", kind: "guide", order: 6, point: "stat:dex", hold: 5000,
+     say: "Dexterity rose. Everything he learns is kept here.",
+     asks: [{fact: "done.messages", op: ">=", value: 1}]},
+    {id: "guide.kitchen", kind: "guide", order: 7, point: "tile:kitchen", pointChosen: "button:begin",
+     say: "Rations run out. This work brings them back, and feeds him meanwhile.",
+     sayChosen: "Press Begin, or double-click the task.",
+     asks: [],
+     until: [{fact: "life.working", op: "==", value: 1}]},
+    {id: "guide.clock", kind: "guide", order: 8, point: "clock", hold: 5000,
+     say: "At thirteen a boy is placed. The clock says how long he has.",
+     asks: [{fact: "done.kitchen", op: ">=", value: 1}]},
+    {id: "guide.doors", kind: "guide", order: 9, point: "tile:keep", hold: 6000,
+     say: "Three doors stand at the end of a childhood. Everything he learns leads to one.",
+     asks: [{fact: "life.terms", op: ">=", value: 5}]},
+    {id: "guide.rest", kind: "guide", order: 10, point: "", hold: 4000,
+     say: "The rest is his to find.",
+     asks: []},
+
+    // Outside the sequence: said once, the month his rations run low
+    {id: "guide.rations_low", kind: "guide", order: 0, point: "tile:kitchen", hold: 6000,
+     say: "Rations for three months. The kitchen feeds him.",
+     asks: [{fact: "stat.rations", op: "<=", value: 3}, {fact: "life.terms", op: ">=", value: 1}]},
+
+    // The town's story, a line at a time
+    {id: "lore.bell", kind: "lore", entry: "Bellmoor sits where the Bell meets the North Road. Everything that passes, passes here.",
+     asks: [{fact: "life.terms", op: ">=", value: 1}]},
+    {id: "lore.gates", kind: "lore", entry: "The town has three gates: the Keep's, the Collegium's, and one nobody names.",
+     asks: [{fact: "done.messages", op: ">=", value: 1}]},
+    {id: "lore.winter", kind: "lore", entry: "The hard winter of Year 0 took the old miller. The town remembers who fed it.",
+     asks: [{fact: "stat.rations", op: "<=", value: 3}]},
+    {id: "lore.orun", kind: "lore", entry: "Saint Orun was a scribe who burned his own book. The choir still sings the pages he kept.",
+     asks: [{fact: "life.age", op: ">=", value: 10}]},
+    {id: "lore.placed", kind: "lore", entry: "The sergeant at the gate was a carter's boy. So was the thief they never caught.",
+     asks: [{fact: "life.age", op: ">=", value: 13}]},
+    {id: "lore.harrow", kind: "lore", entry: "Harrow was a town once. The Collegium says the fragments are glass. They are not glass.",
+     asks: [{fact: "life.age", op: ">=", value: 21}]},
+    {id: "lore.thirty", kind: "lore", entry: "At thirty a man of Bellmoor is old. The town counts a life in lives.",
+     asks: [{fact: "life.age", op: ">=", value: 30}]},
+    {id: "lore.hand", kind: "lore", entry: "The chronicle is kept in one hand, and the hand changes.",
+     asks: [{fact: "life.lives", op: ">=", value: 2}]},
+    {id: "lore.carters", kind: "lore", entry: "The carters pay in coin and in bread. Half of Bellmoor learned the road on their wagons.",
+     asks: [{fact: "done.carters", op: ">=", value: 2}]},
+    {id: "lore.mill", kind: "lore", entry: "The mill on the Bell grinds for the Keep first, the town second, the miller last.",
+     asks: [{fact: "done.mill", op: ">=", value: 1}]},
+    {id: "lore.letters", kind: "lore", entry: "Father Anselm teaches letters to any boy who will sit still. Few do.",
+     asks: [{fact: "stat.letters", op: ">=", value: 1}]},
+    {id: "lore.classes", kind: "lore", entry: "The Keep takes the strong, the Collegium the learned. The Hidden Hand takes who it wants.",
+     asks: [{fact: "life.terms", op: ">=", value: 5}]}
 ]
 
 var ops = [">=", ">", "<=", "<", "=="]
 
+// What the hand can point at: one of these places, or one of these kinds followed by a name
+var pointPlaces = ["", "clock", "log"]
+var pointKinds = ["button:", "tile:", "holding:", "stat:"]
+
+// The steps of the guide's sequence, counted to see that their orders run 1..n without a gap
+var guideSteps = 0
+
 for (var i = 0; i < len(achievements); i++)
 {
     var a = achievements[i]
+
+    // What an entry does not say reads as nothing, so every entry has every field
+    a.kind = lookup(a, "kind", "deed")
+    a.name = lookup(a, "name", "")
+    a.entry = lookup(a, "entry", "")
+    a.say = lookup(a, "say", "")
+    a.point = lookup(a, "point", "")
+    a.pointChosen = lookup(a, "pointChosen", "")
+    a.sayChosen = lookup(a, "sayChosen", "")
+    a.order = lookup(a, "order", 0)
+    a.hold = lookup(a, "hold", 5000)
+    a.gives = listOf(a, "gives")
+    a.until = listOf(a, "until")
+
+    if (a.kind != "deed" and a.kind != "guide" and a.kind != "lore")
+    {
+        push(errors, "achievement " + a.id + ": unknown kind " + a.kind)
+    }
+
+    // Named for what it is: the save and the analytics tell a deed by its id
+    var named = "deed"
+
+    if (startsWith(a.id, "guide."))
+    {
+        named = "guide"
+    }
+
+    if (startsWith(a.id, "lore."))
+    {
+        named = "lore"
+    }
+
+    if (named != a.kind)
+    {
+        push(errors, "achievement " + a.id + ": a guide step is named guide.<x>, a lore line lore.<x>, and nothing else is")
+    }
+
+    if (a.kind == "guide")
+    {
+        if (a.say == "")
+        {
+            push(errors, "guide step " + a.id + ": nothing to say")
+        }
+
+        // What it points at, and what it points at once its tile is chosen
+        var hands = [a.point, a.pointChosen]
+
+        for (var h = 0; h < len(hands); h++)
+        {
+            var pointed = false
+
+            for (var p = 0; p < len(pointPlaces); p++)
+            {
+                if (hands[h] == pointPlaces[p])
+                {
+                    pointed = true
+                }
+            }
+
+            for (var p = 0; p < len(pointKinds); p++)
+            {
+                if (startsWith(hands[h], pointKinds[p]) and strlen(hands[h]) > strlen(pointKinds[p]))
+                {
+                    pointed = true
+                }
+            }
+
+            if (not pointed)
+            {
+                push(errors, "guide step " + a.id + ": unknown point " + hands[h])
+            }
+        }
+
+        if (a.pointChosen != "" and not startsWith(a.point, "tile:"))
+        {
+            push(errors, "guide step " + a.id + ": pointChosen is for a step that points at a tile")
+        }
+
+        if (a.sayChosen != "" and a.pointChosen == "")
+        {
+            push(errors, "guide step " + a.id + ": sayChosen without a pointChosen")
+        }
+
+        if (a.order < 0)
+        {
+            push(errors, "guide step " + a.id + ": order " + toString(a.order))
+        }
+
+        // A step of the sequence waits for the one before it to have ended
+        if (a.order > 0)
+        {
+            guideSteps = guideSteps + 1
+            push(a.asks, {fact: "life.guide", op: "==", value: a.order - 1})
+        }
+    }
+
+    if (a.kind == "lore")
+    {
+        if (a.entry == "")
+        {
+            push(errors, "lore " + a.id + ": nothing to write")
+        }
+
+        if (len(a.gives) > 0)
+        {
+            push(errors, "lore " + a.id + ": a line of lore gives nothing")
+        }
+    }
 
     for (var r = 0; r < len(a.asks); r++)
     {
@@ -77,5 +303,42 @@ for (var i = 0; i < len(achievements); i++)
         {
             push(errors, "achievement " + a.id + ": unknown op " + a.asks[r].op)
         }
+    }
+
+    for (var u = 0; u < len(a.until); u++)
+    {
+        var known = false
+
+        for (var o = 0; o < len(ops); o++)
+        {
+            if (ops[o] == a.until[u].op)
+            {
+                known = true
+            }
+        }
+
+        if (not known)
+        {
+            push(errors, "guide step " + a.id + ": unknown op " + a.until[u].op)
+        }
+    }
+}
+
+// Every place of the sequence is taken once: 1, 2, ... up to the number of its steps
+for (var o = 1; o <= guideSteps; o++)
+{
+    var taken = 0
+
+    for (var i = 0; i < len(achievements); i++)
+    {
+        if (achievements[i].kind == "guide" and achievements[i].order == o)
+        {
+            taken = taken + 1
+        }
+    }
+
+    if (taken != 1)
+    {
+        push(errors, "the guide has " + toString(taken) + " steps of order " + toString(o) + ": the orders run 1 to " + toString(guideSteps) + " without a gap")
     }
 }

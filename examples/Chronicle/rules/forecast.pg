@@ -2,7 +2,7 @@
 // -----------------------------------------
 // Input:  `age` (years), `character` (a table of stats and flags), `done` (activity id -> terms
 //         completed, read by activitytable.pg), `activityId`, `monthsIn` (the months already spent
-//         in it).
+//         in it), `world`, `lives` and `running` (activitytable.pg's).
 // Output: `forecast`:
 //           atStart  every stat of the character once the activity's costs are taken: what
 //                    beginning it leaves him with

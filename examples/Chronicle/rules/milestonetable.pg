@@ -2,7 +2,8 @@
 // -----------------------------------------
 // Imported by forecast.pg, and loaded by the game through milestones.pg.
 // Input:  `age` (years, a number), `world` (months since the world's Year 0: its calendar, which
-//         runs on from life to life and which no death rewinds).
+//         runs on from life to life and which no death rewinds). `lives` (which life of the
+//         world this is) is handed with it, and not read here.
 // Output: `milestones`, every milestone {age, id, label, passed, entry, asks}, where `asks` lists
 //         what each path asks at it: [{path, stat, label, needed}] (the doors of
 //         activitytable.pg it opens onto), and `entry` is "" or the line the log writes when he

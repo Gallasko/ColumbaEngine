@@ -114,6 +114,8 @@ namespace pg
         serialize(archive, "begun", value.begun);
         serialize(archive, "atOnce", value.atOnce);
         serialize(archive, "skips", value.skips);
+        serialize(archive, "guide", value.guide);
+        serialize(archive, "guideSkipped", value.guideSkipped);
 
         archive.endSerialization();
     }
@@ -146,6 +148,8 @@ namespace pg
         defaultDeserialize(serialized, "begun", data.begun);
         defaultDeserialize(serialized, "atOnce", data.atOnce);
         defaultDeserialize(serialized, "skips", data.skips);
+        defaultDeserialize(serialized, "guide", data.guide);
+        defaultDeserialize(serialized, "guideSkipped", data.guideSkipped);
 
         return data;
     }
@@ -187,6 +191,16 @@ namespace chronicle
         return map;
     }
 
+    int LifeSave::termsDone() const
+    {
+        int count = 0;
+
+        for (const auto& [id, times] : done)
+            count += times;
+
+        return count;
+    }
+
     std::vector<LifeResource> LifeSave::holdEarned(const RecordList& rows)
     {
         std::vector<LifeResource> earned;
@@ -223,10 +237,16 @@ namespace chronicle
 
     std::string LifeSave::digest() const
     {
-        int terms = 0;
+        const int terms = termsDone();
 
-        for (const auto& [id, count] : done)
-            terms += count;
+        // The deeds alone: a step of the guide or a line of lore is kept with them, under its own name
+        size_t deeds = 0;
+
+        for (const auto& id : achieved)
+        {
+            if (id.rfind("guide.", 0) != 0 and id.rfind("lore.", 0) != 0)
+                ++deeds;
+        }
 
         char years[16];
         std::snprintf(years, sizeof(years), "%.2f", age);
@@ -235,8 +255,8 @@ namespace chronicle
         std::ostringstream line;
 
         line << "{\"age\":" << years << ",\"world\":" << world << ",\"aim\":\"" << aim << "\",\"running\":\"" << running << "\",\"monthsIn\":" << monthsIn
-             << ",\"terms\":" << terms << ",\"deeds\":" << achieved.size() << ",\"log\":" << log.size() << ",\"lives\":" << lives
-             << ",\"picks\":" << picks << ",\"begun\":" << begun << ",\"atOnce\":" << atOnce << ",\"skips\":" << skips << "}";
+             << ",\"terms\":" << terms << ",\"deeds\":" << deeds << ",\"log\":" << log.size() << ",\"lives\":" << lives
+             << ",\"picks\":" << picks << ",\"begun\":" << begun << ",\"atOnce\":" << atOnce << ",\"skips\":" << skips << ",\"guide\":" << guide << ",\"guideSkipped\":" << guideSkipped << "}";
 
         return line.str();
     }
@@ -322,7 +342,7 @@ namespace chronicle
         life.stats = {
             {"str", 12}, {"dex", 8}, {"int", 6}, {"vit", 10}, {"vitmax", 10},
             {"arms", 5}, {"discipline", 2}, {"letters", 0}, {"lore", 0}, {"arcana", 0}, {"stealth", 0}, {"guile", 0}, {"renown", 1},
-            {"watch_known", 1}, {"edric_support", 1}, {"keep_oath", 1},
+            {"watch_known", 1}, {"edric_support", 1}, {"keep_oath", 1}, {"market_known", 1},
             {"coin", 46}, {"rations", 3},
         };
 
@@ -362,14 +382,14 @@ namespace chronicle
         return life;
     }
 
-    LifeSave freshLife()
+    LifeSave freshLife(bool first)
     {
         LifeSave life;
         life.name = "Aldren of Bellmoor";
         life.profession = "The miller's second son";
         life.origin = "Born at the mill on the Bell.";
         life.aim = "warrior";
-        life.age = 7.0f;
+        life.age = first ? 6.0f + 11.0f / 12.0f : 7.0f;
 
         life.stats = {
             {"str", 6}, {"dex", 6}, {"int", 6}, {"vit", 8}, {"vitmax", 8},
@@ -385,7 +405,15 @@ namespace chronicle
             {"purse", "PURSE", "rations", "trade", "Rations", "", "", 0, false},
         };
 
-        life.log = {{7.0f, "Childhood", LogKind::Milestone, "", ""}};
+        life.log = {{life.age, "Childhood", LogKind::Milestone, "", ""}};
+
+        // A first life holds nothing yet: no rations to eat or to run out of, no row in the
+        // ledger, until its first task brings them
+        if (first)
+        {
+            life.stats.erase("rations");
+            life.resources.clear();
+        }
 
         return life;
     }

@@ -568,7 +568,7 @@ namespace chronicle
 
     bool Rules::stands(const Asked& asked, float age, const ElementMap& character) const
     {
-        return asked.known and asked.age == age and asked.world == world and asked.running == running and sameMap(asked.character, character) and sameMap(asked.done, done);
+        return asked.known and asked.age == age and asked.world == world and asked.lives == lives and asked.running == running and sameMap(asked.character, character) and sameMap(asked.done, done);
     }
 
     void Rules::keep(Asked& asked, float age, const ElementMap& character) const
@@ -578,6 +578,7 @@ namespace chronicle
         asked.character = character;
         asked.done = done;
         asked.world = world;
+        asked.lives = lives;
         asked.running = running;
     }
 
@@ -620,6 +621,7 @@ namespace chronicle
         s.set("character", character);
         s.set("done", done);
         s.set("world", ElementType{world});
+        s.set("lives", ElementType{lives});
         s.set("running", ElementType{running});
         s.set("activityId", ElementType{std::string()});
 
@@ -673,7 +675,7 @@ namespace chronicle
         if (headline)
             headline->clear();
 
-        if (not milestonesKnown or milestonesAge != age or milestonesWorld != world)
+        if (not milestonesKnown or milestonesAge != age or milestonesWorld != world or milestonesLives != lives)
         {
             RuleScript& s = milestonesScript;
             s.clearErrors();
@@ -682,6 +684,7 @@ namespace chronicle
 
             s.set("age", ElementType{age});
             s.set("world", ElementType{world});
+            s.set("lives", ElementType{lives});
 
             ++nbRuns;
 
@@ -708,6 +711,7 @@ namespace chronicle
             milestonesKnown = true;
             milestonesAge = age;
             milestonesWorld = world;
+            milestonesLives = lives;
         }
 
         out = keptMilestones;
@@ -756,6 +760,7 @@ namespace chronicle
         s.set("character", character);
         s.set("done", done);
         s.set("world", ElementType{world});
+        s.set("lives", ElementType{lives});
         s.set("running", ElementType{running});
         s.set("activityId", ElementType{activityId});
         s.set("monthsIn", ElementType{monthsIn});
@@ -861,7 +866,7 @@ namespace chronicle
 
             std::vector<RuleScript::Record> records;
 
-            if (not s.run() or not s.get("achievements", {"asks", "gives"}, records))
+            if (not s.run() or not s.get("achievements", {"asks", "gives", "until"}, records))
                 return fail(s);
 
             keptDeeds.clear();
@@ -873,6 +878,12 @@ namespace chronicle
                 achievement.fields = std::move(record.fields);
                 achievement.asks = std::move(record.lists[0]);
                 achievement.gives = std::move(record.lists[1]);
+                achievement.until = std::move(record.lists[2]);
+
+                const std::string kind = text(achievement.fields, "kind");
+
+                achievement.kind = kind == "guide" ? RuleKind::Guide : kind == "lore" ? RuleKind::Lore : RuleKind::Deed;
+                achievement.order = static_cast<int>(number(achievement.fields, "order", 0.0f));
 
                 keptDeeds.push_back(std::move(achievement));
             }
@@ -899,6 +910,7 @@ namespace chronicle
         s.set("character", character);
         s.set("done", done);
         s.set("world", ElementType{world});
+        s.set("lives", ElementType{lives});
         s.set("running", ElementType{running});
         s.set("activityId", ElementType{std::string()});
         s.set("deeds", names);

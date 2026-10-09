@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -149,19 +150,31 @@ namespace chronicle
         std::string tally;             // "AGE 33 · WORKS 14 · COIN 31 · DEEDS 2"
     };
 
-    // A deed from achievements.pg: {id, name, entry}, what it asks and what it gives.
+    // What an entry of achievements.pg is: its `kind`, "deed" when it gives none
+    enum class RuleKind : uint8_t
+    {
+        Deed  = 0,       // A line in the log, a toast, what it gives
+        Guide = 1,       // A step of a first life's guide: a sentence, and a hand on the page
+        Lore  = 2        // A line of the town's story in the log, and nothing else
+    };
+
+    // An entry of achievements.pg: a deed, a step of the guide or a line of lore ({id, kind, name,
+    // entry, say, point, hold, order}), what it asks, what it gives and, for a step, what ends it.
     struct RuleAchievement
     {
+        RuleKind kind = RuleKind::Deed;
+        int order = 0;                 // A guide step's place in the sequence, 0 outside it
         pg::ElementMap fields;
         pg::RecordList asks;           // {fact, op, value}: every one must hold
         pg::RecordList gives;          // {stat, amount}: gained when it is reached
+        pg::RecordList until;          // {fact, op, value}: a guide step ends when these hold; none: after its `hold`
     };
 
     // The scene's scripts, loaded once from a rules root, each with its typed call. Every
     // number about the future or the rules comes from here, never from C++.
     //
     // An answer is kept while what it was asked with stands (the age, the character, `done`,
-    // `world` and the call's own arguments, compared by value): the scene asks the same thing from
+    // `world`, `lives` and the call's own arguments, compared by value): the scene asks the same thing from
     // several places in one month, and a run builds every table of its script again.
     struct Rules
     {
@@ -173,6 +186,10 @@ namespace chronicle
         // The world's calendar: months since its Year 0, handed to every script that writes a date
         // (the page's head, when an activity closes). It runs on from life to life.
         int world = 0;
+
+        // The lives lived in this world, this one counted: handed to every script as `world` is. A
+        // first life (1) opens on one task and is shown the others one at a time (activitytable.pg).
+        int lives = 1;
 
         // The activity he is at, "" for none: handed to every script that reads the activities (a
         // man on his way into a class is not one who missed them all).
@@ -198,7 +215,7 @@ namespace chronicle
         // rows and their glosses, and whether the character as he is can go on.
         bool month(float age, const pg::ElementMap& character, bool board, RuleMonth& out);
 
-        // achievements.pg: every deed, what it asks and what it gives.
+        // achievements.pg: every deed, guide step and line of lore, what it asks and what it gives.
         bool achievements(std::vector<RuleAchievement>& out);
 
         // epitaph.pg: what is said of `character`, whose life ended at `age`, with the names of the
@@ -233,6 +250,7 @@ namespace chronicle
             pg::ElementMap character;
             pg::ElementMap done;
             int world = 0;
+            int lives = 1;
             std::string running;
         };
 
@@ -246,6 +264,7 @@ namespace chronicle
         bool milestonesKnown = false;
         float milestonesAge = 0.0f;
         int milestonesWorld = 0;
+        int milestonesLives = 1;
         std::vector<RuleMilestone> keptMilestones;
         pg::ElementMap keptNext;
         pg::ElementMap keptHeadline;

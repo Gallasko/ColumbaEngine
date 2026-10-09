@@ -321,6 +321,20 @@ namespace chronicle
         return nullptr;
     }
 
+    EntityRef ResourceLedger::rowEntity(const std::string& id) const
+    {
+        for (const auto& g : groups)
+        {
+            for (const auto& r : g.rows)
+            {
+                if (r.spec.id == id)
+                    return r.line;
+            }
+        }
+
+        return EntityRef{};
+    }
+
     ResourceLedger::Group* ResourceLedger::group(const std::string& id)
     {
         for (auto& g : groups)

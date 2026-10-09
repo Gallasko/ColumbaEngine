@@ -1,5 +1,6 @@
 #include "stdafx.h"
 
+#include <algorithm>
 #include <chrono>
 #include <functional>
 #include <iostream>
@@ -34,6 +35,10 @@ namespace pg
                 RulesFixture()
                 {
                     EXPECT_TRUE(rules.load(&ecs, Root)) << (rules.errors.empty() ? "" : rules.errors.front());
+
+                    // A later life, whose list is whole from its first day: a first life is shown its
+                    // tasks one at a time, and the tests of that say so themselves
+                    rules.lives = 2;
                 }
             };
 
@@ -102,6 +107,22 @@ namespace pg
             {
                 return {{"str", ElementType{6}}, {"dex", ElementType{6}}, {"int", ElementType{6}}, {"vit", ElementType{8}}, {"vitmax", ElementType{8}},
                         {"coin", ElementType{0}}, {"rations", ElementType{12}}};
+            }
+
+            // The same boy once the town's market is his to buy at
+            ElementMap townsman()
+            {
+                ElementMap character = boy();
+                character["market_known"] = ElementType{1};
+
+                return character;
+            }
+
+            // A first life at its first frame: a month before 7, holding nothing
+            ElementMap newcomer()
+            {
+                return {{"str", ElementType{6}}, {"dex", ElementType{6}}, {"int", ElementType{6}}, {"vit", ElementType{8}}, {"vitmax", ElementType{8}},
+                        {"coin", ElementType{0}}};
             }
 
             // The balance's good Warrior the month he swore to the Keep, at 17.5
@@ -277,7 +298,7 @@ namespace pg
             EXPECT_FALSE(flag(activityAt(f.rules, 18.5f + month, squire, "keep").fields, "listed"));
 
             // What takes no time can be done to the last month
-            EXPECT_TRUE(flag(activityAt(f.rules, 30.0f, boy(), "buy.rations").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 30.0f, townsman(), "buy.rations").fields, "listed"));
             EXPECT_FALSE(flag(activityAt(f.rules, 30.0f, boy(), "carters").fields, "listed"));
         }
 
@@ -531,7 +552,7 @@ namespace pg
 
             // What asks nothing is always in reach
             EXPECT_EQ(intOf(activityAt(f.rules, 7.0f, boy(), "carters").fields, "reach"), 100);
-            EXPECT_TRUE(flag(activityAt(f.rules, 7.0f, boy(), "buy.rations").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 7.0f, townsman(), "buy.rations").fields, "listed"));
         }
 
         // ----------------------------------------------------------------------------------------
@@ -1122,11 +1143,13 @@ namespace pg
             EXPECT_EQ(intOf(buy.fields, "months"), 0);
             EXPECT_TRUE(flag(buy.fields, "locked"));
 
-            // The coin it costs, then room for what it brings
-            ASSERT_EQ(buy.requires.size(), 2u);
-            EXPECT_EQ(textOf(buy.requires[0], "stat"), "coin");
-            EXPECT_EQ(intOf(buy.requires[0], "current"), 3);
-            EXPECT_EQ(intOf(buy.requires[0], "needed"), 5);
+            // The market to buy at, the coin it costs, then room for what it brings
+            ASSERT_EQ(buy.requires.size(), 3u);
+            EXPECT_EQ(textOf(buy.requires[0], "stat"), "market_known");
+            EXPECT_EQ(textOf(buy.requires[0], "label"), "The market");
+            EXPECT_EQ(textOf(buy.requires[1], "stat"), "coin");
+            EXPECT_EQ(intOf(buy.requires[1], "current"), 3);
+            EXPECT_EQ(intOf(buy.requires[1], "needed"), 5);
 
             ASSERT_EQ(buy.gains.size(), 1u);
             EXPECT_EQ(textOf(buy.gains[0], "stat"), "rations");
@@ -1367,17 +1390,17 @@ namespace pg
             MockLogger logger;
             RulesFixture f;
 
-            ElementMap character = boy();
+            ElementMap character = townsman();
             character["coin"] = ElementType{20};
             character["rations"] = ElementType{58};
 
             RuleActivity buy = activityAt(f.rules, 17.5f, character, "buy.rations");
 
             EXPECT_FALSE(flag(buy.fields, "locked"));
-            ASSERT_EQ(buy.requires.size(), 2u);
-            EXPECT_EQ(textOf(buy.requires[1], "label"), "Room for Rations");
-            EXPECT_EQ(intOf(buy.requires[1], "current"), 2);
-            EXPECT_EQ(intOf(buy.requires[1], "needed"), 1);
+            ASSERT_EQ(buy.requires.size(), 3u);
+            EXPECT_EQ(textOf(buy.requires[2], "label"), "Room for Rations");
+            EXPECT_EQ(intOf(buy.requires[2], "current"), 2);
+            EXPECT_EQ(intOf(buy.requires[2], "needed"), 1);
 
             // Two short of full, six more: he ends past the limit
             RuleForecast forecast;
@@ -1391,7 +1414,7 @@ namespace pg
                 buy = activityAt(f.rules, 17.5f, character, "buy.rations");
 
                 EXPECT_TRUE(flag(buy.fields, "locked")) << held;
-                EXPECT_EQ(intOf(buy.requires[1], "current"), 0) << held;
+                EXPECT_EQ(intOf(buy.requires[2], "current"), 0) << held;
             }
 
             // What brings nothing with a limit asks for no room
@@ -1587,7 +1610,7 @@ namespace pg
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
         // His prime closes every door at 30; what is left to an old man is listed a year before, asks
-        // nothing, and is never closed. He can still buy his rations.
+        // nothing, and is never closed. He can still buy his rations, at the market he knows.
         TEST(rules_test, old_age_keeps_basic_work)
         {
             MockLogger logger;
@@ -1603,7 +1626,7 @@ namespace pg
 
             // Old: these, and nothing else
             std::vector<RuleActivity> activities;
-            ASSERT_TRUE(f.rules.activities(34.0f, boy(), activities)) << firstError(f.rules);
+            ASSERT_TRUE(f.rules.activities(34.0f, townsman(), activities)) << firstError(f.rules);
 
             std::vector<std::string> listed;
 
@@ -1679,6 +1702,347 @@ namespace pg
                     for (const char* key : {"stat", "amount"})
                         EXPECT_TRUE(give.count(key)) << textOf(a.fields, "id") << " gives without " << key;
                 }
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The opening task: a month that costs nothing and brings the first rations, for a first
+        // life that has done nothing yet and for no other.
+        TEST(rules_test, helping_is_listed_only_in_a_first_life)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            const float start = 6.0f + 11.0f / 12.0f;
+
+            f.rules.lives = 1;
+
+            RuleActivity helping = activityAt(f.rules, start, newcomer(), "helping");
+
+            EXPECT_TRUE(flag(helping.fields, "listed"));
+            EXPECT_FALSE(flag(helping.fields, "locked"));
+            EXPECT_EQ(intOf(helping.fields, "months"), 1);
+            EXPECT_TRUE(flag(helping.fields, "board"));
+            EXPECT_EQ(intOf(helping.fields, "uses"), 1);
+            EXPECT_TRUE(flag(helping.fields, "firstLife"));
+
+            ASSERT_EQ(helping.gains.size(), 1u);
+            EXPECT_EQ(textOf(helping.gains[0], "stat"), "rations");
+            EXPECT_EQ(intOf(helping.gains[0], "amount"), 12);
+
+            // Done, it is spent; and a first life that has done anything else no longer opens on it
+            f.rules.done = {{"helping", ElementType{1}}};
+            EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, boy(), "helping").fields, "listed"));
+
+            f.rules.done = {{"carters", ElementType{1}}};
+            EXPECT_FALSE(flag(activityAt(f.rules, 7.25f, boy(), "helping").fields, "listed"));
+
+            // A later life never has its row
+            f.rules.done = {};
+            f.rules.lives = 2;
+
+            EXPECT_FALSE(flag(activityAt(f.rules, start, newcomer(), "helping").fields, "listed"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, boy(), "helping").fields, "listed"));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A first life is shown its tasks one at a time, by the terms it has done; a later life has
+        // them all from its first day.
+        TEST(rules_test, show_after_counts_terms_in_a_first_life)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            auto listed = [&](float age, const ElementMap& character) {
+                std::vector<RuleActivity> activities;
+                EXPECT_TRUE(f.rules.activities(age, character, activities)) << firstError(f.rules);
+
+                std::vector<std::string> ids;
+
+                for (const auto& a : activities)
+                {
+                    if (flag(a.fields, "listed"))
+                        ids.push_back(textOf(a.fields, "id"));
+                }
+
+                return ids;
+            };
+
+            auto has = [](const std::vector<std::string>& ids, const std::string& id) {
+                return std::find(ids.begin(), ids.end(), id) != ids.end();
+            };
+
+            f.rules.lives = 1;
+
+            // Nothing done: the opening task alone
+            EXPECT_EQ(listed(6.0f + 11.0f / 12.0f, newcomer()), (std::vector<std::string>{"helping"}));
+
+            f.rules.done = {{"helping", ElementType{1}}};
+            EXPECT_EQ(listed(7.0f, boy()), (std::vector<std::string>{"carters"}));
+
+            f.rules.done = {{"helping", ElementType{1}}, {"carters", ElementType{1}}};
+            EXPECT_EQ(listed(7.25f, boy()), (std::vector<std::string>{"carters", "messages"}));
+
+            // Three terms: the kitchen and the mill
+            f.rules.done = {{"helping", ElementType{1}}, {"carters", ElementType{1}}, {"messages", ElementType{1}}};
+            EXPECT_EQ(listed(7.5f, boy()), (std::vector<std::string>{"carters", "mill", "messages", "kitchen"}));
+
+            // Four: his letters
+            f.rules.done = {{"helping", ElementType{1}}, {"carters", ElementType{1}}, {"messages", ElementType{1}}, {"kitchen", ElementType{1}}};
+            EXPECT_EQ(listed(7.75f, boy()), (std::vector<std::string>{"carters", "mill", "messages", "kitchen", "letters"}));
+
+            // Five: the three ways into a class, and whatever his age has opened meanwhile. The terms
+            // count, whichever they were
+            f.rules.done = {{"helping", ElementType{1}}, {"carters", ElementType{4}}};
+
+            const std::vector<std::string> grown = listed(8.25f, boy());
+
+            for (const char* id : {"carters", "mill", "messages", "kitchen", "letters", "keep", "collegium", "hand", "market", "roam"})
+                EXPECT_TRUE(has(grown, id)) << id;
+
+            // A later life with nothing done: the list of its first day, whole
+            f.rules.done = {};
+            f.rules.lives = 2;
+
+            EXPECT_EQ(listed(7.0f, boy()), (std::vector<std::string>{"carters", "mill", "messages", "kitchen", "letters", "keep", "collegium", "hand"}));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Nobody buys at a market he does not know: the row waits for the flag the town will set.
+        TEST(rules_test, buy_rations_hidden_until_the_market_is_known)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            ElementMap character = boy();
+            character["coin"] = ElementType{5};
+
+            RuleActivity buy = activityAt(f.rules, 9.0f, character, "buy.rations");
+
+            EXPECT_FALSE(flag(buy.fields, "listed"));
+            EXPECT_EQ(intOf(buy.fields, "reach"), 0);
+
+            character["market_known"] = ElementType{1};
+
+            buy = activityAt(f.rules, 9.0f, character, "buy.rations");
+
+            EXPECT_TRUE(flag(buy.fields, "listed"));
+            EXPECT_FALSE(flag(buy.fields, "locked"));
+            EXPECT_EQ(intOf(buy.fields, "reach"), 100);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The kitchen feeds him while he is at it and sends him off with rations, while he has room
+        // for them.
+        TEST(rules_test, kitchen_feeds_and_brings_rations)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            RuleActivity kitchen = activityAt(f.rules, 7.0f, boy(), "kitchen");
+
+            EXPECT_TRUE(flag(kitchen.fields, "listed"));
+            EXPECT_FALSE(flag(kitchen.fields, "locked"));
+            EXPECT_TRUE(flag(kitchen.fields, "board"));
+            EXPECT_EQ(intOf(kitchen.fields, "months"), 3);
+
+            ASSERT_EQ(kitchen.gains.size(), 1u);
+            EXPECT_EQ(textOf(kitchen.gains[0], "stat"), "rations");
+            EXPECT_EQ(intOf(kitchen.gains[0], "amount"), 6);
+
+            // It asks for room, as everything that brings rations does
+            ASSERT_EQ(kitchen.requires.size(), 1u);
+            EXPECT_EQ(textOf(kitchen.requires[0], "label"), "Room for Rations");
+            EXPECT_EQ(intOf(kitchen.requires[0], "current"), 48);
+
+            ElementMap full = boy();
+            full["rations"] = ElementType{60};
+
+            kitchen = activityAt(f.rules, 7.0f, full, "kitchen");
+
+            EXPECT_TRUE(flag(kitchen.fields, "locked"));
+            EXPECT_EQ(intOf(kitchen.requires[0], "current"), 0);
+
+            // The term brings them
+            RuleForecast forecast;
+            ASSERT_TRUE(f.rules.forecast(7.0f, boy(), "kitchen", 0, forecast)) << firstError(f.rules);
+            EXPECT_EQ(intOf(forecast.atTerm, "rations"), 18);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The guide's steps run 1 to n without a gap, each waiting for the one before it; the one
+        // outside the sequence waits for none.
+        TEST(rules_test, guide_steps_are_ordered)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            std::vector<RuleAchievement> achievements;
+            ASSERT_TRUE(f.rules.achievements(achievements)) << firstError(f.rules);
+
+            auto waitsFor = [](const RuleAchievement& a) {
+                for (const auto& ask : a.asks)
+                {
+                    if (textOf(ask, "fact") == "life.guide")
+                        return ask.count("value") and textOf(ask, "op") == "==" ? intOf(ask, "value") : -2;
+                }
+
+                return -1;
+            };
+
+            const std::vector<std::string> kinds = {"button:", "tile:", "holding:", "stat:"};
+            const std::vector<std::string> places = {"", "clock", "log"};
+
+            std::vector<int> taken(11, 0);
+            size_t outside = 0;
+
+            for (const auto& a : achievements)
+            {
+                if (a.kind != RuleKind::Guide)
+                    continue;
+
+                const std::string id = textOf(a.fields, "id");
+                const std::string point = textOf(a.fields, "point");
+
+                EXPECT_EQ(textOf(a.fields, "kind"), "guide") << id;
+                EXPECT_EQ(id.rfind("guide.", 0), 0u) << id;
+                EXPECT_FALSE(textOf(a.fields, "say").empty()) << id;
+                EXPECT_GT(floatOf(a.fields, "hold"), 0.0f) << id;
+                EXPECT_EQ(intOf(a.fields, "order"), a.order) << id;
+
+                bool known = std::find(places.begin(), places.end(), point) != places.end();
+
+                for (const auto& kind : kinds)
+                    known = known or (point.rfind(kind, 0) == 0 and point.size() > kind.size());
+
+                EXPECT_TRUE(known) << id << " points at " << point;
+
+                // A work is begun in two presses: a step that waits for one shows its tile, then
+                // the button that begins it, and says what to press
+                const std::string chosen = textOf(a.fields, "pointChosen");
+
+                if (point.rfind("tile:", 0) == 0 and not a.until.empty())
+                {
+                    EXPECT_EQ(chosen, "button:begin") << id;
+                    EXPECT_FALSE(textOf(a.fields, "sayChosen").empty()) << id;
+                }
+                else
+                {
+                    EXPECT_TRUE(chosen.empty()) << id;
+                    EXPECT_TRUE(textOf(a.fields, "sayChosen").empty()) << id;
+                }
+
+                if (a.order == 0)
+                {
+                    // Outside the sequence: it waits for no step
+                    EXPECT_EQ(waitsFor(a), -1) << id;
+                    EXPECT_EQ(id, "guide.rations_low");
+                    ++outside;
+
+                    continue;
+                }
+
+                ASSERT_GE(a.order, 1) << id;
+                ASSERT_LE(a.order, 10) << id;
+
+                ++taken[a.order];
+
+                EXPECT_EQ(waitsFor(a), a.order - 1) << id;
+            }
+
+            for (int order = 1; order <= 10; ++order)
+                EXPECT_EQ(taken[order], 1) << "order " << order;
+
+            EXPECT_EQ(outside, 1u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A line of lore is a line and nothing else.
+        TEST(rules_test, lore_entries_have_no_gives_and_no_name)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            std::vector<RuleAchievement> achievements;
+            ASSERT_TRUE(f.rules.achievements(achievements)) << firstError(f.rules);
+
+            size_t lines = 0;
+
+            for (const auto& a : achievements)
+            {
+                if (a.kind != RuleKind::Lore)
+                    continue;
+
+                const std::string id = textOf(a.fields, "id");
+
+                EXPECT_EQ(id.rfind("lore.", 0), 0u) << id;
+                EXPECT_FALSE(textOf(a.fields, "entry").empty()) << id;
+                EXPECT_TRUE(textOf(a.fields, "name").empty()) << id;
+                EXPECT_TRUE(a.gives.empty()) << id;
+                EXPECT_TRUE(a.until.empty()) << id;
+                EXPECT_FALSE(a.asks.empty()) << id;
+
+                ++lines;
+            }
+
+            EXPECT_EQ(lines, 12u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What gives no kind is a deed, as every entry was before there were others.
+        TEST(rules_test, deeds_default_to_kind_deed)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            std::vector<RuleAchievement> achievements;
+            ASSERT_TRUE(f.rules.achievements(achievements)) << firstError(f.rules);
+
+            size_t deeds = 0;
+
+            for (const auto& a : achievements)
+            {
+                const std::string id = textOf(a.fields, "id");
+
+                if (id.rfind("guide.", 0) == 0 or id.rfind("lore.", 0) == 0)
+                {
+                    EXPECT_NE(a.kind, RuleKind::Deed) << id;
+
+                    continue;
+                }
+
+                EXPECT_EQ(a.kind, RuleKind::Deed) << id;
+                EXPECT_EQ(textOf(a.fields, "kind"), "deed") << id;
+                EXPECT_FALSE(textOf(a.fields, "name").empty()) << id;
+                EXPECT_FALSE(textOf(a.fields, "entry").empty()) << id;
+                EXPECT_TRUE(a.until.empty()) << id;
+
+                ++deeds;
+            }
+
+            EXPECT_EQ(deeds, 11u);
+
+            for (const char* id : {"first.coin", "carters.road", "sworn", "wood.king"})
+            {
+                const bool found = std::any_of(achievements.begin(), achievements.end(), [&](const RuleAchievement& a) {
+                    return textOf(a.fields, "id") == id and a.kind == RuleKind::Deed;
+                });
+
+                EXPECT_TRUE(found) << id;
             }
         }
 

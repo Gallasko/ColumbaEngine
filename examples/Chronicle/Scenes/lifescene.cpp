@@ -9,6 +9,7 @@
 #endif
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -153,14 +154,41 @@ namespace chronicle
         constexpr float FollowMs = 120.0f;         // Before the log is taken to its new end: the list has to measure the line first
         constexpr float LitMs = 1800.0f;           // The line the log has just written keeps its light that long
         constexpr float ToastMs = 3600.0f;         // A toast: a deed, a milestone, something new to do
-        constexpr float PremiseMs = 9000.0f;       // The one that says what the game is, to who has never played: long enough to be read
-        constexpr const char * const Premise = "His life is yours to write: choose his work, and the months pass";
         constexpr float ToastZ = 170.0f;
         constexpr float ToastHeight = 36.0f;
         constexpr float ToastPad = 18.0f;          // Left and right of its text
         constexpr float ToastStep = 44.0f;         // One toast over another
         constexpr float ToastBottom = 26.0f;       // The lowest one, from the window's bottom
         const std::string Arrow = " \xE2\x86\x92 ";  // U+2192 between spaces: what a figure would become
+
+        // The guide of a first life: a hand beside what a step points at, and a shade over the rest
+        // of the page. Both stand in the Overlay band (100-129), over the panels and under the
+        // tooltips; neither takes the mouse, so everything under the shade can still be pressed
+        constexpr float HandGap = 4.0f;            // Between the hand and what it points at
+        constexpr float HandSway = 4.0f;           // It moves that far either way,
+        constexpr float HandSwayMs = 800.0f;       // there and back in that long
+        constexpr float HandZ = 125.0f;
+        constexpr float VeilZ = 110.0f;
+        constexpr float VeilPad = 6.0f;            // Left lit around what is pointed at
+        constexpr float Turn = 6.2831853f;         // A whole turn, in radians
+        constexpr const char * const HandGlyph = "manicule";
+        constexpr const char * const HandColor = "vermilion";
+        constexpr const char * const VeilElement = "guide.veil";
+        const std::string TilePoint = "tile:";                  // What a step that points at a tile begins with, before the activity's id
+
+        // What a step says stands on a leaf of its own under what it points at (over it when the
+        // window ends there), with the two buttons of the guide: the one that leaves it for good,
+        // and the one that passes a step said for a time
+        constexpr float NoteWidth = 320.0f;
+        constexpr float NotePad = 12.0f;           // Around its words and its buttons
+        constexpr float NoteGap = 10.0f;           // Between what is pointed at and the leaf, and between its words and its buttons
+        constexpr float NoteButton = 36.0f;        // A button's height
+        constexpr float NoteMargin = 8.0f;         // The least it keeps from the window's edges
+        constexpr float NoteZ = 112.0f;            // Its edge; its ground over it, then its words and its buttons
+        constexpr const char * const NoteEdge = "guide.note.edge";
+        constexpr const char * const NoteGround = "guide.note.ground";
+        constexpr const char * const GuideSkipTag = "life.guide.skip";
+        constexpr const char * const GuideNextTag = "life.guide.next";
 
         constexpr float LeftScroll = 4.0f;         // The left column's thumb, past the panels' right edge
         constexpr float LeftScrollZ = 60.0f;       // Over the panels and what they hold
@@ -552,6 +580,10 @@ namespace chronicle
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e) {
             if (e.tag == AgainTag)
                 beginAgain();
+            else if (e.tag == GuideSkipTag)
+                skipGuide();
+            else if (e.tag == GuideNextTag)
+                nextStep();
             else if (e.tag == SkipTag and save.running.empty())
             {
                 if (not ended)
@@ -577,13 +609,12 @@ namespace chronicle
             if (quiet > 0.0f)
                 quiet -= e.tick;
 
-            // The page has arrived: what the game is, said once to a first life that has done nothing
-            if (premiseDue and quiet <= 0.0f)
-            {
-                premiseDue = false;
-                premiseSaid = true;
-                toast(Premise, PremiseMs);
-            }
+            // The guide's hand moves whether the months run or not, and a step said for a time
+            // runs it out
+            handMs = std::fmod(handMs + e.tick, HandSwayMs);
+
+            if (step.active and step.until.empty())
+                step.left -= e.tick;
 
             runPassing(e.tick);
 
@@ -669,16 +700,27 @@ namespace chronicle
                 LOG_ERROR(DOM, e);
         }
 
+        // A life made here is the first of its world, unless a later one was asked for
         if (opt.fresh)
-            save = freshLife();
+        {
+            const bool first = opt.lives <= 1;
+
+            save = freshLife(first);
+            save.lives = std::max(1, opt.lives);
+            save.guide = first ? std::max(0, opt.guide) : 0;
+        }
         else if (opt.noSave)
             save = firstLife();
         else if (not save.load(opt.savePath))
-            save = opt.freshWithoutSave ? freshLife() : firstLife();
+            save = opt.freshWithoutSave ? freshLife(true) : firstLife();
 
         rules.done = save.terms();
         rules.world = save.world;
+        rules.lives = save.lives;
         rules.running = save.running;
+
+        // The guide's length, before the page is filled: a first life's guide line waits for its step
+        readDeeds();
 
         // The page is arriving: what a save was already short of is not news to say
         quiet = QuietMs;
@@ -698,6 +740,9 @@ namespace chronicle
         rebuild();
         wire();
         publish();
+
+        // A life opened past its first frame (a save, the mockup's) has lore that already holds
+        takeAsRead();
         registerDeeds();
 
         tellAnalytics();
@@ -738,6 +783,8 @@ namespace chronicle
             background->get<PositionComponent>()->setWidth(width);
             background->get<PositionComponent>()->setHeight(height);
         }
+
+        guideFitted = guideRoom();
 
         if (compact)
             fitCompact(width, height);
@@ -955,7 +1002,8 @@ namespace chronicle
                 button->setDisabled(ecsRef, not shown);
         };
 
-        show("guide", leads);
+        // A first life has its guide to say it, on a leaf of its own
+        show("guide", leads and not guiding());
         show("skip", idle and not begins and not leads);
         show("begin", begins);
 
@@ -1026,10 +1074,22 @@ namespace chronicle
 
     float LifeScene::workingHeight() const
     {
-        if (not save.running.empty())
-            return RunningPanel;
+        return (save.running.empty() ? PanelChrome + SkipButton : RunningPanel) + guideRoom();
+    }
 
-        return led() ? PanelChrome + GuideLine + SkipButton : PanelChrome + SkipButton;
+    bool LifeScene::guiding() const
+    {
+        return save.lives == 1 and save.guide < guideSteps;
+    }
+
+    bool LifeScene::guideSaid() const
+    {
+        return led() and not guiding();
+    }
+
+    float LifeScene::guideRoom() const
+    {
+        return guideSaid() ? GuideLine : 0.0f;
     }
 
     bool LifeScene::led() const
@@ -1056,13 +1116,15 @@ namespace chronicle
         if (not led())
             return;
 
+        // A first life is led by its guide: its hand shows him the task, then the button that
+        // begins it, and he presses both himself
+        if (guiding())
+            return;
+
         // Chosen for him: Begin is the button the page opens on. Its tile is lit once the list
         // holds its rows (execute)
         chosen = firstWork();
         leadDue = not chosen.empty();
-
-        // And to a first life, what all this is
-        premiseDue = save.lives == 1 and not premiseSaid;
     }
 
     void LifeScene::fitFull(float width, float height)
@@ -1197,8 +1259,24 @@ namespace chronicle
         if (auto achievements = ecsRef->getSystem<AchievementSys>())
             achievements->clear();
 
-        // The ending leaves with the scene, as a scene element
+        // The ending leaves with the scene, as a scene element; so do the guide's hand and its shade
         ending = EntityRef{};
+
+        step = GuideStep{};
+        stepsDue.clear();
+        hand = EntityRef{};
+        handOn = 0;
+        veil.clear();
+        veiled = false;
+        shaded.clear();
+        note = EntityRef{};
+        noteEdge = EntityRef{};
+        noteGround = EntityRef{};
+        noteWords = Label{};
+        noteSkip = Button{};
+        noteNext = Button{};
+        noteShown = false;
+        nextShown = false;
 
         // And what was passing ends now
         endPassing();
@@ -1236,16 +1314,590 @@ namespace chronicle
                 fit(windowWidth, windowHeight);
         }
 
-        if (reached.empty())
+        if (not reached.empty())
+        {
+            std::vector<std::string> ids;
+            ids.swap(reached);
+
+            for (const auto& id : ids)
+                reachDeed(id);
+
+            publish();
+
+            // What was reached is kept: opened again, the chronicle does not reach it twice
+            if (not ended)
+                autoSave();
+        }
+
+        runGuide();
+    }
+
+    // ---- the guide of a first life -------------------------------------------------------------------
+
+    ElementMap LifeScene::watched() const
+    {
+        // The paths publishCharacter and publishRules write for what watches the life, read from
+        // the save itself: in the game a fact set is on its way to the WorldFacts for the rest of
+        // the pass, and what the scene asks of the life it asks now. An activity never done has no
+        // path here, and an ask about it does not hold
+        ElementMap facts;
+
+        for (const auto& [key, value] : save.stats)
+            facts["stat." + key] = ElementType{value};
+
+        for (const auto& [id, count] : save.done)
+            facts["done." + id] = ElementType{count};
+
+        facts["life.age"] = ElementType{save.age};
+        facts["life.terms"] = ElementType{save.termsDone()};
+        facts["life.working"] = ElementType{save.running.empty() ? 0 : 1};
+        facts["life.lives"] = ElementType{save.lives};
+        facts["life.guide"] = ElementType{save.guide};
+
+        return facts;
+    }
+
+    bool LifeScene::holds(const RecordList& asks) const
+    {
+        const ElementMap facts = watched();
+
+        for (const auto& ask : asks)
+        {
+            auto value = ask.find("value");
+
+            if (not FactChecker(textOf(ask, "fact"), value == ask.end() ? ElementType{0} : value->second, equalityOf(textOf(ask, "op"))).check(facts))
+                return false;
+        }
+
+        return true;
+    }
+
+    void LifeScene::reachStep(const RuleAchievement& entry)
+    {
+        auto hold = entry.fields.find("hold");
+
+        GuideStep reachedStep;
+        reachedStep.id = textOf(entry.fields, "id");
+        reachedStep.order = entry.order;
+        reachedStep.say = textOf(entry.fields, "say");
+        reachedStep.point = textOf(entry.fields, "point");
+        reachedStep.pointChosen = textOf(entry.fields, "pointChosen");
+        reachedStep.sayChosen = textOf(entry.fields, "sayChosen");
+        reachedStep.until = entry.until;
+        reachedStep.left = hold == entry.fields.end() ? 0.0f : floatOf(hold->second);
+
+        // A step of a guide that is over (skipped the pass it was reached in) is not said
+        if (reachedStep.order > 0 and not guiding())
             return;
 
-        std::vector<std::string> ids;
-        ids.swap(reached);
+        // A step outside the sequence is kept as a deed is: said once in a life
+        if (reachedStep.order == 0)
+            save.achieved.push_back(reachedStep.id);
 
-        for (const auto& id : ids)
-            reachDeed(id);
+        // Said once the step before it has ended
+        stepsDue.push_back(reachedStep);
+    }
 
-        publish();
+    void LifeScene::runGuide()
+    {
+        if (ended or page.empty())
+            return;
+
+        // The step being said ends on what it waits for, or with its time
+        if (step.active and (step.until.empty() ? step.left <= 0.0f : holds(step.until)))
+            endStep();
+
+        // The next one reached takes its place
+        if (not step.active and not stepsDue.empty())
+        {
+            step = stepsDue.front();
+            stepsDue.pop_front();
+            step.active = true;
+        }
+
+        // The line of a life led with no guide came or went: what stands under "At work now" follows
+        if (std::abs(guideRoom() - guideFitted) > 0.5f)
+            fit(windowWidth, windowHeight);
+
+        // Found again every time: a page built again has other tiles, a list that scrolled other
+        // rows in view
+        const EntityRef target = step.active ? pointed(stepChosen() ? step.pointChosen : step.point) : EntityRef{};
+
+        pointAt(target);
+        sayNote(target);
+    }
+
+    bool LifeScene::stepChosen() const
+    {
+        // A work is begun in two presses: the hand shows the tile until it is the one chosen, then
+        // the button that begins it; let go of, the tile has the hand again
+        return step.active and not step.pointChosen.empty() and not chosen.empty() and step.point == TilePoint + chosen;
+    }
+
+    void LifeScene::endStep()
+    {
+        // A step of the sequence takes the guide one further; one outside it leaves it where it was
+        if (step.order > 0)
+        {
+            save.guide = step.order;
+            setFact("life.guide", save.guide);
+        }
+
+        step = GuideStep{};
+
+        // The last of them said: a life still at nothing is led as any other
+        showWorkButtons();
+
+        // Kept: opened again, the guide goes on from here
+        autoSave();
+    }
+
+    void LifeScene::clearGuide()
+    {
+        step = GuideStep{};
+        stepsDue.clear();
+
+        pointAt(EntityRef{});
+        sayNote(EntityRef{});
+    }
+
+    void LifeScene::nextStep()
+    {
+        // Only what is said for a time: a step that waits for him to do something ends when he does
+        if (step.active and step.until.empty())
+            endStep();
+    }
+
+    void LifeScene::skipGuide()
+    {
+        if (ended or (not guiding() and not step.active))
+            return;
+
+        // Where he was when he had enough of it, for the analytics: the step after the last that ended
+        if (guiding())
+        {
+            save.guideSkipped = save.guide;
+            ++save.guideSkipped;
+        }
+
+        // Past its last step, for good; and the word it keeps for later is taken as said
+        save.guide = guideSteps;
+        setFact("life.guide", save.guide);
+
+        for (const auto& deed : deeds)
+        {
+            const std::string id = textOf(deed.fields, "id");
+
+            if (deed.kind == RuleKind::Guide and deed.order == 0 and std::find(save.achieved.begin(), save.achieved.end(), id) == save.achieved.end())
+                save.achieved.push_back(id);
+        }
+
+        clearGuide();
+
+        // A life that has done nothing yet is led as any later one is: its first work chosen
+        if (chosen.empty())
+            lead();
+
+        showWorkButtons();
+
+        autoSave();
+    }
+
+    void LifeScene::makeNote()
+    {
+        // The leaf: an edge a pixel wider than its ground all round, its words, and under them its
+        // two buttons. Everything hangs on the root, which the scene sizes and places
+        auto root = makeAnchoredPrefab(ecsRef, 0.0f, 0.0f, NoteZ);
+
+        root.get<PositionComponent>()->setWidth(NoteWidth);
+        root.get<PositionComponent>()->setVisibility(false);
+
+        note = root.entity;
+
+        // It leaves with the scene, as the page does
+        ecsRef->attach<SceneElement>(note);
+
+        auto prefab = root.get<Prefab>();
+
+        auto edge = makeUiSimple2DShape(ecsRef, Shape2D::Square, NoteWidth, 1.0f);
+
+        edge.get<PositionComponent>()->setZ(NoteZ);
+        edge.get<UiAnchor>()->setTopAnchor(PosAnchor{note.id, AnchorType::Top});
+        edge.get<UiAnchor>()->setLeftAnchor(PosAnchor{note.id, AnchorType::Left});
+        ecsRef->attach<ThemeComponent>(edge.entity, NoteEdge);
+        prefab->addToPrefab(edge.entity, "edge");
+
+        noteEdge = edge.entity;
+
+        auto ground = makeUiSimple2DShape(ecsRef, Shape2D::Square, NoteWidth - 2.0f, 1.0f);
+
+        ground.get<PositionComponent>()->setZ(NoteZ + 1.0f);
+        ground.get<UiAnchor>()->setTopAnchor(PosAnchor{note.id, AnchorType::Top});
+        ground.get<UiAnchor>()->setTopMargin(1.0f);
+        ground.get<UiAnchor>()->setLeftAnchor(PosAnchor{note.id, AnchorType::Left});
+        ground.get<UiAnchor>()->setLeftMargin(1.0f);
+        ecsRef->attach<ThemeComponent>(ground.entity, NoteGround);
+        prefab->addToPrefab(ground.entity, "ground");
+
+        noteGround = ground.entity;
+
+        // It takes the mouse: what is under the leaf is neither hovered nor clicked through it
+        ecsRef->attach<MouseEnterComponent>(noteGround, makeCallable<EndingNoOp>(EndingNoOp{}));
+        ecsRef->attach<MouseLeaveComponent>(noteGround, makeCallable<EndingNoOp>(EndingNoOp{}));
+
+        const int z = static_cast<int>(NoteZ) + 4;
+
+        LabelSpec words;
+        words.style = "body-sm";
+        words.color = "ink";
+        words.overflow = Overflow::Wrap;
+        words.width = NoteWidth - 2.0f * NotePad;
+        words.z = z;
+
+        noteWords = makeLabel(ecsRef, words);
+
+        auto wordsAnchor = noteWords.entity->get<UiAnchor>();
+        wordsAnchor->setTopAnchor(PosAnchor{note.id, AnchorType::Top});
+        wordsAnchor->setTopMargin(NotePad);
+        wordsAnchor->setLeftAnchor(PosAnchor{note.id, AnchorType::Left});
+        wordsAnchor->setLeftMargin(NotePad);
+        prefab->addToPrefab(noteWords.entity, "words");
+
+        ButtonSpec skip;
+        skip.variant = ButtonVariant::Quiet;
+        skip.label = "Skip the guide";
+        skip.tag = GuideSkipTag;
+        skip.z = z;
+
+        noteSkip = makeButton(ecsRef, skip);
+
+        auto skipAnchor = noteSkip.root->get<UiAnchor>();
+        skipAnchor->setBottomAnchor(PosAnchor{note.id, AnchorType::Bottom});
+        skipAnchor->setBottomMargin(NotePad);
+        skipAnchor->setLeftAnchor(PosAnchor{note.id, AnchorType::Left});
+        skipAnchor->setLeftMargin(NotePad);
+        prefab->addToPrefab(noteSkip.root, "skip");
+
+        ButtonSpec next;
+        next.variant = ButtonVariant::Seal;
+        next.label = "Next";
+        next.tag = GuideNextTag;
+        next.z = z;
+
+        noteNext = makeButton(ecsRef, next);
+
+        auto nextAnchor = noteNext.root->get<UiAnchor>();
+        nextAnchor->setBottomAnchor(PosAnchor{note.id, AnchorType::Bottom});
+        nextAnchor->setBottomMargin(NotePad);
+        nextAnchor->setRightAnchor(PosAnchor{note.id, AnchorType::Right});
+        nextAnchor->setRightMargin(NotePad);
+        prefab->addToPrefab(noteNext.root, "next");
+
+        noteShown = false;
+        nextShown = true;
+    }
+
+    void LifeScene::sayNote(EntityRef target)
+    {
+        if (not step.active)
+        {
+            // Nothing to say: the leaf goes, and its buttons take no key meanwhile
+            if (noteShown)
+            {
+                note->get<PositionComponent>()->setVisibility(false);
+                noteSkip.setDisabled(ecsRef, true);
+                noteNext.setDisabled(ecsRef, true);
+
+                noteShown = false;
+            }
+
+            return;
+        }
+
+        if (note.empty())
+            makeNote();
+
+        // The step's sentence, or the one of its second half once its tile is chosen
+        const std::string words = stepChosen() and not step.sayChosen.empty() ? step.sayChosen : step.say;
+        // Only a step said for a time can be passed: one that waits for him ends when he does it
+        const bool timed = step.until.empty();
+
+        auto pos = note->get<PositionComponent>();
+
+        if (not noteShown or noteWords.spec.text != words or nextShown != timed)
+        {
+            if (noteWords.spec.text != words)
+                noteWords.setText(ecsRef, words);
+
+            // As tall as its words, with its buttons under them
+            const float height = NotePad + noteWords.entity->get<PositionComponent>()->height + NoteGap + NoteButton + NotePad;
+
+            pos->setHeight(height);
+            noteEdge->get<PositionComponent>()->setHeight(height);
+            noteGround->get<PositionComponent>()->setHeight(height - 2.0f);
+
+            pos->setVisibility(true);
+
+            noteSkip.setDisabled(ecsRef, false);
+            noteNext.setDisabled(ecsRef, not timed);
+            noteNext.root->get<PositionComponent>()->setVisibility(timed);
+
+            noteShown = true;
+            nextShown = timed;
+        }
+
+        // Under what is pointed at, from its left edge; over it when the window ends there; never
+        // out of the window. A step that points at nothing is said at the head of the page
+        float x = std::max(NoteMargin, (windowWidth - pos->width) / 2.0f);
+        float y = ColumnsTop;
+
+        if (not target.empty())
+        {
+            auto where = target->get<PositionComponent>();
+
+            x = std::max(NoteMargin, std::min(where->x, windowWidth - pos->width - NoteMargin));
+            y = where->y + where->height + NoteGap;
+
+            if (y + pos->height > windowHeight - NoteMargin)
+                y = where->y - NoteGap - pos->height;
+
+            y = std::max(NoteMargin, y);
+        }
+
+        if (std::abs(pos->x - x) > 0.5f or std::abs(pos->y - y) > 0.5f)
+        {
+            pos->setX(x);
+            pos->setY(y);
+        }
+    }
+
+    EntityRef LifeScene::pointed(const std::string& point) const
+    {
+        // "tile:carters": a kind of thing on the page and which one; "clock": a thing there is one of
+        const size_t colon = point.find(':');
+        const std::string kind = point.substr(0, colon);
+        const std::string name = colon == std::string::npos ? std::string() : point.substr(colon + 1);
+
+        EntityRef target;
+
+        if (kind == "button")
+        {
+            if (auto button = piece<Button>(name))
+                target = button->root;
+        }
+        else if (kind == "tile")
+        {
+            auto list = piece<ActivityList>("activities");
+
+            if (auto row = list ? list->find(ecsRef, name) : nullptr)
+                target = row->root;
+        }
+        else if (kind == "holding")
+        {
+            if (auto ledger = piece<ResourceLedger>("ledger"))
+                target = ledger->rowEntity(name);
+        }
+        else if (kind == "stat")
+        {
+            if (auto line = piece<StatLine>(name))
+                target = line->root;
+        }
+        else if (kind == "clock")
+        {
+            if (auto clock = piece<LifeClock>("clock"))
+                target = clock->root;
+        }
+        else if (kind == "log")
+        {
+            target = named("happened");
+        }
+
+        // What is not drawn is not pointed at: a row not listed yet, a button not shown, a tile
+        // scrolled out of its list, a panel the compact page keeps for another tab
+        if (target.empty() or not target->has<PositionComponent>() or not target->get<PositionComponent>()->isRenderable())
+            return EntityRef{};
+
+        return target;
+    }
+
+    void LifeScene::pointAt(EntityRef target)
+    {
+        if (target.empty())
+        {
+            if (not hand.empty() and handOn != 0)
+            {
+                auto anchor = hand->get<UiAnchor>();
+
+                anchor->clearRightAnchor();
+                anchor->clearVerticalCenter();
+
+                hand->get<PositionComponent>()->setVisibility(false);
+            }
+
+            handOn = 0;
+
+            shadeAround({});
+
+            return;
+        }
+
+        if (hand.empty())
+        {
+            Mark mark = makeMark(ecsRef, {HandGlyph, MarkSize::S24, HandColor, static_cast<int>(HandZ)});
+
+            hand = mark.entity;
+
+            // It leaves with the scene, as the page does
+            ecsRef->attach<SceneElement>(hand);
+        }
+
+        auto anchor = hand->get<UiAnchor>();
+        auto where = target->get<PositionComponent>();
+
+        // Beside its left edge, at mid-height, and hung on it: it goes where its target goes
+        if (handOn != target.id)
+        {
+            anchor->setRightAnchor(PosAnchor{target.id, AnchorType::Left});
+            anchor->setVerticalCenter(PosAnchor{target.id, AnchorType::VerticalCenter});
+
+            hand->get<PositionComponent>()->setVisibility(true);
+
+            handOn = target.id;
+            handMs = 0.0f;
+        }
+
+        // It moves a little, to be seen; and what stands at the window's edge has it over its start
+        // rather than out of the window
+        float gap = HandGap;
+
+        if (not Motion::reduced())
+            gap += HandSway * std::sin(handMs * Turn / HandSwayMs);
+
+        anchor->setRightMargin(std::min(gap, where->x - hand->get<PositionComponent>()->width));
+
+        // The rest of the page under a shade: what is pointed at stays lit
+        shadeAround({target});
+    }
+
+    void LifeScene::shadeAround(const std::vector<EntityRef>& lit)
+    {
+        struct Box
+        {
+            float left, top, right, bottom;
+        };
+
+        // What stays lit, a little wider than it is, on whole pixels and inside the window
+        std::vector<Box> holes;
+        std::string around;
+
+        for (EntityRef entity : lit)
+        {
+            if (entity.empty() or not entity->has<PositionComponent>())
+                continue;
+
+            auto pos = entity->get<PositionComponent>();
+
+            const Box hole{std::max(0.0f, std::floor(pos->x - VeilPad)), std::max(0.0f, std::floor(pos->y - VeilPad)),
+                           std::min(windowWidth, std::ceil(pos->x + pos->width + VeilPad)), std::min(windowHeight, std::ceil(pos->y + pos->height + VeilPad))};
+
+            if (hole.right <= hole.left or hole.bottom <= hole.top)
+                continue;
+
+            holes.push_back(hole);
+
+            for (float edge : {hole.left, hole.top, hole.right, hole.bottom})
+                around += std::to_string(static_cast<int>(edge)) + ",";
+        }
+
+        if (not holes.empty())
+            around += std::to_string(static_cast<int>(windowWidth)) + "x" + std::to_string(static_cast<int>(windowHeight));
+
+        // Laid again only when what it goes around has moved
+        if (around == shaded)
+            return;
+
+        shaded = around;
+
+        // The window cut in bands at every top and bottom of what is lit; in each band, a strip of
+        // shade between two lit spans. Nothing lit: no shade at all
+        std::vector<Box> strips;
+
+        if (not holes.empty())
+        {
+            std::vector<float> cuts = {0.0f, windowHeight};
+
+            for (const auto& hole : holes)
+            {
+                cuts.push_back(hole.top);
+                cuts.push_back(hole.bottom);
+            }
+
+            std::sort(cuts.begin(), cuts.end());
+
+            for (size_t i = 0; i + 1 < cuts.size(); ++i)
+            {
+                const float top = cuts[i];
+                const float bottom = cuts[i + 1];
+
+                if (bottom <= top)
+                    continue;
+
+                std::vector<std::pair<float, float>> spans;
+
+                for (const auto& hole : holes)
+                {
+                    if (hole.top <= top and hole.bottom >= bottom)
+                        spans.push_back({hole.left, hole.right});
+                }
+
+                std::sort(spans.begin(), spans.end());
+
+                float from = 0.0f;
+
+                for (const auto& span : spans)
+                {
+                    if (span.first > from)
+                        strips.push_back({from, top, span.first, bottom});
+
+                    from = std::max(from, span.second);
+                }
+
+                if (from < windowWidth)
+                    strips.push_back({from, top, windowWidth, bottom});
+            }
+        }
+
+        while (veil.size() < strips.size())
+        {
+            auto strip = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1.0f, 1.0f);
+
+            strip.get<PositionComponent>()->setZ(VeilZ);
+            strip.get<PositionComponent>()->setVisibility(false);
+            ecsRef->attach<ThemeComponent>(strip.entity, VeilElement);
+            ecsRef->attach<SceneElement>(strip.entity);
+
+            veil.push_back(strip.entity);
+        }
+
+        for (size_t i = 0; i < veil.size(); ++i)
+        {
+            auto pos = veil[i]->get<PositionComponent>();
+
+            if (i >= strips.size())
+            {
+                pos->setVisibility(false);
+
+                continue;
+            }
+
+            pos->setX(strips[i].left);
+            pos->setY(strips[i].top);
+            pos->setWidth(strips[i].right - strips[i].left);
+            pos->setHeight(strips[i].bottom - strips[i].top);
+            pos->setVisibility(true);
+        }
+
+        veiled = not strips.empty();
     }
 
     // ---- wire: every subscription, and nothing else -------------------------------------------------
@@ -1919,6 +2571,9 @@ namespace chronicle
         clearAlert();
         paused = true;
 
+        // And the guide has no one left to lead
+        clearGuide();
+
         publishAll();
 
         // The line the new life opens with, and the age the last one ended at as the head wrote it
@@ -1946,9 +2601,10 @@ namespace chronicle
 
         for (const auto& id : save.achieved)
         {
+            // Not the lore he read, nor what the guide told him
             for (const auto& deed : deeds)
             {
-                if (textOf(deed.fields, "id") == id)
+                if (textOf(deed.fields, "id") == id and deed.kind == RuleKind::Deed)
                     told.push_back(textOf(deed.fields, "name"));
             }
         }
@@ -2041,6 +2697,41 @@ namespace chronicle
         autoSave();
     }
 
+    void LifeScene::readDeeds()
+    {
+        guideSteps = 0;
+
+        if (not rules.achievements(deeds))
+        {
+            for (const auto& e : rules.errors)
+                LOG_ERROR(DOM, e);
+
+            return;
+        }
+
+        // The steps of the sequence: a save past the last of them has no guide left
+        for (const auto& deed : deeds)
+        {
+            if (deed.kind == RuleKind::Guide and deed.order > 0)
+                ++guideSteps;
+        }
+    }
+
+    void LifeScene::takeAsRead()
+    {
+        // What is already so when the chronicle is opened is not news: a life from before the lore
+        // was written, or the mockup's, does not open on a page of it, nor on a word of the guide
+        // about something long past. A life at its first frame has nothing of the kind
+        for (const auto& deed : deeds)
+        {
+            const std::string id = textOf(deed.fields, "id");
+            const bool aside = deed.kind == RuleKind::Lore or (deed.kind == RuleKind::Guide and deed.order == 0);
+
+            if (aside and std::find(save.achieved.begin(), save.achieved.end(), id) == save.achieved.end() and holds(deed.asks))
+                save.achieved.push_back(id);
+        }
+    }
+
     void LifeScene::registerDeeds()
     {
         auto achievements = ecsRef->getSystem<AchievementSys>();
@@ -2054,19 +2745,17 @@ namespace chronicle
         achievements->clear();
         reached.clear();
 
-        if (not rules.achievements(deeds))
-        {
-            for (const auto& e : rules.errors)
-                LOG_ERROR(DOM, e);
-
-            return;
-        }
+        readDeeds();
 
         for (const auto& deed : deeds)
         {
             const std::string id = textOf(deed.fields, "id");
 
             if (std::find(save.achieved.begin(), save.achieved.end(), id) != save.achieved.end())
+                continue;
+
+            // The guide is a first life's, and a step that has ended is not said again
+            if (deed.kind == RuleKind::Guide and (save.lives > 1 or (deed.order > 0 and deed.order <= save.guide)))
                 continue;
 
             Achievement achievement;
@@ -2093,7 +2782,21 @@ namespace chronicle
             if (textOf(deed.fields, "id") != id)
                 continue;
 
+            // A step of the guide: a sentence and a hand, no line and no toast
+            if (deed.kind == RuleKind::Guide)
+            {
+                reachStep(deed);
+                return;
+            }
+
             save.achieved.push_back(id);
+
+            // A line of the town's story, and nothing else
+            if (deed.kind == RuleKind::Lore)
+            {
+                save.log.push_back({save.age, textOf(deed.fields, "entry"), LogKind::Lore, "", ""});
+                return;
+            }
 
             for (const auto& g : deed.gives)
                 save.stats[textOf(g, "stat")] += intOf(g, "amount");
@@ -2321,6 +3024,13 @@ namespace chronicle
         // Every stat as a number, for what watches the life rather than shows it
         for (const auto& [key, value] : save.stats)
             setFact("stat." + key, value);
+
+        // And where the life stands, for the deeds, the lore and the guide: the terms he has done,
+        // whether he is at work, which life this is and the step of the guide he is past
+        setFact("life.terms", save.termsDone());
+        setFact("life.working", save.running.empty() ? 0 : 1);
+        setFact("life.lives", save.lives);
+        setFact("life.guide", save.guide);
 
         setFact("log.size", static_cast<int>(save.log.size()));
 
@@ -2624,6 +3334,11 @@ namespace chronicle
         sinceMonth = 0.0f;
 
         publish();
+
+        // A step of the guide that waited for a work to begin ends with it, not a frame later: the
+        // term may be over by then
+        if (step.active and not step.until.empty() and holds(step.until))
+            endStep();
 
         autoSave();
     }
@@ -3076,6 +3791,10 @@ namespace chronicle
         closeEnding();
         ended = false;
 
+        // Never a first life: it opens as every later one does, at 7 with a year of rations and
+        // every task in the list, and no guide
+        clearGuide();
+
         save = freshLife();
 
         // The world did not begin again with him: its date runs on from the last life's, and he
@@ -3084,6 +3803,7 @@ namespace chronicle
         save.lives = last.lives + 1;
 
         rules.world = save.world;
+        rules.lives = save.lives;
         rules.running = save.running;
 
         // "At work now" has the line of a life that has done nothing again
