@@ -1099,10 +1099,25 @@ namespace chronicle
                 button->setDisabled(ecsRef, not shown);
         };
 
+        // On the phone page the panel keeps its button's room while nothing is chosen yet: the
+        // tabs and the choice under it stay where they are when a task is tapped, and a second
+        // tap finds the task where the first did. The button waits there, greyed
+        const bool waits = phone and idle and not begins and leads and not ended;
+
         // A first life has its guide to say it, on a leaf of its own
-        show("guide", leads and not guiding());
+        show("guide", leads and not guiding() and not waits);
         show("skip", idle and not begins and not leads);
-        show("begin", begins);
+        show("begin", begins or waits);
+
+        if (waits)
+        {
+            if (auto begin = piece<Button>("begin"))
+            {
+                begin->setLabel(ecsRef, "Begin");
+                begin->setMonths(ecsRef, -1);
+                begin->setDisabled(ecsRef, true);
+            }
+        }
 
         if (not begins)
             return;

@@ -693,6 +693,49 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // On the phone page a first life's panel keeps the room of its button before a task is
+        // chosen: Begin waits there greyed, and choosing a task moves nothing under the panel, so a
+        // second tap on the task finds it where the first did.
+        TEST(lifescene_test, phone_begin_waits_in_its_place)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life(LifeFixture::first());
+            ASSERT_NE(life, nullptr);
+
+            f.resize(390.0f, 844.0f);
+            f.frames(12);
+
+            ASSERT_TRUE(life->phone);
+
+            auto list = life->piece<ActivityList>("activities");
+            auto begin = life->piece<Button>("begin");
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(begin, nullptr);
+            ASSERT_NE(list->find(&f.ecs, "helping"), nullptr);
+
+            // Nothing chosen: the button is there, and takes no press
+            EXPECT_TRUE(f.pos(life->named("begin"))->visible);
+            EXPECT_TRUE(f.ecs.getEntity(begin->face.id)->get<ButtonState>()->disabled);
+
+            const float workingBottom = f.pos(life->named("working"))->y + f.pos(life->named("working"))->height;
+            const float tileY = f.pos(list->find(&f.ecs, "helping")->root)->y;
+
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "helping"});
+            f.frames(12);
+
+            // Chosen: the same button, live, and the task where it was
+            EXPECT_TRUE(f.pos(life->named("begin"))->visible);
+            EXPECT_FALSE(f.ecs.getEntity(begin->face.id)->get<ButtonState>()->disabled);
+            EXPECT_NEAR(f.pos(life->named("working"))->y + f.pos(life->named("working"))->height, workingBottom, 0.5f);
+            ASSERT_NE(list->find(&f.ecs, "helping"), nullptr);
+            EXPECT_NEAR(f.pos(list->find(&f.ecs, "helping")->root)->y, tileY, 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // Below the three columns' least size (680 wide, their narrowest step) the page is the compact
         // file: the work at hand over the choice, a side column of one panel at a time, and everything
         // the life wrote still there. It swaps back when the window grows.
