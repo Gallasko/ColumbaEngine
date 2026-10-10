@@ -207,6 +207,45 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // An entity removed while the mouse is on it has left: nothing else would say so, and
+        // what follows the hover would wait for a leave that never comes
+        TEST(hover_test, a_removed_entity_is_announced_as_left)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<MouseHoverSystem>();
+            auto* rec = ecs.createSystem<HoverRecorder>();
+
+            const _unique_id hovered = makeHoverEntity(ecs, 0, 0, 10, 10, 10);
+            const _unique_id aside = makeHoverEntity(ecs, 50, 50, 10, 10, 10);
+
+            ecs.sendEvent(OnMouseMove{Point2D{5, 5}, nullptr});
+            pump(ecs);
+
+            ASSERT_TRUE(contains(rec->entered, hovered));
+
+            rec->clear();
+
+            // One the mouse is not on: gone without a word
+            ecs.removeEntity(aside);
+            pump(ecs);
+
+            EXPECT_TRUE(rec->hoverEvents.empty());
+
+            ecs.removeEntity(hovered);
+            pump(ecs);
+
+            ASSERT_EQ(rec->hoverEvents.size(), 1u);
+            EXPECT_TRUE(rec->hoverEvents.front().entered.empty());
+            ASSERT_EQ(rec->hoverEvents.front().left.size(), 1u);
+            EXPECT_EQ(rec->hoverEvents.front().left.front(), hovered);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // The hover is computed on a move: an entity made under a mouse that stays still is not
         // hovered until a refresh is asked for
         TEST(hover_test, refresh_hovers_what_was_made_under_a_still_mouse)

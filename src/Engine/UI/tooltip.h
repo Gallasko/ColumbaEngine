@@ -46,6 +46,11 @@ namespace pg
         bool isShowing() const { return shownFor != 0; }
         _unique_id shownFor = 0;
 
+        // A press hides the tooltip shown, then shows the one of what it is on, after its delay:
+        // for a screen with no hover to wait on (a finger), where a tap on a thing is the way
+        // to read about it. Off, a press only hides.
+        bool showOnPress = false;
+
     private:
         void show(_unique_id target, Point2D at);
         void hide();
@@ -53,6 +58,7 @@ namespace pg
 
         std::unordered_map<std::string, TooltipBuilder> builders;
         _unique_id pendingTarget = 0;
+        _unique_id hoveredTarget = 0;   // The tooltipped entity the mouse is on, 0 for none
         uint32_t pendingMs = 0;
         Point2D lastPos;
         EntityRef current;

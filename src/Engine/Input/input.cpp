@@ -90,6 +90,9 @@ namespace pg
 		{
 			case Input::InputState::MOUSEPRESS:
 			{
+				if (button < NbLatchedButtons)
+					pressLatch[button].store(true);
+
 				if (it == -1)
 				{
 					buttonContainer.push_back(Input::ButtonInstance{button, Input::InputState::MOUSEPRESS});
@@ -198,6 +201,16 @@ namespace pg
 		LOG_THIS_MEMBER(DOM);
 
 		return buttonState(button) == Input::InputState::MOUSEPRESS;
+	}
+
+	bool Input::takePress(const MouseButton& button)
+	{
+		LOG_THIS_MEMBER(DOM);
+
+		if (button >= NbLatchedButtons)
+			return false;
+
+		return pressLatch[button].exchange(false);
 	}
 
 	bool Input::isButtonGrabbed(const MouseButton& button) const

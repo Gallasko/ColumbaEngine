@@ -220,6 +220,10 @@ namespace pg
         // HoverChangedEvent is sent when something changed, or always when announce is true.
         void updateHover(const Point2D& mousePos, bool announce);
 
+        // Drops an entity that is gone or no longer takes the hover. Hovered, it is announced
+        // as left: nothing else would say so.
+        void forget(_unique_id id);
+
         // Map of entity id to whether the mouse is currently hovering.
         std::unordered_map<_unique_id, bool> hoverState;
 

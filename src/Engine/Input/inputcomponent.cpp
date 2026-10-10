@@ -229,7 +229,11 @@ namespace pg
 
         oldMousePos = mousePos;
 
-        if (inputHandler->isButtonPressed(button))
+        // Down now, or down and up again since the last pass: a tap on a touch screen is shorter
+        // than a pass, and its press is taken here and its release just under
+        const bool tapped = inputHandler->takePress(button);
+
+        if (inputHandler->isButtonPressed(button) or tapped)
         {
             if (not pressedList[button])
             {
@@ -481,7 +485,7 @@ namespace pg
             // Only remove from hoverState if the entity no longer has either hover component.
             if (not entity or (not entity->has<MouseEnterComponent>() and not entity->has<MouseLeaveComponent>()))
             {
-                hoverState.erase(id);
+                forget(id);
             }
         });
 
@@ -497,9 +501,26 @@ namespace pg
             auto entity = ecsRef->getEntity(id);
             if (not entity or (not entity->has<MouseEnterComponent>() and not entity->has<MouseLeaveComponent>()))
             {
-                hoverState.erase(id);
+                forget(id);
             }
         });
+    }
+
+    void MouseHoverSystem::forget(_unique_id id)
+    {
+        auto it = hoverState.find(id);
+
+        if (it == hoverState.end())
+            return;
+
+        const bool hovering = it->second;
+
+        hoverState.erase(it);
+
+        // Gone while the mouse was on it: it has left, and what follows the hover (a tooltip
+        // shown for it) must hear it. Its leave callback went with it
+        if (hovering)
+            ecsRef->sendEvent(HoverChangedEvent{{}, {id}, lastMousePos});
     }
 
     void MouseHoverSystem::onEvent(const OnMouseMove& event)

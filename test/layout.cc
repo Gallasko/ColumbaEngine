@@ -833,6 +833,19 @@ namespace pg
             ASSERT_EQ(spy->releases.size(), 2u);
             EXPECT_FALSE(spy->releases[1]);
             EXPECT_FLOAT_EQ(f.layout->yOffset, 60.0f);
+
+            input.updateInput(0.0);
+
+            // A tap, as a finger does it: down and up again before the click system has read the
+            // button once. A click all the same, pressed and released in the one pass
+            input.registerMouseInput(SDL_BUTTON_LEFT, Input::InputState::MOUSEPRESS);
+            input.registerMouseInput(SDL_BUTTON_LEFT, Input::InputState::MOUSERELEASE);
+            frame();
+            frame();
+
+            EXPECT_EQ(spy->clicks, 2);
+            ASSERT_EQ(spy->releases.size(), 3u);
+            EXPECT_FALSE(spy->releases[2]);
         }
 
         // ----------------------------------------------------------------------------------------

@@ -20,6 +20,15 @@ First tagged release. Everything below describes the state of the engine at the 
   was. The hover is only computed on a mouse move, so an entity built or moved under a mouse that stays
   still was not hovered (no enter callback, no tooltip, and a widget that waits for the hover ignored the
   click) until the mouse moved. Nothing changes for who does not send the event.
+- Input: a press and its release between two passes of `MouseClickSystem` was lost, since the system
+  read the button's state once a pass. A tap on a touch screen lasts a few milliseconds and never
+  clicked. `Input::takePress` latches the press, and the click and its release are sent in the one pass.
+- Tooltips: `TooltipSystem::showOnPress`, off by default. On, a press hides the tooltip shown and
+  brings the one of what was pressed after its delay: the way to read a tooltip where there is no hover.
+- Tooltips: a tooltip stayed over the page when what it was shown for was removed or hidden under a
+  mouse that did not move (in Chronicle, a task tile replaced when a month passed). `MouseHoverSystem`
+  now announces a hovered entity that is removed as left, and `TooltipSystem` hides a tooltip whose
+  target is gone or no longer drawn.
 - ECS: removing a component from an entity that did not have one corrupted the set. `SparseSet::remove`
   only refused an id when the set was empty: for any other id it took the size down, moved the last
   element into the place of an unrelated one and handed that place back to be released. A component of

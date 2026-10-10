@@ -193,5 +193,109 @@ namespace pg
             EXPECT_TRUE(tip->isShowing());
             EXPECT_EQ(tip->shownFor, b);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // With showOnPress (a touch screen), a press hides the tooltip and brings back the one of
+        // what was pressed: a tap is how a finger asks. Off the target, a press only hides
+        TEST(tooltip_test, a_press_shows_the_tooltip_when_asked_to)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+
+            _unique_id lastRoot = 0;
+            auto* tip = setupTooltip(ecs, &lastRoot);
+
+            const _unique_id a = makeTooltipTarget(ecs, 0, 0, 50, 20);
+
+            tip->showOnPress = true;
+
+            move(ecs, 5, 5);
+            ecs.sendEvent(OnMouseClick{Point2D{5, 5}, static_cast<MouseButton>(1)});
+            pump(ecs);
+
+            EXPECT_FALSE(tip->isShowing());
+
+            tick(ecs, 100);
+            tick(ecs, 100);
+
+            ASSERT_TRUE(tip->isShowing());
+            EXPECT_EQ(tip->shownFor, a);
+
+            // Pressed again where it is: hidden at once, and back after the delay
+            ecs.sendEvent(OnMouseClick{Point2D{5, 5}, static_cast<MouseButton>(1)});
+            pump(ecs);
+
+            EXPECT_FALSE(tip->isShowing());
+
+            tick(ecs, 100);
+            tick(ecs, 100);
+
+            EXPECT_TRUE(tip->isShowing());
+
+            // Pressed elsewhere: the mouse leaves it first, and nothing comes back
+            move(ecs, 200, 200);
+            ecs.sendEvent(OnMouseClick{Point2D{200, 200}, static_cast<MouseButton>(1)});
+            pump(ecs);
+            tick(ecs, 100);
+            tick(ecs, 100);
+
+            EXPECT_FALSE(tip->isShowing());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What a tooltip is shown for is removed under a mouse that does not move (a list built
+        // again): no move tells the tooltip to go, and it must not stay over the page
+        TEST(tooltip_test, hides_when_its_target_is_removed)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+
+            _unique_id lastRoot = 0;
+            auto* tip = setupTooltip(ecs, &lastRoot);
+
+            const _unique_id a = makeTooltipTarget(ecs, 0, 0, 50, 20);
+
+            move(ecs, 5, 5);
+            tick(ecs, 100);
+            tick(ecs, 100);
+            ASSERT_TRUE(tip->isShowing());
+
+            ecs.removeEntity(a);
+            pump(ecs);
+            tick(ecs, 16);
+
+            EXPECT_FALSE(tip->isShowing());
+            EXPECT_EQ(ecs.getEntity(lastRoot), nullptr);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The same for a target that is hidden where it stands (the page it is on is swapped out)
+        TEST(tooltip_test, hides_when_its_target_is_hidden)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+
+            _unique_id lastRoot = 0;
+            auto* tip = setupTooltip(ecs, &lastRoot);
+
+            const _unique_id a = makeTooltipTarget(ecs, 0, 0, 50, 20);
+
+            move(ecs, 5, 5);
+            tick(ecs, 100);
+            tick(ecs, 100);
+            ASSERT_TRUE(tip->isShowing());
+
+            ecs.getEntity(a)->get<PositionComponent>()->setVisibility(false);
+            pump(ecs);
+            tick(ecs, 16);
+
+            EXPECT_FALSE(tip->isShowing());
+        }
     }
 }

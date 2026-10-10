@@ -1,6 +1,7 @@
 #ifndef INPUT_H
 #define INPUT_H
 
+#include <atomic>
 #include <vector>
 
 #include <SDL_scancode.h>
@@ -74,6 +75,11 @@ namespace pg
 		bool isButtonGrabbed(const MouseButton& button) const;
 		bool isButtonReleased(const MouseButton& button) const;
 
+		// Whether the button went down since the last call, even if it is up again by now. A press
+		// and its release may both come between two reads of the state (a tap on a touch screen
+		// lasts a few milliseconds): read through this, it is a click all the same.
+		bool takePress(const MouseButton& button);
+
 		// Todo
 		Input::InputState gamepadButtonState(const MouseButton& button) const;
 		bool isGamepadButtonPressed(const MouseButton& button) const;
@@ -99,6 +105,10 @@ namespace pg
 	private:
 		std::vector<Input::KeyInstance> keyContainer;
 		std::vector<Input::ButtonInstance> buttonContainer;
+
+		// One a button, set by the event and taken by who reads the clicks, which may be another thread
+		static constexpr size_t NbLatchedButtons = 8;
+		std::atomic<bool> pressLatch[NbLatchedButtons] = {};
 		std::vector<SDL_GameController*> gamepadContainer;
 		// Todo game pad button and axis holders
 		Point2D mousePos;

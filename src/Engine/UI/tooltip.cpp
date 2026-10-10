@@ -111,6 +111,9 @@ namespace pg
                 pendingTarget = 0;
                 pendingMs = 0;
             }
+
+            if (id == hoveredTarget)
+                hoveredTarget = 0;
         }
 
         // 2. Entering a tooltipped entity starts a fresh pending timer.
@@ -121,6 +124,7 @@ namespace pg
             if (entity and entity->has<TooltipComponent>())
             {
                 pendingTarget = id;
+                hoveredTarget = id;
                 pendingMs = 0;
                 lastPos = event.pos;
                 break;
@@ -139,7 +143,7 @@ namespace pg
         }
     }
 
-    void TooltipSystem::onEvent(const OnMouseClick&)
+    void TooltipSystem::onEvent(const OnMouseClick& event)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -147,6 +151,13 @@ namespace pg
 
         pendingTarget = 0;
         pendingMs = 0;
+
+        // Where a press is the way to ask: the tooltip of what was pressed comes after its delay
+        if (showOnPress and hoveredTarget != 0)
+        {
+            pendingTarget = hoveredTarget;
+            lastPos = event.pos;
+        }
     }
 
     void TooltipSystem::onEvent(const ResizeEvent& event)
@@ -157,6 +168,16 @@ namespace pg
 
     void TooltipSystem::onProcessEvent(const TickEvent& event)
     {
+        // A tooltip does not outlive what it is shown for: removed or hidden under a mouse that
+        // does not move, the target sends no leave
+        if (shownFor != 0)
+        {
+            auto shown = ecsRef->getEntity(shownFor);
+
+            if (not shown or not shown->has<TooltipComponent>() or not shown->has<PositionComponent>() or not shown->get<PositionComponent>()->isRenderable())
+                hide();
+        }
+
         if (pendingTarget == 0)
             return;
 
