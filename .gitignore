@@ -31,6 +31,7 @@ test/pgcompiler/scripts/*compiled.pgc
 graph.dot
 .wrangler
 asan/
+tmp/
 # Committed component seed: base files for CI / Emscripten builds that cannot run the bootstrap
 !src/Engine/Components/generated/*.generated.*
 !src/Engine/Components/generated/*.serialization.cpp
