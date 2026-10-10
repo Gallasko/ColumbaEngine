@@ -203,5 +203,61 @@ namespace pg
             EXPECT_EQ(first.entered.front(), b);
             EXPECT_TRUE(first.left.empty());
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The hover is computed on a move: an entity made under a mouse that stays still is not
+        // hovered until a refresh is asked for
+        TEST(hover_test, refresh_hovers_what_was_made_under_a_still_mouse)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<MouseHoverSystem>();
+            auto* rec = ecs.createSystem<HoverRecorder>();
+
+            // Before a first move there is nowhere to look
+            const _unique_id early = makeHoverEntity(ecs, 0, 0, 10, 10, 10);
+
+            ecs.sendEvent(RefreshHoverEvent{});
+            pump(ecs);
+
+            EXPECT_TRUE(rec->entered.empty());
+            EXPECT_TRUE(rec->hoverEvents.empty());
+
+            ecs.sendEvent(OnMouseMove{Point2D{5, 5}, nullptr});
+            pump(ecs);
+
+            EXPECT_TRUE(contains(rec->entered, early));
+
+            rec->clear();
+
+            // Made over the first one, the mouse where it was: nothing hovers it yet
+            const _unique_id late = makeHoverEntity(ecs, 0, 0, 20, 10, 10);
+
+            pump(ecs);
+
+            EXPECT_TRUE(rec->entered.empty());
+
+            ecs.sendEvent(RefreshHoverEvent{});
+            pump(ecs);
+
+            EXPECT_TRUE(contains(rec->entered, late));
+            EXPECT_TRUE(contains(rec->left, early));
+            ASSERT_EQ(rec->hoverEvents.size(), 1u);
+            EXPECT_EQ(rec->hoverEvents.front().pos.x, 5.0f);
+
+            rec->clear();
+
+            // Nothing changed since: a refresh says nothing
+            ecs.sendEvent(RefreshHoverEvent{});
+            pump(ecs);
+
+            EXPECT_TRUE(rec->entered.empty());
+            EXPECT_TRUE(rec->left.empty());
+            EXPECT_TRUE(rec->hoverEvents.empty());
+        }
     }
 }

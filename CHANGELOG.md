@@ -7,6 +7,19 @@ All notable changes to ColumbaEngine are documented here. The project is in earl
 First tagged release. Everything below describes the state of the engine at the point of tagging rather than a delta.
 
 ### Fixed
+- Layouts: a layout held by another layout did not tell it when it changed. Hidden, shown or resized by
+  what it holds, the outer layout kept the old stack until something else moved in it
+  (`LayoutSystem::onLayoutChanged` stopped at the inner one). In Chronicle the hidden Town page kept its
+  room under the choice at 1320 x 1020: the panel was 858 px too tall. The outer layout now stacks again.
+- Prefabs: an entity added to a prefab that was already hidden stayed drawn. A child only took its
+  prefab's visibility and clip when the prefab's own position changed, and a hidden prefab that does not
+  move sends nothing. `PrefabChangedEvent` now names the child (`childId`, 0 for a change that is not an
+  add) and `PrefabSystem` applies the prefab's state to it. In Chronicle, parts given to a tile of the page
+  out of view were drawn over the page in view.
+- Input: `RefreshHoverEvent` asks `MouseHoverSystem` to work the hover out again where the mouse last
+  was. The hover is only computed on a mouse move, so an entity built or moved under a mouse that stays
+  still was not hovered (no enter callback, no tooltip, and a widget that waits for the hover ignored the
+  click) until the mouse moved. Nothing changes for who does not send the event.
 - ECS: removing a component from an entity that did not have one corrupted the set. `SparseSet::remove`
   only refused an id when the set was empty: for any other id it took the size down, moved the last
   element into the place of an unrelated one and handed that place back to be released. A component of

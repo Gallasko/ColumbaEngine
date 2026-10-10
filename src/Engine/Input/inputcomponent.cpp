@@ -506,8 +506,24 @@ namespace pg
     {
         LOG_THIS_MEMBER("MouseHoverSystem");
 
-        const Point2D mousePos = event.pos;
+        lastMousePos = event.pos;
+        moved = true;
 
+        updateHover(event.pos, true);
+    }
+
+    void MouseHoverSystem::onEvent(const RefreshHoverEvent&)
+    {
+        LOG_THIS_MEMBER("MouseHoverSystem");
+
+        if (not moved)
+            return;
+
+        updateHover(lastMousePos, false);
+    }
+
+    void MouseHoverSystem::updateHover(const Point2D& mousePos, bool announce)
+    {
         // 1. Every hover-eligible entity currently under the cursor.
         std::vector<MouseAreaZ> candidates;
 
@@ -596,7 +612,8 @@ namespace pg
         }
 
         // 5. Announce the change for downstream consumers (tooltip service, etc.).
-        ecsRef->sendEvent(HoverChangedEvent{entered, left, mousePos});
+        if (announce or not entered.empty() or not left.empty())
+            ecsRef->sendEvent(HoverChangedEvent{entered, left, mousePos});
     }
 
     // ============================================================================

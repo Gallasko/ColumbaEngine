@@ -128,6 +128,11 @@ namespace pg
         Point2D pos;
     };
 
+    // Asks MouseHoverSystem to work the hover out again where the mouse last was. The hover is
+    // only computed on a move: what is built or moved under a mouse that stays still is not
+    // hovered until then. Send it once such entities are in place
+    struct RefreshHoverEvent {};
+
     // SDL event structs are defined in the lightweight sdlevents.h header
     // to avoid pulling heavy system templates into files that only need events.
 
@@ -196,7 +201,7 @@ namespace pg
         std::set<MouseAreaZ, std::greater<>> mouseAreaHolder;
     };
 
-    struct MouseHoverSystem : public System<Listener<OnMouseMove>, Own<MouseEnterComponent>, Own<MouseLeaveComponent>, InitSys, StoragePolicy>
+    struct MouseHoverSystem : public System<Listener<OnMouseMove>, Listener<RefreshHoverEvent>, Own<MouseEnterComponent>, Own<MouseLeaveComponent>, InitSys, StoragePolicy>
     {
         virtual std::string getSystemName() const override { return "Mouse Hover System"; }
 
@@ -207,8 +212,21 @@ namespace pg
         // entity (and its (viewport, z) peers), then emits a HoverChangedEvent.
         virtual void onEvent(const OnMouseMove& event) override;
 
+        // The same where the mouse last was, for what changed under it. Nothing before a first
+        // move, and no HoverChangedEvent when nothing was entered or left.
+        virtual void onEvent(const RefreshHoverEvent& event) override;
+
+        // Computes the hovered set at mousePos and fires the enter/leave callbacks. The
+        // HoverChangedEvent is sent when something changed, or always when announce is true.
+        void updateHover(const Point2D& mousePos, bool announce);
+
         // Map of entity id to whether the mouse is currently hovering.
         std::unordered_map<_unique_id, bool> hoverState;
+
+        // Where the last OnMouseMove was
+        Point2D lastMousePos;
+
+        bool moved = false;
     };
 
     bool operator<(MouseAreaZ lhs, MouseAreaZ rhs);
