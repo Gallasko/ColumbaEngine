@@ -53,6 +53,23 @@ EM_JS(double, chronicle_analytics_now_ms, (), {
     return Date.now();
 });
 
+// What the page is shown on, one figure a call: the view the game is drawn in and the screen it
+// is on (CSS pixels), the pixel ratio, whether it takes a finger. Asked of the main thread: a
+// worker has no window.
+static double chronicle_analytics_screen(int which)
+{
+    return MAIN_THREAD_EM_ASM_DOUBLE({
+        switch ($0) {
+        case 0: return window.innerWidth;
+        case 1: return window.innerHeight;
+        case 2: return screen.width;
+        case 3: return screen.height;
+        case 4: return window.devicePixelRatio || 1;
+        default: return navigator.maxTouchPoints > 0 ? 1 : 0;
+        }
+    }, which);
+}
+
 // One row to the proxy. keepalive lets the request outlive the page that is closing. A page served
 // from this machine sends nothing: a test is not a player.
 EM_JS(void, chronicle_analytics_post, (const char* proxyUrl, const char* query, const char* paramsJson), {
@@ -186,6 +203,11 @@ namespace chronicle
         }
 
 #ifdef __EMSCRIPTEN__
+        // What it is shown on, as it is now: a window is resized, a phone turned
+        last = withFields(last, screenFields(static_cast<int>(chronicle_analytics_screen(0)), static_cast<int>(chronicle_analytics_screen(1)),
+                                             static_cast<int>(chronicle_analytics_screen(2)), static_cast<int>(chronicle_analytics_screen(3)),
+                                             chronicle_analytics_screen(4), chronicle_analytics_screen(5) > 0.0));
+
         const size_t session = activeSessionMs();
         const std::string values = row(sessionId, EventPrefix + event, session, playedBeforeMs + session, static_cast<long long>(chronicle_analytics_now_ms()), last);
 
@@ -209,6 +231,35 @@ namespace chronicle
         values << "]";
 
         return values.str();
+    }
+
+    std::string Analytics::screenFields(int viewWidth, int viewHeight, int screenWidth, int screenHeight, double pixelRatio, bool touch)
+    {
+        char ratio[16];
+        std::snprintf(ratio, sizeof(ratio), "%.2f", pixelRatio);
+
+        std::ostringstream fields;
+
+        fields << "\"viewW\":" << viewWidth << ",\"viewH\":" << viewHeight << ",\"screenW\":" << screenWidth << ",\"screenH\":" << screenHeight
+               << ",\"dpr\":" << ratio << ",\"touch\":" << (touch ? 1 : 0);
+
+        return fields.str();
+    }
+
+    std::string Analytics::withFields(const std::string& digest, const std::string& fields)
+    {
+        if (fields.empty())
+            return digest;
+
+        // No digest yet (the first row is sent before the scene has spoken), or not an object
+        if (digest.size() < 2 or digest.front() != '{' or digest.back() != '}')
+            return "{" + fields + "}";
+
+        // An empty object takes no comma
+        if (digest.size() == 2)
+            return "{" + fields + "}";
+
+        return digest.substr(0, digest.size() - 1) + "," + fields + "}";
     }
 
     std::string Analytics::jsonEscape(const std::string& text)

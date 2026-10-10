@@ -170,6 +170,12 @@ of this game told apart by their `chronicle.` prefix:
   reads 10. `deeds` counts the deeds
   alone, not the lore read nor the guide's words.
   The scene gives it after every month, choice, thing done at once, step of the guide and new life.
+- **What it is shown on** rides at the end of the digest, the first row's included (which has
+  nothing else: the scene has not spoken yet). The scene adds `"page"`: `full`, `compact` or
+  `phone`, the page the life is read on. The browser is asked the rest as the row is sent:
+  `"viewW"` and `"viewH"` (the view the game is drawn in, CSS pixels), `"screenW"` and
+  `"screenH"`, `"dpr"` (the pixel ratio) and `"touch"` (1 when the screen takes a finger).
+  Sizes, to know which pages to draw for: nothing of who plays. A row from before 0.4.1 has none.
 
 ```sql
 -- How long a session lasts, and how old he was when they stopped
@@ -182,7 +188,9 @@ GROUP BY session_id ORDER BY MIN(timestamp_ms) DESC;
 `tools/chronicle_stats.pg` makes the whole report from a CSV export of the `chronicle.%` rows
 (the query is in its header): sessions and their length, the days, how far a session got, how
 many first lives got past each step of the guide (a drop between two steps is a drop between two
-sentences), where a session stopped and the lives lost.
+sentences), where a session stopped, the lives lost, and the screens: how many came with a
+finger and how long they stayed beside those with a mouse, the views' widths against the game's
+own steps, the page read, and the views most seen.
 
 ```bash
 release/PgCompilerBootstrap tools/chronicle_stats.pg chronicle-events.csv report.txt

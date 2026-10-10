@@ -4859,7 +4859,8 @@ namespace chronicle
         if (not analytics)
             return;
 
-        analytics->note(save.digest());
+        // Where the life stands, and which of the three pages it is read on
+        analytics->note(Analytics::withFields(save.digest(), std::string("\"page\":\"") + (phone ? "phone" : compact ? "compact" : "full") + "\""));
 
         if (not event.empty())
             analytics->send(event);

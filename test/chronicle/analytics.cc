@@ -34,6 +34,33 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // What the page is shown on rides at the end of the digest, with the first row too, which has
+        // no digest yet: sizes, a ratio and a flag, and nothing else.
+        TEST(analytics_test, a_digest_carries_the_screen)
+        {
+            MockLogger logger;
+
+            const std::string screen = Analytics::screenFields(390, 844, 390, 844, 3.0, true);
+
+            EXPECT_EQ(screen, "\"viewW\":390,\"viewH\":844,\"screenW\":390,\"screenH\":844,\"dpr\":3.00,\"touch\":1");
+            EXPECT_EQ(Analytics::screenFields(1320, 1020, 1920, 1080, 1.25, false), "\"viewW\":1320,\"viewH\":1020,\"screenW\":1920,\"screenH\":1080,\"dpr\":1.25,\"touch\":0");
+
+            // After what the life says
+            EXPECT_EQ(Analytics::withFields("{\"age\":7.00,\"lives\":1}", "\"page\":\"phone\""), "{\"age\":7.00,\"lives\":1,\"page\":\"phone\"}");
+            EXPECT_EQ(Analytics::withFields("{\"age\":7.00}", screen), "{\"age\":7.00," + screen + "}");
+
+            // Alone, when the scene has not spoken yet
+            EXPECT_EQ(Analytics::withFields("", screen), "{" + screen + "}");
+            EXPECT_EQ(Analytics::withFields("{}", screen), "{" + screen + "}");
+
+            // Nothing to add: the digest as it was
+            EXPECT_EQ(Analytics::withFields("{\"age\":7.00}", ""), "{\"age\":7.00}");
+            EXPECT_EQ(Analytics::withFields("", ""), "");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // The digest says where a life stands and nothing of who he is.
         TEST(analytics_test, a_digest_says_where_the_life_stands)
         {

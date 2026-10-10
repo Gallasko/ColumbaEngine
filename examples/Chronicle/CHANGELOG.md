@@ -15,6 +15,8 @@ the `CHANGELOG.md` at the root of the repository.
 
 ### Changed
 
+- The anonymous play statistics now include the size of the window the game is shown in and
+  whether the screen is a touch screen, to know which screens to draw the game for.
 - **All a place gives.** The tooltip of a place lists what every level you built gives, not the
   last one alone.
 

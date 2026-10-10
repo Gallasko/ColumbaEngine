@@ -17,6 +17,11 @@ namespace chronicle
     // player), the time the page was in view in this session, the same over every session of
     // this browser, the clock, and the digest the scene last gave (LifeSave::digest).
     //
+    // The digest also carries what the page is shown on, read from the browser as the row is
+    // sent, the first row included: the view the game is drawn in ("viewW", "viewH", CSS pixels),
+    // the screen ("screenW", "screenH"), its pixel ratio ("dpr") and whether it takes a finger
+    // ("touch", 0 or 1). Sizes, to know which pages to draw for: nothing of who plays.
+    //
     //   chronicle.session_start   the first pass
     //   chronicle.session_end     every time the page is hidden or closed: the last one of a
     //                             session id is where the player stopped
@@ -48,6 +53,13 @@ namespace chronicle
 
         // A string as a JSON string's content
         static std::string jsonEscape(const std::string& text);
+
+        // The fields of what the page is shown on, as they are written in a digest:
+        // "viewW":390,"viewH":844,"screenW":390,"screenH":844,"dpr":3.00,"touch":1
+        static std::string screenFields(int viewWidth, int viewHeight, int screenWidth, int screenHeight, double pixelRatio, bool touch);
+
+        // A digest (one flat JSON object, or nothing yet) with more fields at its end
+        static std::string withFields(const std::string& digest, const std::string& fields);
 
         std::string sessionId;
 

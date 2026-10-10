@@ -3,7 +3,9 @@
 // Chronicle's web build writes one row an event in the analytics_events table of the Neon
 // database (examples/Chronicle/Core/analytics.h): chronicle.session_start, chronicle.session_end
 // and chronicle.life_end, each with the time the page was in view and a digest of the life
-// (LifeSave::digest). The page can only insert, so the rows are read from an export.
+// (LifeSave::digest), which also carries what the page was shown on (the view, the screen, its
+// pixel ratio, a finger or a mouse, and which of the game's three pages). The page can only
+// insert, so the rows are read from an export.
 //
 // Export, from the Neon SQL editor (run the query, then export the result as CSV):
 //
@@ -563,6 +565,7 @@ fun newSession(id)
     session["mostTerms"] = 0
     session["furthestGuide"] = none
     session["guideSkipped"] = 0
+    session["screen"] = none
 
     return session
 }
@@ -629,6 +632,20 @@ fun collect(records, columns)
                 session = newSession(id)
                 byId[id] = session
                 push(data["sessions"], session)
+            }
+
+            // What the page was shown on rides in the digest of every row, the first included: kept
+            // with the session, apart from the life. The latest row has the last word (a window
+            // resized, a phone turned)
+            if (digest != none and digest["viewW"] != none)
+            {
+                session["screen"] = digest
+            }
+
+            // A row sent before the scene had spoken has the screen and nothing of a life
+            if (digest != none and digest["age"] == none)
+            {
+                digest = none
             }
 
             if (durationMs != none and durationMs > session["durationMs"])
@@ -1302,6 +1319,89 @@ fun reportDeaths(out, data)
 // Main
 // ============================================================================
 
+// What the game was shown on: asked for since 0.4.1, so older sessions say nothing of it.
+fun reportScreens(out, data)
+{
+    var told = 0
+    var touch = 0
+    var widths = []
+    var sizes = newTally()
+    var pages = newTally()
+    var touchMs = []
+    var mouseMs = []
+
+    for (var session : data["sessions"])
+    {
+        var screen = session["screen"]
+
+        if (screen != none)
+        {
+            told = told + 1
+
+            push(widths, screen["viewW"])
+            bump(sizes, toString(toInt(screen["viewW"])) + " x " + toString(toInt(screen["viewH"])))
+
+            if (screen["touch"] != none and screen["touch"] > 0)
+            {
+                touch = touch + 1
+                push(touchMs, session["durationMs"])
+            }
+            else
+            {
+                push(mouseMs, session["durationMs"])
+            }
+
+            var digest = session["digest"]
+
+            if (digest == none)
+            {
+                bump(pages, "left before a life")
+            }
+            else
+            {
+                bump(pages, wordOf(digest, "page", "not said"))
+            }
+        }
+    }
+
+    title(out, "Screens")
+
+    var total = len(data["sessions"])
+
+    entry(out, "sessions that say", toString(told) + " of " + toString(total) + " (" + percent(told, total) + ")")
+
+    if (told == 0)
+    {
+        return
+    }
+
+    entry(out, "with a finger", toString(touch) + " (" + percent(touch, told) + ")")
+
+    if (len(touchMs) > 0)
+    {
+        entry(out, "median, a finger", formatDuration(quantile(sortNumbers(touchMs), 0.5)))
+    }
+
+    if (len(mouseMs) > 0)
+    {
+        entry(out, "median, a mouse", formatDuration(quantile(sortNumbers(mouseMs), 0.5)))
+    }
+
+    // The game's own steps: the phone page under 600, the compact one under 680, then the three
+    // columns as they widen
+    line(out, "")
+    line(out, "  The view's width (CSS pixels):")
+    histogram(out, ["under 400", "400 - 599", "600 - 679", "680 - 915", "916 - 1135", "1136 - 1599", "1600 and up"], [400, 600, 680, 916, 1136, 1600], widths)
+
+    line(out, "")
+    line(out, "  The page they read (as their session ended):")
+    ranking(out, pages, 6)
+
+    line(out, "")
+    line(out, "  The views most seen:")
+    ranking(out, sizes, 10)
+}
+
 fun main()
 {
     if (getArgCount() < 3)
@@ -1353,6 +1453,7 @@ fun main()
     reportGuide(out, data)
     reportStops(out, data)
     reportDeaths(out, data)
+    reportScreens(out, data)
 
     for (var text : out)
     {
