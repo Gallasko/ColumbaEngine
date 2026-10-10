@@ -701,9 +701,9 @@ namespace pg
         if (ent->has<HorizontalLayout>() or ent->has<VerticalLayout>())
         {
             layoutUpdate.insert(ent);
-            return;
         }
 
+        // A layout held by another layout is a child like any other: hidden or resized, what holds it stacks again
         auto it = entitiesInLayout.find(ent->id);
 
         if (it != entitiesInLayout.end())
@@ -711,8 +711,6 @@ namespace pg
             // The child may outlive its layout by a frame (the layout was removed first)
             if (auto layout = ecsRef->getEntity(it->second))
                 layoutUpdate.insert(layout);
-
-            return;
         }
     }
 

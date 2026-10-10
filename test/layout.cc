@@ -992,5 +992,77 @@ namespace pg
             EXPECT_FLOAT_EQ(firstPos->y, 50.0f);
             EXPECT_FLOAT_EQ(secondPos->y, 70.0f);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(layout_test, restacks_when_a_nested_layout_is_hidden_or_grows)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<LayoutSystem>();
+            ecs.succeed<PositionComponentSystem, LayoutSystem>();
+
+            auto makeBox = [&ecs](float height) {
+                auto box = ecs.createEntity();
+                auto boxPos = ecs.attach<PositionComponent>(box);
+                ecs.attach<UiAnchor>(box);
+                boxPos->setWidth(100.0f);
+                boxPos->setHeight(height);
+
+                return box;
+            };
+
+            // A layout in a layout, over a box: the box stands under what the inner one holds
+            auto outer = makeVerticalLayout(&ecs, 0.0f, 0.0f, 100.0f, 0.0f);
+            auto inner = makeVerticalLayout(&ecs, 0.0f, 0.0f, 100.0f, 0.0f);
+
+            auto held = makeBox(40.0f);
+            auto under = makeBox(20.0f);
+
+            inner.get<VerticalLayout>()->addEntity(held);
+            outer.get<VerticalLayout>()->addEntity(inner.entity);
+            outer.get<VerticalLayout>()->addEntity(under);
+
+            for (size_t i = 0; i < 5; ++i)
+                ecs.executeOnce();
+
+            auto innerPos = inner.get<PositionComponent>();
+            auto outerPos = outer.get<PositionComponent>();
+            auto underPos = under->get<PositionComponent>();
+
+            EXPECT_FLOAT_EQ(innerPos->height, 40.0f);
+            EXPECT_FLOAT_EQ(underPos->y, 40.0f);
+            EXPECT_FLOAT_EQ(outerPos->height, 60.0f);
+
+            // Hidden, the inner layout leaves the stack: the box takes its place
+            innerPos->setVisibility(false);
+
+            for (size_t i = 0; i < 5; ++i)
+                ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(underPos->y, 0.0f);
+            EXPECT_FLOAT_EQ(outerPos->height, 20.0f);
+
+            innerPos->setVisibility(true);
+
+            for (size_t i = 0; i < 5; ++i)
+                ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(underPos->y, 40.0f);
+            EXPECT_FLOAT_EQ(outerPos->height, 60.0f);
+
+            // Grown by what it holds, it pushes the box down
+            inner.get<VerticalLayout>()->addEntity(makeBox(30.0f));
+
+            for (size_t i = 0; i < 5; ++i)
+                ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(innerPos->height, 70.0f);
+            EXPECT_FLOAT_EQ(underPos->y, 70.0f);
+            EXPECT_FLOAT_EQ(outerPos->height, 90.0f);
+        }
     }
 }
