@@ -6,9 +6,11 @@
 // Reads the activity table and the town table of the game and writes one of two pictures.
 //
 // The timeline (no focus), an SVG: the years run left to right, a month is `monthWidth` wide.
-//   - A task is a bar from the age it opens at, as wide as the months it takes: two bars that
-//     share a stretch of the axis cannot both be done in it. The line after a bar runs to the
-//     age it must be over by. What it asks, takes and brings is written on it.
+//   - A task is a bar from the month it can first be begun, as wide as the months it takes: two
+//     bars that share a stretch of the axis cannot both be done in it. That month is its age
+//     (`fromAge`), or the month the task that brings a flag it asks for is over, when that is
+//     later. The line after a bar runs to the age it must be over by. What it asks, takes and
+//     brings is written on it.
 //   - A frame a group, as wide as its tasks and as high on the page as the frames over its years
 //     allow: a childhood's groups stand beside a class's, not over them. The ways into a class
 //     come first, in gold; a task of a class has a stripe of the class's colour, and its group
@@ -18,7 +20,15 @@
 //   - No arrow for what is only a number to reach or to spend: the skills, which `skillFrom` tasks
 //     or more bring, what a life is born with, and whatever a task takes as a cost (coin, rations,
 //     reagents, favors). They are written on the bars.
-//   - The town is not drawn yet: a task a place changes says which, and that is all.
+//   - The town is a frame like the others. A place is a box that begins where the task that brings
+//     it onto the Town page ends (its `shows`: a task done, or the task that gives the flag it
+//     asks for; the task that makes the town known, for a place there from the start), with an
+//     arrow from that task. Its three works are bars end to end, each as wide as its months (and
+//     the years of his life it takes), over what each asks and gives. No arrow comes out of
+//     the town. A task a level unlocks (it asks for the level, or the level opens it to every
+//     class) has a purple chip before it, "The Market 3", and stays at its own age: what the
+//     town sells is on the page from the start. A task a level only makes better says so on
+//     its bar ("town: The Mill 1").
 //
 // A focus (the id of a task, "keep", or the key of a stat, "arms", "town.mill"), a Graphviz file:
 // the detail around it, with a node for every stat. For a task: what it asks, takes and brings,
@@ -68,6 +78,13 @@ var letterWidth = 6
 var frameGap = 14
 var framePad = 6
 
+// The room between a task's bar and the chip before it
+var chipGap = 16
+
+// The town's colour, and the colour of a place's first, second and third work
+var townColour = "#6b46c1"
+var workColours = ["#e9d8fd", "#d6bcfa", "#b794f4"]
+
 // The colour of each class, in the order of the table's `paths`
 var classColours = ["#2b6cb0", "#6b46c1", "#2f855a", "#975a16"]
 
@@ -84,12 +101,14 @@ var linkStyles = {
     betters: "color=\"#2f855a\", fontcolor=\"#2f855a\"",
     classOf: "color=\"#a0aec0\", style=dotted, arrowsize=0.6",
     town: "color=\"#6b46c1\", fontcolor=\"#6b46c1\"",
-    birth: "color=\"#6b46c1\", fontcolor=\"#6b46c1\", style=dashed"
+    birth: "color=\"#6b46c1\", fontcolor=\"#6b46c1\", style=dashed",
+    shows: "color=\"#6b46c1\", fontcolor=\"#6b46c1\", penwidth=1.6",
+    opens: "color=\"#6b46c1\", fontcolor=\"#6b46c1\", penwidth=1.6"
 }
 
 // The kinds that bring a stat, and the kinds that read one
 var bringKinds = ["brings", "later", "town", "birth"]
-var readKinds = ["asks", "takes", "eases", "betters", "classOf"]
+var readKinds = ["asks", "takes", "eases", "betters", "classOf", "shows", "opens"]
 
 // ============================================================================
 // Helpers
@@ -219,8 +238,9 @@ fun addStat(graph, stat)
     }
 }
 
-// A link from a stat to a task, or from a task to a stat. A hub is not drawn
-fun addLink(graph, source, target, stat, kind, label)
+// A link from a stat to a task, or from a task to a stat. A hub is not drawn. `level` is how
+// much of the stat the link holds from (a place's level), 0 when that says nothing
+fun addLink(graph, source, target, stat, kind, label, level)
 {
     if (inList(hubStats, stat))
     {
@@ -228,7 +248,7 @@ fun addLink(graph, source, target, stat, kind, label)
     }
 
     addStat(graph, stat)
-    push(graph.links, {source: source, target: target, stat: stat, kind: kind, label: label})
+    push(graph.links, {source: source, target: target, stat: stat, kind: kind, label: label, level: level})
 }
 
 // What a bonus step changes, in a few words: "+4 coin", "months 4", "fromAge 8"
@@ -332,13 +352,13 @@ fun addTask(graph, a)
     for (var g = 0; g < len(a.gains); g = g + 1)
     {
         brought[a.gains[g].stat] = true
-        addLink(graph, node, statNode(a.gains[g].stat), a.gains[g].stat, "brings", signedText(a.gains[g].amount))
+        addLink(graph, node, statNode(a.gains[g].stat), a.gains[g].stat, "brings", signedText(a.gains[g].amount), 0)
     }
 
     // What it takes when it begins
     for (var c = 0; c < len(a.costs); c = c + 1)
     {
-        addLink(graph, statNode(a.costs[c].stat), node, a.costs[c].stat, "takes", signedText(0 - a.costs[c].amount))
+        addLink(graph, statNode(a.costs[c].stat), node, a.costs[c].stat, "takes", signedText(0 - a.costs[c].amount), 0)
     }
 
     // What it asks, as the table writes it
@@ -350,12 +370,12 @@ fun addTask(graph, a)
         {
             for (var f = 0; f < len(req.anyOf); f = f + 1)
             {
-                addLink(graph, statNode(req.anyOf[f]), node, req.anyOf[f], "eases", "or")
+                addLink(graph, statNode(req.anyOf[f]), node, req.anyOf[f], "eases", "or", 1)
             }
         }
         else
         {
-            addLink(graph, statNode(req.stat), node, req.stat, "asks", toString(req.needed))
+            addLink(graph, statNode(req.stat), node, req.stat, "asks", toString(req.needed), req.needed)
         }
 
         if (has(req, "eased"))
@@ -376,7 +396,7 @@ fun addTask(graph, a)
                     said = "at " + toString(easings[e].at) + ": " + said
                 }
 
-                addLink(graph, statNode(easings[e].flag), node, easings[e].flag, "eases", said)
+                addLink(graph, statNode(easings[e].flag), node, easings[e].flag, "eases", said, lookup(easings[e], "at", 1))
             }
         }
     }
@@ -392,13 +412,13 @@ fun addTask(graph, a)
         {
             if (not contain(brought, gains[g].stat))
             {
-                addLink(graph, node, statNode(gains[g].stat), gains[g].stat, "later", signedText(gains[g].amount) + " from term " + toString(step.uses + 1))
+                addLink(graph, node, statNode(gains[g].stat), gains[g].stat, "later", signedText(gains[g].amount) + " from term " + toString(step.uses + 1), 0)
             }
         }
 
         for (var e = 0; e < len(effects); e = e + 1)
         {
-            addLink(graph, node, statNode(effects[e].stat), effects[e].stat, "later", signedText(effects[e].amount) + " at term " + toString(step.uses))
+            addLink(graph, node, statNode(effects[e].stat), effects[e].stat, "later", signedText(effects[e].amount) + " at term " + toString(step.uses), 0)
         }
     }
 
@@ -410,7 +430,16 @@ fun addTask(graph, a)
         var better = bonuses[b]
         var level = lookup(better, "needed", 1)
 
-        addLink(graph, statNode(better.stat), node, better.stat, "betters", "at " + toString(level) + ": " + bonusText(better))
+        addLink(graph, statNode(better.stat), node, better.stat, "betters", "at " + toString(level) + ": " + bonusText(better), level)
+
+        // A step that takes the task out of its class opens it to everyone: more than a better term
+        if (has(better, "path"))
+        {
+            if (better.path == "")
+            {
+                addLink(graph, statNode(better.stat), node, better.stat, "opens", "at " + toString(level) + ": open to every class", level)
+            }
+        }
 
         for (var k = 0; k < 2; k = k + 1)
         {
@@ -425,7 +454,7 @@ fun addTask(graph, a)
             {
                 if (not contain(brought, more[g].stat))
                 {
-                    addLink(graph, node, statNode(more[g].stat), more[g].stat, "later", signedText(more[g].amount) + " with " + toLowerCase(statShortName(better.stat)) + " " + toString(level))
+                    addLink(graph, node, statNode(more[g].stat), more[g].stat, "later", signedText(more[g].amount) + " with " + toLowerCase(statShortName(better.stat)) + " " + toString(level), 0)
                 }
             }
         }
@@ -436,7 +465,7 @@ fun addTask(graph, a)
     {
         var flag = pathFlagOf(paths, a.path)
 
-        addLink(graph, statNode(flag), node, flag, "classOf", "")
+        addLink(graph, statNode(flag), node, flag, "classOf", "", 1)
     }
 
     // A work of the town: the place it raises, and the level the place must be at
@@ -444,11 +473,11 @@ fun addTask(graph, a)
     {
         var place = "town." + a.raises
 
-        addLink(graph, node, statNode(place), place, "town", "to " + toString(a.level))
+        addLink(graph, node, statNode(place), place, "town", "to " + toString(a.level), a.level)
 
         if (a.level > 1)
         {
-            addLink(graph, statNode(place), node, place, "asks", toString(a.level - 1))
+            addLink(graph, statNode(place), node, place, "asks", toString(a.level - 1), a.level - 1)
         }
     }
 }
@@ -471,6 +500,19 @@ fun buildGraph()
         addStat(graph, key)
         graph.statLabels[key] = place.name
 
+        // What brings the place onto the Town page (its `shows`): a flag a task gives, or a task done
+        var shows = lookup(place, "shows", {})
+
+        if (has(shows, "flag"))
+        {
+            addLink(graph, statNode(shows.flag), statNode(key), shows.flag, "shows", "shows the place", 1)
+        }
+
+        if (has(shows, "done"))
+        {
+            addLink(graph, taskNode(shows.done), statNode(key), key, "shows", "shows the place, once done", 1)
+        }
+
         // What a level gives a new life at birth
         for (var l = 0; l < len(place.levels); l = l + 1)
         {
@@ -478,7 +520,7 @@ fun buildGraph()
 
             for (var g = 0; g < len(given); g = g + 1)
             {
-                addLink(graph, statNode(key), statNode(given[g].stat), given[g].stat, "birth", "at " + toString(l + 1) + ": born with " + signedText(given[g].amount))
+                addLink(graph, statNode(key), statNode(given[g].stat), given[g].stat, "birth", "at " + toString(l + 1) + ": born with " + signedText(given[g].amount), l + 1)
             }
         }
     }
@@ -747,14 +789,45 @@ fun startMonth(graph, task)
     return latest
 }
 
+// The levels of the town a task waits for, "The Market 3": the ones it asks for, and the ones
+// that open it to every class. "" when it waits for none
+fun unlockedBy(graph, task)
+{
+    var out = ""
+
+    for (var l = 0; l < len(graph.links); l = l + 1)
+    {
+        var link = graph.links[l]
+
+        if (link.target == task.node and startsWith(link.stat, "town.") and (link.kind == "asks" or link.kind == "opens"))
+        {
+            var said = statLabel(graph, link.stat) + " " + toString(link.level)
+
+            if (indexOf(out, said) < 0)
+            {
+                if (out != "")
+                {
+                    out = out + ", "
+                }
+
+                out = out + said
+            }
+        }
+    }
+
+    return out
+}
+
 // What is written on a task's bar: its name, its time, what it asks, takes and brings of what
-// has no arrow, and the places of the town that change it
+// has no arrow, and the places of the town that make it better (the ones that unlock it are on
+// its chip)
 fun taskLines(graph, task, folded)
 {
     var asks = ""
     var takes = ""
     var brings = ""
     var places = ""
+    var unlocks = unlockedBy(graph, task)
 
     for (var r = 0; r < len(task.needs); r = r + 1)
     {
@@ -798,12 +871,17 @@ fun taskLines(graph, task, folded)
     {
         var link = graph.links[l]
 
-        // Knowing the town is the town's too
+        // A place and the level it changes the task from; knowing the town is the town's too
         if (link.target == task.node and startsWith(link.stat, "town"))
         {
             var place = statLabel(graph, link.stat)
 
-            if (indexOf(places, place) < 0)
+            if (startsWith(link.stat, "town."))
+            {
+                place = place + " " + toString(link.level)
+            }
+
+            if (indexOf(places, place) < 0 and indexOf(unlocks, place) < 0)
             {
                 if (places != "")
                 {
@@ -847,13 +925,433 @@ fun taskLines(graph, task, folded)
     return lines
 }
 
+// Where a frame from `left` to `right` stands: under the lowest of the frames over its years
+fun frameTop(view, left, right)
+{
+    var top = view.top
+
+    for (var o = 0; o < len(view.bands); o = o + 1)
+    {
+        var other = view.bands[o]
+
+        if (other.placed and other.left < right and left < other.right and other.top + other.height + frameGap > top)
+        {
+            top = other.top + other.height + frameGap
+        }
+    }
+
+    return top
+}
+
+// Sets the frames down, each under the lowest of the frames over its years: the ways into a
+// class, then the town, which the tasks of every group lead into, then the groups
+fun placeFrames(view)
+{
+    var order = []
+
+    for (var pass = 0; pass < 3; pass = pass + 1)
+    {
+        for (var b = 0; b < len(view.bands); b = b + 1)
+        {
+            var kind = 2
+
+            if (view.bands[b].enters)
+            {
+                kind = 0
+            }
+
+            if (view.bands[b].town)
+            {
+                kind = 1
+            }
+
+            if (kind == pass)
+            {
+                push(order, view.bands[b])
+            }
+        }
+    }
+
+    for (var b = 0; b < len(order); b = b + 1)
+    {
+        var band = order[b]
+
+        band.top = frameTop(view, band.left, band.right)
+        band.placed = true
+
+        for (var n = 0; n < len(band.items); n = n + 1)
+        {
+            band.items[n].y = band.top + band.rowTops[band.items[n].row]
+        }
+
+        for (var n = 0; n < len(band.places); n = n + 1)
+        {
+            band.places[n].y = band.top + 28 + band.places[n].row * (band.placeTall + rowGap)
+        }
+
+        if (band.top + band.height > view.height)
+        {
+            view.height = band.top + band.height
+        }
+
+        if (band.right > view.width)
+        {
+            view.width = band.right
+        }
+    }
+}
+
+// The month each task can first be begun, and the month each place of the town is first on its
+// page: where they stand on the years. A task's own age is the least of it; it is also after the
+// first task that brings a flag it asks for (the town known, the Guild made an enemy). A place
+// is after the town is known and after what its `shows` asks. Each waits on the others, so the
+// months are settled over a few passes. A level of a place a task asks for does not move the
+// task: what the town sells is on the page from the start, and says the level it waits for
+fun earliestMonths(graph, folded)
+{
+    var starts = {}
+    var byNode = {}
+
+    for (var i = 0; i < len(graph.tasks); i = i + 1)
+    {
+        byNode[graph.tasks[i].node] = graph.tasks[i]
+        starts[graph.tasks[i].node] = startMonth(graph, graph.tasks[i])
+    }
+
+    for (var t = 0; t < len(townPlaces); t = t + 1)
+    {
+        starts[statNode("town." + townPlaces[t].id)] = 0
+    }
+
+    for (var pass = 0; pass < 8; pass = pass + 1)
+    {
+        var moved = false
+
+        for (var i = 0; i < len(graph.tasks); i = i + 1)
+        {
+            var task = graph.tasks[i]
+            var month = starts[task.node]
+
+            // A work of the town is drawn with its place
+            if (task.raises != "")
+            {
+                continue
+            }
+
+            for (var l = 0; l < len(graph.links); l = l + 1)
+            {
+                var link = graph.links[l]
+
+                if (link.target != task.node or link.kind != "asks")
+                {
+                    continue
+                }
+
+                // A flag: once the first task that brings it is over. A skill has many, and its own age says it
+                if (contain(folded, link.stat) or startsWith(link.stat, "town."))
+                {
+                    continue
+                }
+
+                var given = -1
+
+                for (var b = 0; b < len(graph.links); b = b + 1)
+                {
+                    var brings = graph.links[b]
+
+                    if (brings.target == link.source and brings.kind == "brings" and contain(byNode, brings.source))
+                    {
+                        if (given < 0 or starts[brings.source] + byNode[brings.source].months < given)
+                        {
+                            given = starts[brings.source] + byNode[brings.source].months
+                        }
+                    }
+                }
+
+                if (given > month)
+                {
+                    month = given
+                }
+            }
+
+            if (month != starts[task.node])
+            {
+                starts[task.node] = month
+                moved = true
+            }
+        }
+
+        for (var t = 0; t < len(townPlaces); t = t + 1)
+        {
+            var place = townPlaces[t]
+            var node = statNode("town." + place.id)
+            var shows = lookup(place, "shows", {})
+            var month = 0
+
+            for (var l = 0; l < len(graph.links); l = l + 1)
+            {
+                var link = graph.links[l]
+
+                if (not contain(byNode, link.source) or link.kind != "brings")
+                {
+                    continue
+                }
+
+                var over = starts[link.source] + byNode[link.source].months
+
+                // The town known, and the flag the place asks for: the first task that gives it
+                if (link.stat == "town_known" and over > month)
+                {
+                    month = over
+                }
+            }
+
+            if (has(shows, "flag"))
+            {
+                var first = -1
+
+                for (var l = 0; l < len(graph.links); l = l + 1)
+                {
+                    var link = graph.links[l]
+
+                    if (link.target == statNode(shows.flag) and link.kind == "brings" and contain(byNode, link.source))
+                    {
+                        if (first < 0 or starts[link.source] + byNode[link.source].months < first)
+                        {
+                            first = starts[link.source] + byNode[link.source].months
+                        }
+                    }
+                }
+
+                if (first > month)
+                {
+                    month = first
+                }
+            }
+
+            if (has(shows, "done"))
+            {
+                if (contain(byNode, taskNode(shows.done)))
+                {
+                    if (starts[taskNode(shows.done)] + byNode[taskNode(shows.done)].months > month)
+                    {
+                        month = starts[taskNode(shows.done)] + byNode[taskNode(shows.done)].months
+                    }
+                }
+            }
+
+            if (lookup(shows, "fromAge", 0) * 12 > month)
+            {
+                month = shows.fromAge * 12
+            }
+
+            if (month != starts[node])
+            {
+                starts[node] = month
+                moved = true
+            }
+        }
+
+        if (not moved)
+        {
+            break
+        }
+    }
+
+    return starts
+}
+
+// The town's frame, set on the years like any other: a place is a box that begins the month
+// the task that brings it onto the Town page is over (its `shows`: a task done, or the task that
+// gives the flag it asks for), and never before the town is known (`earliestMonths`). Its three
+// works are bars end to end, each as wide as its months, over what each asks and gives
+fun layoutTown(graph, view)
+{
+    var band = {group: "The town", heading: "THE TOWN", items: [], places: [], rowTops: [], placeTall: 0, placed: false, left: 0, right: 0, top: 0, height: 0, path: "", enters: false, town: true}
+
+    // What opens it: the task that makes the town known
+    for (var l = 0; l < len(graph.links); l = l + 1)
+    {
+        if (graph.links[l].stat == "town_known" and graph.links[l].kind == "brings" and contain(view.items, graph.links[l].source))
+        {
+            band.heading = band.heading + "  -  opened by " + view.items[graph.links[l].source].task.name
+        }
+    }
+
+    var tall = 0
+
+    for (var t = 0; t < len(townPlaces); t = t + 1)
+    {
+        var place = townPlaces[t]
+        var box = {key: "town." + place.id, name: place.name, found: "", works: [], lines: [], x: 0, y: 0, wide: 0, tall: 0, row: 0}
+        var bars = 0
+
+        // What brings it onto the page, said beside its name
+        var shows = lookup(place, "shows", {})
+        var found = []
+
+        if (has(shows, "flag"))
+        {
+            push(found, "who is: " + statName(shows.flag))
+        }
+
+        if (has(shows, "done"))
+        {
+            push(found, "who has done: " + byId(activities, shows.done).name)
+        }
+
+        if (has(shows, "lives"))
+        {
+            push(found, "life " + toString(shows.lives) + " of the world")
+        }
+
+        if (has(shows, "fromAge"))
+        {
+            push(found, "age " + toString(shows.fromAge))
+        }
+
+        box.found = "there once the town is known"
+
+        for (var f = 0; f < len(found); f = f + 1)
+        {
+            if (f == 0)
+            {
+                box.found = "found by " + found[f]
+            }
+            else
+            {
+                box.found = box.found + ", " + found[f]
+            }
+        }
+
+        for (var l = 0; l < len(place.levels); l = l + 1)
+        {
+            var step = place.levels[l]
+            var months = step.months + lookup(step, "years", 0) * 12
+            var time = toString(step.months) + " mo"
+
+            if (lookup(step, "years", 0) > 0)
+            {
+                time = time + " and " + toString(step.years) + " years of his life"
+            }
+
+            var asked = toString(step.coin) + " coin"
+            var also = listOf(step, "costs")
+
+            for (var c = 0; c < len(also); c = c + 1)
+            {
+                asked = asked + ", " + toString(also[c].amount) + " " + toLowerCase(statShortName(also[c].stat))
+            }
+
+            var bar = months * monthWidth
+
+            if (bar < 14)
+            {
+                bar = 14
+            }
+
+            push(box.works, {bar: bar, months: months})
+            push(box.lines, toString(l + 1) + ": " + step.work + " | " + time + " | " + asked)
+            push(box.lines, "     " + step.gives)
+
+            bars = bars + bar
+        }
+
+        box.wide = bars
+
+        if (strlen(box.name) * (letterWidth + 1) + 14 + strlen(box.found) * letterWidth > box.wide)
+        {
+            box.wide = strlen(box.name) * (letterWidth + 1) + 14 + strlen(box.found) * letterWidth
+        }
+
+        for (var n = 0; n < len(box.lines); n = n + 1)
+        {
+            if (strlen(box.lines[n]) * letterWidth + 8 > box.wide)
+            {
+                box.wide = strlen(box.lines[n]) * letterWidth + 8
+            }
+        }
+
+        box.x = view.left + (view.starts[statNode(box.key)] - view.firstMonth) * monthWidth
+        box.tall = 20 + 18 + len(box.lines) * lineHeight + 6
+
+        if (box.tall > tall)
+        {
+            tall = box.tall
+        }
+
+        // Kept in the order they are found in
+        var at = len(band.places)
+
+        push(band.places, box)
+
+        while (at > 0 and band.places[at - 1].x > band.places[at].x)
+        {
+            var swapped = band.places[at - 1]
+
+            band.places[at - 1] = band.places[at]
+            band.places[at] = swapped
+            at = at - 1
+        }
+    }
+
+    if (len(band.places) == 0)
+    {
+        return
+    }
+
+    // Each on the first row that is free where it begins
+    var rowEnds = []
+
+    band.left = band.places[0].x - framePad
+    band.right = band.left + strlen(band.heading) * 10 + 20
+
+    for (var n = 0; n < len(band.places); n = n + 1)
+    {
+        var box = band.places[n]
+        var row = -1
+
+        for (var r = 0; r < len(rowEnds); r = r + 1)
+        {
+            if (row < 0 and rowEnds[r] + 14 <= box.x)
+            {
+                row = r
+            }
+        }
+
+        if (row < 0)
+        {
+            row = len(rowEnds)
+            push(rowEnds, 0)
+        }
+
+        rowEnds[row] = box.x + box.wide
+        box.row = row
+
+        if (box.x + box.wide + framePad > band.right)
+        {
+            band.right = box.x + box.wide + framePad
+        }
+    }
+
+    band.height = 28 + len(rowEnds) * (tall + rowGap)
+    band.placeTall = tall
+
+    for (var n = 0; n < len(band.places); n = n + 1)
+    {
+        view.places[statNode(band.places[n].key)] = band.places[n]
+    }
+
+    push(view.bands, band)
+}
+
 // Where everything stands: a frame a group, the ways into a class first, and in each frame its
 // tasks on as few rows as hold them without one covering another. A frame is as wide as its
-// tasks and stands as high as the frames over its own years allow: the groups of a childhood
-// and the groups of a class share the same height of the page, side by side
+// tasks; `placeFrames` then sets each as high as the frames over its own years allow, so the
+// groups of a childhood and the groups of a class share the same height of the page
 fun layoutTimeline(graph, folded)
 {
-    var view = {left: 24, top: 64, firstMonth: lastAge * 12, lastMonth: (lastAge + 1) * 12, bands: [], items: {}, width: 0, height: 0}
+    var view = {left: 24, top: 64, firstMonth: lastAge * 12, lastMonth: (lastAge + 1) * 12, bands: [], items: {}, places: {}, starts: earliestMonths(graph, folded), width: 0, height: 0}
 
     for (var i = 0; i < len(graph.tasks); i = i + 1)
     {
@@ -889,7 +1387,7 @@ fun layoutTimeline(graph, folded)
 
     for (var b = 0; b < len(order); b = b + 1)
     {
-        var band = {group: order[b], heading: toUpperCase(order[b]), items: [], left: 0, right: 0, top: 0, height: 0, path: "", enters: false}
+        var band = {group: order[b], heading: toUpperCase(order[b]), items: [], places: [], rowTops: [], placeTall: 0, placed: false, left: 0, right: 0, top: 0, height: 0, path: "", enters: false, town: false}
         var mixed = false
 
         for (var i = 0; i < len(graph.tasks); i = i + 1)
@@ -902,7 +1400,7 @@ fun layoutTimeline(graph, folded)
             }
 
             var lines = taskLines(graph, task, folded)
-            var start = startMonth(graph, task)
+            var start = view.starts[task.node]
             var x = view.left + (start - view.firstMonth) * monthWidth
             var bar = task.months * monthWidth
 
@@ -946,7 +1444,13 @@ fun layoutTimeline(graph, folded)
                 reach = over
             }
 
-            var item = {task: task, lines: lines, x: x, bar: bar, over: over, body: body, reach: reach, row: 0, y: 0, tall: len(lines) * lineHeight + 8}
+            var item = {task: task, lines: lines, start: start, x: x, bar: bar, over: over, body: body, reach: reach, row: 0, y: 0, tall: len(lines) * lineHeight + 8, chip: unlockedBy(graph, task), lead: 0}
+
+            // The level of the town it waits for stands before it, on a chip
+            if (item.chip != "")
+            {
+                item.lead = strlen(item.chip) * letterWidth + 12 + chipGap
+            }
 
             if (task.enters)
             {
@@ -993,7 +1497,7 @@ fun layoutTimeline(graph, folded)
 
             for (var r = 0; r < len(rowEnds); r = r + 1)
             {
-                if (row < 0 and rowEnds[r] + 14 <= item.x)
+                if (row < 0 and rowEnds[r] + 14 <= item.x - item.lead)
                 {
                     row = r
                 }
@@ -1048,6 +1552,15 @@ fun layoutTimeline(graph, folded)
         // the frame: the frame of the group that opens at that age begins there, and the two
         // stand side by side
         band.left = band.items[0].x - framePad
+
+        for (var n = 0; n < len(band.items); n = n + 1)
+        {
+            if (band.items[n].x - band.items[n].lead - framePad < band.left)
+            {
+                band.left = band.items[n].x - band.items[n].lead - framePad
+            }
+        }
+
         band.right = band.left + strlen(band.heading) * 10 + 20
 
         for (var n = 0; n < len(band.items); n = n + 1)
@@ -1063,36 +1576,13 @@ fun layoutTimeline(graph, folded)
             }
         }
 
-        // Under the lowest of the frames that stand over its years
-        band.top = view.top
-
-        for (var o = 0; o < len(view.bands); o = o + 1)
-        {
-            var other = view.bands[o]
-
-            if (other.left < band.right and band.left < other.right and other.top + other.height + frameGap > band.top)
-            {
-                band.top = other.top + other.height + frameGap
-            }
-        }
-
-        for (var n = 0; n < len(band.items); n = n + 1)
-        {
-            band.items[n].y = band.top + rowTops[band.items[n].row]
-        }
-
-        if (band.top + band.height > view.height)
-        {
-            view.height = band.top + band.height
-        }
-
-        if (band.right > view.width)
-        {
-            view.width = band.right
-        }
+        band.rowTops = rowTops
 
         push(view.bands, band)
     }
+
+    layoutTown(graph, view)
+    placeFrames(view)
 
     var axis = view.left + (view.lastMonth - view.firstMonth) * monthWidth
 
@@ -1121,6 +1611,32 @@ fun classColour(path)
     return ""
 }
 
+// One of the town's arrows, with what it says at its middle. To a point that is not after its
+// start on the years it leaves upward and comes in from the left
+fun townArrow(x1, y1, x2, y2, label)
+{
+    var bend = toInt(floor((x2 - x1) / 2))
+    var curve = ""
+
+    if (bend < 60)
+    {
+        bend = 60
+    }
+
+    if (x2 > x1 - 8)
+    {
+        curve = "M " + toString(x1) + " " + toString(y1) + " C " + toString(x1 + bend) + " " + toString(y1) + ", " + toString(x2 - bend) + " " + toString(y2) + ", " + toString(x2) + " " + toString(y2)
+    }
+    else
+    {
+        curve = "M " + toString(x1) + " " + toString(y1) + " C " + toString(x1) + " " + toString(y1 - 120) + ", " + toString(x2 - 90) + " " + toString(y2) + ", " + toString(x2) + " " + toString(y2)
+    }
+
+    var out = "<path d='" + curve + "' fill='none' stroke='" + townColour + "' stroke-width='1.8' marker-end='url(#shows)'/>\n"
+
+    return out + "<text x='" + toString(toInt(floor((x1 + x2) / 2))) + "' y='" + toString(toInt(floor((y1 + y2) / 2)) - 4) + "' text-anchor='middle' class='flag' style='fill: " + townColour + "'>" + xmlText(label) + "</text>\n"
+}
+
 // The SVG text of the timeline
 fun emitTimeline(graph)
 {
@@ -1140,9 +1656,10 @@ fun emitTimeline(graph)
     out = out + "<defs>\n"
     out = out + "<marker id='asks' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='7' markerHeight='7' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='#1a202c'/></marker>\n"
     out = out + "<marker id='eases' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='7' markerHeight='7' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='#2f855a'/></marker>\n"
+    out = out + "<marker id='shows' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='7' markerHeight='7' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='" + townColour + "'/></marker>\n"
     out = out + "</defs>\n"
     out = out + "<rect width='" + toString(view.width) + "' height='" + toString(view.height) + "' fill='#ffffff'/>\n"
-    out = out + "<text x='" + toString(view.left) + "' y='20' class='note'>A bar: the months a task takes, from the age it opens at. The line after it: the age it must be over by. Gold: a way into a class; a stripe: a task of that class. An arrow: a flag one task brings and another reads (black asks for it, dashed green is eased by it or takes it as one of several).</text>\n"
+    out = out + "<text x='" + toString(view.left) + "' y='20' class='note'>A bar: the months a task takes, from the age it opens at. The line after it: the age it must be over by. Gold: a way into a class; a stripe: a task of that class. An arrow: a flag one task brings and another reads (black asks for it, dashed green is eased by it or takes it as one of several). Purple: the town. A place begins where the task that brings it onto the page ends, its three works bars end to end, with an arrow from that task. A purple chip before a task: the level of a place it waits for.</text>\n"
 
     // The frames, a group each, in the colour of its class when it is all of one
     for (var b = 0; b < len(view.bands); b = b + 1)
@@ -1153,6 +1670,11 @@ fun emitTimeline(graph)
         if (band.path != "" and not band.enters)
         {
             colour = classColour(band.path)
+        }
+
+        if (band.town)
+        {
+            colour = townColour
         }
 
         out = out + "<rect x='" + toString(band.left) + "' y='" + toString(band.top) + "' width='" + toString(band.right - band.left) + "' height='" + toString(band.height) + "' rx='8' fill='#f7fafc' stroke='" + colour + "' stroke-width='1.5'/>\n"
@@ -1180,7 +1702,36 @@ fun emitTimeline(graph)
             colour = classColour(band.path)
         }
 
+        if (band.town)
+        {
+            colour = townColour
+        }
+
         out = out + "<text x='" + toString(band.left + 10) + "' y='" + toString(band.top + 19) + "' class='band' style='fill: " + colour + "'>" + xmlText(band.heading) + "</text>\n"
+
+        // A place: its name, its works as bars end to end, then what each asks and gives
+        for (var n = 0; n < len(band.places); n = n + 1)
+        {
+            var box = band.places[n]
+            var at = box.x
+
+            out = out + "<rect x='" + toString(box.x) + "' y='" + toString(box.y) + "' width='" + toString(box.wide) + "' height='" + toString(box.tall) + "' rx='4' fill='#ffffff' stroke='" + townColour + "' stroke-width='1'/>\n"
+            out = out + "<text x='" + toString(box.x + 4) + "' y='" + toString(box.y + 15) + "' class='name'>" + xmlText(box.name) + "</text>\n"
+            out = out + "<text x='" + toString(box.x + 14 + strlen(box.name) * (letterWidth + 1)) + "' y='" + toString(box.y + 15) + "' class='note' style='fill: " + townColour + "'>" + xmlText(box.found) + "</text>\n"
+
+            for (var w = 0; w < len(box.works); w = w + 1)
+            {
+                out = out + "<rect x='" + toString(at) + "' y='" + toString(box.y + 21) + "' width='" + toString(box.works[w].bar) + "' height='14' fill='" + workColours[w % len(workColours)] + "' stroke='" + townColour + "' stroke-width='1'/>\n"
+                out = out + "<text x='" + toString(at + 4) + "' y='" + toString(box.y + 32) + "' class='note'>" + toString(w + 1) + "</text>\n"
+
+                at = at + box.works[w].bar
+            }
+
+            for (var l = 0; l < len(box.lines); l = l + 1)
+            {
+                out = out + "<text x='" + toString(box.x + 4) + "' y='" + toString(box.y + 50 + l * lineHeight) + "' class='note'>" + xmlText(box.lines[l]) + "</text>\n"
+            }
+        }
 
         for (var n = 0; n < len(band.items); n = n + 1)
         {
@@ -1196,6 +1747,18 @@ fun emitTimeline(graph)
                 fill = "#f6e05e"
                 edge = stripe
                 edgeWidth = "3"
+            }
+
+            // The level of the town it waits for: a chip before it, and a short arrow
+            if (item.chip != "")
+            {
+                var chipWide = item.lead - chipGap
+                var chipX = item.x - item.lead
+                var chipY = item.y + 3
+
+                out = out + "<rect x='" + toString(chipX) + "' y='" + toString(chipY) + "' width='" + toString(chipWide) + "' height='18' rx='9' fill='" + workColours[0] + "' stroke='" + townColour + "' stroke-width='1'/>\n"
+                out = out + "<text x='" + toString(chipX + 6) + "' y='" + toString(chipY + 13) + "' style='fill: " + townColour + "'>" + xmlText(item.chip) + "</text>\n"
+                out = out + "<line x1='" + toString(chipX + chipWide) + "' y1='" + toString(chipY + 9) + "' x2='" + toString(item.x - 2) + "' y2='" + toString(chipY + 9) + "' stroke='" + townColour + "' stroke-width='1.8' marker-end='url(#shows)'/>\n"
             }
 
             // Until when it must be over
@@ -1228,8 +1791,55 @@ fun emitTimeline(graph)
         }
     }
 
-    // The arrows: a flag, from where the task that brings it ends to where the one that reads it begins
+    // The town's arrows, like a flag's: into a place, from where the task that brings it onto
+    // the page ends (a task done, or each task that gives the flag it asks for). None comes out
+    // of the town: a task a level unlocks has its chip, one a level makes better says so on its bar
     var drawn = {}
+
+    for (var l = 0; l < len(graph.links); l = l + 1)
+    {
+        var link = graph.links[l]
+
+        if (link.kind == "shows" and contain(view.places, link.target))
+        {
+            // The task itself, or every task that gives the flag
+            var givers = []
+            var label = "done once"
+
+            if (startsWith(link.source, "task/"))
+            {
+                push(givers, link.source)
+            }
+            else
+            {
+                label = statLabel(graph, link.stat)
+
+                for (var b = 0; b < len(graph.links); b = b + 1)
+                {
+                    if (graph.links[b].target == link.source and startsWith(graph.links[b].source, "task/"))
+                    {
+                        push(givers, graph.links[b].source)
+                    }
+                }
+            }
+
+            for (var g = 0; g < len(givers); g = g + 1)
+            {
+                if (contain(view.items, givers[g]))
+                {
+                    var task = view.items[givers[g]]
+                    var place = view.places[link.target]
+
+                    out = out + townArrow(task.x + task.bar, task.y + toInt(floor(task.tall / 2)), place.x - 2, place.y + toInt(floor(place.tall / 2)), label)
+                }
+            }
+        }
+
+    }
+
+    drawn = {}
+
+    // The arrows: a flag, from where the task that brings it ends to where the one that reads it begins
 
     for (var s = 0; s < len(graph.stats); s = s + 1)
     {
@@ -1367,7 +1977,7 @@ fun printLooseEnds(graph)
 
     if (unread != "")
     {
-        print("Brought, read by no task (a milestone, a deed or the epitaph may read it):\n" + unread)
+        print("Brought, read by no task and no place (a milestone, a deed or the epitaph may read it):\n" + unread)
     }
 }
 
