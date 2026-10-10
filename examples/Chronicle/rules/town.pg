@@ -11,6 +11,8 @@
 //            shown   whether it is on the Town page for him: lib.pg's `placeShown`. The page
 //                    grows with what he does; a place once shown stays shown
 //            gives   "" at level 0, else what its level gives, in one line
+//            given [{level, built, gives}]: every level reached, the first first. A level
+//                    adds to the ones before it: the gloss lists them all, the tile says the last
 //            line    what its tile says: that, or "NOT YET BUILT"
 //            tale    "" or the line the log writes when its level is reached (the level's `lore`)
 //            built   "" or what stands there at its level, as the log names it
@@ -72,7 +74,13 @@ for (var t = 0; t < len(townPlaces); t++)
                  shown: placeShown(place, character, monthOf(age), done, lives),
                  gives: "", line: "NOT YET BUILT", tale: "", built: "", fund: fund,
                  nextWork: "", nextName: "", nextMonths: 0, nextCoin: 0, nextYears: 0, nextCosts: "", nextGives: "", nextLocked: false,
-                 gaps: []}
+                 gaps: [], given: []}
+
+    // What it gives is what every level reached gives: none takes the place of the one before
+    for (var l = 0; l < level; l++)
+    {
+        push(shown.given, {level: l + 1, built: place.levels[l].built, gives: place.levels[l].gives})
+    }
 
     if (level > 0)
     {

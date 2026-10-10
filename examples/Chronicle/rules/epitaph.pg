@@ -10,6 +10,8 @@
 //                   what he worked at, what he left, what is told of him
 //           text    the story as one paragraph
 //           tally   his figures on one line of caps: "AGE 33 · WORKS 14 · COIN 31 · DEEDS 2"
+//           ask     "" or, of a life lived to its end, what is asked of who played it: a word
+//                   on the game's page
 //
 // No function here: lib.pg holds them all, ahead of every table (see there why).
 //
@@ -44,14 +46,20 @@ var legacies = [
 // The age a class may be chosen from: younger, he had no time to choose
 var pathAge = 16
 
+// Said under an old man's ending, and under no other: who lived a whole life has seen the game,
+// and is the one to ask what he made of it
+var askOld = "The chronicle is still being written. If this life was worth the telling, a comment or a rating on the game's page helps it along."
+
 // `lived`, the months of his life, is activitytable.pg's
 var year = toInt(floor(lived / 12))
 
 var cause = "His strength gave out in his " + ordinalWord(year) + " year."
+var ask = ""
 
 if (lived >= lastAge * 12)
 {
     cause = "He died an old man, in his " + ordinalWord(year) + " year."
+    ask = askOld
 }
 
 var story = []
@@ -157,4 +165,4 @@ for (var t = 0; t < len(story); t++)
 
 var tally = "AGE " + toString(year) + " · WORKS " + toString(works) + " · COIN " + toString(coin) + " · DEEDS " + toString(len(deeds))
 
-var epitaph = {cause: cause, story: story, text: text, tally: tally}
+var epitaph = {cause: cause, story: story, text: text, tally: tally, ask: ask}

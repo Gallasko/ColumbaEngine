@@ -1,0 +1,223 @@
+# The Life screen on a phone held upright: one column.
+#
+# LifeScene builds this file instead of life.yaml or life-compact.yaml when the window is
+# narrower than 600 (a phone's browser, upright), and swaps back when it widens. The names are the
+# same contract (see life.yaml); what is not here (the "about" line, the doors) has no widget.
+#
+# Margins 12. The head holds on three short lines: the title with the age at its right, the
+# year, then the note on the age. Under it the work at hand, always in view: what he is at, and
+# the button that begins what is chosen. Then one row of tabs for everything else, and under the
+# tabs one thing at a time, to the bottom of the window: the choice (Life), his parts (Stats),
+# what he holds (Items), the years, the log, and the town once a life has explored it. The town's
+# tab is the last of the row: hidden, it leaves no gap. The panels have no heading: the tab
+# names them.
+#
+# Every width here is a placeholder: the scene writes the column's width (the window's, less
+# the margins) over them before the page is built (LifeScene, shapePhone), and builds the page
+# again at another width. It sets the heights and which panel shows on every resize.
+# A finger has no hover: on this page a tap on a thing shows its gloss.
+# z: page 0, panels 10, content 20.
+name: life
+children:
+
+  - kind: Shape2D
+    name: page
+    width: 390
+    height: 844
+    z: 0
+    theme: scene.background
+
+  # -- Head: who and how old on one line, the year and the note under it --
+  - kind: Label
+    name: title
+    x: 12
+    y: 10
+    style: tab
+    overflow: ellipsis
+    width: 270
+    text: The Chronicle of Aldren of Bellmoor
+
+  - kind: Label
+    name: age
+    style: figure-xl
+    overflow: ellipsis
+    width: 96
+    align: right
+    text: "17.5"
+    anchors:
+      - {side: right, target: __MainWindow, targetSide: right, margin: 12}
+      - {side: top, target: __MainWindow, targetSide: top, margin: 4}
+
+  - kind: Label
+    name: subtitle
+    x: 12
+    y: 38
+    style: label
+    color: ink-muted
+    text: "THE SEVENTEENTH YEAR · SPRING · BELLMOOR"
+
+  - kind: Label
+    name: ageNote
+    x: 12
+    y: 58
+    style: body-sm
+    color: ink-muted
+    overflow: ellipsis
+    width: 366
+    text: years · 7 mo to the eighteenth
+
+  # -- The work at hand: always in view, over the tabs --
+  - kind: Panel
+    name: working
+    x: 12
+    y: 84
+    frame: ruled
+    width: 366
+    heading: At work now
+    glyph: quill
+    aside: RUNNING
+    children:
+      - kind: ActivityList
+        name: running
+        id: life.running
+      - {kind: Label, name: guide, style: body-sm, color: ink-muted, overflow: ellipsis, text: "Choose a work, then press Begin"}
+      - kind: Button
+        name: skip
+        variant: quiet
+        label: Pass a month
+        glyph: time
+        months: 1
+        tag: life.skip
+      - kind: Button
+        name: begin
+        variant: seal
+        label: Begin
+        glyph: quill
+        months: 3
+        tag: life.begin
+
+  # -- One row of tabs for everything under it. Short names, no glyph: six of them hold in the
+  #    column of a narrow phone. The town's is the last: not shown until a life has explored it --
+  - kind: Tabs
+    name: tabs
+    tag: life.tabs
+    width: 366
+    anchors:
+      - {side: top, target: working, targetSide: bottom, margin: 4}
+      - {side: left, target: working, targetSide: left}
+    items:
+      - {label: Life}
+      - {label: Stats}
+      - {label: Items}
+      - {label: Years}
+      - {label: Log}
+      - {label: Town}
+
+  # -- Under the tabs, one of these at a time (LifeScene::showPhone) --
+  - kind: Panel
+    name: may
+    frame: ruled
+    width: 366
+    anchors:
+      - {side: top, target: tabs, targetSide: bottom}
+      - {side: left, target: working, targetSide: left}
+    children:
+      - kind: ActivityList
+        name: activities
+        id: life.activities
+        height: 200
+        stripes: false
+        compact: true
+        tileWidth: 148        # two tiles to a line in a column of 334, one under 304
+      # The Town page: it takes the choice's place once a life has explored the town
+      - kind: Layout:Vertical
+        name: town
+        width: 334
+        height: 200
+        scrollable: true
+        spacing: 12
+        children:
+          - kind: PlaceGrid
+            name: places
+            width: 334
+            tileWidth: 148
+          - {kind: Label, name: worksHead, style: gloss-title, overflow: ellipsis, width: 334, text: "Works for the town"}
+          - kind: ActivityList
+            name: townWorks
+            id: town.works
+            width: 334
+            stripes: false
+            compact: true
+            tileWidth: 148
+          - {kind: Label, name: marketHead, style: gloss-title, overflow: ellipsis, width: 334, text: "The Market"}
+          - kind: ActivityList
+            name: marketRows
+            id: town.market
+            width: 334
+            stripes: false
+            compact: true
+            tileWidth: 148
+          - {kind: Label, name: raised, style: label, color: ink-muted, overflow: wrap, width: 334, text: ""}
+
+  - kind: Panel
+    name: parts
+    frame: ruled
+    width: 366
+    anchors:
+      - {side: top, target: tabs, targetSide: bottom}
+      - {side: left, target: working, targetSide: left}
+    children:
+      - {kind: StatLine, name: vit, glossKey: parts/vit, label: Vitality, glyph: vitality, value: 12, max: 30}
+      - {kind: Ornament, ornament: divider, knot: false}
+      - {kind: StatLine, name: str, glossKey: parts/str, label: Strength, glyph: strength, value: 15, max: 30}
+      - {kind: StatLine, name: dex, glossKey: parts/dex, label: Dexterity, glyph: dexterity, value: 11, max: 30}
+      - {kind: StatLine, name: int, glossKey: parts/int, label: Intelligence, glyph: intelligence, value: 9, max: 30}
+      - {kind: Ornament, ornament: divider, knot: false}
+      - kind: ResourceLedger
+        name: skills
+
+  - kind: Panel
+    name: holds
+    frame: ruled
+    width: 366
+    anchors:
+      - {side: top, target: tabs, targetSide: bottom}
+      - {side: left, target: working, targetSide: left}
+    children:
+      - kind: ResourceLedger
+        name: ledger
+
+  - kind: Panel
+    name: clockPanel
+    frame: ruled
+    width: 366
+    anchors:
+      - {side: top, target: tabs, targetSide: bottom}
+      - {side: left, target: working, targetSide: left}
+    children:
+      - kind: LifeClock
+        name: clock
+        startAge: 7
+        endAge: 30
+        age: 17.5
+        milestones:
+          - {age: 7}
+          - {age: 13}
+          - {age: 16}
+          - {age: 21}
+          - {age: 26}
+          - {age: 30}
+
+  - kind: Panel
+    name: happened
+    frame: ruled
+    width: 366
+    anchors:
+      - {side: top, target: tabs, targetSide: bottom}
+      - {side: left, target: working, targetSide: left}
+    children:
+      - kind: EventLog
+        name: log
+        height: 300
+        years: false
+        footnote: THE CHRONICLE IS WRITTEN FROM THIS LOG

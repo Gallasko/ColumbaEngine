@@ -29,6 +29,7 @@ namespace chronicle
         std::string rulesRoot = "examples/Chronicle/rules";
         std::string pageFile = "res/chronicle/ui/life.yaml";
         std::string compactFile = "res/chronicle/ui/life-compact.yaml";   // Below the three columns' size
+        std::string phoneFile = "res/chronicle/ui/life-phone.yaml";       // A window narrower than a phone held sideways: one column
         std::string endingFile = "res/chronicle/ui/ending.yaml";          // Over the page, when a life ends
         float monthMs = 2000.0f;       // One month every so many ms while the loop runs (--month-ms)
     };
@@ -96,6 +97,9 @@ namespace chronicle
         bool paused = true;
         bool ended = false;            // The life is over and its ending is up: nothing passes until the next begins
         bool compact = false;          // Which file the page is: opt.compactFile or opt.pageFile
+        bool phone = false;            // The page is opt.phoneFile: compact, in one column, with one row of tabs
+        float phoneWidth = 0.0f;       // The window's width the phone page was built at
+        std::string phonePanel;        // Phone: the panel in the choice's place ("parts", "holds", ...), "" for the choice or the town
         int sideTab = 0;               // Compact: the side panel in view (parts, holds, years, log)
         float windowWidth = 1320.0f;   // As the last fit saw it
         float windowHeight = 1020.0f;
@@ -137,10 +141,11 @@ namespace chronicle
         int toastsUp() const { return toasts; }   // The toasts at the foot of the window now
 
     private:
-        bool buildPage(bool compact);  // The page from its file, in place of the one there was
+        bool buildPage(bool compact, bool phone = false, float width = 0.0f);   // The page from its file, in place of the one there was. A phone's is built at the window's width
         void fit(float width, float height);   // The page to the window, swapping it at the breakpoint
         void fitFull(float width, float height);      // The middle column's width, the choice's and the log's heights
         void fitCompact(float width, float height);   // The main column's width, the choice's and the log's heights
+        void fitPhone(float width, float height);     // The one column's width, and the height of what is under the tabs
         void fitEnding(float width, float height);    // The ending's veil to the window
         void fitTown(float width, float height);      // The Town page to the middle column
         int townTab() const;           // Which tab is the town's, -1 when the page has none
@@ -169,6 +174,7 @@ namespace chronicle
         int workRoom();                // What its row has the room to say beside its name: 0 its time, 1 the line under it too, 2 the tally as well
         void showRunning(const std::string& id);   // The row of the work at hand, made for the room there is
         void showSide(int index);      // Compact: one side panel in view, the others hidden
+        void showPhone();              // Phone: the choice under the tabs, or the panel that has its place
         void wire();                   // THE one function with every subscription
         void rebuild();                // The rows only the save and the rules know: ledgers, lists, log, clock
         void addToLedger(const LifeResource& resource);   // One row of what he holds

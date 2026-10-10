@@ -24,8 +24,10 @@
 //           nothing left of a stat a life needs (`mortal`).
 //
 // A holding is a stat with a place in the ledger. Optional fields:
-//   produces: [{stat, amount, per}]   while he holds it, every `per` of it brings `amount` of
-//                                     `stat` each month.
+//   produces: [{stat, amount, per, every}]
+//                                     while he holds it, every `per` of it brings `amount` of
+//                                     `stat` each month. With `every` (left out, 1) it brings it
+//                                     one month in `every` only, counted on the months of his life.
 //   decays: N                         it loses N each month, never below 0. Not in a month at
 //                                     board: he is fed, and running out costs nothing either.
 //   empty: {effects [{stat, amount}], entry "text", low "text", gone "text"}
@@ -82,9 +84,10 @@ var holdings = [
      about: "He lives outside the town's law, among the outlaws of the Greenwood."},
     {id: "wood_king", group: "standing", groupLabel: "STANDING", glyph: "reputation", name: "King of the Greenwood", tone: 3, title: true,
      about: "The Greenwood answers to him, and the Keep leaves it be."},
-    // The market hall (towntable.pg, the market's second level) sends a ration a month
+    // The market hall (towntable.pg, the market's second level) sends a ration every three
+    // months: a help, not his bread. One a month was all a month eats, and rations no longer counted
     {id: "town.market", group: "town", groupLabel: "TOWN", glyph: "trade", name: "the market hall", tone: 0, ledger: false,
-     produces: [{stat: "rations", amount: 1, per: 2}]}
+     produces: [{stat: "rations", amount: 1, per: 2, every: 3}]}
 ]
 
 // What a work leaves him besides a figure: whom he is known to, what he was taught, what he
@@ -165,11 +168,17 @@ for (var i = 0; i < len(holdings); i++)
         else
         {
             var made = toInt(floor(held / product.per)) * product.amount
+            var pace = lookup(product, "every", 1)
 
             if (made != 0)
             {
-                shiftIn(after, change, product.stat, made)
-                push(yields, {stat: product.stat, name: h.name, amount: made})
+                // Its month or not, the gloss of what it brings says where that comes from
+                if (lived % pace == 0)
+                {
+                    shiftIn(after, change, product.stat, made)
+                }
+
+                push(yields, {stat: product.stat, name: h.name, amount: made, every: pace})
             }
         }
     }
@@ -376,7 +385,14 @@ for (var g = 0; g < len(holdings); g++)
                 way = "loss"
             }
 
-            push(notes, {label: "From " + yields[y].name, value: signed(yields[y].amount) + " / mo", tone: way})
+            var often = " / mo"
+
+            if (yields[y].every > 1)
+            {
+                often = " / " + toString(yields[y].every) + " mo"
+            }
+
+            push(notes, {label: "From " + yields[y].name, value: signed(yields[y].amount) + often, tone: way})
         }
     }
 

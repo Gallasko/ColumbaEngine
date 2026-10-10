@@ -1571,6 +1571,9 @@ namespace pg
 
             EXPECT_EQ(epitaph.cause, "He died an old man, in his thirty-third year.");
             ASSERT_EQ(epitaph.story.size(), 3u);
+
+            // A life lived to its end: a word is asked of who played it
+            EXPECT_NE(epitaph.ask.find("a comment or a rating on the game's page"), std::string::npos) << epitaph.ask;
             EXPECT_EQ(epitaph.story[0], "He swore himself to the Keep and served it under arms.");
             EXPECT_EQ(epitaph.story[1], "Of his 4 works, the one he went back to most was Help at the Mill.");
             EXPECT_EQ(epitaph.story[2], "He left 31 coin behind him.");
@@ -1588,6 +1591,7 @@ namespace pg
             ASSERT_TRUE(f.rules.epitaph(12.25f, boy(), {"First wages"}, epitaph)) << firstError(f.rules);
 
             EXPECT_EQ(epitaph.cause, "His strength gave out in his twelfth year.");
+            EXPECT_TRUE(epitaph.ask.empty()) << epitaph.ask;
             ASSERT_EQ(epitaph.story.size(), 4u);
             EXPECT_EQ(epitaph.story[0], "He did not live to choose a class.");
             EXPECT_EQ(epitaph.story[1], "Nothing he did was written down.");
@@ -2122,6 +2126,9 @@ namespace pg
             EXPECT_EQ(intOf(market.fields, "level"), 1);
             EXPECT_FALSE(textOf(market.fields, "gives").empty());
             EXPECT_FALSE(textOf(market.fields, "tale").empty());
+            ASSERT_EQ(market.given.size(), 1u);
+            EXPECT_EQ(textOf(market.given[0], "gives"), textOf(market.fields, "gives"));
+            EXPECT_TRUE(yard.given.empty());
             EXPECT_EQ(textOf(market.fields, "nextWork"), "raise.market.2");
             EXPECT_TRUE(flag(market.fields, "nextLocked"));
 
@@ -2137,6 +2144,14 @@ namespace pg
             EXPECT_EQ(intOf(mill.fields, "level"), 3);
             EXPECT_EQ(textOf(mill.fields, "nextWork"), "");
             EXPECT_TRUE(mill.gaps.empty());
+
+            // And all it gives: every level reached, the first first, the last being what its tile says
+            ASSERT_EQ(mill.given.size(), 3u);
+            EXPECT_EQ(intOf(mill.given[0], "level"), 1);
+            EXPECT_EQ(textOf(mill.given[0], "gives"), "Help at the Mill pays 4 more coin");
+            EXPECT_EQ(textOf(mill.given[1], "gives"), "A new life starts with 6 more rations");
+            EXPECT_EQ(textOf(mill.given[2], "gives"), textOf(mill.fields, "gives"));
+            EXPECT_EQ(textOf(mill.given[2], "built"), "The great millstones");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2465,8 +2480,8 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The market hall sends a ration a month, to every life, with no row of its own in the
-        // ledger; and the family's room at the inn mends him every month.
+        // The market hall sends a ration every three months, to every life, with no row of its own
+        // in the ledger; and the family's room at the inn mends him every month.
         TEST(rules_test, stall_produces_without_a_row)
         {
             MockLogger logger;
@@ -2488,9 +2503,34 @@ namespace pg
 
             ASSERT_TRUE(f.rules.month(9.0f, character, false, month)) << firstError(f.rules);
 
-            // One eaten, one sent
+            // The hall's month: one eaten, one sent
             EXPECT_EQ(intOf(month.after, "rations"), 12);
             EXPECT_EQ(intOf(month.after, "vit"), 7);
+
+            // And its gloss says where the ration comes from, and how often
+            const RuleGloss* rations = nullptr;
+
+            for (const auto& gloss : month.glosses)
+            {
+                if (textOf(gloss.fields, "id") == "rations")
+                    rations = &gloss;
+            }
+
+            ASSERT_NE(rations, nullptr);
+
+            bool told = false;
+
+            for (const auto& row : rations->rows)
+            {
+                if (textOf(row, "label") == "From the market hall")
+                {
+                    told = true;
+
+                    EXPECT_EQ(textOf(row, "value"), "+1 / 3 mo");
+                }
+            }
+
+            EXPECT_TRUE(told);
 
             // No row for it, and no gloss
             EXPECT_EQ(month.rows.size(), rows);
@@ -2498,6 +2538,18 @@ namespace pg
 
             for (const auto& gloss : month.glosses)
                 EXPECT_NE(textOf(gloss.fields, "id"), "town.market");
+
+            // The two months between: he eats, and the hall sends nothing
+            for (float age : {9.0f + 1.0f / 12.0f, 9.0f + 2.0f / 12.0f})
+            {
+                ASSERT_TRUE(f.rules.month(age, character, false, month)) << firstError(f.rules);
+
+                EXPECT_EQ(intOf(month.after, "rations"), 11) << age;
+            }
+
+            // And the next one is its month again
+            ASSERT_TRUE(f.rules.month(9.25f, character, false, month)) << firstError(f.rules);
+            EXPECT_EQ(intOf(month.after, "rations"), 12);
         }
 
         // ----------------------------------------------------------------------------------------

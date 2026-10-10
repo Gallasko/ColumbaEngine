@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Chronicle</title>
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #ece0c8; }
@@ -12,6 +12,13 @@
        a glyph, a wash), and the browser lets what is behind the canvas through there. On a light
        ground the text comes out faded; on black it comes out as drawn. */
     #canvas { display: block; width: 100vw; height: 100vh; outline: none; background: #000; }
+
+    /* A phone. The frame is the part of the page the browser's bars leave (dvh), not the whole
+       of it, or the bottom of the game is under them. A finger on the canvas is the game's: no
+       scroll, no pinch, no zoom on a double tap (two taps begin a task), no selection, no flash. */
+    @supports (height: 100dvh) { #canvas { height: 100dvh; } }
+
+    #canvas { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 
     /* Over the canvas until the game is there */
     #status {

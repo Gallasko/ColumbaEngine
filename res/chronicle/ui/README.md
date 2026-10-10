@@ -102,7 +102,7 @@ children:
 | file | scene | what |
 |---|---|---|
 | `life.yaml` | `Chronicle` (the Life scene) | **the page**: the Life screen, head, tabs and three columns (parts and holdings / the choice / the years, the work and the log); the names are what `LifeScene::wire()` subscribes |
-| `ending.yaml` | `Chronicle` (the Life scene, when a life ends) | **the ending**: a veil over the page and an illuminated leaf in the window's middle (name, cause, story, figures, one Seal button), in the Overlay band; the scene writes `endName`, `endCause`, `endStory` and `endTally` from the save and `rules/epitaph.pg` |
+| `ending.yaml` | `Chronicle` (the Life scene, when a life ends) | **the ending**: a veil over the page and an illuminated leaf in the window's middle (name, cause, story, figures, one Seal button, and under it the line that asks for a comment or a rating, at an old man's ending only), in the Overlay band; the scene writes `endName`, `endCause`, `endStory`, `endTally` and `endAsk` from the save and `rules/epitaph.pg` |
 | `prefabgallery.yaml` | `Chronicle --dev PrefabFileGallery` | the reference page: one of every kind |
 | `clockgallery.yaml` | `Chronicle --dev ClockGallery` | four `LifeClock`s: the Life screen's, a first frame, an old age, a narrow one |
 | `activitygallery.yaml` | `Chronicle --dev ActivityGallery` | the Life screen's activity list in five groups, scrolling, and the side panel showing the activity at work or the one chosen |

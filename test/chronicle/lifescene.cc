@@ -568,6 +568,131 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // Narrower than 600, a phone held upright, the page is one column: the work at hand, one
+        // row of tabs, and under it one thing at a time, inside the window. A tab's panel takes the
+        // choice's place and the Life tab gives it back; wider again, the page is the compact one.
+        TEST(lifescene_test, phone_page_at_390x844)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+            EXPECT_FALSE(life->phone);
+
+            f.resize(390.0f, 844.0f);
+            f.frames(12);
+
+            ASSERT_TRUE(life->phone);
+            ASSERT_TRUE(life->compact);
+
+            auto box = [&](const char* name) {
+                auto p = f.pos(life->named(name));
+                return Box{p->x, p->y, p->x + p->width, p->y + p->height};
+            };
+
+            auto shown = [&](const char* name) {
+                if (life->named(name).empty())
+                {
+                    ADD_FAILURE() << "nothing on the page is named " << name;
+                    return false;
+                }
+
+                return f.pos(life->named(name))->isRenderable();
+            };
+
+            // One row of tabs for everything, and none for a side column
+            auto tabs = life->piece<Tabs>("tabs");
+            ASSERT_NE(tabs, nullptr);
+            ASSERT_EQ(tabs->spec.items.size(), 6u);
+            EXPECT_TRUE(life->named("sideTabs").empty());
+            EXPECT_EQ(tabs->spec.items[0].label, "Life");
+            EXPECT_EQ(tabs->spec.items[5].label, "Town");
+
+            // One column, 12 from each side of the window, and everything in it
+            for (const char* name : {"working", "may", "parts", "holds", "clockPanel", "happened"})
+            {
+                EXPECT_NEAR(box(name).left, 12.0f, 0.5f) << name;
+                EXPECT_NEAR(box(name).right, 378.0f, 0.5f) << name;
+            }
+
+            EXPECT_NEAR(box("age").right, 378.0f, 0.5f);
+            EXPECT_LE(box("title").right, box("age").left + 0.5f);
+            EXPECT_GE(box("tabs").top, box("working").bottom);
+            EXPECT_GE(box("may").top, box("tabs").bottom - 0.5f);
+            EXPECT_LE(box("may").bottom, 844.0f);
+            EXPECT_GT(box("may").bottom, 844.0f - 32.0f);
+
+            // The choice under the tabs, two tiles to a line, and no panel with it
+            EXPECT_TRUE(shown("may"));
+
+            for (const char* side : {"parts", "holds", "clockPanel", "happened"})
+                EXPECT_FALSE(shown(side)) << side;
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            EXPECT_EQ(list->columns(), 2);
+
+            // The Stats tab: his parts in the choice's place, under the same tabs
+            f.ecs.sendEvent(TabSelectedEvent{tabs->root.id, "life.tabs", 1});
+            f.frames(12);
+
+            EXPECT_EQ(life->phonePanel, "parts");
+            EXPECT_TRUE(shown("parts"));
+            EXPECT_FALSE(shown("may"));
+            EXPECT_FALSE(shown("happened"));
+            EXPECT_GE(box("parts").top, box("tabs").bottom - 0.5f);
+            EXPECT_FALSE(life->townShown);
+
+            // The log, to the bottom of the window
+            f.ecs.sendEvent(TabSelectedEvent{tabs->root.id, "life.tabs", 4});
+            f.frames(12);
+
+            EXPECT_TRUE(shown("happened"));
+            EXPECT_FALSE(shown("parts"));
+            EXPECT_LE(box("happened").bottom, 844.0f);
+
+            // The town, which he knows: the choice's panel again, with the town's page in it
+            f.ecs.sendEvent(TabSelectedEvent{tabs->root.id, "life.tabs", 5});
+            f.frames(12);
+
+            EXPECT_TRUE(life->phonePanel.empty());
+            EXPECT_TRUE(life->townShown);
+            EXPECT_TRUE(shown("may"));
+            EXPECT_TRUE(shown("town"));
+            EXPECT_FALSE(shown("happened"));
+
+            auto grid = life->piece<PlaceGrid>("places");
+            ASSERT_NE(grid, nullptr);
+            EXPECT_EQ(grid->columns(), 2);
+
+            // And the Life tab gives the choice back
+            f.ecs.sendEvent(TabSelectedEvent{tabs->root.id, "life.tabs", 0});
+            f.frames(12);
+
+            EXPECT_FALSE(life->townShown);
+            EXPECT_TRUE(shown("may"));
+            EXPECT_TRUE(shown("activities"));
+            EXPECT_FALSE(shown("town"));
+
+            // Held sideways the window is wide enough for the compact page, and back
+            f.resize(844.0f, 390.0f);
+            f.frames(12);
+
+            EXPECT_FALSE(life->phone);
+            EXPECT_TRUE(life->compact);
+            EXPECT_FALSE(life->named("sideTabs").empty());
+
+            f.resize(390.0f, 844.0f);
+            f.frames(12);
+
+            EXPECT_TRUE(life->phone);
+            EXPECT_NEAR(box("working").right, 378.0f, 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // Below the three columns' least size (680 wide, their narrowest step) the page is the compact
         // file: the work at hand over the choice, a side column of one panel at a time, and everything
         // the life wrote still there. It swaps back when the window grows.
@@ -3237,6 +3362,16 @@ namespace pg
             EXPECT_TRUE(life->ended);
             EXPECT_NE(life->epitaph.cause.find("old man"), std::string::npos) << life->epitaph.cause;
 
+            // A life lived to its end: under its ending, a word is asked of who played it
+            ASSERT_FALSE(life->ending.empty());
+
+            EntityRef ask = life->ending->get<Prefab>()->findEntity("endAsk");
+
+            ASSERT_FALSE(ask.empty());
+            EXPECT_FALSE(life->epitaph.ask.empty());
+            EXPECT_EQ(ask->get<Label>()->spec.text, life->epitaph.ask);
+            EXPECT_TRUE(f.pos(ask)->visible);
+
             life->beginAgain();
             f.settle();
 
@@ -3294,6 +3429,11 @@ namespace pg
             EXPECT_NE(said("endStory").find("The carters' road"), std::string::npos) << said("endStory");
             EXPECT_EQ(said("endTally"), life->epitaph.tally);
             EXPECT_EQ(said("endTally").rfind("AGE 17 \xC2\xB7 WORKS 23 \xC2\xB7 COIN ", 0), 0u) << said("endTally");
+
+            // He did not live his life out: nothing is asked of who played it
+            ASSERT_FALSE(part("endAsk").empty());
+            EXPECT_TRUE(life->epitaph.ask.empty());
+            EXPECT_FALSE(f.pos(part("endAsk"))->visible);
 
             // The veil covers the window, over the page, and takes the mouse; the leaf stands in its
             // middle, over the veil
@@ -5043,6 +5183,30 @@ namespace pg
             EXPECT_EQ(life->save.done["raise.chapel.3"], 1);
             EXPECT_NEAR(f.fact<float>("life.age"), age + 2.0f, 0.001f);
             EXPECT_EQ(work(f, life, "raise.chapel.3"), nullptr);
+
+            // Its gloss says all the chapel gives, its three levels and not the last alone
+            auto registry = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(registry, nullptr);
+
+            const GlossSpec* chapel = registry->find("place/chapel");
+            ASSERT_NE(chapel, nullptr);
+            EXPECT_EQ(chapel->aside, "3/3");
+
+            std::vector<std::string> gives;
+            bool giving = false;
+
+            for (const auto& row : chapel->rows)
+            {
+                if (row.heading)
+                    giving = row.label == "IT GIVES";
+                else if (giving and row.tone == "gain")
+                    gives.push_back(row.label);
+            }
+
+            ASSERT_EQ(gives.size(), 3u);
+            EXPECT_EQ(gives[0], "Learn Your Letters takes 4 months, not 6");
+            EXPECT_EQ(gives[1], "A new life starts with Letters 1");
+            EXPECT_EQ(gives[2], "Teach the Young pays 4 more coin");
         }
 
         // ----------------------------------------------------------------------------------------

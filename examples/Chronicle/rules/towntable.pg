@@ -53,7 +53,7 @@ var townPlaces = [
          gives: "Buy rations brings 8 rations, not 6",
          lore: "A stall of his own name stands on the square. It weighs fair."},
         {work: "Build the Market Hall", built: "The market hall", months: 9, coin: 60, costs: [{stat: "guile"}],
-         gives: "The hall sends 1 ration every month, to every life",
+         gives: "The hall sends 1 ration every 3 months, to every life",
          lore: "The hall keeps a share for the family that built it."},
         {work: "Grant the Market Charter", built: "The market charter", months: 12, coin: 150, costs: [],
          gives: "A sword and a horse are sold at the market",

@@ -606,7 +606,7 @@ arguments, compared by value. `Rules::nbRuns` counts the runs.
 | `forecast.pg` | `age`, `character`, `done`, `activityId`, `monthsIn` | `forecast`: `{atStart{stats}, atTerm{stats}, percent, toward (the percent a month on), months, caption ("MONTH 3 OF 6 · STRENGTH 14 → 16 AT TERM"), gaps[{stat, label, current, needed}], entries[{text, kind, figure, glyph}], error}` |
 | `resources.pg` | `age`, `character`, `board` | `month`: `{after{stats}, entries[{text, kind, figure, glyph}], hurt[stat]}`; `rows`: `{id, group, groupLabel, glyph, name, tone, rate ("+2 / mo"), limit}`; `glosses`: `{id, title, text, footnote, rows[{label, value, tone}]}`; `caps`: `{stat, most}`; `death`: `""` or the line the next life opens with |
 | `achievements.pg` | - | `achievements`: `{id, kind (deed / guide / lore), name, entry, say, point, hold, order, asks[{fact, op, value}], gives[{stat, amount}], until[{fact, op, value}]}` |
-| `epitaph.pg` | `age`, `character`, `done`, `activityId` (`""`), `deeds` (the names of the deeds reached) | `epitaph`: `{cause ("He died an old man, in his thirty-third year."), story[text] (what he became, worked at, left, and what is told of him), text (the story as one paragraph), tally ("AGE 33 · WORKS 14 · COIN 31 · DEEDS 2")}` |
+| `epitaph.pg` | `age`, `character`, `done`, `activityId` (`""`), `deeds` (the names of the deeds reached) | `epitaph`: `{cause ("He died an old man, in his thirty-third year."), story[text] (what he became, worked at, left, and what is told of him), text (the story as one paragraph), tally ("AGE 33 · WORKS 14 · COIN 31 · DEEDS 2"), ask ("" or, past `lastAge`, the line that asks for a comment or a rating)}` |
 | `town.pg` (`towntable.pg`) | `age`, `character` (with `town_known`, `town.<place>`, `fund.<place>`), `world`, `lives` | `places`: `{id, name, glyph, about, level, most, shown, gives, line, tale, built, fund, nextWork, nextName, nextMonths, nextCoin, nextYears, nextCosts, nextGives, nextLocked, gaps[{stat, label, current, needed}]}`; `start`: `[{stat, amount}]`; `opened`, `raisedLine`, `epitaphLine`, `fundLine`, `foundLine`; `gift`: `{stat, before, after, plain, chosen}` |
 
 **Repetition** (`activitytable.pg`). `done` is the save's count of terms completed per activity.
@@ -716,7 +716,11 @@ begins from it writes the entry in its log, with the age the last life ended at 
 **The ending** (`epitaph.pg`, `res/chronicle/ui/ending.yaml`). When a life ends the scene runs
 `epitaph.pg` on the character as he died and builds `ending.yaml` over the page, in the Overlay
 band: a veil over the whole window (`ending.veil`) and an illuminated leaf in its middle with his
-name (the save's), `cause`, `text` and `tally`, and one Seal button. The page under it is
+name (the save's), `cause`, `text` and `tally`, and one Seal button. Under the button, at an
+old man's ending only, one small muted line (`endAsk`, the script's `ask`) asks who played for a
+comment or a rating on the game's page: plain words, no link, since the page is the one the game
+is framed in on every host. `ask` is `""` for a life that failed before `lastAge`, and the scene
+then takes the line out of the leaf. The page under it is
 published once more, so it shows the life as it ended. The veil takes the mouse (hover is
 topmost-only, so no row or button under it is hovered or clicked), and the scene refuses months,
 confirms and `SPACE` while `ended`. *Begin a new life* (tag `life.again`) or `N` removes the
@@ -775,7 +779,8 @@ left to it) and `seen.<place>` (1 once a life has had the place on its page). Wh
   and the Mill alone). `lib.pg`'s `placeShown` weighs
   it for the page (`town.pg`'s `shown`) and for the works (a place not on his page has none
   listed), and a place raised, left coin or seen by a life before is always shown.
-- `town.pg` (`Rules::town`) is what the Town page shows: each place's level, what it gives,
+- `town.pg` (`Rules::town`) is what the Town page shows: each place's level, what it gives
+  (`gives`, the last level's, for its tile; `given`, every level reached, for its gloss),
   and its next level flattened (`nextWork`, `nextCosts`, `nextCoin` less the fund, `nextGives`,
   `nextLocked`, `gaps`), plus `start` (what a new life is born with, every level reached),
   and the words the scene says (`opened`, `raisedLine`, `epitaphLine`, `fundLine`, `gift`).
@@ -791,7 +796,8 @@ left to it) and `seen.<place>` (1 once a life has had the place on its page). Wh
   every step that holds applied in order (`more` adds to what the term brings); `eased` takes
   an `at` level and may be a list; a requirement on `town.<place>` lists a new row; `start` in
   `towntable.pg` gives a new life a stat or a holding; and a holding of `resources.pg` with
-  `ledger: false` works every month with no row of its own (the market hall's ration).
+  `ledger: false` works with no row of its own (the market hall's ration: `every: 3`, one
+  month in three of his life, so the hall helps and rations still have to be bought or earned).
 
 The scene's part: `takeStats` leaves the town out of his stats, `openTown` and `raisePlace` do
 what a term did to it (a line, its lore, a toast, the page), `giveYears` moves the clock,
@@ -999,6 +1005,24 @@ it builds the page, shows where and can be dragged.
 `res/chronicle/ui/life-compact.yaml`: the work at hand over the choice, and a side column of one
 panel at a time (Stats, Inventory, Timeline, Log). It is the fallback of a very small window
 and nothing else: what a life holds never sends the page there.
+
+**The phone page.** In a window narrower than 600 (`PhoneBelow`: a phone's browser, held
+upright) the page is `res/chronicle/ui/life-phone.yaml`: one column as wide as the window, the
+work at hand always in view, then one row of tabs (Life, Stats, Items, Years, Log, Town) and
+under it one thing at a time (`LifeScene::showPhone`, `phonePanel`): the choice, the town in its
+place, or one of the panels the other pages keep beside it. The page is built at the window's
+width (`shapePhone` writes it over the file's before the build) and built again at another;
+`fitPhone` gives what is under the tabs the height the work at hand leaves. Held sideways a
+phone is wide enough for the compact page. What a touch screen needs with it:
+
+- a tap is a click: the engine latches a press that is over before it is read (`Input::takePress`);
+- a tap on a thing shows its gloss, which stays until the next tap (`TooltipSystem::showOnPress`,
+  set on this page only): a finger has no hover, and a tile says little without its gloss;
+- the town's page scrolls under a finger (`dragToScroll` on its layout), as the lists do;
+- the guide's hand goes to the tab that holds what a step speaks of when it is not the one open;
+- the ending's leaf and the guide's are no wider than the window;
+- the web page (`web/index.html.in`) gives the canvas the visible part of the screen (`100dvh`)
+  and takes every touch for the game (`touch-action: none`, no zoom on a double tap).
 
 z on the page: page 0, panels 10, their content 20–59, tooltips 200.
 

@@ -2,7 +2,7 @@
 #
 # Built by LifeScene (examples/Chronicle/Scenes/lifescene.cpp) over the page when a life ends,
 # and removed when the next one begins. This file is layout and placeholder content only: the
-# name is the save's, the cause, the story and the figures are rules/epitaph.pg's.
+# name is the save's, the cause, the story, the figures and the last line are rules/epitaph.pg's.
 #
 # The veil is sized to the window by the scene (LifeScene::fitEnding, on every resize: anchors
 # on both sides do not stretch a shape) and takes the mouse, so nothing of the
@@ -53,3 +53,11 @@ children:
         label: Begin a new life
         glyph: seal
         tag: life.again
+      # Under everything, of a life lived to its end only (epitaph.pg's `ask`): a word asked of
+      # who played it, as small as the page writes. The scene takes it out of the leaf otherwise
+      - kind: Label
+        name: endAsk
+        style: body-sm
+        color: ink-muted
+        overflow: wrap
+        text: "The chronicle is still being written. If this life was worth the telling, a comment or a rating on the game's page helps it along."

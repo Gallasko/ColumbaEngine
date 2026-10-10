@@ -28,6 +28,7 @@
 #include "UI/prefabloader.h"
 #include "UI/prefabbuilder.h"
 #include "UI/themesystem.h"
+#include "UI/tooltip.h"
 #include "Systems/coresystems.h"
 #include "Systems/gamefacts.h"
 #include "Systems/achievement.h"
@@ -220,9 +221,31 @@ namespace chronicle
         constexpr const char * const SideTag = "life.side";
         const char * const SidePanels[] = {"parts", "holds", "clockPanel", "happened"};
 
+        // The phone page (life-phone.yaml): one column as wide as the window, the work at hand
+        // over one row of tabs, and under them one thing at a time: the choice (or the town in
+        // its place), or one of the panels the other pages keep beside it
+        constexpr float PhoneBelow = 600.0f;       // A window narrower than this is a phone held upright
+        constexpr float PhoneMargin = 12.0f;
+        constexpr float PhoneTop = 84.0f;          // The work at hand, under the title and its two lines
+        constexpr float PhoneTabs = 48.0f;         // The row of tabs, and the gap under it
+        constexpr float PhoneAge = 96.0f;          // The age, at the title's right
+
+        struct PhoneTab
+        {
+            const char * label;        // The tab's, in small letters
+            const char * panel;        // What it shows in the choice's place
+        };
+
+        constexpr PhoneTab PhoneTabsOf[] = {{"stats", "parts"}, {"items", "holds"}, {"years", "clockPanel"}, {"log", "happened"}};
+
         bool needsCompact(float width, float height)
         {
             return widthStepFor(width) < 0 or heightStepFor(height) < 0;
+        }
+
+        bool needsPhone(float width)
+        {
+            return width < PhoneBelow;
         }
 
         // A node of the page by its name, the ones a layout holds as well
@@ -311,6 +334,26 @@ namespace chronicle
                     if (NodeSpec* log = childNamed(*happened, "log"))
                         log->props["footnote"] = std::string("");
                 }
+            }
+        }
+
+        // The phone page at a window's width: every panel is the column, and what stands in the
+        // town's page (a layout, which takes no width from its panel) is the column less the
+        // panel's padding. Written before the page is built, as the three columns' steps are
+        void shapePhone(NodeSpec& page, float width)
+        {
+            const float column = std::max(MinCompactList, width - 2.0f * PhoneMargin);
+            const float inner = column - SideChrome;
+
+            for (const char* name : {"working", "may", "parts", "holds", "clockPanel", "happened", "tabs", "ageNote"})
+                setProp(childNamed(page, name), "width", column);
+
+            setProp(childNamed(page, "title"), "width", std::max(1.0f, column - PhoneAge));
+
+            if (NodeSpec* may = childNamed(page, "may"))
+            {
+                for (const char* name : {"town", "places", "worksHead", "townWorks", "marketHead", "marketRows", "raised"})
+                    setProp(childNamed(*may, name), "width", inner);
             }
         }
 
@@ -530,9 +573,9 @@ namespace chronicle
 
     // ---- init: the page as a file ----------------------------------------------------------------
 
-    bool LifeScene::buildPage(bool compactPage)
+    bool LifeScene::buildPage(bool compactPage, bool phonePage, float width)
     {
-        const std::string& file = compactPage ? opt.compactFile : opt.pageFile;
+        const std::string& file = phonePage ? opt.phoneFile : compactPage ? opt.compactFile : opt.pageFile;
 
         std::vector<std::string> errors;
         PrefabLoadOptions options;
@@ -549,7 +592,9 @@ namespace chronicle
         for (const auto& e : errors)
             LOG_ERROR(DOM, file << ": " << e);
 
-        if (not compactPage)
+        if (phonePage)
+            shapePhone(*spec, width);
+        else if (not compactPage)
             shapeColumns(*spec, Widths[widthStep], Heights[heightStep]);
 
         EntityRef built = buildTree(ecsRef, *spec);
@@ -565,8 +610,20 @@ namespace chronicle
             ecsRef->removeEntity(page);
 
         page = built;
-        compact = compactPage;
+        compact = compactPage or phonePage;
+        phone = phonePage;
+        phoneWidth = width;
+        phonePanel.clear();
         handles.clear();
+
+        // The town's page scrolls under a finger, or a mouse held down, as the lists do
+        if (EntityRef townBody = named(TownName); not townBody.empty() and townBody->has<VerticalLayout>())
+            townBody->get<VerticalLayout>()->dragToScroll = true;
+
+        // A finger has no hover: on the phone page a tap on a thing shows its gloss, which stays
+        // until the next tap
+        if (auto tooltips = ecsRef->getSystem<TooltipSystem>())
+            tooltips->showOnPress = phone;
 
         // The page leaves with the scene; its pieces follow it as its prefab children.
         ecsRef->attach<SceneElement>(page);
@@ -596,7 +653,7 @@ namespace chronicle
         widthStep = std::max(0, widthStepFor(width));
         heightStep = std::max(0, heightStepFor(height));
 
-        if (not buildPage(needsCompact(width, height)))
+        if (not buildPage(needsCompact(width, height), needsPhone(width), width))
             return;
 
         listenToEvent<ActivitySelectedEvent>([this](const ActivitySelectedEvent& e) { onSelect(e); });
@@ -799,11 +856,13 @@ namespace chronicle
 
         // Across a breakpoint the page is built again, sized, then its rows and every path again:
         // the other file for the compact page, the same at another step for the three columns
-        const bool wantCompact = needsCompact(width, height);
+        const bool wantPhone = needsPhone(width);
+        const bool wantCompact = wantPhone or needsCompact(width, height);
         const int wantedWidth = widthStepFor(width);
         const int wantedHeight = heightStepFor(height);
 
-        const bool swap = wantCompact != compact or (not wantCompact and (wantedWidth != widthStep or wantedHeight != heightStep));
+        // The phone page is built at the window's width: at another, it is built again
+        const bool swap = wantCompact != compact or wantPhone != phone or (wantPhone and std::abs(width - phoneWidth) > 0.5f) or (not wantCompact and (wantedWidth != widthStep or wantedHeight != heightStep));
 
         if (swap and not wantCompact)
         {
@@ -811,7 +870,7 @@ namespace chronicle
             heightStep = wantedHeight;
         }
 
-        if (swap and not buildPage(wantCompact))
+        if (swap and not buildPage(wantCompact, wantPhone, width))
             return;
 
         if (EntityRef background = named("page"); not background.empty())
@@ -822,7 +881,9 @@ namespace chronicle
 
         guideFitted = guideRoom();
 
-        if (compact)
+        if (phone)
+            fitPhone(width, height);
+        else if (compact)
             fitCompact(width, height);
         else
             fitFull(width, height);
@@ -1264,6 +1325,64 @@ namespace chronicle
         showSide(sideTab);
     }
 
+    void LifeScene::fitPhone(float width, float height)
+    {
+        EntitySystem* ecs = ecsRef;
+
+        const float column = std::max(MinCompactList, width - 2.0f * PhoneMargin);
+
+        // What is under the tabs has the page to its bottom: the work at hand grows and shrinks
+        // over it
+        const float under = height - PhoneTop - workingHeight() - PhoneTabs - PhoneMargin;
+        const float listHeight = std::max(MinCompactList, under - SideChrome);
+
+        if (auto working = piece<Panel>("working"))
+        {
+            working->setWidth(ecs, column);
+
+            if (auto running = piece<ActivityList>("running"))
+                running->setSize(ecs, working->innerWidth(), 0.0f);
+        }
+
+        if (auto may = piece<Panel>("may"))
+        {
+            may->setWidth(ecs, column);
+
+            if (auto list = piece<ActivityList>("activities"))
+                list->setSize(ecs, may->innerWidth(), listHeight);
+
+            fitTown(may->innerWidth(), listHeight);
+        }
+
+        if (auto log = piece<EventLog>("log"))
+        {
+            const bool atEnd = log->atEnd(ecs);
+
+            log->setHeight(ecs, std::max(MinLog, under - SideChrome - LogFootnote));
+
+            if (atEnd)
+                followLog();
+        }
+
+        showPhone();
+    }
+
+    void LifeScene::showPhone()
+    {
+        if (not phone)
+            return;
+
+        // One thing under the tabs: the choice (the town when its page is the one open), or a panel
+        if (EntityRef may = named("may"); not may.empty())
+            may->get<PositionComponent>()->setVisibility(phonePanel.empty());
+
+        for (const auto& tab : PhoneTabsOf)
+        {
+            if (EntityRef panel = named(tab.panel); not panel.empty())
+                panel->get<PositionComponent>()->setVisibility(phonePanel == tab.panel);
+        }
+    }
+
     void LifeScene::showSide(int index)
     {
         const int count = static_cast<int>(std::size(SidePanels));
@@ -1273,7 +1392,7 @@ namespace chronicle
 
         sideTab = index;
 
-        if (not compact)
+        if (not compact or phone)
             return;
 
         for (int i = 0; i < count; ++i)
@@ -1573,9 +1692,12 @@ namespace chronicle
     {
         // The leaf: an edge a pixel wider than its ground all round, its words, and under them its
         // two buttons. Everything hangs on the root, which the scene sizes and places
+        // As wide as it is drawn, or as the window lets it be
+        const float width = std::max(MinCompactList, std::min(NoteWidth, windowWidth - 2.0f * NoteMargin));
+
         auto root = makeAnchoredPrefab(ecsRef, 0.0f, 0.0f, NoteZ);
 
-        root.get<PositionComponent>()->setWidth(NoteWidth);
+        root.get<PositionComponent>()->setWidth(width);
         root.get<PositionComponent>()->setVisibility(false);
 
         note = root.entity;
@@ -1585,7 +1707,7 @@ namespace chronicle
 
         auto prefab = root.get<Prefab>();
 
-        auto edge = makeUiSimple2DShape(ecsRef, Shape2D::Square, NoteWidth, 1.0f);
+        auto edge = makeUiSimple2DShape(ecsRef, Shape2D::Square, width, 1.0f);
 
         edge.get<PositionComponent>()->setZ(NoteZ);
         edge.get<UiAnchor>()->setTopAnchor(PosAnchor{note.id, AnchorType::Top});
@@ -1595,7 +1717,7 @@ namespace chronicle
 
         noteEdge = edge.entity;
 
-        auto ground = makeUiSimple2DShape(ecsRef, Shape2D::Square, NoteWidth - 2.0f, 1.0f);
+        auto ground = makeUiSimple2DShape(ecsRef, Shape2D::Square, width - 2.0f, 1.0f);
 
         ground.get<PositionComponent>()->setZ(NoteZ + 1.0f);
         ground.get<UiAnchor>()->setTopAnchor(PosAnchor{note.id, AnchorType::Top});
@@ -1617,7 +1739,7 @@ namespace chronicle
         words.style = "body";
         words.color = "ink";
         words.overflow = Overflow::Wrap;
-        words.width = NoteWidth - 2.0f * NotePad;
+        words.width = width - 2.0f * NotePad;
         words.z = z;
 
         noteWords = makeLabel(ecsRef, words);
@@ -1795,6 +1917,26 @@ namespace chronicle
         else if (kind == "log")
         {
             target = named("happened");
+        }
+
+        // On the phone page what the guide speaks of may be behind a tab: the hand goes to the tab,
+        // and to the thing itself once the tab is open
+        if (phone and not target.empty() and target->has<PositionComponent>() and not target->get<PositionComponent>()->isRenderable())
+        {
+            const char* panel = kind == "holding" ? "holds" : kind == "stat" ? "parts" : kind == "clock" ? "clockPanel" : kind == "log" ? "happened" : "";
+            auto tabs = piece<Tabs>("tabs");
+
+            for (const auto& tab : PhoneTabsOf)
+            {
+                if (not tabs or std::string(tab.panel) != panel)
+                    continue;
+
+                for (size_t i = 0; i < tabs->tabs.size() and i < tabs->spec.items.size(); ++i)
+                {
+                    if (lower(tabs->spec.items[i].label) == tab.label)
+                        target = tabs->tabs[i].face;
+                }
+            }
         }
 
         // What is not drawn is not pointed at: a row not listed yet, a button not shown, a tile
@@ -2794,6 +2936,19 @@ namespace chronicle
         for (const auto& e : errors)
             LOG_ERROR(DOM, opt.endingFile << ": " << e);
 
+        // A leaf wider than the window (a phone's) is the window's width, less a margin
+        float room, tall;
+        windowSize(ecsRef, room, tall);
+        room -= 2.0f * PhoneMargin;
+
+        if (NodeSpec* leaf = childNamed(*spec, "leaf"))
+        {
+            auto drawn = leaf->props.find("width");
+
+            if (drawn != leaf->props.end() and floatOf(drawn->second) > room)
+                setProp(leaf, "width", std::max(MinCompactList, room));
+        }
+
         ending = buildTree(ecsRef, *spec);
 
         if (ending.empty() or not ending->has<Prefab>())
@@ -2820,6 +2975,18 @@ namespace chronicle
         write("endCause", epitaph.cause);
         write("endStory", epitaph.text);
         write("endTally", epitaph.tally);
+        write("endAsk", epitaph.ask);
+
+        // The word asked of who played is an old man's ending's alone: out of the leaf's stack otherwise
+        if (EntityRef ask = prefab->findEntity("endAsk"); not ask.empty())
+        {
+            const bool asked = not epitaph.ask.empty();
+
+            if (EntityRef leaf = prefab->findEntity("leaf"); not leaf.empty() and leaf->has<Panel>())
+                wrapIn(leaf->get<Panel>()->body, ask)->get<PositionComponent>()->setVisibility(asked);
+
+            ask->get<PositionComponent>()->setVisibility(asked);
+        }
 
         fillGifts();
 
@@ -3773,6 +3940,27 @@ namespace chronicle
         if (event.tag != TabsTag)
             return;
 
+        // The phone page has one row of tabs for everything: a panel takes the choice's place, and
+        // the Life and Town tabs give it back
+        if (phone)
+        {
+            auto row = piece<Tabs>("tabs");
+            const std::string label = row and event.index >= 0 and static_cast<size_t>(event.index) < row->spec.items.size() ? lower(row->spec.items[event.index].label) : std::string();
+
+            phonePanel.clear();
+
+            for (const auto& tab : PhoneTabsOf)
+            {
+                if (label == tab.label)
+                    phonePanel = tab.panel;
+            }
+
+            showPhone();
+
+            if (not phonePanel.empty())
+                return;
+        }
+
         // The Life page, and the town's once a life has explored it: they share the middle column
         if (event.index == 0)
         {
@@ -3850,9 +4038,17 @@ namespace chronicle
 
         setFact("life.town", townShown ? 1 : 0);
 
+        // On the phone page a panel may stand in the choice's place: the town asked for takes it
+        // back, and the choice does not take a panel's tab from it
+        if (phone and townShown and not phonePanel.empty())
+        {
+            phonePanel.clear();
+            showPhone();
+        }
+
         const int tab = townShown ? townTab() : 0;
 
-        if (auto tabs = piece<Tabs>("tabs"); tabs and tab >= 0 and tabs->active() != tab)
+        if (auto tabs = piece<Tabs>("tabs"); tabs and tab >= 0 and tabs->active() != tab and phonePanel.empty())
             tabs->setActive(ecsRef, tab);
     }
 
@@ -4036,7 +4232,7 @@ namespace chronicle
             if (not registry)
                 continue;
 
-            // The gloss: what it is and gives, then its next level: what it asks of him against
+            // The gloss: what it is and all it gives, then its next level: what it asks of him against
             // what he has, what it will give, and the work that raises it
             GlossSpec gloss;
             gloss.inlineValues = true;
@@ -4044,11 +4240,12 @@ namespace chronicle
             gloss.aside = std::to_string(level) + "/" + std::to_string(most);
             gloss.text = textOf(place.fields, "about");
 
-            if (level > 0)
-            {
+            // Every level reached, not the last alone: a level adds to what the ones before it give
+            if (not place.given.empty())
                 gloss.rows.push_back({"IT GIVES", "", "", true});
-                gloss.rows.push_back({textOf(place.fields, "gives"), "", "gain"});
-            }
+
+            for (const auto& given : place.given)
+                gloss.rows.push_back({textOf(given, "gives"), "", "gain"});
 
             if (by != save.raisedBy.end())
                 gloss.rows.push_back({"Raised by", by->second, "muted"});

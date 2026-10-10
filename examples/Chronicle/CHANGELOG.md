@@ -3,6 +3,26 @@
 What changed in the game, build by build, as a player sees it. The engine's own changes are in
 the `CHANGELOG.md` at the root of the repository.
 
+## 0.4.1 - Unreleased
+
+### New
+
+- **Playable on a phone.** In a browser narrower than 600 px (a phone held upright) the game
+  is one column: the work at hand on top, one row of tabs (Life, Stats, Items, Years, Log,
+  Town), and one of them at a time under it. Tap a task, a stat or a place to read about it; tap
+  twice to begin a task, or use Begin.
+- **Taps work.** A quick tap on a touch screen was not seen as a click.
+
+### Changed
+
+- **All a place gives.** The tooltip of a place lists what every level you built gives, not the
+  last one alone.
+
+### Fixed
+
+- A tooltip could stay on screen after its task was replaced (a month passed while the mouse
+  was on it), hiding what was under it.
+
 ## 0.4 - 2026-10-10
 
 ### New
@@ -31,6 +51,8 @@ the `CHANGELOG.md` at the root of the repository.
   free.
 - **The gift at death.** When a life ends with coin, you can leave it to one place. It counts
   toward that place's next level.
+- **A word at the end.** When a life ends of old age, one small line under its ending asks for a
+  comment or a rating on the game's page. A life cut short is not asked anything.
 - **Hover a place** to see what it gives, what its next level asks compared with what you have,
   and who raised it.
 - **A notice on a tab.** When something new comes onto the page you are not looking at (a new

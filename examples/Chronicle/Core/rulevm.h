@@ -148,6 +148,7 @@ namespace chronicle
         std::vector<std::string> story;   // What he became, worked at, left, and what is told of him
         std::string text;              // The story as one paragraph
         std::string tally;             // "AGE 33 · WORKS 14 · COIN 31 · DEEDS 2"
+        std::string ask;               // "" or, of a life lived to its end, the word asked of who played it
     };
 
     // What an entry of achievements.pg is: its `kind`, "deed" when it gives none
@@ -178,6 +179,7 @@ namespace chronicle
     {
         pg::ElementMap fields;
         pg::RecordList gaps;           // {stat, label, current, needed}: what the next level takes, against what he has
+        pg::RecordList given;          // {level, built, gives}: what every level reached gives, the first first
     };
 
     // The town as its page shows it, from town.pg.
