@@ -341,6 +341,69 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A prefab hidden a while ago sends no position change: what is added to it then has only
+        // the add itself to be told by
+        TEST(prefab_test, child_added_to_a_hidden_prefab_is_hidden)
+        {
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<PrefabSystem>();
+            ecs.succeed<PositionComponentSystem, PrefabSystem>();
+
+            auto prefabEnt = ecs.createEntity();
+            auto prefabPos = ecs.attach<PositionComponent>(prefabEnt);
+            auto prefab = ecs.attach<Prefab>(prefabEnt);
+
+            prefabPos->setWidth(100.0f);
+            prefabPos->setHeight(100.0f);
+            prefabPos->setVisibility(false);
+
+            ecs.executeOnce();
+
+            auto childEnt = ecs.createEntity();
+            auto childPos = ecs.attach<PositionComponent>(childEnt);
+            prefab->addToPrefab(childEnt);
+
+            ecs.executeOnce();
+
+            EXPECT_FALSE(childPos->observable);
+
+            // A prefab of its own, with what it holds, added after: hidden to the last part
+            auto innerEnt = ecs.createEntity();
+            auto innerPos = ecs.attach<PositionComponent>(innerEnt);
+            auto inner = ecs.attach<Prefab>(innerEnt);
+
+            auto partEnt = ecs.createEntity();
+            auto partPos = ecs.attach<PositionComponent>(partEnt);
+            inner->addToPrefab(partEnt);
+
+            ecs.executeOnce();
+
+            EXPECT_TRUE(partPos->observable);
+
+            prefab->addToPrefab(innerEnt);
+
+            for (size_t i = 0; i < 3; ++i)
+                ecs.executeOnce();
+
+            EXPECT_FALSE(innerPos->observable);
+            EXPECT_FALSE(partPos->observable);
+
+            // Shown again, all of it comes back
+            prefabPos->setVisibility(true);
+
+            for (size_t i = 0; i < 3; ++i)
+                ecs.executeOnce();
+
+            EXPECT_TRUE(childPos->observable);
+            EXPECT_TRUE(innerPos->observable);
+            EXPECT_TRUE(partPos->observable);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(prefab_test, set_main_entity)
         {
             EntitySystem ecs;

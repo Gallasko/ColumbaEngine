@@ -18,7 +18,8 @@ namespace pg
     // not yet in entityPool → ecsRef->getEntity(id) would return null).
     struct SetMainEntityEvent { EntityRef prefabEnt; EntityRef ent; };
 
-    struct PrefabChangedEvent { _unique_id prefabId; };
+    // childId is the entity just added to the prefab, 0 when the prefab changed in another way
+    struct PrefabChangedEvent { _unique_id prefabId; _unique_id childId = 0; };
 
     // Todo fix prefab runtime
     // Currently prefabs only works in events has the prefab need to be realized before adding other components to it
@@ -40,7 +41,7 @@ namespace pg
 
             childrenIds.insert(entity.id);
 
-            ecsRef->sendEvent(PrefabChangedEvent{id});
+            ecsRef->sendEvent(PrefabChangedEvent{id, entity.id});
         }
 
         void addToPrefab(EntityRef entity, const std::string& name)
@@ -135,7 +136,7 @@ namespace pg
         bool deleteEntityUponRelease = true;
     };
 
-    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, QueuedListener<PositionComponentChangedEvent>, QueuedListener<ClearPrefabEvent>, Listener<SetMainEntityEvent>, InitSys>
+    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, QueuedListener<PrefabChangedEvent>, QueuedListener<PositionComponentChangedEvent>, QueuedListener<ClearPrefabEvent>, Listener<SetMainEntityEvent>, InitSys>
     {
         virtual void init() override
         {
@@ -163,6 +164,22 @@ namespace pg
                     updateAllPrefabEntities(entity);
                 }
             });
+        }
+
+        // A child takes the state of its prefab the day it is added. A hidden prefab that does not
+        // move sends no position change, and what was added to it would stay drawn
+        virtual void onProcessEvent(const PrefabChangedEvent& event) override
+        {
+            if (event.childId == 0)
+                return;
+
+            auto entity = ecsRef->getEntity(event.prefabId);
+            auto child = ecsRef->getEntity(event.childId);
+
+            if (not entity or not child or not entity->has<Prefab>() or not entity->has<PositionComponent>())
+                return;
+
+            updatePrefabEntity(entity, child);
         }
 
         virtual void onProcessEvent(const PositionComponentChangedEvent& event) override
