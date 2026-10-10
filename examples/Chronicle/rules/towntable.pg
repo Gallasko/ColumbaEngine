@@ -6,13 +6,17 @@
 // Output: `townPlaces`, one table per place of Bellmoor a life can raise:
 //           {id, name, glyph, about, shows, levels [level]}
 //         in the order the Town page shows them.
-//         `shows` is optional: when the place comes onto the page. Without it, the place is
-//         there from the day the town is known. {fromAge: N}: once he is that old. {flag: "x"}:
-//         once he holds that flag (the one a class gives: "keep_oath", "collegium"). Both: both.
+//         `shows` is optional: what brings the place onto the page. Without it, the place is
+//         there from the day the town is known. {flag: "x"}: once he holds that flag (what a
+//         work of his class gives: "veteran", "captain", "collegium"). {done: "id"}: once he has
+//         done a term of that activity. {lives: N}: from the Nth life of the world. {fromAge: N}:
+//         once he is that old. Several: all of them.
 //         A place a life has seen stays seen: the Life screen keeps it with the town, and hands
 //         it back in `character` as "seen.<id>". So does a place that was raised, or left coin.
-//         The page grows with the life, and with the lives: a first look at the town is three
-//         places, not nine (lib.pg's `placeShown` weighs it, for the page and for the works).
+//         A first look at the town is two places, the Market and the Mill: enough to learn what
+//         a place is. The others are found by living (lib.pg's `placeShown` weighs it, for the
+//         page and for the works): the day one comes, its first work comes with it, under the
+//         places, and that work is how it is built.
 //         A place has a level, 0 (not built) to the number of its `levels`. It is the world's,
 //         not the life's: the Life screen hands it to every script in `character` as the stat
 //         "town.<id>", with "town_known" (1 once a life has explored the town) and "fund.<id>"
@@ -42,7 +46,7 @@ import "algorithm"
 import "lib"
 
 var townPlaces = [
-    // From the day the town is known: the three places every child of Bellmoor has grown up around
+    // From the day the town is known: the two places a child of Bellmoor has grown up around
     {id: "market", name: "The Market", glyph: "trade", about: "Where coin becomes bread. What is bought on the spot is bought here.",
      levels: [
         {work: "Endow the Market Stall", built: "The market stall", months: 6, coin: 20, costs: [],
@@ -67,7 +71,9 @@ var townPlaces = [
          gives: "A new life starts with 1 more Strength", start: [{stat: "str"}],
          lore: "He gave his back to the great stones. The boys who turn them grow strong."}
      ]},
-    {id: "smithy", name: "The Smithy", glyph: "forge", about: "The forge by the river, loud from dawn.",
+
+    // With his own hands: the forge, once he has worked a term at it
+    {id: "smithy", name: "The Smithy", glyph: "forge", shows: {done: "smithy"}, about: "The forge by the river, loud from dawn.",
      levels: [
         {work: "Add a Second Bellows", built: "The second bellows", months: 6, coin: 25, costs: [],
          gives: "Work the Smithy opens at age 8, not 9",
@@ -80,20 +86,8 @@ var townPlaces = [
          lore: "The great forge takes orders from the Keep itself."}
      ]},
 
-    // With the years: what a boy is not let into, or has no eye for, before he is ten, or thirteen
-    {id: "chapel", name: "The Chapel", glyph: "study", shows: {fromAge: 10}, about: "Father Anselm's chapel, and the only school in Bellmoor.",
-     levels: [
-        {work: "Glaze the Chapel Windows", built: "The chapel windows", months: 6, coin: 15, costs: [],
-         gives: "Learn Your Letters takes 4 months, not 6",
-         lore: "There is light to read by now, even in winter."},
-        {work: "Give the Chapel a Primer", built: "The chapel primer", months: 9, coin: 40, costs: [{stat: "letters"}],
-         gives: "A new life starts with Letters 1", start: [{stat: "letters"}],
-         lore: "He copied out the primer himself. Children learn their letters from his hand."},
-        {work: "Found the Almshouse", built: "The almshouse", months: 0, coin: 60, costs: [], years: 2,
-         gives: "Teach the Young pays 4 more coin",
-         lore: "Two years of his life went into its walls. The old teach there, and are kept."}
-     ]},
-    {id: "yard", name: "The Yard", glyph: "training", shows: {fromAge: 10}, about: "The training yard under the Keep's wall.",
+    // With the Keep: the yard to a veteran of the border, the gate to its captain
+    {id: "yard", name: "The Yard", glyph: "training", shows: {flag: "veteran"}, about: "The training yard under the Keep's wall.",
      levels: [
         {work: "Stock the Yard with Blades", built: "The yard's racks", months: 6, coin: 20, costs: [],
          gives: "Wooden Blades can be practiced 5 times, not 3",
@@ -105,21 +99,7 @@ var townPlaces = [
          gives: "Sergeant Edric trains boys from age 12",
          lore: "Edric lives by the yard now, and starts them younger."}
      ]},
-    {id: "inn", name: "The Inn", glyph: "town", shows: {fromAge: 13}, about: "The Bell and Barrel, where every tale ends up.",
-     levels: [
-        {work: "Carve the Storyteller's Chair", built: "The storyteller's chair", months: 6, coin: 15, costs: [],
-         gives: "Tell Tales at the Inn opens at age 26",
-         lore: "The chair by the fire is for whoever has a tale, young or old."},
-        {work: "Hang the Book of Names", built: "The book of names", months: 9, coin: 40, costs: [],
-         gives: "A new life is told how the last one ended",
-         lore: "The inn keeps a book. Every life of the family has a line in it."},
-        {work: "Keep a Room at the Inn", built: "The family's room", months: 12, coin: 90, costs: [],
-         gives: "Vitality mends every month, not every second month",
-         lore: "A bed, a fire and a door that locks: he mends faster there."}
-     ]},
-
-    // With his class: the places that only open their business to one of their own
-    {id: "gate", name: "The Watch Gate", glyph: "gate", shows: {flag: "keep_oath"}, about: "The north gate, where the Watch stands.",
+    {id: "gate", name: "The Watch Gate", glyph: "gate", shows: {flag: "captain"}, about: "The north gate, where the Watch stands.",
      levels: [
         {work: "Mend the Gatehouse Roof", built: "The gatehouse roof", months: 6, coin: 25, costs: [],
          gives: "A new life starts known to the Watch", start: [{stat: "watch_known"}],
@@ -131,7 +111,22 @@ var townPlaces = [
          gives: "The Captain's Chain asks Renown 6, not 7",
          lore: "The tower bears the town's name, not his. The Keep remembers anyway."}
      ]},
-    {id: "collegium", name: "The Collegium Gate", glyph: "academy", shows: {flag: "collegium"}, about: "The gate of the scholars, shut to most of the town.",
+
+    // With the Collegium: the chapel the day he is taken in, its gate once he has served Magister
+    // Orin, the road once he has been to Harrow
+    {id: "chapel", name: "The Chapel", glyph: "study", shows: {flag: "collegium"}, about: "Father Anselm's chapel, and the only school in Bellmoor.",
+     levels: [
+        {work: "Glaze the Chapel Windows", built: "The chapel windows", months: 6, coin: 15, costs: [],
+         gives: "Learn Your Letters takes 4 months, not 6",
+         lore: "There is light to read by now, even in winter."},
+        {work: "Give the Chapel a Primer", built: "The chapel primer", months: 9, coin: 40, costs: [{stat: "letters"}],
+         gives: "A new life starts with Letters 1", start: [{stat: "letters"}],
+         lore: "He copied out the primer himself. Children learn their letters from his hand."},
+        {work: "Found the Almshouse", built: "The almshouse", months: 0, coin: 60, costs: [], years: 2,
+         gives: "Teach the Young pays 4 more coin",
+         lore: "Two years of his life went into its walls. The old teach there, and are kept."}
+     ]},
+    {id: "collegium", name: "The Collegium Gate", glyph: "academy", shows: {flag: "orin_known"}, about: "The gate of the scholars, shut to most of the town.",
      levels: [
         {work: "Open a Reagent Counter", built: "The reagent counter", months: 6, coin: 30, costs: [],
          gives: "Buy reagents is sold to every class",
@@ -143,7 +138,7 @@ var townPlaces = [
          gives: "The Collegium asks Intelligence 11, not 12",
          lore: "One child of Bellmoor is taken each year on promise alone."}
      ]},
-    {id: "harrow", name: "The Harrow Road", glyph: "relic", shows: {flag: "collegium", fromAge: 18}, about: "The old road east, to what is left of Harrow.",
+    {id: "harrow", name: "The Harrow Road", glyph: "relic", shows: {flag: "harrow_truth"}, about: "The old road east, to what is left of Harrow.",
      levels: [
         {work: "Clear the Harrow Road", built: "The cleared road", months: 9, coin: 40, costs: [],
          gives: "The works of Harrow show what they ask from the start",
@@ -154,6 +149,20 @@ var townPlaces = [
         {work: "Raise the Harrow Shrine", built: "The Harrow shrine", months: 18, coin: 200, costs: [{stat: "vit", amount: 2}, {stat: "vitmax", amount: 2}],
          gives: "A new life starts holding the Harrow relic", start: [{stat: "harrow_relic"}],
          lore: "The shrine cost him his health. What it holds is passed down."}
+     ]},
+
+    // With the lives: the inn, where the tale of the one before is told, from the second of a world
+    {id: "inn", name: "The Inn", glyph: "town", shows: {lives: 2}, about: "The Bell and Barrel, where every tale ends up.",
+     levels: [
+        {work: "Carve the Storyteller's Chair", built: "The storyteller's chair", months: 6, coin: 15, costs: [],
+         gives: "Tell Tales at the Inn opens at age 26",
+         lore: "The chair by the fire is for whoever has a tale, young or old."},
+        {work: "Hang the Book of Names", built: "The book of names", months: 9, coin: 40, costs: [],
+         gives: "A new life is told how the last one ended",
+         lore: "The inn keeps a book. Every life of the family has a line in it."},
+        {work: "Keep a Room at the Inn", built: "The family's room", months: 12, coin: 90, costs: [],
+         gives: "Vitality mends every month, not every second month",
+         lore: "A bed, a fire and a door that locks: he mends faster there."}
      ]}
 ]
 

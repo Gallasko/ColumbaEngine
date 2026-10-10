@@ -19,8 +19,9 @@
 //           gains [{stat, amount, label, name}] (at term; label: the stat's short name, for a
 //           row; name: its full one, for a gloss),
 //           costs [{stat, amount, label, name}] (taken when it begins),
-//           requires [{stat, label, current, needed, room}] (current: the character's; flat:
-//           eased and anyOf are weighed here and not passed on),
+//           requires [{stat, label, current, needed, room, cost}] (current: the character's;
+//           flat: eased and anyOf are weighed here and not passed on; `cost` marks what is one
+//           of its costs, `room` what is room for a gain: neither is written on a tile),
 //           needs (the requirements as the table writes them, with their eased and anyOf: for
 //           the tools, tools/chronicle_graph.pg; the screen reads `requires`),
 //           locked (true while a requirement is unmet),
@@ -99,17 +100,24 @@
 //                    fromAge, showAge, showFrom, finishBy, board or path with the ones it gives,
 //                    and adds its `more` [{stat, amount}] to what the term brings. Every step
 //                    that holds is applied, in order: the last one wins what two of them give.
+//   featured: true   the page wants it seen: its tile stands on a gold ground while he can
+//                    choose it (exploring the town, which a life should not miss).
+//   major: true      it turns his life (a class, the town): its tile is framed in gold and shows
+//                    its mark, in every state.
+//   about: "text"    what it does, and a line of the town's own, said under its name in its gloss
+//                    in the place of its group.
 //   whileNot: "stat" its row is not listed once he holds that stat ("town_known": exploring the
 //                    town is for who does not know it).
 //   place: "id"      it is done at a place of the town: once the town is known its row stands on
-//                    the Town page, under that place, and no longer on the Life page.
+//                    the Town page, at that place (the market), and no longer on the Life page.
+//                    So does a work that raises a place (`raises`): it stands under the places.
 //   goto: "page"     confirming it opens that page ("town") and does nothing else: no term, no
 //                    month, no line.
 //   raises: "id", level: N
 //                    its term raises that place of the town to level N. It is listed only while
 //                    the place is one level below, once the town is known, and while the place
 //                    is on the Town page for him (lib.pg's `placeShown`: the town grows with
-//                    his age and his class). The works that
+//                    what he does). The works that
 //                    raise a place are not written here: they are made from towntable.pg.
 //   years: N         it takes N years of his life at once when it begins, on top of its months.
 //
@@ -270,7 +278,8 @@ var activities = [
     // Three months to know the town street by street: its page opens, for this life and every
     // one after it. Not listed to who knows it already
     {id: "explore", group: "The streets", name: "Explore Bellmoor", glyph: "town", months: 3, rank: "ONCE", each: "", path: "", finishBy: anyAge, uses: 1, showAfter: 4,
-     whileNot: "town_known",
+     whileNot: "town_known", featured: true, major: true,
+     about: "Opens the Town page: a market for his coin, and places he can build that stay for his next lives. Bellmoor has nine streets, and ten opinions about each.",
      gains: [{stat: "town_known"}],
      requires: []},
     {id: "roam", group: "The streets", name: "Roam Bellmoor", glyph: "adventure", months: 6, rank: "", each: "", path: "", fromAge: 8, finishBy: 14, uses: 2, showAfter: 5,
@@ -284,14 +293,20 @@ var activities = [
      requires: [{stat: "dex", needed: 8}]},
 
     {id: "keep", group: "A class", name: "Swear Service to the Keep", glyph: "seal", months: 18, rank: "", each: "MEALS PROVIDED", path: "warrior", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, showAfter: 4, finishBy: 20, uses: 1,
+     major: true,
+     about: "Makes him a man of the Keep, for life: it feeds him, its works open, and the other classes close. The oath is short. The sergeants say it is the last short thing about the Keep.",
      gains: [{stat: "keep_oath"}, {stat: "renown"}, {stat: "arms"}],
      requires: [{stat: "str", needed: 12, eased: [{flag: "edric_support", needed: 11}, {flag: "town.yard", at: 2, needed: 11}]}, {stat: "arms", needed: 3}, {stat: "discipline", needed: 2}],
      costs: [{stat: "coin", amount: 10}]},
     {id: "collegium", group: "A class", name: "Enter the Collegium", glyph: "academy", months: 24, rank: "", each: "MEALS PROVIDED", path: "mage", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, showAfter: 4, finishBy: 20, uses: 1,
+     major: true,
+     about: "Makes him a scholar of the Collegium, for life: it feeds him, its works open, and the other classes close. Nobody will say what the top floor is for. Whoever asks is given more reading.",
      gains: [{stat: "collegium"}, {stat: "arcana"}, {stat: "lore"}],
      requires: [{stat: "int", needed: 12, eased: {flag: "town.collegium", at: 3, needed: 11}}, {stat: "letters", needed: 3}, {stat: "lore", needed: 2, eased: {flag: "mara_student", needed: 1}}],
      costs: [{stat: "coin", amount: 35}]},
     {id: "hand", group: "A class", name: "Earn the Hidden Hand's Trust", glyph: "guild", months: 18, rank: "", each: "MEALS PROVIDED", path: "thief", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, showAfter: 4, finishBy: 21, uses: 1,
+     major: true,
+     about: "Makes him one of the Hidden Hand, for life: it feeds him, its works open, and the other classes close. The Hand has no door, no sign and no members. Ask anyone.",
      gains: [{stat: "hidden_hand"}, {stat: "favors"}, {stat: "stealth"}],
      requires: [{stat: "dex", needed: 12}, {stat: "stealth", needed: 2}, {stat: "guile", needed: 2},
                 {stat: "street_known", label: "Known on the street or at the night market", anyOf: ["street_known", "night_contacts"]}],
@@ -301,6 +316,8 @@ var activities = [
     // it asks nothing of him, and it is open until old age
     {id: "greenwood", group: "A class", name: "Take to the Greenwood", glyph: "adventure", months: 12, rank: "", each: "MEALS PROVIDED", path: "renegade", enters: true, lastResort: true, board: true, uses: 1,
      opens: "Every class has shut its door on him: the Greenwood takes who is left",
+     major: true,
+     about: "Makes him an outlaw of the Greenwood, for life: the wood feeds him, and its works open. It asks no letters, no oath and no questions. It is the questions that people come for.",
      gains: [{stat: "renegade"}, {stat: "stealth"}],
      requires: []},
 
@@ -456,8 +473,8 @@ var activities = [
      bonus: [{stat: "town.chapel", needed: 3, more: [{stat: "coin", amount: 4}]}]}
 ]
 
-// The works that raise a place of the town, one a level, made from towntable.pg: the last group
-// of the Life page. Their months and their costs are what a life gives the town: the coin a
+// The works that raise a place of the town, one a level, made from towntable.pg: the scene lists
+// them on the Town page, under the places. Their months and their costs are what a life gives the town: the coin a
 // level asks, less what earlier lives left to the place (its fund), and what else it takes
 for (var t = 0; t < len(townPlaces); t++)
 {
@@ -700,6 +717,9 @@ for (var i = 0; i < len(activities); i++)
     a.board = lookup(a, "board", false)
     a.enters = lookup(a, "enters", false)
     a.opens = lookup(a, "opens", "")
+    a.featured = lookup(a, "featured", false)
+    a.major = lookup(a, "major", false)
+    a.about = lookup(a, "about", "")
     a.place = lookup(a, "place", "")
     a.goto = lookup(a, "goto", "")
     a.raises = lookup(a, "raises", "")
@@ -845,7 +865,7 @@ for (var i = 0; i < len(activities); i++)
             counted = counted + 1
         }
 
-        push(asked, {stat: req.stat, label: req.label, current: req.current, needed: req.needed, room: lookup(req, "room", false)})
+        push(asked, {stat: req.stat, label: req.label, current: req.current, needed: req.needed, room: lookup(req, "room", false), cost: lookup(req, "cost", false)})
     }
 
     a.requires = asked
@@ -896,7 +916,7 @@ for (var i = 0; i < len(activities); i++)
         }
 
         // And a place that is not on his page yet has no work to show either
-        if (not placeShown(byId(townPlaces, a.raises), character, lived))
+        if (not placeShown(byId(townPlaces, a.raises), character, lived, done, lives))
         {
             a.listed = false
         }

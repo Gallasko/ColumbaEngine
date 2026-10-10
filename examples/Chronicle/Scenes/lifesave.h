@@ -41,6 +41,7 @@ namespace chronicle
         std::unordered_map<std::string, int> town;              // Place id -> its level; a place not raised yet has no key
         std::unordered_map<std::string, std::string> raisedBy;  // Place id -> the life that raised it last and the world's year then: his name, a middle dot, "YEAR 4"
         std::unordered_map<std::string, int> fund;              // Place id -> the coin lives left to it at their death, counted toward its next level
+        std::vector<std::string> told;                          // The guide's steps that are said once in a world (achievements.pg's `world`), by id: said, in this life or one before
         std::vector<std::string> seen;                          // The places a life has had on its Town page: the page grows with age and class, and what it has shown it keeps showing
 
         std::string running;           // The activity at work, "" for none

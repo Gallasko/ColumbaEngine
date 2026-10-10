@@ -56,6 +56,7 @@ namespace chronicle
 
         constexpr const char * const ActivitiesList = "life.activities";
         constexpr const char * const MarketList = "town.market";   // The market's rows, on the Town page
+        constexpr const char * const WorksList = "town.works";     // And the works that raise a place, under the places
 
         // The page's pieces the town is made of (life.yaml, life-compact.yaml): the choice and the
         // Town page take each other's place in the middle column
@@ -63,11 +64,13 @@ namespace chronicle
         constexpr const char * const TownName = "town";
         constexpr const char * const PlacesName = "places";
         constexpr const char * const MarketName = "marketRows";
+        constexpr const char * const WorksName = "townWorks";
         constexpr const char * const RaisedName = "raised";
         constexpr const char * const GiftTag = "life.gift.";   // Followed by the place's id: the ending's buttons
         constexpr float GiftGap = 6.0f;            // Between two of them
         constexpr int MonthsAYear = 12;
         const std::string PlaceGloss = "place/";
+        const std::string SaidFact = "said.";                    // Followed by a guide step's id: 1 once the world has been told it
 
         // The page's frame (life.yaml): where the columns start, and the chrome of a panel with a
         // heading (16 + the 51 head block + 16). The columns' own measures are the steps below
@@ -601,12 +604,9 @@ namespace chronicle
         listenToEvent<ActivityActivatedEvent>([this](const ActivityActivatedEvent& e) { onConfirm(e); });
         listenToEvent<TabSelectedEvent>([this](const TabSelectedEvent& e) { onTab(e); });
 
-        // A place's tile clicked: it is the one lit, and clicked again it is let go of. The works
-        // that raise it are in the choice, under "The town": its gloss names the one
-        listenToEvent<PlaceSelectedEvent>([this](const PlaceSelectedEvent& e) {
-            if (auto grid = piece<PlaceGrid>(PlacesName))
-                grid->select(ecsRef, grid->selected() == e.id ? std::string() : e.id);
-        });
+        // A place's tile clicked: it is the one lit, and the work that raises it is chosen with it,
+        // under the places; clicked again it is let go of
+        listenToEvent<PlaceSelectedEvent>([this](const PlaceSelectedEvent& e) { onPlace(e); });
 
         // At nothing, a month passes when he says so; at work the months run on their own. The
         // ending's one button begins the next life
@@ -774,10 +774,11 @@ namespace chronicle
 
         rebuild();
         wire();
-        publish();
 
-        // A life opened past its first frame (a save, the mockup's) has lore that already holds
+        // A life opened past its first frame (a save, the mockup's) has lore that already holds.
+        // Before the facts are written: what the world was told is one of them
         takeAsRead();
+        publish();
         registerDeeds();
 
         tellAnalytics();
@@ -1394,6 +1395,10 @@ namespace chronicle
         facts["life.working"] = ElementType{save.running.empty() ? 0 : 1};
         facts["life.lives"] = ElementType{save.lives};
         facts["life.guide"] = ElementType{save.guide};
+        facts["life.town"] = ElementType{townShown ? 1 : 0};
+
+        for (const auto& id : save.told)
+            facts[SaidFact + id] = ElementType{1};
 
         return facts;
     }
@@ -1425,14 +1430,18 @@ namespace chronicle
         reachedStep.pointChosen = textOf(entry.fields, "pointChosen");
         reachedStep.sayChosen = textOf(entry.fields, "sayChosen");
         reachedStep.until = entry.until;
+        reachedStep.world = entry.world;
         reachedStep.left = hold == entry.fields.end() ? 0.0f : floatOf(hold->second);
 
-        // A step of a guide that is over (skipped the pass it was reached in) is not said
-        if (reachedStep.order > 0 and not guiding())
+        // A step of a guide that is over (skipped the pass it was reached in) is not said, nor one
+        // the world has been told already
+        if ((reachedStep.order > 0 and not guiding()) or (reachedStep.world and told(reachedStep.id)))
             return;
 
-        // A step outside the sequence is kept as a deed is: said once in a life
-        if (reachedStep.order == 0)
+        // A step outside the sequence is kept as a deed is: said once in a life. One the world
+        // is told once is kept when it has been said (endStep), so that a chronicle opened again
+        // in the middle of it is told it still
+        if (reachedStep.order == 0 and not reachedStep.world)
             save.achieved.push_back(reachedStep.id);
 
         // Said once the step before it has ended
@@ -1484,6 +1493,12 @@ namespace chronicle
             setFact("life.guide", save.guide);
         }
 
+        // Said: kept with the world when it is the world's, and the step that waits for it may come
+        if (step.world and not told(step.id))
+            save.told.push_back(step.id);
+
+        setFact(SaidFact + step.id, 1);
+
         step = GuideStep{};
 
         // The last of them said: a life still at nothing is led as any other
@@ -1529,8 +1544,18 @@ namespace chronicle
         {
             const std::string id = textOf(deed.fields, "id");
 
-            if (deed.kind == RuleKind::Guide and deed.order == 0 and std::find(save.achieved.begin(), save.achieved.end(), id) == save.achieved.end())
+            if (deed.kind != RuleKind::Guide or deed.order != 0)
+                continue;
+
+            if (deed.world)
+            {
+                if (not told(id))
+                    save.told.push_back(id);
+            }
+            else if (std::find(save.achieved.begin(), save.achieved.end(), id) == save.achieved.end())
+            {
                 save.achieved.push_back(id);
+            }
         }
 
         clearGuide();
@@ -1732,6 +1757,13 @@ namespace chronicle
 
             if (auto row = list ? list->find(ecsRef, name) : nullptr)
                 target = row->root;
+        }
+        else if (kind == "place")
+        {
+            auto grid = piece<PlaceGrid>(PlacesName);
+
+            if (auto tile = grid ? grid->tile(name) : nullptr)
+                target = tile->root;
         }
         else if (kind == "tab")
         {
@@ -2370,9 +2402,10 @@ namespace chronicle
         fillActivities();
         fillTown();
 
-        // The town's tab is open to who knows the town, and its page stands where it stood
+        // The town's tab is not there at all until a life has explored the town, and its page
+        // stands where it stood
         if (auto tabs = piece<Tabs>("tabs"); tabs and townTab() >= 0)
-            tabs->setEnabled(ecs, townTab(), save.townKnown);
+            tabs->setShown(ecs, townTab(), save.townKnown);
 
         showTown(townShown);
 
@@ -2473,13 +2506,34 @@ namespace chronicle
 
         known = ids;
 
+        // A row that has never stood on a page is new to it, open to him or not: on the page that
+        // is not the one in view, its tab says so. Once: what was there and can be done again (the
+        // coin came back for what the market sells) is no news
+        const bool filledBefore = not stood.empty();
+
+        for (const auto& a : activities)
+        {
+            const std::string id = textOf(a.fields, "id");
+
+            if (not boolOf(a.fields, "listed") or std::find(stood.begin(), stood.end(), id) != stood.end())
+                continue;
+
+            stood.push_back(id);
+
+            const bool onTown = save.townKnown and not (textOf(a.fields, "place") + textOf(a.fields, "raises")).empty();
+
+            if (filledBefore and onTown != townShown)
+                ++(onTown ? newInTown : newInLife);
+        }
+
         // Grouped as the table orders them; what the rules do not list (spent, too late, another
         // path's) has no row
         std::vector<ActivityGroup> groups;
 
         // What is done at a place of the town stands on the Town page once the town is known:
-        // today the market's rows, what is bought on the spot
+        // the market's rows, what is bought on the spot, and the works that raise a place
         std::vector<ActivityRowSpec> stalls;
+        std::vector<ActivityRowSpec> works;
 
         listedRows.clear();
 
@@ -2492,7 +2546,8 @@ namespace chronicle
             listedRows += textOf(a.fields, "id") + ":" + std::to_string(a.requires.size()) + ";";
 
             const std::string group = textOf(a.fields, "group");
-            const bool inTown = save.townKnown and not textOf(a.fields, "place").empty();
+            const bool raising = not textOf(a.fields, "raises").empty();
+            const bool inTown = save.townKnown and (raising or not textOf(a.fields, "place").empty());
 
             if (not inTown and (groups.empty() or groups.back().label != group))
                 groups.push_back({group, {}});
@@ -2507,6 +2562,8 @@ namespace chronicle
             row.months = intOf(a.fields, "months");
             row.state = row.id == save.running ? ActivityState::Running : boolOf(a.fields, "locked") ? ActivityState::Locked : ActivityState::Idle;
             row.glossKey = "activity/" + row.id;
+            row.featured = boolOf(a.fields, "featured");
+            row.major = boolOf(a.fields, "major");
 
             if (row.state == ActivityState::Running)
             {
@@ -2539,7 +2596,7 @@ namespace chronicle
                 row.until = tileNote(a, row.urgent);
 
             if (inTown)
-                stalls.push_back(row);
+                (raising ? works : stalls).push_back(row);
             else
                 groups.back().rows.push_back(row);
         }
@@ -2549,16 +2606,21 @@ namespace chronicle
 
         if (auto market = piece<ActivityList>(MarketName))
             market->setRows(ecsRef, stalls.empty() ? std::vector<ActivityGroup>{} : std::vector<ActivityGroup>{{"", stalls}});
+
+        if (auto raise = piece<ActivityList>(WorksName))
+            raise->setRows(ecsRef, works.empty() ? std::vector<ActivityGroup>{} : std::vector<ActivityGroup>{{"", works}});
+
+        showNotices();
     }
 
     bool LifeScene::fromLists(const std::string& list) const
     {
-        return list == ActivitiesList or list == MarketList;
+        return list == ActivitiesList or list == MarketList or list == WorksList;
     }
 
     ActivityList* LifeScene::listHolding(const std::string& id) const
     {
-        for (const char* name : {ChoiceName, MarketName})
+        for (const char* name : {ChoiceName, MarketName, WorksName})
         {
             auto list = piece<ActivityList>(name);
 
@@ -2580,7 +2642,7 @@ namespace chronicle
 
     void LifeScene::clearChoice()
     {
-        for (const char* name : {ChoiceName, MarketName})
+        for (const char* name : {ChoiceName, MarketName, WorksName})
         {
             if (auto list = piece<ActivityList>(name); list and not list->selected().empty())
                 list->select(ecsRef, "");
@@ -2590,30 +2652,10 @@ namespace chronicle
         chosenList.clear();
     }
 
-    std::string LifeScene::asksOf(const RuleActivity& activity) const
-    {
-        if (not boolOf(activity.fields, "locked"))
-            return "";
-
-        // The first thing it still asks of him: the whole list is its gloss's
-        for (const auto& r : activity.requires)
-        {
-            if (intOf(r, "current") < intOf(r, "needed"))
-                return "NEEDS " + upper(textOf(r, "label")) + " " + std::to_string(intOf(r, "needed"));
-        }
-
-        return "";
-    }
-
     std::string LifeScene::tileNote(const RuleActivity& activity, bool& urgent) const
     {
-        urgent = false;
-
-        // What he cannot do yet says what it still asks of him
-        if (const std::string asks = asksOf(activity); not asks.empty())
-            return asks;
-
-        // When it closes, once that is near
+        // When it closes, once that is near, and nothing else: what it asks of him (an age, a
+        // stat, coin, room) is its gloss's to say, and its ground says that he cannot do it yet
         urgent = boolOf(activity.fields, "urgent");
 
         return textOf(activity.fields, "until");
@@ -2860,14 +2902,59 @@ namespace chronicle
         // What is already so when the chronicle is opened is not news: a life from before the lore
         // was written, or the mockup's, does not open on a page of it, nor on a word of the guide
         // about something long past. A life at its first frame has nothing of the kind
+        bool worldTold = false;
+
+        // A step the world was told out of turn, before the one it waits for (a save written when
+        // a fact of a world before stood in for it), is told again in its turn. In the table's
+        // order: what waits for a step untold here is untold after it
+        for (const auto& deed : deeds)
+        {
+            const std::string id = textOf(deed.fields, "id");
+
+            if (deed.kind != RuleKind::Guide or not deed.world or not told(id))
+                continue;
+
+            for (const auto& ask : deed.asks)
+            {
+                const std::string fact = textOf(ask, "fact");
+
+                if (fact.rfind(SaidFact, 0) == 0 and not told(fact.substr(SaidFact.size())))
+                {
+                    save.told.erase(std::remove(save.told.begin(), save.told.end(), id), save.told.end());
+                    break;
+                }
+            }
+        }
+
         for (const auto& deed : deeds)
         {
             const std::string id = textOf(deed.fields, "id");
             const bool aside = deed.kind == RuleKind::Lore or (deed.kind == RuleKind::Guide and deed.order == 0);
 
-            if (aside and std::find(save.achieved.begin(), save.achieved.end(), id) == save.achieved.end() and holds(deed.asks))
+            if (not aside or not holds(deed.asks))
+                continue;
+
+            if (deed.world)
+                worldTold = worldTold or not told(id);
+            else if (std::find(save.achieved.begin(), save.achieved.end(), id) == save.achieved.end())
                 save.achieved.push_back(id);
         }
+
+        // A world that is already past the start of what its guide tells (a town known before the
+        // guide spoke of it) has all of it taken as said: its steps follow one another
+        if (worldTold)
+        {
+            for (const auto& deed : deeds)
+            {
+                if (deed.kind == RuleKind::Guide and deed.world and not told(textOf(deed.fields, "id")))
+                    save.told.push_back(textOf(deed.fields, "id"));
+            }
+        }
+    }
+
+    bool LifeScene::told(const std::string& id) const
+    {
+        return std::find(save.told.begin(), save.told.end(), id) != save.told.end();
     }
 
     void LifeScene::registerDeeds()
@@ -2893,21 +2980,35 @@ namespace chronicle
                 continue;
 
             // The guide is a first life's, and a step that has ended is not said again
-            if (deed.kind == RuleKind::Guide and (save.lives > 1 or (deed.order > 0 and deed.order <= save.guide)))
-                continue;
-
-            Achievement achievement;
-            achievement.name = id;
-
-            for (const auto& ask : deed.asks)
+            if (deed.kind == RuleKind::Guide)
             {
-                auto value = ask.find("value");
-
-                achievement.prerequisiteFacts.push_back(FactChecker(textOf(ask, "fact"), value == ask.end() ? ElementType{0} : value->second, equalityOf(textOf(ask, "op"))));
+                // A step said once in a world is whichever life's meets it, until it has been said
+                if (deed.world ? told(id) : (save.lives > 1 or (deed.order > 0 and deed.order <= save.guide)))
+                    continue;
             }
 
-            achievements->addNewAchivement(achievement);
+            watchDeed(deed);
         }
+    }
+
+    void LifeScene::watchDeed(const RuleAchievement& deed)
+    {
+        auto achievements = ecsRef->getSystem<AchievementSys>();
+
+        if (not achievements)
+            return;
+
+        Achievement achievement;
+        achievement.name = textOf(deed.fields, "id");
+
+        for (const auto& ask : deed.asks)
+        {
+            auto value = ask.find("value");
+
+            achievement.prerequisiteFacts.push_back(FactChecker(textOf(ask, "fact"), value == ask.end() ? ElementType{0} : value->second, equalityOf(textOf(ask, "op"))));
+        }
+
+        achievements->addNewAchivement(achievement);
     }
 
     void LifeScene::reachDeed(const std::string& id)
@@ -2923,7 +3024,13 @@ namespace chronicle
             // A step of the guide: a sentence and a hand, no line and no toast
             if (deed.kind == RuleKind::Guide)
             {
-                reachStep(deed);
+                // What the world is told once waits for the save to say so, not for a fact alone:
+                // reached on a fact that was not this world's, it is watched for again
+                if (deed.world and not holds(deed.asks))
+                    watchDeed(deed);
+                else
+                    reachStep(deed);
+
                 return;
             }
 
@@ -3178,6 +3285,16 @@ namespace chronicle
         setFact("life.working", save.running.empty() ? 0 : 1);
         setFact("life.lives", save.lives);
         setFact("life.guide", save.guide);
+        setFact("life.town", townShown ? 1 : 0);
+
+        // What the world has been told of its guide: the step that waits for another reads it.
+        // Written both ways: the facts outlive a world (they are saved with the engine's), and
+        // one left at 1 by a world before would have this one told the market before the town
+        for (const auto& deed : deeds)
+        {
+            if (deed.kind == RuleKind::Guide and deed.world)
+                setFact(SaidFact + textOf(deed.fields, "id"), told(textOf(deed.fields, "id")) ? 1 : 0);
+        }
 
         setFact("log.size", static_cast<int>(save.log.size()));
 
@@ -3308,8 +3425,7 @@ namespace chronicle
                 setFact("activity." + id + ".state", state);
                 setFact("activity." + id + ".count", textOf(a.fields, "tally"));
 
-                // When it closes, month by month, or what it still asks of him: nothing to say of the
-                // one he is at
+                // When it closes, month by month: nothing to say of the one he is at
                 bool urgent = false;
                 const std::string note = tileNote(a, urgent);
 
@@ -3353,15 +3469,63 @@ namespace chronicle
         // One choice on the page: the other list lets go of its own
         if (not chosen.empty())
         {
-            for (const char* name : {ChoiceName, MarketName})
+            for (const char* name : {ChoiceName, MarketName, WorksName})
             {
                 if (auto list = piece<ActivityList>(name); list and list->spec.id != event.list and not list->selected().empty())
                     list->select(ecsRef, "");
             }
         }
 
+        // The place whose work is chosen is the one lit, and no other
+        if (auto grid = piece<PlaceGrid>(PlacesName))
+        {
+            const RuleActivity* picked = chosen.empty() ? nullptr : activityOf(chosen);
+            const std::string place = picked ? textOf(picked->fields, "raises") : std::string();
+
+            if (grid->selected() != place)
+                grid->select(ecsRef, place);
+        }
+
         showWorkButtons();
         preview();
+    }
+
+    void LifeScene::onPlace(const PlaceSelectedEvent& event)
+    {
+        auto grid = piece<PlaceGrid>(PlacesName);
+        auto works = piece<ActivityList>(WorksName);
+
+        if (not grid)
+            return;
+
+        // Clicked again: let go of, and its work with it
+        if (grid->selected() == event.id)
+        {
+            grid->select(ecsRef, "");
+
+            if (works and not works->selected().empty())
+                works->select(ecsRef, "");
+
+            return;
+        }
+
+        grid->select(ecsRef, event.id);
+
+        // The work that raises it, chosen when he can begin it: Begin is then one press away. One
+        // he cannot begin yet leaves the tile lit, and its gloss to say what it asks
+        for (const auto& place : town.places)
+        {
+            if (textOf(place.fields, "id") != event.id)
+                continue;
+
+            const std::string work = textOf(place.fields, "nextWork");
+            ActivityRow* row = works and not work.empty() ? works->find(ecsRef, work) : nullptr;
+
+            if (row and row->spec.state == ActivityState::Idle)
+                works->select(ecsRef, work);
+            else if (works and not works->selected().empty())
+                works->select(ecsRef, "");
+        }
     }
 
     void LifeScene::onHover(const ActivityHoveredEvent& event)
@@ -3676,6 +3840,16 @@ namespace chronicle
         show(ChoiceName, not townShown);
         show(TownName, townShown);
 
+        // Seen: what was new on the page now in view is new no longer
+        if (townShown)
+            newInTown = 0;
+        else
+            newInLife = 0;
+
+        showNotices();
+
+        setFact("life.town", townShown ? 1 : 0);
+
         const int tab = townShown ? townTab() : 0;
 
         if (auto tabs = piece<Tabs>("tabs"); tabs and tab >= 0 and tabs->active() != tab)
@@ -3693,10 +3867,13 @@ namespace chronicle
         if (auto grid = piece<PlaceGrid>(PlacesName))
             grid->setWidth(ecsRef, width);
 
-        if (auto market = piece<ActivityList>(MarketName))
-            market->setSize(ecsRef, width, 0.0f);
+        for (const char* name : {MarketName, WorksName})
+        {
+            if (auto list = piece<ActivityList>(name))
+                list->setSize(ecsRef, width, 0.0f);
+        }
 
-        for (const char* name : {"marketHead", RaisedName})
+        for (const char* name : {"worksHead", "marketHead", RaisedName})
         {
             if (auto label = piece<Label>(name))
                 label->setWidth(ecsRef, width);
@@ -3724,7 +3901,7 @@ namespace chronicle
         if (not grid)
             return;
 
-        // The places on his page: the town grows with his age and his class, and the rules say
+        // The places on his page: the town grows with what he does, and the rules say
         // which of them he has
         std::vector<PlaceTileSpec> places;
 
@@ -3773,6 +3950,11 @@ namespace chronicle
 
         if (not first)
         {
+            if (not townShown)
+                newInTown += static_cast<int>(found.size());
+
+            showNotices();
+
             for (const RulePlace* place : found)
             {
                 const std::string line = textOf(place->fields, "name") + town.foundLine;
@@ -3792,6 +3974,10 @@ namespace chronicle
 
     void LifeScene::publishTown()
     {
+        // Its tab is on the page for who knows the town, and for no one else
+        if (auto tabs = piece<Tabs>("tabs"); tabs and townTab() >= 0 and tabs->tabs[townTab()].shown != save.townKnown)
+            tabs->setShown(ecsRef, townTab(), save.townKnown);
+
         // Nothing to say of a town nobody knows
         if (not save.townKnown or not rules.town(save.age, save.character(), town))
             return;
@@ -3881,7 +4067,7 @@ namespace chronicle
                     gloss.rows.push_back({town.fundLine, std::to_string(intOf(place.fields, "fund")), "gain"});
 
                 gloss.rows.push_back({"It will give", textOf(place.fields, "nextGives"), ""});
-                gloss.footnote = upper("Raised by \"" + work + "\", in the Life page under The town");
+                gloss.footnote = upper("Raised by \"" + work + "\", under the places");
             }
 
             registry->set(PlaceGloss + id, gloss);
@@ -3907,9 +4093,36 @@ namespace chronicle
         }
 
         if (auto tabs = piece<Tabs>("tabs"); tabs and townTab() >= 0)
-            tabs->setEnabled(ecsRef, townTab(), true);
+            tabs->setShown(ecsRef, townTab(), true);
 
         fillTown();
+
+        // Its tab says how much there is to see behind it: the places, and what the market sells
+        // (counted as its rows come, fillActivities)
+        if (not townShown)
+        {
+            for (const auto& place : town.places)
+            {
+                if (boolOf(place.fields, "shown"))
+                    ++newInTown;
+            }
+        }
+
+        showNotices();
+    }
+
+    void LifeScene::showNotices()
+    {
+        auto tabs = piece<Tabs>("tabs");
+
+        if (not tabs)
+            return;
+
+        // What is new on the page that is not in view, at its tab's corner
+        tabs->setNotice(ecsRef, 0, townShown ? newInLife : 0);
+
+        if (townTab() >= 0)
+            tabs->setNotice(ecsRef, townTab(), townShown ? 0 : newInTown);
     }
 
     void LifeScene::raisePlace(const std::string& place, int level)
@@ -4279,6 +4492,10 @@ namespace chronicle
             gloss.title = textOf(a.fields, "name");
             gloss.text = textOf(a.fields, "group");
 
+            // What turns a life says what it does, and a word of the town's, in that place
+            if (not textOf(a.fields, "about").empty())
+                gloss.text = textOf(a.fields, "about");
+
             // The number of times alone, over how many it can be done when that is limited (0: as
             // often as he likes)
             gloss.aside = std::to_string(intOf(a.fields, "done"));
@@ -4475,6 +4692,10 @@ namespace chronicle
         save.raisedBy = last.raisedBy;
         save.fund = last.fund;
         save.seen = last.seen;
+        save.told = last.told;
+
+        newInLife = 0;
+        newInTown = 0;
 
         rules.world = save.world;
         rules.lives = save.lives;
@@ -4505,6 +4726,7 @@ namespace chronicle
         rules.done = save.terms();
 
         known.clear();
+        stood.clear();
 
         // What he is born holding has its row from the first frame
         refreshHoldings();

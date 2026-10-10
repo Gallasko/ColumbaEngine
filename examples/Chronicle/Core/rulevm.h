@@ -164,6 +164,7 @@ namespace chronicle
     {
         RuleKind kind = RuleKind::Deed;
         int order = 0;                 // A guide step's place in the sequence, 0 outside it
+        bool world = false;            // A guide step said once in a world, in whichever life meets it
         pg::ElementMap fields;
         pg::RecordList asks;           // {fact, op, value}: every one must hold
         pg::RecordList gives;          // {stat, amount}: gained when it is reached

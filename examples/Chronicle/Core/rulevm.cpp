@@ -887,6 +887,9 @@ namespace chronicle
                 achievement.kind = kind == "guide" ? RuleKind::Guide : kind == "lore" ? RuleKind::Lore : RuleKind::Deed;
                 achievement.order = static_cast<int>(number(achievement.fields, "order", 0.0f));
 
+                if (auto world = achievement.fields.find("world"); world != achievement.fields.end() and world->second.type == UnionType::BOOL)
+                    achievement.world = world->second.get<bool>();
+
                 keptDeeds.push_back(std::move(achievement));
             }
 
@@ -915,6 +918,7 @@ namespace chronicle
 
         s.set("age", ElementType{age});
         s.set("character", character);
+        s.set("done", done);
         s.set("world", ElementType{world});
         s.set("lives", ElementType{lives});
 

@@ -1909,8 +1909,13 @@ namespace pg
                 return -1;
             };
 
-            const std::vector<std::string> kinds = {"button:", "tile:", "holding:", "stat:"};
+            const std::vector<std::string> kinds = {"button:", "tile:", "holding:", "stat:", "tab:", "place:"};
             const std::vector<std::string> places = {"", "clock", "log"};
+
+            // The steps outside the sequence: his rations low, before and after he knows the town; and
+            // the town opened, its tab, its market and its places, which are said once in a world
+            const std::vector<std::string> asides = {"guide.rations_low", "guide.rations_market", "guide.town", "guide.market", "guide.places"};
+            const std::vector<std::string> worlds = {"guide.town", "guide.market", "guide.places"};
 
             std::vector<int> taken(11, 0);
             size_t outside = 0;
@@ -1951,11 +1956,14 @@ namespace pg
                     EXPECT_TRUE(textOf(a.fields, "sayChosen").empty()) << id;
                 }
 
+                // Said once in a world: only a step outside the sequence, and the town's three
+                EXPECT_EQ(a.world, std::find(worlds.begin(), worlds.end(), id) != worlds.end()) << id;
+
                 if (a.order == 0)
                 {
                     // Outside the sequence: it waits for no step
                     EXPECT_EQ(waitsFor(a), -1) << id;
-                    EXPECT_EQ(id, "guide.rations_low");
+                    EXPECT_TRUE(std::find(asides.begin(), asides.end(), id) != asides.end()) << id;
                     ++outside;
 
                     continue;
@@ -1972,7 +1980,7 @@ namespace pg
             for (int order = 1; order <= 10; ++order)
                 EXPECT_EQ(taken[order], 1) << "order " << order;
 
-            EXPECT_EQ(outside, 1u);
+            EXPECT_EQ(outside, asides.size());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2242,6 +2250,22 @@ namespace pg
             EXPECT_TRUE(flag(explore.fields, "listed"));
             EXPECT_FALSE(flag(explore.fields, "locked"));
             EXPECT_EQ(intOf(explore.fields, "months"), 3);
+
+            // The page wants it seen, and no other row of a first day
+            EXPECT_TRUE(flag(explore.fields, "featured"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, boy(), "carters").fields, "featured"));
+
+            // It turns a life, as a class does: such a row says so, and tells what it does
+            for (const char* id : {"explore", "keep", "collegium", "hand", "greenwood"})
+            {
+                RuleActivity turning = activityAt(f.rules, 16.0f, boy(), id);
+
+                EXPECT_TRUE(flag(turning.fields, "major")) << id;
+                EXPECT_FALSE(textOf(turning.fields, "about").empty()) << id;
+            }
+
+            EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, boy(), "carters").fields, "major"));
+            EXPECT_EQ(textOf(activityAt(f.rules, 7.0f, boy(), "carters").fields, "about"), "");
             ASSERT_EQ(explore.gains.size(), 1u);
             EXPECT_EQ(textOf(explore.gains[0], "stat"), "town_known");
 
@@ -2479,10 +2503,12 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The Town page grows with the life: three places from the day the town is known, more with
-        // his years, more with his class; and a place that was seen, raised or left coin stays on
-        // it. A place that is not on his page has no work to show either.
-        TEST(rules_test, places_come_with_age_and_class)
+        // The Town page grows with what he does: two places from the day the town is known, the smithy
+        // with a term at the forge, the Keep's two with its border and its chain, the Collegium's
+        // three with its door, its Magister and Harrow, the inn with the second life of a world. A
+        // place that was seen, raised or left coin stays on it, and a place that is not on his page
+        // has no work to show either.
+        TEST(rules_test, places_come_with_what_he_does)
         {
             MockLogger logger;
             RulesFixture f;
@@ -2504,38 +2530,80 @@ namespace pg
 
             using Ids = std::vector<std::string>;
 
+            // A first life: the market and the mill, and his years alone bring nothing more
+            f.rules.lives = 1;
+
             ElementMap character = townsman();
 
-            EXPECT_EQ(shown(7.0f, character), (Ids{"market", "mill", "smithy"}));
-            EXPECT_EQ(shown(10.0f - 1.0f / 12.0f, character), (Ids{"market", "mill", "smithy"}));
-            EXPECT_EQ(shown(10.0f, character), (Ids{"market", "mill", "smithy", "chapel", "yard"}));
-            EXPECT_EQ(shown(13.0f, character), (Ids{"market", "mill", "smithy", "chapel", "yard", "inn"}));
+            EXPECT_EQ(shown(7.0f, character), (Ids{"market", "mill"}));
+            EXPECT_EQ(shown(29.0f, character), (Ids{"market", "mill"}));
 
-            // His class brings its own
+            // A term at the forge brings the smithy
+            f.rules.done = {{"smithy", ElementType{1}}};
+
+            EXPECT_EQ(shown(10.0f, character), (Ids{"market", "mill", "smithy"}));
+
+            f.rules.done.clear();
+
+            // The Keep: nothing for the oath, the yard to a veteran of the border, the gate to its captain
             ElementMap warrior = character;
             warrior["keep_oath"] = ElementType{1};
 
-            EXPECT_EQ(shown(17.5f, warrior), (Ids{"market", "mill", "smithy", "chapel", "yard", "inn", "gate"}));
+            EXPECT_EQ(shown(17.5f, warrior), (Ids{"market", "mill"}));
 
+            warrior["veteran"] = ElementType{1};
+
+            EXPECT_EQ(shown(23.0f, warrior), (Ids{"market", "mill", "yard"}));
+
+            warrior["captain"] = ElementType{1};
+
+            EXPECT_EQ(shown(28.0f, warrior), (Ids{"market", "mill", "yard", "gate"}));
+
+            // The Collegium: the chapel the day he is taken in, its gate after Magister Orin, the
+            // road after Harrow
             ElementMap mage = character;
             mage["collegium"] = ElementType{1};
 
-            EXPECT_EQ(shown(17.5f, mage), (Ids{"market", "mill", "smithy", "chapel", "yard", "inn", "collegium"}));
-            EXPECT_EQ(shown(18.0f, mage), (Ids{"market", "mill", "smithy", "chapel", "yard", "inn", "collegium", "harrow"}));
+            EXPECT_EQ(shown(18.0f, mage), (Ids{"market", "mill", "chapel"}));
+
+            mage["orin_known"] = ElementType{1};
+
+            EXPECT_EQ(shown(21.0f, mage), (Ids{"market", "mill", "chapel", "collegium"}));
+
+            mage["harrow_truth"] = ElementType{1};
+
+            EXPECT_EQ(shown(23.0f, mage), (Ids{"market", "mill", "chapel", "collegium", "harrow"}));
+
+            // The inn comes when a life has ended: from the second of a world
+            f.rules.lives = 2;
+
+            EXPECT_EQ(shown(7.0f, character), (Ids{"market", "mill", "inn"}));
+
+            f.rules.lives = 1;
 
             // Seen by a life before, raised, or left coin: on the page of a boy of 7
             character["seen.chapel"] = ElementType{1};
             character["town.gate"] = ElementType{1};
             character["fund.inn"] = ElementType{3};
 
-            EXPECT_EQ(shown(7.0f, character), (Ids{"market", "mill", "smithy", "chapel", "inn", "gate"}));
+            EXPECT_EQ(shown(7.0f, character), (Ids{"market", "mill", "gate", "chapel", "inn"}));
 
             // The works follow the page
             EXPECT_TRUE(flag(activityAt(f.rules, 7.0f, character, "raise.chapel.1").fields, "listed"));
             EXPECT_TRUE(flag(activityAt(f.rules, 7.0f, character, "raise.gate.2").fields, "listed"));
             EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, character, "raise.yard.1").fields, "listed"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, character, "raise.smithy.1").fields, "listed"));
             EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, character, "raise.collegium.1").fields, "listed"));
-            EXPECT_TRUE(flag(activityAt(f.rules, 10.0f, character, "raise.yard.1").fields, "listed"));
+
+            character["veteran"] = ElementType{1};
+
+            EXPECT_TRUE(flag(activityAt(f.rules, 7.0f, character, "raise.yard.1").fields, "listed"));
+
+            f.rules.done = {{"smithy", ElementType{2}}};
+
+            EXPECT_TRUE(flag(activityAt(f.rules, 7.0f, character, "raise.smithy.1").fields, "listed"));
+
+            f.rules.done.clear();
 
             // Every place is told of all the same: the page shows the ones that are his
             RuleTown town;

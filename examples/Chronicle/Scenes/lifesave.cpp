@@ -106,6 +106,7 @@ namespace pg
         serialize(archive, "raisedBy", value.raisedBy);
         serialize(archive, "fund", value.fund);
         serialize(archive, "seen", value.seen);
+        serialize(archive, "told", value.told);
         serialize(archive, "running", value.running);
         serialize(archive, "monthsIn", value.monthsIn);
         serialize(archive, "stats", value.stats);
@@ -145,6 +146,7 @@ namespace pg
         defaultDeserialize(serialized, "raisedBy", data.raisedBy);
         defaultDeserialize(serialized, "fund", data.fund);
         defaultDeserialize(serialized, "seen", data.seen);
+        defaultDeserialize(serialized, "told", data.told);
         defaultDeserialize(serialized, "running", data.running);
         defaultDeserialize(serialized, "monthsIn", data.monthsIn);
         defaultDeserialize(serialized, "stats", data.stats);

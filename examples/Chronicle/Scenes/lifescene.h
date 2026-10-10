@@ -44,6 +44,7 @@ namespace chronicle
         std::string sayChosen;         // And what is said then, "" for the same sentence
         pg::RecordList until;          // It ends when these hold; none: once `left` has run out
         float left = 0.0f;             // Milliseconds left of a step that ends with time
+        bool world = false;            // Said once in a world, in whichever life meets it
         bool active = false;           // Being said now
     };
 
@@ -129,6 +130,9 @@ namespace chronicle
 
         void showTown(bool shown);     // The Town page in the middle column, or the choice back in it
 
+        int newInLife = 0;             // What has come onto the Life page while the Town page was in view: said at its tab's corner
+        int newInTown = 0;             // And onto the Town page while the Life page was
+
         bool guiding() const;          // A first life whose guide has not said its last step
         int toastsUp() const { return toasts; }   // The toasts at the foot of the window now
 
@@ -141,7 +145,9 @@ namespace chronicle
         void fitTown(float width, float height);      // The Town page to the middle column
         int townTab() const;           // Which tab is the town's, -1 when the page has none
         void fillTown();               // The places' tiles, as the rules say the town stands
-        void layTown();                // The tiles of the places on his page: the town grows with his age and his class
+        void layTown();                // The tiles of the places on his page: the town grows with what he does
+        void showNotices();            // The two counts above, at the corner of the tab of the page that is not in view
+        bool told(const std::string& id) const;   // A step the world's guide has said already
         void seeTown();                // A place on the page for the first time is kept as seen, and said when it comes later than the town itself
         void publishTown();            // Their levels and lines, their glosses, and who raised what
         void openTown();               // A life has come to know the town: its tab, its page, a line and a toast
@@ -173,7 +179,7 @@ namespace chronicle
         bool boarded() const;          // The activity at work feeds him
         bool titled(const std::string& id) const;   // A holding he has or has not (a standing, a tie): the rules say so, and its row shows no figure
         const RuleActivity* activityOf(const std::string& id) const;   // From the last answer of Rules::activities, nullptr if none
-        std::string tileNote(const RuleActivity& activity, bool& urgent) const;   // What a tile says under its name and time: what it asks, that it is new, or when it closes
+        std::string tileNote(const RuleActivity& activity, bool& urgent) const;   // What a tile says under its name and time: when it closes, once that is near. What it asks is its gloss's
         void onHover(const ActivityHoveredEvent& event);   // The mouse came onto a tile or left them
         void preview();                // What the chosen activity, or the one the mouse is on, would make of his parts and of what he holds
         void previewHoldings(const RuleForecast* forecast);   // "46 -> 52" ("6/60 -> 12/60") on the rows it would add to; nullptr: the figures as they are
@@ -184,7 +190,6 @@ namespace chronicle
         int roseOf(const std::string& key, const std::string& text);   // By how much a figure rose since it was last written, 0 if it did not
         void showGain(pg::EntityRef over, int amount);   // "+2" lifting off the figure that rose
         void toast(const std::string& text, float ms = 0.0f);   // A slip at the foot of the window, for a few seconds (its own time when given one)
-        std::string asksOf(const RuleActivity& activity) const;   // What a tile he cannot do yet says under its name: "NEEDS ARMS 6", "" when it asks nothing more
         void endLife();                // The life is lost: the months stop and its ending comes up
         bool showEnding();             // The ending from its file, over the page, saying what epitaph.pg says
         void closeEnding();            // The ending leaves
@@ -193,6 +198,7 @@ namespace chronicle
         void publishThreat();          // The coming month's warning under his life, and in red what it would take from
         void readDeeds();              // achievements.pg's entries, and how long the guide is
         void takeAsRead();             // A life that opens past its first frame: the lore that already holds is not written now
+        void watchDeed(const RuleAchievement& deed);   // One of them handed to the AchievementSys: it is reached when what it asks holds
         void registerDeeds();          // The deeds, the lore and the guide's steps not reached yet, handed to the AchievementSys
         void reachDeed(const std::string& id);   // What a deed gives, its line in the log; a line of lore; a step of the guide
         void reachStep(const RuleAchievement& entry);   // A step of the guide reached: said once the one before has ended
@@ -224,6 +230,7 @@ namespace chronicle
         void onConfirm(const ActivityActivatedEvent& event);
         void doAtOnce(const std::string& id, const RuleForecast& forecast);   // An activity that takes no time
         void onTab(const TabSelectedEvent& event);
+        void onPlace(const PlaceSelectedEvent& event);   // A place's tile clicked: lit, and the work that raises it chosen with it
 
         // The hover glosses: what the numbers mean, from the same outputs
         void glossParts(const RuleForecast* forecast, const std::string& activity);   // parts/<p>
@@ -256,6 +263,7 @@ namespace chronicle
         std::string shaded;                       // What the shade was last laid around: laid again only when that moves
         std::string hovered;                      // The one the mouse is on, "" for none: previewed when nothing is chosen
         std::vector<std::string> known;           // The activities he could do when the list was last filled
+        std::vector<std::string> stood;           // Every activity that has had a row in this life: one that has not is new, and its tab says so
 
         // Something that lasts a moment (a gain lifting off its figure, a lit line, a toast): the
         // milliseconds left, what each tick does with the ones it is given, what its end does

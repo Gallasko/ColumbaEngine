@@ -153,6 +153,16 @@ children:
             name: places
             width: 572
             tileWidth: 148
+          # The works that raise a place, one a place at most: the next level of each. A click on a
+          # place chooses its work
+          - {kind: Label, name: worksHead, style: gloss-title, overflow: ellipsis, width: 572, text: "Works for the town"}
+          - kind: ActivityList
+            name: townWorks
+            id: town.works
+            width: 572
+            stripes: false
+            compact: true
+            tileWidth: 148
           - {kind: Label, name: marketHead, style: gloss-title, overflow: ellipsis, width: 572, text: "The Market"}
           - kind: ActivityList
             name: marketRows

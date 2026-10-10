@@ -333,6 +333,14 @@ namespace pg
                 return market ? market->find(&f.ecs, id) : nullptr;
             }
 
+            // A work that raises a place: under the places, on the Town page
+            ActivityRow* work(LifeFixture& f, LifeScene* life, const std::string& id)
+            {
+                auto works = life->piece<ActivityList>("townWorks");
+
+                return works ? works->find(&f.ecs, id) : nullptr;
+            }
+
             bool reached(const LifeScene* life, const std::string& id)
             {
                 return std::find(life->save.achieved.begin(), life->save.achieved.end(), id) != life->save.achieved.end();
@@ -1560,7 +1568,9 @@ namespace pg
 
                 ASSERT_NE(way, nullptr) << id;
                 EXPECT_EQ(way->spec.state, ActivityState::Locked) << id;
-                EXPECT_EQ(way->spec.until, "NEEDS AGE 16") << id;
+
+                // What it asks is its gloss's: the tile says nothing of it
+                EXPECT_EQ(way->spec.until, "") << id;
             }
 
             // The way left to who takes none of them is not a boy's to see
@@ -2245,8 +2255,11 @@ namespace pg
             EXPECT_TRUE(life->paused);
             EXPECT_FALSE(life->piece<StatLine>("vit")->spec.alert);
 
-            // Childhood, then what became of the last life
-            ASSERT_EQ(happened(life).size(), 2u);
+            // Childhood, the inn, which a world that knows its town has from its second life, then
+            // what became of the last life
+            ASSERT_EQ(happened(life).size(), 3u);
+            EXPECT_EQ(happened(life)[1].kind, LogKind::Milestone);
+            EXPECT_EQ(happened(life)[1].text, "The Inn" + life->town.foundLine);
             EXPECT_EQ(happened(life).back().kind, LogKind::Loss);
             EXPECT_NE(happened(life).back().text.find("life ended"), std::string::npos);
 
@@ -3022,6 +3035,19 @@ namespace pg
             EXPECT_EQ(list->row(&f.ecs, "keep")->spec.state, ActivityState::Idle);
             EXPECT_EQ(list->row(&f.ecs, "serve"), nullptr);
 
+            // A class is a tile apart, open or not: framed, and marked with its glyph
+            for (const char* id : {"keep", "collegium"})
+            {
+                EXPECT_TRUE(list->row(&f.ecs, id)->spec.major) << id;
+                EXPECT_FALSE(list->row(&f.ecs, id)->frame.empty()) << id;
+                EXPECT_FALSE(list->row(&f.ecs, id)->mark.entity.empty()) << id;
+            }
+
+            EXPECT_FLOAT_EQ(f.pos(list->row(&f.ecs, "keep")->frame)->width, f.pos(list->row(&f.ecs, "keep")->root)->width);
+            EXPECT_EQ(list->row(&f.ecs, "keep")->frame->get<ThemeComponent>()->element, "activity.major.frame");
+            EXPECT_EQ(list->row(&f.ecs, "collegium")->frame->get<ThemeComponent>()->element, "activity.major.frame.locked");
+            EXPECT_NE(f.ecs.getSystem<GlossRegistry>()->find("activity/keep")->text.find("the other classes close"), std::string::npos);
+
             // A strong boy: the Collegium is far from him, and listed all the same, locked: a way into
             // a path shows whatever he has
             ASSERT_NE(list->row(&f.ecs, "collegium"), nullptr);
@@ -3324,7 +3350,10 @@ namespace pg
             EXPECT_TRUE(life->ending.empty());
             EXPECT_FLOAT_EQ(life->save.age, 7.0f);
             EXPECT_TRUE(life->save.done.empty());
-            ASSERT_EQ(happened(life).size(), 2u);
+
+            // Childhood, the inn that a second life finds in a town it knows, and the last life's end
+            ASSERT_EQ(happened(life).size(), 3u);
+            EXPECT_EQ(happened(life)[1].text, "The Inn" + life->town.foundLine);
             EXPECT_EQ(happened(life).back().kind, LogKind::Loss);
             EXPECT_NE(happened(life).back().text.find("life ended"), std::string::npos);
 
@@ -4163,8 +4192,8 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The town's tab is there from the start and opens nothing until a life has explored the town.
-        TEST(lifescene_test, town_tab_disabled_until_explored)
+        // The town's tab is not on the page at all until a life has explored the town.
+        TEST(lifescene_test, the_town_tab_is_hidden_until_explored)
         {
             MockLogger logger;
             LifeFixture f;
@@ -4184,7 +4213,13 @@ namespace pg
             EXPECT_TRUE(tabs->enabled(0));
             EXPECT_FALSE(tabs->enabled(1));
             EXPECT_TRUE(tabs->tabs[1].face->get<TabState>()->disabled);
+            EXPECT_TRUE(tabs->tabs[1].face->get<TabState>()->hidden);
+            EXPECT_FALSE(f.pos(tabs->tabs[1].face)->visible);
+            EXPECT_FALSE(f.pos(tabs->tabs[1].label.entity)->visible);
+            EXPECT_TRUE(f.pos(tabs->tabs[0].face)->visible);
+            EXPECT_EQ(tabs->tabs[1].notice, 0);
             EXPECT_EQ(f.fact<int>("stat.town_known"), 0);
+            EXPECT_EQ(f.fact<int>("life.town"), 0);
 
             // Selected all the same (a key, a script): the choice stays where it is
             f.ecs.sendEvent(TabSelectedEvent{tabs->root.id, "life.tabs", 1});
@@ -4201,7 +4236,7 @@ namespace pg
 
             EXPECT_NE(list->find(&f.ecs, "explore"), nullptr);
             EXPECT_EQ(list->find(&f.ecs, "goto.market"), nullptr);
-            EXPECT_EQ(list->find(&f.ecs, "raise.market.1"), nullptr);
+            EXPECT_EQ(work(f, life, "raise.market.1"), nullptr);
             EXPECT_EQ(stall(f, life, "buy.rations"), nullptr);
         }
 
@@ -4237,8 +4272,33 @@ namespace pg
             ASSERT_NE(list, nullptr);
             ASSERT_NE(list->find(&f.ecs, "explore"), nullptr);
             ASSERT_FALSE(tabs->enabled(1));
+            ASSERT_FALSE(f.pos(tabs->tabs[1].face)->visible);
+
+            // The tile that explores stands out from the others: the page wants it seen
+            EXPECT_TRUE(list->find(&f.ecs, "explore")->spec.featured);
+            EXPECT_TRUE(list->find(&f.ecs, "explore")->root->get<ActivityRowState>()->featured);
+            EXPECT_EQ(f.ecs.getEntity(list->find(&f.ecs, "explore")->root->get<ActivityRowState>()->ground)->get<ThemeComponent>()->element.find("activity.kind.featured"), 0u);
+            EXPECT_FALSE(list->find(&f.ecs, "carters")->spec.featured);
+
+            // And it is one of the tiles that turn a life: framed in gold, its mark in its corner,
+            // and its gloss says what it does in the place of its group
+            EXPECT_TRUE(list->find(&f.ecs, "explore")->spec.major);
+            EXPECT_FALSE(list->find(&f.ecs, "explore")->frame.empty());
+            EXPECT_FALSE(list->find(&f.ecs, "explore")->mark.entity.empty());
+            EXPECT_FALSE(list->find(&f.ecs, "carters")->spec.major);
+            EXPECT_TRUE(list->find(&f.ecs, "carters")->frame.empty());
+            EXPECT_TRUE(list->find(&f.ecs, "carters")->mark.entity.empty());
+
+            auto glosses = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(glosses, nullptr);
+            ASSERT_NE(glosses->find("activity/explore"), nullptr);
+            EXPECT_EQ(glosses->find("activity/explore")->text.find("Opens the Town page"), 0u);
+            EXPECT_EQ(glosses->find("activity/carters")->text, "Work");
 
             const int toasts = life->toastsUp();
+
+            auto grid = life->piece<PlaceGrid>("places");
+            ASSERT_NE(grid, nullptr);
 
             f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "explore"});
             f.settle();
@@ -4272,25 +4332,394 @@ namespace pg
             // The row that explores is gone; the works for the town and the way to the market have come
             EXPECT_EQ(list->find(&f.ecs, "explore"), nullptr);
             EXPECT_NE(list->find(&f.ecs, "goto.market"), nullptr);
-            EXPECT_NE(list->find(&f.ecs, "raise.market.1"), nullptr);
+            EXPECT_NE(work(f, life, "raise.market.1"), nullptr);
             EXPECT_NE(stall(f, life, "buy.rations"), nullptr);
 
-            // A first look at the town is three places, and their three works: the rest comes with
-            // his years and his class
-            auto grid = life->piece<PlaceGrid>("places");
-            ASSERT_NE(grid, nullptr);
-            EXPECT_EQ(grid->tiles.size(), 3u);
-            EXPECT_EQ(life->save.seen.size(), 3u);
-            EXPECT_NE(list->find(&f.ecs, "raise.mill.1"), nullptr);
-            EXPECT_NE(list->find(&f.ecs, "raise.smithy.1"), nullptr);
-            EXPECT_EQ(list->find(&f.ecs, "raise.chapel.1"), nullptr);
-            EXPECT_EQ(list->find(&f.ecs, "raise.gate.1"), nullptr);
+            // A first look at the town is two places, the Market and the Mill, and their two works:
+            // the rest comes with what he does
+            EXPECT_EQ(grid->tiles.size(), 2u);
+            EXPECT_EQ(life->save.seen.size(), 2u);
+            EXPECT_NE(grid->tile("market"), nullptr);
+            EXPECT_NE(grid->tile("mill"), nullptr);
+            EXPECT_NE(work(f, life, "raise.mill.1"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "raise.market.1"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "raise.mill.1"), nullptr);
+            EXPECT_EQ(work(f, life, "raise.smithy.1"), nullptr);
+            EXPECT_EQ(work(f, life, "raise.chapel.1"), nullptr);
+            EXPECT_EQ(work(f, life, "raise.gate.1"), nullptr);
 
-            // And the guide's word for it, its hand on the town's tab
+            // Its tab has come onto the page, with a notice of what is behind it: its two works
+            EXPECT_TRUE(f.pos(tabs->tabs[1].face)->visible);
+            EXPECT_FALSE(tabs->tabs[1].face->get<TabState>()->hidden);
+            EXPECT_GE(tabs->tabs[1].notice, 2);
+            ASSERT_FALSE(tabs->tabs[1].noticeGround.empty());
+            EXPECT_TRUE(f.pos(tabs->tabs[1].noticeGround)->visible);
+            EXPECT_EQ(tabs->tabs[0].notice, 0);
+
+            // And the guide's word for it, its hand on the tab, until he opens it
             ASSERT_TRUE(life->step.active);
             EXPECT_EQ(life->step.id, "guide.town");
             EXPECT_EQ(life->handOn, tabs->tabs[1].face.id);
-            EXPECT_TRUE(reached(life, "guide.town"));
+            EXPECT_FALSE(life->nextShown);
+            EXPECT_TRUE(life->save.told.empty());
+
+            f.ecs.sendEvent(TabSelectedEvent{tabs->root.id, "life.tabs", 1});
+            f.frames(12);
+
+            // Opened: the notice is gone, the step is said, and the next shows the market, where his
+            // coin buys rations
+            EXPECT_TRUE(life->townShown);
+            EXPECT_EQ(f.fact<int>("life.town"), 1);
+            EXPECT_EQ(tabs->tabs[1].notice, 0);
+            ASSERT_EQ(life->save.told.size(), 1u);
+            EXPECT_EQ(life->save.told[0], "guide.town");
+
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.market");
+            ASSERT_NE(stall(f, life, "buy.rations"), nullptr);
+            EXPECT_EQ(life->handOn, stall(f, life, "buy.rations")->root.id);
+            EXPECT_NE(life->noteWords.spec.text.find("rations"), std::string::npos) << life->noteWords.spec.text;
+            ASSERT_TRUE(life->nextShown);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
+            f.frames(12);
+
+            // Then the places
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.places");
+            EXPECT_EQ(life->handOn, grid->tile("market")->root.id);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
+            f.frames(12);
+
+            EXPECT_FALSE(life->step.active);
+            EXPECT_EQ(life->save.told.size(), 3u);
+
+            // Said once in a world: the next life is born knowing the town, and is told none of it
+            life->newLife();
+            f.frames(12);
+            f.pass(1000.0f);
+
+            tabs = life->piece<Tabs>("tabs");
+            ASSERT_NE(tabs, nullptr);
+
+            EXPECT_TRUE(life->save.townKnown);
+            EXPECT_EQ(life->save.told.size(), 3u);
+            EXPECT_FALSE(life->step.active);
+            EXPECT_TRUE(life->stepsDue.empty());
+            EXPECT_TRUE(f.pos(tabs->tabs[1].face)->visible);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A tile does not say what it asks: a work he cannot pay for, a purchase he has no coin for, a
+        // class he is too young for are locked without a line of their own. Their gloss says it.
+        TEST(lifescene_test, a_tile_does_not_say_what_it_asks)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+            opt.lives = 2;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            life->save.townKnown = true;
+            life->save.stats["rations"] = 40;
+            life->save.stats["coin"] = 0;
+            life->onMonth();
+            f.frames(12);
+
+            for (ActivityRow* tile : {work(f, life, "raise.market.1"), work(f, life, "raise.mill.1"), stall(f, life, "buy.rations")})
+            {
+                ASSERT_NE(tile, nullptr);
+                EXPECT_EQ(tile->spec.state, ActivityState::Locked) << tile->spec.id;
+                EXPECT_EQ(tile->spec.until, "") << tile->spec.id;
+                EXPECT_FALSE(tile->until.has_value()) << tile->spec.id;
+            }
+
+            // The gloss keeps it: the coin it asks against the coin he has, in the loss's colour
+            auto registry = f.ecs.getSystem<GlossRegistry>();
+            ASSERT_NE(registry, nullptr);
+
+            const GlossSpec* gloss = registry->find("activity/raise.market.1");
+            ASSERT_NE(gloss, nullptr);
+
+            bool asked = false;
+
+            for (const auto& row : gloss->rows)
+                asked = asked or (row.label == "Coin" and row.value == "0 / 20" and row.tone == "loss");
+
+            EXPECT_TRUE(asked);
+
+            // Nor an age, nor a stat: the Keep is years away and says nothing of it, and its gloss does
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(list->find(&f.ecs, "keep"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "keep")->spec.state, ActivityState::Locked);
+            EXPECT_EQ(list->find(&f.ecs, "keep")->spec.until, "");
+            EXPECT_FALSE(list->find(&f.ecs, "keep")->until.has_value());
+
+            const GlossSpec* keep = registry->find("activity/keep");
+            ASSERT_NE(keep, nullptr);
+
+            bool age = false;
+
+            for (const auto& row : keep->rows)
+                age = age or (row.value.find("/ 16") != std::string::npos and row.tone == "loss");
+
+            EXPECT_TRUE(age);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The facts outlive a world: what a world before was told of the town stands among them when
+        // this one opens. A first life is not told of the market for it, a month into its first work.
+        TEST(lifescene_test, the_town_guide_waits_for_this_world)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            // Left by a world before, as the engine's save keeps them
+            f.facts->factMap["said.guide.town"] = ElementType{1};
+            f.facts->factMap["said.guide.market"] = ElementType{1};
+
+            LifeScene* life = f.life(LifeFixture::first());
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+            f.pass(1000.0f);
+
+            auto townSteps = [&]() {
+                size_t steps = life->step.active and (life->step.id == "guide.town" or life->step.id == "guide.market" or life->step.id == "guide.places") ? 1 : 0;
+
+                for (const auto& due : life->stepsDue)
+                {
+                    if (due.id == "guide.town" or due.id == "guide.market" or due.id == "guide.places")
+                        ++steps;
+                }
+
+                return steps;
+            };
+
+            // This world has been told nothing, and its facts say so
+            EXPECT_TRUE(life->save.told.empty());
+            EXPECT_EQ(f.fact<int>("said.guide.town"), 0);
+            EXPECT_EQ(f.fact<int>("said.guide.market"), 0);
+            EXPECT_EQ(townSteps(), 0u);
+
+            // His first work, and the months after it: the guide goes on with its own steps
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "helping"});
+            f.settle();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            f.frames(12);
+            f.pass(1000.0f);
+
+            EXPECT_FALSE(life->save.townKnown);
+            EXPECT_TRUE(life->save.told.empty());
+            EXPECT_EQ(townSteps(), 0u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What comes onto the page that is not the one in view is said at its tab's corner, and no
+        // longer once that page is opened.
+        TEST(lifescene_test, a_new_task_on_the_other_page_marks_its_tab)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+            opt.lives = 2;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            auto tabs = life->piece<Tabs>("tabs");
+            ASSERT_NE(tabs, nullptr);
+
+            // He knows the town, with coin for it: on the Life page, what the town has is new behind
+            // its tab; what came into the choice is in view, and no news
+            life->save.townKnown = true;
+            life->save.stats["rations"] = 40;
+            life->save.stats["coin"] = 200;
+            life->onMonth();
+            f.frames(12);
+
+            // The rations it sells, and the three works for its first three places (the market, the
+            // mill, and the inn of a second life)
+            ASSERT_NE(stall(f, life, "buy.rations"), nullptr);
+            EXPECT_EQ(tabs->tabs[1].notice, 4);
+            EXPECT_EQ(life->newInTown, 4);
+            EXPECT_EQ(tabs->tabs[0].notice, 0);
+            ASSERT_FALSE(tabs->tabs[1].noticeGround.empty());
+            EXPECT_TRUE(f.pos(tabs->tabs[1].noticeGround)->visible);
+
+            // The Town page opened: seen
+            f.ecs.sendEvent(TabSelectedEvent{tabs->root.id, "life.tabs", 1});
+            f.frames(12);
+
+            ASSERT_TRUE(life->townShown);
+            EXPECT_EQ(tabs->tabs[1].notice, 0);
+            EXPECT_EQ(life->newInTown, 0);
+            EXPECT_FALSE(f.pos(tabs->tabs[1].noticeGround)->visible);
+
+            // Eight years old, on the Town page: the market's work and the streets come into the
+            // choice, and the wooden blades he is too weak for yet, behind the Life tab. A row is
+            // new when it comes, open to him or not
+            life->save.age = 8.0f - 1.0f / 12.0f;
+            life->onMonth();
+            f.frames(12);
+
+            ASSERT_NE(life->piece<ActivityList>("activities")->find(&f.ecs, "blades"), nullptr);
+            EXPECT_EQ(life->piece<ActivityList>("activities")->find(&f.ecs, "blades")->spec.state, ActivityState::Locked);
+            EXPECT_EQ(tabs->tabs[0].notice, 3);
+            EXPECT_EQ(life->newInLife, 3);
+            EXPECT_EQ(tabs->tabs[1].notice, 0);
+            ASSERT_FALSE(tabs->tabs[0].noticeGround.empty());
+            EXPECT_TRUE(f.pos(tabs->tabs[0].noticeGround)->visible);
+
+            // Back to the Life page: seen too
+            f.ecs.sendEvent(TabSelectedEvent{tabs->root.id, "life.tabs", 0});
+            f.frames(12);
+
+            ASSERT_FALSE(life->townShown);
+            EXPECT_EQ(tabs->tabs[0].notice, 0);
+            EXPECT_FALSE(f.pos(tabs->tabs[0].noticeGround)->visible);
+
+            // The market's charter: a sword and a horse are sold there, behind the town's tab again
+            life->save.town["market"] = 3;
+            life->onMonth();
+            f.frames(12);
+
+            EXPECT_EQ(tabs->tabs[1].notice, 2);
+            EXPECT_NE(stall(f, life, "buy.sword"), nullptr);
+
+            // Out of coin, then in coin again: what the market sells was shut and is open, and
+            // none of it is new. Nothing more is said at the tab
+            life->save.stats["coin"] = 0;
+            life->onMonth();
+            f.frames(12);
+
+            ASSERT_NE(stall(f, life, "buy.rations"), nullptr);
+            EXPECT_EQ(stall(f, life, "buy.rations")->spec.state, ActivityState::Locked);
+            EXPECT_EQ(tabs->tabs[1].notice, 2);
+
+            life->save.stats["coin"] = 200;
+            life->onMonth();
+            f.frames(12);
+
+            EXPECT_EQ(stall(f, life, "buy.rations")->spec.state, ActivityState::Idle);
+            EXPECT_EQ(tabs->tabs[1].notice, 2);
+            EXPECT_EQ(life->newInTown, 2);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What a page gains while the other is in view is not drawn over it: the places made again
+        // (one was raised, one was found), a line a tile did not have a month ago.
+        TEST(lifescene_test, what_the_hidden_page_gains_is_not_drawn)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            f.frames(12);
+
+            ASSERT_TRUE(life->save.townKnown);
+            ASSERT_FALSE(life->townShown);
+
+            auto grid = life->piece<PlaceGrid>("places");
+            ASSERT_NE(grid, nullptr);
+            ASSERT_FALSE(grid->tiles.empty());
+
+            // The Life page is in view, and the town's tiles are made again under it, as the scene
+            // does when a place is raised or found
+            std::vector<PlaceTileSpec> places;
+
+            for (const auto& tile : grid->tiles)
+                places.push_back(tile.spec);
+
+            grid->setPlaces(&f.ecs, places);
+            f.frames(6);
+
+            for (const auto& tile : grid->tiles)
+            {
+                EXPECT_FALSE(f.pos(tile.root)->isRenderable()) << tile.spec.id;
+                EXPECT_FALSE(f.pos(tile.ground)->isRenderable()) << tile.spec.id;
+                EXPECT_FALSE(f.pos(tile.name.entity)->isRenderable()) << tile.spec.id;
+                EXPECT_FALSE(f.pos(tile.line.entity)->isRenderable()) << tile.spec.id;
+
+                for (const auto& seal : tile.seals)
+                    EXPECT_FALSE(f.pos(seal.entity)->isRenderable()) << tile.spec.id;
+            }
+
+            // A work of the town is given a line it did not have
+            ActivityRow* raise = work(f, life, "raise.market.1");
+            ASSERT_NE(raise, nullptr);
+
+            raise->setUntil(&f.ecs, "");
+            f.frames(4);
+            ASSERT_FALSE(raise->until);
+
+            raise->setUntil(&f.ecs, "ASKS COIN 20");
+            f.frames(6);
+
+            ASSERT_TRUE(raise->until);
+            EXPECT_FALSE(f.pos(raise->root)->isRenderable());
+            EXPECT_FALSE(f.pos(raise->until->entity)->isRenderable());
+
+            // The Town page in view: all of it is drawn, the new line with the rest
+            life->showTown(true);
+            f.frames(12);
+
+            EXPECT_TRUE(f.pos(grid->tiles[0].root)->isRenderable());
+            EXPECT_TRUE(f.pos(grid->tiles[0].name.entity)->isRenderable());
+            EXPECT_TRUE(f.pos(raise->until->entity)->isRenderable());
+
+            // And it is the choice's turn to gain a line out of sight
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_FALSE(list->spec.groups.empty());
+            ASSERT_FALSE(list->spec.groups[0].rows.empty());
+
+            ActivityRow* first = list->find(&f.ecs, list->spec.groups[0].rows[0].id);
+            ASSERT_NE(first, nullptr);
+
+            first->setUntil(&f.ecs, "");
+            f.frames(4);
+            first->setUntil(&f.ecs, "CLOSES 1/2", true);
+            f.frames(6);
+
+            ASSERT_TRUE(first->until);
+            EXPECT_FALSE(f.pos(first->root)->isRenderable());
+            EXPECT_FALSE(f.pos(first->until->entity)->isRenderable());
+
+            life->showTown(false);
+            f.frames(12);
+
+            EXPECT_TRUE(f.pos(first->until->entity)->isRenderable());
+            EXPECT_FALSE(f.pos(grid->tiles[0].name.entity)->isRenderable());
+            EXPECT_FALSE(f.pos(raise->until->entity)->isRenderable());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -4330,22 +4759,23 @@ namespace pg
             EXPECT_FALSE(f.pos(life->named("activities"))->visible);
             EXPECT_TRUE(f.pos(life->named("town"))->visible);
 
-            // The places on his page, as the rules list them, none raised yet: the three every life
-            // starts with, the three his years have brought, and the Watch Gate, which is his
-            // class's. The Collegium's two are another class's, and not on his page
+            // The places on his page, as the rules list them, none raised yet: the two every life
+            // starts with. He has sworn to the Keep and done nothing there yet that brings a place:
+            // the others are a veteran's, a captain's, a scholar's, a smith's, or a later life's
             auto grid = life->piece<PlaceGrid>("places");
             ASSERT_NE(grid, nullptr);
             ASSERT_EQ(life->town.places.size(), 9u);
-            ASSERT_EQ(grid->tiles.size(), 7u);
+            ASSERT_EQ(grid->tiles.size(), 2u);
 
-            const char* const onHisPage[] = {"market", "mill", "smithy", "chapel", "yard", "inn", "gate"};
+            const char* const onHisPage[] = {"market", "mill"};
 
             for (size_t i = 0; i < grid->tiles.size(); ++i)
                 EXPECT_EQ(grid->tiles[i].spec.id, onHisPage[i]) << i;
 
-            EXPECT_EQ(grid->tile("collegium"), nullptr);
-            EXPECT_EQ(grid->tile("harrow"), nullptr);
-            EXPECT_EQ(life->save.seen.size(), 7u);
+            for (const char* id : {"smithy", "yard", "gate", "chapel", "collegium", "harrow", "inn"})
+                EXPECT_EQ(grid->tile(id), nullptr) << id;
+
+            EXPECT_EQ(life->save.seen.size(), 2u);
             EXPECT_EQ(grid->columns(), 3);
 
             for (const auto& tile : grid->tiles)
@@ -4367,13 +4797,37 @@ namespace pg
             EXPECT_NE(stall(f, life, "buy.rations"), nullptr);
             EXPECT_EQ(life->piece<ActivityList>("activities")->find(&f.ecs, "buy.rations"), nullptr);
 
-            // A place clicked is lit, and clicked again let go of
+            // The works that raise a place stand under the places, one a place, and not in the choice
+            auto works = life->piece<ActivityList>("townWorks");
+            ASSERT_NE(works, nullptr);
+            ASSERT_EQ(works->spec.groups.size(), 1u);
+            EXPECT_EQ(works->spec.groups[0].rows.size(), 2u);
+            EXPECT_NE(work(f, life, "raise.market.1"), nullptr);
+            EXPECT_EQ(life->piece<ActivityList>("activities")->find(&f.ecs, "raise.market.1"), nullptr);
+            EXPECT_GE(f.pos(works->root)->y, f.pos(grid->root)->y + f.pos(grid->root)->height);
+
+            // A place clicked is lit, and its work chosen with it: Begin is one press away
             f.ecs.sendEvent(PlaceSelectedEvent{"market"});
             f.settle();
             EXPECT_EQ(grid->selected(), "market");
             EXPECT_TRUE(grid->tile("market")->spec.selected);
+            EXPECT_EQ(works->selected(), "raise.market.1");
+            EXPECT_TRUE(f.pos(life->named("begin"))->visible);
+            EXPECT_EQ(life->piece<Button>("begin")->spec.months, 6);
 
+            // Clicked again, both are let go of
             f.ecs.sendEvent(PlaceSelectedEvent{"market"});
+            f.settle();
+            EXPECT_EQ(grid->selected(), "");
+            EXPECT_EQ(works->selected(), "");
+            EXPECT_FALSE(f.pos(life->named("begin"))->visible);
+
+            // And a work chosen in the list lights its place
+            f.ecs.sendEvent(ActivitySelectedEvent{"town.works", "raise.mill.1"});
+            f.settle();
+            EXPECT_EQ(grid->selected(), "mill");
+
+            f.ecs.sendEvent(ActivitySelectedEvent{"town.works", ""});
             f.settle();
             EXPECT_EQ(grid->selected(), "");
 
@@ -4463,8 +4917,8 @@ namespace pg
             auto grid = life->piece<PlaceGrid>("places");
             ASSERT_NE(list, nullptr);
             ASSERT_NE(grid, nullptr);
-            ASSERT_NE(list->find(&f.ecs, "raise.market.1"), nullptr);
-            EXPECT_EQ(list->find(&f.ecs, "raise.market.2"), nullptr);
+            ASSERT_NE(work(f, life, "raise.market.1"), nullptr);
+            EXPECT_EQ(work(f, life, "raise.market.2"), nullptr);
 
             const int coin = life->save.stats["coin"];
             const int millMonths = list->find(&f.ecs, "mill") ? list->find(&f.ecs, "mill")->spec.months : -1;
@@ -4524,8 +4978,8 @@ namespace pg
             EXPECT_NE(raisedLabel->spec.text.find("THE MARKET"), std::string::npos);
 
             // The next work for it has taken the first one's place
-            EXPECT_EQ(list->find(&f.ecs, "raise.market.1"), nullptr);
-            EXPECT_NE(list->find(&f.ecs, "raise.market.2"), nullptr);
+            EXPECT_EQ(work(f, life, "raise.market.1"), nullptr);
+            EXPECT_NE(work(f, life, "raise.market.2"), nullptr);
 
             // What it gives is given on the spot: rations are 8 for 5 coin now, and nothing else moved
             const int rations = life->save.stats["rations"];
@@ -4568,7 +5022,7 @@ namespace pg
             auto list = life->piece<ActivityList>("activities");
             ASSERT_NE(list, nullptr);
 
-            ActivityRow* almshouse = list->row(&f.ecs, "raise.chapel.3");
+            ActivityRow* almshouse = work(f, life, "raise.chapel.3");
             ASSERT_NE(almshouse, nullptr);
             EXPECT_EQ(almshouse->spec.each, "COSTS 2 YEARS");
             EXPECT_EQ(almshouse->spec.months, 0);
@@ -4588,7 +5042,7 @@ namespace pg
             EXPECT_EQ(life->save.town["chapel"], 3);
             EXPECT_EQ(life->save.done["raise.chapel.3"], 1);
             EXPECT_NEAR(f.fact<float>("life.age"), age + 2.0f, 0.001f);
-            EXPECT_EQ(list->find(&f.ecs, "raise.chapel.3"), nullptr);
+            EXPECT_EQ(work(f, life, "raise.chapel.3"), nullptr);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -4662,7 +5116,7 @@ namespace pg
             EXPECT_TRUE(tabs->enabled(1));
             EXPECT_EQ(list->find(&f.ecs, "explore"), nullptr);
             EXPECT_NE(list->find(&f.ecs, "goto.market"), nullptr);
-            EXPECT_NE(list->find(&f.ecs, "raise.mill.3"), nullptr);
+            EXPECT_NE(work(f, life, "raise.mill.3"), nullptr);
 
             // What the chapel's first level gives, in this life as in the last: his letters in 4 months
             ASSERT_NE(list->row(&f.ecs, "letters"), nullptr);
@@ -4684,8 +5138,10 @@ namespace pg
 
             f.frames(12);
 
+            // The chapel is a place a life before him found: it is on his page with his own two
             life->save.stats["coin"] = 84;
             life->save.town = {{"mill", 3}};
+            life->save.seen.push_back("chapel");
             life->save.stats["rations"] = 0;
             life->save.stats["vit"] = 1;
             life->onMonth();
@@ -4702,16 +5158,12 @@ namespace pg
             EXPECT_TRUE(f.pos(line)->visible);
             EXPECT_EQ(line->get<Label>()->spec.text, "LEAVE HIS 84 COIN TO");
 
-            // The six on his page that are not at their last level: the mill is, and the Collegium's
-            // two are not on his page
-            ASSERT_EQ(life->gifts.size(), 6u);
+            // The two on his page that are not at their last level, the market and the chapel: the
+            // mill is, and the others are not on his page
+            ASSERT_EQ(life->gifts.size(), 2u);
 
             for (const auto& [id, button] : life->gifts)
-            {
-                EXPECT_NE(id, "mill");
-                EXPECT_NE(id, "collegium");
-                EXPECT_NE(id, "harrow");
-            }
+                EXPECT_TRUE(id == "market" or id == "chapel") << id;
 
             EXPECT_TRUE(life->gift.empty());
 
@@ -4772,7 +5224,7 @@ namespace pg
             auto list = life->piece<ActivityList>("activities");
             ASSERT_NE(list, nullptr);
 
-            ActivityRow* glaze = list->row(&f.ecs, "raise.chapel.1");
+            ActivityRow* glaze = work(f, life, "raise.chapel.1");
             ASSERT_NE(glaze, nullptr);
             EXPECT_EQ(glaze->spec.state, ActivityState::Idle);
 
@@ -4797,9 +5249,10 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The town grows with the life: three places at first, more with his years, more with his
-        // class. A place that comes later is said; one that has been on the page stays on it, in
-        // this life and in the next.
+        // The town grows with what he does: two places at first, the smithy with a term at the
+        // forge, the yard and the gate with the Keep's border and its chain, the inn with the second
+        // life of a world. A place that comes later is said; one that has been on the page stays on
+        // it, in this life and in the next.
         TEST(lifescene_test, the_town_grows_with_the_life)
         {
             MockLogger logger;
@@ -4840,7 +5293,7 @@ namespace pg
             auto works = [&]() {
                 size_t rows = 0;
 
-                for (const auto& group : list->spec.groups)
+                for (const auto& group : life->piece<ActivityList>("townWorks")->spec.groups)
                 {
                     for (const auto& row : group.rows)
                     {
@@ -4854,49 +5307,72 @@ namespace pg
 
             ASSERT_FALSE(life->town.foundLine.empty());
 
-            // The first look: the market, the mill and the smithy, their three works, and no line
+            // The first look, in a second life: the market and the mill, and the inn, which a world
+            // has from its second life. Their three works, and no line
             ASSERT_EQ(grid->tiles.size(), 3u);
             EXPECT_EQ(grid->tiles[0].spec.id, "market");
             EXPECT_EQ(grid->tiles[1].spec.id, "mill");
-            EXPECT_EQ(grid->tiles[2].spec.id, "smithy");
+            EXPECT_EQ(grid->tiles[2].spec.id, "inn");
             EXPECT_EQ(life->save.seen.size(), 3u);
             EXPECT_EQ(works(), 3u);
             EXPECT_EQ(found(), 0u);
 
-            // Ten years old: the chapel and the yard come onto the page, each with its work and a line
-            life->save.age = 10.0f - 1.0f / 12.0f;
+            // A term at the forge: the smithy comes onto the page, with its work and a line. The
+            // rules are handed the terms when one ends: written here by hand, handed by hand
+            life->save.done["smithy"] = 1;
+            life->rules.done = life->save.terms();
             life->onMonth();
             f.frames(12);
 
-            ASSERT_EQ(grid->tiles.size(), 5u);
-            EXPECT_EQ(grid->tiles[3].spec.id, "chapel");
-            EXPECT_EQ(grid->tiles[4].spec.id, "yard");
-            EXPECT_EQ(life->save.seen.size(), 5u);
-            EXPECT_EQ(works(), 5u);
-            EXPECT_EQ(found(), 2u);
-            EXPECT_NE(list->find(&f.ecs, "raise.chapel.1"), nullptr);
+            ASSERT_EQ(grid->tiles.size(), 4u);
+            EXPECT_EQ(grid->tiles[2].spec.id, "smithy");
+            EXPECT_EQ(life->save.seen.size(), 4u);
+            EXPECT_EQ(works(), 4u);
+            EXPECT_EQ(found(), 1u);
+            EXPECT_NE(work(f, life, "raise.smithy.1"), nullptr);
 
             auto registry = f.ecs.getSystem<GlossRegistry>();
             ASSERT_NE(registry, nullptr);
-            EXPECT_NE(registry->find("place/chapel"), nullptr);
+            EXPECT_NE(registry->find("place/smithy"), nullptr);
 
-            // Sworn to the Keep: the Watch Gate is his class's, and comes with it
+            // Sworn to the Keep: the oath alone brings no place
             life->save.stats["keep_oath"] = 1;
             life->onMonth();
             f.frames(12);
 
+            EXPECT_EQ(grid->tiles.size(), 4u);
+            EXPECT_EQ(found(), 1u);
+
+            // A veteran of the border: the yard is his to build
+            life->save.stats["veteran"] = 1;
+            life->onMonth();
+            f.frames(12);
+
+            ASSERT_EQ(grid->tiles.size(), 5u);
+            EXPECT_EQ(grid->tiles[3].spec.id, "yard");
+            EXPECT_EQ(found(), 2u);
+            EXPECT_NE(work(f, life, "raise.yard.1"), nullptr);
+            EXPECT_EQ(grid->tile("gate"), nullptr);
+
+            // Its captain: the Watch Gate
+            life->save.stats["captain"] = 1;
+            life->onMonth();
+            f.frames(12);
+
             ASSERT_EQ(grid->tiles.size(), 6u);
-            EXPECT_EQ(grid->tiles[5].spec.id, "gate");
+            EXPECT_EQ(grid->tiles[4].spec.id, "gate");
             EXPECT_EQ(found(), 3u);
+            EXPECT_EQ(grid->tile("chapel"), nullptr);
             EXPECT_EQ(grid->tile("collegium"), nullptr);
-            EXPECT_EQ(grid->tile("inn"), nullptr);
+            EXPECT_EQ(grid->tile("harrow"), nullptr);
 
             // Nothing is said twice
             life->onMonth();
             f.frames(12);
             EXPECT_EQ(found(), 3u);
 
-            // The next life is born into the town as it was seen: six places at 7, of no class
+            // The next life, the third of its world, is born into the town as it was seen: six places
+            // at 7, of no class
             life->newLife();
             f.frames(12);
 
@@ -4907,10 +5383,12 @@ namespace pg
 
             EXPECT_FLOAT_EQ(life->save.age, 7.0f);
             EXPECT_EQ(life->save.stats.count("keep_oath"), 0u);
+            EXPECT_EQ(life->save.stats.count("captain"), 0u);
             EXPECT_EQ(life->save.seen.size(), 6u);
             ASSERT_EQ(grid->tiles.size(), 6u);
+            EXPECT_NE(grid->tile("smithy"), nullptr);
+            EXPECT_NE(grid->tile("yard"), nullptr);
             EXPECT_NE(grid->tile("gate"), nullptr);
-            EXPECT_NE(grid->tile("chapel"), nullptr);
             EXPECT_EQ(works(), 6u);
             EXPECT_EQ(found(), 0u);
         }

@@ -284,9 +284,11 @@ fun mostOf(character, stat)
 }
 
 // Whether a place of the town (towntable.pg) is on the Town page for this character, `lived`
-// months old: one that was raised, was left coin or was seen by a life before stays there; else
-// its `shows` says when it comes (an age, a flag he holds, or both; neither: from the start).
-fun placeShown(place, character, lived)
+// months old, with the terms he has `done` (activity id -> terms) in the life of the world that
+// `lives` counts: one that was raised, was left coin or was seen by a life before stays there;
+// else its `shows` says what brings it (an age, a flag he holds, an activity he has done, a life
+// of the world; all of those it gives. None: from the start).
+fun placeShown(place, character, lived, done, lives)
 {
     if (statOf(character, "town." + place.id) > 0 or statOf(character, "fund." + place.id) > 0 or statOf(character, "seen." + place.id) > 0)
     {
@@ -306,6 +308,19 @@ fun placeShown(place, character, lived)
         {
             return false
         }
+    }
+
+    if (has(shows, "done"))
+    {
+        if (lookup(done, shows.done, 0) <= 0)
+        {
+            return false
+        }
+    }
+
+    if (lives < lookup(shows, "lives", 1))
+    {
+        return false
     }
 
     return true

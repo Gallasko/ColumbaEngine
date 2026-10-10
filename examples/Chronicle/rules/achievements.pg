@@ -10,7 +10,8 @@
 //                  completed; the town's stats too: "stat.town_known", "stat.town.<place id>"),
 //                  "life.age", "life.terms" (the terms done in this life, of every
 //                  activity), "life.working" (1 while he is at a work, else 0), "life.lives"
-//                  (which life of the world this is) or "life.guide" (the last step of the guide
+//                  (which life of the world this is), "life.town" (1 while the Town page is the one
+//                  in view), "said.<guide step id>" (1 once that step has been said) or "life.guide" (the last step of the guide
 //                  that ended, 0 before the first); `op` is one of ">=", ">", "<=", "<", "==".
 // Every entry is reached once in a life and stays reached.
 //
@@ -33,8 +34,13 @@
 //           point  what the hand points at: "button:begin", "tile:<activity id>",
 //                  "holding:<id>" (a row of what he holds), "stat:<key>" (one of his parts),
 //                  "tab:<page>" (a page's tab, by its name in small letters: "tab:town"),
+//                  "place:<id>" (a place of the town, on its page),
 //                  "clock", "log", or "" for nothing. What is not on the page is not pointed at:
 //                  the sentence is said alone.
+//           world  optional, for a step outside the sequence: true, it is said once in a
+//                  world, in whichever life meets it, and never again in a later one (the
+//                  town's steps: any life may be the one that explores it). Without it a step
+//                  is a first life's only.
 //           until  the step ends when these hold; without any it ends after `hold` milliseconds
 //                  (5000 when it gives none).
 //           pointChosen, sayChosen
@@ -147,10 +153,19 @@ var achievements = [
     {id: "guide.rations_market", kind: "guide", order: 0, point: "tile:goto.market", hold: 6000,
      say: "You only have food for 3 months. Go to the market to buy more.",
      asks: [{fact: "stat.rations", op: "<=", value: 3}, {fact: "life.terms", op: ">=", value: 1}, {fact: "stat.town_known", op: ">=", value: 1}]},
-    // And the town itself, the month he comes to know it
-    {id: "guide.town", kind: "guide", order: 0, point: "tab:town", hold: 8000,
-     say: "The town is open. What you build here stays for your next lives. Its page is here.",
-     asks: [{fact: "stat.town_known", op: ">=", value: 1}]},
+    // The town, the month a life comes to know it: its tab, then, once he has opened it, the
+    // market where his coin buys rations, then the places. Said once in a world, in whichever
+    // life explores the town: each waits for the one before it to have been said
+    {id: "guide.town", kind: "guide", order: 0, world: true, point: "tab:town",
+     say: "The town is open! Click its tab to see it.",
+     asks: [{fact: "stat.town_known", op: ">=", value: 1}],
+     until: [{fact: "life.town", op: "==", value: 1}]},
+    {id: "guide.market", kind: "guide", order: 0, world: true, point: "tile:buy.rations", hold: 9000,
+     say: "This is the market. You can spend your coin here to buy rations.",
+     asks: [{fact: "said.guide.town", op: ">=", value: 1}]},
+    {id: "guide.places", kind: "guide", order: 0, world: true, point: "place:market", hold: 10000,
+     say: "These are the places of the town. The works under them make them better, and they stay for your next lives. More places come with what you do.",
+     asks: [{fact: "said.guide.market", op: ">=", value: 1}]},
 
     // The town's story, a line at a time
     {id: "lore.bell", kind: "lore", entry: "Bellmoor sits where the Bell meets the North Road. Everything that passes, passes here.",
@@ -183,7 +198,7 @@ var ops = [">=", ">", "<=", "<", "=="]
 
 // What the hand can point at: one of these places, or one of these kinds followed by a name
 var pointPlaces = ["", "clock", "log"]
-var pointKinds = ["button:", "tile:", "holding:", "stat:", "tab:"]
+var pointKinds = ["button:", "tile:", "holding:", "stat:", "tab:", "place:"]
 
 // The steps of the guide's sequence, counted to see that their orders run 1..n without a gap
 var guideSteps = 0
@@ -201,6 +216,7 @@ for (var i = 0; i < len(achievements); i++)
     a.pointChosen = lookup(a, "pointChosen", "")
     a.sayChosen = lookup(a, "sayChosen", "")
     a.order = lookup(a, "order", 0)
+    a.world = lookup(a, "world", false)
     a.hold = lookup(a, "hold", 5000)
     a.gives = listOf(a, "gives")
     a.until = listOf(a, "until")
@@ -272,6 +288,11 @@ for (var i = 0; i < len(achievements); i++)
         if (a.sayChosen != "" and a.pointChosen == "")
         {
             push(errors, "guide step " + a.id + ": sayChosen without a pointChosen")
+        }
+
+        if (a.world and a.order != 0)
+        {
+            push(errors, "guide step " + a.id + ": only a step outside the sequence is the world's")
         }
 
         if (a.order < 0)
