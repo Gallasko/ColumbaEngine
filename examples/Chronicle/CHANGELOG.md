@@ -3,18 +3,28 @@
 What changed in the game, build by build, as a player sees it. The engine's own changes are in
 the `CHANGELOG.md` at the root of the repository.
 
-## 0.4 - Unreleased
+## 0.4 - 2026-10-10
 
 ### New
 
 - **The town.** *Explore Bellmoor* (three months, once) opens a Town page beside the Life page.
-  It has nine places of three levels each, and it grows with you. At first you see three: the
-  Market, the Mill and the Smithy. The Chapel and the Yard come at 10, the Inn at 13. The Watch
-  Gate comes with the Keep, the Collegium Gate with the Collegium, and the Harrow Road to a
-  scholar of 18. A place you have seen stays on the page for your next lives.
-- **Works for the town.** Once the town is known, a new group of works raises a place by one
-  level. They cost months and coin, and some cost a stat or years of your life. This is time you
-  do not spend on yourself.
+  Its tile stands out in gold so you do not miss it, and the Town tab only appears once you have
+  explored. A short tutorial then shows the tab, the market where your coin buys rations, and
+  the places.
+  It has nine places of three levels each, and it grows with what you do. At first you see
+  two: the Market and the Mill. The others are found by living:
+  - the Smithy, once you have worked a term at the forge;
+  - the Yard, once you have joined the Border Campaign, and the Watch Gate, once you have
+    taken the Captain's Chain;
+  - the Chapel, once you have entered the Collegium, the Collegium Gate after assisting
+    Magister Orin, and the Harrow Road after the expedition to Harrow;
+  - the Inn, from the second life of a world.
+
+  The day a place comes, the work that builds it comes with it. A place you have seen stays
+  on the page for your next lives.
+- **Works for the town.** On the Town page, under the places, a work raises a place by one
+  level. Clicking a place picks its work for you. They cost months and coin, and some cost a
+  stat or years of your life. This is time you do not spend on yourself.
 - **The town stays.** What you raise is kept when a life ends. The next life is born into that
   town: tasks that are shorter or pay more, classes that ask a little less, and a few things you
   start with (rations, a skill point, a friend at the Watch). The town never gives a class for
@@ -23,11 +33,29 @@ the `CHANGELOG.md` at the root of the repository.
   toward that place's next level.
 - **Hover a place** to see what it gives, what its next level asks compared with what you have,
   and who raised it.
+- **A notice on a tab.** When something new comes onto the page you are not looking at (a new
+  task, something new at the market, a new place), its tab shows a small red count until you
+  open it. Only what was never on the page counts: a task you can afford again is not news.
+- **The tiles that turn a life stand out.** The four classes and *Explore Bellmoor* have a gold
+  frame and their mark in the corner, locked or not.
+- **They say what they do.** Hover one of them: it tells you what it changes, with a word from
+  the town.
 
 ### Changed
 
 - **Buying is done in town.** *Buy rations* and *Buy reagents* are on the Town page, at the
   market. The Life page keeps a *Go to the Market* tile that opens it.
+- **Quieter tiles.** A locked tile no longer writes what it needs under its name (an age, a
+  stat, coin, room). Its tooltip still says all of it. A tile only says when it is about to
+  close.
+
+### Fixed
+
+- Parts of the Town page were sometimes drawn over the Life page, and the other way round, when
+  a tile changed on the page you were not looking at.
+- A task begun by a double click could not be clicked again until the mouse moved.
+- The tutorial could speak of the market in a new chronicle before the town was explored. It
+  now comes the first time you open the Town page, on *Buy rations*.
 
 ## 0.3 - 2026-10-09
 

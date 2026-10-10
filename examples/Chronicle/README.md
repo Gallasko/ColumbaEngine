@@ -31,18 +31,26 @@ to 30 at least) and what the classes are, and after its last sentence nothing of
 few lines of the town's story are written in the log on the way. The second life and every later
 one open as before: 7 years old, 12 rations, the whole list, no guide.
 
-**The town.** *Explore Bellmoor* (three months, once in a world) opens the **Town page**: it
-takes the place of the list of activities in the middle column, by the `Town` tab, and the two
-other columns stay. It shows the places of Bellmoor, each with three levels, and under them
+**The town.** *Explore Bellmoor* (three months, once in a world; its tile stands on a gold
+ground so that no life misses it) opens the **Town page**: it takes the place of the list of
+activities in the middle column, by the `Town` tab, and the two other columns stay. The tab is
+not on the page at all before that. When it comes, the guide shows it, then the market where his
+coin buys rations, then the places, once in a world and in whichever life explores. Whatever is
+new on the page that is not in view (a task, a thing sold, a place) is counted in a small round
+at its tab's corner until the page is opened. It shows the places of Bellmoor, each with three levels, and under them
 the market, where what is bought on the spot is bought (the Life page keeps a *Go to the Market*
-tile). A place is raised by a work of the Life page's last group, *The town*: months, coin, and
-for some a stat or years of his life. What is raised is the world's and outlives him: the next
+tile). A place is raised by a work that stands under the places, on the same page (a click on a
+place chooses its work, and Begin begins it): months, coin, and for some a stat or years of his
+life. What is raised is the world's and outlives him: the next
 life is born into that town, with what its places give (a shorter task, a class that asks one
 less, rations or a skill point at birth), never a class for free. At his death the coin he holds
-can be left to one place, and counts toward its next level. The page grows with the life:
-three places the day the town is known (the Market, the Mill, the Smithy), the Chapel and the
-Yard at 10, the Inn at 13, and the places of a class with the class (the Watch Gate for the Keep,
-the Collegium Gate and, at 18, the Harrow Road for the Collegium). A place that comes later is
+can be left to one place, and counts toward its next level. The page grows with what he does
+(`shows` in `towntable.pg`): two places the day the town is known (the Market, the Mill), the
+Smithy once he has worked a term at the forge, the Yard to a veteran of the Border Campaign and
+the Watch Gate to a captain, the Chapel the day he enters the Collegium, the Collegium Gate after
+Magister Orin and the Harrow Road after the expedition to Harrow, and the Inn from the second
+life of a world. The day a place comes its first work comes with it: that work is how it is
+built. A place that comes later is
 said in the log and by a toast, and a place a life has seen stays on the page of every later one.
 
 With no `--dev` the game opens on the **Life scene** (`--dev LifeScene` names it too).
@@ -525,8 +533,21 @@ come from `rules/*.pg` through the scene, never from the component.
   apart, sharing the width. Kinds `PlaceTile` and `PlaceGrid` (records `places`); gallery
   `--dev TownGallery` (`res/chronicle/ui/towngallery.yaml`).
 - **Tabs, a page not open yet**: `Tabs::setEnabled(ecs, index, false)` leaves a tab faint
-  (`tabs.tab.off`), out of the Tab order and deaf to clicks. The town's tab is so until a life
-  has explored the town.
+  (`tabs.tab.off`), out of the Tab order and deaf to clicks; `Tabs::setShown(ecs, index, false)`
+  draws nothing of it at all, and it keeps its room (for the last of a row: the town's tab, until
+  a life has explored the town). `Tabs::setNotice(ecs, index, count)` puts a small round with a
+  count (`tabs.notice.ground`, "9+" past nine) at the tab's top right corner, over the gap to the
+  next tab, so no face moves.
+- **A featured tile**: `ActivityRowSpec::featured` gives a compact row the ground
+  `activity.kind.featured` in the place of its kind's, while it can be chosen. The rules set it
+  with `featured: true` on an activity (Explore Bellmoor).
+- **A major tile**: `ActivityRowSpec::major` frames a tile with two gold rules
+  (`activity.major.frame`, `.locked`), shows its mark in its top right corner
+  (`activity.major.mark`, `.locked`; the name wraps short of it) and gives it the ground
+  `activity.kind.major`. It holds in every state. The rules set it with `major: true` on what
+  turns a life: the four ways into a class and Explore Bellmoor. Such an activity also carries
+  `about`, a sentence on what it does and a word of the town's, which its gloss says under its
+  name in the place of its group.
 ## Game rules (`rules/*.pg`)
 
 **Balance lives here.** Every number the Life screen shows about the future or the rules - what
@@ -748,16 +769,19 @@ left to it) and `seen.<place>` (1 once a life has had the place on its page). Wh
 
 - `towntable.pg` is the table: nine places, three levels each, a level being
   `{work, built, months, coin, costs, years?, gives, start?, lore}`. It is imported, never loaded.
-  A place may say when it comes onto the page: `shows: {fromAge: N}`, `{flag: "keep_oath"}` or
-  both; without it, it is there from the day the town is known. `lib.pg`'s `placeShown` weighs
+  A place may say what brings it onto the page: `shows: {flag: "veteran"}` (a flag he holds),
+  `{done: "smithy"}` (an activity he has done a term of), `{lives: 2}` (a life of the world),
+  `{fromAge: N}`, or several; without it, it is there from the day the town is known (the Market
+  and the Mill alone). `lib.pg`'s `placeShown` weighs
   it for the page (`town.pg`'s `shown`) and for the works (a place not on his page has none
   listed), and a place raised, left coin or seen by a life before is always shown.
 - `town.pg` (`Rules::town`) is what the Town page shows: each place's level, what it gives,
   and its next level flattened (`nextWork`, `nextCosts`, `nextCoin` less the fund, `nextGives`,
   `nextLocked`, `gaps`), plus `start` (what a new life is born with, every level reached),
   and the words the scene says (`opened`, `raisedLine`, `epitaphLine`, `fundLine`, `gift`).
-- `activitytable.pg` makes the 27 works from the same table (`raise.<place>.<level>`, group
-  *The town*): listed only to who knows the town and while the place is one level below.
+- `activitytable.pg` makes the 27 works from the same table (`raise.<place>.<level>`): listed
+  only to who knows the town and while the place is one level below. The scene puts them on
+  the Town page, under the places (the list `townWorks`), not in the choice.
   New optional fields of an activity: `place` (it stands on the Town page, at that place, once
   the town is known), `goto` (confirming it opens a page and does nothing else), `raises` and
   `level` (its term raises that place), `years` (years of his life taken at once when it
@@ -789,7 +813,10 @@ three, and the scene does what the kind says (`reachDeed`).
   again. `order` 1..n is its place: the script adds the ask
   `life.guide == order - 1`, so a step waits for the one before it to have ended, and refuses a
   gap in the orders. `order: 0` is a step outside the sequence (`guide.rations_low`), kept in the
-  save like a deed. Steps are neither toasted nor logged. Only a first life registers them, and
+  save like a deed. A step outside the sequence with `world: true` is said once in a world, in
+  whichever life meets it, and kept in `LifeSave::told` when it has been said; the fact
+  `said.<step id>` lets another step wait for it (the town's three: its tab, its market, its
+  places). Steps are neither toasted nor logged. Only a first life registers them, and
   only the ones past `LifeSave::guide`, so a reload resumes at the step it was on.
 - `kind: "lore"`: `entry` is written in the log as a `LogKind::Lore` line (the `gloss` style,
   `ink-muted`, a quill, the theme element `log.lore`) and nothing else happens. Every life reads
@@ -824,8 +851,10 @@ dot -Tsvg keep.dot -o keep.svg
 
 **The timeline** (no focus) is an SVG the tool writes itself, the years left to right:
 
-- **A bar** is a task, from the age it opens at (`fromAge`), as wide as the months it takes: two
-  bars that share a stretch of the axis cannot both be done in it. The line after a bar runs to
+- **A bar** is a task, from the month it can first be begun, as wide as the months it takes: two
+  bars that share a stretch of the axis cannot both be done in it. That month is its age
+  (`fromAge`), or the month the task that brings a flag it asks for is over, when that is later
+  (Buy Silence, after the robbery). The line after a bar runs to
   the age it must be over by (`finishBy`). What it asks, takes and brings is written on it.
 - **A frame** is a group, as wide as its tasks and as high on the page as the frames over its
   years allow: a childhood's groups stand beside a class's, not over them. The ways into a class
@@ -836,7 +865,15 @@ dot -Tsvg keep.dot -o keep.svg
 - **No arrow** for what is only a number to reach or to spend: the skills (a stat three tasks or
   more bring, `skillFrom`), what a life is born with, and whatever a task takes as a cost (coin,
   rations, reagents, favors).
-- **The town is not drawn yet**: a task a place changes says which (`town: The Mill`).
+- **The town** is a frame like the others, under the ways into a class. A place is a box that
+  begins where the task that brings it onto the Town page ends (its `shows`: a task done, or the
+  task that gives the flag it asks for; the task that makes the town known, for a place there
+  from the start), with a purple arrow from that task. Its three works are bars end to end,
+  each as wide as its months (and the years of his life it takes), over what each asks and gives.
+- **No arrow comes out of the town.** A task a level unlocks (it asks for the level, or the level
+  opens it to every class) has a purple chip before it, `The Market 3`, and stays at its own
+  age: what the town sells is on the page from the start. A task a level only makes better
+  says so on its bar (`town: The Mill 1`).
 
 **A focus** (the id of a task or the key of a stat: `keep`, `arms`, `town.mill`) writes a Graphviz
 file of the detail around it, with a node for every stat, and prints the tasks that feed it and
@@ -925,8 +962,10 @@ it in `lifescene.cpp` over the widgets as they are:
   parts, and "46 -> 52" ("6/60 -> 12/60") on the holdings it would add to (what it costs is said by its gloss, not
   on his purse). What is chosen says more than what the mouse is on.
 - What has a most he can hold shows it in its row (`holdingText`): "12/60", "64/60" past it.
-- A tile says under its name what matters most of it (`tileNote`): what it still asks when he
-  cannot do it ("NEEDS AGE 21"), or when it closes.
+- A tile says under its name when it closes, once that is near (`tileNote`), and nothing
+  else. What it asks (an age, a stat, a cost in coin, room for the rations it brings) is not
+  written on the tile: its ground says he cannot do it yet, and its gloss says why, under
+  IT TAKES and IT ASKS.
 - The rules say what is **running out** (`warning` from `resources.pg`, "RATIONS FOR 2 MONTHS"),
   written under his Vitality, and a part the coming month would take from is in red before it does.
 - A figure that rises lifts a **"+2"** beside it (`showGain`), the log's new line is **lit** for a
