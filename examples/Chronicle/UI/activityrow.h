@@ -46,6 +46,8 @@ namespace chronicle
         std::string until;             // "" or "CLOSES IN 14 MO" (caps): a line of its own under the middle, in every state
         bool urgent = false;           // The closing is near: the line in the loss's colour
         bool compact = false;          // The name, the time and the closing only: no rank, no `each`, no middle block (its gloss says the rest), on a ground that says its kind
+        bool featured = false;         // A compact row the page wants seen: a gold ground in the place of its kind's, while it can be chosen
+        bool major = false;            // A tile that turns his life (a class, the town): a doubled gold frame around it and its mark in its corner, in every state
         bool tile = false;             // A compact row stacked for a grid: the name over the time (two lines of name at most), no mark. A list with a tileWidth makes its rows tiles
         float minHeight = 0.0f;        // The row is at least that tall: a list keeps the tiles of one line level
         float percent = 0.0f;          // Running
@@ -97,6 +99,8 @@ namespace chronicle
         bool last = false;             // The last row of its list hides its rule
         bool compact = false;          // Its ground says its kind
         bool instant = false;          // Done at once (months 0): a transaction, not work
+        bool featured = false;         // The page wants it seen: its ground says so, in the place of its kind
+        bool major = false;            // It turns his life: framed, and its mark shown, whatever its state
         bool tile = false;             // One of several on a line: no rule under it
 
         pg::_unique_id list = 0;       // The list root, once a list adopts the row
@@ -105,6 +109,7 @@ namespace chronicle
         pg::_unique_id rule = 0;
         pg::_unique_id edge = 0;
         pg::_unique_id ring = 0;
+        pg::_unique_id frame = 0;      // A major tile's alone
         pg::_unique_id mark = 0;
         pg::_unique_id name = 0;
         pg::_unique_id cost = 0;
@@ -125,6 +130,7 @@ namespace chronicle
         pg::EntityRef rule;
         pg::EntityRef edge;
         pg::EntityRef ring;
+        pg::EntityRef frame;           // A major tile's alone
         Mark mark;
         Label name;
         std::optional<Label> rank;
@@ -277,6 +283,7 @@ namespace chronicle
         float now = 0.0f;              // Milliseconds of TickEvent received
         float lastReleaseAt = -1000.0f;
         pg::_unique_id lastReleased = 0;
+        int hoverStale = 0;            // Frames left in which the hover is asked for again: the rows of a list built again are placed over a few
     };
 
     // Guarded registration of the ActivityRow component (the factories and the list both need it).

@@ -86,8 +86,11 @@ namespace chronicle
         constexpr float TileLineGap = 2.0f;      // Between a tile's name and its time
         constexpr float TileGap = 8.0f;          // space-2 between two tiles, on a line and from line to line
         constexpr int TileNameLines = 2;         // A tile's name wraps to that many lines, then elides
+        constexpr float MajorMarkGap = 6.0f;     // Between a major tile's name and the mark in its corner
+        constexpr float MajorFrameGap = 2.0f;    // Between the two rules of a major tile's frame
         constexpr float MaxRequirementWidth = 300.0f;
         constexpr float DoubleReleaseMs = 400.0f;
+        constexpr int HoverFrames = 12;          // After a list's rows are built again: the frames in which the hover is worked out again
         constexpr float HeadingHeight = 24.0f;
         constexpr float HeadingAbove = 12.0f;    // space-3, none for the first group
         constexpr float HeadingBelow = 4.0f;     // space-1
@@ -253,7 +256,7 @@ namespace chronicle
                 if (st.state == ActivityState::Locked)
                     return "activity.kind.locked";
 
-                const std::string kind = st.instant ? "activity.kind.instant" : "activity.kind.timed";
+                const std::string kind = st.featured ? "activity.kind.featured" : st.major ? "activity.kind.major" : st.instant ? "activity.kind.instant" : "activity.kind.timed";
 
                 return st.hovered ? kind + ".hover" : kind;
             }
@@ -279,6 +282,10 @@ namespace chronicle
 
         std::string markElement(const ActivityRowState& st)
         {
+            // The mark in a major tile's corner is gold while the tile can be taken
+            if (st.major and st.state != ActivityState::Running)
+                return st.state == ActivityState::Locked ? "activity.major.mark.locked" : "activity.major.mark";
+
             switch (st.state)
             {
             case ActivityState::Running:
@@ -291,6 +298,19 @@ namespace chronicle
             default:
                 return "activity.mark";
             }
+        }
+
+        std::string frameElement(const ActivityRowState& st)
+        {
+            return st.state == ActivityState::Locked ? "activity.major.frame.locked" : "activity.major.frame";
+        }
+
+        // The room a tile's name has: the tile's, less the mark a major one shows in its corner
+        float tileNameWidth(const ActivityRowSpec& spec)
+        {
+            const float mark = spec.major ? px(MarkSize::S24) + MajorMarkGap : 0.0f;
+
+            return std::max(1.0f, spec.width - 2.0f * TilePad - mark);
         }
 
         // A tile's name is set in the control face, a row's in the display one
@@ -312,6 +332,7 @@ namespace chronicle
 
             setElement(entityOf(ecs, st.ground), groundElement(st));
             setElement(entityOf(ecs, st.edge), edgeElement(st));
+            setElement(entityOf(ecs, st.frame), frameElement(st));
             setElement(entityOf(ecs, st.mark), markElement(st));
             setElement(entityOf(ecs, st.name), nameElement(st));
             setElement(entityOf(ecs, st.cost), locked ? "activity.cost.locked" : "activity.cost");
@@ -334,6 +355,7 @@ namespace chronicle
 
             setElement(row.ground, groundElement(st));
             setElement(row.edge, edgeElement(st));
+            setElement(row.frame, frameElement(st));
             setElement(row.mark.entity, markElement(st));
             setElement(row.name.entity, nameElement(st));
             setElement(row.cost.entity, locked ? "activity.cost.locked" : "activity.cost");
@@ -523,6 +545,8 @@ namespace chronicle
         state->stripe = spec.stripe;
         state->compact = spec.compact;
         state->instant = spec.months <= 0;
+        state->featured = spec.featured;
+        state->major = spec.major and spec.tile;
         state->tile = spec.tile;
 
         ecs->attach<FocusableComponent>(root.entity);
@@ -597,8 +621,38 @@ namespace chronicle
         row.ring = ring.entity;
         state->ring = ring.entity.id;
 
+        // A major tile is framed like an illuminated leaf, two gold rules around it: what turns a
+        // life is not one more tile of the grid
+        if (spec.tile and spec.major)
+        {
+            auto frame = makeStrokeRect2DShape(ecs, 1.0f, 1.0f, {255.0f, 255.0f, 255.0f, 255.0f}, 1.0f, MajorFrameGap, true);
+            offstage(frame.entity);
+            frame.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
+            frame.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 1.0f});
+            ecs->attach<ThemeComponent>(frame.entity, "activity.major.frame");
+            prefab->addToPrefab(frame.entity);
+            row.frame = frame.entity;
+            state->frame = frame.entity.id;
+
+            // And it shows its mark, in its top right corner: the name wraps short of it
+            row.mark = makeMark(ecs, {spec.glyph, MarkSize::S24, "ink-muted", z + 3});
+            offstage(row.mark.entity);
+            {
+                auto anchor = row.mark.entity->get<UiAnchor>();
+
+                anchor->setRightAnchor(PosAnchor{rootId, AnchorType::Right});
+                anchor->setRightMargin(TilePad);
+                anchor->setTopAnchor(PosAnchor{rootId, AnchorType::Top});
+                anchor->setTopMargin(TilePad);
+                anchor->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 3.0f});
+            }
+            row.mark.entity->get<ThemeComponent>()->setElement("activity.major.mark");
+            prefab->addToPrefab(row.mark.entity);
+            state->mark = row.mark.entity.id;
+        }
+
         // Mark: S24 (the design system draws 22; the kit registers 18 and 24), centred in its column.
-        // A tile has none: its width is the name's
+        // A tile has none, but a major one: its width is the name's
         if (not spec.tile)
         {
             row.mark = makeMark(ecs, {spec.glyph, MarkSize::S24, "ink-muted", z + 3});
@@ -682,7 +736,7 @@ namespace chronicle
             ls.text = spec.name;
             ls.z = z + 4;
             ls.overflow = Overflow::Wrap;
-            ls.width = std::max(1.0f, W - 2.0f * TilePad);
+            ls.width = tileNameWidth(spec);
             ls.maxLines = TileNameLines;
 
             row.name = makeLabel(ecs, ls);
@@ -911,7 +965,7 @@ namespace chronicle
         // A tile's name has the tile's width, and wraps in it; its closing too
         if (spec.tile)
         {
-            name.setWidth(ecs, std::max(1.0f, spec.width - 2.0f * TilePad));
+            name.setWidth(ecs, tileNameWidth(spec));
 
             if (until)
                 until->setWidth(ecs, std::max(1.0f, spec.width - 2.0f * TilePad));
@@ -1522,6 +1576,11 @@ namespace chronicle
         list->rows = rowIds;
         list->headings = headingIds;
 
+        // Other rows than a frame ago, and the mouse may not have moved: the one now under it is
+        // hovered only by a move. Asked for again while they are being placed, a row begun by a
+        // double click takes the next click where the mouse stands
+        hoverStale = HoverFrames;
+
         bool selectionFound = list->selected.empty();
 
         // Stripes alternate across the whole list, not per group: the second, fourth... rows.
@@ -1569,6 +1628,13 @@ namespace chronicle
                 adopt(entity);
                 level(entity);
             }
+        }
+
+        if (hoverStale > 0)
+        {
+            --hoverStale;
+
+            ecsRef->sendEvent(RefreshHoverEvent{});
         }
     }
 

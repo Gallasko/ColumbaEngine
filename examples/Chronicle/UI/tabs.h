@@ -39,6 +39,7 @@ namespace chronicle
         std::string tag;                     // the row's tag, carried by TabSelectedEvent
         bool active = false, hovered = false, pressed = false, keyboardFocus = false;
         bool disabled = false;               // A page that is not open yet: faint, and neither clicked nor focused
+        bool hidden = false;                 // A page there is no word of yet: nothing of its tab is drawn
         pg::_unique_id underline = 0, ring = 0;
         std::vector<pg::_unique_id> inked;   // glyph, label text
     };
@@ -57,6 +58,10 @@ namespace chronicle
             pg::EntityRef badgeFrame;
             pg::EntityRef underline;
             pg::EntityRef ring;
+            pg::EntityRef noticeGround;        // The round of a notice, made with the first one: at the tab's top right corner
+            std::optional<Label> noticeText;   // Its count
+            int notice = 0;                    // What is new on its page since it was last open, 0 for nothing
+            bool shown = true;                 // Drawn at all: setShown
         };
 
         std::vector<Tab> tabs;
@@ -66,6 +71,8 @@ namespace chronicle
         void setActive(pg::EntitySystem*, int);                   // programmatic: repaints, sends no event
         void setEnabled(pg::EntitySystem*, int index, bool enabled);   // A tab that is not enabled is faint, takes no click and no focus
         bool enabled(int index) const;
+        void setShown(pg::EntitySystem*, int index, bool shown);        // A tab not shown is not drawn and keeps its room: for the last of a row. Shown, it is enabled as well
+        void setNotice(pg::EntitySystem*, int index, int count);        // A small round with a count at the tab's corner: something new on a page that is not the one in view. 0 takes it away. The faces keep their size
         void setBadge(pg::EntitySystem*, int index, int count);   // 0 removes; re-measures the face
         void setWidth(pg::EntitySystem*, float width);            // The row and its hairline; the faces keep their size
     };

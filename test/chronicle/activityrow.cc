@@ -373,6 +373,143 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A list built again under a mouse that does not move (the scene does it when a work is
+        // begun by a double click) has other rows: the one now under the mouse is hovered without a
+        // move, and takes the next click.
+        TEST(activityrow_test, rows_built_again_take_a_click_where_the_mouse_stands)
+        {
+            MockLogger logger;
+            ActivityFixture s;
+
+            ActivityListSpec spec;
+            spec.id = "choice";
+            spec.width = 464.0f;
+            spec.tileWidth = 148.0f;
+            spec.groups = {{"Work", {idleSpec("a", "Carry"), idleSpec("b", "Mill")}}};
+
+            ActivityList list = s.placeList(spec);
+            s.pump();
+            s.pump();
+
+            ActivityRow* a = list.row(&s.ecs, "a");
+            ASSERT_NE(a, nullptr);
+
+            const _unique_id before = a->root.id;
+            const float x = s.pos(a->root)->x + s.pos(a->root)->width / 2.0f;
+            const float y = s.pos(a->root)->y + s.pos(a->root)->height / 2.0f;
+
+            // Chosen and begun as the mouse does it: two clicks in the same place
+            s.hover(x, y);
+            s.press(x, y);
+            s.release(x, y);
+            s.press(x, y);
+            s.release(x, y);
+
+            EXPECT_EQ(list.selected(), "a");
+            ASSERT_EQ(s.recorder->activated.size(), 1u);
+
+            // The list is built again, and the mouse stays where it is
+            list.setRows(&s.ecs, spec.groups);
+
+            for (int i = 0; i < 6; ++i)
+                s.pump();
+
+            a = list.row(&s.ecs, "a");
+            ASSERT_NE(a, nullptr);
+            ASSERT_NE(a->root.id, before);
+            EXPECT_EQ(list.selected(), "");
+
+            // Hovered where it stands, with no move
+            EXPECT_TRUE(a->root->get<ActivityRowState>()->hovered);
+            EXPECT_FALSE(list.row(&s.ecs, "b")->root->get<ActivityRowState>()->hovered);
+
+            // And clicked: chosen, then begun
+            s.press(x, y);
+            s.release(x, y);
+
+            EXPECT_EQ(list.selected(), "a");
+
+            s.press(x, y);
+            s.release(x, y);
+
+            EXPECT_EQ(s.recorder->activated.size(), 2u);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A major tile is a tile apart: a gold frame around it, its mark in its top right corner and
+        // its name wrapped short of the mark. Locked, it keeps both, dimmed like the rest of it.
+        TEST(activityrow_test, a_major_tile_is_framed)
+        {
+            MockLogger logger;
+            ActivityFixture s;
+
+            ActivityRowSpec oath = idleSpec("oath", "Swear Service to the Keep");
+            oath.glyph = "seal";
+            oath.major = true;
+
+            ActivityRowSpec shut = lockedSpec("shut");
+            shut.major = true;
+
+            ActivityListSpec spec;
+            spec.id = "choice";
+            spec.width = 464.0f;
+            spec.tileWidth = 148.0f;
+            spec.groups = {{"A class", {oath, shut, idleSpec("plain", "Carry")}}};
+
+            ActivityList list = s.placeList(spec);
+            s.pump();
+            s.pump();
+
+            ActivityRow* major = list.row(&s.ecs, "oath");
+            ActivityRow* locked = list.row(&s.ecs, "shut");
+            ActivityRow* plain = list.row(&s.ecs, "plain");
+
+            ASSERT_NE(major, nullptr);
+            ASSERT_NE(locked, nullptr);
+            ASSERT_NE(plain, nullptr);
+
+            // The frame is the tile's whole box, on a ground of its own
+            ASSERT_FALSE(major->frame.empty());
+            EXPECT_NEAR(s.pos(major->frame)->x, s.pos(major->root)->x, 0.5f);
+            EXPECT_NEAR(s.pos(major->frame)->y, s.pos(major->root)->y, 0.5f);
+            EXPECT_NEAR(s.pos(major->frame)->width, s.pos(major->root)->width, 0.5f);
+            EXPECT_NEAR(s.pos(major->frame)->height, s.pos(major->root)->height, 0.5f);
+            EXPECT_EQ(s.element(major->frame), "activity.major.frame");
+            EXPECT_EQ(s.element(major->ground), "activity.kind.major");
+
+            // Its mark, 8 from its top and from its right edge, and the name ends before it
+            ASSERT_FALSE(major->mark.entity.empty());
+            EXPECT_EQ(major->mark.spec.name, "seal");
+            EXPECT_EQ(s.element(major->mark.entity), "activity.major.mark");
+            EXPECT_NEAR(s.pos(major->mark.entity)->y, s.pos(major->root)->y + 8.0f, 0.5f);
+            EXPECT_NEAR(s.pos(major->mark.entity)->x + s.pos(major->mark.entity)->width, s.pos(major->root)->x + s.pos(major->root)->width - 8.0f, 0.5f);
+            EXPECT_LE(s.pos(major->name.entity)->x + major->name.spec.width, s.pos(major->mark.entity)->x);
+            EXPECT_LT(major->name.spec.width, plain->name.spec.width);
+
+            // Locked: framed and marked all the same, on the ground of what he cannot do yet
+            ASSERT_FALSE(locked->frame.empty());
+            EXPECT_EQ(s.element(locked->frame), "activity.major.frame.locked");
+            EXPECT_EQ(s.element(locked->mark.entity), "activity.major.mark.locked");
+            EXPECT_EQ(s.element(locked->ground), "activity.kind.locked");
+
+            // Opened, it is painted as the other
+            locked->setState(&s.ecs, ActivityState::Idle);
+            s.pump();
+
+            EXPECT_EQ(s.element(locked->frame), "activity.major.frame");
+            EXPECT_EQ(s.element(locked->mark.entity), "activity.major.mark");
+
+            // A tile like any other has neither
+            EXPECT_TRUE(plain->frame.empty());
+            EXPECT_TRUE(plain->mark.entity.empty());
+            EXPECT_EQ(s.element(plain->ground), "activity.kind.timed");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A compact row is its name, its time and its closing: no rank, no `each`, no gains, no rule
         // and no list of what it asks, whatever its state. Its ground says what kind of thing it is:
         // work that takes months, a thing done at once, what he cannot do yet, the work he is at.

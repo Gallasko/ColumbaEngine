@@ -356,6 +356,112 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A tab that is not shown: nothing of it is drawn, it takes no click, and the others keep
+        // their place. Shown, it is a tab like the others.
+        TEST(tabs_test, a_tab_not_shown)
+        {
+            MockLogger logger;
+            TabsFixture s;
+            TabsSpec spec; spec.tag = "life"; spec.items = {{"Life", "quill", 0}, {"Town", "town", 0}};
+            Tabs t = s.place(spec);
+
+            const float lifeX = s.pos(t.tabs[0].face)->x;
+            const float townX = s.pos(t.tabs[1].face)->x;
+
+            t.setShown(&s.ecs, 1, false);
+            s.pump();
+
+            EXPECT_FALSE(t.tabs[1].shown);
+            EXPECT_TRUE(t.tabs[1].face->get<TabState>()->hidden);
+            EXPECT_FALSE(t.enabled(1));
+            EXPECT_FALSE(s.pos(t.tabs[1].face)->visible);
+            EXPECT_FALSE(s.pos(t.tabs[1].label.entity)->visible);
+            EXPECT_FALSE(s.pos(t.tabs[1].glyph->entity)->visible);
+            EXPECT_FALSE(s.pos(t.tabs[1].underline)->visible);
+            EXPECT_FLOAT_EQ(s.pos(t.tabs[0].face)->x, lifeX);
+            EXPECT_TRUE(s.pos(t.tabs[0].face)->visible);
+
+            // Selected all the same: nothing is sent
+            s.tabsSys->select(t.tabs[1].face);
+            EXPECT_EQ(s.recorder->events.size(), 0u);
+            EXPECT_TRUE(t.tabs[0].face->get<TabState>()->active);
+
+            t.setShown(&s.ecs, 1, true);
+            s.pump();
+
+            EXPECT_TRUE(t.tabs[1].shown);
+            EXPECT_TRUE(t.enabled(1));
+            EXPECT_TRUE(s.pos(t.tabs[1].face)->visible);
+            EXPECT_TRUE(s.pos(t.tabs[1].label.entity)->visible);
+            EXPECT_FLOAT_EQ(s.pos(t.tabs[1].face)->x, townX);
+
+            s.tabsSys->select(t.tabs[1].face);
+            ASSERT_EQ(s.recorder->events.size(), 1u);
+            EXPECT_EQ(s.recorder->events[0].index, 1);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A notice: a small round with a count at the tab's corner, which takes no room.
+        TEST(tabs_test, a_notice_at_the_corner)
+        {
+            MockLogger logger;
+            TabsFixture s;
+            TabsSpec spec; spec.tag = "life"; spec.items = {{"Life", "quill", 0}, {"Town", "town", 0}};
+            Tabs t = s.place(spec);
+
+            const float faceW = s.pos(t.tabs[1].face)->width;
+            const float townX = s.pos(t.tabs[1].face)->x;
+
+            EXPECT_TRUE(t.tabs[1].noticeGround.empty());
+            EXPECT_EQ(t.tabs[1].notice, 0);
+
+            t.setNotice(&s.ecs, 1, 3);
+            s.pump();
+
+            ASSERT_FALSE(t.tabs[1].noticeGround.empty());
+            ASSERT_TRUE(t.tabs[1].noticeText.has_value());
+            EXPECT_EQ(t.tabs[1].notice, 3);
+            EXPECT_EQ(t.tabs[1].noticeText->spec.text, "3");
+            EXPECT_TRUE(s.pos(t.tabs[1].noticeGround)->visible);
+            EXPECT_EQ(s.token(t.tabs[1].noticeGround), "vermilion");
+
+            // Past the face's right edge, over the label's shoulder; the face keeps its size and place
+            EXPECT_NEAR(s.pos(t.tabs[1].noticeGround)->x, townX + faceW + 2.0f, 0.5f);
+            EXPECT_NEAR(s.pos(t.tabs[1].noticeGround)->y, s.pos(t.tabs[1].face)->y + 4.0f, 0.5f);
+            EXPECT_FLOAT_EQ(s.pos(t.tabs[1].noticeGround)->width, 16.0f);
+            EXPECT_FLOAT_EQ(s.pos(t.tabs[1].face)->width, faceW);
+            EXPECT_FLOAT_EQ(s.pos(t.tabs[1].face)->x, townX);
+            EXPECT_GT(s.pos(t.tabs[1].noticeGround)->z, s.pos(t.tabs[1].face)->z);
+            EXPECT_GT(s.pos(t.tabs[1].noticeText->entity)->z, s.pos(t.tabs[1].noticeGround)->z);
+
+            // More than nine is "9+"; none takes it away
+            t.setNotice(&s.ecs, 1, 14);
+            EXPECT_EQ(t.tabs[1].noticeText->spec.text, "9+");
+
+            t.setNotice(&s.ecs, 1, 0);
+            s.pump();
+
+            EXPECT_EQ(t.tabs[1].notice, 0);
+            EXPECT_FALSE(s.pos(t.tabs[1].noticeGround)->visible);
+            EXPECT_FALSE(s.pos(t.tabs[1].noticeText->entity)->visible);
+
+            // A tab that is not shown shows no notice either, and has it when it comes
+            t.setShown(&s.ecs, 1, false);
+            t.setNotice(&s.ecs, 1, 2);
+            s.pump();
+            EXPECT_FALSE(s.pos(t.tabs[1].noticeGround)->visible);
+
+            t.setShown(&s.ecs, 1, true);
+            s.pump();
+            EXPECT_TRUE(s.pos(t.tabs[1].noticeGround)->visible);
+            EXPECT_EQ(t.tabs[1].noticeText->spec.text, "2");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(tabs_test, z_bands)
         {
             MockLogger logger;

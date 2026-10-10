@@ -45,6 +45,12 @@ namespace chronicle
         std::string tabElement(bool lit) { return lit ? "tabs.tab.lit" : "tabs.tab"; }
 
         constexpr const char * const TabOff = "tabs.tab.off";
+
+        constexpr float NoticeSide = 16.0f;     // The notice's round
+        constexpr float NoticeGap = 2.0f;       // From the face's right edge: it stands over the gap to the next tab
+        constexpr float NoticeTop = 4.0f;       // From the face's top: over the label's shoulder
+        constexpr int NoticeMost = 9;           // Past it, "9+"
+        constexpr const char * const NoticeGround = "tabs.notice.ground";
     }
 
     Tabs makeTabs(EntitySystem* ecs, const TabsSpec& spec)
@@ -242,6 +248,84 @@ namespace chronicle
             sys->applyVisual(tabs[index].face);
     }
 
+    void Tabs::setShown(EntitySystem* ecs, int index, bool shown)
+    {
+        if (index < 0 or index >= static_cast<int>(tabs.size()))
+            return;
+
+        Tab& tab = tabs[index];
+
+        tab.shown = shown;
+        tab.face->get<TabState>()->hidden = not shown;
+
+        auto show = [](EntityRef entity, bool visible) {
+            if (not entity.empty())
+                entity->get<PositionComponent>()->setVisible(visible);
+        };
+
+        show(tab.face, shown);
+        show(tab.label.entity, shown);
+        show(tab.badgeFrame, shown);
+        show(tab.noticeGround, shown and tab.notice > 0);
+
+        if (tab.glyph)
+            show(tab.glyph->entity, shown);
+
+        if (tab.badge)
+            show(tab.badge->entity, shown);
+
+        if (tab.noticeText)
+            show(tab.noticeText->entity, shown and tab.notice > 0);
+
+        // Not drawn, it takes no click and no focus; drawn, it is a tab like the others. Its
+        // underline and its ring follow (applyVisual)
+        setEnabled(ecs, index, shown);
+    }
+
+    void Tabs::setNotice(EntitySystem* ecs, int index, int count)
+    {
+        if (index < 0 or index >= static_cast<int>(tabs.size()))
+            return;
+
+        Tab& tab = tabs[index];
+
+        tab.notice = std::max(0, count);
+
+        // Made with the first notice: a round at the face's top right corner, over the gap to the
+        // next tab. It takes no room, so no face moves
+        if (tab.notice > 0 and tab.noticeGround.empty())
+        {
+            auto ground = makeRoundedRect2DShape(ecs, NoticeSide / 2.0f, NoticeSide, NoticeSide);
+            auto ga = ground.get<UiAnchor>();
+            ga->setLeftAnchor(PosAnchor{tab.face.id, AnchorType::Right}); ga->setLeftMargin(NoticeGap);
+            ga->setTopAnchor(PosAnchor{tab.face.id, AnchorType::Top}); ga->setTopMargin(NoticeTop);
+            ga->setZConstrain(PosConstrain{tab.face.id, AnchorType::Z, PosOpType::Add, 4.0f});
+            ecs->attach<ThemeComponent>(ground.entity, NoticeGround);
+            root->get<Prefab>()->addToPrefab(ground.entity);
+            tab.noticeGround = ground.entity;
+
+            LabelSpec ns; ns.style = "caption"; ns.text = "1"; ns.color = "on-vermilion"; ns.z = spec.z + 5;
+            Label text = makeLabel(ecs, ns);
+            auto na = text.entity->get<UiAnchor>();
+            na->setHorizontalCenter(PosAnchor{ground.entity.id, AnchorType::HorizontalCenter});
+            na->setVerticalCenter(PosAnchor{ground.entity.id, AnchorType::VerticalCenter});
+            na->setZConstrain(PosConstrain{tab.face.id, AnchorType::Z, PosOpType::Add, 5.0f});
+            root->get<Prefab>()->addToPrefab(text.entity);
+            tab.noticeText = text;
+        }
+
+        if (tab.noticeGround.empty())
+            return;
+
+        const bool visible = tab.notice > 0 and tab.shown;
+
+        if (tab.notice > 0)
+            tab.noticeText->setText(ecs, tab.notice > NoticeMost ? std::to_string(NoticeMost) + "+" : std::to_string(tab.notice));
+
+        tab.noticeGround->get<PositionComponent>()->setVisible(visible);
+        tab.noticeText->entity->get<PositionComponent>()->setVisible(visible);
+    }
+
     bool Tabs::enabled(int index) const
     {
         if (index < 0 or index >= static_cast<int>(tabs.size()))
@@ -315,9 +399,9 @@ namespace chronicle
         const bool lit = (st->hovered or st->active) and not st->disabled;
 
         if (auto u = ecsRef->getEntity(st->underline))
-            u->get<PositionComponent>()->setVisible(st->active);
+            u->get<PositionComponent>()->setVisible(st->active and not st->hidden);
         if (auto r = ecsRef->getEntity(st->ring))
-            r->get<PositionComponent>()->setVisible(st->keyboardFocus);
+            r->get<PositionComponent>()->setVisible(st->keyboardFocus and not st->hidden);
         for (auto id : st->inked)
             if (auto e = ecsRef->getEntity(id))
                 e->get<ThemeComponent>()->setElement(st->disabled ? std::string(TabOff) : tabElement(lit));
