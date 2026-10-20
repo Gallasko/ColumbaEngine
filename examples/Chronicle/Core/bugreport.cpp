@@ -56,6 +56,14 @@ namespace chronicle
         return message.substr(0, end);
     }
 
+    std::string reportMessage(const std::string& words)
+    {
+        if (words.find_first_not_of(" \t\r\n") == std::string::npos)
+            return "(no words)";
+
+        return clipMessage(words);
+    }
+
     std::string gameVersion()
     {
         return CHRONICLE_VERSION;

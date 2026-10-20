@@ -917,7 +917,8 @@ namespace chronicle
             runPassing(e.tick);
             runToasts(e.tick);
 
-            // A fight handed to his stance plays on, months or no months
+            // A fight handed to his stance plays on, months or no months (not under the report:
+            // runWalk holds it there)
             runWalk(e.tick);
 
             // The red of a loss fades whether the months run or not
@@ -927,6 +928,15 @@ namespace chronicle
 
                 if (alertLeft <= 0.0f)
                     clearAlert();
+            }
+
+            // Under the bug report the game waits: no month, no written time, no turn of a fight,
+            // so the save that goes is the life in the picture. He is at the game, writing; the
+            // months take up again when it shuts, with nothing owed for the time it stood open
+            if (reportAsked or reportOpen)
+            {
+                stirred();
+                return;
             }
 
             // Months that stand still with nobody at the game write time, as a game shut does

@@ -481,7 +481,7 @@ namespace chronicle
             report.sessionId = analytics->sessionId;
 
         report.version = gameVersion();
-        report.message = clipMessage(message);
+        report.message = reportMessage(message);
         report.screen = reportScreen;
 
         // The save as it was last written: the report never writes it, so it cannot take a step half made.

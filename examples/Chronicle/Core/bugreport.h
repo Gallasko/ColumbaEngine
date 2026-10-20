@@ -29,6 +29,10 @@ namespace chronicle
     // The message cut to MaxMessage bytes at most, never inside a UTF-8 character
     std::string clipMessage(const std::string& message);
 
+    // The message a report carries: his words clipped, or "(no words)" when he wrote nothing but
+    // spaces (the worker refuses an empty message; the picture, the save and the logs still tell)
+    std::string reportMessage(const std::string& words);
+
     // The game's version (CHRONICLE_VERSION, "dev" when the build did not give one)
     std::string gameVersion();
 

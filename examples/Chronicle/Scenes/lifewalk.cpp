@@ -3193,6 +3193,10 @@ namespace chronicle
             }
         }
 
+        // Under the bug report the fight waits, the turn being told as the one his stance would play
+        if (reportAsked or reportOpen)
+            return;
+
         // A turn being told goes on; nothing else of the fight moves until it is
         if (walkTelling)
         {

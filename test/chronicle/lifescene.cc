@@ -13989,6 +13989,152 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // The game waits under the report: no month passes while he writes, so the save sent is the
+        // life in the picture, and the months take up again once it is shut, with nothing owed
+        TEST(lifescene_test, the_months_wait_under_the_report)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+            life->save.stats["rations"] = 24;
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
+            f.settle();
+            ASSERT_EQ(life->save.running, "yard");
+            ASSERT_FALSE(life->paused);
+
+            const float age = life->save.age;
+            const int monthsIn = life->save.monthsIn;
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            ASSERT_TRUE(life->reportOpen);
+
+            // As the web's would be: the scene's own flag, nothing in the slot
+            life->closeDialog();
+            life->reportOpen = true;
+
+            f.pass(life->monthMs() * 3.5f);
+
+            EXPECT_FLOAT_EQ(life->save.age, age);
+            EXPECT_EQ(life->save.monthsIn, monthsIn);
+            EXPECT_EQ(life->save.running, "yard");
+
+            // Shut: a month's time is a month, not the three held back
+            life->closeReport();
+            f.pass(life->monthMs());
+
+            EXPECT_EQ(life->save.monthsIn, monthsIn + 1);
+            EXPECT_GT(life->save.age, age);
+
+            f.load<EmptyScene>();
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A fight handed to his stance waits under the report too: no turn plays while he writes
+        TEST(lifescene_test, a_fight_on_his_stance_waits_under_the_report)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+            opt.lives = 2;
+            opt.age = 7.0f;
+            opt.walkSeed = 11;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            life->save.age = 10.0f;
+            life->save.stats["walked.hedgerows"] = 1;
+            life->save.knowledge["found.millpond"] = 1;
+            life->save.stats["remedy"] = 1;
+            life->onMonth();
+            f.settle();
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "walk.millpond"});
+            f.frames(12);
+            ASSERT_TRUE(life->onWalk());
+
+            f.ecs.sendEvent(ActivitySelectedEvent{"walk.seeks", "rat"});
+            f.settle();
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "walk.seek"});
+            f.frames(12);
+            answerEvents(f, life);
+            f.frames(12);
+            ASSERT_EQ(life->walkScreen, "fight");
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "walk.hand"});
+            f.settle();
+            ASSERT_EQ(walkPart(life, "hand")->get<Button>()->label.spec.text, "Take back");
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            ASSERT_TRUE(life->reportOpen);
+
+            life->closeDialog();
+            life->reportOpen = true;
+
+            const std::string turn = walkPart(life, "turn")->get<Label>()->spec.text;
+            const size_t steps = life->save.walk.record.size();
+
+            f.pass(5000.0f, 700.0f);
+
+            EXPECT_EQ(walkPart(life, "turn")->get<Label>()->spec.text, turn);
+            EXPECT_EQ(life->save.walk.record.size(), steps);
+            EXPECT_TRUE(life->walk.duel.at("over").toString().empty());
+
+            // Shut, his stance plays on
+            life->closeReport();
+            f.pass(5000.0f, 700.0f);
+
+            EXPECT_TRUE(walkPart(life, "turn")->get<Label>()->spec.text != turn or not life->walk.duel.at("over").toString().empty());
+
+            f.load<EmptyScene>();
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A Send with nothing written still goes: the picture, the save and the messages say enough,
+        // and the words say so rather than be refused for being none
+        TEST(lifescene_test, an_empty_report_goes_with_no_words)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const auto folder = optionsScratch();
+            LifeSceneOptions opt = reportOptions(folder);
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            ASSERT_TRUE(life->reportOpen);
+
+            life->sendFromReport("  \n ");
+            f.frames(6);
+            ASSERT_FALSE(life->reportOpen);
+
+            std::filesystem::path report;
+            for (const auto& entry : std::filesystem::directory_iterator(folder / "reports"))
+                report = entry.path();
+            ASSERT_FALSE(report.empty());
+
+            EXPECT_EQ(fileText((report / "message.txt").string()), "(no words)");
+
+            f.load<EmptyScene>();
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A life never written says so in its report, rather than send no save
         TEST(lifescene_test, a_report_of_a_life_never_written_says_so)
         {

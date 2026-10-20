@@ -86,6 +86,24 @@ namespace pg
             EXPECT_EQ(clipMessage("short"), "short");
         }
 
+        // A box left empty still sends: the worker refuses an empty message, so the words say none
+        TEST(bugreport_test, an_empty_box_sends_no_words)
+        {
+            EXPECT_EQ(reportMessage(""), "(no words)");
+            EXPECT_EQ(reportMessage("  \n\t "), "(no words)");
+            EXPECT_EQ(reportMessage(" it froze "), " it froze ");
+
+            std::string longer;
+            for (int i = 0; i < 2005; ++i)
+                longer += "\xC3\xA9";
+            EXPECT_EQ(reportMessage(longer), clipMessage(longer));
+
+            BugReport report;
+            report.message = reportMessage("");
+
+            EXPECT_NE(bugReportJson(report).find("\"message\":\"(no words)\""), std::string::npos);
+        }
+
         TEST(bugreport_test, a_body_over_two_megabytes_is_refused)
         {
             EXPECT_TRUE(fits(std::string(MaxBody, 'a')));
