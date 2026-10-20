@@ -1097,8 +1097,10 @@ namespace pg
 
         std::ostringstream stream;
 
-        // First line of the serialized file should be the version id of the serializer
-        stream << version << std::endl;
+        // First line of the serialized file should be the version id of the serializer. Always this
+        // build's: the objects are written in its format, whatever header the file read before had
+        // (a file of another kind read with setFile would otherwise lend its first line to the save)
+        stream << ARCHIVEVERSION << std::endl;
 
         for (const auto& serializedString : serializedMap)
             stream << serializedString.first << ": " << serializedString.second;

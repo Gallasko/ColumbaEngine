@@ -215,6 +215,12 @@ namespace pg
             EXPECT_FALSE(read.beginOnFirstClick);
             EXPECT_EQ(read.theme, "day");
 
+            // Written over a file of another kind, the save reads back: its first line is no header
+            writeAll(path, "<html>not this</html>");
+            ASSERT_TRUE(back.save(path, &chosen));
+            EXPECT_EQ(LifeSave::open(path, opened), LifeSave::Opened::Ok);
+            writeAll(path, "<html>not this</html>");
+
             // A theme the game has not: the day's
             Settings neon;
             neon.theme = "neon";

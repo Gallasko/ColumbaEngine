@@ -1774,7 +1774,10 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/examples/Chronicle/rules ${CMAKE_CURRENT_BINARY_DIR}/rules
             COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/testdeps/rules ${CMAKE_CURRENT_BINARY_DIR}/rules
             COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/res/chronicle/ui ${CMAKE_CURRENT_BINARY_DIR}/res/chronicle/ui
-            COMMENT "Copying the Chronicle rule scripts and pages beside test_chronicle")
+            # The game's own tokens, not a copy kept beside the tests (one fell behind the Options tab)
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/chronicle
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/res/chronicle/tokens.json ${CMAKE_CURRENT_BINARY_DIR}/chronicle/tokens.json
+            COMMENT "Copying the Chronicle rule scripts, pages and tokens beside test_chronicle")
         add_dependencies(test_chronicle chronicle_test_rules)
         gtest_discover_tests(test_chronicle
             WORKING_DIRECTORY $<TARGET_FILE_DIR:test_chronicle>
