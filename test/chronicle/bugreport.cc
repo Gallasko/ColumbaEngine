@@ -5,6 +5,9 @@
 #include <filesystem>
 
 #include "Core/bugreport.h"
+#include "Core/logring.h"
+
+#include <thread>
 
 #include "mocklogger.h"
 
@@ -142,6 +145,61 @@ namespace pg
             EXPECT_EQ(waitLine(30), "You may send another in 1 minute");
             EXPECT_EQ(waitLine(60), "You may send another in 1 minute");
             EXPECT_EQ(waitLine(61), "You may send another in 2 minutes");
+        }
+
+        TEST(bugreport_test, the_ring_keeps_the_last_three_hundred)
+        {
+            auto sink = Logger::registerSink<LogRing>();
+
+            for (int i = 1; i <= 310; ++i)
+                LOG_ERROR("Ring", "line " << i);
+
+            const auto text = LogRing::instance()->text();
+            EXPECT_EQ(text, recentLogs());
+
+            std::vector<std::string> lines;
+            size_t at = 0;
+            while (at < text.size())
+            {
+                auto e = text.find('\n', at);
+                lines.push_back(text.substr(at, e - at));
+                at = e + 1;
+            }
+
+            ASSERT_EQ(lines.size(), 300u);
+            EXPECT_EQ(lines.front(), "[ERROR] Ring: line 11");
+            EXPECT_EQ(lines.back(), "[ERROR] Ring: line 310");
+
+            Logger::removeSink(sink);
+        }
+
+        TEST(bugreport_test, the_ring_is_safe_across_threads)
+        {
+            auto sink = Logger::registerSink<LogRing>();
+
+            auto work = [](int who) { for (int i = 0; i < 200; ++i) LOG_ERROR("Ring", "t" << who << " " << i); };
+            std::thread a(work, 1), b(work, 2);
+            a.join();
+            b.join();
+
+            const auto text = LogRing::instance()->text();
+            EXPECT_EQ(std::count(text.begin(), text.end(), '\n'), 300);
+
+            Logger::removeSink(sink);
+        }
+
+        TEST(bugreport_test, the_ring_coexists_with_the_mock_logger)
+        {
+            auto sink = Logger::registerSink<LogRing>();
+            MockLogger<> mock;
+
+            LOG_ERROR("Ring", "one");
+            LOG_ERROR("Ring", "two");
+
+            EXPECT_EQ(mock.getNbError(), 2u);
+            EXPECT_NE(LogRing::instance()->text().find("[ERROR] Ring: two"), std::string::npos);
+
+            Logger::removeSink(sink);
         }
     }
 }

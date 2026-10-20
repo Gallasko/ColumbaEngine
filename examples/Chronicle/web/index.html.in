@@ -47,6 +47,39 @@
   </div>
 
   <script>
+    // The last 300 lines the page and the module print, kept for a bug report. Installed before the
+    // module starts; the Release build's engine logs compile to nothing, so the console is what is left.
+    window.chronicleConsole = [];
+    (function () {
+      var LIMIT = 300;
+
+      function keep(kind, args) {
+        var text = Array.prototype.map.call(args, function (a) {
+          if (typeof a === 'string') return a;
+          try { return JSON.stringify(a); } catch (e) { return String(a); }
+        }).join(' ');
+
+        window.chronicleConsole.push('[' + kind + '] ' + text);
+        if (window.chronicleConsole.length > LIMIT)
+          window.chronicleConsole.splice(0, window.chronicleConsole.length - LIMIT);
+      }
+
+      window.chronicleRaw = { log: console.log, warn: console.warn };   // Unwrapped, so a print is kept once
+
+      ['log', 'info', 'warn', 'error'].forEach(function (kind) {
+        var original = console[kind];
+
+        console[kind] = function () {
+          keep(kind, arguments);
+          return original.apply(console, arguments);
+        };
+      });
+
+      window.chronicleKeep = keep;
+    })();
+  </script>
+
+  <script>
     // Written when the page is packed (make ChronicleWeb). A build with threads only starts on a
     // cross-origin isolated page; a build without them (-DWEB_THREADS=OFF) starts anywhere.
     var NEEDS_THREADS = @CHRONICLE_WEB_NEEDS_THREADS@;
@@ -68,6 +101,11 @@
 
     var Module = {
       canvas: canvas,
+
+      // The module's stdout and stderr, kept in the ring and still sent to the console
+      print: function () { window.chronicleKeep('print', arguments); window.chronicleRaw.log.apply(console, arguments); },
+      printErr: function () { window.chronicleKeep('printErr', arguments); window.chronicleRaw.warn.apply(console, arguments); },
+
       mainScriptUrlOrBlob: GLUE,
 
       // The .wasm and the .data, beside the script

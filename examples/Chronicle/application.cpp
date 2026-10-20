@@ -34,6 +34,7 @@
 #include "Core/factrouter.h"
 #include "Core/settle.h"
 #include "Core/analytics.h"
+#include "Core/logring.h"
 #include "Core/settings.h"
 
 using namespace pg;
@@ -91,6 +92,12 @@ namespace chronicle
             ecs.createSystem<TweenSystem>();
             ecs.createSystem<WorldFacts>();
             ecs.createSystem<FactRouter>();   // Paths to the widgets that follow them
+
+            // The last messages the engine logged, for a bug report (the browser build reads its console instead)
+#ifndef __EMSCRIPTEN__
+            if (LogRing::instance() == nullptr)
+                Logger::registerSink<LogRing>();
+#endif
 
             // How long a session lasts and where the life stood when it stopped (a browser build only)
             ecs.createSystem<Analytics>();
