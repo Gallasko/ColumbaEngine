@@ -20,5 +20,18 @@ Tests: `cd examples/GameDevJs2026/analytics-worker && node --test` (Node 18+, no
 5. `wrangler secret put BUG_SALT` (any long random string; it salts the connection hash)
 6. `wrangler deploy`
 7. Check: `curl -X POST <worker-url>/bug -d '{"query":"select 1"}'` answers 400.
+8. Check that the old route cannot read the reports. `POST /` runs any SQL as `NEON_CONN`, so
+   the reports (with every save) are safe only if `NEON_CONN` is the restricted
+   `analytics_writer` login of `/analytics-server/schema.sql`, never the main role:
+
+   ```
+   curl -s -X POST <worker-url>/ -H 'Content-Type: application/json' \
+     -d '{"query":"SELECT count(*) FROM bug_reports","params":[]}'
+   ```
+
+   It must answer an error, `permission denied for table bug_reports`. If it answers a count,
+   `NEON_CONN` is a login that can read the reports: put the `analytics_writer` connection
+   string in it (`wrangler secret put NEON_CONN`), `wrangler deploy`, and run this check again
+   before the game is published.
 
 Until then the game's Send answers with the failure line.
