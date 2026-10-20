@@ -666,8 +666,20 @@ namespace pg
                 EXPECT_NEAR(box(name).right, 378.0f, 0.5f) << name;
             }
 
+            // The title ends before his age as it is drawn (right-aligned in its box), and takes
+            // the room up to it: not cut while the whole of it fits there
+            const float ageDrawn = life->named("age")->get<TTFText>()->textWidth;
+            ASSERT_GT(ageDrawn, 0.0f);
             EXPECT_NEAR(box("age").right, 378.0f, 0.5f);
-            EXPECT_LE(box("title").right, box("age").left + 0.5f);
+            EXPECT_LE(box("title").right, box("age").right - ageDrawn + 0.5f);
+            EXPECT_GT(box("title").right, box("age").left + 0.5f);
+
+            // The note on his age is a line of its own: it does not begin with the "years" that
+            // goes on from the figure beside it on a wider page
+            const std::string ageNote = life->piece<Label>("ageNote")->spec.text;
+            EXPECT_NE(ageNote.rfind("years", 0), 0u) << ageNote;
+            EXPECT_NE(ageNote.find(" mo to the "), std::string::npos) << ageNote;
+
             EXPECT_GE(box("tabs").top, box("working").bottom);
             EXPECT_GE(box("may").top, box("tabs").bottom - 0.5f);
             EXPECT_LE(box("may").bottom, 844.0f);
@@ -10240,6 +10252,44 @@ namespace pg
 
                 EXPECT_GE(pos->x, menuBox->x - 0.5f) << tag;
                 EXPECT_LE(pos->x + pos->width, 420.0f + 0.5f) << tag;
+            }
+
+            // The timeline's gauge and tags scroll with the column and are clipped to it as the rest
+            // of its panel is (on the page, they were drawn over its head once scrolled up to it),
+            // and they are as wide as the panel leaves them
+            EntityRef orderPart = walkPart(life, "orderPanel");
+            ASSERT_FALSE(orderPart.empty());
+            ASSERT_TRUE(orderPart->has<Panel>());
+            auto order = orderPart->get<Panel>();
+            EntityRef orderRoot = order->root;
+            ASSERT_TRUE(orderRoot->has<ClippedTo>());
+
+            const auto pieces = life->timelinePieces();
+            ASSERT_FALSE(pieces.empty());
+
+            for (EntityRef piece : pieces)
+            {
+                ASSERT_FALSE(piece.empty());
+                ASSERT_TRUE(f.ecs.getEntity(piece.id)->has<ClippedTo>()) << piece.id;
+                EXPECT_EQ(f.ecs.getEntity(piece.id)->get<ClippedTo>()->clipperId, orderRoot->get<ClippedTo>()->clipperId) << piece.id;
+            }
+
+            EXPECT_NEAR(f.pos(walkPart(life, "timeline"))->width, order->innerWidth(), 0.5f);
+            EXPECT_LE(f.pos(pieces.front())->x + f.pos(pieces.front())->width, f.pos(orderRoot)->x + f.pos(orderRoot)->width - 0.5f);
+
+            // The head's kicker and title end before the turn's figure as it is drawn, and take
+            // the room up to it (once the screen has settled)
+            f.pass(300.0f, 50.0f);
+
+            auto turn = walkPart(life, "turn");
+            const float turnLeft = f.pos(turn)->x + f.pos(turn)->width - turn->get<TTFText>()->textWidth;
+
+            for (const char* name : {"kicker", "fightTitle"})
+            {
+                auto head = f.pos(walkPart(life, name));
+
+                EXPECT_LE(head->x + head->width, turnLeft - 15.5f) << name;
+                EXPECT_GT(head->x + head->width, turnLeft - 30.0f) << name;
             }
         }
 

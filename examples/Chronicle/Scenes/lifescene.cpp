@@ -253,6 +253,19 @@ namespace chronicle
         constexpr float PhoneTabs = 48.0f;         // The row of tabs, and the gap under it
         constexpr int PageSettle = 4;              // Passes before a page just built holds its pieces in its layouts
         constexpr float PhoneAge = 96.0f;          // The age, at the title's right
+        constexpr float PhoneHeadGap = 12.0f;      // Between the title and his age as it is drawn
+
+        // The note on his age as a phone's head says it, on a line of its own: what goes on from
+        // the figure ("years · ") is left out, "42 mo to the twenty-first"
+        std::string phoneAgeNote(const std::string& note)
+        {
+            const std::string from = "years \xC2\xB7 ";
+
+            if (note.rfind(from, 0) == 0)
+                return note.substr(from.size());
+
+            return note == "years" ? std::string() : note;
+        }
 
         struct PhoneTab
         {
@@ -1902,6 +1915,25 @@ namespace chronicle
         showSide(sideTab);
     }
 
+    void LifeScene::fitPhoneHead()
+    {
+        // His age stands at the title's right: the title ends a gap before it as it is drawn, not
+        // before the widest it could be ("The Chronicle of Aldren of Bellm…" beside a 17.5 of
+        // half that room)
+        auto title = piece<Label>("title");
+        auto age = piece<Label>("age");
+
+        if (not title or not age or age->entity.empty() or not age->entity->has<TTFText>())
+            return;
+
+        const float column = std::max(MinCompactList, windowWidth - 2.0f * PhoneMargin);
+        const float drawn = age->entity->get<TTFText>()->textWidth;
+        const float to = std::max(1.0f, column - (drawn > 0.0f ? drawn + PhoneHeadGap : PhoneAge));
+
+        if (std::abs(title->spec.width - to) > 0.5f)
+            title->setWidth(ecsRef, to);
+    }
+
     void LifeScene::fitPhone(float width, float height)
     {
         EntitySystem* ecs = ecsRef;
@@ -2062,6 +2094,8 @@ namespace chronicle
                 fit(windowWidth, windowHeight);
         }
 
+        if (phone and pageSettling <= 0)
+            fitPhoneHead();
 
         // A page just built stacked its buttons before its layouts held them: the one that is not
         // shown still had its room. Shown again now that they do
@@ -2902,9 +2936,11 @@ namespace chronicle
                 label->setText(ecs, v.toString());
         }));
 
+        // (beside his age the note goes on from it, "years · 6 mo to the eighteenth"; on a phone
+        // it is a line of its own under the year, and says the months alone)
         subs.push_back(router->on("life.headline.ageNote", [this, ecs](const ElementType& v) {
             if (auto label = piece<Label>("ageNote"))
-                label->setText(ecs, v.toString());
+                label->setText(ecs, phone ? phoneAgeNote(v.toString()) : v.toString());
         }));
 
         // The world's date, at the top right of the page: its year, then the month and its season

@@ -138,6 +138,7 @@ namespace chronicle
         constexpr float NarrowFightTop = 92.0f;
         constexpr float NarrowFigure = 180.0f;     // The days left, or the turn, at the head's right
         constexpr float NarrowTitle = 120.0f;      // The least a title keeps beside it
+        constexpr float HeadGap = 16.0f;           // Between a line of the head and the figure beside it, as drawn
         constexpr float NarrowBelow = 1000.0f;
         constexpr float PanelChrome = 83.0f;       // A panel with a heading: 16 + the 51 head block + 16
         constexpr float LeastLog = 160.0f;
@@ -1546,6 +1547,10 @@ namespace chronicle
 
         walkWidth = width;
 
+        // The timeline is drawn again at its panel's new width (the mouse check finds it not drawn)
+        if (fighting)
+            timelineMove = "-";
+
         // The buttons of his turn stand as many to a line as the panel holds: the lines they
         // stand on follow it, and they are made again only when another number would hold
         bool flows = false;
@@ -1576,6 +1581,39 @@ namespace chronicle
         }
 
         (void) height;
+    }
+
+    void LifeScene::fitNarrowHead()
+    {
+        // In one column the big figure at the head's right (the days left, or the turn) stands
+        // beside the kicker and the title: they end a gap before it as it is drawn, not before the
+        // widest it could be ("THE COLLEGIUM · SIXTE…" beside a TURN 1 of half that room). On a
+        // site the title ends before the line under the figure too
+        EntitySystem* ecs = ecsRef;
+        const bool fighting = walkScreen == "fight";
+        const float whole = std::max(LeastColumn, walkWidth - 2.0f * WalkMargin);
+
+        auto drawn = [this](const char* name) {
+            auto label = walkPiece<Label>(name);
+
+            if (not label or label->entity.empty() or not label->entity->has<TTFText>() or not label->entity->get<PositionComponent>()->visible)
+                return 0.0f;
+
+            return label->entity->get<TTFText>()->textWidth;
+        };
+
+        const float figure = drawn(fighting ? "turn" : "daysLeft");
+        const float under = fighting ? 0.0f : drawn("daysNote");
+
+        auto fit = [&](const char* name, float to) {
+            to = std::max(NarrowTitle, to);
+
+            if (auto label = walkPiece<Label>(name); label and std::abs(label->spec.width - to) > 0.5f)
+                label->setWidth(ecs, to);
+        };
+
+        fit("kicker", whole - figure - HeadGap);
+        fit(fighting ? "fightTitle" : "zoneTitle", whole - std::max(figure, under) - HeadGap);
     }
 
     void LifeScene::fitAccount()
@@ -2545,6 +2583,27 @@ namespace chronicle
         return shown;
     }
 
+    std::vector<EntityRef> LifeScene::timelinePieces() const
+    {
+        std::vector<EntityRef> pieces;
+
+        if (timeBar)
+            pieces.push_back(timeBar->root);
+
+        if (timeDayLabel)
+            pieces.push_back(timeDayLabel->entity);
+
+        pieces.push_back(timeDay);
+
+        for (const auto& chip : timeChips)
+        {
+            for (EntityRef piece : {chip.ground, chip.frame, chip.tick, chip.label.entity})
+                pieces.push_back(piece);
+        }
+
+        return pieces;
+    }
+
     float LifeScene::timelineSpanOf(const std::string& move) const
     {
         for (const auto& t : walk.timeline)
@@ -2579,20 +2638,35 @@ namespace chronicle
         constexpr float ChipH = 18.0f;
         constexpr float ChipPad = 5.0f;
 
+        // The pieces stand in the timeline's panel, not on the page: in one column the panel
+        // scrolls, and what is in it is clipped to the column (on the page they were drawn over
+        // its head once scrolled up to it)
+        Panel* panel = walkPiece<Panel>("orderPanel");
+        EntityRef holder = panel ? panel->root : walkPage;
+
         // Made on another screen (one built anew without being closed, as a save opened on a
         // fight): those pieces went with it
-        if (timePage != walkPage.id)
+        if (timePage != holder.id)
         {
             timeChips.clear();
             timeBar.reset();
             timeDay = EntityRef{};
             timeDayLabel.reset();
-            timePage = walkPage.id;
+            timePage = holder.id;
         }
 
         const auto boxPos = box->get<PositionComponent>();
+
+        // The box is as wide as its panel leaves it (the file draws it for the widest), and so
+        // is the gauge across it
+        if (panel and std::abs(boxPos->width - panel->innerWidth()) > 0.5f)
+            boxPos->setWidth(panel->innerWidth());
+
         const float width = boxPos->width;
         const int z = static_cast<int>(boxPos->z) + 2;
+
+        if (timeBar and std::abs(timeBar->spec.width - width) > 0.5f)
+            timeBar->setWidth(ecs, width);
 
         auto anchorIn = [&box](EntityRef piece, float x, float y) {
             auto anchor = piece->get<UiAnchor>();
@@ -2615,19 +2689,19 @@ namespace chronicle
             bar.forecast->get<ThemeComponent>()->setElement("timeline.hatch");
             bar.fill->get<ThemeComponent>()->setElement("timeline.fill");
             anchorIn(bar.root, 0.0f, BarY);
-            walkPage->get<Prefab>()->addToPrefab(bar.root);
+            holder->get<Prefab>()->addToPrefab(bar.root);
             timeBar = bar;
 
             auto day = makeUiSimple2DShape(ecs, Shape2D::Square, 2.0f, 40.0f);
             day.get<PositionComponent>()->setZ(static_cast<float>(z + 3));
             ecs->attach<ThemeComponent>(day.entity, "timeline.day");
             anchorIn(day.entity, 0.0f, BarY - 16.0f);
-            walkPage->get<Prefab>()->addToPrefab(day.entity);
+            holder->get<Prefab>()->addToPrefab(day.entity);
             timeDay = day.entity;
 
             Label dayLabel = makeLabel(ecs, {"label", "THE DAY ENDS", "status-time", Align::Left, Overflow::Grow, 0.0f, 0, z + 3});
             anchorIn(dayLabel.entity, 0.0f, 0.0f);
-            walkPage->get<Prefab>()->addToPrefab(dayLabel.entity);
+            holder->get<Prefab>()->addToPrefab(dayLabel.entity);
             timeDayLabel = dayLabel;
 
             for (size_t i = 0; i < Pool; ++i)
@@ -2638,26 +2712,26 @@ namespace chronicle
                 ground.get<PositionComponent>()->setZ(static_cast<float>(z + 4));
                 ecs->attach<ThemeComponent>(ground.entity, "timeline.chip.ground");
                 anchorIn(ground.entity, 0.0f, 0.0f);
-                walkPage->get<Prefab>()->addToPrefab(ground.entity);
+                holder->get<Prefab>()->addToPrefab(ground.entity);
                 chip.ground = ground.entity;
 
                 auto frame = makeStrokeRect2DShape(ecs, 40.0f, ChipH, {255.0f, 255.0f, 255.0f, 255.0f}, 1.0f);
                 frame.get<PositionComponent>()->setZ(static_cast<float>(z + 5));
                 ecs->attach<ThemeComponent>(frame.entity, "timeline.chip.hero");
                 anchorIn(frame.entity, 0.0f, 0.0f);
-                walkPage->get<Prefab>()->addToPrefab(frame.entity);
+                holder->get<Prefab>()->addToPrefab(frame.entity);
                 chip.frame = frame.entity;
 
                 auto tick = makeUiSimple2DShape(ecs, Shape2D::Square, 2.0f, 10.0f);
                 tick.get<PositionComponent>()->setZ(static_cast<float>(z + 3));
                 ecs->attach<ThemeComponent>(tick.entity, "timeline.tick.hero");
                 anchorIn(tick.entity, 0.0f, 0.0f);
-                walkPage->get<Prefab>()->addToPrefab(tick.entity);
+                holder->get<Prefab>()->addToPrefab(tick.entity);
                 chip.tick = tick.entity;
 
                 chip.label = makeLabel(ecs, {"label", " ", "ink", Align::Left, Overflow::Grow, 0.0f, 0, z + 6});
                 anchorIn(chip.label.entity, 0.0f, 0.0f);
-                walkPage->get<Prefab>()->addToPrefab(chip.label.entity);
+                holder->get<Prefab>()->addToPrefab(chip.label.entity);
 
                 timeChips.push_back(chip);
             }
@@ -3039,6 +3113,9 @@ namespace chronicle
         // A width that came while the screen did not hold its pieces yet: it is sized for it now
         if (walkSettling <= 0 and not walkPage.empty() and (windowWidth < NarrowBelow) == walkNarrow and std::abs(windowWidth - walkWidth) > 0.5f)
             sizeWalk(windowWidth, windowHeight);
+
+        if (walkSettling <= 0 and not walkPage.empty() and walkNarrow)
+            fitNarrowHead();
 
         // The mouse on another move of his turn: the timeline shows where that move would put him
         if (walkScreen == "fight" and not walkPage.empty() and not walkTelling)

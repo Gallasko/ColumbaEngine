@@ -220,6 +220,7 @@ namespace chronicle
         bool telling() const { return walkTelling; }      // A turn of a fight is being told on the page: nothing is pressed meanwhile
         const std::vector<std::pair<std::string, Button>>& moves() const { return walkMoves; }   // The buttons of his turn in a fight, by tag
         std::vector<std::pair<std::string, float>> timelineShown() const;   // The timeline's words in view (his turns, the beasts', the end of the day), each with its x
+        std::vector<pg::EntityRef> timelinePieces() const;                    // Everything the timeline draws over its box: the gauge, the day, its tags
 
         int newInLife = 0;             // What has come onto the Life page while the Town page was in view: said at its tab's corner
         int newInTown = 0;             // And onto the Town page while the Life page was
@@ -254,6 +255,7 @@ namespace chronicle
         void fitFull(float width, float height);      // The middle column's width, the choice's and the log's heights
         void fitCompact(float width, float height);   // The main column's width, the choice's and the log's heights
         void fitPhone(float width, float height);     // The one column's width, and the height of what is under the tabs
+        void fitPhoneHead();                          // The title ends a gap before his age as it is drawn
         void fitEnding(float width, float height);    // The ending's veil to the window
         void fitTown(float width, float height);      // The Town page to the middle column
         int townTab() const;           // Which tab is the town's, -1 when the page has none
@@ -382,6 +384,7 @@ namespace chronicle
         void fitWalk(float width, float height);   // The veil and the columns to the window; built again at another width
         void fitAccount();   // A fight's account takes what the order of the turn leaves of its column
         void sizeWalk(float width, float height);   // The walk's screen at another width, in place: what shapeWalk writes in the file, given to what stands
+        void fitNarrowHead();                        // In one column, the head's lines end beside the big figure as wide as it is drawn
         void widenPanel(const std::string& name, float width);   // A panel of the walk's screen, and what stands in it
         void widen(Panel* panel, float width);   // A panel, and what stands in it: each piece as wide as the panel leaves it, where it stands
         void fillSite();               // The on-site screen says what expedition.pg says
