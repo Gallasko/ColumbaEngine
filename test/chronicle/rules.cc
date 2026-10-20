@@ -4564,6 +4564,35 @@ namespace pg
         // An event left unanswered is paid for. The month it is settled, who holds none of its
         // answers has stood by: he holds that, the log says so, and the rows the event names are
         // shut to him. Nothing else is: a second one shuts its own rows, and no class.
+        // A player's report (2026-10-20): answering the Lord's Pardon left the Tithe Barn to burn.
+        // The two are one or the other, as the Pardon's own `unless` says
+        TEST(rules_test, the_pardon_and_the_barn_shut_each_other)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            ElementMap outlaw = boy();
+            outlaw["renegade"] = ElementType{1};
+            outlaw["arms"] = ElementType{4};
+            outlaw["stealth"] = ElementType{4};
+            outlaw["renown"] = ElementType{3};
+
+            const float age = 24.5f;
+
+            f.rules.done = {{"greenwood", ElementType{1}}};
+
+            EXPECT_TRUE(flag(activityAt(f.rules, age, outlaw, "barn").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, age, outlaw, "pardon").fields, "listed"));
+
+            f.rules.done["pardon"] = ElementType{1};
+
+            EXPECT_FALSE(flag(activityAt(f.rules, age, outlaw, "barn").fields, "listed"));
+
+            f.rules.done = {{"greenwood", ElementType{1}}, {"barn", ElementType{1}}};
+
+            EXPECT_FALSE(flag(activityAt(f.rules, age, outlaw, "pardon").fields, "listed"));
+        }
+
         TEST(rules_test, an_event_stood_by_shuts_what_follows)
         {
             MockLogger logger;

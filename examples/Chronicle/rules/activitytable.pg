@@ -987,7 +987,7 @@ var activities = [
      gains: [{stat: "lore"}, {stat: "stealth"}, {stat: "woodfolk_guest"}],
      requires: [{stat: "forest_shrine"}, {stat: "stealth", needed: 4}],
      costs: [{stat: "rations", amount: 6}]},
-    {id: "barn", group: "The Greenwood", name: "Burn the Lord's Tithe Barn", glyph: "forge", months: 6, rank: "", each: "", path: "renegade", fromAge: 23, finishBy: 26, uses: 1,
+    {id: "barn", group: "The Greenwood", name: "Burn the Lord's Tithe Barn", glyph: "forge", months: 6, rank: "", each: "", path: "renegade", fromAge: 23, finishBy: 26, uses: 1, unless: "pardon",
      gains: [{stat: "renown", amount: 2}, {stat: "barn_burned"}],
      requires: [{stat: "arms", needed: 4}, {stat: "stealth", needed: 4}]},
     {id: "pilgrims", group: "The Greenwood", name: "Guide Pilgrims Through the Wood", glyph: "adventure", months: 6, rank: "", each: "", path: "renegade", fromAge: 23, finishBy: 26, uses: 1,
