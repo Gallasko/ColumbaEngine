@@ -393,10 +393,10 @@ fun deathOf(st)
 {
     if (mortalStats == none)
     {
-        var answer = rule("resources", {age: ageOf(st), character: character(st)}, ["death", "mortal", "shortAge", "longAge", "callingPlace"])
+        var answer = rule("resources", {age: ageOf(st), character: character(st)}, ["death", "mortal", "shortAge", "longAge", "callingPlace", "primeStat"])
         checked(answer, "resources (death)")
         mortalStats = answer.mortal
-        primeAges = {short: answer.shortAge, long: answer.longAge, place: answer.callingPlace}
+        primeAges = {short: answer.shortAge, long: answer.longAge, place: answer.callingPlace, stat: answer.primeStat}
     }
 
     for (var m : mortalStats)
@@ -405,12 +405,18 @@ fun deathOf(st)
 
         if (held != none and held <= 0)
         {
-            // lib.pg's primeEnd: his prime is longer in a town whose calling place stands
+            // lib.pg's primeEnd: his prime is longer in a town whose calling place stands, and
+            // once his thirtieth year has settled it, it is what was settled
             var prime = primeAges.short
 
             if (charValue(st, "town." + primeAges.place) >= 1)
             {
                 prime = primeAges.long
+            }
+
+            if (charValue(st, primeAges.stat) > 0)
+            {
+                prime = charValue(st, primeAges.stat)
             }
 
             if (st.month >= prime * 12)

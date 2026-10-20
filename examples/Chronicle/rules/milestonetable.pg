@@ -5,8 +5,9 @@
 //         runs on from life to life and which no death rewinds). `lives` (which life of the
 //         world this is) is handed with it, and not read here. `character`, of which only the
 //         town is read ("town.inn": with the Inn standing his prime ends at fifty, lib.pg's
-//         `primeEnd`): the game hands the milestones the Inn's level alone, forecast.pg the
-//         whole character.
+//         `primeEnd`), and where his thirtieth year settled it ("prime_end", lib.pg's
+//         `primeStat`): the game hands the milestones those two alone, forecast.pg the whole
+//         character.
 // Output: `milestones`, every milestone {age, id, label, passed, entry, asks}, where `asks` lists
 //         what each path asks at it: [{path, stat, label, needed}] (the doors of
 //         activitytable.pg it opens onto), and `entry` is "" or the line the log writes when he
@@ -68,8 +69,8 @@ var milestoneTable = [
     ]}
 ]
 
-// In a town whose Inn stands, thirty is where a second calling begins, and not old age: a
-// milestone of its own, before the last
+// In a town whose Inn stands by his thirtieth year, thirty is where a second calling begins, and
+// not old age: a milestone of its own, before the last
 if (lastAge > shortAge)
 {
     push(milestoneTable, {age: shortAge, id: "calling", label: "A second calling", entry: "His thirtieth year: a man of Bellmoor is not old at thirty any more", asks: []})

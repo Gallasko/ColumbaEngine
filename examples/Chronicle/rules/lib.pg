@@ -901,15 +901,61 @@ fun byId(list, id)
     return {id: ""}
 }
 
-// The age his prime ends at, in the town this character lives in (see `longAge`).
+// The age his prime ends at, in the town this character lives in (see `longAge`). Settled for
+// the rest of his life the month he reaches thirty (`primeStat`): an Inn raised after it moves the
+// old age of the lives after his, not his.
 fun primeEnd(character)
 {
+    var settled = statOf(character, primeStat)
+
+    if (settled > 0)
+    {
+        return settled
+    }
+
     if (statOf(character, "town." + callingPlace) >= 1)
     {
         return longAge
     }
 
     return shortAge
+}
+
+// Whether a level of a place is the one that ends his prime at fifty (the calling place's first,
+// `primeEnd`) and he is past it: his old age began at thirty, and what it gives is for the lives
+// after his. The town says so in its `later` and `laterNote` (towntable.pg, `levelGives`).
+fun primeGoneBy(place, l, character)
+{
+    var settled = statOf(character, primeStat)
+
+    return place.id == callingPlace and l == 0 and settled > 0 and settled < longAge
+}
+
+// What a level of a place gives, in one line, as its gloss says it: its `gives`, or its `later`
+// to a man past the prime it would have given him (`primeGoneBy`).
+fun levelGives(place, l, character)
+{
+    var level = place.levels[l]
+
+    if (primeGoneBy(place, l, character))
+    {
+        return lookup(level, "later", level.gives)
+    }
+
+    return level.gives
+}
+
+// And what its tile says: its `note`, or its `gives` without one; its `laterNote` past that prime.
+fun levelNote(place, l, character)
+{
+    var level = place.levels[l]
+
+    if (primeGoneBy(place, l, character))
+    {
+        return lookup(level, "laterNote", levelGives(place, l, character))
+    }
+
+    return lookup(level, "note", level.gives)
 }
 
 // A field that is one thing or a list of them, as a list.
@@ -1219,13 +1265,20 @@ fun openNote(monthsLeft, attempts)
 // age begins (resources.pg's `aging`). The life goes on past it, until it has nothing left.
 var lastAge = 30
 
-// A second calling: once the Inn stands in his town (its first level, towntable.pg), a man of
-// thirty is not old. His prime runs to `longAge`, and old age begins there. A script that reads
+// A second calling: when the Inn stands in his town (its first level, towntable.pg) by the month
+// he reaches thirty, a man of thirty is not old (`primeStat`). His prime runs to `longAge`, and old age begins there. A script that reads
 // `lastAge` and has the character sets it first, after its imports (an import of this file
 // writes the 30 again): `lastAge = primeEnd(character)`.
 var shortAge = 30
 var longAge = 50
 var callingPlace = "inn"
+
+// Where his old age begins, settled for this life: the month he reaches `shortAge`, resources.pg
+// writes `primeEnd` as the town is then (fifty with the Inn standing, thirty without) among his
+// stats, and `primeEnd` reads it from there on. It is his, not the world's: a new life is born
+// without it. An Inn raised after it takes nothing back from his old age, nor reopens the works
+// it closed.
+var primeStat = "prime_end"
 
 // The `finishBy` of what an old man may still do: no age closes it.
 var anyAge = 200

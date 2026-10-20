@@ -63,6 +63,7 @@ namespace chronicle
 
         constexpr const char * const ActivitiesList = "life.activities";
         constexpr const char * const MarketList = "town.market";   // The market's rows, on the Town page
+        constexpr const char * const PrimeStat = "prime_end";      // Where his old age begins, settled the month he reaches thirty (lib.pg's `primeStat`)
 
         // The page's pieces the town is made of (life.yaml, life-compact.yaml): the choice and the
         // Town page take each other's place in the middle column
@@ -1094,6 +1095,7 @@ namespace chronicle
         rules.lives = save.lives;
         rules.running = save.running;
         rules.inn = save.town.count("inn") > 0 ? save.town.at("inn") : 0;
+        rules.prime = save.stats.count(PrimeStat) > 0 ? save.stats.at(PrimeStat) : 0;
 
         // A save from before the rations were given up front, in the middle of a work that feeds him
         catchUpRations();
@@ -4229,6 +4231,10 @@ namespace chronicle
 
             save.stats[key] = intOf(value);
         }
+
+        // Where his old age begins, once the month he reached thirty settled it: the milestones
+        // read no character, and are handed it by hand, as the Inn's level
+        rules.prime = save.stats.count(PrimeStat) > 0 ? save.stats.at(PrimeStat) : 0;
     }
 
     void LifeScene::writeEntries(const RecordList& entries)
@@ -6658,6 +6664,9 @@ namespace chronicle
         rules.world = save.world;
         rules.lives = save.lives;
         rules.running = save.running;
+
+        // His old age is settled again at his thirtieth year, by the town as it is then
+        rules.prime = 0;
 
         // And what the town gives a life at its birth: a stat, a holding, a tie
         if (rules.town(save.age, save.character(), town))

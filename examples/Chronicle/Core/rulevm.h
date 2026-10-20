@@ -295,10 +295,15 @@ namespace chronicle
         // man on his way into a class is not one who missed them all).
         std::string running;
 
-        // The Inn's level, the world's: handed to the milestones, which read no character, as
-        // the one stat of one ("town.inn"). With the Inn standing his prime ends at fifty and
+        // The Inn's level, the world's: handed to the milestones, which read no character, as a
+        // stat of one ("town.inn", with `prime`). With the Inn standing his prime ends at fifty and
         // not at thirty (lib.pg's `primeEnd`): the other scripts read it in the character.
         int inn = 0;
+
+        // Where his old age begins, settled for this life the month he reaches thirty: his stat
+        // "prime_end" (resources.pg), 0 before. Handed to the milestones with the Inn's level: an
+        // Inn raised after it moves the old age of the lives after his, not his (lib.pg's `primeEnd`).
+        int prime = 0;
 
         // windows.pg, through activitytable.pg: the activity table, and what each still asks of
         // `character` at `age`. One run answers this and windows().
@@ -385,6 +390,7 @@ namespace chronicle
         int milestonesWorld = 0;
         int milestonesLives = 1;
         int milestonesInn = 0;
+        int milestonesPrime = 0;
         std::vector<RuleMilestone> keptMilestones;
         pg::ElementMap keptNext;
         pg::ElementMap keptHeadline;

@@ -5059,6 +5059,134 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // The month he reaches thirty settles where his old age begins, for the rest of that life
+        // (the stat "prime_end", resources.pg): thirty without the Inn, fifty with it. An Inn raised
+        // after that takes nothing back: his old age goes on, the milestones and the works keep
+        // it, and the chair says it is for the lives after his.
+        TEST(rules_test, an_inn_raised_past_thirty_is_for_the_lives_after_his)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            const float twelfth = 1.0f / 12.0f;
+
+            RuleMonth month;
+
+            const ElementMap man = {{"vit", ElementType{45}}, {"vitmax", ElementType{45}}, {"rations", ElementType{5}}};
+
+            // Not yet thirty: nothing is settled
+            ASSERT_TRUE(f.rules.month(30.0f - twelfth, man, month)) << firstError(f.rules);
+            EXPECT_EQ(month.after.count("prime_end"), 0u);
+
+            // Thirty without the Inn: old at thirty. With it, from before: old at fifty
+            ASSERT_TRUE(f.rules.month(30.0f, man, month)) << firstError(f.rules);
+            EXPECT_EQ(intOf(month.after, "prime_end"), 30);
+
+            ElementMap withInn = man;
+            withInn["town.inn"] = ElementType{1};
+
+            ASSERT_TRUE(f.rules.month(30.0f, withInn, month));
+            EXPECT_EQ(intOf(month.after, "prime_end"), 50);
+
+            // Settled at thirty, the Inn raised at thirty-one: the years still take from him
+            ElementMap old = withInn;
+            old["prime_end"] = ElementType{30};
+
+            ASSERT_TRUE(f.rules.month(31.0f, old, month));
+            EXPECT_EQ(intOf(month.after, "vitmax"), 40);
+            EXPECT_EQ(intOf(month.after, "vit"), 40);
+            EXPECT_EQ(intOf(month.after, "prime_end"), 30);
+
+            // Settled at fifty: nothing is taken at forty
+            ElementMap prime = withInn;
+            prime["prime_end"] = ElementType{50};
+
+            ASSERT_TRUE(f.rules.month(40.0f, prime, month));
+            EXPECT_EQ(intOf(month.after, "vitmax"), 45);
+            EXPECT_EQ(intOf(month.after, "prime_end"), 50);
+
+            // The milestones keep his old age at thirty, and give him no second calling
+            auto ages = [&]() {
+                std::vector<RuleMilestone> milestones;
+                ElementMap next;
+
+                EXPECT_TRUE(f.rules.milestones(31.0f, milestones, next)) << firstError(f.rules);
+
+                std::vector<std::string> out;
+
+                for (const auto& m : milestones)
+                    out.push_back(textOf(m.fields, "id") + " " + std::to_string(intOf(m.fields, "age")));
+
+                return out;
+            };
+
+            f.rules.inn = 1;
+            f.rules.prime = 30;
+
+            const std::vector<std::string> settled = ages();
+
+            ASSERT_GE(settled.size(), 2u);
+            EXPECT_EQ(settled.back(), "old 30");
+            EXPECT_NE(settled[settled.size() - 2], "calling 30");
+
+            // And the works old age closed stay closed: what no age of its own closes was his to thirty
+            ElementMap veteran = sworn();
+            veteran["veteran"] = ElementType{1};
+            veteran["arms"] = ElementType{7};
+            veteran["discipline"] = ElementType{5};
+            veteran["renown"] = ElementType{4};
+            veteran["town.inn"] = ElementType{1};
+            veteran["prime_end"] = ElementType{30};
+            f.rules.done = {{"keep", ElementType{1}}, {"campaign", ElementType{1}}};
+
+            EXPECT_FALSE(flag(activityAt(f.rules, 35.0f, veteran, "serve").fields, "listed"));
+            EXPECT_TRUE(flag(activityAt(f.rules, 35.0f, veteran, "garden").fields, "listed"));
+            EXPECT_FALSE(flag(activityAt(f.rules, 31.0f, veteran, "castellan").fields, "listed"));
+
+            // The chair says what it does: old age at fifty, not thirty. To a man whose old age has
+            // begun, that it is for the lives after his
+            auto inn = [&](float age, const ElementMap& character) {
+                RuleTown town;
+                EXPECT_TRUE(f.rules.town(age, character, town)) << firstError(f.rules);
+
+                for (const auto& p : town.places)
+                {
+                    if (textOf(p.fields, "id") == "inn")
+                        return p.fields;
+                }
+
+                ADD_FAILURE() << "no inn";
+                return ElementMap{};
+            };
+
+            ElementMap townsfolk = townsman();
+
+            const ElementMap young = inn(20.0f, townsfolk);
+            EXPECT_NE(textOf(young, "nextGives").find("Old age begins at 50, not 30"), std::string::npos) << textOf(young, "nextGives");
+            EXPECT_EQ(textOf(young, "nextGives").find("lives after his"), std::string::npos) << textOf(young, "nextGives");
+
+            townsfolk["prime_end"] = ElementType{30};
+
+            const ElementMap aged = inn(31.0f, townsfolk);
+            EXPECT_NE(textOf(aged, "nextGives").find("Old age begins at 50, not 30"), std::string::npos) << textOf(aged, "nextGives");
+            EXPECT_NE(textOf(aged, "nextGives").find("lives after his"), std::string::npos) << textOf(aged, "nextGives");
+
+            townsfolk["town.inn"] = ElementType{1};
+
+            const ElementMap raised = inn(31.0f, townsfolk);
+            EXPECT_NE(textOf(raised, "gives").find("lives after his"), std::string::npos) << textOf(raised, "gives");
+            EXPECT_NE(textOf(raised, "line").find("LIVES AFTER HIS"), std::string::npos) << textOf(raised, "line");
+
+            // A man who had the Inn at thirty has it for himself
+            townsfolk["prime_end"] = ElementType{50};
+
+            const ElementMap his = inn(31.0f, townsfolk);
+            EXPECT_EQ(textOf(his, "gives").find("lives after his"), std::string::npos) << textOf(his, "gives");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // What kind of man of his class he is: a fork a class, whose flag changes what the class's
         // own works bring or ask. The Hand's mark makes every favor one more and silence free; his
         // own name pays more and earns none. An outlaw the roads fear is asked more Renown.

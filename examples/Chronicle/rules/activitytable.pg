@@ -113,6 +113,8 @@
 //                    (forecast.pg).
 //   onlyWith: "stat" its row is not listed while he lacks that stat, whatever else lists it (a
 //                    second calling is for a town whose Inn stands: "town.inn").
+//   longPrime: true  its row is not listed unless his prime runs to lib.pg's `longAge` (a second
+//                    calling: an Inn raised after his thirtieth year gives him none, `primeStat`).
 //   firstWith: "stat" on a `lastResort`: with that stat held it is a way in like the others,
 //                    from its age, and waits for no door to close (a deserter's Greenwood).
 //                    lib.pg's `anyAge` for what old age does not close.
@@ -223,8 +225,9 @@ import "economytable"
 
 var errors = []
 
-// His prime ends at thirty, or at fifty in a town whose Inn stands (lib.pg's `primeEnd`): what
-// no age of its own closes is his until then, and old age begins there
+// His prime ends at thirty, or at fifty in a town whose Inn stood the month he reached thirty
+// (lib.pg's `primeEnd`, `primeStat`): what no age of its own closes is his until then, and old age
+// begins there. An Inn raised later reopens none of it
 lastAge = primeEnd(character)
 
 // A row is listed once he has, on average, this much (in percent) of what it asks: each
@@ -1036,37 +1039,38 @@ var activities = [
      requires: []},
 
     // A second calling, from twenty-nine, in a town whose Inn stands (`onlyWith`; his prime runs
-    // to fifty there, lib.pg's `primeEnd`): two ways for each class, one or the other, each a
-    // year, each asking what the class's own years gave. Its path is the class's: he sees his
+    // to fifty there, lib.pg's `primeEnd`, unless he was thirty before it stood: `longPrime`):
+    // two ways for each class, one or the other, each a year, each asking what the class's own
+    // years gave. Its path is the class's: he sees his
     // two, locked, from the day he is of the class (`showAge`), as a child sees the classes.
     // No event left unanswered shuts them. Then five works a calling, in the
     // same shape: its bread, its choice, its moment, and a work of two years from forty-two.
     // The Greenwood has none yet
-    {id: "castellan", group: "A second calling", name: "Take the Castellan's Keys", glyph: "seal", months: 12, rank: "", each: "", path: "warrior", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", unless: "cross", major: true,
+    {id: "castellan", group: "A second calling", name: "Take the Castellan's Keys", glyph: "seal", months: 12, rank: "", each: "", path: "warrior", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", longPrime: true, unless: "cross", major: true,
      about: "The warrior who stays. The keys of Bellmoor's walls, its militia and its gates are his, and everything he does from here feeds the town.",
      gains: [{stat: "discipline"}, {stat: "renown"}, {stat: "castellan"}],
      requires: [{stat: "veteran"}, {stat: "arms", needed: 6}, {stat: "discipline", needed: 4}],
      costs: [{stat: "coin", amount: 20}]},
-    {id: "cross", group: "A second calling", name: "Take the Cross", glyph: "swordsmanship", months: 12, rank: "", each: "", path: "warrior", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", unless: "castellan", major: true,
+    {id: "cross", group: "A second calling", name: "Take the Cross", glyph: "swordsmanship", months: 12, rank: "", each: "", path: "warrior", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", longPrime: true, unless: "castellan", major: true,
      about: "The warrior who leaves. He is the Church's sword on the marches, and whatever the woodfolk are, he is sent against them.",
      gains: [{stat: "arms"}, {stat: "discipline"}, {stat: "crusader"}],
      requires: [{stat: "veteran"}, {stat: "arms", needed: 6}, {stat: "renown", needed: 3}]},
-    {id: "harrowstudy", group: "A second calling", name: "Found the Harrow Study", glyph: "relic", months: 12, rank: "", each: "", path: "mage", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", unless: "chair", major: true,
+    {id: "harrowstudy", group: "A second calling", name: "Found the Harrow Study", glyph: "relic", months: 12, rank: "", each: "", path: "mage", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", longPrime: true, unless: "chair", major: true,
      about: "The mage who studies the curse itself: its relics, its two accounts, and at last its seals. The slowest calling, and the dearest.",
      gains: [{stat: "lore"}, {stat: "curse_breaker"}],
      requires: [{stat: "collegium"}, {stat: "lore", needed: 7}, {stat: "arcana", needed: 4}],
      costs: [{stat: "coin", amount: 40}]},
-    {id: "chair", group: "A second calling", name: "Take the Elemental Chair", glyph: "magic", months: 12, rank: "", each: "", path: "mage", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", unless: "harrowstudy", major: true,
+    {id: "chair", group: "A second calling", name: "Take the Elemental Chair", glyph: "magic", months: 12, rank: "", each: "", path: "mage", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", longPrime: true, unless: "harrowstudy", major: true,
      about: "The mage who makes spells: he binds the elements one by one, and writes down what he bound. In a fight, Frostbind costs a beast its next move.",
      gains: [{stat: "arcana"}, {stat: "spellwright"}],
      requires: [{stat: "collegium"}, {stat: "arcana", needed: 5}],
      costs: [{stat: "coin", amount: 30}]},
-    {id: "contract", group: "A second calling", name: "Take the Black Contract", glyph: "skull", months: 12, rank: "", each: "", path: "thief", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", unless: "seachart", major: true,
+    {id: "contract", group: "A second calling", name: "Take the Black Contract", glyph: "skull", months: 12, rank: "", each: "", path: "thief", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", longPrime: true, unless: "seachart", major: true,
      about: "Contracts against named people of the town. Each is paid in coin, and each is someone Bellmoor will miss.",
      gains: [{stat: "stealth"}, {stat: "assassin"}],
      requires: [{stat: "hidden_hand"}, {stat: "stealth", needed: 6}, {stat: "guile", needed: 5}],
      costs: [{stat: "favors", amount: 2}]},
-    {id: "seachart", group: "A second calling", name: "Buy the Sea Chart", glyph: "adventure", months: 12, rank: "", each: "", path: "thief", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", unless: "contract", major: true,
+    {id: "seachart", group: "A second calling", name: "Buy the Sea Chart", glyph: "adventure", months: 12, rank: "", each: "", path: "thief", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", longPrime: true, unless: "contract", major: true,
      about: "Far roads, maps, and what lies at the end of them. On any walk, whoever scouts ahead finds a beast two days sooner.",
      gains: [{stat: "dex"}, {stat: "adventurer"}],
      requires: [{stat: "hidden_hand"}, {stat: "dex", needed: 9}],
@@ -2321,6 +2325,12 @@ for (var i = 0; i < len(activities); i++)
         {
             a.listed = false
         }
+    }
+
+    // A second calling is for a man whose prime runs on past thirty: none once his old age has begun
+    if (lookup(a, "longPrime", false) and lastAge <= shortAge)
+    {
+        a.listed = false
     }
 
     // What is for who does not hold a stat yet has no row once he does

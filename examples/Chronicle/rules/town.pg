@@ -112,21 +112,21 @@ for (var t = 0; t < len(townPlaces); t++)
     // What it gives is what every level reached gives: none takes the place of the one before
     for (var l = 0; l < level; l++)
     {
-        push(shown.given, {level: l + 1, built: place.levels[l].built, gives: place.levels[l].gives})
+        push(shown.given, {level: l + 1, built: place.levels[l].built, gives: levelGives(place, l, character)})
     }
 
     // And every level it has, the ones still to raise with them
     for (var l = 0; l < most; l++)
     {
-        push(shown.tiers, {level: l + 1, built: place.levels[l].built, gives: place.levels[l].gives, reached: l < level})
+        push(shown.tiers, {level: l + 1, built: place.levels[l].built, gives: levelGives(place, l, character), reached: l < level})
     }
 
     if (level > 0)
     {
         var reached = place.levels[level - 1]
 
-        shown.gives = reached.gives
-        shown.line = toUpperCase(lookup(reached, "note", reached.gives))
+        shown.gives = levelGives(place, level - 1, character)
+        shown.line = toUpperCase(levelNote(place, level - 1, character))
         shown.tale = reached.lore
         shown.built = reached.built
     }
@@ -162,7 +162,7 @@ for (var t = 0; t < len(townPlaces); t++)
         shown.nextMonths = next.months
         shown.nextCoin = coin
         shown.nextYears = lookup(next, "years", 0)
-        shown.nextGives = next.gives
+        shown.nextGives = levelGives(place, level, character)
 
         if (next.months > 0)
         {

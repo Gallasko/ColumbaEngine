@@ -172,6 +172,10 @@ at work: it is a term of sixteen days, each chosen when it comes.
 
 - **His age** at the head of the page could read a year short in the month of his birthday
   (15 at sixteen, until the next month).
+- **No more immortal old men.** An Inn raised after his thirtieth year stopped his old age on the
+  spot: the Vitality it had taken stayed lost, the works of his prime came back, and he lived
+  untouched to fifty. Where his old age begins is now settled the month he turns thirty: an Inn
+  raised later is for the lives after his, and its first level says so (old age at 50, not 30).
 
 ## 0.7 - unreleased: the fight
 

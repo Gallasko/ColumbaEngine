@@ -76,7 +76,8 @@ import "towntable"
 import "economytable"
 import "expeditiontable"
 
-// Old age begins where his prime ends: thirty, or fifty in a town whose Inn stands
+// Old age begins where his prime ends: thirty, or fifty in a town whose Inn stood the month he
+// reached thirty (lib.pg's `primeStat`, settled below)
 lastAge = primeEnd(character)
 
 var errors = []
@@ -533,6 +534,13 @@ for (var r = 0; r < len(mending); r++)
 
         after[rest] = rested
     }
+}
+
+// The month he reaches thirty settles where his old age begins, for the rest of this life: an Inn
+// raised after it is for the lives after his (lib.pg's `primeStat`)
+if (lived >= shortAge * 12 and statOf(character, primeStat) <= 0)
+{
+    after[primeStat] = lastAge
 }
 
 for (var o = 0; o < len(aging); o++)

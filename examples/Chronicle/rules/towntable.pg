@@ -62,6 +62,9 @@
 //           more    optional [{stat, amount}]: each familiar that makes that stat makes `amount`
 //                   more of it a month, as a lesson he taught it would (lib.pg's `feedFamiliars`)
 //           lore    the line the log writes when the level is reached
+//           later, laterNote  the Inn's first level alone: its `gives` and `note` to a man whose
+//                   old age began at thirty without it (lib.pg's `primeGoneBy`): what it moves is
+//                   the old age of the lives after his
 //         The rule for what a level gives: it saves the next life time, and never gives a class
 //         for free. How each gift reaches the rules is said where it does: a `bonus` step or an
 //         `eased` requirement of activitytable.pg, a holding of resources.pg, or `start`,
@@ -191,7 +194,9 @@ const townPlaces = [
     {id: "inn", name: "The Inn", glyph: "town", shows: {lives: 2}, about: "The Bell and Barrel, where every tale ends up.",
      levels: [
         {work: "Carve the Storyteller's Chair", built: "The storyteller's chair", months: 6, coin: 5, costs: [{stat: "firewood", amount: 20}, {stat: "berries", amount: 20}],
-         gives: "Tell Tales at the Inn opens at age 26, and the stash keeps 50 more of each thing", note: "Tales at 26, and the stash keeps 50 more", stash: 50,
+         gives: "Old age begins at 50, not 30; Tell Tales at the Inn opens at age 26, and the stash keeps 50 more of each thing", note: "Old at 50, tales at 26, stash +50", stash: 50,
+         later: "Old age begins at 50, not 30, for the lives after his: his own has begun. Tell Tales at the Inn opens at age 26, and the stash keeps 50 more of each thing",
+         laterNote: "Old at 50 for the lives after his, stash +50",
          lore: "The chair by the fire is for whoever has a tale, young or old."},
         {work: "Hang the Book of Names", built: "The book of names", months: 9, coin: 10, costs: [{stat: "firewood", amount: 40}, {stat: "berries", amount: 40}, {stat: "gems", amount: 2}],
          gives: "A new life is told how the last one ended",

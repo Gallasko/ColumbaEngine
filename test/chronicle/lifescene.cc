@@ -4830,6 +4830,104 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // An Inn raised past his thirtieth year does not give him back his prime: the old age that
+        // began at thirty goes on, the works it closed stay closed, and he dies of it long before
+        // fifty. The next life, born with the Inn standing, has its prime to fifty.
+        TEST(lifescene_test, an_inn_raised_past_thirty_does_not_stop_his_old_age)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            // A second life of a world, who knows the town, a month from thirty, and no Inn
+            life->save.lives = 2;
+            life->rules.lives = 2;
+            life->save.townKnown = true;
+            life->save.age = 30.0f - 1.0f / 12.0f;
+            life->save.stats["rations"] = 200;
+            life->save.stats["vit"] = 100;
+            life->save.stats["vitmax"] = 100;
+            life->save.stats["coin"] = 50;
+            life->save.stats["firewood"] = 20;
+            life->save.stats["berries"] = 20;
+
+            life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["prime_end"], 30);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "carters"), nullptr);
+
+            // The chair, raised at thirty and a month
+            f.ecs.sendEvent(PlaceSelectedEvent{"inn"});
+            f.settle();
+            f.ecs.sendEvent(PlaceSelectedEvent{"inn"});
+            f.settle();
+
+            ASSERT_EQ(life->save.running, "raise.inn.1");
+
+            for (int i = 0; i < 6; ++i)
+            {
+                life->onMonth();
+                f.settle();
+            }
+
+            ASSERT_EQ(life->save.town["inn"], 1);
+            EXPECT_EQ(life->save.stats["prime_end"], 30);
+
+            // Old age goes on: no milestone ahead of him, and the works of his prime stay closed
+            EXPECT_EQ(f.fact<std::string>("life.next.label"), "");
+            EXPECT_EQ(list->find(&f.ecs, "carters"), nullptr);
+            EXPECT_NE(list->find(&f.ecs, "tales"), nullptr);
+
+            const int most = life->save.stats["vitmax"];
+
+            for (int i = 0; i < 4; ++i)
+                life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["vitmax"], most - 10);
+            EXPECT_EQ(list->find(&f.ecs, "carters"), nullptr);
+
+            // And it ends him, years before fifty
+            for (int i = 0; i < 120 and not life->ended; ++i)
+                life->onMonth();
+            f.settle();
+
+            ASSERT_TRUE(life->ended);
+            EXPECT_LT(life->save.age, 35.0f);
+            EXPECT_NE(life->epitaph.cause.find("old man"), std::string::npos) << life->epitaph.cause;
+
+            // The next life is born with the Inn standing: nothing settled yet, and at thirty his
+            // prime runs on to fifty
+            life->beginAgain();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats.count("prime_end"), 0u);
+
+            life->save.townKnown = true;
+            life->save.age = 30.0f - 1.0f / 12.0f;
+            life->save.stats["rations"] = 200;
+            life->save.stats["vit"] = 100;
+            life->save.stats["vitmax"] = 100;
+
+            for (int i = 0; i < 13; ++i)
+                life->onMonth();
+            f.settle();
+
+            EXPECT_EQ(life->save.stats["prime_end"], 50);
+            EXPECT_EQ(life->save.stats["vitmax"], 100);
+            EXPECT_EQ(life->save.stats["vit"], 100);
+            EXPECT_FALSE(life->ended);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A life that ends is not replaced at once: its ending comes up over the page, a leaf in the
         // middle of the window saying who he was, how it ended and what the chronicle keeps of him,
         // on a veil that takes the mouse. Nothing passes until its button begins the next life.

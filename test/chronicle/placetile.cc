@@ -387,15 +387,21 @@ namespace pg
 
             int checked = 0;
 
+            // And past thirty, his old age begun (the stat "prime_end"): the Inn's chair says it is
+            // for the lives after his
             for (int level = 1; level <= 3; ++level)
+            for (const bool aged : {false, true})
             {
                 ElementMap character = {{"town_known", ElementType{1}}};
+
+                if (aged)
+                    character["prime_end"] = ElementType{30};
 
                 for (const auto& place : bare.places)
                     character["town." + textOf(place.fields, "id")] = ElementType{level};
 
                 RuleTown town;
-                ASSERT_TRUE(rules.town(20.0f, character, town)) << (rules.errors.empty() ? "" : rules.errors.front());
+                ASSERT_TRUE(rules.town(aged ? 35.0f : 20.0f, character, town)) << (rules.errors.empty() ? "" : rules.errors.front());
 
                 for (const auto& place : town.places)
                 {
@@ -426,7 +432,7 @@ namespace pg
                 }
             }
 
-            EXPECT_EQ(checked, 33);
+            EXPECT_EQ(checked, 66);
         }
     }
 }
