@@ -421,17 +421,40 @@ namespace pg
         }
     }
 
+    CaptureSize MasterRenderer::captureSize(int windowWidth, int windowHeight, int drawnWidth, int drawnHeight)
+    {
+        if (drawnWidth > 0 and drawnHeight > 0)
+            return CaptureSize{ drawnWidth, drawnHeight };
+
+        return CaptureSize{ windowWidth, windowHeight };
+    }
+
+    CaptureSize MasterRenderer::captureSize() const
+    {
+        const int screenWidth = systemParameters.at("ScreenWidth").get<int>();
+        const int screenHeight = systemParameters.at("ScreenHeight").get<int>();
+
+        // The window drawn on is the one whose context is current; none in a headless test
+        int drawnWidth = 0;
+        int drawnHeight = 0;
+
+        if (auto window = SDL_GL_GetCurrentWindow())
+            SDL_GL_GetDrawableSize(window, &drawnWidth, &drawnHeight);
+
+        return captureSize(screenWidth, screenHeight, drawnWidth, drawnHeight);
+    }
+
     void MasterRenderer::getFrameData()
     {
-        auto& rTable = getParameter();
-        const int screenWidth = rTable["ScreenWidth"].get<int>();
-        const int screenHeight = rTable["ScreenHeight"].get<int>();
+        // The frame is drawn on the drawable's pixels (Window::resize sets the viewport to them): on a
+        // dense screen more than the window's units, the same number on any other
+        const auto size = captureSize();
 
-        std::vector<unsigned char> pixels(screenWidth * screenHeight * 4); // RGBA format
+        std::vector<unsigned char> pixels(static_cast<size_t>(size.width) * size.height * 4); // RGBA format
 
-        glReadPixels(0, 0, screenWidth, screenHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        glReadPixels(0, 0, size.width, size.height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
 
-        ecsRef->sendEvent(SavedFrameData{ std::move(pixels), screenWidth, screenHeight });
+        ecsRef->sendEvent(SavedFrameData{ std::move(pixels), size.width, size.height });
     }
 
     void MasterRenderer::processTextureRegister()

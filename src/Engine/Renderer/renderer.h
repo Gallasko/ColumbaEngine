@@ -35,6 +35,9 @@ namespace pg
 
     struct SavedFrameData { std::vector<unsigned char> pixels; const int width = 0; const int height = 0; };
 
+    /** The size, in pixels, of the frame a SaveCurrentFrameEvent reads */
+    struct CaptureSize { int width = 0; int height = 0; };
+
     // Todo fix crash on renderer when failure to grab a missing texture or shader
 
     class MasterRenderer : public System<Own<BaseCamera2D>, Listener<OnSDLScanCode>, Listener<SkipRenderPass>, Listener<ReRendererAll>, Listener<SaveCurrentFrameEvent>>
@@ -310,6 +313,15 @@ namespace pg
             systemParameters["ScreenWidth"] = width;
             systemParameters["ScreenHeight"] = height;
         }
+
+        /**
+         * The frame a capture reads: the drawable's pixels, which a dense screen (HiDPI, a phone) has more
+         * of than the window has units; the window's size where there is no drawable to ask (no window)
+         */
+        static CaptureSize captureSize(int windowWidth, int windowHeight, int drawnWidth, int drawnHeight);
+
+        /** captureSize of this renderer's window and the current GL window's drawable */
+        CaptureSize captureSize() const;
 
         void setCurrentTime(const unsigned int& time) { systemParameters["CurrentTime"] = static_cast<int>(time); }
 

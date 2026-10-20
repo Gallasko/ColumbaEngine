@@ -6,6 +6,10 @@
 
 #include "Core/bugreport.h"
 #include "Core/logring.h"
+#include "Core/screenshot.h"
+
+#include "ECS/entitysystem.h"
+#include "Renderer/renderer.h"
 
 #include <thread>
 
@@ -200,6 +204,171 @@ namespace pg
             EXPECT_NE(LogRing::instance()->text().find("[ERROR] Ring: two"), std::string::npos);
 
             Logger::removeSink(sink);
+        }
+
+        // A base64 text back to its bytes (the test's own, to read what the encoder wrote)
+        static std::vector<unsigned char> unbase64(const std::string& text)
+        {
+            static const std::string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+            std::vector<unsigned char> out;
+            int value = 0, bits = -8;
+            for (char c : text)
+            {
+                if (c == '=')
+                    break;
+                const auto at = alphabet.find(c);
+                if (at == std::string::npos)
+                    return {};
+                value = (value << 6) + static_cast<int>(at);
+                bits += 6;
+                if (bits >= 0)
+                {
+                    out.push_back(static_cast<unsigned char>((value >> bits) & 0xFF));
+                    bits -= 8;
+                }
+            }
+            return out;
+        }
+
+        TEST(bugreport_test, rows_come_out_top_down)
+        {
+            // OpenGL gives the bottom row first: A B is the bottom, C D the top
+            const std::vector<unsigned char> read = { 1, 1, 1, 1,  2, 2, 2, 2,
+                                                      3, 3, 3, 3,  4, 4, 4, 4 };
+
+            const auto flipped = flipRows(read, 2, 2);
+
+            const std::vector<unsigned char> expected = { 3, 3, 3, 3,  4, 4, 4, 4,
+                                                          1, 1, 1, 1,  2, 2, 2, 2 };
+            EXPECT_EQ(flipped, expected);
+        }
+
+        TEST(bugreport_test, a_wide_frame_fits_within_1280)
+        {
+            int w = 2560, h = 1440;
+            std::vector<unsigned char> rgba(static_cast<size_t>(w) * h * 4, 200);
+
+            fitWithin(rgba, w, h);
+
+            EXPECT_EQ(w, 1280);
+            EXPECT_EQ(h, 720);
+            EXPECT_EQ(rgba.size(), static_cast<size_t>(1280) * 720 * 4);
+            EXPECT_EQ(rgba[0], 200);
+            EXPECT_EQ(rgba.back(), 200);
+
+            // A tall one fits by its height, and keeps its ratio
+            int tw = 1000, th = 2000;
+            std::vector<unsigned char> tall(static_cast<size_t>(tw) * th * 4, 10);
+            fitWithin(tall, tw, th);
+            EXPECT_EQ(th, 1280);
+            EXPECT_EQ(tw, 640);
+            EXPECT_EQ(tall.size(), static_cast<size_t>(640) * 1280 * 4);
+
+            // A frame within the limit is left as it is
+            int sw = 800, sh = 600;
+            std::vector<unsigned char> small(static_cast<size_t>(sw) * sh * 4, 7);
+            const auto before = small;
+            fitWithin(small, sw, sh);
+            EXPECT_EQ(sw, 800);
+            EXPECT_EQ(sh, 600);
+            EXPECT_EQ(small, before);
+
+            // The pixels that fall in one are averaged: a 4x2 frame into 2x1
+            int bw = 4, bh = 2;
+            std::vector<unsigned char> box = { 0, 0, 0, 255,   100, 100, 100, 255,   40, 40, 40, 255,   40, 40, 40, 255,
+                                               100, 100, 100, 255,   0, 0, 0, 255,   40, 40, 40, 255,   40, 40, 40, 255 };
+            fitWithin(box, bw, bh, 2);
+            EXPECT_EQ(bw, 2);
+            EXPECT_EQ(bh, 1);
+            const std::vector<unsigned char> averaged = { 50, 50, 50, 255,   40, 40, 40, 255 };
+            EXPECT_EQ(box, averaged);
+        }
+
+        TEST(bugreport_test, a_frame_is_a_jpeg_data_url)
+        {
+            const int w = 16, h = 8;
+            std::vector<unsigned char> rgba(static_cast<size_t>(w) * h * 4);
+            for (size_t i = 0; i < rgba.size(); ++i)
+                rgba[i] = static_cast<unsigned char>(i * 7);
+
+            const std::string url = jpegBase64(rgba, w, h);
+
+            const std::string prefix = "data:image/jpeg;base64,";
+            ASSERT_EQ(url.rfind(prefix, 0), 0u);
+
+            const auto bytes = unbase64(url.substr(prefix.size()));
+            ASSERT_GE(bytes.size(), 4u);
+            EXPECT_EQ(bytes[0], 0xFF);
+            EXPECT_EQ(bytes[1], 0xD8);
+            EXPECT_EQ(bytes[bytes.size() - 2], 0xFF);   // and it ends as a JPEG ends
+            EXPECT_EQ(bytes[bytes.size() - 1], 0xD9);
+        }
+
+        TEST(bugreport_test, a_capture_reads_the_drawable_size)
+        {
+            // A dense screen draws the window on twice its pixels: the capture reads them all
+            const auto dense = MasterRenderer::captureSize(800, 600, 1600, 1200);
+            EXPECT_EQ(dense.width, 1600);
+            EXPECT_EQ(dense.height, 1200);
+
+            // Where the two are the same, the capture is the window's, as it always was
+            const auto plain = MasterRenderer::captureSize(800, 600, 800, 600);
+            EXPECT_EQ(plain.width, 800);
+            EXPECT_EQ(plain.height, 600);
+
+            // With no drawable to ask (no window), the window's size
+            const auto unknown = MasterRenderer::captureSize(800, 600, 0, 0);
+            EXPECT_EQ(unknown.width, 800);
+            EXPECT_EQ(unknown.height, 600);
+
+            // The renderer itself, with no window: its own size
+            MasterRenderer renderer;
+            renderer.setWindowSize(640, 480);
+            const auto own = renderer.captureSize();
+            EXPECT_EQ(own.width, 640);
+            EXPECT_EQ(own.height, 480);
+        }
+
+        namespace
+        {
+            struct FrameAsks : public System<Listener<SaveCurrentFrameEvent>, Listener<ReRendererAll>, StoragePolicy>
+            {
+                void onEvent(const SaveCurrentFrameEvent&) override { ++saves; }
+                void onEvent(const ReRendererAll&) override { ++redraws; }
+
+                int saves = 0, redraws = 0;
+            };
+        }
+
+        TEST(bugreport_test, a_grab_answers_with_the_next_frame)
+        {
+            EntitySystem ecs;
+            auto asks = ecs.createSystem<FrameAsks>();
+            auto grab = ecs.createSystem<FrameGrab>();
+            ecs.executeOnce();
+
+            int answers = 0;
+            std::string got;
+            grab->request([&](std::string dataUrl) { ++answers; got = dataUrl; });
+            ecs.executeOnce();
+
+            EXPECT_EQ(asks->saves, 1);     // the frame is asked for, and drawn again so that it comes
+            EXPECT_EQ(asks->redraws, 1);
+            EXPECT_EQ(answers, 0);
+            EXPECT_TRUE(grab->waiting());
+
+            std::vector<unsigned char> pixels(4 * 2 * 4, 128);
+            ecs.sendEvent(SavedFrameData{ pixels, 4, 2 });
+            ecs.executeOnce();
+
+            EXPECT_EQ(answers, 1);
+            EXPECT_EQ(got.rfind("data:image/jpeg;base64,", 0), 0u);
+            EXPECT_FALSE(grab->waiting());
+
+            // A frame nobody asked for is not answered
+            ecs.sendEvent(SavedFrameData{ pixels, 4, 2 });
+            ecs.executeOnce();
+            EXPECT_EQ(answers, 1);
         }
     }
 }
