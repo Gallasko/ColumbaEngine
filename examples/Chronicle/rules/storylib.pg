@@ -104,18 +104,28 @@ fun planRow(id)
         row["test." + k] = tests[k]
     }
 
-    // What its tiles ask in fees ("fee.<stat>"), each as often as the plan names it (two that are one
-    // or the other both counted): what to hold before beginning it, at most
+    // What its tiles ask in fees ("fee.<stat>"), each as often as the plan names it: what to hold
+    // before beginning it. Of two that are one or the other (the binding halls), only the one he
+    // would take: a tile shut (its `not`) by one counted before it, by what one counted gives or by
+    // what he holds is not counted. Its `onlyWith` is not asked: the plan's own cards answer it
+    var counted = {}
+
     for (var t = 0; t < len(tiles); t++)
     {
-        var fee = pick(storyTile(story, tiles[t]), "fee", [])
+        var tile = storyTile(story, tiles[t])
 
-        for (var j = 0; j < len(fee); j++)
+        if (planTakes(row, counted, tile))
         {
-            row["fee." + fee[j].stat] = pick(row, "fee." + fee[j].stat, 0) + fee[j].amount
-        }
+            counted[tiles[t]] = pick(counted, tiles[t], 0) + 1
+            var fee = pick(tile, "fee", [])
 
-        planGives(row, pick(storyTile(story, tiles[t]), "gives", []))
+            for (var j = 0; j < len(fee); j++)
+            {
+                row["fee." + fee[j].stat] = pick(row, "fee." + fee[j].stat, 0) + fee[j].amount
+            }
+
+            planGives(row, pick(tile, "gives", []))
+        }
     }
 
     // And what its first passing grade gives (the grades go from the lowest)
@@ -132,6 +142,33 @@ fun planRow(id)
     }
 
     return row
+}
+
+// Whether a plan's tile is one he would take: nothing of its `not` holds, where a "tile.<id>" holds
+// when the plan has counted that tile, anything else when he holds it or a tile counted gives it
+fun planTakes(row, counted, tile)
+{
+    var shut = pick(tile, "not", [])
+
+    for (var i = 0; i < len(shut); i++)
+    {
+        if (planHolds(row, counted, shut[i]))
+        {
+            return false
+        }
+    }
+
+    return true
+}
+
+fun planHolds(row, counted, key)
+{
+    if (startsWith(key, "tile."))
+    {
+        return pick(counted, substring(key, 5), 0) > 0
+    }
+
+    return storyStat(key) > 0 or pick(row, "gives." + key, 0) > 0
 }
 
 // The stats a list of gifts gives, into a plan's row ("gives.<stat>": the most any one gift gives)
@@ -364,7 +401,7 @@ fun enterStory(id)
     foes = []
     account = []
 
-    stageStep()
+    stageStep(0)
     noteOffer()
 
     // A card of the first day is there when he arrives
@@ -373,13 +410,14 @@ fun enterStory(id)
 
 // A stage's first day: its title and its text are written to the record as a line of their own
 // (no day, no figure), once, by the act that begins the day (a look writes nothing). The head of
-// a phone has room for the title only
-fun stageStep()
+// a phone has room for the title only. `since` is the day he was on before: a tile of two days
+// that steps over a stage's first day still says the stage he is in, begun in the days passed
+fun stageStep(since)
 {
     var story = storyNow()
     var stage = storyStage(story)
 
-    if (stage.title != "" and runOf("day") == stage["from"])
+    if (stage.title != "" and stage["from"] > since and stage["from"] <= runOf("day"))
     {
         openStep("stage", stage.title, 1, 0, stage.title + ". " + stage.text, story.glyph)
     }
@@ -630,7 +668,7 @@ fun endDay(days)
 
     if (runOf("day") <= runOf("days"))
     {
-        stageStep()
+        stageStep(runOf("day") - days)
         noteOffer()
         openDue()
 
@@ -2329,7 +2367,10 @@ fun storyTaken()
 
     for (var i = 0; i < len(stats); i++)
     {
-        // (a flag by its word, "learned"; a counted stat by its figure)
+        // (a flag by its word, "learned"; a counted stat by its figure; a flag whose word goes on
+        // from its name, "by the masters", in one line and no figure: "Suspected of the forbidden
+        // shelf by the masters")
+        var name = statName(stats[i])
         var value = "+" + toString(sumMarks(marks, "stat", stats[i]))
 
         for (var j = 0; j < len(marks); j++)
@@ -2340,7 +2381,13 @@ fun storyTaken()
             }
         }
 
-        push(rows, {id: "stat." + stats[i], name: statName(stats[i]), glyph: "training", value: value, tone: "gain"})
+        if (contains(value, " "))
+        {
+            name = name + " " + value
+            value = ""
+        }
+
+        push(rows, {id: "stat." + stats[i], name: name, glyph: "training", value: value, tone: "gain"})
     }
 
     var items = markIds(marks, "gain")

@@ -195,9 +195,10 @@ const walkStories = [
                           line: "Read on the stairs what was meant for the top floor"}]}],
 
      // The theory: his wits, twice his revision, his days of courses, and what his childhood gave
-     // him. From the old tome his lore counts three times in place of his wits (more, for who has
-     // five lore or more); the forbidden shelf counts for much, and he is suspected of it; the
-     // Church fathers count a little, safely
+     // him. From the old tome his lore counts three times in place of his wits (more, for whose
+     // lore three times over is more than his wits: five lore against wits under fifteen, six
+     // against wits under eighteen); the forbidden shelf counts for much, and he is suspected of
+     // it; the Church fathers count a little, safely
      tests: [{id: "theory", day: 15, kind: "card", title: "The theory",
               text: "A long table, five masters behind it, and the questions read out one after another from a list nobody else has seen.",
               score: [{stat: "int", times: 1}, {mark: "revised", times: 2}, {mark: "courses", times: 1}, {stat: "letters", at: 3, times: 2},

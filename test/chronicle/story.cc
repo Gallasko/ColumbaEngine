@@ -932,7 +932,8 @@ namespace pg
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
         // A card's day passed inside a tile of two days still comes: the third day's question is put
-        // to him on the fourth, when the copying is done.
+        // to him on the fourth, when the copying is done. And so does the line of the stage that
+        // began on the third day, after the copying's own
         TEST(story_test, a_card_is_not_skipped_by_a_long_tile)
         {
             MockLogger logger;
@@ -947,6 +948,16 @@ namespace pg
 
             EXPECT_EQ(w.day(), 4);
             EXPECT_EQ(w.cardId(), "story.crossroads");
+
+            std::vector<std::string> stages;
+
+            for (const auto& s : w.state.record)
+            {
+                if (textOf(s, "kind") == "stage")
+                    stages.push_back(textOf(s, "target"));
+            }
+
+            EXPECT_EQ(stages, (std::vector<std::string>{"The first days", "The last days"}));
 
             // Answered, the examination follows on the same day
             ASSERT_TRUE(w.act("option", "a"));
@@ -1571,23 +1582,35 @@ namespace pg
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
         // A plan says what its tiles ask in fees, all of them taken (the solver begins a story with
-        // them in hand): the Collegium's thirteen fee'd tiles of 3 coin, both binding halls counted.
-        // A plan of no tiles asks none
+        // them in hand): the Collegium's twelve fee'd tiles of 3 coin, a term's 36. Of the two
+        // binding halls only the one he would take is counted: the imp's, or the brownie's for who
+        // knows the imp. A plan of no tiles asks none
         TEST(story_test, a_plan_says_what_it_asks_and_gives)
         {
             MockLogger logger;
             Walker w(collegian());
 
             ASSERT_TRUE(w.ask("plan", WalkAct{"", "collegium", 0}));
-            EXPECT_EQ(intOf(w.last.site, "fee.coin"), 39);
+            EXPECT_EQ(intOf(w.last.site, "fee.coin"), 36);
 
-            // And what following it gives: the binding halls and the fire course on the way, what a
+            // And what following it gives: the binding hall and the fire course on the way, what a
             // pass gives at its end (the search learns from it what the story makes)
             EXPECT_EQ(intOf(w.last.site, "gives.know.fam.imp"), 1);
+            EXPECT_EQ(intOf(w.last.site, "gives.know.fam.brownie"), 0);
             EXPECT_EQ(intOf(w.last.site, "gives.fire_course"), 1);
             EXPECT_EQ(intOf(w.last.site, "gives.collegium"), 1);
             EXPECT_EQ(intOf(w.last.site, "gives.arcana"), 1);
             EXPECT_EQ(intOf(w.last.site, "gives.top_floor"), 0);
+
+            // Who knows the imp is shown the brownie's hall in its place
+            ElementMap knows = collegian();
+            knows["know.fam.imp"] = ElementType{1};
+            Walker k(knows);
+
+            ASSERT_TRUE(k.ask("plan", WalkAct{"", "collegium", 0}));
+            EXPECT_EQ(intOf(k.last.site, "fee.coin"), 36);
+            EXPECT_EQ(intOf(k.last.site, "gives.know.fam.imp"), 0);
+            EXPECT_EQ(intOf(k.last.site, "gives.know.fam.brownie"), 1);
 
             ASSERT_TRUE(w.ask("plan", WalkAct{"", "trial", 0}));
             EXPECT_EQ(textOf(w.last.site, "id"), "trial");
@@ -2002,6 +2025,12 @@ namespace pg
             EXPECT_EQ(textOf(w.state.run, "result"), "distinction") << scores(w);
             EXPECT_EQ(intOf(w.character, "top_floor"), 1);
             EXPECT_EQ(intOf(w.character, "suspected"), 1);
+
+            // Taken so far says it in one line, its word going on from its name, and no figure
+            const ElementMap* suspected = byId(w.last.taken, "stat.suspected");
+            ASSERT_NE(suspected, nullptr);
+            EXPECT_EQ(textOf(*suspected, "name"), "Suspected of the forbidden shelf by the masters");
+            EXPECT_EQ(textOf(*suspected, "value"), "");
         }
 
         // Answering what was taught, with a third day on the dummies in the binding hall's place: a
