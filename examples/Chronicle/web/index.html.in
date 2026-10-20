@@ -53,21 +53,34 @@
     (function () {
       var LIMIT = 300;
 
+      // The ring never throws: a bad argument or a missing console method cannot break a print
       function keep(kind, args) {
-        var text = Array.prototype.map.call(args, function (a) {
-          if (typeof a === 'string') return a;
-          try { return JSON.stringify(a); } catch (e) { return String(a); }
-        }).join(' ');
+        try {
+          var text = Array.prototype.map.call(args, function (a) {
+            if (typeof a === 'string') return a;
+            try { return JSON.stringify(a); } catch (e) {}
+            try { return String(a); } catch (e) { return '?'; }
+          }).join(' ');
 
-        window.chronicleConsole.push('[' + kind + '] ' + text);
-        if (window.chronicleConsole.length > LIMIT)
-          window.chronicleConsole.splice(0, window.chronicleConsole.length - LIMIT);
+          window.chronicleConsole.push('[' + kind + '] ' + text);
+          if (window.chronicleConsole.length > LIMIT)
+            window.chronicleConsole.splice(0, window.chronicleConsole.length - LIMIT);
+        } catch (e) {}
       }
 
-      window.chronicleRaw = { log: console.log, warn: console.warn };   // Unwrapped, so a print is kept once
+      function noop() {}
+
+      function raw(method) {
+        return typeof method === 'function' ? method : noop;
+      }
+
+      window.chronicleRaw = { log: raw(console.log), warn: raw(console.warn) };   // Unwrapped, so a print is kept once
 
       ['log', 'info', 'warn', 'error'].forEach(function (kind) {
         var original = console[kind];
+
+        if (typeof original !== 'function')
+          return;
 
         console[kind] = function () {
           keep(kind, arguments);

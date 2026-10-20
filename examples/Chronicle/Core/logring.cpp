@@ -97,3 +97,13 @@ namespace chronicle
     }
 #endif
 }
+
+#ifdef __EMSCRIPTEN__
+// A way to call recentLogs() from the page (the headless check, Module.ccall)
+extern "C" EMSCRIPTEN_KEEPALIVE const char* chronicle_recent_logs()
+{
+    static std::string held;
+    held = chronicle::recentLogs();
+    return held.c_str();
+}
+#endif
