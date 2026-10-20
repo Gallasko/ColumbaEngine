@@ -908,6 +908,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         examples/Chronicle/Scenes/lifescene.cpp
         examples/Chronicle/Scenes/lifewalk.cpp
         examples/Chronicle/Scenes/lifeoptions.cpp
+        examples/Chronicle/Scenes/lifereport.cpp
         examples/Chronicle/Core/settings.cpp
         examples/Chronicle/UI/label.cpp
         examples/Chronicle/UI/mark.cpp

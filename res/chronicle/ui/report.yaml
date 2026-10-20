@@ -1,0 +1,44 @@
+# Report a bug: over any screen, when the button in the window's corner is pressed. The native
+# build's dialog; a browser shows a page of its own instead (examples/Chronicle/web/index.html.in),
+# which takes several lines and raises a phone's keyboard.
+#
+# Built by LifeScene (examples/Chronicle/Scenes/lifeoptions.cpp, openDialog "report"; what it does is
+# lifereport.cpp's) once the screen has been caught, and removed when it is answered. The words
+# are typed in the field at once; the line under the note is the scene's: when he may send again,
+# or why the last one did not go. Send is greyed while the limit holds. Escape or Cancel closes it,
+# and what he wrote is kept for the next time.
+# z as the wipe's dialog (burn.yaml): the veil 130, the leaf 134, its content 144. The corner's
+# button is hidden while it is up.
+name: report
+children:
+
+  - kind: Shape2D
+    name: veil
+    width: 1320
+    height: 1020
+    z: 130
+    theme: modal.scrim
+
+  - kind: Panel
+    name: leaf
+    frame: ruled
+    width: 560
+    z: 134
+    contentZ: 144
+    anchors:
+      - {side: horizontalCenter, target: __MainWindow, targetSide: horizontalCenter}
+      - {side: verticalCenter, target: __MainWindow, targetSide: verticalCenter}
+    children:
+      - {kind: Label, name: reportTitle, style: title, overflow: wrap, text: "Report a bug"}
+      - {kind: WordField, name: reportWords, placeholder: "What happened? What did you expect?", tag: report.words, width: 512, most: 200}
+      - {kind: Label, name: reportNote, style: body-sm, color: ink-muted, overflow: wrap, text: "A picture of the screen, your save and the game's recent messages are kept with your words, in a folder beside the save."}
+      - {kind: Label, name: reportLine, style: body-sm, color: vermilion, overflow: wrap, text: " "}
+      - kind: Layout:Horizontal
+        name: reportButtons
+        width: 512
+        height: 36
+        spacing: 12
+        children:
+          - {kind: Label, name: reportSpacer, style: label, overflow: ellipsis, width: 100, text: " "}
+          - {kind: Button, name: reportCancel, variant: quiet, label: Cancel, tag: report.cancel}
+          - {kind: Button, name: reportSend, variant: seal, label: Send, tag: report.send}

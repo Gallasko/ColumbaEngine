@@ -24,6 +24,7 @@
 #include "UI/radiocard.h"     // RadioChosenEvent
 #include "UI/wordfield.h"     // WordChangedEvent
 #include "Core/settings.h"
+#include "Core/bugsend.h"     // ReportFlow, SendResult, ReportLimit
 #include "lifesave.h"
 
 namespace chronicle
@@ -60,6 +61,7 @@ namespace chronicle
         // The Options page (lifeoptions.cpp)
         std::string burnFile = "res/chronicle/ui/burn.yaml";       // The wipe's dialog, over the page
         std::string replaceFile = "res/chronicle/ui/replace.yaml"; // Asked before a save loaded takes the place of a game under way
+        std::string reportFile = "res/chronicle/ui/report.yaml";   // The bug report's dialog, natively (a browser has its own, in the page)
         std::optional<LifeSave> opened;   // A save loaded from a file, opened in the place of the one at savePath (the scene is made again with it)
         bool clearFacts = false;       // The scene is made again in the place of another: the facts the last one wrote are the last life's, cleared before any is written
     };
@@ -589,5 +591,41 @@ namespace chronicle
         void fitDialog(float width, float height);
         void burnWordChanged(const std::string& word);   // The burn's button opens once the word is BURN
         void enableOptionsFocus(bool on);         // The page's controls in the Tab order only while it is in view
+
+        // The bug report (lifereport.cpp): a button in the window's top right corner over every
+        // screen, made with the scene. Pressed, the screen is caught first, so the picture is what
+        // he saw; then the dialog opens over the game: a page of the browser's own on the web (a
+        // box of several lines, a phone's keyboard), the kit's dialog natively. What he writes goes
+        // to the author with the picture, the save as last written, the recent messages and where
+        // he stood; natively it is written to a folder beside the save
+        Button reportButton;           // Its corner's button, the `bug` mark on it
+        bool reportOpen = false;       // The dialog is up: what is typed and clicked is not the game's
+        bool reportAsked = false;      // Pressed: the screen is being caught, the dialog comes with it
+        float reportGrabLeft = 0.0f;   // Milliseconds the frame may still take; then the dialog opens without it
+        std::string reportScreen;      // The screen as it was caught, a JPEG data URL; "" for none
+        std::string reportLine;        // What the dialog says under the words: when he may send again, or why it did not go
+        bool reportSending = false;    // Sent, its answer not come yet
+        bool reportKeysShut = false;   // The dialog closed by a key this pass: the keys of the same pass are not played either
+        ReportFlow reportFlow;         // His words, kept until they have gone
+        float reportRight = -1.0f;     // The margin from the window's right the button was last put at
+
+        void makeReportButton();       // Once, with the page
+        void placeReportButton();      // Left of the head's figure in that corner, as it is drawn now: on every screen, at every width
+        bool onReportButton(const std::string& tag);   // The corner's button, or one of the native dialog's: true when it was
+        void openReport();             // The frame asked for; the dialog opens when it comes
+        void showReport();             // The dialog itself, once the screen is caught (or not, in time)
+        void closeReport();            // Shut, his words kept
+        void fillReport();             // The native dialog's line and Send as the limit and the last answer leave them
+        void sendFromReport(const std::string& message);   // The report made and sent; the answer comes to reportAnswered
+        void reportAnswered(SendResult result, int waitS, const std::string& line);
+        void runReport(float ms);      // A tick: the frame's wait runs out
+        void pollReport();             // Each pass: the sends' answers, and the browser's dialog pressed
+        void dropReport();             // The scene leaves: nothing asked for answers into it
+        std::string reportDir() const;           // The folder beside the save: the player's id, the limit's file, the reports written
+        ReportLimit reportLimit() const;         // The last reports' times, from their file
+        std::string lifeLogTail(size_t lines) const;   // The life's own log, its last lines, one a line
+        std::string reportPlace() const;         // Where he stood: page, screen, age, the work he is at
+        float headFigureLeft() const;            // Where the big figure of the head's right begins, as drawn; the window's right with none
+        float reportRoom() const;                // What the button takes of a head beside its figure: its width and its gap, 0 with no button
     };
 }

@@ -40,6 +40,10 @@ namespace chronicle
         // A request waits for its frame
         bool waiting() const { return static_cast<bool>(pending); }
 
+        // The request waiting is forgotten: its `done` is never called (its asker is gone, or gave up
+        // waiting). The frame asked for still comes, and is no one's
+        void cancel() { pending = nullptr; }
+
         void onEvent(const pg::SavedFrameData& event) override;
 
     private:

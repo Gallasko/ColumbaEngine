@@ -1612,8 +1612,12 @@ namespace chronicle
                 label->setWidth(ecs, to);
         };
 
-        fit("kicker", whole - figure - HeadGap);
-        fit(fighting ? "fightTitle" : "zoneTitle", whole - std::max(figure, under) - HeadGap);
+        // The bug report's button stands between them and the figure (lifereport.cpp), over the
+        // line under it
+        const float report = reportRoom();
+
+        fit("kicker", whole - figure - report - HeadGap);
+        fit(fighting ? "fightTitle" : "zoneTitle", whole - std::max(figure + report, under) - HeadGap);
     }
 
     void LifeScene::fitAccount()

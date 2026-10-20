@@ -76,7 +76,7 @@ namespace pg
         {
             MockLogger logger;
 
-            EXPECT_EQ(markNames().size(), 30u);
+            EXPECT_EQ(markNames().size(), 31u);
             EXPECT_EQ(markNames().front(), "strength");
             EXPECT_EQ(markNames().back(), "cross");
             EXPECT_TRUE(isMarkName("time"));
@@ -85,6 +85,9 @@ namespace pg
 
             // The guide's pointing hand, among the meta marks
             EXPECT_TRUE(isMarkName("manicule"));
+
+            // And the bug report's, on the button in the window's corner
+            EXPECT_TRUE(isMarkName("bug"));
         }
 
         // ----------------------------------------------------------------------------------------

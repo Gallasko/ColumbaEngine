@@ -750,6 +750,10 @@ namespace chronicle
 
     bool LifeScene::openDialog(const std::string& kind)
     {
+        // The bug report's dialog up (the browser's own, which is not this slot's) asks first
+        if (reportOpen and kind != "report")
+            return false;
+
         // One dialog at a time; the save waiting for an answer is this one's
         std::optional<LifeSave> waiting = std::move(toReplace);
 
@@ -760,7 +764,7 @@ namespace chronicle
         if (kind == "replace" and not toReplace)
             return false;
 
-        const std::string& file = kind == "burn" ? opt.burnFile : opt.replaceFile;
+        const std::string& file = kind == "burn" ? opt.burnFile : kind == "report" ? opt.reportFile : opt.replaceFile;
 
         std::vector<std::string> errors;
         PrefabLoadOptions options;
@@ -884,6 +888,17 @@ namespace chronicle
 
             dialogFaces = {faceOf("burnWord"), faceOf("burnKeep"), faceOf("burnConfirm")};
         }
+        else if (kind == "report")
+        {
+            // The bug report's (lifereport.cpp fills its line and greys its Send)
+            for (const char* line : {"reportTitle", "reportNote", "reportLine"})
+                fitTo(line, inner);
+
+            fitTo("reportWords", inner);
+            buttonsRow("reportButtons", "reportSpacer", "reportCancel", "reportSend");
+
+            dialogFaces = {faceOf("reportWords"), faceOf("reportCancel"), faceOf("reportSend")};
+        }
         else
         {
             const LifeSave& held = *toReplace;
@@ -914,10 +929,10 @@ namespace chronicle
 
         fitDialog(windowWidth, windowHeight);
 
-        // The word is typed at once, without a click in its field first
-        if (kind == "burn")
+        // The word is typed at once, without a click in its field first; and so are a report's words
+        if (kind == "burn" or kind == "report")
         {
-            if (EntityRef field = find("burnWord"); not field.empty() and field->has<WordField>())
+            if (EntityRef field = find(kind == "burn" ? "burnWord" : "reportWords"); not field.empty() and field->has<WordField>())
                 field->get<WordField>()->focus(ecs);
         }
 
@@ -941,6 +956,10 @@ namespace chronicle
 
         if (not dialog.empty())
             ecsRef->removeEntity(dialog);
+
+        // The bug report's dialog shut with it (lifereport.cpp)
+        if (dialogKind == "report")
+            reportOpen = false;
 
         dialog = EntityRef{};
         dialogKind.clear();

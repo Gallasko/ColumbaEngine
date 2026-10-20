@@ -749,6 +749,10 @@ namespace chronicle
         if (not buildPage(needsCompact(width, height), needsPhone(width), width))
             return;
 
+        // The bug report's button, in the window's corner over every screen (lifereport.cpp): made
+        // once with the scene, anchored to the window as the toasts are
+        makeReportButton();
+
         // The Options page's controls (lifeoptions.cpp)
         listenToEvent<SwitchToggledEvent>([this](const SwitchToggledEvent& e) {
             if (e.tag == "options.click")
@@ -765,6 +769,8 @@ namespace chronicle
         listenToEvent<WordChangedEvent>([this](const WordChangedEvent& e) {
             if (e.tag == "options.burnWord")
                 burnWordChanged(e.text);
+            else if (e.tag == "report.words")
+                reportFlow.message = e.text;   // Kept as he types: a dialog shut keeps them for the next time
         });
 
         // The lists of a walk's screens and of the Adventure page are the walk's to hear (lifewalk.cpp)
@@ -779,6 +785,10 @@ namespace chronicle
         // At nothing, a month passes when he says so; at work the months run on their own. The
         // ending's one button begins the next life
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e) {
+            // The bug report's button, and its dialog's (lifereport.cpp)
+            if (onReportButton(e.tag))
+                return;
+
             if (onOptionsButton(e.tag))
                 return;
 
@@ -845,6 +855,9 @@ namespace chronicle
             // The scene is being made again: nothing more passes here
             if (leaving)
                 return;
+
+            // The frame a bug report waits for may not come: the dialog opens without it in time
+            runReport(e.tick);
 
             // An OS dialog held the game still: what it held is no time played, and no month runs on it
             if (skipTick)
@@ -973,6 +986,23 @@ namespace chronicle
 
         listenToEvent<OnSDLScanCode>([this](const OnSDLScanCode& e) {
             stirred();
+
+            // The bug report's dialog takes the keys: they are his words. Escape shuts it, and what
+            // came in the same pass with it is not played either (the browser's own dialog keeps
+            // them from the game; this is the native one, and a key that slipped through)
+            if (reportKeysShut)
+                return;
+
+            if (reportOpen)
+            {
+                if (e.key == SDL_SCANCODE_ESCAPE)
+                {
+                    closeReport();
+                    reportKeysShut = true;
+                }
+
+                return;
+            }
 
             // A question over the page takes the keys: Escape answers no, and nothing else is a shortcut
             if (not dialog.empty())
@@ -1930,7 +1960,9 @@ namespace chronicle
 
         const float column = std::max(MinCompactList, windowWidth - 2.0f * PhoneMargin);
         const float drawn = age->entity->get<TTFText>()->textWidth;
-        const float to = std::max(1.0f, column - (drawn > 0.0f ? drawn + PhoneHeadGap : PhoneAge));
+
+        // And the bug report's button stands between them (lifereport.cpp)
+        const float to = std::max(1.0f, column - (drawn > 0.0f ? drawn + PhoneHeadGap : PhoneAge) - reportRoom());
 
         if (std::abs(title->spec.width - to) > 0.5f)
             title->setWidth(ecsRef, to);
@@ -2080,6 +2112,9 @@ namespace chronicle
         noteShown = false;
         nextShown = false;
 
+        // Nothing the bug report asked for answers into a scene that is gone (lifereport.cpp)
+        dropReport();
+
         // And what was passing ends now
         endPassing();
     }
@@ -2146,6 +2181,12 @@ namespace chronicle
         }
 
         runGuide();
+
+        // The bug report: its sends' answers and its dialog pressed, then its button beside the head
+        // of whatever screen is up now (lifereport.cpp)
+        pollReport();
+        placeReportButton();
+        reportKeysShut = false;
     }
 
     // ---- the guide of a first life -------------------------------------------------------------------

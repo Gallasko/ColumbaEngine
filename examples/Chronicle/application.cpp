@@ -35,6 +35,7 @@
 #include "Core/settle.h"
 #include "Core/analytics.h"
 #include "Core/logring.h"
+#include "Core/screenshot.h"
 #include "Core/settings.h"
 
 using namespace pg;
@@ -101,6 +102,9 @@ namespace chronicle
 
             // How long a session lasts and where the life stood when it stopped (a browser build only)
             ecs.createSystem<Analytics>();
+
+            // The screen as it stands, caught for a bug report (the renderer reads it while it draws)
+            ecs.createSystem<FrameGrab>();
 
             // The deeds of a life, watched against the facts. What is reached is kept by the
             // life's own save, not by the systems' file.

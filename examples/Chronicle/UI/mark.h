@@ -32,12 +32,12 @@ namespace chronicle
     //   versal                               -> S48 (plates use S48 explicitly)
     MarkSize markSizeFor(const std::string& style);
 
-    // The 30 names, in the design-system order (Parts, Resources, Activities, Places,
+    // The 31 names, in the design-system order (Parts, Resources, Activities, Places,
     // Meta, Status). First "strength", last "cross". "manicule" is the guide's pointing hand.
     const std::vector<std::string>& markNames();
     bool isMarkName(const std::string&);
 
-    // Calls IconSystem::registerIconSet("chronicle", <iconRoot>/<name>.svg x 30, {14,16,18,24,48}).
+    // Calls IconSystem::registerIconSet("chronicle", <iconRoot>/<name>.svg x 31, {14,16,18,24,48}).
     // Returns false (and logs) if the IconSystem is missing. Idempotent: a second call is a no-op.
     bool registerMarks(pg::EntitySystem*, const std::string& iconRoot = "res/icons/chronicle");
 

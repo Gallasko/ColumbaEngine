@@ -35,6 +35,59 @@
     }
     #own-tab:hover, #own-tab:focus { background: #2b2219; color: #ece0c8; }
     #own-tab[hidden] { display: none; }
+
+    /* The bug report's dialog, over the game (the game opens it, LifeScene::showReport): the game's
+       leaf on its scrim, in its colours by day and by candle. It is the page's own, so that its box
+       takes several lines and raises a phone's keyboard; while it is up no key, click or touch of it
+       reaches the game. */
+    #report {
+      --vellum: #ece0c8; --folio: #f6eddb; --worn: #ded0b2; --ink: #2b2219; --muted: #675842;
+      --ruled: #806a4a; --hair: #cbb894; --vermilion: #9e2b25; --on-vermilion: #f8efdd; --scrim: rgba(43, 34, 25, 0.58);
+      position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+      padding: 16px; box-sizing: border-box; background: var(--scrim);
+      font: 16px/1.5 Georgia, "Times New Roman", serif; color: var(--ink);
+    }
+    #report.candle {
+      --vellum: #17140f; --folio: #201b14; --worn: #100d09; --ink: #eadfc8; --muted: #a3927a;
+      --ruled: #7a6c58; --hair: #352d23; --vermilion: #e2766a; --on-vermilion: #2a100c; --scrim: rgba(0, 0, 0, 0.68);
+    }
+    #report[hidden] { display: none; }
+    #report .leaf {
+      width: 100%; max-width: 560px; max-height: 100%; overflow: auto; box-sizing: border-box;
+      padding: 20px 24px; background: var(--folio); border: 1px solid var(--ruled); border-radius: 4px;
+    }
+    #report h2 { margin: 0 0 12px; font-size: 26px; line-height: 1.2; font-weight: 600; }
+    #report textarea {
+      display: block; width: 100%; box-sizing: border-box; min-height: 120px; resize: vertical; padding: 8px 10px;
+      font: 16px/1.4 Georgia, "Times New Roman", serif; color: var(--ink); background: var(--worn);
+      border: 1px solid var(--ruled); border-radius: 3px; outline: none;
+    }
+    #report textarea:focus { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+    #report textarea::placeholder { color: var(--muted); opacity: 1; }
+    #report .note { margin: 10px 0 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
+    #report .seen { display: flex; gap: 12px; align-items: flex-start; margin-top: 12px; }
+    #report .seen[hidden] { display: none; }
+    #report .seen img { display: block; max-width: 45%; max-height: 120px; border: 1px solid var(--hair); }
+    #report .seen span { font-size: 13px; line-height: 1.4; color: var(--muted); font-style: italic; }
+    #report .line { min-height: 20px; margin: 10px 0 0; font-size: 14px; line-height: 1.4; color: var(--vermilion); }
+    #report .buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 12px; }
+    #report button {
+      min-width: 88px; height: 36px; padding: 0 16px; border-radius: 4px; cursor: pointer;
+      font: 600 15px/1 Georgia, "Times New Roman", serif;
+    }
+    #report .quiet { background: var(--folio); color: var(--ink); border: 1px solid var(--ruled); }
+    #report .seal { background: var(--vermilion); color: var(--on-vermilion); border: 1px solid var(--vermilion); }
+    #report button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+    #report button:disabled { opacity: 0.45; cursor: default; }
+
+    /* A phone: the leaf to the window's sides, and room above the keyboard */
+    @media (max-width: 599px) {
+      #report { padding: 12px; align-items: flex-start; }
+      #report .leaf { padding: 16px; }
+      #report h2 { font-size: 22px; }
+      #report textarea { min-height: 96px; }
+      #report .seen img { max-height: 90px; }
+    }
   </style>
 </head>
 <body>
@@ -45,6 +98,125 @@
       <a id="own-tab" target="_blank" rel="noopener" hidden>Play Chronicle in its own tab</a>
     </div>
   </div>
+
+  <div id="report" hidden role="dialog" aria-modal="true" aria-labelledby="report-title">
+    <div class="leaf">
+      <h2 id="report-title">Report a bug</h2>
+      <textarea id="report-words" rows="5" maxlength="2000" placeholder="What happened? What did you expect?" aria-label="What happened? What did you expect?"></textarea>
+      <p class="note">A picture of the screen, your save and the game's recent messages are sent with your words.</p>
+      <div class="seen" id="report-seen" hidden>
+        <img id="report-thumb" alt="The screen as it was when you pressed the button">
+        <span>The screen as it was when you pressed the button.</span>
+      </div>
+      <p class="line" id="report-line" aria-live="polite"></p>
+      <div class="buttons">
+        <button type="button" class="quiet" id="report-cancel">Cancel</button>
+        <button type="button" class="seal" id="report-send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // The bug report's dialog. The game shows it (open), says how a send went (result) and shuts it
+    // (close); what is pressed is left in `pressed` ("send\n<words>", "cancel\n<words>") for the
+    // game to take on its next pass (LifeScene::pollReport). Nothing typed or clicked in it reaches
+    // the game: SDL listens on the window and the canvas, and every event stops here.
+    window.chronicleReport = (function () {
+      var root = document.getElementById('report');
+      var words = document.getElementById('report-words');
+      var seen = document.getElementById('report-seen');
+      var thumb = document.getElementById('report-thumb');
+      var line = document.getElementById('report-line');
+      var send = document.getElementById('report-send');
+      var cancel = document.getElementById('report-cancel');
+      var limited = false;
+
+      var api = { pressed: null };
+
+      function press(what) {
+        api.pressed = what + '\n' + words.value;
+      }
+
+      function say(text) {
+        line.textContent = text || '';
+      }
+
+      api.open = function (screen, text, said, isLimited, candle) {
+        root.classList.toggle('candle', !!candle);
+        if (text) words.value = text;
+        limited = !!isLimited;
+        send.disabled = limited;
+        say(said);
+
+        if (screen) {
+          thumb.src = screen;
+          seen.hidden = false;
+        } else {
+          thumb.removeAttribute('src');
+          seen.hidden = true;
+        }
+
+        root.hidden = false;
+        words.focus();
+      };
+
+      api.result = function (kind, said, isLimited) {
+        if (kind === 'sent') {
+          words.value = '';
+          api.close();
+          return;
+        }
+
+        limited = !!isLimited;
+        send.disabled = limited;
+        say(said);
+      };
+
+      api.close = function () {
+        if (root.hidden) return;
+
+        root.hidden = true;
+        say('');
+
+        var canvas = document.getElementById('canvas');
+        if (canvas) canvas.focus();
+      };
+
+      api.isOpen = function () { return !root.hidden; };
+
+      send.addEventListener('click', function () {
+        if (send.disabled) return;
+
+        press('send');
+        send.disabled = true;
+        say('Sending...');
+      });
+
+      cancel.addEventListener('click', function () {
+        press('cancel');
+        api.close();
+      });
+
+      root.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          cancel.click();
+        } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+          event.preventDefault();
+          send.click();
+        }
+
+        event.stopPropagation();
+      });
+
+      ['keyup', 'keypress', 'mousedown', 'mouseup', 'mousemove', 'click', 'dblclick', 'wheel', 'contextmenu',
+       'pointerdown', 'pointerup', 'pointermove', 'touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(function (kind) {
+        root.addEventListener(kind, function (event) { event.stopPropagation(); });
+      });
+
+      return api;
+    })();
+  </script>
 
   <script>
     // The last 300 lines the page and the module print, kept for a bug report. Installed before the

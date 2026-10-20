@@ -45,6 +45,8 @@
 #include "Core/motion.h"
 #include "Core/factrouter.h"
 #include "Core/settle.h"
+#include "Core/bugreport.h"
+#include "Core/screenshot.h"
 
 #include "ECS/entitysystem.h"
 #include "ECS/entitysystem_fwd.h"   // ResizeEvent
@@ -666,13 +668,19 @@ namespace pg
                 EXPECT_NEAR(box(name).right, 378.0f, 0.5f) << name;
             }
 
-            // The title ends before his age as it is drawn (right-aligned in its box), and takes
-            // the room up to it: not cut while the whole of it fits there
+            // The title ends before his age as it is drawn (right-aligned in its box), and the bug
+            // report's button stands between them: the title takes the room up to the button, not
+            // cut while the whole of it fits there
             const float ageDrawn = life->named("age")->get<TTFText>()->textWidth;
             ASSERT_GT(ageDrawn, 0.0f);
             EXPECT_NEAR(box("age").right, 378.0f, 0.5f);
             EXPECT_LE(box("title").right, box("age").right - ageDrawn + 0.5f);
-            EXPECT_GT(box("title").right, box("age").left + 0.5f);
+
+            ASSERT_FALSE(life->reportButton.root.empty());
+            auto report = f.pos(life->reportButton.root);
+            EXPECT_LE(box("title").right, report->x + 0.5f);
+            EXPECT_LE(report->x + report->width, box("age").right - ageDrawn + 0.5f);
+            EXPECT_GT(box("title").right, report->x - 20.0f);
 
             // The note on his age is a line of its own: it does not begin with the "years" that
             // goes on from the figure beside it on a wider page
@@ -10375,19 +10383,24 @@ namespace pg
             EXPECT_NEAR(f.pos(walkPart(life, "timeline"))->width, order->innerWidth(), 0.5f);
             EXPECT_LE(f.pos(pieces.front())->x + f.pos(pieces.front())->width, f.pos(orderRoot)->x + f.pos(orderRoot)->width - 0.5f);
 
-            // The head's kicker and title end before the turn's figure as it is drawn, and take
-            // the room up to it (once the screen has settled)
+            // The head's kicker and title end before the turn's figure as it is drawn, with the bug
+            // report's button between them, and take the room up to the button (once the screen
+            // has settled)
             f.pass(300.0f, 50.0f);
 
             auto turn = walkPart(life, "turn");
             const float turnLeft = f.pos(turn)->x + f.pos(turn)->width - turn->get<TTFText>()->textWidth;
 
+            ASSERT_FALSE(life->reportButton.root.empty());
+            auto report = f.pos(life->reportButton.root);
+            EXPECT_LE(report->x + report->width, turnLeft + 0.5f);
+
             for (const char* name : {"kicker", "fightTitle"})
             {
                 auto head = f.pos(walkPart(life, name));
 
-                EXPECT_LE(head->x + head->width, turnLeft - 15.5f) << name;
-                EXPECT_GT(head->x + head->width, turnLeft - 30.0f) << name;
+                EXPECT_LE(head->x + head->width, report->x - 15.5f) << name;
+                EXPECT_GT(head->x + head->width, report->x - 30.0f) << name;
             }
         }
 
@@ -13260,6 +13273,698 @@ namespace pg
             ASSERT_NE(after, nullptr);
             EXPECT_EQ(after->save.name, "Wenna of the Mill");
             EXPECT_TRUE(after->dialog.empty());
+
+            f.load<EmptyScene>();
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The bug report (lifereport.cpp): a button in the window's corner over every screen, the
+        // screen caught before the dialog opens, the keys the dialog's while it is up, the limit
+        namespace
+        {
+            constexpr float GuideVeilZ = 110.0f;   // The guide's shade (lifescene.cpp, VeilZ)
+            constexpr float TooltipZ = 150.0f;     // Where the engine's TooltipSystem puts a gloss (TOOLTIP_Z)
+            constexpr const char * const ReportTag = "life.report";
+
+            // The buttons that open the report, wherever they are
+            int reportButtons(LifeFixture& f)
+            {
+                int count = 0;
+                const auto& entities = f.ecs.view();
+
+                for (size_t i = 1; i <= f.ecs.getNbEntities(); ++i)
+                {
+                    auto entity = entities[i];
+
+                    if (entity and entity->has<ButtonState>() and entity->get<ButtonState>()->tag == ReportTag)
+                        ++count;
+                }
+
+                return count;
+            }
+
+            // Where the text of a label aligned right begins, as it is drawn
+            float drawnLeft(LifeFixture& f, EntityRef label)
+            {
+                auto l = label->get<Label>();
+                const TextStyle& style = f.theme->style(l->spec.style);
+
+                TextLayoutParams params;
+                params.spacing = style.lineSpacingPx;
+                params.letterSpacing = style.letterSpacingPx;
+
+                const float drawn = f.ecs.getSystem<TTFTextSystem>()->measureText(style.fontAlias, l->spec.text, params).width;
+                auto pos = f.pos(label);
+
+                return pos->x + pos->width - drawn;
+            }
+
+            // The big figure at the head's right, on the screen in view: the walk's, or the page's
+            EntityRef headFigure(LifeScene* life)
+            {
+                if (not life->walkPage.empty() and life->walkPage->has<Prefab>())
+                {
+                    for (const char* name : {"daysLeft", "turn"})
+                    {
+                        if (EntityRef e = life->walkPage->get<Prefab>()->findEntity(name); not e.empty() and e->has<Label>())
+                            return e;
+                    }
+
+                    return EntityRef{};
+                }
+
+                for (const char* name : {"date", "age"})
+                {
+                    if (EntityRef e = life->named(name); not e.empty() and e->has<Label>())
+                        return e;
+                }
+
+                return EntityRef{};
+            }
+
+            // The button is there, drawn, in the window's top right corner, over the guide's shade
+            // and under the glosses, and beside the head's figure, not over it
+            void expectReportButton(LifeFixture& f, LifeScene* life, const std::string& where)
+            {
+                SCOPED_TRACE(where);
+
+                ASSERT_FALSE(life->reportButton.root.empty());
+                EXPECT_EQ(reportButtons(f), 1);
+
+                auto face = f.pos(life->reportButton.face);
+                EXPECT_TRUE(face->isRenderable());
+
+                // Its corner: inside the window, at its top right
+                EXPECT_GE(face->x, life->windowWidth / 2.0f);
+                EXPECT_LE(face->x + face->width, life->windowWidth + 0.5f);
+                EXPECT_GE(face->y, 0.0f);
+                EXPECT_LE(face->y + face->height, 60.0f);
+
+                // Every part of it in the band between the shade and the glosses
+                auto state = life->reportButton.face->get<ButtonState>();
+                std::vector<_unique_id> parts = {life->reportButton.face.id, state->ground, state->frame};
+                parts.insert(parts.end(), state->inked.begin(), state->inked.end());
+
+                for (auto id : parts)
+                {
+                    auto part = f.ecs.getEntity(id);
+
+                    if (not part)
+                        continue;
+
+                    EXPECT_GT(part->get<PositionComponent>()->z, GuideVeilZ) << id;
+                    EXPECT_LT(part->get<PositionComponent>()->z, TooltipZ) << id;
+                }
+
+                // The head's figure is read whole
+                if (EntityRef figure = headFigure(life); not figure.empty() and f.pos(figure)->isRenderable())
+                {
+                    EXPECT_LE(face->x + face->width, drawnLeft(f, figure) + 0.5f) << "the button covers " << figure->get<Label>()->spec.text;
+                }
+
+                // And the head's lines at its left end before it, as they are drawn
+                for (const char* name : {"title", "kicker", "zoneTitle", "fightTitle"})
+                {
+                    EntityRef line = life->walkPage.empty() ? life->named(name) : (life->walkPage->has<Prefab>() ? life->walkPage->get<Prefab>()->findEntity(name) : EntityRef{});
+
+                    if (line.empty() or not line->has<Label>() or not line->has<TTFText>() or not f.pos(line)->isRenderable())
+                        continue;
+
+                    auto box = f.pos(line);
+                    const float drawnRight = box->x + std::min(box->width, line->get<TTFText>()->textWidth);
+
+                    EXPECT_LE(drawnRight, face->x + 0.5f) << "the button covers the end of " << name << ": " << line->get<Label>()->spec.text;
+                }
+
+                // It says what it is
+                ASSERT_TRUE(life->reportButton.face->has<TooltipComponent>());
+                auto glosses = f.ecs.getSystem<GlossRegistry>();
+                const GlossSpec* gloss = glosses->find(life->reportButton.face->get<TooltipComponent>()->text);
+                ASSERT_NE(gloss, nullptr);
+                EXPECT_EQ(gloss->title, "Report a bug");
+            }
+
+            // The report's folder: the save beside it, as in the game
+            LifeSceneOptions reportOptions(const std::filesystem::path& folder)
+            {
+                LifeSceneOptions opt = LifeFixture::mockup();
+                opt.noSave = false;
+                opt.savePath = (folder / "life.sz").string();
+                opt.now = 1800000000ull;
+
+                return opt;
+            }
+
+            EntityRef inReport(LifeScene* life, const char* name)
+            {
+                if (life->dialog.empty() or not life->dialog->has<Prefab>())
+                    return EntityRef{};
+
+                return life->dialog->get<Prefab>()->findEntity(name);
+            }
+
+            // The frames the renderer is asked for, and whether the dialog was up at each
+            struct FrameAsked : public System<Listener<SaveCurrentFrameEvent>>
+            {
+                LifeScene* life = nullptr;
+                int asked = 0;
+                int dialogUp = 0;
+
+                void onEvent(const SaveCurrentFrameEvent&) override
+                {
+                    ++asked;
+
+                    if (life and (life->reportOpen or not life->dialog.empty()))
+                        ++dialogUp;
+                }
+            };
+
+            std::string fileText(const std::string& path)
+            {
+                std::ifstream file(path, std::ios::binary);
+                std::stringstream text;
+                text << file.rdbuf();
+
+                return text.str();
+            }
+        }
+
+        TEST(lifescene_test, a_report_button_stands_on_every_screen)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            // The Life page, then the Town's, the Adventure's and the Options'
+            {
+                LifeScene* life = f.life();
+                ASSERT_NE(life, nullptr);
+                expectReportButton(f, life, "life");
+
+                life->showTown(true);
+                f.frames(12);
+                expectReportButton(f, life, "town");
+
+                life->showAdventure(true);
+                f.frames(12);
+                expectReportButton(f, life, "adventure");
+
+                life->showOptions(true);
+                f.frames(12);
+                expectReportButton(f, life, "options");
+
+                // Under the guide's shade's band no more: a dialog up hides it, and it comes back
+                f.ecs.sendEvent(ButtonActivatedEvent{0, "options.wipe"});
+                f.frames(12);
+                ASSERT_EQ(life->dialogKind, "burn");
+                EXPECT_FALSE(f.pos(life->reportButton.face)->isRenderable());
+
+                f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_ESCAPE, 0});
+                f.frames(6);
+                expectReportButton(f, life, "after the wipe's dialog");
+
+                f.load<EmptyScene>();
+                EXPECT_EQ(reportButtons(f), 0);
+            }
+
+            // A walk, then a fight
+            {
+                LifeSceneOptions opt = LifeFixture::mockup();
+                opt.build = "street";
+                opt.walk = "hollow";
+                opt.walkSeed = 11;
+
+                LifeScene* life = f.life(opt);
+                ASSERT_NE(life, nullptr);
+                f.frames(12);
+                ASSERT_TRUE(life->onWalk());
+                answerEvents(f, life);
+                f.frames(12);
+                expectReportButton(f, life, "walk");
+
+                f.ecs.sendEvent(ActivitySelectedEvent{"walk.seeks", "boar"});
+                f.settle();
+                f.ecs.sendEvent(ButtonActivatedEvent{0, "walk.seek"});
+                f.frames(12);
+                answerEvents(f, life);
+                f.frames(12);
+                ASSERT_EQ(life->walkScreen, "fight");
+                expectReportButton(f, life, "fight");
+
+                f.load<EmptyScene>();
+            }
+
+            // A story
+            {
+                LifeScene* life = storyLife(f, storyOptions());
+                ASSERT_NE(life, nullptr);
+                openStory(f);
+                ASSERT_TRUE(life->save.walk.story());
+                expectReportButton(f, life, "story");
+
+                f.load<EmptyScene>();
+            }
+
+            // The ending
+            {
+                LifeSceneOptions opt = LifeFixture::mockup();
+                opt.fresh = true;
+                opt.lives = 2;
+                opt.age = 7.0f;
+
+                LifeScene* life = f.life(opt);
+                ASSERT_NE(life, nullptr);
+
+                life->save.stats["rations"] = 0;
+                life->save.stats["vit"] = 1;
+                life->onMonth();
+                f.settle();
+                f.frames(12);
+                ASSERT_TRUE(life->ended);
+                expectReportButton(f, life, "ending");
+
+                f.load<EmptyScene>();
+            }
+
+            // A phone: the Life page and a walk, and the window going from one to the other
+            f.resize(390.0f, 844.0f);
+            {
+                LifeScene* life = f.life();
+                ASSERT_NE(life, nullptr);
+                f.frames(12);
+                ASSERT_TRUE(life->phone);
+                expectReportButton(f, life, "phone life");
+
+                f.resize(1600.0f, 1000.0f);
+                expectReportButton(f, life, "life at 1600");
+
+                f.resize(390.0f, 844.0f);
+                expectReportButton(f, life, "life back on a phone");
+
+                f.load<EmptyScene>();
+            }
+            {
+                LifeSceneOptions opt = LifeFixture::mockup();
+                opt.build = "street";
+                opt.walk = "hollow";
+                opt.walkSeed = 11;
+
+                LifeScene* life = f.life(opt);
+                ASSERT_NE(life, nullptr);
+                f.frames(12);
+                ASSERT_TRUE(life->onWalk());
+                answerEvents(f, life);
+                f.frames(12);
+                expectReportButton(f, life, "phone walk");
+
+                f.ecs.sendEvent(ActivitySelectedEvent{"walk.seeks", "boar"});
+                f.settle();
+                f.ecs.sendEvent(ButtonActivatedEvent{0, "walk.seek"});
+                f.frames(12);
+                answerEvents(f, life);
+                f.frames(12);
+                ASSERT_EQ(life->walkScreen, "fight");
+                expectReportButton(f, life, "phone fight");
+
+                f.load<EmptyScene>();
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Load and Burn make the scene again: the button comes back with it, once, and nothing the
+        // last one asked for (a frame, a send) answers into it
+        TEST(lifescene_test, the_report_button_survives_a_remade_scene)
+        {
+            MockLogger logger;
+            LifeFixture f;
+            auto grab = f.ecs.createSystem<FrameGrab>();
+
+            const auto folder = optionsScratch();
+            LifeSceneOptions opt = reportOptions(folder);
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+            ASSERT_TRUE(life->saveNow());
+            EXPECT_EQ(reportButtons(f), 1);
+
+            // Pressed: the frame is asked for, and the chronicle burnt before it comes
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(4);
+            ASSERT_TRUE(grab->waiting());
+
+            life->wipe();
+            f.frames(24);
+
+            auto burnt = dynamic_cast<LifeScene*>(f.scenes->systemScene);
+            ASSERT_NE(burnt, nullptr);
+            ASSERT_NE(burnt, life);
+            EXPECT_FALSE(grab->waiting());
+            EXPECT_FALSE(burnt->reportOpen);
+            expectReportButton(f, burnt, "burnt");
+
+            // A save loaded in its place
+            LifeSave other = boyOfSeven();
+            other.name = "Wenna of the Mill";
+            const auto otherPath = folder / "other.sz";
+            ASSERT_TRUE(other.save(otherPath.string()));
+
+            burnt->takeSave(otherPath.string());
+            f.frames(24);
+
+            auto loaded = dynamic_cast<LifeScene*>(f.scenes->systemScene);
+            ASSERT_NE(loaded, nullptr);
+            EXPECT_EQ(loaded->save.name, "Wenna of the Mill");
+            expectReportButton(f, loaded, "loaded");
+
+            f.load<EmptyScene>();
+            EXPECT_EQ(reportButtons(f), 0);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The picture is the screen he saw: the frame is asked for before the dialog is up, and the
+        // dialog comes with it. A frame that never comes does not keep the dialog away
+        TEST(lifescene_test, the_report_opens_after_the_screen_is_caught)
+        {
+            MockLogger logger;
+            LifeFixture f;
+            auto grab = f.ecs.createSystem<FrameGrab>();
+            auto asked = f.ecs.createSystem<FrameAsked>();
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+            asked->life = life;
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(4);
+
+            EXPECT_EQ(asked->asked, 1);
+            EXPECT_EQ(asked->dialogUp, 0);
+            EXPECT_TRUE(grab->waiting());
+            EXPECT_TRUE(life->dialog.empty());
+            EXPECT_FALSE(life->reportOpen);
+
+            // Pressed again meanwhile: still the one frame
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(4);
+            EXPECT_EQ(asked->asked, 1);
+
+            std::vector<unsigned char> pixels(8 * 4 * 4, 128);
+            f.ecs.sendEvent(SavedFrameData{pixels, 8, 4});
+            f.frames(6);
+
+            EXPECT_FALSE(grab->waiting());
+            ASSERT_TRUE(life->reportOpen);
+            EXPECT_EQ(life->dialogKind, "report");
+            EXPECT_EQ(life->reportScreen.rfind("data:image/jpeg;base64,", 0), 0u);
+
+            // Its words are typed at once, and say what is sent with them
+            ASSERT_FALSE(inReport(life, "reportWords").empty());
+            EXPECT_TRUE(f.ecs.getSystem<WordFieldSystem>()->anyTyping());
+            EXPECT_EQ(inReport(life, "reportTitle")->get<Label>()->spec.text, "Report a bug");
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "report.cancel"});
+            f.frames(6);
+            EXPECT_FALSE(life->reportOpen);
+            EXPECT_TRUE(life->dialog.empty());
+
+            // No frame comes: after half a second the dialog opens without its picture
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(4);
+            EXPECT_EQ(asked->asked, 2);
+            EXPECT_FALSE(life->reportOpen);
+
+            f.pass(250.0f, 50.0f);
+            EXPECT_FALSE(life->reportOpen);
+
+            f.pass(400.0f, 50.0f);
+            ASSERT_TRUE(life->reportOpen);
+            EXPECT_TRUE(life->reportScreen.empty());
+            EXPECT_FALSE(grab->waiting());
+
+            // And the frame that comes late is no one's
+            f.ecs.sendEvent(SavedFrameData{pixels, 8, 4});
+            f.frames(6);
+            EXPECT_TRUE(life->reportScreen.empty());
+
+            f.load<EmptyScene>();
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What is typed in the dialog is his words, never the game's keys: no new life, no tab, no
+        // month. Escape closes it, and a key of the same moment is not played either
+        TEST(lifescene_test, keys_in_the_report_dialog_do_not_play)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            const int lives = life->save.lives;
+            const std::string name = life->save.name;
+            const float age = life->save.age;
+            auto tabs = life->piece<Tabs>("tabs");
+            ASSERT_NE(tabs, nullptr);
+            const int tab = tabs->active();
+
+            auto unplayed = [&](const char* when) {
+                SCOPED_TRACE(when);
+                EXPECT_EQ(life->save.lives, lives);
+                EXPECT_EQ(life->save.name, name);
+                EXPECT_FLOAT_EQ(life->save.age, age);
+                EXPECT_EQ(tabs->active(), tab);
+                EXPECT_FALSE(life->townShown);
+                EXPECT_FALSE(life->optionsShown);
+                EXPECT_FALSE(life->adventureShown);
+                EXPECT_EQ(f.theme->currentTheme(), "day");
+            };
+
+            // No frame grab in this game: the dialog opens at once
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            ASSERT_TRUE(life->reportOpen);
+
+            for (auto key : {SDL_SCANCODE_N, SDL_SCANCODE_M, SDL_SCANCODE_T, SDL_SCANCODE_S, SDL_SCANCODE_SPACE, SDL_SCANCODE_1, SDL_SCANCODE_2, SDL_SCANCODE_3, SDL_SCANCODE_4, SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT, SDL_SCANCODE_RETURN})
+                f.ecs.sendEvent(OnSDLScanCode{key, 0});
+            f.frames(6);
+
+            unplayed("typed while open");
+            EXPECT_TRUE(life->reportOpen);
+
+            // The letters are his words
+            for (const char* letter : {"N", "o", " ", "1"})
+                f.ecs.sendEvent(OnSDLTextInput{letter});
+            f.frames(6);
+            EXPECT_EQ(inReport(life, "reportWords")->get<WordField>()->text(&f.ecs), "No 1");
+
+            // Escape, and N in the same moment
+            f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_ESCAPE, 0});
+            f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_N, 0});
+            f.frames(6);
+
+            EXPECT_FALSE(life->reportOpen);
+            EXPECT_TRUE(life->dialog.empty());
+            unplayed("escape then N");
+
+            // The words are kept for the next time
+            EXPECT_EQ(life->reportFlow.message, "No 1");
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            ASSERT_TRUE(life->reportOpen);
+            EXPECT_EQ(inReport(life, "reportWords")->get<WordField>()->text(&f.ecs), "No 1");
+
+            f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_ESCAPE, 0});
+            f.frames(6);
+            EXPECT_FALSE(life->reportOpen);
+
+            // Shut, the game has its keys back
+            f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_T, 0});
+            f.frames(6);
+            EXPECT_EQ(f.theme->currentTheme(), "candle");
+
+            // (and back to the day's: the theme is kept from one test to the next)
+            f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_T, 0});
+            f.frames(6);
+            EXPECT_EQ(f.theme->currentTheme(), "day");
+
+            f.load<EmptyScene>();
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Three reports in a quarter of an hour: the dialog still opens, Send is greyed and it says
+        // when he may send again. Under the limit, Send writes the report and counts it
+        TEST(lifescene_test, the_limit_greys_send)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const auto folder = optionsScratch();
+            LifeSceneOptions opt = reportOptions(folder);
+            const auto now = static_cast<int64_t>(opt.now);
+
+            ReportLimit limit;
+            limit.sent(now - 60);
+            limit.sent(now - 30);
+            limit.sent(now - 10);
+            { std::ofstream file(folder / "reports.limit"); file << limit.text(); }
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            ASSERT_EQ(life->dialogKind, "report");
+
+            auto send = inReport(life, "reportSend")->get<Button>();
+            EXPECT_TRUE(send->face->get<ButtonState>()->disabled);
+            EXPECT_EQ(inReport(life, "reportLine")->get<Label>()->spec.text, "You may send another in 14 minutes");
+
+            // Pressed anyway: nothing written, nothing counted, the words kept
+            f.ecs.sendEvent(OnSDLTextInput{"x"});
+            f.frames(4);
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "report.send"});
+            f.frames(6);
+
+            EXPECT_TRUE(life->reportOpen);
+            EXPECT_FALSE(std::filesystem::exists(folder / "reports"));
+            EXPECT_EQ(fileText((folder / "reports.limit").string()), limit.text());
+            EXPECT_EQ(life->reportFlow.message, "x");
+
+            f.load<EmptyScene>();
+
+            // Under it: Send is open, writes the report beside the save and counts it
+            std::filesystem::remove(folder / "reports.limit");
+
+            life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+            f.pass(800.0f);   // The page has arrived: a toast is said
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            ASSERT_EQ(life->dialogKind, "report");
+            EXPECT_FALSE(inReport(life, "reportSend")->get<Button>()->face->get<ButtonState>()->disabled);
+
+            for (const char* letter : {"i", "t", " ", "b", "r", "o", "k", "e"})
+                f.ecs.sendEvent(OnSDLTextInput{letter});
+            f.frames(4);
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "report.send"});
+            f.frames(6);
+
+            EXPECT_FALSE(life->reportOpen);
+            EXPECT_TRUE(life->reportFlow.message.empty());
+            EXPECT_TRUE(std::filesystem::exists(folder / "reports"));
+
+            ReportLimit counted = ReportLimit::fromText(fileText((folder / "reports.limit").string()));
+            EXPECT_EQ(counted.waitSeconds(now), 0);
+            counted.sent(now);
+            counted.sent(now);
+            EXPECT_FALSE(counted.allowed(now));   // one before these two
+
+            // Said where it went
+            EXPECT_TRUE(std::any_of(life->shownToasts.begin(), life->shownToasts.end(), [](const LifeScene::Toast& t) { return t.text.rfind("Written to ", 0) == 0; }));
+
+            f.load<EmptyScene>();
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A report sends the save as it was last written, and never writes it
+        TEST(lifescene_test, a_report_never_writes_the_save)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const auto folder = optionsScratch();
+            LifeSceneOptions opt = reportOptions(folder);
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+            ASSERT_TRUE(life->saveNow());
+
+            const std::string before = fileText(opt.savePath);
+            const auto written = std::filesystem::last_write_time(opt.savePath);
+            ASSERT_FALSE(before.empty());
+
+            // Changed since, and not written: the report has the file's, not the scene's
+            life->save.stats["coin"] += 7;
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            ASSERT_TRUE(life->reportOpen);
+
+            f.ecs.sendEvent(OnSDLTextInput{"z"});
+            f.frames(4);
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "report.send"});
+            f.frames(6);
+            ASSERT_FALSE(life->reportOpen);
+
+            EXPECT_EQ(fileText(opt.savePath), before);
+            EXPECT_EQ(std::filesystem::last_write_time(opt.savePath), written);
+
+            // What went: the save as written, his words, the life's own log and where he stood
+            std::filesystem::path report;
+            for (const auto& entry : std::filesystem::directory_iterator(folder / "reports"))
+                report = entry.path();
+            ASSERT_FALSE(report.empty());
+
+            EXPECT_EQ(fileText((report / "life.sz").string()), before);
+            EXPECT_EQ(fileText((report / "message.txt").string()), "z");
+            EXPECT_NE(fileText((report / "log.txt").string()).find("--- life ---"), std::string::npos);
+            EXPECT_NE(fileText((report / "place.txt").string()).find("page=life"), std::string::npos);
+
+            // And the player's id beside the save, which a report makes once
+            EXPECT_TRUE(std::filesystem::exists(folder / "player.id"));
+
+            f.load<EmptyScene>();
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // One dialog at a time: the report does not open over the wipe's question, nor the wipe's
+        // over the report
+        TEST(lifescene_test, the_report_and_the_wipe_never_both_open)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            life->showOptions(true);
+            f.frames(6);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "options.wipe"});
+            f.frames(12);
+            ASSERT_EQ(life->dialogKind, "burn");
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            EXPECT_EQ(life->dialogKind, "burn");
+            EXPECT_FALSE(life->reportOpen);
+
+            f.ecs.sendEvent(OnSDLScanCode{SDL_SCANCODE_ESCAPE, 0});
+            f.frames(6);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            ASSERT_EQ(life->dialogKind, "report");
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "options.wipe"});
+            f.frames(12);
+            EXPECT_EQ(life->dialogKind, "report");
+            EXPECT_TRUE(life->reportOpen);
 
             f.load<EmptyScene>();
         }
