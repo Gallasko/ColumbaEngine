@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker from "../src/index.js";
-import { handleBug, INSERT_SQL, COUNT_PLAYER_SQL, COUNT_IP_SQL } from "../src/bug.js";
+import { handleBug, INSERT_SQL, NEXT_ID_SQL, COUNT_PLAYER_SQL, COUNT_IP_SQL } from "../src/bug.js";
 
 const good = () => ({
   player_id: "abcd-1234-efgh", session_id: "s1", version: "0.7", message: "it broke",
@@ -13,14 +13,14 @@ const req = (body, headers = {}, path = "/bug") =>
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 const env = { NEON_CONN: "main", NEON_BUG_CONN: "bug", BUG_SALT: "salt" };
-// sql stub: counts per query text, records calls
-function stub(counts = {}, wait = "42") {
+// sql stub: a limit (player/ip) makes the conditional insert insert nothing
+function stub(limit = null, wait = "42") {
   const calls = [];
   const sql = async (q, p) => {
     calls.push({ q, p });
-    if (q === COUNT_PLAYER_SQL) return { rows: [{ count: String(counts.player ?? 0) }] };
-    if (q === COUNT_IP_SQL) return { rows: [{ count: String(counts.ip ?? 0) }] };
-    if (q === INSERT_SQL) return { rows: [{ id: 7 }] };
+    if (q === NEXT_ID_SQL) return { rows: [{ id: "7" }] };
+    if (q === INSERT_SQL) return { rows: [], rowCount: limit ? 0 : 1 };
+    if (q === COUNT_PLAYER_SQL) return { rows: [{ count: limit === "player" ? "3" : "0" }] };
     return { rows: [{ wait }] };
   };
   return { sql, calls };
@@ -62,33 +62,56 @@ test("bug_413_by_content_length", async () => {
 });
 
 test("bug_limits_a_player_to_three", async () => {
-  const { sql, calls } = stub({ player: 3 });
+  const { sql } = stub("player");
   const r = await handleBug(req(good()), env, sql);
   assert.equal(r.status, 429);
   assert.equal((await r.json()).wait, 42);
-  assert.ok(!calls.some((c) => c.q === INSERT_SQL));
 });
 
 test("bug_limits_a_connection_to_ten", async () => {
-  const { sql, calls } = stub({ ip: 10 });
+  const { sql, calls } = stub("ip", "0");
   const r = await handleBug(req(good()), env, sql);
   assert.equal(r.status, 429);
-  assert.ok((await r.json()).wait >= 0);
-  assert.ok(!calls.some((c) => c.q === INSERT_SQL));
-  const ipCall = calls.find((c) => c.q === COUNT_IP_SQL);
-  assert.match(ipCall.p[0], /^[0-9a-f]{64}$/);
-  assert.notEqual(ipCall.p[0], "1.2.3.4");
+  assert.equal((await r.json()).wait, 0);
+  const ins = calls.find((c) => c.q === INSERT_SQL);
+  assert.match(ins.p[3], /^[0-9a-f]{64}$/);
+  assert.notEqual(ins.p[3], "1.2.3.4");
 });
 
-test("bug_inserts_with_fixed_sql", async () => {
-  const { sql, calls } = stub({ player: 2, ip: 9 });
+test("bug_inserts_with_fixed_sql_and_nextval_id", async () => {
+  const { sql, calls } = stub();
   const r = await handleBug(req(good()), env, sql);
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { id: 7 });
-  const ins = calls.find((c) => c.q === INSERT_SQL);
-  assert.equal(ins.p.length, 10);
-  assert.equal(ins.p[0], "abcd-1234-efgh");
-  assert.match(ins.q, /^INSERT INTO bug_reports \(player_id, session_id, ip_hash, version, message, screen, save, logs, place, client\) VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10\) RETURNING id$/);
+  assert.ok(calls.every((c) => !/RETURNING/i.test(c.q)));
+  assert.equal(calls[0].q, NEXT_ID_SQL);
+  const ins = calls[1];
+  assert.equal(ins.q, INSERT_SQL);
+  assert.equal(ins.p.length, 11);
+  const g = good();
+  assert.equal(ins.p[0], "7");
+  assert.deepEqual(ins.p.slice(1, 3), [g.player_id, g.session_id]);
+  assert.match(ins.p[3], /^[0-9a-f]{64}$/);
+  assert.deepEqual(ins.p.slice(4), [g.version, g.message, g.screen, g.save, g.logs, g.place, g.client]);
+});
+
+test("bug_caps_short_fields", async () => {
+  const { sql } = stub();
+  for (const [k, n] of [["session_id", 201], ["version", 201], ["place", 201], ["client", 501]])
+    assert.equal((await handleBug(req({ ...good(), [k]: "x".repeat(n) }), env, sql)).status, 400);
+});
+
+test("bug_store_failure_is_502_and_logged", async () => {
+  const sql = async () => { throw new Error("neon 500 boom"); };
+  const logged = [];
+  const orig = console.error; console.error = (...a) => logged.push(a.join(" "));
+  try {
+    const r = await handleBug(req(good()), env, sql);
+    assert.equal(r.status, 502);
+    assert.deepEqual(await r.json(), { error: "store" });
+  } finally { console.error = orig; }
+  assert.ok(logged.some((l) => l.includes("boom")));
+  assert.ok(!logged.some((l) => l.includes("it broke")));
 });
 
 test("bug_route_uses_bug_conn_never_main", async () => {
@@ -96,12 +119,12 @@ test("bug_route_uses_bug_conn_never_main", async () => {
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     seen.push(init);
-    return new Response(JSON.stringify({ rows: [{ count: "0", id: 1 }] }), { status: 200 });
+    return new Response(JSON.stringify({ rows: [{ id: "1" }], rowCount: 1 }), { status: 200 });
   };
   try {
     const r = await worker.fetch(req(good()), env);
     assert.equal(r.status, 200);
-    assert.ok(seen.length >= 3);
+    assert.equal(seen.length, 2);
     for (const s of seen) {
       assert.equal(s.headers["Neon-Connection-String"], "bug");
       const b = JSON.parse(s.body);
