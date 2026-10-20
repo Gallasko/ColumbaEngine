@@ -1,6 +1,9 @@
 #include "stdafx.h"
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <functional>
 #include <map>
 #include <cctype>
@@ -89,9 +92,9 @@ namespace pg
                 RuleWalk last;
                 int seed = 100;
 
-                explicit Walker(ElementMap who) : character(std::move(who))
+                explicit Walker(ElementMap who, const std::string& root = "") : character(std::move(who))
                 {
-                    EXPECT_TRUE(rules.load(&ecs, compiledRules())) << (rules.errors.empty() ? "" : rules.errors.front());
+                    EXPECT_TRUE(rules.load(&ecs, root.empty() ? compiledRules() : root)) << (rules.errors.empty() ? "" : rules.errors.front());
 
                     rules.lives = 2;
                 }
@@ -2361,6 +2364,131 @@ namespace pg
 
             // Its days are the scene's still: sixteen of them, none for the lines of the stages
             EXPECT_EQ(intOf(w.state.run, "spent"), 16);
+        }
+
+        namespace
+        {
+            // The rules with the drill's wolf swapped for the slime (no story fights it yet): the
+            // sources copied beside the binary, patched, compiled, and removed with this object
+            struct SlimeRules
+            {
+                std::string src = "rules-slime-test-patched";
+                std::string out = "rules-slime-test";
+
+                SlimeRules()
+                {
+                    namespace fs = std::filesystem;
+
+                    std::error_code ec;
+                    fs::remove_all(src, ec);
+                    fs::remove_all(out, ec);
+                    fs::create_directories(src);
+
+                    for (const auto& entry : fs::directory_iterator("rules"))
+                    {
+                        if (entry.path().extension() == ".pg")
+                            fs::copy_file(entry.path(), fs::path(src) / entry.path().filename());
+                    }
+
+                    std::ifstream in(src + "/storytable.pg");
+                    std::stringstream text;
+                    text << in.rdbuf();
+                    in.close();
+
+                    std::string body = text.str();
+                    const std::string wolf = "{fight: \"wolf\"}";
+
+                    EXPECT_NE(body.find(wolf), std::string::npos);
+
+                    body.replace(body.find(wolf), wolf.size(), "{fight: \"slime\"}");
+
+                    std::ofstream(src + "/storytable.pg") << body;
+
+                    EntitySystem ecs;
+                    std::vector<std::string> errors;
+
+                    EXPECT_TRUE(chronicle::precompileRules(&ecs, src, out, errors)) << (errors.empty() ? "" : errors.front());
+                }
+
+                ~SlimeRules()
+                {
+                    std::error_code ec;
+                    std::filesystem::remove_all(src, ec);
+                    std::filesystem::remove_all(out, ec);
+                    std::filesystem::remove_all(out + "-src", ec);
+                }
+            };
+
+            // A boy of six years and eleven months in the drill yard, face to face with the slime
+            bool sparWithSlime(Walker& w, int seed)
+            {
+                w.seed = seed;
+
+                return w.ask("enter", WalkAct{"story", "drill", 0}) and w.take("bout") and w.screen() == "fight";
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The slime cannot kill him: with one Vitality and his guard up for all its turns he is never
+        // downed, and the story goes on.
+        TEST(story_test, the_slime_spares_him)
+        {
+            MockLogger logger;
+            SlimeRules slime;
+
+            ElementMap boy = student();
+            boy["vit"] = ElementType{1};
+            boy["str"] = ElementType{6};
+            boy["dex"] = ElementType{6};
+
+            Walker w(boy, slime.out);
+            w.age = 6.9f;
+
+            ASSERT_TRUE(sparWithSlime(w, 100));
+            EXPECT_EQ(textOf(w.state.fight, "mob"), "slime");
+
+            w.fightWith("guard");
+
+            EXPECT_EQ(w.over(), "held");
+            EXPECT_EQ(intOf(w.state.run, "downed"), 0);
+            EXPECT_GE(intOf(w.state.run, "hp"), 1);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A boy with Strength 6 and Dexterity 6 beats the slime with a plain strike in six turns at
+        // most, whatever the seed, and it leaves a page.
+        TEST(story_test, a_boy_beats_the_slime_with_a_strike)
+        {
+            MockLogger logger;
+            SlimeRules slime;
+
+            ElementMap boy = student();
+            boy["vit"] = ElementType{38};
+            boy["vitmax"] = ElementType{38};
+            boy["str"] = ElementType{6};
+            boy["dex"] = ElementType{6};
+
+            for (int seed = 1; seed <= 20; ++seed)
+            {
+                Walker w(boy, slime.out);
+                w.age = 6.9f;
+
+                ASSERT_TRUE(sparWithSlime(w, seed * 37));
+
+                int turns = 0;
+
+                for (; turns < 8 and w.screen() == "fight" and w.over().empty(); ++turns)
+                    ASSERT_TRUE(w.act("move", "strike"));
+
+                EXPECT_EQ(w.over(), "won") << "seed " << seed;
+                EXPECT_LE(turns, 6) << "seed " << seed;
+                EXPECT_GE(turns, 2) << "seed " << seed;
+                EXPECT_EQ(w.standing(), 0) << "seed " << seed;
+            }
         }
     }
 }

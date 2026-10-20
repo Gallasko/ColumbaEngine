@@ -458,7 +458,22 @@ const walkMobs = [
              bite: {name: "Swing", line: "Its arm comes round on the post, harder than the practice dummy's."}},
      script: ["hold", "bite"],
      lesson: "",
-     loot: []}
+     loot: []},
+
+    // The outskirts' slime (storytable.pg): a story's own and in no zone. Weak and slow, and it
+    // shows what it means to do before it does it: it oozes toward him, then slaps. It cannot
+    // bring him down. A boy of 6y11m (Strength 5-7, Dexterity 6-7) falls on it in three to five
+    // turns with a plain strike (blow 7-10, 18 Vitality: two blows or three, a miss or two more),
+    // and it drops a page. No lesson
+    {id: "slime", name: "Slime", many: "slimes", pack: "Slimes", lone: "A slime", rarity: "common", packSize: 1, holdsBack: 0,
+     story: true, spares: true, level: 1, turns: 10,
+     about: "A grey, shivering puddle that has crept out of the ditch, and has not yet made up its mind about him.",
+     hp: 18, least: 1, most: 3, armour: 0, ward: 0, quick: 3, awareness: 1, poise: 0, verb: "slaps",
+     moves: {ooze: {name: "Ooze", line: "It sags toward him across the mud, slow as a spill."},
+             slap: {name: "Slap", line: "It heaves up a lump of itself and flings it, wet and cold."}},
+     script: ["ooze", "slap"],
+     lesson: "",
+     loot: [{id: "page", chance: 100, least: 1, most: 1}]}
 ]
 
 // What a walk may meet besides one beast or a pack of it: beasts of several kinds in one fight
@@ -598,6 +613,11 @@ const walkTechniques = [
     {id: "hammer", name: "Hammer blow", kind: "blow", damage: "blunt", breath: 0, cool: 0, power: 110, hit: 0, weight: 120, all: false, holds: false, trains: "str",
      knows: ["smith_apprentice"], where: "THE SMITHY", line: "A heavy blow that no hide turns"},
 
+    // The outskirts': what a boy who looked for wild animals picked up to fend them off, a
+    // stick swung like the smith's hammer, a little slower than a strike
+    {id: "stick", name: "Stick blow", kind: "blow", damage: "blunt", breath: 0, cool: 0, power: 115, hit: -5, weight: 120, all: false, holds: false, trains: "str",
+     knows: ["outskirts.animals"], where: "THE OUTSKIRTS", line: "A fallen branch swung with both hands: it lands harder, and a little later"},
+
     // The yard's bow: a shot before the beast closes
     {id: "bow", name: "Bow shot", kind: "blow", damage: "pierce", breath: 0, cool: 0, power: 90, hit: 10, weight: 100, all: false, holds: false, opener: true, trains: "dex",
      knows: ["bow_learned"], where: "THE YARD", line: "An arrow loosed before it is on him: the first one costs no time"},
@@ -623,7 +643,7 @@ const walkTechniques = [
     {id: "sand", name: "Sand in the eyes", kind: "way", damage: "", breath: 0, cool: 3, power: 0, hit: 0, weight: 60, all: false, holds: true,
      knows: ["smuggler_runner"], where: "THE SMUGGLER", line: "The beast aimed at is blinded, and loses its next move"},
     {id: "step", name: "Step aside", kind: "way", damage: "", breath: 0, cool: 2, power: 0, hit: 0, weight: 50, all: false, holds: false, effect: "step",
-     knows: ["rooftop_runner"], where: "THE ROOFTOPS", line: "Light on his feet: what comes before his next action seldom finds him"},
+     knows: ["rooftop_runner", "outskirts.children"], where: "THE ROOFTOPS", line: "Light on his feet: what comes before his next action seldom finds him"},
     {id: "brace", name: "Brace", kind: "way", damage: "", breath: 0, cool: 0, power: 0, hit: 0, weight: 100, all: false, holds: false, effect: "brace", trains: "discipline",
      knows: ["watch_known"], where: "THE WATCH", line: "Feet set, shield up: most of what comes is taken, and his momentum kept"},
     {id: "wind", name: "Second wind", kind: "way", damage: "", breath: 0, cool: 4, power: 0, hit: 0, weight: 60, all: false, holds: false, effect: "wind",
@@ -633,7 +653,7 @@ const walkTechniques = [
     // Collegium's elemental basics teach the spark and the rime too, and a storm cantrip of the
     // same weight, the static (storytable.pg's `collegium`)
     {id: "read", name: "Read the beast", kind: "spell", damage: "", breath: 1, cool: 0, power: 0, hit: 0, weight: 60, all: false, holds: false, effect: "read",
-     knows: ["letters"], where: "HIS LETTERS", line: "He sees what it is and what it means to do: known 3 of 4 for this fight"},
+     knows: ["letters", "outskirts.nature"], where: "HIS LETTERS", line: "He sees what it is and what it means to do: known 3 of 4 for this fight"},
     {id: "spark", name: "Spark", kind: "spell", damage: "fire", breath: 1, cool: 0, power: 60, hit: 15, weight: 100, all: false, holds: false, trains: "int",
      knows: ["forbidden_read", "spark_taught"], where: "THE FORBIDDEN SHELF", line: "A small fire from nothing: it leaves the beast burning"},
     {id: "rime", name: "Rime", kind: "spell", damage: "frost", breath: 1, cool: 0, power: 60, hit: 15, weight: 100, all: false, holds: false, trains: "int",

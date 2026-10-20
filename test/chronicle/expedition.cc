@@ -2206,7 +2206,8 @@ namespace pg
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
         // Every beast leaves a page of the chronicle (the curse: the book writes itself on what he
-        // kills), but the Collegium's dummies, and a demon, if one comes
+        // kills), but the Collegium's dummies, and a demon, if one comes (the outskirts' slime is a
+        // story's beast that leaves its page all the same)
         TEST(expedition_test, every_beast_drops_a_page)
         {
             std::ifstream file(std::string(CHRONICLE_SOURCE_DIR) + "/examples/Chronicle/rules/expeditiontable.pg");
@@ -2233,7 +2234,7 @@ namespace pg
                 const std::string row = mobs.substr(at, next == std::string::npos ? std::string::npos : next - at);
                 ++rows;
 
-                const bool exempt = row.find("story: true") != std::string::npos or row.find("demon: true") != std::string::npos;
+                const bool exempt = (row.find("story: true") != std::string::npos and row.find("{id: \"slime\"") == std::string::npos) or row.find("demon: true") != std::string::npos;
                 const bool has = row.find("{id: \"page\", chance: 100, least: 1, most: 1}") != std::string::npos;
 
                 if (exempt)
@@ -3444,6 +3445,39 @@ namespace pg
 
             // The world knows it now, and the smithy forges the charm
             EXPECT_TRUE(charmListed());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The outskirts teach a boy three first moves, one for each path (outskirts.children,
+        // outskirts.nature, outskirts.animals): he has the one his path gave and none of the others.
+        TEST(expedition_test, the_outskirts_teach_three_moves)
+        {
+            MockLogger logger;
+
+            auto menuOf = [](const std::string& flag) {
+                ElementMap boy = knowing(gatherer(), "hedgerows", 10);
+
+                if (not flag.empty())
+                    boy[flag] = ElementType{1};
+
+                auto w = std::make_unique<Walker>(boy);
+                w->age = 10.0f;
+
+                EXPECT_TRUE(w->ask("enter", WalkAct{"", "millpond", 0}));
+                EXPECT_TRUE(w->act("seek", "rat", 1));
+                w->answer();
+                EXPECT_EQ(w->screen(), "fight");
+
+                return std::vector<bool>{byId(w->last.menu, "tech.step") != nullptr, byId(w->last.menu, "tech.read") != nullptr,
+                                         byId(w->last.menu, "tech.stick") != nullptr};
+            };
+
+            EXPECT_EQ(menuOf(""), (std::vector<bool>{false, false, false}));
+            EXPECT_EQ(menuOf("outskirts.children"), (std::vector<bool>{true, false, false}));
+            EXPECT_EQ(menuOf("outskirts.nature"), (std::vector<bool>{false, true, false}));
+            EXPECT_EQ(menuOf("outskirts.animals"), (std::vector<bool>{false, false, true}));
         }
     }
 }
