@@ -2,6 +2,8 @@
 // SQL-over-HTTP endpoint.  This avoids the CORS preflight failure caused by
 // the custom Neon-Connection-String header — the worker adds it server-side.
 
+import { handleBug } from "./bug.js";
+
 const NEON_SQL_URL = "https://ep-hidden-meadow-abvf8aat-pooler.eu-west-2.aws.neon.tech/sql";
 
 const CORS_HEADERS = {
@@ -19,6 +21,10 @@ export default {
 
     if (request.method !== "POST") {
       return new Response("Method not allowed", { status: 405, headers: CORS_HEADERS });
+    }
+
+    if (new URL(request.url).pathname === "/bug") {
+      return handleBug(request, env);
     }
 
     const body = await request.text();
