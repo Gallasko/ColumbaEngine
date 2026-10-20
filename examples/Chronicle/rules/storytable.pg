@@ -252,6 +252,60 @@ const walkStories = [
             cards: {course: "fire"},
             tests: {theory: "taught", practical: "face"}}},
 
+    // The outskirts (activitytable.pg's `outskirts`): the last month before he is seven, four days
+    // for its one month, played by every life. His lunch first, the six rations he has not got
+    // after the harvest; then one of three ways out of the town, each with the flavour of a basic
+    // class (the thief's, the mage's, the warrior's): a point of its part and a first move of his
+    // for life (expeditiontable.pg's `step`, `read` and `stick` know its flag); the day after, a
+    // small thing of that way; and on the last day the ditch, where the slime is fought by hand.
+    // It spares him: beaten, it leaves his first page; lost or fled, he goes home without it, and
+    // the story ends all the same. A way is no class: no door reads it
+    {id: "outskirts", name: "The Outskirts", glyph: "adventure", unit: "day", days: 4, months: 1, row: "outskirts", "class": "", dropout: "",
+     marks: [],
+     stages: [{"from": 1, to: 1, title: "Noon at the mill", text: "The harvest is in, and for a month nobody has work for him. The miller's wife has his bread wrapped and ready."},
+              {"from": 2, to: 2, title: "The edge of the town", text: "Past the last houses the lanes give out: the green, the commons, the hedges, and the long ditch by the North Road."},
+              {"from": 3, to: 3, title: "Further out", text: "He knows his way now, and goes a little further than he did yesterday."},
+              {"from": 4, to: 4, title: "The ditch", text: "The ditch along the North Road holds water, nettles, and today something else."}],
+     tiles: [{id: "lunch", name: "Take your lunch", about: "Bread and cheese in a cloth, and more of it put by at home for the month.", days: [1, 1], cost: 1,
+              gives: [{stat: "rations", amount: 6}], line: "Took his lunch from the mill"},
+
+             // The three ways out of the town: one, and the others are gone
+             {id: "children", name: "Speak to the children of your age", about: "The boys and girls of the lanes, who run everywhere and are never caught. They teach him to get out of the way.", days: [2, 2], cost: 1,
+              "not": ["tile.nature", "tile.animals"], gives: [{stat: "dex", amount: 1}, {stat: "outskirts.children", amount: 1, said: "learned"}],
+              line: "Ran with the children of the lanes"},
+             {id: "nature", name: "Study nature", about: "What lives under the hedges and in the long grass, and what it does next. He learns to watch before he moves.", days: [2, 2], cost: 1,
+              "not": ["tile.children", "tile.animals"], gives: [{stat: "int", amount: 1}, {stat: "outskirts.nature", amount: 1, said: "learned"}],
+              line: "Watched what lives under the hedges"},
+             {id: "animals", name: "Look for wild animals", about: "Foxes, hares, the stray dogs of the commons. He picks up a stick, in case.", days: [2, 2], cost: 1,
+              "not": ["tile.children", "tile.nature"], gives: [{stat: "str", amount: 1}, {stat: "outskirts.animals", amount: 1, said: "learned"}],
+              line: "Went looking for wild animals, a stick in his hand"},
+
+             // Each way's fork, the day after: two small things of that way, for who took it
+             {id: "chase", name: "Play at chase on the green", about: "Round the well, through the washing, over the churchyard wall. Nobody catches him twice.", days: [3, 3], cost: 1,
+              onlyWith: ["outskirts.children"], "not": ["tile.tales"], gives: [{stat: "dex", amount: 1}], line: "Played at chase on the green"},
+             {id: "tales", name: "Listen to the older boys' tales", about: "Harrow, the Old Grey, the door under the mill. Half of it is lies, and he remembers all of it.", days: [3, 3], cost: 1,
+              onlyWith: ["outskirts.children"], "not": ["tile.chase"], gives: [{stat: "lore", amount: 1}], line: "Listened to the older boys' tales"},
+             {id: "beetles", name: "Watch the beetles under the stones", about: "Lift a stone, and they run. Lift it slowly, and they do not.", days: [3, 3], cost: 1,
+              onlyWith: ["outskirts.nature"], "not": ["tile.wortleaf"], gives: [{stat: "int", amount: 1}], line: "Watched the beetles under the stones"},
+             {id: "wortleaf", name: "Pick wortleaf by the ditch", about: "A herbwife on the road shows him the grey leaf, and how it is crushed. Two remedies, for a scraped knee or worse.", days: [3, 3], cost: 1,
+              onlyWith: ["outskirts.nature"], "not": ["tile.beetles"], gives: [{item: "remedy", amount: 2}], line: "Picked wortleaf by the ditch"},
+             {id: "tracks", name: "Follow the tracks to the stream", about: "Prints in the mud, and further on, more of them. The stream is further than he thought.", days: [3, 3], cost: 1,
+              onlyWith: ["outskirts.animals"], "not": ["tile.crows"], gives: [{stat: "str", amount: 1}], line: "Followed the tracks to the stream"},
+             {id: "crows", name: "Throw stones at the crows", about: "They sit on the gate and laugh at him, until one stone does not miss.", days: [3, 3], cost: 1,
+              onlyWith: ["outskirts.animals"], "not": ["tile.tracks"], gives: [{stat: "dex", amount: 1}], line: "Threw stones at the crows"}],
+
+     // The last day's: the slime, fought by hand (expeditiontable.pg's `slime`)
+     cards: [{id: "ditch", day: 4, title: "Something in the ditch",
+              text: "Something grey shivers in the water of the ditch, and creeps up the bank toward him. It has no face, and it has noticed him.",
+              options: [{id: "go", label: "Stand his ground", gives: [{fight: "slime"}], line: "Stood his ground against the thing in the ditch"}]}],
+     events: [],
+     tests: [],
+     grades: [],
+     standing: [{at: 0, line: "Nobody will look for him before supper."}],
+
+     // The solver's way (and the tests'): the warrior's, the wild animals and their tracks
+     plan: {tiles: ["lunch", "animals", "tracks"], cards: {ditch: "go"}, tests: {}}},
+
     // The tests' story (test/chronicle/story.cc): no row of the game opens it (its row,
     // `story.trial`, is hidden, for the tests only). Four days for four months: a lecture for a
     // coin, the library for nothing, an advanced course from the third day for who was taught

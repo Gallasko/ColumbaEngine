@@ -6,7 +6,7 @@
 // Output: `walkKnobs`  every figure of the rules of a walk, in one table;
 //         `walkItems`  what a walk gathers, uses or brings home:
 //                        {id, name, one (one of it), glyph, kind (food | remedy | sold | town | found | fight),
-//                         heals?, lot?, coin?}
+//                         heals?, lot?, coin?, about? (its line in the stores, for a `sold` thing: resources.pg)}
 //                      He holds all of them, among his stats. `sold` is sold at the market,
 //                      `lot` of it for `coin` (activitytable.pg makes its row there); `town` is
 //                      what the town's places are built of (a cost of their works,
@@ -173,9 +173,12 @@ const walkItems = [
     {id: "pike_jaw", name: "The pike's jaw", one: "pike's jaw", glyph: "relic", kind: "sold", lot: 1, coin: 8},
     {id: "grey_pelt", name: "The Old Grey's pelt", one: "grey pelt", glyph: "relic", kind: "sold", lot: 1, coin: 12},
     {id: "shell_plate", name: "A plate of the Old Shell", one: "shell plate", glyph: "forge", kind: "sold", lot: 1, coin: 10},
-    // A page of the chronicle: the curse writes itself on what he kills, and the scribes at the market
-    // take the sheets, four for a coin (two for a coin paid a walk above the rule: README, What a walk is worth) (a beast with `demon: true` leaves none)
-    {id: "page", name: "Chronicle pages", one: "chronicle page", glyph: "study", kind: "sold", lot: 4, coin: 1},
+    // A page of the chronicle: every beast he kills leaves one (but a beast with `demon: true`), and
+    // the market takes them four for a coin. At two for a coin the pages lifted a walk's pay above
+    // the author's rule (1.5 to 2 times plain work), so the price was lowered. `about` is its own
+    // line in the stores (resources.pg)
+    {id: "page", name: "Chronicle pages", one: "chronicle page", glyph: "study", kind: "sold", lot: 4, coin: 1,
+     about: "Whatever he kills leaves a page behind it, in a hand nobody in Bellmoor writes. The curse keeps a chronicle too."},
     {id: "firewood", name: "Firewood", one: "firewood", glyph: "work", kind: "town", gather: "Deadfall and cuttings, bundled and carried home."},
     {id: "clay", name: "Clay", one: "clay", glyph: "work", kind: "town", gather: "Dug out of the bank, heavy and wet."},
     {id: "ashwood", name: "Ash wood", one: "ash wood", glyph: "work", kind: "town", gather: "Straight ash poles, felled and trimmed."},

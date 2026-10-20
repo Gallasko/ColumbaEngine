@@ -2852,23 +2852,31 @@ namespace pg
             EXPECT_EQ(textOf(sacks.costs[0], "stat"), "vit");
             EXPECT_EQ(intOf(sacks.costs[0], "amount"), 5);
 
-            // The harvest, and the month at the mill that brings him to seven
+            // The harvest, and the month in the outskirts that brings him to seven
             RuleActivity harvest = activityAt(f.rules, 6.75f, child(), "harvest");
 
             EXPECT_EQ(intOf(harvest.fields, "months"), 2);
             EXPECT_EQ(brings(harvest), (std::vector<std::string>{"str 1", "dex 1", "int 1"}));
 
-            RuleActivity helping = activityAt(f.rules, 6.0f + 11.0f / 12.0f, child(), "helping");
+            RuleActivity outskirts = activityAt(f.rules, 6.0f + 11.0f / 12.0f, child(), "outskirts");
 
-            EXPECT_TRUE(flag(helping.fields, "listed"));
-            EXPECT_EQ(intOf(helping.fields, "months"), 1);
-            EXPECT_TRUE(flag(helping.fields, "board"));
-            // Its six rations are given as he begins it, none at its term: he does not go hungry
-            // the month he starts
-            EXPECT_EQ(intOf(helping.fields, "upFront"), 6);
-            EXPECT_EQ(intOf(helping.fields, "upFrontLasts"), 0);
-            EXPECT_EQ(intOf(helping.fields, "uses"), 1);
-            EXPECT_EQ(brings(helping), (std::vector<std::string>{}));
+            EXPECT_TRUE(flag(outskirts.fields, "listed"));
+            EXPECT_EQ(intOf(outskirts.fields, "months"), 1);
+            EXPECT_EQ(textOf(outskirts.fields, "story"), "outskirts");
+            EXPECT_EQ(textOf(outskirts.fields, "path"), "");
+            // No board: its six rations are the lunch of its first day (storytable.pg), so he does
+            // not go hungry the month he is there
+            EXPECT_FALSE(flag(outskirts.fields, "board"));
+            EXPECT_EQ(intOf(outskirts.fields, "upFront"), 0);
+            EXPECT_EQ(intOf(outskirts.fields, "uses"), 1);
+            EXPECT_EQ(brings(outskirts), (std::vector<std::string>{}));
+
+            // Start Helping Out, whose month it is, has no row any more
+            std::vector<RuleActivity> rows;
+            ASSERT_TRUE(f.rules.activities(6.0f + 11.0f / 12.0f, child(), rows));
+
+            for (const auto& a : rows)
+                EXPECT_NE(textOf(a.fields, "id"), "helping");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -3066,7 +3074,7 @@ namespace pg
             // (begun a month late, the second still fits, and no later)
             EXPECT_FALSE(flag(activityAt(f.rules, at(7), child(), "sing").fields, "closed"));
 
-            // The town known, the harvest; then the mill's month, which ends the day he is seven
+            // The town known, the harvest; then the outskirts' month, which ends the day he is seven
             ElementMap known = child();
             known["town_known"] = ElementType{1};
 
@@ -3075,7 +3083,7 @@ namespace pg
             EXPECT_EQ(listed(at(9), known), (Ids{"harvest", "buy.rations", "buy.water", "buy.firewood", "buy.stone", "raise.market.1", "raise.mill.1"}));
 
             f.rules.done["harvest"] = ElementType{1};
-            EXPECT_EQ(listed(at(11), known), (Ids{"helping", "buy.rations", "buy.water", "buy.firewood", "buy.stone", "raise.market.1", "raise.mill.1"}));
+            EXPECT_EQ(listed(at(11), known), (Ids{"outskirts", "buy.rations", "buy.water", "buy.firewood", "buy.stone", "raise.market.1", "raise.mill.1"}));
 
             // The market sells to a boy of six: nothing of the town waits for him to be seven
             RuleActivity buy = activityAt(f.rules, at(9), known, "buy.rations");
@@ -3085,7 +3093,7 @@ namespace pg
 
             // Seven: the town's work, the first of it (the rest comes over the year). The year has
             // taught him the page
-            f.rules.done["helping"] = ElementType{1};
+            f.rules.done["outskirts"] = ElementType{1};
 
             ElementMap seven = boy();
             seven["town_known"] = ElementType{1};
@@ -3143,7 +3151,7 @@ namespace pg
             // Too young for the three, for the market and for the harvest: none has a row yet
             f.rules.done = {};
 
-            for (const char* id : {"knots", "sacks", "sing", "tomarket", "harvest", "helping"})
+            for (const char* id : {"knots", "sacks", "sing", "tomarket", "harvest", "outskirts"})
             {
                 RuleActivity early = activityAt(f.rules, at(3), child(), id);
 
@@ -3166,7 +3174,7 @@ namespace pg
             // Seven with none of it done: the year is closed, the market still waits for him
             const Ids seven = listed(7.0f, boy());
 
-            for (const char* id : {"glean", "flour", "wheel", "scribe", "tome", "knots", "sacks", "sing", "harvest", "helping"})
+            for (const char* id : {"glean", "flour", "wheel", "scribe", "tome", "knots", "sacks", "sing", "harvest", "outskirts"})
                 EXPECT_TRUE(std::find(seven.begin(), seven.end(), id) == seven.end()) << id;
 
             EXPECT_EQ(seven, (Ids{"tomarket", "carters", "mill", "pies", "scavenge.berries", "scavenge.water", "scavenge.firewood", "walk.hedgerows", "letters", "keep", "collegium", "hand"}));

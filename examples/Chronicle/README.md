@@ -34,8 +34,10 @@ months and are over by 6 years 9 months (*Learn Knots from the Bargemen*, *Haul 
 Mill*, which takes 5 of his Vitality, *Sing at the Chapel Door*: there is time for two, each
 says how many months are left to begin it, and the third closes), *Go to the Market* at 6 years 8 months
 (the Town page, where his coin buys the rations he is short of by then), *Bring in the
-Harvest* (two months, a point of each part) and *Start Helping Out* at 6 years 11 months,
-which ends the day he is seven. From there the town's work is his, the whole list at once.
+Harvest* (two months, a point of each part) and *Explore the Outskirts* at 6 years 11 months,
+a story of four days (his lunch, one of three ways out of the town, its fork, and a slime in
+the ditch: the stories, below) which ends the day he is seven. From there the town's work is
+his, the whole list at once.
 
 **A first life** (a browser with no save, or `--fresh`) is shown the year one work at a time,
 and a **guide** walks him through it: one short sentence

@@ -313,11 +313,13 @@ var activities = [
      fromAge: 6, fromMonths: 9, finishBy: 7, closingShown: -1, uses: 1,
      gains: [{stat: "str"}, {stat: "dex"}, {stat: "int"}],
      requires: []},
-    // The last month before he is seven: the mill takes him on, and feeds him: its six rations are
-    // his as he begins, so he does not go hungry the month he starts. From there the town's work
-    // is his
-    {id: "helping", group: "Work", name: "Start Helping Out", glyph: "work", months: 1, rank: "", each: "AT THE MILL", path: "",
-     fromAge: 6, fromMonths: 11, finishBy: 7, closingShown: -1, board: true, upFront: 6, uses: 1,
+    // The last month before he is seven: the outskirts, a story of four days (storytable.pg's
+    // `outskirts`) and every life's first fight. It is no board: the lunch of its first day is
+    // the six rations he has not got after the harvest, so he does not go hungry that month. Its
+    // path is no class's, and every life plays it. From there the town's work is his
+    {id: "outskirts", group: "Work", name: "Explore the Outskirts", glyph: "adventure", months: 1, rank: "", each: "A FIRST FIGHT", path: "",
+     fromAge: 6, fromMonths: 11, finishBy: 7, closingShown: -1, uses: 1, story: "outskirts",
+     about: "A month nobody has work for him, before he is seven. The lanes give out past the last houses, and what is out there he finds for himself.",
      gains: [],
      requires: []},
     // The town's work for a child. The carters take anyone, at any age: their row is the one

@@ -1736,6 +1736,15 @@ statShort["suspected"] = "SUSPECTED"
 statShort["top_floor"] = "TOP FLOOR"
 statShort["dropout.collegium"] = "LEFT THE COLLEGIUM"
 
+// What the outskirts teach a boy (storytable.pg's `outskirts`): each way's first move, said by the
+// move's name ("Step aside learned")
+statNames["outskirts.children"] = "Step aside"
+statNames["outskirts.nature"] = "Read the beast"
+statNames["outskirts.animals"] = "Stick blow"
+statShort["outskirts.children"] = "STEP ASIDE"
+statShort["outskirts.nature"] = "READ THE BEAST"
+statShort["outskirts.animals"] = "STICK BLOW"
+
 // What teaching a familiar adds to each one's yield of a thing (the stat "more.<stat>"), and the
 // short names of the kinds the world teaches, said as what he knows.
 statShort["more.berries"] = "MORE BERRIES"

@@ -376,6 +376,25 @@ namespace pg
         defaultDeserialize(serialized, "resources", data.resources);
         defaultDeserialize(serialized, "log", data.log);
         defaultDeserialize(serialized, "done", data.done);
+
+        // A save from before the outskirts: the last month of the sixth year was Start Helping Out,
+        // whose row is gone. Under way, set aside or done, it is read as the outskirts' row, the
+        // same month: its rations were given as he began it, and its months run out as they were
+        // (no story is opened for it). Done, the outskirts are not offered him on top of it
+        for (std::string* work : {&data.running, &data.setAside})
+        {
+            if (*work == "helping")
+                *work = "outskirts";
+        }
+
+        if (auto it = data.done.find("helping"); it != data.done.end())
+        {
+            const int terms = it->second;
+
+            data.done.erase(it);
+            data.done["outskirts"] += terms;
+        }
+
         defaultDeserialize(serialized, "achieved", data.achieved);
         defaultDeserialize(serialized, "picks", data.picks);
         defaultDeserialize(serialized, "begun", data.begun);

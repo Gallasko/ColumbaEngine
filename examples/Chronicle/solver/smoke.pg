@@ -230,3 +230,50 @@ var againPlays = storyChildren(againGrown.children)
 
 check("solver_test.the_beam_plays_a_story_for_its_class_once", warriorPlays == 0 and magePlays == 1 and laterPlays == 0 and againPlays == 0,
       "warrior " + toString(warriorPlays) + ", mage " + toString(magePlays) + ", its children after " + toString(laterPlays) + ", the same world again " + toString(againPlays))
+
+// solver_test.the_outskirts_are_played_by_every_world: the outskirts' row has no path (its story
+// enters no class), so a boy of six years and eleven months plays it whatever his world aims at,
+// and once a life
+fun outskirtsChildren(children)
+{
+    var n = 0
+
+    for (var c : children)
+    {
+        if (doneOf(c, "outskirts") > 0 and statOf(c, "rations") > 0)
+        {
+            n = n + 1
+        }
+    }
+
+    return n
+}
+
+fun boyOfEleven(aim)
+{
+    var w = newWorld(1)
+    w.lives = 2
+    w.month = 6 * 12 + 11
+    w.aim = aim
+    touch(w)
+
+    return w
+}
+
+var outskirtsPlays = []
+var outskirtsOnce = 0
+
+for (var aim : ["", "warrior", "mage", "thief"])
+{
+    var boy = boyOfEleven(aim)
+    var grown = expandChildren(boy, 0)
+
+    push(outskirtsPlays, outskirtsChildren(grown.children))
+
+    var again = expandChildren(boy, 0)
+    outskirtsOnce = outskirtsOnce + outskirtsChildren(again.children)
+}
+
+check("solver_test.the_outskirts_are_played_by_every_world",
+      outskirtsPlays[0] == 1 and outskirtsPlays[1] == 1 and outskirtsPlays[2] == 1 and outskirtsPlays[3] == 1 and outskirtsOnce == 0,
+      "none " + toString(outskirtsPlays[0]) + ", warrior " + toString(outskirtsPlays[1]) + ", mage " + toString(outskirtsPlays[2]) + ", thief " + toString(outskirtsPlays[3]) + ", again " + toString(outskirtsOnce))

@@ -249,10 +249,11 @@ for (var w = 0; w < len(walkItems); w++)
                         about: "Drunk on a walk, in a fight or between two: it gives back a part of his Vitality."})
     }
 
+    // (a thing with a line of its own says it in place of where it comes from: the chronicle's pages)
     if (thing.kind == "sold")
     {
         push(holdings, {id: thing.id, group: "stores", groupLabel: "STORES", glyph: thing.glyph, name: thing.name, tone: 0,
-                        about: "Brought home from a walk. The market buys it."})
+                        about: lookup(thing, "about", "Brought home from a walk.") + " The market buys it."})
     }
 
     if (thing.kind == "town")

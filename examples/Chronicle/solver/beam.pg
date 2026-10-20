@@ -138,7 +138,8 @@ fun expandKeep()
 
 // A story is played (whole: dear as a walk, its months run) by a world it is for: one that aims at
 // the class its row enters (or that aims at none, and is of none), and once a life, the first month
-// it is open to him (and its fees held, walks.pg's withStoryFees)
+// it is open to him (and its fees held, walks.pg's withStoryFees). A story whose row is of no path
+// (the outskirts) is every world's
 fun storyHere(st, row)
 {
     if (row.story == none or row.story == "")
@@ -151,7 +152,7 @@ fun storyHere(st, row)
         return false
     }
 
-    if (st.aim == row.path)
+    if (row.path == none or row.path == "" or st.aim == row.path)
     {
         return true
     }

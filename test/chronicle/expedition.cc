@@ -2291,6 +2291,45 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // Held, the pages say what they are in the stores: a word of the curse, and the market's
+        TEST(expedition_test, a_page_says_what_it_is)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            Rules rules;
+            ASSERT_TRUE(rules.load(&ecs, compiledRules()));
+
+            RuleMonth month;
+            ASSERT_TRUE(rules.month(8.0f, {{"vit", ElementType{30}}, {"rations", ElementType{6}}, {"page", ElementType{3}}}, month));
+
+            bool found = false;
+
+            for (const auto& gloss : month.glosses)
+            {
+                if (textOf(gloss.fields, "id") != "page")
+                    continue;
+
+                found = true;
+
+                const std::string text = textOf(gloss.fields, "text");
+
+                EXPECT_NE(text.find("curse"), std::string::npos) << text;
+                EXPECT_NE(text.find("The market buys it."), std::string::npos) << text;
+            }
+
+            EXPECT_TRUE(found);
+
+            // The other things sold say what they said
+            for (const auto& gloss : month.glosses)
+            {
+                if (textOf(gloss.fields, "id") == "fangs")
+                    EXPECT_EQ(textOf(gloss.fields, "text"), "Brought home from a walk. The market buys it.");
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // A kill on a walk brings a page home
         TEST(expedition_test, a_kill_on_a_walk_brings_a_page)
         {

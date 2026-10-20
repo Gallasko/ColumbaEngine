@@ -2897,7 +2897,7 @@ namespace pg
             const auto named = life->namedWorks();
             auto has = [&](const std::string& id) { return std::find(named.begin(), named.end(), id) != named.end(); };
 
-            for (const char* id : {"glean", "flour", "wheel", "scribe", "tome", "knots", "sacks", "sing", "tomarket", "harvest", "helping"})
+            for (const char* id : {"glean", "flour", "wheel", "scribe", "tome", "knots", "sacks", "sing", "tomarket", "harvest", "outskirts"})
                 EXPECT_TRUE(has(id)) << id;
 
             for (const char* id : {"keep", "collegium", "hand", "greenwood", "serve", "campaign", "captain", "ritual", "vault", "silence", "woodking", "tales", "garden", "teach"})
@@ -5353,6 +5353,70 @@ namespace pg
             EXPECT_EQ(life->handOn, 0u);
         }
 
+        namespace
+        {
+            // The outskirts (storytable.pg's `outskirts`) played on the walk's page, as the Life page
+            // opens them: begun from the list, the lunch, `path` and `fork` taken, the ditch's card
+            // answered and the slime fought with `move` ("retreat" flees) till the fight is over,
+            // then back to the last day, which ends the story
+            void exploreOutskirts(LifeFixture& f, LifeScene* life, const std::string& path, const std::string& fork, const std::string& move = "strike")
+            {
+                f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "outskirts"});
+                f.frames(12);
+
+                ASSERT_TRUE(life->onWalk());
+                ASSERT_EQ(life->save.running, "outskirts");
+
+                for (const std::string& tile : {std::string("lunch"), path, fork})
+                {
+                    ASSERT_EQ(life->walkScreen, "site") << tile;
+                    life->walkDo(WalkAct{"tile." + tile, "", 0});
+                    f.settle();
+                }
+
+                ASSERT_TRUE(life->onWalk());
+                life->walkDo(WalkAct{"option", "go", 0});
+                f.settle();
+                ASSERT_EQ(life->walkScreen, "fight");
+
+                for (int guard = 0; guard < 40 and life->onWalk() and life->walkScreen == "fight"; ++guard)
+                {
+                    const auto over = life->save.walk.fight.find("over");
+                    const bool done = over != life->save.walk.fight.end() and not over->second.toString().empty();
+
+                    life->walkDo(done ? WalkAct{"back", "", 0} : WalkAct{"move", move, 0});
+                    f.settle();
+                }
+
+                f.frames(12);
+                ASSERT_FALSE(life->onWalk());
+            }
+
+            // A later life of the world, past his eleventh month of the sixth year with its works
+            // left undone, and nothing to eat
+            LifeScene* elevenMonths(LifeFixture& f, LifeSceneOptions opt)
+            {
+                opt.fresh = true;
+                opt.lives = 2;
+                opt.walkSeed = 11;
+
+                LifeScene* life = f.life(opt);
+
+                if (not life)
+                    return nullptr;
+
+                f.frames(12);
+
+                life->save.age = 6.0f + 10.0f / 12.0f;
+                life->save.stats["rations"] = 1;
+                life->onMonth();
+                f.settle();
+                f.frames(12);
+
+                return life;
+            }
+        }
+
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
@@ -5578,16 +5642,18 @@ namespace pg
             EXPECT_NE(life->noteWords.spec.text.find("30"), std::string::npos) << life->noteWords.spec.text;
             next();
 
-            // A month at the mill, with nothing said: the classes wait for him to be seven
+            // The outskirts, with nothing said: the classes wait for him to be seven
             EXPECT_EQ(life->save.guide, 11);
             EXPECT_FALSE(life->step.active);
             EXPECT_EQ(list->find(&f.ecs, "keep"), nullptr);
-            ASSERT_NE(list->find(&f.ecs, "helping"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "helping"), nullptr);
+            ASSERT_NE(list->find(&f.ecs, "outskirts"), nullptr);
 
             const int toasts = life->toastsUp();
 
-            work("helping", 1);
+            exploreOutskirts(f, life, "animals", "tracks");
             EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
+            EXPECT_TRUE(life->save.running.empty());
 
             // The town's work comes all at once, and is counted in one toast, not named in nine
             EXPECT_LE(life->toastsUp(), toasts + 2);
@@ -5599,11 +5665,14 @@ namespace pg
             for (const char* id : {"messages", "kitchen"})
                 EXPECT_EQ(list->find(&f.ecs, id), nullptr) << id;
 
-            // What the year made of him: the mind's road, the knots and the sacks
-            EXPECT_EQ(life->save.stats["str"], 6);
+            // What the year made of him: the mind's road, the knots and the sacks, and in the
+            // outskirts the wild animals and their tracks (two of Strength, the Stick blow, a page)
+            EXPECT_EQ(life->save.stats["str"], 6 + 2);
             EXPECT_EQ(life->save.stats["dex"], 6);
             EXPECT_EQ(life->save.stats["int"], 7);
             EXPECT_EQ(life->save.stats["vitmax"], 40);
+            EXPECT_EQ(life->save.stats["outskirts.animals"], 1);
+            EXPECT_EQ(life->save.stats["page"], 1);
             EXPECT_EQ(life->save.stats["rations"], 8 - 2 + 6 - 1);
 
             EXPECT_EQ(life->step.id, "guide.doors");
@@ -5657,8 +5726,9 @@ namespace pg
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
         // The guided first year of a boy who buys nothing at the market: his rations run out once,
-        // at the harvest, and the mill's month that brings him to seven gives its six as he begins
-        // it. Nothing then says they are running low, and they do not run out a second time.
+        // at the harvest, and the outskirts' month that brings him to seven gives its six with the
+        // lunch of its first day. Nothing then says they are running low, and they do not run out a
+        // second time.
         TEST(lifescene_test, the_first_year_runs_out_of_rations_once)
         {
             MockLogger logger;
@@ -5727,23 +5797,45 @@ namespace pg
             EXPECT_EQ(life->save.stats["rations"], 0);
             EXPECT_EQ(ranOut(0), 1);
 
-            // The mill's month: six as he begins it, and nothing said of running low
+            // The outskirts: six with his lunch on the first day, and nothing said of running low
             const float eleven = 6.0f + 11.0f / 12.0f;
             ASSERT_NEAR(life->save.age, eleven, 0.001f);
 
             through();
             const size_t atMill = life->save.log.size();
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "helping"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "outskirts"});
             f.settle();
 
-            ASSERT_EQ(life->save.running, "helping");
+            ASSERT_EQ(life->save.running, "outskirts");
+            ASSERT_TRUE(life->onWalk());
+
+            life->walkDo(WalkAct{"tile.lunch", "", 0});
+            f.settle();
+
             EXPECT_EQ(life->save.stats["rations"], 6);
             EXPECT_EQ(f.fact<std::string>("life.warning").find("RATIONS"), std::string::npos) << f.fact<std::string>("life.warning");
 
-            life->onMonth();
+            // (the rest of it: a path, its fork, and the slime)
+            for (const char* tile : {"tile.nature", "tile.beetles"})
+            {
+                life->walkDo(WalkAct{tile, "", 0});
+                f.settle();
+            }
+
+            life->walkDo(WalkAct{"option", "go", 0});
             f.settle();
+
+            for (int guard = 0; guard < 40 and life->onWalk() and life->walkScreen == "fight"; ++guard)
+            {
+                const auto over = life->save.walk.fight.find("over");
+
+                life->walkDo(over != life->save.walk.fight.end() and not over->second.toString().empty() ? WalkAct{"back", "", 0} : WalkAct{"move", "strike", 0});
+                f.settle();
+            }
+
             f.frames(12);
 
+            EXPECT_FALSE(life->onWalk());
             EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
             EXPECT_TRUE(life->save.running.empty());
             EXPECT_EQ(life->save.stats["rations"], 5);
@@ -5751,6 +5843,140 @@ namespace pg
 
             EXPECT_EQ(ranOut(atMill), 0);
             EXPECT_EQ(ranOut(0), 1);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The last month of the sixth year is the outskirts' story, in every life: listed at 6 years
+        // 11 months where Start Helping Out was, played through on the walk's page, and he comes home
+        // seven years old, fed, with his first page, to the town's work and the classes' doors.
+        TEST(lifescene_test, the_sixth_year_ends_in_the_outskirts)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = elevenMonths(f, LifeFixture::mockup());
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            ASSERT_NEAR(life->save.age, 6.0f + 11.0f / 12.0f, 0.001f);
+            EXPECT_EQ(life->save.stats["rations"], 0);
+            EXPECT_NE(list->find(&f.ecs, "outskirts"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "helping"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "keep"), nullptr);
+
+            const int lives = life->save.lives;
+
+            exploreOutskirts(f, life, "children", "chase");
+
+            EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
+            EXPECT_EQ(life->save.lives, lives);
+            EXPECT_TRUE(life->save.running.empty());
+            EXPECT_EQ(life->save.done["outskirts"], 1);
+            EXPECT_EQ(life->save.stats["outskirts.children"], 1);
+            EXPECT_EQ(life->save.stats["page"], 1);
+            EXPECT_EQ(life->save.stats["rations"], 5);
+
+            // Not walked again, nor kept as a record
+            EXPECT_EQ(list->find(&f.ecs, "outskirts"), nullptr);
+            EXPECT_TRUE(life->save.recipes.empty());
+
+            for (const char* id : {"keep", "collegium", "hand", "carters", "mill"})
+                EXPECT_NE(list->find(&f.ecs, id), nullptr) << id;
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Fled from the slime, he goes home all the same: the story is over, he is seven, his lunch
+        // has fed him, and he has no page.
+        TEST(lifescene_test, fleeing_the_slime_sends_him_home_fed)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = elevenMonths(f, LifeFixture::mockup());
+            ASSERT_NE(life, nullptr);
+
+            const int lives = life->save.lives;
+            const int fled = life->save.fightsFled;
+
+            exploreOutskirts(f, life, "animals", "crows", "retreat");
+
+            EXPECT_EQ(life->save.fightsFled, fled + 1);
+            EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
+            EXPECT_EQ(life->save.lives, lives);
+            EXPECT_FALSE(life->ended);
+            EXPECT_TRUE(life->save.running.empty());
+            EXPECT_EQ(life->save.done["outskirts"], 1);
+            EXPECT_GE(life->save.stats["rations"], 5);
+            EXPECT_GE(life->save.stats["vit"], 1);
+            EXPECT_EQ(life->save.stats["page"], 0);
+
+            // What the days gave is his: the path and its fork
+            EXPECT_EQ(life->save.stats["outskirts.animals"], 1);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A save from before the outskirts, written in the month at the mill (Start Helping Out
+        // under way, its six rations given as he began it): the row is gone, yet the save opens, the
+        // month runs out, and he is seven and fed.
+        TEST(lifescene_test, an_old_save_helping_out_still_reaches_seven)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const std::string path = "save/test_life_old_helping.sz";
+            std::remove(path.c_str());
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.noSave = false;
+            opt.savePath = path;
+
+            LifeScene* life = elevenMonths(f, opt);
+            ASSERT_NE(life, nullptr);
+
+            life->save.running = "helping";
+            life->save.monthsIn = 0;
+            life->save.stats["rations"] = 6;
+            ASSERT_TRUE(life->saveNow());
+
+            f.load<EmptyScene>();
+            opt.fresh = false;
+
+            LifeScene* again = f.life(opt);
+            ASSERT_NE(again, nullptr);
+            f.frames(12);
+
+            ASSERT_NEAR(again->save.age, 6.0f + 11.0f / 12.0f, 0.001f);
+            EXPECT_FALSE(again->onWalk());
+            EXPECT_FALSE(again->save.running.empty());
+
+            const int lives = again->save.lives;
+
+            again->onMonth();
+            f.settle();
+            f.frames(12);
+
+            EXPECT_NEAR(again->save.age, 7.0f, 0.0001f);
+            EXPECT_EQ(again->save.lives, lives);
+            EXPECT_TRUE(again->save.running.empty());
+            EXPECT_EQ(again->save.stats["rations"], 5);
+
+            // The month he had begun is done: the outskirts are not offered him on top of it
+            auto list = again->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "outskirts"), nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "helping"), nullptr);
+            EXPECT_NE(list->find(&f.ecs, "keep"), nullptr);
+
+            f.load<EmptyScene>();
+            std::remove(path.c_str());
         }
 
         // ----------------------------------------------------------------------------------------
@@ -5979,7 +6205,7 @@ namespace pg
 
             // (the next ones come one at a time; the three wait for his fourth month, the market
             // for his eighth, the town's work for seven)
-            for (const char* id : {"flour", "wheel", "scribe", "tome", "knots", "sacks", "sing", "tomarket", "harvest", "helping", "carters", "keep"})
+            for (const char* id : {"flour", "wheel", "scribe", "tome", "knots", "sacks", "sing", "tomarket", "harvest", "outskirts", "carters", "keep"})
                 EXPECT_EQ(list->find(&f.ecs, id), nullptr) << id;
 
             EXPECT_EQ(list->selected(), "glean");
@@ -6704,7 +6930,7 @@ namespace pg
             EXPECT_EQ(townSteps(), 0u);
 
             // His first work, and the months after it: the guide goes on with its own steps
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "helping"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "glean"});
             f.settle();
 
             for (int i = 0; i < 3; ++i)

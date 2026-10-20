@@ -1,9 +1,6 @@
 #include "stdafx.h"
 
 #include <algorithm>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
 #include <functional>
 #include <map>
 #include <cctype>
@@ -92,9 +89,9 @@ namespace pg
                 RuleWalk last;
                 int seed = 100;
 
-                explicit Walker(ElementMap who, const std::string& root = "") : character(std::move(who))
+                explicit Walker(ElementMap who) : character(std::move(who))
                 {
-                    EXPECT_TRUE(rules.load(&ecs, root.empty() ? compiledRules() : root)) << (rules.errors.empty() ? "" : rules.errors.front());
+                    EXPECT_TRUE(rules.load(&ecs, compiledRules())) << (rules.errors.empty() ? "" : rules.errors.front());
 
                     rules.lives = 2;
                 }
@@ -2366,87 +2363,166 @@ namespace pg
             EXPECT_EQ(intOf(w.state.run, "spent"), 16);
         }
 
-        namespace
-        {
-            // The rules with the drill's wolf swapped for the slime (no story fights it yet): the
-            // sources copied beside the binary, patched, compiled, and removed with this object
-            struct SlimeRules
-            {
-                std::string src = "rules-slime-test-patched";
-                std::string out = "rules-slime-test";
-
-                SlimeRules()
-                {
-                    namespace fs = std::filesystem;
-
-                    std::error_code ec;
-                    fs::remove_all(src, ec);
-                    fs::remove_all(out, ec);
-                    fs::create_directories(src);
-
-                    for (const auto& entry : fs::directory_iterator("rules"))
-                    {
-                        if (entry.path().extension() == ".pg")
-                            fs::copy_file(entry.path(), fs::path(src) / entry.path().filename());
-                    }
-
-                    std::ifstream in(src + "/storytable.pg");
-                    std::stringstream text;
-                    text << in.rdbuf();
-                    in.close();
-
-                    std::string body = text.str();
-                    const std::string wolf = "{fight: \"wolf\"}";
-
-                    EXPECT_NE(body.find(wolf), std::string::npos);
-
-                    body.replace(body.find(wolf), wolf.size(), "{fight: \"slime\"}");
-
-                    std::ofstream(src + "/storytable.pg") << body;
-
-                    EntitySystem ecs;
-                    std::vector<std::string> errors;
-
-                    EXPECT_TRUE(chronicle::precompileRules(&ecs, src, out, errors)) << (errors.empty() ? "" : errors.front());
-                }
-
-                ~SlimeRules()
-                {
-                    std::error_code ec;
-                    std::filesystem::remove_all(src, ec);
-                    std::filesystem::remove_all(out, ec);
-                    std::filesystem::remove_all(out + "-src", ec);
-                }
-            };
-
-            // A boy of six years and eleven months in the drill yard, face to face with the slime
-            bool sparWithSlime(Walker& w, int seed)
-            {
-                w.seed = seed;
-
-                return w.ask("enter", WalkAct{"story", "drill", 0}) and w.take("bout") and w.screen() == "fight";
-            }
-        }
-
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // The outskirts (storytable.pg's `outskirts`): the last month before he is seven, four days,
+        // his lunch, one of three paths, that path's fork, and the slime in the ditch.
+        namespace
+        {
+            // A boy of six years and eleven months, the harvest in: nothing left to eat
+            ElementMap boyOfEleven()
+            {
+                return {{"str", ElementType{6}}, {"dex", ElementType{6}}, {"int", ElementType{7}}, {"vit", ElementType{38}}, {"vitmax", ElementType{38}},
+                        {"coin", ElementType{3}}, {"rations", ElementType{0}}};
+            }
+
+            std::vector<std::string> workIds(const Walker& w)
+            {
+                std::vector<std::string> ids;
+
+                for (const auto& row : w.last.works)
+                    ids.push_back(textOf(row, "id"));
+
+                return ids;
+            }
+
+            // Into the outskirts with `seed`'s dice, lunch, the path and its fork, then the ditch's card
+            // answered: he is face to face with the slime
+            bool toTheDitch(Walker& w, const std::string& path, const std::string& fork, int seed = 100)
+            {
+                w.seed = seed;
+                w.age = 6.0f + 11.0f / 12.0f;
+
+                return w.ask("enter", WalkAct{"story", "outskirts", 0}) and w.take("lunch") and w.take(path) and w.take(fork)
+                       and w.cardId() == "story.ditch" and w.act("option", "go") and w.screen() == "fight";
+            }
+        }
+
+        // The first day offers his lunch alone, and it gives the six rations the month at the mill
+        // once did: he has none after the harvest
+        TEST(story_test, the_outskirts_open_with_lunch)
+        {
+            MockLogger logger;
+            Walker w(boyOfEleven());
+            w.age = 6.0f + 11.0f / 12.0f;
+
+            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "outskirts", 0}));
+            EXPECT_EQ(intOf(w.state.run, "days"), 4);
+            EXPECT_EQ(intOf(w.state.run, "months"), 1);
+            EXPECT_EQ(w.screen(), "site");
+            EXPECT_EQ(workIds(w), (std::vector<std::string>{"tile.lunch"}));
+
+            ASSERT_TRUE(w.take("lunch"));
+            EXPECT_EQ(intOf(w.character, "rations"), 6);
+            EXPECT_EQ(w.day(), 2);
+
+            // No month falls due before the last day is over: the lunch is still his
+            EXPECT_EQ(intOf(w.state.run, "monthsRun"), 0);
+        }
+
+        // The second day's three paths: one taken, the next day offers that path's two forks and
+        // nothing of the other paths
+        TEST(story_test, a_path_closes_the_others)
+        {
+            MockLogger logger;
+            Walker w(boyOfEleven());
+            w.age = 6.0f + 11.0f / 12.0f;
+
+            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "outskirts", 0}));
+            ASSERT_TRUE(w.take("lunch"));
+
+            EXPECT_EQ(workIds(w), (std::vector<std::string>{"tile.children", "tile.nature", "tile.animals"}));
+
+            ASSERT_TRUE(w.take("nature"));
+            EXPECT_EQ(w.day(), 3);
+            EXPECT_EQ(intOf(w.character, "int"), 8);
+            EXPECT_EQ(intOf(w.character, "outskirts.nature"), 1);
+            EXPECT_EQ(intOf(w.character, "outskirts.children"), 0);
+            EXPECT_EQ(intOf(w.character, "outskirts.animals"), 0);
+
+            EXPECT_EQ(workIds(w), (std::vector<std::string>{"tile.beetles", "tile.wortleaf"}));
+
+            // The wortleaf: two remedies, for the fight
+            ASSERT_TRUE(w.take("wortleaf"));
+            EXPECT_EQ(intOf(w.character, "remedy"), 2);
+            EXPECT_EQ(w.day(), 4);
+            EXPECT_EQ(w.cardId(), "story.ditch");
+        }
+
+        // Each path teaches its move: in the slime's fight it is in his menu, and the other two are not
+        TEST(story_test, each_path_teaches_its_move)
+        {
+            MockLogger logger;
+
+            const std::vector<std::vector<std::string>> paths = {{"children", "chase", "tech.step"}, {"nature", "beetles", "tech.read"}, {"animals", "tracks", "tech.stick"}};
+
+            for (const auto& path : paths)
+            {
+                Walker w(boyOfEleven());
+
+                ASSERT_TRUE(toTheDitch(w, path[0], path[1])) << path[0];
+                EXPECT_EQ(textOf(w.state.fight, "mob"), "slime") << path[0];
+                EXPECT_EQ(intOf(w.character, "outskirts." + path[0]), 1) << path[0];
+
+                for (const auto& other : paths)
+                    EXPECT_EQ(byId(w.last.menu, other[2]) != nullptr, other[2] == path[2]) << path[0] << " " << other[2];
+            }
+
+            // What each fork gave: a point more of the path's part, Lore, or Dexterity
+            Walker chase(boyOfEleven());
+            ASSERT_TRUE(toTheDitch(chase, "children", "chase"));
+            EXPECT_EQ(intOf(chase.character, "dex"), 8);
+
+            Walker tales(boyOfEleven());
+            ASSERT_TRUE(toTheDitch(tales, "children", "tales"));
+            EXPECT_EQ(intOf(tales.character, "dex"), 7);
+            EXPECT_EQ(intOf(tales.character, "lore"), 1);
+
+            Walker tracks(boyOfEleven());
+            ASSERT_TRUE(toTheDitch(tracks, "animals", "tracks"));
+            EXPECT_EQ(intOf(tracks.character, "str"), 8);
+
+            Walker crows(boyOfEleven());
+            ASSERT_TRUE(toTheDitch(crows, "animals", "crows"));
+            EXPECT_EQ(intOf(crows.character, "str"), 7);
+            EXPECT_EQ(intOf(crows.character, "dex"), 7);
+        }
+
+        // Beaten, the slime leaves his first chronicle page, and the story is seen to its end
+        TEST(story_test, the_slime_leaves_a_page)
+        {
+            MockLogger logger;
+            Walker w(boyOfEleven());
+
+            ASSERT_TRUE(toTheDitch(w, "nature", "beetles"));
+
+            for (int guard = 0; guard < 12 and w.screen() == "fight" and w.over().empty(); ++guard)
+                ASSERT_TRUE(w.act("move", "strike"));
+
+            ASSERT_EQ(w.over(), "won");
+            EXPECT_EQ(intOf(w.last.after, "page"), 1);
+            EXPECT_EQ(intOf(w.character, "page"), 1);
+
+            ASSERT_TRUE(w.act("back"));
+            EXPECT_EQ(w.screen(), "done");
+            EXPECT_EQ(textOf(w.state.run, "result"), "over");
+            EXPECT_EQ(intOf(w.state.run, "monthsRun"), 1);
+            EXPECT_EQ(intOf(w.character, "page"), 1);
+        }
+
         // The slime cannot kill him: with one Vitality and his guard up for all its turns he is never
-        // downed, and the story goes on.
+        // downed, and the story goes on to its end
         TEST(story_test, the_slime_spares_him)
         {
             MockLogger logger;
-            SlimeRules slime;
 
-            ElementMap boy = student();
+            ElementMap boy = boyOfEleven();
             boy["vit"] = ElementType{1};
-            boy["str"] = ElementType{6};
-            boy["dex"] = ElementType{6};
 
-            Walker w(boy, slime.out);
-            w.age = 6.9f;
+            Walker w(boy);
 
-            ASSERT_TRUE(sparWithSlime(w, 100));
+            ASSERT_TRUE(toTheDitch(w, "nature", "beetles"));
             EXPECT_EQ(textOf(w.state.fight, "mob"), "slime");
 
             w.fightWith("guard");
@@ -2454,30 +2530,24 @@ namespace pg
             EXPECT_EQ(w.over(), "held");
             EXPECT_EQ(intOf(w.state.run, "downed"), 0);
             EXPECT_GE(intOf(w.state.run, "hp"), 1);
+
+            ASSERT_TRUE(w.act("back"));
+            EXPECT_EQ(w.screen(), "done");
+            EXPECT_EQ(intOf(w.character, "page"), 0);
+            EXPECT_GE(intOf(w.character, "vit"), 1);
         }
 
-        // ----------------------------------------------------------------------------------------
-        // ---------------------------        Test separator        -------------------------------
-        // ----------------------------------------------------------------------------------------
         // A boy with Strength 6 and Dexterity 6 beats the slime with a plain strike in six turns at
-        // most, whatever the seed, and it leaves a page.
+        // most, whatever the seed
         TEST(story_test, a_boy_beats_the_slime_with_a_strike)
         {
             MockLogger logger;
-            SlimeRules slime;
-
-            ElementMap boy = student();
-            boy["vit"] = ElementType{38};
-            boy["vitmax"] = ElementType{38};
-            boy["str"] = ElementType{6};
-            boy["dex"] = ElementType{6};
 
             for (int seed = 1; seed <= 20; ++seed)
             {
-                Walker w(boy, slime.out);
-                w.age = 6.9f;
+                Walker w(boyOfEleven());
 
-                ASSERT_TRUE(sparWithSlime(w, seed * 37));
+                ASSERT_TRUE(toTheDitch(w, "nature", "beetles", seed * 37));
 
                 int turns = 0;
 
@@ -2488,7 +2558,27 @@ namespace pg
                 EXPECT_LE(turns, 6) << "seed " << seed;
                 EXPECT_GE(turns, 2) << "seed " << seed;
                 EXPECT_EQ(w.standing(), 0) << "seed " << seed;
+                EXPECT_EQ(intOf(w.character, "page"), 1) << "seed " << seed;
             }
+        }
+
+        // The row that opens it: the last month before seven, its story's month, and no board (the
+        // lunch feeds him); its plan the warrior's path, as the solver plays it
+        TEST(story_test, the_outskirts_row_and_plan)
+        {
+            MockLogger logger;
+            Walker w(boyOfEleven());
+
+            ASSERT_TRUE(w.ask("plan", WalkAct{"", "outskirts", 0}));
+            EXPECT_EQ(textOf(w.last.site, "id"), "outskirts");
+            EXPECT_EQ(textOf(w.last.site, "row"), "outskirts");
+            EXPECT_EQ(intOf(w.last.site, "months"), 1);
+            EXPECT_EQ(intOf(w.last.site, "gives.rations"), 6);
+            EXPECT_EQ(intOf(w.last.site, "gives.outskirts.animals"), 1);
+            // (what a plan gives is said once a stat, the most one tile gives: storylib.pg's planGives)
+            EXPECT_EQ(intOf(w.last.site, "gives.str"), 1);
+            EXPECT_EQ(intOf(w.last.site, "gives.outskirts.nature"), 0);
+            EXPECT_EQ(intOf(w.last.site, "fee.coin"), 0);
         }
     }
 }
