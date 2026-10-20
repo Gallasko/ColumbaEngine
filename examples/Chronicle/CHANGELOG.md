@@ -108,6 +108,13 @@ at work: it is a term of sixteen days, each chosen when it comes.
   there are his again, and its rations for them go back. The Collegium does not take him back,
   but the other classes stay open: a man of the Keep who had followed the fire course throws a
   Firebolt between two cuts. His chronicle says he left.
+- **Report a bug.** A small beetle button stands at the top right of every page, on a walk and
+  in a fight too, the phone page with them. It opens a box for a few words: what happened, what
+  you expected. Send gives them to the author with a picture of the screen as it was when you
+  pressed the button, your save and the game's last messages. The game waits under the box, and
+  no key typed there plays. Three reports in a quarter of an hour at most: the box says when you
+  may send another, and a report that cannot be sent keeps your words for another try. The
+  desktop game sends nothing: it writes the report to a folder beside the save.
 
 ### Changed
 
@@ -176,6 +183,10 @@ at work: it is a term of sixteen days, each chosen when it comes.
   spot: the Vitality it had taken stayed lost, the works of his prime came back, and he lived
   untouched to fifty. Where his old age begins is now settled the month he turns thirty: an Inn
   raised later is for the lives after his, and its first level says so (old age at 50, not 30).
+- **The Lord's Pardon.** Once answered, *Burn the Lord's Tithe Barn* is no longer offered, as
+  the Pardon was never offered once the barn had burned: a renegade could do both.
+- **A save that would not load.** A save written over a broken file, or a file of another kind,
+  kept that file's first line and never loaded again. A save is now always written with its own.
 
 ## 0.7 - unreleased: the fight
 
