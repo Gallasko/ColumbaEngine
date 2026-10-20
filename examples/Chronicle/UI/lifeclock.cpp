@@ -105,11 +105,12 @@ namespace chronicle
             ecs->removeEntity(child);
         }
 
-        // His whole years, counted in whole months as the rules count them (lib.pg's `monthOf`):
-        // an age summed a twelfth at a time falls a hair short of the year it has reached
+        // His whole years, counted in whole months: an age summed a twelfth at a time falls a hair
+        // short of the year it has reached, so a hair is forgiven; a month not yet ended is not
+        // counted (15.96 is still fifteen, where rounding the months would make him sixteen)
         std::string ageText(float age)
         {
-            const int months = static_cast<int>(std::floor(age * 12.0f + 0.5f));
+            const int months = static_cast<int>(std::floor(age * 12.0f + 0.001f));
 
             return std::to_string(months / 12);
         }
