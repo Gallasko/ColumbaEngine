@@ -5,6 +5,7 @@ export const NEON_SQL_URL = "https://ep-hidden-meadow-abvf8aat-pooler.eu-west-2.
 
 const MAX_BODY = 2 * 1024 * 1024;
 const PER_PLAYER = 3;
+const PER_IP = 10;
 
 export const COUNT_PLAYER_SQL =
   "SELECT count(*) FROM bug_reports WHERE player_id = $1 AND created_at > now() - interval '15 minutes'";
@@ -21,8 +22,8 @@ export const NEXT_ID_SQL = "SELECT nextval('bug_reports_id_seq') AS id";
 export const INSERT_SQL =
   "INSERT INTO bug_reports (id, player_id, session_id, ip_hash, version, message, screen, save, logs, place, client) " +
   "SELECT $1::integer, $2::text, $3::text, $4::text, $5::text, $6::text, $7::text, $8::text, $9::text, $10::text, $11::text " +
-  "WHERE (SELECT count(*) FROM bug_reports WHERE player_id = $2::text AND created_at > now() - interval '15 minutes') < 3 " +
-  "AND (SELECT count(*) FROM bug_reports WHERE ip_hash = $4::text AND created_at > now() - interval '15 minutes') < 10";
+  "WHERE (SELECT count(*) FROM bug_reports WHERE player_id = $2::text AND created_at > now() - interval '15 minutes') < " + PER_PLAYER + " " +
+  "AND (SELECT count(*) FROM bug_reports WHERE ip_hash = $4::text AND created_at > now() - interval '15 minutes') < " + PER_IP;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -110,7 +111,10 @@ export async function handleBug(request, env, sql = neonSql(env)) {
       id, b.player_id, str(b.session_id), ipHash, str(b.version), b.message,
       str(b.screen) || "", str(b.save), str(b.logs), str(b.place), str(b.client),
     ]);
-    if (r.rowCount === 0) {
+    // Fail closed: only a positive rowCount is a kept report.  No number at all
+    // is a store error (502), not a success.
+    if (typeof r.rowCount !== "number") throw new Error("neon answered without rowCount");
+    if (!(r.rowCount > 0)) {
       // A limit held it back.  Counting again is only to tell which, for the wait.
       const c = await sql(COUNT_PLAYER_SQL, [b.player_id]);
       const byPlayer = Number(c.rows?.[0]?.count) >= PER_PLAYER;

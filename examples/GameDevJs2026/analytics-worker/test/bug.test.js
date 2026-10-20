@@ -134,3 +134,17 @@ test("bug_route_uses_bug_conn_never_main", async () => {
     assert.equal(r.headers.get("Access-Control-Allow-Origin"), "*");
   } finally { globalThis.fetch = realFetch; }
 });
+
+test("bug_missing_rowcount_fails_closed", async () => {
+  const sql = async (q) => (q === NEXT_ID_SQL ? { rows: [{ id: "7" }] } : { rows: [] });
+  const orig = console.error; console.error = () => {};
+  try {
+    const r = await handleBug(req(good()), env, sql);
+    assert.equal(r.status, 502);
+  } finally { console.error = orig; }
+});
+
+test("bug_sql_uses_the_limit_constants", () => {
+  assert.match(INSERT_SQL, /< 3 AND/);
+  assert.match(INSERT_SQL, /< 10$/);
+});
