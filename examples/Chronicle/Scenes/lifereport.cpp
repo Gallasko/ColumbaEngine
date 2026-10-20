@@ -484,8 +484,13 @@ namespace chronicle
         report.message = clipMessage(message);
         report.screen = reportScreen;
 
-        // The save as it was last written: the report never writes it, so it cannot take a step half made
+        // The save as it was last written: the report never writes it, so it cannot take a step half made.
+        // A life never written says so, rather than send nothing
         report.save = opt.noSave ? std::string() : fileText(opt.savePath);
+
+        if (report.save.empty())
+            report.save = opt.noSave ? "(no save: this life is never written, --no-save)" : "(no save written yet)";
+
         report.logs = recentLogs() + "\n--- life ---\n" + lifeLogTail(ReportLogLines);
         report.place = reportPlace();
 
@@ -557,6 +562,10 @@ namespace chronicle
             chronicle_report_result("failed", reportLine, false);
 #endif
             fillReport();
+
+            // Shut meanwhile: said all the same
+            if (not reportOpen)
+                toast(reportLine);
             break;
         }
     }

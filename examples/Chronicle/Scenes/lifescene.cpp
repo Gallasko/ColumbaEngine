@@ -755,6 +755,10 @@ namespace chronicle
 
         // The Options page's controls (lifeoptions.cpp)
         listenToEvent<SwitchToggledEvent>([this](const SwitchToggledEvent& e) {
+            // Under the bug report's dialog nothing of the game answers (lifereport.cpp)
+            if (reportOpen)
+                return;
+
             if (e.tag == "options.click")
             {
                 settings.beginOnFirstClick = e.on;
@@ -763,6 +767,9 @@ namespace chronicle
             }
         });
         listenToEvent<RadioChosenEvent>([this](const RadioChosenEvent& e) {
+            if (reportOpen)
+                return;
+
             if (e.tag == "options.light")
                 chooseTheme(e.id);
         });
@@ -774,19 +781,25 @@ namespace chronicle
         });
 
         // The lists of a walk's screens and of the Adventure page are the walk's to hear (lifewalk.cpp)
-        listenToEvent<ActivitySelectedEvent>([this](const ActivitySelectedEvent& e) { onSelect(e); onWalkSelect(e); });
+        // (none of them while the bug report's dialog is up: a key or a click that reached a list or
+        // the tabs under it is not played)
+        listenToEvent<ActivitySelectedEvent>([this](const ActivitySelectedEvent& e) { if (reportOpen) return; onSelect(e); onWalkSelect(e); });
         listenToEvent<ActivityHoveredEvent>([this](const ActivityHoveredEvent& e) { onHover(e); });
-        listenToEvent<ActivityActivatedEvent>([this](const ActivityActivatedEvent& e) { onConfirm(e); onWalkConfirm(e); });
-        listenToEvent<TabSelectedEvent>([this](const TabSelectedEvent& e) { onTab(e); });
+        listenToEvent<ActivityActivatedEvent>([this](const ActivityActivatedEvent& e) { if (reportOpen) return; onConfirm(e); onWalkConfirm(e); });
+        listenToEvent<TabSelectedEvent>([this](const TabSelectedEvent& e) { if (reportOpen) return; onTab(e); });
 
         // A place's tile clicked: the work that raises it to its next level begins
-        listenToEvent<PlaceSelectedEvent>([this](const PlaceSelectedEvent& e) { onPlace(e); });
+        listenToEvent<PlaceSelectedEvent>([this](const PlaceSelectedEvent& e) { if (reportOpen) return; onPlace(e); });
 
         // At nothing, a month passes when he says so; at work the months run on their own. The
         // ending's one button begins the next life
         listenToEvent<ButtonActivatedEvent>([this](const ButtonActivatedEvent& e) {
             // The bug report's button, and its dialog's (lifereport.cpp)
             if (onReportButton(e.tag))
+                return;
+
+            // Its dialog up (on the web the page's own, not the `dialog` slot): nothing under it answers
+            if (reportOpen)
                 return;
 
             if (onOptionsButton(e.tag))

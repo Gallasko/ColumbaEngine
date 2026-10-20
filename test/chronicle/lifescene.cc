@@ -13932,6 +13932,98 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // Under the report's dialog nothing of the game answers, whatever reached the kit: a row
+        // begun, a tab, a place, a button, a switch, a card (on the web the dialog is the page's own,
+        // so the `dialog` slot is empty and the scene must say no itself)
+        TEST(lifescene_test, the_game_does_not_answer_under_the_report)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+            life->save.stats["rations"] = 24;
+
+            const float age = life->save.age;
+            const std::string running = life->save.running;
+            const bool click = life->settings.beginOnFirstClick;
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            ASSERT_TRUE(life->reportOpen);
+
+            // As the web's would be: the scene's own flag, nothing in the slot
+            life->closeDialog();
+            life->reportOpen = true;
+            ASSERT_TRUE(life->dialog.empty());
+
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "yard"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
+            f.ecs.sendEvent(TabSelectedEvent{0, "life.tabs", 1});
+            f.ecs.sendEvent(PlaceSelectedEvent{"inn"});
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "life.skip"});
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "life.begin"});
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "options.wipe"});
+            f.ecs.sendEvent(SwitchToggledEvent{0, "options.click", not click});
+            f.ecs.sendEvent(RadioChosenEvent{0, "options.light", "candle"});
+            f.frames(12);
+
+            EXPECT_EQ(life->save.running, running);
+            EXPECT_FLOAT_EQ(life->save.age, age);
+            EXPECT_TRUE(life->chosen.empty());
+            EXPECT_FALSE(life->townShown);
+            EXPECT_FALSE(life->optionsShown);
+            EXPECT_TRUE(life->dialog.empty());
+            EXPECT_EQ(life->settings.beginOnFirstClick, click);
+            EXPECT_EQ(f.theme->currentTheme(), "day");
+
+            // Shut, a row is begun again
+            life->closeReport();
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "yard"});
+            f.frames(12);
+            EXPECT_EQ(life->save.running, "yard");
+
+            f.load<EmptyScene>();
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A life never written says so in its report, rather than send no save
+        TEST(lifescene_test, a_report_of_a_life_never_written_says_so)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const auto folder = optionsScratch();
+            LifeSceneOptions opt = reportOptions(folder);
+            opt.noSave = true;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+            ASSERT_FALSE(std::filesystem::exists(opt.savePath));
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, ReportTag});
+            f.frames(6);
+            ASSERT_TRUE(life->reportOpen);
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "report.send"});
+            f.frames(6);
+            ASSERT_FALSE(life->reportOpen);
+
+            std::filesystem::path report;
+            for (const auto& entry : std::filesystem::directory_iterator(folder / "reports"))
+                report = entry.path();
+            ASSERT_FALSE(report.empty());
+
+            EXPECT_EQ(fileText((report / "life.sz").string()).rfind("(no save", 0), 0u);
+            EXPECT_FALSE(std::filesystem::exists(opt.savePath));
+
+            f.load<EmptyScene>();
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // One dialog at a time: the report does not open over the wipe's question, nor the wipe's
         // over the report
         TEST(lifescene_test, the_report_and_the_wipe_never_both_open)

@@ -120,7 +120,9 @@
     // The bug report's dialog. The game shows it (open), says how a send went (result) and shuts it
     // (close); what is pressed is left in `pressed` ("send\n<words>", "cancel\n<words>") for the
     // game to take on its next pass (LifeScene::pollReport). Nothing typed or clicked in it reaches
-    // the game: SDL listens on the window and the canvas, and every event stops here.
+    // the game: SDL listens on the window and the canvas, and every event stops here. While it is
+    // up it is modal: the Tab key goes round its own controls, the canvas cannot take the focus,
+    // and a key whose target is anywhere else is stopped at the window before SDL hears it.
     window.chronicleReport = (function () {
       var root = document.getElementById('report');
       var words = document.getElementById('report-words');
@@ -129,9 +131,40 @@
       var line = document.getElementById('report-line');
       var send = document.getElementById('report-send');
       var cancel = document.getElementById('report-cancel');
+      var canvas = document.getElementById('canvas');
       var limited = false;
 
       var api = { pressed: null };
+
+      function isOpen() { return !root.hidden; }
+
+      // What Tab goes round, in order: the box, Cancel, and Send while it can be pressed
+      function controls() {
+        return [words, cancel, send].filter(function (c) { return !c.disabled; });
+      }
+
+      // The canvas out of reach while the dialog is up, and back after
+      function holdCanvas(held) {
+        if (!canvas) return;
+
+        if (held) {
+          canvas.setAttribute('tabindex', '-1');
+          canvas.inert = true;
+        } else {
+          canvas.inert = false;
+          canvas.setAttribute('tabindex', '0');
+        }
+      }
+
+      function hide() {
+        if (root.hidden) return;
+
+        root.hidden = true;
+        say('');
+        holdCanvas(false);
+
+        if (canvas) canvas.focus();
+      }
 
       function press(what) {
         api.pressed = what + '\n' + words.value;
@@ -142,6 +175,7 @@
       }
 
       api.open = function (screen, text, said, isLimited, candle) {
+        api.pressed = null;   // Nothing pressed before it opened is this one's
         root.classList.toggle('candle', !!candle);
         if (text) words.value = text;
         limited = !!isLimited;
@@ -157,6 +191,7 @@
         }
 
         root.hidden = false;
+        holdCanvas(true);
         words.focus();
       };
 
@@ -172,17 +207,13 @@
         say(said);
       };
 
+      // The game shuts it: what was pressed is taken already, or no one's (the scene left)
       api.close = function () {
-        if (root.hidden) return;
-
-        root.hidden = true;
-        say('');
-
-        var canvas = document.getElementById('canvas');
-        if (canvas) canvas.focus();
+        api.pressed = null;
+        hide();
       };
 
-      api.isOpen = function () { return !root.hidden; };
+      api.isOpen = isOpen;
 
       send.addEventListener('click', function () {
         if (send.disabled) return;
@@ -192,13 +223,22 @@
         say('Sending...');
       });
 
+      // Cancel shuts it here at once; the game takes the press on its next pass
       cancel.addEventListener('click', function () {
         press('cancel');
-        api.close();
+        hide();
       });
 
       root.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape') {
+        if (event.key === 'Tab') {
+          // Round its own controls, never out of it
+          var list = controls();
+          var at = list.indexOf(document.activeElement);
+          var next = event.shiftKey ? (at <= 0 ? list.length - 1 : at - 1) : (at < 0 || at >= list.length - 1 ? 0 : at + 1);
+
+          event.preventDefault();
+          list[next].focus();
+        } else if (event.key === 'Escape') {
           event.preventDefault();
           cancel.click();
         } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
@@ -207,6 +247,34 @@
         }
 
         event.stopPropagation();
+      });
+
+      // A press on the dialog that is not on one of its controls (the scrim, the note, the picture)
+      // leaves the focus where it was, in the dialog
+      root.addEventListener('mousedown', function (event) {
+        if (controls().indexOf(event.target) < 0)
+          event.preventDefault();
+      });
+
+      // The focus come out of it anyway is brought back to the box
+      document.addEventListener('focusin', function (event) {
+        if (isOpen() && !root.contains(event.target))
+          words.focus();
+      });
+
+      // A key whose target is not in the dialog (the page, the canvas) is stopped at the window, in
+      // the capture phase, before SDL's listeners on the window and the document hear it
+      ['keydown', 'keyup', 'keypress'].forEach(function (kind) {
+        window.addEventListener(kind, function (event) {
+          if (!isOpen() || root.contains(event.target))
+            return;
+
+          event.stopPropagation();
+          event.preventDefault();
+
+          if (kind === 'keydown')
+            words.focus();
+        }, true);
       });
 
       ['keyup', 'keypress', 'mousedown', 'mouseup', 'mousemove', 'click', 'dblclick', 'wheel', 'contextmenu',
