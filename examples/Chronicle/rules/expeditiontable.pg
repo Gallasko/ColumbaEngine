@@ -38,6 +38,7 @@
 //                         mends? (percent of its Vitality it mends at its own turn, unless it
 //                         burns), quick,
 //                         verb ("bites"), script [bite | circle | maul] (cycled),
+//                         demon? (true: it leaves no page of the chronicle, which every other beast does),
 //                         lesson (what the first kill of it in a life teaches, a line for the log), loot [{id, chance (percent), least, most}]}
 //         `walkEvents` one table per event:
 //                        {id, trigger (seek | study | fight | rest | gather), weight, once (once per
@@ -172,6 +173,9 @@ const walkItems = [
     {id: "pike_jaw", name: "The pike's jaw", one: "pike's jaw", glyph: "relic", kind: "sold", lot: 1, coin: 8},
     {id: "grey_pelt", name: "The Old Grey's pelt", one: "grey pelt", glyph: "relic", kind: "sold", lot: 1, coin: 12},
     {id: "shell_plate", name: "A plate of the Old Shell", one: "shell plate", glyph: "forge", kind: "sold", lot: 1, coin: 10},
+    // A page of the chronicle: the curse writes itself on what he kills, and the scribes at the market
+    // take the sheets, four for a coin (two for a coin paid a walk above the rule: README, What a walk is worth) (a beast with `demon: true` leaves none)
+    {id: "page", name: "Chronicle pages", one: "chronicle page", glyph: "study", kind: "sold", lot: 4, coin: 1},
     {id: "firewood", name: "Firewood", one: "firewood", glyph: "work", kind: "town", gather: "Deadfall and cuttings, bundled and carried home."},
     {id: "clay", name: "Clay", one: "clay", glyph: "work", kind: "town", gather: "Dug out of the bank, heavy and wet."},
     {id: "ashwood", name: "Ash wood", one: "ash wood", glyph: "work", kind: "town", gather: "Straight ash poles, felled and trimmed."},
@@ -295,7 +299,7 @@ const walkMobs = [
              circle: {name: "Skitter", line: "It backs off and looks for a way round."}},
      script: ["bite", "circle"],
      lesson: "The water rat's lesson: it bites and backs off, and backs off again. Strike as it comes in.",
-     loot: [{id: "hides", chance: 75, least: 1, most: 2}]},
+     loot: [{id: "hides", chance: 75, least: 1, most: 2}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     {id: "nestrat", name: "Nest rat", many: "nest rats", pack: "Rat nest", lone: "A nest rat", rarity: "common", packSize: 4, holdsBack: 0, roles: ["swarm"],
      about: "Small and many, and all of them at once. One blow ends one of them; it is the count that hurts.",
@@ -304,7 +308,7 @@ const walkMobs = [
              circle: {name: "Scatter", line: "They scatter and come back from every side."}},
      script: ["bite", "bite", "circle"],
      lesson: "The nest's lesson: a blow at every one of them is worth three at one.",
-     loot: [{id: "hides", chance: 25, least: 1, most: 1}]},
+     loot: [{id: "hides", chance: 25, least: 1, most: 1}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     {id: "pike", name: "The Old Pike", many: "old pikes", pack: "", lone: "", rarity: "rare", packSize: 1, holdsBack: 0,
      about: "Older than the mill, the millers say, and longer than a man. The water goes still before it comes.",
@@ -313,7 +317,7 @@ const walkMobs = [
              maul: {name: "Lunge", line: "All of it out of the water at once, jaws first."}},
      script: ["circle", "maul"],
      lesson: "The pike's lesson: when the water goes still, defend.",
-     loot: [{id: "fish", chance: 100, least: 3, most: 5}]},
+     loot: [{id: "fish", chance: 100, least: 3, most: 5}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     // The Hollow Woods: packs and a brute, a rare stag, and the wolves' leader
     {id: "wolf", name: "Wolf", many: "wolves", pack: "Wolf pack", lone: "A lone wolf", rarity: "common", packSize: 3, holdsBack: 2,
@@ -324,7 +328,7 @@ const walkMobs = [
              hold: {name: "Hang back", line: "It waits behind the others, for one of them to fall."}},
      script: ["bite", "circle", "bite"],
      lesson: "The wolf's lesson: a pack waits on its leader, and the ones behind wait for one in front to fall.",
-     loot: [{id: "pelts", chance: 100, least: 1, most: 2}, {id: "fangs", chance: 40, least: 1, most: 2}]},
+     loot: [{id: "pelts", chance: 100, least: 1, most: 2}, {id: "fangs", chance: 40, least: 1, most: 2}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     {id: "oldgrey", name: "The Old Grey", many: "old greys", pack: "", lone: "", rarity: "rare", packSize: 1, holdsBack: 0, roles: ["leader"],
      about: "Grey to the muzzle and bigger than any wolf has a right to be. The pack goes where he goes, and is quicker for it.",
@@ -335,7 +339,7 @@ const walkMobs = [
      script: ["bite", "circle", "maul"],
      phases: [{at: 50, line: "The Old Grey howls. The wood answers.", quick: 13, calls: {mob: "wolf", count: 1}}],
      lesson: "The Old Grey's lesson: while he stands, his wolves are quicker. Hurt him and the wood answers.",
-     loot: [{id: "pelts", chance: 100, least: 1, most: 2}]},
+     loot: [{id: "pelts", chance: 100, least: 1, most: 2}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     {id: "boar", name: "Boar", many: "boars", pack: "", lone: "", rarity: "uncommon", packSize: 1, holdsBack: 0, roles: ["brute"],
      about: "Old, heavy, and of the opinion that the wood is his. An edge slides off its hide.",
@@ -345,7 +349,7 @@ const walkMobs = [
              circle: {name: "Paw the ground", line: "It gathers itself. What comes next is worse."}},
      script: ["circle", "bite", "maul"],
      lesson: "The boar's lesson: an edge slides off its hide, but a hammer does not. When it paws the ground, the charge comes next.",
-     loot: [{id: "hides", chance: 100, least: 1, most: 3}, {id: "fangs", chance: 40, least: 1, most: 3}]},
+     loot: [{id: "hides", chance: 100, least: 1, most: 3}, {id: "fangs", chance: 40, least: 1, most: 3}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     {id: "stag", name: "White Stag", many: "white stags", pack: "", lone: "", rarity: "rare", packSize: 1, holdsBack: 0, roles: ["flees"],
      about: "White as a shroud. The Keep's hunters have followed it for years. Hurt, it does not stay.",
@@ -354,7 +358,7 @@ const walkMobs = [
              circle: {name: "Wheel away", line: "It is gone between the oaks, and back from another side."}},
      script: ["circle", "circle", "bite"],
      lesson: "The White Stag's lesson: it does not stay to be killed. Hurt it, and it is gone at its next turn.",
-     loot: [{id: "hides", chance: 100, least: 2, most: 3}, {id: "antler", chance: 50, least: 1, most: 1}]},
+     loot: [{id: "hides", chance: 100, least: 2, most: 3}, {id: "antler", chance: 50, least: 1, most: 1}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     // The Quarry Road: quick adders, and shells an edge cannot open
     {id: "adder", name: "Stone adder", many: "stone adders", pack: "", lone: "", rarity: "uncommon", packSize: 1, holdsBack: 0, roles: ["skirmisher"],
@@ -364,7 +368,7 @@ const walkMobs = [
              circle: {name: "Coil", line: "It draws back on itself."}},
      script: ["circle", "bite"],
      lesson: "The adder's lesson: it coils before it strikes. Quick blows, before it strikes again.",
-     loot: [{id: "fangs", chance: 100, least: 1, most: 4}]},
+     loot: [{id: "fangs", chance: 100, least: 1, most: 4}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     {id: "beetle", name: "Shell beetle", many: "shell beetles", pack: "Shell beetles", lone: "A shell beetle", rarity: "common", packSize: 2, holdsBack: 0, roles: ["armoured"],
      about: "As big as a dog, and plated like a knight. An edge skids off it; a hammer cracks it.",
@@ -373,7 +377,7 @@ const walkMobs = [
              circle: {name: "Hunker", line: "It draws in under its plates."}},
      script: ["bite", "circle"],
      lesson: "The beetle's lesson: the point goes between the plates, and the hammer through them.",
-     loot: [{id: "beetle_shell", chance: 80, least: 1, most: 2}]},
+     loot: [{id: "beetle_shell", chance: 80, least: 1, most: 2}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     {id: "oldshell", name: "The Old Shell", many: "old shells", pack: "", lone: "", rarity: "rare", packSize: 1, holdsBack: 0, roles: ["brute", "armoured"],
      about: "A beetle the size of a cart, its back grown over with lichen. Its stone shell turns an edge and a working alike.",
@@ -383,7 +387,7 @@ const walkMobs = [
      script: ["circle", "maul"],
      phases: [{at: 50, line: "The Old Shell's back cracks open.", armour: 1, ward: 0, quick: 6, resist: {cut: 0, blunt: -50, fire: -25}}],
      lesson: "The Old Shell's lesson: hammer it until the shell cracks; after that, anything will do.",
-     loot: [{id: "beetle_shell", chance: 100, least: 2, most: 4}]},
+     loot: [{id: "beetle_shell", chance: 100, least: 2, most: 4}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     // Millbrook Marsh: lights that are workings, not bodies; hounds the cold slows; a mass that
     // mends unless it burns; and the Lantern Mother, who calls the lights
@@ -394,7 +398,7 @@ const walkMobs = [
              circle: {name: "Drift", line: "It drifts off over the water, and comes back from another side."}},
      script: ["bite", "circle"],
      lesson: "The marsh light's lesson: a blade goes through it as through smoke. Fire, frost or a blessing end it; so does a blow at all of them.",
-     loot: [{id: "wisp_glass", chance: 10, least: 1, most: 1}]},
+     loot: [{id: "wisp_glass", chance: 10, least: 1, most: 1}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     {id: "hound", name: "Bog hound", many: "bog hounds", pack: "Bog hounds", lone: "A bog hound", rarity: "common", packSize: 3, holdsBack: 1, roles: ["pack"],
      about: "Black with mud to the shoulder, and thin. They run in threes through the reeds, and the cold makes them slow.",
@@ -404,7 +408,7 @@ const walkMobs = [
              hold: {name: "Hang back", line: "It waits in the reeds while the first of them goes in."}},
      script: ["bite", "circle", "bite"],
      lesson: "The bog hound's lesson: the cold stiffens them. Frost, and the pack comes slower.",
-     loot: [{id: "hides", chance: 100, least: 1, most: 2}, {id: "fangs", chance: 40, least: 1, most: 2}]},
+     loot: [{id: "hides", chance: 100, least: 1, most: 2}, {id: "fangs", chance: 40, least: 1, most: 2}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     {id: "leech", name: "Leech mass", many: "leech masses", pack: "", lone: "", rarity: "uncommon", packSize: 1, holdsBack: 0, roles: ["unnatural"],
      about: "A heap of black leeches grown into one, as big as a sow. A wound in it closes as he watches, unless it burns.",
@@ -413,7 +417,7 @@ const walkMobs = [
              circle: {name: "Swell", line: "It draws in on itself, heavy with what it has drunk."}},
      script: ["bite", "circle"],
      lesson: "The leech mass's lesson: it mends at every turn of its own, but not while it burns.",
-     loot: [{id: "pitch", chance: 60, least: 1, most: 2}]},
+     loot: [{id: "pitch", chance: 60, least: 1, most: 2}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     {id: "lantern", name: "The Lantern Mother", many: "lantern mothers", pack: "", lone: "", rarity: "rare", packSize: 1, holdsBack: 0, roles: ["unnatural"],
      about: "A tall grey shape over the deepest pool, holding a lamp that is not a lamp. Every light of the marsh is hers, and she calls them home.",
@@ -426,7 +430,7 @@ const walkMobs = [
               {at: 50, line: "The lamp burns higher, and another light answers it.", quick: 10, calls: {mob: "light", count: 1}},
               {at: 25, line: "The lamp gutters. The last of her lights comes to it.", calls: {mob: "light", count: 1}}],
      lesson: "The Lantern Mother's lesson: she calls a light each time she is hurt. Bless the blade, or end her lights all at once.",
-     loot: [{id: "pitch", chance: 100, least: 2, most: 3}]},
+     loot: [{id: "pitch", chance: 100, least: 2, most: 3}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     // A story's own (storylib.pg): no place lists them, so no walk meets them. `story`: of a
     // story only (no lesson, nothing learned of it); `level`: how well he knows it there (a story

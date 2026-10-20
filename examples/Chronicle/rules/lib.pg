@@ -1490,6 +1490,7 @@ const statNames = {
     hides: "Hides",
     fangs: "Fangs",
     antler: "White antlers",
+    page: "Chronicle pages",
     pike_jaw: "Pike's jaw",
     shell_plate: "Plate of the Old Shell",
     grey_pelt: "Old Grey's pelt",

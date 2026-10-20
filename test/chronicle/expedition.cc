@@ -1,6 +1,8 @@
 #include "stdafx.h"
 
 #include <algorithm>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -2198,6 +2200,117 @@ namespace pg
 
             ASSERT_TRUE(w.ask("term", WalkAct{}, "r1"));
             EXPECT_EQ(intOf(w.character, "dex"), dex);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Every beast leaves a page of the chronicle (the curse: the book writes itself on what he
+        // kills), but the Collegium's dummies, and a demon, if one comes
+        TEST(expedition_test, every_beast_drops_a_page)
+        {
+            std::ifstream file(std::string(CHRONICLE_SOURCE_DIR) + "/examples/Chronicle/rules/expeditiontable.pg");
+            ASSERT_TRUE(file.good());
+
+            std::stringstream all;
+            all << file.rdbuf();
+            const std::string text = all.str();
+
+            const size_t from = text.find("const walkMobs = [");
+            const size_t to = text.find("// What a walk may meet besides one beast");
+            ASSERT_NE(from, std::string::npos);
+            ASSERT_NE(to, std::string::npos);
+
+            const std::string mobs = text.substr(from, to - from);
+
+            int rows = 0;
+            int paged = 0;
+            size_t at = mobs.find("{id: \"");
+
+            while (at != std::string::npos)
+            {
+                const size_t next = mobs.find("\n    {id: \"", at + 1);
+                const std::string row = mobs.substr(at, next == std::string::npos ? std::string::npos : next - at);
+                ++rows;
+
+                const bool exempt = row.find("story: true") != std::string::npos or row.find("demon: true") != std::string::npos;
+                const bool has = row.find("{id: \"page\", chance: 100, least: 1, most: 1}") != std::string::npos;
+
+                if (exempt)
+                    EXPECT_FALSE(has) << row.substr(0, 40);
+                else
+                {
+                    EXPECT_TRUE(has) << row.substr(0, 40);
+                    ++paged;
+                }
+
+                at = next == std::string::npos ? next : next + 1;
+            }
+
+            EXPECT_GE(rows, 15);
+            EXPECT_GE(paged, 13);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A page is sold at the market, four for a coin (two paid the walks above the rule)
+        TEST(expedition_test, a_page_sells_four_for_a_coin)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            Rules rules;
+            ASSERT_TRUE(rules.load(&ecs, compiledRules()));
+
+            ElementMap seller;
+            seller["page"] = ElementType{4};
+
+            bool found = false;
+
+            std::vector<RuleActivity> rows;
+            ASSERT_TRUE(rules.activities(20.0f, seller, rows));
+
+            for (const auto& a : rows)
+            {
+                if (textOf(a.fields, "id") != "sell.page")
+                    continue;
+
+                found = true;
+                ASSERT_EQ(a.gains.size(), 1u);
+                EXPECT_EQ(textOf(a.gains[0], "stat"), "coin");
+                EXPECT_EQ(intOf(a.gains[0], "amount"), 1);
+                ASSERT_EQ(a.costs.size(), 1u);
+                EXPECT_EQ(textOf(a.costs[0], "stat"), "page");
+                EXPECT_EQ(intOf(a.costs[0], "amount"), 4);
+            }
+
+            EXPECT_TRUE(found);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A kill on a walk brings a page home
+        TEST(expedition_test, a_kill_on_a_walk_brings_a_page)
+        {
+            MockLogger logger;
+
+            ElementMap boy = knowing(gatherer(), "hedgerows", 10);
+            boy["str"] = ElementType{20};
+
+            Walker w(boy);
+            w.age = 10.0f;
+
+            ASSERT_TRUE(w.ask("enter", WalkAct{"", "millpond", 0}));
+            ASSERT_TRUE(w.act("seek", "rat", 1));
+            w.answer();
+            ASSERT_EQ(w.screen(), "fight");
+
+            for (int i = 0; i < 20 and textOf(w.last.duel, "over").empty(); ++i)
+                ASSERT_TRUE(w.act("move", "strike"));
+
+            ASSERT_EQ(textOf(w.last.duel, "over"), "won");
+            EXPECT_EQ(marked(w.state.marks, "loot", "page"), 1);
         }
 
         // ----------------------------------------------------------------------------------------
