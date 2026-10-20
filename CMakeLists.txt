@@ -901,6 +901,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         examples/Chronicle/Core/factrouter.cpp
         examples/Chronicle/Core/analytics.cpp
         examples/Chronicle/Core/bugreport.cpp
+        examples/Chronicle/Core/bugsend.cpp
         examples/Chronicle/Core/logring.cpp
         examples/Chronicle/Core/screenshot.cpp
         examples/Chronicle/Scenes/lifesave.cpp

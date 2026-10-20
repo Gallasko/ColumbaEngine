@@ -5,6 +5,7 @@
 
 #include "application.h"
 #include "Core/motion.h"
+#include "Core/bugsend.h"
 
 int main(int argc, char* argv[])
 {
@@ -47,6 +48,8 @@ int main(int argc, char* argv[])
             opt.walk = argv[++i];
         else if (a == "--walk-seed" and i + 1 < argc and std::sscanf(argv[i + 1], "%d", &opt.walkSeed) == 1 and opt.walkSeed > 0)
             ++i;
+        else if (a == "--bug-url" and i + 1 < argc)
+            chronicle::setBugUrl(argv[++i]);
         else if (a == "--build" and i + 1 < argc)
             opt.build = argv[++i];
         else if (a == "--set" and i + 1 < argc and std::string(argv[i + 1]).find('=') != std::string::npos)
@@ -58,7 +61,7 @@ int main(int argc, char* argv[])
         }
         else
         {
-            std::fprintf(stderr, "usage: Chronicle [--dev <Scene>] [--theme day|candle] [--reduced-motion] [--fresh] [--guide N] [--age N] [--no-save] [--save <path>] [--size WxH] [--month-ms N] [--walk <zone>] [--walk-seed N] [--build <id>|list] [--set <stat>=<n>]...\n");
+            std::fprintf(stderr, "usage: Chronicle [--dev <Scene>] [--theme day|candle] [--reduced-motion] [--fresh] [--guide N] [--age N] [--no-save] [--save <path>] [--size WxH] [--month-ms N] [--walk <zone>] [--walk-seed N] [--bug-url <url>] [--build <id>|list] [--set <stat>=<n>]...\n");
             return 2;
         }
     }

@@ -3,8 +3,10 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <fstream>
 
 #include "Core/bugreport.h"
+#include "Core/bugsend.h"
 #include "Core/logring.h"
 #include "Core/screenshot.h"
 
@@ -369,6 +371,74 @@ namespace pg
             ecs.sendEvent(SavedFrameData{ pixels, 4, 2 });
             ecs.executeOnce();
             EXPECT_EQ(answers, 1);
+        }
+
+        TEST(bugreport_test, a_native_report_is_written_to_a_folder)
+        {
+            const auto root = std::filesystem::temp_directory_path() / "chronicle_bugsend_test";
+            std::filesystem::remove_all(root);
+
+            BugReport report;
+            report.message = "it broke";
+            report.save = "SAVE";
+            report.logs = "LOGS";
+            report.place = "PLACE";
+            report.screen = "data:image/jpeg;base64,/9j/4AAQ";  // FF D8 FF E0 00 10
+
+            SendResult got = SendResult::Failed;
+            std::string line;
+            sendReport(report, [&](SendResult r, int, std::string l) { got = r; line = l; }, root.string());
+
+            EXPECT_EQ(got, SendResult::Written);
+
+            const auto reports = root / "reports";
+            ASSERT_TRUE(std::filesystem::exists(reports));
+            const auto folder = std::filesystem::directory_iterator(reports)->path();
+            EXPECT_EQ(line, "Written to " + folder.string());
+
+            for (const char* name : { "message.txt", "screen.jpg", "life.sz", "log.txt", "place.txt" })
+                EXPECT_TRUE(std::filesystem::exists(folder / name)) << name;
+
+            std::ifstream jpg(folder / "screen.jpg", std::ios::binary);
+            unsigned char head[2] = { 0, 0 };
+            jpg.read(reinterpret_cast<char*>(head), 2);
+            EXPECT_EQ(head[0], 0xFF);
+            EXPECT_EQ(head[1], 0xD8);
+
+            std::ifstream life(folder / "life.sz");
+            std::string text((std::istreambuf_iterator<char>(life)), std::istreambuf_iterator<char>());
+            EXPECT_EQ(text, "SAVE");
+
+            std::filesystem::remove_all(root);
+        }
+
+        TEST(bugreport_test, a_failed_send_keeps_the_words)
+        {
+            ReportFlow flow;
+            flow.message = "my words";
+
+            flow.result(SendResult::Failed);
+            EXPECT_EQ(flow.message, "my words");
+            flow.result(SendResult::Limited);
+            EXPECT_EQ(flow.message, "my words");
+            flow.result(SendResult::TooLarge);
+            EXPECT_EQ(flow.message, "my words");
+
+            flow.result(SendResult::Sent);
+            EXPECT_TRUE(flow.message.empty());
+
+            flow.message = "again";
+            flow.result(SendResult::Written);
+            EXPECT_TRUE(flow.message.empty());
+        }
+
+        TEST(bugreport_test, the_bug_url_is_the_flag_or_the_worker)
+        {
+            setBugUrl("");
+            EXPECT_EQ(bugUrl().substr(bugUrl().size() - 4), "/bug");
+            setBugUrl("http://localhost:9/x");
+            EXPECT_EQ(bugUrl(), "http://localhost:9/x");
+            setBugUrl("");
         }
     }
 }

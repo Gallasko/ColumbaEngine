@@ -31,6 +31,9 @@ namespace chronicle
         // The worker holds the connection string, the page only knows its address
         static constexpr const char * const ProxyUrl = "https://analytics-proxy.pigeoncodeur.workers.dev";
 
+        // Where a bug report goes (the same worker)
+        static constexpr const char * const BugUrl = "https://analytics-proxy.pigeoncodeur.workers.dev/bug";
+
         virtual std::string getSystemName() const override { return "Chronicle Analytics"; }
 
         virtual void execute() override;
