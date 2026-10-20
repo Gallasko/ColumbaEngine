@@ -900,6 +900,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         examples/Chronicle/Core/rulevm.cpp
         examples/Chronicle/Core/factrouter.cpp
         examples/Chronicle/Core/analytics.cpp
+        examples/Chronicle/Core/bugreport.cpp
         examples/Chronicle/Scenes/lifesave.cpp
         examples/Chronicle/Scenes/lifescene.cpp
         examples/Chronicle/Scenes/lifewalk.cpp
@@ -934,6 +935,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
     string(REGEX REPLACE "^## ([0-9][0-9.]*).*" "\\1" CHRONICLE_VERSION "${CHRONICLE_VERSION_LINE}")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/examples/Chronicle/CHANGELOG.md)
     set_source_files_properties(examples/Chronicle/Scenes/lifeoptions.cpp PROPERTIES COMPILE_DEFINITIONS "CHRONICLE_VERSION=\"${CHRONICLE_VERSION}\"")
+    set_source_files_properties(examples/Chronicle/Core/bugreport.cpp PROPERTIES COMPILE_DEFINITIONS "CHRONICLE_VERSION=\"${CHRONICLE_VERSION}\"")
 
     set(CHRONICLE_APP
         examples/Chronicle/application.cpp
@@ -1757,6 +1759,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/chronicle/expedition.cc
             test/chronicle/story.cc
             test/chronicle/analytics.cc
+            test/chronicle/bugreport.cc
             test/chronicle/lifescene.cc
             test/chronicle/options.cc
             ${CHRONICLE_CORE}
