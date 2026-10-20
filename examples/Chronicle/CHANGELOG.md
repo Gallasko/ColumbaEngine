@@ -111,9 +111,11 @@ at work: it is a term of sixteen days, each chosen when it comes.
 - **Report a bug.** A small beetle button stands at the top right of every page, on a walk and
   in a fight too, the phone page with them. It opens a box for a few words: what happened, what
   you expected. Send gives them to the author with a picture of the screen as it was when you
-  pressed the button, your save and the game's last messages. The game waits under the box, and
-  no key typed there plays. Three reports in a quarter of an hour at most: the box says when you
-  may send another, and a report that cannot be sent keeps your words for another try. The
+  pressed the button, your save and the game's last messages; a box left empty sends them all
+  the same. The game waits under the box: no month passes and no fight plays on, and no key typed
+  there plays. Three reports in a quarter of an hour at most: the box says when you may send
+  another, and a report that cannot be sent, or has no answer in half a minute, keeps your words
+  for another try. The
   desktop game sends nothing: it writes the report to a folder beside the save.
 
 ### Changed

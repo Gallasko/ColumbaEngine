@@ -14,6 +14,9 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#ifdef __EMSCRIPTEN_PTHREADS__
+#include <emscripten/threading.h>
+#endif
 #endif
 
 namespace chronicle
@@ -107,11 +110,27 @@ namespace chronicle
             arrive(id, SendResult::Failed, 0, status > 0 ? "The report could not be sent (" + std::to_string(status) + ")" : "The report could not be sent");
     }
 
-    // A page served from this machine sends nothing, unless a --bug-url was given (`forced`)
-    EM_JS(void, chronicle_bug_post, (int id, const char* url, const char* body, int forced), {
+    // An answer that has not come in this long is taken for a failure: a stalled connection (a
+    // phone between networks, a captive portal, a hung worker) says so rather than "Sending..." forever
+    constexpr int SendTimeoutMs = 30000;
+
+    // A page served from this machine sends nothing, unless a --bug-url was given (`forced`).
+    // The answer is given once: the real one, or the timeout's, whichever comes first
+    EM_JS(void, chronicle_bug_post, (int id, const char* url, const char* body, int forced, int timeoutMs), {
         var local = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+        var given = false;
+        var timer = null;
+        var controller = (typeof AbortController !== "undefined") ? new AbortController() : null;
 
         function give(status, wait) {
+            if (given)
+                return;
+
+            given = true;
+
+            if (timer !== null)
+                clearTimeout(timer);
+
             Module._chronicle_bug_answer(id, status, wait);
         }
 
@@ -121,11 +140,26 @@ namespace chronicle
             return;
         }
 
-        fetch(UTF8ToString(url), {
+        timer = setTimeout(function () {
+            timer = null;
+            console.warn("[bug] not sent: no answer in " + Math.round(timeoutMs / 1000) + " s");
+
+            if (controller)
+                controller.abort();
+
+            give(0, 0);
+        }, timeoutMs);
+
+        var init = {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: UTF8ToString(body)
-        }).then(function (response) {
+        };
+
+        if (controller)
+            init.signal = controller.signal;
+
+        fetch(UTF8ToString(url), init).then(function (response) {
             if (response.status === 429) {
                 return response.json().catch(function () { return {}; }).then(function (j) {
                     give(429, Math.max(0, Math.ceil(Number(j.wait) || 0)));
@@ -137,6 +171,15 @@ namespace chronicle
             give(0, 0);
         });
     });
+
+    // The post is made on the browser's main thread, whichever thread asks: on the threads build the
+    // scene runs on a worker whose event loop never turns, so a promise begun there would never
+    // answer. The call waits until the request is under way, so `url` and `body` are read before
+    // they go; the answer comes back on the main thread, into chronicle_bug_answer and the table
+    static void postOnMain(int id, const char* url, const char* body, int forced)
+    {
+        chronicle_bug_post(id, url, body, forced, SendTimeoutMs);
+    }
 #endif
 
     void sendReport(const BugReport& report, std::function<void(SendResult, int, std::string)> done, const std::string& dir)
@@ -171,7 +214,13 @@ namespace chronicle
             return;
         }
 
-        chronicle_bug_post(id, bugUrl().c_str(), body.c_str(), local ? 0 : 1);
+        const std::string url = bugUrl();
+
+#ifdef __EMSCRIPTEN_PTHREADS__
+        emscripten_sync_run_in_main_runtime_thread(EM_FUNC_SIG_VIIII, &postOnMain, id, url.c_str(), body.c_str(), local ? 0 : 1);
+#else
+        postOnMain(id, url.c_str(), body.c_str(), local ? 0 : 1);
+#endif
 #else
         namespace fs = std::filesystem;
 

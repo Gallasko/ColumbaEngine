@@ -76,17 +76,22 @@ namespace chronicle
     }
 
 #ifdef __EMSCRIPTEN__
-    // window.chronicleConsole is filled by the HTML shell before the module starts
-    EM_JS(char*, chronicle_console_text, (), {
-        var lines = (typeof window !== 'undefined' && window.chronicleConsole) ? window.chronicleConsole : [];
-        return stringToNewUTF8(lines.join('\n') + (lines.length ? '\n' : ''));
-    });
-
+    // window.chronicleConsole is filled by the HTML shell before the module starts. Read on the main
+    // thread, whichever thread asks: a worker of the threads build has no window
     std::string recentLogs()
     {
-        char* raw = chronicle_console_text();
-        std::string out = raw ? raw : "";
-        free(raw);
+        const int raw = MAIN_THREAD_EM_ASM_INT({
+            var lines = (typeof window !== "undefined" && window.chronicleConsole) ? window.chronicleConsole : [];
+            return stringToNewUTF8(lines.join("\n") + (lines.length ? "\n" : ""));
+        });
+
+        if (raw == 0)
+            return "";
+
+        char* text = reinterpret_cast<char*>(raw);
+        std::string out = text;
+        free(text);
+
         return out;
     }
 #else

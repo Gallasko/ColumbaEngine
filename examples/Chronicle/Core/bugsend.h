@@ -21,8 +21,9 @@ namespace chronicle
     // worker asks to wait), line is a sentence for the player ("Written to <path>", the reason of a failure).
     //
     // Web: POST of bugReportJson to bugUrl(). 200 -> Sent; 429 with {wait} -> Limited; anything else
-    // or a network error -> Failed; a body over MaxBody -> TooLarge; a local page (localhost) -> Failed
-    // unless a --bug-url was given. `done` is called later, from the main loop (never from the promise):
+    // or a network error -> Failed, and so is no answer in 30 s; a body over MaxBody -> TooLarge; a local
+    // page (localhost) -> Failed unless a --bug-url was given. The request is made on the browser's main
+    // thread, whichever thread calls. `done` is called later, from the main loop (never from the promise):
     // the result waits in a table that sendReport owns, and pollReports() hands it over.
     // Native: writes `dir`/reports/<yyyy-mm-dd-hhmmss>/ (message.txt, screen.jpg, life.sz, log.txt,
     // place.txt) and calls `done` at once with Written.
