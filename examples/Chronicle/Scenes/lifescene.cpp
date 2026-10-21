@@ -2372,7 +2372,15 @@ namespace chronicle
         // Found again every time: a page built again has other tiles, a list that scrolled other
         // rows in view, a fight's screen made again other buttons
         const bool onward = stepChosen();
-        const EntityRef target = said ? pointed(onward ? step.pointChosen : step.point) : EntityRef{};
+
+        // A step that does not go on to a button (he knows Begin by then) keeps the hand on the
+        // tile he chose, of those it shows: the scribe's when he takes the scribe
+        std::string here = step.point;
+
+        if (step.pointChosen.empty() and not onWalk() and not chosen.empty() and std::find(step.light.begin(), step.light.end(), TilePoint + chosen) != step.light.end())
+            here = TilePoint + chosen;
+
+        const EntityRef target = said ? pointed(onward ? step.pointChosen : here) : EntityRef{};
 
         // What is lit with it, while the hand is on the thing itself: once it has gone on to the
         // button, the button alone
@@ -2384,6 +2392,13 @@ namespace chronicle
             {
                 if (EntityRef other = pointed(one); not other.empty() and other.id != target.id)
                     also.push_back(other);
+            }
+
+            // (and the tile it points at first, when the hand is on another of them)
+            if (here != step.point)
+            {
+                if (EntityRef first = pointed(step.point); not first.empty() and first.id != target.id)
+                    also.push_back(first);
             }
         }
 

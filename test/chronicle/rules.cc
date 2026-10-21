@@ -3613,11 +3613,18 @@ namespace pg
                     EXPECT_TRUE(lit) << id << " lights " << one;
                 }
 
-                // A work is begun in two presses: a step that waits for one shows its tile, then
-                // the button that begins it, and says what to press
+                // A work is begun in two presses: the first two tasks (and the market's first buy)
+                // show their tile, then the button that begins it, and say what to press. Two works
+                // begun, he knows the button: the hand stays on the tile
                 const std::string chosen = textOf(a.fields, "pointChosen");
+                const bool taught = id == "guide.begin" or id == "guide.flour" or id == "guide.market";
 
-                if (point.rfind("tile:", 0) == 0 and not a.until.empty())
+                if (point.rfind("tile:", 0) == 0 and not a.until.empty() and not taught)
+                {
+                    EXPECT_TRUE(chosen.empty()) << id;
+                    EXPECT_TRUE(textOf(a.fields, "sayChosen").empty()) << id;
+                }
+                else if (point.rfind("tile:", 0) == 0 and not a.until.empty())
                 {
                     EXPECT_EQ(chosen, "button:begin") << id;
                     EXPECT_FALSE(textOf(a.fields, "sayChosen").empty()) << id;

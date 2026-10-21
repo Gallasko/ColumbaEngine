@@ -143,38 +143,34 @@ var achievements = [
     {id: "guide.coin", kind: "guide", order: 4, untilAge: 7, point: "holding:coin", hold: 4000,
      say: "This is your coin. You will spend it at the market soon.",
      asks: [{fact: "done.flour", op: ">=", value: 1}]},
-    // The first choice: both tiles are lit, and the hand goes to Begin whichever he takes
-    {id: "guide.choice", kind: "guide", order: 5, untilAge: 7, point: "tile:wheel", light: "tile:scribe", pointChosen: "button:begin",
+    // From here the hand stays on the task: two works begun, he knows the Begin button (the
+    // author's call, 2026-10-21). The first choice: both tiles are lit
+    {id: "guide.choice", kind: "guide", order: 5, untilAge: 7, point: "tile:wheel", light: "tile:scribe",
      say: "Your first choice: you can only do one of these two. One trains his body, the other his mind.",
-     sayChosen: "Press Begin, or double-click the task.",
      asks: [],
      until: [{fact: "life.working", op: "==", value: 1}]},
     {id: "guide.stats", kind: "guide", order: 6, untilAge: 7, point: "stat:int", light: "stat:str,stat:dex", hold: 5000,
      say: "His stats went up. Each class asks for one of them: Strength, Dexterity or Intelligence.",
      asks: [{fact: "life.terms", op: ">=", value: 3}]},
-    {id: "guide.tome", kind: "guide", order: 7, untilAge: 7, point: "tile:tome", pointChosen: "button:begin",
+    {id: "guide.tome", kind: "guide", order: 7, untilAge: 7, point: "tile:tome",
      say: "Hover a task to read what it gives. This one gives a keepsake.",
-     sayChosen: "Press Begin, or double-click the task.",
      asks: [],
      until: [{fact: "life.working", op: "==", value: 1}]},
     // Three works and the time for two: they come into the list at six years and four months
-    {id: "guide.pick", kind: "guide", order: 8, untilAge: 7, point: "tile:knots", light: "tile:sacks,tile:sing", pointChosen: "button:begin",
+    {id: "guide.pick", kind: "guide", order: 8, untilAge: 7, point: "tile:knots", light: "tile:sacks,tile:sing",
      say: "Three tasks, and time for only two. The stopwatch on a task counts the months left to start it.",
-     sayChosen: "Press Begin, or double-click the task.",
      asks: [{fact: "done.tome", op: ">=", value: 1}, {fact: "life.age", op: ">=", value: 6.3}],
      until: [{fact: "life.working", op: "==", value: 1}]},
     // The market, at six years and eight months: he is short of food by then, and holds the
     // coin of the flour and of the books. It waits for him to be free of the work at hand
-    {id: "guide.tomarket", kind: "guide", order: 9, untilAge: 7, point: "tile:tomarket", pointChosen: "button:begin",
+    {id: "guide.tomarket", kind: "guide", order: 9, untilAge: 7, point: "tile:tomarket",
      say: "Food is running low, and you have coin. Go to the market.",
-     sayChosen: "Press Begin, or double-click the task.",
      asks: [{fact: "life.age", op: ">=", value: 6.6}],
      until: [{fact: "working.tomarket", op: "==", value: 1}]},
     // The town's own steps come here (below, outside the sequence): its tab, its market, its
     // places. The harvest waits for the last of them
-    {id: "guide.harvest", kind: "guide", order: 10, untilAge: 7, point: "tile:harvest", pointChosen: "button:begin",
+    {id: "guide.harvest", kind: "guide", order: 10, untilAge: 7, point: "tile:harvest",
      say: "This task takes two months: the box in a task's corner says how long. Longer work gives more.",
-     sayChosen: "Press Begin, or double-click the task.",
      asks: [{fact: "said.guide.places", op: ">=", value: 1}],
      until: [{fact: "working.harvest", op: "==", value: 1}]},
     // His age, and what the game is about, said while the harvest is brought in; then the
@@ -190,9 +186,8 @@ var achievements = [
     // waits for what it is about to be on the screen, and ends when he has done what it asks (at
     // once if he is past it already). Strike ends on whatever he does in the fight, a flight too:
     // a boy who runs is not told to strike over its end
-    {id: "guide.outskirts", kind: "guide", order: 12, untilAge: 7, point: "tile:outskirts", pointChosen: "button:begin",
+    {id: "guide.outskirts", kind: "guide", order: 12, untilAge: 7, point: "tile:outskirts",
      say: "Nobody has work for him this month. Click this task: he goes to see what lies past the last houses.",
-     sayChosen: "Press Begin, or double-click the task.",
      asks: [{fact: "life.age", op: ">=", value: 6.9}],
      until: [{fact: "story.id", op: "==", value: "outskirts"}]},
     {id: "guide.lunch", kind: "guide", order: 13, untilAge: 7, point: "work:lunch", pointChosen: "walkbutton:do",
