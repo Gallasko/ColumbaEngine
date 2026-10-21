@@ -5642,13 +5642,25 @@ namespace pg
             EXPECT_NE(life->noteWords.spec.text.find("30"), std::string::npos) << life->noteWords.spec.text;
             next();
 
-            // The outskirts, all there is in the list: nothing said of the row itself, and the
+            // The outskirts, all there is in the list: the hand on its row, then on Begin; the
             // classes wait for him to be seven
             EXPECT_EQ(life->save.guide, 11);
-            EXPECT_FALSE(life->step.active);
             EXPECT_EQ(list->find(&f.ecs, "keep"), nullptr);
             EXPECT_EQ(list->find(&f.ecs, "helping"), nullptr);
             ASSERT_NE(list->find(&f.ecs, "outskirts"), nullptr);
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.outskirts");
+            EXPECT_EQ(life->handOn, list->find(&f.ecs, "outskirts")->root.id);
+            EXPECT_EQ(life->noteWords.spec.text, life->step.say);
+            EXPECT_FALSE(life->nextShown);
+
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "outskirts"});
+            f.settle();
+            f.frames(12);
+
+            EXPECT_EQ(life->step.id, "guide.outskirts");
+            EXPECT_EQ(life->handOn, life->piece<Button>("begin")->root.id);
+            EXPECT_EQ(life->noteWords.spec.text, life->step.sayChosen);
 
             const int toasts = life->toastsUp();
 
@@ -5659,6 +5671,7 @@ namespace pg
             f.frames(12);
 
             ASSERT_TRUE(life->onWalk());
+            EXPECT_EQ(life->save.guide, 12);
             EXPECT_EQ(life->step.id, "guide.lunch");
 
             life->walkDo(WalkAct{"tile.lunch", "", 0});
@@ -5693,7 +5706,7 @@ namespace pg
 
             f.frames(12);
             ASSERT_FALSE(life->onWalk());
-            EXPECT_EQ(life->save.guide, 17);
+            EXPECT_EQ(life->save.guide, 18);
             EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
             EXPECT_TRUE(life->save.running.empty());
 
@@ -5714,7 +5727,7 @@ namespace pg
             EXPECT_EQ(life->save.stats["int"], 7);
             EXPECT_EQ(life->save.stats["vitmax"], 40);
             EXPECT_EQ(life->save.stats["outskirts.animals"], 1);
-            EXPECT_EQ(life->save.stats["page"], 1);
+            EXPECT_EQ(life->save.stats["page"], 4);
             EXPECT_EQ(life->save.stats["rations"], 8 - 2 + 6 - 1);
 
             EXPECT_EQ(life->step.id, "guide.doors");
@@ -5722,13 +5735,13 @@ namespace pg
             EXPECT_NE(life->noteWords.spec.text.find("classes"), std::string::npos) << life->noteWords.spec.text;
 
             next();
-            EXPECT_EQ(life->save.guide, 18);
+            EXPECT_EQ(life->save.guide, 19);
             EXPECT_EQ(life->step.id, "guide.rest");
             EXPECT_EQ(life->handOn, 0u);
             EXPECT_TRUE(life->noteShown);
 
             next();
-            EXPECT_EQ(life->save.guide, 19);
+            EXPECT_EQ(life->save.guide, 20);
             EXPECT_FALSE(life->step.active);
 
             // Two more works: his rations run low at his letters, and the word kept for that is said
@@ -5740,8 +5753,8 @@ namespace pg
             EXPECT_EQ(life->step.order, 0);
             next();
 
-            EXPECT_EQ(life->save.guide, 19);
-            EXPECT_EQ(f.fact<int>("life.guide"), 19);
+            EXPECT_EQ(life->save.guide, 20);
+            EXPECT_EQ(f.fact<int>("life.guide"), 20);
             EXPECT_FALSE(life->guiding());
             EXPECT_FALSE(life->step.active);
             EXPECT_TRUE(life->stepsDue.empty());
@@ -5912,6 +5925,10 @@ namespace pg
 
             const int lives = life->save.lives;
 
+            // The page has arrived: from here a toast is shown (idle, no month passes meanwhile)
+            f.pass(800.0f);
+            ASSERT_NEAR(life->save.age, 6.0f + 11.0f / 12.0f, 0.001f);
+
             exploreOutskirts(f, life, "children", "chase");
 
             EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
@@ -5919,8 +5936,11 @@ namespace pg
             EXPECT_TRUE(life->save.running.empty());
             EXPECT_EQ(life->save.done["outskirts"], 1);
             EXPECT_EQ(life->save.stats["outskirts.children"], 1);
-            EXPECT_EQ(life->save.stats["page"], 1);
+            EXPECT_EQ(life->save.stats["page"], 4);
             EXPECT_EQ(life->save.stats["rations"], 5);
+
+            // Seen to their end: the Outskirts are a plural
+            EXPECT_TRUE(life->toastUp("The Outskirts are behind him"));
 
             // Not walked again, nor kept as a record
             EXPECT_EQ(list->find(&f.ecs, "outskirts"), nullptr);
@@ -5928,6 +5948,24 @@ namespace pg
 
             for (const char* id : {"keep", "collegium", "hand", "carters", "mill"})
                 EXPECT_NE(list->find(&f.ecs, id), nullptr) << id;
+
+            // What the slime left sells at the market, once he knows it: the four pages, a coin
+            life->save.townKnown = true;
+            life->save.stats["town_known"] = 1;
+            life->onMonth();
+            f.settle();
+
+            ASSERT_EQ(life->save.stats["page"], 4);
+            ASSERT_NE(stall(f, life, "sell.page"), nullptr);
+
+            const int coin = life->save.stats["coin"];
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"town.market", "sell.page"});
+            f.settle();
+            f.frames(12);
+
+            EXPECT_EQ(life->save.stats["coin"], coin + 1);
+            EXPECT_EQ(life->save.stats["page"], 0);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -6016,6 +6054,168 @@ namespace pg
             EXPECT_EQ(list->find(&f.ecs, "outskirts"), nullptr);
             EXPECT_EQ(list->find(&f.ecs, "helping"), nullptr);
             EXPECT_NE(list->find(&f.ecs, "keep"), nullptr);
+
+            f.load<EmptyScene>();
+            std::remove(path.c_str());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        namespace
+        {
+            // A save file as 0.6 wrote it (the tag chronicle-0.6.1): no version, no word of the
+            // rations up front nor of the Collegium's courses
+            void asZeroSix(const std::string& path)
+            {
+                std::string text;
+                {
+                    std::ifstream in(path, std::ios::binary);
+                    std::ostringstream all;
+                    all << in.rdbuf();
+                    text = all.str();
+                }
+
+                for (const char* field : {"version", "boardUpFront", "coursesTaught"})
+                {
+                    const std::regex line(std::string("\\n\\s*") + field + R"(: __PGSA [a-z_]+ \{[^}]*\},)");
+                    ASSERT_TRUE(std::regex_search(text, line)) << field;
+                    text = std::regex_replace(text, line, "");
+                }
+
+                std::ofstream out(path, std::ios::binary | std::ios::trunc);
+                out << text;
+            }
+        }
+
+        // A save of 0.6 written in the month at the mill: Start Helping Out under way, which fed him
+        // and gave its six rations only at its end, so the save holds none. Read as the outskirts'
+        // row, which gives nothing up front, it is owed those six, once: the month runs out, he is
+        // seven, and fed (five left, no Vitality lost, no word of hunger). Opened again, nothing more
+        TEST(lifescene_test, an_old_0_6_save_at_the_mill_reaches_seven_fed)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const std::string path = "save/test_life_zero_six_mill.sz";
+            std::remove(path.c_str());
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.noSave = false;
+            opt.savePath = path;
+
+            LifeScene* life = elevenMonths(f, opt);
+            ASSERT_NE(life, nullptr);
+
+            LifeSave old = life->save;
+            old.running = "helping";
+            old.monthsIn = 0;
+            old.stats["rations"] = 0;
+            old.done.erase("outskirts");
+            old.stats.erase("outskirts.begun");
+            ASSERT_TRUE(old.save(path));
+            f.load<EmptyScene>();
+
+            asZeroSix(path);
+
+            LifeSave read;
+            ASSERT_TRUE(read.load(path));
+            EXPECT_EQ(read.version, 0);
+            EXPECT_FALSE(read.boardUpFront);
+            EXPECT_EQ(read.running, "outskirts");
+            EXPECT_EQ(read.stats["rations"], 0);
+
+            opt.fresh = false;
+
+            LifeScene* again = f.life(opt);
+            ASSERT_NE(again, nullptr);
+            f.frames(12);
+
+            ASSERT_NEAR(again->save.age, 6.0f + 11.0f / 12.0f, 0.001f);
+            EXPECT_EQ(again->save.running, "outskirts");
+            EXPECT_EQ(again->save.stats["rations"], 6);
+            EXPECT_TRUE(again->save.boardUpFront);
+
+            // Opened again before the month is out, with nothing saved by hand: not given twice
+            f.load<EmptyScene>();
+
+            LifeScene* third = f.life(opt);
+            ASSERT_NE(third, nullptr);
+            f.frames(12);
+            EXPECT_EQ(third->save.stats["rations"], 6);
+
+            const int vit = third->save.stats["vit"];
+            const int lives = third->save.lives;
+            const size_t logged = third->save.log.size();
+
+            third->onMonth();
+            f.settle();
+            f.frames(12);
+
+            EXPECT_NEAR(third->save.age, 7.0f, 0.0001f);
+            EXPECT_EQ(third->save.lives, lives);
+            EXPECT_TRUE(third->save.running.empty());
+            EXPECT_EQ(third->save.stats["rations"], 5);
+            EXPECT_GE(third->save.stats["vit"], vit);
+
+            for (size_t i = logged; i < third->save.log.size(); ++i)
+                EXPECT_EQ(third->save.log[i].text.find("NO RATIONS"), std::string::npos) << third->save.log[i].text;
+
+            f.load<EmptyScene>();
+            std::remove(path.c_str());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A first life saved by 0.6 at the mill, told his age already: the outskirts' steps wait for
+        // a story he will not see (its row is the month he is at), so he is not told them, the first
+        // with its leaf over a row that is not listed. At seven he is told the classes
+        TEST(lifescene_test, an_old_save_at_the_mill_is_not_told_the_outskirts)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const std::string path = "save/test_life_zero_six_mill_guide.sz";
+            std::remove(path.c_str());
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.noSave = false;
+            opt.savePath = path;
+
+            LifeScene* life = elevenMonths(f, opt);
+            ASSERT_NE(life, nullptr);
+
+            LifeSave old = life->save;
+            old.lives = 1;
+            old.guide = 11;
+            old.running = "helping";
+            old.monthsIn = 0;
+            old.stats["rations"] = 0;
+            old.done.erase("outskirts");
+            old.stats.erase("outskirts.begun");
+            ASSERT_TRUE(old.save(path));
+            f.load<EmptyScene>();
+
+            asZeroSix(path);
+
+            opt.fresh = false;
+
+            LifeScene* again = f.life(opt);
+            ASSERT_NE(again, nullptr);
+            f.frames(12);
+
+            ASSERT_TRUE(again->guiding());
+            EXPECT_EQ(again->save.guide, again->guideSteps - 2);
+            EXPECT_NE(again->step.id, "guide.outskirts");
+            EXPECT_FALSE(again->step.active);
+
+            again->onMonth();
+            f.settle();
+            f.frames(12);
+
+            EXPECT_NEAR(again->save.age, 7.0f, 0.0001f);
+            EXPECT_EQ(again->step.id, "guide.doors");
 
             f.load<EmptyScene>();
             std::remove(path.c_str());
@@ -6280,7 +6480,7 @@ namespace pg
 
             ASSERT_TRUE(life->step.active);
             EXPECT_EQ(life->step.id, "guide.lunch");
-            EXPECT_EQ(life->save.guide, 11);
+            EXPECT_EQ(life->save.guide, 12);
 
             auto works = onWalkScreen<ActivityList>(life, "works");
             ASSERT_NE(works, nullptr);
@@ -6312,7 +6512,7 @@ namespace pg
 
             EXPECT_EQ(life->save.stats["rations"], 6);
             EXPECT_EQ(f.fact<int>("story.day"), 2);
-            EXPECT_EQ(life->save.guide, 12);
+            EXPECT_EQ(life->save.guide, 13);
             EXPECT_NE(life->step.id, "guide.lunch");
         }
 
@@ -6370,7 +6570,7 @@ namespace pg
 
             // The third day, the path's fork: nothing said
             ASSERT_EQ(f.fact<int>("story.day"), 3);
-            EXPECT_EQ(life->save.guide, 13);
+            EXPECT_EQ(life->save.guide, 14);
             expectNoGuide(f, life);
 
             life->walkDo(WalkAct{"tile.beetles", "", 0});
@@ -6409,7 +6609,7 @@ namespace pg
             // Strike
             ASSERT_TRUE(life->step.active);
             EXPECT_EQ(life->step.id, "guide.strike");
-            EXPECT_EQ(life->save.guide, 16);
+            EXPECT_EQ(life->save.guide, 17);
 
             EntityRef strike = moveButton(life, "strike");
             ASSERT_FALSE(strike.empty());
@@ -6421,7 +6621,7 @@ namespace pg
             f.frames(12);
 
             EXPECT_EQ(f.fact<int>("fight.turn"), 2);
-            EXPECT_EQ(life->save.guide, 17);
+            EXPECT_EQ(life->save.guide, 18);
             expectNoGuide(f, life);
 
             // The rest of the fight and the way home, with nothing said
@@ -6642,7 +6842,7 @@ namespace pg
             f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
             f.frames(12);
             EXPECT_EQ(life->step.id, "guide.slime");
-            EXPECT_EQ(life->save.guide, 14);
+            EXPECT_EQ(life->save.guide, 15);
 
             // Shut: Next passes it, as before
             f.ecs.sendEvent(ButtonActivatedEvent{0, "report.cancel"});
@@ -6680,8 +6880,8 @@ namespace pg
 
             ASSERT_FALSE(life->onWalk());
             EXPECT_TRUE(life->guiding());
-            EXPECT_EQ(life->save.guide, 17);
-            EXPECT_EQ(f.fact<int>("life.guide"), 17);
+            EXPECT_EQ(life->save.guide, 18);
+            EXPECT_EQ(f.fact<int>("life.guide"), 18);
             EXPECT_TRUE(life->stepsDue.empty());
             expectNoGuide(f, life);
 
@@ -6717,7 +6917,7 @@ namespace pg
 
             EXPECT_FALSE(life->guiding());
             EXPECT_EQ(life->save.guide, life->guideSteps);
-            EXPECT_EQ(life->save.guideSkipped, 12);
+            EXPECT_EQ(life->save.guideSkipped, 13);
             EXPECT_TRUE(life->stepsDue.empty());
             ASSERT_TRUE(life->onWalk());
             expectNoGuide(f, life);
@@ -6748,7 +6948,7 @@ namespace pg
             f.frames(12);
             ASSERT_FALSE(life->onWalk());
             EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
-            EXPECT_EQ(life->save.stats["page"], 1);
+            EXPECT_EQ(life->save.stats["page"], 4);
 
             // And nothing of it at seven either: the classes are not said
             f.pass(1000.0f);
@@ -6806,7 +7006,7 @@ namespace pg
             ASSERT_FALSE(life->onWalk());
             EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
             EXPECT_EQ(life->save.stats["outskirts.children"], 1);
-            EXPECT_EQ(life->save.stats["page"], 1);
+            EXPECT_EQ(life->save.stats["page"], 4);
             EXPECT_EQ(f.fact<std::string>("walk.screen"), "");
             EXPECT_EQ(f.fact<int>("story.day"), 0);
             expectNoGuide(f, life);
@@ -6849,7 +7049,7 @@ namespace pg
             ASSERT_EQ(life->walkScreen, "fight");
             EXPECT_EQ(f.fact<int>("fight.over"), 1);
             EXPECT_EQ(f.fact<int>("fight.turn"), 1);
-            EXPECT_EQ(life->save.guide, 17);
+            EXPECT_EQ(life->save.guide, 18);
             expectNoGuide(f, life);
 
             // Back to the day: the story ends, and nothing is said on the way home
@@ -7143,6 +7343,7 @@ namespace pg
             f.frames(12);
 
             life->save.guide = 12;
+            life->save.guideSkipped = 12;
             ASSERT_TRUE(life->saveNow());
             f.load<EmptyScene>();
 
@@ -7169,9 +7370,13 @@ namespace pg
             f.frames(12);
 
             EXPECT_EQ(again->save.lives, 1);
+            EXPECT_EQ(again->guideSteps, 20);
             EXPECT_EQ(again->save.guide, again->guideSteps - 1);
             ASSERT_TRUE(again->step.active);
             EXPECT_EQ(again->step.id, "guide.rest");
+
+            // Where its guide was skipped is moved as its guide is (for the analytics): the classes
+            EXPECT_EQ(again->save.guideSkipped, 19);
 
             f.ecs.sendEvent(ButtonActivatedEvent{again->noteNext.face.id, "life.guide.next"});
             f.frames(12);
@@ -7295,7 +7500,7 @@ namespace pg
             f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
             f.frames(12);
 
-            EXPECT_EQ(life->save.guide, 19);
+            EXPECT_EQ(life->save.guide, 20);
             EXPECT_FALSE(life->guiding());
             EXPECT_FALSE(life->step.active);
             EXPECT_TRUE(life->stepsDue.empty());
@@ -7633,9 +7838,9 @@ namespace pg
             f.ecs.sendEvent(ButtonActivatedEvent{life->noteSkip.face.id, "life.guide.skip"});
             f.frames(12);
 
-            EXPECT_EQ(life->save.guide, 19);
+            EXPECT_EQ(life->save.guide, 20);
             EXPECT_EQ(life->save.guideSkipped, 3);
-            EXPECT_EQ(f.fact<int>("life.guide"), 19);
+            EXPECT_EQ(f.fact<int>("life.guide"), 20);
             EXPECT_FALSE(life->guiding());
             EXPECT_FALSE(life->step.active);
             EXPECT_TRUE(life->stepsDue.empty());
@@ -7671,7 +7876,7 @@ namespace pg
 
             f.frames(12);
 
-            EXPECT_EQ(again->save.guide, 19);
+            EXPECT_EQ(again->save.guide, 20);
             EXPECT_EQ(again->save.guideSkipped, 3);
             EXPECT_FALSE(again->step.active);
             EXPECT_FALSE(again->noteShown);
@@ -7700,7 +7905,7 @@ namespace pg
             f.ecs.sendEvent(ButtonActivatedEvent{life->noteSkip.face.id, "life.guide.skip"});
             f.frames(12);
 
-            EXPECT_EQ(life->save.guide, 19);
+            EXPECT_EQ(life->save.guide, 20);
             EXPECT_EQ(life->save.guideSkipped, 1);
             EXPECT_FALSE(life->step.active);
             EXPECT_FALSE(life->noteShown);
@@ -7792,7 +7997,7 @@ namespace pg
 
             // A first life whose guide has said everything, a boy of seven who has not been yet
             LifeSceneOptions opt = LifeFixture::first();
-            opt.guide = 19;
+            opt.guide = 20;
             opt.age = 7.0f;
 
             LifeScene* life = f.life(opt);

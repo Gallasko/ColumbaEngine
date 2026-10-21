@@ -235,6 +235,7 @@ namespace chronicle
         constexpr int OldGuideSteps = 13;
         constexpr int OldGuideLast = 11;           // The last step whose number has not moved: his age
         constexpr int GuideNumbered = 2;           // The save's format from which the guide is numbered as now
+        const std::string OutskirtsRow = "outskirts";           // The row an old save's month at the mill is read as (lifesave.cpp)
         const std::string BackToLife = "Go back to the Life tab: there is a new task for him.";   // Said with the hand on that tab, for a step about a work of the Life page
 
         // What a step says stands on a leaf of its own under what it points at (over it when the
@@ -4271,8 +4272,22 @@ namespace chronicle
         // Written before the outskirts had their steps: the steps after his age (the classes, the
         // last word) were its 12 and 13, and are the last of this guide too. Once: from here the
         // save is of this build's format
-        if (save.version < GuideNumbered and save.guide > OldGuideLast and guideSteps > OldGuideSteps)
-            save.guide += guideSteps - OldGuideSteps;
+        if (save.version < GuideNumbered and guideSteps > OldGuideSteps)
+        {
+            if (save.guide > OldGuideLast)
+                save.guide += guideSteps - OldGuideSteps;
+
+            // (and where a skipped guide stood, for the analytics)
+            if (save.guideSkipped > OldGuideLast)
+                save.guideSkipped += guideSteps - OldGuideSteps;
+
+            // A save made at the mill (Start Helping Out, read as the outskirts' row, its months
+            // run out with no story) past his age: the outskirts' steps would wait for a story he
+            // will not see, the first with its leaf over a row that is not listed. He is taken to
+            // the classes as a boy who walked them
+            if (save.guide == OldGuideLast and (save.running == OutskirtsRow or save.setAside == OutskirtsRow))
+                save.guide = guideSteps - (OldGuideSteps - OldGuideLast);
+        }
 
         save.version = LifeSave::SaveVersion;
     }

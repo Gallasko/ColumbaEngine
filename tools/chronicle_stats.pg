@@ -1093,8 +1093,8 @@ fun reportReach(out, data)
 }
 
 // The steps of the guide by their order, for a build that says which it is: before 0.6 the guide
-// had ten steps and other works, and its steps are numbered only. From 0.8 the outskirts' six
-// come after his age, before the classes
+// had ten steps and other works, and its steps are numbered only. From 0.8 the outskirts' seven
+// (its row in the list, then six on its screens) come after his age, before the classes
 fun guideStepName(build, step)
 {
     var names = ["begin a task", "his food", "the flour", "his coin", "one of the two", "his stats", "the tome",
@@ -1103,7 +1103,7 @@ fun guideStepName(build, step)
     if (build != "0.6")
     {
         names = ["begin a task", "his food", "the flour", "his coin", "one of the two", "his stats", "the tome",
-                 "two of the three", "to the market", "the harvest", "his age", "the lunch", "the paths",
+                 "two of the three", "to the market", "the harvest", "his age", "the outskirts", "the lunch", "the paths",
                  "the ditch", "the slime", "the turn's order", "strike", "the classes", "the end"]
     }
 

@@ -3550,7 +3550,7 @@ namespace pg
             const std::vector<std::string> asides = {"guide.vitality", "guide.rations_low", "guide.rations_market", "guide.town", "guide.market", "guide.places"};
             const std::vector<std::string> worlds = {"guide.town", "guide.market", "guide.places"};
 
-            const int last = 19;
+            const int last = 20;
 
             std::vector<int> taken(last + 1, 0);
             size_t outside = 0;

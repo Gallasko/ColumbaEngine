@@ -184,39 +184,45 @@ var achievements = [
     {id: "guide.clock", kind: "guide", order: 11, point: "clock", hold: 6000,
      say: "This is his age. Your goal: keep him alive until he is at least 30 years old.",
      asks: []},
-    // The outskirts (storytable.pg's `outskirts`), the last month of the year, said on the walk's
-    // screens: the lunch, the three paths, the ditch's card, then in the fight the slime, the
-    // order of the turn and Strike. Each waits for what it is about to be on the screen, and ends
-    // when he has done what it asks (at once if he is past it already). Strike ends on whatever
-    // he does in the fight, a flight too: a boy who runs is not told to strike over its end
-    {id: "guide.lunch", kind: "guide", order: 12, untilAge: 7, point: "work:lunch", pointChosen: "walkbutton:do",
+    // The outskirts (storytable.pg's `outskirts`), the last month of the year: its row, the one
+    // work listed at six years and eleven months, then on the walk's screens the lunch, the three
+    // paths, the ditch's card, and in the fight the slime, the order of the turn and Strike. Each
+    // waits for what it is about to be on the screen, and ends when he has done what it asks (at
+    // once if he is past it already). Strike ends on whatever he does in the fight, a flight too:
+    // a boy who runs is not told to strike over its end
+    {id: "guide.outskirts", kind: "guide", order: 12, untilAge: 7, point: "tile:outskirts", pointChosen: "button:begin",
+     say: "Nobody has work for him this month. Click this task: he goes to see what lies past the last houses.",
+     sayChosen: "Press Begin, or double-click the task.",
+     asks: [{fact: "life.age", op: ">=", value: 6.9}],
+     until: [{fact: "story.id", op: "==", value: "outskirts"}]},
+    {id: "guide.lunch", kind: "guide", order: 13, untilAge: 7, point: "work:lunch", pointChosen: "walkbutton:do",
      say: "This is a story. Each day you choose one thing to do. Take your lunch first.",
      sayChosen: "Press the button to do it. You can also double-click the task.",
      asks: [{fact: "story.id", op: "==", value: "outskirts"}],
      until: [{fact: "story.day", op: ">=", value: 2}]},
-    {id: "guide.paths", kind: "guide", order: 13, untilAge: 7, point: "work:children", light: "work:nature,work:animals", pointChosen: "walkbutton:do",
+    {id: "guide.paths", kind: "guide", order: 14, untilAge: 7, point: "work:children", light: "work:nature,work:animals", pointChosen: "walkbutton:do",
      say: "Each path is a way of life. Pick the one you like: it teaches him a move for later.",
      sayChosen: "Press the button to take this path. The other two close.",
      asks: [{fact: "story.day", op: ">=", value: 2}],
      until: [{fact: "story.day", op: ">=", value: 3}]},
-    {id: "guide.ditch", kind: "guide", order: 14, untilAge: 7, point: "option:0",
+    {id: "guide.ditch", kind: "guide", order: 15, untilAge: 7, point: "option:0",
      say: "Something is moving in the ditch. Click the answer to go and see.",
      asks: [{fact: "story.day", op: ">=", value: 4}],
      until: [{fact: "walk.screen", op: "==", value: "fight"}]},
-    {id: "guide.slime", kind: "guide", order: 15, untilAge: 7, point: "foe:0", hold: 7000,
+    {id: "guide.slime", kind: "guide", order: 16, untilAge: 7, point: "foe:0", hold: 7000,
      say: "This is the slime. Its panel shows what it will do on its turn.",
      asks: [{fact: "walk.screen", op: "==", value: "fight"}, {fact: "fight.over", op: "==", value: 0}]},
-    {id: "guide.order", kind: "guide", order: 16, untilAge: 7, point: "order", hold: 6000,
+    {id: "guide.order", kind: "guide", order: 17, untilAge: 7, point: "order", hold: 6000,
      say: "This shows who acts first, and when your next turn comes.",
      asks: [{fact: "fight.over", op: "==", value: 0}]},
-    {id: "guide.strike", kind: "guide", order: 17, untilAge: 7, point: "move:strike",
+    {id: "guide.strike", kind: "guide", order: 18, untilAge: 7, point: "move:strike",
      say: "Press Strike to hit it. Do not worry: he cannot die in this fight.",
      asks: [{fact: "fight.over", op: "==", value: 0}],
      until: [{fact: "fight.acted", op: ">=", value: 1}]},
-    {id: "guide.doors", kind: "guide", order: 18, point: "tile:keep", hold: 9000,
+    {id: "guide.doors", kind: "guide", order: 19, point: "tile:keep", hold: 9000,
      say: "He is 7: the town's work is open to him. These are the three classes: the Keep (warrior), the Collegium (mage) and the Hidden Hand (thief). You can join one at 16, so train for it.",
      asks: [{fact: "life.age", op: ">=", value: 7}]},
-    {id: "guide.rest", kind: "guide", order: 19, point: "", hold: 4000,
+    {id: "guide.rest", kind: "guide", order: 20, point: "", hold: 4000,
      say: "That is all. Have fun!",
      asks: []},
 
