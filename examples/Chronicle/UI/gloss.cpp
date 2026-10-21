@@ -267,9 +267,11 @@ namespace chronicle
             // on its line wraps in its share instead of running past the edge: the label keeps at
             // least half (all of it with no value), the value whatever the label leaves
             const float room = inner - GAP2;
-            // A strong label is set in the figures' weight and full ink, a faint one in the faint ink
+            // A strong label is set in the figures' weight and full ink, a faint one in the faint ink.
+            // A line with no value says its tone in its own words: a bonus he has, in the gain's colour
             const std::string labelStyle = row.strong ? "figure-sm" : "body-sm";
-            const std::string labelColor = row.strong ? "ink" : row.faint ? "ink-faint" : "ink-muted";
+            const std::string labelColor = row.value.empty() and not row.tone.empty() ? toneColor(row.tone)
+                                         : row.strong ? "ink" : row.faint ? "ink-faint" : "ink-muted";
 
             const float lw = lineWidth(ecs, labelStyle, row.label);
             const float vw = lineWidth(ecs, "figure-sm", row.value);
