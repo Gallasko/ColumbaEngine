@@ -5541,7 +5541,7 @@ namespace pg
             EXPECT_EQ(life->save.guide, 4);
 
             // One or the other: the hand on the first, both lit. Two works begun, he knows Begin:
-            // the hand stays on the tile he takes
+            // the guide steps aside once he takes one
             EXPECT_EQ(life->step.id, "guide.choice");
             ASSERT_NE(list->find(&f.ecs, "wheel"), nullptr);
             ASSERT_NE(list->find(&f.ecs, "scribe"), nullptr);
@@ -5562,8 +5562,21 @@ namespace pg
             f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "scribe"});
             f.settle();
 
-            EXPECT_NE(life->handOn, life->piece<Button>("begin")->root.id);
-            EXPECT_EQ(life->noteWords.spec.text, life->step.say);
+            EXPECT_EQ(life->handOn, 0u);
+            EXPECT_FALSE(life->noteShown);
+            EXPECT_FALSE(life->veiled);
+
+            // Let go of, the guide is back on the tiles; taken again, it steps aside again
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", ""});
+            f.settle();
+
+            EXPECT_EQ(life->handOn, list->find(&f.ecs, "wheel")->root.id);
+            EXPECT_TRUE(life->noteShown);
+
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "scribe"});
+            f.settle();
+
+            EXPECT_EQ(life->handOn, 0u);
 
             // The scribe's bench: his mind, and his Vitality; the wheel has no row any more, and
             // the log says it went, as a loss
@@ -5702,8 +5715,8 @@ namespace pg
             EXPECT_NE(life->noteWords.spec.text.find("30"), std::string::npos) << life->noteWords.spec.text;
             next();
 
-            // The outskirts, all there is in the list: the hand on its row, and it stays there when
-            // he chooses it; the classes wait for him to be seven
+            // The outskirts, all there is in the list: the hand on its row, gone when he chooses it;
+            // the classes wait for him to be seven
             EXPECT_EQ(life->save.guide, 11);
             EXPECT_EQ(list->find(&f.ecs, "keep"), nullptr);
             EXPECT_EQ(list->find(&f.ecs, "helping"), nullptr);
@@ -5719,8 +5732,8 @@ namespace pg
             f.frames(12);
 
             EXPECT_EQ(life->step.id, "guide.outskirts");
-            EXPECT_EQ(life->handOn, list->find(&f.ecs, "outskirts")->root.id);
-            EXPECT_EQ(life->noteWords.spec.text, life->step.say);
+            EXPECT_EQ(life->handOn, 0u);
+            EXPECT_FALSE(life->noteShown);
 
             const int toasts = life->toastsUp();
 
@@ -7198,16 +7211,15 @@ namespace pg
                     f.frames(12);
                 };
 
-                // The tile chosen: two works begun, he knows Begin, and the hand stays on the tile;
-                // the leaf clear of it
+                // The tile chosen: two works begun, he knows Begin, and the guide steps aside
                 auto choose = [&](const std::string& id) {
                     f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", id});
                     f.settle();
                     f.frames(4);
 
                     ASSERT_FALSE(begin().empty());
-                    EXPECT_EQ(life->handOn, tile(id).id) << life->step.id;
-                    expectLeafClear(f, life, {tile(id)});
+                    EXPECT_EQ(life->handOn, 0u) << life->step.id;
+                    EXPECT_FALSE(life->noteShown) << life->step.id;
                 };
 
                 work("glean", 1);

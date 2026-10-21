@@ -2367,20 +2367,18 @@ namespace chronicle
         // the hand stand over it, and a step of the page waits under it (and the other way round)
         liftGuide(onWalk());
 
-        const bool said = step.active and onScreen(step.point);
+        // A step that does not go on to a button (he knows Begin by then) steps aside once he has
+        // chosen one of the tiles it shows: no hand, no shade, no leaf until he begins it, or comes
+        // back if he lets go of it
+        const bool taken = step.active and step.pointChosen.empty() and not onWalk() and not chosen.empty()
+                       and (step.point == TilePoint + chosen or std::find(step.light.begin(), step.light.end(), TilePoint + chosen) != step.light.end());
+
+        const bool said = step.active and onScreen(step.point) and not taken;
 
         // Found again every time: a page built again has other tiles, a list that scrolled other
         // rows in view, a fight's screen made again other buttons
         const bool onward = stepChosen();
-
-        // A step that does not go on to a button (he knows Begin by then) keeps the hand on the
-        // tile he chose, of those it shows: the scribe's when he takes the scribe
-        std::string here = step.point;
-
-        if (step.pointChosen.empty() and not onWalk() and not chosen.empty() and std::find(step.light.begin(), step.light.end(), TilePoint + chosen) != step.light.end())
-            here = TilePoint + chosen;
-
-        const EntityRef target = said ? pointed(onward ? step.pointChosen : here) : EntityRef{};
+        const EntityRef target = said ? pointed(onward ? step.pointChosen : step.point) : EntityRef{};
 
         // What is lit with it, while the hand is on the thing itself: once it has gone on to the
         // button, the button alone
@@ -2392,13 +2390,6 @@ namespace chronicle
             {
                 if (EntityRef other = pointed(one); not other.empty() and other.id != target.id)
                     also.push_back(other);
-            }
-
-            // (and the tile it points at first, when the hand is on another of them)
-            if (here != step.point)
-            {
-                if (EntityRef first = pointed(step.point); not first.empty() and first.id != target.id)
-                    also.push_back(first);
             }
         }
 
