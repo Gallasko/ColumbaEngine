@@ -1197,6 +1197,12 @@ namespace pg
             EXPECT_EQ(s.element(row.edge), "activity.row.edge.running");
             EXPECT_EQ(s.element(row.ground), "activity.row.ground.running");
 
+            // Nothing at the right of its rule: the caption under it counts the months, and the
+            // rule runs to the right edge
+            EXPECT_EQ(row.cost.spec.text, "");
+            EXPECT_FALSE(s.pos(row.costMark.entity)->isVisible());
+            EXPECT_NEAR(s.pos(row.progress->root)->x + row.progress->spec.width, s.pos(row.root)->x + s.pos(row.root)->width - 24.0f - row.rightInset(), 0.5f);
+
             row.setPercent(&s.ecs, 75.0f);
             s.pump();
 

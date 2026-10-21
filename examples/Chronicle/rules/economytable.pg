@@ -111,15 +111,17 @@ const storeRows = [
 // month's own rules read `eats` and `makes`; binding asks `bind`), and each fills one slot.
 // `known` kinds are his from the first; the others wait for the stat "know.fam.<id>", which
 // research, the Old Shell, the Old Grey and the Lantern Mother give. `one` is the kind said once
-// ("a hedge sprite").
+// ("a hedge sprite"). The first two eat no rations: a familiar is bound for life, and a young
+// one's food is short enough without it (the user's call, 2026-10-21). A kind that eats nothing
+// is taught for nothing (activitytable.pg's lessons cost a month of what it eats)
 const familiarKinds = [
     {id: "sprite", name: "a hedge sprite", one: "sprite", glyph: "magic", known: true,
-     about: "A small green thing that lives in the hedge. It keeps house for its berries, and asks a ration of him.",
-     train: "Teach the Sprite the Old Brambles", eats: [{stat: "rations", amount: 1}], makes: [{stat: "berries", amount: 4}], bind: [{stat: "berries", amount: 6}]},
+     about: "A small green thing that lives in the hedge. It keeps house for its berries, and asks nothing of you.",
+     train: "Teach the Sprite the Old Brambles", eats: [], makes: [{stat: "berries", amount: 4}], bind: [{stat: "berries", amount: 6}]},
     {id: "imp", name: "a well imp", one: "imp", glyph: "vitality", known: false,
-     about: "A wet, sullen thing out of the well. It will fetch water all month if it is fed and paid.",
+     about: "A wet, sullen thing out of the well. It will fetch water all month if it is paid.",
      train: "Show the Imp the Deep Well",
-     eats: [{stat: "rations", amount: 1}, {stat: "coin", amount: 1}], makes: [{stat: "water", amount: 8}], bind: [{stat: "water", amount: 8}]},
+     eats: [{stat: "coin", amount: 1}], makes: [{stat: "water", amount: 8}], bind: [{stat: "water", amount: 8}]},
     {id: "brownie", name: "a kitchen brownie", one: "brownie", glyph: "work", known: false,
      about: "A hearth spirit. It turns a larder and a fire into rations, and takes its share.",
      train: "Teach the Brownie the Slow Oven",

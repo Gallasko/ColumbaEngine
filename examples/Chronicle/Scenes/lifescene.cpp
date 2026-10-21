@@ -3722,6 +3722,16 @@ namespace chronicle
 
             if (filledBefore and not inView)
                 ++(onTown ? newInTown : newInLife);
+
+            // New to its page: it wears a seal until he looks at it, and fades in when it comes onto
+            // the page he is looking at
+            if (filledBefore)
+            {
+                unread.push_back(id);
+
+                if (inView)
+                    arriving.push_back(id);
+            }
         }
 
         if (adventureCame and not adventureShown)
@@ -3797,6 +3807,10 @@ namespace chronicle
             // And it wears a mark of its own on its corner, with its red frame (the rules' `urgent`)
             if (answer)
                 row.badge = "alert";
+
+            // New to the page and not looked at yet: a gold seal there in its place
+            row.fresh = row.state != ActivityState::Running and std::find(unread.begin(), unread.end(), row.id) != unread.end();
+            row.arriving = std::find(arriving.begin(), arriving.end(), row.id) != arriving.end();
 
             if (row.state == ActivityState::Running)
             {
@@ -3902,6 +3916,9 @@ namespace chronicle
 
         if (auto market = piece<ActivityList>(MarketName))
             market->setRows(ecsRef, atPlaces);
+
+        // They have come: filled again, a row is not seen to come a second time
+        arriving.clear();
 
         // A walk that has come into the list brings the Adventure page's tab with it
         markAdventure();
@@ -5071,6 +5088,8 @@ namespace chronicle
         chosen = event.id;
         chosenList = event.id.empty() ? std::string() : event.list;
 
+        readRow(event.id);
+
         // One choice on the page: the other list lets go of its own, and the town of its place
         if (not chosen.empty())
         {
@@ -5179,7 +5198,34 @@ namespace chronicle
 
         hovered = event.id;
 
+        readRow(event.id);
         preview();
+    }
+
+    void LifeScene::readRow(const std::string& id)
+    {
+        const auto it = std::find(unread.begin(), unread.end(), id);
+
+        if (id.empty() or it == unread.end())
+            return;
+
+        unread.erase(it);
+
+        if (ActivityList* list = listHolding(id))
+        {
+            if (ActivityRow* row = list->find(ecsRef, id))
+                row->setFresh(ecsRef, false);
+
+            // What the list was given says so too: a list filled again keeps the row as it is
+            for (auto& group : list->spec.groups)
+            {
+                for (auto& row : group.rows)
+                {
+                    if (row.id == id)
+                        row.fresh = false;
+                }
+            }
+        }
     }
 
     void LifeScene::preview()
@@ -6610,21 +6656,9 @@ namespace chronicle
             if (intOf(a.fields, "uses") > 0)
                 gloss.aside += "/" + std::to_string(intOf(a.fields, "uses"));
 
-            // A rule under the head, then what it is in time: how long, and the rations a work that
-            // feeds him gives as he begins it, with how long they last when his familiars eat them
-            // before its term (the rules count it: `upFrontLasts`). When it closes is the tile's to say
+            // A rule under the head, then what it is in time: how long. When it closes is the tile's to say
             gloss.rows.push_back({"", "", "", true});
             gloss.rows.push_back({"Time", intOf(a.fields, "months") > 0 ? std::to_string(intOf(a.fields, "months")) + " mo" : std::string("At once"), "time"});
-
-            if (intOf(a.fields, "upFront") > 0)
-            {
-                std::string upFront = std::to_string(intOf(a.fields, "upFront")) + " up front";
-
-                if (intOf(a.fields, "upFrontLasts") > 0)
-                    upFront += " \xC2\xB7 lasts " + std::to_string(intOf(a.fields, "upFrontLasts")) + " mo";
-
-                gloss.rows.push_back({"Rations", upFront, "gain"});
-            }
 
             // What he has of it against what it asks, first: met in the gain's colour, short in
             // the loss's. The room a thing he holds still has is not said while there is some (its
@@ -6659,8 +6693,20 @@ namespace chronicle
             for (const auto& c : a.costs)
                 gloss.rows.push_back(costRow(textOf(c, "name"), intOf(c, "amount"), atWork ? -1 : intOf(c, "held")));
 
-            // (a count the rules keep for themselves is not among it: `hidden`)
+            // (a count the rules keep for themselves is not among it: `hidden`). First the rations a
+            // work that feeds him gives as he begins it, with how long they last when his familiars
+            // eat them before its term (the rules count it: `upFrontLasts`)
             std::vector<GlossRow> brought;
+
+            if (intOf(a.fields, "upFront") > 0)
+            {
+                std::string upFront = "+" + std::to_string(intOf(a.fields, "upFront")) + " upfront";
+
+                if (intOf(a.fields, "upFrontLasts") > 0)
+                    upFront += " \xC2\xB7 lasts " + std::to_string(intOf(a.fields, "upFrontLasts")) + " mo";
+
+                brought.push_back({"Rations", upFront, "gain"});
+            }
 
             for (const auto& g : a.gains)
                 if (not boolOf(g, "hidden"))
@@ -6949,6 +6995,8 @@ namespace chronicle
         known.clear();
         stood.clear();
         listedLast.clear();
+        unread.clear();
+        arriving.clear();
 
         // What he is born holding has its row from the first frame
         refreshHoldings();

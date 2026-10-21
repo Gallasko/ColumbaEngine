@@ -1294,33 +1294,37 @@ namespace pg
             ASSERT_NE(row("walk.millpond"), nullptr);
             EXPECT_EQ(intOf(row("walk.millpond")->fields, "listed"), 0);
 
-            // Known 2 of 4 (and more): the task is his, a month on the Life page, and it is not a walk;
-            // what it gives is the world's
+            // Known 2 of 4 (and more): the task stands, a month on the Life page, and it is not a walk;
+            // what it gives is the world's. It holds the pond's age: at eight it waits for ten
             ASSERT_NE(row("pond"), nullptr);
             EXPECT_EQ(intOf(row("pond")->fields, "listed"), 1);
-            EXPECT_EQ(intOf(row("pond")->fields, "locked"), 0);
+            EXPECT_EQ(intOf(row("pond")->fields, "locked"), 1);
+            EXPECT_EQ(intOf(row("pond")->fields, "fromAge"), 10);
             EXPECT_EQ(intOf(row("pond")->fields, "months"), 1);
             EXPECT_EQ(textOf(row("pond")->fields, "group"), "Work");
             EXPECT_TRUE(textOf(row("pond")->fields, "zone").empty());
             ASSERT_EQ(row("pond")->gains.size(), 1u);
             EXPECT_EQ(textOf(row("pond")->gains[0], "stat"), "know.found.millpond");
 
+            // The bargemen's tale makes it his at nine
+            w.character["bargemen_tale"] = ElementType{1};
+            ASSERT_TRUE(w.rules.activities(9.0f, w.character, activities));
+
+            ASSERT_NE(row("pond"), nullptr);
+            EXPECT_EQ(intOf(row("pond")->fields, "fromAge"), 9);
+            EXPECT_EQ(intOf(row("pond")->fields, "locked"), 0);
+
             // Done, the world knows the pond (`know.found.millpond`): the task is offered no more
             w.character["know.found.millpond"] = ElementType{1};
-            ASSERT_TRUE(w.rules.activities(8.0f, w.character, activities));
+            ASSERT_TRUE(w.rules.activities(9.0f, w.character, activities));
 
             ASSERT_NE(row("pond"), nullptr);
             EXPECT_EQ(intOf(row("pond")->fields, "listed"), 0);
 
-            for (const auto& a : activities)
-            {
-                // Explored: it is listed, and waits for his tenth year
-                if (textOf(a.fields, "id") == "walk.millpond")
-                {
-                    EXPECT_EQ(intOf(a.fields, "listed"), 1);
-                    EXPECT_EQ(intOf(a.fields, "locked"), 1);
-                }
-            }
+            // Explored, Mill Pond is his at once: the task asked its age, the tale's year sooner too
+            ASSERT_NE(row("walk.millpond"), nullptr);
+            EXPECT_EQ(intOf(row("walk.millpond")->fields, "listed"), 1);
+            EXPECT_EQ(intOf(row("walk.millpond")->fields, "locked"), 0);
 
             for (const auto& a : activities)
             {

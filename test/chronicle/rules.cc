@@ -1750,8 +1750,14 @@ namespace pg
             EXPECT_EQ(textOf(row.fields, "group"), "Familiars");
             EXPECT_EQ(textOf(row.fields, "name"), "Teach the Sprite the Old Brambles");
             EXPECT_EQ(textOf(row.gains[0], "stat"), "more.berries");
-            ASSERT_EQ(row.costs.size(), 1u);
-            EXPECT_EQ(textOf(row.costs[0], "stat"), "rations");
+
+            // A lesson costs a month of what the kind eats: the sprite eats nothing, and is taught for nothing
+            EXPECT_TRUE(row.costs.empty());
+
+            character["fam.mole"] = ElementType{1};
+            RuleActivity mole = activityAt(f.rules, 7.5f, character, "train.mole");
+            ASSERT_EQ(mole.costs.size(), 1u);
+            EXPECT_EQ(textOf(mole.costs[0], "stat"), "rations");
 
             EXPECT_FALSE(flag(activityAt(f.rules, 7.5f, character, "train.imp").fields, "listed"));
         }
@@ -1880,7 +1886,8 @@ namespace pg
             MockLogger logger;
             RulesFixture f;
 
-            EXPECT_EQ(textOf(activityAt(f.rules, 7.5f, boy(), "bind.sprite").fields, "each"), "EATS 1 RATION \xC2\xB7 MAKES 4 BERRIES");
+            // The first kinds eat no rations: the sprite asks nothing at all
+            EXPECT_EQ(textOf(activityAt(f.rules, 7.5f, boy(), "bind.sprite").fields, "each"), "EATS NOTHING \xC2\xB7 MAKES 4 BERRIES");
             EXPECT_EQ(textOf(activityAt(f.rules, 7.5f, boy(), "bind.brownie").fields, "each"), "EATS 3 BERRIES, 2 WATER, 1 FIREWOOD \xC2\xB7 MAKES 2 RATIONS");
         }
 
@@ -1954,39 +1961,40 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // A familiar fed eats after him and makes its month; the rates say both
+        // A familiar fed eats after him and makes its month; the rates say both. (The mole: the
+        // first kinds, the sprite and the imp, eat no rations)
         TEST(rules_test, a_fed_familiar_makes)
         {
             MockLogger logger;
             RulesFixture f;
 
-            ElementMap character = {{"vit", ElementType{20}}, {"rations", ElementType{5}}, {"fam.sprite", ElementType{1}}, {"berries", ElementType{0}}};
+            ElementMap character = {{"vit", ElementType{20}}, {"rations", ElementType{5}}, {"fam.mole", ElementType{1}}, {"stone", ElementType{0}}};
 
             RuleMonth month;
             ASSERT_TRUE(f.rules.month(8.0f, character, month)) << firstError(f.rules);
 
-            EXPECT_EQ(intOf(month.after, "rations"), 3);
-            EXPECT_EQ(intOf(month.after, "berries"), 4);
-            EXPECT_EQ(intOf(month.after, "fam.sprite"), 1);
+            EXPECT_EQ(intOf(month.after, "rations"), 2);
+            EXPECT_EQ(intOf(month.after, "stone"), 2);
+            EXPECT_EQ(intOf(month.after, "fam.mole"), 1);
             EXPECT_TRUE(month.entries.empty());
 
-            ASSERT_NE(byId(month.rows, "berries"), nullptr);
-            EXPECT_EQ(textOf(*byId(month.rows, "berries"), "rate"), "+4 / mo");
+            ASSERT_NE(byId(month.rows, "stone"), nullptr);
+            EXPECT_EQ(textOf(*byId(month.rows, "stone"), "rate"), "+2 / mo");
             ASSERT_NE(byId(month.rows, "rations"), nullptr);
-            EXPECT_EQ(textOf(*byId(month.rows, "rations"), "rate"), "\xE2\x88\x92" "2 / mo");
+            EXPECT_EQ(textOf(*byId(month.rows, "rations"), "rate"), "\xE2\x88\x92" "3 / mo");
 
             // Its own row, in a group of its own, and a gloss that says what it eats and makes
-            const ElementMap* sprite = byId(month.rows, "fam.sprite");
-            ASSERT_NE(sprite, nullptr);
-            EXPECT_EQ(textOf(*sprite, "group"), "familiars");
-            EXPECT_EQ(textOf(*sprite, "groupLabel"), "FAMILIARS");
-            EXPECT_EQ(textOf(*sprite, "rate"), "");
+            const ElementMap* mole = byId(month.rows, "fam.mole");
+            ASSERT_NE(mole, nullptr);
+            EXPECT_EQ(textOf(*mole, "group"), "familiars");
+            EXPECT_EQ(textOf(*mole, "groupLabel"), "FAMILIARS");
+            EXPECT_EQ(textOf(*mole, "rate"), "");
 
             bool glossed = false;
 
             for (const auto& gloss : month.glosses)
             {
-                if (textOf(gloss.fields, "id") != "fam.sprite")
+                if (textOf(gloss.fields, "id") != "fam.mole")
                     continue;
 
                 glossed = true;
@@ -1996,12 +2004,26 @@ namespace pg
                 for (const auto& row : gloss.rows)
                     said += textOf(row, "label") + "=" + textOf(row, "value") + ";";
 
-                EXPECT_NE(said.find("Each eats Rations=\xE2\x88\x92" "1 / mo"), std::string::npos) << said;
-                EXPECT_NE(said.find("Each makes Berries=+4 / mo"), std::string::npos) << said;
+                EXPECT_NE(said.find("Each eats Rations=\xE2\x88\x92" "2 / mo"), std::string::npos) << said;
+                EXPECT_NE(said.find("Each makes Stone=+2 / mo"), std::string::npos) << said;
                 EXPECT_NE(said.find("For life"), std::string::npos) << said;
             }
 
             EXPECT_TRUE(glossed);
+        }
+
+        // The first kinds eat no rations: a sprite costs a young life nothing to keep
+        TEST(rules_test, a_sprite_eats_nothing)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            RuleMonth month;
+            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{5}}, {"fam.sprite", ElementType{2}}, {"berries", ElementType{0}}}, month)) << firstError(f.rules);
+
+            EXPECT_EQ(intOf(month.after, "rations"), 4);
+            EXPECT_EQ(intOf(month.after, "berries"), 8);
+            EXPECT_TRUE(month.entries.empty());
         }
 
         // All or nothing: a kind without enough for all of its count eats nothing and makes nothing,
@@ -2011,18 +2033,18 @@ namespace pg
             MockLogger logger;
             RulesFixture f;
 
-            ElementMap character = {{"vit", ElementType{20}}, {"rations", ElementType{2}}, {"fam.sprite", ElementType{2}}, {"berries", ElementType{0}}};
+            ElementMap character = {{"vit", ElementType{20}}, {"rations", ElementType{2}}, {"fam.mole", ElementType{1}}, {"stone", ElementType{0}}};
 
             RuleMonth month;
             ASSERT_TRUE(f.rules.month(8.0f, character, month)) << firstError(f.rules);
 
             EXPECT_EQ(intOf(month.after, "rations"), 1);
-            EXPECT_EQ(intOf(month.after, "berries"), 0);
+            EXPECT_EQ(intOf(month.after, "stone"), 0);
             EXPECT_EQ(intOf(month.after, "vit"), 20);
             EXPECT_TRUE(month.hurt.empty());
 
             ASSERT_EQ(month.entries.size(), 1u);
-            EXPECT_EQ(textOf(month.entries[0], "text"), "A hedge sprite went hungry");
+            EXPECT_EQ(textOf(month.entries[0], "text"), "A stone mole went hungry");
             EXPECT_EQ(textOf(month.entries[0], "kind"), "loss");
         }
 
@@ -2033,12 +2055,12 @@ namespace pg
             RulesFixture f;
 
             RuleMonth month;
-            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{5}}, {"fam.sprite", ElementType{1}}}, month)) << firstError(f.rules);
+            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{5}}, {"fam.mole", ElementType{1}}}, month)) << firstError(f.rules);
 
-            EXPECT_EQ(intOf(month.after, "rations"), 3);
-            EXPECT_EQ(intOf(month.after, "berries"), 4);
+            EXPECT_EQ(intOf(month.after, "rations"), 2);
+            EXPECT_EQ(intOf(month.after, "stone"), 2);
             ASSERT_NE(byId(month.rows, "rations"), nullptr);
-            EXPECT_EQ(textOf(*byId(month.rows, "rations"), "rate"), "\xE2\x88\x92" "2 / mo");
+            EXPECT_EQ(textOf(*byId(month.rows, "rations"), "rate"), "\xE2\x88\x92" "3 / mo");
 
             for (const auto& gloss : month.glosses)
             {
@@ -2082,7 +2104,7 @@ namespace pg
             RulesFixture f;
 
             RuleMonth month;
-            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{5}}, {"fam.sprite", ElementType{2}}}, month)) << firstError(f.rules);
+            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{5}}, {"fam.mole", ElementType{1}}}, month)) << firstError(f.rules);
 
             ElementType eats;
             ASSERT_TRUE(f.rules.resourcesScript.get("eats", eats)) << firstError(f.rules);
@@ -2129,9 +2151,9 @@ namespace pg
                 return said;
             };
 
-            // Three rations, his one and two sprites': one month of them
+            // Three rations, his one and a stone mole's two: one month of them
             RuleMonth month;
-            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{3}}, {"fam.sprite", ElementType{2}}}, month)) << firstError(f.rules);
+            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{3}}, {"fam.mole", ElementType{1}}}, month)) << firstError(f.rules);
 
             EXPECT_EQ(intOf(month.after, "rations"), 0);
             EXPECT_EQ(month.warning, "RATIONS FOR 1 MONTH");
@@ -2153,21 +2175,21 @@ namespace pg
             }
 
             // Six of them: two months, said from three
-            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{6}}, {"fam.sprite", ElementType{2}}}, month)) << firstError(f.rules);
+            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{6}}, {"fam.mole", ElementType{1}}}, month)) << firstError(f.rules);
             EXPECT_EQ(month.warning, "RATIONS FOR 2 MONTHS");
             EXPECT_TRUE(month.entries.empty());
 
-            // His last one eaten, the sprite goes hungry: the rations ran out once, then the hunger
-            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{1}}, {"fam.sprite", ElementType{1}}}, month)) << firstError(f.rules);
+            // His last one eaten, the mole goes hungry: the rations ran out once, then the hunger
+            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{1}}, {"fam.mole", ElementType{1}}}, month)) << firstError(f.rules);
             EXPECT_EQ(intOf(month.after, "rations"), 0);
             EXPECT_EQ(intOf(month.after, "vit"), 20);
-            EXPECT_EQ(texts(month), (std::vector<std::string>{"The rations ran out", "A hedge sprite went hungry"}));
+            EXPECT_EQ(texts(month), (std::vector<std::string>{"The rations ran out", "A stone mole went hungry"}));
 
-            // Out of them: no second entry, his Vitality pays, the sprite still hungry
-            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{0}}, {"fam.sprite", ElementType{1}}}, month)) << firstError(f.rules);
+            // Out of them: no second entry, his Vitality pays, the mole still hungry
+            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{0}}, {"fam.mole", ElementType{1}}}, month)) << firstError(f.rules);
             EXPECT_EQ(intOf(month.after, "vit"), 15);
             EXPECT_EQ(month.warning, "NO RATIONS LEFT");
-            EXPECT_EQ(texts(month), std::vector<std::string>{"A hedge sprite went hungry"});
+            EXPECT_EQ(texts(month), std::vector<std::string>{"A stone mole went hungry"});
         }
 
         // What a gloss of a holding says, as "label=value;" pairs
@@ -2195,15 +2217,15 @@ namespace pg
             RulesFixture f;
 
             RuleMonth month;
-            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{3}}, {"fam.sprite", ElementType{1}}}, month)) << firstError(f.rules);
+            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{3}}, {"fam.mole", ElementType{1}}}, month)) << firstError(f.rules);
 
-            EXPECT_EQ(intOf(month.after, "rations"), 1);
+            EXPECT_EQ(intOf(month.after, "rations"), 0);
             EXPECT_EQ(month.warning, "RATIONS FOR 1 MONTH");
             EXPECT_EQ(month.advice, "Rations are running low: buy some at the market, or take work that gives rations up front");
 
             const std::string said = glossSaid(month, "rations");
-            EXPECT_NE(said.find("A month uses=2;"), std::string::npos) << said;
-            EXPECT_NE(said.find("His familiars eat=1 / mo;"), std::string::npos) << said;
+            EXPECT_NE(said.find("A month uses=3;"), std::string::npos) << said;
+            EXPECT_NE(said.find("His familiars eat=2 / mo;"), std::string::npos) << said;
             EXPECT_NE(said.find("Lasts=1 mo;"), std::string::npos) << said;
 
             // None bound: his own alone
@@ -2215,24 +2237,24 @@ namespace pg
             EXPECT_EQ(glossSaid(month, "rations").find("His familiars eat"), std::string::npos) << glossSaid(month, "rations");
         }
 
-        // The rations last the months that feed him and his familiars both: nine at two a month
-        // feed them both four months (he eats first, and the sprite is hungry in the fifth)
+        // The rations last the months that feed him and his familiars both: twelve at three a month
+        // feed them both four months (he eats first, and the mole is hungry in the fifth)
         TEST(rules_test, rations_last_while_all_are_fed)
         {
             MockLogger logger;
             RulesFixture f;
 
             RuleMonth month;
-            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{9}}, {"fam.sprite", ElementType{1}}}, month)) << firstError(f.rules);
+            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{12}}, {"fam.mole", ElementType{1}}}, month)) << firstError(f.rules);
 
             std::string said = glossSaid(month, "rations");
-            EXPECT_NE(said.find("A month uses=2;"), std::string::npos) << said;
-            EXPECT_NE(said.find("His familiars eat=1 / mo;"), std::string::npos) << said;
+            EXPECT_NE(said.find("A month uses=3;"), std::string::npos) << said;
+            EXPECT_NE(said.find("His familiars eat=2 / mo;"), std::string::npos) << said;
             EXPECT_NE(said.find("Lasts=4 mo;"), std::string::npos) << said;
             EXPECT_EQ(month.warning, "");
 
-            // Seven: three months, and the warning says the same
-            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{7}}, {"fam.sprite", ElementType{1}}}, month)) << firstError(f.rules);
+            // Ten: three months, and the warning says the same
+            ASSERT_TRUE(f.rules.month(8.0f, {{"vit", ElementType{20}}, {"rations", ElementType{10}}, {"fam.mole", ElementType{1}}}, month)) << firstError(f.rules);
             said = glossSaid(month, "rations");
             EXPECT_NE(said.find("Lasts=3 mo;"), std::string::npos) << said;
             EXPECT_EQ(month.warning, "RATIONS FOR 3 MONTHS");
@@ -2258,9 +2280,11 @@ namespace pg
             character["fam.sprite"] = ElementType{1};
 
             const std::string bind = textOf(activityAt(f.rules, 7.5f, character, "bind.sprite").fields, "about");
-            EXPECT_NE(bind.find("1 ration a month"), std::string::npos) << bind;
             EXPECT_NE(bind.find("4 berries"), std::string::npos) << bind;
-            EXPECT_EQ(bind.substr(bind.size() - std::string("It eats 1 ration a month, and makes 4 berries.").size()), "It eats 1 ration a month, and makes 4 berries.") << bind;
+            EXPECT_EQ(bind.substr(bind.size() - std::string("It eats nothing, and makes 4 berries a month.").size()), "It eats nothing, and makes 4 berries a month.") << bind;
+
+            const std::string mole = textOf(activityAt(f.rules, 7.5f, character, "bind.mole").fields, "about");
+            EXPECT_NE(mole.find("It eats 2 rations a month, and makes 2 stone."), std::string::npos) << mole;
 
             const std::string brownie = textOf(activityAt(f.rules, 7.5f, character, "bind.brownie").fields, "about");
             EXPECT_NE(brownie.find("It eats 3 berries, 2 water and 1 firewood a month, and makes 2 rations."), std::string::npos) << brownie;
@@ -2978,26 +3002,26 @@ namespace pg
 
             RuleActivity berries = activityAt(f.rules, 8.0f, deft, "scavenge.berries");
             ASSERT_EQ(berries.steps.size(), 2u);
-            EXPECT_EQ(textOf(berries.steps[0], "label"), "With Dexterity 8: +3 berries");
+            EXPECT_EQ(textOf(berries.steps[0], "label"), "With Dexterity 8: +9 berries (base +6, bonus +3)");
             EXPECT_TRUE(flag(berries.steps[0], "reached"));
-            EXPECT_EQ(textOf(berries.steps[1], "label"), "With Dexterity 12: +6 berries");
+            EXPECT_EQ(textOf(berries.steps[1], "label"), "With Dexterity 12: +12 berries (base +6, bonus +6)");
             EXPECT_FALSE(flag(berries.steps[1], "reached"));
 
             RuleActivity firewood = activityAt(f.rules, 8.0f, boy(), "scavenge.firewood");
             ASSERT_EQ(firewood.steps.size(), 2u);
-            EXPECT_EQ(textOf(firewood.steps[0], "label"), "With Strength 8: +2 firewood");
-            EXPECT_EQ(textOf(firewood.steps[1], "label"), "With Strength 12: +4 firewood");
+            EXPECT_EQ(textOf(firewood.steps[0], "label"), "With Strength 8: +6 firewood (base +4, bonus +2)");
+            EXPECT_EQ(textOf(firewood.steps[1], "label"), "With Strength 12: +8 firewood (base +4, bonus +4)");
             EXPECT_FALSE(flag(firewood.steps[0], "reached"));
 
             carters = activityAt(f.rules, 8.0f, strong, "carters");
             ASSERT_EQ(carters.steps.size(), 1u);
-            EXPECT_EQ(textOf(carters.steps[0], "label"), "With Strength 9: 2 months, not 3");
+            EXPECT_EQ(textOf(carters.steps[0], "label"), "With Strength 9: 2 months instead of 3");
             EXPECT_TRUE(flag(carters.steps[0], "reached"));
 
             // The town's bonus, or a flag's, is not one of them: the chapel's windows on the letters
             RuleActivity letters = activityAt(f.rules, 8.0f, boy(), "letters");
             ASSERT_EQ(letters.steps.size(), 1u);
-            EXPECT_EQ(textOf(letters.steps[0], "label"), "With Intelligence 8: 4 months, not 6");
+            EXPECT_EQ(textOf(letters.steps[0], "label"), "With Intelligence 8: 4 months instead of 6");
 
             EXPECT_TRUE(activityAt(f.rules, 8.0f, boy(), "mill").steps.empty());
 
@@ -3005,7 +3029,7 @@ namespace pg
             ElementMap knight = {{"keep_oath", ElementType{1}}, {"arms", ElementType{5}}};
             RuleActivity tourney = activityAt(f.rules, 19.0f, knight, "tourney");
             ASSERT_EQ(tourney.steps.size(), 1u);
-            EXPECT_EQ(textOf(tourney.steps[0], "label"), "With Arms 7: +1 Renown, Victor of the tourney");
+            EXPECT_EQ(textOf(tourney.steps[0], "label"), "With Arms 7: +2 Renown (base +1, bonus +1), Victor of the tourney");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -6626,9 +6650,9 @@ namespace pg
             EXPECT_EQ(intOf(carters.fields, "upFront"), 3);
             EXPECT_EQ(intOf(carters.fields, "upFrontLasts"), 0);
 
-            // Two sprites eat a ration each: three a month, and the three last one
+            // A stone mole eats two rations: three a month, and the three last one
             ElementMap kept = alone;
-            kept["fam.sprite"] = ElementType{2};
+            kept["fam.mole"] = ElementType{1};
             EXPECT_EQ(intOf(activityAt(f.rules, 8.0f, kept, "carters").fields, "upFrontLasts"), 1);
 
             // What he holds counts with them: 3 more last two months, 6 more the three

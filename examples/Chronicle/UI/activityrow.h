@@ -50,6 +50,8 @@ namespace chronicle
         bool compact = false;          // The name, the time and the closing only: no rank, no `each`, no middle block (its gloss says the rest), on a ground that says its kind
         bool featured = false;         // A compact row the page wants seen: a gold ground in the place of its kind's, while it can be chosen
         std::string badge;             // "" or a mark worn on its top-right corner, over its frame, in the loss's colour: an answer to an event ("alert")
+        bool fresh = false;            // New on its page and not looked at yet: a gold seal on that corner, when it wears no other badge
+        bool arriving = false;         // It comes onto the page in view: it fades in as it is built. Not part of what it says, a row kept is not built again for it
         bool major = false;            // A tile that turns his life (a class, the town): a doubled gold frame around it and its mark in its corner, in every state
         bool tile = false;             // A compact row stacked for a grid, framed: its mark and its name (two lines of name at most), under them its time and its closing. A list with a tileWidth makes its rows tiles
         float minHeight = 0.0f;        // The row is at least that tall: a list keeps the tiles of one line level
@@ -136,6 +138,9 @@ namespace chronicle
         pg::_unique_id name = 0;
         pg::_unique_id cost = 0;
         pg::_unique_id costMark = 0;
+
+        pg::_unique_id veil = 0;       // An arriving row's: the page's ground over it, thinning to nothing
+        float arrivedMs = 0.0f;        // How long the veil has been thinning
     };
 
     // One thing the character could spend months doing, in four states: idle (the gains it
@@ -187,6 +192,7 @@ namespace chronicle
         void setCloses(pg::EntitySystem*, int months, bool urgent = false);         // A tile's: the months left to begin it, -1 for none
         void setWidth(pg::EntitySystem*, float width);                  // The name re-fits, the rule follows
         void setMinHeight(pg::EntitySystem*, float height);             // At least that tall, whatever it holds
+        void setFresh(pg::EntitySystem*, bool fresh);                   // Its seal shown or hidden: a row built without it gains none
         float height(pg::EntitySystem*) const;       // Idle 68 (16 more a wrapped line of gains), Running 81 (15 more a wrapped line of caption), Locked 24 + 4 + list + 24
 
         // Internal
@@ -308,7 +314,7 @@ namespace chronicle
 
         virtual void onEvent(const KeyboardFocusChangedEvent& event) override;
 
-        virtual void onEvent(const pg::TickEvent& event) override;
+        virtual void onEvent(const pg::TickEvent& event) override;      // And the veils of arriving rows thin
 
         virtual void execute() override;                                 // Adopts the rows of every list
 

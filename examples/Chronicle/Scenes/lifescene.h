@@ -311,6 +311,7 @@ namespace chronicle
         const RuleActivity* activityOf(const std::string& id) const;   // From the last answer of Rules::activities, nullptr if none
         int closesOf(const RuleActivity& activity) const;   // The months he still has to begin it, for its tile to count down: -1 when it does not close, or not soon
         void onHover(const ActivityHoveredEvent& event);   // The mouse came onto a tile or left them
+        void readRow(const std::string& id);               // Looked at: its seal of a new row goes
         void preview();                // What the chosen activity, or the one the mouse is on, would make of his parts and of what he holds
         void previewHoldings(const RuleForecast* forecast);   // "46 -> 52" ("6/60 -> 12/60") on the rows it would add to; nullptr: the figures as they are
         std::string holdingText(const std::string& id, int amount) const;   // "12", or "12/60" for what has a most he can hold
@@ -523,6 +524,8 @@ namespace chronicle
         std::vector<std::string> known;           // The activities he could do when the list was last filled
         std::vector<std::string> listedLast;      // The activities that had a row when the list was last filled, open to him or not
         std::vector<std::string> stood;           // Every activity that has had a row in this life: one that has not is new, and its tab says so
+        std::vector<std::string> unread;          // The rows new to their page that he has not looked at yet: a gold seal on each, until the mouse goes over it or it is chosen
+        std::vector<std::string> arriving;        // The rows that come onto the page in view as the list is filled: they fade in
 
         // Something that lasts a moment (a gain lifting off its figure, a lit line, a toast): the
         // milliseconds left, what each tick does with the ones it is given, what its end does

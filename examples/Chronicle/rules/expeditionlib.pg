@@ -2087,7 +2087,8 @@ fun workRows()
 
 fun bagRows()
 {
-    var rows = []
+    // His purse comes first: a story may ask for coin, and on a walk he should know it too
+    var rows = [{id: "coin", name: "Coin", glyph: "gold", value: toString(held("coin")), tone: ""}]
 
     for (var i = 0; i < len(walkItems); i++)
     {

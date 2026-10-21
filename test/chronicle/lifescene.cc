@@ -2046,6 +2046,65 @@ namespace pg
             EXPECT_FALSE(life->toastUp(news));
         }
 
+        // A row new to its page wears a gold seal until he looks at it, and comes onto the page in
+        // view fading in; what stood there before wears none
+        TEST(lifescene_test, a_new_row_wears_a_seal_until_looked_at)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::mockup();
+            opt.fresh = true;
+            opt.lives = 2;
+            opt.age = 8.0f;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+
+            f.pass(800.0f);
+
+            // What the first list held is no news
+            for (const auto& group : list->spec.groups)
+            {
+                for (const auto& row : group.rows)
+                    EXPECT_FALSE(row.fresh) << row.id;
+            }
+
+            life->save.stats["rations"] = 24;
+            life->save.stats["scavenged"] = 2;
+            life->save.stats["berries"] = 12;
+            life->onMonth();
+            f.settle();
+
+            ActivityRow* bind = list->find(&f.ecs, "bind.sprite");
+            ASSERT_NE(bind, nullptr);
+            EXPECT_TRUE(bind->spec.fresh);
+            EXPECT_TRUE(bind->spec.arriving);
+            ASSERT_TRUE(bind->badge.has_value());
+            EXPECT_EQ(f.ecs.getEntity(bind->badge->entity.id)->get<ThemeComponent>()->element, "activity.badge.new");
+            EXPECT_TRUE(f.pos(bind->badge->entity)->isVisible());
+
+            // The mouse goes over it: looked at, the seal goes, and the list filled again keeps it so
+            f.ecs.sendEvent(ActivityHoveredEvent{"life.activities", "bind.sprite"});
+            f.settle();
+
+            bind = list->find(&f.ecs, "bind.sprite");
+            ASSERT_NE(bind, nullptr);
+            EXPECT_FALSE(bind->spec.fresh);
+            EXPECT_FALSE(f.pos(bind->badge->entity)->isVisible());
+
+            life->onMonth();
+            f.settle();
+
+            bind = list->find(&f.ecs, "bind.sprite");
+            ASSERT_NE(bind, nullptr);
+            EXPECT_FALSE(bind->spec.fresh);
+            EXPECT_FALSE(bind->badge.has_value() and f.pos(bind->badge->entity)->isVisible());
+        }
+
         // What he gathers by hand is counted, but the count is the rules' own: the tile, its gloss
         // and the log say the berries alone
         TEST(lifescene_test, gathering_shows_no_count_of_it)
@@ -2152,9 +2211,9 @@ namespace pg
 
             auto steps = section(picking, "BONUS");
             ASSERT_EQ(steps.size(), 2u);
-            EXPECT_EQ(steps[0].label, "With Dexterity 8: +3 berries");
+            EXPECT_EQ(steps[0].label, "With Dexterity 8: +9 berries (base +6, bonus +3)");
             EXPECT_EQ(steps[0].tone, "gain");
-            EXPECT_EQ(steps[1].label, "With Dexterity 12: +6 berries");
+            EXPECT_EQ(steps[1].label, "With Dexterity 12: +12 berries (base +6, bonus +6)");
             EXPECT_EQ(steps[1].tone, "");
 
             auto reward = section(picking, "REWARD");
@@ -4484,7 +4543,7 @@ namespace pg
             ASSERT_NE(campaign, nullptr);
             EXPECT_EQ(campaign->title, "Join the Border Campaign");
             EXPECT_EQ(rowOf(campaign, "Time"), "24 mo");
-            EXPECT_EQ(rowOf(campaign, "Rations"), "24 up front");
+            EXPECT_EQ(rowOf(campaign, "Rations"), "+24 upfront");
 
             // Locked, and no footnote to say so: what it still asks is in red under REQUIREMENTS
             EXPECT_EQ(campaign->footnote, "");
@@ -7435,16 +7494,16 @@ namespace pg
             life->onMonth();
             f.settle();
 
-            EXPECT_EQ(rations(), "3 up front");
+            EXPECT_EQ(rations(), "+3 upfront");
 
-            // Two sprites and nothing held: he and they eat three a month, the three last one
-            life->save.stats["fam.sprite"] = 2;
+            // A stone mole and nothing held: he and it eat three a month, the three last one
+            life->save.stats["fam.mole"] = 1;
             life->save.stats["rations"] = 1;
             life->onMonth();
             f.settle();
 
             ASSERT_EQ(life->save.stats["rations"], 0);
-            EXPECT_EQ(rations(), "3 up front \xC2\xB7 lasts 1 mo");
+            EXPECT_EQ(rations(), "+3 upfront \xC2\xB7 lasts 1 mo");
 
             // With nine held the three months are fed: nothing more is said
             life->save.stats["rations"] = 12;
@@ -7452,7 +7511,7 @@ namespace pg
             f.settle();
 
             ASSERT_EQ(life->save.stats["rations"], 9);
-            EXPECT_EQ(rations(), "3 up front");
+            EXPECT_EQ(rations(), "+3 upfront");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -9047,7 +9106,7 @@ namespace pg
             }
 
             ASSERT_EQ(gives.size(), 3u);
-            EXPECT_EQ(gives[0], "1 - The chapel windows: Learn Your Letters takes 4 months, not 6");
+            EXPECT_EQ(gives[0], "1 - The chapel windows: Learn Your Letters takes 4 months instead of 6");
             EXPECT_EQ(gives[1], "2 - The chapel primer: A new life starts with Letters 1, and a well imp can be bound");
             EXPECT_EQ(gives[2], "3 - The almshouse: Teach the Young pays 4 more coin");
         }
@@ -10357,8 +10416,8 @@ namespace pg
             auto list = life->piece<ActivityList>("activities");
             ASSERT_NE(list, nullptr);
 
-            // Not before the Hedgerows are known 2 of 4
-            life->save.age = 9.0f;
+            // Not before the Hedgerows are known 2 of 4 (and Mill Pond's tenth year: its task asks it)
+            life->save.age = 10.0f;
             life->onMonth();
             f.settle();
 
@@ -13878,6 +13937,11 @@ namespace pg
 
             ASSERT_NE(rations, nullptr);
             EXPECT_EQ(fieldText(*rations, "value"), std::to_string(life->save.stats["rations"]));
+
+            // And his purse, first: a story may ask for coin
+            ASSERT_FALSE(life->walk.bag.empty());
+            EXPECT_EQ(fieldText(life->walk.bag.front(), "id"), "coin");
+            EXPECT_EQ(fieldText(life->walk.bag.front(), "value"), std::to_string(life->save.stats["coin"]));
         }
 
         // An act whose day adds up to two months is written once, after both: a death in the

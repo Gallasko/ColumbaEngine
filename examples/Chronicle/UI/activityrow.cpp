@@ -26,6 +26,7 @@
 #include "UI/themesystem.h"
 
 #include "Core/textmetrics.h"
+#include "Core/motion.h"
 #include "Core/offstage.h"
 #include "gloss.h"
 
@@ -85,6 +86,7 @@ namespace chronicle
         constexpr float UntilGap = 2.0f;         // Above the line saying when it closes
         constexpr float TilePad = 8.0f;          // space-2 padding of a tile
         constexpr float BadgeOut = 8.0f;         // How far a badge stands out of the corner it is worn on, each way
+        constexpr float ArriveMs = 450.0f;       // An arriving row fades in over so long
         constexpr float TileLineGap = 6.0f;      // Between a tile's name and its last line
         constexpr float TileMarkGap = 6.0f;      // Between a tile's mark and its name
         constexpr float TileStatusGap = 8.0f;    // Between a tile's time and its word of state
@@ -114,10 +116,20 @@ namespace chronicle
             return std::to_string(months) + " mo";
         }
 
+        // The row of the work he is at says nothing at the right of its rule: the caption under
+        // the rule already counts its months
+        bool rightUnsaid(ActivityState state, bool tile)
+        {
+            return state == ActivityState::Running and not tile;
+        }
+
         // What a row writes for its time. A tile done at once writes nothing there: its ground
         // already says it is a thing done at once
         std::string costText(const ActivityRowSpec& spec)
         {
+            if (rightUnsaid(spec.state, spec.tile))
+                return "";
+
             if (not spec.cost.empty())
                 return spec.cost;
 
@@ -392,7 +404,7 @@ namespace chronicle
             setElement(entityOf(ecs, st.cost), costElement(st));
 
             // No time, no time mark: a tile done at once leaves that line empty, or writes its price there
-            setVisible(entityOf(ecs, st.costMark), not (st.tile and st.instant and not st.priced));
+            setVisible(entityOf(ecs, st.costMark), not (st.tile and st.instant and not st.priced) and not rightUnsaid(st.state, st.tile));
             setVisible(entityOf(ecs, st.rule), not st.last and not st.tile);
             setVisible(entityOf(ecs, st.ring), st.keyboardFocus and not locked);
         }
@@ -417,7 +429,10 @@ namespace chronicle
             // A tile's time at the left of its last line, when it has one to say; its word of state at the right
             const bool timed = not row.cost.spec.text.empty();
 
-            setVisible(row.costMark.entity, not st.table and not (st.tile and ((st.instant and not st.priced) or not timed)));
+            setVisible(row.costMark.entity, not st.table and not (st.tile and ((st.instant and not st.priced) or not timed)) and not rightUnsaid(st.state, st.tile));
+
+            if (row.each)
+                setVisible(row.each->entity, not rightUnsaid(st.state, st.tile));
 
             // And at the right its closing, after a stopwatch, when it has one
             if (row.status)
@@ -726,10 +741,14 @@ namespace chronicle
             }
         }
 
-        // A badge on its top-right corner, over the frame and half out of it, as a seal on a leaf
-        if (not spec.badge.empty())
+        // A badge on its top-right corner, over the frame and half out of it, as a seal on a leaf.
+        // What is new to the page and not looked at yet wears a gold seal there, when it has no
+        // other badge to wear
+        if (not spec.badge.empty() or spec.fresh)
         {
-            row.badge = makeMark(ecs, {spec.badge, MarkSize::S18, "status-loss", z + 6});
+            const bool seal = spec.badge.empty();
+
+            row.badge = makeMark(ecs, {seal ? std::string("seal") : spec.badge, MarkSize::S18, "status-loss", z + 6});
             offstage(row.badge->entity);
             {
                 auto anchor = row.badge->entity->get<UiAnchor>();
@@ -740,8 +759,22 @@ namespace chronicle
                 anchor->setTopMargin(-BadgeOut);
                 anchor->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 6.0f});
             }
-            row.badge->entity->get<ThemeComponent>()->setElement("activity.badge");
+            row.badge->entity->get<ThemeComponent>()->setElement(seal ? "activity.badge.new" : "activity.badge");
             prefab->addToPrefab(row.badge->entity);
+        }
+
+        // Coming onto the page in view, it fades in: the page's ground over it, thinning to nothing
+        // (the ActivitySystem's tick). Its seal stands out of it, and is there at once
+        if (spec.arriving and not Motion::reduced())
+        {
+            auto theme = ecs->getSystem<ThemeSystem>();
+            auto veil = makeUiSimple2DShape(ecs, Shape2D::Square, 1.0f, 1.0f, theme ? theme->color("folio") : constant::Vector4D{255.0f, 255.0f, 255.0f, 255.0f});
+            offstage(veil.entity);
+            veil.get<UiAnchor>()->fillIn(root.get<UiAnchor>());
+            veil.get<UiAnchor>()->setZConstrain(PosConstrain{rootId, AnchorType::Z, PosOpType::Add, 5.0f});
+            prefab->addToPrefab(veil.entity);
+            clipLike(ecs, root, veil.entity);
+            state->veil = veil.entity.id;
         }
 
         // Mark: S24 (the design system draws 22; the kit registers 18 and 24), centred in its column.
@@ -970,7 +1003,8 @@ namespace chronicle
         const bool table = not spec.tile and not spec.compact and spec.glyph.empty();
         const float costWidth = (table ? 0.0f : px(MarkSize::S14) + CostMarkGap) + cost.entity.get<PositionComponent>()->width;
         const float eachWidth = each ? each->entity.get<PositionComponent>()->width : 0.0f;
-        const float rightWidth = std::max(costWidth, eachWidth);
+        // (the work he is at: its rule runs to the right edge)
+        const float rightWidth = rightUnsaid(spec.state, spec.tile) ? 0.0f : std::max(costWidth, eachWidth);
 
         return spec.width - bodyLeft() - rightWidth - rightInset() - Gap - Pad;
     }
@@ -1251,6 +1285,9 @@ namespace chronicle
             if (auto focusOrder = ecs->getSystem<FocusOrderSystem>())
                 focusOrder->setEnabled(r.root.id, newState != ActivityState::Locked);
 
+            // Running, the time at the right is unsaid; back from it, said again
+            r.cost.setText(ecs, costText(r.spec));
+
             r.clearMiddle(ecs);
             r.buildMiddle(ecs);
             r.resize(ecs);
@@ -1423,6 +1460,19 @@ namespace chronicle
             r.rank->setText(ecs, rankText(r.spec));
             r.fitName(ecs);
         });
+    }
+
+    void ActivityRow::setFresh(EntitySystem* ecs, bool fresh)
+    {
+        onLive(this, [fresh](ActivityRow& r) {
+            r.spec.fresh = fresh;
+
+            // Only the seal it was built with: an answer's badge stays as it is
+            if (r.badge and r.spec.badge.empty())
+                setVisible(r.badge->entity, fresh);
+        });
+
+        (void)ecs;
     }
 
     void ActivityRow::setMinHeight(EntitySystem* ecs, float height)
@@ -1748,7 +1798,7 @@ namespace chronicle
             return held.id == wanted.id and held.name == wanted.name and held.glyph == wanted.glyph and held.rank == wanted.rank
                and held.count == wanted.count and held.months == wanted.months and held.each == wanted.each
                and held.until == wanted.until and held.urgent == wanted.urgent and held.compact == wanted.compact
-               and held.featured == wanted.featured and held.major == wanted.major and held.tile == wanted.tile and held.badge == wanted.badge
+               and held.featured == wanted.featured and held.major == wanted.major and held.tile == wanted.tile and held.badge == wanted.badge and held.fresh == wanted.fresh
                and held.state == wanted.state and held.caption == wanted.caption and held.glossKey == wanted.glossKey
                and held.cost == wanted.cost and held.costGlyph == wanted.costGlyph
                and held.closes == wanted.closes and held.adventure == wanted.adventure
@@ -2527,5 +2577,37 @@ namespace chronicle
     void ActivitySystem::onEvent(const TickEvent& event)
     {
         now += event.tick;
+
+        // The veils of arriving rows thin to nothing, then go
+        for (auto st : view<ActivityRowState>())
+        {
+            if (st->veil == 0)
+                continue;
+
+            EntityRef veil = ecsRef->getEntity(st->veil);
+
+            if (veil.empty())
+            {
+                st->veil = 0;
+                continue;
+            }
+
+            st->arrivedMs += event.tick;
+
+            if (st->arrivedMs >= ArriveMs or Motion::reduced())
+            {
+                if (auto root = ecsRef->getEntity(st->entityId); root and root->has<Prefab>())
+                    root->get<Prefab>()->childrenIds.erase(st->veil);
+
+                ecsRef->removeEntity(st->veil);
+                st->veil = 0;
+                continue;
+            }
+
+            auto shape = veil->get<Simple2DObject>();
+            const float full = ecsRef->getSystem<ThemeSystem>() ? ecsRef->getSystem<ThemeSystem>()->color("folio").w : 255.0f;
+
+            shape->setOpacity(full * (1.0f - st->arrivedMs / ArriveMs));
+        }
     }
 }

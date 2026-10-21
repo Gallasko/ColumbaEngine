@@ -64,7 +64,7 @@
 //           listed),
 //           after (its steps, as below),
 //           steps [{label, reached}] (each step of its `bonus` on one of his parts or skills, as its
-//           gloss says it: "With Strength 8: +2 firewood", "With Dexterity 9: 2 months, not 3";
+//           gloss says it: "With Strength 8: +6 firewood (base +4, bonus +2)", "With Dexterity 9: 2 months instead of 3";
 //           reached: he has it. lib.pg's `bonusStepLabel`).
 //
 // `months: 0` is an activity done at once: it takes no time, and can be done while another runs.
@@ -387,8 +387,8 @@ var activities = [
      gains: [{stat: "coin", amount: 8}, {stat: "roads_known"}],
      requires: [{stat: "dex", needed: 7}]},
     // A lead: a month and a little coin for something worth knowing, and no more. The bargemen
-    // know the pond above the mill: with their tale it is his to walk at nine, a year sooner
-    // (expeditiontable.pg's `sooner`). It is not sold to who is ten already
+    // know the pond above the mill: with their tale it is his to explore and walk at nine, a year
+    // sooner (the `pond` row's bonus, expeditiontable.pg's `sooner`). It is not sold to who is ten already
     {id: "bargemen", group: "Work", name: "Hear the Bargemen's Tale", glyph: "adventure", months: 1, rank: "", each: "MILL POND A YEAR SOONER", path: "", fromAge: 9, fromMonths: 4, finishBy: 10, closingShown: 3, uses: 1,
      about: "The bargemen tie up below the mill and talk for anyone who brings ale. What lives in the reeds above the weir is their favourite story.",
      gains: [{stat: "bargemen_tale"}],
@@ -397,9 +397,12 @@ var activities = [
     // The way to the pond above the mill, a month of his life once the Hedgerows are known 2 of 4
     // (expeditiontable.pg's ladder says so on the walk). Found once for the world, as the town is
     // explored once: Mill Pond asks it, and no later life is offered it again (`whileNot`). No
-    // row before then, and no age closes it
-    {id: "pond", group: "Work", name: "Explore the Nearby Pond", glyph: "adventure", months: 1, rank: "ONCE", each: "OPENS MILL POND", path: "", finishBy: anyAge, uses: 1, showFrom: 100,
+    // row before then, and no age closes it. It asks Mill Pond's own age (ten, nine with the
+    // bargemen's tale): what explored it may walk it at once. Its row stands from seven, locked,
+    // when he is younger
+    {id: "pond", group: "Work", name: "Explore the Nearby Pond", glyph: "adventure", months: 1, rank: "ONCE", each: "OPENS MILL POND", path: "", fromAge: 10, showAge: 7, finishBy: anyAge, uses: 1, showFrom: 100,
      whileNot: "know.found.millpond",
+     bonus: [{stat: "bargemen_tale", fromAge: 9}],
      about: "A gap in the hedge, a path through the nettles, and still water at the end of it. The mill is just below.",
      gains: [{stat: "know.found.millpond"}],
      requires: [{stat: "know.study.hedgerows", label: "The Hedgerows known 2 of 4", needed: walkKnobs.studyLevels[1]}]},

@@ -603,9 +603,21 @@ fun stepGainWords(stat, amount)
     return statName(stat)
 }
 
+// What a step brings of a thing the work already brings, as a receipt: all of it, then where it
+// comes from ("+9 berries (base +6, bonus +3)"). What the work does not bring is said alone
+fun bonusGainWords(stat, base, bonus)
+{
+    if (base <= 0 or bonus <= 0)
+    {
+        return stepGainWords(stat, bonus)
+    }
+
+    return stepGainWords(stat, base + bonus) + " (base +" + toString(base) + ", bonus +" + toString(bonus) + ")"
+}
+
 // The line of a work's gloss for the step `s` of its `bonus`: what one of his parts or skills
-// (`partsAndSkills`) would make of it, "With Strength 8: +2 firewood", "With Dexterity 9: 2 months,
-// not 3". What the town or a flag makes of a work is said where they are: "" for those steps.
+// (`partsAndSkills`) would make of it, "With Strength 8: +6 firewood (base +4, bonus +2)", "With
+// Dexterity 9: 2 months instead of 3". What the town or a flag makes of a work is said where they are: "" for those steps.
 // `plainMonths` and `plainGains` are the work's own, before any step. Every step on that stat up
 // to this one adds its `more` (activitytable.pg applies them all), so the line says all he brings
 // once he has it, and not the step's share.
@@ -639,7 +651,7 @@ fun bonusStepLabel(steps, s, plainMonths, plainGains)
             unit = " month"
         }
 
-        push(said, toString(step.months) + unit + ", not " + toString(plainMonths))
+        push(said, toString(step.months) + unit + " instead of " + toString(plainMonths))
     }
 
     // What it brings in place of the work's own: what that adds to them
@@ -661,7 +673,7 @@ fun bonusStepLabel(steps, s, plainMonths, plainGains)
 
         if (added != 0 and not statHidden(gained[g].stat))
         {
-            push(said, stepGainWords(gained[g].stat, added))
+            push(said, bonusGainWords(gained[g].stat, before, added))
         }
     }
 
@@ -690,7 +702,17 @@ fun bonusStepLabel(steps, s, plainMonths, plainGains)
 
     for (var m = 0; m < len(order); m++)
     {
-        push(said, stepGainWords(order[m], moreOf[order[m]]))
+        var base = 0
+
+        for (var o = 0; o < len(plainGains); o++)
+        {
+            if (plainGains[o].stat == order[m])
+            {
+                base = base + plainGains[o].amount
+            }
+        }
+
+        push(said, bonusGainWords(order[m], base, moreOf[order[m]]))
     }
 
     return "With " + statName(step.stat) + " " + toString(needed) + ": " + listedWords(said)
@@ -710,6 +732,12 @@ fun upkeepCaption(kind)
     for (var m = 0; m < len(kind.makes); m++)
     {
         push(makes, thingsWord(kind.makes[m].stat, kind.makes[m].amount))
+    }
+
+    // (what eats nothing says so: the first kinds cost a young life no food)
+    if (len(eats) == 0)
+    {
+        return "EATS NOTHING · MAKES " + listedWords(makes)
     }
 
     return "EATS " + listedWords(eats) + " · MAKES " + listedWords(makes)
@@ -752,6 +780,11 @@ fun upkeepSentence(kind)
     for (var m = 0; m < len(kind.makes); m++)
     {
         push(makes, toLowerCase(thingsWord(kind.makes[m].stat, kind.makes[m].amount)))
+    }
+
+    if (len(eats) == 0)
+    {
+        return "It eats nothing, and makes " + joinedWithAnd(makes) + " a month."
     }
 
     return "It eats " + joinedWithAnd(eats) + " a month, and makes " + joinedWithAnd(makes) + "."

@@ -115,7 +115,7 @@ const townPlaces = [
     {id: "smithy", name: "The Smithy", glyph: "forge", shows: {done: "smithy"}, about: "The forge by the river, loud from dawn.",
      levels: [
         {work: "Add a Second Bellows", built: "The second bellows", months: 6, coin: 5, costs: [{stat: "firewood", amount: 20}, {stat: "stone", amount: 20}],
-         gives: "Work the Smithy opens at age 8, not 9, a stone mole can be bound, and the smithy forges an iron blade and a leather jerkin", note: "The smithy at 8, the mole, and gear forged", teaches: "mole",
+         gives: "Work the Smithy opens at age 8 instead of 9, a stone mole can be bound, and the smithy forges an iron blade and a leather jerkin", note: "The smithy at 8, the mole, and gear forged", teaches: "mole",
          lore: "A small boy can work the second bellows."},
         {work: "Forge the Practice Blades", built: "The practice blades", months: 9, coin: 15, costs: [{stat: "firewood", amount: 40}, {stat: "stone", amount: 40}, {stat: "gems", amount: 2}],
          gives: "A new life starts with Arms 1, and the smithy forges a warded charm", note: "Arms 1 at birth, and a warded charm", start: [{stat: "arms"}],
@@ -156,7 +156,7 @@ const townPlaces = [
     {id: "chapel", name: "The Chapel", glyph: "study", shows: {flag: "collegium"}, about: "Father Anselm's chapel, and the only school in Bellmoor.",
      levels: [
         {work: "Glaze the Chapel Windows", built: "The chapel windows", months: 6, coin: 5, costs: [{stat: "water", amount: 20}, {stat: "clay", amount: 20}], cheaper: {flag: "plague_stayed", coin: 0},
-         gives: "Learn Your Letters takes 4 months, not 6",
+         gives: "Learn Your Letters takes 4 months instead of 6",
          lore: "There is light to read by now, even in winter."},
         {work: "Give the Chapel a Primer", built: "The chapel primer", months: 9, coin: 10, costs: [{stat: "water", amount: 40}, {stat: "clay", amount: 20}, {stat: "gems", amount: 2}, {stat: "letters"}],
          gives: "A new life starts with Letters 1, and a well imp can be bound", note: "Letters 1 at birth, and the well imp", start: [{stat: "letters"}], teaches: "imp",
