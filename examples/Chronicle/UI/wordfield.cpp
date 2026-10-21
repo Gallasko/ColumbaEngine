@@ -29,12 +29,14 @@ namespace chronicle
         constexpr float LINE_H = 20.0f;    // The control style's line
         constexpr float CARET_W = 2.0f;
 
+        // Where the caret stands after the word: the pen's end, so a space typed last moves it
+        // at once (the measure's width trims trailing spaces, which leave no ink)
         float wordWidth(EntitySystem* ecs, const std::string& text)
         {
             auto* theme = ecs->getSystem<ThemeSystem>();
             const TextStyle& style = theme->style("control");
 
-            return ecs->getSystem<TTFTextSystem>()->measureText(style.fontAlias, text, 1.0f, 0.0f, 0.0f, style.letterSpacingPx).width;
+            return ecs->getSystem<TTFTextSystem>()->measureText(style.fontAlias, text, 1.0f, 0.0f, 0.0f, style.letterSpacingPx).penEnd;
         }
     }
 

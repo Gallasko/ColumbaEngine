@@ -456,5 +456,52 @@ namespace pg
             f.type("x");
             EXPECT_EQ(field.text(&f.ecs), "bUraba");
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A space typed at the end moves the caret by a space at once, not when the next letter
+        // comes; two spaces move it twice as far, and a letter after a space goes past both
+        TEST(options_test, word_field_caret_goes_past_a_space)
+        {
+            MockLogger logger;
+            OptionsFixture f;
+
+            WordFieldSpec spec;
+            spec.tag = "report.text";
+            spec.most = 24;
+            WordField field = makeWordField(&f.ecs, spec);
+            f.place(field.root);
+            field.focus(&f.ecs);
+            f.pump();
+
+            const TextStyle& style = f.theme->style("control");
+            const float space = f.ecs.getSystem<TTFTextSystem>()->fonts.at(style.fontAlias).glyphOrNotdef(0x20).advance + style.letterSpacingPx;
+            ASSERT_GT(space, 1.0f);
+
+            auto caretX = [&]() { return f.pos(field.caret)->x; };
+
+            f.type("a");
+            const float afterA = caretX();
+
+            f.type(" ");
+            EXPECT_EQ(field.text(&f.ecs), "a ");
+            EXPECT_NEAR(caretX(), afterA + space, 0.5f);
+
+            f.type(" ");
+            EXPECT_EQ(field.text(&f.ecs), "a  ");
+            EXPECT_NEAR(caretX(), afterA + 2.0f * space, 0.5f);
+
+            // A letter after the spaces: the caret goes on past it, the spaces kept in between
+            f.key(SDL_SCANCODE_BACKSPACE);
+            const float afterSpace = caretX();
+            f.type("b");
+            EXPECT_EQ(field.text(&f.ecs), "a b");
+            EXPECT_GT(caretX(), afterSpace + 1.0f);
+
+            // Backspace takes the letter back: the caret is past the space again
+            f.key(SDL_SCANCODE_BACKSPACE);
+            EXPECT_NEAR(caretX(), afterA + space, 0.5f);
+        }
     }
 }

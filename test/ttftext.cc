@@ -273,6 +273,30 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A caret after trailing spaces: width trims them (no ink), penEnd counts each one
+        TEST(ttftext_test, pen_end_counts_trailing_spaces)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+
+            auto* sys = makeTextSystem(ecs, renderer);
+
+            const float space = sys->fonts.at("inter").glyphOrNotdef(0x20).advance;
+            const TextMetrics a = sys->measureText("inter", "a");
+            const TextMetrics aSpace = sys->measureText("inter", "a ");
+            const TextMetrics aTwo = sys->measureText("inter", "a  ");
+
+            EXPECT_NEAR(a.penEnd, a.width, 0.01f);
+            EXPECT_NEAR(aSpace.width, a.width, 0.01f);
+            EXPECT_NEAR(aSpace.penEnd, a.width + space, 0.01f);
+            EXPECT_NEAR(aTwo.penEnd, a.width + 2.0f * space, 0.01f);
+            EXPECT_NEAR(sys->measureText("inter", "a\n ").penEnd, space, 0.01f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(ttftext_test, wrap_keeps_box_width)
         {
             MockLogger logger;

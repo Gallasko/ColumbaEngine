@@ -331,7 +331,7 @@ namespace pg
                 const size_t cursorPos = std::min(textComp->cursorPos, textComp->text.size());
                 const std::string upToCursor = textComp->text.substr(0, cursorPos);
 
-                cursorX = ttfSystem->measureText(ttf->fontPath, upToCursor, ttf->scale).width;
+                cursorX = ttfSystem->measureText(ttf->fontPath, upToCursor, ttf->scale).penEnd;
             }
         }
 

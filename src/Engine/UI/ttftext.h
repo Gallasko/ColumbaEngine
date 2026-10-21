@@ -26,6 +26,10 @@ namespace pg
         float ascender = 0.0f;
         int lineCount = 1;
         bool elided = false;     // true when overflow cut the text (ellipsis inserted or nothing fit)
+        // Pen x after the last line's last character, alignment offset applied: where a caret
+        // after the text stands. Unlike width, it counts trailing spaces (they advance the pen
+        // but leave no ink, so width trims them).
+        float penEnd = 0.0f;
     };
 
     // The full layout constraint set, shared by measureText and the glyph build so

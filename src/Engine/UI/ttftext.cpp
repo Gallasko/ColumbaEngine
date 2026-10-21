@@ -320,6 +320,7 @@ namespace pg
         float maxLineWidth = 0.0f;
         uint32_t prev = 0;   // previous code point, for kerning; 0 = start of line
         bool elided = false;
+        float penEnd = 0.0f; // pen after the last flushed line, trailing spaces counted
         bool done = false;   // an elision cut discards all remaining input
         size_t bestFit = 0;  // longest linebuf prefix that still leaves room for the ellipsis
         constant::Vector4D currentColor{255.0f, 255.0f, 255.0f, 255.0f};
@@ -386,6 +387,9 @@ namespace pg
                     emit(g.cp, relX, relY, *g.glyph, g.color);
                 }
             }
+
+            // An elided line ends at its ellipsis; any other at the pen, past trailing spaces
+            penEnd = (withEllipsis ? lineWidth : std::max(penX, lineWidth)) + offset;
 
             linebuf.clear();
             penX = 0.0f;
@@ -492,6 +496,7 @@ namespace pg
         metrics.lineCount = lineIndex + 1;
         metrics.height = metrics.lineCount * (metrics.lineHeight + p.spacing);
         metrics.elided = elided;
+        metrics.penEnd = penEnd;
 
         return metrics;
     }
