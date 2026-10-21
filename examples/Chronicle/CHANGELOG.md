@@ -125,19 +125,22 @@ way: four days on the outskirts of the town, and his first fight.
   wild animals (Strength). Each path has its fork the next day: chase on the green or the older
   boys' tales (Lore), the beetles under the stones or wortleaf by the ditch (2 remedies), the
   tracks to the stream or stones at the crows. On the fourth day something grey creeps up out of
-  the ditch: he stands his ground, and fights a slime by his own hand on the fight screen. It
-  cannot kill him; beaten, it leaves his first chronicle page. Who turns back halfway keeps what
-  the days gave, and the outskirts are not offered again.
+  the ditch: he stands his ground, and fights a slime by his own hand on the fight screen. Its
+  panel says what it will do on its turn: it oozes toward him, which does nothing, then slaps. It
+  cannot kill him; beaten, it leaves his first chronicle pages, four of them, which the market
+  buys for a coin. Who turns back halfway keeps what the days gave, and the outskirts are not
+  offered again.
 - **The first moves.** Each path teaches a move for every fight after it: *Step aside* (hard to
   hit until his next action), *Read the beast* (it is known 3 of 4 for the fight) or the *Stick
-  blow* (a heavy blunt blow, a little harder to land). The fight's menu says where each was
-  learned: THE OUTSKIRTS.
-- **The guide in the outskirts.** A first life is shown the lunch, the three paths, the card at
-  the ditch, and in the fight the slime's panel, the order of the turn and Strike. Each step is
-  said on the screen it is about; *Skip tutorial* there leaves the fight as it was.
+  blow* (a heavy blunt blow, a little harder to land).
+- **The guide in the outskirts.** A first life is shown the outskirts' task in the list, then
+  the lunch, the three paths, the card at the ditch, and in the fight the slime's panel, the
+  order of the turn and Strike. Each step is said on the screen it is about; *Skip tutorial*
+  there leaves the fight as it was.
 - **Chronicle pages.** Whatever the curse made leaves a page behind it when he kills it, in a
   hand nobody in Bellmoor writes: every beast of the walks, the bosses too, not the practice
-  dummies. Pages are kept under STORES, and the market buys them four for a coin.
+  dummies: one a beast, but the outskirts' slime leaves four. Pages are kept under STORES, which
+  says the market buys them four for a coin, and the end of a fight names what it left.
 
 ### Changed
 
@@ -188,13 +191,15 @@ way: four days on the outskirts of the town, and his first fight.
   its tooltip still says all of it. The second bellows say the smithy forges gear now, and its
   practice blades that it forges the warded charm.
 - **Start Helping Out is gone.** The outskirts take its month, and its 6 rations are the
-  outskirts' lunch. A save in the middle of it finishes the month as it was, with the rations it
-  was given, and is not offered the outskirts on top of it; one that had done it counts as having
-  walked the outskirts.
-- **Saves are of version 2.** The guide has six steps more, so a first life saved past its old
-  steps is moved on once as it opens, and is not told the classes again. A save of this build
-  cannot be loaded by an older one, which says it is newer. The analytics digest says version
-  0.8, since its guide numbers mean other steps now.
+  outskirts' lunch. A save in the middle of it finishes the month as it was, and is not offered
+  the outskirts on top of it: a save of 0.6, whose month at the mill gave its rations only at its
+  end, is given them as it opens, once, so he is seven and fed. One that had done it counts as
+  having walked the outskirts.
+- **Saves are of version 2.** The guide has seven steps more, so a first life saved past its old
+  steps is moved on once as it opens, and is not told the classes again (the step a skipped guide
+  stood at is moved the same way). A save made at the mill, past his age, is not told the
+  outskirts' steps. A save of this build cannot be loaded by an older one, which says it is
+  newer. The analytics digest says version 0.8, since its guide numbers mean other steps now.
 - **A fed work's tooltip says how long its rations last** when his familiars eat them sooner than
   its term: "Rations 24 up front · lasts 6 mo".
 - **The Collegium takes no coin up front.** Its door asks Intelligence 12, Letters 3 and Lore 2,

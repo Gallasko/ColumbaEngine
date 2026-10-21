@@ -50,8 +50,9 @@ double click on the task begins it too. The steps: begin a task, his food, the f
 coin, the first choice, his stats, the tome, two of the three, the market (then the town's own
 steps: its tab, buying rations, which the step waits for, its places), the harvest (with the
 hand on the Life tab while the Town page, or on a phone another tab, is the one in view), his age
-and what the game is about (keep him alive to 30 at least), then, in the outskirts, his lunch, the
-three paths, the card at the ditch and, in the fight, the slime, the order of the turn and Strike
+and what the game is about (keep him alive to 30 at least), then the outskirts' row in the list
+and, in the outskirts, his lunch, the three paths, the card at the ditch and, in the fight, the
+slime, the order of the turn and Strike
 (each said on the screen it points at, over the shade of the walk's screen), and the classes the
 day he is seven. After its last sentence nothing of the guide is left. A
 few lines of the town's story are written in the log on the way. The second life and every later
@@ -1303,7 +1304,11 @@ no gains of its own, since the story gives them. The outskirts are the second, a
 Strength and the *Stick blow*, the flag `outskirts.<path>` that the move `knows`), the path's fork
 (`onlyWith` that flag: Dexterity or Lore, Intelligence or 2 remedies, Strength or Dexterity), and
 the card at the ditch, whose one answer is a fight with the slime on the fight screen (it spares
-him, and leaves a page when beaten). A story's `begun` is the flag entering it sets, so a story
+him, and leaves four pages when beaten, the market's lot: every other beast leaves one). Its
+script shows the pattern for a story's beast that teaches the beast's next move: a harmless move
+(`circle`, here *Ooze*, which may say its own `verb`) then its one blow (`bite`, *Slap*), so the
+panel's word for what is coming means something. A story whose name is a plural says so
+(`plural`: "The Outskirts are behind him"). A story's `begun` is the flag entering it sets, so a story
 left halfway is not offered again; who leaves keeps what the days gave. The script is still
 `expedition.pg`, asked
 `enter` with `act.kind` `"story"`; the functions that play a story stand in `storylib.pg`
