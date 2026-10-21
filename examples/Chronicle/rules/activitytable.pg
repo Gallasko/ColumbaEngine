@@ -338,15 +338,18 @@ var activities = [
     // carters in two months, a deft one runs the messages as fast, and brings more home from the
     // kitchen and the baker.
     {id: "carters", group: "Work", name: "Carry for the Carters", glyph: "work", months: 3, rank: "", each: "RATIONS UP FRONT", path: "", board: true,
+     about: "The carters always need someone to load the wagons, and they feed you while you work.",
      gains: [{stat: "coin", amount: 6}],
      requires: [],
      bonus: [{stat: "str", needed: 9, months: 2}]},
     {id: "mill", group: "Work", name: "Help at the Mill", glyph: "work", months: 6, rank: "", each: "", path: "", idleBy: 10,
+     about: "The mill where you were born always needs strong arms.",
      gains: [{stat: "str"}, {stat: "vit", amount: 5}, {stat: "coin", amount: 8}],
      requires: [],
      after: [{uses: 2, months: 9, gains: [{stat: "coin", amount: 6}]}],
      bonus: [{stat: "town.mill", more: [{stat: "coin", amount: 4}]}]},
     {id: "messages", group: "Work", name: "Run Messages", glyph: "town", months: 3, rank: "", each: "", path: "", fromAge: 7, fromMonths: 4, idleBy: 10,
+     about: "You know every lane in town, so people pay you to carry their messages.",
      gains: [{stat: "dex"}, {stat: "coin", amount: 3}],
      requires: [],
      after: [{uses: 2, gains: [{stat: "coin", amount: 5}]}],
@@ -355,7 +358,7 @@ var activities = [
     // pies on the square. Its row stands from seven with none held (a cost is a requirement, and a
     // requirement is not what lists a row), locked until he has them
     {id: "pies", group: "Work", name: "Bake Berry Pies with the Baker", glyph: "trade", months: 2, rank: "", each: "", path: "", fromAge: 7, uses: 2,
-     about: "The baker on the square has the oven and the flour, but not the berries. Those are his to bring.",
+     about: "The baker has the oven and the flour, but no berries. You bring those.",
      costs: [{stat: "berries", amount: 6}],
      gains: [{stat: "coin", amount: 6}, {stat: "dex"}],
      requires: [],
@@ -363,6 +366,7 @@ var activities = [
     // What feeds him until the market is his to buy at: the rations of its months as he begins
     // it, and more to take away at its term
     {id: "kitchen", group: "Work", name: "Help in the Kitchen", glyph: "trade", months: 3, rank: "", each: "RATIONS UP FRONT", path: "", board: true, fromAge: 7, fromMonths: 8, idleBy: 10,
+     about: "The kitchen needs an extra pair of hands, and they feed you while you work.",
      gains: [{stat: "rations", amount: 6}],
      requires: [],
      costs: [{stat: "water", amount: 3}, {stat: "firewood", amount: 2}],
@@ -426,6 +430,7 @@ var activities = [
     // the town is known, and nowhere before
     {id: "buy.rations", group: "Market", name: "Buy rations", glyph: "trade", months: 0, rank: "", each: "AT THE MARKET", path: "", finishBy: anyAge, showFrom: 100,
      place: "market", trade: "buy",
+     about: "Bread, cheese and dried meat to keep you going.",
      gains: [{stat: "rations", amount: 6}],
      requires: [{stat: "town_known", label: "The town"}],
      costs: [{stat: "coin", amount: 5}],
@@ -442,7 +447,7 @@ var activities = [
     // stocked its racks nobody buys one: the yard lends it (`whileNot`)
     {id: "buy.blade", group: "Market", name: "Buy a Wooden Blade", glyph: "swordsmanship", months: 0, rank: "", each: "AT THE MARKET", path: "", fromAge: 7, fromMonths: 2, finishBy: anyAge, showFrom: 100, uses: 1,
      place: "market", trade: "buy", whileNot: "town.yard",
-     about: "A blade of ash, blunt, and a hand too long for him. With it he can practice: the work comes into his training the day he holds one.",
+     about: "A blunt wooden blade, a bit too long for you. Once you have it, you can start practising.",
      gains: [{stat: "wooden_blade"}],
      requires: [{stat: "town_known", label: "The town"}],
      costs: [{stat: "coin", amount: 8}]},
@@ -487,7 +492,7 @@ var activities = [
     // It closes at no age of its own. Who has the basics already (the yard gives them too) has
     // the point of Arms and no more
     {id: "blades", group: "Training", name: "Practice with the Wooden Blade", glyph: "swordsmanship", months: 2, rank: "", each: "OPENS THE EDGE OR THE POINT", path: "", fromAge: 7, fromMonths: 2, uses: 1,
-     about: "Two months of a post in the ground and a blade that stings his own shins. Once he has the basics there is an edge to learn, or a point: not both.",
+     about: "A post in the ground and a blade that keeps hitting your own shins.",
      gains: [{stat: "arms"}, {stat: "blade_basics"}],
      requires: [{stat: "wooden_blade", label: "A wooden blade, or a yard that lends one", anyOf: ["wooden_blade", "town.yard"]}],
      bonus: [{stat: "blade_basics", gains: [{stat: "arms"}]}]},
@@ -532,15 +537,16 @@ var activities = [
     // something to do in a fight besides striking (expeditiontable.pg's `walkTechniques`). The
     // one he leaves is gone for this life
     {id: "slashes", group: "The edge or the point", name: "Practice Slashes", glyph: "strength", months: 3, rank: "", each: "TEACHES THE SLASH", path: "", fromAge: 7, fromMonths: 2, uses: 1, unless: "stabs",
-     about: "The whole arm, and the shoulder behind it. In a fight, a Slash bites deeper than a strike and misses more.",
+     about: "Swing with your whole arm. In a fight, a Slash hits harder than a strike but misses more often.",
      gains: [{stat: "str"}, {stat: "arms"}, {stat: "slash_learned"}],
      requires: [{stat: "blade_basics", label: "The basics of the blade"}]},
     {id: "stabs", group: "The edge or the point", name: "Practice Thrusts", glyph: "dexterity", months: 3, rank: "", each: "TEACHES THE THRUST", path: "", fromAge: 7, fromMonths: 2, uses: 1, unless: "slashes",
-     about: "The feet first, then the point, straight. In a fight, a Thrust seldom misses and bites a little less than a strike.",
+     about: "Feet first, then the point, straight ahead. In a fight, a Thrust rarely misses but hits a little softer than a strike.",
      gains: [{stat: "dex"}, {stat: "arms"}, {stat: "thrust_learned"}],
      requires: [{stat: "blade_basics", label: "The basics of the blade"}]},
 
     {id: "letters", group: "Study", name: "Learn Your Letters", glyph: "quill", months: 6, rank: "", each: "READ THE BEAST", path: "", finishBy: 14,
+     about: "Father Anselm teaches letters to anyone who will sit still. You want to read the books he carries.",
      gains: [{stat: "letters"}, {stat: "int"}],
      requires: [],
      after: [{uses: 3, gains: [{stat: "letters"}]}],
@@ -605,7 +611,7 @@ var activities = [
     // Keep and his letters toward the Collegium: a month at the fair watching who lifts what. It
     // brings a point of Stealth, and the Boys know him for it as well as for roaming the town
     {id: "cutpurse", group: "The streets", name: "Watch the Cutpurses at the Fair", glyph: "guild", months: 1, rank: "", each: "A LEAD", path: "", fromAge: 7, fromMonths: 6, finishBy: 10, uses: 1,
-     about: "A month at the autumn fair, watching the quick hands work the crowd. He learns to stand where nobody looks, and the Bellmoor Boys learn his face.",
+     about: "At the autumn fair you watch the quick hands work the crowd. You learn where to stand so nobody notices you.",
      gains: [{stat: "stealth"}, {stat: "cutpurses_seen"}],
      requires: []},
 

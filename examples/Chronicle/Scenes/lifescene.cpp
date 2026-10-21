@@ -236,7 +236,7 @@ namespace chronicle
         constexpr int OldGuideLast = 11;           // The last step whose number has not moved: his age
         constexpr int GuideNumbered = 2;           // The save's format from which the guide is numbered as now
         const std::string OutskirtsRow = "outskirts";           // The row an old save's month at the mill is read as (lifesave.cpp)
-        const std::string BackToLife = "Go back to the Life tab: there is a new task for him.";   // Said with the hand on that tab, for a step about a work of the Life page
+        const std::string BackToLife = "Go back to the Life tab: there's a new task for you.";   // Said with the hand on that tab, for a step about a work of the Life page
 
         // What a step says stands on a leaf of its own under what it points at (over it when the
         // window ends there), with the two buttons of the guide: the one that leaves it for good,

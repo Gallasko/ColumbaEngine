@@ -196,7 +196,7 @@ var achievements = [
      asks: [{fact: "story.id", op: "==", value: "outskirts"}],
      until: [{fact: "story.day", op: ">=", value: 2}]},
     {id: "guide.paths", kind: "guide", order: 14, untilAge: 7, point: "work:children", light: "work:nature,work:animals", pointChosen: "walkbutton:do",
-     say: "Each path is a way of life. Pick the one you like: it teaches him a move for later.",
+     say: "Each path is a different way to spend the day. Pick the one you like: it teaches you a move for later fights.",
      sayChosen: "Press the button to take this path. The other two close.",
      asks: [{fact: "story.day", op: ">=", value: 2}],
      until: [{fact: "story.day", op: ">=", value: 3}]},
@@ -211,20 +211,20 @@ var achievements = [
      say: "This shows who acts first, and when your next turn comes.",
      asks: [{fact: "fight.over", op: "==", value: 0}]},
     {id: "guide.strike", kind: "guide", order: 18, untilAge: 7, point: "move:strike",
-     say: "Press Strike to hit it. Do not worry: he cannot die in this fight.",
+     say: "Press Strike to hit it. Don't worry, you can't die in this fight.",
      asks: [{fact: "fight.over", op: "==", value: 0}],
      until: [{fact: "fight.acted", op: ">=", value: 1}]},
     {id: "guide.doors", kind: "guide", order: 19, point: "tile:keep", hold: 9000,
-     say: "He is 7: the town's work is open to him. These are the three classes: the Keep (warrior), the Collegium (mage) and the Hidden Hand (thief). You can join one at 16, so train for it.",
+     say: "You're 7 now, so the town has work for you. These are the three classes: the Keep (warrior), the Collegium (mage) and the Hidden Hand (thief). You can join one at 16, so start training for it.",
      asks: [{fact: "life.age", op: ">=", value: 7}]},
     {id: "guide.rest", kind: "guide", order: 20, point: "", hold: 4000,
-     say: "That is all. Have fun!",
+     say: "That's everything. Have fun!",
      asks: []},
 
     // Outside the sequence: said once, while he is at the work that takes from his Vitality
     // (it takes it as it begins: the months of the work are the time to say so)
     {id: "guide.vitality", kind: "guide", order: 0, point: "stat:vit", hold: 4000,
-     say: "This work cost him Vitality. It comes back over time, as long as he has food.",
+     say: "This task cost you Vitality. It comes back over time, as long as you have food.",
      asks: [{fact: "working.sacks", op: ">=", value: 1}]},
     // Said once, the month his rations run low after his sixth year (which has its own word
     // for it): to the market for who has not been. It gives no number of months: with familiars
@@ -249,7 +249,7 @@ var achievements = [
      asks: [{fact: "said.guide.town", op: ">=", value: 1}],
      until: [{fact: "done.buy.rations", op: ">=", value: 1}]},
     {id: "guide.places", kind: "guide", order: 0, world: true, point: "place:market", hold: 10000,
-     say: "These are the places of the town. The works under them make them better, and they stay for your next lives. More places come with what you do.",
+     say: "These are the places of the town. Working on them makes them better, and what you build stays for your next lives. More places open as you go.",
      asks: [{fact: "said.guide.market", op: ">=", value: 1}]},
 
     // The town's story, a line at a time

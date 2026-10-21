@@ -179,7 +179,7 @@ var standings = [
      about: "A small book Father Anselm gave him for carrying the others. He has kept it since."},
     // And what he bought as one: the blade his practice asks for
     {id: "wooden_blade", group: "keepsakes", groupLabel: "KEEPSAKES", glyph: "swordsmanship", name: "A wooden blade", tone: 0, title: true,
-     about: "A blade of ash from the market, blunt, and a hand too long for him. His practice with it is among his training."},
+     about: "A blunt wooden blade from the market, a bit too long for you. Your practice with it counts as training."},
     // And the two small things that each open a task of his streets and of his study
     {id: "snare_wire", group: "keepsakes", groupLabel: "KEEPSAKES", glyph: "adventure", name: "A snare wire", tone: 0, title: true,
      about: "A coil of brass wire from the market. Snaring rabbits on the common is among his streets while he is young enough for it."},

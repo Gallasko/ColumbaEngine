@@ -4189,7 +4189,7 @@ namespace pg
             }
 
             EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, boy(), "carters").fields, "major"));
-            EXPECT_EQ(textOf(activityAt(f.rules, 7.0f, boy(), "carters").fields, "about"), "");
+            EXPECT_EQ(textOf(activityAt(f.rules, 7.0f, boy(), "carters").fields, "about"), "The carters always need someone to load the wagons, and they feed you while you work.");
             ASSERT_EQ(visit.gains.size(), 1u);
             EXPECT_EQ(textOf(visit.gains[0], "stat"), "town_known");
 

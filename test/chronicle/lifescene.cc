@@ -8125,7 +8125,7 @@ namespace pg
             ASSERT_NE(glosses, nullptr);
             ASSERT_NE(glosses->find("activity/tomarket"), nullptr);
             EXPECT_NE(glosses->find("activity/tomarket")->text.find("This opens the Town page"), std::string::npos);
-            EXPECT_EQ(glosses->find("activity/carters")->text, "Work");
+            EXPECT_EQ(glosses->find("activity/carters")->text, "The carters always need someone to load the wagons, and they feed you while you work.");
 
             auto grid = life->piece<PlaceGrid>("places");
             ASSERT_NE(grid, nullptr);
