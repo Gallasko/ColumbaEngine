@@ -1014,7 +1014,14 @@ fun endStory()
     }
     else if (run.result == "over")
     {
-        push(entries, {text: "Saw " + name + " to its end", kind: "note", figure: "", glyph: story.glyph})
+        var its = "its"
+
+        if (pick(story, "plural", false))
+        {
+            its = "their"
+        }
+
+        push(entries, {text: "Saw " + name + " to " + its + " end", kind: "note", figure: "", glyph: story.glyph})
     }
 
     // A grade wrote its own line (storyResult)
@@ -2294,7 +2301,7 @@ fun storyHead()
 
     return {story: story.id, zone: "", mode: run.mode,
             kicker: toUpperCase(stage.title),
-            title: story.name, line: stage.text,
+            title: story.name, plural: pick(story, "plural", false), line: stage.text,
             day: day, days: runOf("days"), unit: story.unit, dayText: unit + " " + toString(day) + " of " + toString(runOf("days")),
             stage: stage.title, stageText: stageText,
             months: runOf("monthsRun"), monthsTotal: runOf("months"), standing: standingLine(story),

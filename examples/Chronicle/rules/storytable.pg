@@ -11,6 +11,8 @@
 //            "class" ("" or the path it enters: "mage"), dropout ("" or the flag a failure sets),
 //            begun? (the flag entering it sets: a row's `whileNot` that reads it is not offered
 //            again in this life, even to who left it),
+//            plural? (true for a name that is a plural, "The Outskirts": "are behind him", "to
+//            their end"),
 //            marks? [{id, name}] (what the page calls a mark of the scene; its id otherwise),
 //            stages [{"from", to, title, text}] (spans of days, for the head of the page),
 //            tiles [{id, name, about, glyph?,
@@ -264,7 +266,7 @@ const walkStories = [
     // the story ends all the same. A way is no class: no door reads it. Once a life, even for who
     // turns back: entering it is `outskirts.begun`, which its row's `whileNot` reads, and who
     // leaves keeps what the days gave him
-    {id: "outskirts", name: "The Outskirts", glyph: "adventure", unit: "day", days: 4, months: 1, row: "outskirts", "class": "", dropout: "", begun: "outskirts.begun",
+    {id: "outskirts", name: "The Outskirts", glyph: "adventure", unit: "day", days: 4, months: 1, row: "outskirts", "class": "", dropout: "", begun: "outskirts.begun", plural: true,
      marks: [],
      stages: [{"from": 1, to: 1, title: "Noon at the mill", text: "The harvest is in, and for a month nobody has work for him. The miller's wife has his bread wrapped and ready."},
               {"from": 2, to: 2, title: "The edge of the town", text: "Past the last houses the lanes give out: the green, the commons, the hedges, and the long ditch by the North Road."},

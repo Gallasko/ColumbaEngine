@@ -1024,6 +1024,7 @@ namespace chronicle
         const std::string story = textOf(walk.state.run, "story");
         const std::string result = textOf(walk.state.run, "result");
         const std::string name = textOf(walk.site, "title");
+        const bool plural = boolOf(walk.site, "plural");
 
         // The row that opened it: the story's own (`story`), done by now if its term came
         std::string row;
@@ -1085,20 +1086,23 @@ namespace chronicle
         fillWindows();
         publish();
 
+        // (a name that is a plural, the Outskirts, are behind him)
+        const std::string behind = name + (plural ? " are behind him" : " is behind him");
+
         if (result == "pass")
-            toast(name + " is behind him: passed");
+            toast(behind + ": passed");
         else if (result == "merit")
-            toast(name + " is behind him: passed with merit");
+            toast(behind + ": passed with merit");
         else if (result == "distinction")
-            toast(name + " is behind him: passed with distinction");
+            toast(behind + ": passed with distinction");
         else if (result == "fail")
-            toast(name + " is behind him: he failed it");
+            toast(behind + ": he failed it");
         else if (result == "dropout")
-            toast(name + " is behind him: he was sent away");
+            toast(behind + ": he was sent away");
         else if (result == "left")
-            toast(name + " is behind him: he left before its end");
+            toast(behind + (plural ? ": he left before their end" : ": he left before its end"));
         else
-            toast(name + " is behind him");
+            toast(behind);
 
         autoSave();
     }
