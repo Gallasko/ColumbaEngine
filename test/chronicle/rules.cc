@@ -3002,15 +3002,15 @@ namespace pg
 
             RuleActivity berries = activityAt(f.rules, 8.0f, deft, "scavenge.berries");
             ASSERT_EQ(berries.steps.size(), 2u);
-            EXPECT_EQ(textOf(berries.steps[0], "label"), "With Dexterity 8: +9 berries (base +6, bonus +3)");
+            EXPECT_EQ(textOf(berries.steps[0], "label"), "With Dexterity 8: +3 berries");
             EXPECT_TRUE(flag(berries.steps[0], "reached"));
-            EXPECT_EQ(textOf(berries.steps[1], "label"), "With Dexterity 12: +12 berries (base +6, bonus +6)");
+            EXPECT_EQ(textOf(berries.steps[1], "label"), "With Dexterity 12: +6 berries");
             EXPECT_FALSE(flag(berries.steps[1], "reached"));
 
             RuleActivity firewood = activityAt(f.rules, 8.0f, boy(), "scavenge.firewood");
             ASSERT_EQ(firewood.steps.size(), 2u);
-            EXPECT_EQ(textOf(firewood.steps[0], "label"), "With Strength 8: +6 firewood (base +4, bonus +2)");
-            EXPECT_EQ(textOf(firewood.steps[1], "label"), "With Strength 12: +8 firewood (base +4, bonus +4)");
+            EXPECT_EQ(textOf(firewood.steps[0], "label"), "With Strength 8: +2 firewood");
+            EXPECT_EQ(textOf(firewood.steps[1], "label"), "With Strength 12: +4 firewood");
             EXPECT_FALSE(flag(firewood.steps[0], "reached"));
 
             carters = activityAt(f.rules, 8.0f, strong, "carters");
@@ -3029,7 +3029,7 @@ namespace pg
             ElementMap knight = {{"keep_oath", ElementType{1}}, {"arms", ElementType{5}}};
             RuleActivity tourney = activityAt(f.rules, 19.0f, knight, "tourney");
             ASSERT_EQ(tourney.steps.size(), 1u);
-            EXPECT_EQ(textOf(tourney.steps[0], "label"), "With Arms 7: +2 Renown (base +1, bonus +1), Victor of the tourney");
+            EXPECT_EQ(textOf(tourney.steps[0], "label"), "With Arms 7: +1 Renown, Victor of the tourney");
         }
 
         // ----------------------------------------------------------------------------------------

@@ -6714,9 +6714,21 @@ namespace chronicle
                 brought.push_back({"Rations", upFront, "gain"});
             }
 
+            // What a part or a skill of his adds to it is said after it, as a receipt: "+9 (6 + 3)"
             for (const auto& g : a.gains)
-                if (not boolOf(g, "hidden"))
-                    brought.push_back({textOf(g, "name"), signedText(intOf(g, "amount")), intOf(g, "amount") < 0 ? "loss" : "gain"});
+            {
+                if (boolOf(g, "hidden"))
+                    continue;
+
+                const int amount = intOf(g, "amount");
+                const int base = intOf(g, "base");
+                std::string value = signedText(amount);
+
+                if (base > 0 and amount > base)
+                    value += " (" + std::to_string(base) + " + " + std::to_string(amount - base) + ")";
+
+                brought.push_back({textOf(g, "name"), value, amount < 0 ? "loss" : "gain"});
+            }
 
             if (not brought.empty())
                 gloss.rows.push_back({"REWARD", "", "", true});

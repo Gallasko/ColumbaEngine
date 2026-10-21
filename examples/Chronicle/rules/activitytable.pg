@@ -64,7 +64,7 @@
 //           listed),
 //           after (its steps, as below),
 //           steps [{label, reached}] (each step of its `bonus` on one of his parts or skills, as its
-//           gloss says it: "With Strength 8: +6 firewood (base +4, bonus +2)", "With Dexterity 9: 2 months instead of 3";
+//           gloss says it: "With Strength 8: +2 firewood", "With Dexterity 9: 2 months instead of 3";
 //           reached: he has it. lib.pg's `bonusStepLabel`).
 //
 // `months: 0` is an activity done at once: it takes no time, and can be done while another runs.
@@ -1959,12 +1959,22 @@ for (var i = 0; i < len(activities); i++)
         push(requires, {stat: cost.stat, needed: cost.amount, cost: true})
     }
 
-    // What it would bring to a store already full: asked as room for one more
+    // What it would bring to a store already full: asked as room for one more. And what of it the
+    // work brings without the steps that hold (`base`): its gloss says the rest is theirs
     for (var g = 0; g < len(a.gains); g++)
     {
         var gain = a.gains[g]
         gain.label = statShortName(gain.stat)
         gain.name = statName(gain.stat)
+        gain.base = 0
+
+        for (var o = 0; o < len(plainGains); o++)
+        {
+            if (plainGains[o].stat == gain.stat)
+            {
+                gain.base = gain.base + lookup(plainGains[o], "amount", 1)
+            }
+        }
 
         // A count the rules keep for themselves is gained, and shown nowhere (lib.pg's `hiddenStats`)
         gain.hidden = statHidden(gain.stat)

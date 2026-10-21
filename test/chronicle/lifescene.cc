@@ -2211,14 +2211,15 @@ namespace pg
 
             auto steps = section(picking, "BONUS");
             ASSERT_EQ(steps.size(), 2u);
-            EXPECT_EQ(steps[0].label, "With Dexterity 8: +9 berries (base +6, bonus +3)");
+            EXPECT_EQ(steps[0].label, "With Dexterity 8: +3 berries");
             EXPECT_EQ(steps[0].tone, "gain");
-            EXPECT_EQ(steps[1].label, "With Dexterity 12: +12 berries (base +6, bonus +6)");
+            EXPECT_EQ(steps[1].label, "With Dexterity 12: +6 berries");
             EXPECT_EQ(steps[1].tone, "");
 
+            // And the reward says what is the work's and what is his Dexterity's
             auto reward = section(picking, "REWARD");
             ASSERT_EQ(reward.size(), 1u);
-            EXPECT_EQ(reward[0].value, "+9");
+            EXPECT_EQ(reward[0].value, "+9 (6 + 3)");
         }
 
         // ----------------------------------------------------------------------------------------
