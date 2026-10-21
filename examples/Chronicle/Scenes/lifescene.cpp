@@ -1168,12 +1168,13 @@ namespace chronicle
         rules.inn = save.town.count("inn") > 0 ? save.town.at("inn") : 0;
         rules.prime = save.stats.count(PrimeStat) > 0 ? save.stats.at(PrimeStat) : 0;
 
-        // A save from before the rations were given up front, in the middle of a work that feeds him
-        catchUpRations();
-
         // The guide's length, before the page is filled: a first life's guide line waits for its step
         readDeeds();
         renumberGuide();
+
+        // A save from before the rations were given up front, in the middle of a work that feeds him.
+        // After the guide is numbered as now: what is given is written at once, in this format
+        catchUpRations();
 
         // The page is arriving: what a save was already short of is not news to say
         quiet = QuietMs;
@@ -5396,6 +5397,16 @@ namespace chronicle
                 granted = true;
             }
         }
+
+        // A work whose row is gone (Start Helping Out, read as the outskirts' row, which gives
+        // nothing up front) is owed what it would have given: its rations, once
+        for (const auto& [stat, amount] : save.owed)
+        {
+            save.stats[stat] += amount;
+            granted = true;
+        }
+
+        save.owed.clear();
 
         if (granted and not opt.noSave and not save.save(opt.savePath, &settings))
             LOG_ERROR(DOM, "Could not save to " << opt.savePath);

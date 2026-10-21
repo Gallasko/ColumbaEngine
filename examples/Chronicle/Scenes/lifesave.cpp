@@ -381,10 +381,17 @@ namespace pg
         // whose row is gone. Under way, set aside or done, it is read as the outskirts' row, the
         // same month: its rations were given as he began it, and its months run out as they were
         // (no story is opened for it). Done, the outskirts are not offered him on top of it
+        // (a save of 0.6 had no rations up front: its month at the mill fed him, and gave its six
+        // rations at its end. It is owed them, once, and the month eats one: he is seven and fed)
         for (std::string* work : {&data.running, &data.setAside})
         {
             if (*work == "helping")
+            {
                 *work = "outskirts";
+
+                if (not data.boardUpFront)
+                    data.owed["rations"] += chronicle::LifeSave::HelpingRations;
+            }
         }
 
         if (auto it = data.done.find("helping"); it != data.done.end())

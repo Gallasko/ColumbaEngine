@@ -86,6 +86,8 @@ namespace chronicle
         std::string setAside;          // The work he left to answer an event of his life, "" for none: it goes on once the answer is done
         int setAsideMonths = 0;        // The months it had run
         bool boardUpFront = true;      // A work that feeds him gives its months' rations as he begins it. A save from before read false: the work under way never gave them, and is given them once on load
+        static constexpr int HelpingRations = 6;   // What Start Helping Out gave, its one month's
+        std::unordered_map<std::string, int> owed;    // Not written: what a save from before is owed for a work whose row is gone (0.6's month at the mill, read as the outskirts: its rations), by stat, given with the others on load
         bool coursesTaught = true;     // The Collegium's spells come from its courses (its term is a story). A save from before read false: a scholar of it learned Firebolt with the class, and is given the fire course on load
         std::unordered_map<std::string, int> stats;   // Parts, skills, flags and coin, by key
         std::vector<std::string> parts;                // The stat keys shown as parts ("str", ...)
