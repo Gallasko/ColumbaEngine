@@ -2571,7 +2571,7 @@ namespace pg
 
                 for (const auto& a : w.state.account)
                 {
-                    if (textOf(a, "text").find("oozes toward him") != std::string::npos)
+                    if (textOf(a, "text").find("oozes toward you") != std::string::npos)
                         oozed = true;
                 }
 

@@ -473,9 +473,9 @@ const walkMobs = [
     // first page a life carries home sells for its coin. Every other beast leaves one. No lesson
     {id: "slime", name: "Slime", many: "slimes", pack: "Slimes", lone: "A slime", rarity: "common", packSize: 1, holdsBack: 0,
      story: true, spares: true, level: 1, turns: 10,
-     about: "A grey, shivering puddle that has crept out of the ditch, and has not yet made up its mind about him.",
+     about: "A grey, shivering puddle that crept out of the ditch. It hasn't made up its mind about you yet.",
      hp: 18, least: 1, most: 3, armour: 0, ward: 0, quick: 3, awareness: 1, poise: 0, verb: "slaps",
-     moves: {circle: {name: "Ooze", verb: "oozes toward him", line: "It sags toward him across the mud, slow as a spill. It does nothing else."},
+     moves: {circle: {name: "Ooze", verb: "oozes toward you", line: "It sags toward you across the mud, slow as a spill. It does nothing else."},
              bite: {name: "Slap", line: "It heaves up a lump of itself and flings it, wet and cold."}},
      script: ["circle", "bite"],
      lesson: "",
