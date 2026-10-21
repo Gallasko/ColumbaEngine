@@ -1191,6 +1191,7 @@ namespace chronicle
                 {"yearPrefix", "IN HIS "},
                 {"years",      true},
                 {"steps",      false},
+                {"newest",     false},
                 {"footnote",   ""},
                 {"z",          20},
             };
@@ -1210,6 +1211,7 @@ namespace chronicle
                     s.yearPrefix = stringProp(spec.props, "yearPrefix", s.yearPrefix);
                     s.years      = getParamBool(spec.props, "years", s.years);
                     s.steps      = getParamBool(spec.props, "steps", s.steps);
+                    s.newest     = getParamBool(spec.props, "newest", s.newest);
                     s.footnote   = stringProp(spec.props, "footnote", s.footnote);
                     s.z          = getParamInt(spec.props, "z", s.z);
 

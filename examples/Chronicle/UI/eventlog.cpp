@@ -351,6 +351,9 @@ namespace chronicle
         const float viewport = list.get<PositionComponent>()->height;
 
         // Within a line of the end is at the end: the offset the wheel leaves is not to the pixel
+        if (spec.newest)
+            return layout->yOffset <= RowHeight;
+
         return layout->yOffset >= layout->contentHeight - viewport - RowHeight;
     }
 
@@ -372,7 +375,25 @@ namespace chronicle
 
         // The engine flag used for this insertion only: the view follows the new lines when it was
         // at the end, and stays where the player is reading otherwise.
-        layout->stickToEnd = atEnd(ecs);
+        layout->stickToEnd = not spec.newest and atEnd(ecs);
+
+        // With the newest on top, a line goes in over the others: under its year's rubric when
+        // there is one, which is then the top item. A player reading older lines further down is
+        // kept on them, the offset moved by what went in above
+        const bool reading = spec.newest and not items.empty() and not atEnd(ecs);
+
+        auto place = [&](EntityRef line, int index) {
+            if (not spec.newest)
+            {
+                layout->addEntity(line);
+                return;
+            }
+
+            layout->insertEntity(line, index);
+
+            if (reading)
+                layout->yOffset += line.get<PositionComponent>()->height + RowSpacing;
+        };
 
         const int year = logYear(entry.age);
 
@@ -411,7 +432,7 @@ namespace chronicle
             placeIn(y.suffix.entity, y.line.id, x, above, 3.0f);
             addPart(y.line, y.suffix.entity);
 
-            layout->addEntity(y.line);
+            place(y.line, 0);
             items.push_back(y);
             lastYear = year;
         }
@@ -485,7 +506,7 @@ namespace chronicle
         if (height > RowHeight)
             row.line.get<PositionComponent>()->setHeight(height);
 
-        layout->addEntity(row.line);
+        place(row.line, (spec.years and not spec.steps and lastYear >= 0) ? 1 : 0);
         items.push_back(row);
     }
 
@@ -694,7 +715,7 @@ namespace chronicle
         auto layout = list.get<VerticalLayout>();
         const float viewport = list.get<PositionComponent>()->height;
 
-        layout->yOffset = std::max(0.0f, layout->contentHeight - viewport);
+        layout->yOffset = spec.newest ? 0.0f : std::max(0.0f, layout->contentHeight - viewport);
 
         ecs->sendEvent(LayoutScrolledEvent{list.id});
     }

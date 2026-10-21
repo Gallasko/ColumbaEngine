@@ -284,4 +284,5 @@ children:
             height: 520
             years: false
             steps: true          # the first column counts: a step of the record, a turn of the fight
+            newest: true         # the newest line on top, as a chat reads
           - {kind: Label, name: recordNote, style: gloss, color: ink-muted, overflow: wrap, text: "Every step is walked again by the record."}

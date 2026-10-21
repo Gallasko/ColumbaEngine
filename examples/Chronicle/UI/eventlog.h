@@ -39,6 +39,7 @@ namespace chronicle
         std::string yearPrefix = "IN HIS ";   // Rubric = prefix + ordinal(year) + " YEAR" ("IN HIS 14TH YEAR")
         bool years = true;             // A rubric at each new year. false: the lines alone, their age says the year
         bool steps = false;            // The first column is not an age but a count the caller gives in `age` (a step, a turn), written whole ("3"); a negative one writes a middle dot. No rubric, and no order asked of the lines
+        bool newest = false;           // The newest line on top, as a chat reads: the "end" atEnd and scrollToEnd speak of is then the top
         std::vector<LogEntry> entries;
         std::string footnote;
         int z = 20;                    // Root and gutter z; edge z+1; list and lines z+2 (a layout holds its children at its z); marks and ages z+4; texts, figures and rubrics z+5; footnote z+1
@@ -49,8 +50,9 @@ namespace chronicle
     // rows of age, mark, text and figure. Every row carries a mark as well as a colour.
     //
     // The whole life is kept, never truncated: rows scrolled out of the gutter are clipped, not
-    // removed. New entries append at the bottom, and the view follows them only when it was
-    // already at the end: a player reading further up is left where they are. Wheel scrolling is
+    // removed. New entries append at the bottom (at the top with `newest`), and the view follows
+    // them only when it was already at the end: a player reading older lines is left where they
+    // are. `items` stay in the order they were written either way. Wheel scrolling is
     // the engine's (the list is a scrollable VerticalLayout). Year rubrics are inserted by the log
     // when the whole year changes - grouping what it is given, not game logic.
     struct EventLog
@@ -95,7 +97,7 @@ namespace chronicle
         void scrollToEnd(pg::EntitySystem*);
         pg::EntityRef lightLast(pg::EntitySystem*);            // A ground under the last line, log.line.new: the caller's to dim again
         void dim(pg::EntitySystem*, pg::_unique_id light);    // The ground lightLast gave, gone; nothing if its line already is
-        bool atEnd(pg::EntitySystem*) const;                // scrollOffset >= contentHeight - viewport - 1
+        bool atEnd(pg::EntitySystem*) const;                // At the newest line: within a line of the bottom, or of the top with `newest`
         size_t size() const;                                 // Rows, not rubrics
 
         // Internal

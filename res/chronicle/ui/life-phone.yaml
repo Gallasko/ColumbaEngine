@@ -391,6 +391,7 @@ children:
     children:
       - kind: EventLog
         name: log
+        newest: true          # the newest line on top, as a chat reads
         height: 300
         years: false
         footnote: THE CHRONICLE IS WRITTEN FROM THIS LOG

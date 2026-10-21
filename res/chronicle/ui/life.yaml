@@ -506,6 +506,7 @@ children:
     children:
       - kind: EventLog
         name: log
+        newest: true          # the newest line on top, as a chat reads
         height: 300
         years: false          # no "IN HIS 14TH YEAR" over each year: a line's age says it, and the log keeps its room for the lines
         footnote: THE CHRONICLE IS WRITTEN FROM THIS LOG

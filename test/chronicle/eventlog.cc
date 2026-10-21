@@ -687,6 +687,58 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // The newest line on top, as a chat reads: its end is the top, and a reader further down
+        // stays on the line they read
+        TEST(eventlog_test, newest_on_top)
+        {
+            MockLogger logger;
+            LogFixture s;
+
+            EventLogSpec spec;
+            spec.years = false;
+            spec.newest = true;
+            spec.entries = life(60);
+            EventLog log = s.make(spec);
+
+            // Written in order, shown newest first
+            EXPECT_EQ(nthRow(log, 59).entry.text, "Month 59");
+            EXPECT_LT(s.pos(nthRow(log, 59).line)->y, s.pos(nthRow(log, 58).line)->y);
+            EXPECT_LT(s.pos(nthRow(log, 1).line)->y, s.pos(nthRow(log, 0).line)->y);
+            EXPECT_TRUE(log.atEnd(&s.ecs));
+            EXPECT_TRUE(s.shown(nthRow(log, 59).line));
+
+            // At the top, a new line comes in over the others and is seen
+            log.append(&s.ecs, entry(13.1f, "A letter from the Guild", LogKind::Coin, "+5"));
+            s.settle();
+
+            EXPECT_TRUE(log.atEnd(&s.ecs));
+            EXPECT_TRUE(s.shown(nthRow(log, 60).line));
+            EXPECT_LT(s.pos(nthRow(log, 60).line)->y, s.pos(nthRow(log, 59).line)->y);
+
+            // Reading older lines: what comes in above does not move them
+            s.wheel(log, -6);
+            ASSERT_FALSE(log.atEnd(&s.ecs));
+
+            const float readY = s.pos(nthRow(log, 30).line)->y;
+
+            log.append(&s.ecs, entry(13.2f, "Snow on the pass"));
+            s.settle();
+
+            EXPECT_NEAR(s.pos(nthRow(log, 30).line)->y, readY, 0.01f);
+            EXPECT_FALSE(log.atEnd(&s.ecs));
+
+            // Back to the newest on request
+            log.scrollToEnd(&s.ecs);
+            s.settle();
+
+            EXPECT_TRUE(log.atEnd(&s.ecs));
+            EXPECT_FLOAT_EQ(s.layout(log)->yOffset, 0.0f);
+            EXPECT_TRUE(s.shown(nthRow(log, 61).line));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(eventlog_test, scroll_thumb)
         {
             MockLogger logger;

@@ -188,4 +188,5 @@ children:
             height: 300
             years: false
             steps: true          # the first column counts: a step of the record, a turn of the fight
+            newest: true         # the newest line on top, as a chat reads
           - {kind: Label, name: footnote, style: label, color: status-time, overflow: wrap, text: "WRITTEN SO FAR · 2 DAYS · −14 VITALITY · A RETREAT KEEPS THE DAYS"}
