@@ -49,9 +49,11 @@ then, once it is chosen, the Begin button, while the leaf says that a
 double click on the task begins it too. The steps: begin a task, his food, the flour, his
 coin, the first choice, his stats, the tome, two of the three, the market (then the town's own
 steps: its tab, buying rations, which the step waits for, its places), the harvest (with the
-hand on the Life tab while the Town page is the one in view), his age and what the game is
-about (keep him alive to 30 at least), and the classes the day he is seven. After its last
-sentence nothing of the guide is left. A
+hand on the Life tab while the Town page, or on a phone another tab, is the one in view), his age
+and what the game is about (keep him alive to 30 at least), then, in the outskirts, his lunch, the
+three paths, the card at the ditch and, in the fight, the slime, the order of the turn and Strike
+(each said on the screen it points at, over the shade of the walk's screen), and the classes the
+day he is seven. After its last sentence nothing of the guide is left. A
 few lines of the town's story are written in the log on the way. The second life and every later
 one play the same year with no guide and its works all listed from the first day, in whatever
 order the player likes.
@@ -1231,6 +1233,9 @@ files of their own, `expeditionlib.pg` and `fightlib.pg`, imported first: a scri
   a walk also spends its days on study, for the knowledge that opens the rest. Since 0.7 a kill
   trains no part of him (the first of a kind in a life is a lesson instead, `lesson.<mob>`, and
   the beast is known 3 of 4 from then on), and hides, pelts and fangs drop one more at most.
+  Since 0.8 every beast but a story's practice dummies leaves a chronicle page, sold four for a
+  coin: measured the same way, a Mill Pond rat known 4 of 4 stays inside the rule, a wolf of the
+  Hollow Woods is a little over it (6.5 a month), and the boar was over before the pages.
 - **The record.** Every step is `{n, kind, target, count, ap, hp, text, gave, used, figure, ...}`
   and has its `marks` (`{step, kind, id, n}`: `use`, `gain`, `loot`, `kill`, `learn`, `stat`). A walk by the record is a fold over them (`replayTerm`): what it used is taken as he
   sets out (or `blocked` says what the bag lacks), what it gathered is gathered, what its beasts
@@ -1291,7 +1296,16 @@ of `walkStories`) is not worked month by month: beginning it opens a scene of da
 screen (`LifeScene::beginStory`), played once in a life, never kept as a record, never walked
 again and never on the Adventure page. The Collegium's term is the first: `collegium` has
 `story: "collegium"`, `whileNot: "dropout.collegium"` (who dropped out is not listed again) and
-no gains of its own, since the story gives them. The script is still `expedition.pg`, asked
+no gains of its own, since the story gives them. The outskirts are the second, and every life's:
+`outskirts` (Work, a month from 6 years 11 months, once, `whileNot: "outskirts.begun"`) opens
+`outskirts`, four days that end the day he is seven: his lunch (6 rations), one of three paths
+(each `not` the other two: Dexterity and *Step aside*, Intelligence and *Read the beast*, or
+Strength and the *Stick blow*, the flag `outskirts.<path>` that the move `knows`), the path's fork
+(`onlyWith` that flag: Dexterity or Lore, Intelligence or 2 remedies, Strength or Dexterity), and
+the card at the ditch, whose one answer is a fight with the slime on the fight screen (it spares
+him, and leaves a page when beaten). A story's `begun` is the flag entering it sets, so a story
+left halfway is not offered again; who leaves keeps what the days gave. The script is still
+`expedition.pg`, asked
 `enter` with `act.kind` `"story"`; the functions that play a story stand in `storylib.pg`
 (imported after `encounterlib.pg`, ahead of the tables: `expeditionlib.pg` is full), and the
 stories in `storytable.pg`, whose header is the format: a story's `days` and `months` (its
@@ -1323,7 +1337,9 @@ three, and the scene does what the kind says (`reachDeed`).
 - `kind: "guide"`: `say` is the sentence written on the guide's leaf (plain, easy English, said
   to the player as "you"; the leaf writes it in the `body` style, no smaller than its buttons), `point` what the hand stands
   beside (`button:begin`, `tile:<activity id>`, `holding:<id>`, `stat:<key>`, `tab:<page>`,
-  `clock`, `log`, or `""`), `until` the asks that end the step, `hold` the milliseconds it lasts when it has no
+  `clock`, `log`, or `""`; on a walk's screens, a story's too, `work:<tile>`, `option:<n>`,
+  `move:<id>`, `foe:<n>`, `order` or `walkbutton:<name>`: such a step is said only on its screen,
+  and a Life page step waits under a walk), `until` the asks that end the step, `hold` the milliseconds it lasts when it has no
   `until` (5000 by default). A step that points at a tile may carry `pointChosen` and
   `sayChosen`: what the hand points at and what the line says once that tile is the one chosen
   (`button:begin`, and that a double click begins it too); let go of, the tile has the hand

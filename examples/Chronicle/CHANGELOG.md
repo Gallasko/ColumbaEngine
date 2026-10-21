@@ -9,7 +9,8 @@ A life now gathers: piles of berries, water, firewood and stone that grow month 
 creatures bound to him that make more of them, and a stash that keeps what he held for the life
 after him. The town is built of what he gathers, and gives back what gathering needs: room for
 another familiar, a new kind to bind, a bigger stash. And the Collegium is no longer two years
-at work: it is a term of sixteen days, each chosen when it comes.
+at work: it is a term of sixteen days, each chosen when it comes. His sixth year ends the same
+way: four days on the outskirts of the town, and his first fight.
 
 ### New
 
@@ -117,6 +118,26 @@ at work: it is a term of sixteen days, each chosen when it comes.
   another, and a report that cannot be sent, or has no answer in half a minute, keeps your words
   for another try. The
   desktop game sends nothing: it writes the report to a folder beside the save.
+- **The outskirts and a first fight.** The last month of his sixth year is *Explore the
+  Outskirts*, a story of four days that ends the day he is seven, in every life, once. Noon at the
+  mill gives his lunch (6 rations). At the edge of the town he takes one of three paths, and the
+  other two close: the children of his age (a point of Dexterity), nature (Intelligence) or the
+  wild animals (Strength). Each path has its fork the next day: chase on the green or the older
+  boys' tales (Lore), the beetles under the stones or wortleaf by the ditch (2 remedies), the
+  tracks to the stream or stones at the crows. On the fourth day something grey creeps up out of
+  the ditch: he stands his ground, and fights a slime by his own hand on the fight screen. It
+  cannot kill him; beaten, it leaves his first chronicle page. Who turns back halfway keeps what
+  the days gave, and the outskirts are not offered again.
+- **The first moves.** Each path teaches a move for every fight after it: *Step aside* (hard to
+  hit until his next action), *Read the beast* (it is known 3 of 4 for the fight) or the *Stick
+  blow* (a heavy blunt blow, a little harder to land). The fight's menu says where each was
+  learned: THE OUTSKIRTS.
+- **The guide in the outskirts.** A first life is shown the lunch, the three paths, the card at
+  the ditch, and in the fight the slime's panel, the order of the turn and Strike. Each step is
+  said on the screen it is about; *Skip tutorial* there leaves the fight as it was.
+- **Chronicle pages.** Whatever the curse made leaves a page behind it when he kills it, in a
+  hand nobody in Bellmoor writes: every beast of the walks, the bosses too, not the practice
+  dummies. Pages are kept under STORES, and the market buys them four for a coin.
 
 ### Changed
 
@@ -166,8 +187,14 @@ at work: it is a term of sixteen days, each chosen when it comes.
 - **A place's tile** says a short line for what its level gives, so the end is no longer cut off;
   its tooltip still says all of it. The second bellows say the smithy forges gear now, and its
   practice blades that it forges the warded charm.
-- **Start Helping Out** gives its 6 rations as he begins it, no longer 1 then 6 at its term: the
-  guided first year no longer says his rations are running out the month before he is seven.
+- **Start Helping Out is gone.** The outskirts take its month, and its 6 rations are the
+  outskirts' lunch. A save in the middle of it finishes the month as it was, with the rations it
+  was given, and is not offered the outskirts on top of it; one that had done it counts as having
+  walked the outskirts.
+- **Saves are of version 2.** The guide has six steps more, so a first life saved past its old
+  steps is moved on once as it opens, and is not told the classes again. A save of this build
+  cannot be loaded by an older one, which says it is newer. The analytics digest says version
+  0.8, since its guide numbers mean other steps now.
 - **A fed work's tooltip says how long its rations last** when his familiars eat them sooner than
   its term: "Rations 24 up front · lasts 6 mo".
 - **The Collegium takes no coin up front.** Its door asks Intelligence 12, Letters 3 and Lore 2,
@@ -179,6 +206,11 @@ at work: it is a term of sixteen days, each chosen when it comes.
 
 ### Fixed
 
+- **The timeline once a fight is over** was an empty panel. It now says THE FIGHT IS OVER, and
+  stands no taller than that line.
+- **Read the beast** said "known 3 of 4 for this fight" twice in its tooltip.
+- **On a phone**, a step of the guide about a task, said while his stats, his things, his years
+  or the log were open, had no hand: it now points at the Life tab, as on the Town page.
 - **His age** at the head of the page could read a year short in the month of his birthday
   (15 at sixteen, until the next month).
 - **No more immortal old men.** An Inn raised after his thirtieth year stopped his old age on the
