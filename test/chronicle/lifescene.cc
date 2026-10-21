@@ -4661,7 +4661,7 @@ namespace pg
 
             life->save.age = 16.0f - 1.0f / 12.0f;
             life->save.aim = "";
-            life->save.stats["str"] = 12;
+            life->save.stats["str"] = 14;
             life->save.stats["arms"] = 3;
             life->save.stats["discipline"] = 2;
             life->save.stats["coin"] = 30;
@@ -14282,7 +14282,7 @@ namespace pg
             LifeScene* life = collegiumLife(f, storyOptions(16.75f));
             ASSERT_NE(life, nullptr);
 
-            life->save.stats["str"] = 12;
+            life->save.stats["str"] = 14;
             life->save.stats["arms"] = 3;
             life->save.stats["discipline"] = 2;
 

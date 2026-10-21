@@ -366,6 +366,9 @@ var activities = [
     {id: "smithy", group: "Work", name: "Work the Smithy", glyph: "forge", months: 9, rank: "", each: "", path: "", fromAge: 9, idleBy: 13,
      gains: [{stat: "str"}, {stat: "coin", amount: 18}],
      requires: [{stat: "str", needed: 8}],
+     // Its Strength for two terms, as the mill's: then the coin alone (the author's call,
+     // 2026-10-21: the Keep asked too little of a boy who lived at the forge)
+     after: [{uses: 2, gains: [{stat: "coin", amount: 18}]}],
      costs: [{stat: "firewood", amount: 6}],
      bonus: [{stat: "town.smithy", fromAge: 8}, {stat: "town.smithy", needed: 3, more: [{stat: "coin", amount: 6}]}]},
     // A chain off the smithy that ends in a fork. A month at the master's elbow, once he has
@@ -689,7 +692,7 @@ var activities = [
      about: "Makes him a man of the Keep, for life: it feeds him, its works open, and the other classes close. The oath is short. The sergeants say it is the last short thing about the Keep.",
      gains: [{stat: "keep_oath"}, {stat: "renown"}, {stat: "arms"}],
      unless: "levy.hide",
-     requires: [{stat: "str", needed: 12, eased: [{flag: "edric_support", needed: 11}, {flag: "town.yard", at: 2, needed: 11}]},
+     requires: [{stat: "str", needed: 14, eased: [{flag: "edric_support", needed: 13}, {flag: "town.yard", at: 2, needed: 13}]},
                 {stat: "arms", needed: 3, eased: [{flag: "smith_apprentice", needed: 2}, {flag: "levy_served", needed: 2}]}, {stat: "discipline", needed: 2}],
      costs: [{stat: "coin", amount: 10}]},
     // Its term is a story (storytable.pg's `collegium`), lived day by day: each course paid at
@@ -708,7 +711,7 @@ var activities = [
      about: "Makes him one of the Hidden Hand, for life: it feeds him, its works open, and the other classes close. The Hand has no door, no sign and no members. Ask anyone.",
      gains: [{stat: "hidden_hand"}, {stat: "favors"}, {stat: "stealth"}],
      unless: "turnin",
-     requires: [{stat: "dex", needed: 12}, {stat: "stealth", needed: 2},
+     requires: [{stat: "dex", needed: 14}, {stat: "stealth", needed: 2},
                 {stat: "guile", needed: 2, eased: [{flag: "smuggler_runner", needed: 1}, {flag: "flood_looted", needed: 1}]},
                 {stat: "street_known", label: "Known on the street or at the night market", anyOf: ["street_known", "night_contacts", "boys_sworn"]}],
      costs: [{stat: "coin", amount: 15}]},

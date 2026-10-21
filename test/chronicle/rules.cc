@@ -563,7 +563,7 @@ namespace pg
             EXPECT_TRUE(flag(activityAt(f.rules, 9.5f, lettered, "chapel").fields, "listed"));
 
             // A strong boy at 16 sees the Keep, though he cannot pay its coin yet
-            const ElementMap squire = {{"str", ElementType{12}}, {"arms", ElementType{3}}, {"discipline", ElementType{2}}, {"int", ElementType{6}}};
+            const ElementMap squire = {{"str", ElementType{14}}, {"arms", ElementType{3}}, {"discipline", ElementType{2}}, {"int", ElementType{6}}};
 
             RuleActivity keep = activityAt(f.rules, 16.0f, squire, "keep");
 
@@ -586,7 +586,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // Edric asks Arms 1 of a boy the Watch knows, the Keep Strength 11 of one Edric speaks for; the
+        // Edric asks Arms 1 of a boy the Watch knows, the Keep Strength 13 of one Edric speaks for; the
         // Hidden Hand asks a friend on the street or one at the night market, either will do.
         TEST(rules_test, activities_eased_and_either)
         {
@@ -607,17 +607,17 @@ namespace pg
             EXPECT_EQ(intOf(edric.requires[1], "needed"), 1);
             EXPECT_FALSE(flag(edric.fields, "locked"));
 
-            ElementMap squire = {{"str", ElementType{11}}, {"arms", ElementType{3}}, {"discipline", ElementType{2}}, {"coin", ElementType{10}}};
+            ElementMap squire = {{"str", ElementType{13}}, {"arms", ElementType{3}}, {"discipline", ElementType{2}}, {"coin", ElementType{10}}};
 
             EXPECT_TRUE(flag(activityAt(f.rules, 16.0f, squire, "keep").fields, "locked"));
 
             squire["edric_support"] = ElementType{1};
             RuleActivity keep = activityAt(f.rules, 16.0f, squire, "keep");
 
-            EXPECT_EQ(intOf(keep.requires[0], "needed"), 11);
+            EXPECT_EQ(intOf(keep.requires[0], "needed"), 13);
             EXPECT_FALSE(flag(keep.fields, "locked"));
 
-            ElementMap cutpurse = {{"dex", ElementType{12}}, {"stealth", ElementType{2}}, {"guile", ElementType{2}}, {"coin", ElementType{15}}};
+            ElementMap cutpurse = {{"dex", ElementType{14}}, {"stealth", ElementType{2}}, {"guile", ElementType{2}}, {"coin", ElementType{15}}};
 
             RuleActivity hand = activityAt(f.rules, 16.0f, cutpurse, "hand");
 
@@ -4563,7 +4563,7 @@ namespace pg
             };
 
             ElementMap character = townsman();
-            character["str"] = ElementType{12};
+            character["str"] = ElementType{14};
             character["arms"] = ElementType{2};
             character["discipline"] = ElementType{2};
             character["coin"] = ElementType{30};
@@ -5537,17 +5537,17 @@ namespace pg
 
             ElementMap character = townsman();
 
-            EXPECT_EQ(asked(character, "keep", "str"), 12);
+            EXPECT_EQ(asked(character, "keep", "str"), 14);
             EXPECT_EQ(asked(character, "collegium", "int"), 12);
 
             character["town.yard"] = ElementType{1};
-            EXPECT_EQ(asked(character, "keep", "str"), 12);
+            EXPECT_EQ(asked(character, "keep", "str"), 14);
 
             character["town.yard"] = ElementType{2};
-            EXPECT_EQ(asked(character, "keep", "str"), 11);
+            EXPECT_EQ(asked(character, "keep", "str"), 13);
 
             // The sergeant's word still eases it on its own
-            EXPECT_EQ(asked({{"edric_support", ElementType{1}}}, "keep", "str"), 11);
+            EXPECT_EQ(asked({{"edric_support", ElementType{1}}}, "keep", "str"), 13);
 
             character["town.collegium"] = ElementType{2};
             EXPECT_EQ(asked(character, "collegium", "int"), 12);
