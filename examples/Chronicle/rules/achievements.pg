@@ -129,36 +129,36 @@ var achievements = [
     // The guide of a first life: his sixth year, a work at a time, then the classes at seven
     {id: "guide.begin", kind: "guide", order: 1, untilAge: 7, point: "tile:glean", pointChosen: "button:begin",
      say: "Welcome! Click this task to choose it.",
-     sayChosen: "Now press Begin. Time passes while he works. You can also double-click a task to start it.",
+     sayChosen: "Now press Begin, or double-click the task to start it. Time passes while it runs.",
      asks: [{fact: "life.terms", op: "==", value: 0}],
      until: [{fact: "life.working", op: "==", value: 1}]},
     {id: "guide.rations", kind: "guide", order: 2, untilAge: 7, point: "holding:rations", hold: 4000,
-     say: "This is your food. He eats 1 ration every month.",
+     say: "This is your food. You eat 1 ration each month, so be careful not to run out.",
      asks: [{fact: "done.glean", op: ">=", value: 1}]},
     {id: "guide.flour", kind: "guide", order: 3, untilAge: 7, point: "tile:flour", pointChosen: "button:begin",
-     say: "Some work pays coin. Click this task.",
+     say: "Some tasks pay you coin. Click this one.",
      sayChosen: "Press Begin, or double-click the task.",
      asks: [],
      until: [{fact: "life.working", op: "==", value: 1}]},
     {id: "guide.coin", kind: "guide", order: 4, untilAge: 7, point: "holding:coin", hold: 4000,
-     say: "This is your coin. You will spend it at the market soon.",
+     say: "This is your coin. You'll spend it at the market soon.",
      asks: [{fact: "done.flour", op: ">=", value: 1}]},
     // From here the hand stays on the task: two works begun, he knows the Begin button (the
     // author's call, 2026-10-21). The first choice: both tiles are lit
     {id: "guide.choice", kind: "guide", order: 5, untilAge: 7, point: "tile:wheel", light: "tile:scribe",
-     say: "Your first choice: you can only do one of these two. One trains his body, the other his mind.",
+     say: "You can only do one of these two. One trains your body, the other your mind.",
      asks: [],
      until: [{fact: "life.working", op: "==", value: 1}]},
     {id: "guide.stats", kind: "guide", order: 6, untilAge: 7, point: "stat:int", light: "stat:str,stat:dex", hold: 5000,
-     say: "His stats went up. Each class asks for one of them: Strength, Dexterity or Intelligence.",
+     say: "Your stats went up! Each class needs one of them: Strength, Dexterity or Intelligence.",
      asks: [{fact: "life.terms", op: ">=", value: 3}]},
     {id: "guide.tome", kind: "guide", order: 7, untilAge: 7, point: "tile:tome",
-     say: "Hover a task to read what it gives. This one gives a keepsake.",
+     say: "Hover over a task to see what it gives you. This one gives you a keepsake.",
      asks: [],
      until: [{fact: "life.working", op: "==", value: 1}]},
     // Three works and the time for two: they come into the list at six years and four months
     {id: "guide.pick", kind: "guide", order: 8, untilAge: 7, point: "tile:knots", light: "tile:sacks,tile:sing",
-     say: "Three tasks, and time for only two. The stopwatch on a task counts the months left to start it.",
+     say: "Three tasks, but only time for two. The stopwatch shows how many months you have left to start each one.",
      asks: [{fact: "done.tome", op: ">=", value: 1}, {fact: "life.age", op: ">=", value: 6.3}],
      until: [{fact: "life.working", op: "==", value: 1}]},
     // The market, at six years and eight months: he is short of food by then, and holds the
@@ -178,7 +178,7 @@ var achievements = [
     // so that the hand has them to point at. These two are said at any age: a boy of seven who
     // let the year go by, or a save from before it, is told them and no more
     {id: "guide.clock", kind: "guide", order: 11, point: "clock", hold: 6000,
-     say: "This is his age. Your goal: keep him alive until he is at least 30 years old.",
+     say: "This is your age. Your goal: live to at least 30.",
      asks: []},
     // The outskirts (storytable.pg's `outskirts`), the last month of the year: its row, the one
     // work listed at six years and eleven months, then on the walk's screens the lunch, the three
@@ -187,7 +187,7 @@ var achievements = [
     // once if he is past it already). Strike ends on whatever he does in the fight, a flight too:
     // a boy who runs is not told to strike over its end
     {id: "guide.outskirts", kind: "guide", order: 12, untilAge: 7, point: "tile:outskirts",
-     say: "Nobody has work for him this month. Click this task: he goes to see what lies past the last houses.",
+     say: "Nobody has work for you this month. Click this task to go and see what's past the last houses.",
      asks: [{fact: "life.age", op: ">=", value: 6.9}],
      until: [{fact: "story.id", op: "==", value: "outskirts"}]},
     {id: "guide.lunch", kind: "guide", order: 13, untilAge: 7, point: "work:lunch", pointChosen: "walkbutton:do",

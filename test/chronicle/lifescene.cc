@@ -8124,7 +8124,7 @@ namespace pg
             auto glosses = f.ecs.getSystem<GlossRegistry>();
             ASSERT_NE(glosses, nullptr);
             ASSERT_NE(glosses->find("activity/tomarket"), nullptr);
-            EXPECT_EQ(glosses->find("activity/tomarket")->text.find("Opens the Town page"), 0u);
+            EXPECT_NE(glosses->find("activity/tomarket")->text.find("This opens the Town page"), std::string::npos);
             EXPECT_EQ(glosses->find("activity/carters")->text, "Work");
 
             auto grid = life->piece<PlaceGrid>("places");
