@@ -5997,7 +5997,7 @@ namespace pg
 
             ASSERT_NEAR(again->save.age, 6.0f + 11.0f / 12.0f, 0.001f);
             EXPECT_FALSE(again->onWalk());
-            EXPECT_FALSE(again->save.running.empty());
+            EXPECT_EQ(again->save.running, "outskirts");
 
             const int lives = again->save.lives;
 
@@ -6019,6 +6019,106 @@ namespace pg
 
             f.load<EmptyScene>();
             std::remove(path.c_str());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // An old save that had set Start Helping Out aside for an answer, or one that had done it,
+        // reads it as the outskirts' row: taken up again as it was, done as it was.
+        TEST(lifescene_test, an_old_save_reads_helping_out_as_the_outskirts)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const std::string path = "save/test_life_old_helping_aside.sz";
+            std::remove(path.c_str());
+
+            LifeScene* life = f.life();
+            ASSERT_NE(life, nullptr);
+
+            LifeSave old = life->save;
+            old.running.clear();
+            old.setAside = "helping";
+            old.setAsideMonths = 0;
+            old.done["helping"] = 1;
+            old.done.erase("outskirts");
+            ASSERT_TRUE(old.save(path));
+
+            LifeSave read;
+            ASSERT_TRUE(read.load(path));
+
+            EXPECT_EQ(read.setAside, "outskirts");
+            EXPECT_EQ(read.done.count("helping"), 0u);
+            EXPECT_EQ(read.done["outskirts"], 1);
+
+            // Read and written again, it is not counted twice
+            ASSERT_TRUE(read.save(path));
+
+            LifeSave again;
+            ASSERT_TRUE(again.load(path));
+            EXPECT_EQ(again.done["outskirts"], 1);
+            EXPECT_EQ(again.setAside, "outskirts");
+
+            std::remove(path.c_str());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The outskirts are once a life, even for who turns back: left on the second day, he keeps
+        // the lunch, the row is not offered again (begun again, it does not open), and the month
+        // runs on to seven as any idle month.
+        TEST(lifescene_test, turning_back_from_the_outskirts_is_once_a_life)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = elevenMonths(f, LifeFixture::mockup());
+            ASSERT_NE(life, nullptr);
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(list->find(&f.ecs, "outskirts"), nullptr);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "outskirts"});
+            f.frames(12);
+            ASSERT_TRUE(life->onWalk());
+
+            life->walkDo(WalkAct{"tile.lunch", "", 0});
+            f.settle();
+            ASSERT_EQ(life->save.stats["rations"], 6);
+
+            life->walkDo(WalkAct{"leave", "", 0});
+            life->walkDo(WalkAct{"leave", "", 0});
+            f.frames(12);
+
+            ASSERT_FALSE(life->onWalk());
+            EXPECT_TRUE(life->save.running.empty());
+            EXPECT_EQ(life->save.stats["rations"], 6);
+            EXPECT_EQ(life->save.stats["outskirts.begun"], 1);
+            EXPECT_NEAR(life->save.age, 6.0f + 11.0f / 12.0f, 0.001f);
+
+            list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            EXPECT_EQ(list->find(&f.ecs, "outskirts"), nullptr);
+
+            // Asked again all the same: nothing opens, nothing is given
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "outskirts"});
+            f.frames(12);
+
+            EXPECT_FALSE(life->onWalk());
+            EXPECT_TRUE(life->save.running.empty());
+            EXPECT_EQ(life->save.stats["rations"], 6);
+
+            // The month goes by, and he is seven: the lunch fed him
+            life->onMonth();
+            f.settle();
+            f.frames(12);
+
+            EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
+            EXPECT_EQ(life->save.stats["rations"], 5);
+            EXPECT_NE(list->find(&f.ecs, "keep"), nullptr);
         }
 
         namespace
@@ -6553,6 +6653,48 @@ namespace pg
             f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
             f.frames(12);
             EXPECT_EQ(life->step.id, "guide.order");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Turned back from the outskirts with the guide on the paths: the steps the story's screens
+        // still had to say are passed over, none waits on the Life page, and at seven the guide goes
+        // on with the classes.
+        TEST(lifescene_test, turning_back_from_the_outskirts_leaves_no_step_waiting)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = guidedOutskirts(f);
+            ASSERT_NE(life, nullptr);
+            ASSERT_EQ(life->step.id, "guide.lunch");
+
+            life->walkDo(WalkAct{"tile.lunch", "", 0});
+            f.frames(12);
+            ASSERT_EQ(life->step.id, "guide.paths");
+
+            life->walkDo(WalkAct{"leave", "", 0});
+            life->walkDo(WalkAct{"leave", "", 0});
+            f.frames(12);
+
+            ASSERT_FALSE(life->onWalk());
+            EXPECT_TRUE(life->guiding());
+            EXPECT_EQ(life->save.guide, 17);
+            EXPECT_EQ(f.fact<int>("life.guide"), 17);
+            EXPECT_TRUE(life->stepsDue.empty());
+            expectNoGuide(f, life);
+
+            f.pass(1000.0f);
+            expectNoGuide(f, life);
+
+            // Seven: the classes, on the Life page
+            life->onMonth();
+            f.settle();
+            f.frames(12);
+
+            EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
+            EXPECT_EQ(life->step.id, "guide.doors");
         }
 
         // ----------------------------------------------------------------------------------------

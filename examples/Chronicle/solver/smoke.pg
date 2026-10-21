@@ -277,3 +277,29 @@ for (var aim : ["", "warrior", "mage", "thief"])
 check("solver_test.the_outskirts_are_played_by_every_world",
       outskirtsPlays[0] == 1 and outskirtsPlays[1] == 1 and outskirtsPlays[2] == 1 and outskirtsPlays[3] == 1 and outskirtsOnce == 0,
       "none " + toString(outskirtsPlays[0]) + ", warrior " + toString(outskirtsPlays[1]) + ", mage " + toString(outskirtsPlays[2]) + ", thief " + toString(outskirtsPlays[3]) + ", again " + toString(outskirtsOnce))
+
+// solver_test.the_outskirts_feed_him_without_the_market: the outskirts' lunch gives the six rations
+// of its month, as a board's up front: a boy who knows the market buys none before he goes
+var fedBoy = boyOfEleven("warrior")
+fedBoy.townKnown = true
+fedBoy.onceMonth = {}
+fedBoy.stats.coin = 6
+fedBoy.stats.rations = 0
+touch(fedBoy)
+
+var fedCoin = -1
+var fedRations = -1
+
+var fedGrown = expandChildren(fedBoy, 0)
+
+for (var c : fedGrown.children)
+{
+    if (doneOf(c, "outskirts") > 0)
+    {
+        fedCoin = statOf(c, "coin")
+        fedRations = statOf(c, "rations")
+    }
+}
+
+check("solver_test.the_outskirts_feed_him_without_the_market", fedCoin == 6 and fedRations == 5,
+      "coin " + toString(fedCoin) + ", rations " + toString(fedRations))

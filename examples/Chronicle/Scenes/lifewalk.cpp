@@ -1045,6 +1045,9 @@ namespace chronicle
 
         closeWalk();
 
+        // What the guide still had to say on its screens is not said: he is off them for good
+        passStorySteps();
+
         // Left, or sent away, before its term: the row stops where its days left it, and what its
         // board gave ahead for the months he will not stay goes back
         if (not row.empty() and save.running == row)

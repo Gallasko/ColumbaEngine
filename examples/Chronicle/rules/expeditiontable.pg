@@ -178,7 +178,7 @@ const walkItems = [
     // the author's rule (1.5 to 2 times plain work), so the price was lowered. `about` is its own
     // line in the stores (resources.pg)
     {id: "page", name: "Chronicle pages", one: "chronicle page", glyph: "study", kind: "sold", lot: 4, coin: 1,
-     about: "Whatever he kills leaves a page behind it, in a hand nobody in Bellmoor writes. The curse keeps a chronicle too."},
+     about: "What the curse made leaves a page behind it when he kills it, in a hand nobody in Bellmoor writes. The curse keeps a chronicle too."},
     {id: "firewood", name: "Firewood", one: "firewood", glyph: "work", kind: "town", gather: "Deadfall and cuttings, bundled and carried home."},
     {id: "clay", name: "Clay", one: "clay", glyph: "work", kind: "town", gather: "Dug out of the bank, heavy and wet."},
     {id: "ashwood", name: "Ash wood", one: "ash wood", glyph: "work", kind: "town", gather: "Straight ash poles, felled and trimmed."},

@@ -2564,6 +2564,47 @@ namespace pg
 
         // The row that opens it: the last month before seven, its story's month, and no board (the
         // lunch feeds him); its plan the warrior's path, as the solver plays it
+        TEST(story_test, the_outskirts_are_begun_once_a_life)
+        {
+            MockLogger logger;
+            Walker w(boyOfEleven());
+            w.age = 6.0f + 11.0f / 12.0f;
+
+            auto listed = [&]() {
+                std::vector<RuleActivity> rows;
+                EXPECT_TRUE(w.rules.activities(w.age, w.character, rows));
+
+                for (const auto& row : rows)
+                {
+                    if (textOf(row.fields, "id") == "outskirts")
+                        return intOf(row.fields, "listed") > 0;
+                }
+
+                return false;
+            };
+
+            ASSERT_TRUE(listed());
+
+            // Entering marks him, and the row is not offered again
+            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "outskirts", 0}));
+            EXPECT_EQ(intOf(w.character, "outskirts.begun"), 1);
+            EXPECT_FALSE(listed());
+
+            // Turned back on the second day: he keeps his lunch, and the mark
+            ASSERT_TRUE(w.take("lunch"));
+            ASSERT_TRUE(w.act("leave"));
+            ASSERT_TRUE(w.act("leave"));
+
+            EXPECT_EQ(w.screen(), "done");
+            EXPECT_EQ(textOf(w.state.run, "result"), "left");
+            EXPECT_EQ(intOf(w.character, "rations"), 6);
+            EXPECT_EQ(intOf(w.character, "outskirts.begun"), 1);
+            EXPECT_FALSE(listed());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(story_test, the_outskirts_row_and_plan)
         {
             MockLogger logger;

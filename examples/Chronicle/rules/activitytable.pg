@@ -316,9 +316,10 @@ var activities = [
     // The last month before he is seven: the outskirts, a story of four days (storytable.pg's
     // `outskirts`) and every life's first fight. It is no board: the lunch of its first day is
     // the six rations he has not got after the harvest, so he does not go hungry that month. Its
-    // path is no class's, and every life plays it. From there the town's work is his
+    // path is no class's, and every life plays it, once: entering it marks him (`whileNot`), so
+    // who turns back from it is not offered it again. From there the town's work is his
     {id: "outskirts", group: "Work", name: "Explore the Outskirts", glyph: "adventure", months: 1, rank: "", each: "A FIRST FIGHT", path: "",
-     fromAge: 6, fromMonths: 11, finishBy: 7, closingShown: -1, uses: 1, story: "outskirts",
+     fromAge: 6, fromMonths: 11, finishBy: 7, closingShown: -1, uses: 1, story: "outskirts", whileNot: "outskirts.begun",
      about: "A month nobody has work for him, before he is seven. The lanes give out past the last houses, and what is out there he finds for himself.",
      gains: [],
      requires: []},

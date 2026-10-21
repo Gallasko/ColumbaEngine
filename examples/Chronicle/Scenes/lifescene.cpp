@@ -2460,9 +2460,46 @@ namespace chronicle
             passed = true;
         }
 
-        if (not passed)
-            return;
+        if (passed)
+            forgetPassedSteps();
+    }
 
+    void LifeScene::passStorySteps()
+    {
+        // The story is over before its steps were all said (he turned back from it): the steps
+        // of the sequence that wait for a walk's screens are passed over unsaid, so that none of
+        // them waits on the Life page for a screen he will not see again
+        bool passed = false;
+
+        while (guiding())
+        {
+            const RuleAchievement* next = nullptr;
+
+            for (const auto& deed : deeds)
+            {
+                if (deed.kind == RuleKind::Guide and deed.order == save.guide + 1)
+                    next = &deed;
+            }
+
+            if (not next)
+                break;
+
+            const std::string point = textOf(next->fields, "point");
+            const std::string kind = point.substr(0, point.find(':'));
+
+            if (std::find(WalkPoints.begin(), WalkPoints.end(), kind) == WalkPoints.end())
+                break;
+
+            save.guide = next->order;
+            passed = true;
+        }
+
+        if (passed)
+            forgetPassedSteps();
+    }
+
+    void LifeScene::forgetPassedSteps()
+    {
         // The one being said and the ones waiting, when they are among those passed
         if (step.active and step.order > 0 and step.order <= save.guide)
             step = GuideStep{};

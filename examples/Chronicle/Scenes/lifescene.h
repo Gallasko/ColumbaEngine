@@ -340,6 +340,8 @@ namespace chronicle
         void runGuide();               // The step being said ends or goes on, the next one begins, the hand follows what it points at
         void endStep();                // The step being said has ended: the guide is one step further
         void passOutgrownSteps();      // The steps of the sequence he is too old for (`untilAge`) are passed over unsaid
+        void passStorySteps();         // A story over: the steps of the sequence still waiting for a walk's screens are passed over unsaid
+        void forgetPassedSteps();      // The step being said and the ones waiting, once passed over, are gone
         void nextStep();               // "Next": the step being said for a time ends now
         void skipGuide();              // "Skip tutorial": past its last step for good
         void makeNote();               // The leaf, its words and its two buttons

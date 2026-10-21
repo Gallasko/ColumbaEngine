@@ -1244,11 +1244,12 @@ fun reportGuide(out, data)
 // counts for a work once a digest of its first life says the work is done.
 fun reportYear(out, data)
 {
-    // (Start Helping Out was the last month before 0.8, the outskirts are since: a digest names one)
+    // (Start Helping Out was the last month until the outskirts took its place, in 0.8: a digest
+    // names one or the other)
     var works = ["glean", "flour", "wheel", "scribe", "tome", "knots", "sacks", "sing", "tomarket", "harvest", "helping", "outskirts"]
     var names = ["Glean Behind the Reapers", "Carry Flour to the Baker", "  Climb the Mill Wheel (body)", "  Sit with the Old Scribe (mind)",
                  "Carry Books (the tome)", "  Learn Knots", "  Haul Sacks", "  Sing at the Chapel Door", "Go to the Market", "Bring in the Harvest",
-                 "Start Helping Out (to 0.7)", "Explore the Outskirts"]
+                 "Start Helping Out (before the outskirts)", "Explore the Outskirts"]
     var counts = []
     var lives = 0
     var pairs = newTally()

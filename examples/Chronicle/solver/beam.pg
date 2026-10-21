@@ -160,6 +160,23 @@ fun storyHere(st, row)
     return st.aim == "" and classOf(st) == ""
 }
 
+// The rations a story's plan gives (the outskirts' lunch): his as the story begins, as a board's
+// up front, so none is bought for its months
+fun storyRations(st, row)
+{
+    var plan = storyPlanOf(st, row.story, [])
+
+    for (var g : plan.gives)
+    {
+        if (g.stat == "rations")
+        {
+            return g.amount
+        }
+    }
+
+    return 0
+}
+
 // A world's children, before they are pruned: {children, final (true: as they are, not pruned)}
 fun expandChildren(st, round)
 {
@@ -291,7 +308,7 @@ fun expandChildren(st, round)
                 if (stories[row.id] != none)
                 {
                     var told = clone(st)
-                    provisionFast(told, buy, row.months, asInt(row.upFront))
+                    provisionFast(told, buy, row.months, asInt(row.upFront) + storyRations(told, row))
 
                     if (storyBy(told, row, beamGoals(false)) == "")
                     {

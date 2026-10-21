@@ -401,6 +401,13 @@ fun enterStory(id)
     foes = []
     account = []
 
+    // A story played once a life however it ends: entering it is the mark of it (storytable.pg's
+    // `begun`, its row's `whileNot`)
+    if (pick(story, "begun", "") != "")
+    {
+        after[story.begun] = 1
+    }
+
     stageStep(0)
     noteOffer()
 
