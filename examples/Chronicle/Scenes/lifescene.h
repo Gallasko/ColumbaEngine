@@ -354,7 +354,7 @@ namespace chronicle
         pg::EntityRef pointed(const std::string& point) const;   // What a step points at, empty when it is not on the page
         pg::EntityRef walkPointed(const std::string& kind, const std::string& name) const;   // And on a walk's screen (lifewalk.cpp): a work of the day, an answer, a move, a beast, the order, a button
         bool walkChosen(const std::string& point) const;   // A work of the walk's day a step points at (or lights) is the one chosen there
-        void walkFacts(pg::ElementMap& facts) const;     // Where he stands on a walk's screens, for the guide: walk.screen, story.id, story.day, fight.turn, fight.over
+        void walkFacts(pg::ElementMap& facts) const;     // Where he stands on a walk's screens, for the guide: walk.screen, story.id, story.day, fight.turn, fight.over, fight.acted
         bool behindPage(const std::string& point) const;   // A tile of the Life page while the Town page or the Adventure page is the one in view
         void pointAt(pg::EntityRef target, const std::vector<pg::EntityRef>& also = {});     // The hand beside it and the shade around it and what is lit with it, or neither for nothing
         void shadeAround(const std::vector<pg::EntityRef>& lit);   // The page under a shade, but what is given

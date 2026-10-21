@@ -17,8 +17,9 @@
 //                  "walk.screen" ("site", "event" while a card waits for his answer, "fight",
 //                  "done"; "" off them), "story.id" (the story he is in, "" for none),
 //                  "story.day" (its day, 0 out of one), "fight.turn" (the turn of the fight under
-//                  way, 0 for none) and "fight.over" (1 once it is over). `op` is one of ">=",
-//                  ">", "<=", "<", "==".
+//                  way, 0 for none), "fight.over" (1 once it is over) and "fight.acted" (1 once
+//                  he has done something in it: a turn behind him, or it over, a flight too). `op`
+//                  is one of ">=", ">", "<=", "<", "==".
 // Every entry is reached once in a life and stays reached.
 //
 // A deed: {id, name, entry, asks, gives}
@@ -186,7 +187,8 @@ var achievements = [
     // The outskirts (storytable.pg's `outskirts`), the last month of the year, said on the walk's
     // screens: the lunch, the three paths, the ditch's card, then in the fight the slime, the
     // order of the turn and Strike. Each waits for what it is about to be on the screen, and ends
-    // when he has done what it asks (said again at once if he is past it already)
+    // when he has done what it asks (at once if he is past it already). Strike ends on whatever
+    // he does in the fight, a flight too: a boy who runs is not told to strike over its end
     {id: "guide.lunch", kind: "guide", order: 12, untilAge: 7, point: "work:lunch", pointChosen: "walkbutton:do",
      say: "This is a story. Each day you choose one thing to do. Take your lunch first.",
      sayChosen: "Press the button to do it. You can also double-click the task.",
@@ -210,7 +212,7 @@ var achievements = [
     {id: "guide.strike", kind: "guide", order: 17, untilAge: 7, point: "move:strike",
      say: "Press Strike to hit it. Do not worry: he cannot die in this fight.",
      asks: [{fact: "fight.over", op: "==", value: 0}],
-     until: [{fact: "fight.turn", op: ">=", value: 2}]},
+     until: [{fact: "fight.acted", op: ">=", value: 1}]},
     {id: "guide.doors", kind: "guide", order: 18, point: "tile:keep", hold: 9000,
      say: "He is 7: the town's work is open to him. These are the three classes: the Keep (warrior), the Collegium (mage) and the Hidden Hand (thief). You can join one at 16, so train for it.",
      asks: [{fact: "life.age", op: ">=", value: 7}]},

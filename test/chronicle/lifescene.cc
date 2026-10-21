@@ -6815,6 +6815,195 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // Told to strike, he runs: the fight is over at once, and the step that asked for a blow is
+        // over with it. Nothing of the guide stands over the fight's end.
+        TEST(lifescene_test, running_from_the_slime_ends_the_strike_step)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = guidedOutskirts(f);
+            ASSERT_NE(life, nullptr);
+
+            for (const char* tile : {"tile.lunch", "tile.animals", "tile.tracks"})
+            {
+                life->walkDo(WalkAct{tile, "", 0});
+                f.frames(8);
+            }
+
+            life->walkDo(WalkAct{"option", "go", 0});
+            f.frames(24);
+
+            for (int i = 0; i < 2 and life->step.active and life->step.id != "guide.strike"; ++i)
+            {
+                f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
+                f.frames(12);
+            }
+
+            ASSERT_EQ(life->step.id, "guide.strike");
+
+            life->walkDo(WalkAct{"move", "retreat", 0});
+            f.frames(12);
+
+            ASSERT_TRUE(life->onWalk());
+            ASSERT_EQ(life->walkScreen, "fight");
+            EXPECT_EQ(f.fact<int>("fight.over"), 1);
+            EXPECT_EQ(f.fact<int>("fight.turn"), 1);
+            EXPECT_EQ(life->save.guide, 17);
+            expectNoGuide(f, life);
+
+            // Back to the day: the story ends, and nothing is said on the way home
+            life->walkDo(WalkAct{"back", "", 0});
+            f.frames(12);
+
+            if (life->onWalk())
+            {
+                expectNoGuide(f, life);
+            }
+        }
+
+        namespace
+        {
+            // Two boxes overlap
+            bool overlaps(LifeFixture& f, EntityRef a, EntityRef b)
+            {
+                auto p = f.pos(a);
+                auto q = f.pos(b);
+
+                return p->x < q->x + q->width and q->x < p->x + p->width and p->y < q->y + q->height and q->y < p->y + p->height;
+            }
+
+            // The leaf is up and covers none of these, each drawn: what the hand is on, what is lit
+            // with it, the button that begins it
+            void expectLeafClear(LifeFixture& f, LifeScene* life, const std::vector<EntityRef>& things)
+            {
+                ASSERT_TRUE(life->noteShown) << life->step.id;
+                ASSERT_NE(life->handOn, 0u) << life->step.id;
+
+                std::vector<EntityRef> all = things;
+                all.push_back(f.ecs.getEntity(life->handOn));
+
+                for (EntityRef thing : all)
+                {
+                    if (thing.empty() or not f.pos(thing)->isRenderable())
+                        continue;
+
+                    EXPECT_FALSE(overlaps(f, life->note, thing)) << life->step.id << ": the leaf covers entity " << thing.id;
+                }
+
+                auto note = f.pos(life->note);
+                EXPECT_GE(note->y, 0.0f) << life->step.id;
+                EXPECT_LE(note->y + note->height, life->windowHeight + 0.5f) << life->step.id;
+            }
+
+            // A first life's year, as far as the two of three, at this window's size: each lit step
+            // has its leaf clear of the tile it is on, what is lit with it, and then of Begin
+            void litLeavesAt(float width, float height)
+            {
+                MockLogger logger;
+                LifeFixture f;
+
+                f.resize(width, height);
+
+                LifeScene* life = f.life(LifeFixture::first());
+                ASSERT_NE(life, nullptr);
+                f.frames(12);
+
+                auto list = [&]() { return life->piece<ActivityList>("activities"); };
+                auto tile = [&](const std::string& id) { auto row = list() ? list()->find(&f.ecs, id) : nullptr; return row ? row->root : EntityRef{}; };
+                auto begin = [&]() { auto button = life->piece<Button>("begin"); return button ? button->root : EntityRef{}; };
+
+                auto next = [&]() {
+                    ASSERT_TRUE(life->step.active);
+                    ASSERT_TRUE(life->nextShown) << life->step.id;
+
+                    f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
+                    f.frames(12);
+                };
+
+                auto work = [&](const std::string& id, int months) {
+                    life->save.stats["firewood"] = 6;
+                    life->save.stats["water"] = 3;
+                    f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", id});
+                    f.settle();
+
+                    ASSERT_EQ(life->save.running, id);
+
+                    for (int i = 0; i < months; ++i)
+                    {
+                        life->onMonth();
+                        f.settle();
+                    }
+
+                    f.frames(12);
+                };
+
+                // The tile chosen: the hand on Begin, the leaf clear of it and of the tile
+                auto choose = [&](const std::string& id) {
+                    f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", id});
+                    f.settle();
+                    f.frames(4);
+
+                    ASSERT_FALSE(begin().empty());
+                    EXPECT_EQ(life->handOn, begin().id) << life->step.id;
+                    expectLeafClear(f, life, {begin(), tile(id)});
+                };
+
+                work("glean", 1);
+                next();
+                work("flour", 1);
+                next();
+
+                // One of the two
+                ASSERT_EQ(life->step.id, "guide.choice");
+                expectLeafClear(f, life, {tile("wheel"), tile("scribe")});
+                choose("scribe");
+                work("scribe", 1);
+
+                // His three parts (on a phone, behind their tab: the hand is on the tab)
+                ASSERT_EQ(life->step.id, "guide.stats");
+                {
+                    std::vector<EntityRef> parts;
+
+                    for (const char* part : {"str", "dex", "int"})
+                    {
+                        if (auto line = life->piece<StatLine>(part))
+                            parts.push_back(line->root);
+                    }
+
+                    expectLeafClear(f, life, parts);
+                }
+                next();
+
+                ASSERT_EQ(life->step.id, "guide.tome");
+                work("tome", 1);
+
+                // Two of the three
+                ASSERT_EQ(life->step.id, "guide.pick");
+                expectLeafClear(f, life, {tile("knots"), tile("sacks"), tile("sing")});
+                choose("knots");
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The Life page's steps that light more than one thing (one of the two, his three parts, two
+        // of the three): the leaf covers neither what the hand is on, nor what is lit with it, nor
+        // Begin once a tile is chosen. On a wide window and on a phone.
+        TEST(lifescene_test, the_leaf_stays_off_what_a_lit_step_shows_wide)
+        {
+            litLeavesAt(1600.0f, 1000.0f);
+        }
+
+        TEST(lifescene_test, the_leaf_stays_off_what_a_lit_step_shows_on_a_phone)
+        {
+            litLeavesAt(390.0f, 844.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // The guide's hand on Strike, and the window narrowed to a phone's: the fight's screen is
         // made again in one column, and the hand goes with the button, beside its left edge.
         TEST(lifescene_test, the_hand_follows_a_move_across_a_resize)

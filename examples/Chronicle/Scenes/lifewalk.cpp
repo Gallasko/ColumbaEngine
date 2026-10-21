@@ -1200,8 +1200,14 @@ namespace chronicle
         facts["walk.screen"] = ElementType{on ? textOf(walk.site, "screen") : std::string()};
         facts["story.id"] = ElementType{on ? textOf(save.walk.run, "story") : std::string()};
         facts["story.day"] = ElementType{on and save.walk.story() ? intOf(save.walk.run, "day") : 0};
+        const bool over = fighting and not textOf(save.walk.fight, "over").empty();
+
         facts["fight.turn"] = ElementType{fighting ? intOf(save.walk.fight, "turn") : 0};
-        facts["fight.over"] = ElementType{fighting and not textOf(save.walk.fight, "over").empty() ? 1 : 0};
+        facts["fight.over"] = ElementType{over ? 1 : 0};
+
+        // He has done something in it: a turn is behind him, or it is over (a flight ends it before
+        // its turn is counted)
+        facts["fight.acted"] = ElementType{fighting and (over or intOf(save.walk.fight, "turn") >= 2) ? 1 : 0};
     }
 
     void LifeScene::walkSay(const std::string& name, const std::string& text)
