@@ -2206,8 +2206,9 @@ namespace pg
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
         // Every beast leaves a page of the chronicle (the curse: the book writes itself on what he
-        // kills), but the Collegium's dummies, and a demon, if one comes (the outskirts' slime is a
-        // story's beast that leaves its page all the same)
+        // kills), but the Collegium's dummies, and a demon, if one comes. The outskirts' slime is a
+        // story's beast that leaves pages all the same: four, the market's lot, the one beast that
+        // leaves more than one
         TEST(expedition_test, every_beast_drops_a_page)
         {
             std::ifstream file(std::string(CHRONICLE_SOURCE_DIR) + "/examples/Chronicle/rules/expeditiontable.pg");
@@ -2234,8 +2235,9 @@ namespace pg
                 const std::string row = mobs.substr(at, next == std::string::npos ? std::string::npos : next - at);
                 ++rows;
 
-                const bool exempt = (row.find("story: true") != std::string::npos and row.find("{id: \"slime\"") == std::string::npos) or row.find("demon: true") != std::string::npos;
-                const bool has = row.find("{id: \"page\", chance: 100, least: 1, most: 1}") != std::string::npos;
+                const bool slime = row.find("{id: \"slime\"") != std::string::npos;
+                const bool exempt = (row.find("story: true") != std::string::npos and not slime) or row.find("demon: true") != std::string::npos;
+                const bool has = row.find(slime ? "{id: \"page\", chance: 100, least: 4, most: 4}" : "{id: \"page\", chance: 100, least: 1, most: 1}") != std::string::npos;
 
                 if (exempt)
                     EXPECT_FALSE(has) << row.substr(0, 40);
@@ -2291,6 +2293,63 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // Short of a lot, the sell row is listed (he holds some) and refused, and its tooltip says
+        // so in one voice: the pages to sell are 1 of 4, unmet, as the cost of 4 says
+        TEST(expedition_test, a_sell_row_short_of_its_lot_says_so)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            Rules rules;
+            ASSERT_TRUE(rules.load(&ecs, compiledRules()));
+
+            for (const int held : {1, 3, 4})
+            {
+                ElementMap seller;
+                seller["page"] = ElementType{held};
+                seller["town_known"] = ElementType{1};
+
+                std::vector<RuleActivity> rows;
+                ASSERT_TRUE(rules.activities(8.0f, seller, rows));
+
+                const RuleActivity* sell = nullptr;
+
+                for (const auto& a : rows)
+                {
+                    if (textOf(a.fields, "id") == "sell.page")
+                        sell = &a;
+                }
+
+                ASSERT_NE(sell, nullptr) << held;
+                EXPECT_EQ(intOf(sell->fields, "listed"), 1) << held;
+                EXPECT_EQ(intOf(sell->fields, "locked"), held < 4 ? 1 : 0) << held;
+
+                const ElementMap* asked = nullptr;
+
+                for (const auto& r : sell->requires)
+                {
+                    if (textOf(r, "stat") == "page" and intOf(r, "cost") == 0)
+                        asked = &r;
+                }
+
+                ASSERT_NE(asked, nullptr) << held;
+                EXPECT_EQ(intOf(*asked, "current"), held);
+                EXPECT_EQ(intOf(*asked, "needed"), 4);
+            }
+
+            // None held: no row
+            std::vector<RuleActivity> none;
+            ASSERT_TRUE(rules.activities(8.0f, {{"town_known", ElementType{1}}}, none));
+
+            for (const auto& a : none)
+            {
+                if (textOf(a.fields, "id") == "sell.page")
+                    EXPECT_EQ(intOf(a.fields, "listed"), 0);
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // Held, the pages say what they are in the stores: a word of the curse, and the market's
         TEST(expedition_test, a_page_says_what_it_is)
         {
@@ -2314,17 +2373,33 @@ namespace pg
                 const std::string text = textOf(gloss.fields, "text");
 
                 EXPECT_NE(text.find("curse"), std::string::npos) << text;
-                EXPECT_NE(text.find("The market buys it."), std::string::npos) << text;
+                EXPECT_NE(text.find("The market buys them four for a coin."), std::string::npos) << text;
             }
 
             EXPECT_TRUE(found);
 
-            // The other things sold say what they said
+            // The other things sold say how many make their coin, and a thing sold one at a time
+            // that it is bought
+            ASSERT_TRUE(rules.month(8.0f, {{"vit", ElementType{30}}, {"rations", ElementType{6}}, {"fangs", ElementType{1}}, {"antler", ElementType{1}}}, month));
+
+            int said = 0;
+
             for (const auto& gloss : month.glosses)
             {
                 if (textOf(gloss.fields, "id") == "fangs")
+                {
+                    EXPECT_EQ(textOf(gloss.fields, "text"), "Brought home from a walk. The market buys them two for a coin.");
+                    ++said;
+                }
+
+                if (textOf(gloss.fields, "id") == "antler")
+                {
                     EXPECT_EQ(textOf(gloss.fields, "text"), "Brought home from a walk. The market buys it.");
+                    ++said;
+                }
             }
+
+            EXPECT_EQ(said, 2);
         }
 
         // ----------------------------------------------------------------------------------------

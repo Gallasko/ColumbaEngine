@@ -249,11 +249,26 @@ for (var w = 0; w < len(walkItems); w++)
                         about: "Drunk on a walk, in a fight or between two: it gives back a part of his Vitality."})
     }
 
-    // (a thing with a line of its own says it in place of where it comes from: the chronicle's pages)
+    // (a thing with a line of its own says it in place of where it comes from: the chronicle's pages;
+    // one sold by the lot says how many make its coin: fewer are not bought)
     if (thing.kind == "sold")
     {
+        var buys = " The market buys it."
+
+        if (thing.lot > 1)
+        {
+            var price = "a coin."
+
+            if (thing.coin > 1)
+            {
+                price = numberWord(thing.coin) + " coin."
+            }
+
+            buys = " The market buys them " + numberWord(thing.lot) + " for " + price
+        }
+
         push(holdings, {id: thing.id, group: "stores", groupLabel: "STORES", glyph: thing.glyph, name: thing.name, tone: 0,
-                        about: lookup(thing, "about", "Brought home from a walk.") + " The market buys it."})
+                        about: lookup(thing, "about", "Brought home from a walk.") + buys})
     }
 
     if (thing.kind == "town")

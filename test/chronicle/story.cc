@@ -2489,7 +2489,8 @@ namespace pg
             EXPECT_EQ(intOf(crows.character, "dex"), 7);
         }
 
-        // Beaten, the slime leaves his first chronicle page, and the story is seen to its end
+        // Beaten, the slime leaves his first chronicle pages, four of them (the market's lot: they
+        // sell for a coin), the fight's end says so, and the story is seen to its end
         TEST(story_test, the_slime_leaves_a_page)
         {
             MockLogger logger;
@@ -2501,14 +2502,101 @@ namespace pg
                 ASSERT_TRUE(w.act("move", "strike"));
 
             ASSERT_EQ(w.over(), "won");
-            EXPECT_EQ(intOf(w.last.after, "page"), 1);
-            EXPECT_EQ(intOf(w.character, "page"), 1);
+            EXPECT_EQ(intOf(w.last.after, "page"), 4);
+            EXPECT_EQ(intOf(w.character, "page"), 4);
+
+            // What it left, then the story's word
+            const std::string spoils = textOf(w.last.duel, "spoils");
+            EXPECT_NE(spoils.find("4 chronicle pages"), std::string::npos) << spoils;
+            EXPECT_NE(spoils.find("Written to the day"), std::string::npos) << spoils;
+            EXPECT_LT(spoils.find("4 chronicle pages"), spoils.find("Written to the day")) << spoils;
 
             ASSERT_TRUE(w.act("back"));
             EXPECT_EQ(w.screen(), "done");
             EXPECT_EQ(textOf(w.state.run, "result"), "over");
             EXPECT_EQ(intOf(w.state.run, "monthsRun"), 1);
-            EXPECT_EQ(intOf(w.character, "page"), 1);
+            EXPECT_EQ(intOf(w.character, "page"), 4);
+
+            // Seen to their end: the Outskirts are a plural
+            bool said = false;
+
+            for (const auto& e : w.last.entries)
+            {
+                if (textOf(e, "text") == "Saw the Outskirts to their end")
+                    said = true;
+
+                EXPECT_EQ(textOf(e, "text").find("to its end"), std::string::npos) << textOf(e, "text");
+            }
+
+            EXPECT_TRUE(said);
+        }
+
+        // What the slime shows is what it does: its Ooze, shown, draws no blood, and only its Slap
+        // hurts. Over twenty seeds of a boy striking it: no Vitality is lost to a turn its panel said
+        // OOZE, and some is lost to one it said SLAP
+        TEST(story_test, the_slime_shows_its_blow_before_it)
+        {
+            MockLogger logger;
+
+            int oozes = 0;
+            int slapsLanded = 0;
+
+            for (int seed = 1; seed <= 20; ++seed)
+            {
+                Walker w(boyOfEleven());
+
+                ASSERT_TRUE(toTheDitch(w, "nature", "beetles", seed * 37));
+
+                for (int guard = 0; guard < 12 and w.screen() == "fight" and w.over().empty(); ++guard)
+                {
+                    ASSERT_EQ(w.last.targets.size(), 1u);
+
+                    const std::string intent = textOf(w.last.targets[0], "intent");
+                    const int hp = intOf(w.state.run, "hp");
+
+                    ASSERT_TRUE(intent == "OOZE" or intent == "SLAP") << intent;
+                    ASSERT_TRUE(w.act("move", "strike"));
+
+                    if (intent == "OOZE")
+                    {
+                        ++oozes;
+                        EXPECT_EQ(intOf(w.state.run, "hp"), hp) << "seed " << seed;
+                    }
+                    else if (intOf(w.state.run, "hp") < hp)
+                        ++slapsLanded;
+                }
+
+                // Its Ooze is told in its own word, not as a slap
+                bool oozed = false;
+
+                for (const auto& a : w.state.account)
+                {
+                    if (textOf(a, "text").find("oozes toward him") != std::string::npos)
+                        oozed = true;
+                }
+
+                EXPECT_TRUE(oozed) << "seed " << seed;
+            }
+
+            EXPECT_GT(oozes, 0);
+            EXPECT_GT(slapsLanded, 0);
+        }
+
+        // As quick as the slime, he acts as often as it does, and the panel says so in those words
+        TEST(story_test, as_quick_as_the_slime_he_acts_as_often)
+        {
+            MockLogger logger;
+
+            ElementMap boy = boyOfEleven();
+            boy["dex"] = ElementType{3};
+
+            Walker w(boy);
+
+            ASSERT_TRUE(toTheDitch(w, "nature", "beetles"));
+
+            const std::string quick = textOf(w.last.duel, "quick");
+            EXPECT_NE(quick.find("HE ACTS AS OFTEN AS IT DOES"), std::string::npos) << quick;
+            EXPECT_EQ(quick.find(" TO ITS "), std::string::npos) << quick;
         }
 
         // The slime cannot kill him: with one Vitality and his guard up for all its turns he is never
@@ -2558,7 +2646,7 @@ namespace pg
                 EXPECT_LE(turns, 6) << "seed " << seed;
                 EXPECT_GE(turns, 2) << "seed " << seed;
                 EXPECT_EQ(w.standing(), 0) << "seed " << seed;
-                EXPECT_EQ(intOf(w.character, "page"), 1) << "seed " << seed;
+                EXPECT_EQ(intOf(w.character, "page"), 4) << "seed " << seed;
             }
         }
 

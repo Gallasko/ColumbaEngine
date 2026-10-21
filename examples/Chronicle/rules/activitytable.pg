@@ -1431,7 +1431,9 @@ if (not walksPlaced)
     }
 }
 
-// What a walk brings home to sell is sold at the market, a lot at a time, while he holds any
+// What a walk brings home to sell is sold at the market, a lot at a time, while he holds any:
+// it asks the lot (so its tooltip says "1/4" while he holds one of four, as its cost says), and is
+// listed from one of it (one of a lot is that share of it, in percent)
 for (var w = 0; w < len(walkItems); w++)
 {
     var thing = walkItems[w]
@@ -1439,9 +1441,9 @@ for (var w = 0; w < len(walkItems); w++)
     if (thing.kind == "sold")
     {
         push(activities, {id: "sell." + thing.id, group: "Market", name: "Sell " + toLowerCase(thing.name), glyph: "gold", months: 0, rank: "", each: "AT THE MARKET", path: "",
-                          finishBy: anyAge, showFrom: 100, place: "market", trade: "sell",
+                          finishBy: anyAge, showFrom: 100 / thing.lot, place: "market", trade: "sell",
                           gains: [{stat: "coin", amount: thing.coin}],
-                          requires: [{stat: thing.id, label: thing.name + " to sell"}],
+                          requires: [{stat: thing.id, label: thing.name + " to sell", needed: thing.lot}],
                           costs: [{stat: thing.id, amount: thing.lot}]})
     }
 }
@@ -1456,9 +1458,9 @@ for (var b = 0; b < len(basicResources); b++)
     if (lookup(basic, "lot", 0) > 0)
     {
         push(activities, {id: "sell." + basic.id, group: "Market", name: "Sell " + toLowerCase(basic.name), glyph: "gold", months: 0, rank: "", each: "AT THE MARKET", path: "",
-                          finishBy: anyAge, showFrom: 100, place: "market", trade: "sell",
+                          finishBy: anyAge, showFrom: 100 / basic.lot, place: "market", trade: "sell",
                           gains: [{stat: "coin", amount: basic.coin}],
-                          requires: [{stat: basic.id, label: basic.name + " to sell"}],
+                          requires: [{stat: basic.id, label: basic.name + " to sell", needed: basic.lot}],
                           costs: [{stat: basic.id, amount: basic.lot}]})
 
         if (lookup(basic, "price", 0) > 0)

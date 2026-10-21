@@ -2067,6 +2067,13 @@ fun storyFightEnd(outcome, length, hurt)
     {
         step.text = "Beat " + what + " · " + length + ", " + hurt
         fight.spoils = "Written to the day"
+
+        // What it left is said first: the slime's pages
+        if (step.gave != "")
+        {
+            fight.spoils = step.gave + " · Written to the day"
+        }
+
         said.text = "It is over. " + step.text
     }
     else if (outcome == "held")

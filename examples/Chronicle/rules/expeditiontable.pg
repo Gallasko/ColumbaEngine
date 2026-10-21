@@ -464,19 +464,22 @@ const walkMobs = [
      loot: []},
 
     // The outskirts' slime (storytable.pg): a story's own and in no zone. Weak and slow, and it
-    // shows what it means to do before it does it: it oozes toward him, then slaps. It cannot
-    // bring him down. A boy of 6y11m (Strength 5-7, Dexterity 6-7) falls on it in three to five
-    // turns with a plain strike (blow 7-10, 18 Vitality: two blows or three, a miss or two more),
-    // and it drops a page. No lesson
+    // shows what it means to do before it does it: it oozes toward him, which does nothing (a
+    // `circle`, fightlib.pg's `harmless`), then slaps (its `bite`, the one blow). The panel says
+    // which is coming: that is the lesson of the fight. It cannot bring him down. A boy of 6y11m
+    // (Strength 5-7, Dexterity 6-7) falls on it in three to five turns with a plain strike (blow
+    // 7-10, 18 Vitality: two blows or three, a miss or two more). It is the one beast that leaves
+    // four pages, a sodden sheaf out of the ditch it crept from: the market's lot, so that the
+    // first page a life carries home sells for its coin. Every other beast leaves one. No lesson
     {id: "slime", name: "Slime", many: "slimes", pack: "Slimes", lone: "A slime", rarity: "common", packSize: 1, holdsBack: 0,
      story: true, spares: true, level: 1, turns: 10,
      about: "A grey, shivering puddle that has crept out of the ditch, and has not yet made up its mind about him.",
      hp: 18, least: 1, most: 3, armour: 0, ward: 0, quick: 3, awareness: 1, poise: 0, verb: "slaps",
-     moves: {ooze: {name: "Ooze", line: "It sags toward him across the mud, slow as a spill."},
-             slap: {name: "Slap", line: "It heaves up a lump of itself and flings it, wet and cold."}},
-     script: ["ooze", "slap"],
+     moves: {circle: {name: "Ooze", verb: "oozes toward him", line: "It sags toward him across the mud, slow as a spill. It does nothing else."},
+             bite: {name: "Slap", line: "It heaves up a lump of itself and flings it, wet and cold."}},
+     script: ["circle", "bite"],
      lesson: "",
-     loot: [{id: "page", chance: 100, least: 1, most: 1}]}
+     loot: [{id: "page", chance: 100, least: 4, most: 4}]}
 ]
 
 // What a walk may meet besides one beast or a pack of it: beasts of several kinds in one fight

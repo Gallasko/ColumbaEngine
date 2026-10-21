@@ -932,6 +932,11 @@ fun duelHead()
     {
         view.quick = "QUICKNESS " + toString(heroSpeed()) + " AGAINST " + toString(foeSpeed(fight.target)) + ": HE ACTS " + toUpperCase(timesWord(his)) + " BEFORE IT ACTS"
     }
+    else if (his == its)
+    {
+        // (not "thrice to its thrice")
+        view.quick = "QUICKNESS " + toString(heroSpeed()) + " AGAINST " + toString(foeSpeed(fight.target)) + ": HE ACTS AS OFTEN AS IT DOES"
+    }
 
     if (coming[0] > 0)
     {

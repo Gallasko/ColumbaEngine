@@ -894,7 +894,10 @@ fun foeTurn(i)
 
         if (move == "circle")
         {
-            say("The " + toLowerCase(foe.name) + " circles", "", "note")
+            // (in its own word when its move has one: the slime oozes)
+            var circling = moveInfo(mob, move)
+
+            say("The " + toLowerCase(foe.name) + " " + pick(circling, "verb", "circles"), "", "note")
         }
         else if (chance(dodgeChance(i)))
         {
