@@ -2874,8 +2874,9 @@ namespace chronicle
             target = named("happened");
         }
 
-        // A work of the Life page while the Town page or the Adventure page is the one in view:
-        // the hand goes to the Life tab, and to the tile once he is back
+        // A work of the Life page while the Town page or the Adventure page is the one in view (on
+        // a phone, another tab's panel): the hand goes to the Life tab, and to the tile once he is
+        // back
         if (behindPage(point))
         {
             if (auto tabs = piece<Tabs>("tabs"); tabs and not tabs->tabs.empty())
@@ -2912,7 +2913,8 @@ namespace chronicle
 
     bool LifeScene::behindPage(const std::string& point) const
     {
-        if (point.rfind(TilePoint, 0) != 0 or not (townShown or adventureShown or optionsShown))
+        // (on a phone his stats, his things, his years or the log may stand in the choice's place)
+        if (point.rfind(TilePoint, 0) != 0 or not (townShown or adventureShown or optionsShown or (phone and not phonePanel.empty())))
             return false;
 
         auto list = listHolding(point.substr(TilePoint.size()));

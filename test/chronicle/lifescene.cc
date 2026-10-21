@@ -7004,6 +7004,59 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // On a phone, a step about a work of the Life page while another tab (his stats) is open:
+        // the hand goes to the Life tab and the leaf says to go back there; once he is back, the
+        // hand is on the work.
+        TEST(lifescene_test, a_phone_tab_open_sends_the_hand_back_to_life)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            f.resize(390.0f, 844.0f);
+
+            LifeScene* life = f.life(LifeFixture::first());
+            ASSERT_NE(life, nullptr);
+            f.frames(12);
+
+            auto tabs = life->piece<Tabs>("tabs");
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(tabs, nullptr);
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(list->find(&f.ecs, "glean"), nullptr);
+            ASSERT_EQ(life->step.id, "guide.begin");
+            EXPECT_EQ(life->handOn, list->find(&f.ecs, "glean")->root.id);
+
+            int stats = -1;
+
+            for (size_t i = 0; i < tabs->spec.items.size(); ++i)
+            {
+                if (tabs->spec.items[i].label == "Stats")
+                    stats = static_cast<int>(i);
+            }
+
+            ASSERT_GT(stats, 0);
+
+            f.ecs.sendEvent(TabSelectedEvent{tabs->root.id, "life.tabs", stats});
+            f.frames(12);
+
+            ASSERT_EQ(life->step.id, "guide.begin");
+            EXPECT_EQ(life->handOn, tabs->tabs[0].face.id);
+            EXPECT_TRUE(f.pos(life->hand)->visible);
+            EXPECT_NE(life->noteWords.spec.text.find("Life tab"), std::string::npos) << life->noteWords.spec.text;
+
+            f.ecs.sendEvent(TabSelectedEvent{tabs->root.id, "life.tabs", 0});
+            f.frames(12);
+
+            list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(list->find(&f.ecs, "glean"), nullptr);
+            EXPECT_EQ(life->handOn, list->find(&f.ecs, "glean")->root.id);
+            EXPECT_EQ(life->noteWords.spec.text, life->step.say);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // The guide's hand on Strike, and the window narrowed to a phone's: the fight's screen is
         // made again in one column, and the hand goes with the button, beside its left edge.
         TEST(lifescene_test, the_hand_follows_a_move_across_a_resize)
