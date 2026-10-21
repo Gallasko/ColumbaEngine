@@ -343,9 +343,16 @@ namespace chronicle
         void nextStep();               // "Next": the step being said for a time ends now
         void skipGuide();              // "Skip tutorial": past its last step for good
         void makeNote();               // The leaf, its words and its two buttons
-        void sayNote(pg::EntityRef target);   // The leaf with the step's sentence under what it points at, or gone with no step
+        void sayNote(pg::EntityRef target, bool said = true, const std::vector<pg::EntityRef>& also = {});   // The leaf with the step's sentence under what it points at and what is lit with it, or gone with no step (or one not `said` on this screen)
         void clearGuide();             // No step, no hand, no shade: the life is over, or another begins
+        void renumberGuide();          // A save from before the outskirts' steps: the step it is past, in this guide's numbers
+        bool onScreen(const std::string& point) const;   // What a step points at is of the screen up: a walk's while he is on one, the page's else
+        void liftGuide(bool over);     // The shade, the leaf and the hand over a walk's screen, or back over the page
+        bool guideLifted = false;      // They stand over a walk's screen
         pg::EntityRef pointed(const std::string& point) const;   // What a step points at, empty when it is not on the page
+        pg::EntityRef walkPointed(const std::string& kind, const std::string& name) const;   // And on a walk's screen (lifewalk.cpp): a work of the day, an answer, a move, a beast, the order, a button
+        bool walkChosen(const std::string& point) const;   // A work of the walk's day a step points at (or lights) is the one chosen there
+        void walkFacts(pg::ElementMap& facts) const;     // Where he stands on a walk's screens, for the guide: walk.screen, story.id, story.day, fight.turn, fight.over
         bool behindPage(const std::string& point) const;   // A tile of the Life page while the Town page or the Adventure page is the one in view
         void pointAt(pg::EntityRef target, const std::vector<pg::EntityRef>& also = {});     // The hand beside it and the shade around it and what is lit with it, or neither for nothing
         void shadeAround(const std::vector<pg::EntityRef>& lit);   // The page under a shade, but what is given

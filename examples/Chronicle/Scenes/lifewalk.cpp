@@ -76,6 +76,7 @@ namespace chronicle
         constexpr const char * const ActTag = "walk.act";
         constexpr const char * const HandTag = "walk.hand";
         constexpr const char * const MoveTag = "walk.move.";       // Followed by the move's id: a button of his turn, pressed and done
+        const std::string StoryTile = "tile.";             // A story's tile in the day's works: followed by its id in storytable.pg
         constexpr const char * const AimTag = "walk.aim.";         // Followed by the beast's place: against several, the one his blows go to
         constexpr const char * const FewerTag = "walk.fewer";
         constexpr const char * const MoreTag = "walk.more";
@@ -1110,6 +1111,94 @@ namespace chronicle
             return EntityRef{};
 
         return root->get<Prefab>()->findEntity(name);
+    }
+
+    // ---- what the guide points at there (achievements.pg's walk kinds) ------------------------------
+
+    EntityRef LifeScene::walkPointed(const std::string& kind, const std::string& name) const
+    {
+        if (walkPage.empty())
+            return EntityRef{};
+
+        // A work of the day, by its id or by a story's tile's without its "tile."
+        if (kind == "work")
+        {
+            auto list = walkPiece<ActivityList>("works");
+
+            if (not list)
+                return EntityRef{};
+
+            if (auto row = list->find(ecsRef, StoryTile + name))
+                return row->root;
+
+            if (auto row = list->find(ecsRef, name))
+                return row->root;
+
+            return EntityRef{};
+        }
+
+        // An answer of the card waiting for him, from 0
+        if (kind == "option")
+        {
+            auto option = walkPiece<Button>("option" + name);
+
+            return option ? option->root : EntityRef{};
+        }
+
+        // A move of his turn: the buttons are made again with what he can do, found by their tag
+        if (kind == "move")
+        {
+            for (const auto& [tag, button] : walkMoves)
+            {
+                if (tag == MoveTag + name)
+                    return button.root;
+            }
+
+            return EntityRef{};
+        }
+
+        // A beast's panel, from 0: its next move stands on it
+        if (kind == "foe")
+            return inWalk("foePanel" + name);
+
+        if (kind == "order")
+            return inWalk("orderPanel");
+
+        // A button of the screen: "do" is the one that does the work chosen
+        if (kind == "walkbutton")
+        {
+            auto button = walkPiece<Button>(name == "do" ? "work" : name);
+
+            return button ? button->root : EntityRef{};
+        }
+
+        return EntityRef{};
+    }
+
+    bool LifeScene::walkChosen(const std::string& point) const
+    {
+        const std::string work = "work:";
+
+        if (workChosen.empty() or point.rfind(work, 0) != 0)
+            return false;
+
+        const std::string name = point.substr(work.size());
+
+        return workChosen == name or workChosen == StoryTile + name;
+    }
+
+    void LifeScene::walkFacts(ElementMap& facts) const
+    {
+        // Off the walk's screens: no screen, no story, no fight. A fight is the one under way, or
+        // over and not left yet
+        const bool on = onWalk();
+        const bool fighting = on and not textOf(save.walk.fight, "mob").empty();
+
+        facts["walk.screen"] = ElementType{on ? textOf(walk.site, "screen") : std::string()};
+        facts["story.id"] = ElementType{on ? textOf(save.walk.run, "story") : std::string()};
+        facts["story.day"] = ElementType{on and save.walk.story() ? intOf(save.walk.run, "day") : 0};
+        facts["fight.turn"] = ElementType{fighting ? intOf(save.walk.fight, "turn") : 0};
+        facts["fight.over"] = ElementType{fighting and not textOf(save.walk.fight, "over").empty() ? 1 : 0};
     }
 
     void LifeScene::walkSay(const std::string& name, const std::string& text)

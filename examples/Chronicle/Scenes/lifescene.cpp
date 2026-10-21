@@ -211,12 +211,30 @@ namespace chronicle
         constexpr float HandSwayMs = 800.0f;       // there and back in that long
         constexpr float HandZ = 125.0f;
         constexpr float VeilZ = 110.0f;
+        // Over a walk's screen (expedition.yaml, fight.yaml: its panels at 104, what they hold at
+        // 114 and its buttons' words a few over) the three stand higher, still in the band: under
+        // the dialogs (130), the bug report's button (145, lit and pressable through the shade),
+        // the gains and the toasts
+        constexpr float WalkVeilZ = 120.0f;
+        constexpr float WalkNoteZ = 121.0f;        // Its buttons' words at 128
+        constexpr float WalkHandZ = 129.0f;
         constexpr float VeilPad = 6.0f;            // Left lit around what is pointed at
         constexpr float Turn = 6.2831853f;         // A whole turn, in radians
         constexpr const char * const HandGlyph = "manicule";
         constexpr const char * const HandColor = "vermilion";
         constexpr const char * const VeilElement = "guide.veil";
         const std::string TilePoint = "tile:";                  // What a step that points at a tile begins with, before the activity's id
+        const std::string WorkPoint = "work:";                  // And at a work of a walk's day, before its id
+
+        // What a step points at on a walk's screens, not on the page: a work of the day, an answer
+        // of the card, a move, a beast, the order of the turn, a button of the screen
+        const std::vector<std::string> WalkPoints = {"work", "option", "move", "foe", "order", "walkbutton"};
+
+        // A save from before the outskirts had their steps (its format 1 or older) numbered its
+        // guide with thirteen, the last two the classes and the last word: it is past them still
+        constexpr int OldGuideSteps = 13;
+        constexpr int OldGuideLast = 11;           // The last step whose number has not moved: his age
+        constexpr int GuideNumbered = 2;           // The save's format from which the guide is numbered as now
         const std::string BackToLife = "Go back to the Life tab: there is a new task for him.";   // Said with the hand on that tab, for a step about a work of the Life page
 
         // What a step says stands on a leaf of its own under what it points at (over it when the
@@ -908,10 +926,10 @@ namespace chronicle
             }
 
             // The guide's hand moves whether the months run or not, and a step said for a time
-            // runs it out
+            // runs it out (not under the bug report: the guide waits there with the game)
             handMs = std::fmod(handMs + e.tick, HandSwayMs);
 
-            if (step.active and step.until.empty())
+            if (step.active and step.until.empty() and not reportAsked and not reportOpen)
                 step.left -= e.tick;
 
             runPassing(e.tick);
@@ -1155,6 +1173,7 @@ namespace chronicle
 
         // The guide's length, before the page is filled: a first life's guide line waits for its step
         readDeeds();
+        renumberGuide();
 
         // The page is arriving: what a save was already short of is not news to say
         quiet = QuietMs;
@@ -2240,6 +2259,9 @@ namespace chronicle
         facts["life.guide"] = ElementType{save.guide};
         facts["life.town"] = ElementType{townShown ? 1 : 0};
 
+        // Where he stands on a walk's screens, and in a story or a fight
+        walkFacts(facts);
+
         for (const auto& id : save.told)
             facts[SaidFact + id] = ElementType{1};
 
@@ -2310,14 +2332,10 @@ namespace chronicle
         if (ended or page.empty())
             return;
 
-        // A walk's screen stands over the page: the guide has nothing of it to point at, and waits
-        if (onWalk())
-        {
-            pointAt(EntityRef{});
-            sayNote(EntityRef{});
-
+        // Under the bug report the game waits, and so does the guide: no step ends or begins there
+        // (its time stands still too: the tick holds it)
+        if (reportAsked or reportOpen)
             return;
-        }
 
         passOutgrownSteps();
 
@@ -2331,22 +2349,34 @@ namespace chronicle
             step = stepsDue.front();
             stepsDue.pop_front();
             step.active = true;
+
+            // A press held on the leaf's Next was for the step before: let go over the same leaf,
+            // now this one's, it does not pass this one too
+            if (not noteNext.face.empty() and noteNext.face->has<ButtonState>())
+                noteNext.face->get<ButtonState>()->pressed = false;
         }
 
         // The line of a life led with no guide came or went: what stands under "At work now" follows
-        if (std::abs(guideRoom() + resumeRoom() + hasteRoom() - guideFitted) > 0.5f)
+        // (the page's own: under a walk's screen it waits for him to be back)
+        if (not onWalk() and std::abs(guideRoom() + resumeRoom() + hasteRoom() - guideFitted) > 0.5f)
             fit(windowWidth, windowHeight);
 
+        // A step is said on the screen it is about: over a walk's screen the shade, the leaf and
+        // the hand stand over it, and a step of the page waits under it (and the other way round)
+        liftGuide(onWalk());
+
+        const bool said = step.active and onScreen(step.point);
+
         // Found again every time: a page built again has other tiles, a list that scrolled other
-        // rows in view
+        // rows in view, a fight's screen made again other buttons
         const bool onward = stepChosen();
-        const EntityRef target = step.active ? pointed(onward ? step.pointChosen : step.point) : EntityRef{};
+        const EntityRef target = said ? pointed(onward ? step.pointChosen : step.point) : EntityRef{};
 
         // What is lit with it, while the hand is on the thing itself: once it has gone on to the
         // button, the button alone
         std::vector<EntityRef> also;
 
-        if (step.active and not onward)
+        if (said and not onward)
         {
             for (const auto& one : step.light)
             {
@@ -2356,7 +2386,47 @@ namespace chronicle
         }
 
         pointAt(target, also);
-        sayNote(target);
+        sayNote(target, said, also);
+    }
+
+    bool LifeScene::onScreen(const std::string& point) const
+    {
+        const std::string kind = point.substr(0, point.find(':'));
+        const bool walks = std::find(WalkPoints.begin(), WalkPoints.end(), kind) != WalkPoints.end();
+
+        return walks == onWalk();
+    }
+
+    void LifeScene::liftGuide(bool over)
+    {
+        if (over == guideLifted)
+            return;
+
+        guideLifted = over;
+
+        for (EntityRef strip : veil)
+            strip->get<PositionComponent>()->setZ(over ? WalkVeilZ : VeilZ);
+
+        if (not hand.empty())
+            hand->get<PositionComponent>()->setZ(over ? WalkHandZ : HandZ);
+
+        // The leaf, piece by piece as it was made: its edge, its ground, its words and its buttons
+        // (what a button draws follows its face)
+        if (not note.empty())
+        {
+            const float z = over ? WalkNoteZ : NoteZ;
+
+            note->get<PositionComponent>()->setZ(z);
+            noteEdge->get<PositionComponent>()->setZ(z);
+            noteGround->get<PositionComponent>()->setZ(z + 1.0f);
+            noteWords.entity->get<PositionComponent>()->setZ(z + 4.0f);
+
+            for (Button* button : {&noteSkip, &noteNext})
+            {
+                button->root->get<PositionComponent>()->setZ(z + 4.0f);
+                button->face->get<PositionComponent>()->setZ(z + 4.0f);
+            }
+        }
     }
 
     void LifeScene::passOutgrownSteps()
@@ -2406,7 +2476,14 @@ namespace chronicle
     {
         // A work is begun in two presses: the hand shows the tile until it is the one chosen, then
         // the button that begins it; let go of, the tile has the hand again
-        if (not step.active or step.pointChosen.empty() or chosen.empty())
+        if (not step.active or step.pointChosen.empty())
+            return false;
+
+        // On a walk's screen, a work of its day chosen in its own list
+        if (onWalk())
+            return walkChosen(step.point) or std::any_of(step.light.begin(), step.light.end(), [this](const std::string& one) { return walkChosen(one); });
+
+        if (chosen.empty())
             return false;
 
         // (of a choice, whichever of its tiles he takes)
@@ -2502,10 +2579,12 @@ namespace chronicle
     {
         // The leaf: an edge a pixel wider than its ground all round, its words, and under them its
         // two buttons. Everything hangs on the root, which the scene sizes and places
+        const float noteZ = guideLifted ? WalkNoteZ : NoteZ;   // Over a walk's screen, or over the page
+
         // As wide as it is drawn, or as the window lets it be
         const float width = std::max(MinCompactList, std::min(NoteWidth, windowWidth - 2.0f * NoteMargin));
 
-        auto root = makeAnchoredPrefab(ecsRef, 0.0f, 0.0f, NoteZ);
+        auto root = makeAnchoredPrefab(ecsRef, 0.0f, 0.0f, noteZ);
 
         root.get<PositionComponent>()->setWidth(width);
         root.get<PositionComponent>()->setVisibility(false);
@@ -2519,7 +2598,7 @@ namespace chronicle
 
         auto edge = makeUiSimple2DShape(ecsRef, Shape2D::Square, width, 1.0f);
 
-        edge.get<PositionComponent>()->setZ(NoteZ);
+        edge.get<PositionComponent>()->setZ(noteZ);
         edge.get<UiAnchor>()->setTopAnchor(PosAnchor{note.id, AnchorType::Top});
         edge.get<UiAnchor>()->setLeftAnchor(PosAnchor{note.id, AnchorType::Left});
         ecsRef->attach<ThemeComponent>(edge.entity, NoteEdge);
@@ -2529,7 +2608,7 @@ namespace chronicle
 
         auto ground = makeUiSimple2DShape(ecsRef, Shape2D::Square, width - 2.0f, 1.0f);
 
-        ground.get<PositionComponent>()->setZ(NoteZ + 1.0f);
+        ground.get<PositionComponent>()->setZ(noteZ + 1.0f);
         ground.get<UiAnchor>()->setTopAnchor(PosAnchor{note.id, AnchorType::Top});
         ground.get<UiAnchor>()->setTopMargin(1.0f);
         ground.get<UiAnchor>()->setLeftAnchor(PosAnchor{note.id, AnchorType::Left});
@@ -2543,7 +2622,7 @@ namespace chronicle
         ecsRef->attach<MouseEnterComponent>(noteGround, makeCallable<EndingNoOp>(EndingNoOp{}));
         ecsRef->attach<MouseLeaveComponent>(noteGround, makeCallable<EndingNoOp>(EndingNoOp{}));
 
-        const int z = static_cast<int>(NoteZ) + 4;
+        const int z = static_cast<int>(noteZ) + 4;
 
         LabelSpec words;
         words.style = "body";
@@ -2595,9 +2674,9 @@ namespace chronicle
         nextShown = true;
     }
 
-    void LifeScene::sayNote(EntityRef target)
+    void LifeScene::sayNote(EntityRef target, bool said, const std::vector<EntityRef>& also)
     {
-        if (not step.active)
+        if (not step.active or not said)
         {
             // Nothing to say: the leaf goes, and its buttons take no key meanwhile
             if (noteShown)
@@ -2648,20 +2727,34 @@ namespace chronicle
             nextShown = timed;
         }
 
-        // Under what is pointed at, from its left edge; over it when the window ends there; never
-        // out of the window. A step that points at nothing is said at the head of the page
+        // Under what is pointed at, from its left edge, and under what is lit with it (the tiles of
+        // a choice may wrap onto a line under it); over them when the window ends there; never out
+        // of the window. A step that points at nothing is said at the head of the page
         float x = std::max(NoteMargin, (windowWidth - pos->width) / 2.0f);
         float y = ColumnsTop;
 
         if (not target.empty())
         {
             auto where = target->get<PositionComponent>();
+            float top = where->y;
+            float bottom = where->y + where->height;
+
+            for (EntityRef other : also)
+            {
+                if (other.empty() or not other->has<PositionComponent>())
+                    continue;
+
+                auto lit = other->get<PositionComponent>();
+
+                top = std::min(top, lit->y);
+                bottom = std::max(bottom, lit->y + lit->height);
+            }
 
             x = std::max(NoteMargin, std::min(where->x, windowWidth - pos->width - NoteMargin));
-            y = where->y + where->height + NoteGap;
+            y = bottom + NoteGap;
 
             if (y + pos->height > windowHeight - NoteMargin)
-                y = where->y - NoteGap - pos->height;
+                y = top - NoteGap - pos->height;
 
             y = std::max(NoteMargin, y);
         }
@@ -2681,6 +2774,17 @@ namespace chronicle
         const std::string name = colon == std::string::npos ? std::string() : point.substr(colon + 1);
 
         EntityRef target;
+
+        // A thing of a walk's screen: found there, and only while it is up
+        if (std::find(WalkPoints.begin(), WalkPoints.end(), kind) != WalkPoints.end())
+        {
+            target = walkPointed(kind, name);
+
+            if (target.empty() or not target->has<PositionComponent>() or not target->get<PositionComponent>()->isRenderable())
+                return EntityRef{};
+
+            return target;
+        }
 
         if (kind == "button")
         {
@@ -2802,7 +2906,7 @@ namespace chronicle
 
         if (hand.empty())
         {
-            Mark mark = makeMark(ecsRef, {HandGlyph, MarkSize::S24, HandColor, static_cast<int>(HandZ)});
+            Mark mark = makeMark(ecsRef, {HandGlyph, MarkSize::S24, HandColor, static_cast<int>(guideLifted ? WalkHandZ : HandZ)});
 
             hand = mark.entity;
 
@@ -2934,7 +3038,7 @@ namespace chronicle
         {
             auto strip = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1.0f, 1.0f);
 
-            strip.get<PositionComponent>()->setZ(VeilZ);
+            strip.get<PositionComponent>()->setZ(guideLifted ? WalkVeilZ : VeilZ);
             strip.get<PositionComponent>()->setVisibility(false);
             ecsRef->attach<ThemeComponent>(strip.entity, VeilElement);
             ecsRef->attach<SceneElement>(strip.entity);
@@ -4122,6 +4226,17 @@ namespace chronicle
         }
     }
 
+    void LifeScene::renumberGuide()
+    {
+        // Written before the outskirts had their steps: the steps after his age (the classes, the
+        // last word) were its 12 and 13, and are the last of this guide too. Once: from here the
+        // save is of this build's format
+        if (save.version < GuideNumbered and save.guide > OldGuideLast and guideSteps > OldGuideSteps)
+            save.guide += guideSteps - OldGuideSteps;
+
+        save.version = LifeSave::SaveVersion;
+    }
+
     void LifeScene::takeAsRead()
     {
         // What is already so when the chronicle is opened is not news: a life from before the lore
@@ -4537,6 +4652,15 @@ namespace chronicle
         setFact("life.lives", save.lives);
         setFact("life.guide", save.guide);
         setFact("life.town", townShown ? 1 : 0);
+
+        // And on a walk's screens: which one, the story and its day, the fight and its turn
+        {
+            ElementMap walking;
+            walkFacts(walking);
+
+            for (const auto& [path, value] : walking)
+                setFact(path, value);
+        }
 
         // What the world has been told of its guide: the step that waits for another reads it.
         // Written both ways: the facts outlive a world (they are saved with the engine's), and

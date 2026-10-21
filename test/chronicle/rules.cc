@@ -3539,8 +3539,10 @@ namespace pg
                 return -1;
             };
 
-            const std::vector<std::string> kinds = {"button:", "tile:", "holding:", "stat:", "tab:", "place:"};
-            const std::vector<std::string> places = {"", "clock", "log"};
+            // The Life page's kinds, then a walk's screens' (the outskirts' steps): a work of the
+            // day, an answer of the card, a move, a beast's panel, a button of the screen
+            const std::vector<std::string> kinds = {"button:", "tile:", "holding:", "stat:", "tab:", "place:", "work:", "option:", "move:", "foe:", "walkbutton:"};
+            const std::vector<std::string> places = {"", "clock", "log", "order"};
 
             // The steps outside the sequence: the work that took from his Vitality; his rations low,
             // before and after he knows the town; and
@@ -3548,7 +3550,7 @@ namespace pg
             const std::vector<std::string> asides = {"guide.vitality", "guide.rations_low", "guide.rations_market", "guide.town", "guide.market", "guide.places"};
             const std::vector<std::string> worlds = {"guide.town", "guide.market", "guide.places"};
 
-            const int last = 13;
+            const int last = 19;
 
             std::vector<int> taken(last + 1, 0);
             size_t outside = 0;
@@ -3596,6 +3598,12 @@ namespace pg
                     EXPECT_EQ(chosen, "button:begin") << id;
                     EXPECT_FALSE(textOf(a.fields, "sayChosen").empty()) << id;
                 }
+                else if (point.rfind("work:", 0) == 0)
+                {
+                    // And on a story's day: the work, then the button that does it
+                    EXPECT_EQ(chosen, "walkbutton:do") << id;
+                    EXPECT_FALSE(textOf(a.fields, "sayChosen").empty()) << id;
+                }
                 else
                 {
                     EXPECT_TRUE(chosen.empty()) << id;
@@ -3622,9 +3630,11 @@ namespace pg
 
                 EXPECT_EQ(waitsFor(a), a.order - 1) << id;
 
-                // The steps of his sixth year are for a boy under seven; his age and the classes
-                // are said at any age
-                EXPECT_EQ(intOf(a.fields, "untilAge"), a.order <= 10 ? 7 : 0) << id;
+                // The steps of his sixth year are for a boy under seven (its works, and the
+                // outskirts' after his age); his age and the classes are said at any age
+                const bool always = id == "guide.clock" or id == "guide.doors" or id == "guide.rest";
+
+                EXPECT_EQ(intOf(a.fields, "untilAge"), always ? 0 : 7) << id;
             }
 
             for (int order = 1; order <= last; ++order)

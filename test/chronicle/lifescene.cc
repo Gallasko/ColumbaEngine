@@ -2917,7 +2917,7 @@ namespace pg
             EXPECT_NE(digest.find("\"did.serve\":2"), std::string::npos);
             EXPECT_EQ(digest.find("did.yard"), std::string::npos);
             EXPECT_EQ(digest.find("did.wheel"), std::string::npos);
-            EXPECT_NE(digest.find("\"v\":\"0.6\""), std::string::npos);
+            EXPECT_NE(digest.find("\"v\":\"0.8\""), std::string::npos);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -5642,7 +5642,8 @@ namespace pg
             EXPECT_NE(life->noteWords.spec.text.find("30"), std::string::npos) << life->noteWords.spec.text;
             next();
 
-            // The outskirts, with nothing said: the classes wait for him to be seven
+            // The outskirts, all there is in the list: nothing said of the row itself, and the
+            // classes wait for him to be seven
             EXPECT_EQ(life->save.guide, 11);
             EXPECT_FALSE(life->step.active);
             EXPECT_EQ(list->find(&f.ecs, "keep"), nullptr);
@@ -5651,7 +5652,48 @@ namespace pg
 
             const int toasts = life->toastsUp();
 
-            exploreOutskirts(f, life, "animals", "tracks");
+            // On the story's screen the guide goes on: the lunch, the three paths, the ditch's card;
+            // in the fight the slime, the order of the turn and Strike (the tests just above say
+            // where each points)
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "outskirts"});
+            f.frames(12);
+
+            ASSERT_TRUE(life->onWalk());
+            EXPECT_EQ(life->step.id, "guide.lunch");
+
+            life->walkDo(WalkAct{"tile.lunch", "", 0});
+            f.frames(12);
+            EXPECT_EQ(life->step.id, "guide.paths");
+
+            life->walkDo(WalkAct{"tile.animals", "", 0});
+            f.frames(12);
+            EXPECT_FALSE(life->step.active);   // its fork: nothing said
+
+            life->walkDo(WalkAct{"tile.tracks", "", 0});
+            f.frames(12);
+            EXPECT_EQ(life->step.id, "guide.ditch");
+
+            life->walkDo(WalkAct{"option", "go", 0});
+            f.frames(12);
+            ASSERT_EQ(life->walkScreen, "fight");
+            EXPECT_EQ(life->step.id, "guide.slime");
+            next();
+            EXPECT_EQ(life->step.id, "guide.order");
+            next();
+            EXPECT_EQ(life->step.id, "guide.strike");
+
+            for (int guard = 0; guard < 40 and life->onWalk() and life->walkScreen == "fight"; ++guard)
+            {
+                const auto over = life->save.walk.fight.find("over");
+                const bool done = over != life->save.walk.fight.end() and not over->second.toString().empty();
+
+                life->walkDo(done ? WalkAct{"back", "", 0} : WalkAct{"move", "strike", 0});
+                f.settle();
+            }
+
+            f.frames(12);
+            ASSERT_FALSE(life->onWalk());
+            EXPECT_EQ(life->save.guide, 17);
             EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
             EXPECT_TRUE(life->save.running.empty());
 
@@ -5680,13 +5722,13 @@ namespace pg
             EXPECT_NE(life->noteWords.spec.text.find("classes"), std::string::npos) << life->noteWords.spec.text;
 
             next();
-            EXPECT_EQ(life->save.guide, 12);
+            EXPECT_EQ(life->save.guide, 18);
             EXPECT_EQ(life->step.id, "guide.rest");
             EXPECT_EQ(life->handOn, 0u);
             EXPECT_TRUE(life->noteShown);
 
             next();
-            EXPECT_EQ(life->save.guide, 13);
+            EXPECT_EQ(life->save.guide, 19);
             EXPECT_FALSE(life->step.active);
 
             // Two more works: his rations run low at his letters, and the word kept for that is said
@@ -5698,8 +5740,8 @@ namespace pg
             EXPECT_EQ(life->step.order, 0);
             next();
 
-            EXPECT_EQ(life->save.guide, 13);
-            EXPECT_EQ(f.fact<int>("life.guide"), 13);
+            EXPECT_EQ(life->save.guide, 19);
+            EXPECT_EQ(f.fact<int>("life.guide"), 19);
             EXPECT_FALSE(life->guiding());
             EXPECT_FALSE(life->step.active);
             EXPECT_TRUE(life->stepsDue.empty());
@@ -5979,6 +6021,795 @@ namespace pg
             std::remove(path.c_str());
         }
 
+        namespace
+        {
+            // A first life at six years and eleven months, its guide past his age (the clock, the
+            // step before the outskirts' own), the outskirts begun from the list: the story's screen
+            // is up, and the guide on it
+            // A piece of the walk's screen by its name, as the scene names it
+            EntityRef walkNamed(LifeScene* life, const std::string& name)
+            {
+                if (life->walkPage.empty() or not life->walkPage->has<Prefab>())
+                    return EntityRef{};
+
+                return life->walkPage->get<Prefab>()->findEntity(name);
+            }
+
+            template <typename Piece>
+            Piece* onWalkScreen(LifeScene* life, const std::string& name)
+            {
+                EntityRef entity = walkNamed(life, name);
+
+                if (entity.empty() or not entity->has<Piece>())
+                    return nullptr;
+
+                return entity->get<Piece>().component;
+            }
+
+            LifeScene* guidedOutskirts(LifeFixture& f)
+            {
+                LifeSceneOptions opt = LifeFixture::first();
+                opt.guide = 11;
+                opt.walkSeed = 11;
+
+                LifeScene* life = f.life(opt);
+
+                if (not life)
+                    return nullptr;
+
+                f.frames(12);
+
+                life->save.age = 6.0f + 10.0f / 12.0f;
+                life->save.stats["rations"] = 1;
+                life->onMonth();
+                f.settle();
+                f.frames(12);
+
+                f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "outskirts"});
+                f.frames(12);
+
+                return life;
+            }
+
+            // The highest z drawn over a thing's box, the guide's hand and shade apart: what the
+            // shade has to be over for that thing to stand under it
+            float topOver(LifeFixture& f, LifeScene* life, EntityRef target)
+            {
+                auto box = f.pos(target);
+                const auto& entities = f.ecs.view();
+                float top = box->z;
+
+                for (size_t i = 1; i <= f.ecs.getNbEntities(); ++i)
+                {
+                    auto entity = entities[i];
+
+                    if (not entity or not entity->has<PositionComponent>() or entity->id == life->hand.id)
+                        continue;
+
+                    if (std::any_of(life->veil.begin(), life->veil.end(), [&](EntityRef strip) { return strip.id == entity->id; }))
+                        continue;
+
+                    auto pos = entity->get<PositionComponent>();
+
+                    // Inside it, drawn, and of the screens (the bug report's button and the toasts are above all)
+                    if (not pos->isRenderable() or pos->z >= 130.0f or pos->width <= 0.0f or pos->height <= 0.0f)
+                        continue;
+
+                    if (pos->x >= box->x - 0.5f and pos->y >= box->y - 0.5f and pos->x + pos->width <= box->x + box->width + 0.5f and pos->y + pos->height <= box->y + box->height + 0.5f)
+                        top = std::max(top, pos->z);
+                }
+
+                return top;
+            }
+
+            // The guide's shade is up over a walk's screen, and what it points at is under none of it:
+            // the strips over everything that screen draws, under the bug report's button
+            void expectShadeOverWalk(LifeFixture& f, LifeScene* life, EntityRef target, EntityRef shaded)
+            {
+                EXPECT_TRUE(life->veiled);
+
+                float veilZ = 0.0f;
+
+                for (const auto& strip : life->veil)
+                {
+                    if (f.pos(strip)->visible)
+                        veilZ = std::max(veilZ, f.pos(strip)->z);
+                }
+
+                EXPECT_GT(veilZ, topOver(f, life, target));
+                EXPECT_GT(veilZ, topOver(f, life, shaded));
+                EXPECT_LT(veilZ, 145.0f);
+                EXPECT_GT(f.pos(life->hand)->z, veilZ);
+                EXPECT_GT(f.pos(life->noteWords.entity)->z, veilZ);
+                EXPECT_GT(f.pos(life->noteSkip.face)->z, veilZ);
+            }
+
+            // The button of a move of his turn, as the fight's screen made it
+            EntityRef moveButton(LifeScene* life, const std::string& move)
+            {
+                for (const auto& [tag, button] : life->moves())
+                {
+                    if (tag == "walk.move." + move)
+                        return button.root;
+                }
+
+                return EntityRef{};
+            }
+
+            // Nothing of the guide is on the screen: no step, no leaf, no hand, no shade
+            void expectNoGuide(LifeFixture& f, LifeScene* life)
+            {
+                EXPECT_FALSE(life->step.active) << life->step.id;
+                EXPECT_FALSE(life->noteShown);
+                EXPECT_EQ(life->handOn, 0u);
+                EXPECT_FALSE(life->veiled);
+
+                if (not life->note.empty())
+                {
+                    EXPECT_FALSE(f.pos(life->note)->visible);
+                }
+
+                for (const auto& strip : life->veil)
+                    EXPECT_FALSE(f.pos(strip)->visible);
+            }
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A first life goes into the outskirts with its guide: on the story's screen the hand is on
+        // the lunch, the leaf under it, and the shade over the screen with the lunch left lit. Chosen,
+        // the hand goes to the button that does it; done, the step ends.
+        TEST(lifescene_test, the_guide_points_on_the_story_screen)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = guidedOutskirts(f);
+            ASSERT_NE(life, nullptr);
+
+            ASSERT_TRUE(life->onWalk());
+            ASSERT_EQ(life->walkScreen, "site");
+
+            // What the walk's screen says to the guide
+            EXPECT_EQ(f.fact<std::string>("walk.screen"), "site");
+            EXPECT_EQ(f.fact<std::string>("story.id"), "outskirts");
+            EXPECT_EQ(f.fact<int>("story.day"), 1);
+            EXPECT_EQ(f.fact<int>("fight.turn"), 0);
+            EXPECT_EQ(f.fact<int>("fight.over"), 0);
+
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.lunch");
+            EXPECT_EQ(life->save.guide, 11);
+
+            auto works = onWalkScreen<ActivityList>(life, "works");
+            ASSERT_NE(works, nullptr);
+
+            ActivityRow* lunch = works->find(&f.ecs, "tile.lunch");
+            ASSERT_NE(lunch, nullptr);
+
+            auto button = onWalkScreen<Button>(life, "work");
+            ASSERT_NE(button, nullptr);
+
+            EXPECT_EQ(life->handOn, lunch->root.id);
+            EXPECT_EQ(life->noteWords.spec.text, life->step.say);
+            expectNoteBeside(f, life, lunch->root);
+            expectShadeOverWalk(f, life, lunch->root, button->root);
+            EXPECT_FALSE(life->nextShown);
+
+            // Chosen: the hand on the button that does it
+            f.ecs.sendEvent(ActivitySelectedEvent{"walk.works", "tile.lunch"});
+            f.settle();
+            f.frames(4);
+
+            EXPECT_EQ(life->workChosen, "tile.lunch");
+            EXPECT_EQ(life->handOn, button->root.id);
+            EXPECT_EQ(life->noteWords.spec.text, life->step.sayChosen);
+
+            // Done: the lunch eaten, the second day, and the step over
+            f.ecs.sendEvent(ButtonActivatedEvent{button->face.id, "walk.work"});
+            f.frames(12);
+
+            EXPECT_EQ(life->save.stats["rations"], 6);
+            EXPECT_EQ(f.fact<int>("story.day"), 2);
+            EXPECT_EQ(life->save.guide, 12);
+            EXPECT_NE(life->step.id, "guide.lunch");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The guide walks a first boy through the outskirts into his first fight: the three paths lit
+        // together, the card's answer, the slime's panel and what it will do, the order of the turn,
+        // then the hand on Strike. Striking ends the step; the fight and the story go on unguided, and
+        // at seven the guide is back on the Life page with the classes.
+        TEST(lifescene_test, the_guide_walks_him_into_the_fight)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = guidedOutskirts(f);
+            ASSERT_NE(life, nullptr);
+            ASSERT_EQ(life->step.id, "guide.lunch");
+
+            auto next = [&]() {
+                ASSERT_TRUE(life->step.active);
+                ASSERT_TRUE(life->nextShown) << life->step.id;
+
+                f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
+                f.frames(12);
+            };
+
+            // The lunch, by a double click on its tile
+            f.ecs.sendEvent(ActivityActivatedEvent{"walk.works", "tile.lunch"});
+            f.frames(12);
+
+            // The second day: the three paths, the hand on the first and the other two lit with it
+            ASSERT_EQ(f.fact<int>("story.day"), 2);
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.paths");
+
+            auto works = onWalkScreen<ActivityList>(life, "works");
+            ASSERT_NE(works, nullptr);
+            ASSERT_NE(works->find(&f.ecs, "tile.children"), nullptr);
+            EXPECT_EQ(life->handOn, works->find(&f.ecs, "tile.children")->root.id);
+            EXPECT_EQ(life->step.light, (std::vector<std::string>{"work:nature", "work:animals"}));
+            EXPECT_TRUE(life->veiled);
+
+            // Whichever he takes, the hand goes to the button
+            f.ecs.sendEvent(ActivitySelectedEvent{"walk.works", "tile.nature"});
+            f.frames(8);
+
+            auto button = onWalkScreen<Button>(life, "work");
+            ASSERT_NE(button, nullptr);
+            EXPECT_EQ(life->handOn, button->root.id);
+            EXPECT_EQ(life->noteWords.spec.text, life->step.sayChosen);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{button->face.id, "walk.work"});
+            f.frames(12);
+
+            // The third day, the path's fork: nothing said
+            ASSERT_EQ(f.fact<int>("story.day"), 3);
+            EXPECT_EQ(life->save.guide, 13);
+            expectNoGuide(f, life);
+
+            life->walkDo(WalkAct{"tile.beetles", "", 0});
+            f.frames(12);
+
+            // The ditch: the hand on the card's answer
+            ASSERT_EQ(life->walkScreen, "site");
+            ASSERT_EQ(f.fact<std::string>("walk.screen"), "event");
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.ditch");
+
+            auto option = onWalkScreen<Button>(life, "option0");
+            ASSERT_NE(option, nullptr);
+            EXPECT_EQ(life->handOn, option->root.id);
+            expectShadeOverWalk(f, life, option->root, button->root);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{option->face.id, "walk.option.0"});
+            f.frames(12);
+
+            // The fight: the slime's panel, said for a time
+            ASSERT_EQ(life->walkScreen, "fight");
+            EXPECT_EQ(f.fact<std::string>("walk.screen"), "fight");
+            EXPECT_EQ(f.fact<int>("fight.turn"), 1);
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.slime");
+            EXPECT_EQ(life->handOn, walkNamed(life, "foePanel0").id);
+            expectNoteBeside(f, life, walkNamed(life, "foePanel0"));
+            next();
+
+            // The order of the turn
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.order");
+            EXPECT_EQ(life->handOn, walkNamed(life, "orderPanel").id);
+            next();
+
+            // Strike
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.strike");
+            EXPECT_EQ(life->save.guide, 16);
+
+            EntityRef strike = moveButton(life, "strike");
+            ASSERT_FALSE(strike.empty());
+            EXPECT_EQ(life->handOn, strike.id);
+            EXPECT_FALSE(life->nextShown);
+            expectShadeOverWalk(f, life, strike, walkNamed(life, "foePanel0"));
+
+            f.ecs.sendEvent(ButtonActivatedEvent{strike->get<Prefab>()->getEntity("face").id, "walk.move.strike"});
+            f.frames(12);
+
+            EXPECT_EQ(f.fact<int>("fight.turn"), 2);
+            EXPECT_EQ(life->save.guide, 17);
+            expectNoGuide(f, life);
+
+            // The rest of the fight and the way home, with nothing said
+            for (int guard = 0; guard < 40 and life->onWalk() and life->walkScreen == "fight"; ++guard)
+            {
+                const auto over = life->save.walk.fight.find("over");
+                const bool done = over != life->save.walk.fight.end() and not over->second.toString().empty();
+
+                life->walkDo(done ? WalkAct{"back", "", 0} : WalkAct{"move", "strike", 0});
+                f.settle();
+
+                if (life->onWalk())
+                {
+                    expectNoGuide(f, life);
+                }
+            }
+
+            f.frames(12);
+            ASSERT_FALSE(life->onWalk());
+            EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
+
+            // Seven: the classes, on the Life page, and the shade back under it
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_TRUE(life->step.active);
+            EXPECT_EQ(life->step.id, "guide.doors");
+            ASSERT_NE(list->find(&f.ecs, "keep"), nullptr);
+            EXPECT_EQ(life->handOn, list->find(&f.ecs, "keep")->root.id);
+
+            for (const auto& strip : life->veil)
+            {
+                if (f.pos(strip)->visible)
+                {
+                    EXPECT_LT(f.pos(strip)->z, 114.0f);
+                }
+            }
+
+            EXPECT_LT(f.pos(life->noteWords.entity)->z, 120.0f);
+            EXPECT_LT(f.pos(life->hand)->z, 129.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // On a phone the three paths stand on two lines: the leaf stands under all three, and none of
+        // what is lit is under it.
+        TEST(lifescene_test, the_leaf_leaves_every_path_in_view)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            f.resize(390.0f, 844.0f);
+
+            LifeScene* life = guidedOutskirts(f);
+            ASSERT_NE(life, nullptr);
+
+            life->walkDo(WalkAct{"tile.lunch", "", 0});
+            f.frames(12);
+            ASSERT_EQ(life->step.id, "guide.paths");
+            ASSERT_TRUE(life->walkNarrow);
+
+            auto works = onWalkScreen<ActivityList>(life, "works");
+            ASSERT_NE(works, nullptr);
+
+            auto note = f.pos(life->note);
+            float lowest = 0.0f;
+
+            for (const char* id : {"tile.children", "tile.nature", "tile.animals"})
+            {
+                ActivityRow* row = works->find(&f.ecs, id);
+                ASSERT_NE(row, nullptr) << id;
+
+                auto tile = f.pos(row->root);
+                lowest = std::max(lowest, tile->y + tile->height);
+
+                const bool covered = tile->x < note->x + note->width and note->x < tile->x + tile->width and tile->y < note->y + note->height and note->y < tile->y + tile->height;
+
+                EXPECT_FALSE(covered) << id << " is under the leaf";
+            }
+
+            // (they do stand on two lines here: the test is of that)
+            EXPECT_GT(lowest, f.pos(works->find(&f.ecs, "tile.children")->root)->y + f.pos(works->find(&f.ecs, "tile.children")->root)->height + 1.0f);
+            EXPECT_LE(note->y + note->height, life->windowHeight + 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The leaf of the slime's step stands over his moves: pressed with the mouse, its Next is
+        // pressed and nothing under it is (the leaf takes the mouse over a fight as over the page).
+        TEST(lifescene_test, the_leaf_over_a_fight_takes_the_press)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = guidedOutskirts(f);
+            ASSERT_NE(life, nullptr);
+
+            for (const char* tile : {"tile.lunch", "tile.animals", "tile.tracks"})
+            {
+                life->walkDo(WalkAct{tile, "", 0});
+                f.frames(8);
+            }
+
+            life->walkDo(WalkAct{"option", "go", 0});
+            f.frames(24);
+
+            ASSERT_EQ(life->walkScreen, "fight");
+            ASSERT_EQ(life->step.id, "guide.slime");
+            ASSERT_TRUE(life->nextShown);
+
+            auto next = f.pos(life->noteNext.face);
+
+            // Something of the fight under it: a move's button the leaf stands over
+            bool over = false;
+
+            for (const auto& [tag, button] : life->moves())
+            {
+                auto face = f.pos(button.face);
+
+                over = over or (face->x < next->x + next->width and next->x < face->x + face->width and face->y < next->y + next->height and next->y < face->y + face->height);
+            }
+
+            ASSERT_TRUE(over) << "the leaf stands over none of his moves here";
+
+            const float x = next->x + next->width / 2.0f;
+            const float y = next->y + next->height / 2.0f;
+
+            f.ecs.sendEvent(OnMouseMove{Point2D{x, y}, nullptr});
+            f.frames(4);
+            f.ecs.sendEvent(OnMouseClick{Point2D{x, y}, SDL_BUTTON_LEFT});
+            f.frames(2);
+            f.ecs.sendEvent(OnMouseRelease{Point2D{x, y}, SDL_BUTTON_LEFT});
+            f.frames(12);
+
+            EXPECT_EQ(f.fact<int>("fight.turn"), 1);
+            EXPECT_EQ(life->step.id, "guide.order");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Next pressed on the slime's leaf just as its time runs out: the order of the turn comes on
+        // the same leaf, its Next where the mouse is still held. Let go, it is not passed: the press
+        // was the step's before it.
+        TEST(lifescene_test, a_press_held_as_a_step_runs_out_does_not_pass_the_next)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = guidedOutskirts(f);
+            ASSERT_NE(life, nullptr);
+
+            for (const char* tile : {"tile.lunch", "tile.animals", "tile.tracks"})
+            {
+                life->walkDo(WalkAct{tile, "", 0});
+                f.frames(8);
+            }
+
+            life->walkDo(WalkAct{"option", "go", 0});
+            f.frames(24);
+
+            ASSERT_EQ(life->step.id, "guide.slime");
+            ASSERT_TRUE(life->nextShown);
+
+            auto next = f.pos(life->noteNext.face);
+            const float x = next->x + next->width / 2.0f;
+            const float y = next->y + next->height / 2.0f;
+
+            f.ecs.sendEvent(OnMouseMove{Point2D{x, y}, nullptr});
+            f.frames(4);
+            f.ecs.sendEvent(OnMouseClick{Point2D{x, y}, SDL_BUTTON_LEFT});
+            f.frames(2);
+
+            // Held while its time runs out: the next step is said, a timed one with its own Next
+            f.pass(7500.0f);
+            ASSERT_EQ(life->step.id, "guide.order");
+            ASSERT_TRUE(life->nextShown);
+
+            f.ecs.sendEvent(OnMouseRelease{Point2D{x, y}, SDL_BUTTON_LEFT});
+            f.frames(12);
+
+            EXPECT_EQ(life->step.id, "guide.order");
+            EXPECT_EQ(f.fact<int>("fight.turn"), 1);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Under the bug report's dialog the guide waits with the game: a step said for a time does
+        // not run out there, and its Next is not pressed through the dialog. Shut, it goes on.
+        TEST(lifescene_test, the_guide_waits_under_the_bug_report)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = guidedOutskirts(f);
+            ASSERT_NE(life, nullptr);
+
+            for (const char* tile : {"tile.lunch", "tile.animals", "tile.tracks"})
+            {
+                life->walkDo(WalkAct{tile, "", 0});
+                f.frames(8);
+            }
+
+            life->walkDo(WalkAct{"option", "go", 0});
+            f.frames(24);
+            ASSERT_EQ(life->step.id, "guide.slime");
+
+            // The dialog opens (no picture comes here: it opens without one)
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "life.report"});
+            f.pass(700.0f, 50.0f);
+            ASSERT_TRUE(life->reportOpen);
+
+            f.pass(9000.0f);
+            EXPECT_EQ(life->step.id, "guide.slime");
+
+            f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
+            f.frames(12);
+            EXPECT_EQ(life->step.id, "guide.slime");
+            EXPECT_EQ(life->save.guide, 14);
+
+            // Shut: Next passes it, as before
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "report.cancel"});
+            f.frames(12);
+            ASSERT_FALSE(life->reportOpen);
+            EXPECT_EQ(life->step.id, "guide.slime");
+
+            f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
+            f.frames(12);
+            EXPECT_EQ(life->step.id, "guide.order");
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Skip the guide on the story's screen: the guide is over for good, the story goes on, and no
+        // shade is left over it nor over the fight.
+        TEST(lifescene_test, skipping_the_guide_in_the_story_leaves_no_shade)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = guidedOutskirts(f);
+            ASSERT_NE(life, nullptr);
+            ASSERT_TRUE(life->step.active);
+            ASSERT_TRUE(life->veiled);
+
+            f.ecs.sendEvent(ButtonActivatedEvent{life->noteSkip.face.id, "life.guide.skip"});
+            f.frames(12);
+
+            EXPECT_FALSE(life->guiding());
+            EXPECT_EQ(life->save.guide, life->guideSteps);
+            EXPECT_EQ(life->save.guideSkipped, 12);
+            EXPECT_TRUE(life->stepsDue.empty());
+            ASSERT_TRUE(life->onWalk());
+            expectNoGuide(f, life);
+
+            // The story goes on: the days, the card, the fight, home at seven
+            for (const char* tile : {"tile.lunch", "tile.animals", "tile.tracks"})
+            {
+                life->walkDo(WalkAct{tile, "", 0});
+                f.frames(8);
+                expectNoGuide(f, life);
+            }
+
+            life->walkDo(WalkAct{"option", "go", 0});
+            f.frames(12);
+            ASSERT_EQ(life->walkScreen, "fight");
+            expectNoGuide(f, life);
+
+            for (int guard = 0; guard < 40 and life->onWalk() and life->walkScreen == "fight"; ++guard)
+            {
+                const auto over = life->save.walk.fight.find("over");
+                const bool done = over != life->save.walk.fight.end() and not over->second.toString().empty();
+
+                life->walkDo(done ? WalkAct{"back", "", 0} : WalkAct{"move", "strike", 0});
+                f.settle();
+                expectNoGuide(f, life);
+            }
+
+            f.frames(12);
+            ASSERT_FALSE(life->onWalk());
+            EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
+            EXPECT_EQ(life->save.stats["page"], 1);
+
+            // And nothing of it at seven either: the classes are not said
+            f.pass(1000.0f);
+            expectNoGuide(f, life);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A later life explores the outskirts with no guide: the same days, the card and the fight,
+        // and nothing said, pointed at or shaded on any of its screens.
+        TEST(lifescene_test, a_later_life_explores_without_the_guide)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = elevenMonths(f, LifeFixture::mockup());
+            ASSERT_NE(life, nullptr);
+            ASSERT_GE(life->save.lives, 2);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "outskirts"});
+            f.frames(12);
+
+            ASSERT_TRUE(life->onWalk());
+            EXPECT_EQ(f.fact<std::string>("story.id"), "outskirts");
+            expectNoGuide(f, life);
+
+            for (const char* tile : {"tile.lunch", "tile.children", "tile.chase"})
+            {
+                ASSERT_EQ(life->walkScreen, "site") << tile;
+                life->walkDo(WalkAct{tile, "", 0});
+                f.frames(8);
+                expectNoGuide(f, life);
+            }
+
+            EXPECT_EQ(f.fact<std::string>("walk.screen"), "event");
+
+            life->walkDo(WalkAct{"option", "go", 0});
+            f.frames(12);
+            ASSERT_EQ(life->walkScreen, "fight");
+            EXPECT_EQ(f.fact<int>("fight.turn"), 1);
+            expectNoGuide(f, life);
+
+            for (int guard = 0; guard < 40 and life->onWalk() and life->walkScreen == "fight"; ++guard)
+            {
+                const auto over = life->save.walk.fight.find("over");
+                const bool done = over != life->save.walk.fight.end() and not over->second.toString().empty();
+
+                life->walkDo(done ? WalkAct{"back", "", 0} : WalkAct{"move", "strike", 0});
+                f.settle();
+                expectNoGuide(f, life);
+            }
+
+            f.frames(12);
+            ASSERT_FALSE(life->onWalk());
+            EXPECT_NEAR(life->save.age, 7.0f, 0.0001f);
+            EXPECT_EQ(life->save.stats["outskirts.children"], 1);
+            EXPECT_EQ(life->save.stats["page"], 1);
+            EXPECT_EQ(f.fact<std::string>("walk.screen"), "");
+            EXPECT_EQ(f.fact<int>("story.day"), 0);
+            expectNoGuide(f, life);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The guide's hand on Strike, and the window narrowed to a phone's: the fight's screen is
+        // made again in one column, and the hand goes with the button, beside its left edge.
+        TEST(lifescene_test, the_hand_follows_a_move_across_a_resize)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            f.resize(1600.0f, 1000.0f);
+
+            LifeScene* life = guidedOutskirts(f);
+            ASSERT_NE(life, nullptr);
+
+            for (const char* tile : {"tile.lunch", "tile.animals", "tile.tracks"})
+            {
+                life->walkDo(WalkAct{tile, "", 0});
+                f.frames(8);
+            }
+
+            life->walkDo(WalkAct{"option", "go", 0});
+            f.frames(12);
+            ASSERT_EQ(life->walkScreen, "fight");
+
+            for (int i = 0; i < 2 and life->step.active and life->step.id != "guide.strike"; ++i)
+            {
+                f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
+                f.frames(12);
+            }
+
+            ASSERT_EQ(life->step.id, "guide.strike");
+
+            // Beside the button's left edge, at its mid-height
+            auto expectBeside = [&](EntityRef button) {
+                auto hand = f.pos(life->hand);
+                auto where = f.pos(button);
+
+                EXPECT_TRUE(hand->visible);
+                EXPECT_LE(hand->x + hand->width, where->x + 0.5f);
+                EXPECT_GE(hand->x, 0.0f);
+                EXPECT_NEAR(hand->y + hand->height / 2.0f, where->y + where->height / 2.0f, 1.0f);
+                expectNoteBeside(f, life, button);
+            };
+
+            EntityRef wide = moveButton(life, "strike");
+            ASSERT_FALSE(wide.empty());
+            ASSERT_EQ(life->handOn, wide.id);
+            ASSERT_FALSE(life->walkNarrow);
+            expectBeside(wide);
+
+            f.resize(390.0f, 844.0f);
+            f.pass(1000.0f);
+
+            ASSERT_TRUE(life->walkNarrow);
+            ASSERT_EQ(life->walkScreen, "fight");
+
+            EntityRef narrow = moveButton(life, "strike");
+            ASSERT_FALSE(narrow.empty());
+            EXPECT_EQ(life->step.id, "guide.strike");
+            EXPECT_EQ(life->handOn, narrow.id);
+            EXPECT_LE(f.pos(narrow)->x + f.pos(narrow)->width, 390.0f + 0.5f);
+            expectBeside(narrow);
+            expectShadeOverWalk(f, life, narrow, walkNamed(life, "foePanel0"));
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // A save from before the outskirts had their steps numbered its guide with thirteen: past the
+        // classes (its 12) it is past them still, and told the last word only, once
+        TEST(lifescene_test, an_old_save_past_the_classes_is_not_told_them_again)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            const std::string path = "save/test_life_old_guide.sz";
+            std::remove(path.c_str());
+
+            LifeSceneOptions opt = LifeFixture::first();
+            opt.noSave = false;
+            opt.savePath = path;
+            opt.age = 7.0f;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+            f.frames(12);
+
+            life->save.guide = 12;
+            ASSERT_TRUE(life->saveNow());
+            f.load<EmptyScene>();
+
+            // As the build before wrote it: the save's format 1
+            std::string text;
+            {
+                std::ifstream in(path, std::ios::binary);
+                std::ostringstream all;
+                all << in.rdbuf();
+                text = all.str();
+            }
+
+            const std::regex versionLine(R"(version: __PGSA int \{\d+\},)");
+            ASSERT_TRUE(std::regex_search(text, versionLine));
+            {
+                std::ofstream out(path, std::ios::binary | std::ios::trunc);
+                out << std::regex_replace(text, versionLine, "version: __PGSA int {1},");
+            }
+
+            opt.fresh = false;
+
+            LifeScene* again = f.life(opt);
+            ASSERT_NE(again, nullptr);
+            f.frames(12);
+
+            EXPECT_EQ(again->save.lives, 1);
+            EXPECT_EQ(again->save.guide, again->guideSteps - 1);
+            ASSERT_TRUE(again->step.active);
+            EXPECT_EQ(again->step.id, "guide.rest");
+
+            f.ecs.sendEvent(ButtonActivatedEvent{again->noteNext.face.id, "life.guide.next"});
+            f.frames(12);
+
+            EXPECT_FALSE(again->guiding());
+            EXPECT_FALSE(again->step.active);
+
+            // Written again by this build: read as it is, nothing moved
+            ASSERT_TRUE(again->saveNow());
+            f.load<EmptyScene>();
+
+            LifeScene* third = f.life(opt);
+            ASSERT_NE(third, nullptr);
+            f.frames(12);
+
+            EXPECT_EQ(third->save.guide, third->guideSteps);
+            EXPECT_FALSE(third->step.active);
+
+            f.load<EmptyScene>();
+            std::remove(path.c_str());
+        }
+
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
@@ -6080,7 +6911,7 @@ namespace pg
             f.ecs.sendEvent(ButtonActivatedEvent{life->noteNext.face.id, "life.guide.next"});
             f.frames(12);
 
-            EXPECT_EQ(life->save.guide, 13);
+            EXPECT_EQ(life->save.guide, 19);
             EXPECT_FALSE(life->guiding());
             EXPECT_FALSE(life->step.active);
             EXPECT_TRUE(life->stepsDue.empty());
@@ -6418,9 +7249,9 @@ namespace pg
             f.ecs.sendEvent(ButtonActivatedEvent{life->noteSkip.face.id, "life.guide.skip"});
             f.frames(12);
 
-            EXPECT_EQ(life->save.guide, 13);
+            EXPECT_EQ(life->save.guide, 19);
             EXPECT_EQ(life->save.guideSkipped, 3);
-            EXPECT_EQ(f.fact<int>("life.guide"), 13);
+            EXPECT_EQ(f.fact<int>("life.guide"), 19);
             EXPECT_FALSE(life->guiding());
             EXPECT_FALSE(life->step.active);
             EXPECT_TRUE(life->stepsDue.empty());
@@ -6456,7 +7287,7 @@ namespace pg
 
             f.frames(12);
 
-            EXPECT_EQ(again->save.guide, 13);
+            EXPECT_EQ(again->save.guide, 19);
             EXPECT_EQ(again->save.guideSkipped, 3);
             EXPECT_FALSE(again->step.active);
             EXPECT_FALSE(again->noteShown);
@@ -6485,7 +7316,7 @@ namespace pg
             f.ecs.sendEvent(ButtonActivatedEvent{life->noteSkip.face.id, "life.guide.skip"});
             f.frames(12);
 
-            EXPECT_EQ(life->save.guide, 13);
+            EXPECT_EQ(life->save.guide, 19);
             EXPECT_EQ(life->save.guideSkipped, 1);
             EXPECT_FALSE(life->step.active);
             EXPECT_FALSE(life->noteShown);
@@ -6577,7 +7408,7 @@ namespace pg
 
             // A first life whose guide has said everything, a boy of seven who has not been yet
             LifeSceneOptions opt = LifeFixture::first();
-            opt.guide = 13;
+            opt.guide = 19;
             opt.age = 7.0f;
 
             LifeScene* life = f.life(opt);

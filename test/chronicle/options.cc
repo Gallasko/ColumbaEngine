@@ -250,7 +250,7 @@ namespace pg
             ASSERT_TRUE(life.save(path.string()));
 
             const std::string text = readAll(path);
-            const std::regex versionLine(R"(\n(\s*)version: __PGSA int \{1\},)");
+            const std::regex versionLine("\\n(\\s*)version: __PGSA int \\{" + std::to_string(LifeSave::SaveVersion) + "\\},");
             ASSERT_TRUE(std::regex_search(text, versionLine)) << text.substr(0, 400);
 
             // As written: this build's

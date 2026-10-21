@@ -88,24 +88,24 @@ namespace pg
 
             EXPECT_EQ(digest.find("{\"age\":6.00,\"world\":0,"), 0u);
             EXPECT_NE(digest.find("\"running\":\"carters\",\"monthsIn\":2,\"terms\":3,\"deeds\":1,"), std::string::npos);
-            EXPECT_NE(digest.find(",\"lives\":3,\"picks\":4,\"begun\":2,\"atOnce\":1,\"skips\":5,\"guide\":4,\"guideSkipped\":0,\"town\":0,\"townKnown\":0,\"walks\":0,\"replays\":0,\"records\":0,\"onWalk\":0,\"fights\":0,\"fightsWon\":0,\"fightsLost\":0,\"fightsFled\":0,\"fightsAuto\":0,\"carried\":0,\"queued\":0,\"known\":0,\"v\":\"0.6\"}"), std::string::npos);
+            EXPECT_NE(digest.find(",\"lives\":3,\"picks\":4,\"begun\":2,\"atOnce\":1,\"skips\":5,\"guide\":4,\"guideSkipped\":0,\"town\":0,\"townKnown\":0,\"walks\":0,\"replays\":0,\"records\":0,\"onWalk\":0,\"fights\":0,\"fightsWon\":0,\"fightsLost\":0,\"fightsFled\":0,\"fightsAuto\":0,\"carried\":0,\"queued\":0,\"known\":0,\"v\":\"0.8\"}"), std::string::npos);
             EXPECT_EQ(digest.find(life.name), std::string::npos);
 
             // A life starts at 6, its guide at its first step, and says which build it is of
             EXPECT_EQ(freshLife().digest().find("{\"age\":6.00,\"world\":0,"), 0u);
-            EXPECT_NE(freshLife().digest().find(",\"guide\":0,\"guideSkipped\":0,\"town\":0,\"townKnown\":0,\"walks\":0,\"replays\":0,\"records\":0,\"onWalk\":0,\"fights\":0,\"fightsWon\":0,\"fightsLost\":0,\"fightsFled\":0,\"fightsAuto\":0,\"carried\":0,\"queued\":0,\"known\":0,\"v\":\"0.6\"}"), std::string::npos);
+            EXPECT_NE(freshLife().digest().find(",\"guide\":0,\"guideSkipped\":0,\"town\":0,\"townKnown\":0,\"walks\":0,\"replays\":0,\"records\":0,\"onWalk\":0,\"fights\":0,\"fightsWon\":0,\"fightsLost\":0,\"fightsFled\":0,\"fightsAuto\":0,\"carried\":0,\"queued\":0,\"known\":0,\"v\":\"0.8\"}"), std::string::npos);
 
             // Skipped at its third step: past the last, and where he left it
             life.guide = 10;
             life.guideSkipped = 3;
 
-            EXPECT_NE(life.digest().find(",\"guide\":10,\"guideSkipped\":3,\"town\":0,\"townKnown\":0,\"walks\":0,\"replays\":0,\"records\":0,\"onWalk\":0,\"fights\":0,\"fightsWon\":0,\"fightsLost\":0,\"fightsFled\":0,\"fightsAuto\":0,\"carried\":0,\"queued\":0,\"known\":0,\"v\":\"0.6\"}"), std::string::npos);
+            EXPECT_NE(life.digest().find(",\"guide\":10,\"guideSkipped\":3,\"town\":0,\"townKnown\":0,\"walks\":0,\"replays\":0,\"records\":0,\"onWalk\":0,\"fights\":0,\"fightsWon\":0,\"fightsLost\":0,\"fightsFled\":0,\"fightsAuto\":0,\"carried\":0,\"queued\":0,\"known\":0,\"v\":\"0.8\"}"), std::string::npos);
 
             // The town: whether a life has explored it, and the levels of its places added up
             life.townKnown = true;
             life.town = {{"market", 2}, {"mill", 1}};
 
-            EXPECT_NE(life.digest().find(",\"town\":3,\"townKnown\":1,\"walks\":0,\"replays\":0,\"records\":0,\"onWalk\":0,\"fights\":0,\"fightsWon\":0,\"fightsLost\":0,\"fightsFled\":0,\"fightsAuto\":0,\"carried\":0,\"queued\":0,\"known\":0,\"v\":\"0.6\"}"), std::string::npos);
+            EXPECT_NE(life.digest().find(",\"town\":3,\"townKnown\":1,\"walks\":0,\"replays\":0,\"records\":0,\"onWalk\":0,\"fights\":0,\"fightsWon\":0,\"fightsLost\":0,\"fightsFled\":0,\"fightsAuto\":0,\"carried\":0,\"queued\":0,\"known\":0,\"v\":\"0.8\"}"), std::string::npos);
 
             // His walks, place by place, and his fights: a place he never went to has no key, and
             // what the world knows is the places studied and the beasts watched, added up
@@ -123,7 +123,7 @@ namespace pg
             life.knowledge = {{"study.hedgerows", 2}, {"observe.rat", 1}, {"visit.hedgerows", 6}, {"fights.rat", 5}};
 
             EXPECT_NE(life.digest().find(",\"walks\":3,\"replays\":4,\"records\":0,\"onWalk\":0,\"fights\":5,\"fightsWon\":3,\"fightsLost\":1,\"fightsFled\":1,\"fightsAuto\":2,"
-                                         "\"carried\":1,\"queued\":3,\"known\":3,\"v\":\"0.6\",\"walk.hedgerows\":2,\"walk.millpond\":1,\"replay.hedgerows\":4}"), std::string::npos);
+                                         "\"carried\":1,\"queued\":3,\"known\":3,\"v\":\"0.8\",\"walk.hedgerows\":2,\"walk.millpond\":1,\"replay.hedgerows\":4}"), std::string::npos);
 
             // The works followed one by one that he has done, in the order they are named: one he
             // has not done has no key, and neither has a work that is not one of them

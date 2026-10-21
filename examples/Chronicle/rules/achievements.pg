@@ -13,7 +13,12 @@
 //                  "working.<activity id>" (1 while he is at that one; no such fact otherwise), "life.lives"
 //                  (which life of the world this is), "life.town" (1 while the Town page is the one
 //                  in view), "said.<guide step id>" (1 once that step has been said) or "life.guide" (the last step of the guide
-//                  that ended, 0 before the first); `op` is one of ">=", ">", "<=", "<", "==".
+//                  that ended, 0 before the first). On a walk's screens, and a story's:
+//                  "walk.screen" ("site", "event" while a card waits for his answer, "fight",
+//                  "done"; "" off them), "story.id" (the story he is in, "" for none),
+//                  "story.day" (its day, 0 out of one), "fight.turn" (the turn of the fight under
+//                  way, 0 for none) and "fight.over" (1 once it is over). `op` is one of ">=",
+//                  ">", "<=", "<", "==".
 // Every entry is reached once in a life and stays reached.
 //
 // A deed: {id, name, entry, asks, gives}
@@ -39,6 +44,14 @@
 //                  "clock", "log", or "" for nothing. What is not on the page is not pointed at:
 //                  the sentence is said alone. A tile of the Life page while another page is
 //                  in view has the hand on the Life tab.
+//                  On a walk's screens (a story's too): "work:<tile id>" (a work of the day, the
+//                  story's tile id without its "tile."), "option:<n>" (the nth answer of the
+//                  card, from 0), "move:<id>" (a move of his turn in a fight: "move:strike"),
+//                  "foe:<n>" (the nth beast's panel, from 0: its next move is on it), "order"
+//                  (the order of the turn) or "walkbutton:do" (the button that does the work
+//                  chosen). A step is said on the screens it points at: one of the Life page
+//                  waits while a walk's screen is up, one of a walk's while none is (its time,
+//                  for one said for a time, runs all the same).
 //           untilAge
 //                  optional, for a step of the sequence: it is for a boy younger than that. Once
 //                  he is that old it is passed over, said or not (the steps of his sixth year:
@@ -53,11 +66,11 @@
 //           until  the step ends when these hold; without any it ends after `hold` milliseconds
 //                  (5000 when it gives none).
 //           pointChosen, sayChosen
-//                  for a step that points at a tile: what the hand points at, and what is said,
-//                  once he has chosen that tile in the list. A work is begun in two presses, the
-//                  task then the button: the hand shows the first, then the second, and goes
-//                  back to the tile if he lets go of it. `sayChosen` may be left out: the
-//                  sentence then stays as it is.
+//                  for a step that points at a tile (or at a work of a walk's day): what the
+//                  hand points at, and what is said, once he has chosen that tile in the list.
+//                  A work is begun in two presses, the task then the button: the hand shows the
+//                  first, then the second, and goes back to the tile if he lets go of it.
+//                  `sayChosen` may be left out: the sentence then stays as it is.
 //
 // Lore: {id, kind: "lore", entry, asks}
 //           entry  a line of the town's story, written in the log when its asks hold: a
@@ -170,10 +183,38 @@ var achievements = [
     {id: "guide.clock", kind: "guide", order: 11, point: "clock", hold: 6000,
      say: "This is his age. Your goal: keep him alive until he is at least 30 years old.",
      asks: []},
-    {id: "guide.doors", kind: "guide", order: 12, point: "tile:keep", hold: 9000,
+    // The outskirts (storytable.pg's `outskirts`), the last month of the year, said on the walk's
+    // screens: the lunch, the three paths, the ditch's card, then in the fight the slime, the
+    // order of the turn and Strike. Each waits for what it is about to be on the screen, and ends
+    // when he has done what it asks (said again at once if he is past it already)
+    {id: "guide.lunch", kind: "guide", order: 12, untilAge: 7, point: "work:lunch", pointChosen: "walkbutton:do",
+     say: "This is a story. Each day you choose one thing to do. Take your lunch first.",
+     sayChosen: "Press the button to do it. You can also double-click the task.",
+     asks: [{fact: "story.id", op: "==", value: "outskirts"}],
+     until: [{fact: "story.day", op: ">=", value: 2}]},
+    {id: "guide.paths", kind: "guide", order: 13, untilAge: 7, point: "work:children", light: "work:nature,work:animals", pointChosen: "walkbutton:do",
+     say: "Each path is a way of life. Pick the one you like: it teaches him a move for later.",
+     sayChosen: "Press the button to take this path. The other two close.",
+     asks: [{fact: "story.day", op: ">=", value: 2}],
+     until: [{fact: "story.day", op: ">=", value: 3}]},
+    {id: "guide.ditch", kind: "guide", order: 14, untilAge: 7, point: "option:0",
+     say: "Something is moving in the ditch. Click the answer to go and see.",
+     asks: [{fact: "story.day", op: ">=", value: 4}],
+     until: [{fact: "walk.screen", op: "==", value: "fight"}]},
+    {id: "guide.slime", kind: "guide", order: 15, untilAge: 7, point: "foe:0", hold: 7000,
+     say: "This is the slime. Its panel shows what it will do on its turn.",
+     asks: [{fact: "walk.screen", op: "==", value: "fight"}, {fact: "fight.over", op: "==", value: 0}]},
+    {id: "guide.order", kind: "guide", order: 16, untilAge: 7, point: "order", hold: 6000,
+     say: "This shows who acts first, and when your next turn comes.",
+     asks: [{fact: "fight.over", op: "==", value: 0}]},
+    {id: "guide.strike", kind: "guide", order: 17, untilAge: 7, point: "move:strike",
+     say: "Press Strike to hit it. Do not worry: he cannot die in this fight.",
+     asks: [{fact: "fight.over", op: "==", value: 0}],
+     until: [{fact: "fight.turn", op: ">=", value: 2}]},
+    {id: "guide.doors", kind: "guide", order: 18, point: "tile:keep", hold: 9000,
      say: "He is 7: the town's work is open to him. These are the three classes: the Keep (warrior), the Collegium (mage) and the Hidden Hand (thief). You can join one at 16, so train for it.",
      asks: [{fact: "life.age", op: ">=", value: 7}]},
-    {id: "guide.rest", kind: "guide", order: 13, point: "", hold: 4000,
+    {id: "guide.rest", kind: "guide", order: 19, point: "", hold: 4000,
      say: "That is all. Have fun!",
      asks: []},
 
@@ -238,8 +279,8 @@ var achievements = [
 var ops = [">=", ">", "<=", "<", "=="]
 
 // What the hand can point at: one of these places, or one of these kinds followed by a name
-var pointPlaces = ["", "clock", "log"]
-var pointKinds = ["button:", "tile:", "holding:", "stat:", "tab:", "place:"]
+var pointPlaces = ["", "clock", "log", "order"]
+var pointKinds = ["button:", "tile:", "holding:", "stat:", "tab:", "place:", "work:", "option:", "move:", "foe:", "walkbutton:"]
 
 // The steps of the guide's sequence, counted to see that their orders run 1..n without a gap
 var guideSteps = 0
@@ -323,9 +364,9 @@ for (var i = 0; i < len(achievements); i++)
             }
         }
 
-        if (a.pointChosen != "" and not startsWith(a.point, "tile:"))
+        if (a.pointChosen != "" and not startsWith(a.point, "tile:") and not startsWith(a.point, "work:"))
         {
-            push(errors, "guide step " + a.id + ": pointChosen is for a step that points at a tile")
+            push(errors, "guide step " + a.id + ": pointChosen is for a step that points at a tile, or at a work of a walk's day")
         }
 
         if (a.sayChosen != "" and a.pointChosen == "")

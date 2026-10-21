@@ -144,7 +144,7 @@ namespace chronicle
 
         // The build a digest says it is of: changed with what a digest means (its guide's steps,
         // the works it names), so that two builds' rows can be told apart
-        static constexpr const char* DigestBuild = "0.6";
+        static constexpr const char* DigestBuild = "0.8";
 
         // The file holds the life, and with `settings` the player's settings beside it (the game's
         // own save: one file for everything). Without, the life alone (an export). Whatever else the
@@ -153,8 +153,10 @@ namespace chronicle
         bool load(const std::string& path);
 
         // The version of the save's own format, written with every save. A save read from a file
-        // keeps the one it was written with in `version`: 0 for a save from before the field
-        static constexpr int SaveVersion = 1;
+        // keeps the one it was written with in `version`: 0 for a save from before the field.
+        // 2: the guide has the outskirts' steps, and `guide` counts them (the scene renumbers a
+        // save of 1 or 0)
+        static constexpr int SaveVersion = 2;
         int version = SaveVersion;
 
         // What a file offered as a save is (the Options page's Load): one of this build, or what
