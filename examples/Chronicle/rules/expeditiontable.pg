@@ -656,7 +656,7 @@ const walkTechniques = [
     // Collegium's elemental basics teach the spark and the rime too, and a storm cantrip of the
     // same weight, the static (storytable.pg's `collegium`)
     {id: "read", name: "Read the beast", kind: "spell", damage: "", breath: 1, cool: 0, power: 0, hit: 0, weight: 60, all: false, holds: false, effect: "read",
-     knows: ["letters", "outskirts.nature"], where: "HIS LETTERS", line: "He sees what it is and what it means to do: known 3 of 4 for this fight"},
+     knows: ["letters", "outskirts.nature"], where: "HIS LETTERS", line: "He sees what it is and what it means to do"},
     {id: "spark", name: "Spark", kind: "spell", damage: "fire", breath: 1, cool: 0, power: 60, hit: 15, weight: 100, all: false, holds: false, trains: "int",
      knows: ["forbidden_read", "spark_taught"], where: "THE FORBIDDEN SHELF", line: "A small fire from nothing: it leaves the beast burning"},
     {id: "rime", name: "Rime", kind: "spell", damage: "frost", breath: 1, cool: 0, power: 60, hit: 15, weight: 100, all: false, holds: false, trains: "int",

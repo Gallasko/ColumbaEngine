@@ -3518,5 +3518,49 @@ namespace pg
             EXPECT_EQ(menuOf("outskirts.nature"), (std::vector<bool>{false, true, false}));
             EXPECT_EQ(menuOf("outskirts.animals"), (std::vector<bool>{false, false, true}));
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // What a move of his says of itself, and the note under it, say two things: the note is
+        // not the line said again (Read the beast said "known 3 of 4 for this fight" twice).
+        TEST(expedition_test, a_move_says_its_note_once)
+        {
+            MockLogger logger;
+
+            ElementMap boy = knowing(gatherer(), "hedgerows", 10);
+
+            for (const char* flag : {"outskirts.children", "outskirts.nature", "outskirts.animals"})
+                boy[flag] = ElementType{1};
+
+            auto w = std::make_unique<Walker>(boy);
+            w->age = 10.0f;
+
+            ASSERT_TRUE(w->ask("enter", WalkAct{"", "millpond", 0}));
+            ASSERT_TRUE(w->act("seek", "rat", 1));
+            w->answer();
+            ASSERT_EQ(w->screen(), "fight");
+
+            auto lower = [](std::string s) {
+                std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                return s;
+            };
+
+            int seen = 0;
+
+            for (const auto& row : w->last.menu)
+            {
+                const std::string text = lower(textOf(row, "text"));
+                const std::string note = lower(textOf(row, "note"));
+
+                if (note.empty())
+                    continue;
+
+                ++seen;
+                EXPECT_EQ(text.find(note), std::string::npos) << textOf(row, "id") << ": " << textOf(row, "text");
+            }
+
+            EXPECT_GE(seen, 3);
+        }
     }
 }
