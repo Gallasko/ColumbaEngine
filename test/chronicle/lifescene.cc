@@ -11415,6 +11415,67 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // Once the fight is over nothing is coming: the timeline's panel says so in a line, the
+        // timeline is out of it, and the panel stands no taller than that line asks.
+        TEST(lifescene_test, the_timeline_says_the_fight_is_over)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = elevenMonths(f, LifeFixture::mockup());
+            ASSERT_NE(life, nullptr);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "outskirts"});
+            f.frames(12);
+            ASSERT_TRUE(life->onWalk());
+
+            for (const char* tile : {"tile.lunch", "tile.animals", "tile.tracks"})
+            {
+                life->walkDo(WalkAct{tile, "", 0});
+                f.frames(8);
+            }
+
+            life->walkDo(WalkAct{"option", "go", 0});
+            f.frames(12);
+            ASSERT_EQ(life->walkScreen, "fight");
+
+            EntityRef quick = walkPart(life, "quick");
+            ASSERT_FALSE(quick.empty());
+            EXPECT_NE(quick->get<Label>()->spec.text.find("QUICKNESS"), std::string::npos);
+            EXPECT_TRUE(f.pos(walkPart(life, "timeline"))->visible);
+
+            const float tall = f.pos(walkPart(life, "orderPanel"))->height;
+            bool over = false;
+
+            for (int guard = 0; guard < 40 and not over; ++guard)
+            {
+                life->walkDo(WalkAct{"move", "strike", 0});
+                f.settle();
+
+                const auto ended = life->save.walk.fight.find("over");
+                over = ended != life->save.walk.fight.end() and not ended->second.toString().empty();
+            }
+
+            ASSERT_TRUE(over);
+            ASSERT_EQ(life->walkScreen, "fight");
+            f.frames(12);
+
+            EXPECT_EQ(quick->get<Label>()->spec.text, "THE FIGHT IS OVER");
+            EXPECT_TRUE(f.pos(quick)->visible);
+            EXPECT_FALSE(f.pos(walkPart(life, "timeline"))->visible);
+            EXPECT_FALSE(f.pos(walkPart(life, "warn"))->visible);
+            EXPECT_LT(f.pos(walkPart(life, "orderPanel"))->height, tall - 100.0f);
+
+            // And the line stands inside the panel, under its head
+            auto order = f.pos(walkPart(life, "orderPanel"));
+
+            EXPECT_GT(f.pos(quick)->y, order->y);
+            EXPECT_LE(f.pos(quick)->y + f.pos(quick)->height, order->y + order->height + 0.5f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // The fight's page shows what the rules say of it: the next six actions, his first; what
         // is on a beast on its panel; his blows on a line, his workings on the next.
         TEST(lifescene_test, a_fight_shows_its_timeline_and_what_he_knows)

@@ -111,7 +111,6 @@ namespace chronicle
         constexpr float HurtRise = 0.02f;                  // by so many pixels a millisecond
         constexpr float HurtZ = 150.0f;                    // Over the screen, under the tooltips
         constexpr int MaxOptions = 4;                      // The buttons an event's card has (a story's card has up to four answers)
-        constexpr int MaxChips = 6;                        // The places the order of a turn has
         constexpr int MaxFoes = 4;                         // The beasts the panel of what he fights has room for: a pack is four at most
         constexpr int MostWalks = 20;                      // The longest queue the form asks for
         constexpr int SettlePasses = 3;                    // A screen just built is filled again that many passes, once its layouts hold their pieces
@@ -2373,51 +2372,14 @@ namespace chronicle
         walkSay("fightTitle", textOf(duel, "title"));
         walkSay("turn", textOf(duel, "turn"));
         walkSay("turnNote", textOf(duel, "cost") + " \xC2\xB7 " + textOf(duel, "daysLeft"));
-        // The order of the turn, in its panel: who acts when, one under the other, he in lapis
-        // where he stands and each beast with what it will do; then what is coming at him, and
-        // why he is first or not. A place no one stands in is out of the stack
+        // Under the timeline, what is coming at him and why he is first or not. Once it is over
+        // nothing is coming: the timeline is out of its panel's stack, and one line says so
         const std::string warn = over ? std::string() : textOf(duel, "warn");
 
-        walkSay("quick", textOf(duel, "quick"));
+        walkSay("quick", over ? std::string("THE FIGHT IS OVER") : textOf(duel, "quick"));
         walkSay("warn", warn.empty() ? std::string(" ") : warn);
+        walkShow("timeline", not over, "orderPanel");
         walkShow("warn", not over, "orderPanel");   // (the timeline says what is coming before his next turn)
-        walkShow("quick", not over, "orderPanel");
-
-        for (int i = 0; i < MaxChips; ++i)
-        {
-            const std::string name = "chip" + std::to_string(i);
-            auto chip = walkPiece<Label>(name);
-
-            if (not chip)
-                continue;
-
-            // Once it is over there is no order left to say: one line says so
-            const bool ended = over and i == 0;
-            const bool there = ended or (not over and static_cast<size_t>(i) < walk.order.size());
-
-            walkShow(name, there, "orderPanel");
-
-            if (not there)
-                continue;
-
-            std::string text = "THE FIGHT IS OVER";
-            std::string color = "ink-muted";
-
-            if (not ended)
-            {
-                const ElementMap& o = walk.order[i];
-                const std::string tone = textOf(o, "tone");
-
-                text = std::to_string(i + 1) + " \xC2\xB7 " + upper(textOf(o, "text")) + " \xC2\xB7 " + textOf(o, "note");
-                color = tone == "now" ? "lapis" : tone == "foe" ? "ink" : "ink-muted";
-            }
-
-            if (chip->spec.text != text)
-                chip->setText(ecs, text);
-
-            if (chip->spec.color != color)
-                chip->setColor(ecs, color);
-        }
 
         auto registry = ecs->getSystem<GlossRegistry>();
 
