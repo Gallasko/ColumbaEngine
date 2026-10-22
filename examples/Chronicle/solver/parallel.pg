@@ -2,12 +2,15 @@
 // -----------------------------------------------------------------------------------
 // A job is one world's expansion (beam.pg's expand), one world's month (life.pg's monthPass), one
 // task for the planner (solver.pg's planTask), or one stage of the planner for a task (planStage:
-// a stage skipped when a lower one has reached the task already, settle / settled; a stage that
-// does not reach it asks for the next, claimUpTo). Each runs alone in whichever worker takes it, from a
+// a stage skipped when a lower one has reached the task already, settle / settled, or when a
+// search aimed at another task reached it on its way, "found.<id>"; a stage that does not reach it
+// asks for the next, claimUpTo). Each runs alone in whichever worker takes it, from a
 // copy of what the main script sends; the main script takes the answers back in the jobs' order:
 //
-// - the plan lines a job wrote: a worker numbers them from `workerBase` (life.pg's `planBase`); the
-//   main script adds them to its own `planLog` and numbers the heads that point at them anew;
+// - the plan lines a job wrote that its answer leads to (keepLines: those of the worlds it hands
+//   back and of its first finds, not of the worlds it dropped): a worker numbers them from
+//   `workerBase` (life.pg's `planBase`); the main script adds them to its own `planLog` and numbers
+//   the heads that point at them anew;
 // - the tasks a job reached that no world had (life.pg's `jobFirsts`): the first, in the jobs'
 //   order, is the one `everReached` keeps;
 // - the states, stamped anew (the stamps of a worker are not the main script's).
@@ -105,10 +108,11 @@ fun workerJob(job)
             touch(plannerBase)
         }
 
-        // A lower stage has reached it already: nothing this one could change
+        // A lower stage has reached it already, or a search aimed at another task did on its
+        // way: nothing this one could change
         var lower = settled(job.id)
 
-        if (lower >= 0 and lower < job.stage)
+        if ((lower >= 0 and lower < job.stage) or settled("found." + job.id) >= 0)
         {
             out = {id: job.id, stage: job.stage, ok: false, skipped: true, miss: none}
         }
@@ -117,6 +121,16 @@ fun workerJob(job)
             misses = {}
 
             var done = planStage(job.id, job.stage)
+
+            // What its worlds reached that no world had, on the way, is reached for every task's
+            // stages (its own stays the lowest stage's: settle, below)
+            for (var met : jobFirsts)
+            {
+                if (met != job.id)
+                {
+                    settle("found." + met, 0)
+                }
+            }
 
             if (done != none)
             {
@@ -152,6 +166,60 @@ fun workerJob(job)
         push(firsts, {id: id, how: jobFirsts[id].how, head: jobFirsts[id].head})
     }
 
+    // Only the lines the answer leads to go back: those of the worlds it hands back and of its
+    // first finds. The worlds pruned, the planner's tries that came to nothing, wrote the rest
+    var heads = []
+
+    for (var f : firsts)
+    {
+        push(heads, f.head)
+    }
+
+    if (job.kind == "expand")
+    {
+        for (var child : out)
+        {
+            push(heads, child.planHead)
+        }
+    }
+    else if (job.kind == "month")
+    {
+        push(heads, out.planHead)
+    }
+    else if (out != none and out.head != none)
+    {
+        push(heads, out.head)
+    }
+
+    var keep = keepLines(heads)
+
+    for (var f2 : firsts)
+    {
+        f2.head = movedHead(f2.head, keep)
+    }
+
+    if (job.kind == "expand")
+    {
+        for (var child2 : out)
+        {
+            child2.planHead = movedHead(child2.planHead, keep)
+        }
+    }
+    else if (job.kind == "month")
+    {
+        out.planHead = movedHead(out.planHead, keep)
+    }
+    else if (out != none and out.head != none)
+    {
+        out.head = movedHead(out.head, keep)
+    }
+
+    // (how soon a task was reached is kept without its line: the report says only when)
+    for (var r : jobReaches)
+    {
+        r.at.head = -1
+    }
+
     jobResult = {out: out, lines: planLog, firsts: firsts, reaches: jobReaches}
 
     if (len(spawn) > 0)
@@ -159,6 +227,59 @@ fun workerJob(job)
         jobResult.spawn = spawn
         jobResult.spawnFunction = "stageJob"
     }
+}
+
+// The job's lines that `heads` lead back to, the others dropped: `planLog` is left with those only,
+// in their order. What each line became (its new place, -1 for a line dropped), for movedHead.
+// A head or a line pointing before the job (at the main script's lines) is left as it is
+fun keepLines(heads)
+{
+    var count = len(planLog)
+    var keep = []
+
+    for (var i = 0; i < count; i = i + 1)
+    {
+        push(keep, -1)
+    }
+
+    for (var h : heads)
+    {
+        var at = h - workerBase
+
+        while (at >= 0 and keep[at] == -1)
+        {
+            keep[at] = 0
+            at = planLog[at].up - workerBase
+        }
+    }
+
+    var kept = []
+
+    // (a line points at one before it: its new place is known by then)
+    for (var j = 0; j < count; j = j + 1)
+    {
+        if (keep[j] == 0)
+        {
+            keep[j] = len(kept)
+
+            var line = planLog[j]
+            push(kept, {up: movedHead(line.up, keep), text: line.text})
+        }
+    }
+
+    planLog = kept
+
+    return keep
+}
+
+fun movedHead(head, keep)
+{
+    if (head >= workerBase)
+    {
+        return workerBase + keep[head - workerBase]
+    }
+
+    return head
 }
 
 // ---- in the main script ----------------------------------------------------------------------

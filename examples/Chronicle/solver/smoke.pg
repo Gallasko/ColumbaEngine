@@ -75,7 +75,7 @@ fun check(name, ok, why)
 }
 
 learnTables(rule("windows", {age: 6.0, character: freshStats(), done: {}, world: 0, lives: 1, running: "", activityId: ""},
-                 ["activities", "walkZones", "walkMobs", "walkItems", "lifeEvents", "paths", "townPlaces"]))
+                 ["activities", "walkZones", "walkMobs", "walkItems", "walkEncounters", "lifeEvents", "paths", "townPlaces"]))
 
 // solver_test.the_solver_lives_a_collegium_term: a youth fit to enter the Collegium at sixteen, its
 // fees in hand, begins its row: the solver plays its sixteen days by the story's own plan, the

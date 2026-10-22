@@ -2,7 +2,8 @@
 //
 // Every world of the search stands at the same month of its calendar. Each month, a world that is
 // free to choose is branched into every choice the Life screen offers it then:
-//   every work open to him (a walk twice: studied and gathered, or hunted),
+//   every work open to him (a walk twice: studied and gathered, or hunted; and a third time to
+//   meet a boss whose gift a task asks for, kept only when it is beaten),
 //   every thing done at once (a buy, a sale, an answer that takes no time; then he chooses again,
 //   twice at most in a month),
 //   waiting the month out.
@@ -139,12 +140,19 @@ fun expandKeep()
 // A story is played (whole: dear as a walk, its months run) by a world it is for: one that aims at
 // the class its row enters (or that aims at none, and is of none), and once a life, the first month
 // it is open to him (and its fees held, walks.pg's withStoryFees). A story whose row is of no path
-// (the outskirts) is every world's
+// (the outskirts) is every world's; a story of one day, every month
 fun storyHere(st, row)
 {
     if (row.story == none or row.story == "")
     {
         return false
+    }
+
+    // A story of one day (the chapel library, a book a visit) is a work like any other: played
+    // every month it is open
+    if (storyPlanOf(st, row.story, []).days <= 1)
+    {
+        return true
     }
 
     if (st.storyTried != none and st.storyTried[row.id] == st.lives)
@@ -293,11 +301,18 @@ fun expandChildren(st, round)
             if (row.zone != "")
             {
                 // Judged before it is played (a walk is a hundred runs of the rules): see below
-                push(walks, {row: row, hunt: false, est: walkEstimate(st, row, false)})
+                push(walks, {row: row, hunt: false, boss: false, est: walkEstimate(st, row, false)})
 
                 if (zoneHasBeasts[row.zone] != none)
                 {
-                    push(walks, {row: row, hunt: true, est: walkEstimate(st, row, true)})
+                    push(walks, {row: row, hunt: true, boss: false, est: walkEstimate(st, row, true)})
+                }
+
+                // A boss of the place whose gift a task asks for: a walk to meet it (only kept
+                // when it is beaten, below)
+                if (zoneBossWanted(st, row.zone))
+                {
+                    push(walks, {row: row, hunt: false, boss: true, est: bossEstimate(st, row)})
                 }
             }
             else if (row.story != none and row.story != "")
@@ -364,11 +379,19 @@ fun expandChildren(st, round)
         removeAt(walks, bi)
 
         var walked = clone(st)
+        var walkGoals = beamGoals(pick.hunt)
+        walkGoals.anyBoss = pick.boss
 
-        if (walkBy(walked, pick.row, beamGoals(pick.hunt)) == "")
+        // (a boss walk that beat none is a studied walk: that one is played on its own. The world
+        // tries no boss again for a year: what it lacked takes that long to grow)
+        if (walkBy(walked, pick.row, walkGoals) == "" and (not pick.boss or beatenMore(st, walked)))
         {
             walked.pendingNew = unfound(st, pick.row.id)
             push(children, walked)
+        }
+        else if (pick.boss)
+        {
+            st.bossLull = st.world
         }
     }
 
@@ -420,6 +443,57 @@ fun walkEstimate(st, row, hunt)
     }
 
     return est
+}
+
+// A boss of the place that is wanted (walks.pg's bossWanted): not beaten in this life, and its gift
+// one he lacks that a task asks for
+fun zoneBossWanted(st, zone)
+{
+    if (st.bossLull != none and st.world - st.bossLull < 12)
+    {
+        return false
+    }
+
+    for (var b : bossZones)
+    {
+        for (var z : bossZones[b])
+        {
+            if (z == zone and bossWanted(st, b))
+            {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
+// A boss walk is worth what the tasks its gift opens are: a little more than a walk new to the
+// world, while he is fit for it (a boss tried too young is a walk spent studying)
+fun bossEstimate(st, row)
+{
+    var est = 1000.0
+
+    if (statOf(st, "vit") < 30)
+    {
+        est = 100.0
+    }
+
+    return est
+}
+
+// Whether a world beat a boss its parent had not
+fun beatenMore(parent, child)
+{
+    for (var b : bossById)
+    {
+        if (charValue(child, "beaten." + b) > charValue(parent, "beaten." + b))
+        {
+            return true
+        }
+    }
+
+    return false
 }
 
 // A life over: the next one, for each place his coin may be left to, and for none
@@ -953,6 +1027,11 @@ fun beamRun(width, cap, minutes, seed)
             var said = "beam: month " + toString(months) + ", life " + toString(lead.lives) + " at " + ageText(lead.month)
             said = said + ", " + toString(len(pool)) + " worlds, the best reached " + toString(lead.reachedCount)
             log(said + ", all of them " + toString(countReached()) + ", " + toString((clockMs() - began) / 1000) + " s")
+
+            if (memoryWatch)
+            {
+                log("  memory: " + memoryText() + "; planLog " + toString(len(planLog)) + " lines")
+            }
         }
     }
 }
@@ -984,3 +1063,6 @@ var beamScope = "world"
 var beamStall = 0
 var beamStallFinds = 3
 var beamBest = none
+
+// memory=1: what the process holds, said with the beam's yearly line and the planner's tasks
+var memoryWatch = false

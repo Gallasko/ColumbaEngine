@@ -468,7 +468,7 @@ fun measureStash(path)
 }
 
 var out = []
-var info = rule("windows", {age: 6.0, character: freshStats(), done: {}, world: 0, lives: 1, running: "", activityId: ""}, ["activities", "walkZones", "walkMobs", "walkItems", "lifeEvents", "paths", "townPlaces"])
+var info = rule("windows", {age: 6.0, character: freshStats(), done: {}, world: 0, lives: 1, running: "", activityId: ""}, ["activities", "walkZones", "walkMobs", "walkItems", "walkEncounters", "lifeEvents", "paths", "townPlaces"])
 learnTables(info)
 
 var pathIds = []

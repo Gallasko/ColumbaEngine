@@ -3,9 +3,12 @@
 //
 //   an event's card   the first answer he can give
 //   a fight           the fight's own choice, turn after turn (`step`), then back to the site
-//   on site           rest (or a remedy) when hurt; study while the place is worth knowing better;
+//   on site           rest (or a remedy) when hurt; a boss the goals want (tryBoss: played on a
+//                     copy first, each way of meeting it, and kept only when beaten); study while
+//                     the place is worth knowing better (a wanted boss not shown yet among it);
 //                     gather what the goals ask for; seek a lone beast while whole; gather anything;
 //                     turn for home when nothing more can be done
+//   what the walk refused (a beast sought without days enough for it) is not asked again
 //
 // The dice are cast when a walk begins, from the moment and the world's own (askWalk).
 // A story (a row with `story`) is played on the same screen, by its own plan: storyBy, below.
@@ -125,6 +128,23 @@ fun wantsStudy(st, goals, zone, answer)
         return false
     }
 
+    // A boss of this place that is wanted, not shown yet: the place is known better first
+    for (var b : bossZones)
+    {
+        var wanted = goals.bosses[b] != none or (goals.anyBoss == true and bossWanted(st, b))
+
+        if (wanted and bossById[b].level > asInt(answer.site.level))
+        {
+            for (var bz : bossZones[b])
+            {
+                if (bz == zone)
+                {
+                    return true
+                }
+            }
+        }
+    }
+
     // A thing of this place it wants that its ladder has not opened yet
     for (var item : goals.items)
     {
@@ -172,8 +192,181 @@ fun wantsStudy(st, goals, zone, answer)
     return false
 }
 
-fun walkChoice(st, answer, goals, zone, fights)
+// What an act is called among those the walk has refused (walk.refused)
+fun actKey(act)
 {
+    return act.kind + ":" + act.target + ":" + toString(act.count)
+}
+
+// Whether a beast's tile can be sought now: shown, and days enough left for it (a tile short of
+// days is not locked, only `short`: sought, it is refused)
+fun canSeek(row)
+{
+    return not isLocked(row) and not (row.short == 1 or row.short == true)
+}
+
+// A boss of this place the goals want, that has not been tried on this walk (walk.bossTried): its
+// tile, or none. The beam's boss walks want any boss (goals.anyBoss) whose gift some task asks for
+fun wantedBoss(st, answer, goals, walk)
+{
+    for (var h : answer.seeks)
+    {
+        if (h.boss == 1 and canSeek(h) and walk.bossTried[h.mob] == none)
+        {
+            var id = substring(h.mob, 4, strlen(h.mob))
+
+            if (goals.bosses[id] != none or (goals.anyBoss == true and bossWanted(st, id)))
+            {
+                return h
+            }
+        }
+    }
+
+    return none
+}
+
+// Whether a boss's gift is something he lacks that a task asks for: a trophy he does not hold, a
+// familiar the world cannot bind yet
+fun bossWanted(st, id)
+{
+    var enc = bossById[id]
+
+    if (enc == none or charValue(st, "beaten." + id) > 0)
+    {
+        return false
+    }
+
+    for (var give : asListOf(enc.gives))
+    {
+        if (charValue(st, give.stat) < 1 and len(asListOf(tasksByStat[give.stat])) > 0)
+        {
+            return true
+        }
+    }
+
+    return false
+}
+
+// A boss is played to the end of its fight on a copy of the walk first, once for each way of
+// meeting it (a trap set first, lying in wait, in the open): the first that beats it is kept, and
+// none is when every way loses (a boss lost is a death). The dice are the walk's own: the copy that
+// won is the walk as it goes on. {won, answer, ws, how}
+fun tryBoss(st, ws, answer, tile, rows)
+{
+    var ways = ["open"]
+
+    if (statOf(st, "stealth") > 0)
+    {
+        push(ways, "ambush")
+    }
+
+    for (var w : answer.works)
+    {
+        if (w.id == "trap" and not isLocked(w))
+        {
+            push(ways, "trap")
+        }
+    }
+
+    var before = clone(st)
+
+    for (var way : ways)
+    {
+        var a = answer
+        var s = ws
+        var ok = true
+
+        // A trap is set before the beast is looked for
+        if (way == "trap")
+        {
+            a = askWalk(st, s, "act", {kind: "trap", target: "", count: 0}, rows)
+            takeStats(st, a.after)
+            s = walkStateOf(a)
+
+            if (a.run.refused != none and a.run.refused != "")
+            {
+                ok = false
+            }
+        }
+
+        if (ok)
+        {
+            a = askWalk(st, s, "act", {kind: "seek", target: tile.mob, count: 0}, rows)
+            takeStats(st, a.after)
+            s = walkStateOf(a)
+        }
+
+        var steps = 0
+
+        while (ok and steps < 200 and a.site.screen != "site" and a.site.screen != "done")
+        {
+            var act = {kind: "step", target: "", count: 0}
+
+            if (a.site.screen == "event")
+            {
+                act = none
+
+                // The approach card: this try's way, and no other
+                if (a.run.event == "approach")
+                {
+                    for (var o : a.options)
+                    {
+                        if (o.id == way and not isLocked(o))
+                        {
+                            act = {kind: "option", target: way, count: 0}
+                        }
+                    }
+                }
+                else
+                {
+                    for (var o2 : a.options)
+                    {
+                        if (act == none and not isLocked(o2))
+                        {
+                            act = {kind: "option", target: o2.id, count: 0}
+                        }
+                    }
+                }
+
+                if (act == none)
+                {
+                    ok = false
+                }
+            }
+            else if (a.site.screen == "fight" and a.fight.over != none and a.fight.over != "")
+            {
+                act = {kind: "back", target: "", count: 0}
+            }
+
+            if (ok)
+            {
+                a = askWalk(st, s, "act", act, rows)
+                takeStats(st, a.after)
+                s = walkStateOf(a)
+                steps = steps + 1
+            }
+        }
+
+        if (ok and charValue(st, "beaten." + substring(tile.mob, 4, strlen(tile.mob))) > 0 and not st.dead and statOf(st, "vit") > 0)
+        {
+            return {won: true, answer: a, ws: s, how: way}
+        }
+
+        // Lost, or that way was not offered: the walk as it was before the boss
+        for (var k : before)
+        {
+            st[k] = clone(before[k])
+        }
+
+        touch(st)
+    }
+
+    return {won: false, answer: answer, ws: ws, how: ""}
+}
+
+fun walkChoice(st, answer, goals, zone, walk)
+{
+    var fights = walk.fights
     var screen = answer.site.screen
 
     if (screen == "event")
@@ -210,7 +403,11 @@ fun walkChoice(st, answer, goals, zone, fights)
 
     for (var w : answer.works)
     {
-        works[w.id] = w
+        // (what this walk has refused is not asked again)
+        if (walk.refused[actKey({kind: w.id, target: "", count: 0})] == none)
+        {
+            works[w.id] = w
+        }
     }
 
     var hp = answer.site.vitalityPercent
@@ -235,21 +432,35 @@ fun walkChoice(st, answer, goals, zone, fights)
         return {kind: "leave", target: "", count: 0}
     }
 
+    // A boss the goals want: met whole (a rest first where he can), and kept only if beaten
+    // (walkBy's tryBoss)
+    var boss = wantedBoss(st, answer, goals, walk)
+
+    if (boss != none)
+    {
+        if (hp < 90 and works["rest"] != none and not isLocked(works["rest"]))
+        {
+            return {kind: "rest", target: "", count: 0}
+        }
+
+        return {kind: "boss", target: boss.mob, count: 0}
+    }
+
     // A walk to hunt: whatever beast it may seek, a pack too, while he is whole
     if (goals.hunt == true and hp >= 60 and fights < 4)
     {
         for (var h : answer.seeks)
         {
-            // (never a boss: a boss lost is a death, and a plan does not walk into one)
-            if (not isLocked(h) and not (h.boss == 1))
+            var count = h.count
+
+            if (count == none or count < 1)
             {
-                var count = h.count
+                count = 1
+            }
 
-                if (count == none or count < 1)
-                {
-                    count = 1
-                }
-
+            // (a boss only as above: lost, it is a death)
+            if (canSeek(h) and not (h.boss == 1) and walk.refused[actKey({kind: "seek", target: h.mob, count: count})] == none)
+            {
                 return {kind: "seek", target: h.mob, count: count}
             }
         }
@@ -264,7 +475,7 @@ fun walkChoice(st, answer, goals, zone, fights)
     {
         var spot = works["gather." + item]
 
-        if (spot != none and not isLocked(spot) and statOf(st, item) < goals.items[item])
+        if (spot != none and not isLocked(spot) and statOf(st, item) < goals.items[item] and walk.refused[actKey({kind: "gather", target: item, count: 0})] == none)
         {
             return {kind: "gather", target: item, count: 0}
         }
@@ -276,7 +487,7 @@ fun walkChoice(st, answer, goals, zone, fights)
     {
         for (var s : answer.seeks)
         {
-            if (not isLocked(s) and not (s.boss == 1) and s.count != none and s.count <= 1)
+            if (canSeek(s) and not (s.boss == 1) and s.count != none and s.count <= 1 and walk.refused[actKey({kind: "seek", target: s.mob, count: 1})] == none)
             {
                 if (goals.studyAll or goals.mobs[s.mob] != none)
                 {
@@ -290,7 +501,12 @@ fun walkChoice(st, answer, goals, zone, fights)
     {
         if (startsWith(w2.id, "gather.") and not isLocked(w2))
         {
-            return {kind: "gather", target: substring(w2.id, 7, strlen(w2.id)), count: 0}
+            var item2 = substring(w2.id, 7, strlen(w2.id))
+
+            if (walk.refused[actKey({kind: "gather", target: item2, count: 0})] == none)
+            {
+                return {kind: "gather", target: item2, count: 0}
+            }
         }
     }
 
@@ -312,17 +528,43 @@ fun walkBy(st, row, goals)
     takeStats(st, answer.after)
     ws = walkStateOf(answer)
 
-    var fights = 0
+    // What this walk has done that bears on its next choice: the fights sought, the acts refused
+    // (not asked again), the bosses tried
+    var walk = {fights: 0, refused: {}, bossTried: {}}
     var steps = 0
     var told = []
 
     while (steps < 300 and answer.site.screen != "done")
     {
-        var act = walkChoice(st, answer, goals, row.zone, fights)
+        var act = walkChoice(st, answer, goals, row.zone, walk)
+
+        if (act.kind == "boss")
+        {
+            walk.bossTried[act.target] = 1
+
+            var met = tryBoss(st, ws, answer, {mob: act.target}, rows)
+
+            if (met.won)
+            {
+                answer = met.answer
+                ws = met.ws
+                walk.fights = walk.fights + 1
+                push(told, "BEAT " + act.target + " (" + met.how + ")")
+            }
+            else
+            {
+                // (and for a year no plan walks out for it again: what he lacked takes time)
+                push(told, "not " + act.target)
+                st.bossLull = st.world
+            }
+
+            steps = steps + 1
+            continue
+        }
 
         if (act.kind == "seek")
         {
-            fights = fights + 1
+            walk.fights = walk.fights + 1
         }
 
         if (act.kind != "step" and act.kind != "back")
@@ -334,6 +576,12 @@ fun walkBy(st, row, goals)
         takeStats(st, answer.after)
         ws = walkStateOf(answer)
         steps = steps + 1
+
+        // Refused (no days enough, nothing there): not asked again on this walk
+        if (answer.run.refused != none and answer.run.refused != "")
+        {
+            walk.refused[actKey(act)] = 1
+        }
     }
 
     var f = forecastOf(st, row.id, 0)
@@ -385,7 +633,7 @@ fun storyPlanOf(st, story, rows)
         push(tiles, flat["tile." + toString(i)])
     }
 
-    var plan = {tiles: tiles, cards: {}, tests: {}, fees: [], gives: []}
+    var plan = {tiles: tiles, cards: {}, tests: {}, fees: [], gives: [], days: asInt(flat.days)}
 
     for (var k : flat)
     {

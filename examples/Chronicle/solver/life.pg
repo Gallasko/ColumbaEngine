@@ -538,7 +538,15 @@ fun madeAMonth(st)
         }
     }
 
+    // (for a few thousand households and towns at most: a long search sees ever more)
+    if (madeCount >= 4000)
+    {
+        madeKept = {}
+        madeCount = 0
+    }
+
     madeKept[key] = made
+    madeCount = madeCount + 1
 
     return made
 }
@@ -914,6 +922,7 @@ var eatsKept = {}
 
 // What resources.pg's `month` said a household of familiars makes (madeAMonth)
 var madeKept = {}
+var madeCount = 0
 
 // What resources.pg's ledger said is the most he can hold of a stat, by its stores (limitOfStat)
 var limitKept = {}

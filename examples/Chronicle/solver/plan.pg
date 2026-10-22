@@ -183,6 +183,40 @@ fun learnTables(info)
         itemKinds[item.id] = item.kind
     }
 
+    // The bosses (an encounter with `boss`): the places each is met in, and what beating it gives
+    // (a trophy a level of the town is paid with, how a familiar is bound)
+    for (var enc : asListOf(info.walkEncounters))
+    {
+        if (enc.boss == true)
+        {
+            bossById[enc.id] = enc
+
+            for (var bz : info.walkZones)
+            {
+                for (var met : asListOf(bz.encounters))
+                {
+                    if (met == enc.id)
+                    {
+                        pushTo(bossZones, enc.id, bz.id)
+                    }
+                }
+            }
+
+            for (var give : asListOf(enc.gives))
+            {
+                pushTo(bossesOf, give.stat, enc.id)
+
+                if (itemKinds[give.stat] != none)
+                {
+                    for (var gz : asListOf(bossZones[enc.id]))
+                    {
+                        pushTo(zonesOfItem, give.stat, gz)
+                    }
+                }
+            }
+        }
+    }
+
     // Who makes a resource: the familiar of a kind that makes it, by its bind row
     for (var kind : familiarKinds)
     {
@@ -255,7 +289,8 @@ fun charValue(st, stat)
 
 fun newGoals(studyAll)
 {
-    return {sched: none, acts: {}, by: {}, need: {}, needW: {}, needBy: {}, keep: {}, keepW: {}, avoid: {}, events: {}, path: "", items: {}, mobs: {}, studyAll: studyAll}
+    return {sched: none, acts: {}, by: {}, need: {}, needW: {}, needBy: {}, keep: {}, keepW: {}, avoid: {}, events: {}, path: "", items: {}, mobs: {}, bosses: {},
+            anyBoss: false, studyAll: studyAll}
 }
 
 fun raiseNeed(goals, stat, needed)
@@ -321,6 +356,17 @@ fun addNeed(goals, st, stat, needed, w, depth, by)
         }
 
         return
+    }
+
+    // What a boss gives (its trophy, how a familiar is bound): the boss sought on a walk to its
+    // place (walks.pg's tryBoss), whatever else brings it too
+    if (charValue(st, stat) < needed and (st.bossLull == none or st.world - st.bossLull >= 12))
+    {
+        for (var bossId : asListOf(bossesOf[stat]))
+        {
+            goals.bosses[bossId] = 1
+            addWalksFor(goals, st, bossZones[bossId], w * 0.9, depth, by)
+        }
     }
 
     if (startsWith(stat, "know."))
@@ -700,9 +746,14 @@ fun addAct(goals, st, id, w, depth, by)
         }
     }
 
+    // (what it follows, until he has done it once: done, it is no step toward it any more, and a
+    // work done again would take its deadline and its weight from it)
     for (var f : asListOf(row.follows))
     {
-        addAct(goals, st, f, w * 0.9, depth + 1, last)
+        if (doneOf(st, f) < 1)
+        {
+            addAct(goals, st, f, w * 0.9, depth + 1, last)
+        }
     }
 }
 
@@ -1462,5 +1513,8 @@ var placeShows = {}
 var tableRows = []
 var tableById = {}
 var zoneIndex = {}
+var bossById = {}
+var bossZones = {}
+var bossesOf = {}
 var noise = 0.0
 var noiseSeed = 1

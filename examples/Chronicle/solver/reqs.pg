@@ -414,7 +414,15 @@ fun earnersOf(st, rows, stat)
         removeAt(found, bi)
     }
 
+    // (kept for a few thousand towns at most: a search that goes on for hours sees ever more)
+    if (earnerCount >= 4000)
+    {
+        earnerCache = {}
+        earnerCount = 0
+    }
+
     earnerCache[key] = ranked
+    earnerCount = earnerCount + 1
 
     return ranked
 }
@@ -734,3 +742,4 @@ var taskIndex = {}
 var tasksByStat = {}
 var taskReqMemo = {}
 var earnerCache = {}
+var earnerCount = 0

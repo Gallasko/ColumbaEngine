@@ -80,6 +80,8 @@
 // they are taken at once, and its answer comes back with theirs (`spawned`, in its order).
 //   graphFacts()   the task graph's facts: the rules dir's depgraph.pg run with --facts, its lines
 //                  ("task|id|begin|end|by", "missing|stat", "unread|stat"), "" without it
+//   memoryText()   what the process holds, VM by VM (resident MB, kept answers, the objects of the
+//                  main VM, the workers' and the rule scripts'); "" in a worker
 //
 // The rules' answers are kept for all of them alike: the same inputs bring the same answer. They
 // are kept up to a budget of memory, every script's together (CHRONICLE_SOLVER_CACHE_MB, 1024 by
@@ -91,8 +93,30 @@ using namespace pg;
 
 namespace
 {
-    // A value of `from` made anew in `to`, tables and lists all the way down. Functions and
-    // anything else that cannot cross are none.
+    // A table's fields in the order of their names (none of the internal ones): the order a copy
+    // fills its table in. The same names make the same layout in the VM that receives them,
+    // whatever order a state of the search gained them in (the game hands the rules its tables in
+    // a hash map's order: they never depend on it), so a VM's tree of shapes stays small
+    std::vector<size_t> namedOrder(const ObjInstance* instance)
+    {
+        std::vector<size_t> order;
+        order.reserve(instance->fieldCount());
+
+        for (size_t i = 0; i < instance->fieldCount(); ++i)
+        {
+            const std::string& key = instance->fieldName(i);
+
+            if (not key.empty() and key.rfind("__", 0) != 0)
+                order.push_back(i);
+        }
+
+        std::sort(order.begin(), order.end(), [instance](size_t a, size_t b) { return instance->fieldName(a) < instance->fieldName(b); });
+
+        return order;
+    }
+
+    // A value of `from` made anew in `to`, tables and lists all the way down (a table's fields in
+    // the order of their names: namedOrder). Functions and anything else that cannot cross are none.
     Value across(VM& from, Value v, VM& to)
     {
         if (IS_INT(v) or IS_BOOL(v) or IS_DOUBLE(v) or IS_NONE(v))
@@ -121,16 +145,10 @@ namespace
 
             Value out = to.createTable();
             ObjInstance* table = to.asInstance(out);
+            table->reserveFields(instance->fieldCount());
 
-            for (size_t i = 0; i < instance->fieldCount(); ++i)
-            {
-                const std::string& key = instance->fieldName(i);
-
-                if (key.empty() or key.rfind("__", 0) == 0)
-                    continue;
-
-                table->setField(key, across(from, instance->fieldValue(i), to));
-            }
+            for (size_t i : namedOrder(instance))
+                table->setField(instance->fieldName(i), across(from, instance->fieldValue(i), to));
 
             return out;
         }
@@ -198,14 +216,10 @@ namespace
             out.items.reserve(instance->fieldCount());
             out.keys.reserve(instance->fieldCount());
 
-            for (size_t i = 0; i < instance->fieldCount(); ++i)
+            // (in the order of their names, as `across` copies them)
+            for (size_t i : namedOrder(instance))
             {
-                const std::string& key = instance->fieldName(i);
-
-                if (key.empty() or key.rfind("__", 0) == 0)
-                    continue;
-
-                out.keys.push_back(key);
+                out.keys.push_back(instance->fieldName(i));
                 out.items.emplace_back();
                 treeOf(vm, instance->fieldValue(i), out.items.back());
             }
@@ -976,6 +990,48 @@ namespace
             }
         }
 
+        // A field of a table kept outside the VMs, nullptr when it has none
+        static const Tree* fieldOf(const Tree& t, const char* key)
+        {
+            for (size_t i = 0; i < t.keys.size(); ++i)
+            {
+                if (t.keys[i] == key)
+                    return &t.items[i];
+            }
+
+            return nullptr;
+        }
+
+        // The planner's stages say as they go which task one has reached (a call of them runs for
+        // many minutes, and the main script says nothing until all are back)
+        std::mutex sayLock;
+        long stagesDone = 0;
+
+        void sayReached(const Job& job)
+        {
+            if (job.function != "stageJob" or not job.failure.empty())
+                return;
+
+            const Tree* out = fieldOf(job.answer, "out");
+            const Tree* ok = out ? fieldOf(*out, "ok") : nullptr;
+            const Tree* id = out ? fieldOf(*out, "id") : nullptr;
+            const Tree* stage = out ? fieldOf(*out, "stage") : nullptr;
+
+            std::lock_guard<std::mutex> lock(sayLock);
+            ++stagesDone;
+
+            if (ok and ok->whole != 0 and id and stage)
+                std::printf("  planner: %s reached at stage %lld (%.0f s; %ld stages run, %.0f s in)\n", id->text.c_str(),
+                            static_cast<long long>(stage->whole), job.ms / 1000.0, stagesDone, since(started) / 1000.0);
+            else if (job.ms > 120000.0 and id and stage)
+                std::printf("  planner: %s not reached at stage %lld, after %.0f s (%ld stages run, %.0f s in)\n", id->text.c_str(),
+                            static_cast<long long>(stage->whole), job.ms / 1000.0, stagesDone, since(started) / 1000.0);
+            else if (stagesDone % 50 == 0)
+                std::printf("  planner: %ld stages run, %.0f s in\n", stagesDone, since(started) / 1000.0);
+
+            std::fflush(stdout);
+        }
+
         void workerLoop(Machine& w)
         {
             // Its script first: the role "worker" reads the tables, then waits
@@ -1035,6 +1091,7 @@ namespace
                         runJob(w, *job, spawn, spawnFunction);
 
                     job->ms = since(tj);
+                    sayReached(*job);
 
                     {
                         std::lock_guard<std::mutex> lock(b->lock);
@@ -1255,6 +1312,85 @@ namespace
             std::filesystem::remove(out, ec);
 
             return text;
+        }
+
+        // ---- memory --------------------------------------------------------------------------
+
+        // The objects a VM holds now: strings, tables, lists (what grows when a script keeps more)
+        struct Held
+        {
+            size_t strings = 0;
+            size_t tables = 0;
+            size_t lists = 0;
+            size_t shapes = 0;        // The table layouts its tree of shapes keeps (never freed)
+            size_t shapeNames = 0;    // The names they hold: their chains and their built indexes
+
+            void add(const VM& vm)
+            {
+                strings += vm.pools.stringPool.getNbElements();
+                tables += vm.pools.instancePool.getNbElements();
+                lists += vm.pools.vectorPool.getNbElements();
+                shapes += vm.shapeTree.owned.size();
+
+                for (const auto& s : vm.shapeTree.owned)
+                    shapeNames += 1 + s->next.size() + s->names.size() + s->index.size();
+            }
+
+            std::string text() const
+            {
+                char buf[160];
+                std::snprintf(buf, sizeof(buf), "%zu strings, %zu tables, %zu lists, %zu shapes (%zu names)", strings, tables, lists, shapes, shapeNames);
+                return buf;
+            }
+        };
+
+        static size_t residentMb()
+        {
+            std::ifstream status("/proc/self/status");
+            std::string line;
+
+            while (std::getline(status, line))
+            {
+                if (line.rfind("VmRSS:", 0) == 0)
+                    return static_cast<size_t>(std::strtoull(line.c_str() + 6, nullptr, 10) / 1024);
+            }
+
+            return 0;
+        }
+
+        // What the process holds, VM by VM: called by the main script between two calls of
+        // `parallel`, while every worker waits
+        std::string memoryText()
+        {
+            Held mainVm, mainRules, workerVms, workerRules;
+
+            mainVm.add(*main.vm);
+
+            for (const auto& [name, rs] : main.scripts)
+                mainRules.add(*rs->machine());
+
+            for (const auto& w : workers)
+            {
+                workerVms.add(*w->vm);
+
+                for (const auto& [name, rs] : w->scripts)
+                    workerRules.add(*rs->machine());
+            }
+
+            size_t answers = 0;
+            size_t keptMb = 0;
+
+            {
+                std::lock_guard<std::mutex> lock(keptLock);
+
+                for (const auto& [name, store] : kept)
+                    answers += store.answers.size();
+
+                keptMb = keptBytes / 1048576;
+            }
+
+            return "resident " + std::to_string(residentMb()) + " MB; kept answers " + std::to_string(answers) + " (~" + std::to_string(keptMb) +
+                   " MB); main VM " + mainVm.text() + "; its rules " + mainRules.text() + "; workers " + workerVms.text() + "; their rules " + workerRules.text();
         }
 
         int64_t idleWorkers()
@@ -1491,6 +1627,14 @@ namespace
                 return v->createString("");
 
             return v->createString(h->graphFacts());
+        });
+
+        // memoryText(): what the process holds, VM by VM ("" in a worker)
+        vm.defineNative("memoryText", [h, m](VM* v, int, Value*) -> Value {
+            if (m->worker)
+                return v->createString("");
+
+            return v->createString(h->memoryText());
         });
 
         // startWorkers(): the workers begin their script now, while the main one goes on

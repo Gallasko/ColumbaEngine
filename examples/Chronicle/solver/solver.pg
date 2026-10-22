@@ -28,6 +28,9 @@
 //   gather=600      beam: what a world gathering the basic a long work lacks is worth, while it
 //                   gathers (reqs.pg's gatherChildren)
 //
+//   memory=1        what the process holds, VM by VM, with the beam's yearly line (the host's
+//                   memoryText)
+//
 //   threads=N       the host's workers (the cores by default; 0: none): beam and hybrid hand
 //                   them each month's worlds and the planner's tasks (parallel.pg). The same run
 //                   whatever N; not quite the run without threads
@@ -502,17 +505,21 @@ fun prepareWorld(st, prep)
 }
 
 // Lives of one world toward `ids`, `cap` of them at most: true once all are reached. A life the
-// world must be prepared in first (worldPrepFor) aims at that, to its end
+// world must be prepared in first (worldPrepFor) aims at that, to its end (two such lives at most)
 fun search(st, ids, cap)
 {
     var first = st.lives
+    var preps = 0
 
     while (st.lives < first + cap)
     {
         var prep = worldPrepFor(st, ids)
 
-        if (prep != none)
+        // (two lives prepared at most: each is up to `prepTries` lives played, and a world the
+        // first two did not prepare is not prepared by more of the same)
+        if (prep != none and preps < 2)
         {
+            preps = preps + 1
             prepareWorld(st, prep)
         }
         else
@@ -1042,7 +1049,7 @@ var prepTries = toInt(option("prepTries", "6"))
 var lastWorld = none
 
 var info = rule("windows", {age: 6.0, character: freshStats(), done: {}, world: 0, lives: 1, running: "", activityId: ""},
-                ["activities", "walkZones", "walkMobs", "walkItems", "lifeEvents", "paths", "townPlaces"])
+                ["activities", "walkZones", "walkMobs", "walkItems", "walkEncounters", "lifeEvents", "paths", "townPlaces"])
 checked(info, "windows (the tables)")
 learnTables(info)
 
@@ -1056,9 +1063,10 @@ for (var p : info.paths)
 var allIds = []
 var groupOf = {}
 
+// (not a row only the tests open: the trial story's, onlyWith "test.stories")
 for (var row : info.activities)
 {
-    if (row.goto == "")
+    if (row.goto == "" and not (typeOf(row.onlyWith) == "string" and startsWith(row.onlyWith, "test.")))
     {
         push(allIds, row.id)
         groupOf[row.id] = row.group
@@ -1066,6 +1074,7 @@ for (var row : info.activities)
 }
 
 var started = clockMs()
+memoryWatch = option("memory", "0") == "1"
 
 
 
@@ -1268,11 +1277,13 @@ else if (mode == "hybrid")
         // (and for more at once when workers are idle), a stage whose task a lower one has
         // reached is skipped. Of those that reach it, the lowest stage is the answer (as one
         // after the other); the closest misses are taken in the stages' order
+        // (the latest first: a search for a late task passes by the earlier ones, which it settles
+        // for every stage of theirs on its way)
         var jobs = []
 
-        for (var id4 : mine)
+        for (var j4 = len(mine) - 1; j4 >= 0; j4 = j4 - 1)
         {
-            push(jobs, {kind: "stage", id: id4, stage: 0})
+            push(jobs, {kind: "stage", id: mine[j4], stage: 0})
         }
 
         var answers = []
@@ -1326,6 +1337,13 @@ else if (mode == "hybrid")
             if (best[id6] != none)
             {
                 push(results, best[id6])
+            }
+            else if (everReached[id6] != none)
+            {
+                // Reached by a search aimed at another task, on its way (its first find, kept by
+                // mergeAnswer)
+                var by = everReached[id6]
+                push(results, {id: id6, found: "planner, on the way to another task, " + by.how, missed: none, head: by.head, how: by.how, stage: -1})
             }
             else
             {
