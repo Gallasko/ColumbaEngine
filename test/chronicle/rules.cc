@@ -4188,6 +4188,13 @@ namespace pg
                 EXPECT_FALSE(textOf(turning.fields, "about").empty()) << id;
             }
 
+            // A class says in red that it is a major choice, for life; the last door has none to close
+            for (const char* id : {"keep", "collegium", "hand"})
+                EXPECT_EQ(textOf(activityAt(f.rules, 16.0f, boy(), id).fields, "caution").rfind("This is a major choice: once you join, it's for life, and the other classes close.", 0), 0u) << id;
+
+            EXPECT_EQ(textOf(activityAt(f.rules, 16.0f, boy(), "greenwood").fields, "caution"), "This is a major choice: once you join, it's for life.");
+            EXPECT_EQ(textOf(activityAt(f.rules, 16.0f, boy(), "tomarket").fields, "caution"), "");
+
             EXPECT_FALSE(flag(activityAt(f.rules, 7.0f, boy(), "carters").fields, "major"));
             EXPECT_EQ(textOf(activityAt(f.rules, 7.0f, boy(), "carters").fields, "about"), "The carters always need someone to load the wagons, and they feed you while you work.");
             ASSERT_EQ(visit.gains.size(), 1u);
@@ -4330,16 +4337,16 @@ namespace pg
 
             // Each says before it is taken what it gives up, and its term writes it as a loss
             EXPECT_EQ(textOf(activityAt(f.rules, 8.2f, character, "slashes").fields, "caution"),
-                      "One or the other: once this is done, Practice Thrusts is closed to him for this life.");
+                      "One or the other: once this is done, Practice Thrusts is closed to you for this life.");
             EXPECT_EQ(textOf(activityAt(f.rules, 8.2f, character, "stabs").fields, "caution"),
-                      "One or the other: once this is done, Practice Slashes is closed to him for this life.");
+                      "One or the other: once this is done, Practice Slashes is closed to you for this life.");
             EXPECT_EQ(textOf(activityAt(f.rules, 8.2f, character, "blades").fields, "caution"), "");
 
             ASSERT_TRUE(f.rules.forecast(8.2f, character, "slashes", 0, forecast)) << firstError(f.rules);
 
             ASSERT_EQ(forecast.entries.size(), 2u);
             EXPECT_EQ(textOf(forecast.entries[0], "text"), "Practice Slashes");
-            EXPECT_EQ(textOf(forecast.entries[1], "text"), "One or the other: Practice Thrusts is closed to him");
+            EXPECT_EQ(textOf(forecast.entries[1], "text"), "One or the other: Practice Thrusts is closed to you");
             EXPECT_EQ(textOf(forecast.entries[1], "kind"), "loss");
 
             // What closes nothing writes its own line and no more
@@ -4426,8 +4433,8 @@ namespace pg
 
             // Each says what it closes; the looting closes the keys besides
             EXPECT_EQ(textOf(activityAt(f.rules, 11.0f, character, "flood.sandbags").fields, "caution"),
-                      "One or the other: once this is done, Pull Folk from the Water and Salvage the Wreck are closed to him for this life. "
-                      "Leave the Flood unanswered, and Carry for the Watch, Take the Sacristan's Keys and Run with the Bellmoor Boys are closed to him for this life.");
+                      "One or the other: once this is done, Pull Folk from the Water and Salvage the Wreck are closed to you for this life. "
+                      "Leave the Flood unanswered, and Carry for the Watch, Take the Sacristan's Keys and Run with the Bellmoor Boys are closed to you for this life.");
             EXPECT_NE(textOf(activityAt(f.rules, 11.0f, character, "flood.salvage").fields, "caution").find("Take the Sacristan's Keys"), std::string::npos);
 
             // The coin the mill's wheel asks: 0 when it asks none
@@ -4527,13 +4534,13 @@ namespace pg
             EXPECT_TRUE(listed(12.0f, character, "oath"));
             EXPECT_TRUE(listed(12.0f, character, "turnin"));
             EXPECT_EQ(textOf(activityAt(f.rules, 12.0f, character, "oath").fields, "caution"),
-                      "One or the other: once this is done, Carry for the Watch and Turn the Boys In are closed to him for this life.");
+                      "One or the other: once this is done, Carry for the Watch and Turn the Boys In are closed to you for this life.");
 
             ASSERT_TRUE(f.rules.forecast(12.0f, character, "oath", 0, forecast)) << firstError(f.rules);
 
             ASSERT_EQ(forecast.entries.size(), 3u);
-            EXPECT_EQ(textOf(forecast.entries[1], "text"), "Carry for the Watch is closed to him");
-            EXPECT_EQ(textOf(forecast.entries[2], "text"), "One or the other: Turn the Boys In is closed to him");
+            EXPECT_EQ(textOf(forecast.entries[1], "text"), "Carry for the Watch is closed to you");
+            EXPECT_EQ(textOf(forecast.entries[2], "text"), "One or the other: Turn the Boys In is closed to you");
 
             f.rules.done = {{"boys", ElementType{1}}, {"oath", ElementType{1}}};
 
@@ -4731,7 +4738,7 @@ namespace pg
             const std::string first = textOf(activityAt(f.rules, 15.0f, character, "levy.pay").fields, "caution");
             const std::string second = textOf(activityAt(f.rules, 15.0f, stood, "levy.pay").fields, "caution");
 
-            EXPECT_NE(first.find("Leave the Levy unanswered, and Train under Sergeant Edric, Lessons with Mara and Work the Night Market are closed to him for this life."), std::string::npos) << first;
+            EXPECT_NE(first.find("Leave the Levy unanswered, and Train under Sergeant Edric, Lessons with Mara and Work the Night Market are closed to you for this life."), std::string::npos) << first;
             EXPECT_EQ(second, first);
 
             // The Levy is settled at sixteen, once a march begun in its last month is over. Who

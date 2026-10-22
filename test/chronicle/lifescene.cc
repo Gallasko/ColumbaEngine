@@ -3518,7 +3518,7 @@ namespace pg
                 {
                     const LogEntry& entry = life->save.log[i];
 
-                    if (entry.text.find("is closed to him now") != std::string::npos)
+                    if (entry.text.find("is closed to you now") != std::string::npos)
                         closed = true;
 
                     if (entry.text == "Swear Service to the Keep, left before its term: the rations of the months not worked go back")
@@ -4685,7 +4685,7 @@ namespace pg
             EXPECT_FLOAT_EQ(f.pos(list->row(&f.ecs, "keep")->frame)->width, f.pos(list->row(&f.ecs, "keep")->root)->width);
             EXPECT_EQ(list->row(&f.ecs, "keep")->frame->get<ThemeComponent>()->element, "activity.major.frame");
             EXPECT_EQ(list->row(&f.ecs, "collegium")->frame->get<ThemeComponent>()->element, "activity.major.frame.locked");
-            EXPECT_NE(f.ecs.getSystem<GlossRegistry>()->find("activity/keep")->text.find("the other classes close"), std::string::npos);
+            EXPECT_NE(f.ecs.getSystem<GlossRegistry>()->find("activity/keep")->caution.find("the other classes close"), std::string::npos);
 
             // A strong boy: the Collegium is far from him, and listed all the same, locked: a way into
             // a path shows whatever he has
@@ -5589,7 +5589,7 @@ namespace pg
 
                 for (const auto& line : life->save.log)
                 {
-                    if (line.text == "One or the other: Climb the Mill Wheel is closed to him")
+                    if (line.text == "One or the other: Climb the Mill Wheel is closed to you")
                     {
                         written = true;
                         EXPECT_EQ(line.kind, LogKind::Loss);

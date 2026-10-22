@@ -5490,7 +5490,7 @@ namespace chronicle
         // What the answer closed is not taken up again: its months are lost
         if (const RuleActivity* left = activityOf(id); left and boolOf(left->fields, "closed"))
         {
-            appendLog({save.age, activityName(id) + " is closed to him now, and is not taken up again", LogKind::Note, "", ""});
+            appendLog({save.age, activityName(id) + " is closed to you now, and is not taken up again", LogKind::Note, "", ""});
 
             // He leaves it before its term: what it gave up front for the months he never worked
             // there goes back

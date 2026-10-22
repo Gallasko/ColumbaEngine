@@ -239,7 +239,7 @@ else
             if (closedBy(other, activity.id) and lookup(done, other.id, 0) == 0)
             {
                 // "One or the other" when the two close each other; what it merely shuts is said plainly
-                var said = other.name + " is closed to him"
+                var said = other.name + " is closed to you"
 
                 if (closedBy(activity, other.id))
                 {

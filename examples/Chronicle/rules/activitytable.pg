@@ -718,7 +718,7 @@ var activities = [
 
     {id: "keep", group: "A class", name: "Swear Service to the Keep", glyph: "seal", months: 18, rank: "", each: "RATIONS UP FRONT", path: "warrior", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, finishBy: 20, uses: 1,
      major: true,
-     about: "Makes him a man of the Keep, for life: it feeds him, its works open, and the other classes close. The oath is short. The sergeants say it is the last short thing about the Keep.",
+     about: "The Keep enrolls everyone of age who has some skill at arms. Knowing a few faces there may help you get in.",
      gains: [{stat: "keep_oath"}, {stat: "renown"}, {stat: "arms"}],
      unless: "levy.hide",
      requires: [{stat: "str", needed: 14, eased: [{flag: "edric_support", needed: 13}, {flag: "town.yard", at: 2, needed: 13}]},
@@ -730,14 +730,14 @@ var activities = [
     // taken up front)
     {id: "collegium", group: "A class", name: "Enter the Collegium", glyph: "academy", months: 24, rank: "", each: "RATIONS UP FRONT", path: "mage", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, finishBy: 20, uses: 1,
      major: true, story: "collegium", whileNot: "dropout.collegium",
-     about: "Sixteen days of lectures, an element to choose and two examinations, each course paid at its door. Who passes is a scholar of the Collegium for life: it feeds him, its works open, and the other classes close. Nobody will say what the top floor is for.",
+     about: "The Collegium is the first choice for anyone who wants to become a scholar or a mage. Two years of study, and exams to pass at the end.",
      gains: [],
      requires: [{stat: "int", needed: 12, eased: [{flag: "town.collegium", at: 3, needed: 11}, {flag: "anselm_trust", needed: 11}]}, {stat: "letters", needed: 3}, {stat: "lore", needed: 2, eased: {flag: "mara_student", needed: 1}},
                 {stat: "coin", needed: 6}],
      costs: []},
     {id: "hand", group: "A class", name: "Earn the Hidden Hand's Trust", glyph: "guild", months: 18, rank: "", each: "RATIONS UP FRONT", path: "thief", enters: true, board: true, fromAge: 16, showAge: 7, showFrom: 0, finishBy: 21, uses: 1,
      major: true,
-     about: "Makes him one of the Hidden Hand, for life: it feeds him, its works open, and the other classes close. The Hand has no door, no sign and no members. Ask anyone.",
+     about: "The Hidden Hand takes in the quick and the quiet. Being known on the street may help you find its door.",
      gains: [{stat: "hidden_hand"}, {stat: "favors"}, {stat: "stealth"}],
      unless: "turnin",
      requires: [{stat: "dex", needed: 14}, {stat: "stealth", needed: 2},
@@ -752,7 +752,7 @@ var activities = [
      firstWith: "deserter",
      opens: "Every class has shut its door on him: the Greenwood takes who is left",
      major: true,
-     about: "Makes him an outlaw of the Greenwood, for life: the wood feeds him, and its works open. It asks no letters, no oath and no questions. It is the questions that people come for.",
+     about: "When every other door has closed, the Greenwood still takes you in. It asks no letters, no oath and no questions.",
      gains: [{stat: "renegade"}, {stat: "stealth"}],
      requires: []},
 
@@ -1748,11 +1748,11 @@ for (var e = 0; e < len(lifeEvents); e++)
     }
     else if (len(lost) > 1)
     {
-        warns = warns + namesText(lost) + " are closed to him for this life."
+        warns = warns + namesText(lost) + " are closed to you for this life."
     }
     else
     {
-        warns = warns + namesText(lost) + " is closed to him for this life."
+        warns = warns + namesText(lost) + " is closed to you for this life."
     }
 
     warnsOf[ev.id] = warns
@@ -2070,12 +2070,33 @@ for (var i = 0; i < len(activities); i++)
             verb = " are"
         }
 
-        a.caution = "Once this is done, " + namesText(shuts) + verb + " closed to him for this life."
+        a.caution = "Once this is done, " + namesText(shuts) + verb + " closed to you for this life."
 
         // One of a choice itself: it is said as one
         if (has(a, "unless"))
         {
-            a.caution = "One or the other: once this is done, " + namesText(shuts) + verb + " closed to him for this life."
+            a.caution = "One or the other: once this is done, " + namesText(shuts) + verb + " closed to you for this life."
+        }
+    }
+
+    // A class says in red that it is a major choice: it is for life, and it closes the others
+    // (the Greenwood, the last door, has none left to close)
+    if (a.enters and a.major)
+    {
+        var major = "This is a major choice: once you join, it's for life, and the other classes close."
+
+        if (lookup(a, "lastResort", false))
+        {
+            major = "This is a major choice: once you join, it's for life."
+        }
+
+        if (a.caution != "")
+        {
+            a.caution = major + " " + a.caution
+        }
+        else
+        {
+            a.caution = major
         }
     }
 
