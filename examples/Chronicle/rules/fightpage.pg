@@ -297,7 +297,7 @@ fun menuRows()
 
     if (held("oil") > 0 and pick(fight, "oil", 0) == 0)
     {
-        var oil = menuRow("item.oil", "Items", "Blessed oil", "1 OF " + toString(held("oil")), "HIS BLOWS HOLY FOR THE FIGHT")
+        var oil = menuRow("item.oil", "Items", "Blessed oil", "1 OF " + toString(held("oil")), "YOUR BLOWS HOLY FOR THE FIGHT")
 
         oil.kind = "item"
         push(rows, oil)
@@ -311,7 +311,7 @@ fun wayNote(effect)
 {
     if (effect == "step")
     {
-        return "HARD TO HIT UNTIL HIS NEXT ACTION"
+        return "HARD TO HIT UNTIL YOUR NEXT ACTION"
     }
 
     if (effect == "read")
@@ -422,7 +422,7 @@ fun previewOf(choice)
 
         view.title = stance.name + " stance"
         view.text = stance.line + ". Taking a stance does not use the turn."
-        view.deals = toString(stance.deals) + " % of his blows"
+        view.deals = toString(stance.deals) + " % of your blows"
         view.then = toString(stance.takes) + " % of what comes"
         view.costs = "No turn"
         view.button = "Stand " + toLowerCase(stance.name)
@@ -434,25 +434,25 @@ fun previewOf(choice)
     if (choice == "guard")
     {
         view.title = "Defend"
-        view.text = "He takes the blow on his guard and gives none."
+        view.text = "You take the blow on your guard and give none."
         view.then = "Half of what comes"
         view.button = "Defend"
-        view.odds = "No blow of his this turn."
+        view.odds = "No blow of yours this turn."
     }
     else if (choice == "retreat")
     {
         view.title = "Flee"
-        view.text = "He leaves the field. The days this fight has cost stay written; nothing is carried off."
+        view.text = "You leave the field. The days this fight has cost stay written, and you carry nothing off."
         view.costs = "The fight, as a loss"
         view.bites = "None"
         view.button = "Flee"
-        view.odds = "No beast of these woods follows a man who runs."
+        view.odds = "No beast of these woods follows you if you run."
 
         if (bossFight())
         {
-            view.text = "He runs from it, and keeps running: the walk is over, and what it gathered is lost on the way."
+            view.text = "You run from it, and keep running: the walk is over, and what it gathered is lost on the way."
             view.costs = "The walk, and what it gathered"
-            view.odds = "It does not follow. He lives."
+            view.odds = "It doesn't follow. You live."
         }
 
         return view
@@ -504,7 +504,7 @@ fun previewOf(choice)
             view.button = word.name
         }
 
-        view.odds = "What it meant to do to him, it does not do."
+        view.odds = "What it meant to do to you, it doesn't do."
 
         return view
     }
@@ -513,11 +513,11 @@ fun previewOf(choice)
         var mend = smaller(share(runOf("hpMax"), itemOf("remedy").heals), runOf("hpMax") - runOf("hp"))
 
         view.title = "Take a remedy"
-        view.text = "He drinks a wortleaf remedy instead of striking."
+        view.text = "You drink a wortleaf remedy instead of striking."
         view.deals = "+" + toString(mend) + " vitality"
         view.costs = "1 remedy of " + toString(held("remedy")) + ", and the turn"
         view.button = "Take a remedy"
-        view.odds = "No blow of his this turn."
+        view.odds = "No blow of yours this turn."
     }
     else if (choice == "item.flask")
     {
@@ -533,7 +533,7 @@ fun previewOf(choice)
     else if (choice == "item.oil")
     {
         view.title = "Blessed oil"
-        view.text = "The chapel's oil on his blade: every blow of his is holy for the rest of the fight."
+        view.text = "The chapel's oil is on your blade: every blow of yours is holy for the rest of the fight."
         view.costs = "1 flask of blessed oil of " + toString(held("oil"))
         view.button = "Blessed oil"
         view.odds = "What is not of this world cannot bear a holy blow."
@@ -582,11 +582,11 @@ fun previewOf(choice)
         }
         else
         {
-            view.text = "A plain blow with what he carries."
+            view.text = "A plain blow with what you carry."
 
             if (damageOf("strike") == "holy")
             {
-                view.text = "A plain blow, holy with the chapel's oil on his blade."
+                view.text = "A plain blow, holy with the chapel's oil on your blade."
             }
             view.button = "Strike"
 
@@ -634,7 +634,7 @@ fun previewOf(choice)
         else
         {
             view.foeAfter = "Asks knowledge 2"
-            view.odds = "He has not watched this beast enough to count its blood."
+            view.odds = "You haven't watched this beast enough to count its blood."
         }
 
         var said = resistWord(fight.target, techId)
@@ -888,7 +888,7 @@ fun duelHead()
                 stance: toUpperCase(stanceOf(fight.stance).name) + " STANCE",
                 footnote: "WRITTEN SO FAR · " + toUpperCase(daysText(fight.ticks)) + " · " + toString(larger(0, lost)) + " VITALITY LOST · FLEEING KEEPS THE DAYS",
                 spoils: fight.spoils, back: "Back to " + zone.name,
-                hand: "Let him fight on, this turn and after",
+                hand: "Let the fight play out, this turn and after",
                 foeTitle: fightName(), about: mob.about, refused: pick(run, "refused", "")}
 
     if (fight.count > 1)
@@ -926,16 +926,16 @@ fun duelHead()
         }
     }
 
-    view.quick = "QUICKNESS " + toString(heroSpeed()) + " AGAINST " + toString(foeSpeed(fight.target)) + ": HE ACTS " + toUpperCase(timesWord(his)) + " TO ITS " + toUpperCase(timesWord(its))
+    view.quick = "QUICKNESS " + toString(heroSpeed()) + " AGAINST " + toString(foeSpeed(fight.target)) + ": YOU ACT " + toUpperCase(timesWord(his)) + " TO ITS " + toUpperCase(timesWord(its))
 
     if (its == 0)
     {
-        view.quick = "QUICKNESS " + toString(heroSpeed()) + " AGAINST " + toString(foeSpeed(fight.target)) + ": HE ACTS " + toUpperCase(timesWord(his)) + " BEFORE IT ACTS"
+        view.quick = "QUICKNESS " + toString(heroSpeed()) + " AGAINST " + toString(foeSpeed(fight.target)) + ": YOU ACT " + toUpperCase(timesWord(his)) + " BEFORE IT ACTS"
     }
     else if (his == its)
     {
         // (not "thrice to its thrice")
-        view.quick = "QUICKNESS " + toString(heroSpeed()) + " AGAINST " + toString(foeSpeed(fight.target)) + ": HE ACTS AS OFTEN AS IT DOES"
+        view.quick = "QUICKNESS " + toString(heroSpeed()) + " AGAINST " + toString(foeSpeed(fight.target)) + ": YOU ACT AS OFTEN AS IT DOES"
     }
 
     if (coming[0] > 0)
@@ -950,7 +950,7 @@ fun duelHead()
 
     if (per < walkKnobs.turnsPerAp)
     {
-        view.low = "UNDER HALF: " + toUpperCase(counted(per, "TURN", "TURNS")) + " TO A DAY UNTIL HE RESTS"
+        view.low = "UNDER HALF: " + toUpperCase(counted(per, "TURN", "TURNS")) + " TO A DAY UNTIL YOU REST"
     }
 
     if (fight.over != "")
@@ -966,15 +966,15 @@ fun duelHead()
 
     if (fight.over == "won")
     {
-        view.title = "The field is his"
+        view.title = "The field is yours"
     }
     else if (fight.over == "fled")
     {
-        view.title = "He left the field"
+        view.title = "You left the field"
     }
     else if (fight.over == "lost")
     {
-        view.title = "He is brought down"
+        view.title = "You are brought down"
     }
     else if (fight.over == "held")
     {

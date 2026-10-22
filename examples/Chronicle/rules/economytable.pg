@@ -170,12 +170,12 @@ const slotGivers = [
 // expedition.pg imports this table for the fight; resources.pg lists each piece under GEAR.
 const gearPieces = [
     {id: "iron_blade", name: "An iron blade", glyph: "swordsmanship", might: 4, armour: 0, ward: 0,
-     about: "A plain blade of good iron, forged at the town's smithy. It bites deeper than anything he could buy at the market.",
+     about: "A plain blade of good iron, forged at the town's smithy. It bites deeper than anything you could buy at the market.",
      forge: {costs: [{stat: "stone", amount: 10}, {stat: "firewood", amount: 10}, {stat: "gems", amount: 1}], months: 2, smithy: 1}},
     {id: "jerkin", name: "A leather jerkin", glyph: "forge", might: 0, armour: 2, ward: 0,
-     about: "Hides boiled hard and stitched over his chest and shoulders. A bite or a blow takes less of him through it.",
+     about: "Hides boiled hard and stitched over your chest and shoulders. A bite or a blow takes less out of you through it.",
      forge: {costs: [{stat: "hides", amount: 4}, {stat: "firewood", amount: 6}], months: 1, smithy: 1}},
     {id: "charm", name: "A warded charm", glyph: "magic", might: 0, armour: 0, ward: 2,
-     about: "A ring of iron and cut stones, quenched in well water and worked over at the smithy. A working that reaches him is weaker through it.",
+     about: "A ring of iron and cut stones, quenched in well water and worked over at the smithy. A working that reaches you is weaker through it.",
      forge: {costs: [{stat: "gems", amount: 3}, {stat: "water", amount: 10}], months: 2, smithy: 2, onlyWith: "know.move.light.bite"}}
 ]

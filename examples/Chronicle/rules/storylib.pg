@@ -755,7 +755,7 @@ fun givesText(story, tile)
 
     if (len(parts) == 0)
     {
-        return "The day, and what he makes of it"
+        return "The day, and what you make of it"
     }
 
     return joined(parts, ", ")
@@ -947,7 +947,7 @@ fun leaveStory()
 
     var lost = runOf("ap")
 
-    openStep("leave", "", 1, 0, "Left on the " + storyDayText() + ", " + daysText(lost) + " unspent", "gate")
+    openStep("leave", "", 1, 0, "You left on the " + storyDayText() + ", with " + daysText(lost) + " unspent", "gate")
 
     var step = lastStep()
     step.figure = "LEFT"
@@ -1004,24 +1004,26 @@ fun endStory()
         name = "the " + substring(name, 4, strlen(name))
     }
 
+    var itWord = "it"
+    var its = "its"
+
+    if (pick(story, "plural", false))
+    {
+        itWord = "they"
+        its = "their"
+    }
+
     if (run.result == "left")
     {
-        push(entries, {text: "Left " + name + " on the " + storyDayText() + ", with what it had given him", kind: "note", figure: "", glyph: story.glyph})
+        push(entries, {text: "You left " + name + " on the " + storyDayText() + ", with what " + itWord + " had given you", kind: "note", figure: "", glyph: story.glyph})
     }
     else if (run.result == "dropout")
     {
-        push(entries, {text: "Dropped out of " + name + " on the " + storyDayText() + ", with what it had given him", kind: "loss", figure: "", glyph: story.glyph})
+        push(entries, {text: "You dropped out of " + name + " on the " + storyDayText() + ", with what " + itWord + " had given you", kind: "loss", figure: "", glyph: story.glyph})
     }
     else if (run.result == "over")
     {
-        var its = "its"
-
-        if (pick(story, "plural", false))
-        {
-            its = "their"
-        }
-
-        push(entries, {text: "Saw " + name + " to " + its + " end", kind: "note", figure: "", glyph: story.glyph})
+        push(entries, {text: "You saw " + name + " to " + its + " end", kind: "note", figure: "", glyph: story.glyph})
     }
 
     // A grade wrote its own line (storyResult)
@@ -1452,11 +1454,11 @@ fun answerLine(option, isTest)
 
         if (pick(up, "kind", "card") == "fight")
         {
-            push(parts, "A fight, by his own hand")
+            push(parts, "A fight, by your own hand")
         }
         else if (pick(swap, "from", "") != "")
         {
-            push(parts, "Leans on " + toLowerCase(statName(swap.to)) + " in place of " + toLowerCase(statName(swap["from"])))
+            push(parts, "Leans on " + toLowerCase(statName(swap.to)) + " instead of " + toLowerCase(statName(swap["from"])))
         }
         else if (adds > 0)
         {
@@ -1468,7 +1470,7 @@ fun answerLine(option, isTest)
         }
         else
         {
-            push(parts, "Leans on what he was taught")
+            push(parts, "Leans on what you were taught")
         }
     }
 
@@ -1486,15 +1488,15 @@ fun storyCardPage()
     }
 
     var story = storyNow()
-    var foot = "His answer is written to the day; the day goes on."
+    var foot = "Your answer is written to the day, and the day goes on."
 
     if (upKind() == "test")
     {
-        foot = "He sits it once, and it is his day's work."
+        foot = "You sit it once, and it's your day's work."
     }
     else if (upKind() == "event")
     {
-        foot = "A chance of the day: his answer is written to it."
+        foot = "A chance of the day: your answer is written to it."
     }
 
     return {id: run.event, title: up.title, text: up.text, foot: foot}
@@ -1891,7 +1893,7 @@ fun storyResult()
     }
     else if (grade.id != "over")
     {
-        push(entries, {text: "Saw " + toLowerCase(story.name) + " to its end: " + grade.id, kind: kind, figure: "", glyph: story.glyph})
+        push(entries, {text: "You saw " + toLowerCase(story.name) + " to its end: " + grade.id, kind: kind, figure: "", glyph: story.glyph})
     }
 
     run.event = ""
@@ -2065,7 +2067,7 @@ fun storyFightEnd(outcome, length, hurt)
 
     if (outcome == "won")
     {
-        step.text = "Beat " + what + " · " + length + ", " + hurt
+        step.text = "You beat " + what + " · " + length + ", " + hurt
         fight.spoils = "Written to the day"
 
         // What it left is said first: the slime's pages
@@ -2078,21 +2080,21 @@ fun storyFightEnd(outcome, length, hurt)
     }
     else if (outcome == "held")
     {
-        step.text = "Stood against " + what + " till time was called · " + length + ", " + hurt
+        step.text = "You stood against " + what + " till time was called · " + length + ", " + hurt
     }
     else if (outcome == "fled")
     {
-        step.text = "Broke off from " + what + " · " + length + ", " + hurt
+        step.text = "You broke off from " + what + " · " + length + ", " + hurt
         step.tone = "loss"
         fight.spoils = "The day is spent; what the days gave is kept"
-        said.text = "He breaks off"
+        said.text = "You break off"
     }
     else
     {
-        step.text = "Beaten by " + what + " · " + length
+        step.text = "You were beaten by " + what + " · " + length
         step.tone = "loss"
-        fight.spoils = "He is helped up: the day is spent, and what the days gave is kept"
-        said.text = "He goes down, and is helped up"
+        fight.spoils = "Someone helps you up: the day is spent, and what the days gave is kept"
+        said.text = "You go down, and someone helps you up"
     }
 
     // The line's right: its turns and what it took (no days: the day is the tile's or the test's)
@@ -2265,7 +2267,7 @@ fun storyHead()
     var day = smaller(runOf("day"), larger(1, runOf("days")))
     var unit = capitalised(story.unit)
     var leave = "Leave"
-    var leaveNote = "WHAT HE WAS GIVEN IS HIS"
+    var leaveNote = "WHAT YOU WERE GIVEN IS YOURS"
 
     if (runOf("leaving") > 0)
     {
@@ -2280,7 +2282,7 @@ fun storyHead()
 
         if (pick(story, "dropout", "") != "")
         {
-            leaveNote = "HE DROPS OUT. PRESS AGAIN TO GO"
+            leaveNote = "YOU DROP OUT. PRESS AGAIN TO GO"
         }
     }
 
@@ -2428,7 +2430,7 @@ fun storyHome()
     var rows = []
 
     push(rows, {id: "time", name: "Months gone by", glyph: "time", value: counted(runOf("monthsRun"), "month", "months") + " of " + toString(runOf("months")), tone: "time"})
-    push(rows, {id: "keeps", name: "He keeps", glyph: story.glyph, value: "what he was given", tone: "gain"})
+    push(rows, {id: "keeps", name: "You keep", glyph: story.glyph, value: "what you were given", tone: "gain"})
 
     var paid = markIds(marks, "fee")
 

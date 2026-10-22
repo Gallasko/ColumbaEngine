@@ -5161,7 +5161,7 @@ namespace chronicle
             // What takes months waits for what he is at; what takes none may be done meanwhile
             if (not save.running.empty() and intOf(raise->fields, "months") > 0)
             {
-                toast("Already at work: " + activityName(save.running));
+                toast("You're already at work: " + activityName(save.running));
                 return;
             }
 
@@ -5348,7 +5348,7 @@ namespace chronicle
         {
             if (not takenAtWork(activityOf(id)))
             {
-                appendLog({save.age, "Already at work: " + activityName(save.running), LogKind::Note, "", ""});
+                appendLog({save.age, "You were already at work: " + activityName(save.running), LogKind::Note, "", ""});
                 return;
             }
 
@@ -5560,7 +5560,7 @@ namespace chronicle
                 continue;
 
             if (called)
-                said = group + "! Bellmoor calls on him: its answers are in red, and leaving it unanswered closes what they name";
+                said = group + "! Bellmoor calls on you: its answers are in red, and leaving it unanswered closes what they name";
             else if (last)
                 said = group + "! This is the last month to answer it";
         }

@@ -105,7 +105,7 @@ fun encounterRow(zone, enc)
 
         row.boss = 1
         row.rank = "A BOSS · KNOWN " + toString(mobLevel(zone.id, mobOf(lead.mob))) + " OF 4"
-        row.note = row.note + " If he falls here, he dies."
+        row.note = row.note + " If you fall here, you die."
 
         if (mine("beaten." + enc.id) > 0)
         {
@@ -147,7 +147,7 @@ fun seekEncounter(id)
 
     if (enc.id == "" or not encounterHere(zone, enc))
     {
-        run.refused = "He does not know of that here"
+        run.refused = "You don't know of that here"
         return
     }
 
@@ -165,7 +165,7 @@ fun seekEncounter(id)
         return
     }
 
-    openStep("seek", "enc." + enc.id, encounterSize(enc), cost, "Sought " + enc.name + ", and found it", "adventure")
+    openStep("seek", "enc." + enc.id, encounterSize(enc), cost, "You looked for " + enc.name + ", and found it", "adventure")
     closeStep()
 
     // A boss is met once: a record walked again passes its steps by
@@ -274,8 +274,8 @@ fun approachCard()
         name = enc.name
     }
 
-    return {id: "approach", title: "How to meet it", text: "He has found " + name + ", and it has not found him yet.",
-            foot: "How he meets it is his to choose each time: a walk by the record fights nothing again."}
+    return {id: "approach", title: "How to meet it", text: "You have found " + name + ", and it hasn't found you yet.",
+            foot: "How you meet it is your choice each time: a walk by the record fights nothing again."}
 }
 
 // What he found is met: the card first when there is a choice, else the fight
@@ -297,7 +297,7 @@ fun approach(id)
 
     if (id == "slip")
     {
-        openStep("approach", run.found, 0, 0, "Slipped past, and left it be", "gate")
+        openStep("approach", run.found, 0, 0, "You slipped past, and left it be", "gate")
         closeStep()
 
         run.found = ""
@@ -344,7 +344,7 @@ fun openFight()
             foes[i].wait = foeWait(i) + share(waitFor(100, foeSpeed(i)), walkKnobs.ambushDelay)
         }
 
-        push(account, {turn: "", text: "He strikes from cover: they are slow to turn", figure: "", kind: "gain"})
+        push(account, {turn: "", text: "You strike from cover: they are slow to turn", figure: "", kind: "gain"})
     }
     else if (opening == "ambush.lost")
     {
@@ -355,7 +355,7 @@ fun openFight()
             foes[i].wait = 0
         }
 
-        push(account, {turn: "", text: "It saw him first", figure: "", kind: "loss"})
+        push(account, {turn: "", text: "It saw you first", figure: "", kind: "loss"})
     }
     else if (opening == "trap")
     {
@@ -377,13 +377,13 @@ fun doTrap()
 {
     if (mine("snare_set") <= 0)
     {
-        run.refused = "He does not know how to do that"
+        run.refused = "You don't know how to do that"
         return
     }
 
     if (runOf("traps") >= walkKnobs.trapsMost)
     {
-        run.refused = "He has set all the traps he can watch"
+        run.refused = "You've set all the traps you can watch"
         return
     }
 
@@ -393,7 +393,7 @@ fun doTrap()
         return
     }
 
-    openStep("trap", "", 1, walkKnobs.trapAp, "Set a trap where a beast will run", "adventure")
+    openStep("trap", "", 1, walkKnobs.trapAp, "You set a trap where a beast will run", "adventure")
     closeStep()
 
     run.traps = runOf("traps") + 1
@@ -510,9 +510,9 @@ fun bossOutcome(outcome)
         after.vit = 0
         after.fell = 1
         run.died = 1
-        step.text = "Fell to " + enc.name
-        fight.spoils = "He does not come home"
-        push(entries, {text: "He fell to " + enc.name, kind: "loss", figure: "", glyph: "vitality"})
+        step.text = "You fell to " + enc.name
+        fight.spoils = "You don't come home"
+        push(entries, {text: "You fell to " + enc.name, kind: "loss", figure: "", glyph: "vitality"})
     }
 }
 

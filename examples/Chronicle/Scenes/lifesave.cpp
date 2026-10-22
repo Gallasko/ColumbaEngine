@@ -783,18 +783,18 @@ namespace chronicle
         };
 
         life.log = {
-            {7.0f, "Born to the miller's wife at Bellmoor", LogKind::Milestone, "", ""},
+            {7.0f, "You were born to the miller's wife at Bellmoor", LogKind::Milestone, "", ""},
             {7.5f, "Help at the Mill", LogKind::Gain, "+1 str +1 vit +8 coin", "work"},
-            {7.6f, "Fell in the millrace and was pulled out", LogKind::Note, "", ""},
+            {7.6f, "You fell in the millrace and were pulled out", LogKind::Note, "", ""},
             {8.5f, "Run Messages", LogKind::Gain, "+1 dex +5 coin", "town"},
-            {10.0f, "Every carter on the Bell road knows him by name", LogKind::Milestone, "", ""},
-            {10.1f, "His father went north and did not come back", LogKind::Note, "", ""},
+            {10.0f, "Every carter on the Bell road knows you by name", LogKind::Milestone, "", ""},
+            {10.1f, "Your father went north and did not come back", LogKind::Note, "", ""},
             {11.0f, "Carry for the Watch", LogKind::Gain, "+1 arms +1 str +1 watch", "gate"},
             {11.5f, "Train at the Yard", LogKind::Gain, "+1 str +1 arms", "training"},
             {15.0f, "Train under Sergeant Edric", LogKind::Gain, "+1 arms +1 disc +1 str", "training"},
-            {15.0f, "Sergeant Edric will speak for him at the Keep", LogKind::Milestone, "", "training"},
+            {15.0f, "Sergeant Edric will speak for you at the Keep", LogKind::Milestone, "", "training"},
             {17.5f, "Swear Service to the Keep", LogKind::Gain, "+1 oath +1 renown +1 arms", "seal"},
-            {17.5f, "Swore his service to the Keep", LogKind::Milestone, "", ""},
+            {17.5f, "You swore your service to the Keep", LogKind::Milestone, "", ""},
         };
 
         return life;

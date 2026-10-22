@@ -293,7 +293,7 @@ namespace pg
             // (the first day is its stage's first: its line comes before the day's)
             ASSERT_EQ(w.state.record.size(), 2u);
             EXPECT_EQ(textOf(w.state.record.front(), "kind"), "stage");
-            EXPECT_EQ(textOf(w.state.record.back(), "text"), "Read in the library");
+            EXPECT_EQ(textOf(w.state.record.back(), "text"), "You read in the library");
 
             // The page's own form of it, `tile.<id>` as the act's kind, is the same (a chance meeting
             // at the start of the second day answered first, and written as a step of its own)
@@ -998,7 +998,7 @@ namespace pg
             const ElementMap* told = w.step("fight");
 
             ASSERT_NE(told, nullptr);
-            EXPECT_EQ(textOf(*told, "text").rfind("Beat the practice dummy", 0), 0u) << textOf(*told, "text");
+            EXPECT_EQ(textOf(*told, "text").rfind("You beat the practice dummy", 0), 0u) << textOf(*told, "text");
 
             // Without a working, the practice is shut
             Walker plain(student());
@@ -2522,7 +2522,7 @@ namespace pg
 
             for (const auto& e : w.last.entries)
             {
-                if (textOf(e, "text") == "Saw the Outskirts to their end")
+                if (textOf(e, "text") == "You saw the Outskirts to their end")
                     said = true;
 
                 EXPECT_EQ(textOf(e, "text").find("to its end"), std::string::npos) << textOf(e, "text");
@@ -2595,7 +2595,7 @@ namespace pg
             ASSERT_TRUE(toTheDitch(w, "nature", "beetles"));
 
             const std::string quick = textOf(w.last.duel, "quick");
-            EXPECT_NE(quick.find("HE ACTS AS OFTEN AS IT DOES"), std::string::npos) << quick;
+            EXPECT_NE(quick.find("YOU ACT AS OFTEN AS IT DOES"), std::string::npos) << quick;
             EXPECT_EQ(quick.find(" TO ITS "), std::string::npos) << quick;
         }
 

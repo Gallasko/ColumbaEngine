@@ -491,7 +491,7 @@ fun heroActs(choice)
         // A defend taken on a blow costs the rhythm a point of momentum
         fight.guarding = 1
         fight.momentum = larger(0, pick(fight, "momentum", 0) - 1)
-        say("He guards", "", "note")
+        say("You guard", "", "note")
         return
     }
 
@@ -502,7 +502,7 @@ fun heroActs(choice)
         var mended = shiftHp(share(runOf("hpMax"), itemOf("remedy").heals))
 
         fight.momentum = larger(0, pick(fight, "momentum", 0) - 1)
-        say("He takes a wortleaf remedy", "+" + toString(mended), "gain")
+        say("You take a wortleaf remedy", "+" + toString(mended), "gain")
         return
     }
 
@@ -551,7 +551,7 @@ fun itemActs(id)
     else
     {
         fight.oil = 1
-        say("He oils his blade with the chapel's blessing: his blows are holy", "", "gain")
+        say("You oil your blade with the chapel's blessing: your blows are holy", "", "gain")
     }
 
     fight.by = ""
@@ -633,12 +633,12 @@ fun techActs(tech)
     else if (effect == "step")
     {
         fight.stepped = 1
-        say("He steps aside, light on his feet", "", "note")
+        say("You step aside, light on your feet", "", "note")
     }
     else if (effect == "read")
     {
         fight["read." + toString(fight.target)] = 1
-        say("He reads the " + toLowerCase(bound.name) + ": what it is, and what it means to do", "", "note")
+        say("You read the " + toLowerCase(bound.name) + ": what it is, and what it means to do", "", "note")
     }
     else if (effect == "wind")
     {
@@ -648,13 +648,13 @@ fun techActs(tech)
 
         var mended = shiftHp(share(runOf("hpMax"), walkKnobs.windHeal))
 
-        say("He finds his second wind", "+" + toString(fight.breath - before) + " breath, +" + toString(mended), "gain")
+        say("You find your second wind", "+" + toString(fight.breath - before) + " breath, +" + toString(mended), "gain")
     }
     else if (effect == "brace")
     {
         fight.guarding = 1
         fight.bracing = 1
-        say("He braces", "", "note")
+        say("You brace", "", "note")
     }
     else if (tech.all)
     {
@@ -905,7 +905,7 @@ fun foeTurn(i)
             fight.by = "foe"
             fight.byN = i
             fight.missed = 1
-            say("The " + toLowerCase(foe.name) + " " + mob.verb + ": he steps clear", "—", "note")
+            say("The " + toLowerCase(foe.name) + " " + mob.verb + ": you step clear", "—", "note")
             fight.missed = 0
             fight.by = ""
         }
@@ -930,7 +930,7 @@ fun foeTurn(i)
             if (taken <= 0 and pick(mob, "spares", false))
             {
                 // It spared him all of it: a knock, no more
-                say("The " + toLowerCase(foe.name) + " " + mob.verb + ": it barely touches him", "—", "note")
+                say("The " + toLowerCase(foe.name) + " " + mob.verb + ": it barely touches you", "—", "note")
             }
             else
             {
@@ -988,7 +988,7 @@ fun endFight(outcome)
         step.ap = step.ap - 1
         run.ap = runOf("ap") + 1
         run.spent = runOf("spent") - 1
-        push(account, {turn: "", text: "He knows the beast: a day spared", figure: "+1 D", kind: "gain"})
+        push(account, {turn: "", text: "You know the beast: a day spared", figure: "+1 D", kind: "gain"})
     }
 
     fight.over = outcome
@@ -1044,7 +1044,7 @@ fun endFight(outcome)
             if (killedOf(kinds[k]) > 0 and mine("lesson." + kinds[k]) == 0 and not pick(taught, "story", false))
             {
                 after["lesson." + kinds[k]] = 1
-                push(entries, {text: pick(taught, "lesson", "The first " + toLowerCase(taught.name) + " he has killed: he knows it better now"), kind: "gain", figure: "", glyph: "study"})
+                push(entries, {text: pick(taught, "lesson", "The first " + toLowerCase(taught.name) + " you've killed: you know it better now"), kind: "gain", figure: "", glyph: "study"})
             }
         }
 
@@ -1067,11 +1067,11 @@ fun endFight(outcome)
             }
         }
 
-        step.text = "Killed it · " + length + ", " + hurt
+        step.text = "You killed it · " + length + ", " + hurt
 
         if (fight.count > 1)
         {
-            step.text = "Killed all " + wordOf(fight.count) + " · " + length + ", " + hurt
+            step.text = "You killed all " + wordOf(fight.count) + " · " + length + ", " + hurt
         }
 
         if (killed == 0)
@@ -1080,7 +1080,7 @@ fun endFight(outcome)
         }
         else if (killed < fight.count)
         {
-            step.text = "Killed " + wordOf(killed) + ", the rest got away · " + length + ", " + hurt
+            step.text = "You killed " + wordOf(killed) + ", the rest got away · " + length + ", " + hurt
         }
 
         fight.spoils = step.gave
@@ -1094,23 +1094,23 @@ fun endFight(outcome)
     }
     else if (outcome == "fled")
     {
-        step.text = "Fled " + what + " · " + length + ", " + hurt
+        step.text = "You fled " + what + " · " + length + ", " + hurt
         step.tone = "loss"
-        fight.spoils = "No loot: he left the field"
-        push(account, {turn: "", text: "He breaks off and runs", figure: "", kind: "loss"})
+        fight.spoils = "No loot: you left the field"
+        push(account, {turn: "", text: "You break off and run", figure: "", kind: "loss"})
     }
     else if (outcome == "held")
     {
-        step.text = "Held " + what + " till time was called · " + length + ", " + hurt
+        step.text = "You held " + what + " till time was called · " + length + ", " + hurt
         fight.spoils = "Neither side fell"
         push(account, {turn: "", text: "Time is called, and neither side has fallen", figure: "", kind: "note"})
     }
     else
     {
-        step.text = "Brought down by " + what + " · " + length
+        step.text = "You were brought down by " + what + " · " + length
         step.tone = "loss"
-        fight.spoils = "He is carried home"
-        push(account, {turn: "", text: "He goes down. Someone finds him", figure: "", kind: "loss"})
+        fight.spoils = "You are carried home"
+        push(account, {turn: "", text: "You go down. Someone finds you", figure: "", kind: "loss"})
     }
 
     // A boss: beaten for the life, fled from, or his death (encounterlib.pg)
@@ -1137,7 +1137,7 @@ fun resolve(choice)
         {
             fight.stance = stance.id
             run.stance = stance.id
-            say("He stands " + toLowerCase(stance.name), "", "note")
+            say("You stand " + toLowerCase(stance.name), "", "note")
         }
 
         fight.choice = "strike"

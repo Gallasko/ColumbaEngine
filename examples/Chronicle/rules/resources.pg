@@ -84,13 +84,13 @@ var errors = []
 
 var holdings = [
     {id: "coin", group: "purse", groupLabel: "PURSE", glyph: "gold", name: "Coin", tone: 1,
-     about: "What work pays him in, and what the market takes."},
+     about: "What work pays you in, and what the market takes."},
     {id: "rations", group: "purse", groupLabel: "PURSE", glyph: "trade", name: "Rations", tone: 0,
-     about: "Food for the month: he eats one every month, whatever he is at. Work that feeds him gives the rations of its months as he begins it. With none left, his Vitality pays for it.",
+     about: "Food for the month: you eat one every month, whatever you're doing. Work that feeds you gives you the rations of its months when you begin it. With none left, your Vitality pays for it.",
      decays: economyKnobs.rationsAMonth,
      empty: {effects: [{stat: "vit", amount: -5}], entry: "The rations ran out",
              low: "Rations are running low: buy some at the market, or take work that gives rations up front",
-             gone: "No rations left: his Vitality pays. Buy some at the market, or take work that gives rations up front"}},
+             gone: "No rations left: your Vitality pays. Buy some at the market, or take work that gives rations up front"}},
     // Not his: the player's. The seconds the chronicle stayed shut, spent to run the months faster
     {id: "written", group: "purse", groupLabel: "PURSE", glyph: "time", name: "Written time", tone: 0, haste: 3, aMonth: 7,
      about: "What was written while the chronicle was shut, an hour at most. Spent, it runs the months twice or three times as fast, a week of it for each month. It is kept from life to life."},
@@ -102,7 +102,7 @@ var holdings = [
 // raises, and set right after the purse so that the ledger reads them near its top. A basic's gloss
 // says where it goes at his death: to the place he leaves his gift to, as much as its next level
 // still asks (town.pg's `leaves`), and the rest to the stash
-var basicDeath = " At his death, what a place still asks of it can be left to that place; the family's stash keeps the rest."
+var basicDeath = " When you die, what a place still asks of it can be left to that place; the family's stash keeps the rest."
 
 for (var br = 0; br < len(basicResources); br++)
 {
@@ -137,18 +137,18 @@ for (var gp = 0; gp < len(gearPieces); gp++)
     var piece = gearPieces[gp]
 
     push(holdings, {id: "gear." + piece.id, group: "gear", groupLabel: "GEAR", glyph: piece.glyph, name: piece.name, tone: 0, title: true,
-                    about: piece.about + " It is lost at his death, as the smithy keeps no piece for the next life."})
+                    about: piece.about + " It is lost when you die, as the smithy keeps no piece for the next life."})
 }
 
 var standings = [
     {id: "favors", group: "standing", groupLabel: "STANDING", glyph: "guild", name: "Favors", tone: 2,
-     about: "What the Hidden Hand owes him. A big job asks for them before it begins."},
+     about: "What the Hidden Hand owes you. A big job asks for them before it begins."},
     {id: "keep_oath", group: "standing", groupLabel: "STANDING", glyph: "seal", name: "Sworn to the Keep", tone: 2, title: true,
-     about: "His oath to the Keep at Bellmoor: its service and its campaigns are open to him."},
+     about: "Your oath to the Keep at Bellmoor: its service and its campaigns are open to you."},
     {id: "collegium", group: "standing", groupLabel: "STANDING", glyph: "academy", name: "The Collegium", tone: 2, title: true,
      about: "A place among the scholars of the Collegium, and their table."},
     {id: "hidden_hand", group: "standing", groupLabel: "STANDING", glyph: "guild", name: "The Hidden Hand", tone: 2, title: true,
-     about: "The thieves of Bellmoor trust him with their work."},
+     about: "The thieves of Bellmoor trust you with their work."},
     {id: "captain", group: "standing", groupLabel: "STANDING", glyph: "reputation", name: "Captain of Bellmoor", tone: 3, title: true,
      about: "The captain's chain of the Keep."},
     {id: "mage_of_harrow", group: "standing", groupLabel: "STANDING", glyph: "relic", name: "Mage of Harrow", tone: 3, title: true,
@@ -156,35 +156,35 @@ var standings = [
     {id: "master_thief", group: "standing", groupLabel: "STANDING", glyph: "gold", name: "Master Thief", tone: 3, title: true,
      about: "The one who emptied the Bellmoor Vault."},
     {id: "renegade", group: "standing", groupLabel: "STANDING", glyph: "adventure", name: "Gone to the Greenwood", tone: 2, title: true,
-     about: "He lives outside the town's law, among the outlaws of the Greenwood."},
+     about: "You live outside the town's law, among the outlaws of the Greenwood."},
     {id: "wood_king", group: "standing", groupLabel: "STANDING", glyph: "reputation", name: "King of the Greenwood", tone: 3, title: true,
-     about: "The Greenwood answers to him, and the Keep leaves it be."},
+     about: "The Greenwood answers to you, and the Keep leaves it be."},
     // What a second calling counts: each is a number he holds, that its last work asks for
     {id: "relics", group: "standing", groupLabel: "STANDING", glyph: "relic", name: "Relics", tone: 0,
      about: "Relics of the curse, gathered for the Harrow Study. The first seal asks three."},
     {id: "elements", group: "standing", groupLabel: "STANDING", glyph: "magic", name: "Elements bound", tone: 0,
-     about: "The elements he has bound, each a spell of his."},
+     about: "The elements you have bound, each one a spell of yours."},
     {id: "spells_written", group: "standing", groupLabel: "STANDING", glyph: "quill", name: "Spells written down", tone: 0,
-     about: "The spells he has set down for the Collegium's shelves."},
+     about: "The spells you have set down for the Collegium's shelves."},
     {id: "marks_studied", group: "standing", groupLabel: "STANDING", glyph: "town", name: "Marks studied", tone: 0,
-     about: "The people of Bellmoor he has watched for a contract."},
+     about: "The people of Bellmoor you have watched for a contract."},
     {id: "kills", group: "standing", groupLabel: "STANDING", glyph: "skull", name: "Contracts kept", tone: 0,
-     about: "The contracts he has carried out."},
+     about: "The contracts you have carried out."},
     {id: "far_walks", group: "standing", groupLabel: "STANDING", glyph: "adventure", name: "Far roads walked", tone: 0,
-     about: "The far roads he has walked to their end."},
+     about: "The far roads you have walked to their end."},
     {id: "maps_drawn", group: "standing", groupLabel: "STANDING", glyph: "quill", name: "Maps drawn", tone: 0,
-     about: "The far roads he has put on paper."},
+     about: "The far roads you have put on paper."},
     // What he was given as a boy and keeps: nothing asks for it yet
     {id: "tome", group: "keepsakes", groupLabel: "KEEPSAKES", glyph: "relic", name: "Father Anselm's tome", tone: 2, title: true,
-     about: "A small book Father Anselm gave him for carrying the others. He has kept it since."},
+     about: "A small book Father Anselm gave you for carrying the others. You've kept it since."},
     // And what he bought as one: the blade his practice asks for
     {id: "wooden_blade", group: "keepsakes", groupLabel: "KEEPSAKES", glyph: "swordsmanship", name: "A wooden blade", tone: 0, title: true,
      about: "A blunt wooden blade from the market, a bit too long for you. Your practice with it counts as training."},
     // And the two small things that each open a task of his streets and of his study
     {id: "snare_wire", group: "keepsakes", groupLabel: "KEEPSAKES", glyph: "adventure", name: "A snare wire", tone: 0, title: true,
-     about: "A coil of brass wire from the market. Snaring rabbits on the common is among his streets while he is young enough for it."},
+     about: "A coil of brass wire from the market. Snaring rabbits on the common is among your street work while you're young enough for it."},
     {id: "herbal_primer", group: "keepsakes", groupLabel: "KEEPSAKES", glyph: "study", name: "A herbal primer", tone: 0, title: true,
-     about: "A few pages of leaves and roots from the market. Learning the herbal is among his study."},
+     about: "A few pages of leaves and roots from the market. Learning the herbal is among your studies."},
     // The market hall (towntable.pg, the market's second level) sends a ration every three
     // months: a help, not his bread. One a month was all a month eats, and rations no longer counted
     {id: "town.market", group: "town", groupLabel: "TOWN", glyph: "trade", name: "the market hall", tone: 0, ledger: false,
@@ -246,7 +246,7 @@ for (var w = 0; w < len(walkItems); w++)
     if (thing.kind == "remedy")
     {
         push(holdings, {id: thing.id, group: "stores", groupLabel: "STORES", glyph: thing.glyph, name: thing.name, tone: 0,
-                        about: "Drunk on a walk, in a fight or between two: it gives back a part of his Vitality."})
+                        about: "Drunk on a walk, in a fight or between two: it gives back a part of your Vitality."})
     }
 
     // (a thing with a line of its own says it in place of where it comes from: the chronicle's pages;
@@ -274,19 +274,19 @@ for (var w = 0; w < len(walkItems); w++)
     if (thing.kind == "town")
     {
         push(holdings, {id: thing.id, group: "stores", groupLabel: "STORES", glyph: thing.glyph, name: thing.name, tone: 0,
-                        about: "Brought home from a walk. The places of the town are built of it. At his death, what a place still asks of it can be left to that place; the rest is lost."})
+                        about: "Brought home from a walk. The places of the town are built of it. When you die, what a place still asks of it can be left to that place; the rest is lost."})
     }
 
     if (thing.kind == "found")
     {
         push(holdings, {id: thing.id, group: "stores", groupLabel: "STORES", glyph: thing.glyph, name: thing.name, tone: 0,
-                        about: "Found only in the far places, and no market buys it. The town's finest works ask for it. At his death, what a place still asks of it can be left to that place; the rest is lost."})
+                        about: "Found only in the far places, and no market buys it. The town's finest works ask for it. When you die, what a place still asks of it can be left to that place; the rest is lost."})
     }
 
     if (thing.kind == "fight")
     {
         push(holdings, {id: thing.id, group: "stores", groupLabel: "STORES", glyph: thing.glyph, name: thing.name, tone: 0,
-                        about: "Carried on a walk, and used in a fight: it is a move of his while he holds one."})
+                        about: "Carried on a walk, and used in a fight: it's one of your moves while you hold one."})
     }
 }
 
@@ -305,7 +305,7 @@ for (var lk = 0; lk < len(walkMobs); lk++)
     var taughtBy = walkMobs[lk]
 
     push(holdings, {id: "lesson." + taughtBy.id, group: "fights", groupLabel: "IN A FIGHT", glyph: "study", name: "Lesson: " + toLowerCase(taughtBy.name), tone: 0, title: true,
-                    about: lookup(taughtBy, "lesson", "The first one he killed in this life: he knows it better.")})
+                    about: lookup(taughtBy, "lesson", "The first one you killed in this life: you know it better.")})
 }
 
 for (var t = 0; t < len(ties); t++)
@@ -332,7 +332,7 @@ var aging = [
 // What a life cannot go on without: with none of it left the life ends, and a new one begins.
 // `aged` is the line of a life that ended in its old age.
 var mortal = [
-    {stat: "vit", entry: "The last life ended, his vitality spent", aged: "The last life ended in old age, its chronicle written"}
+    {stat: "vit", entry: "Your last life ended, your vitality spent", aged: "The last life ended in old age, its chronicle written"}
 ]
 
 var lived = monthOf(age)
@@ -708,7 +708,7 @@ for (var g = 0; g < len(holdings); g++)
         }
 
         push(notes, {label: label, value: signed(product.amount) + " / mo", tone: "gain"})
-        footnote = "A GENERATOR: IT WORKS EVERY MONTH HE HOLDS IT"
+        footnote = "A GENERATOR: IT WORKS EVERY MONTH YOU HOLD IT"
     }
 
     var decays = lookup(h, "decays", 0)
@@ -723,7 +723,7 @@ for (var g = 0; g < len(holdings); g++)
 
         if (share > 0)
         {
-            push(notes, {label: "His familiars eat", value: toString(share) + " / mo", tone: "loss"})
+            push(notes, {label: "Your familiars eat", value: toString(share) + " / mo", tone: "loss"})
         }
 
         if (held > 0 and uses > 0)
@@ -748,14 +748,14 @@ for (var g = 0; g < len(holdings); g++)
 
             if (held <= 0 and has(character, h.id))
             {
-                footnote = "NONE LEFT: HE PAYS FOR IT EVERY MONTH"
+                footnote = "NONE LEFT: YOU PAY FOR IT EVERY MONTH"
             }
         }
     }
 
     if (limit > 0 and held >= limit)
     {
-        footnote = "FULL: WHAT BRINGS MORE IS CLOSED TO HIM"
+        footnote = "FULL: WHAT BRINGS MORE IS CLOSED TO YOU"
 
         if (haste > 0)
         {
@@ -781,7 +781,7 @@ for (var g = 0; g < len(holdings); g++)
             push(notes, {label: "Each makes " + statName(makes.stat), value: signed(makes.amount + statOf(character, "more." + makes.stat)) + " / mo", tone: "gain"})
         }
 
-        push(notes, {label: "Bound to him", value: "For life", tone: "muted"})
+        push(notes, {label: "Bound to you", value: "For life", tone: "muted"})
         footnote = "FED, IT MAKES EVERY MONTH; HUNGRY, IT MAKES NOTHING"
     }
 
@@ -804,7 +804,7 @@ var death = ""
 // Who fell to a boss on a walk does not come home (encounterlib.pg's `bossOutcome`)
 if (has(character, "fell") and statOf(character, "fell") > 0)
 {
-    death = "The last life ended on a walk, in a fight he chose"
+    death = "Your last life ended on a walk, in a fight you chose"
 }
 
 for (var m = 0; m < len(mortal); m++)

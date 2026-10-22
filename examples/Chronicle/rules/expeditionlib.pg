@@ -418,7 +418,7 @@ fun openingAt(zone, level)
 
         if (task == "camp")
         {
-            push(parts, "a camp (a rest, and his own trades)")
+            push(parts, "a camp (a rest, and your own trades)")
             continue
         }
 
@@ -1060,7 +1060,7 @@ fun doSeek(mobId, count)
 
     if (mob.id == "" or not inZone(zone, mobId) or mobLevel(zone.id, mob) < 1)
     {
-        run.refused = "He does not know that beast"
+        run.refused = "You don't know that beast"
         return
     }
 
@@ -1078,7 +1078,7 @@ fun doSeek(mobId, count)
 
     if (not opened(zone, task))
     {
-        run.refused = "He does not know the place well enough to find it"
+        run.refused = "You don't know the place well enough to find it"
         return
     }
 
@@ -1101,7 +1101,7 @@ fun doSeek(mobId, count)
         sought = toLowerCase(mob.lone)
     }
 
-    openStep("seek", mob.id, count, cost, "Sought " + sought + ", and found it", "adventure")
+    openStep("seek", mob.id, count, cost, "You looked for " + sought + ", and found it", "adventure")
     closeStep()
 
     run.found = mob.id
@@ -1153,7 +1153,7 @@ fun doGather(spotId)
 
     if (not opened(zone, spot.id))
     {
-        run.refused = "He does not know the place well enough to find it"
+        run.refused = "You don't know the place well enough to find it"
         return
     }
 
@@ -1163,7 +1163,7 @@ fun doGather(spotId)
         return
     }
 
-    openStep("gather", spot.id, 1, spot.ap, "Gathered " + toLowerCase(itemOf(spot.id).name), "work")
+    openStep("gather", spot.id, 1, spot.ap, "You gathered " + toLowerCase(itemOf(spot.id).name), "work")
 
     var found = rollBetween(spot.least, spot.most) + spotBonus(spot)
 
@@ -1199,7 +1199,7 @@ fun doStudy()
     var zone = zoneOf(run.zone)
     var before = zoneLevel(zone.id)
 
-    openStep("study", zone.id, 1, walkKnobs.studyAp, "Studied the place", "study")
+    openStep("study", zone.id, 1, walkKnobs.studyAp, "You studied the place", "study")
 
     // The scholar's work in town makes a study count more
     learn("study." + zone.id, 1)
@@ -1210,7 +1210,7 @@ fun doStudy()
 
     if (zoneLevel(zone.id) > before)
     {
-        step.text = "Studied the place: he knows it better now"
+        step.text = "You studied the place: you know it better now"
         push(entries, {text: zone.name + " is known " + toString(zoneLevel(zone.id)) + " of 4", kind: "milestone", figure: "", glyph: "study"})
     }
 
@@ -1226,7 +1226,7 @@ fun doObserve(mobId)
 
     if (mob.id == "" or not inZone(zone, mobId) or mobLevel(zone.id, mob) < 1)
     {
-        run.refused = "He has not seen that beast"
+        run.refused = "You haven't seen that beast"
         return
     }
 
@@ -1236,7 +1236,7 @@ fun doObserve(mobId)
         return
     }
 
-    openStep("observe", mob.id, 1, walkKnobs.observeAp, "Watched the " + toLowerCase(mob.name) + " from cover", "study")
+    openStep("observe", mob.id, 1, walkKnobs.observeAp, "You watched the " + toLowerCase(mob.name) + " from cover", "study")
     learn("observe." + mob.id, 1)
 
     var step = lastStep()
@@ -1250,7 +1250,7 @@ fun doRest()
 {
     if (not opened(zoneOf(run.zone), "camp"))
     {
-        run.refused = "He does not know the place well enough to camp there"
+        run.refused = "You don't know the place well enough to camp there"
         return
     }
 
@@ -1262,11 +1262,11 @@ fun doRest()
 
     if (held(walkKnobs.restItem) < 1)
     {
-        run.refused = "A rest eats a ration, and he has none"
+        run.refused = "A rest eats a ration, and you have none"
         return
     }
 
-    openStep("rest", "", 1, walkKnobs.restAp, "Rested by the fire", "vitality")
+    openStep("rest", "", 1, walkKnobs.restAp, "You rested by the fire", "vitality")
     take(walkKnobs.restItem, 1)
     shiftHp(restHeals())
     closeStep()
@@ -1293,7 +1293,7 @@ fun doSnare()
 {
     if (mine("snare_set") <= 0 or not opened(zoneOf(run.zone), "camp"))
     {
-        run.refused = "He does not know how to do that"
+        run.refused = "You don't know how to do that"
         return
     }
 
@@ -1303,7 +1303,7 @@ fun doSnare()
         return
     }
 
-    openStep("snare", walkKnobs.snareItem, 1, walkKnobs.snareAp, "Set a snare, and lifted it", "work")
+    openStep("snare", walkKnobs.snareItem, 1, walkKnobs.snareAp, "You set a snare, and lifted it", "work")
     give(walkKnobs.snareItem, walkKnobs.snareMost)
     closeStep()
 }
@@ -1313,7 +1313,7 @@ fun doBrew()
 {
     if (mine("herbal") <= 0 or not opened(zoneOf(run.zone), "camp"))
     {
-        run.refused = "He does not know how to do that"
+        run.refused = "You don't know how to do that"
         return
     }
 
@@ -1329,7 +1329,7 @@ fun doBrew()
         return
     }
 
-    openStep("brew", "remedy", 1, walkKnobs.brewAp, "Brewed a wortleaf remedy", "vitality")
+    openStep("brew", "remedy", 1, walkKnobs.brewAp, "You brewed a wortleaf remedy", "vitality")
     take(walkKnobs.brewItem, walkKnobs.brewTakes)
     give("remedy", 1)
     closeStep()
@@ -1343,7 +1343,7 @@ fun doRemedy()
         return
     }
 
-    openStep("potion", "remedy", 1, 0, "Took a wortleaf remedy", "vitality")
+    openStep("potion", "remedy", 1, 0, "You took a wortleaf remedy", "vitality")
     take("remedy", 1)
     shiftHp(share(runOf("hpMax"), itemOf("remedy").heals))
     closeStep()
@@ -1360,7 +1360,7 @@ fun doLeave()
 
     var lost = runOf("ap")
 
-    openStep("leave", "", 1, 0, "Turned for home, " + daysText(lost) + " unspent", "gate")
+    openStep("leave", "", 1, 0, "You turned for home, " + daysText(lost) + " unspent", "gate")
     closeStep()
 
     run.ap = 0
@@ -1401,13 +1401,13 @@ fun endStay()
     if (runOf("downed") > 0 or runOf("routed") > 0)
     {
         loseHaul()
-        push(entries, {text: "Home from " + zone.name + " with nothing: what the walk had gathered is lost", kind: "loss", figure: "", glyph: "vitality"})
+        push(entries, {text: "You came home from " + zone.name + " with nothing: what the walk had gathered is lost", kind: "loss", figure: "", glyph: "vitality"})
         return
     }
 
     after["walked." + zone.id] = mine("walked." + zone.id) + 1
 
-    push(entries, {text: "Walked " + zone.name + ": " + toString(len(record)) + " steps written to the record", kind: "note", figure: "", glyph: zone.glyph})
+    push(entries, {text: "You walked " + zone.name + ": " + toString(len(record)) + " steps written to the record", kind: "note", figure: "", glyph: zone.glyph})
 }
 
 // One thing he does, wherever the walk stands: before an event's card only its answer, in a
@@ -1442,7 +1442,7 @@ fun walkAct(kind, target, count)
         }
         else
         {
-            run.refused = "Something waits for his answer"
+            run.refused = "Something waits for your answer"
         }
     }
     else if (run.found != "")
@@ -1495,7 +1495,7 @@ fun walkAct(kind, target, count)
     }
     else
     {
-        run.refused = "He does not know how to do that"
+        run.refused = "You don't know how to do that"
     }
 
     if (run.mode != "done" and stayOver())
@@ -1835,7 +1835,7 @@ fun replayTerm(recipe, steps, list)
         figure = "nothing"
     }
 
-    push(entries, {text: "Home from " + zone.name + ", by the record", kind: "gain", figure: figure, glyph: zone.glyph})
+    push(entries, {text: "You came home from " + zone.name + ", by the record", kind: "gain", figure: figure, glyph: zone.glyph})
 }
 
 // ---- the pages: what the on-site screen shows -----------------------------------------------------
@@ -2062,7 +2062,7 @@ fun workRows()
     }
 
     push(rows, workRow("study", "Study the place", studyNote, walkKnobs.studyAp, "", "know",
-                       "He walks the place and learns its paths. What he learns, every life after his knows.",
+                       "You walk the place and learn its paths. What you learn, every life after yours knows.",
                        daysText(walkKnobs.studyAp) + " of the stay", studyGives))
 
     // A camp, where the place has one and he knows it well enough: a rest, and what he learned
@@ -2081,7 +2081,7 @@ fun workRows()
         }
 
         push(rows, workRow("rest", "Rest", "+" + toString(heal) + " VITALITY · 1 RATION, " + toString(rations) + " HELD", walkKnobs.restAp, restShort, "",
-                           "Off his feet by a fire, and a ration eaten.",
+                           "You rest your feet by a fire and eat a ration.",
                            daysText(walkKnobs.restAp) + " of the stay, 1 ration of " + toString(rations),
                            "+" + toString(heal) + " Vitality"))
     }
@@ -2106,7 +2106,7 @@ fun workRows()
         }
 
         push(rows, workRow("trap", "Set a trap", "HOLDS A BEAST AT THE START · " + toString(runOf("traps")) + " SET", walkKnobs.trapAp, trapShort, "",
-                           "A snare where a beast will run: the next one he finds, he can lead into it.",
+                           "A snare where a beast will run: you can lead the next one you find into it.",
                            daysText(walkKnobs.trapAp) + " of the stay", "A trap for the next fight"))
     }
 
@@ -2121,7 +2121,7 @@ fun workRows()
         }
 
         push(rows, workRow("brew", "Brew a remedy", "+1 REMEDY · " + toString(walkKnobs.brewTakes) + " " + toUpperCase(leaf) + ", " + toString(held(walkKnobs.brewItem)) + " HELD", walkKnobs.brewAp, brewShort, "",
-                           "The herbal's remedy, made over his own fire. It takes no time.",
+                           "The herbal's remedy, made over your own fire. It takes no time.",
                            toString(walkKnobs.brewTakes) + " " + leaf + " of " + toString(held(walkKnobs.brewItem)),
                            "1 remedy"))
     }
@@ -2362,7 +2362,7 @@ fun knowledgeNote(zone)
 
     if (level >= 4)
     {
-        return "He knows the place as well as it can be known."
+        return "You know the place as well as it can be known."
     }
 
     var note = "Study " + toString(studies) + " of " + toString(walkKnobs.studyLevels[level]) + " to knowledge " + toString(level + 1) + ": "
@@ -2370,7 +2370,7 @@ fun knowledgeNote(zone)
 
     if (len(more) == 0)
     {
-        return note + "he knows it better."
+        return note + "you know it better."
     }
 
     return note + joined(more, ", ") + "."
@@ -2582,7 +2582,7 @@ fun shelfRow(recipe, own, walk)
     if (pick(walk, "zone", "") == "" or pick(walk, "locked", 1) > 0)
     {
         row.locked = 1
-        row.asks = "THE WAY THERE IS SHUT TO HIM NOW"
+        row.asks = "THE WAY THERE IS SHUT TO YOU NOW"
     }
 
     return row
@@ -2620,7 +2620,7 @@ fun shelfRows()
             if (walk.locked > 0)
             {
                 row.locked = 1
-                row.note = "NOT YET OPEN TO HIM"
+                row.note = "NOT YET OPEN TO YOU"
             }
 
             if (pick(walk, "until", "") != "")
@@ -2824,7 +2824,7 @@ fun stopRows(own)
     {
         var target = (wholeOf(held(gains[0]), 10) + 1) * 10
 
-        push(rows, {id: "item", label: "When he holds " + itemText(gains[0], target), value: target, item: gains[0]})
+        push(rows, {id: "item", label: "When you hold " + itemText(gains[0], target), value: target, item: gains[0]})
     }
 
     // The next of the ages a life turns on
@@ -2841,7 +2841,7 @@ fun stopRows(own)
 
     if (turning > 0)
     {
-        push(rows, {id: "age", label: "When he turns " + toString(turning), value: turning})
+        push(rows, {id: "age", label: "When you turn " + toString(turning), value: turning})
     }
 
     return rows
@@ -2868,12 +2868,12 @@ fun queueStops()
 
     if (kind == "item" and pick(queue, "item", "") != "" and value > 0 and held(queue.item) >= value)
     {
-        return "He holds " + itemText(queue.item, value) + ": the queue is done"
+        return "You hold " + itemText(queue.item, value) + ": the queue is done"
     }
 
     if (kind == "age" and monthOf(age) >= value * 12)
     {
-        return "He has turned " + toString(value) + ": the queue is done"
+        return "You have turned " + toString(value) + ": the queue is done"
     }
 
     return ""
@@ -2900,7 +2900,7 @@ fun queueForm()
 
     if (pick(walk, "zone", "") == "" or pick(walk, "locked", 1) > 0)
     {
-        blocked = "THE WAY THERE IS SHUT TO HIM NOW"
+        blocked = "THE WAY THERE IS SHUT TO YOU NOW"
     }
 
     // What they use, against what he holds
@@ -2913,13 +2913,13 @@ fun queueForm()
         var need = uses[i].n * count
         var have = held(uses[i].id)
 
-        push(useParts, itemText(uses[i].id, need) + ", he holds " + toString(have))
+        push(useParts, itemText(uses[i].id, need) + ", you hold " + toString(have))
 
         if (have < need and warning == "")
         {
             var fits = wholeOf(have, uses[i].n)
 
-            warning = "Short " + itemText(uses[i].id, need - have) + ". Walk " + toString(fits + 1) + " will stop at the door unless he finds more."
+            warning = "Short " + itemText(uses[i].id, need - have) + ". Walk " + toString(fits + 1) + " will stop at the door unless you find more."
 
             if (fits < 1)
             {
@@ -2978,7 +2978,7 @@ fun queueForm()
 
     if (bring == "")
     {
-        bring = "nothing he knows of yet"
+        bring = "nothing you know of yet"
     }
 
     var teachParts = []

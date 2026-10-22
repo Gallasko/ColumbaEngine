@@ -841,7 +841,7 @@ namespace pg
             // No rat is quicker than a boy: over the coming six actions he acts at least as often
             // as it does (the line used to say who acts first in a round; there are no rounds now)
             EXPECT_EQ(textOf(w.last.duel, "quick").find("HE ACTS ONCE TO"), std::string::npos);
-            EXPECT_NE(textOf(w.last.duel, "quick").find("HE ACTS"), std::string::npos);
+            EXPECT_NE(textOf(w.last.duel, "quick").find("YOU ACT"), std::string::npos);
 
             // He defends until it has bitten at him once: the bite is a name and nothing else till then
             bool sawUnknown = false;
@@ -934,7 +934,7 @@ namespace pg
 
             // The site's head carries the place's ladder, for the gloss of his panel: what each
             // level brings, the studies it asks in all, and none made yet toward the second
-            EXPECT_EQ(textOf(w.last.site, "brings2"), "Exploring the nearby pond, a task of his life");
+            EXPECT_EQ(textOf(w.last.site, "brings2"), "Exploring the nearby pond, a task of your life");
             EXPECT_EQ(textOf(w.last.site, "brings3"), "Gathering wortleaf, a longer stay");
             EXPECT_EQ(intOf(w.last.site, "needs2"), 3);
             EXPECT_EQ(intOf(w.last.site, "needs4"), 10);
@@ -1051,7 +1051,7 @@ namespace pg
                 for (const auto& line : w.state.account)
                 {
                     const std::string text = textOf(line, "text");
-                    const bool miss = text.find(": a miss") != std::string::npos or text.find("steps clear") != std::string::npos;
+                    const bool miss = text.find(": a miss") != std::string::npos or text.find("step clear") != std::string::npos;
 
                     EXPECT_EQ(intOf(line, "missed") > 0, miss) << text;
 
@@ -2103,7 +2103,7 @@ namespace pg
             EXPECT_EQ(w.screen(), "site");
             EXPECT_TRUE(w.state.foes.empty());
             ASSERT_FALSE(w.state.record.empty());
-            EXPECT_NE(textOf(w.state.record.back(), "text").find("Slipped past"), std::string::npos);
+            EXPECT_NE(textOf(w.state.record.back(), "text").find("slipped past"), std::string::npos);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2633,7 +2633,7 @@ namespace pg
 
             ASSERT_NE(tile, nullptr);
             EXPECT_EQ(intOf(*tile, "boss"), 1);
-            EXPECT_NE(textOf(*tile, "note").find("dies"), std::string::npos);
+            EXPECT_NE(textOf(*tile, "note").find("you die"), std::string::npos);
 
             ASSERT_TRUE(w.act("seek", "enc.grey", 0));
             w.answer();

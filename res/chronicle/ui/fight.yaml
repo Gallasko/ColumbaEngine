@@ -171,7 +171,7 @@ children:
             width: 616
             z: 104
             contentZ: 114
-            heading: His turn
+            heading: Your turn
             glyph: swordsmanship
             children:
               # Against several, the one aimed at: a button each, the scene's to make (the one aimed at

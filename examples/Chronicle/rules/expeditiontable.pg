@@ -181,7 +181,7 @@ const walkItems = [
     // the author's rule (1.5 to 2 times plain work), so the price was lowered. `about` is its own
     // line in the stores (resources.pg)
     {id: "page", name: "Chronicle pages", one: "chronicle page", glyph: "study", kind: "sold", lot: 4, coin: 1,
-     about: "What the curse made leaves a page behind it when he kills it, in a hand nobody in Bellmoor writes. The curse keeps a chronicle too."},
+     about: "What the curse made leaves a page behind it when you kill it, in a hand nobody in Bellmoor writes. The curse keeps a chronicle too."},
     {id: "firewood", name: "Firewood", one: "firewood", glyph: "work", kind: "town", gather: "Deadfall and cuttings, bundled and carried home."},
     {id: "clay", name: "Clay", one: "clay", glyph: "work", kind: "town", gather: "Dug out of the bank, heavy and wet."},
     {id: "ashwood", name: "Ash wood", one: "ash wood", glyph: "work", kind: "town", gather: "Straight ash poles, felled and trimmed."},
@@ -216,9 +216,9 @@ const walkZones = [
     // Hollow Woods
     {id: "hedgerows", name: "The Hedgerows", kind: "forage", glyph: "adventure",
      line: "The hedges at the edge of town, where every child of Bellmoor has picked.",
-     lines: [{until: 12, text: "The hedge is taller than he is, and gives more than it takes."},
-             {until: 20, text: "He knows every gap in it by now, and which ones tear a sleeve."},
-             {until: 99, text: "The same hedge. The children picking at it are not the ones he remembers."}],
+     lines: [{until: 12, text: "The hedge is taller than you, and gives more than it takes."},
+             {until: 20, text: "You know every gap in it by now, and which ones tear a sleeve."},
+             {until: 99, text: "The same hedge. The children picking at it aren't the ones you remember."}],
      travel: 1, stayMin: 7, stayMax: 9,
      mobs: [],
      // A deft boy picks more berries, a strong one carries more wood: the steps the scavenging
@@ -228,17 +228,17 @@ const walkZones = [
              {id: "firewood", ap: 2, least: 1, most: 4, scavenge: true, bonus: [{stat: "str", needed: 8, more: [{stat: "firewood", amount: 1}]}, {stat: "str", needed: 12, more: [{stat: "firewood", amount: 1}]}]},
              {id: "wortleaf", ap: 2, least: 1, most: 3},
              {id: "hazel", ap: 1, least: 1, most: 3}],
-     ladder: [{task: "pond", level: 2, says: "exploring the nearby pond, a task of his life"}, {task: "wortleaf", level: 3}, {task: "hazel", level: 4}],
+     ladder: [{task: "pond", level: 2, says: "exploring the nearby pond, a task of your life"}, {task: "wortleaf", level: 3}, {task: "hazel", level: 4}],
      events: ["hedge.nest", "hedge.keeper"],
      fromAge: 7, showAge: 7,
      requires: [],
-     opens: "Berries to sell and firewood for the town; the pond beyond it, wortleaf and hazelnuts as he learns the hedge. No beast lives there."},
+     opens: "Berries to sell and firewood for the town. As you learn the hedge: the pond beyond it, wortleaf and hazelnuts. No beast lives there."},
 
     {id: "millpond", name: "Mill Pond", kind: "forage", glyph: "adventure",
      line: "Still water above the mill. Something lives in the reeds, and it is not shy.",
      lines: [{until: 12, text: "The miller says not to go near the reeds. The miller says a great many things."},
              {until: 20, text: "The water is still, and it is never the water that moves first."},
-             {until: 99, text: "He has stood at this pond in more years than he can name without counting."}],
+             {until: 99, text: "You've stood at this pond for more years than you can count."}],
      travel: 4, stayMin: 24, stayMax: 30,   // Two months
      mobs: ["rat", "nestrat"],
      spots: [{id: "reeds", ap: 1, least: 1, most: 2}, {id: "fish", ap: 2, least: 1, most: 4}, {id: "clay", ap: 3, least: 1, most: 3}],
@@ -248,13 +248,13 @@ const walkZones = [
      fromAge: 10, showFrom: 100,   // No row until he has explored the pond (activitytable.pg's `pond`): one place at a time
      sooner: {flag: "bargemen_tale", fromAge: 9},   // The bargemen's tale (activitytable.pg's `bargemen`)
      requires: [{stat: "know.found.millpond", label: "Explored the nearby pond"}],
-     opens: "Reeds to sell and the first beast to fight; fish, and clay for the town, as he learns the pond."},
+     opens: "Reeds to sell and the first beast to fight. As you learn the pond: fish, and clay for the town."},
 
     {id: "hollow", name: "The Hollow Woods", kind: "hunt", glyph: "adventure",
      line: "Old oaks north of the mill road. The wolves there hunt in threes.",
-     lines: [{until: 16, text: "The oaks were old when Bellmoor was a ford. They do not mind a boy."},
-             {until: 22, text: "The wolves know the hour he comes. He is learning theirs."},
-             {until: 99, text: "The wood has not changed. He walks it slower, and sees more."}],
+     lines: [{until: 16, text: "The oaks were old when Bellmoor was a ford. They don't mind a child."},
+             {until: 22, text: "The wolves know the hour you come. You're learning theirs."},
+             {until: 99, text: "The wood hasn't changed. You walk it slower, and see more."}],
      travel: 15, stayMin: 45, stayMax: 60,   // Three months
      mobs: ["wolf", "boar", "stag"],
      spots: [{id: "ashwood", ap: 3, least: 1, most: 3}],
@@ -264,13 +264,13 @@ const walkZones = [
      fromAge: 14,
      requires: [{stat: "know.study.hedgerows", label: "The Hedgerows known 4 of 4", needed: walkKnobs.studyLevels[3]},
                 {stat: "bow_learned", label: "Learned the bow, or a lodge in town", anyOf: ["bow_learned", "town.lodge"]}, {stat: "str", needed: 8}],
-     opens: "A lone wolf to hunt and ash wood for the town; the boar, the packs and the White Stag as he learns the wood."},
+     opens: "A lone wolf to hunt and ash wood for the town. As you learn the wood: the boar, the packs and the White Stag."},
 
     {id: "quarry", name: "The Quarry Road", kind: "forage", glyph: "forge",
      line: "The cut road to the old quarry. Nobody mends it, and the stone lies where it fell.",
      lines: [{until: 16, text: "Nobody mends the road, and everybody complains of it."},
              {until: 22, text: "The stone is free to whoever carries it, which is why it is still here."},
-             {until: 99, text: "He could walk the cut road blind. The adders would rather he did not."}],
+             {until: 99, text: "You could walk the cut road blind. The adders would rather you didn't."}],
      travel: 5, stayMin: 24, stayMax: 30,   // Two months
      mobs: ["adder", "beetle"],
      spots: [{id: "stone", ap: 3, least: 1, most: 2}, {id: "wortleaf", ap: 2, least: 1, most: 2}],
@@ -279,7 +279,7 @@ const walkZones = [
      encounters: ["shell"],
      fromAge: 14,
      requires: [{stat: "know.study.millpond", label: "Mill Pond known 4 of 4", needed: walkKnobs.studyLevels[3]}],
-     opens: "Stone for the town, and an adder or two under it; wortleaf as he learns the road."},
+     opens: "Stone for the town, and an adder or two under it. As you learn the road: wortleaf."},
 
     // A man's walk, and the Collegium's: the lights there are workings that an edge goes through
     // as through smoke, the hounds go stiff in the cold and the leech mass mends but where it
@@ -288,8 +288,8 @@ const walkZones = [
     {id: "marsh", name: "Millbrook Marsh", kind: "hunt", glyph: "magic",
      line: "Below the mill the brook loses itself in reeds and peat. Lights move there at night, and nobody follows them twice.",
      lines: [{until: 22, text: "The millers' children are told the lights are lost travellers. They are not travellers."},
-             {until: 30, text: "He knows which tussocks hold a man, and which lights hold still."},
-             {until: 99, text: "The marsh has taken a little more of the mill road every year he has walked it."}],
+             {until: 30, text: "You know which tussocks hold your weight, and which lights hold still."},
+             {until: 99, text: "The marsh has taken a little more of the mill road every year you've walked it."}],
      travel: 12, stayMin: 50, stayMax: 60,   // Three months
      mobs: ["light", "hound", "leech"],
      spots: [{id: "pitch", ap: 2, least: 1, most: 3}, {id: "bog_iron", ap: 3, least: 1, most: 2}],
@@ -298,13 +298,13 @@ const walkZones = [
      encounters: ["lantern"],
      fromAge: 18,
      requires: [{stat: "know.study.quarry", label: "The Quarry Road known 4 of 4", needed: walkKnobs.studyLevels[3]}],
-     opens: "Marsh lights and bog hounds to fight, and pitch for the town's last works; bog iron, the hounds' packs and the leech mass as he learns the marsh."}
+     opens: "Marsh lights and bog hounds to fight, and pitch for the town's last works. As you learn the marsh: bog iron, the hounds' packs and the leech mass."}
 ]
 
 const walkMobs = [
     // Mill Pond: where a boy learns to fight. One rat at a time, a nest of them, and the pike
     {id: "rat", name: "Water rat", many: "water rats", pack: "", lone: "", rarity: "common", packSize: 1, holdsBack: 0,
-     about: "Fat on the miller's grain, and not afraid of a boy.",
+     about: "Fat on the miller's grain, and not afraid of you.",
      hp: 14, least: 3, most: 5, armour: 0, ward: 0, quick: 5, awareness: 3, poise: 0, verb: "bites",
      moves: {bite: {name: "Bite", line: "A quick nip at whatever is nearest."},
              circle: {name: "Skitter", line: "It backs off and looks for a way round."}},
@@ -315,7 +315,7 @@ const walkMobs = [
     {id: "nestrat", name: "Nest rat", many: "nest rats", pack: "Rat nest", lone: "A nest rat", rarity: "common", packSize: 4, holdsBack: 0, roles: ["swarm"],
      about: "Small and many, and all of them at once. One blow ends one of them; it is the count that hurts.",
      hp: 6, least: 1, most: 3, armour: 0, ward: 0, quick: 6, awareness: 4, poise: 0, verb: "bites",
-     moves: {bite: {name: "Bite", line: "Small teeth, and more of them than he can watch."},
+     moves: {bite: {name: "Bite", line: "Small teeth, and more of them than you can watch."},
              circle: {name: "Scatter", line: "They scatter and come back from every side."}},
      script: ["bite", "bite", "circle"],
      lesson: "The nest's lesson: a blow at every one of them is worth three at one.",
@@ -334,7 +334,7 @@ const walkMobs = [
     {id: "wolf", name: "Wolf", many: "wolves", pack: "Wolf pack", lone: "A lone wolf", rarity: "common", packSize: 3, holdsBack: 2,
      about: "Lean and grey. It never comes alone for long.",
      hp: 16, least: 3, most: 5, armour: 1, ward: 0, quick: 9, awareness: 8, poise: 0, verb: "bites",
-     moves: {bite: {name: "Bite", line: "It goes for the leg, to bring him down."},
+     moves: {bite: {name: "Bite", line: "It goes for the leg, to bring you down."},
              circle: {name: "Circle", line: "It keeps its distance and looks for an opening."},
              hold: {name: "Hang back", line: "It waits behind the others, for one of them to fall."}},
      script: ["bite", "circle", "bite"],
@@ -422,9 +422,9 @@ const walkMobs = [
      loot: [{id: "hides", chance: 100, least: 1, most: 2}, {id: "fangs", chance: 40, least: 1, most: 2}, {id: "page", chance: 100, least: 1, most: 1}]},
 
     {id: "leech", name: "Leech mass", many: "leech masses", pack: "", lone: "", rarity: "uncommon", packSize: 1, holdsBack: 0, roles: ["unnatural"],
-     about: "A heap of black leeches grown into one, as big as a sow. A wound in it closes as he watches, unless it burns.",
+     about: "A heap of black leeches grown into one, as big as a sow. A wound in it closes as you watch, unless it burns.",
      hp: 40, least: 4, most: 7, armour: 0, ward: 0, quick: 3, awareness: 3, poise: 15, verb: "fastens", resist: {cut: 25, pierce: 50, fire: -25, holy: -25}, mends: 10,
-     moves: {bite: {name: "Fasten", line: "It rolls onto him and holds, and drinks."},
+     moves: {bite: {name: "Fasten", line: "It rolls onto you and holds, and drinks."},
              circle: {name: "Swell", line: "It draws in on itself, heavy with what it has drunk."}},
      script: ["bite", "circle"],
      lesson: "The leech mass's lesson: it mends at every turn of its own, but not while it burns.",
@@ -433,7 +433,7 @@ const walkMobs = [
     {id: "lantern", name: "The Lantern Mother", many: "lantern mothers", pack: "", lone: "", rarity: "rare", packSize: 1, holdsBack: 0, roles: ["unnatural"],
      about: "A tall grey shape over the deepest pool, holding a lamp that is not a lamp. Every light of the marsh is hers, and she calls them home.",
      hp: 80, least: 6, most: 9, armour: 0, ward: 3, quick: 8, awareness: 12, poise: 30, verb: "sears", resist: {cut: 50, pierce: 50, blunt: 25, holy: -50},
-     moves: {bite: {name: "Lamplight", line: "The lamp turns on him, and its light is cold: a working.", kind: "spell"},
+     moves: {bite: {name: "Lamplight", line: "The lamp turns on you, and its light is cold: a working.", kind: "spell"},
              circle: {name: "Lift the lamp", line: "She raises her lamp, and the marsh goes dark around it."},
              maul: {name: "Drowning light", line: "All of the lamp's light at once, as cold as the bottom of the pool: a working.", kind: "spell"}},
      script: ["bite", "circle", "maul"],
@@ -502,7 +502,7 @@ const walkEncounters = [
      lore: "The Old Pike is dead. The millers will say it was older than the mill until there is no one left who saw it."},
 
     // The Quarry Road's: the Old Shell, that a hammer opens
-    {id: "shell", name: "The Old Shell", line: "In the deepest cut of the quarry, a shell the size of a cart. It does not move for a boy.",
+    {id: "shell", name: "The Old Shell", line: "In the deepest cut of the quarry, a shell the size of a cart. It doesn't move for a child.",
      foes: [{mob: "oldshell", count: 1}], boss: true, level: 4, rarity: "rare",
      gives: [{stat: "shell_plate", amount: 1}, {stat: "shell_slain", amount: 1}, {stat: "know.fam.mole", amount: 1}],
      lore: "Under the Old Shell, where it had lain for years, the quarry stone is carved: marks no quarryman made."},
@@ -511,44 +511,44 @@ const walkEncounters = [
     {id: "grey", name: "The Old Grey", line: "The pack's leader, with two of his wolves.",
      foes: [{mob: "oldgrey", count: 1}, {mob: "wolf", count: 2}], boss: true, level: 4, rarity: "rare",
      gives: [{stat: "grey_pelt", amount: 1}, {stat: "grey_slain", amount: 1}, {stat: "know.fam.weaver", amount: 1}],
-     lore: "The Old Grey is dead. The Hollow is quiet for a season, and the Keep's hunters drink to a boy."},
+     lore: "The Old Grey is dead. The Hollow is quiet for a season, and the Keep's hunters drink to you."},
 
     // Millbrook Marsh's: the Lantern Mother over the deepest pool, with two of her lights
     {id: "lantern", name: "The Lantern Mother", line: "Over the deepest pool, a lamp held by something tall. Two lights wait by it, and more will come.",
      foes: [{mob: "lantern", count: 1}, {mob: "light", count: 2}], boss: true, level: 4, rarity: "rare",
      gives: [{stat: "wisp_glass", amount: 1}, {stat: "lantern_slain", amount: 1}, {stat: "know.fam.wisp", amount: 1}],
-     lore: "The Lantern Mother's lamp lies in the pool, dark. In its glass a small light still moves, and it follows him home."}
+     lore: "The Lantern Mother's lamp lies in the pool, dark. In its glass a small light still moves, and it follows you home."}
 ]
 
 const walkEvents = [
     {id: "hedge.nest", trigger: "gather", weight: 2, once: false,
      title: "A nest in the thorn",
-     text: "A blackbird's nest sits deep in the hedge, right where the best berries hang. The bird watches him.",
+     text: "A blackbird's nest sits deep in the hedge, right where the best berries hang. The bird watches you.",
      options: [
         {id: "reach", label: "Reach past it", ap: 0, hp: -3, items: [{id: "berries", amount: 2}], effects: [],
          line: "Scratched to the elbow"},
         {id: "leave", label: "Leave it be", ap: 0, hp: 0, items: [], effects: [{kind: "study", amount: 1}],
-         line: "He watched the bird a while"}
+         line: "You watched the bird a while"}
      ]},
 
     {id: "hedge.keeper", trigger: "study", weight: 1, once: true,
      title: "The hedge keeper",
-     text: "An old man is laying the hedge, as his father did. He looks at the boy, then at the boy's hands.",
+     text: "An old man is laying the hedge, as his father did. He looks at you, then at your hands.",
      options: [
         {id: "help", label: "Help him a day", ap: 1, hp: 0, items: [{id: "firewood", amount: 2}], effects: [{kind: "study", amount: 1}],
          line: "A day with the hedge keeper"},
         {id: "share", label: "Share a ration", ap: 0, hp: 0, items: [{id: "rations", amount: -1}, {id: "wortleaf", amount: 2}], effects: [{kind: "study", amount: 2}],
          line: "Bread for the hedge keeper, and what he knows"},
         {id: "pass", label: "Walk on", ap: 0, hp: 0, items: [], effects: [],
-         line: "He left the old man to his work"}
+         line: "You left the old man to his work"}
      ]},
 
     {id: "pond.heron", trigger: "gather", weight: 1, once: false,
      title: "A heron at the weir",
-     text: "A heron stands where the fish gather, as still as a post. It has seen him. It has not moved.",
+     text: "A heron stands where the fish gather, as still as a post. It has seen you. It hasn't moved.",
      options: [
         {id: "watch", label: "Watch where it fishes", ap: 1, hp: 0, items: [{id: "fish", amount: 2}], effects: [],
-         line: "He fished where the heron did"},
+         line: "You fished where the heron did"},
         {id: "chase", label: "Drive it off", ap: 0, hp: 0, items: [{id: "fish", amount: 1}], effects: [{kind: "seek", mob: "rat", amount: -1}],
          line: "The heron left, and the reeds stirred"}
      ]},
@@ -562,7 +562,7 @@ const walkEvents = [
         {id: "ask", label: "Ask what he saw", ap: 0, hp: 0, items: [], effects: [{kind: "observe", mob: "wolf", amount: 1}],
          line: "The hunter spoke of the wolves"},
         {id: "pass", label: "Leave him", ap: 0, hp: 0, items: [], effects: [],
-         line: "He left the hunter by his fire"}
+         line: "You left the hunter by his fire"}
      ]},
 
     {id: "hollow.tracks", trigger: "study", weight: 2, once: false,
@@ -570,19 +570,19 @@ const walkEvents = [
      text: "Deep prints cross the path, the mud still wet in them. A boar, heavy, and not long gone.",
      options: [
         {id: "follow", label: "Follow them", ap: 1, hp: 0, items: [], effects: [{kind: "seek", mob: "boar", amount: -2}],
-         line: "He followed the boar's tracks"},
+         line: "You followed the boar's tracks"},
         {id: "note", label: "Read them and go on", ap: 0, hp: 0, items: [], effects: [{kind: "observe", mob: "boar", amount: 1}],
-         line: "He read the boar's tracks"}
+         line: "You read the boar's tracks"}
      ]},
 
     {id: "quarry.cart", trigger: "gather", weight: 1, once: true,
      title: "A broken cart",
      text: "A quarryman's cart lies on its side, its load of dressed stone spilled across the road. No one has come back for it.",
      options: [
-        {id: "load", label: "Carry what he can", ap: 2, hp: -4, items: [{id: "stone", amount: 6}], effects: [],
+        {id: "load", label: "Carry what you can", ap: 2, hp: -4, items: [{id: "stone", amount: 6}], effects: [],
          line: "Dressed stone from the broken cart"},
         {id: "pass", label: "Leave it", ap: 0, hp: 0, items: [], effects: [],
-         line: "He left the cart where it lay"}
+         line: "You left the cart where it lay"}
      ]},
 
     {id: "marsh.causeway", trigger: "gather", weight: 1, once: false,
@@ -592,7 +592,7 @@ const walkEvents = [
         {id: "scrape", label: "Scrape the logs", ap: 1, hp: 0, items: [{id: "pitch", amount: 2}], effects: [],
          line: "Pitch scraped from the causeway logs"},
         {id: "follow", label: "Follow it out", ap: 1, hp: -4, items: [], effects: [{kind: "study", amount: 1}],
-         line: "He followed the causeway until it sank"}
+         line: "You followed the causeway until it sank"}
      ]}
 ]
 
@@ -634,22 +634,22 @@ const walkTechniques = [
 
     // The yard's bow: a shot before the beast closes
     {id: "bow", name: "Bow shot", kind: "blow", damage: "pierce", breath: 0, cool: 0, power: 90, hit: 10, weight: 100, all: false, holds: false, opener: true, trains: "dex",
-     knows: ["bow_learned"], where: "THE YARD", line: "An arrow loosed before it is on him: the first one costs no time"},
+     knows: ["bow_learned"], where: "THE YARD", line: "An arrow loosed before it's on you: the first one costs no time"},
 
     // The Bellmoor Boys' oath: a kick where it hurts, and the beast is open
     {id: "kick", name: "Dirty kick", kind: "blow", damage: "blunt", breath: 0, cool: 2, power: 50, hit: 10, weight: 60, all: false, holds: false, exposes: 1, trains: "dex",
-     knows: ["boys_sworn"], where: "THE BELLMOOR BOYS", line: "Quick and low: it leaves the beast open to his next blow"},
+     knows: ["boys_sworn"], where: "THE BELLMOOR BOYS", line: "Quick and low: it leaves the beast open to your next blow"},
 
     // The Keep's: what its sworn men are drilled in, and what a campaign teaches. Finishers:
     // they ask three blows landed first, and spend them
     {id: "heavy", name: "Heavy cut", kind: "blow", damage: "cut", breath: 0, cool: 0, power: 200, hit: -5, weight: 150, all: false, holds: false, finisher: true, trains: "str",
-     knows: ["keep_oath", "levy_served"], where: "THE KEEP", line: "A slow, full blow that spends his momentum: half of what the beast resists is gone"},
+     knows: ["keep_oath", "levy_served"], where: "THE KEEP", line: "A slow, full blow that spends your momentum: half of what the beast resists is gone"},
     {id: "sweep", name: "Sweep", kind: "blow", damage: "cut", breath: 0, cool: 0, power: 90, hit: 0, weight: 150, all: true, holds: false, finisher: true, trains: "str",
-     knows: ["veteran"], where: "THE CAMPAIGN", line: "One blow at every beast standing, that spends his momentum"},
+     knows: ["veteran"], where: "THE CAMPAIGN", line: "One blow at every beast standing, that spends your momentum"},
 
     // Learned here and there: the streets teach it, and so does the Hidden Hand
     {id: "feint", name: "Feint and step", kind: "blow", damage: "pierce", breath: 1, cool: 1, power: 80, hit: 20, weight: 60, all: false, holds: false, trains: "dex",
-     knows: ["street_known", "hidden_hand"], where: "THE STREETS", line: "A sure blow, and he is hard to bite after it"},
+     knows: ["street_known", "hidden_hand"], where: "THE STREETS", line: "A sure blow, and you're hard to bite after it"},
 
     // Ways: what deals nothing and changes the fight. The smuggler's fistful of sand (he has to
     // find more sand before the next), the rooftops' quick feet, the Watch's way of taking a
@@ -657,9 +657,9 @@ const walkTechniques = [
     {id: "sand", name: "Sand in the eyes", kind: "way", damage: "", breath: 0, cool: 3, power: 0, hit: 0, weight: 60, all: false, holds: true,
      knows: ["smuggler_runner"], where: "THE SMUGGLER", line: "The beast aimed at is blinded, and loses its next move"},
     {id: "step", name: "Step aside", kind: "way", damage: "", breath: 0, cool: 2, power: 0, hit: 0, weight: 50, all: false, holds: false, effect: "step",
-     knows: ["rooftop_runner", "outskirts.children"], where: "THE ROOFTOPS", line: "Light on his feet: what comes before his next action seldom finds him"},
+     knows: ["rooftop_runner", "outskirts.children"], where: "THE ROOFTOPS", line: "Light on your feet: what comes before your next action seldom finds you"},
     {id: "brace", name: "Brace", kind: "way", damage: "", breath: 0, cool: 0, power: 0, hit: 0, weight: 100, all: false, holds: false, effect: "brace", trains: "discipline",
-     knows: ["watch_known"], where: "THE WATCH", line: "Feet set, shield up: most of what comes is taken, and his momentum kept"},
+     knows: ["watch_known"], where: "THE WATCH", line: "Feet set, shield up: most of what comes is taken, and your momentum kept"},
     {id: "wind", name: "Second wind", kind: "way", damage: "", breath: 0, cool: 4, power: 0, hit: 0, weight: 60, all: false, holds: false, effect: "wind",
      knows: ["yard_breathing"], where: "THE YARD'S BREATHING", line: "In on the step, out on the blow: breath back, and a little strength"},
 
@@ -667,7 +667,7 @@ const walkTechniques = [
     // Collegium's elemental basics teach the spark and the rime too, and a storm cantrip of the
     // same weight, the static (storytable.pg's `collegium`)
     {id: "read", name: "Read the beast", kind: "spell", damage: "", breath: 1, cool: 0, power: 0, hit: 0, weight: 60, all: false, holds: false, effect: "read",
-     knows: ["letters", "outskirts.nature"], where: "HIS LETTERS", line: "He sees what it is and what it means to do"},
+     knows: ["letters", "outskirts.nature"], where: "YOUR LETTERS", line: "You see what it is and what it means to do"},
     {id: "spark", name: "Spark", kind: "spell", damage: "fire", breath: 1, cool: 0, power: 60, hit: 15, weight: 100, all: false, holds: false, trains: "int",
      knows: ["forbidden_read", "spark_taught"], where: "THE FORBIDDEN SHELF", line: "A small fire from nothing: it leaves the beast burning"},
     {id: "rime", name: "Rime", kind: "spell", damage: "frost", breath: 1, cool: 0, power: 60, hit: 15, weight: 100, all: false, holds: false, trains: "int",
@@ -693,7 +693,7 @@ const walkTechniques = [
     {id: "frostbind", name: "Frostbind", kind: "spell", damage: "", breath: 0, cool: 3, power: 0, hit: 0, weight: 100, all: false, holds: true, mark: "frost",
      knows: ["spellwright"], where: "THE ELEMENTAL CHAIR", line: "The beast aimed at is held in frost, and loses its next move"},
     {id: "firebolt2", name: "Firebolt II", kind: "spell", damage: "fire", breath: 2, cool: 1, power: 150, hit: 15, weight: 100, all: false, holds: false, trains: "arcana",
-     knows: ["firebolt2_bound"], where: "THE BOUND ELEMENTS", line: "The first working, bound to him: it bites half again as deep"},
+     knows: ["firebolt2_bound"], where: "THE BOUND ELEMENTS", line: "The first working, bound to you: it bites half again as deep"},
     {id: "chain", name: "Chain lightning", kind: "spell", damage: "storm", breath: 3, cool: 3, power: 90, hit: 0, weight: 120, all: true, holds: false, trains: "arcana",
      knows: ["chain_bound"], where: "THE BOUND ELEMENTS", line: "One working through every beast standing: it leaves them shocked"}
 ]
@@ -701,6 +701,6 @@ const walkTechniques = [
 // `deals` and `takes` are percent of what he deals and of what he takes.
 const walkStances = [
     {id: "balanced", name: "Balanced", deals: 100, takes: 100, line: "Neither more nor less"},
-    {id: "aggressive", name: "Aggressive", deals: 125, takes: 125, line: "He hits harder and is hit harder"},
-    {id: "cautious", name: "Cautious", deals: 80, takes: 70, line: "He hits less hard and is hit less"}
+    {id: "aggressive", name: "Aggressive", deals: 125, takes: 125, line: "You hit harder and are hit harder"},
+    {id: "cautious", name: "Cautious", deals: 80, takes: 70, line: "You hit less hard and are hit less"}
 ]

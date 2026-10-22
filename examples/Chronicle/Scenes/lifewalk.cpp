@@ -475,7 +475,7 @@ namespace chronicle
                 const std::string n = std::to_string(l);
                 const std::string brings = textOf(row, "brings" + n);
 
-                rows.push_back({"Level " + n + " \xC2\xB7 " + std::to_string(intOf(row, "needs" + n)) + " studies", brings.empty() ? std::string("He knows it better") : brings,
+                rows.push_back({"Level " + n + " \xC2\xB7 " + std::to_string(intOf(row, "needs" + n)) + " studies", brings.empty() ? std::string("You know it better") : brings,
                                 level >= l ? "gain" : ""});
             }
 
@@ -920,7 +920,7 @@ namespace chronicle
         fillAdventure();
 
         if (carried)
-            toast("Carried home from " + name);
+            toast("You were carried home from " + name);
         else
             toast("The record of " + name + " is kept: the Adventure page walks it again");
 
@@ -1087,7 +1087,7 @@ namespace chronicle
         publish();
 
         // (a name that is a plural, the Outskirts, are behind him)
-        const std::string behind = name + (plural ? " are behind him" : " is behind him");
+        const std::string behind = name + (plural ? " are behind you" : " is behind you");
 
         if (result == "pass")
             toast(behind + ": passed");
@@ -1096,11 +1096,11 @@ namespace chronicle
         else if (result == "distinction")
             toast(behind + ": passed with distinction");
         else if (result == "fail")
-            toast(behind + ": he failed it");
+            toast(behind + ": you failed it");
         else if (result == "dropout")
-            toast(behind + ": he was sent away");
+            toast(behind + ": you were sent away");
         else if (result == "left")
-            toast(behind + (plural ? ": he left before their end" : ": he left before its end"));
+            toast(behind + (plural ? ": you left before their end" : ": you left before its end"));
         else
             toast(behind);
 
@@ -1788,7 +1788,7 @@ namespace chronicle
         // A story is not a walk: no way home to turn to, nothing met on a way
         if (story)
         {
-            for (auto [name, heading] : {std::pair<const char*, const char*>{"workPanel", "The day's work"}, {"cardPanel", "On this day"}, {"homePanel", "If he left now"}})
+            for (auto [name, heading] : {std::pair<const char*, const char*>{"workPanel", "The day's work"}, {"cardPanel", "On this day"}, {"homePanel", "If you left now"}})
             {
                 if (auto panel = walkPiece<Panel>(name); panel and panel->title and panel->title->spec.text != heading)
                     panel->setHeading(ecs, heading);
@@ -1825,8 +1825,8 @@ namespace chronicle
             GlossSpec gloss;
             gloss.inlineValues = true;
             gloss.title = textOf(site, "title");
-            gloss.text = "His days here are months of his life: each month they add up to is lived as it comes, "
-                         "what he eats, mends and pays with it. Leaving keeps what the days have given him.";
+            gloss.text = "Your days here are months of your life: each month they add up to is lived as it comes, "
+                         "what you eat, mend and pay with it. Leaving keeps what the days have given you.";
 
             registry->set(KnowledgeGloss, gloss);
         }
@@ -1839,7 +1839,7 @@ namespace chronicle
             gloss.title = "Zone knowledge";
             gloss.aside = std::to_string(level) + "/4";
             gloss.text = "How well " + textOf(site, "title") + " is known. The first visit makes it known 1 of 4, and every study of the place adds to it. "
-                         "It is the world's: what he learns here, every life after his knows.";
+                         "It is the world's: what you learn here, every life after yours knows.";
             gloss.rows = ladderRows(site);
 
             if (level >= 4)
@@ -3587,7 +3587,7 @@ namespace chronicle
 
         if (auto note = piece<Label>("zoneNote"))
         {
-            const std::string said = noteRoom >= 160.0f ? "A walk he chooses day by day. The record is kept." : " ";
+            const std::string said = noteRoom >= 160.0f ? "A walk you choose day by day. The record is kept." : " ";
 
             if (note->spec.text != said)
                 note->setText(ecs, said);
@@ -3632,7 +3632,7 @@ namespace chronicle
 
         if (not save.running.empty())
         {
-            appendLog({save.age, "Already at work: " + activityName(save.running), LogKind::Note, "", ""});
+            appendLog({save.age, "You were already at work: " + activityName(save.running), LogKind::Note, "", ""});
             return;
         }
 
@@ -3807,7 +3807,7 @@ namespace chronicle
                     asks += (asks.empty() ? "Asks " : ", ") + (needed > 1 ? label + " " + std::to_string(needed) : lower(label));
                 }
 
-                tile.line = upper(asks.empty() ? std::string("Not open to him yet") : asks);
+                tile.line = upper(asks.empty() ? std::string("Not open to you yet") : asks);
             }
             else
             {
@@ -3884,7 +3884,7 @@ namespace chronicle
                 }
             }
             else if (place and not free)
-                label = busy ? "Set out \xC2\xB7 a queue is walking" : "Set out \xC2\xB7 he is at work";
+                label = busy ? "Set out \xC2\xB7 a queue is walking" : "Set out \xC2\xB7 you are at work";
 
             if (place and not shutNow and free)
                 label += " \xC2\xB7 " + std::to_string(intOf(place->fields, "months")) + " mo";
@@ -4173,7 +4173,7 @@ namespace chronicle
 
         if (not save.running.empty())
         {
-            appendLog({save.age, "Already at work: " + activityName(save.running), LogKind::Note, "", ""});
+            appendLog({save.age, "You were already at work: " + activityName(save.running), LogKind::Note, "", ""});
             return;
         }
 
@@ -4236,7 +4236,7 @@ namespace chronicle
         // The way there may have shut since the record was made: an age, a thing it asks
         if (not at or boolOf(at->fields, "locked") or not boolOf(at->fields, "listed"))
         {
-            stopQueue("The queue stopped: the way to " + textOf(recipe->fields, "name") + " is shut to him now", true);
+            stopQueue("The queue stopped: the way to " + textOf(recipe->fields, "name") + " is shut to you now", true);
             return false;
         }
 

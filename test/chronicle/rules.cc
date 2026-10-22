@@ -526,10 +526,10 @@ namespace pg
             RuleEpitaph epitaph;
 
             ASSERT_TRUE(f.rules.epitaph(28.0f, {{"coin", ElementType{5}}, {"renegade", ElementType{1}}}, {}, epitaph)) << firstError(f.rules);
-            EXPECT_EQ(epitaph.story[0], "He took to the Greenwood, and lived outside the town's law.");
+            EXPECT_EQ(epitaph.story[0], "You took to the Greenwood, and lived outside the town's law.");
 
             ASSERT_TRUE(f.rules.epitaph(28.0f, {{"coin", ElementType{5}}, {"renegade", ElementType{1}}, {"wood_king", ElementType{1}}}, {}, epitaph));
-            EXPECT_EQ(epitaph.story[0], "He held the Greenwood against the Keep, and the songs are his.");
+            EXPECT_EQ(epitaph.story[0], "You held the Greenwood against the Keep, and the songs are yours.");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -800,7 +800,7 @@ namespace pg
 
             ASSERT_TRUE(f.rules.windows(17.5f, sworn(), windows));
             EXPECT_EQ(textOf(*byId(windows, "keep"), "state"), "closed");
-            EXPECT_EQ(textOf(*byId(windows, "keep"), "note"), "He has been through that door.");
+            EXPECT_EQ(textOf(*byId(windows, "keep"), "note"), "You've been through that door.");
             ASSERT_NE(byId(windows, "campaign"), nullptr);
             EXPECT_EQ(textOf(*byId(windows, "campaign"), "state"), "upcoming");
 
@@ -846,7 +846,7 @@ namespace pg
             ASSERT_NE(byId(windows, "collegium"), nullptr);
             EXPECT_EQ(textOf(*byId(windows, "collegium"), "state"), "closed");
             EXPECT_EQ(intOf(*byId(windows, "collegium"), "attempts"), 0);
-            EXPECT_EQ(textOf(*byId(windows, "collegium"), "note"), "He left the Collegium, and it does not take back who left it. That door is shut.");
+            EXPECT_EQ(textOf(*byId(windows, "collegium"), "note"), "You left the Collegium, and it does not take back anyone who left it. That door is shut.");
 
             // The other doors of his age stand as they did
             ASSERT_NE(byId(windows, "keep"), nullptr);
@@ -1518,7 +1518,7 @@ namespace pg
 
             // What it says to do: the market, or work that gives its rations up front
             EXPECT_EQ(low, "Rations are running low: buy some at the market, or take work that gives rations up front");
-            EXPECT_EQ(month.advice, "No rations left: his Vitality pays. Buy some at the market, or take work that gives rations up front");
+            EXPECT_EQ(month.advice, "No rations left: your Vitality pays. Buy some at the market, or take work that gives rations up front");
 
             // Two left are two months, at any work: said
             ASSERT_TRUE(f.rules.month(20.0f, {{"vit", ElementType{12}}, {"rations", ElementType{2}}}, month));
@@ -2225,7 +2225,7 @@ namespace pg
 
             const std::string said = glossSaid(month, "rations");
             EXPECT_NE(said.find("A month uses=3;"), std::string::npos) << said;
-            EXPECT_NE(said.find("His familiars eat=2 / mo;"), std::string::npos) << said;
+            EXPECT_NE(said.find("Your familiars eat=2 / mo;"), std::string::npos) << said;
             EXPECT_NE(said.find("Lasts=1 mo;"), std::string::npos) << said;
 
             // None bound: his own alone
@@ -2249,7 +2249,7 @@ namespace pg
 
             std::string said = glossSaid(month, "rations");
             EXPECT_NE(said.find("A month uses=3;"), std::string::npos) << said;
-            EXPECT_NE(said.find("His familiars eat=2 / mo;"), std::string::npos) << said;
+            EXPECT_NE(said.find("Your familiars eat=2 / mo;"), std::string::npos) << said;
             EXPECT_NE(said.find("Lasts=4 mo;"), std::string::npos) << said;
             EXPECT_EQ(month.warning, "");
 
@@ -2386,8 +2386,9 @@ namespace pg
 
             EXPECT_GE(checked, 20);
 
-            // The four scavenging rows each count a thing gathered, unseen
-            EXPECT_EQ(hidden, 4);
+            // The two scavenging rows left on the Life page (water, stone) each count a thing
+            // gathered, unseen: the hedge's berries and firewood are its walk's
+            EXPECT_EQ(hidden, 2);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2647,15 +2648,15 @@ namespace pg
             RuleEpitaph epitaph;
 
             ASSERT_TRUE(f.rules.epitaph(28.0f, {{"coin", ElementType{5}}, {"dropout.collegium", ElementType{1}}, {"fire_course", ElementType{1}}}, {}, epitaph)) << firstError(f.rules);
-            EXPECT_EQ(epitaph.story[0], "He left the Collegium without its gown, and lived by what he had learned there.");
+            EXPECT_EQ(epitaph.story[0], "You left the Collegium without its gown, and lived by what you had learned there.");
 
             ASSERT_TRUE(f.rules.epitaph(28.0f, {{"coin", ElementType{5}}, {"dropout.collegium", ElementType{1}}, {"keep_oath", ElementType{1}}}, {}, epitaph));
             ASSERT_GE(epitaph.story.size(), 2u);
-            EXPECT_EQ(epitaph.story[0], "He swore himself to the Keep and served it under arms.");
-            EXPECT_EQ(epitaph.story[1], "He had left the Collegium before that, and kept what he had learned there.");
+            EXPECT_EQ(epitaph.story[0], "You swore yourself to the Keep and served it under arms.");
+            EXPECT_EQ(epitaph.story[1], "You had left the Collegium before that, and kept what you had learned there.");
 
             ASSERT_TRUE(f.rules.epitaph(28.0f, {{"coin", ElementType{5}}}, {}, epitaph));
-            EXPECT_EQ(epitaph.story[0], "He chose no class, and lived by the work of his hands.");
+            EXPECT_EQ(epitaph.story[0], "You chose no class, and lived by the work of your hands.");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2675,33 +2676,33 @@ namespace pg
 
             ASSERT_TRUE(f.rules.epitaph(33.5f, {{"vit", ElementType{0}}, {"coin", ElementType{31}}, {"keep_oath", ElementType{1}}}, {}, epitaph)) << firstError(f.rules);
 
-            EXPECT_EQ(epitaph.cause, "He died an old man, in his thirty-third year.");
+            EXPECT_EQ(epitaph.cause, "You died an old man, in your thirty-third year.");
             ASSERT_EQ(epitaph.story.size(), 3u);
 
             // A life lived to its end: a word is asked of who played it
             EXPECT_NE(epitaph.ask.find("a comment or a rating on the game's page"), std::string::npos) << epitaph.ask;
-            EXPECT_EQ(epitaph.story[0], "He swore himself to the Keep and served it under arms.");
-            EXPECT_EQ(epitaph.story[1], "Of his 4 works, the one he went back to most was Help at the Mill.");
-            EXPECT_EQ(epitaph.story[2], "He left 31 coin behind him.");
+            EXPECT_EQ(epitaph.story[0], "You swore yourself to the Keep and served it under arms.");
+            EXPECT_EQ(epitaph.story[1], "Of your 4 works, the one you went back to most was Help at the Mill.");
+            EXPECT_EQ(epitaph.story[2], "You left 31 coin behind you.");
             EXPECT_EQ(epitaph.text, epitaph.story[0] + " " + epitaph.story[1] + " " + epitaph.story[2]);
             EXPECT_EQ(epitaph.tally, "AGE 33 \xC2\xB7 WORKS 4 \xC2\xB7 COIN 31 \xC2\xB7 DEEDS 0");
 
             // The highest standing is the one that is said, and a rich man is said rich
             ASSERT_TRUE(f.rules.epitaph(33.5f, {{"coin", ElementType{240}}, {"keep_oath", ElementType{1}}, {"captain", ElementType{1}}}, {}, epitaph));
-            EXPECT_EQ(epitaph.story[0], "He rose to Captain of Bellmoor, and the Keep kept his name.");
-            EXPECT_EQ(epitaph.story[2], "He died a rich man, with 240 coin to his name.");
+            EXPECT_EQ(epitaph.story[0], "You rose to Captain of Bellmoor, and the Keep kept your name.");
+            EXPECT_EQ(epitaph.story[2], "You died a rich man, with 240 coin to your name.");
 
             // A boy who starved: no path, no work, no coin, and one deed told of him
             f.rules.done = {};
 
             ASSERT_TRUE(f.rules.epitaph(12.25f, boy(), {"First wages"}, epitaph)) << firstError(f.rules);
 
-            EXPECT_EQ(epitaph.cause, "His strength gave out in his twelfth year.");
+            EXPECT_EQ(epitaph.cause, "Your strength gave out in your twelfth year.");
             EXPECT_TRUE(epitaph.ask.empty()) << epitaph.ask;
             ASSERT_EQ(epitaph.story.size(), 4u);
-            EXPECT_EQ(epitaph.story[0], "He did not live to choose a class.");
-            EXPECT_EQ(epitaph.story[1], "Nothing he did was written down.");
-            EXPECT_EQ(epitaph.story[2], "He left nothing but his name.");
+            EXPECT_EQ(epitaph.story[0], "You did not live to choose a class.");
+            EXPECT_EQ(epitaph.story[1], "Nothing you did was written down.");
+            EXPECT_EQ(epitaph.story[2], "You left nothing but your name.");
             EXPECT_EQ(epitaph.story[3], "They still tell of it: First wages.");
             EXPECT_EQ(epitaph.tally, "AGE 12 \xC2\xB7 WORKS 0 \xC2\xB7 COIN 0 \xC2\xB7 DEEDS 1");
 
@@ -2710,9 +2711,9 @@ namespace pg
 
             ASSERT_TRUE(f.rules.epitaph(24.0f, {{"coin", ElementType{5}}}, {"First wages", "Sworn"}, epitaph));
 
-            EXPECT_EQ(epitaph.story[0], "He chose no class, and lived by the work of his hands.");
-            EXPECT_EQ(epitaph.story[1], "One work is written under his name: Work the Smithy.");
-            EXPECT_EQ(epitaph.story[2], "He left little: 5 coin.");
+            EXPECT_EQ(epitaph.story[0], "You chose no class, and lived by the work of your hands.");
+            EXPECT_EQ(epitaph.story[1], "One work is written under your name: Work the Smithy.");
+            EXPECT_EQ(epitaph.story[2], "You left little: 5 coin.");
             EXPECT_EQ(epitaph.story[3], "They still tell of it: First wages, Sworn.");
         }
 
@@ -4682,7 +4683,7 @@ namespace pg
 
             EXPECT_EQ(intOf(passed.after, "stood_flood"), 1);
             EXPECT_EQ(intOf(passed.after, "stood_by"), 1);
-            EXPECT_TRUE(wrote(passed, "The Flood came and went, and he stood by"));
+            EXPECT_TRUE(wrote(passed, "The Flood came and went, and you stood by"));
             EXPECT_FALSE(wrote(passed, "no class will have him"));
 
             // Not the month before, when an answer begun in the last month is still to end; not who
@@ -4727,7 +4728,7 @@ namespace pg
             const ElementMap* watch = byId(windows, "watch");
             ASSERT_NE(watch, nullptr);
             EXPECT_EQ(textOf(*watch, "state"), "closed");
-            EXPECT_NE(textOf(*watch, "note").find("he stood by"), std::string::npos);
+            EXPECT_NE(textOf(*watch, "note").find("you stood by"), std::string::npos);
 
             // Every answer of an event says what leaving it unanswered shuts, and no more once he
             // has stood by already
@@ -4749,7 +4750,7 @@ namespace pg
             ASSERT_TRUE(f.rules.month(16.0f, stood, passed)) << firstError(f.rules);
             EXPECT_EQ(intOf(passed.after, "stood_levy"), 1);
             EXPECT_EQ(intOf(passed.after, "stood_by"), 2);
-            EXPECT_TRUE(wrote(passed, "The Levy mustered without him"));
+            EXPECT_TRUE(wrote(passed, "The Levy mustered without you"));
             EXPECT_FALSE(wrote(passed, "no class will have him"));
 
             // Twice: the Levy's rows are shut too, and the classes are still his, so the Greenwood
@@ -4765,7 +4766,7 @@ namespace pg
             }
 
             for (const char* id : {"edric", "mara", "night"})
-                EXPECT_NE(barred(16.0f, twice, id).find("The Levy mustered without him"), std::string::npos) << id;
+                EXPECT_NE(barred(16.0f, twice, id).find("The Levy mustered without you"), std::string::npos) << id;
 
             EXPECT_FALSE(listed(16.0f, twice, "greenwood"));
 
@@ -5227,7 +5228,7 @@ namespace pg
 
             const ElementMap raised = inn(31.0f, townsfolk);
             EXPECT_NE(textOf(raised, "gives").find("lives after yours"), std::string::npos) << textOf(raised, "gives");
-            EXPECT_NE(textOf(raised, "line").find("LIVES AFTER HIS"), std::string::npos) << textOf(raised, "line");
+            EXPECT_NE(textOf(raised, "line").find("LIVES AFTER YOURS"), std::string::npos) << textOf(raised, "line");
 
             // A man who had the Inn at thirty has it for himself
             townsfolk["prime_end"] = ElementType{50};
@@ -6071,7 +6072,7 @@ namespace pg
 
             RuleMonth month;
             ASSERT_TRUE(f.rules.month(15.0f, fallen, month)) << firstError(f.rules);
-            EXPECT_NE(month.death.find("a fight he chose"), std::string::npos) << month.death;
+            EXPECT_NE(month.death.find("a fight you chose"), std::string::npos) << month.death;
         }
 
         // ----------------------------------------------------------------------------------------
@@ -6276,7 +6277,7 @@ namespace pg
             RuleTown town;
             ASSERT_TRUE(f.rules.town(20.0f, character, town)) << firstError(f.rules);
 
-            EXPECT_EQ(town.stashLine, "His stores go to the family's stash: 1 berry, 25 water, 32 firewood, 5 stone.");
+            EXPECT_EQ(town.stashLine, "Your stores go to the family's stash: 1 berry, 25 water, 32 firewood, 5 stone.");
 
             // Left to the lodge, its 20 firewood are not in the stash
             const RulePlace* lodge = nullptr;
@@ -6288,7 +6289,7 @@ namespace pg
             }
 
             ASSERT_NE(lodge, nullptr);
-            EXPECT_EQ(textOf(lodge->fields, "stashLine"), "His stores go to the family's stash: 1 berry, 25 water, 12 firewood, 5 stone.");
+            EXPECT_EQ(textOf(lodge->fields, "stashLine"), "Your stores go to the family's stash: 1 berry, 25 water, 12 firewood, 5 stone.");
 
             // Nothing of the kind held: nothing said
             ASSERT_TRUE(f.rules.town(20.0f, townsman(), town)) << firstError(f.rules);

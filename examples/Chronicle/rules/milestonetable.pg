@@ -73,10 +73,10 @@ var milestoneTable = [
 // not old age: a milestone of its own, before the last
 if (lastAge > shortAge)
 {
-    push(milestoneTable, {age: shortAge, id: "calling", label: "A second calling", entry: "His thirtieth year: a man of Bellmoor is not old at thirty any more", asks: []})
+    push(milestoneTable, {age: shortAge, id: "calling", label: "A second calling", entry: "Your thirtieth year: a man of Bellmoor is not old at thirty any more", asks: []})
 }
 
-push(milestoneTable, {age: lastAge, id: "old", label: "Old age", entry: "His " + ordinalWord(lastAge) + " year: old age begins, and his strength leaves him", asks: []})
+push(milestoneTable, {age: lastAge, id: "old", label: "Old age", entry: "Your " + ordinalWord(lastAge) + " year: old age begins, and your strength leaves you", asks: []})
 
 // Counted in whole months, so an age that is a sum of twelfths reaches its milestone on time
 var lived = monthOf(age)

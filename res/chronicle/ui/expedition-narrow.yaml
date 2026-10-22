@@ -177,7 +177,7 @@ children:
         width: 300
         z: 104
         contentZ: 114
-        heading: If he turned home now
+        heading: If you turned home now
         glyph: gate
         children:
           - kind: ResourceLedger

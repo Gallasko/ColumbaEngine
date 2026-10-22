@@ -75,19 +75,19 @@ import "expeditiontable"
 var errors = []
 
 
-var opened = "He has been to the market: the Town page is open"
+var opened = "You've been to the market: the Town page is open"
 var raisedLine = " stands in Bellmoor: the town will keep it"
-var fundLine = "Left to it by those before him"
-var foundLine = " is his to raise now: it has come onto the Town page"
+var fundLine = "Left to it by those before you"
+var foundLine = " is yours to raise now: it has come onto the Town page"
 var epitaphLine = ""
-var gift = {stat: "coin", before: "LEAVE HIS ", after: " COIN TO", things: "LEAVE WHAT A PLACE CAN USE TO", plain: "Begin a new life", chosen: "Leave it, and begin a new life"}
+var gift = {stat: "coin", before: "LEAVE YOUR ", after: " COIN TO", things: "LEAVE WHAT A PLACE CAN USE TO", plain: "Begin a new life", chosen: "Leave it, and begin a new life"}
 
 // What the ending says of the stash, before what goes into it
-var stashSaid = "His stores go to the family's stash: "
+var stashSaid = "Your stores go to the family's stash: "
 
 if (statOf(character, "town.inn") >= 2)
 {
-    epitaphLine = "At the inn they still tell of the one before him. "
+    epitaphLine = "At the inn they still tell of the one before you. "
 }
 
 // The most of any one thing the stash keeps: what each place's stash line and `stash` say
@@ -176,7 +176,7 @@ for (var t = 0; t < len(townPlaces); t++)
                 asks = asks + " · "
             }
 
-            asks = asks + toString(shown.nextYears) + " years of his life"
+            asks = asks + toString(shown.nextYears) + " years of your life"
         }
 
         // Its time alone, for the gloss: the things it takes are its gaps, a line each

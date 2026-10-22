@@ -29,21 +29,21 @@ var errors = []
 
 // What he became, the highest first: the first flag he holds is the one that is said
 var standings = [
-    {flag: "captain", text: "He rose to Captain of Bellmoor, and the Keep kept his name."},
-    {flag: "mage_of_harrow", text: "He performed the Harrow Working, and the Collegium does not speak of it lightly."},
-    {flag: "master_thief", text: "He emptied the Bellmoor Vault, and no one ever proved it."},
-    {flag: "wood_king", text: "He held the Greenwood against the Keep, and the songs are his."},
-    {flag: "keep_oath", text: "He swore himself to the Keep and served it under arms."},
-    {flag: "collegium", text: "He sat among the scholars of the Collegium."},
-    {flag: "hidden_hand", text: "He worked for the Hidden Hand, and the town never knew."},
-    {flag: "renegade", text: "He took to the Greenwood, and lived outside the town's law."}
+    {flag: "captain", text: "You rose to Captain of Bellmoor, and the Keep kept your name."},
+    {flag: "mage_of_harrow", text: "You performed the Harrow Working, and the Collegium does not speak of it lightly."},
+    {flag: "master_thief", text: "You emptied the Bellmoor Vault, and no one ever proved it."},
+    {flag: "wood_king", text: "You held the Greenwood against the Keep, and the songs are yours."},
+    {flag: "keep_oath", text: "You swore yourself to the Keep and served it under arms."},
+    {flag: "collegium", text: "You sat among the scholars of the Collegium."},
+    {flag: "hidden_hand", text: "You worked for the Hidden Hand, and the town never knew."},
+    {flag: "renegade", text: "You took to the Greenwood, and lived outside the town's law."}
 ]
 
 // What he left, by the coin he held: the first he reaches is the one that is said
 var legacies = [
-    {coin: 100, before: "He died a rich man, with ", after: " coin to his name."},
-    {coin: 20, before: "He left ", after: " coin behind him."},
-    {coin: 1, before: "He left little: ", after: " coin."}
+    {coin: 100, before: "You died a rich man, with ", after: " coin to your name."},
+    {coin: 20, before: "You left ", after: " coin behind you."},
+    {coin: 1, before: "You left little: ", after: " coin."}
 ]
 
 // The age a class may be chosen from: younger, he had no time to choose
@@ -56,22 +56,22 @@ var askOld = "The chronicle is still being written. If this life was worth the t
 // `lived`, the months of his life, is activitytable.pg's
 var year = toInt(floor(lived / 12))
 
-var cause = "His strength gave out in his " + ordinalWord(year) + " year."
+var cause = "Your strength gave out in your " + ordinalWord(year) + " year."
 var ask = ""
 
 if (lived >= lastAge * 12)
 {
-    cause = "He died an old man, in his " + ordinalWord(year) + " year."
+    cause = "You died an old man, in your " + ordinalWord(year) + " year."
     ask = askOld
 }
 
 var story = []
 
-var became = "He chose no class, and lived by the work of his hands."
+var became = "You chose no class, and lived by the work of your hands."
 
 if (year < pathAge)
 {
-    became = "He did not live to choose a class."
+    became = "You did not live to choose a class."
 }
 
 var standing = false
@@ -87,7 +87,7 @@ for (var s = 0; s < len(standings); s++)
 
 // The class he left (its drop-out flag, storytable.pg's `dropout`): said in place of a life of no
 // class, or after the class he went to instead
-var leftCollegium = "He left the Collegium without its gown, and lived by what he had learned there."
+var leftCollegium = "You left the Collegium without its gown, and lived by what you had learned there."
 
 if (statOf(character, "dropout.collegium") > 0 and not standing)
 {
@@ -98,7 +98,7 @@ push(story, became)
 
 if (statOf(character, "dropout.collegium") > 0 and standing)
 {
-    push(story, "He had left the Collegium before that, and kept what he had learned there.")
+    push(story, "You had left the Collegium before that, and kept what you had learned there.")
 }
 
 // The terms he completed, and the work he went back to most: the first of the table on a tie.
@@ -125,19 +125,19 @@ for (var i = 0; i < len(activities); i++)
 
 if (works == 0)
 {
-    push(story, "Nothing he did was written down.")
+    push(story, "Nothing you did was written down.")
 }
 else if (works == 1)
 {
-    push(story, "One work is written under his name: " + mostName + ".")
+    push(story, "One work is written under your name: " + mostName + ".")
 }
 else
 {
-    push(story, "Of his " + toString(works) + " works, the one he went back to most was " + mostName + ".")
+    push(story, "Of your " + toString(works) + " works, the one you went back to most was " + mostName + ".")
 }
 
 var coin = statOf(character, "coin")
-var left = "He left nothing but his name."
+var left = "You left nothing but your name."
 var legacy = false
 
 for (var l = 0; l < len(legacies); l++)

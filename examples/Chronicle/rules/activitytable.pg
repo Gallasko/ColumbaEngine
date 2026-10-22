@@ -427,7 +427,7 @@ var activities = [
      about: "When the stalls close, the night market opens. You learn who sells what, and who not to ask.",
      gains: [{stat: "guile"}, {stat: "coin", amount: 12}],
      requires: [{stat: "guile"}],
-     after: [{uses: 2, effects: [{stat: "night_contacts"}], entry: "The night market knows his face"}]},
+     after: [{uses: 2, effects: [{stat: "night_contacts"}], entry: "The night market knows your face"}]},
 
     // What is bought on the spot is bought in town: these stand on its page, at the market, once
     // the town is known, and nowhere before
@@ -528,7 +528,7 @@ var activities = [
      about: "Sergeant Edric trains a few boys himself each year. He's hard on you, and you're glad of it.",
      gains: [{stat: "arms"}, {stat: "discipline"}, {stat: "str"}],
      requires: [{stat: "str", needed: 10}, {stat: "arms", needed: 2, eased: {flag: "watch_known", needed: 1}}],
-     after: [{uses: 2, effects: [{stat: "edric_support"}], entry: "Sergeant Edric will speak for him at the Keep"}],
+     after: [{uses: 2, effects: [{stat: "edric_support"}], entry: "Sergeant Edric will speak for you at the Keep"}],
      bonus: [{stat: "town.yard", needed: 3, fromAge: 12}]},
 
     // What the yard keeps for who has done both: learned the edge or the point (the group after
@@ -575,7 +575,7 @@ var activities = [
      about: "Father Anselm pays for clean copies, and you get to read every book you copy.",
      gains: [{stat: "letters"}, {stat: "lore"}, {stat: "coin", amount: 8}],
      requires: [{stat: "letters", needed: 2}],
-     after: [{uses: 2, effects: [{stat: "library_access"}], entry: "Father Anselm opens the chapel library to him"}]},
+     after: [{uses: 2, effects: [{stat: "library_access"}], entry: "Father Anselm opens the chapel library to you"}]},
     // The Church or what it forbids: one or the other, and the first fork a later life is built
     // on. The keys are Father Anselm's trust, which the Collegium counts; the shelf is read by
     // who will go after Harrow. Whoever looted the flood is not given the keys
@@ -750,7 +750,7 @@ var activities = [
     // but to be sixteen, and it is open until old age
     {id: "greenwood", group: "A class", name: "Take to the Greenwood", glyph: "adventure", months: 12, rank: "", each: "RATIONS UP FRONT", path: "renegade", enters: true, lastResort: true, board: true, fromAge: 16, uses: 1,
      firstWith: "deserter",
-     opens: "Every class has shut its door on him: the Greenwood takes who is left",
+     opens: "Every class has shut its door on you: the Greenwood takes who is left",
      major: true,
      about: "When every other door has closed, the Greenwood still takes you in. It asks no letters, no oath and no questions.",
      gains: [{stat: "renegade"}, {stat: "stealth"}],
@@ -765,7 +765,7 @@ var activities = [
     {id: "serve", group: "The Keep", name: "Serve at the Keep", glyph: "swordsmanship", months: 12, rank: "", each: "RATIONS UP FRONT", path: "warrior", board: true, fromAge: 18,
      gains: [{stat: "arms"}, {stat: "discipline"}, {stat: "coin", amount: 12}],
      requires: [],
-     after: [{uses: 2, gains: [{stat: "arms"}, {stat: "coin", amount: 8}], effects: [{stat: "renown"}], entry: "The Keep speaks well of his service"}],
+     after: [{uses: 2, gains: [{stat: "arms"}, {stat: "coin", amount: 8}], effects: [{stat: "renown"}], entry: "The Keep speaks well of your service"}],
      bonus: [{stat: "pardoned", path: "", fromAge: 25}]},
     {id: "patrol", group: "The Keep", name: "Patrol the North Road", glyph: "gate", months: 9, rank: "", each: "", path: "warrior", follows: "serve", fromAge: 18, finishBy: 25, uses: 2,
      gains: [{stat: "renown"}, {stat: "coin", amount: 22}, {stat: "vit", amount: 5}],
@@ -803,7 +803,7 @@ var activities = [
      gains: [{stat: "renown", amount: 2}, {stat: "coin", amount: 30}, {stat: "band_broken"}],
      requires: [{stat: "bandit_trail"}, {stat: "arms", needed: 6}]},
     {id: "duel", group: "The Keep", name: "Duel for the Captain's Favour", glyph: "reputation", months: 3, rank: "", each: "", path: "warrior", follows: "tourney", fromAge: 22, finishBy: 24, uses: 1,
-     about: "Three months of dawn in the lists, before the one man whose word makes a captain. The chain asks less Renown of whoever he has watched win.",
+     about: "Three months of dawn in the lists, in front of the one man whose word makes a captain. Once he has watched you win, the chain asks less Renown of you.",
      gains: [{stat: "arms"}, {stat: "renown"}, {stat: "captain_favour"}],
      requires: [{stat: "arms", needed: 6}],
      costs: [{stat: "coin", amount: 10}]},
@@ -882,7 +882,7 @@ var activities = [
      gains: [{stat: "glyphs_read"}],
      requires: [{stat: "black_treatise"}, {stat: "lore", needed: 4}]},
     {id: "cellar", group: "The Collegium", name: "Open the Old Mill Cellar", glyph: "relic", months: 1, rank: "", each: "", path: "mage", fromAge: 21, uses: 1,
-     about: "The glyphs name a door under the mill, and the loft a life before him raised is what stands over it. What turns down there is not the wheel.",
+     about: "The glyphs name a door under the mill, right below the loft a life before yours raised. What turns down there is not the wheel.",
      gains: [{stat: "arcana"}, {stat: "mill_engine"}],
      requires: [{stat: "glyphs_read"}, {stat: "town.mill", label: "The mill loft, in town", needed: 2}]},
     {id: "lecture", group: "The Collegium", name: "Lecture at the Collegium", glyph: "academy", months: 12, rank: "", each: "", path: "mage", follows: "fragments", fromAge: 21, finishBy: 25, uses: 1,
@@ -955,12 +955,12 @@ var activities = [
     // favor but the informants'. Then a chain that steals from the Collegium, two jobs that
     // compete for the same years, and Old Vey's last summons
     {id: "mark", group: "The Hidden Hand", name: "Take the Hand's Mark", glyph: "guild", months: 3, rank: "", each: "", path: "thief", follows: "network", fromAge: 19, finishBy: 21, uses: 1, unless: "ownname",
-     about: "A small scar where a sleeve covers it. From then on the Hand pays its debts to him first: every favor is one more, and silence costs him nothing.",
+     about: "A small scar where a sleeve covers it. From then on the Hand pays its debts to you first: every favor is one more, and silence costs you nothing.",
      gains: [{stat: "guile"}, {stat: "hand_marked"}],
      requires: [{stat: "favors", needed: 2}],
      costs: [{stat: "favors", amount: 2}]},
     {id: "ownname", group: "The Hidden Hand", name: "Keep Your Own Name", glyph: "adventure", months: 3, rank: "", each: "", path: "thief", follows: "network", fromAge: 19, finishBy: 21, uses: 1, unless: "mark",
-     about: "No mark, no master, and a larger share of every job. The Hand owes nothing to a man who is not its own: only his informants still do.",
+     about: "No mark, no master, and a larger share of every job. The Hand owes you nothing once you're not its own: only your informants still do.",
      gains: [{stat: "stealth"}, {stat: "freelance"}],
      requires: [{stat: "guile", needed: 3}]},
     {id: "rumour", group: "The Hidden Hand", name: "Hear of the Collegium's Reagents", glyph: "town", months: 1, rank: "", each: "A LEAD", path: "thief", fromAge: 20, uses: 1,
@@ -977,7 +977,7 @@ var activities = [
      gains: [{stat: "coin", amount: 30}, {stat: "guile"}],
      requires: [{stat: "night_contacts"}, {stat: "guile", needed: 4}]},
     {id: "summons", group: "The Hidden Hand", name: "Answer Vey's Last Summons", glyph: "guild", months: 1, rank: "", each: "", path: "thief", fromAge: 24, finishBy: 25, uses: 1,
-     about: "The old man sends for one of them, once, and does not wait long. The vault asks less Stealth of whoever he named.",
+     about: "The old man sends for one of his pupils, once, and doesn't wait long. If you're the one he names, the vault asks less Stealth of you.",
      gains: [{stat: "stealth"}, {stat: "favors"}, {stat: "vey_heir"}],
      requires: [{stat: "done.vey", label: "Learned from Old Vey"}]},
 
@@ -1013,18 +1013,18 @@ var activities = [
     // burners that reaches the woodfolk, two works that compete for the same years, and the
     // Lord's pardon: a quiet end at the Keep, at the price of the Greenwood's own
     {id: "spare", group: "The Greenwood", name: "Spare the Village Carts", glyph: "town", months: 3, rank: "", each: "", path: "renegade", fromAge: 21, finishBy: 23, uses: 1, unless: "toll",
-     about: "The band lets the village carts by and takes from the merchants alone. The road pays less and the villages talk: the Greenwood asks less Renown of the man they sing about.",
+     about: "The band lets the village carts by and takes from the merchants alone. The road pays less, but the villages sing about you: the Greenwood asks less Renown of you.",
      gains: [{stat: "renown"}, {stat: "peoples_outlaw"}],
      requires: [{stat: "done.waylay", label: "Waylaid the merchant road"}]},
     {id: "toll", group: "The Greenwood", name: "Take the Toll from All", glyph: "gold", months: 3, rank: "", each: "", path: "renegade", fromAge: 21, finishBy: 23, uses: 1, unless: "spare",
-     about: "Everything that rolls pays. The road is worth more and nobody sings about it: the Greenwood asks more Renown of a man it only fears.",
+     about: "Everything that rolls pays. The road is worth more, but nobody sings about you: when people only fear you, the Greenwood asks more Renown of you.",
      gains: [{stat: "coin", amount: 15}, {stat: "feared"}],
      requires: [{stat: "done.waylay", label: "Waylaid the merchant road"}]},
     {id: "shrine", group: "The Greenwood", name: "Find the Burners' Old Shrine", glyph: "relic", months: 1, rank: "", each: "A LEAD", path: "renegade", fromAge: 21, uses: 1,
      gains: [{stat: "forest_shrine"}],
      requires: [{stat: "done.burners", label: "Wintered with the charcoal burners"}]},
     {id: "woodfolk", group: "The Greenwood", name: "Meet the Woodfolk", glyph: "adventure", months: 6, rank: "", each: "", path: "renegade", fromAge: 22, uses: 1,
-     about: "They were in the wood before the town had a name, and they are not what the Church says they are. A guest of theirs may go where a scholar goes, and the Harrow road costs him half to clear.",
+     about: "They were in the wood before the town had a name, and they are not what the Church says they are. As their guest, you may go where a scholar goes, and the Harrow road costs you half to clear.",
      gains: [{stat: "lore"}, {stat: "stealth"}, {stat: "woodfolk_guest"}],
      requires: [{stat: "forest_shrine"}, {stat: "stealth", needed: 4}],
      costs: [{stat: "rations", amount: 6}]},
@@ -1035,7 +1035,7 @@ var activities = [
      gains: [{stat: "coin", amount: 20}, {stat: "renown"}],
      requires: [{stat: "lore", needed: 1}]},
     {id: "pardon", group: "The Greenwood", name: "Answer the Lord's Pardon", glyph: "seal", months: 1, rank: "", each: "", path: "renegade", fromAge: 24, finishBy: 25, uses: 1, unless: ["barn", "plague.sell"],
-     about: "The Lord offers it once, to an outlaw the town speaks well of. He may serve at the Keep and walk its patrols from twenty-five. The Greenwood will not be his to hold.",
+     about: "The Lord offers it once, to an outlaw the town speaks well of. You may serve at the Keep and walk its patrols from twenty-five. The Greenwood won't be yours to hold.",
      gains: [{stat: "pardoned"}],
      requires: [{stat: "renown", needed: 3}],
      costs: [{stat: "renown", amount: 2}]},
@@ -1043,7 +1043,7 @@ var activities = [
     // The Plague Year, the month he is twenty-three, in every life and for every class: nine
     // months to begin an answer, one answer
     {id: "plague.tend", group: "The Plague Year", name: "Tend the Sick", glyph: "vitality", months: 3, rank: "", each: "THE PLAGUE", path: "", fromAge: 23, finishBy: 23, finishMonths: 11, showFrom: 0, uses: 1, event: "plague", unless: ["plague.shut", "plague.sell"],
-     about: "The chapel is a sickhouse and there are not enough hands. It costs him some of his own health, and the chapel's windows cost him nothing to glaze, this life.",
+     about: "The chapel is a sickhouse and there are not enough hands. It costs you some of your own health, and the chapel's windows cost you nothing to glaze, this life.",
      gains: [{stat: "renown"}, {stat: "lore"}, {stat: "plague_stayed"}],
      requires: [{stat: "letters", label: "Letters, or Lore", anyOf: ["letters", "lore"]}],
      costs: [{stat: "vit", amount: 5}]},
@@ -1052,7 +1052,7 @@ var activities = [
      gains: [{stat: "plague_shut"}],
      requires: []},
     {id: "plague.sell", group: "The Plague Year", name: "Sell Remedies Dear", glyph: "gold", months: 3, rank: "", each: "THE PLAGUE", path: "", fromAge: 23, finishBy: 23, finishMonths: 11, showFrom: 0, uses: 1, event: "plague", unless: ["plague.tend", "plague.shut"],
-     about: "Wortleaf is worth its weight this year. The Church will not ordain a man who sold it so, nor the Lord pardon him. A guild clerk finds him easier to believe.",
+     about: "Wortleaf is worth its weight this year. If you sell it this way, the Church won't ordain you and the Lord won't pardon you. A guild clerk finds you easier to believe.",
      gains: [{stat: "coin", amount: 40}, {stat: "plague_profiteer"}],
      requires: [],
      costs: [{stat: "wortleaf", amount: 6}]},
@@ -1070,7 +1070,7 @@ var activities = [
      costs: [{stat: "coin", amount: 20}]},
     {id: "lord.seize", group: "The Old Lord Dies", name: "Seize the Interregnum", glyph: "gold", months: 3, rank: "", each: "THE SUCCESSION", path: "", fromAge: 27, finishBy: 27, finishMonths: 11, showFrom: 0, uses: 1, event: "lord", unless: ["lord.keep", "lord.church", "lord.kneel"],
      gains: [{stat: "coin", amount: 60}, {stat: "interregnum"}],
-     requires: [{stat: "band", label: "A band of his own, or the Bellmoor job planned", anyOf: ["band", "great_job_planned"]}]},
+     requires: [{stat: "band", label: "A band of your own, or the Bellmoor job planned", anyOf: ["band", "great_job_planned"]}]},
     {id: "lord.kneel", group: "The Old Lord Dies", name: "Kneel to the Heir", glyph: "town", months: 0, rank: "", each: "THE SUCCESSION", path: "", fromAge: 27, finishBy: 27, finishMonths: 8, showFrom: 0, uses: 1, event: "lord", unless: ["lord.keep", "lord.church", "lord.seize"],
      about: "A knee in the mud of the Keep's yard, among everyone else's. Nothing closes, and nothing opens.",
      gains: [{stat: "heir_sworn"}],
@@ -1085,12 +1085,12 @@ var activities = [
     // same shape: its bread, its choice, its moment, and a work of two years from forty-two.
     // The Greenwood has none yet
     {id: "castellan", group: "A second calling", name: "Take the Castellan's Keys", glyph: "seal", months: 12, rank: "", each: "", path: "warrior", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", longPrime: true, unless: "cross", major: true,
-     about: "The warrior who stays. The keys of Bellmoor's walls, its militia and its gates are his, and everything he does from here feeds the town.",
+     about: "The warrior who stays. The keys of Bellmoor's walls, its militia and its gates are yours, and everything you do from here feeds the town.",
      gains: [{stat: "discipline"}, {stat: "renown"}, {stat: "castellan"}],
      requires: [{stat: "veteran"}, {stat: "arms", needed: 6}, {stat: "discipline", needed: 4}],
      costs: [{stat: "coin", amount: 20}]},
     {id: "cross", group: "A second calling", name: "Take the Cross", glyph: "swordsmanship", months: 12, rank: "", each: "", path: "warrior", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", longPrime: true, unless: "castellan", major: true,
-     about: "The warrior who leaves. He is the Church's sword on the marches, and whatever the woodfolk are, he is sent against them.",
+     about: "The warrior who leaves. You become the Church's sword on the marches, and whatever the woodfolk are, you're sent against them.",
      gains: [{stat: "arms"}, {stat: "discipline"}, {stat: "crusader"}],
      requires: [{stat: "veteran"}, {stat: "arms", needed: 6}, {stat: "renown", needed: 3}]},
     {id: "harrowstudy", group: "A second calling", name: "Found the Harrow Study", glyph: "relic", months: 12, rank: "", each: "", path: "mage", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", longPrime: true, unless: "chair", major: true,
@@ -1099,7 +1099,7 @@ var activities = [
      requires: [{stat: "collegium"}, {stat: "lore", needed: 7}, {stat: "arcana", needed: 4}],
      costs: [{stat: "coin", amount: 40}]},
     {id: "chair", group: "A second calling", name: "Take the Elemental Chair", glyph: "magic", months: 12, rank: "", each: "", path: "mage", fromAge: 29, showAge: 16, finishBy: 33, showFrom: 0, uses: 1, onlyWith: "town.inn", longPrime: true, unless: "harrowstudy", major: true,
-     about: "The mage who makes spells: he binds the elements one by one, and writes down what he bound. In a fight, Frostbind costs a beast its next move.",
+     about: "The mage who makes spells: you bind the elements one by one, and write down what you bound. In a fight, Frostbind costs a beast its next move.",
      gains: [{stat: "arcana"}, {stat: "spellwright"}],
      requires: [{stat: "collegium"}, {stat: "arcana", needed: 5}],
      costs: [{stat: "coin", amount: 30}]},
@@ -1392,7 +1392,7 @@ for (var b = 0; b < len(basicResources); b++)
 
     var drawRow = {id: "draw." + drawn.id, group: "The stash", name: "Take " + toLowerCase(drawn.name) + " from the stash", glyph: drawn.glyph, months: 0, rank: "", each: toString(kept) + " IN THE STASH", path: "",
                       fromAge: 6, finishBy: anyAge, onlyWith: "stash." + drawn.id,
-                      about: "What the lives before him kept of it at their death. He takes as much as he has room for, and the rest stays for the lives after him.",
+                      about: "What the lives before you kept of it at their death. You take as much as you have room for, and the rest stays for the lives after you.",
                       gains: [{stat: drawn.id, amount: take}],
                       costs: [{stat: "stash." + drawn.id, amount: take, name: drawn.name + " from the stash"}],
                       requires: []}

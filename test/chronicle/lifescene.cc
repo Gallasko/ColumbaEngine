@@ -2131,7 +2131,7 @@ namespace pg
 
             auto registry = f.ecs.getSystem<GlossRegistry>();
             ASSERT_NE(registry, nullptr);
-            const GlossSpec* gloss = registry->find("activity/scavenge.berries");
+            const GlossSpec* gloss = registry->find("activity/scavenge.water");
             ASSERT_NE(gloss, nullptr);
 
             for (const auto& row : gloss->rows)
@@ -2205,8 +2205,8 @@ namespace pg
                 return rows;
             };
 
-            // The berries: what Dexterity 8 makes of them, which he has, and what 12 would
-            const GlossSpec* picking = registry->find("activity/scavenge.berries");
+            // The stone: what Strength 9 makes of it, which he has, and what 13 would
+            const GlossSpec* picking = registry->find("activity/scavenge.stone");
             ASSERT_NE(picking, nullptr);
 
             auto steps = section(picking, "BONUS");
@@ -2477,7 +2477,7 @@ namespace pg
             EXPECT_EQ(life->save.monthsIn, 3);
             EXPECT_TRUE(life->paused);
             EXPECT_EQ(life->save.running, "watch");
-            EXPECT_TRUE(said("The Flood! Bellmoor calls on him"));
+            EXPECT_TRUE(said("The Flood! Bellmoor calls on you"));
 
             auto list = life->piece<ActivityList>("activities");
             ASSERT_NE(list, nullptr);
@@ -4098,7 +4098,7 @@ namespace pg
 
             for (const auto& entry : life->save.log)
             {
-                if (entry.text == "Held a coin of his own for the first time")
+                if (entry.text == "You held a coin of your own for the first time")
                     ++lines;
             }
 
@@ -4288,7 +4288,7 @@ namespace pg
             EXPECT_EQ(life->save.running, "yard");
             EXPECT_EQ(f.fact<std::string>("activity.running.id"), "yard");
             ASSERT_EQ(life->save.log.size(), logEntries + 1);
-            EXPECT_EQ(life->save.log.back().text, "Already at work: Train at the Yard");
+            EXPECT_EQ(life->save.log.back().text, "You were already at work: Train at the Yard");
             EXPECT_EQ(life->piece<EventLog>("log")->size(), life->save.log.size());
         }
 
@@ -5036,9 +5036,9 @@ namespace pg
             // What it says is the save's and the rules'
             EXPECT_EQ(said("endName"), life->save.name);
             EXPECT_EQ(said("endCause"), life->epitaph.cause);
-            EXPECT_NE(said("endCause").find("His strength gave out"), std::string::npos) << said("endCause");
+            EXPECT_NE(said("endCause").find("Your strength gave out"), std::string::npos) << said("endCause");
             EXPECT_EQ(said("endStory"), life->epitaph.text);
-            EXPECT_NE(said("endStory").find("He swore himself to the Keep"), std::string::npos) << said("endStory");
+            EXPECT_NE(said("endStory").find("You swore yourself to the Keep"), std::string::npos) << said("endStory");
             EXPECT_NE(said("endStory").find("Carry for the Carters"), std::string::npos) << said("endStory");
             EXPECT_NE(said("endStory").find("The carters' road"), std::string::npos) << said("endStory");
             EXPECT_EQ(said("endTally"), life->epitaph.tally);
@@ -6014,7 +6014,7 @@ namespace pg
             EXPECT_EQ(life->save.stats["rations"], 5);
 
             // Seen to their end: the Outskirts are a plural
-            EXPECT_TRUE(life->toastUp("The Outskirts are behind him"));
+            EXPECT_TRUE(life->toastUp("The Outskirts are behind you"));
 
             // Not walked again, nor kept as a record
             EXPECT_EQ(list->find(&f.ecs, "outskirts"), nullptr);
@@ -9267,7 +9267,7 @@ namespace pg
             EntityRef line = prefab->findEntity("giftLabel");
             ASSERT_FALSE(line.empty());
             EXPECT_TRUE(f.pos(line)->visible);
-            EXPECT_EQ(line->get<Label>()->spec.text, "LEAVE HIS 84 COIN TO");
+            EXPECT_EQ(line->get<Label>()->spec.text, "LEAVE YOUR 84 COIN TO");
 
             // The two on his page that are not at their last level, the market and the chapel: the
             // mill is, and the others are not on his page
@@ -9865,7 +9865,7 @@ namespace pg
                 ASSERT_NE(heading, gloss->rows.end());
                 ASSERT_EQ(gloss->rows.end() - heading, 4);
                 EXPECT_EQ((heading + 1)->label, "Level 2 \xC2\xB7 3 studies");
-                EXPECT_EQ((heading + 1)->value, "Exploring the nearby pond, a task of his life");
+                EXPECT_EQ((heading + 1)->value, "Exploring the nearby pond, a task of your life");
                 EXPECT_EQ((heading + 1)->tone, "");
                 EXPECT_EQ((heading + 3)->label, "Level 4 \xC2\xB7 10 studies");
                 EXPECT_NE((heading + 3)->value.find("the way to the Hollow Woods"), std::string::npos);
@@ -10631,7 +10631,7 @@ namespace pg
                 EXPECT_EQ(known->title, "Zone knowledge");
                 ASSERT_EQ(known->rows.size(), 4u);
                 EXPECT_EQ(known->rows[0].label, "ZONE KNOWLEDGE 1 OF 4");
-                EXPECT_EQ(known->rows[1].value, "Exploring the nearby pond, a task of his life");
+                EXPECT_EQ(known->rows[1].value, "Exploring the nearby pond, a task of your life");
                 EXPECT_EQ(known->footnote, "STUDY 0 OF 3 TO KNOWLEDGE 2");
 
                 for (const char* part : {"knowledge", "knowledgeBar", "knowledgeNote"})
@@ -12814,7 +12814,7 @@ namespace pg
             auto said = [&]() { return life->ending->get<Prefab>()->findEntity("endStory")->get<Label>()->spec.text; };
 
             EXPECT_EQ(said().rfind(life->epitaph.text, 0), 0u) << said();
-            EXPECT_NE(said().find("His stores go to the family's stash: 12 stone."), std::string::npos) << said();
+            EXPECT_NE(said().find("Your stores go to the family's stash: 12 stone."), std::string::npos) << said();
 
             // The lodge takes ten of it: two go into the stash
             Button lodge;
@@ -12829,13 +12829,13 @@ namespace pg
             f.ecs.sendEvent(ButtonActivatedEvent{lodge.face.id, "life.gift.lodge"});
             f.settle();
             ASSERT_EQ(life->gift, "lodge");
-            EXPECT_NE(said().find("His stores go to the family's stash: 2 stone."), std::string::npos) << said();
+            EXPECT_NE(said().find("Your stores go to the family's stash: 2 stone."), std::string::npos) << said();
 
             // Let go of, all of it again
             f.ecs.sendEvent(ButtonActivatedEvent{lodge.face.id, "life.gift.lodge"});
             f.settle();
             ASSERT_EQ(life->gift, "");
-            EXPECT_NE(said().find("His stores go to the family's stash: 12 stone."), std::string::npos) << said();
+            EXPECT_NE(said().find("Your stores go to the family's stash: 12 stone."), std::string::npos) << said();
         }
 
         // What he holds over his limit at his death is kept whole, and the draw tile says what the
@@ -13186,7 +13186,7 @@ namespace pg
 
             // Not a walk's words: no way home, nothing met on a way, no place to know
             f.settle();
-            EXPECT_EQ(walkPart(life, "homePanel")->get<Panel>()->title->spec.text, "If he left now");
+            EXPECT_EQ(walkPart(life, "homePanel")->get<Panel>()->title->spec.text, "If you left now");
             EXPECT_EQ(walkPart(life, "cardPanel")->get<Panel>()->title->spec.text, "On this day");
 
             auto registry = f.ecs.getSystem<GlossRegistry>();
@@ -13691,7 +13691,7 @@ namespace pg
             EXPECT_NEAR(gaugePercent(life), 25.0f, 0.01f);
             EXPECT_EQ(walkText(life, "headNote"), "THE FIRST DAYS");
             EXPECT_EQ(walkText(life, "kicker"), "4 DAYS \xC2\xB7 4 MONTHS OF HIS LIFE");
-            EXPECT_EQ(walkText(life, "zoneLine"), "Everything is new, and every door is open to him.");
+            EXPECT_EQ(walkText(life, "zoneLine"), "Everything is new, and every door is open to you.");
 
             // How he stands, in words, under his Vitality; no place to know
             EXPECT_FALSE(siteText(life, "standing").empty());
@@ -13717,7 +13717,7 @@ namespace pg
 
             EXPECT_EQ(gaugeText(life), "Day 3 of 4 \xC2\xB7 2 months gone");
             EXPECT_EQ(walkText(life, "headNote"), "THE LAST DAYS");
-            EXPECT_EQ(walkText(life, "zoneLine"), "What he has heard lets him follow more.");
+            EXPECT_EQ(walkText(life, "zoneLine"), "What you've heard lets you follow more.");
             EXPECT_EQ(walkText(life, "standing"), siteText(life, "standing"));
         }
 
@@ -13735,7 +13735,7 @@ namespace pg
             ASSERT_TRUE(life->onWalk());
             f.pass(300.0f, 50.0f);
 
-            const std::string text = "Everything is new, and every door is open to him.";
+            const std::string text = "Everything is new, and every door is open to you.";
 
             ASSERT_FALSE(life->walkNarrow);
             EXPECT_EQ(walkText(life, "zoneLine"), text);

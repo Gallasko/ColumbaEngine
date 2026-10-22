@@ -196,7 +196,7 @@ const townPlaces = [
         {work: "Carve the Storyteller's Chair", built: "The storyteller's chair", months: 6, coin: 5, costs: [{stat: "firewood", amount: 20}, {stat: "berries", amount: 20}],
          gives: "Old age begins at 50 instead of 30; Tell Tales at the Inn opens at age 26, and the stash keeps 50 more of each thing", note: "Old at 50, tales at 26, stash +50", stash: 50,
          later: "Old age begins at 50 instead of 30, for the lives after yours: your own has begun. Tell Tales at the Inn opens at age 26, and the stash keeps 50 more of each thing",
-         laterNote: "Old at 50 for the lives after his, stash +50",
+         laterNote: "Old at 50 for the lives after yours, stash +50",
          lore: "The chair by the fire is for whoever has a tale, young or old."},
         {work: "Hang the Book of Names", built: "The book of names", months: 9, coin: 10, costs: [{stat: "firewood", amount: 40}, {stat: "berries", amount: 40}, {stat: "gems", amount: 2}],
          gives: "A new life is told how the last one ended",
@@ -232,7 +232,7 @@ const townPlaces = [
          lore: "Now a child with no bow can go north: the lodge lends one, and counts the arrows."},
         {work: "Hang the Lodge's Racks", built: "The lodge's racks", months: 6, coin: 10, costs: [{stat: "ashwood", amount: 20}, {stat: "clay", amount: 15}],
          gives: "In a fight a day lasts one turn longer, and every mole digs 1 more stone", note: "Fight days a turn longer, +1 stone a mole", more: [{stat: "stone", amount: 1}],
-         lore: "Spears on the racks, dry and straight. A man who is not mending his gear fights longer."},
+         lore: "Spears on the racks, dry and straight. You fight longer when you're not mending your gear."},
         {work: "Keep the Lodge's Hounds", built: "The lodge's hounds", months: 9, coin: 20, costs: [{stat: "stone", amount: 30}, {stat: "ashwood", amount: 20}],
          gives: "Every beast is found a day sooner",
          lore: "The hounds know the Hollow Woods better than any man of Bellmoor. They are not modest about it."}
