@@ -1768,14 +1768,16 @@ namespace pg
             MockLogger logger;
             RulesFixture f;
 
+            // (the kitchen's charms: the well imp's book is on the chapel library's shelf)
             ElementMap character = boy();
-            character["letters"] = ElementType{1};
-            RuleActivity row = activityAt(f.rules, 9.5f, character, "research.imp");
+            f.rules.done = {{"kitchen", ElementType{1}}};
+            RuleActivity row = activityAt(f.rules, 9.5f, character, "research.brownie");
             EXPECT_TRUE(flag(row.fields, "listed"));
-            EXPECT_EQ(textOf(row.gains[0], "stat"), "know.fam.imp");
+            ASSERT_FALSE(row.gains.empty());
+            EXPECT_EQ(textOf(row.gains[0], "stat"), "know.fam.brownie");
 
-            character["know.fam.imp"] = ElementType{1};
-            EXPECT_FALSE(flag(activityAt(f.rules, 9.5f, character, "research.imp").fields, "listed"));
+            character["know.fam.brownie"] = ElementType{1};
+            EXPECT_FALSE(flag(activityAt(f.rules, 9.5f, character, "research.brownie").fields, "listed"));
         }
 
         // ----------------------------------------------------------------------------------------
@@ -1849,14 +1851,12 @@ namespace pg
 
             EXPECT_EQ(moles, 1u);
 
-            // The chapel primer teaches the imp: no study of the well spirits for who has it
+            // The chapel primer teaches the imp: who has it may bind one without reading of it
             ElementMap reader = boy();
             reader["letters"] = ElementType{1};
-            EXPECT_TRUE(flag(activityAt(f.rules, 9.5f, reader, "research.imp").fields, "listed"));
             EXPECT_FALSE(flag(activityAt(f.rules, 9.5f, reader, "bind.imp").fields, "listed"));
 
             reader["town.chapel"] = ElementType{2};
-            EXPECT_FALSE(flag(activityAt(f.rules, 9.5f, reader, "research.imp").fields, "listed"));
             EXPECT_TRUE(flag(activityAt(f.rules, 9.5f, reader, "bind.imp").fields, "listed"));
         }
 
@@ -2293,12 +2293,10 @@ namespace pg
             EXPECT_NE(train.find("Each sprite makes 1 berry more a month"), std::string::npos) << train;
 
             // A kind learned is said as what he knows
-            ElementMap reader = boy();
-            reader["letters"] = ElementType{1};
-            RuleActivity research = activityAt(f.rules, 9.5f, reader, "research.imp");
+            f.rules.done = {{"kitchen", ElementType{1}}};
+            RuleActivity research = activityAt(f.rules, 9.5f, boy(), "research.brownie");
             ASSERT_EQ(research.gains.size(), 1u);
-            EXPECT_EQ(textOf(research.gains[0], "label"), "KNOWS THE IMP");
-            EXPECT_EQ(textOf(research.gains[0], "name"), "How to bind a well imp");
+            EXPECT_EQ(textOf(research.gains[0], "name"), "How to bind a kitchen brownie");
         }
 
         // No tile, gain, cost or log figure of the economy's rows names a stat by its id: the
@@ -3568,7 +3566,7 @@ namespace pg
             // The steps outside the sequence: the work that took from his Vitality; his rations low,
             // before and after he knows the town; and
             // the town opened, its tab, its market and its places, which are said once in a world
-            const std::vector<std::string> asides = {"guide.vitality", "guide.rations_low", "guide.rations_market", "guide.town", "guide.market", "guide.places"};
+            const std::vector<std::string> asides = {"guide.vitality", "guide.rations_low", "guide.rations_market", "guide.town", "guide.market", "guide.places", "guide.library"};
             const std::vector<std::string> worlds = {"guide.town", "guide.market", "guide.places"};
 
             const int last = 20;
@@ -4146,6 +4144,85 @@ namespace pg
             }
 
             EXPECT_TRUE(seen);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The chapel library opens once the first term of Learning to Read is done: a month, a book
+        TEST(rules_test, the_library_opens_after_the_first_letters_term)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            EXPECT_EQ(textOf(activityAt(f.rules, 7.0f, boy(), "letters").fields, "name"), "Learning to Read");
+            EXPECT_FALSE(flag(activityAt(f.rules, 7.5f, boy(), "library").fields, "listed"));
+
+            f.rules.done = {{"letters", ElementType{1}}};
+            RuleActivity library = activityAt(f.rules, 7.5f, boy(), "library");
+
+            EXPECT_TRUE(flag(library.fields, "listed"));
+            EXPECT_FALSE(flag(library.fields, "locked"));
+            EXPECT_EQ(intOf(library.fields, "months"), 1);
+            EXPECT_EQ(textOf(library.fields, "story"), "library");
+            EXPECT_EQ(textOf(library.fields, "group"), "Study");
+        }
+
+        // It stays while its shelf holds a book he has not read; a bought book is on it
+        TEST(rules_test, the_library_closes_when_its_shelf_is_read)
+        {
+            MockLogger logger;
+            RulesFixture f;
+            f.rules.done = {{"letters", ElementType{1}}};
+
+            ElementMap reader = boy();
+
+            for (const char* book : {"arith", "saints", "tales", "arms", "snares", "spirits"})
+                reader[std::string("read.") + book] = ElementType{1};
+
+            EXPECT_FALSE(flag(activityAt(f.rules, 8.0f, reader, "library").fields, "listed"));
+
+            // The primer, bought in this life or one before: on the shelf, and not read
+            reader["know.library.primer"] = ElementType{1};
+            EXPECT_TRUE(flag(activityAt(f.rules, 8.0f, reader, "library").fields, "listed"));
+
+            reader["read.primer"] = ElementType{1};
+            EXPECT_FALSE(flag(activityAt(f.rules, 8.0f, reader, "library").fields, "listed"));
+        }
+
+        // Bought at the market, the primer goes on the library's shelf for good, and is sold no more
+        TEST(rules_test, a_bought_primer_goes_on_the_shelf)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            ElementMap townsboy = boy();
+            townsboy["town_known"] = ElementType{1};
+            townsboy["coin"] = ElementType{10};
+
+            RuleActivity buy = activityAt(f.rules, 11.0f, townsboy, "buy.primer");
+            EXPECT_TRUE(flag(buy.fields, "listed"));
+            ASSERT_EQ(buy.gains.size(), 1u);
+            EXPECT_EQ(textOf(buy.gains[0], "stat"), "know.library.primer");
+
+            townsboy["know.library.primer"] = ElementType{1};
+            EXPECT_FALSE(flag(activityAt(f.rules, 11.0f, townsboy, "buy.primer").fields, "listed"));
+        }
+
+        // The shelf takes the place of the two studies it holds: the well spirits and the herbal
+        TEST(rules_test, the_library_replaces_two_studies)
+        {
+            MockLogger logger;
+            RulesFixture f;
+
+            std::vector<RuleActivity> activities;
+            ASSERT_TRUE(f.rules.activities(11.0f, boy(), activities)) << firstError(f.rules);
+
+            for (const auto& a : activities)
+            {
+                EXPECT_NE(textOf(a.fields, "id"), "research.imp");
+                EXPECT_NE(textOf(a.fields, "id"), "herbal");
+            }
         }
 
         // ----------------------------------------------------------------------------------------

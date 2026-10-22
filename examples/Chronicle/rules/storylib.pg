@@ -693,6 +693,12 @@ fun giftText(gift)
 {
     if (typeOf(gift.stat) != "none")
     {
+        // (a count the rules keep for themselves, a book read: not said)
+        if (statHidden(gift.stat))
+        {
+            return ""
+        }
+
         if (pick(gift, "said", "") != "")
         {
             return statName(gift.stat) + " " + gift.said
@@ -939,6 +945,15 @@ fun takeTile(id)
 // Leave is asked twice: the first press says what is lost, the second ends the scene as it stands
 fun leaveStory()
 {
+    // A story of one act left before it: nothing is lost, nothing is asked twice or written
+    if (pick(storyNow(), "oneAct", false))
+    {
+        run.ap = 0
+        run.left = 0
+        run.result = "left"
+        return
+    }
+
     if (runOf("leaving") == 0 and runOf("ap") > 0)
     {
         run.leaving = 1
@@ -1011,6 +1026,20 @@ fun endStory()
     {
         itWord = "they"
         its = "their"
+    }
+
+    // A story of one act: its act is the life's line ("You read A Child's Arithmetic"); left
+    // before it, it writes nothing
+    if (pick(story, "oneAct", false))
+    {
+        if (run.result == "over" and pick(run, "took", "") != "")
+        {
+            var act = storyTile(story, run.took)
+
+            push(entries, {text: pick(act, "line", act.name), kind: "note", figure: "", glyph: story.glyph})
+        }
+
+        return
     }
 
     if (run.result == "left")
@@ -2310,7 +2339,7 @@ fun storyHead()
 
     return {story: story.id, zone: "", mode: run.mode,
             kicker: toUpperCase(stage.title),
-            title: story.name, plural: pick(story, "plural", false), line: stage.text,
+            title: story.name, plural: pick(story, "plural", false), oneAct: pick(story, "oneAct", false), line: stage.text,
             day: day, days: runOf("days"), unit: story.unit, dayText: unit + " " + toString(day) + " of " + toString(runOf("days")),
             stage: stage.title, stageText: stageText,
             months: runOf("monthsRun"), monthsTotal: runOf("months"), standing: standingLine(story),

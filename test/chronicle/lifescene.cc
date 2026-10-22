@@ -2312,33 +2312,35 @@ namespace pg
             LifeScene* life = f.life(opt);
             ASSERT_NE(life, nullptr);
 
+            // (the kitchen's charms: the well imp's book is on the chapel library's shelf)
             life->save.stats["rations"] = 24;
-            life->save.stats["letters"] = 1;
+            life->save.done["kitchen"] = 1;
+            life->rules.done = life->save.terms();
 
             life->onMonth();
             f.settle();
 
-            ASSERT_NE(life->piece<ActivityList>("activities")->find(&f.ecs, "research.imp"), nullptr);
+            ASSERT_NE(life->piece<ActivityList>("activities")->find(&f.ecs, "research.brownie"), nullptr);
 
-            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "research.imp"});
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "research.brownie"});
             f.settle();
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "research.imp"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "research.brownie"});
             f.settle();
 
-            ASSERT_EQ(life->save.running, "research.imp");
+            ASSERT_EQ(life->save.running, "research.brownie");
 
-            for (int month = 0; month < 3; ++month)
+            for (int month = 0; month < 2; ++month)
             {
                 life->onMonth();
                 f.frames(12);
             }
 
-            EXPECT_EQ(life->save.knowledge["fam.imp"], 1);
+            EXPECT_EQ(life->save.knowledge["fam.brownie"], 1);
 
             life->newLife();
             f.settle();
 
-            EXPECT_EQ(life->save.knowledge["fam.imp"], 1);
+            EXPECT_EQ(life->save.knowledge["fam.brownie"], 1);
 
             life->save.age = 8.0f;
             life->save.stats["scavenged"] = 2;
@@ -2346,7 +2348,7 @@ namespace pg
             life->onMonth();
             f.settle();
 
-            EXPECT_NE(life->piece<ActivityList>("activities")->find(&f.ecs, "bind.imp"), nullptr);
+            EXPECT_NE(life->piece<ActivityList>("activities")->find(&f.ecs, "bind.brownie"), nullptr);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -5827,6 +5829,11 @@ namespace pg
             EXPECT_EQ(life->step.order, 0);
             next();
 
+            // And his letters open the chapel library: the guide shows it, once
+            EXPECT_EQ(life->step.id, "guide.library");
+            EXPECT_EQ(life->step.order, 0);
+            next();
+
             EXPECT_EQ(life->save.guide, 20);
             EXPECT_EQ(f.fact<int>("life.guide"), 20);
             EXPECT_FALSE(life->guiding());
@@ -9121,7 +9128,7 @@ namespace pg
             }
 
             ASSERT_EQ(gives.size(), 3u);
-            EXPECT_EQ(gives[0], "1 - The chapel windows: Learn Your Letters takes 4 months instead of 6");
+            EXPECT_EQ(gives[0], "1 - The chapel windows: Learning to Read takes 4 months instead of 6");
             EXPECT_EQ(gives[1], "2 - The chapel primer: A new life starts with Letters 1, and a well imp can be bound");
             EXPECT_EQ(gives[2], "3 - The almshouse: Teach the Young pays 4 more coin");
         }
@@ -15997,6 +16004,138 @@ namespace pg
             EXPECT_TRUE(life->reportOpen);
 
             f.load<EmptyScene>();
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The chapel library, from the Life page: a book read takes its month, the row stays for the
+        // books left on the shelf, and the one read is not offered again
+        TEST(lifescene_test, the_library_takes_a_month_for_a_book)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = storyLife(f, storyOptions(8.0f));
+            ASSERT_NE(life, nullptr);
+
+            life->save.done["letters"] = 1;
+            life->rules.done = life->save.terms();
+            life->onMonth();
+            f.settle();
+
+            auto list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list, nullptr);
+            ASSERT_NE(list->find(&f.ecs, "library"), nullptr);
+
+            const float age = life->save.age;
+            const int intBefore = life->save.stats["int"];
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "library"});
+            f.frames(12);
+
+            ASSERT_TRUE(life->onWalk());
+            EXPECT_EQ(runText(life, "story"), "library");
+
+            takeTile(f, life, "arith");
+            f.frames(12);
+
+            EXPECT_FALSE(life->onWalk());
+            EXPECT_NEAR(life->save.age, age + 1.0f / 12.0f, 0.001f);
+            EXPECT_EQ(life->save.stats["int"], intBefore + 1);
+            EXPECT_EQ(life->save.stats["read.arith"], 1);
+            EXPECT_TRUE(life->save.running.empty());
+
+            bool written = false;
+
+            for (const auto& line : life->save.log)
+                written = written or line.text == "You read A Child's Arithmetic";
+
+            EXPECT_TRUE(written);
+
+            // The row is there for the books left; the arithmetic is not offered on the next visit
+            list = life->piece<ActivityList>("activities");
+            ASSERT_NE(list->find(&f.ecs, "library"), nullptr);
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "library"});
+            f.frames(12);
+
+            ASSERT_TRUE(life->onWalk());
+
+            bool arith = false;
+
+            for (const auto& row : life->walk.works)
+                arith = arith or fieldText(row, "id") == "tile.arith";
+
+            EXPECT_FALSE(arith);
+        }
+
+        // Left before a book is read: no month goes by, and nothing is lost
+        TEST(lifescene_test, leaving_the_library_takes_no_month)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = storyLife(f, storyOptions(8.0f));
+            ASSERT_NE(life, nullptr);
+
+            life->save.done["letters"] = 1;
+            life->rules.done = life->save.terms();
+            life->onMonth();
+            f.settle();
+
+            const float age = life->save.age;
+            const size_t lines = life->save.log.size();
+
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "library"});
+            f.frames(12);
+            ASSERT_TRUE(life->onWalk());
+
+            f.ecs.sendEvent(ButtonActivatedEvent{0, "walk.leave"});
+            f.frames(12);
+
+            EXPECT_FALSE(life->onWalk());
+            EXPECT_NEAR(life->save.age, age, 0.001f);
+            EXPECT_TRUE(life->save.running.empty());
+            EXPECT_EQ(life->save.log.size(), lines);
+            EXPECT_FALSE(life->toastUp("The Chapel Library is behind you: you left before its end"));
+            EXPECT_NE(life->piece<ActivityList>("activities")->find(&f.ecs, "library"), nullptr);
+        }
+
+        // A first life is told of the library the first time it opens
+        TEST(lifescene_test, the_guide_points_at_the_library_once)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeSceneOptions opt = LifeFixture::first();
+            opt.age = 7.0f;
+
+            LifeScene* life = f.life(opt);
+            ASSERT_NE(life, nullptr);
+
+            life->save.stats["rations"] = 24;
+            life->save.done["letters"] = 1;
+            life->rules.done = life->save.terms();
+            life->onMonth();
+            f.settle();
+
+            bool told = false;
+
+            // (what the guide still has to say of the classes comes first)
+            for (int guard = 0; guard < 6 and not told; ++guard)
+            {
+                told = life->step.active and life->step.id == "guide.library";
+
+                if (not told)
+                {
+                    f.pass(10000.0f);
+                    f.settle();
+                }
+            }
+
+            ASSERT_TRUE(told);
+            EXPECT_EQ(life->handOn, life->piece<ActivityList>("activities")->find(&f.ecs, "library")->root.id);
         }
     }
 }

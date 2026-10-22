@@ -156,7 +156,7 @@ const townPlaces = [
     {id: "chapel", name: "The Chapel", glyph: "study", shows: {flag: "collegium"}, about: "Father Anselm's chapel, and the only school in Bellmoor.",
      levels: [
         {work: "Glaze the Chapel Windows", built: "The chapel windows", months: 6, coin: 5, costs: [{stat: "water", amount: 20}, {stat: "clay", amount: 20}], cheaper: {flag: "plague_stayed", coin: 0},
-         gives: "Learn Your Letters takes 4 months instead of 6",
+         gives: "Learning to Read takes 4 months instead of 6",
          lore: "There is light to read by now, even in winter."},
         {work: "Give the Chapel a Primer", built: "The chapel primer", months: 9, coin: 10, costs: [{stat: "water", amount: 40}, {stat: "clay", amount: 20}, {stat: "gems", amount: 2}, {stat: "letters"}],
          gives: "A new life starts with Letters 1, and a well imp can be bound", note: "Letters 1 at birth, and the well imp", start: [{stat: "letters"}], teaches: "imp",

@@ -226,6 +226,10 @@ var achievements = [
     {id: "guide.vitality", kind: "guide", order: 0, point: "stat:vit", hold: 4000,
      say: "This task cost you Vitality. It comes back over time, as long as you have food.",
      asks: [{fact: "working.sacks", op: ">=", value: 1}]},
+    // Said once, the month the chapel library opens to him: the first term of Learning to Read
+    {id: "guide.library", kind: "guide", order: 0, point: "tile:library", hold: 6000,
+     say: "You can read now! Visit the chapel library and pick a book.",
+     asks: [{fact: "done.letters", op: ">=", value: 1}]},
     // Said once, the month his rations run low after his sixth year (which has its own word
     // for it): to the market for who has not been. It gives no number of months: with familiars
     // bound, three rations last less than three, and the warning over the page says how long

@@ -1025,6 +1025,7 @@ namespace chronicle
         const std::string result = textOf(walk.state.run, "result");
         const std::string name = textOf(walk.site, "title");
         const bool plural = boolOf(walk.site, "plural");
+        const bool oneAct = boolOf(walk.site, "oneAct");
 
         // The row that opened it: the story's own (`story`), done by now if its term came
         std::string row;
@@ -1088,6 +1089,14 @@ namespace chronicle
 
         // (a name that is a plural, the Outskirts, are behind him)
         const std::string behind = name + (plural ? " are behind you" : " is behind you");
+
+        // A story of one act (the chapel library) says nothing more: what it did is the log's line,
+        // and left, nothing was lost
+        if (oneAct)
+        {
+            autoSave();
+            return;
+        }
 
         if (result == "pass")
             toast(behind + ": passed");

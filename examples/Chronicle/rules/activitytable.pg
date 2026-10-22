@@ -463,12 +463,12 @@ var activities = [
      gains: [{stat: "snare_wire"}],
      requires: [{stat: "town_known", label: "The town"}],
      costs: [{stat: "coin", amount: 2}]},
-    // ...and a primer of the herbal before the herbal itself (sold until his prime ends, when the
-    // herbal closes)
+    // ...and a primer of the herbal, the first book sold: bought, it is on the chapel library's
+    // shelf for every life after (lib.pg's `libraryBooks`), and never sold again
     {id: "buy.primer", group: "Market", name: "Buy a Herbal Primer", glyph: "study", months: 0, rank: "", each: "AT THE MARKET", path: "", fromAge: 10, fromMonths: 6, showFrom: 100, uses: 1,
-     place: "market", trade: "buy",
-     about: "A few pages of leaves and roots, badly copied and sold dear. With it, and your letters, you can learn the herbal.",
-     gains: [{stat: "herbal_primer"}],
+     place: "market", trade: "buy", whileNot: "know.library.primer",
+     about: "A few pages of leaves and roots, badly copied and sold dear. Once bought, it stays on the chapel library's shelf for good.",
+     gains: [{stat: "know.library.primer"}],
      requires: [{stat: "town_known", label: "The town"}],
      costs: [{stat: "coin", amount: 4}]},
     {id: "buy.sword", group: "Market", name: "Buy a Sword", glyph: "swordsmanship", months: 0, rank: "", each: "AT THE MARKET", path: "", finishBy: anyAge, showFrom: 100, uses: 1,
@@ -552,13 +552,21 @@ var activities = [
      gains: [{stat: "dex"}, {stat: "arms"}, {stat: "thrust_learned"}],
      requires: [{stat: "blade_basics", label: "The basics of the blade"}]},
 
-    {id: "letters", group: "Study", name: "Learn Your Letters", glyph: "quill", months: 6, rank: "", each: "READ THE BEAST", path: "", finishBy: 14,
+    {id: "letters", group: "Study", name: "Learning to Read", glyph: "quill", months: 6, rank: "", each: "READ THE BEAST", path: "", finishBy: 14,
      about: "Father Anselm teaches letters to anyone who will sit still. You want to read the books he carries.",
      gains: [{stat: "letters"}, {stat: "int"}],
      requires: [],
      after: [{uses: 3, gains: [{stat: "letters"}]}],
      costs: [{stat: "firewood", amount: 2}],
      bonus: [{stat: "town.chapel", months: 4}, {stat: "int", needed: 8, months: 4}]},
+    // The chapel library (storytable.pg's `library`): opened by the first term of his letters, a
+    // month and one book a visit, and open while its shelf holds a book he has not read (lib.pg's
+    // `libraryBooks`, `shelf`). Leaving it without reading takes no month
+    {id: "library", group: "Study", name: "Visit the Chapel Library", glyph: "study", months: 1, rank: "", each: "A BOOK A VISIT", path: "", fromAge: 7, finishBy: anyAge, showFrom: 100,
+     story: "library", shelf: true,
+     about: "Father Anselm keeps a shelf of books for anyone who can read them. Now you can.",
+     gains: [],
+     requires: [{stat: "done.letters", label: "Learning to Read, once"}]},
     {id: "chapel", group: "Study", name: "Serve at the Chapel", glyph: "study", months: 9, rank: "", each: "", path: "", fromAge: 9, fromMonths: 6, finishBy: 15, uses: 2,
      about: "Candles, prayers and long Latin words. Father Anselm makes you read them aloud.",
      gains: [{stat: "letters"}, {stat: "discipline"}],
@@ -587,16 +595,12 @@ var activities = [
      about: "The top shelf of the chapel library has a lock, and the lock has been broken for years. Nobody will thank you for what you read there.",
      gains: [{stat: "lore"}, {stat: "forbidden_read"}],
      requires: [{stat: "letters", needed: 2}]},
-    // Three kinds of familiar are learned from books and a hearth rather than from a fight: the
+    // Two kinds of familiar are learned from a book and a hearth rather than from a fight (the well
+    // imp's book is on the chapel library's shelf, lib.pg's `libraryBooks`): the
     // world keeps what is learned (the stat "know.fam.<id>"), so the next life can bind them. A
     // kind that is his already, learned or taught by a level of the town, is not studied again.
     // The gem weaver is the Old Grey's secret too, but the gems the town's higher levels ask must
     // not wait on a boss: a reader with some lore learns it in the middle of a life
-    {id: "research.imp", group: "Study", name: "Read of the Well Spirits", glyph: "study", months: 3, rank: "", each: "LEARNS A KIND OF FAMILIAR", path: "", fromAge: 9, uses: 1,
-     whileUnknown: "imp",
-     about: "The chapel keeps a book about the things that live in wells, and what they will fetch for you.",
-     gains: [{stat: "know.fam.imp"}],
-     requires: [{stat: "letters"}]},
     {id: "research.brownie", group: "Study", name: "Learn the Kitchen Charms", glyph: "study", months: 2, rank: "", each: "LEARNS A KIND OF FAMILIAR", path: "", fromAge: 8, uses: 1,
      whileUnknown: "brownie",
      about: "The cook knows a charm or two for the hearth, and what to leave out for whoever keeps it.",
@@ -608,12 +612,6 @@ var activities = [
      costs: [{stat: "stone", amount: 5}, {stat: "water", amount: 5}],
      gains: [{stat: "know.fam.weaver"}],
      requires: [{stat: "letters", needed: 2}, {stat: "lore"}]},
-    // The herbal: nothing for his stats, and a thing to do on every walk from then on (he brews
-    // a remedy where he stands, expeditionlib.pg)
-    {id: "herbal", group: "Study", name: "Learn the Herbal", glyph: "study", months: 2, rank: "", each: "BREW ON A WALK", path: "", fromAge: 10, fromMonths: 6, uses: 1,
-     about: "Which leaf, which root, how long over the fire. On a walk where you camp, you can turn two wortleaf into a remedy.",
-     gains: [{stat: "herbal"}],
-     requires: [{stat: "letters"}, {stat: "herbal_primer", label: "A herbal primer, from the market"}]},
     {id: "mara", group: "Study", name: "Lessons with Mara", glyph: "magic", months: 12, rank: "", each: "RIME", path: "", fromAge: 15, fromMonths: 4, finishBy: 17, uses: 1,
      about: "Mara lives alone past the mill and knows things the chapel won't teach. Her first lesson is rime, a frost called out of nothing.",
      gains: [{stat: "lore", amount: 2}, {stat: "discipline"}, {stat: "mara_student"}],
@@ -2412,6 +2410,12 @@ for (var i = 0; i < len(activities); i++)
         {
             a.listed = false
         }
+    }
+
+    // The chapel library: open while its shelf holds a book he has not read
+    if (lookup(a, "shelf", false) and libraryUnread(character) == 0)
+    {
+        a.listed = false
     }
 
     // What teaches a kind of familiar has no row once the kind is his, however it came

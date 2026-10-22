@@ -264,6 +264,12 @@ fun statShortName(stat)
 // the log leave it out of what a work brings.
 fun statHidden(stat)
 {
+    // (a book of the chapel library read in this life: the shelf's own count)
+    if (startsWith(stat, "read."))
+    {
+        return true
+    }
+
     for (var h = 0; h < len(hiddenStats); h++)
     {
         if (hiddenStats[h] == stat)
@@ -1335,6 +1341,39 @@ var noBreak = " "
 // but no tile, gloss or log line shows them as something it brings. What asks for one may still
 // name it, under its name below: the requirement says why a row has opened.
 const hiddenStats = ["scavenged"]
+
+// The chapel library's shelf (activitytable.pg's `library`, storytable.pg's `library` story: its
+// tiles are these books, in this order). A book read is the life's flag "read.<id>"; one with an
+// `onShelf` is there once the world holds that stat (a book bought at the market, for every life
+// after). Each takes a month; what it gives is its tile's.
+const libraryBooks = [
+    {id: "arith", name: "A Child's Arithmetic", onShelf: ""},
+    {id: "saints", name: "The Lives of the Saints", onShelf: ""},
+    {id: "tales", name: "Tales of Old Bellmoor", onShelf: ""},
+    {id: "arms", name: "The Sergeant's Manual of Arms", onShelf: ""},
+    {id: "snares", name: "On Snares and Deadfalls", onShelf: ""},
+    {id: "spirits", name: "The Book of Well Spirits", onShelf: ""},
+    {id: "primer", name: "A Herbal Primer", onShelf: "know.library.primer"}
+]
+
+// The books on the library's shelf he has not read yet in this life
+fun libraryUnread(character)
+{
+    var unread = 0
+
+    for (var b = 0; b < len(libraryBooks); b++)
+    {
+        var book = libraryBooks[b]
+        var shelved = book.onShelf == "" or statOf(character, book.onShelf) > 0
+
+        if (shelved and statOf(character, "read." + book.id) <= 0)
+        {
+            unread = unread + 1
+        }
+    }
+
+    return unread
+}
 
 // His parts and his skills, as the Life page lists them: what a work may go better with (the steps
 // of its `bonus` on one of them are said in its gloss, `bonusStepLabel`).

@@ -2709,5 +2709,98 @@ namespace pg
             EXPECT_EQ(intOf(w.last.site, "gives.outskirts.nature"), 0);
             EXPECT_EQ(intOf(w.last.site, "fee.coin"), 0);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The chapel library: one book read is the whole visit, its one month, and the life's line
+        TEST(story_test, the_library_reads_one_book)
+        {
+            MockLogger logger;
+            Walker w(boyOfEleven());
+            w.age = 8.0f;
+
+            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "library", 0}));
+            ASSERT_NE(w.work("arith"), nullptr);
+
+            const int before = intOf(w.character, "int");
+
+            ASSERT_TRUE(w.take("arith"));
+
+            EXPECT_EQ(w.screen(), "done");
+            EXPECT_EQ(textOf(w.state.run, "result"), "over");
+            EXPECT_EQ(intOf(w.state.run, "monthsDue"), 1);
+            EXPECT_EQ(intOf(w.last.after, "int"), before + 1);
+            EXPECT_EQ(intOf(w.last.after, "read.arith"), 1);
+
+            std::vector<std::string> lines;
+
+            for (const auto& e : w.last.entries)
+                lines.push_back(textOf(e, "text"));
+
+            EXPECT_EQ(lines, std::vector<std::string>{"You read A Child's Arithmetic"});
+        }
+
+        // Left before a book is read: no month, nothing written, nothing lost, and no second press
+        TEST(story_test, leaving_the_library_costs_nothing)
+        {
+            MockLogger logger;
+            Walker w(boyOfEleven());
+            w.age = 8.0f;
+
+            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "library", 0}));
+            ASSERT_TRUE(w.act("leave"));
+
+            EXPECT_EQ(w.screen(), "done");
+            EXPECT_EQ(textOf(w.state.run, "result"), "left");
+            EXPECT_EQ(intOf(w.state.run, "monthsDue"), 0);
+            EXPECT_EQ(intOf(w.state.run, "monthsRun"), 0);
+            EXPECT_TRUE(w.last.entries.empty());
+        }
+
+        // A book read in this life is not on the shelf for it; the primer waits for the world to buy it
+        TEST(story_test, the_library_shelf_holds_what_is_unread)
+        {
+            MockLogger logger;
+            ElementMap reader = boyOfEleven();
+            reader["read.arith"] = ElementType{1};
+
+            Walker w(reader);
+            w.age = 8.0f;
+
+            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "library", 0}));
+            EXPECT_EQ(w.work("arith"), nullptr);
+            EXPECT_NE(w.work("saints"), nullptr);
+            EXPECT_EQ(w.work("primer"), nullptr);
+
+            reader["know.library.primer"] = ElementType{1};
+            Walker bought(reader);
+            bought.age = 8.0f;
+
+            ASSERT_TRUE(bought.ask("enter", WalkAct{"story", "library", 0}));
+            ASSERT_NE(bought.work("primer"), nullptr);
+            ASSERT_TRUE(bought.take("primer"));
+            EXPECT_EQ(intOf(bought.last.after, "herbal"), 1);
+        }
+
+        // The story's tiles are the shelf of lib.pg, book for book
+        TEST(story_test, the_library_tiles_are_the_shelf)
+        {
+            MockLogger logger;
+            ElementMap reader = boyOfEleven();
+            reader["know.library.primer"] = ElementType{1};
+
+            Walker w(reader);
+            w.age = 8.0f;
+
+            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "library", 0}));
+
+            std::vector<std::string> tiles;
+
+            for (const auto& row : w.last.works)
+                tiles.push_back(textOf(row, "id"));
+
+            EXPECT_EQ(tiles, (std::vector<std::string>{"tile.arith", "tile.saints", "tile.tales", "tile.arms", "tile.snares", "tile.spirits", "tile.primer"}));
+        }
     }
 }
