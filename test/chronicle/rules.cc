@@ -2955,24 +2955,24 @@ namespace pg
             MockLogger logger;
             RulesFixture f;
 
-            auto berriesAt = [&](int dex) {
+            auto stoneAt = [&](int str) {
                 ElementMap picker = boy();
-                picker["dex"] = ElementType{dex};
+                picker["str"] = ElementType{str};
 
-                RuleActivity row = activityAt(f.rules, 8.0f, picker, "scavenge.berries");
+                RuleActivity row = activityAt(f.rules, 8.0f, picker, "scavenge.stone");
 
                 for (const auto& g : row.gains)
                 {
-                    if (textOf(g, "stat") == "berries")
+                    if (textOf(g, "stat") == "stone")
                         return intOf(g, "amount");
                 }
 
                 return -1;
             };
 
-            EXPECT_EQ(berriesAt(7), 6);
-            EXPECT_EQ(berriesAt(8), 9);
-            EXPECT_EQ(berriesAt(12), 12);
+            EXPECT_EQ(stoneAt(8), 3);
+            EXPECT_EQ(stoneAt(9), 5);
+            EXPECT_EQ(stoneAt(13), 7);
 
             // The carters take a strong boy for two months, not three: the pay stays, and the
             // rations up front are the two months'
@@ -2997,21 +2997,17 @@ namespace pg
             EXPECT_EQ(intOf(activityAt(f.rules, 8.0f, bright, "letters").fields, "months"), 4);
 
             // What each step would give is said before he has it, and marked once he has
-            ElementMap deft = boy();
-            deft["dex"] = ElementType{8};
+            RuleActivity stone = activityAt(f.rules, 8.0f, strong, "scavenge.stone");
+            ASSERT_EQ(stone.steps.size(), 2u);
+            EXPECT_EQ(textOf(stone.steps[0], "label"), "With Strength 9: +2 stone");
+            EXPECT_TRUE(flag(stone.steps[0], "reached"));
+            EXPECT_EQ(textOf(stone.steps[1], "label"), "With Strength 13: +4 stone");
+            EXPECT_FALSE(flag(stone.steps[1], "reached"));
 
-            RuleActivity berries = activityAt(f.rules, 8.0f, deft, "scavenge.berries");
-            ASSERT_EQ(berries.steps.size(), 2u);
-            EXPECT_EQ(textOf(berries.steps[0], "label"), "With Dexterity 8: +3 berries");
-            EXPECT_TRUE(flag(berries.steps[0], "reached"));
-            EXPECT_EQ(textOf(berries.steps[1], "label"), "With Dexterity 12: +6 berries");
-            EXPECT_FALSE(flag(berries.steps[1], "reached"));
-
-            RuleActivity firewood = activityAt(f.rules, 8.0f, boy(), "scavenge.firewood");
-            ASSERT_EQ(firewood.steps.size(), 2u);
-            EXPECT_EQ(textOf(firewood.steps[0], "label"), "With Strength 8: +2 firewood");
-            EXPECT_EQ(textOf(firewood.steps[1], "label"), "With Strength 12: +4 firewood");
-            EXPECT_FALSE(flag(firewood.steps[0], "reached"));
+            RuleActivity water = activityAt(f.rules, 8.0f, boy(), "scavenge.water");
+            ASSERT_EQ(water.steps.size(), 1u);
+            EXPECT_EQ(textOf(water.steps[0], "label"), "With Strength 8: +4 water");
+            EXPECT_FALSE(flag(water.steps[0], "reached"));
 
             carters = activityAt(f.rules, 8.0f, strong, "carters");
             ASSERT_EQ(carters.steps.size(), 1u);
@@ -3124,7 +3120,7 @@ namespace pg
 
             // (the first walk outside the town is among them, right under his work)
             // (and, the town being known, what its market sells and the works that raise its places)
-            EXPECT_EQ(listed(7.0f, seven), (Ids{"carters", "mill", "pies", "scavenge.berries", "scavenge.water", "scavenge.firewood", "walk.hedgerows", "buy.rations", "letters", "keep", "collegium", "hand", "buy.water", "buy.firewood", "buy.stone", "raise.market.1", "raise.mill.1"}));
+            EXPECT_EQ(listed(7.0f, seven), (Ids{"carters", "mill", "pies", "scavenge.water", "walk.hedgerows", "buy.rations", "letters", "keep", "collegium", "hand", "buy.water", "buy.firewood", "buy.stone", "raise.market.1", "raise.mill.1"}));
         }
 
         // ----------------------------------------------------------------------------------------
@@ -3201,7 +3197,7 @@ namespace pg
             for (const char* id : {"glean", "flour", "wheel", "scribe", "tome", "knots", "sacks", "sing", "harvest", "outskirts"})
                 EXPECT_TRUE(std::find(seven.begin(), seven.end(), id) == seven.end()) << id;
 
-            EXPECT_EQ(seven, (Ids{"tomarket", "carters", "mill", "pies", "scavenge.berries", "scavenge.water", "scavenge.firewood", "walk.hedgerows", "letters", "keep", "collegium", "hand"}));
+            EXPECT_EQ(seven, (Ids{"tomarket", "carters", "mill", "pies", "scavenge.water", "walk.hedgerows", "letters", "keep", "collegium", "hand"}));
         }
 
         // ----------------------------------------------------------------------------------------

@@ -1116,6 +1116,30 @@ fun doSeek(mobId, count)
     }
 }
 
+// What his parts add to each gathering of a spot: every step of its `bonus` he has reached (two
+// steps on one stat add up, as an activity row's do)
+fun spotBonus(spot)
+{
+    var steps = pick(spot, "bonus", [])
+    var more = 0
+
+    for (var s = 0; s < len(steps); s++)
+    {
+        if (mine(steps[s].stat) >= steps[s].needed)
+        {
+            for (var m = 0; m < len(steps[s].more); m++)
+            {
+                if (steps[s].more[m].stat == spot.id)
+                {
+                    more = more + steps[s].more[m].amount
+                }
+            }
+        }
+    }
+
+    return more
+}
+
 fun doGather(spotId)
 {
     var zone = zoneOf(run.zone)
@@ -1141,7 +1165,7 @@ fun doGather(spotId)
 
     openStep("gather", spot.id, 1, spot.ap, "Gathered " + toLowerCase(itemOf(spot.id).name), "work")
 
-    var found = rollBetween(spot.least, spot.most)
+    var found = rollBetween(spot.least, spot.most) + spotBonus(spot)
 
     // Porters carry half again as much home
     if (mine("porters") > 0)
@@ -1150,6 +1174,15 @@ fun doGather(spotId)
     }
 
     give(spot.id, found)
+
+    // A gathering by hand counts a scavenge, as a month of the Scavenge rows does: a mark of its
+    // own, so that a walk by the record counts it again (`replayTerm`)
+    if (pick(spot, "scavenge", false))
+    {
+        after.scavenged = mine("scavenged") + 1
+        push(marks, {step: len(record), kind: "stat", id: "scavenged", n: 1})
+    }
+
     closeStep()
 
     maybeEvent("gather")
@@ -1956,11 +1989,12 @@ fun workRows()
         }
 
         var item = itemOf(spot.id)
-        var note = toString(spot.least)
+        var more = spotBonus(spot)
+        var note = toString(spot.least + more)
 
         if (spot.most > spot.least)
         {
-            note = note + "–" + toString(spot.most)
+            note = note + "–" + toString(spot.most + more)
         }
 
         var amount = note
@@ -1985,8 +2019,29 @@ fun workRows()
             brings = brings + ", to sell"
         }
 
-        push(rows, workRow("gather." + spot.id, "Gather " + toLowerCase(item.name), note, spot.ap, "", "",
-                           pick(item, "gather", ""), daysText(spot.ap) + " of the stay", brings))
+        var row = workRow("gather." + spot.id, "Gather " + toLowerCase(item.name), note, spot.ap, "", "",
+                          pick(item, "gather", ""), daysText(spot.ap) + " of the stay", brings)
+
+        // What a part of his would make of it, a line a step, as an activity's gloss says them
+        // (lib.pg's `bonusStepLabel`): the first `bonusReached` of them he has (a spot's steps are
+        // one ladder, the lowest first)
+        var steps = pick(spot, "bonus", [])
+        var lines = []
+        row.bonusReached = 0
+
+        for (var s = 0; s < len(steps); s++)
+        {
+            push(lines, bonusStepLabel(steps, s, 0, []))
+
+            if (mine(steps[s].stat) >= steps[s].needed)
+            {
+                row.bonusReached = row.bonusReached + 1
+            }
+        }
+
+        row.bonus = joined(lines, "\n")
+
+        push(rows, row)
     }
 
     var studies = mine("know.study." + zone.id)

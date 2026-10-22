@@ -1997,6 +1997,27 @@ namespace chronicle
             if (const std::string gives = textOf(w, "gives"); not gives.empty())
                 gloss.rows.push_back({"Gives", gives, "gain"});
 
+            // What a part of his would make of a gathering, a line a step, as a work's gloss on
+            // the Life page says them: in the gain's colour once he has it, plain until then
+            if (const std::string bonus = textOf(w, "bonus"); not bonus.empty())
+            {
+                gloss.rows.push_back({"BONUS", "", "", true});
+
+                const int reached = intOf(w, "bonusReached");
+                size_t start = 0;
+
+                for (int i = 0; start <= bonus.size(); ++i)
+                {
+                    size_t end = bonus.find('\n', start);
+
+                    if (end == std::string::npos)
+                        end = bonus.size();
+
+                    gloss.rows.push_back({bonus.substr(start, end - start), "", i < reached ? "gain" : ""});
+                    start = end + 1;
+                }
+            }
+
             if (intOf(w, "locked") > 0)
             {
                 lockRow(row, textOf(w, "asks"));

@@ -354,7 +354,7 @@ var activities = [
      requires: [],
      after: [{uses: 2, gains: [{stat: "coin", amount: 5}]}],
      bonus: [{stat: "dex", needed: 9, months: 2}]},
-    // What the first berries he scavenges are for: six of them, which are his to bring, baked into
+    // What the first berries he picks at the hedge are for: six of them, which are his to bring, baked into
     // pies on the square. Its row stands from seven with none held (a cost is a requirement, and a
     // requirement is not what lists a row), locked until he has them
     {id: "pies", group: "Work", name: "Bake Berry Pies with the Baker", glyph: "trade", months: 2, rank: "", each: "", path: "", fromAge: 7, uses: 2,
@@ -1306,7 +1306,8 @@ for (var s = 0; s < len(storeCopies); s++)
 
 // A familiar is bound to him for life, one row a kind: it costs what the kind's bind asks and
 // fills a slot: while no slot is free, no bind row is listed. The first known kind waits for the
-// second scavenge, so it comes once he has worked the land twice; a kind he has not learned is
+// second scavenge, so it comes once he has worked the land twice (a gathering of berries or
+// firewood at the Hedgerows counts one: expeditiontable.pg's `scavenge`); a kind he has not learned is
 // not listed. The row says what the creature eats and makes, its tile in short and its gloss in a
 // sentence, so that the upkeep is known before he binds it.
 var bindCopies = []

@@ -19,7 +19,10 @@
 //         `walkZones`  one table per place he can walk to:
 //                        {id, name, kind (forage | hunt), line, travel (days, one way),
 //                         stayMin, stayMax (days on site: the longer one from zone knowledge 3),
-//                         mobs [mob id], spots [{id (an item), ap, least, most}], events [event id],
+//                         mobs [mob id], spots [{id (an item), ap, least, most, bonus?}], events [event id],
+//                         (a spot's `bonus` is an activity row's: [{stat, needed, more [{stat, amount}]}],
+//                         each step he has reached adds its `more` of the spot's item to each gathering;
+//                         `scavenge: true` makes each gathering of it count one stat "scavenged"),
 //                         fromAge, showAge?, showAfter?, requires [...] (as an activity's, activitytable.pg),
 //                         sooner? ({flag, fromAge}: with that flag held it is his from that age),
 //                         opens (what its row's gloss says of it)}
@@ -218,7 +221,12 @@ const walkZones = [
              {until: 99, text: "The same hedge. The children picking at it are not the ones he remembers."}],
      travel: 1, stayMin: 7, stayMax: 9,
      mobs: [],
-     spots: [{id: "berries", ap: 1, least: 1, most: 3}, {id: "firewood", ap: 2, least: 1, most: 4}, {id: "wortleaf", ap: 2, least: 1, most: 3},
+     // A deft boy picks more berries, a strong one carries more wood: the steps the scavenging
+     // rows had before the walk took their place (economytable.pg). Each gathering of them counts
+     // a scavenge, as a month of those rows did (`scavenge`: the hedge sprite waits for two)
+     spots: [{id: "berries", ap: 1, least: 1, most: 3, scavenge: true, bonus: [{stat: "dex", needed: 8, more: [{stat: "berries", amount: 1}]}, {stat: "dex", needed: 12, more: [{stat: "berries", amount: 1}]}]},
+             {id: "firewood", ap: 2, least: 1, most: 4, scavenge: true, bonus: [{stat: "str", needed: 8, more: [{stat: "firewood", amount: 1}]}, {stat: "str", needed: 12, more: [{stat: "firewood", amount: 1}]}]},
+             {id: "wortleaf", ap: 2, least: 1, most: 3},
              {id: "hazel", ap: 1, least: 1, most: 3}],
      ladder: [{task: "pond", level: 2, says: "exploring the nearby pond, a task of his life"}, {task: "wortleaf", level: 3}, {task: "hazel", level: 4}],
      events: ["hedge.nest", "hedge.keeper"],

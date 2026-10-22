@@ -2106,7 +2106,7 @@ namespace pg
         }
 
         // What he gathers by hand is counted, but the count is the rules' own: the tile, its gloss
-        // and the log say the berries alone
+        // and the log say the water alone
         TEST(lifescene_test, gathering_shows_no_count_of_it)
         {
             MockLogger logger;
@@ -2124,10 +2124,10 @@ namespace pg
             life->onMonth();
             f.settle();
 
-            auto tile = life->piece<ActivityList>("activities")->find(&f.ecs, "scavenge.berries");
+            auto tile = life->piece<ActivityList>("activities")->find(&f.ecs, "scavenge.water");
             ASSERT_NE(tile, nullptr);
             ASSERT_EQ(tile->spec.gains.size(), 1u);
-            EXPECT_EQ(tile->spec.gains[0].amount, 6);
+            EXPECT_EQ(tile->spec.gains[0].amount, 8);
 
             auto registry = f.ecs.getSystem<GlossRegistry>();
             ASSERT_NE(registry, nullptr);
@@ -2137,11 +2137,11 @@ namespace pg
             for (const auto& row : gloss->rows)
                 EXPECT_EQ(row.label.find("gathered by hand"), std::string::npos) << row.label;
 
-            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "scavenge.berries"});
+            f.ecs.sendEvent(ActivitySelectedEvent{"life.activities", "scavenge.water"});
             f.settle();
-            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "scavenge.berries"});
+            f.ecs.sendEvent(ActivityActivatedEvent{"life.activities", "scavenge.water"});
             f.settle();
-            ASSERT_EQ(life->save.running, "scavenge.berries");
+            ASSERT_EQ(life->save.running, "scavenge.water");
 
             const size_t before = life->save.log.size();
             life->onMonth();
@@ -2150,18 +2150,18 @@ namespace pg
             EXPECT_EQ(life->save.stats["scavenged"], 1);
             ASSERT_GT(life->save.log.size(), before);
 
-            bool berries = false;
+            bool water = false;
 
             for (size_t i = before; i < life->save.log.size(); ++i)
             {
                 const std::string& figure = life->save.log[i].figure;
                 EXPECT_EQ(figure.find("scavenged"), std::string::npos) << figure;
 
-                if (figure.find("berries") != std::string::npos)
-                    berries = true;
+                if (figure.find("water") != std::string::npos)
+                    water = true;
             }
 
-            EXPECT_TRUE(berries);
+            EXPECT_TRUE(water);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2183,7 +2183,7 @@ namespace pg
             ASSERT_NE(life, nullptr);
 
             life->save.stats["rations"] = 24;
-            life->save.stats["dex"] = 8;
+            life->save.stats["str"] = 9;
             life->onMonth();
             f.settle();
 
@@ -2211,15 +2211,15 @@ namespace pg
 
             auto steps = section(picking, "BONUS");
             ASSERT_EQ(steps.size(), 2u);
-            EXPECT_EQ(steps[0].label, "With Dexterity 8: +3 berries");
+            EXPECT_EQ(steps[0].label, "With Strength 9: +2 stone");
             EXPECT_EQ(steps[0].tone, "gain");
-            EXPECT_EQ(steps[1].label, "With Dexterity 12: +6 berries");
+            EXPECT_EQ(steps[1].label, "With Strength 13: +4 stone");
             EXPECT_EQ(steps[1].tone, "");
 
-            // And the reward says what is the work's and what is his Dexterity's
+            // And the reward says what is the work's and what is his Strength's
             auto reward = section(picking, "REWARD");
             ASSERT_EQ(reward.size(), 1u);
-            EXPECT_EQ(reward[0].value, "+9 (6 + 3)");
+            EXPECT_EQ(reward[0].value, "+5 (3 + 2)");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -10970,11 +10970,17 @@ namespace pg
             ASSERT_NE(gloss, nullptr);
             EXPECT_EQ(gloss->title, "Gather berries");
             EXPECT_FALSE(gloss->text.empty());
-            ASSERT_EQ(gloss->rows.size(), 2u);
+            ASSERT_EQ(gloss->rows.size(), 5u);
             EXPECT_EQ(gloss->rows[0].label, "Costs");
             EXPECT_EQ(gloss->rows[0].value, "1 day of the stay");
             EXPECT_EQ(gloss->rows[1].label, "Gives");
             EXPECT_NE(gloss->rows[1].value.find("berries, to sell"), std::string::npos);
+
+            // And what his Dexterity would make of the picking, as a work's gloss on the Life page says it
+            EXPECT_TRUE(gloss->rows[2].heading);
+            EXPECT_EQ(gloss->rows[2].label, "BONUS");
+            EXPECT_EQ(gloss->rows[3].label, "With Dexterity 8: +1 berry");
+            EXPECT_EQ(gloss->rows[4].label, "With Dexterity 12: +2 berries");
 
             // Every work there is has one (a first visit: berries, firewood and a study)
             for (const char* id : {"gather.firewood", "study"})

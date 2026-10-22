@@ -886,8 +886,13 @@ The basics have limits (berries 30, water 40, firewood 30, stone 20, clay 20, ge
 store raises one for the life: `limitOf` adds the stat `store.<id>` to the base, and the rows of
 *Your stores* (`economytable.pg`'s `storeRows`, listed once he holds some of the resource,
 `onlyWith`) bring 20 of it a term, three terms each. What familiars make stops at the limit
-(`shiftIn`); scavenging (`scavengeRows`, the group *Scavenge*, each term also counting the stat
-`scavenged`) is locked by its room like any other row. `scavenged` is one of `lib.pg`'s
+(`shiftIn`); scavenging (`scavengeRows`, the group *Scavenge*: water and stone, each term also counting the stat
+`scavenged`) is locked by its room like any other row. Berries and firewood have no scavenging row:
+the Hedgerows walk gathers them, and its spots carry the steps a row's `bonus` would (a spot's
+`bonus`, `expeditionlib.pg`'s `spotBonus`: Dexterity 8 and 12 a berry more each gathering,
+Strength 8 and 12 a firewood more), said in the BONUS lines of the work's gloss. Each gathering
+of them counts a scavenge too (a spot's `scavenge: true`, written as a `stat` mark so a walk by the
+record counts it again): two of them open the hedge sprite, as two months of scavenging do. `scavenged` is one of `lib.pg`'s
 `hiddenStats`: a count the rules keep for themselves, gained like any other but marked `hidden` on
 the row's gains, so no tile chip, gloss REWARD line or log figure shows it (what asks for it still
 names it). *Dry berries* (`dry.berries`, three berries to a ration, at once) stands in *Scavenge*

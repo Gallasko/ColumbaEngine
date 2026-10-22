@@ -450,6 +450,63 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        // A deft boy picks more berries at the hedge, a strong one carries more wood: each step of
+        // a spot's bonus he has reached adds to every gathering, and its work says so. Each
+        // gathering of them counts a scavenge
+        TEST(expedition_test, a_deft_or_strong_boy_gathers_more_at_the_hedge)
+        {
+            MockLogger logger;
+
+            ElementMap able = gatherer();
+            able["dex"] = ElementType{12};
+            able["str"] = ElementType{8};
+
+            Walker plain(gatherer());
+            Walker w(able);
+
+            ASSERT_TRUE(plain.ask("enter", WalkAct{"", "hedgerows", 0}));
+            ASSERT_TRUE(w.ask("enter", WalkAct{"", "hedgerows", 0}));
+
+            const ElementMap* berries = byId(w.last.works, "gather.berries");
+            const ElementMap* firewood = byId(w.last.works, "gather.firewood");
+            ASSERT_NE(berries, nullptr);
+            ASSERT_NE(firewood, nullptr);
+
+            EXPECT_EQ(textOf(*berries, "gives"), "3\xE2\x80\x93" "5 berries, to sell");
+            EXPECT_EQ(textOf(*berries, "bonus"), "With Dexterity 8: +1 berry\nWith Dexterity 12: +2 berries");
+            EXPECT_EQ(intOf(*berries, "bonusReached"), 2);
+            EXPECT_EQ(textOf(*firewood, "gives"), "2\xE2\x80\x93" "5 firewood, for the town");
+            EXPECT_EQ(intOf(*firewood, "bonusReached"), 1);
+
+            EXPECT_EQ(intOf(*byId(plain.last.works, "gather.berries"), "bonusReached"), 0);
+            EXPECT_EQ(textOf(*byId(plain.last.works, "gather.berries"), "gives"), "1\xE2\x80\x93" "3 berries, to sell");
+
+            // What he picks is the roll and the steps (marked before any event of the gathering)
+            ASSERT_TRUE(w.act("gather", "berries"));
+            const int picked = marked(w.state.marks, "gain", "berries");
+            EXPECT_GE(picked, 3);
+            EXPECT_LE(picked, 5);
+            w.answer();
+
+            ASSERT_TRUE(w.act("gather", "firewood"));
+            const int carried = marked(w.state.marks, "gain", "firewood");
+            EXPECT_GE(carried, 2);
+            EXPECT_LE(carried, 5);
+
+            // Each gathering of them is a scavenge, as a month of the Scavenge rows is: two open the
+            // hedge sprite. A study is none
+            EXPECT_EQ(intOf(w.character, "scavenged"), 2);
+            EXPECT_EQ(marked(w.state.marks, "stat", "scavenged"), 2);
+            w.answer();
+
+            ASSERT_TRUE(w.act("study"));
+            w.answer();
+            EXPECT_EQ(intOf(w.character, "scavenged"), 2);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         // Leaving is asked twice; the walk is then over, and what it was is what a record keeps.
         TEST(expedition_test, turning_home_is_asked_twice)
         {

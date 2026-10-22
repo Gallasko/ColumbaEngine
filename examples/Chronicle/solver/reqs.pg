@@ -609,7 +609,7 @@ fun spendsKept(st, row, keeps)
 }
 
 // A branch for each work new to him that one basic alone keeps locked: what a boy does when the
-// smithy asks for firewood, a month of scavenging at a time until he holds enough (six terms at
+// smithy asks for stone, a month of scavenging at a time until he holds enough (six terms at
 // most), and then the work itself
 fun gatherChildren(st, rows, children)
 {
