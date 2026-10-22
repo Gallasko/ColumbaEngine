@@ -424,6 +424,7 @@ var activities = [
      gains: [{stat: "know.found.millpond"}],
      requires: [{stat: "know.study.hedgerows", label: "The Hedgerows known 2 of 4", needed: walkKnobs.studyLevels[1]}]},
     {id: "night", group: "Work", name: "Work the Night Market", glyph: "trade", months: 6, rank: "", each: "", path: "", fromAge: 13, fromMonths: 9, finishBy: 18, uses: 2,
+     about: "When the stalls close, the night market opens. You learn who sells what, and who not to ask.",
      gains: [{stat: "guile"}, {stat: "coin", amount: 12}],
      requires: [{stat: "guile"}],
      after: [{uses: 2, effects: [{stat: "night_contacts"}], entry: "The night market knows his face"}]},
@@ -485,6 +486,7 @@ var activities = [
     // Adventure group, made from expeditiontable.pg below (so is the hedges' task, among the
     // works of a child)
     {id: "bow", group: "Training", name: "Learn the Bow at the Yard", glyph: "adventure", months: 3, rank: "", each: "OPENS THE HOLLOW WOODS", path: "", fromAge: 13, uses: 1,
+     about: "The yard's old bowman teaches anyone with a steady arm. Once you can shoot, the Hollow Woods are open to you.",
      gains: [{stat: "dex"}, {stat: "bow_learned"}],
      requires: [{stat: "str", needed: 7}]},
 
@@ -523,6 +525,7 @@ var activities = [
      gains: [{stat: "arms"}, {stat: "str"}, {stat: "watch_known"}],
      requires: [{stat: "str", needed: 8}]},
     {id: "edric", group: "Training", name: "Train under Sergeant Edric", glyph: "training", months: 12, rank: "", each: "", path: "", fromAge: 13, fromMonths: 3, finishBy: 18, uses: 2,
+     about: "Sergeant Edric trains a few boys himself each year. He's hard on you, and you're glad of it.",
      gains: [{stat: "arms"}, {stat: "discipline"}, {stat: "str"}],
      requires: [{stat: "str", needed: 10}, {stat: "arms", needed: 2, eased: {flag: "watch_known", needed: 1}}],
      after: [{uses: 2, effects: [{stat: "edric_support"}], entry: "Sergeant Edric will speak for him at the Keep"}],
@@ -569,6 +572,7 @@ var activities = [
      gains: [{stat: "lore"}, {stat: "int", amount: 2}],
      requires: [{stat: "letters"}]},
     {id: "copy", group: "Study", name: "Copy for Father Anselm", glyph: "quill", months: 9, rank: "", each: "", path: "", fromAge: 13, fromMonths: 6, finishBy: 18, uses: 2,
+     about: "Father Anselm pays for clean copies, and you get to read every book you copy.",
      gains: [{stat: "letters"}, {stat: "lore"}, {stat: "coin", amount: 8}],
      requires: [{stat: "letters", needed: 2}],
      after: [{uses: 2, effects: [{stat: "library_access"}], entry: "Father Anselm opens the chapel library to him"}]},
@@ -600,7 +604,7 @@ var activities = [
      requires: [{stat: "done.kitchen", label: "Helped in the kitchen"}]},
     {id: "research.weaver", group: "Study", name: "Study the Stone-Weavers' Craft", glyph: "study", months: 4, rank: "", each: "LEARNS A KIND OF FAMILIAR", path: "", fromAge: 14, uses: 1,
      whileUnknown: "weaver",
-     about: "An old mason's book tells of the spiders of the deep rock, and of the gems they spin from stone. Reading it means trying it, with a little stone and water.",
+     about: "An old mason's book tells of spiders deep in the rock that spin gems from stone. Reading it means trying it, with a little stone and water.",
      costs: [{stat: "stone", amount: 5}, {stat: "water", amount: 5}],
      gains: [{stat: "know.fam.weaver"}],
      requires: [{stat: "letters", needed: 2}, {stat: "lore"}]},
@@ -611,6 +615,7 @@ var activities = [
      gains: [{stat: "herbal"}],
      requires: [{stat: "letters"}, {stat: "herbal_primer", label: "A herbal primer, from the market"}]},
     {id: "mara", group: "Study", name: "Lessons with Mara", glyph: "magic", months: 12, rank: "", each: "RIME", path: "", fromAge: 15, fromMonths: 4, finishBy: 17, uses: 1,
+     about: "Mara lives alone past the mill and knows things the chapel won't teach. Her first lesson is rime, a frost called out of nothing.",
      gains: [{stat: "lore", amount: 2}, {stat: "discipline"}, {stat: "mara_student"}],
      requires: [{stat: "lore"}, {stat: "letters"}]},
 
@@ -696,18 +701,18 @@ var activities = [
     // class (its `firstWith`)
     {id: "levy.march", group: "The Lord's Levy", name: "March with the Levy", glyph: "swordsmanship", months: 6, rank: "", each: "THE LEVY", path: "", fromAge: 14, fromMonths: 9, finishBy: 15, finishMonths: 11, showFrom: 0, uses: 1, event: "levy",
      unless: ["levy.pay", "levy.hide"],
-     about: "Six months behind the Lord's banner, with a spear too heavy for him. The Keep asks less Arms of who served, and the sergeants teach the levies one blow: the heavy cut.",
+     about: "Six months behind the Lord's banner, with a spear too heavy for you. The Keep asks less Arms of those who served, and the sergeants teach every levy one blow: the heavy cut.",
      gains: [{stat: "arms"}, {stat: "discipline"}, {stat: "coin", amount: 10}, {stat: "levy_served"}],
      requires: [{stat: "str", needed: 9}]},
     {id: "levy.pay", group: "The Lord's Levy", name: "Pay the Scutage", glyph: "gold", months: 0, rank: "", each: "THE LEVY", path: "", fromAge: 14, fromMonths: 9, finishBy: 15, finishMonths: 5, showFrom: 0, uses: 1, event: "levy",
      unless: ["levy.march", "levy.hide"],
-     about: "Twenty coin to the Lord's clerk, and another boy marches in his place. Nothing closes, and nothing opens.",
+     about: "Twenty coin to the Lord's clerk, and another boy marches in your place. Nothing closes, and nothing opens.",
      gains: [{stat: "levy_paid"}],
      requires: [],
      costs: [{stat: "coin", amount: 20}]},
     {id: "levy.hide", group: "The Lord's Levy", name: "Hide in the Greenwood", glyph: "adventure", months: 3, rank: "", each: "THE LEVY", path: "", fromAge: 14, fromMonths: 9, finishBy: 15, finishMonths: 8, showFrom: 0, uses: 1, event: "levy",
      unless: ["levy.march", "levy.pay"],
-     about: "Three months under the trees while the levy is counted without him. The Keep has no place for a deserter. The Greenwood does, at sixteen, with the other doors.",
+     about: "Three months under the trees while the levy is counted without you. The Keep has no place for a deserter. The Greenwood does, at sixteen.",
      gains: [{stat: "stealth"}, {stat: "deserter"}],
      requires: []},
 
@@ -1314,7 +1319,7 @@ for (var k = 0; k < len(familiarKinds); k++)
 
     var bindRow = {id: "bind." + kind.id, group: "Familiars", name: "Bind " + kind.name, glyph: kind.glyph, months: 1, rank: "", each: upkeepCaption(kind), path: "",
                    fromAge: 7,
-                   about: kind.about + " Bound for life: he cannot send it away. " + upkeepSentence(kind),
+                   about: kind.about + " Once bound, it's yours for life: you can't send it away. " + upkeepSentence(kind),
                    gains: [{stat: "fam." + kind.id}],
                    costs: entriesCopied(kind.bind),
                    requires: kindRequires}
@@ -1347,7 +1352,7 @@ for (var k = 0; k < len(familiarKinds); k++)
 
     push(trainCopies, {id: "train." + teach.id, group: "Familiars", name: teach.train, glyph: teach.glyph, months: 2, rank: "", each: "MAKES MORE", path: "",
                        fromAge: 7, uses: 2, onlyWith: "fam." + teach.id,
-                       about: "He shows " + teach.name + " a better way to its work. " + lessonSentence(teach),
+                       about: "You show " + teach.name + " a better way to do its work. " + lessonSentence(teach),
                        gains: [{stat: "more." + teach.makes[0].stat}],
                        costs: entriesCopied(teach.eats),
                        requires: []})
