@@ -2393,7 +2393,7 @@ fun siteHead()
 
     var written = apText(runOf("spent")) + " WRITTEN"
     var leave = "Turn for home"
-    var leaveNote = "THE CALENDAR DOES NOT SHORTEN"
+    var leaveNote = "THE TIME YOU SPENT IS NOT GIVEN BACK"
 
     if (runOf("leaving") > 0)
     {

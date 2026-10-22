@@ -5,8 +5,13 @@ The plan: `/docs/superpowers/plans/2026-10-22-chronicle-library.md`.
 
 ## As built (the author asleep: these are mine to confirm)
 
-- **Every book takes one month**, not one or two: a visit is a story of one day and one month
-  (`storytable.pg`'s `library`, `oneAct: true`), and reading a book is its single act.
+- **A book takes its own months** (the author, after playing it): 2 for a book of a stat or a
+  skill, 3 for The Book of Well Spirits. A visit is a story of one act (`storytable.pg`'s
+  `library`, `oneAct: true`); a tile's `months` is the time the visit takes.
+- **The row asks Letters 1** (the author: Letters is how much you can read), and it goes once the
+  life has joined a class.
+- **The page** says "Pick a book to read", each book's months, and "If you leave now, you gain
+  nothing, but you don't lose any time." (the author's words).
 - **Leaving** before reading ends the visit at once: no month, no log line, no toast, no second
   press. The row stays.
 - **The shelf** is `lib.pg`'s `libraryBooks`; the row is listed while one book on it is unread.

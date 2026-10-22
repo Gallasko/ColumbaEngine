@@ -1345,7 +1345,7 @@ namespace pg
 
             ASSERT_TRUE(w.ask("enter", WalkAct{"story", "trial", 0}));
             EXPECT_EQ(textOf(w.last.site, "daysLeft"), "4");
-            EXPECT_EQ(textOf(w.last.site, "daysNote"), "DAYS LEFT");
+            EXPECT_EQ(textOf(w.last.site, "daysNote"), "AP LEFT");
 
             // A lecture first, so the gate of the fourth day lets him through
             ASSERT_TRUE(w.spend("lecture"));
@@ -1360,7 +1360,7 @@ namespace pg
             EXPECT_EQ(w.day(), 4);
             EXPECT_EQ(textOf(w.state.run, "result"), "");
             EXPECT_EQ(textOf(w.last.site, "daysLeft"), "1");
-            EXPECT_EQ(textOf(w.last.site, "daysNote"), "DAY LEFT");
+            EXPECT_EQ(textOf(w.last.site, "daysNote"), "AP LEFT");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2723,13 +2723,22 @@ namespace pg
             ASSERT_TRUE(w.ask("enter", WalkAct{"story", "library", 0}));
             ASSERT_NE(w.work("arith"), nullptr);
 
+            // Its own words on the page: what to do, what it costs in action points, and that
+            // leaving costs nothing
+            EXPECT_EQ(textOf(w.last.site, "workTitle"), "Pick a book to read");
+            EXPECT_EQ(textOf(*w.work("arith"), "costText"), "2 months");
+            EXPECT_EQ(textOf(*w.work("spirits"), "costText"), "3 months");
+            EXPECT_EQ(textOf(w.last.site, "leaveNote"), "");
+            EXPECT_EQ(textOf(w.last.site, "scribe"), "If you leave now, you gain nothing, but you don't lose any time.");
+            EXPECT_TRUE(w.last.home.empty());
+
             const int before = intOf(w.character, "int");
 
             ASSERT_TRUE(w.take("arith"));
 
             EXPECT_EQ(w.screen(), "done");
             EXPECT_EQ(textOf(w.state.run, "result"), "over");
-            EXPECT_EQ(intOf(w.state.run, "monthsDue"), 1);
+            EXPECT_EQ(intOf(w.state.run, "monthsDue"), 2);
             EXPECT_EQ(intOf(w.last.after, "int"), before + 1);
             EXPECT_EQ(intOf(w.last.after, "read.arith"), 1);
 

@@ -916,7 +916,12 @@ fun takeTile(id)
     run.giving = ""
 
     // The line's right: the days, what it cost him, what it gave (a mark is not said in figures)
-    var parts = [toUpperCase(counted(cost, story.unit, story.unit + "s"))]
+    var parts = [toUpperCase(apText(cost))]
+
+    if (pick(story, "oneAct", false))
+    {
+        parts = [toUpperCase(counted(pick(tile, "months", runOf("months")), "month", "months"))]
+    }
 
     if (feeText(tile) != "")
     {
@@ -936,6 +941,18 @@ fun takeTile(id)
     if (pick(run, "found", "") != "")
     {
         run.fightDays = cost
+        return
+    }
+
+    // A story of one act: its act is the whole of it, and takes the months its tile says (a book
+    // of the chapel library: two, three for the familiar's)
+    if (pick(story, "oneAct", false))
+    {
+        var months = pick(tile, "months", runOf("months"))
+
+        run.day = runOf("days") + 1
+        run.monthsDue = months
+        run.monthsRun = months
         return
     }
 
@@ -962,7 +979,7 @@ fun leaveStory()
 
     var lost = runOf("ap")
 
-    openStep("leave", "", 1, 0, "You left on the " + storyDayText() + ", with " + daysText(lost) + " unspent", "gate")
+    openStep("leave", "", 1, 0, "You left on the " + storyDayText() + ", with " + apText(lost) + " unspent", "gate")
 
     var step = lastStep()
     step.figure = "LEFT"
@@ -2296,16 +2313,19 @@ fun storyHead()
     var day = smaller(runOf("day"), larger(1, runOf("days")))
     var unit = capitalised(story.unit)
     var leave = "Leave"
-    var leaveNote = "WHAT YOU WERE GIVEN IS YOURS"
+    var leaveNote = "THE TIME YOU SPENT IS NOT GIVEN BACK"
+    var scribe = "You keep what you gained. Each action is chosen when it comes."
+
+    // A story of one act left before it costs nothing
+    if (pick(story, "oneAct", false))
+    {
+        leaveNote = ""
+        scribe = "If you leave now, you gain nothing, but you don't lose any time."
+    }
 
     if (runOf("leaving") > 0)
     {
-        leave = "Leave: " + daysText(runOf("ap")) + " are lost"
-
-        if (runOf("ap") == 1)
-        {
-            leave = "Leave: " + daysText(1) + " is lost"
-        }
+        leave = "Leave: " + apText(runOf("ap")) + " lost"
 
         leaveNote = "PRESS AGAIN TO GO"
 
@@ -2329,13 +2349,8 @@ fun storyHead()
         percent = wholeOf(runOf("spent") * 100, runOf("days"))
     }
 
-    // (the word under the figure of days left: the last one is a day, not days)
-    var leftNote = toUpperCase(story.unit) + "S LEFT"
-
-    if (runOf("ap") == 1)
-    {
-        leftNote = toUpperCase(story.unit) + " LEFT"
-    }
+    // (the word under the figure of actions left)
+    var leftNote = "AP LEFT"
 
     return {story: story.id, zone: "", mode: run.mode,
             kicker: toUpperCase(stage.title),
@@ -2351,7 +2366,9 @@ fun storyHead()
             percent: smaller(100, percent),
             caption: toUpperCase(story.unit + " " + toString(day) + " of " + toString(runOf("days")) + " · " + counted(runOf("monthsRun"), "month", "months") + " gone by"),
             written: "", leave: leave, leaveNote: leaveNote, watchCost: "",
-            summary: "", scribe: "Each " + story.unit + " is chosen when it comes.",
+            summary: "", scribe: scribe,
+            workTitle: pick(story, "workTitle", "The day's work"), headKicker: pick(story, "kicker", ""),
+            workNote: pick(story, "workNote", "Choose what to do, then do it. Hover one to read what it costs and what it gives."),
             result: pick(run, "result", ""),
             refused: pick(run, "refused", "")}
 }
@@ -2378,7 +2395,13 @@ fun storyTiles()
         }
 
         var cost = pick(tile, "cost", 1)
-        var days = counted(cost, story.unit, story.unit + "s")
+        var days = apText(cost)
+
+        // (a story of one act: what an act costs is its months)
+        if (pick(story, "oneAct", false))
+        {
+            days = counted(pick(tile, "months", runOf("months")), "month", "months")
+        }
         var fee = feeText(tile)
         var costs = days
 
@@ -2452,14 +2475,20 @@ fun storyTaken()
     return rows
 }
 
-// If he left now: the months gone by, what he keeps, and for a class that he drops out
+// If he left now: the months gone by, what he keeps, and for a class that he drops out. A story
+// of one act says it in its words alone (the head's `scribe`): nothing gained, no time lost
 fun storyHome()
 {
     var story = storyNow()
     var rows = []
 
-    push(rows, {id: "time", name: "Months gone by", glyph: "time", value: counted(runOf("monthsRun"), "month", "months") + " of " + toString(runOf("months")), tone: "time"})
-    push(rows, {id: "keeps", name: "You keep", glyph: story.glyph, value: "what you were given", tone: "gain"})
+    if (pick(story, "oneAct", false))
+    {
+        return rows
+    }
+
+    push(rows, {id: "time", name: "Time spent", glyph: "time", value: counted(runOf("monthsRun"), "month", "months") + " of " + toString(runOf("months")), tone: "time"})
+    push(rows, {id: "keeps", name: "You keep", glyph: story.glyph, value: "what you gained", tone: "gain"})
 
     var paid = markIds(marks, "fee")
 

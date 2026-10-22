@@ -559,14 +559,14 @@ var activities = [
      after: [{uses: 3, gains: [{stat: "letters"}]}],
      costs: [{stat: "firewood", amount: 2}],
      bonus: [{stat: "town.chapel", months: 4}, {stat: "int", needed: 8, months: 4}]},
-    // The chapel library (storytable.pg's `library`): opened by the first term of his letters, a
-    // month and one book a visit, and open while its shelf holds a book he has not read (lib.pg's
-    // `libraryBooks`, `shelf`). Leaving it without reading takes no month
-    {id: "library", group: "Study", name: "Visit the Chapel Library", glyph: "study", months: 1, rank: "", each: "A BOOK A VISIT", path: "", fromAge: 7, finishBy: anyAge, showFrom: 100,
+    // The chapel library (storytable.pg's `library`): opened by Letters 1 (how much he can read),
+    // one book a visit and the months it takes to read, and open while its shelf holds a book he has not read (lib.pg's
+    // `libraryBooks`, `shelf`) and he has no class. Leaving it without reading takes no month
+    {id: "library", group: "Study", name: "Visit the Chapel Library", glyph: "study", months: 2, rank: "", each: "A BOOK A VISIT", path: "", fromAge: 7, finishBy: anyAge, showFrom: 100,
      story: "library", shelf: true,
      about: "Father Anselm keeps a shelf of books for anyone who can read them. Now you can.",
      gains: [],
-     requires: [{stat: "done.letters", label: "Learning to Read, once"}]},
+     requires: [{stat: "letters"}]},
     {id: "chapel", group: "Study", name: "Serve at the Chapel", glyph: "study", months: 9, rank: "", each: "", path: "", fromAge: 9, fromMonths: 6, finishBy: 15, uses: 2,
      about: "Candles, prayers and long Latin words. Father Anselm makes you read them aloud.",
      gains: [{stat: "letters"}, {stat: "discipline"}],
@@ -2412,8 +2412,9 @@ for (var i = 0; i < len(activities); i++)
         }
     }
 
-    // The chapel library: open while its shelf holds a book he has not read
-    if (lookup(a, "shelf", false) and libraryUnread(character) == 0)
+    // The chapel library: open while its shelf holds a book he has not read, and until he joins
+    // a class (the author's call, 2026-10-22)
+    if (lookup(a, "shelf", false) and (committed or libraryUnread(character) == 0))
     {
         a.listed = false
     }

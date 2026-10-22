@@ -4149,7 +4149,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The chapel library opens once the first term of Learning to Read is done: a month, a book
+        // The chapel library opens with Letters 1: a book a visit
         TEST(rules_test, the_library_opens_after_the_first_letters_term)
         {
             MockLogger logger;
@@ -4158,12 +4158,14 @@ namespace pg
             EXPECT_EQ(textOf(activityAt(f.rules, 7.0f, boy(), "letters").fields, "name"), "Learning to Read");
             EXPECT_FALSE(flag(activityAt(f.rules, 7.5f, boy(), "library").fields, "listed"));
 
-            f.rules.done = {{"letters", ElementType{1}}};
-            RuleActivity library = activityAt(f.rules, 7.5f, boy(), "library");
+            // Letters 1: he can read (the author's call)
+            ElementMap reader = boy();
+            reader["letters"] = ElementType{1};
+            RuleActivity library = activityAt(f.rules, 7.5f, reader, "library");
 
             EXPECT_TRUE(flag(library.fields, "listed"));
             EXPECT_FALSE(flag(library.fields, "locked"));
-            EXPECT_EQ(intOf(library.fields, "months"), 1);
+            EXPECT_EQ(intOf(library.fields, "months"), 2);
             EXPECT_EQ(textOf(library.fields, "story"), "library");
             EXPECT_EQ(textOf(library.fields, "group"), "Study");
         }
@@ -4173,9 +4175,8 @@ namespace pg
         {
             MockLogger logger;
             RulesFixture f;
-            f.rules.done = {{"letters", ElementType{1}}};
-
             ElementMap reader = boy();
+            reader["letters"] = ElementType{1};
 
             for (const char* book : {"arith", "saints", "tales", "arms", "snares", "spirits"})
                 reader[std::string("read.") + book] = ElementType{1};
@@ -4188,6 +4189,19 @@ namespace pg
 
             reader["read.primer"] = ElementType{1};
             EXPECT_FALSE(flag(activityAt(f.rules, 8.0f, reader, "library").fields, "listed"));
+        }
+
+        // A boy who has joined a class has no more time for the chapel's shelf (the author's call)
+        TEST(rules_test, the_library_closes_with_a_class)
+        {
+            MockLogger logger;
+            RulesFixture f;
+            ElementMap sworn = boy();
+            sworn["letters"] = ElementType{1};
+            EXPECT_TRUE(flag(activityAt(f.rules, 17.0f, sworn, "library").fields, "listed"));
+
+            sworn["keep_oath"] = ElementType{1};
+            EXPECT_FALSE(flag(activityAt(f.rules, 17.0f, sworn, "library").fields, "listed"));
         }
 
         // Bought at the market, the primer goes on the library's shelf for good, and is sold no more

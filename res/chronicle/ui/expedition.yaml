@@ -134,13 +134,13 @@ children:
         width: 300
         z: 104
         contentZ: 114
-        heading: If you turned home now
+        heading: If you leave now
         glyph: gate
         children:
           - kind: ResourceLedger
             name: home
           # The way home: asked twice, the first press says what is lost
-          - {kind: Label, name: leaveNote, style: label, color: vermilion, overflow: wrap, text: THE CALENDAR DOES NOT SHORTEN}
+          - {kind: Label, name: leaveNote, style: label, color: vermilion, overflow: wrap, text: THE TIME YOU SPENT IS NOT GIVEN BACK}
           - kind: Button
             name: leave
             variant: quiet

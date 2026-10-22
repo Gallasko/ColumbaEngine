@@ -1769,10 +1769,13 @@ namespace chronicle
         {
             const int days = intOf(site, "days");
             const int months = intOf(site, "monthsTotal");
-            const std::string unit = upper(textOf(site, "unit"));
 
-            // (a phone's head has the room for the figures only, beside its big one)
-            walkSay("kicker", std::to_string(days) + " " + unit + (days == 1 ? "" : "S") + " \xC2\xB7 " + std::to_string(months) + (months == 1 ? " MONTH" : " MONTHS") + (walkNarrow ? "" : " OF HIS LIFE"));
+            // (a phone's head has the room for the figures only, beside its big one). A story may
+            // say its own instead: "ONE BOOK A VISIT"
+            if (const std::string own = textOf(site, "headKicker"); not own.empty())
+                walkSay("kicker", own);
+            else
+                walkSay("kicker", std::to_string(days) + " AP \xC2\xB7 " + std::to_string(months) + (months == 1 ? " MONTH" : " MONTHS") + (walkNarrow ? "" : " OF YOUR LIFE"));
             // (a phone's head has one line for it: there the stage is its title, and its text is
             // the record's line of that day)
             walkSay("zoneLine", walkNarrow ? std::string() : textOf(site, "stageText"));
@@ -1797,7 +1800,10 @@ namespace chronicle
         // A story is not a walk: no way home to turn to, nothing met on a way
         if (story)
         {
-            for (auto [name, heading] : {std::pair<const char*, const char*>{"workPanel", "The day's work"}, {"cardPanel", "On this day"}, {"homePanel", "If you left now"}})
+            // (what the day's choices are called is the story's own: "Pick a book to read")
+            const std::string workTitle = textOf(site, "workTitle").empty() ? std::string("The day's work") : textOf(site, "workTitle");
+
+            for (auto [name, heading] : {std::pair<const char*, std::string>{"workPanel", workTitle}, {"cardPanel", "On this day"}, {"homePanel", "If you leave now"}})
             {
                 if (auto panel = walkPiece<Panel>(name); panel and panel->title and panel->title->spec.text != heading)
                     panel->setHeading(ecs, heading);
@@ -1897,6 +1903,10 @@ namespace chronicle
 
                 if (gone > 0)
                     caption += " \xC2\xB7 " + std::to_string(gone) + (gone == 1 ? " month gone" : " months gone");
+
+                // (a story of one act has no days to count)
+                if (boolOf(site, "oneAct"))
+                    caption.clear();
             }
 
             // A screen built this pass is filled as it stands: what moves, moves from the next
@@ -2077,7 +2087,7 @@ namespace chronicle
         }
 
         if (story)
-            walkSay("workNote", "Choose the day's work, then do it. Hover one to read what it costs and what it gives.");
+            walkSay("workNote", textOf(site, "workNote"));
 
         // What a story stopped offering, said under the tiles the day after, once
         std::string gone;

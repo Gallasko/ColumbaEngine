@@ -13193,7 +13193,7 @@ namespace pg
 
             // Not a walk's words: no way home, nothing met on a way, no place to know
             f.settle();
-            EXPECT_EQ(walkPart(life, "homePanel")->get<Panel>()->title->spec.text, "If you left now");
+            EXPECT_EQ(walkPart(life, "homePanel")->get<Panel>()->title->spec.text, "If you leave now");
             EXPECT_EQ(walkPart(life, "cardPanel")->get<Panel>()->title->spec.text, "On this day");
 
             auto registry = f.ecs.getSystem<GlossRegistry>();
@@ -13697,7 +13697,7 @@ namespace pg
             EXPECT_EQ(gaugeText(life), "Day 1 of 4");
             EXPECT_NEAR(gaugePercent(life), 25.0f, 0.01f);
             EXPECT_EQ(walkText(life, "headNote"), "THE FIRST DAYS");
-            EXPECT_EQ(walkText(life, "kicker"), "4 DAYS \xC2\xB7 4 MONTHS OF HIS LIFE");
+            EXPECT_EQ(walkText(life, "kicker"), "4 AP \xC2\xB7 4 MONTHS OF YOUR LIFE");
             EXPECT_EQ(walkText(life, "zoneLine"), "Everything is new, and every door is open to you.");
 
             // How he stands, in words, under his Vitality; no place to know
@@ -16019,8 +16019,7 @@ namespace pg
             LifeScene* life = storyLife(f, storyOptions(8.0f));
             ASSERT_NE(life, nullptr);
 
-            life->save.done["letters"] = 1;
-            life->rules.done = life->save.terms();
+            life->save.stats["letters"] = 1;
             life->onMonth();
             f.settle();
 
@@ -16041,7 +16040,7 @@ namespace pg
             f.frames(12);
 
             EXPECT_FALSE(life->onWalk());
-            EXPECT_NEAR(life->save.age, age + 1.0f / 12.0f, 0.001f);
+            EXPECT_NEAR(life->save.age, age + 2.0f / 12.0f, 0.001f);
             EXPECT_EQ(life->save.stats["int"], intBefore + 1);
             EXPECT_EQ(life->save.stats["read.arith"], 1);
             EXPECT_TRUE(life->save.running.empty());
@@ -16079,8 +16078,7 @@ namespace pg
             LifeScene* life = storyLife(f, storyOptions(8.0f));
             ASSERT_NE(life, nullptr);
 
-            life->save.done["letters"] = 1;
-            life->rules.done = life->save.terms();
+            life->save.stats["letters"] = 1;
             life->onMonth();
             f.settle();
 
@@ -16115,8 +16113,7 @@ namespace pg
             ASSERT_NE(life, nullptr);
 
             life->save.stats["rations"] = 24;
-            life->save.done["letters"] = 1;
-            life->rules.done = life->save.terms();
+            life->save.stats["letters"] = 1;
             life->onMonth();
             f.settle();
 
