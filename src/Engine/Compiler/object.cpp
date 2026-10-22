@@ -17,17 +17,48 @@ namespace pg
 
     void Shape::build()
     {
-        names.assign(depth, std::string());
+        // The tree's indexes all let go when this one would take them past their budget
+        if (tree and tree->builtNames + depth > ShapeTree::maxBuiltNames)
+            tree->unbuildAll();
+
+        names.assign(depth, nullptr);
         index.reserve(depth);
 
         for (Shape* s = this; s->depth > 0; s = s->parent)
-            names[s->depth - 1] = s->lastName;
+            names[s->depth - 1] = &s->lastName;
 
         // A shape never holds a name twice (a table that would goes off the shapes)
         for (uint32_t slot = 0; slot < depth; ++slot)
-            index.emplace(names[slot], slot);
+            index.emplace(*names[slot], slot);
 
         built = true;
+
+        if (tree)
+            tree->builtNames += depth;
+    }
+
+    void Shape::unbuild()
+    {
+        if (not built)
+            return;
+
+        if (tree)
+            tree->builtNames -= depth;
+
+        // (swapped with empties: clear() would keep what they had allocated)
+        std::vector<const std::string*>().swap(names);
+        std::unordered_map<std::string_view, uint32_t>().swap(index);
+
+        built = false;
+        queries = 0;
+    }
+
+    void ShapeTree::unbuildAll()
+    {
+        root.unbuild();
+
+        for (auto& shape : owned)
+            shape->unbuild();
     }
 
     Shape* ShapeTree::next(Shape* from, const std::string& name)
@@ -44,6 +75,7 @@ namespace pg
 
         auto shape = std::make_unique<Shape>();
         shape->parent = from;
+        shape->tree = this;
         shape->lastName = name;
         shape->depth = from->depth + 1;
 

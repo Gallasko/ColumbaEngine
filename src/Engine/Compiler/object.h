@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <unordered_map>
 #include <map>
@@ -146,24 +147,30 @@ namespace pg
     // with that name added, found in its shape's `next` (each VM keeps one tree of them, from the
     // empty shape): tables filled alike end on the same shape. A field is never removed, so a
     // shape only ever grows.
+    struct ShapeTree;
+
     struct Shape
     {
         static constexpr size_t npos = static_cast<size_t>(-1);
 
         Shape* parent = nullptr;
+        ShapeTree* tree = nullptr;                      // The tree it is part of
         std::string lastName;                           // The name of its last slot
         uint32_t depth = 0;                             // How many slots it has
 
         std::unordered_map<std::string, Shape*> next;   // The shape with one name more
 
         // Its names in slot order and its name -> slot index: built the second time it is asked
-        // (most shapes are only steps on the way to another, asked once or never: those are walked)
+        // (most shapes are only steps on the way to another, asked once or never: those are walked).
+        // Both point at the `lastName` of the shapes on its chain, which live as long as the tree:
+        // a name it hands out stays good when the index is let go (ShapeTree::unbuildAll)
         uint32_t queries = 0;
         bool built = false;
-        std::vector<std::string> names;
-        std::unordered_map<std::string, uint32_t> index;
+        std::vector<const std::string*> names;
+        std::unordered_map<std::string_view, uint32_t> index;
 
         void build();
+        void unbuild();
 
         inline size_t slotOf(const std::string& name)
         {
@@ -193,7 +200,7 @@ namespace pg
             if (not built)
                 build();
 
-            return names[slot];
+            return *names[slot];
         }
 
         // Whether its tables hold a __set field (a metamethod of their own): looked for once
@@ -213,17 +220,32 @@ namespace pg
     struct ShapeTree
     {
         // Past these a table keeps a dictionary of its own (what every table was before shapes):
-        // a table of a hundred keys, or tables filled in every order (keyed by ids, by stats)
+        // a table of a hundred keys, or tables filled in every order (keyed by ids, by stats).
+        // A shape is never freed before its VM, so their number is what bounds the tree: a VM that
+        // runs for hours (a solver copying tables in every order of their keys) stops making them
         static constexpr uint32_t maxDepth = 96;
         static constexpr size_t maxNext = 64;
         static constexpr size_t maxNextAtRoot = 1024;
-        static constexpr size_t maxShapes = 100000;
+        static constexpr size_t maxShapes = 32768;
+
+        // The names the built shapes index, all together: past it, every index is let go, and
+        // built again as it is asked (an index costs its depth, the deepest a hundred names)
+        static constexpr size_t maxBuiltNames = 1 << 18;
+
+        ShapeTree() { root.tree = this; }
+
+        ShapeTree(const ShapeTree&) = delete;
+        ShapeTree& operator=(const ShapeTree&) = delete;
 
         Shape root;
         std::vector<std::unique_ptr<Shape>> owned;
+        size_t builtNames = 0;
 
         // `from` with `name` added, nullptr when the tree will not grow that far
         Shape* next(Shape* from, const std::string& name);
+
+        // Every built index let go (the shapes stay, and so does every name they hand out)
+        void unbuildAll();
     };
 
     struct ObjInstance

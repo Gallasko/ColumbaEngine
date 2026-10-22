@@ -1857,6 +1857,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/unit/test_bytecode_rewriter.cc
             test/pgcompiler/unit/test_none_value.cc
             test/pgcompiler/unit/test_chunk_constants.cc
+            test/pgcompiler/unit/test_shape_budget.cc
         )
 
         # Include directories for compiler tests
