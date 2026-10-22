@@ -5218,26 +5218,26 @@ namespace pg
             ElementMap townsfolk = townsman();
 
             const ElementMap young = inn(20.0f, townsfolk);
-            EXPECT_NE(textOf(young, "nextGives").find("Old age begins at 50, not 30"), std::string::npos) << textOf(young, "nextGives");
-            EXPECT_EQ(textOf(young, "nextGives").find("lives after his"), std::string::npos) << textOf(young, "nextGives");
+            EXPECT_NE(textOf(young, "nextGives").find("Old age begins at 50 instead of 30"), std::string::npos) << textOf(young, "nextGives");
+            EXPECT_EQ(textOf(young, "nextGives").find("lives after yours"), std::string::npos) << textOf(young, "nextGives");
 
             townsfolk["prime_end"] = ElementType{30};
 
             const ElementMap aged = inn(31.0f, townsfolk);
-            EXPECT_NE(textOf(aged, "nextGives").find("Old age begins at 50, not 30"), std::string::npos) << textOf(aged, "nextGives");
-            EXPECT_NE(textOf(aged, "nextGives").find("lives after his"), std::string::npos) << textOf(aged, "nextGives");
+            EXPECT_NE(textOf(aged, "nextGives").find("Old age begins at 50 instead of 30"), std::string::npos) << textOf(aged, "nextGives");
+            EXPECT_NE(textOf(aged, "nextGives").find("lives after yours"), std::string::npos) << textOf(aged, "nextGives");
 
             townsfolk["town.inn"] = ElementType{1};
 
             const ElementMap raised = inn(31.0f, townsfolk);
-            EXPECT_NE(textOf(raised, "gives").find("lives after his"), std::string::npos) << textOf(raised, "gives");
+            EXPECT_NE(textOf(raised, "gives").find("lives after yours"), std::string::npos) << textOf(raised, "gives");
             EXPECT_NE(textOf(raised, "line").find("LIVES AFTER HIS"), std::string::npos) << textOf(raised, "line");
 
             // A man who had the Inn at thirty has it for himself
             townsfolk["prime_end"] = ElementType{50};
 
             const ElementMap his = inn(31.0f, townsfolk);
-            EXPECT_EQ(textOf(his, "gives").find("lives after his"), std::string::npos) << textOf(his, "gives");
+            EXPECT_EQ(textOf(his, "gives").find("lives after yours"), std::string::npos) << textOf(his, "gives");
         }
 
         // ----------------------------------------------------------------------------------------

@@ -8726,7 +8726,7 @@ namespace pg
             }
 
             ASSERT_EQ(tiers.size(), 3u);
-            EXPECT_EQ(tiers[0]->label, "1 - The market stall: Buy rations brings 8 rations, not 6");
+            EXPECT_EQ(tiers[0]->label, "1 - The market stall: Buy rations brings 8 rations instead of 6");
             EXPECT_EQ(tiers[2]->label, "3 - The market charter: A sword and a horse are sold at the market");
 
             for (const GlossRow* tier : tiers)
@@ -9007,7 +9007,7 @@ namespace pg
             for (const auto& entry : life->save.log)
             {
                 built = built or (entry.kind == LogKind::Milestone and entry.text.find("The market stall") == 0);
-                lore = lore or (entry.kind == LogKind::Lore and entry.text.find("A stall of his own name") == 0);
+                lore = lore or (entry.kind == LogKind::Lore and entry.text.find("A stall with your name") == 0);
             }
 
             EXPECT_TRUE(built);
