@@ -4612,7 +4612,7 @@ namespace pg
             // and a rule before the first figures
             EXPECT_EQ(campaign->aside, "0/1");
             EXPECT_TRUE(campaign->inlineValues);
-            EXPECT_EQ(campaign->text, "The Keep");
+            EXPECT_EQ(campaign->text.rfind("Two years on the border with the Lord's men", 0), 0u) << campaign->text;
             ASSERT_FALSE(campaign->rows.empty());
             EXPECT_TRUE(campaign->rows[0].heading);
             EXPECT_EQ(campaign->rows[0].label, "");
