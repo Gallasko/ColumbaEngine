@@ -1916,7 +1916,7 @@ fun seekRow(zone, mob, count)
     if (row.cost > runOf("ap"))
     {
         row.short = 1
-        row.asks = "NOT ENOUGH DAYS LEFT"
+        row.asks = "NOT ENOUGH AP LEFT"
     }
 
     return row
@@ -1968,7 +1968,7 @@ fun workRow(id, name, note, cost, short, tone, about, costs, gives)
     else if (cost > runOf("ap"))
     {
         row.locked = 1
-        row.asks = "NOT ENOUGH DAYS LEFT"
+        row.asks = "NOT ENOUGH AP LEFT"
     }
 
     return row

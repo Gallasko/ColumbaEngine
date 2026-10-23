@@ -118,7 +118,7 @@ fun encounterRow(zone, enc)
     if (row.cost > runOf("ap"))
     {
         row.short = 1
-        row.asks = "NOT ENOUGH DAYS LEFT"
+        row.asks = "NOT ENOUGH AP LEFT"
     }
 
     return row

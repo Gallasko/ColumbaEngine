@@ -1581,10 +1581,6 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // A plan says what its tiles ask in fees, all of them taken (the solver begins a story with
-        // them in hand): the Collegium's twelve fee'd tiles of 3 coin, a term's 36. Of the two
-        // binding halls only the one he would take is counted: the imp's, or the brownie's for who
-        // knows the imp. A plan of no tiles asks none
         TEST(story_test, a_plan_says_what_it_asks_and_gives)
         {
             MockLogger logger;
@@ -1596,7 +1592,6 @@ namespace pg
             // And what following it gives: the binding hall and the fire course on the way, what a
             // pass gives at its end (the search learns from it what the story makes)
             EXPECT_EQ(intOf(w.last.site, "gives.know.fam.imp"), 1);
-            EXPECT_EQ(intOf(w.last.site, "gives.know.fam.brownie"), 0);
             EXPECT_EQ(intOf(w.last.site, "gives.fire_course"), 1);
             EXPECT_EQ(intOf(w.last.site, "gives.collegium"), 1);
             EXPECT_EQ(intOf(w.last.site, "gives.arcana"), 1);
@@ -1608,7 +1603,6 @@ namespace pg
             Walker k(knows);
 
             ASSERT_TRUE(k.ask("plan", WalkAct{"", "collegium", 0}));
-            EXPECT_EQ(intOf(k.last.site, "fee.coin"), 36);
             EXPECT_EQ(intOf(k.last.site, "gives.know.fam.imp"), 0);
             EXPECT_EQ(intOf(k.last.site, "gives.know.fam.brownie"), 1);
 
@@ -1620,9 +1614,9 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // Two days of the elemental lectures and the seventh day is the fork: fire, frost, storm or
-        // the basics. One day only, and there is no fork: he stays on the basics.
-        TEST(story_test, the_collegium_course_card_opens_on_day_seven)
+        // The seventh day is the choice of a course and nothing else: fire, frost or storm for who
+        // heard the elemental lectures twice, all three for anyone, three AP (two with Intelligence 14)
+        TEST(story_test, the_seventh_day_is_the_choice_of_a_course)
         {
             MockLogger logger;
 
@@ -1636,23 +1630,32 @@ namespace pg
                 for (const char* tile : {"lectures", "lectures", "library", "library", "library", "library"})
                     ASSERT_TRUE(study(w, tile)) << tile;
 
-                EXPECT_EQ(w.day(), 7);
-                ASSERT_EQ(w.cardId(), "story.course");
-                EXPECT_EQ(w.last.options.size(), 4u);
+                ASSERT_EQ(w.day(), 7);
+                EXPECT_EQ(w.cardId(), "");
 
-                for (const char* answer : {"fire", "frost", "storm", "basic"})
-                    EXPECT_NE(w.option(answer), nullptr) << answer;
+                std::vector<std::string> ids;
 
-                // The basics close for who takes an element; his course opens
-                ASSERT_TRUE(w.act("option", "fire"));
-                EXPECT_EQ(w.screen(), "site");
+                for (const auto& row : w.last.works)
+                {
+                    ids.push_back(textOf(row, "id"));
+                    EXPECT_EQ(intOf(row, "locked"), 0) << textOf(row, "id");
+                }
+
+                EXPECT_EQ(ids, (std::vector<std::string>{"tile.choose.fire", "tile.choose.frost", "tile.choose.storm", "tile.choose.basic"}));
+                EXPECT_EQ(textOf(*w.work("choose.basic"), "costText"), "3 AP");
+
+                // Fire chosen: its course is there the next day, and nothing of the others
+                ASSERT_TRUE(study(w, "choose.fire"));
+                EXPECT_EQ(w.day(), 8);
                 EXPECT_NE(w.work("fire"), nullptr);
                 EXPECT_EQ(w.work("frost"), nullptr);
                 EXPECT_EQ(w.work("basics"), nullptr);
                 EXPECT_EQ(w.work("lectures"), nullptr);
+                EXPECT_EQ(w.work("choose.frost"), nullptr);
             }
 
             {
+                // One lecture only: the elements are shut, and say why; all three are his
                 Walker w(collegian());
 
                 ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
@@ -1660,17 +1663,33 @@ namespace pg
                 for (const char* tile : {"lectures", "library", "library", "library", "library", "library"})
                     ASSERT_TRUE(study(w, tile)) << tile;
 
-                EXPECT_EQ(w.day(), 7);
-                EXPECT_EQ(w.screen(), "site");
-                EXPECT_EQ(w.cardId(), "");
-                ASSERT_NE(w.work("basics"), nullptr);
-                EXPECT_EQ(intOf(*w.work("basics"), "locked"), 0);
-                EXPECT_EQ(w.work("fire"), nullptr);
+                ASSERT_EQ(w.day(), 7);
+                ASSERT_NE(w.work("choose.fire"), nullptr);
+                EXPECT_EQ(intOf(*w.work("choose.fire"), "locked"), 1);
+                EXPECT_EQ(textOf(*w.work("choose.fire"), "asks"), "ASKS THE ELEMENTAL LECTURES TWICE");
+                EXPECT_EQ(intOf(*w.work("choose.basic"), "locked"), 0);
 
-                // And the fork does not come later, once the lectures are caught up
-                ASSERT_TRUE(study(w, "basics"));
-                EXPECT_EQ(w.day(), 8);
-                EXPECT_NE(w.cardId(), "story.course");
+                // Three days of signing up: the course begins on the tenth
+                ASSERT_TRUE(study(w, "choose.basic"));
+                EXPECT_EQ(w.day(), 10);
+                EXPECT_NE(w.work("basics"), nullptr);
+            }
+
+            {
+                // Intelligence 14: two days
+                ElementMap bright = collegian();
+                bright["int"] = ElementType{14};
+                Walker w(bright);
+
+                ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
+
+                for (const char* tile : {"library", "library", "library", "library", "library", "library"})
+                    ASSERT_TRUE(study(w, tile)) << tile;
+
+                ASSERT_EQ(w.day(), 7);
+                EXPECT_EQ(textOf(*w.work("choose.basic"), "costText"), "2 AP");
+                ASSERT_TRUE(study(w, "choose.basic"));
+                EXPECT_EQ(w.day(), 9);
             }
         }
 
@@ -1686,19 +1705,15 @@ namespace pg
 
             ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
 
-            for (const char* tile : {"lectures", "lectures", "library", "library", "library", "library"})
+            for (const char* tile : {"lectures", "lectures", "library", "library", "library", "library", "choose.fire"})
                 ASSERT_TRUE(study(w, tile)) << tile;
-
-            ASSERT_EQ(w.cardId(), "story.course");
-            ASSERT_TRUE(w.act("option", "fire"));
 
             ASSERT_TRUE(study(w, "fire"));
             EXPECT_EQ(intOf(w.character, "fire_course"), 0);
 
             ASSERT_TRUE(study(w, "fire"));
             EXPECT_EQ(intOf(w.character, "fire_course"), 1);
-            EXPECT_EQ(w.day(), 9);
-            EXPECT_EQ(intOf(w.state.run, "sat.theory"), 0);
+            EXPECT_EQ(w.day(), 10);
 
             // A third day gives it no second time
             ASSERT_TRUE(study(w, "fire"));
@@ -1708,8 +1723,8 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // Who stays on the basics is taught the three cantrips once he has followed four days of the
-        // elemental lectures in all.
+        // Who chose all three is taught the three cantrips once he has followed four days of the
+        // elemental lectures and the basics in all.
         TEST(story_test, the_basics_teach_the_cantrips)
         {
             MockLogger logger;
@@ -1717,7 +1732,7 @@ namespace pg
 
             ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
 
-            for (const char* tile : {"lectures", "library", "library", "library", "library", "library", "basics", "basics"})
+            for (const char* tile : {"lectures", "library", "library", "library", "library", "library", "choose.basic", "basics", "basics"})
                 ASSERT_TRUE(study(w, tile)) << tile;
 
             EXPECT_EQ(intOf(w.character, "spark_taught"), 0);
@@ -1735,8 +1750,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The coin the term asked up front is its courses' fees: about 35 for a full curriculum, the
-        // plan's (the solver's) path.
+        // The coin of the term is its courses' fees: about 35 for a full curriculum, the plan's.
         TEST(story_test, a_full_curriculum_costs_about_thirty_five)
         {
             MockLogger logger;
@@ -1744,8 +1758,8 @@ namespace pg
 
             const StoryPlan plan = planOf(w, "collegium");
             ASSERT_FALSE(plan.tiles.empty());
-            ASSERT_EQ(plan.cards.count("course"), 1u);
-            EXPECT_EQ(plan.cards.at("course"), "fire");
+            EXPECT_TRUE(plan.cards.empty());
+            ASSERT_EQ(plan.tests.count("theory"), 1u);
 
             ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
             followPlan(w, plan);
@@ -1759,8 +1773,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // A good student, who followed the plan's fire course and has what his childhood gave him,
-        // passes: the class is his, with what it teaches.
+        // A good student who knows the answers passes, and the class is his, with what it teaches.
         TEST(story_test, a_good_student_passes)
         {
             MockLogger logger;
@@ -1777,178 +1790,171 @@ namespace pg
             followPlan(w, plan);
 
             const std::string result = textOf(w.state.run, "result");
+            const std::string scores = "theory " + std::to_string(intOf(w.state.run, "score.theory")) + " practical " + std::to_string(intOf(w.state.run, "score.practical"));
 
-            // (the theory 30, the practical 20 for both dummies, 5 for a reaction, 3 for his day on
-            // the dummies: 58, a merit and no more)
-            EXPECT_EQ(result, "merit") << result << " theory " << intOf(w.state.run, "score.theory") << " practical " << intOf(w.state.run, "score.practical");
+            EXPECT_EQ(intOf(w.state.run, "score.theory"), 4) << scores;
+            EXPECT_TRUE(result == "merit" or result == "distinction") << result << ": " << scores;
             EXPECT_EQ(intOf(w.character, "collegium"), 1);
             EXPECT_GE(intOf(w.character, "arcana"), 1);
-            EXPECT_GE(intOf(w.character, "lore"), 3);
             EXPECT_EQ(intOf(w.character, "fire_course"), 1);
             EXPECT_EQ(intOf(w.character, "know.fam.imp"), 1);
             EXPECT_EQ(intOf(w.character, "dropout.collegium"), 0);
             EXPECT_EQ(w.day(), 17);
             EXPECT_EQ(intOf(w.state.run, "monthsRun"), 24);
+
+            bool said = false;
+
+            for (const auto& e : w.last.entries)
+                said = said or textOf(e, "text") == "You answered 4 of 4 questions right";
+
+            for (const auto& s : w.state.record)
+                said = said or textOf(s, "text").find("Question 4: ") == 0;
+
+            EXPECT_TRUE(said);
         }
 
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // Who only copied for the scriptorium has not followed the curriculum: the day after his last
-        // day of study the masters send him away. A drop-out, without the class.
-        TEST(story_test, a_truant_is_sent_away)
+        // Who only copied for the scriptorium is not sent away: he reaches the examinations, the day's
+        // only tasks, one after the other, and his preparation strikes nothing off
+        TEST(story_test, a_truant_reaches_the_examinations)
         {
             MockLogger logger;
-            Walker w(collegian(0));
+            Walker w(collegian());
 
             ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
 
-            for (int day = 1; day <= 13; ++day)
-                ASSERT_TRUE(study(w, "scriptorium")) << day;
+            for (int guard = 0; guard < 20 and w.day() < 15; ++guard)
+            {
+                const bool choosing = w.day() == 7;
+                ASSERT_TRUE(study(w, choosing ? "choose.basic" : "scriptorium")) << "day " << w.day();
+            }
 
-            EXPECT_EQ(intOf(w.character, "coin"), 39);
+            ASSERT_EQ(w.day(), 15);
+            ASSERT_EQ(w.screen(), "site");
+            ASSERT_EQ(w.last.works.size(), 1u);
+            EXPECT_EQ(textOf(w.last.works[0], "id"), "tile.theoryexam");
+            EXPECT_EQ(textOf(w.last.works[0], "costText"), "0 AP");
 
-            // The last day of study, the examinations' first: the library, the dummies or rest
-            EXPECT_EQ(w.day(), 14);
-            EXPECT_EQ(w.work("scriptorium"), nullptr);
-            ASSERT_TRUE(study(w, "rest"));
+            // The theory, a question at a time, and nothing struck off
+            ASSERT_TRUE(w.take("theoryexam"));
+            ASSERT_EQ(w.cardId(), "story.theory");
+            EXPECT_EQ(textOf(w.last.card, "title"), "The theory exam \xC2\xB7 Question 1 of 4");
+            ASSERT_EQ(w.last.options.size(), 4u);
 
-            EXPECT_EQ(w.day(), 15);
-            ASSERT_EQ(w.cardId(), "story.sent_away");
-            ASSERT_TRUE(w.answerFirst());
+            for (const auto& o : w.last.options)
+                EXPECT_EQ(intOf(o, "locked"), 0);
 
-            EXPECT_EQ(textOf(w.state.run, "result"), "dropout");
-            EXPECT_EQ(intOf(w.character, "dropout.collegium"), 1);
-            EXPECT_EQ(w.character.count("collegium"), 0u);
-            EXPECT_EQ(intOf(w.state.run, "sat.theory"), 0);
+            for (int q = 0; q < 4; ++q)
+            {
+                ASSERT_EQ(w.cardId(), "story.theory") << q;
+                ASSERT_TRUE(w.act("option", "a0"));
+            }
+
+            EXPECT_EQ(intOf(w.state.run, "sat.theory"), 1);
+            EXPECT_EQ(w.day(), 16);
+
+            // Then the practical, the day's only task
+            ASSERT_EQ(w.screen(), "site");
+            ASSERT_EQ(w.last.works.size(), 1u);
+            EXPECT_EQ(textOf(w.last.works[0], "id"), "tile.practicalexam");
+            EXPECT_NE(textOf(w.state.run, "result"), "dropout");
         }
 
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // Who read the forbidden shelf as a boy may answer from it: it counts for much, and he is
-        // marked for it.
-        TEST(story_test, the_forbidden_shelf_answer_marks_him)
+        // What he prepared strikes wrong answers off each question: they are shut, and refused; the
+        // same dice draw the same questions
+        TEST(story_test, the_theory_strikes_what_he_prepared)
+        {
+            MockLogger logger;
+
+            ElementMap prepared = collegian();
+            prepared["int"] = ElementType{20};
+
+            for (const char* flag : {"tome", "forbidden_read", "anselm_trust", "library_access", "mara_student"})
+                prepared[flag] = ElementType{1};
+
+            auto toTheTheory = [](Walker& w) {
+                ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
+
+                for (int guard = 0; guard < 20 and w.day() < 15; ++guard)
+                    ASSERT_TRUE(study(w, w.day() == 7 ? "choose.basic" : "scriptorium")) << "day " << w.day();
+
+                ASSERT_TRUE(w.take("theoryexam"));
+                ASSERT_EQ(w.cardId(), "story.theory");
+            };
+
+            Walker w(prepared);
+            w.seed = 7;
+            toTheTheory(w);
+
+            // (20 for his wits, 2 for his letters, 10 for what his childhood gave him: two struck)
+            int struck = 0;
+            std::string shut;
+
+            for (const auto& o : w.last.options)
+            {
+                if (intOf(o, "locked") > 0)
+                {
+                    ++struck;
+                    shut = textOf(o, "id");
+                    EXPECT_EQ(textOf(o, "asks"), "STRUCK OFF");
+                }
+            }
+
+            EXPECT_EQ(struck, 2);
+
+            const std::string first = textOf(w.last.card, "text");
+
+            ASSERT_TRUE(w.act("option", shut));
+            EXPECT_EQ(intOf(w.state.run, "quiz.theory.n"), 0);
+            EXPECT_EQ(textOf(w.last.site, "refused"), "That answer is struck off");
+
+            // The same dice, the same question
+            Walker again(prepared);
+            again.seed = 7;
+            toTheTheory(again);
+            EXPECT_EQ(textOf(again.last.card, "text"), first);
+
+            // Answered as one who knows: four of four
+            for (int q = 0; q < 4; ++q)
+                ASSERT_TRUE(w.act("option", "best"));
+
+            EXPECT_EQ(intOf(w.state.run, "score.theory"), 4);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // The dummies are fought by hand, on the fight screen
+        TEST(story_test, the_dummies_are_fought_by_hand)
         {
             MockLogger logger;
 
             ElementMap who = collegian();
-            who["forbidden_read"] = ElementType{1};
-
+            who["fire_course"] = ElementType{1};
             Walker w(who);
 
-            StoryPlan plan = planOf(w, "collegium");
-            plan.tests["theory"] = "shelf";
-
-            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
-            followPlan(w, plan, 15);
-
-            ASSERT_EQ(w.day(), 15);
-            ASSERT_EQ(w.cardId(), "story.theory");
-            ASSERT_NE(w.option("shelf"), nullptr);
-            ASSERT_NE(w.option("taught"), nullptr);
-            EXPECT_EQ(w.option("fathers"), nullptr);
-
-            ASSERT_TRUE(w.act("option", "shelf"));
-            EXPECT_EQ(intOf(w.character, "suspected"), 1);
-        }
-
-        // ----------------------------------------------------------------------------------------
-        // ---------------------------        Test separator        -------------------------------
-        // ----------------------------------------------------------------------------------------
-        // The masters' word never promises a pass that one examination's floor refuses: a student
-        // of the basics who practised twice but read once (theory 22, under its 24) is told he is
-        // behind in his books, and he fails.
-        TEST(story_test, the_standing_never_promises_what_a_floor_refuses)
-        {
-            MockLogger logger;
-            Walker w(collegian());
-
             ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
 
-            for (const char* tile : {"lectures", "lectures", "lectures", "library", "scriptorium", "scriptorium"})
+            for (const char* tile : {"lectures", "lectures", "library", "library", "library", "library", "choose.fire"})
                 ASSERT_TRUE(study(w, tile)) << tile;
-
-            ASSERT_EQ(w.cardId(), "story.course");
-            ASSERT_TRUE(w.act("option", "basic"));
-
-            for (const char* tile : {"basics", "basics", "basics", "practice", "practice", "scriptorium", "scriptorium", "rest"})
-                ASSERT_TRUE(study(w, tile)) << tile;
-
-            ASSERT_EQ(w.day(), 15);
-            ASSERT_EQ(w.cardId(), "story.theory");
-            ASSERT_EQ(w.mark("courses"), 6);
-            ASSERT_EQ(w.mark("revised"), 1);
-            ASSERT_EQ(w.mark("practised"), 2);
-
-            const std::string said = textOf(w.last.site, "standing");
-
-            EXPECT_EQ(said, "The masters think him behind in his books.");
-            EXPECT_NE(said, "The masters expect him to pass.");
-
-            ASSERT_TRUE(w.act("option", "taught"));
-            EXPECT_EQ(intOf(w.state.run, "score.theory"), 22);
-        }
-
-        // ----------------------------------------------------------------------------------------
-        // ---------------------------        Test separator        -------------------------------
-        // ----------------------------------------------------------------------------------------
-        // Who comes to the examinations with no working he can throw (all his days on the familiar
-        // studies) cannot break a dummy: his books are enough, and the masters say he is behind
-        // with the workings.
-        TEST(story_test, the_standing_says_who_has_no_working_is_behind)
-        {
-            MockLogger logger;
-            Walker w(collegian());
-
-            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
-
-            for (int day = 1; day <= 13; ++day)
-                ASSERT_TRUE(study(w, "familiar")) << day;
 
             ASSERT_NE(w.work("practice"), nullptr);
-            EXPECT_EQ(intOf(*w.work("practice"), "locked"), 1);
-
-            ASSERT_TRUE(study(w, "library"));
-
-            ASSERT_EQ(w.day(), 15);
-            ASSERT_EQ(w.cardId(), "story.theory");
-            EXPECT_EQ(textOf(w.last.site, "standing"), "The masters think him behind with the workings.");
+            ASSERT_TRUE(w.take("practice"));
+            EXPECT_EQ(w.screen(), "fight");
         }
 
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The grades and the masters' word, measured on the playtest's scholar (life (a) of the
-        // ninth task): his wits 15, Mara's pupil, the Old Chronicle and the forbidden shelf read as
-        // a boy, his letters; in the term the lectures, the familiar studies, the fire course, the
-        // binding hall and two days on the dummies, and the notes copied by candlelight on the
-        // third day. Answering what was taught, a merit; from the forbidden shelf, or with a third
-        // day on the dummies, a distinction
+        // The masters' word: who would find no answer is behind in his books, whatever else he has
+        // done; a student on the plan is expected to pass by the last day of study
         namespace
         {
-            const char* const ExpectPass = "The masters expect him to pass.";
-            const char* const ThinkWell = "The masters think well of him.";
-            const char* const TopFloor = "The masters speak of him on the top floor.";
-            const char* const SeldomSeen = "The masters seldom see him in their lecture halls.";
-
-            bool promises(const std::string& said)
-            {
-                return said == ExpectPass or said == ThinkWell or said == TopFloor;
-            }
-
-            ElementMap scholar()
-            {
-                ElementMap who = collegian(60);
-
-                who["int"] = ElementType{15};
-                who["lore"] = ElementType{4};
-                who["mara_student"] = ElementType{1};
-                who["forbidden_read"] = ElementType{1};
-
-                return who;
-            }
-
             // A chance meeting of the term put up at the start of the day, as the dice would, and
             // answered
             void meet(Walker& w, const std::string& event, const std::string& answer)
@@ -1959,235 +1965,52 @@ namespace pg
                 ASSERT_EQ(w.cardId(), "story." + event);
                 ASSERT_TRUE(w.act("option", answer));
             }
+        }
 
-            // His term, by its plan: the lectures, the familiar studies, the fire course, then
-            // `last`; the theory answered by `theory`; the notes copied on the third day
-            void scholarTerm(Walker& w, const std::vector<std::string>& last, const std::string& theory)
+        TEST(story_test, the_standing_says_what_the_masters_think)
+        {
+            MockLogger logger;
+
             {
-                w.rules.done["chronicle"] = ElementType{1};
-
-                StoryPlan plan;
-                plan.tiles = {"lectures", "lectures", "lectures", "familiar", "familiar", "familiar", "fire", "fire", "fire", "fire", "fire"};
-                plan.tiles.insert(plan.tiles.end(), last.begin(), last.end());
-                plan.cards["course"] = "fire";
-                plan.tests["theory"] = theory;
-                plan.tests["practical"] = "face";
+                Walker w(collegian());
 
                 ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
-
-                bool copied = false;
-
-                followPlan(w, plan, 1000, [&copied](Walker& at) {
-                    if (at.day() == 3 and at.screen() == "site" and not copied)
-                    {
-                        copied = true;
-                        meet(at, "notes", "copy");
-                    }
-                });
-
-                EXPECT_TRUE(copied);
+                EXPECT_EQ(textOf(w.last.site, "standing"), "The masters don't know your name yet.");
             }
 
-            std::string scores(const Walker& w)
             {
-                return "theory " + std::to_string(intOf(w.state.run, "score.theory")) + ", practical " + std::to_string(intOf(w.state.run, "score.practical"));
-            }
-        }
+                ElementMap who = collegian();
+                who["int"] = ElementType{13};
+                who["mara_student"] = ElementType{1};
 
-        // Answering what was taught: 36 and 31 (both dummies, a reaction, two days on them), a merit
-        TEST(story_test, the_scholar_who_answers_what_was_taught_has_merit)
-        {
-            MockLogger logger;
-            Walker w(scholar());
-
-            scholarTerm(w, {"binding", "practice", "practice"}, "taught");
-
-            ASSERT_EQ(textOf(w.state.run, "mode"), "done");
-            EXPECT_EQ(w.mark("revised"), 1);
-            EXPECT_EQ(w.mark("courses"), 11);
-            EXPECT_EQ(w.mark("practised"), 2);
-            EXPECT_EQ(intOf(w.state.run, "score.theory"), 36) << scores(w);
-            EXPECT_EQ(intOf(w.state.run, "score.practical"), 31) << scores(w);
-            EXPECT_EQ(textOf(w.state.run, "result"), "merit") << scores(w);
-            EXPECT_EQ(intOf(w.character, "top_floor"), 0);
-        }
-
-        // From the forbidden shelf, a distinction (and he is suspected of it)
-        TEST(story_test, the_scholar_who_answers_from_the_shelf_has_distinction)
-        {
-            MockLogger logger;
-            Walker w(scholar());
-
-            scholarTerm(w, {"binding", "practice", "practice"}, "shelf");
-
-            ASSERT_EQ(textOf(w.state.run, "mode"), "done");
-            EXPECT_EQ(intOf(w.state.run, "score.theory"), 42) << scores(w);
-            EXPECT_EQ(textOf(w.state.run, "result"), "distinction") << scores(w);
-            EXPECT_EQ(intOf(w.character, "top_floor"), 1);
-            EXPECT_EQ(intOf(w.character, "suspected"), 1);
-
-            // Taken so far says it in one line, its word going on from its name, and no figure
-            const ElementMap* suspected = byId(w.last.taken, "stat.suspected");
-            ASSERT_NE(suspected, nullptr);
-            EXPECT_EQ(textOf(*suspected, "name"), "Suspected of the forbidden shelf by the masters");
-            EXPECT_EQ(textOf(*suspected, "value"), "");
-        }
-
-        // Answering what was taught, with a third day on the dummies in the binding hall's place: a
-        // distinction, by his practice (36 and 34)
-        TEST(story_test, the_scholar_who_practised_three_days_has_distinction)
-        {
-            MockLogger logger;
-            Walker w(scholar());
-
-            scholarTerm(w, {"practice", "practice", "practice"}, "taught");
-
-            ASSERT_EQ(textOf(w.state.run, "mode"), "done");
-            EXPECT_EQ(w.mark("practised"), 3);
-            EXPECT_EQ(intOf(w.state.run, "score.practical"), 34) << scores(w);
-            EXPECT_EQ(textOf(w.state.run, "result"), "distinction") << scores(w);
-        }
-
-        // The masters promise him nothing on his first day: what he has done counts, not the answer
-        // the forbidden shelf might give him; and their word moves up as he studies
-        TEST(story_test, the_standing_counts_what_he_has_done)
-        {
-            MockLogger logger;
-            Walker w(scholar());
-
-            w.rules.done["chronicle"] = ElementType{1};
-
-            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
-
-            const std::string first = textOf(w.last.site, "standing");
-
-            EXPECT_FALSE(promises(first)) << first;
-
-            // His term looked at day by day, to the theory
-            std::vector<std::string> said;
-
-            StoryPlan plan;
-            plan.tiles = {"lectures", "lectures", "lectures", "familiar", "familiar", "familiar", "fire", "fire", "fire", "fire", "fire", "binding", "practice", "practice"};
-            plan.cards["course"] = "fire";
-            plan.tests["theory"] = "taught";
-            plan.tests["practical"] = "face";
-
-            followPlan(w, plan, 15, [&said](Walker& at) {
-                const std::string line = textOf(at.last.site, "standing");
-
-                if (said.empty() or said.back() != line)
-                    said.push_back(line);
-            });
-
-            // Behind on the first day, expected to pass once he follows the lectures, and well
-            // thought of by the last days; never the top floor, which asks more than he has done
-            ASSERT_GE(said.size(), 3u);
-            EXPECT_FALSE(promises(said.front())) << said.front();
-            EXPECT_NE(std::find(said.begin(), said.end(), ExpectPass), said.end());
-            EXPECT_EQ(said.back(), ThinkWell);
-            EXPECT_EQ(std::find(said.begin(), said.end(), TopFloor), said.end());
-        }
-
-        // From the old tome his lore counts three times in place of his wits: for who has five or
-        // more, it is the better answer
-        TEST(story_test, the_tome_answer_wins_for_a_lore_rich_student)
-        {
-            MockLogger logger;
-
-            ElementMap who = collegian(60);
-            who["int"] = ElementType{13};
-            who["lore"] = ElementType{6};
-            who["tome"] = ElementType{1};
-
-            int scored[2] = {0, 0};
-            const char* answers[2] = {"taught", "tome"};
-
-            for (int i = 0; i < 2; ++i)
-            {
                 Walker w(who);
-
-                StoryPlan plan = planOf(w, "collegium");
+                const StoryPlan plan = planOf(w, "collegium");
 
                 ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
                 followPlan(w, plan, 15);
 
-                ASSERT_EQ(w.cardId(), "story.theory");
-                ASSERT_NE(w.option(answers[i]), nullptr) << answers[i];
-                ASSERT_TRUE(w.act("option", answers[i]));
-
-                scored[i] = intOf(w.state.run, "score.theory");
-            }
-
-            // 13 for his wits, 18 for his lore
-            EXPECT_EQ(scored[1], scored[0] + 5);
-        }
-
-        // ----------------------------------------------------------------------------------------
-        // ---------------------------        Test separator        -------------------------------
-        // ----------------------------------------------------------------------------------------
-        // Who reads and copies and seldom sits in a lecture hall is told so in time, from the
-        // second day: never a promise of a pass, and on the fifteenth the masters send him away
-        TEST(story_test, the_masters_warn_of_the_curriculum_in_time)
-        {
-            MockLogger logger;
-
-            ElementMap who = collegian();
-            who["mara_student"] = ElementType{1};
-
-            Walker w(who);
-
-            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
-
-            int heard = 0;
-
-            for (int day = 1; day <= 14; ++day)
-            {
-                ASSERT_EQ(w.day(), day);
-                ASSERT_EQ(w.screen(), "site") << day;
+                ASSERT_EQ(w.day(), 15);
 
                 const std::string said = textOf(w.last.site, "standing");
-
-                if (said == SeldomSeen and heard == 0)
-                    heard = day;
-
-                if (heard > 0)
-                    EXPECT_FALSE(promises(said)) << "day " << day << ": " << said;
-
-                ASSERT_TRUE(study(w, day % 2 == 1 or day == 14 ? "library" : "scriptorium")) << day;
+                EXPECT_TRUE(said == "The masters expect you to pass." or said == "The masters think well of you.") << said;
             }
 
-            EXPECT_GT(heard, 0);
-            EXPECT_LE(heard, 5);
+            {
+                // A working and his days on the dummies, but no preparation for the theory: behind
+                ElementMap who = collegian();
+                who["int"] = ElementType{6};
+                who["letters"] = ElementType{1};
+                who["fire_course"] = ElementType{1};
 
-            ASSERT_EQ(w.day(), 15);
-            ASSERT_EQ(w.cardId(), "story.sent_away");
-            ASSERT_TRUE(w.answerFirst());
-            EXPECT_EQ(textOf(w.state.run, "result"), "dropout");
-        }
+                Walker w(who);
 
-        // Who follows the curriculum is never told he is seldom seen
-        TEST(story_test, the_plan_student_is_never_told_he_is_seldom_seen)
-        {
-            MockLogger logger;
+                ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
 
-            ElementMap who = collegian();
-            who["int"] = ElementType{13};
-            who["mara_student"] = ElementType{1};
+                for (const char* tile : {"scriptorium", "scriptorium", "scriptorium", "scriptorium", "scriptorium", "scriptorium", "choose.basic"})
+                    ASSERT_TRUE(study(w, tile)) << tile;
 
-            Walker w(who);
-
-            const StoryPlan plan = planOf(w, "collegium");
-            int looked = 0;
-
-            ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
-
-            followPlan(w, plan, 1000, [&looked](Walker& at) {
-                ++looked;
-                EXPECT_NE(textOf(at.last.site, "standing"), SeldomSeen) << "day " << at.day();
-            });
-
-            EXPECT_GE(looked, 14);
-            EXPECT_EQ(textOf(w.state.run, "mode"), "done");
+                EXPECT_EQ(textOf(w.last.site, "standing"), "The masters think you behind in your books.");
+            }
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2232,38 +2055,30 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        // The fire course the seventh day's card opens is new that day, and not the next; what the
-        // card shut (the basics) is said gone that day too
-        TEST(story_test, a_tile_a_card_opens_is_new_that_day)
+        // The fire course his choice opens is new the day it is first offered, and not the next
+        TEST(story_test, a_tile_a_choice_opens_is_new_the_next_day)
         {
             MockLogger logger;
             Walker w(collegian());
 
             ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
 
-            for (const char* tile : {"lectures", "lectures", "library", "library", "library", "library"})
+            for (const char* tile : {"lectures", "lectures", "library", "library", "library", "library", "choose.fire"})
                 ASSERT_TRUE(study(w, tile)) << tile;
 
-            ASSERT_EQ(w.cardId(), "story.course");
-            ASSERT_TRUE(w.act("option", "fire"));
-
-            ASSERT_EQ(w.day(), 7);
+            ASSERT_EQ(w.day(), 8);
             ASSERT_NE(w.work("fire"), nullptr);
             EXPECT_EQ(intOf(*w.work("fire"), "fresh"), 1);
-            EXPECT_NE(byId(w.last.gone, "tile.basics"), nullptr);
-            EXPECT_NE(byId(w.last.gone, "tile.lectures"), nullptr);
 
             // A look says the same
             ASSERT_TRUE(w.ask("look"));
             ASSERT_NE(w.work("fire"), nullptr);
             EXPECT_EQ(intOf(*w.work("fire"), "fresh"), 1);
-            EXPECT_NE(byId(w.last.gone, "tile.basics"), nullptr);
 
             ASSERT_TRUE(study(w, "fire"));
-            ASSERT_EQ(w.day(), 8);
+            ASSERT_EQ(w.day(), 9);
             ASSERT_NE(w.work("fire"), nullptr);
             EXPECT_EQ(intOf(*w.work("fire"), "fresh"), 0);
-            EXPECT_EQ(byId(w.last.gone, "tile.basics"), nullptr);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2278,11 +2093,8 @@ namespace pg
 
             ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
 
-            for (const char* tile : {"scriptorium", "lectures", "lectures", "library", "library", "library"})
+            for (const char* tile : {"scriptorium", "lectures", "lectures", "library", "library", "library", "choose.fire"})
                 ASSERT_TRUE(study(w, tile)) << tile;
-
-            ASSERT_EQ(w.cardId(), "story.course");
-            ASSERT_TRUE(w.act("option", "fire"));
 
             // Before: what the course teaches, in time
             ASSERT_NE(w.work("fire"), nullptr);
@@ -2339,7 +2151,7 @@ namespace pg
             ASSERT_TRUE(w.ask("enter", WalkAct{"story", "collegium", 0}));
             ASSERT_EQ(w.state.record.size(), 1u);
             EXPECT_EQ(textOf(w.state.record.front(), "kind"), "stage");
-            EXPECT_EQ(textOf(w.state.record.front(), "text"), "The first weeks. Every lecture hall is open to him, and every master asks his fee at the door.");
+            EXPECT_EQ(textOf(w.state.record.front(), "text"), "The first weeks. Every lecture hall is open to you, and every master asks a fee at the door.");
             EXPECT_EQ(textOf(w.state.record.front(), "figure"), "");
             EXPECT_EQ(intOf(w.state.record.front(), "ap"), 0);
 
@@ -2357,10 +2169,11 @@ namespace pg
                     stages.push_back(textOf(s, "target"));
             }
 
-            EXPECT_EQ(stages, (std::vector<std::string>{"The first weeks", "The chosen course", "The examinations"}));
+            EXPECT_EQ(stages, (std::vector<std::string>{"The first weeks", "The choice of a course", "The chosen course", "The examinations"}));
 
-            // Its days are the scene's still: sixteen of them, none for the lines of the stages
-            EXPECT_EQ(intOf(w.state.run, "spent"), 16);
+            // Its days are the scene's still: sixteen of them, and its 24 months
+            EXPECT_EQ(w.day(), 17);
+            EXPECT_EQ(intOf(w.state.run, "monthsRun"), 24);
         }
 
         // ----------------------------------------------------------------------------------------

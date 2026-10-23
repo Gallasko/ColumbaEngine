@@ -309,7 +309,43 @@ fun feeText(tile)
 
 // Whether a tile is shown today: within its days, nothing it shuts on holds, all it is shown with
 // holds, not taken its most
+// What a tile costs in AP: its `cost` (1 when none), or less with a stat of his at `cheaperWith`'s
+// `at` ("All three courses: 3 AP, 2 with Intelligence 14")
+fun tileCost(tile)
+{
+    var cost = pick(tile, "cost", 1)
+    var cheaper = pick(tile, "cheaperWith", {})
+
+    if (pick(cheaper, "stat", "") != "" and storyStat(cheaper.stat) >= pick(cheaper, "at", 1))
+    {
+        cost = smaller(cost, pick(cheaper, "cost", cost))
+    }
+
+    return cost
+}
+
+// Whether a tile is offered today. A `sole` tile offered takes the day for itself: while one is,
+// no tile that is not sole is offered (the Collegium's choice of a course, its examinations)
 fun tileOffered(tile)
+{
+    if (not pick(tile, "sole", false))
+    {
+        var tiles = pick(storyNow(), "tiles", [])
+
+        for (var i = 0; i < len(tiles); i++)
+        {
+            if (pick(tiles[i], "sole", false) and tileOpen(tiles[i]))
+            {
+                return false
+            }
+        }
+    }
+
+    return tileOpen(tile)
+}
+
+// Whether a tile is offered today by its own days and conditions
+fun tileOpen(tile)
 {
     var day = runOf("day")
     var days = pick(tile, "days", [1, runOf("days")])
@@ -369,9 +405,9 @@ fun tileShort(tile)
         }
     }
 
-    if (pick(tile, "cost", 1) > runOf("ap"))
+    if (tileCost(tile) > runOf("ap"))
     {
-        return "NOT ENOUGH DAYS LEFT"
+        return "NOT ENOUGH AP LEFT"
     }
 
     return ""
@@ -505,6 +541,12 @@ fun testEstimate(test)
         return pick(run, "score." + test.id, 0)
     }
 
+    // A quiz: one answer found, and one more for each wrong answer his preparation strikes off
+    if (pick(test, "kind", "card") == "quiz")
+    {
+        return smaller(pick(test, "draw", 4), 1 + quizStruck(test))
+    }
+
     if (pick(test, "kind", "card") == "fight")
     {
         var fought = markOf("practised") * pick(test, "practised", 0)
@@ -536,6 +578,166 @@ fun knowsAHarm()
 }
 
 // What he would score if the tests were sat today, all of them together
+// ---- a quiz: questions one after another, four answers each (the Collegium's theory) ---------
+//
+// A test of kind "quiz" draws `draw` questions from its `pool` ({id, q, right, wrong: [three]}),
+// with the life's dice, and asks them one after another on its card. Before each is shown, what
+// he prepared (its `score`, as a card test's) strikes off wrong answers: the most `n` of its
+// `strikes` [{at, n}] reached. Its score is the right answers. The run keeps where he is
+// ("quiz.<id>.n"), what he got right (".right"), and each question drawn (".q<i>": its place in
+// the pool, plus one) with the place of its right answer (".p<i>")
+
+// How many wrong answers his preparation strikes off each question
+fun quizStruck(test)
+{
+    var prepared = testScore(test, {})
+    var strikes = pick(test, "strikes", [])
+    var struck = 0
+
+    for (var i = 0; i < len(strikes); i++)
+    {
+        if (prepared >= strikes[i].at)
+        {
+            struck = larger(struck, strikes[i].n)
+        }
+    }
+
+    return smaller(3, struck)
+}
+
+// The question `at` of the quiz, drawn the first time it is asked
+fun quizQuestion(test, at)
+{
+    var pool = pick(test, "pool", [])
+    var key = "quiz." + test.id + ".q" + toString(at)
+
+    if (len(pool) == 0)
+    {
+        return {id: "", q: "", right: "", wrong: []}
+    }
+
+    if (runOf(key) == 0)
+    {
+        // A question not asked yet in this quiz, the first free one from where the dice point
+        var drawn = roll(len(pool))
+
+        for (var tries = 0; tries < len(pool); tries++)
+        {
+            var taken = false
+
+            for (var j = 0; j < at; j++)
+            {
+                if (runOf("quiz." + test.id + ".q" + toString(j)) == drawn + 1)
+                {
+                    taken = true
+                }
+            }
+
+            if (taken)
+            {
+                drawn = (drawn + 1) % len(pool)
+            }
+        }
+
+        run[key] = drawn + 1
+        run["quiz." + test.id + ".p" + toString(at)] = roll(4)
+    }
+
+    return pool[runOf(key) - 1]
+}
+
+// The four answers of the question he is on: the right one in its place, the wrong ones in
+// theirs, those his preparation strikes off shut
+fun quizRows(test)
+{
+    var at = runOf("quiz." + test.id + ".n")
+    var question = quizQuestion(test, at)
+    var right = runOf("quiz." + test.id + ".p" + toString(at))
+    var struck = quizStruck(test)
+    var rows = []
+    var w = 0
+
+    for (var place = 0; place < 4; place++)
+    {
+        var row = {id: "a" + toString(place), label: question.right, line: "", locked: 0, asks: ""}
+
+        if (place != right)
+        {
+            row.label = question.wrong[w]
+
+            if (w < struck)
+            {
+                row.locked = 1
+                row.asks = "STRUCK OFF"
+            }
+
+            w = w + 1
+        }
+
+        push(rows, row)
+    }
+
+    return rows
+}
+
+// An answer given: right or wrong, written to the record; the next question, or the quiz sat
+fun quizAnswer(test, optionId)
+{
+    var rows = quizRows(test)
+    var chosen = {id: ""}
+
+    // (the solver's and the tests' way through, as one who knows the answers: storytable.pg's `plan`)
+    if (optionId == "best")
+    {
+        optionId = "a" + toString(runOf("quiz." + test.id + ".p" + toString(runOf("quiz." + test.id + ".n"))))
+    }
+
+    for (var i = 0; i < len(rows); i++)
+    {
+        if (rows[i].id == optionId)
+        {
+            chosen = rows[i]
+        }
+    }
+
+    if (chosen.id == "" or chosen.locked > 0)
+    {
+        run.refused = "That answer is struck off"
+        return
+    }
+
+    var at = runOf("quiz." + test.id + ".n")
+    var right = optionId == "a" + toString(runOf("quiz." + test.id + ".p" + toString(at)))
+    var said = "wrong"
+
+    if (right)
+    {
+        run["quiz." + test.id + ".right"] = runOf("quiz." + test.id + ".right") + 1
+        said = "right"
+    }
+
+    openStep("test", test.id + "/q" + toString(at), 1, 0, "Question " + toString(at + 1) + ": " + chosen.label + ", " + said, storyNow().glyph)
+
+    run["quiz." + test.id + ".n"] = at + 1
+
+    if (at + 1 < pick(test, "draw", 4))
+    {
+        return
+    }
+
+    var score = runOf("quiz." + test.id + ".right")
+
+    push(entries, {text: "You answered " + toString(score) + " of " + toString(pick(test, "draw", 4)) + " questions right", kind: "note", figure: "", glyph: storyNow().glyph})
+
+    run.event = ""
+    testSat(test, score)
+
+    if (run.event == "")
+    {
+        openDue()
+    }
+}
+
 fun standingEstimate(story)
 {
     var tests = pick(story, "tests", [])
@@ -875,7 +1077,7 @@ fun takeTile(id)
         return
     }
 
-    var cost = pick(tile, "cost", 1)
+    var cost = tileCost(tile)
 
     openStep("tile", tile.id, 1, cost, pick(tile, "line", tile.name), pick(tile, "glyph", story.glyph))
 
@@ -1314,6 +1516,14 @@ fun dueCard()
 
     for (var i = 0; i < len(tests); i++)
     {
+        // (a test opened by a tile of the day, "Take the theory exam", waits for it)
+        var opener = pick(tests[i], "opensWith", "")
+
+        if (opener != "" and takenOf(opener) == 0)
+        {
+            continue
+        }
+
         if (pick(tests[i], "day", 0) <= day and runOf("sat." + tests[i].id) == 0)
         {
             return tests[i].id
@@ -1536,6 +1746,15 @@ fun storyCardPage()
     var story = storyNow()
     var foot = "Your answer is written to the day, and the day goes on."
 
+    if (upKind() == "test" and pick(up, "kind", "card") == "quiz")
+    {
+        var at = runOf("quiz." + up.id + ".n")
+        var question = quizQuestion(up, at)
+
+        return {id: run.event, title: up.title + " · Question " + toString(at + 1) + " of " + toString(pick(up, "draw", 4)), text: question.q,
+                foot: "Pick an answer. What you prepared has struck off the answers you know are wrong."}
+    }
+
     if (upKind() == "test")
     {
         foot = "You sit it once, and it's your day's work."
@@ -1562,6 +1781,11 @@ fun storyOptionRows()
 
     var isTest = upKind() == "test"
     var isEvent = upKind() == "event"
+
+    if (isTest and pick(up, "kind", "card") == "quiz")
+    {
+        return quizRows(up)
+    }
 
     for (var i = 0; i < len(up.options) and len(rows) < 4; i++)
     {
@@ -1962,6 +2186,13 @@ fun storyChoose(optionId)
 
     var isTest = upKind() == "test"
     var isCard = upKind() == "card"
+
+    if (isTest and pick(up, "kind", "card") == "quiz")
+    {
+        quizAnswer(up, optionId)
+        return
+    }
+
     var option = optionOf(up, optionId)
 
     if (option.id == "" or not answerShown(option, isTest))
@@ -2394,7 +2625,7 @@ fun storyTiles()
             continue
         }
 
-        var cost = pick(tile, "cost", 1)
+        var cost = tileCost(tile)
         var days = apText(cost)
 
         // (a story of one act: what an act costs is its months)

@@ -14118,6 +14118,20 @@ namespace pg
                     termDo(f, life, "tile." + tile);
                 }
             }
+
+            // The theory exam taken, its four questions answered by `answer` ("best": as one who
+            // knows; "a0": the first answer each time), then the practical taken and faced
+            void sitExams(LifeFixture& f, LifeScene* life, const std::string& answer)
+            {
+                termTiles(f, life, {"theoryexam"});
+
+                for (int q = 0; q < 4 and life->onWalk() and runText(life, "event") == "story.theory"; ++q)
+                    termDo(f, life, "option", answer);
+
+                termTiles(f, life, {"practicalexam"});
+                ASSERT_EQ(runText(life, "event"), "story.practical");
+                termDo(f, life, "option", "face");
+            }
         }
 
         // A pass makes him a scholar of the Collegium: the row's `enters` is his aim once the story
@@ -14144,18 +14158,10 @@ namespace pg
             EXPECT_EQ(runText(life, "story"), "collegium");
             EXPECT_EQ(life->save.running, "collegium");
 
-            termTiles(f, life, {"lectures", "lectures", "lectures", "familiar", "familiar", "familiar"});
+            termTiles(f, life, {"lectures", "lectures", "lectures", "familiar", "familiar", "familiar", "choose.fire"});
+            termTiles(f, life, {"fire", "fire", "fire", "fire", "fire", "binding", "practice"});
 
-            ASSERT_EQ(runText(life, "event"), "story.course");
-            termDo(f, life, "option", "fire");
-
-            termTiles(f, life, {"fire", "fire", "fire", "fire", "fire", "binding", "practice", "library"});
-
-            ASSERT_EQ(runText(life, "event"), "story.theory");
-            termDo(f, life, "option", "taught");
-
-            ASSERT_EQ(runText(life, "event"), "story.practical");
-            termDo(f, life, "option", "face");
+            sitExams(f, life, "best");
             f.frames(12);
 
             // Over, and passed: twenty-four months gone, the term counted, and he is a mage
@@ -14203,15 +14209,24 @@ namespace pg
             life->beginStory("collegium");
             ASSERT_TRUE(life->onWalk());
 
-            // The curriculum and no more: no day of revision, nothing he holds counts for him
-            termTiles(f, life, {"lectures", "familiar", "familiar", "familiar", "familiar", "familiar"});
+            // No working to throw at the dummies, and the theory answered wrong: he fails
+            termTiles(f, life, {"lectures", "familiar", "familiar", "familiar", "familiar", "familiar", "choose.basic"});
 
-            for (int day = 7; day <= 14 and life->onWalk() and siteText(life, "screen") == "site"; ++day)
-                termDo(f, life, day <= 13 ? "tile.scriptorium" : "tile.rest");
+            for (int guard = 0; guard < 12 and life->onWalk() and runText(life, "day") != "15"; ++guard)
+                termDo(f, life, "tile.scriptorium");
 
-            ASSERT_EQ(runText(life, "event"), "story.theory");
-            termDo(f, life, "option", "taught");
+            ASSERT_EQ(runText(life, "day"), "15");
 
+            // (a wrong answer to each question: the last one, which only all three struck would shut)
+            termTiles(f, life, {"theoryexam"});
+
+            for (int q = 0; q < 4 and life->onWalk() and runText(life, "event") == "story.theory"; ++q)
+            {
+                const std::string right = "a" + runText(life, "quiz.theory.p" + std::to_string(q));
+                termDo(f, life, "option", right == "a3" ? "a2" : "a3");
+            }
+
+            termTiles(f, life, {"practicalexam"});
             ASSERT_EQ(runText(life, "event"), "story.practical");
             termDo(f, life, "option", "face");
             f.frames(12);
@@ -14242,10 +14257,8 @@ namespace pg
             life->beginStory("collegium");
             ASSERT_TRUE(life->onWalk());
 
-            termTiles(f, life, {"lectures", "lectures", "library", "library", "library", "library"});
-            ASSERT_EQ(runText(life, "event"), "story.course");
-            termDo(f, life, "option", "fire");
-            termTiles(f, life, {"fire", "fire", "fire"});
+            termTiles(f, life, {"lectures", "lectures", "library", "library", "library", "library", "choose.fire"});
+            termTiles(f, life, {"fire", "fire"});
 
             ASSERT_EQ(runText(life, "day"), "10");
             EXPECT_EQ(life->save.stats["fire_course"], 1);
@@ -14569,19 +14582,19 @@ namespace pg
             life->beginStory("collegium");
             ASSERT_TRUE(life->onWalk());
 
-            termTiles(f, life, {"lectures", "lectures", "lectures", "familiar", "familiar", "familiar"});
-            ASSERT_EQ(runText(life, "event"), "story.course");
-            termDo(f, life, "option", "fire");
+            termTiles(f, life, {"lectures", "lectures", "lectures", "familiar", "familiar", "familiar", "choose.fire"});
             termTiles(f, life, {"fire", "fire", "fire", "fire", "fire", "binding", "practice"});
 
-            ASSERT_EQ(runText(life, "day"), "14");
+            // The day of the theory: its one task, then its questions in the place of the day's work
+            ASSERT_EQ(runText(life, "day"), "15");
             f.pass(300.0f, 50.0f);
             ASSERT_FALSE(walkPart(life, "workPanel").empty());
             EXPECT_TRUE(f.pos(walkPart(life, "workPanel"))->visible);
+            ASSERT_EQ(life->walk.works.size(), 1u);
 
             const _unique_id page = life->walkPage.id;
 
-            termTiles(f, life, {"library"});
+            termTiles(f, life, {"theoryexam"});
             f.pass(300.0f, 50.0f);
 
             ASSERT_EQ(runText(life, "day"), "15");
@@ -14608,7 +14621,10 @@ namespace pg
             EXPECT_FALSE(f.pos(walkPart(life, "workPanel"))->visible);
 
             // The practical's day the same
-            termDo(f, life, "option", "taught");
+            for (int q = 0; q < 4 and runText(life, "event") == "story.theory"; ++q)
+                termDo(f, life, "option", "best");
+
+            termTiles(f, life, {"practicalexam"});
             f.pass(300.0f, 50.0f);
 
             ASSERT_EQ(runText(life, "event"), "story.practical");
