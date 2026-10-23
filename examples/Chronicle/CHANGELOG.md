@@ -3,309 +3,72 @@
 What changed in the game, build by build, as a player sees it. The engine's own changes are in
 the `CHANGELOG.md` at the root of the repository.
 
-## 0.8 - unreleased: the stores, the familiars and the town
+## 0.7 - 2026-10-23: the fight, the stores and the stories
 
-A life now gathers: piles of berries, water, firewood and stone that grow month by month, small
-creatures bound to him that make more of them, and a stash that keeps what he held for the life
-after him. The town is built of what he gathers, and gives back what gathering needs: room for
-another familiar, a new kind to bind, a bigger stash. And the Collegium is no longer two years
-at work: it is a term of sixteen days, each chosen when it comes. His sixth year ends the same
-way: four days on the outskirts of the town, and his first fight.
+A life now fights its own way, gathers what the town is built of, and lives its biggest moments
+day by day. And the whole game speaks to you.
 
-### New
+### Fights
 
-- **Berry pies.** From seven the baker on the square pays 6 coin and a little Dexterity for a
-  two-month bake, if he brings 6 berries.
-- **Resources.** Berries, water, firewood, stone and clay have their own place in your ledger,
-  under RESOURCES, with the most you can hold of each (30 berries, 40 water, 30 firewood, 20 stone,
-  20 clay). Gems are made, never gathered, 20 at most. Walks still bring them, and a
-  walk's haul is never thrown away, full or not.
-- **Scavenging.** From seven a boy can pick berries on the hedge, draw water from the bell and
-  gather deadfall, and from eight pick stones from the fields: a month of each, and the pile grows.
-  Full, the row waits until you have room.
-- **Your stores.** A berry basket, a rain barrel, a roofed woodpile and a stone heap each hold 20
-  more of their resource for the rest of the life, three times over. They cost a little firewood
-  (the woodpile some stone too), and come once you hold some of what they store.
-- **The market trades them.** Sell water, firewood, stone and clay by the lot; once you know the
-  town, buy water, firewood and stone.
-- **Familiars.** After his first two scavenges a boy can bind a hedge sprite: it eats a ration a
-  month and makes 4 berries. A familiar is bound for life, it cannot be sent away, and it ends with
-  him. Every month he eats first, then each kind is fed in turn, all of it or none: a hungry kind
-  makes nothing that month, and costs him nothing else. The row and its tooltip say what a
-  creature eats and makes before you bind it, and your rations warning counts their share, at work
-  with meals too: the months it says are the months that feed him and them both.
-- **Slots.** A child keeps one familiar. A first class gives a second slot, a second calling two
-  more, and the Harrow relic one while he holds it.
-- **More kinds.** *Read of the Well Spirits*, once he has his letters, teaches the well imp (8
-  water a month, for a ration and a coin); *Learn the Kitchen Charms*, once he has helped in the
-  kitchen, the kitchen brownie, which turns berries, water and firewood into rations. Beat the Old
-  Shell and the stone mole is yours; beat the Old Grey and the gem weaver, which spins stone into
-  gems. *Study the Stone-Weavers' Craft*, from fourteen with Letters 2 and some Lore, teaches the
-  gem weaver too, for 5 stone and 5 water: the gems of the town's higher levels wait on no boss.
-  A kind once learned stays learned, in every life after.
-- **Lessons.** A bound familiar can be taught twice, each lesson costing a month of what it eats:
-  every one of that kind makes one more a month from then on.
-- **The stash.** At his death, what he held of each basic resource goes into the stash, after the
-  gift to the town takes its share, up to 100 of each. A new life takes from it with *Take ... from
-  the stash*, as much as it has room for; the rest waits for the lives after. The ending says what
-  goes into it, and says it again when you choose a place for the gift.
-- **What the town gives back.** Some levels now help the gathering: the market hall makes every
-  sprite bring one more berry, the mill loft and the Collegium's reading desk each give every
-  life a slot for one more familiar, the smithy's second bellows teaches the stone mole and the
-  chapel primer the well imp (no need to beat the Old Shell or read of the well spirits), the
-  storyteller's chair at the inn lets the stash keep 50 more of each thing, and the lodge's racks
-  make every mole dig one more stone.
-- **The Storehouse.** A new place of the town, there once the stash holds anything. What you
-  take from the stash is taken there, on the Town page, once the town is known. Its three levels
-  let the stash keep 100, 200 and then 400 more of each thing.
-- **Gear from the smithy.** Once the smithy has its second bellows it forges an iron blade
-  (10 stone, 10 firewood and a gem: 4 more Might) and a leather jerkin (4 hides and 6 firewood:
-  2 armour off every bite or blow a beast lands). With the practice blades, and once a marsh
-  light has used its cold fire on you, it forges a warded charm too (3 gems and 10 water: 2 off
-  every working). Each is forged once a life, held under GEAR, taken into every fight, and lost
-  at his death: it is never kept in the stash nor left to a place.
-- **Millbrook Marsh.** A new place to walk, from 18, once the Quarry Road is known 4 of 4: three
-  months a walk. Marsh lights are workings, not bodies: an edge goes through them as through
-  smoke, a blessing ends them, and armour does nothing against their cold fire. Bog hounds hunt
-  in threes and frost hurts them more; a leech mass mends at every turn of its own unless it
-  burns. Over the deepest pool waits the Lantern Mother, who calls a light to her as she is hurt.
-  The marsh gives pitch, and bog iron once it is known 3 of 4; a light sometimes leaves a bead of
-  wisp-glass. Beat the Lantern Mother and the marsh wisp is yours to bind: it eats a ration and 2
-  water a month, makes a reagent, and is bound with 2 pitch.
-- **Options.** A fourth tab, after Adventure. Begin on first click makes a click on a task start
-  it at once (off as before: a click chooses, Begin or a double click starts). The light of the
-  page is Scriptorium (day) or Candle (night), and the game opens in the one you chose. Export
-  writes your save to a file of yours, Load brings one back (the game says so when a file is not a
-  save, or is from a newer version, and asks before it replaces a game under way), and Burn the
-  chronicle erases every life, the town and all knowledge once you type BURN. Your settings are
-  kept in your save, and loading another save or burning the chronicle leaves them as they are; an
-  exported file holds the chronicle alone. Not on the phone page yet.
-- **The Collegium, day by day.** *Enter the Collegium* opens a term of sixteen days on a page of
-  its own, and his two years there pass as the days do: the gauge at the head says the day and
-  the months gone, and how the masters think of him is said in words under his Vitality, by what
-  he has done so far (they tell him in time when they seldom see him in their lecture halls). Each
-  day he chooses its work. In the first weeks every hall is open: the elemental lectures, the
-  familiar studies, the library, copying for the scriptorium (it pays), a day's rest. Each course
-  is paid at its door, 3 coin a day. A stage's first day writes its words to the record.
-- **The choice of an element.** Twice at the elemental lectures by the seventh day, he gives his
-  name to fire, frost or storm, or keeps to the basics of all three. Two days on his element and
-  its bolt is his (*Firebolt*, *Frostbolt*, *Stormbolt*, the last a shock); four of the basics
-  teach *Spark*, *Rime* and a new *Static*. Three days of the familiar studies open the binding
-  hall, where he learns how the well imp is bound, or the kitchen brownie once he knows the imp.
-  Who has a working to throw can practise on the dummies.
-- **The examinations.** The fourteenth day is the last of study. On the fifteenth the masters
-  send away who has followed too few courses; the others sit the theory, answered from what was
-  taught, from the old tome, from the forbidden shelf (it counts for more, and he is suspected
-  of it) or from the Church fathers. What his childhood gave him counts there: his letters, the
-  tome, the library, Mara, the shelf, the Church, the old chronicle read. On the sixteenth, the
-  practical: two dummies, by his own hand, before the masters call time. He passes, with merit
-  or with distinction (an answer of his own, or days on the dummies), or fails. A pass makes him a
-  scholar of the Collegium, as the term did. What the term taught him, and that he left it, are
-  rows of the Life page.
-- **Chance days in the term.** A second-year's notes, fever in the dormitory, a master's errand
-  for the top floor: each asks an answer before the day's work.
-- **Who leaves keeps what he learned.** *Leave* is asked twice. Who leaves, is sent away or fails
-  has dropped out: what the term gave him is his, a course's bolt with it, the months not lived
-  there are his again, and its rations for them go back. The Collegium does not take him back,
-  but the other classes stay open: a man of the Keep who had followed the fire course throws a
-  Firebolt between two cuts. His chronicle says he left.
-- **Report a bug.** A small beetle button stands at the top right of every page, on a walk and
-  in a fight too, the phone page with them. It opens a box for a few words: what happened, what
-  you expected. Send gives them to the author with a picture of the screen as it was when you
-  pressed the button, your save and the game's last messages; a box left empty sends them all
-  the same. The game waits under the box: no month passes and no fight plays on, and no key typed
-  there plays. Three reports in a quarter of an hour at most: the box says when you may send
-  another, and a report that cannot be sent, or has no answer in half a minute, keeps your words
-  for another try. The
-  desktop game sends nothing: it writes the report to a folder beside the save.
-- **The outskirts and a first fight.** The last month of his sixth year is *Explore the
-  Outskirts*, a story of four days that ends the day he is seven, in every life, once. Noon at the
-  mill gives his lunch (6 rations). At the edge of the town he takes one of three paths, and the
-  other two close: the children of his age (a point of Dexterity), nature (Intelligence) or the
-  wild animals (Strength). Each path has its fork the next day: chase on the green or the older
-  boys' tales (Lore), the beetles under the stones or wortleaf by the ditch (2 remedies), the
-  tracks to the stream or stones at the crows. On the fourth day something grey creeps up out of
-  the ditch: he stands his ground, and fights a slime by his own hand on the fight screen. Its
-  panel says what it will do on its turn: it oozes toward him, which does nothing, then slaps. It
-  cannot kill him; beaten, it leaves his first chronicle pages, four of them, which the market
-  buys for a coin. Who turns back halfway keeps what the days gave, and the outskirts are not
-  offered again.
-- **The first moves.** Each path teaches a move for every fight after it: *Step aside* (hard to
-  hit until his next action), *Read the beast* (it is known 3 of 4 for the fight) or the *Stick
-  blow* (a heavy blunt blow, a little harder to land).
-- **The guide in the outskirts.** A first life is shown the outskirts' task in the list, then
-  the lunch, the three paths, the card at the ditch, and in the fight the slime's panel, the
-  order of the turn and Strike. Each step is said on the screen it is about; *Skip tutorial*
-  there leaves the fight as it was.
-- **Chronicle pages.** Whatever the curse made leaves a page behind it when he kills it, in a
-  hand nobody in Bellmoor writes: every beast of the walks, the bosses too, not the practice
-  dummies: one a beast, but the outskirts' slime leaves four. Pages are kept under STORES, which
-  says the market buys them four for a coin, and the end of a fight names what it left.
+- A timeline shows who acts before your next turn.
+- New kinds of blows, and each class fights its own way: the Keep builds combos, the Collegium
+  sets elements off against each other, the Hidden Hand strikes fast and often, the Greenwood
+  uses items.
+- Bosses to find and beat on the walks.
+- Every beast leaves pages of the chronicle, which the market buys.
 
-### Changed
+### Gathering, familiars and the town
 
-- **Drying berries reads Make.** Its buttons say Make and Make all, as the market's making does.
-- **A level of the town is paid mainly in resources.** The first level of a place asks 20 each of
-  the two basics it is built of; the second 40 of them and 2 gems; the third 80, 4 gems and one
-  thing found on a walk (pelts, hides, fangs, a white antler, bog iron, wisp-glass, or a boss's
-  trophy). Clay is never asked past 20, since no store makes room for more, and the storehouse
-  asks firewood too from its second level. Their coin is about a quarter of what it was. Some
-  levels still ask a part or a standing as well, and the lodge is still built of what walks
-  bring.
-- **What a death leaves to a place** is anything its next level still asks, not only what walks
-  bring: berries, water, firewood, stone, clay, gems and things found. Never a part, a skill or a
-  standing: renown is not left to anyone. When a level is raised, what is left over in its fund
-  stays for the level after.
-- **The mill loft** gives a familiar slot, no longer 6 rations at birth; **the reading desk** a
-  familiar slot, no longer Lore 1.
-- **Early works ask for resources.** The kitchen wants water and firewood, the smithy firewood,
-  your letters a little firewood, and a remedy a cup of water. The carters still take anyone, so a
-  boy with nothing can always eat.
-- **Berries, firewood, stone and clay are resources now**, no longer stores, each with its limit.
-  What an old save holds past a limit stays: it is only spent, never cut.
-- **Dry berries at home.** Drying berries into rations is among what a boy gathers, no longer at
-  the market: a sprite's berries feed him before he knows the town.
-- **Dry berries asks only for its berries.** Its tooltip has one line, the three berries it
-  costs, no longer a second "Berries to dry"; its row comes with his first berries.
-- **No bind rows without a free slot.** While every slot is filled the *Bind* rows leave the
-  list (the lessons stay). A slot from a class, a relic or the town brings them back, with no
-  "New:" toast for a row he has seen before.
-- **Work that fed him now gives its months of rations when he begins it**: three for the
-  carters, eighteen for the Keep's oath, kept past the limit of sixty. He and his familiars eat
-  every month at any work, so rations go one way only. The tile says RATIONS UP FRONT, the
-  tooltip "Rations 3 up front", and the log what was given. Left before its term (set aside for
-  an answer, and closed before he could go back), the rations of the months not worked go back.
-  A save made in the middle of such a work is given the rations of the months it has left, once,
-  as it opens. The gleaning of his sixth year no longer counts as feeding him: a boy who holds no
-  rations eats none, and what it brings is his first.
-- **The rations guide** no longer says "3 months": with familiars bound, three rations last less.
-- **The market buys and sells on lines of their own.** Under *Buy* and *Sell* (what is made there
-  under *Make*), and its button says *Buy*, *Sell* or *Make*, not *Do it now*. Beside it, *Sell all*
-  sells every lot you hold, *Buy all* buys as many lots as your coin and your room allow
-  (rations, reagents, water, firewood, stone; not what is bought once), and *Make all* makes
-  as many as you can pay for and have room for (remedies, fire flasks). The *All* button now
-  stands beside its button, where it was meant to be.
-- **The Town page** no longer writes "The Market" over its lines: *Buy*, *Sell*, *Make* and each
-  place have their own heading.
-- **A place's tile** says a short line for what its level gives, so the end is no longer cut off;
-  its tooltip still says all of it. The second bellows say the smithy forges gear now, and its
-  practice blades that it forges the warded charm.
-- **Start Helping Out is gone.** The outskirts take its month, and its 6 rations are the
-  outskirts' lunch. A save in the middle of it finishes the month as it was, and is not offered
-  the outskirts on top of it: a save of 0.6, whose month at the mill gave its rations only at its
-  end, is given them as it opens, once, so he is seven and fed. One that had done it counts as
-  having walked the outskirts.
-- **Saves are of version 2.** The guide has seven steps more, so a first life saved past its old
-  steps is moved on once as it opens, and is not told the classes again (the step a skipped guide
-  stood at is moved the same way). A save made at the mill, past his age, is not told the
-  outskirts' steps. A save of this build cannot be loaded by an older one, which says it is
-  newer. The analytics digest says version 0.8, since its guide numbers mean other steps now.
-- **A fed work's tooltip says how long its rations last** when his familiars eat them sooner than
-  its term: "Rations 24 up front · lasts 6 mo".
-- **The Collegium takes no coin up front.** Its door asks Intelligence 12, Letters 3 and Lore 2,
-  and coin for its first days (6, held, not taken); the fees of its courses are paid as he
-  follows them: about 35 coin for a whole curriculum, as before, but a day at a time.
-- **Firebolt is taught by the fire course**, no longer by the Collegium itself. A save that holds
-  the Collegium keeps its Firebolt; one made in the middle of the old two years is given what the
-  term gave, as it opens, and its months run out as they were.
+- Gather berries, water, firewood and stone, and build stores to keep more of them.
+- Bind familiars for life. Each eats and makes something every month. The hedge sprite and the
+  well imp eat no rations.
+- A stash keeps what you gathered for your next life.
+- The town's places are built mostly from what you gather, and give back more familiar slots,
+  new kinds to bind, and a bigger stash.
+- The smithy forges an iron blade, a leather jerkin and a warded charm.
+- A new place to walk: Millbrook Marsh, with its lights, bog hounds and the Lantern Mother.
+- The market has Buy, Sell and Make lines, with Buy all and Sell all.
+- Work that feeds you gives its rations up front.
 
-### Fixed
+### Stories you live day by day
 
-- **The timeline once a fight is over** was an empty panel. It now says THE FIGHT IS OVER, and
-  stands no taller than that line.
-- **Read the beast** said "known 3 of 4 for this fight" twice in its tooltip.
-- **On a phone**, a step of the guide about a task, said while his stats, his things, his years
-  or the log were open, had no hand: it now points at the Life tab, as on the Town page.
-- **His age** at the head of the page could read a year short in the month of his birthday
-  (15 at sixteen, until the next month).
-- **No more immortal old men.** An Inn raised after his thirtieth year stopped his old age on the
-  spot: the Vitality it had taken stayed lost, the works of his prime came back, and he lived
-  untouched to fifty. Where his old age begins is now settled the month he turns thirty: an Inn
-  raised later is for the lives after his, and its first level says so (old age at 50, not 30).
-- **The Lord's Pardon.** Once answered, *Burn the Lord's Tithe Barn* is no longer offered, as
-  the Pardon was never offered once the barn had burned: a renegade could do both.
-- **A save that would not load.** A save written over a broken file, or a file of another kind,
-  kept that file's first line and never loaded again. A save is now always written with its own.
+- **The outskirts** end your sixth year: lunch at the mill, one of three paths, and your first
+  fight, against a slime.
+- **The Collegium** is a 16-day term: lectures, then a choice of fire, frost, storm or all three;
+  practice against dummies you fight yourself; a theory exam of four questions, where what you
+  studied crosses out wrong answers; and a practical exam that is a real fight. Nobody is sent
+  away before the exams.
+- **The chapel library** opens once you can read. Pick a book, give it a few months, and it
+  teaches you something. Books you buy stay on its shelf for every life after.
+- Vitality doesn't come back during a story, so rest before the hard parts.
 
-## 0.7 - unreleased: the fight
+### Your first life
 
-The walks become the heart of a life: a fight is now about how you fight, and what you learned
-growing up is what you bring.
+- The guide takes you through your first story and your first fight.
+- It stops pointing at Begin once you know the button, and gets out of the way when you pick its
+  task.
+- New tasks wear a gold seal until you look at them, and fade in as they appear.
 
-### New
+### Words
 
-- **Who is quicker acts more often.** A fight is no longer rounds. The order of the turn shows
-  the next six actions, yours first; a quick move (a thrust, a step aside) brings your next
-  action sooner, a heavy one (a finisher) later.
-- **Kinds of blows, and beasts that resist them.** A blow cuts, pierces or crushes; a working
-  burns, freezes, shocks, or is holy. A boar's hide turns an edge but not a hammer; a beetle's
-  plates stop a cut but not a point. Armour stops blows (a pierce goes through), a ward stops
-  workings. Once you know a beast well, every move says *WEAK* or *RESISTED* against it, and a
-  beast's tooltip says what it is weak to and what it resists. Lore knows a beast a level better,
-  and finds its weakness deeper.
-- **What is on a beast.** Burning hurts it at its turn, chilled slows it, shocked makes every hit
-  bite harder, exposed means your next hit is a sure crit. A big beast has poise: wear it down
-  (a hammer twice as fast) and it staggers, its next turn far off and its guard open.
-- **Four ways to fight.** *The Keep*: every blow that lands builds momentum, and at three a
-  finisher (*Heavy cut*, *Sweep*) spends it and goes through half of what the beast resists;
-  defending costs a point, *Brace* keeps it. *The Collegium*: one element leaves its mark, a
-  second sets it off (fire and frost *Shatter*, fire and storm *Flare* on all of them, frost and
-  storm *Freeze*). *The Hidden Hand*: each hit before the beast's turn bites harder and crits more.
-  *The Greenwood*: traps set on the walk, and a *Bow shot* that costs no time as your first action.
-- **A boy's first tools.** *Learn to Temper* teaches a *Hammer blow*, the yard's bow a *Bow shot*,
-  its breathing a *Second wind*, the rooftops *Step aside*, the Boys' oath a *Dirty kick* and
-  turning them in *Brace*, your letters *Read the beast*, the forbidden shelf *Spark*, the
-  sacristan's keys a *Blessing*, Mara a *Rime*. Following the hunters finds beasts a day sooner
-  and skins them better. Everything you have learned is yours in every fight.
-- **How to meet it.** Who can hide, has set a trap or holds a ration for a pack chooses how to
-  meet a beast found: lie in wait, lead it into the snare, draw one off, or leave it be.
-- **A fire flask and blessed oil**, from the market: a flask burns any beast the same, past its
-  hide; oil makes your blows holy for the fight.
-- **New beasts.** A rat nest and the Old Pike at Mill Pond, shell beetles and the Old Shell on the
-  Quarry Road, and the Old Grey, who leads his wolves and calls the wood when hurt. The White Stag
-  bolts once hurt.
-- **Bosses.** The Old Pike, the Old Shell and the Old Grey are met by choice, from a place known
-  4 of 4, and beaten once a life, for a trophy and a page of the town's story. Fall to one and the
-  life ends there.
+- The whole game now speaks to you directly, and every task has a short line about it.
+- Rewards say where they come from: "+9 (6 + 3)", "4 months instead of 6".
+- Joining a class warns you in red that it's for life.
 
-### Changed
+### Balance
 
-- **A kill trains nothing in you.** The first kill of each kind of beast in a life is a lesson
-  about it (it is known 3 of 4 from then on), and beasts leave a little more. A technique used
-  often rises a rank: a little stronger, and a point of what it trains.
-- **Brought down, you lose the walk, not your health.** Carried home from an ordinary fight, you
-  lose what the walk had gathered, and no longer any of your most Vitality.
-- **Blows aim with Dexterity**, workings with Intelligence; a working is no longer stopped by
-  armour, and Arcana makes it stronger.
+- The Keep and the Hidden Hand ask 14 Strength or Dexterity.
+- The smithy gives Strength for its first two terms only.
+- The pond opens as soon as you've explored it.
 
-## Unreleased
+### The page
 
-After comments on 0.6.1: a town that spent on one click, a tooltip stuck over the page, and
-hazelnuts sold one press at a time.
-
-### Changed
-
-- **The town works as the tasks do.** A click on a place of the town chooses its next work, as a
-  click on a task does: its tooltip and your parts say what it asks, and the button under *At
-  work now* begins it. A double click still starts it at once, on a place as on a task.
-- **Do it now while at work.** Something done at once (a sale, a buy) or an answer to an event
-  gets its button under your running work, months stopped or not.
-- **The button stays put.** What you did at once stays chosen for the next press. Once there is
-  none left, its button stays where it was, greyed (*None left*), until you click anywhere else:
-  *Pass a month* no longer comes up under a mouse still clicking.
-
-### New
-
-- **All.** Beside *Do it now*, for what you sell or make from what you hold (hides, berries,
-  hazelnuts, a remedy, rations): sells or makes as much as you can in one press, with one line in
-  the log.
-- **Tooltips on a touch screen.** Once a finger touches the screen, a tap on a task shows what it
-  asks, whatever the size of the screen, and it stays until the next tap.
-
-### Fixed
-
-- A tooltip could stay frozen over the page (one was seen for *Swear Service to the Keep*),
-  covering the tabs and buttons under it.
+- The log shows its newest line on top.
+- Walks count in action points.
+- The night theme no longer covers the screen in white during the tutorial.
+- A bonus you have shows in green.
+- A new Options tab: begin on first click, day or night, and saves you can export, load or wipe.
+- A button in the corner to send the author a bug report, with the screen and your save attached.
 
 ## 0.6.1 - 2026-10-17
 
