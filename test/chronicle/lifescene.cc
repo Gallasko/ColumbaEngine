@@ -14571,6 +14571,33 @@ namespace pg
 
         // The examinations' days offer nothing to choose: the day's work leaves the column (in
         // place, at either width), and its dead button and its notes with it
+        // Nothing mends while a story runs its months: a hurt student goes on hurt, and a day's rest
+        // is what mends him (the author's call)
+        TEST(lifescene_test, vitality_does_not_mend_in_a_story)
+        {
+            MockLogger logger;
+            LifeFixture f;
+
+            LifeScene* life = collegiumLife(f, storyOptions(16.5f));
+            ASSERT_NE(life, nullptr);
+
+            life->save.stats["vit"] = 30;
+            life->beginStory("collegium");
+            ASSERT_TRUE(life->onWalk());
+
+            // Four days in the library: six months of his life
+            termTiles(f, life, {"library", "library", "library", "library"});
+
+            ASSERT_EQ(runText(life, "day"), "5");
+            EXPECT_LE(life->save.stats["vit"], 30);
+            EXPECT_EQ(life->save.stats.count("in.story"), 0u);
+
+            const int hurt = life->save.stats["vit"];
+
+            termTiles(f, life, {"rest"});
+            EXPECT_GT(life->save.stats["vit"], hurt);
+        }
+
         TEST(lifescene_test, an_examination_day_has_no_days_work)
         {
             MockLogger logger;

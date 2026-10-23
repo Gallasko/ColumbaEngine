@@ -532,7 +532,9 @@ for (var r = 0; r < len(mending); r++)
         // A character from before the cap takes what he has as his most
         after[capOf(mend.stat)] = most
 
-        if (lookup(change, mend.stat, 0) >= 0 and after[mend.stat] < most)
+        // (nothing mends while a story runs its months, "in.story": the Collegium's last fight
+        // is fought with what is left; a day's rest there is its own)
+        if (lookup(change, mend.stat, 0) >= 0 and after[mend.stat] < most and statOf(character, "in.story") <= 0)
         {
             rested = lookup(character, rest, 0) + 1
 

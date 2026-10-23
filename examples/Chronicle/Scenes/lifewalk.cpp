@@ -1011,11 +1011,14 @@ namespace chronicle
         // boy's). They are written once they have all run, by what asked them
         const int lives = save.lives;
 
+        // (and nothing mends while they run: the rules read "in.story", resources.pg's mending)
         storyMonth = true;
+        save.stats["in.story"] = 1;
 
         for (int i = 0; i < months and not ended and save.lives == lives; ++i)
             onMonth();
 
+        save.stats.erase("in.story");
         storyMonth = false;
     }
 
