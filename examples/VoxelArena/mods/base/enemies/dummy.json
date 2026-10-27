@@ -1,0 +1,16 @@
+// A training dummy: no brain, a lot of health, heals when left alone. For testing combos.
+{
+    "name": "Training Dummy",
+    "model": "dummy",
+    "modelScale": 0.125,
+    "size": [0.8, 1.75],
+    "health": 400,
+    "poise": 25,
+    "poiseRegenDelay": 1.5,
+    "staggerFrames": 30,
+    "knockbackScale": 0.15,
+    "walkSpeed": 0,
+    "turnSpeed": 0,
+    "regenerates": true,
+    "respawnSeconds": 2
+}

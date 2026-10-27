@@ -1,0 +1,44 @@
+// The brute: slow, tough, one big overhead slam with a long, readable wind-up.
+// It tracks you while it winds up and commits once the slam starts: dodge late, then punish the recovery.
+// Its poise (40) is broken by a heavy attack or a full light combo, which staggers it.
+// "swing" on an enemy attack bends the whole body (pitch: + leans forward).
+{
+    "name": "Brute",
+    "model": "brute",
+    "modelScale": 0.125,
+    "size": [1.1, 2.2],
+
+    "health": 160,
+    "poise": 40,
+    "poiseRegenDelay": 2.5,
+    "staggerFrames": 60,
+    "knockbackScale": 0.45,
+
+    "walkSpeed": 2.9,
+    "turnSpeed": 220,
+    "respawnSeconds": 4,
+
+    "script": "brute",
+    "params": {
+        "engageRange": 14,
+        "attackRange": 2.6,
+        "attackAngle": 40,
+        "cooldown": 1.3,
+        "backOffTime": 0.9
+    },
+
+    "moveset": {
+        "attacks": {
+            "slam": {
+                "startup": 36, "active": 5, "recovery": 42,
+                "damage": 25, "poiseDamage": 30,
+                "knockback": 8, "knockup": 4.5, "hitstop": 5, "shake": 0.7,
+                "armor": 25,
+                "turnRate": 3,
+                "hitboxes": [ { "offset": [0, 0.9, 1.4], "size": [1.9, 1.8, 2.1] } ],
+                "lunge": 7, "lungeFrom": 32, "lungeTo": 40,
+                "swing": { "pitchFrom": -22, "pitchTo": 32 }
+            }
+        }
+    }
+}

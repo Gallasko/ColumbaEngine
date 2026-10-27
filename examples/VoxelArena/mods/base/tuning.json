@@ -1,0 +1,108 @@
+// Every gameplay number of the game. Press F5 in game to reload this file (and the rest of the content).
+// Distances are in metres (1 block = 1 m), speeds in m/s, times in seconds unless the name says frames.
+// Frame counts are at 60 frames per second.
+{
+    "player": {
+        "model": "base:player",
+        "modelScale": 0.125,
+        "weapon": "base:sword",
+        "hand": [0.42, 0.95, 0.3],
+
+        "width": 0.6,
+        "height": 1.8,
+        "health": 100,
+        "poise": 10,
+        "hitstunFrames": 22,
+        "respawnSeconds": 2.0,
+
+        "walkSpeed": 5.6,
+        "sprintSpeed": 8.6,
+        "groundAccel": 70,
+        "groundDecel": 55,
+        "turnAccel": 110,
+        "airAccel": 22,
+        "airDecel": 3,
+        "turnSpeed": 960,
+
+        "gravity": 34,
+        "fallGravityScale": 1.55,
+        "jumpCutGravityScale": 2.8,
+        "maxFallSpeed": 40,
+        "jumpHeight": 2.2,
+        "coyoteTime": 0.1,
+        "jumpBuffer": 0.12,
+
+        "stepHeight": 1.05,
+        "stepSmoothing": 18
+    },
+
+    "stamina": {
+        "max": 100,
+        "regen": 38,
+        "regenDelay": 0.55,
+        "sprintCost": 16,
+        "minToAct": 1,
+        "exhaustedRegenScale": 0.6
+    },
+
+    "dodge": {
+        "frames": 24,
+        "iframeStart": 1,
+        "iframeEnd": 15,
+        "recovery": 6,
+        "speed": 12.5,
+        "endSpeed": 4,
+        "cost": 20,
+        "attackFrom": 13,
+        "inAir": false
+    },
+
+    "camera": {
+        "distance": 5.5,
+        "minDistance": 1.6,
+        "maxDistance": 10,
+        "zoomStep": 0.6,
+        "height": 1.85,
+        "shoulder": 0.8,
+        "sensitivity": 0.14,
+        "minPitch": -65,
+        "maxPitch": 70,
+        "followSharpness": 16,
+        "pullInSharpness": 40,
+        "pullOutSharpness": 4,
+        "collisionRadius": 0.25,
+        "fov": 70
+    },
+
+    "feel": {
+        "hitFlashFrames": 7,
+        "hitstopScale": 1.0,
+        "shakeDecay": 2.2,
+        "shakeOffset": 0.35,
+        "shakeAngle": 2.4,
+        "shakeFrequency": 24,
+        "knockbackFriction": 22,
+        "landingShake": 0.15
+    },
+
+    // Key names are SDL's ("W", "Space", "Left Shift", "Left Alt"...); Mouse1 is the left button, Mouse3 the right.
+    // Dodge and sprint share a key on purpose: tap to roll, keep holding to sprint out of the roll.
+    "controls": {
+        "forward": ["W", "Up"],
+        "back": ["S", "Down"],
+        "left": ["A", "Left"],
+        "right": ["D", "Right"],
+        "jump": ["Space"],
+        "dodge": ["Left Shift"],
+        "sprint": ["Left Shift"],
+        "light": ["Mouse1", "J"],
+        "heavy": ["Mouse3", "K"],
+        "freeCursor": ["Left Alt"]
+    },
+
+    "combat": {
+        "inputBuffer": 0.2,
+        "aimAssistAngle": 55,
+        "aimAssistRange": 3.5
+    }
+}

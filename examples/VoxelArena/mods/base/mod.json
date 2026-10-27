@@ -1,0 +1,8 @@
+{
+    "id": "base",
+    "name": "Voxel Arena base content",
+    "version": "0.1.0",
+    "api": 1,
+    "description": "Everything the game ships with. Written exactly like any other mod.",
+    "dependencies": []
+}

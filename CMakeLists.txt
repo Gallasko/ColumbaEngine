@@ -1703,6 +1703,54 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             FAIL_REGULAR_EXPRESSION "FAILED"
         )
 
+        ###  VoxelArena
+
+        # The game logic: no window and no GL, shared by the game and its tests
+        set(VOXELARENA_CORE
+            examples/VoxelArena/Core/json.cpp
+            examples/VoxelArena/Core/voxelgrid.cpp
+            examples/VoxelArena/Core/mesher.cpp
+            examples/VoxelArena/Core/physics.cpp
+            examples/VoxelArena/Core/content.cpp
+            examples/VoxelArena/Core/tuning.cpp
+            examples/VoxelArena/Core/world.cpp
+            examples/VoxelArena/Core/scriptbrain.cpp
+            examples/VoxelArena/Core/orbitcamera.cpp
+        )
+
+        add_executable(VoxelArena examples/VoxelArena/main.cpp)
+        target_include_directories(VoxelArena PUBLIC examples/VoxelArena examples/VoxelArena/Core examples/VoxelArena/Game)
+        target_sources(VoxelArena PRIVATE
+            examples/VoxelArena/application.cpp
+            examples/VoxelArena/Game/gpumesh.cpp
+            examples/VoxelArena/Game/hud.cpp
+            examples/VoxelArena/Game/arenagame.cpp
+            ${VOXELARENA_CORE}
+        )
+        target_link_libraries(VoxelArena PRIVATE ColumbaEngine)
+        # Content is read straight from the source tree, so editing a mod and pressing F5 needs no rebuild
+        target_compile_definitions(VoxelArena PRIVATE VOXELARENA_MODS_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/mods"
+                                                      VOXELARENA_SHADER_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/shader"
+                                                      ENGINE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
+        add_executable(test_voxelarena test/voxelarena/maintest.cc)
+        target_include_directories(test_voxelarena PUBLIC examples/VoxelArena examples/VoxelArena/Core examples/VoxelTest)
+        target_sources(test_voxelarena PRIVATE
+            test/voxelarena/json.cc
+            test/voxelarena/voxelgrid.cc
+            test/voxelarena/physics.cc
+            test/voxelarena/content.cc
+            test/voxelarena/world.cc
+            test/voxelarena/camera.cc
+            examples/VoxelTest/voxelserializer.cpp   # the editor's .vxl.json loader, to check the models stay editable
+            ${VOXELARENA_CORE}
+        )
+        target_link_libraries(test_voxelarena PRIVATE gtest ColumbaEngine)
+        target_compile_definitions(test_voxelarena PRIVATE VOXELARENA_MODS_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/mods")
+        gtest_discover_tests(test_voxelarena
+            WORKING_DIRECTORY $<TARGET_FILE_DIR:test_voxelarena>
+            PROPERTIES FAIL_REGULAR_EXPRESSION "FAILED")
+
         ###  Chronicle
 
         # Chronicle's own generated components: .pgcomp specs generated with the

@@ -1,0 +1,79 @@
+// Brute behaviour. The game calls think(me) every frame the brute is free to act
+// (not attacking, not staggered). Read the situation from `me`, answer by setting fields on it.
+//
+// What the game fills in before each call:
+//   me.distance      metres to the player (feet to feet, horizontal)
+//   me.angle         degrees from my facing to the player, + = player on my right
+//   me.hp, me.maxHp, me.poise
+//   me.sinceAttack   seconds since my last attack ended
+//   me.sinceHit      seconds since I was last hit
+//   me.time, me.dt   seconds since the arena started, length of a frame
+//   me.targetAction  what the player does: "free", "attack", "dodge", "stagger", "dead"
+//   me.targetAttacking, me.targetDodging, me.targetStaggered (true/false)
+//   me.params        the "params" object of enemies/brute.json
+//   me.id            my id, unique per enemy
+//
+// The answer, reset to "do nothing" before each call:
+//   me.move    "hold", "chase", "strafe" or "retreat"
+//   me.attack  name of an attack of my moveset to start now ("slam"), or ""
+//   me.strafe  side to strafe to: 1 = right, -1 = left
+//   me.speed   walk speed multiplier
+//   me.face    true to keep turning to the player
+//
+// Any other field set on `me` stays there for the next call: that is the brute's memory.
+
+import "math"
+import "random"
+
+fun think(me)
+{
+    var p = me.params
+
+    // Pick a strafe side once, and switch now and then
+    if (me.side == none)
+    {
+        me.side = 1
+        me.sideTimer = 0
+    }
+
+    me.sideTimer = me.sideTimer + me.dt
+
+    if (me.sideTimer > 2.5)
+    {
+        me.sideTimer = 0
+        me.side = -me.side
+    }
+
+    if (me.distance > p.engageRange)
+    {
+        me.move = "hold"
+    }
+    else if (me.sinceAttack < p.backOffTime)
+    {
+        // Just swung: step back and circle, it gives the player a moment to breathe
+        me.move = "strafe"
+        me.strafe = me.side
+        me.speed = 0.6
+    }
+    else if (me.distance <= p.attackRange and abs(me.angle) < p.attackAngle and me.sinceAttack > p.cooldown)
+    {
+        me.attack = "slam"
+    }
+    else if (me.distance <= p.attackRange)
+    {
+        // In range but not ready (or facing away): circle while turning in
+        me.move = "strafe"
+        me.strafe = me.side
+        me.speed = 0.5
+    }
+    else
+    {
+        me.move = "chase"
+
+        // Close the gap faster when far away
+        if (me.distance > 6)
+        {
+            me.speed = 1.4
+        }
+    }
+}

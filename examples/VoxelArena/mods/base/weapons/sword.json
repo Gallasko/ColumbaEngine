@@ -1,0 +1,76 @@
+// The sword: a fast 3-hit light combo, a slow heavy that breaks poise, and a slash out of a roll.
+//
+// Every attack is [startup][active][recovery] frames at 60 fps. Hitboxes exist only during active frames.
+// Hitbox offsets are in the fighter's space: x to the right, y up from the feet, z forward. Sizes are full sizes.
+// chainFrom: first frame the next attack of the combo may start (a press is remembered from bufferFrom on).
+// dodgeCancelFrom: first frame a dodge may interrupt the attack.
+// swing: how the blade moves during the active frames, in degrees (yaw: + to the right; pitch: + up).
+{
+    "name": "Iron Sword",
+    "model": "sword",
+    "modelScale": 0.0625,
+    "grip": [1.5, 1.5, 2.0],
+    "rest": { "yaw": 25, "pitch": 55 },
+
+    "moveset": {
+        "light": "light1",
+        "heavy": "heavy",
+        "dodgeAttack": "roll_slash",
+
+        "attacks": {
+            "light1": {
+                "startup": 7, "active": 4, "recovery": 16,
+                "damage": 10, "poiseDamage": 12, "staminaCost": 10,
+                "knockback": 2.5, "hitstop": 3, "shake": 0.2,
+                "hitboxes": [ { "offset": [0, 1.1, 1.0], "size": [1.9, 1.1, 1.5] } ],
+                "lunge": 3.5, "lungeFrom": 2, "lungeTo": 10,
+                "turnRate": 6,
+                "bufferFrom": 3, "chainFrom": 13, "dodgeCancelFrom": 11,
+                "next": { "light": "light2", "heavy": "heavy" },
+                "swing": { "yawFrom": 80, "yawTo": -85, "pitchFrom": 5, "pitchTo": -10 }
+            },
+            "light2": {
+                "startup": 6, "active": 4, "recovery": 18,
+                "damage": 11, "poiseDamage": 12, "staminaCost": 10,
+                "knockback": 2.5, "hitstop": 3, "shake": 0.2,
+                "hitboxes": [ { "offset": [0, 1.1, 1.0], "size": [1.9, 1.1, 1.5] } ],
+                "lunge": 3.5, "lungeFrom": 1, "lungeTo": 9,
+                "turnRate": 6,
+                "bufferFrom": 3, "chainFrom": 13, "dodgeCancelFrom": 10,
+                "next": { "light": "light3", "heavy": "heavy" },
+                "swing": { "yawFrom": -85, "yawTo": 80, "pitchFrom": -10, "pitchTo": 10 }
+            },
+            "light3": {
+                "startup": 12, "active": 5, "recovery": 26,
+                "damage": 18, "poiseDamage": 26, "staminaCost": 14,
+                "knockback": 7, "knockup": 3, "hitstop": 5, "shake": 0.4,
+                "hitboxes": [ { "offset": [0, 1.0, 1.15], "size": [1.2, 1.8, 1.9] } ],
+                "lunge": 5, "lungeFrom": 5, "lungeTo": 15,
+                "turnRate": 5,
+                "bufferFrom": 6, "dodgeCancelFrom": 20,
+                "swing": { "yawFrom": 0, "yawTo": 0, "pitchFrom": 95, "pitchTo": -40 }
+            },
+            "heavy": {
+                "startup": 22, "active": 5, "recovery": 28,
+                "damage": 26, "poiseDamage": 40, "staminaCost": 26,
+                "knockback": 9, "knockup": 2.5, "hitstop": 5, "shake": 0.55,
+                "armor": 15,
+                "hitboxes": [ { "offset": [0, 1.0, 1.25], "size": [1.6, 2.0, 2.2] } ],
+                "lunge": 4.5, "lungeFrom": 14, "lungeTo": 25,
+                "turnRate": 4,
+                "bufferFrom": 14, "dodgeCancelFrom": 30,
+                "swing": { "yawFrom": 15, "yawTo": -5, "pitchFrom": 110, "pitchTo": -45 }
+            },
+            "roll_slash": {
+                "startup": 5, "active": 5, "recovery": 18,
+                "damage": 12, "poiseDamage": 16, "staminaCost": 12,
+                "knockback": 3.5, "hitstop": 3, "shake": 0.2,
+                "hitboxes": [ { "offset": [0, 1.0, 0.7], "size": [2.6, 1.0, 2.0] } ],
+                "lunge": 4, "lungeFrom": 0, "lungeTo": 8,
+                "bufferFrom": 6, "chainFrom": 16, "dodgeCancelFrom": 12,
+                "next": { "light": "light2" },
+                "swing": { "yawFrom": 120, "yawTo": -120, "pitchFrom": 0, "pitchTo": 0 }
+            }
+        }
+    }
+}
