@@ -1,0 +1,92 @@
+// break, continue, nested loops and closures over an iterator's loop variable
+class Range
+{
+    init(start, to)
+    {
+        this.at = start;
+        this.to = to;
+    }
+
+    __next()
+    {
+        if (this.at >= this.to)
+            return none;
+        this.at = this.at + 1;
+        return this.at - 1;
+    }
+}
+
+for (var v : Range(0, 10))
+{
+    if (v == 1 or v == 3)
+        continue;
+    if (v == 5)
+        break;
+    __dprint(v);
+}
+
+// An iterator inside a list loop, and a list loop inside an iterator
+for (var a : [10, 20])
+{
+    for (var b : Range(0, 2))
+    {
+        __dprint(a + b);
+    }
+}
+for (var a : Range(1, 3))
+{
+    for (var b : [100, 200])
+    {
+        __dprint(a * b);
+    }
+}
+
+// Each iteration's variable is its own
+var fns = [];
+var count = 0;
+for (var v : Range(7, 9))
+{
+    fns[count] = fun() { return v; };
+    count = count + 1;
+}
+__dprint(fns[0]());
+__dprint(fns[1]());
+
+// A loop in a function returns from the middle of it
+fun firstAbove(limit)
+{
+    for (var v : Range(0, 100))
+    {
+        if (v > limit)
+            return v;
+    }
+    return -1;
+}
+__dprint(firstAbove(41));
+
+// Values that are falsy but not none do not end the loop
+class Falsy
+{
+    init()
+    {
+        this.i = 0;
+    }
+
+    __next()
+    {
+        this.i = this.i + 1;
+        if (this.i == 1)
+            return 0;
+        if (this.i == 2)
+            return false;
+        if (this.i == 3)
+            return "";
+        return none;
+    }
+}
+var seen = 0;
+for (var v : Falsy())
+{
+    seen = seen + 1;
+}
+__dprint(seen);

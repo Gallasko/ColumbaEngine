@@ -232,6 +232,8 @@ namespace pg
     const DecodedInstruction* op_iterator_next_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_table_size_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_table_at_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_has_iter_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_has_next_decoded(VM* vm, const DecodedInstruction& instr);
 
     const DecodedInstruction* op_pop_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_pop_n_decoded(VM* vm, const DecodedInstruction& instr);

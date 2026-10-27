@@ -1,0 +1,39 @@
+// A class with __next is an iterator: for-in calls __next until it returns none
+class Countdown
+{
+    init(start)
+    {
+        this.n = start;
+    }
+
+    __next()
+    {
+        if (this.n == 0)
+            return none;
+        this.n = this.n - 1;
+        return this.n + 1;
+    }
+}
+
+for (var v : Countdown(3))
+{
+    __dprint(v);
+}
+
+// One that is done from the start never runs the body
+for (var v : Countdown(0))
+{
+    __dprint("never");
+}
+
+// The iterator given by a variable is the same object: it is spent after one loop
+var c = Countdown(2);
+for (var v : c)
+{
+    __dprint(v);
+}
+for (var v : c)
+{
+    __dprint("spent");
+}
+__dprint("done");

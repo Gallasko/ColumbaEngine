@@ -417,6 +417,63 @@ Array iteration::
         print(value);
     }
 
+Iterating over a class
+^^^^^^^^^^^^^^^^^^^^^^
+
+An instance of a class with a ``__next()`` method is an **iterator**: the loop calls
+``__next()`` before each turn and takes what it returns, until it returns ``none``.
+A value that is falsy but not ``none`` (``0``, ``false``, ``""``) does not end the loop,
+so an iterator cannot give ``none`` as a value::
+
+    class Countdown
+    {
+        init(n)
+        {
+            this.n = n;
+        }
+
+        __next()
+        {
+            if (this.n == 0)
+                return none;
+            this.n = this.n - 1;
+            return this.n + 1;
+        }
+    }
+
+    for (var v : Countdown(3))
+    {
+        print(v);  // Prints: 3, 2, 1
+    }
+
+An iterator is used up by the loop: a second loop over the same instance does nothing.
+
+An instance of a class with a ``__iter()`` method is **iterable**: the loop calls ``__iter()``
+once, when it starts, and loops over what it returns, which can be an iterator, a list or a
+table. Returning a new iterator from ``__iter()`` lets the same object be looped over again::
+
+    class Bag
+    {
+        init()
+        {
+            this.items = [];
+        }
+
+        add(v)
+        {
+            push(this.items, v);
+        }
+
+        __iter()
+        {
+            return this.items;
+        }
+    }
+
+When a class has both, ``__iter()`` is called first; an iterator can return ``this`` from it.
+Only methods of the class count: a plain table with a ``__next`` field is still looped over
+by its keys.
+
 Functions
 ---------
 

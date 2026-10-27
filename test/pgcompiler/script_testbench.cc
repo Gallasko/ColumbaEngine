@@ -608,6 +608,21 @@ TEST_F(ScriptTestBench, ForInWithOuterLocal)
     testScript("for_in_with_outer_local");
 }
 
+TEST_F(ScriptTestBench, ForInIterator)
+{
+    testScript("for_in_iterator");
+}
+
+TEST_F(ScriptTestBench, ForInIterable)
+{
+    testScript("for_in_iterable");
+}
+
+TEST_F(ScriptTestBench, ForInIteratorControl)
+{
+    testScript("for_in_iterator_control");
+}
+
 // ============================================================================
 // Break Statement
 // ============================================================================

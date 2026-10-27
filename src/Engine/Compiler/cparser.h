@@ -3,6 +3,7 @@
 #include "Interpreter/token.h"
 
 #include <queue>
+#include <functional>
 
 #include "object.h"
 
@@ -171,6 +172,10 @@ namespace pg
 
         void emitLoop(int loopStart);
         void emitReturn();
+
+        // The loop of a for-in, the iterable on the stack and the loop's scope begun; both front-ends
+        // emit it. compileBody compiles the body, varName already declared and holding the value
+        void emitForIn(const Token& varName, const std::function<void()>& compileBody);
 
         template <typename T, typename T2>
         void emitBytes(T byte1, T2 byte2)

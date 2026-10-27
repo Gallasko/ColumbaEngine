@@ -1135,140 +1135,10 @@ namespace pg
                 consume("Expect ')' after for-in expression.", TokenType::PCLOSE);
                 skipEOL();
 
-                // Desugar for-in loop to:
-                // {
-                //     var __table = table;
-                //     var __size = __table.size();
-                //     for (var __i = 0; __i < __size; __i++) {
-                //         var key = __table.at(__i);
-                //         body;
-                //     }
-                // }
+                // Stack: [table]
+                emitForIn(varToken, [this]() { statement(); });
 
-                // Stack at this point: [table]
-
-                // 1. Store table as hidden local __table
-                Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__table", currentToken().line, 0));
-                Compiler::current->markInitialized();
-                uint8_t tableSlot = static_cast<uint8_t>(Compiler::current->localCount - 1);
-                // Stack: [__table]
-
-                // 2. Get size of table and store as hidden local __size
-                writeByte(OpCode::OP_Get_Local);
-                writeByte(tableSlot);
-                writeByte(OpCode::OP_Table_Size);
-                // Stack: [__table, size]
-
-                Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__size", currentToken().line, 0));
-                Compiler::current->markInitialized();
-                uint8_t sizeSlot = static_cast<uint8_t>(Compiler::current->localCount - 1);
-                // Stack: [__table, __size]
-
-                // 3. Initialize loop counter __i = 0
-                writeByte(OpCode::OP_Constant);
-                writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(0)));
-                // Stack: [__table, __size, 0]
-
-                Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__i", currentToken().line, 0));
-                Compiler::current->markInitialized();
-                uint8_t counterSlot = static_cast<uint8_t>(Compiler::current->localCount - 1);
-                // Stack: [__table, __size, __i]
-
-                // 4. Loop condition: __i < __size
-                int loopStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
-
-                // Push loop context for break/continue support
-                Compiler::current->loopContexts.push_back({
-                    loopStart,
-                    std::vector<int>(),
-                    Compiler::current->scopeDepth
-                });
-
-                // Get __i
-                writeByte(OpCode::OP_Get_Local);
-                writeByte(counterSlot);
-                // Get __size
-                writeByte(OpCode::OP_Get_Local);
-                writeByte(sizeSlot);
-                // Compare: __i < __size
-                writeByte(OpCode::OP_Less);
-                // Stack: [__table, __size, __i, bool]
-
-                int exitJump = emitJump(OpCode::OP_Long_Jump_If_False);
-                writeByte(OpCode::OP_Pop); // Pop the condition result
-                // Stack: [__table, __size, __i]
-
-                // 5. Emit the increment before the body and jump-thread around
-                //    it so 'continue' advances __i instead of skipping it
-                //    (mirrors the C-style for loop). Without this, continue
-                //    jumps back to the condition without running __i++ and the
-                //    loop spins forever.
-                int bodyJump = emitJump(OpCode::OP_Long_Jump);
-                int incrementStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
-
-                // Increment __i: __i++
-                writeByte(OpCode::OP_Get_Local);
-                writeByte(counterSlot);
-                writeByte(OpCode::OP_Constant);
-                writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(1)));
-                writeByte(OpCode::OP_Add);
-                writeByte(OpCode::OP_Set_Local);
-                writeByte(counterSlot);
-                writeByte(OpCode::OP_Pop); // Pop the assignment result
-                // Stack: [__table, __size, __i]
-
-                // Loop back to condition check
-                emitLoop(loopStart);
-
-                // Continue must jump to the increment, not the condition
-                Compiler::current->loopContexts.back().loopStart = incrementStart;
-
-                // Body starts here
-                patchJump(bodyJump);
-
-                // 6. Begin iteration scope for the key variable
-                Compiler::current->beginScope();
-
-                // Get key at current index: var key = __table.at(__i)
-                // Get __table
-                writeByte(OpCode::OP_Get_Local);
-                writeByte(tableSlot);
-                // Get __i
-                writeByte(OpCode::OP_Get_Local);
-                writeByte(counterSlot);
-                // Call __table.at(__i)
-                writeByte(OpCode::OP_Table_At);
-                // Stack: [__table, __size, __i, key]
-
-                // Declare the loop variable with the key
-                Compiler::current->addLocal(varToken);
-                Compiler::current->markInitialized();
-                // Stack: [__table, __size, __i, key]
-
-                // 7. Execute loop body
-                statement();
-
-                // 8. End iteration scope - this pops the key variable
-                Compiler::current->endScope();
-                // Stack: [__table, __size, __i]
-
-                // 9. Loop back to the increment (which then re-checks condition)
-                emitLoop(incrementStart);
-
-                // 10. Exit point
-                patchJump(exitJump);
-                writeByte(OpCode::OP_Pop); // Pop the condition result
-                // Stack: [__table, __size, __i]
-
-                // Patch all break jumps to exit the loop
-                for (int offset : Compiler::current->loopContexts.back().breakJumps) {
-                    patchJump(offset);
-                }
-
-                // Pop loop context
-                Compiler::current->loopContexts.pop_back();
-
-                // 11. End scope - pops __i, __size, __table (and key if it's still around)
+                // Pops __i, __size, __iter, __table
                 Compiler::current->endScope();
                 return;
             }
@@ -1881,6 +1751,167 @@ namespace pg
         writeByte((jump >> 16) & 0xFF);
         writeByte((jump >> 8) & 0xFF);
         writeByte(jump & 0xFF);
+    }
+
+    // for (var key : iterable) body, the iterable on the stack:
+    // {
+    //     var __table = iterable;
+    //     if (__table has a __iter method) __table = __table.__iter();
+    //     var __iter = __table has a __next method;
+    //     var __size = __iter ? 0 : __table.size();
+    //     var __i = 0;
+    //     loop:  (continue comes back here)
+    //         if (__iter) { __i = __table.__next(); if (__i == none) break; key = __i; }
+    //         else        { if (__i >= __size) break; key = __table.at(__i); __i++; }
+    //         body;
+    // }
+    // A jump if false leaves its test on the stack: each place it lands pops it first
+    void CParser::emitForIn(const Token& varName, const std::function<void()>& compileBody)
+    {
+        auto& compiler = *Compiler::current;
+        const int line = varName.line;
+
+        auto addHiddenLocal = [&](const char* name) {
+            compiler.addLocal(Token(TokenType::EXPRESSION, name, line, 0));
+            compiler.markInitialized();
+            return static_cast<uint8_t>(compiler.localCount - 1);
+        };
+
+        auto internName = [&](const std::string& name) -> uint8_t {
+            auto& strings = compiler.getCurrentChunk().constantStrings;
+
+            for (size_t i = 0; i < strings.size(); i++)
+                if (strings[i] == name)
+                    return static_cast<uint8_t>(i);
+
+            if (strings.size() >= 256)
+            {
+                errorAt(varName, "Too many constant strings in chunk.");
+                return 0;
+            }
+
+            strings.push_back(name);
+            return static_cast<uint8_t>(strings.size() - 1);
+        };
+
+        auto getLocal = [&](uint8_t slot) {
+            writeByte(OpCode::OP_Get_Local);
+            writeByte(slot);
+        };
+
+        auto pushInt = [&](int64_t value) {
+            writeByte(OpCode::OP_Constant);
+            writeByte(compiler.getCurrentChunk().addConstantIndex(makeIntValue(value)));
+        };
+
+        // Stack: [iterable]
+        const uint8_t tableSlot = addHiddenLocal("__table");
+
+        // An iterable is replaced by what its __iter() returns, once
+        getLocal(tableSlot);
+        writeByte(OpCode::OP_Has_Iter);
+        int notIterable = emitJump(OpCode::OP_Long_Jump_If_False);
+        writeByte(OpCode::OP_Pop);
+        getLocal(tableSlot);
+        emitBytes(OpCode::OP_Invoke, internName("__iter"));
+        writeByte(static_cast<uint8_t>(0));
+        writeByte(OpCode::OP_Set_Local);
+        writeByte(tableSlot);
+        writeByte(OpCode::OP_Pop);
+        int iterResolved = emitJump(OpCode::OP_Long_Jump);
+        patchJump(notIterable);
+        writeByte(OpCode::OP_Pop);
+        patchJump(iterResolved);
+
+        // Stack: [__table]
+        getLocal(tableSlot);
+        writeByte(OpCode::OP_Has_Next);
+        const uint8_t iterSlot = addHiddenLocal("__iter");
+
+        // Stack: [__table, __iter]
+        getLocal(iterSlot);
+        int sizeOfTable = emitJump(OpCode::OP_Long_Jump_If_False);
+        writeByte(OpCode::OP_Pop);
+        pushInt(0);
+        int sizeKnown = emitJump(OpCode::OP_Long_Jump);
+        patchJump(sizeOfTable);
+        writeByte(OpCode::OP_Pop);
+        getLocal(tableSlot);
+        writeByte(OpCode::OP_Table_Size);
+        patchJump(sizeKnown);
+        const uint8_t sizeSlot = addHiddenLocal("__size");
+
+        pushInt(0);
+        const uint8_t counterSlot = addHiddenLocal("__i");
+
+        // Stack: [__table, __iter, __size, __i]
+        int loopStart = static_cast<int>(compiler.getCurrentChunk().code.size());
+
+        compiler.loopContexts.push_back({
+            loopStart,
+            std::vector<int>(),
+            compiler.scopeDepth
+        });
+
+        getLocal(iterSlot);
+        int counterStep = emitJump(OpCode::OP_Long_Jump_If_False);
+        writeByte(OpCode::OP_Pop);
+
+        // An iterator: __i = __table.__next(), none ends the loop
+        getLocal(tableSlot);
+        emitBytes(OpCode::OP_Invoke, internName("__next"));
+        writeByte(static_cast<uint8_t>(0));
+        writeByte(OpCode::OP_Set_Local);
+        writeByte(counterSlot);
+        writeByte(OpCode::OP_Pop);
+        getLocal(counterSlot);
+        writeByte(OpCode::OP_None);
+        writeByte(OpCode::OP_Equal);
+        int gotValue = emitJump(OpCode::OP_Long_Jump_If_False);
+        writeByte(OpCode::OP_Pop);
+        int iteratorDone = emitJump(OpCode::OP_Long_Jump);
+        patchJump(gotValue);
+        writeByte(OpCode::OP_Pop);
+        getLocal(counterSlot);
+        int iteratorBody = emitJump(OpCode::OP_Long_Jump);
+
+        // A list or a table: key = __table.at(__i), then __i++
+        patchJump(counterStep);
+        writeByte(OpCode::OP_Pop);
+        getLocal(counterSlot);
+        getLocal(sizeSlot);
+        writeByte(OpCode::OP_Less);
+        int counterDone = emitJump(OpCode::OP_Long_Jump_If_False);
+        writeByte(OpCode::OP_Pop);
+        getLocal(tableSlot);
+        getLocal(counterSlot);
+        writeByte(OpCode::OP_Table_At);
+        getLocal(counterSlot);
+        pushInt(1);
+        writeByte(OpCode::OP_Add);
+        writeByte(OpCode::OP_Set_Local);
+        writeByte(counterSlot);
+        writeByte(OpCode::OP_Pop);
+
+        // Stack: [__table, __iter, __size, __i, key]
+        patchJump(iteratorBody);
+        compiler.beginScope();
+        compiler.addLocal(varName);
+        compiler.markInitialized();
+
+        compileBody();
+
+        compiler.endScope();
+        emitLoop(loopStart);
+
+        patchJump(counterDone);
+        writeByte(OpCode::OP_Pop);
+        patchJump(iteratorDone);
+
+        for (int offset : compiler.loopContexts.back().breakJumps)
+            patchJump(offset);
+
+        compiler.loopContexts.pop_back();
     }
 
     void CParser::emitReturn()

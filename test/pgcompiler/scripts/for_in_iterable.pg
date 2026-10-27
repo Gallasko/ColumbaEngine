@@ -1,0 +1,99 @@
+import "algorithm"
+
+// A class with __iter is looped over through what __iter returns
+class Range
+{
+    init(start, to)
+    {
+        this.at = start;
+        this.to = to;
+    }
+
+    __next()
+    {
+        if (this.at >= this.to)
+            return none;
+        this.at = this.at + 1;
+        return this.at - 1;
+    }
+}
+
+class Bag
+{
+    init()
+    {
+        this.items = [];
+    }
+
+    add(v)
+    {
+        push(this.items, v);
+    }
+
+    // A list works as well as an iterator
+    __iter()
+    {
+        return this.items;
+    }
+}
+
+class Span
+{
+    init(start, to)
+    {
+        this.start = start;
+        this.to = to;
+    }
+
+    // A new iterator each loop: a Span can be looped over twice
+    __iter()
+    {
+        return Range(this.start, this.to);
+    }
+}
+
+var bag = Bag();
+bag.add("a");
+bag.add("b");
+for (var v : bag)
+{
+    __dprint(v);
+}
+
+var span = Span(4, 6);
+for (var v : span)
+{
+    __dprint(v);
+}
+for (var v : span)
+{
+    __dprint(v);
+}
+
+// An iterator whose __iter returns itself
+class Twice
+{
+    init(v)
+    {
+        this.v = v;
+        this.left = 2;
+    }
+
+    __iter()
+    {
+        return this;
+    }
+
+    __next()
+    {
+        if (this.left == 0)
+            return none;
+        this.left = this.left - 1;
+        return this.v;
+    }
+}
+
+for (var v : Twice("x"))
+{
+    __dprint(v);
+}

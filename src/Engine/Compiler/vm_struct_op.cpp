@@ -1206,6 +1206,40 @@ namespace pg
         return &instr + 1;
     }
 
+    // Whether a value is an instance whose class has that method. A table's own field of that name
+    // does not count: a table keeps being looped over by its keys
+    static bool classHasMethod(VM* vm, const Value& value, const char* name)
+    {
+        if (not IS_INSTANCE(value))
+            return false;
+
+        const ObjInstance* inst = vm->asInstance(value);
+
+        return inst->klass and inst->klass->methods.find(name) != inst->klass->methods.end();
+    }
+
+    // for-in: an iterable, looped over through what its __iter() returns
+    const DecodedInstruction* op_has_iter_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        Value value = vm->pop();
+        const bool has = classHasMethod(vm, value, "__iter");
+        vm->releaseAndDelete(value);
+
+        vm->push(BOOL_VAL(has));
+        return &instr + 1;
+    }
+
+    // for-in: an iterator, whose __next() is called until it returns none
+    const DecodedInstruction* op_has_next_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        Value value = vm->pop();
+        const bool has = classHasMethod(vm, value, "__next");
+        vm->releaseAndDelete(value);
+
+        vm->push(BOOL_VAL(has));
+        return &instr + 1;
+    }
+
     // ---------------------------------------------------------------------
     // Proper decoded handlers. One-byte-operand ops read from
     // instr.operands.byte; zero-operand ops delegate directly to the legacy

@@ -450,6 +450,8 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Iterator_Next), op_iterator_next_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Table_Size), op_table_size_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Table_At), op_table_at_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Has_Iter), op_has_iter_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Has_Next), op_has_next_decoded, 0);
 
         // Module operations
         register_operation(static_cast<uint8_t>(OpCode::OP_Import), op_import_decoded, 0);

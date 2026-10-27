@@ -1005,113 +1005,15 @@ namespace pg
 
     void AstCompiler::visitStatement(ForInStatement* stmt)
     {
-        // Mirror the Pratt front-end's for-in desugar:
-        // {
-        //     var __table = iterable;
-        //     var __size = __table.size();
-        //     for (var __i = 0; __i < __size; __i++) {
-        //         var key = __table.at(__i);
-        //         body;
-        //     }
-        // }
+        // The same loop as the Pratt front-end's: CParser::emitForIn
         Compiler::current->beginScope();
 
         setLine(stmt->varName);
 
         stmt->iterable->accept(this);
-        // Stack: [table]
+        // Stack: [iterable]
 
-        Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__table", stmt->varName.line, 0));
-        Compiler::current->markInitialized();
-        uint8_t tableSlot = static_cast<uint8_t>(Compiler::current->localCount - 1);
-
-        root.parser.writeByte(OpCode::OP_Get_Local);
-        root.parser.writeByte(tableSlot);
-        root.parser.writeByte(OpCode::OP_Table_Size);
-        // Stack: [__table, size]
-
-        Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__size", stmt->varName.line, 0));
-        Compiler::current->markInitialized();
-        uint8_t sizeSlot = static_cast<uint8_t>(Compiler::current->localCount - 1);
-
-        root.parser.writeByte(OpCode::OP_Constant);
-        root.parser.writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(0)));
-        // Stack: [__table, __size, 0]
-
-        Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__i", stmt->varName.line, 0));
-        Compiler::current->markInitialized();
-        uint8_t counterSlot = static_cast<uint8_t>(Compiler::current->localCount - 1);
-
-        int loopStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
-
-        Compiler::current->loopContexts.push_back({
-            loopStart,
-            std::vector<int>(),
-            Compiler::current->scopeDepth
-        });
-
-        // Condition: __i < __size
-        root.parser.writeByte(OpCode::OP_Get_Local);
-        root.parser.writeByte(counterSlot);
-        root.parser.writeByte(OpCode::OP_Get_Local);
-        root.parser.writeByte(sizeSlot);
-        root.parser.writeByte(OpCode::OP_Less);
-
-        int exitJump = root.parser.emitJump(OpCode::OP_Long_Jump_If_False);
-        root.parser.writeByte(OpCode::OP_Pop); // Pop the condition result
-
-        // Emit the increment before the body and jump-thread around it so
-        // 'continue' advances the counter instead of skipping it (mirrors the
-        // C-style for loop above). Without this, continue jumps back to the
-        // condition without running __i++ and the loop spins forever.
-        int bodyJump = root.parser.emitJump(OpCode::OP_Long_Jump);
-        int incrementStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
-
-        // __i++
-        root.parser.writeByte(OpCode::OP_Get_Local);
-        root.parser.writeByte(counterSlot);
-        root.parser.writeByte(OpCode::OP_Constant);
-        root.parser.writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(1)));
-        root.parser.writeByte(OpCode::OP_Add);
-        root.parser.writeByte(OpCode::OP_Set_Local);
-        root.parser.writeByte(counterSlot);
-        root.parser.writeByte(OpCode::OP_Pop); // Pop the assignment result
-
-        root.parser.emitLoop(loopStart);
-
-        // Continue must jump to the increment, not the condition
-        Compiler::current->loopContexts.back().loopStart = incrementStart;
-
-        root.parser.patchJump(bodyJump);
-
-        // Iteration scope holding the key variable
-        Compiler::current->beginScope();
-
-        root.parser.writeByte(OpCode::OP_Get_Local);
-        root.parser.writeByte(tableSlot);
-        root.parser.writeByte(OpCode::OP_Get_Local);
-        root.parser.writeByte(counterSlot);
-        root.parser.writeByte(OpCode::OP_Table_At);
-        // Stack: [__table, __size, __i, key]
-
-        Compiler::current->addLocal(stmt->varName);
-        Compiler::current->markInitialized();
-
-        stmt->body->accept(this);
-
-        Compiler::current->endScope();
-        // Stack: [__table, __size, __i]
-
-        // Loop back to the increment (which then re-checks the condition)
-        root.parser.emitLoop(incrementStart);
-
-        root.parser.patchJump(exitJump);
-        root.parser.writeByte(OpCode::OP_Pop); // Pop the condition result
-
-        for (int offset : Compiler::current->loopContexts.back().breakJumps)
-            root.parser.patchJump(offset);
-
-        Compiler::current->loopContexts.pop_back();
+        root.parser.emitForIn(stmt->varName, [this, stmt]() { stmt->body->accept(this); });
 
         Compiler::current->endScope();
     }
