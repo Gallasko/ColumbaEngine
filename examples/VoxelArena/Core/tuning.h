@@ -37,6 +37,17 @@ namespace arena
             float stepHeight = 1.05f;         // highest ledge walked up without jumping
             float stepSmoothing = 16.0f;      // how fast the camera and model catch up a step (1/s)
 
+            float mantleHeight = 0.5f;        // ledge assist: a ledge this far above the feet is climbed from the air
+            float cornerCorrection = 0.3f;    // m a rising head slides sideways around a block edge
+
+            float landingGrace = 0.15f;       // s after landing the takeoff speed is kept (sprint and roll jumps chain)
+            float overspeedDecel = 14.0f;     // m/s^2 that speed above the run speed bleeds off (instead of the full brake)
+
+            float hardLandingSpeed = 19.0f;   // m/s falling: above this, a landing costs hardLandingFrames
+            int hardLandingFrames = 16;       // ... unless a dodge pressed just before landing rolls out of it
+            float hardLandingMoveSpeed = 0.4f; // fraction of the walk speed kept during it (0 roots)
+            float landingRollWindow = 0.35f;  // s a dodge pressed in the air waits for the landing (landing and wake-up rolls)
+
             float turnSpeed = 900.0f;         // degrees/s the body turns towards the movement
 
             float health = 100.0f;
@@ -68,6 +79,7 @@ namespace arena
             float endSpeed = 3.0f;     // m/s at the end
             float cost = 22.0f;
             int attackFrom = 14;       // a light press from this frame on becomes the dodge attack
+            int jumpFrom = 18;         // a jump from this frame on cancels the roll
             bool inAir = false;        // allow rolling while airborne
         } dodge;
 

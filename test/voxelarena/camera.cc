@@ -120,3 +120,38 @@ TEST(arena_camera, shake_moves_the_view_then_dies_out)
     EXPECT_EQ(cam.trauma, 0.0f);
     EXPECT_NEAR(glm::distance(cam.position, still), 0.0f, 1e-3f);
 }
+
+TEST(arena_camera, a_head_bumped_into_a_roof_does_not_snap_the_camera_in)
+{
+    VoxelGrid g(32, 16, 32);
+    Tuning t = tuning();
+    OrbitCamera cam;
+    cam.yaw = 0.0f;
+    cam.pitch = 15.0f;
+    cam.distance = 5.0f;
+
+    // A roof over a corridor, open behind the player
+    g.fill({10, 5, 14}, {22, 5, 20}, 1);   // bottom of the roof at y = 5
+
+    const glm::vec3 feetLow(16.5f, 1.0f, 17.5f);
+    for (int i = 0; i < 120; ++i)
+        cam.update(1.0f / 60.0f, feetLow + glm::vec3(0, 1.85f, 0), feetLow + glm::vec3(0, 0.9f, 0), g, table(), t, i / 60.0f);
+    const float before = glm::distance(cam.position, cam.pivot);
+
+    // Jump: the head touches the roof, the camera pivot (head + 1.85 above the feet) would be inside it
+    // A jump arc up to the roof (head at 5) and back down, about 0.6 s
+    float closest = before;
+    for (int i = 0; i <= 36; ++i)
+    {
+        const float h = 2.19f * std::sin(3.14159f * static_cast<float>(i) / 36.0f);
+        const glm::vec3 feet = feetLow + glm::vec3(0, h, 0);
+        cam.update(1.0f / 60.0f, feet + glm::vec3(0, 1.85f, 0), feet + glm::vec3(0, 0.9f, 0), g, table(), t, 2.0f + i / 60.0f);
+        closest = std::min(closest, glm::distance(cam.position, cam.pivot));
+        EXPECT_LT(cam.pivot.y, 5.0f - t.camera.collisionRadius + 1e-3f);
+    }
+
+    // Under the roof the camera comes down instead of in: it keeps most of its distance, standing or jumping
+    EXPECT_GT(before, 4.5f);
+    EXPECT_GT(closest, 3.5f);
+    EXPECT_GT(cam.pitchDrop, 1.0f);
+}

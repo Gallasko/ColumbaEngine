@@ -54,8 +54,20 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
   makes you *exhausted*: no sprint, slower refill.
 - **The dodge roll** covers about 4.5 m and has invulnerable frames (16 of its 27 frames by default).
   You can roll through enemies while invulnerable.
+- **Movement help**, all in the `player` section of the tuning:
+  - *Ledge assist*: a jump that ends with the feet just under a ledge (`mantleHeight`) climbs onto it.
+  - *Corner correction*: a head that clips a block edge on the way up slides past it (`cornerCorrection`).
+  - *Momentum*: the takeoff speed is kept in the air and for a moment after landing (`landingGrace`), so
+    sprint jumps and roll jumps chain; extra speed then bleeds off (`overspeedDecel`).
+  - A jump cancels the roll from `dodge.jumpFrom` on (its recovery).
+- **Landings**: a fall faster than `hardLandingSpeed` slows you for `hardLandingFrames` (to
+  `hardLandingMoveSpeed` of the walk speed; 0 makes it a root). A dodge pressed in the air up to
+  `landingRollWindow` seconds before landing rolls on touchdown instead. Knocked into the air by a
+  hit, the same dodge gets you up at once (wake-up roll).
+- **The camera under a roof** comes down rather than in: when a ceiling blocks it, it lowers until it
+  sees the player from its full distance, then eases back up. A wall behind you still pulls it in.
 - **First person** (V): the body faces where you look, so you strafe instead of turning, and attacks
-  go where you look. The weapon is drawn in front of the eye with the same swing data; the view
+  go where you look (no aim assist; the swing follows the view while it runs). The weapon is drawn in front of the eye with the same swing data; the view
   dips during a roll. Its numbers are the `firstPerson` section of the tuning.
 - **Attacks** have startup, active and recovery frames. Hitboxes exist only during active frames.
   A light press during an attack is remembered and starts the next attack of the combo once the
@@ -155,6 +167,8 @@ See `mods/base/weapons/sword.json`: the header comment explains every field. In 
 - `hitboxes`: boxes in the attacker's space (x right, y up from the feet, z forward).
 - `lunge`, `lungeFrom`, `lungeTo`: forward speed during those frames.
 - `turnRate`: degrees per frame the attacker may still turn during startup.
+- `moveSpeed`, `moveUntil`: how much of the walk speed the player keeps during the attack (0, the
+  default, roots them), and the frame from which they are rooted. Momentum carries into the swing.
 - `armor`: extra poise while the attack runs.
 - `bufferFrom`, `chainFrom`, `dodgeCancelFrom`, `next`: the combo and its cancel windows.
 - `swing`: how the weapon moves (yaw, pitch, reach). On an enemy it bends the whole body.

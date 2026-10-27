@@ -24,6 +24,13 @@ namespace arena
         f("player.jumpBuffer", player.jumpBuffer);
         f("player.stepHeight", player.stepHeight);
         f("player.stepSmoothing", player.stepSmoothing);
+        f("player.mantleHeight", player.mantleHeight);
+        f("player.cornerCorrection", player.cornerCorrection);
+        f("player.landingGrace", player.landingGrace);
+        f("player.overspeedDecel", player.overspeedDecel);
+        f("player.hardLandingSpeed", player.hardLandingSpeed);
+        f("player.hardLandingMoveSpeed", player.hardLandingMoveSpeed);
+        f("player.landingRollWindow", player.landingRollWindow);
         f("player.turnSpeed", player.turnSpeed);
         f("player.health", player.health);
         f("player.poise", player.poise);
@@ -85,12 +92,14 @@ namespace arena
     void Tuning::forEachInt(const std::function<void(const std::string&, int&)>& f)
     {
         f("player.hitstunFrames", player.hitstunFrames);
+        f("player.hardLandingFrames", player.hardLandingFrames);
 
         f("dodge.frames", dodge.frames);
         f("dodge.iframeStart", dodge.iframeStart);
         f("dodge.iframeEnd", dodge.iframeEnd);
         f("dodge.recovery", dodge.recovery);
         f("dodge.attackFrom", dodge.attackFrom);
+        f("dodge.jumpFrom", dodge.jumpFrom);
 
         f("feel.hitFlashFrames", feel.hitFlashFrames);
     }

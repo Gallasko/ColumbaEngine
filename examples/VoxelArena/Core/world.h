@@ -37,7 +37,7 @@ namespace arena
         bool faceCamera = false;
     };
 
-    enum class Action { Free, Attack, Dodge, Stagger, Dead };
+    enum class Action { Free, Attack, Dodge, Stagger, Land, Dead };
 
     const char* actionName(Action a);
 
@@ -81,6 +81,14 @@ namespace arena
         glm::vec3 push = glm::vec3(0.0f);   // knockback velocity, decays on its own
 
         float coyote = 0.0f;
+
+        // Momentum: horizontal speed at takeoff, and the speed kept for a moment after landing
+        float airSpeed = 0.0f;
+        float landGrace = 0.0f;
+        float landSpeed = 0.0f;
+        float landedSpeed = 0.0f;   // falling speed of a landing made this step, 0 when none
+        bool airborneStagger = false;   // knocked into the air: a dodge on landing gets up at once
+        float airDodgeAge = -1.0f;      // seconds since a dodge pressed in the air, kept for the landing
         float jumpBuffer = 0.0f;
         bool jumping = false;
 
@@ -211,7 +219,7 @@ namespace arena
         void stepPlayer(Fighter& f, const InputFrame& in);
         void stepEnemy(Fighter& f);
         void stepCommon(Fighter& f, glm::vec3 wantedVelocity, bool canJump, const InputFrame* in);
-        void startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir);
+        void startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir, bool aimAssist = true);
         void startDodge(Fighter& f, const glm::vec3& dir);
         void resolveHits();
         void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);

@@ -123,6 +123,12 @@ namespace arena
 
         float turnRate = 0.0f;    // degrees per frame the attacker may still turn during startup
 
+        // Player movement while the attack runs. 0 roots the player (the default): the speed brakes
+        // to zero, only the lunge moves. Above 0 the player keeps steering at that fraction of the
+        // walk speed, with the normal run acceleration, so a swing started on the run keeps its momentum.
+        float moveSpeed = 0.0f;
+        int moveUntil = -1;       // from this frame on the player is rooted (-1: the whole attack)
+
         float armor = 0.0f;       // extra poise while the attack runs (hyper armor)
 
         // Cancels, as frame numbers counted from the start of the attack
@@ -137,6 +143,7 @@ namespace arena
 
         int total() const { return startup + active + recovery; }
         bool isActive(int frame) const { return frame >= startup and frame < startup + active; }
+        bool movesAt(int frame) const { return moveSpeed > 0.0f and (moveUntil < 0 or frame < moveUntil); }
     };
 
     struct Moveset

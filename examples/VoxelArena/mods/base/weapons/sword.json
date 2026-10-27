@@ -4,6 +4,8 @@
 // Hitbox offsets are in the fighter's space: x to the right, y up from the feet, z forward. Sizes are full sizes.
 // chainFrom: first frame the next attack of the combo may start (a press is remembered from bufferFrom on).
 // dodgeCancelFrom: first frame a dodge may interrupt the attack.
+// moveSpeed: how much of the walk speed you keep while the attack runs (0 = rooted). The lights keep
+// you moving with your momentum, the heavy slows you down. moveUntil: the frame you get rooted from.
 // swing: how the blade moves during the active frames, in degrees (yaw: + to the right; pitch: + up).
 {
     "name": "Iron Sword",
@@ -19,6 +21,7 @@
 
         "attacks": {
             "light1": {
+                "moveSpeed": 0.9,
                 "startup": 7, "active": 4, "recovery": 16,
                 "damage": 10, "poiseDamage": 12, "staminaCost": 10,
                 "knockback": 2.5, "hitstop": 3, "shake": 0.2,
@@ -30,6 +33,7 @@
                 "swing": { "yawFrom": 80, "yawTo": -85, "pitchFrom": 5, "pitchTo": -10 }
             },
             "light2": {
+                "moveSpeed": 0.9,
                 "startup": 6, "active": 4, "recovery": 18,
                 "damage": 11, "poiseDamage": 12, "staminaCost": 10,
                 "knockback": 2.5, "hitstop": 3, "shake": 0.2,
@@ -41,6 +45,7 @@
                 "swing": { "yawFrom": -85, "yawTo": 80, "pitchFrom": -10, "pitchTo": 10 }
             },
             "light3": {
+                "moveSpeed": 0.6,
                 "startup": 12, "active": 5, "recovery": 26,
                 "damage": 18, "poiseDamage": 26, "staminaCost": 14,
                 "knockback": 7, "knockup": 3, "hitstop": 5, "shake": 0.4,
@@ -51,6 +56,7 @@
                 "swing": { "yawFrom": 0, "yawTo": 0, "pitchFrom": 95, "pitchTo": -40 }
             },
             "heavy": {
+                "moveSpeed": 0.25,
                 "startup": 22, "active": 5, "recovery": 28,
                 "damage": 26, "poiseDamage": 40, "staminaCost": 26,
                 "knockback": 9, "knockup": 2.5, "hitstop": 5, "shake": 0.55,
@@ -62,6 +68,7 @@
                 "swing": { "yawFrom": 15, "yawTo": -5, "pitchFrom": 110, "pitchTo": -45 }
             },
             "roll_slash": {
+                "moveSpeed": 0.7,
                 "startup": 5, "active": 5, "recovery": 18,
                 "damage": 12, "poiseDamage": 16, "staminaCost": 12,
                 "knockback": 3.5, "hitstop": 3, "shake": 0.2,

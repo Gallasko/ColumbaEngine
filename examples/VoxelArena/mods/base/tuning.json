@@ -33,7 +33,24 @@
         "jumpBuffer": 0.12,
 
         "stepHeight": 1.05,
-        "stepSmoothing": 18
+        "stepSmoothing": 18,
+
+        // Ledge assist: a jump whose feet end this close under a ledge's top climbs onto it
+        "mantleHeight": 0.5,
+        // Corner correction: a head that clips a block edge on the way up slides around it
+        "cornerCorrection": 0.3,
+
+        // Momentum: speed at takeoff is kept in the air and for a moment after landing, so sprint
+        // jumps and roll jumps chain; above-run speed then bleeds off instead of braking at once
+        "landingGrace": 0.15,
+        "overspeedDecel": 14,
+
+        // Big falls cost a short recovery (a slow, or a root with hardLandingMoveSpeed 0), unless a
+        // dodge pressed in the air up to landingRollWindow seconds before landing rolls out of it
+        "hardLandingSpeed": 19,
+        "hardLandingFrames": 16,
+        "hardLandingMoveSpeed": 0.4,
+        "landingRollWindow": 0.35
     },
 
     "stamina": {
@@ -54,6 +71,7 @@
         "endSpeed": 8,
         "cost": 20,
         "attackFrom": 15,
+        "jumpFrom": 21,
         "inAir": false
     },
 

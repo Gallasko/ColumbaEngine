@@ -132,3 +132,61 @@ TEST(arena_physics, the_head_bumps_the_ceiling)
     EXPECT_EQ(b.velocity.y, 0.0f);
     EXPECT_NEAR(b.position.y + b.height, 4.0f, 0.01f);
 }
+
+TEST(arena_physics, ledge_assist_climbs_a_ledge_just_above_the_feet_but_not_higher)
+{
+    MoveOptions opt;
+    opt.airStepHeight = 0.5f;
+
+    auto g = flatGround();
+    g.fill({8, 1, 0}, {15, 2, 15}, 1);   // top at y = 3
+
+    // Feet 0.3 under the top: climbed
+    Body b;
+    b.position = glm::vec3(7.65f, 2.7f, 4.5f);
+    b.velocity = glm::vec3(4.0f, -1.0f, 0.0f);
+    moveBody(g, table(), b, glm::vec3(0.3f, -0.02f, 0), opt);
+    EXPECT_TRUE(b.mantled);
+    EXPECT_TRUE(b.onGround);
+    EXPECT_NEAR(b.position.y, 3.0f, 0.01f);
+    EXPECT_GT(b.position.x, 7.8f);
+    EXPECT_LE(b.velocity.y, 0.0f);
+
+    // Feet 0.7 under the top: stopped against the side
+    Body c;
+    c.position = glm::vec3(7.65f, 2.3f, 4.5f);
+    moveBody(g, table(), c, glm::vec3(0.3f, -0.02f, 0), opt);
+    EXPECT_FALSE(c.mantled);
+    EXPECT_TRUE(c.hitX);
+    EXPECT_LT(c.position.y, 2.3f);
+}
+
+TEST(arena_physics, corner_correction_slides_a_rising_head_past_a_block_edge)
+{
+    MoveOptions opt;
+    opt.cornerNudge = 0.3f;
+
+    auto g = flatGround();
+    g.set(8, 3, 4, 1);   // one block hanging over head height (bottom at y = 3)
+
+    // The head overlaps that block by 0.15 on X
+    Body b;
+    b.position = glm::vec3(7.85f, 1.0f, 4.5f);
+    moveBody(g, table(), b, glm::vec3(0, 1.5f, 0), opt);
+    EXPECT_TRUE(b.cornerNudged);
+    EXPECT_NEAR(b.position.y, 2.5f, 1e-3f);
+    EXPECT_LE(b.position.x + b.width * 0.5f, 8.0f);
+
+    // A head right under the middle of the block is not slid out: it bumps
+    Body c;
+    c.position = glm::vec3(8.5f, 1.0f, 4.5f);
+    moveBody(g, table(), c, glm::vec3(0, 1.5f, 0), opt);
+    EXPECT_FALSE(c.cornerNudged);
+    EXPECT_TRUE(c.hitY);
+
+    // And without the option the first head bumps too
+    Body d;
+    d.position = glm::vec3(7.85f, 1.0f, 4.5f);
+    moveBody(g, table(), d, glm::vec3(0, 1.5f, 0));
+    EXPECT_TRUE(d.hitY);
+}

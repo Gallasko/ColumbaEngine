@@ -89,11 +89,51 @@ namespace arena
     {
         body.hitX = body.hitY = body.hitZ = false;
         body.steppedUp = 0.0f;
+        body.mantled = false;
+        body.cornerNudged = false;
 
         const bool wasOnGround = body.onGround;
 
         // Vertical first: landing this frame lets the horizontal pass treat the body as grounded
-        const float dy = sweepAxis(grid, table, body.boxMin(), body.boxMax(), 1, delta.y);
+        float dy = sweepAxis(grid, table, body.boxMin(), body.boxMax(), 1, delta.y);
+
+        // Corner correction: the head caught an edge on the way up. Find the smallest sideways slide
+        // (in 5 cm steps) after which the whole rise is free, and take it
+        if (delta.y > 0.0f and dy < delta.y - SKIN and options.cornerNudge > 0.0f)
+        {
+            bool found = false;
+
+            for (float step = 0.05f; step <= options.cornerNudge + 1e-4f and not found; step += 0.05f)
+            {
+                for (int axis : {0, 2})
+                {
+                    for (float sign : {1.0f, -1.0f})
+                    {
+                        const float shift = step * sign;
+
+                        if (std::fabs(sweepAxis(grid, table, body.boxMin(), body.boxMax(), axis, shift) - shift) > 1e-5f)
+                            continue;
+
+                        Body shifted = body;
+                        shifted.position[axis] += shift;
+                        const float rise = sweepAxis(grid, table, shifted.boxMin(), shifted.boxMax(), 1, delta.y);
+
+                        if (rise >= delta.y - SKIN)
+                        {
+                            body.position[axis] += shift;
+                            dy = rise;
+                            body.cornerNudged = true;
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (found)
+                        break;
+                }
+            }
+        }
+
         body.position.y += dy;
 
         if (dy != delta.y)
@@ -115,10 +155,13 @@ namespace arena
 
             float moved = sweepAxis(grid, table, body.boxMin(), body.boxMax(), axis, want);
 
-            // Blocked on the ground: try the same move from higher up, then settle back down
-            if (moved != want and grounded and options.stepHeight > 0.0f)
+            // Blocked: try the same move from higher up, then settle back down. On the ground this is the
+            // step-up; in the air it is the ledge assist, which must land on the ledge to count
+            const float lift = grounded ? options.stepHeight : options.airStepHeight;
+
+            if (moved != want and lift > 0.0f)
             {
-                const float up = sweepAxis(grid, table, body.boxMin(), body.boxMax(), 1, options.stepHeight);
+                const float up = sweepAxis(grid, table, body.boxMin(), body.boxMax(), 1, lift);
 
                 if (up > 0.0f)
                 {
@@ -133,6 +176,23 @@ namespace arena
 
                         const float down = sweepAxis(grid, table, raised.boxMin(), raised.boxMax(), 1, -up);
                         raised.position.y += down;
+
+                        // A mantle stands on the ledge, higher than it started; anything else is no mantle
+                        const bool landed = down > -up + SKIN;
+
+                        if (not grounded and (not landed or raised.position.y <= body.position.y + SKIN))
+                        {
+                            body.position[axis] += moved;
+                            (axis == 0 ? body.hitX : body.hitZ) = true;
+                            body.velocity[axis] = 0.0f;
+                            continue;
+                        }
+
+                        if (not grounded)
+                        {
+                            body.mantled = true;
+                            body.velocity.y = std::min(body.velocity.y, 0.0f);
+                        }
 
                         body.steppedUp += raised.position.y - body.position.y;
                         body.position = raised.position;

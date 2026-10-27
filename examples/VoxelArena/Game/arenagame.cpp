@@ -810,6 +810,7 @@ namespace arena
                 --waitSteps;
 
             in.cameraYaw = camera.yaw;
+            in.faceCamera = firstPerson;
 
             previous.clear();
             for (const auto& f : world.fighters)
@@ -917,6 +918,11 @@ namespace arena
                 const float t = glm::clamp((static_cast<float>(std::max(0, p->frame - 1)) + alpha) / static_cast<float>(rollFrames), 0.0f, 1.0f);
                 dip = tuning.firstPerson.rollDip * std::sin(t * 3.14159f);
             }
+            else if (p->action == Action::Land)
+            {
+                const float t = (static_cast<float>(std::max(0, p->frame - 1)) + alpha) / static_cast<float>(std::max(1, p->actionLength));
+                dip = tuning.firstPerson.rollDip * 0.6f * (1.0f - easeOut(t));
+            }
 
             const glm::vec3 eye = feet + glm::vec3(0, tuning.firstPerson.eyeHeight + stepOffset - dip, 0);
             camera.updateFirstPerson(frameSeconds, eye, tuning, simTime);
@@ -924,7 +930,9 @@ namespace arena
         else
         {
             const glm::vec3 head = feet + glm::vec3(0, tuning.camera.height + stepOffset, 0);
-            camera.update(frameSeconds, head, world.grid, content.blockTable, tuning, simTime);
+            // The middle of the body: always free space, the start of the check for a roof over the head
+            const glm::vec3 inside = feet + glm::vec3(0, p->body.height * 0.5f, 0);
+            camera.update(frameSeconds, head, inside, world.grid, content.blockTable, tuning, simTime);
         }
 
         auto& cam = masterRenderer->getCamera();
@@ -1054,6 +1062,12 @@ namespace arena
             else if (f.action == Action::Dead)
             {
                 body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.15f, 0)) * rotX(-90.0f);
+            }
+            else if (f.action == Action::Land)
+            {
+                // Squashed by the impact, standing back up
+                const float t = easeOut(frame / std::max(1.0f, static_cast<float>(f.actionLength)));
+                body = body * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f + 0.1f * (1.0f - t), 0.75f + 0.25f * t, 1.0f + 0.1f * (1.0f - t)));
             }
             else if (attack and f.team == Team::Enemy)
             {
@@ -1286,8 +1300,18 @@ namespace arena
         }
 
         if (cmd == "where" and p)
-            return "player " + fmt(p->body.position.x, 2) + " " + fmt(p->body.position.y, 2) + " " + fmt(p->body.position.z, 2) + " " + actionName(p->action) + "  stamina " + fmt(p->stamina, 1) +
+            return "player " + fmt(p->body.position.x, 2) + " " + fmt(p->body.position.y, 2) + " " + fmt(p->body.position.z, 2) + " " + actionName(p->action) + "  yaw " + fmt(p->yaw, 1) + "  stamina " + fmt(p->stamina, 1) +
+                   "  cam " + fmt(glm::distance(camera.position, camera.pivot), 2) + " m drop " + fmt(camera.pitchDrop, 1) +
                    "  steps " + std::to_string(world.steps) + "  sim " + fmt(simTime, 2) + " s  real " + fmt(std::chrono::duration<float>(std::chrono::steady_clock::now() - lastReload).count(), 2) + " s";
+
+        if (cmd == "enemies")
+        {
+            std::string out;
+            for (const auto& f : world.fighters)
+                if (f.team == Team::Enemy)
+                    out += "#" + std::to_string(f.id) + " " + f.type + " hp " + fmt(f.health, 0) + "/" + fmt(f.maxHealth, 0) + " " + actionName(f.action) + "\n";
+            return out.empty() ? "no enemies" : out;
+        }
 
         if (cmd == "echo")
             return line.size() > 5 ? line.substr(5) : "";

@@ -14,6 +14,7 @@
 
         "attacks": {
             "thrust1": {
+                "moveSpeed": 0.8,
                 "startup": 9, "active": 4, "recovery": 15,
                 "damage": 9, "poiseDamage": 9, "staminaCost": 9,
                 "knockback": 3, "hitstop": 3, "shake": 0.1,
@@ -25,6 +26,7 @@
                 "swing": { "yaw": 0, "pitchFrom": 0, "pitchTo": -4, "reach": 0.9 }
             },
             "thrust2": {
+                "moveSpeed": 0.8,
                 "startup": 7, "active": 4, "recovery": 15,
                 "damage": 9, "poiseDamage": 9, "staminaCost": 9,
                 "knockback": 3, "hitstop": 3, "shake": 0.1,
@@ -36,6 +38,7 @@
                 "swing": { "yaw": -6, "pitchFrom": 4, "pitchTo": 0, "reach": 0.9 }
             },
             "thrust3": {
+                "moveSpeed": 0.5,
                 "startup": 14, "active": 5, "recovery": 24,
                 "damage": 17, "poiseDamage": 24, "staminaCost": 14,
                 "knockback": 8, "hitstop": 5, "shake": 0.35,
@@ -45,6 +48,7 @@
                 "swing": { "yaw": 0, "pitchFrom": 8, "pitchTo": -8, "reach": 1.3 }
             },
             "sweep": {
+                "moveSpeed": 0.25,
                 "startup": 18, "active": 7, "recovery": 26,
                 "damage": 20, "poiseDamage": 34, "staminaCost": 24,
                 "knockback": 7, "knockup": 1.5, "hitstop": 5, "shake": 0.45,
@@ -55,6 +59,7 @@
                 "swing": { "yawFrom": 110, "yawTo": -110, "pitchFrom": -15, "pitchTo": -20 }
             },
             "lunge": {
+                "moveSpeed": 0.6,
                 "startup": 4, "active": 6, "recovery": 20,
                 "damage": 14, "poiseDamage": 18, "staminaCost": 12,
                 "knockback": 6, "hitstop": 4, "shake": 0.25,

@@ -79,12 +79,34 @@ namespace arena
 
         // Coming back to third person starts from the player, not from where the orbit was left
         placed = false;
+        pitchDrop = 0.0f;
         blocked = false;
     }
 
     void OrbitCamera::update(float dt, const glm::vec3& head, const VoxelGrid& grid, const BlockTable& table, const Tuning& tuning, float time)
     {
+        update(dt, head, head, grid, table, tuning, time);
+    }
+
+    void OrbitCamera::update(float dt, const glm::vec3& wantedHead, const glm::vec3& body, const VoxelGrid& grid, const BlockTable& table, const Tuning& tuning, float time)
+    {
         const auto& t = tuning.camera;
+
+        // The camera's pivot sits above the head: under a low roof it would be inside the roof, every
+        // ray from it would hit at once and the camera would snap in. Keep it a radius under the ceiling
+        glm::vec3 head = wantedHead;
+        {
+            const glm::vec3 up = head - body;
+            const float len = glm::length(up);
+
+            if (len > 1e-4f)
+            {
+                const float free = clearance(grid, table, body, up / len, len + t.collisionRadius);
+
+                if (free < len + t.collisionRadius)
+                    head = body + up / len * std::max(0.0f, free - t.collisionRadius);
+            }
+        }
 
         pitch = glm::clamp(pitch, t.minPitch, t.maxPitch);
         distance = glm::clamp(distance, t.minDistance, t.maxDistance);
@@ -128,18 +150,87 @@ namespace arena
         viewYaw = yaw + wobble(ft, 1.3f) * tuning.feel.shakeAngle * shake;
         viewPitch = pitch + wobble(ft, 7.1f) * tuning.feel.shakeAngle * shake;
 
-        const glm::vec3 back = -viewDirection(viewYaw, viewPitch);
         const glm::vec3 camRight = localToWorld(viewYaw, glm::vec3(1, 0, 0));
-        const glm::vec3 camUp = glm::normalize(glm::cross(camRight, back));
 
-        // A thick ray: the centre and four rays offset by the camera's radius
-        float free = clearance(grid, table, pivot, back, distance + t.collisionRadius);
+        // A thick ray from the pivot to a camera at that pitch: the centre and four rays offset by the radius
+        // ceiling: set when the nearest hit is the underside of a block
+        auto freeAt = [&](float pitchDegrees, bool* ceiling = nullptr) {
+            const glm::vec3 back = -viewDirection(viewYaw, pitchDegrees);
+            const glm::vec3 camUp = glm::normalize(glm::cross(camRight, back));
+            const float maxDist = distance + t.collisionRadius;
+            float f = maxDist;
+            bool roof = false;
 
-        for (const glm::vec2 o : {glm::vec2(1, 1), glm::vec2(-1, 1), glm::vec2(1, -1), glm::vec2(-1, -1)})
+            for (const glm::vec2 o : {glm::vec2(0, 0), glm::vec2(1, 1), glm::vec2(-1, 1), glm::vec2(1, -1), glm::vec2(-1, -1)})
+            {
+                const glm::vec3 offset = (camRight * o.x + camUp * o.y) * (t.collisionRadius * 0.7f);
+                const RayHit hit = raycast(grid, table, pivot + offset, back, maxDist);
+
+                if (hit.hit and hit.distance < f)
+                {
+                    f = hit.distance;
+                    roof = hit.normal.y < 0;
+                }
+            }
+
+            if (ceiling)
+                *ceiling = roof;
+
+            return f;
+        };
+
+        // Blocked from above (a roof, a jump under a ceiling): lower the camera rather than pull it in.
+        // Find the smallest drop that sees the pivot from the full distance (5 degree steps, then
+        // halved three times). It is taken at once (it grows smoothly as the player rises, and a lag
+        // would let the roof pull the camera in) and eased back once the ceiling is gone.
+        // A wall behind the player is not helped by lowering and pulls the camera in as before.
         {
-            const glm::vec3 offset = (camRight * o.x + camUp * o.y) * (t.collisionRadius * 0.7f);
-            free = std::min(free, clearance(grid, table, pivot + offset, back, distance + t.collisionRadius));
+            const float full = distance + t.collisionRadius - 1e-3f;
+            const float lowest = std::max(t.minPitch, -10.0f);   // at most a little under the pivot
+            float bestDrop = 0.0f;
+            bool ceiling = false;
+            float bestFree = freeAt(viewPitch, &ceiling);
+
+            if (bestFree < full and ceiling)
+            {
+                float blockedDrop = 0.0f;
+
+                for (float drop = 5.0f; viewPitch - drop >= lowest - 4.99f; drop += 5.0f)
+                {
+                    const float f = freeAt(viewPitch - drop);
+
+                    if (f > bestFree + 0.05f)
+                    {
+                        bestFree = f;
+                        bestDrop = drop;
+                    }
+
+                    if (f >= full)
+                    {
+                        // Refine between the last blocked drop and this one
+                        float lo = blockedDrop, hi = drop;
+
+                        for (int i = 0; i < 3; ++i)
+                        {
+                            const float mid = (lo + hi) * 0.5f;
+                            (freeAt(viewPitch - mid) >= full ? hi : lo) = mid;
+                        }
+
+                        bestDrop = hi;
+                        break;
+                    }
+
+                    blockedDrop = drop;
+                }
+            }
+
+            pitchDrop = bestDrop > pitchDrop ? bestDrop : smoothTowards(pitchDrop, bestDrop, t.pullOutSharpness, dt);
+            viewPitch -= pitchDrop;
         }
+
+        const glm::vec3 back = -viewDirection(viewYaw, viewPitch);
+        const glm::vec3 camUp = glm::normalize(glm::cross(camRight, back));
+        const float free = freeAt(viewPitch);
 
         const float limit = std::max(0.0f, free - t.collisionRadius);
         blocked = limit < distance - 1e-3f;

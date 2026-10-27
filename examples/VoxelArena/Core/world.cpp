@@ -93,6 +93,7 @@ namespace arena
             case Action::Attack: return "attack";
             case Action::Dodge: return "dodge";
             case Action::Stagger: return "stagger";
+            case Action::Land: return "land";
             case Action::Dead: return "dead";
         }
 
@@ -400,7 +401,7 @@ namespace arena
         f.yaw = wrapDegrees(f.yaw + std::clamp(diff, -maxTurn, maxTurn));
     }
 
-    void ArenaWorld::startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir)
+    void ArenaWorld::startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir, bool aimAssist)
     {
         const Moveset* m = movesetOf(f);
         const AttackDef* a = m ? m->find(name) : nullptr;
@@ -411,7 +412,7 @@ namespace arena
         glm::vec3 aim = flat(aimDir);
 
         // Aim assist: snap to the enemy closest to the aim inside a cone
-        if (f.team == Team::Player and glm::length(aim) > 1e-4f)
+        if (f.team == Team::Player and aimAssist and glm::length(aim) > 1e-4f)
         {
             aim = glm::normalize(aim);
             float best = tuning.combat.aimAssistAngle;
@@ -502,7 +503,13 @@ namespace arena
         }
 
         if (in.dodgePressed)
+        {
             f.dodgeQueuedAge = 0.0f;
+
+            // Pressed in the air: kept longer than other presses, waiting for the landing
+            if (not f.body.onGround)
+                f.airDodgeAge = 0.0f;
+        }
 
         if (in.jumpPressed)
             f.jumpBuffer = tuning.player.jumpBuffer;
@@ -525,6 +532,9 @@ namespace arena
 
         if (f.dodgeQueuedAge >= 0.0f and (f.dodgeQueuedAge += dt) > tuning.combat.inputBuffer)
             f.dodgeQueuedAge = -1.0f;
+
+        if (f.airDodgeAge >= 0.0f and (f.airDodgeAge += dt) > tuning.player.landingRollWindow)
+            f.airDodgeAge = -1.0f;
 
         f.sinceHit += dt;
 
@@ -556,7 +566,7 @@ namespace arena
                 else if (f.queued and canPay and moveset)
                 {
                     const std::string& name = (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light;
-                    startAttack(f, name, aimIdle);
+                    startAttack(f, name, aimIdle, not in.faceCamera);
                 }
                 break;
             }
@@ -578,7 +588,7 @@ namespace arena
                     const std::string& next = f.queued == 2 ? attack->nextHeavy : attack->nextLight;
 
                     if (not next.empty() and canPay)
-                        startAttack(f, next, aimChain);
+                        startAttack(f, next, aimChain, not in.faceCamera);
                 }
 
                 if (f.action == Action::Attack and f.frame >= currentAttack(f)->total())
@@ -589,8 +599,12 @@ namespace arena
 
             case Action::Dodge:
             {
-                if (f.queued == 1 and f.frame >= tuning.dodge.attackFrom and moveset and not moveset->dodgeAttack.empty() and canPay)
-                    startAttack(f, moveset->dodgeAttack, in.faceCamera ? camForward : (hasWish ? wish : f.dodgeDir));
+                // A jump ends the roll once it reaches jumpFrom (its recovery by default): the jump
+                // below then starts this same step, with the roll's speed
+                if (f.jumpBuffer > 0.0f and f.frame >= tuning.dodge.jumpFrom and f.coyote > 0.0f)
+                    f.action = Action::Free;
+                else if (f.queued == 1 and f.frame >= tuning.dodge.attackFrom and moveset and not moveset->dodgeAttack.empty() and canPay)
+                    startAttack(f, moveset->dodgeAttack, in.faceCamera ? camForward : (hasWish ? wish : f.dodgeDir), not in.faceCamera);
                 else if (f.frame >= tuning.dodge.frames)
                     f.action = Action::Free;
 
@@ -598,6 +612,7 @@ namespace arena
             }
 
             case Action::Stagger:
+            case Action::Land:
             {
                 if (f.frame >= f.actionLength)
                     f.action = Action::Free;
@@ -613,7 +628,7 @@ namespace arena
         if (f.action == Action::Free and f.dodgeQueuedAge >= 0.0f and canPay and canDodgeHere)
             startDodge(f, hasWish ? wish : yawForward(f.yaw));
         else if (f.action == Action::Free and f.queued and canPay and moveset)
-            startAttack(f, (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light, aimIdle);
+            startAttack(f, (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light, aimIdle, not in.faceCamera);
 
         // ---- Movement for the action ----
         glm::vec3 wanted(0.0f);
@@ -636,7 +651,15 @@ namespace arena
                         f.exhausted = true;
                 }
 
-                wanted = wish * (f.sprinting ? tuning.player.sprintSpeed : tuning.player.walkSpeed);
+                float speed = f.sprinting ? tuning.player.sprintSpeed : tuning.player.walkSpeed;
+
+                // Momentum: the speed taken off with is kept in the air, and for a moment after landing
+                if (not f.body.onGround)
+                    speed = std::max(speed, f.airSpeed);
+                else if (f.landGrace > 0.0f)
+                    speed = std::max(speed, f.landSpeed);
+
+                wanted = wish * speed;
 
                 if (in.faceCamera)
                     f.yaw = in.cameraYaw;
@@ -650,11 +673,41 @@ namespace arena
             {
                 const AttackDef* a = currentAttack(f);
 
-                if (a and f.frame < a->startup and a->turnRate > 0.0f and (hasWish or in.faceCamera))
-                    turnTowards(f, in.faceCamera ? camForward : wish, a->turnRate * 60.0f);
+                if (not a)
+                    break;
 
-                if (a and f.frame >= a->lungeFrom and f.frame < a->lungeTo)
-                    wanted = yawForward(f.yaw) * a->lunge;
+                // First person: the swing follows the view for its whole length, or the hitbox would
+                // land where the view was when the attack started
+                if (in.faceCamera)
+                    f.yaw = in.cameraYaw;
+                else if (f.frame < a->startup and a->turnRate > 0.0f and hasWish)
+                    turnTowards(f, wish, a->turnRate * 60.0f);
+
+                if (a->movesAt(f.frame))
+                    wanted = wish * (tuning.player.walkSpeed * a->moveSpeed);
+
+                if (f.frame >= a->lungeFrom and f.frame < a->lungeTo)
+                {
+                    // The lunge adds to the steering, up to whichever of the two is faster
+                    const float cap = std::max(a->lunge, glm::length(wanted));
+                    wanted += yawForward(f.yaw) * a->lunge;
+
+                    if (glm::length(wanted) > cap)
+                        wanted = glm::normalize(wanted) * cap;
+                }
+
+                break;
+            }
+
+            case Action::Land:
+            {
+                // A slow, not a root, unless the tuning says 0
+                wanted = wish * (tuning.player.walkSpeed * tuning.player.hardLandingMoveSpeed);
+
+                if (in.faceCamera)
+                    f.yaw = in.cameraYaw;
+                else
+                    turnTowards(f, wish, tuning.player.turnSpeed);
 
                 break;
             }
@@ -683,6 +736,39 @@ namespace arena
         }
 
         stepCommon(f, wanted, canJump, &in);
+
+        // ---- Landings: the landing roll, the wake-up roll and the hard landing ----
+        if (f.landedSpeed > 0.0f or f.body.mantled)
+        {
+            const bool dodgeReady = (f.dodgeQueuedAge >= 0.0f or f.airDodgeAge >= 0.0f) and f.stamina >= tuning.stamina.minToAct;
+            const glm::vec3 rollDir = hasWish ? wish : yawForward(f.yaw);
+            f.airDodgeAge = -1.0f;
+
+            // The counter is bumped below: -1 makes the new action start at frame 0 next step
+            if (f.action == Action::Stagger and f.airborneStagger and dodgeReady)
+            {
+                startDodge(f, rollDir);
+                f.frame = -1;
+            }
+            else if (f.action == Action::Free and dodgeReady)
+            {
+                // Any landing with a dodge waiting rolls on touchdown; a hard one is spared by it
+                startDodge(f, rollDir);
+                f.frame = -1;
+            }
+            else if (f.action == Action::Free and f.landedSpeed >= tuning.player.hardLandingSpeed)
+            {
+                f.action = Action::Land;
+                f.actionLength = tuning.player.hardLandingFrames;
+                f.sprinting = false;
+                f.frame = -1;
+            }
+        }
+
+        if (f.action == Action::Stagger)
+            f.airborneStagger = f.airborneStagger or not f.body.onGround;
+        else
+            f.airborneStagger = false;
         regenStamina(f);
 
         if (f.action != Action::Free)
@@ -847,6 +933,9 @@ namespace arena
         const auto& P = tuning.player;
         Body& body = f.body;
 
+        // The speed this step started with: a jump takes off with it, whatever the brakes did since
+        const float speedBefore = glm::length(flat(body.velocity));
+
         // ---- Horizontal: accelerate towards the wanted velocity ----
         if (f.action != Action::Dodge)
         {
@@ -860,8 +949,19 @@ namespace arena
             else
                 rate = body.onGround ? P.groundAccel : P.airAccel;
 
-            // Attacks and staggers stop on the spot, they do not slide like a run would
-            if (f.action == Action::Attack or f.action == Action::Stagger)
+            // Speed above the run speed, still going the same way: let it bleed off rather than brake
+            // (free movement only: an attack that slows you down does it at once)
+            if (f.team == Team::Player and f.action == Action::Free and body.onGround and glm::length(wanted) > 1e-4f and glm::dot(current, wanted) > 0.0f and glm::length(current) > glm::length(wanted))
+                rate = P.overspeedDecel;
+
+            // Staggers, hard landings and rooted attacks stop on the spot, they do not slide like a run would.
+            // An attack that lets the player move keeps the run's acceleration (and its momentum)
+            const AttackDef* attack = currentAttack(f);
+            const bool moving = f.team == Team::Player and attack and attack->movesAt(f.frame);
+
+            const bool rootedLanding = f.action == Action::Land and P.hardLandingMoveSpeed <= 0.0f;
+
+            if (f.action == Action::Stagger or rootedLanding or (f.action == Action::Attack and not moving))
                 rate = std::max(rate, P.groundDecel * 1.5f);
 
             const glm::vec3 next = approach(current, flat(wanted), rate * dt);
@@ -891,8 +991,13 @@ namespace arena
         if (f.jumpBuffer > 0.0f)
             f.jumpBuffer -= dt;
 
+        const bool groundBefore = body.onGround;
+        bool jumped = false;
+
         if (canJump and f.jumpBuffer > 0.0f and f.coyote > 0.0f)
         {
+            jumped = true;
+            f.airSpeed = std::max(speedBefore, glm::length(flat(body.velocity)));
             body.velocity.y = std::sqrt(2.0f * P.gravity * P.jumpHeight);
             body.onGround = false;
             f.jumping = true;
@@ -925,9 +1030,39 @@ namespace arena
         }
 
         MoveOptions opt;
-        opt.stepHeight = (f.action == Action::Free or f.action == Action::Dodge) ? P.stepHeight : 0.0f;
+        const bool mobile = f.action == Action::Free or f.action == Action::Dodge;
+        opt.stepHeight = mobile ? P.stepHeight : 0.0f;
 
+        if (f.team == Team::Player)
+        {
+            opt.airStepHeight = mobile ? P.mantleHeight : 0.0f;
+            opt.cornerNudge = P.cornerCorrection;
+        }
+
+        const float fallSpeed = -body.velocity.y;
         moveBody(grid, content->blockTable, body, (body.velocity + f.push) * dt, opt);
+
+        // Landing and takeoff, for the momentum and the landing moves
+        f.landedSpeed = 0.0f;
+
+        if (body.onGround)
+        {
+            if (not groundBefore and not jumped)
+            {
+                f.landedSpeed = std::max(1e-3f, fallSpeed);
+                f.landGrace = P.landingGrace;
+                f.landSpeed = std::max(f.airSpeed, glm::length(flat(body.velocity)));
+            }
+            else if (f.landGrace > 0.0f)
+            {
+                f.landGrace -= dt;
+            }
+        }
+        else if (groundBefore and not jumped)
+        {
+            // Walked or rolled off a ledge: that speed is the takeoff speed
+            f.airSpeed = glm::length(flat(body.velocity));
+        }
 
         if (body.hitX)
             f.push.x = 0.0f;

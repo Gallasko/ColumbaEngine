@@ -25,6 +25,9 @@ namespace arena
 
         float trauma = 0.0f;
 
+        /** Degrees the camera is lowered under a ceiling, eased in and out. */
+        float pitchDrop = 0.0f;
+
         // Result of update()
         glm::vec3 position = glm::vec3(0.0f);
         float viewYaw = 0.0f;
@@ -38,6 +41,12 @@ namespace arena
 
         /** head: the player's eyes, the point the camera must always see. */
         void update(float dt, const glm::vec3& head, const VoxelGrid& grid, const BlockTable& table, const Tuning& t, float time);
+
+        /**
+         * body: a point inside the player (always free space). The head is kept under any ceiling
+         * between the two, so a head bumped into a roof does not put the pivot inside the roof.
+         */
+        void update(float dt, const glm::vec3& head, const glm::vec3& body, const VoxelGrid& grid, const BlockTable& table, const Tuning& t, float time);
 
         /** First person: the camera is the eye. No smoothing, no wall pull-in (the eye is inside the body), shake kept. */
         void updateFirstPerson(float dt, const glm::vec3& eye, const Tuning& t, float time);

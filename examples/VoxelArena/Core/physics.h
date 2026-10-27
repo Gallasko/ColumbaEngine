@@ -24,6 +24,12 @@ namespace arena
         /** Height climbed by the last auto step-up, so the renderer can smooth the pop. */
         float steppedUp = 0.0f;
 
+        /** The last move climbed a ledge from the air (ledge assist). */
+        bool mantled = false;
+
+        /** The last move slid sideways around a block edge on the way up (corner correction). */
+        bool cornerNudged = false;
+
         glm::vec3 boxMin() const { return position - glm::vec3(width * 0.5f, 0.0f, width * 0.5f); }
         glm::vec3 boxMax() const { return position + glm::vec3(width * 0.5f, height, width * 0.5f); }
     };
@@ -32,6 +38,18 @@ namespace arena
     {
         /** Highest ledge climbed without jumping (0 = off). Only while on the ground. */
         float stepHeight = 0.0f;
+
+        /**
+         * Ledge assist: in the air, a ledge whose top is at most this far above the feet is climbed
+         * onto instead of stopping the body against its side (0 = off). A jump that almost made it, makes it.
+         */
+        float airStepHeight = 0.0f;
+
+        /**
+         * Corner correction: a body moving up whose head clips the edge of a block is slid sideways
+         * by up to this much to get past it, instead of stopping dead (0 = off).
+         */
+        float cornerNudge = 0.0f;
     };
 
     /** True when the box [min, max) overlaps any solid cell. */
@@ -39,6 +57,7 @@ namespace arena
 
     /**
      * Moves the body by delta against the grid, one axis at a time (Y, then X, then Z).
+     * Body::mantled tells when the ledge assist climbed this step.
      * Each axis stops flush against the first solid cell in its way, so fast moves cannot
      * tunnel. Velocity on a blocked axis is zeroed. Updates onGround.
      */

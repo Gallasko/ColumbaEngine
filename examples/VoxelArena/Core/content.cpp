@@ -965,7 +965,7 @@ namespace arena
         }
 
         checkKeys(j, {"startup", "active", "recovery", "damage", "poiseDamage", "staminaCost", "knockback", "knockup", "hitstop", "shake",
-                      "hitboxes", "lunge", "lungeFrom", "lungeTo", "turnRate", "armor", "dodgeCancelFrom", "chainFrom", "bufferFrom",
+                      "hitboxes", "lunge", "lungeFrom", "lungeTo", "turnRate", "moveSpeed", "moveUntil", "armor", "dodgeCancelFrom", "chainFrom", "bufferFrom",
                       "next", "swing"},
                   file, report, "attack " + name);
 
@@ -986,6 +986,11 @@ namespace arena
         readInt(j, "lungeFrom", a.lungeFrom, file, report);
         readInt(j, "lungeTo", a.lungeTo, file, report);
         readNum(j, "turnRate", a.turnRate, file, report);
+        readNum(j, "moveSpeed", a.moveSpeed, file, report);
+        readInt(j, "moveUntil", a.moveUntil, file, report);
+
+        if (a.moveSpeed < 0.0f or a.moveSpeed > 1.5f)
+            report.error(file, j.find("moveSpeed")->line, "attack \"" + name + "\": moveSpeed is a fraction of the walk speed, 0 to 1.5");
         readNum(j, "armor", a.armor, file, report);
         readInt(j, "dodgeCancelFrom", a.dodgeCancelFrom, file, report);
         readInt(j, "chainFrom", a.chainFrom, file, report);

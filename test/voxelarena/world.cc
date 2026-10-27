@@ -515,3 +515,296 @@ TEST(arena_world, in_first_person_the_body_faces_the_view_and_attacks_go_there)
     EXPECT_EQ(a.player().action, Action::Attack);
     EXPECT_NEAR(a.player().yaw, 45.0f, 0.01f);
 }
+
+TEST(arena_world, light_attacks_keep_you_moving_and_the_heavy_slows_you_down)
+{
+    // Speed after 15 frames of an attack started at full walk speed, still holding forward
+    auto speedDuring = [](bool heavy, float moveSpeed) {
+        Arena a;
+        a.content.weapons["base:sword"].moveset.attacks[heavy ? "heavy" : "light1"].moveSpeed = moveSpeed;
+        a.content.weapons["base:sword"].moveset.attacks[heavy ? "heavy" : "light1"].lunge = 0.0f;
+
+        InputFrame walk;
+        walk.move = glm::vec2(0, 1);
+        a.run(60, walk);
+
+        InputFrame attack = walk;
+        (heavy ? attack.heavyPressed : attack.lightPressed) = true;
+        a.world.step(attack);
+        a.run(15, walk);
+
+        EXPECT_EQ(a.player().action, Action::Attack);
+        return glm::length(glm::vec2(a.player().body.velocity.x, a.player().body.velocity.z));
+    };
+
+    Arena ref;
+    const float walk = ref.tuning.player.walkSpeed;
+    const float lightMove = ref.content.weapons.at("base:sword").moveset.find("light1")->moveSpeed;
+    const float heavyMove = ref.content.weapons.at("base:sword").moveset.find("heavy")->moveSpeed;
+
+    EXPECT_NEAR(speedDuring(false, lightMove), walk * lightMove, 0.05f);
+    EXPECT_NEAR(speedDuring(true, heavyMove), walk * heavyMove, 0.05f);
+    EXPECT_LT(heavyMove, lightMove);
+    EXPECT_NEAR(speedDuring(false, 0.0f), 0.0f, 0.01f);   // 0 roots the player
+}
+
+TEST(arena_world, in_first_person_the_hitbox_follows_the_view_and_ignores_aim_assist)
+{
+    Arena a;
+    // A dummy 40 degrees to the left of the view, inside the aim assist cone
+    const glm::vec3 p = a.player().body.position;
+    a.world.spawnEnemy("base:dummy", p + yawForward(40.0f) * 1.5f, 0.0f);
+    a.settle(5);
+
+    InputFrame fp;
+    fp.faceCamera = true;
+    fp.cameraYaw = 0.0f;
+    fp.lightPressed = true;
+    a.world.step(fp);
+    EXPECT_NEAR(a.player().yaw, 0.0f, 0.01f);   // third person would snap to the dummy
+
+    // Turning the view during the swing turns the hitbox with it
+    fp.lightPressed = false;
+    fp.cameraYaw = 70.0f;
+    a.run(8, fp);
+    ASSERT_EQ(a.player().action, Action::Attack);
+    EXPECT_NEAR(a.player().yaw, 70.0f, 0.01f);
+
+    bool found = false;
+    for (const auto& b : a.world.debugBoxes())
+        if (not b.hurt and b.owner == a.player().id)
+        {
+            EXPECT_NEAR(b.yaw, 70.0f, 0.01f);
+            found = true;
+        }
+    EXPECT_TRUE(found);
+
+    // Third person keeps the assist
+    Arena b;
+    b.world.spawnEnemy("base:dummy", b.player().body.position + yawForward(40.0f) * 1.5f, 0.0f);
+    b.settle(5);
+    InputFrame tp;
+    tp.lightPressed = true;
+    b.world.step(tp);
+    EXPECT_NEAR(b.player().yaw, 40.0f, 1.0f);
+}
+
+TEST(arena_world, a_jump_cancels_the_roll_in_its_recovery_not_before)
+{
+    // jumpFirst: the frame of the roll on which jump is pressed
+    auto jumpAt = [](int frame, float& speedAtJump) {
+        Arena a;
+        InputFrame dodge;
+        dodge.dodgePressed = true;
+        dodge.move = glm::vec2(0, 1);
+        a.world.step(dodge);
+        a.run(frame - 1);
+
+        InputFrame jump;
+        jump.jumpPressed = true;
+        jump.jumpHeld = true;
+        a.world.step(jump);
+        speedAtJump = glm::length(glm::vec2(a.player().body.velocity.x, a.player().body.velocity.z));
+        return a.player().body.velocity.y > 1.0f;
+    };
+
+    Arena ref;
+    float speed = 0.0f;
+
+    EXPECT_FALSE(jumpAt(5, speed));                          // mid roll: the press waits (and expires)
+    EXPECT_TRUE(jumpAt(ref.tuning.dodge.jumpFrom, speed));   // recovery: up at once
+    EXPECT_GT(speed, ref.tuning.dodge.endSpeed * 0.5f);      // keeping the roll's speed
+}
+
+TEST(arena_world, a_jump_that_falls_short_of_a_ledge_is_lifted_onto_it)
+{
+    auto attempt = [](float mantle) {
+        Arena a;
+        a.tuning.player.jumpHeight = 1.75f;   // the feet peak 0.25 under a two block wall
+        a.tuning.player.mantleHeight = mantle;
+        a.world.tuning = a.tuning;
+        a.world.grid.fill({0, 1, 12}, {31, 2, 31}, a.content.block("base:stone"));
+        a.player().body.position = glm::vec3(16, 1, 10.5f);
+        a.settle(5);
+
+        InputFrame jump;
+        jump.move = glm::vec2(0, 1);
+        jump.jumpPressed = true;
+        jump.jumpHeld = true;
+        a.world.step(jump);
+        jump.jumpPressed = false;
+        a.run(60, jump);
+        return a.player().body.position.y;
+    };
+
+    EXPECT_NEAR(attempt(0.5f), 3.0f, 0.02f);
+    EXPECT_NEAR(attempt(0.0f), 1.0f, 0.02f);
+}
+
+TEST(arena_world, sprint_jumps_keep_their_speed_through_the_landing)
+{
+    Arena a;
+    a.player().body.position = glm::vec3(16, 1, 1.5f);   // the whole run fits before the far wall
+    a.settle(5);
+    InputFrame run;
+    run.move = glm::vec2(0, 1);
+    run.sprintHeld = true;
+    a.run(40, run);
+    const float sprint = a.tuning.player.sprintSpeed;
+    ASSERT_NEAR(a.player().body.velocity.z, sprint, 0.05f);
+
+    // Jump, let go of sprint in the air: the takeoff speed stays
+    InputFrame jump;
+    jump.move = glm::vec2(0, 1);
+    jump.jumpPressed = true;
+    jump.jumpHeld = true;
+    a.world.step(jump);
+
+    InputFrame air;
+    air.move = glm::vec2(0, 1);
+    air.jumpHeld = true;
+
+    while (not a.player().body.onGround)
+    {
+        a.world.step(air);
+        EXPECT_NEAR(a.player().body.velocity.z, sprint, 0.05f);
+    }
+
+    // Landed: still at sprint speed for the grace, so a second jump takes off at it
+    a.world.step(air);
+    EXPECT_NEAR(a.player().body.velocity.z, sprint, 0.05f);
+    a.world.step(jump);
+    EXPECT_GT(a.player().body.velocity.y, 1.0f);
+    EXPECT_NEAR(a.player().airSpeed, sprint, 0.1f);
+
+    // Once down for good, the extra speed bleeds off towards the walk speed, not all at once
+    while (not a.player().body.onGround)
+        a.world.step(air);
+    a.run(static_cast<int>(a.tuning.player.landingGrace * 60.0f) + 2, air);
+    const float bleeding = a.player().body.velocity.z;
+    EXPECT_LT(bleeding, sprint);
+    EXPECT_GT(bleeding, a.tuning.player.walkSpeed + 0.5f);
+    a.run(30, air);
+    EXPECT_LT(a.player().body.position.z, 30.0f);
+    EXPECT_NEAR(a.player().body.velocity.z, a.tuning.player.walkSpeed, 0.05f);
+}
+
+TEST(arena_world, a_big_fall_costs_a_hard_landing_unless_you_roll)
+{
+    // pressFramesBefore: dodge pressed this many frames before landing (-1: never)
+    auto fall = [](int pressFramesBefore) {
+        Arena a;
+        a.player().body.position = glm::vec3(16, 9, 16);
+        a.player().body.onGround = false;
+
+        // Find the landing frame first
+        Arena probe;
+        probe.player().body.position = glm::vec3(16, 9, 16);
+        probe.player().body.onGround = false;
+        int landing = 0;
+        while (not probe.player().body.onGround)
+        {
+            probe.world.step(InputFrame{});
+            ++landing;
+        }
+
+        for (int i = 0; i < landing; ++i)
+        {
+            InputFrame in;
+            in.dodgePressed = (i == landing - 1 - pressFramesBefore);
+            a.world.step(in);
+        }
+
+        return a.player().action;
+    };
+
+    EXPECT_EQ(fall(-1), Action::Land);
+    EXPECT_EQ(fall(4), Action::Dodge);   // a landing roll
+
+    // A small hop lands clean
+    Arena a;
+    InputFrame jump;
+    jump.jumpPressed = true;
+    jump.jumpHeld = true;
+    a.world.step(jump);
+    jump.jumpPressed = false;
+    while (not (a.player().body.onGround and a.player().body.velocity.y <= 0.0f))
+        a.world.step(jump);
+    EXPECT_EQ(a.player().action, Action::Free);
+}
+
+TEST(arena_world, a_dodge_on_landing_from_a_knock_up_gets_up_at_once)
+{
+    auto knocked = [](bool dodge) {
+        Arena a;
+        Fighter& p = a.player();
+        p.action = Action::Stagger;
+        p.frame = 0;
+        p.actionLength = 90;
+        p.body.velocity.y = 8.0f;   // thrown up by a hit
+        p.body.onGround = false;
+
+        int steps = 0;
+        while (not (a.player().body.onGround and steps > 2))
+        {
+            InputFrame in;
+            // Pressed a few frames before touching down
+            in.dodgePressed = dodge and a.player().body.velocity.y < 0.0f and a.player().body.position.y < 1.6f;
+            a.world.step(in);
+            ++steps;
+        }
+
+        return a.player().action;
+    };
+
+    EXPECT_EQ(knocked(true), Action::Dodge);
+    EXPECT_EQ(knocked(false), Action::Stagger);
+}
+
+TEST(arena_world, the_hard_landing_slows_and_a_dodge_pressed_early_in_the_fall_still_rolls)
+{
+    auto fallFrom = [](float height, int pressFramesBefore, InputFrame hold) {
+        Arena a;
+        a.player().body.position = glm::vec3(16, height, 16);
+        a.player().body.onGround = false;
+
+        Arena probe;
+        probe.player().body.position = glm::vec3(16, height, 16);
+        probe.player().body.onGround = false;
+        int landing = 0;
+        while (not probe.player().body.onGround)
+        {
+            probe.world.step(hold);
+            ++landing;
+        }
+
+        for (int i = 0; i < landing; ++i)
+        {
+            InputFrame in = hold;
+            in.dodgePressed = (i == landing - 1 - pressFramesBefore);
+            a.world.step(in);
+        }
+
+        return std::make_pair(a.player().action, a.player().landedSpeed);
+    };
+
+    Arena ref;
+    const int window = static_cast<int>(ref.tuning.player.landingRollWindow * 60.0f);
+
+    // 18 frames before landing: past the general buffer (12), inside the landing window (21)
+    ASSERT_GT(18, static_cast<int>(ref.tuning.combat.inputBuffer * 60.0f));
+    EXPECT_EQ(fallFrom(9.0f, 18, InputFrame{}).first, Action::Dodge);
+    EXPECT_EQ(fallFrom(9.0f, window + 4, InputFrame{}).first, Action::Land);
+
+    // During the hard landing the player still walks, slowly
+    Arena a;
+    a.player().body.position = glm::vec3(16, 9, 16);
+    a.player().body.onGround = false;
+    InputFrame walk;
+    walk.move = glm::vec2(0, 1);
+    while (a.player().action != Action::Land)
+        a.world.step(walk);
+    a.run(8, walk);
+    ASSERT_EQ(a.player().action, Action::Land);
+    EXPECT_NEAR(a.player().body.velocity.z, a.tuning.player.walkSpeed * a.tuning.player.hardLandingMoveSpeed, 0.1f);
+}
