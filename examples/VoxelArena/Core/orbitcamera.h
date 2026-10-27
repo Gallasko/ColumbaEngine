@@ -32,11 +32,15 @@ namespace arena
         bool blocked = false;    // a wall pulls the camera in
 
         void look(float dxPixels, float dyPixels, const Tuning::Camera& t);
+        void look(float dxPixels, float dyPixels, float sensitivity, float minPitch, float maxPitch);
         void zoom(float steps, const Tuning::Camera& t);
         void addTrauma(float amount) { trauma = glm::clamp(trauma + amount, 0.0f, 1.0f); }
 
         /** head: the player's eyes, the point the camera must always see. */
         void update(float dt, const glm::vec3& head, const VoxelGrid& grid, const BlockTable& table, const Tuning& t, float time);
+
+        /** First person: the camera is the eye. No smoothing, no wall pull-in (the eye is inside the body), shake kept. */
+        void updateFirstPerson(float dt, const glm::vec3& eye, const Tuning& t, float time);
 
         /** Forward direction of the view (unit vector). */
         glm::vec3 forward() const;

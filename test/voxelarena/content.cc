@@ -107,7 +107,7 @@ TEST(arena_content, the_shipped_tuning_has_every_key)
     EXPECT_TRUE(report.errors.empty()) << allMessages(report);
     EXPECT_TRUE(report.warnings.empty()) << allMessages(report);
     EXPECT_FLOAT_EQ(t.player.walkSpeed, 5.6f);
-    EXPECT_EQ(t.dodge.frames, 24);
+    EXPECT_EQ(t.dodge.frames, 27);
     EXPECT_EQ(t.startWeapon, "base:sword");
 }
 

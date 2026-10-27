@@ -46,21 +46,13 @@ namespace arena
 
             const GLsizei istride = INSTANCE_FLOATS * sizeof(float);
 
-            // Model matrix: four vec4 columns
-            for (int i = 0; i < 4; ++i)
+            // Model matrix then view * model: eight vec4 columns, locations 4 to 11; tint 12, flash 13
+            for (int i = 0; i < 10; ++i)
             {
                 glEnableVertexAttribArray(4 + i);
                 glVertexAttribPointer(4 + i, 4, GL_FLOAT, GL_FALSE, istride, (void*)(i * 4 * sizeof(float)));
                 glVertexAttribDivisor(4 + i, 1);
             }
-
-            glEnableVertexAttribArray(8);
-            glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, istride, (void*)(16 * sizeof(float)));
-            glVertexAttribDivisor(8, 1);
-
-            glEnableVertexAttribArray(9);
-            glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, istride, (void*)(20 * sizeof(float)));
-            glVertexAttribDivisor(9, 1);
 
             glBindBuffer(GL_ARRAY_BUFFER, 0);
 

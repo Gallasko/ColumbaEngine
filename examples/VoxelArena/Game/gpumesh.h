@@ -16,11 +16,16 @@ namespace arena
      * next time the mesh is drawn. The GL objects are made once and kept: a mesh is never
      * destroyed while the game runs (its last owner could be on a thread without a GL context).
      *
-     * Instance layout (INSTANCE_FLOATS): model matrix (16, column major), tint rgba (4), flash rgba (4).
+     * Instance layout (INSTANCE_FLOATS): model matrix (16, column major), view * model (16),
+     * tint rgba (4), flash rgba (4).
+     *
+     * The view travels with each instance, not as a uniform: the engine draws a render list that
+     * can be a frame old, while its camera uniform is read when the frame is drawn. Baking the view
+     * in keeps every list drawn with the camera it was built for (else entities lag the camera).
      */
     struct GpuMesh : public pg::Mesh
     {
-        static constexpr size_t INSTANCE_FLOATS = 24;
+        static constexpr size_t INSTANCE_FLOATS = 40;
 
         GpuMesh() = default;
 

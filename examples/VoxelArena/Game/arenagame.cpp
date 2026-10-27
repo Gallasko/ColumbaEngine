@@ -98,10 +98,13 @@ namespace arena
             return p;
         }
 
-        void pushInstance(std::vector<float>& data, const glm::mat4& model, const glm::vec4& tint, const glm::vec4& flash)
+        void pushInstance(std::vector<float>& data, const glm::mat4& view, const glm::mat4& model, const glm::vec4& tint, const glm::vec4& flash)
         {
+            const glm::mat4 eye = view * model;
             const float* m = glm::value_ptr(model);
+            const float* e = glm::value_ptr(eye);
             data.insert(data.end(), m, m + 16);
+            data.insert(data.end(), e, e + 16);
             data.insert(data.end(), {tint.r, tint.g, tint.b, tint.a, flash.r, flash.g, flash.b, flash.a});
         }
 
@@ -110,7 +113,7 @@ namespace arena
             {"forward", {"W", "Up"}}, {"back", {"S", "Down"}}, {"left", {"A", "Left"}}, {"right", {"D", "Right"}},
             {"jump", {"Space"}}, {"dodge", {"Left Shift"}}, {"sprint", {"Left Shift"}},
             {"light", {"Mouse1", "J"}}, {"heavy", {"Mouse3", "K"}},
-            {"freeCursor", {"Left Alt"}},
+            {"freeCursor", {"Left Alt"}}, {"toggleView", {"V"}},
         };
     }
 
@@ -216,7 +219,7 @@ namespace arena
         }
 
         meshDirty = true;
-        masterRenderer->getCamera().setFovDegrees(tuning.camera.fov);
+        masterRenderer->getCamera().setFovDegrees(fov());
 
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 
@@ -367,6 +370,18 @@ namespace arena
         }
     }
 
+    void ArenaGame::onEvent(const OnMouseClick& event)
+    {
+        // The engine's MouseClickSystem is the one reader of the press latch (Input::takePress): reading
+        // it here too lost every click that system took first. Its click event comes once per press.
+        std::lock_guard<std::mutex> lock(inputMutex);
+
+        if (cursorLocked)
+            mousePresses.insert(static_cast<int>(event.button));
+        else if (cursorFree)
+            recapture = true;   // a click on a freed window takes the mouse back, it does not attack
+    }
+
     void ArenaGame::onEvent(const OnSDLMouseWheel& event)
     {
         std::lock_guard<std::mutex> lock(inputMutex);
@@ -490,16 +505,6 @@ namespace arena
         if (frameSeconds > 0.0f)
             frameSecondsSmoothed += (frameSeconds - frameSecondsSmoothed) * 0.05f;
 
-        // Mouse presses are latched by the engine; collect them for the next step
-        if (input)
-        {
-            for (int b = 1; b <= 5; ++b)
-            {
-                if (input->takePress(static_cast<MouseButton>(b)) and not consoleOpen and cursorLocked)
-                    mousePresses.insert(b);
-            }
-        }
-
         // Debug keys and the console
         std::vector<KeyPress> presses;
         std::string text;
@@ -534,6 +539,12 @@ namespace arena
                 case SDL_SCANCODE_F5: print(runCommand("reload")); break;
                 case SDL_SCANCODE_ESCAPE: cursorFree = not cursorFree; break;
                 default:
+                    if (keyIs(p.scancode, "toggleView"))
+                    {
+                        setFirstPerson(not firstPerson);
+                        break;
+                    }
+
                     if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_9)
                     {
                         const size_t index = static_cast<size_t>(p.scancode - SDL_SCANCODE_1);
@@ -542,6 +553,16 @@ namespace arena
                             world.equip(content.weaponOrder[index]);
                     }
                     break;
+            }
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(inputMutex);
+
+            if (recapture)
+            {
+                cursorFree = false;
+                recapture = false;
             }
         }
 
@@ -593,7 +614,7 @@ namespace arena
         // Bars over the enemies, projected by hand: the engine camera matrices belong to the render thread
         {
             std::vector<Hud::EnemyBar> bars;
-            const glm::mat4 proj = glm::perspective(tuning.camera.fov * DEG, aspect, 0.1f, 500.0f);
+            const glm::mat4 proj = glm::perspective(fov() * DEG, aspect, 0.1f, 500.0f);
             const glm::mat4 view = glm::lookAt(camera.position, camera.position + camera.forward(), glm::vec3(0, 1, 0));
 
             for (const auto& f : world.fighters)
@@ -605,7 +626,7 @@ namespace arena
                 const glm::vec3 pos = prev != previous.end() ? glm::mix(prev->second.position, f.body.position, alpha) : f.body.position;
                 const glm::vec4 clip = proj * view * glm::vec4(pos + glm::vec3(0, f.body.height + 0.35f, 0), 1.0f);
 
-                if (clip.w <= 0.1f or glm::length(pos - camera.position) > 22.0f)
+                if (clip.w <= 0.1f or glm::length(pos - camera.position) > 22.0f or not f.alive())
                     continue;
 
                 const glm::vec3 ndc = glm::vec3(clip) / clip.w;
@@ -860,10 +881,15 @@ namespace arena
             lookDx = lookDy = wheel = 0.0f;
         }
 
-        if (cursorLocked and not consoleOpen)
-            camera.look(dx, dy, tuning.camera);
+        if (cursorLocked and not consoleOpen and mouseLook)
+        {
+            if (firstPerson)
+                camera.look(dx, dy, tuning.camera.sensitivity, tuning.firstPerson.minPitch, tuning.firstPerson.maxPitch);
+            else
+                camera.look(dx, dy, tuning.camera);
+        }
 
-        if (not consoleOpen)
+        if (not consoleOpen and not firstPerson)
             camera.zoom(zoom, tuning.camera);
 
         const Fighter* p = world.player();
@@ -880,8 +906,26 @@ namespace arena
             stepOffset = lerp(it->second.stepOffset, p->stepOffset, alpha);
         }
 
-        const glm::vec3 head = feet + glm::vec3(0, tuning.camera.height + stepOffset, 0);
-        camera.update(frameSeconds, head, world.grid, content.blockTable, tuning, simTime);
+        if (firstPerson)
+        {
+            // The view dips with a roll, so a dodge is felt without seeing the body
+            float dip = 0.0f;
+
+            if (p->action == Action::Dodge)
+            {
+                const int rollFrames = std::max(1, tuning.dodge.frames - tuning.dodge.recovery);
+                const float t = glm::clamp((static_cast<float>(std::max(0, p->frame - 1)) + alpha) / static_cast<float>(rollFrames), 0.0f, 1.0f);
+                dip = tuning.firstPerson.rollDip * std::sin(t * 3.14159f);
+            }
+
+            const glm::vec3 eye = feet + glm::vec3(0, tuning.firstPerson.eyeHeight + stepOffset - dip, 0);
+            camera.updateFirstPerson(frameSeconds, eye, tuning, simTime);
+        }
+        else
+        {
+            const glm::vec3 head = feet + glm::vec3(0, tuning.camera.height + stepOffset, 0);
+            camera.update(frameSeconds, head, world.grid, content.blockTable, tuning, simTime);
+        }
 
         auto& cam = masterRenderer->getCamera();
         cam.position = camera.position;
@@ -890,6 +934,13 @@ namespace arena
         cam.pitch = -camera.viewPitch;
         cam.worldUp = glm::vec3(0, 1, 0);
         cam.updateCameraVectors();
+    }
+
+    void ArenaGame::setFirstPerson(bool on)
+    {
+        firstPerson = on;
+        masterRenderer->getCamera().setFovDegrees(fov());
+        print(on ? "first person" : "third person");
     }
 
     void ArenaGame::remeshIfNeeded()
@@ -905,6 +956,9 @@ namespace arena
     void ArenaGame::buildRenderCalls()
     {
         renderCallList.clear();
+
+        // The camera this list is drawn with (see GpuMesh: baked into every instance)
+        const glm::mat4 view = glm::lookAt(camera.position, camera.position + camera.forward(), glm::vec3(0, 1, 0));
 
         auto add = [this](const std::shared_ptr<GpuMesh>& mesh, size_t material, OpacityType opacity, std::vector<float> data) {
             if (not mesh or data.empty())
@@ -927,7 +981,7 @@ namespace arena
         // Sky box around the camera, inside the far plane
         {
             std::vector<float> d;
-            pushInstance(d, glm::translate(glm::mat4(1.0f), camera.position - glm::vec3(200.0f)) * glm::scale(glm::mat4(1.0f), glm::vec3(400.0f)), WHITE, glm::vec4(0.0f));
+            pushInstance(d, view, glm::translate(glm::mat4(1.0f), camera.position - glm::vec3(200.0f)) * glm::scale(glm::mat4(1.0f), glm::vec3(400.0f)), WHITE, glm::vec4(0.0f));
             add(skyMesh, skyMaterial, OpacityType::Opaque, std::move(d));
         }
 
@@ -935,7 +989,7 @@ namespace arena
         if (worldMesh->faces() > 0)
         {
             std::vector<float> d;
-            pushInstance(d, glm::mat4(1.0f), WHITE, glm::vec4(0.0f));
+            pushInstance(d, view, glm::mat4(1.0f), WHITE, glm::vec4(0.0f));
             add(worldMesh, litMaterial, OpacityType::Opaque, std::move(d));
         }
 
@@ -1020,7 +1074,11 @@ namespace arena
 
             const glm::vec4 tint = f.action == Action::Dead ? glm::vec4(0.6f, 0.6f, 0.6f, 1.0f) : WHITE;
 
-            pushInstance(instances[modelId], modelMatrix, tint, flash);
+            // In first person the player is the camera: no body, the weapon is drawn as a view model
+            const bool viewModel = firstPerson and f.team == Team::Player;
+
+            if (not viewModel)
+                pushInstance(instances[modelId], view, modelMatrix, tint, flash);
 
             // The weapon in the hand
             if (f.team == Team::Player)
@@ -1039,15 +1097,25 @@ namespace arena
                         pose = poseAt(*attack, weapon.rest, frame);
 
                     // Hand in the body frame; x is the fighter's right, which is the model's -X
-                    const glm::vec3 hand(-tuning.player.hand.x, tuning.player.hand.y, tuning.player.hand.z);
+                    glm::mat4 handFrame = body * glm::translate(glm::mat4(1.0f), glm::vec3(-tuning.player.hand.x, tuning.player.hand.y, tuning.player.hand.z));
 
-                    const glm::mat4 weaponMatrix = body * glm::translate(glm::mat4(1.0f), hand) *
+                    if (viewModel)
+                    {
+                        // Held in front of the eye, turning with the view. Scaled down around the eye:
+                        // the same picture on screen, but close enough not to poke into walls
+                        const auto& fp = tuning.firstPerson;
+                        handFrame = glm::translate(glm::mat4(1.0f), camera.position) * rotY(camera.viewYaw) * rotX(camera.viewPitch) *
+                                    glm::scale(glm::mat4(1.0f), glm::vec3(fp.viewModelScale)) *
+                                    glm::translate(glm::mat4(1.0f), glm::vec3(-fp.weapon.x, fp.weapon.y, fp.weapon.z));
+                    }
+
+                    const glm::mat4 weaponMatrix = handFrame *
                         rotY(-pose.yawFrom) * rotX(-pose.pitchFrom) *
                         glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, pose.reach)) *
                         glm::scale(glm::mat4(1.0f), glm::vec3(weapon.modelScale)) *
                         glm::translate(glm::mat4(1.0f), -weapon.grip);
 
-                    pushInstance(instances[weapon.model], weaponMatrix, WHITE, f.flash > 0 ? flash * 0.5f : glm::vec4(0.0f));
+                    pushInstance(instances[weapon.model], view, weaponMatrix, WHITE, f.flash > 0 ? flash * 0.5f : glm::vec4(0.0f));
                 }
             }
         }
@@ -1067,6 +1135,10 @@ namespace arena
 
             for (const auto& b : world.debugBoxes())
             {
+                // The player's own hurtbox would wrap the first person camera
+                if (firstPerson and b.hurt and world.player() and b.owner == world.player()->id)
+                    continue;
+
                 glm::vec4 color;
 
                 if (b.hurt)
@@ -1075,7 +1147,7 @@ namespace arena
                     color = b.active ? glm::vec4(1.0f, 0.2f, 0.15f, 0.42f) : glm::vec4(1.0f, 0.7f, 0.2f, 0.14f);
 
                 const glm::mat4 m = glm::translate(glm::mat4(1.0f), b.centre) * rotY(b.yaw) * glm::scale(glm::mat4(1.0f), b.size) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f));
-                pushInstance(data, m, glm::vec4(color.r, color.g, color.b, color.a), glm::vec4(0.0f));
+                pushInstance(data, view, m, glm::vec4(color.r, color.g, color.b, color.a), glm::vec4(0.0f));
             }
 
             add(boxMesh, debugMaterial, OpacityType::Normal, std::move(data));
@@ -1209,12 +1281,12 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "weapon <id> | weapons | god | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | mods | errors | warnings\n"
-                   "scripted input: press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
+                   "view [first|third] | weapon <id> | weapons | god | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | mods | errors | warnings\n"
+                   "scripted input: mouse [on|off] | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
         if (cmd == "where" and p)
-            return "player " + fmt(p->body.position.x, 2) + " " + fmt(p->body.position.y, 2) + " " + fmt(p->body.position.z, 2) + " " + actionName(p->action) +
+            return "player " + fmt(p->body.position.x, 2) + " " + fmt(p->body.position.y, 2) + " " + fmt(p->body.position.z, 2) + " " + actionName(p->action) + "  stamina " + fmt(p->stamina, 1) +
                    "  steps " + std::to_string(world.steps) + "  sim " + fmt(simTime, 2) + " s  real " + fmt(std::chrono::duration<float>(std::chrono::steady_clock::now() - lastReload).count(), 2) + " s";
 
         if (cmd == "echo")
@@ -1277,6 +1349,18 @@ namespace arena
                 world.grid.fill({at(1), at(2), at(3)}, {at(4), at(5), at(6)}, id);
 
             return "";   // the grid's revision changed: the next frame re-meshes it
+        }
+
+        if (cmd == "mouse")
+        {
+            mouseLook = args.size() > 1 ? args[1] != "off" : not mouseLook;
+            return std::string("mouse look ") + (mouseLook ? "on" : "off");
+        }
+
+        if (cmd == "view")
+        {
+            setFirstPerson(args.size() > 1 ? args[1] == "first" : not firstPerson);
+            return "";
         }
 
         if (cmd == "overlay")

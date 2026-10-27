@@ -46,14 +46,14 @@
     },
 
     "dodge": {
-        "frames": 24,
+        "frames": 27,
         "iframeStart": 1,
-        "iframeEnd": 15,
+        "iframeEnd": 17,
         "recovery": 6,
-        "speed": 12.5,
-        "endSpeed": 4,
+        "speed": 17,
+        "endSpeed": 8,
         "cost": 20,
-        "attackFrom": 13,
+        "attackFrom": 15,
         "inAir": false
     },
 
@@ -72,6 +72,17 @@
         "pullOutSharpness": 4,
         "collisionRadius": 0.25,
         "fov": 70
+    },
+
+    // V switches between third and first person
+    "firstPerson": {
+        "eyeHeight": 1.62,
+        "minPitch": -85,
+        "maxPitch": 85,
+        "fov": 80,
+        "weapon": [0.3, -0.34, 0.42],
+        "rollDip": 0.7,
+        "viewModelScale": 0.3
     },
 
     "feel": {
@@ -97,7 +108,8 @@
         "sprint": ["Left Shift"],
         "light": ["Mouse1", "J"],
         "heavy": ["Mouse3", "K"],
-        "freeCursor": ["Left Alt"]
+        "freeCursor": ["Left Alt"],
+        "toggleView": ["V"]
     },
 
     "combat": {

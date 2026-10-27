@@ -472,3 +472,46 @@ TEST(arena_world, a_jump_climbs_a_two_block_wall_and_walking_climbs_one)
     EXPECT_NEAR(a.player().body.position.y, 3.0f, 0.05f);
     EXPECT_TRUE(a.player().body.onGround);
 }
+
+TEST(arena_world, a_dodge_covers_about_four_metres)
+{
+    Arena a;
+    const glm::vec3 start = a.player().body.position;
+
+    InputFrame dodge;
+    dodge.dodgePressed = true;
+    dodge.move = glm::vec2(0, 1);
+    a.world.step(dodge);
+    a.run(a.tuning.dodge.frames + 20);
+
+    const float distance = glm::length(glm::vec2(a.player().body.position.x - start.x, a.player().body.position.z - start.z));
+    EXPECT_GT(distance, 4.0f);
+    EXPECT_LT(distance, 6.0f);
+}
+
+TEST(arena_world, in_first_person_the_body_faces_the_view_and_attacks_go_there)
+{
+    Arena a;
+
+    // Strafe right while looking at yaw 90: the body keeps facing the view instead of the walk direction
+    InputFrame strafe;
+    strafe.cameraYaw = 90.0f;
+    strafe.faceCamera = true;
+    strafe.move = glm::vec2(1, 0);
+    a.run(30, strafe);
+    EXPECT_NEAR(a.player().yaw, 90.0f, 0.01f);
+
+    // Third person: the same input turns the body to the walk direction (right of yaw 90 is yaw 0)
+    InputFrame third = strafe;
+    third.faceCamera = false;
+    a.run(30, third);
+    EXPECT_NEAR(a.player().yaw, 0.0f, 1.0f);
+
+    // An attack pressed while walking sideways in first person goes where the camera looks
+    InputFrame attack = strafe;
+    attack.cameraYaw = 45.0f;
+    attack.lightPressed = true;
+    a.world.step(attack);
+    EXPECT_EQ(a.player().action, Action::Attack);
+    EXPECT_NEAR(a.player().yaw, 45.0f, 0.01f);
+}

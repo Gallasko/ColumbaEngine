@@ -42,9 +42,14 @@ namespace arena
 
     void OrbitCamera::look(float dx, float dy, const Tuning::Camera& t)
     {
+        look(dx, dy, t.sensitivity, t.minPitch, t.maxPitch);
+    }
+
+    void OrbitCamera::look(float dx, float dy, float sensitivity, float minPitch, float maxPitch)
+    {
         // Mouse right turns right: game yaw grows to the left
-        yaw -= dx * t.sensitivity;
-        pitch = glm::clamp(pitch + dy * t.sensitivity, t.minPitch, t.maxPitch);
+        yaw -= dx * sensitivity;
+        pitch = glm::clamp(pitch + dy * sensitivity, minPitch, maxPitch);
 
         if (yaw > 180.0f)
             yaw -= 360.0f;
@@ -55,6 +60,26 @@ namespace arena
     void OrbitCamera::zoom(float steps, const Tuning::Camera& t)
     {
         distance = glm::clamp(distance - steps * t.zoomStep, t.minDistance, t.maxDistance);
+    }
+
+    void OrbitCamera::updateFirstPerson(float dt, const glm::vec3& eye, const Tuning& tuning, float time)
+    {
+        pitch = glm::clamp(pitch, tuning.firstPerson.minPitch, tuning.firstPerson.maxPitch);
+
+        trauma = std::max(0.0f, trauma - tuning.feel.shakeDecay * dt);
+        const float shake = trauma * trauma;
+        const float ft = time * tuning.feel.shakeFrequency;
+
+        viewYaw = yaw + wobble(ft, 1.3f) * tuning.feel.shakeAngle * shake;
+        viewPitch = pitch + wobble(ft, 7.1f) * tuning.feel.shakeAngle * shake;
+
+        // Smaller positional shake: up close it reads much stronger than behind the player
+        const glm::vec3 right = localToWorld(viewYaw, glm::vec3(1, 0, 0));
+        position = eye + (right * wobble(ft, 3.7f) + glm::vec3(0, wobble(ft, 9.2f), 0)) * (tuning.feel.shakeOffset * 0.3f * shake);
+
+        // Coming back to third person starts from the player, not from where the orbit was left
+        placed = false;
+        blocked = false;
     }
 
     void OrbitCamera::update(float dt, const glm::vec3& head, const VoxelGrid& grid, const BlockTable& table, const Tuning& tuning, float time)

@@ -24,7 +24,6 @@ namespace arena
 {
     namespace
     {
-        constexpr const char* DOM = "ScriptBrain";
 
         // The VM reports compile and runtime errors through the logger only. While a script
         // runs on this thread, its errors are collected here so the game can show them.

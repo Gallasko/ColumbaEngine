@@ -88,6 +88,16 @@ namespace arena
             float fov = 70.0f;
         } camera;
 
+        struct FirstPerson
+        {
+            float eyeHeight = 1.62f;
+            float minPitch = -85.0f, maxPitch = 85.0f;
+            float fov = 80.0f;
+            glm::vec3 weapon = glm::vec3(0.3f, -0.32f, 0.45f);   // view model offset from the eye: right, up, forward
+            float rollDip = 0.7f;          // m the view drops during a dodge roll
+            float viewModelScale = 0.3f;   // the weapon is drawn this much smaller and closer: same on screen, rarely in a wall
+        } firstPerson;
+
         struct Feel
         {
             int hitFlashFrames = 6;

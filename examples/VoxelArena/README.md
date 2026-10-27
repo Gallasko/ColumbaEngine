@@ -39,6 +39,7 @@ Options:
 | Left mouse / J | Light attack (3-hit combo) |
 | Right mouse / K | Heavy attack |
 | 1, 2 ... | Pick a weapon (1 = sword, 2 = spear from testmod) |
+| V | Third person / first person |
 | F1 | Debug overlay |
 | F2 | Hitboxes (red: active, orange: winding up) and hurtboxes (green, blue while invulnerable) |
 | F5 | Reload all content |
@@ -51,8 +52,11 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
 
 - **Stamina** pays for rolls, attacks and sprinting. It refills after a short delay. Hitting zero
   makes you *exhausted*: no sprint, slower refill.
-- **The dodge roll** has invulnerable frames (14 of its 24 frames by default). You can roll through
-  enemies while invulnerable.
+- **The dodge roll** covers about 4.5 m and has invulnerable frames (16 of its 27 frames by default).
+  You can roll through enemies while invulnerable.
+- **First person** (V): the body faces where you look, so you strafe instead of turning, and attacks
+  go where you look. The weapon is drawn in front of the eye with the same swing data; the view
+  dips during a roll. Its numbers are the `firstPerson` section of the tuning.
 - **Attacks** have startup, active and recovery frames. Hitboxes exist only during active frames.
   A light press during an attack is remembered and starts the next attack of the combo once the
   attack allows it (`chainFrom`). A dodge can cancel an attack from `dodgeCancelFrom` on. A light
@@ -193,12 +197,13 @@ Open with `` ` ``. `help` lists the commands.
 | `spawn <enemy> [count]` | Spawn enemies in front of you (`spawn brute 3`) |
 | `clear`, `reset` | Remove the enemies; restart the arena |
 | `weapon <id>`, `weapons` | Wield a weapon; list them |
+| `view [first|third]` | Switch the camera |
 | `god`, `ai`, `hitboxes`, `overlay` | Toggles |
 | `pause`, `step [n]`, `slowmo <x>` | Freeze, advance n frames, change the speed (frame data checks) |
 | `place x y z <block>`, `fill x0 y0 z0 x1 y1 z1 <block>` | Edit the arena (`air` digs) |
 | `mods`, `errors`, `warnings` | What is loaded, what went wrong |
 
-Scripted input, for tests and for checking frame data: `press <action>`, `hold <action> <frames>`,
+Scripted input, for tests and for checking frame data: `mouse off` (ignore the real mouse), `press <action>`, `hold <action> <frames>`,
 `wait <frames>`, `sleep <seconds>`, `look <yaw> <pitch>`, `teleport x y z`, `where`, `echo <text>`.
 For example:
 

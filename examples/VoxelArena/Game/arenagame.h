@@ -11,6 +11,7 @@
 
 #include "ECS/system.h"
 #include "ECS/entitysystem_fwd.h"
+#include "Input/inputcomponent.h"
 #include "Input/sdlevents.h"
 #include "Renderer/renderer.h"
 #include "Systems/coresystems.h"
@@ -56,7 +57,8 @@ namespace arena
                       public pg::System<pg::InitSys,
                                         pg::Listener<pg::OnSDLScanCode>, pg::Listener<pg::OnSDLScanCodeReleased>,
                                         pg::Listener<pg::OnSDLTextInput>, pg::Listener<pg::OnSDLMouseMotion>,
-                                        pg::Listener<pg::OnSDLMouseWheel>, pg::Listener<pg::ResizeEvent>>
+                                        pg::Listener<pg::OnSDLMouseWheel>, pg::Listener<pg::OnMouseClick>,
+                                        pg::Listener<pg::ResizeEvent>>
     {
     public:
         ArenaGame(pg::MasterRenderer* masterRenderer, pg::Window* window, const ArenaOptions& options);
@@ -72,6 +74,7 @@ namespace arena
         void onEvent(const pg::OnSDLTextInput& event) override;
         void onEvent(const pg::OnSDLMouseMotion& event) override;
         void onEvent(const pg::OnSDLMouseWheel& event) override;
+        void onEvent(const pg::OnMouseClick& event) override;
         void onEvent(const pg::ResizeEvent& event) override;
 
         /** Runs one console command and returns what it prints. */
@@ -111,6 +114,9 @@ namespace arena
         ArenaWorld world;
         ScriptBrain brain;
         OrbitCamera camera;
+        bool firstPerson = false;          // V switches; see setFirstPerson
+        void setFirstPerson(bool on);
+        float fov() const { return firstPerson ? tuning.firstPerson.fov : tuning.camera.fov; }
 
         // Rendering
         size_t litMaterial = 0, skyMaterial = 0, debugMaterial = 0;
@@ -156,6 +162,8 @@ namespace arena
 
         bool cursorLocked = false;
         bool cursorFree = false;        // Escape toggles it
+        bool recapture = false;
+        bool mouseLook = true;          // "mouse off": scripted runs ignore the real mouse         // a click while freed takes the mouse back
         bool onWSL = false;
         int warpPendingX = -1, warpPendingY = -1;
 

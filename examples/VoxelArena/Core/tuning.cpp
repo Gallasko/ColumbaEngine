@@ -59,6 +59,16 @@ namespace arena
         f("camera.collisionRadius", camera.collisionRadius);
         f("camera.fov", camera.fov);
 
+        f("firstPerson.eyeHeight", firstPerson.eyeHeight);
+        f("firstPerson.minPitch", firstPerson.minPitch);
+        f("firstPerson.maxPitch", firstPerson.maxPitch);
+        f("firstPerson.fov", firstPerson.fov);
+        f("firstPerson.weapon.x", firstPerson.weapon.x);
+        f("firstPerson.weapon.y", firstPerson.weapon.y);
+        f("firstPerson.weapon.z", firstPerson.weapon.z);
+        f("firstPerson.rollDip", firstPerson.rollDip);
+        f("firstPerson.viewModelScale", firstPerson.viewModelScale);
+
         f("feel.shakeDecay", feel.shakeDecay);
         f("feel.shakeOffset", feel.shakeOffset);
         f("feel.shakeAngle", feel.shakeAngle);

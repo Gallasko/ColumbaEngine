@@ -536,6 +536,10 @@ namespace arena
             wish = glm::normalize(wish);
 
         const bool hasWish = glm::length(wish) > 0.1f;
+
+        // Where an attack goes: the view in first person, else the stick (or the camera when idle)
+        const glm::vec3 aimIdle = in.faceCamera ? camForward : (hasWish ? wish : camForward);
+        const glm::vec3 aimChain = in.faceCamera ? camForward : (hasWish ? wish : yawForward(f.yaw));
         const Moveset* moveset = movesetOf(f);
         const bool canPay = f.stamina >= tuning.stamina.minToAct;
         const bool canDodgeHere = f.body.onGround or tuning.dodge.inAir;
@@ -552,7 +556,7 @@ namespace arena
                 else if (f.queued and canPay and moveset)
                 {
                     const std::string& name = (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light;
-                    startAttack(f, name, hasWish ? wish : camForward);
+                    startAttack(f, name, aimIdle);
                 }
                 break;
             }
@@ -574,7 +578,7 @@ namespace arena
                     const std::string& next = f.queued == 2 ? attack->nextHeavy : attack->nextLight;
 
                     if (not next.empty() and canPay)
-                        startAttack(f, next, hasWish ? wish : yawForward(f.yaw));
+                        startAttack(f, next, aimChain);
                 }
 
                 if (f.action == Action::Attack and f.frame >= currentAttack(f)->total())
@@ -586,7 +590,7 @@ namespace arena
             case Action::Dodge:
             {
                 if (f.queued == 1 and f.frame >= tuning.dodge.attackFrom and moveset and not moveset->dodgeAttack.empty() and canPay)
-                    startAttack(f, moveset->dodgeAttack, hasWish ? wish : f.dodgeDir);
+                    startAttack(f, moveset->dodgeAttack, in.faceCamera ? camForward : (hasWish ? wish : f.dodgeDir));
                 else if (f.frame >= tuning.dodge.frames)
                     f.action = Action::Free;
 
@@ -609,7 +613,7 @@ namespace arena
         if (f.action == Action::Free and f.dodgeQueuedAge >= 0.0f and canPay and canDodgeHere)
             startDodge(f, hasWish ? wish : yawForward(f.yaw));
         else if (f.action == Action::Free and f.queued and canPay and moveset)
-            startAttack(f, (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light, hasWish ? wish : camForward);
+            startAttack(f, (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light, aimIdle);
 
         // ---- Movement for the action ----
         glm::vec3 wanted(0.0f);
@@ -633,7 +637,11 @@ namespace arena
                 }
 
                 wanted = wish * (f.sprinting ? tuning.player.sprintSpeed : tuning.player.walkSpeed);
-                turnTowards(f, wish, tuning.player.turnSpeed);
+
+                if (in.faceCamera)
+                    f.yaw = in.cameraYaw;
+                else
+                    turnTowards(f, wish, tuning.player.turnSpeed);
                 canJump = true;
                 break;
             }
@@ -642,8 +650,8 @@ namespace arena
             {
                 const AttackDef* a = currentAttack(f);
 
-                if (a and f.frame < a->startup and a->turnRate > 0.0f and hasWish)
-                    turnTowards(f, wish, a->turnRate * 60.0f);
+                if (a and f.frame < a->startup and a->turnRate > 0.0f and (hasWish or in.faceCamera))
+                    turnTowards(f, in.faceCamera ? camForward : wish, a->turnRate * 60.0f);
 
                 if (a and f.frame >= a->lungeFrom and f.frame < a->lungeTo)
                     wanted = yawForward(f.yaw) * a->lunge;

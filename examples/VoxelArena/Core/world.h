@@ -32,6 +32,9 @@ namespace arena
         bool dodgePressed = false;
         bool lightPressed = false;
         bool heavyPressed = false;
+
+        /** First person: the body faces where the camera looks, and attacks go there. */
+        bool faceCamera = false;
     };
 
     enum class Action { Free, Attack, Dodge, Stagger, Dead };
