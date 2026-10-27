@@ -53,7 +53,12 @@ namespace pg
             std::set<std::string> freeNames;      // Names the expression reads that are no parameter
             std::map<std::string, int> uses;      // How often it reads each parameter
             bool callsScript = false;             // It may run script code that writes, not only natives
+            std::shared_ptr<FunctionStatement> from;  // The function it is: the rest follows from it, but callsScript
         };
+
+        void namesBrought(std::set<std::string>& names) const override;
+
+        std::string factsAbout(const std::set<std::string>& names, std::vector<std::shared_ptr<const void>>& keep) const override;
 
     private:
         // Of the program being compiled: read anew for each outermost script

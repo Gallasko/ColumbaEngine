@@ -46,6 +46,8 @@ namespace pg
 
         bool runPass(VM* vm, std::queue<StatementPtr>& statements) override;
 
+        std::string factsAbout(const std::set<std::string>& names, std::vector<std::shared_ptr<const void>>& keep) const override;
+
     private:
         // Of the program being compiled: read anew for each outermost script
         std::set<std::string> scriptNames;

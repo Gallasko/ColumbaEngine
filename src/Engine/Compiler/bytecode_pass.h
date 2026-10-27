@@ -53,6 +53,17 @@ namespace pg
 
         size_t getPassCount() const { return passes.size(); }
 
+        /** The passes, by name and in order */
+        std::string passNames() const
+        {
+            std::string names;
+
+            for (const auto& pass : passes)
+                names += pass->getName() + ";";
+
+            return names;
+        }
+
     private:
         void debugPrint(const std::string& message) const;
     };

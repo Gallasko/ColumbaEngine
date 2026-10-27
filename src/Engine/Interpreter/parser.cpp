@@ -243,19 +243,19 @@ namespace pg
             }
 
             // Check if the expression is a variable definition
-            if (expr->getType() == "Var")
+            if (expr->kind() == AstKind::Var)
             {
                 auto& token = std::static_pointer_cast<Var>(expr)->name;
                 return std::make_shared<Assign>(token, rExpr);
             }
             // Check if the expression is a field from a class
-            else if (expr->getType() == "Get")
+            else if (expr->kind() == AstKind::Get)
             {
                 auto getExpr = std::static_pointer_cast<Get>(expr);
                 return std::make_shared<Set>(getExpr->object, getExpr->name, rExpr);
             }
             // Check if the expression is an assignment to a subscript: object[index] = value
-            else if (expr->getType() == "IndexGet")
+            else if (expr->kind() == AstKind::IndexGet)
             {
                 auto indexExpr = std::static_pointer_cast<IndexGet>(expr);
 
@@ -270,12 +270,12 @@ namespace pg
                 return setExpr;
             }
             // Check if the expression is an assignment to an array
-            else if (expr->getType() == "CallExpression" and expr->getName() == "at")
+            else if (expr->kind() == AstKind::CallExpression and expr->getName() == "at")
             {
                 auto callExpr = std::static_pointer_cast<CallExpression>(expr);
 
                 // Check if it is call to a get function and not a simple function call with a function named "at"
-                if (callExpr->caller and callExpr->caller->getType() == "Get")
+                if (callExpr->caller and callExpr->caller->kind() == AstKind::Get)
                 {
                     auto getExpr = std::static_pointer_cast<Get>(callExpr->caller);
 
@@ -427,7 +427,7 @@ namespace pg
             auto expr = unary();
 
             // Check if the expression is a variable definition
-            if (expr->getType() == "Var")
+            if (expr->kind() == AstKind::Var)
             {
                 auto& token = std::static_pointer_cast<Var>(expr)->name;
                 return std::make_shared<PreFixExpression>(expr, op, token);
@@ -449,7 +449,7 @@ namespace pg
             Token op = previousToken;
 
             // Check if the expression is a variable definition
-            if (expr->getType() == "Var")
+            if (expr->kind() == AstKind::Var)
             {
                 auto& token = std::static_pointer_cast<Var>(expr)->name;
                 return std::make_shared<PostFixExpression>(expr, op, token);

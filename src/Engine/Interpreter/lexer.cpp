@@ -213,6 +213,11 @@ namespace pg
          */
         bool isFloat(const std::string& s)
         {
+            // The stream reads a float from a digit, a sign or a point only: every name stops here
+            // without building one
+            if (s.empty() or not (std::isdigit(static_cast<unsigned char>(s[0])) or s[0] == '.' or s[0] == '+' or s[0] == '-'))
+                return false;
+
             std::istringstream iss(s);
             float f;
             iss >> std::noskipws >> f; // noskipws considers leading whitespace invalid
@@ -233,8 +238,10 @@ namespace pg
          */
         TokenType strToKeyword(const std::string& expression)
         {
-            if (keywords.find(expression) != keywords.end())
-                return keywords.at(expression);
+            const auto keyword = keywords.find(expression);
+
+            if (keyword != keywords.end())
+                return keyword->second;
 
             if (isNumber(expression))
                 return TokenType::NUMBER;

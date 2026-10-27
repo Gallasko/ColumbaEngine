@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <queue>
 
@@ -11,6 +12,23 @@ namespace pg
     // Forward declarations
     class Visitor;
     class Statement;
+
+    /**
+     * @brief What a node of the tree is, expression or statement: kind() is getType() as a value,
+     * for the passes that ask it of every node (a string made and compared each time cost them)
+     */
+    enum class AstKind : uint8_t
+    {
+        // Expressions
+        BinaryExpression, LogicExpression, UnaryExpression, PreFixExpression, PostFixExpression,
+        CompoundAtom, Atom, NoneAtom, List, AnonymousFunction, IndexGet, IndexSet, This, Var,
+        Assign, CallExpression, Get, Set,
+
+        // Statements
+        ExpressionStatement, VariableStatement, FunctionStatement, ClassStatement, BlockStatement,
+        IfStatement, WhileStatement, ReturnStatement, ForStatement, ForInStatement, BreakStatement,
+        ContinueStatement, DPrintStatement, ImportStatement
+    };
 
     /**
      * @class Expression
@@ -27,6 +45,7 @@ namespace pg
         virtual std::string prettyPrint() const = 0;
         virtual std::string getName() const = 0;
         virtual std::string getType() const = 0;
+        virtual AstKind kind() const = 0;
     };
 
     typedef std::shared_ptr<Expression> ExprPtr;
@@ -49,6 +68,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return leftExpr->prettyPrint() + " " + op.text + " " + rightExpr->prettyPrint(); }
         virtual std::string getName() const override { return op.text; }
         virtual std::string getType() const override { return "BinaryExpression"; }
+        virtual AstKind kind() const override { return AstKind::BinaryExpression; }
 
         ExprPtr leftExpr;
         Token op;
@@ -64,6 +84,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return leftExpr->prettyPrint() + " " + op.text + " " + rightExpr->prettyPrint(); }
         virtual std::string getName() const override { return op.text; }
         virtual std::string getType() const override { return "LogicExpression"; }
+        virtual AstKind kind() const override { return AstKind::LogicExpression; }
 
         ExprPtr leftExpr;
         Token op;
@@ -79,6 +100,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return op.text + " " + expr->prettyPrint(); }
         virtual std::string getName() const override { return op.text; }
         virtual std::string getType() const override { return "UnaryExpression"; }
+        virtual AstKind kind() const override { return AstKind::UnaryExpression; }
 
         Token op;
         ExprPtr expr;
@@ -93,6 +115,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return name.text + " " + expr->prettyPrint(); }
         virtual std::string getName() const override { return name.text; }
         virtual std::string getType() const override { return "PreFixExpression"; }
+        virtual AstKind kind() const override { return AstKind::PreFixExpression; }
         
         Token op;
         Token name;
@@ -108,6 +131,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return name.text + " " + expr->prettyPrint(); }
         virtual std::string getName() const override { return name.text; }
         virtual std::string getType() const override { return "PostFixExpression"; }
+        virtual AstKind kind() const override { return AstKind::PostFixExpression; }
 
         Token op;
         Token name;
@@ -123,6 +147,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return expr->prettyPrint(); }
         virtual std::string getName() const override { return expr->getName(); }
         virtual std::string getType() const override { return "CompoundAtom"; }
+        virtual AstKind kind() const override { return AstKind::CompoundAtom; }
 
         ExprPtr expr;
     };
@@ -137,6 +162,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return value.toString(); }
         virtual std::string getName() const override { return value.toString(); }
         virtual std::string getType() const override { return "Atom"; }
+        virtual AstKind kind() const override { return AstKind::Atom; }
 
         ElementType value;
     };
@@ -151,6 +177,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return "none"; }
         virtual std::string getName() const override { return "none"; }
         virtual std::string getType() const override { return "NoneAtom"; }
+        virtual AstKind kind() const override { return AstKind::NoneAtom; }
     };
 
     struct List : public Expression
@@ -162,6 +189,7 @@ namespace pg
         virtual std::string prettyPrint() const override { auto a = entries; std::string res = ""; while(a.size() > 0) { res += "[" + a.front().key->prettyPrint() + "]: " + a.front().value->prettyPrint() + ", "; a.pop();}  return "List Node with values: " + res; }
         virtual std::string getName() const override { return "List"; }
         virtual std::string getType() const override { return "List"; }
+        virtual AstKind kind() const override { return AstKind::List; }
 
         ExprPtr self;
         Token squareBracket;
@@ -189,6 +217,7 @@ namespace pg
         virtual std::string prettyPrint() const override { auto p = parameters; std::string res = ""; while (p.size() > 0) { res += p.front()->prettyPrint() + ", "; p.pop(); } return "Anonymous function with parameters: " + res; }
         virtual std::string getName() const override { return "fun"; }
         virtual std::string getType() const override { return "AnonymousFunction"; }
+        virtual AstKind kind() const override { return AstKind::AnonymousFunction; }
 
         Token token;
         std::queue<ExprPtr> parameters;
@@ -212,6 +241,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return "Index get: " + object->prettyPrint() + "[" + index->prettyPrint() + "]"; }
         virtual std::string getName() const override { return "IndexGet"; }
         virtual std::string getType() const override { return "IndexGet"; }
+        virtual AstKind kind() const override { return AstKind::IndexGet; }
 
         ExprPtr object;
         ExprPtr index;
@@ -236,6 +266,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return "Index set: " + object->prettyPrint() + "[" + index->prettyPrint() + "] = " + value->prettyPrint(); }
         virtual std::string getName() const override { return "IndexSet"; }
         virtual std::string getType() const override { return "IndexSet"; }
+        virtual AstKind kind() const override { return AstKind::IndexSet; }
 
         ExprPtr object;
         ExprPtr index;
@@ -255,6 +286,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return "This."; }
         virtual std::string getName() const override { return name.text; }
         virtual std::string getType() const override { return "This"; }
+        virtual AstKind kind() const override { return AstKind::This; }
 
         Token name;
     };
@@ -268,6 +300,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return "Variable '" + name.text + "'."; }
         virtual std::string getName() const override { return name.text; }
         virtual std::string getType() const override { return "Var"; }
+        virtual AstKind kind() const override { return AstKind::Var; }
 
         Token name;
     };
@@ -281,6 +314,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return "Assign: " + expr->prettyPrint() + " to variable '" + name.text + "'."; }
         virtual std::string getName() const override { return name.text; }
         virtual std::string getType() const override { return "Assign"; }
+        virtual AstKind kind() const override { return AstKind::Assign; }
 
         Token name;
         ExprPtr expr;
@@ -295,6 +329,7 @@ namespace pg
         virtual std::string prettyPrint() const override { auto a = args; std::string res = ""; while(a.size() > 0) { res += a.front()->prettyPrint() + ", "; a.pop();}  return "Function call: " + caller->prettyPrint() + " with arguments: " + res; }
         virtual std::string getName() const override { return caller->getName(); }
         virtual std::string getType() const override { return "CallExpression"; }
+        virtual AstKind kind() const override { return AstKind::CallExpression; }
 
         ExprPtr caller;
         Token paren;
@@ -310,6 +345,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return "Get property: " + name.text + " of object: " + object->prettyPrint(); }
         virtual std::string getName() const override { return name.text; }
         virtual std::string getType() const override { return "Get"; }
+        virtual AstKind kind() const override { return AstKind::Get; }
 
         ExprPtr object;
         Token name;
@@ -324,6 +360,7 @@ namespace pg
         virtual std::string prettyPrint() const override { return "Set property: " + name.text + " of object: " + object->prettyPrint(); }
         virtual std::string getName() const override { return name.text; }
         virtual std::string getType() const override { return "Set"; }
+        virtual AstKind kind() const override { return AstKind::Set; }
 
         ExprPtr object;
         Token name;

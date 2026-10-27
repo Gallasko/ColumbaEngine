@@ -44,39 +44,39 @@ namespace pg
             if (not e)
                 return false;
 
-            const auto& type = e->getType();
+            const AstKind type = e->kind();
 
-            if (type == "Assign")
+            if (type == AstKind::Assign)
             {
                 auto a = std::static_pointer_cast<Assign>(e);
                 return isGuardedName(a->name.text) or shadowsGuardedNameExpr(a->expr);
             }
 
-            if (type == "PreFixExpression")
+            if (type == AstKind::PreFixExpression)
                 return isGuardedName(std::static_pointer_cast<PreFixExpression>(e)->name.text);
 
-            if (type == "PostFixExpression")
+            if (type == AstKind::PostFixExpression)
                 return isGuardedName(std::static_pointer_cast<PostFixExpression>(e)->name.text);
 
-            if (type == "BinaryExpression")
+            if (type == AstKind::BinaryExpression)
             {
                 auto b = std::static_pointer_cast<BinaryExpression>(e);
                 return shadowsGuardedNameExpr(b->leftExpr) or shadowsGuardedNameExpr(b->rightExpr);
             }
 
-            if (type == "LogicExpression")
+            if (type == AstKind::LogicExpression)
             {
                 auto l = std::static_pointer_cast<LogicExpression>(e);
                 return shadowsGuardedNameExpr(l->leftExpr) or shadowsGuardedNameExpr(l->rightExpr);
             }
 
-            if (type == "UnaryExpression")
+            if (type == AstKind::UnaryExpression)
                 return shadowsGuardedNameExpr(std::static_pointer_cast<UnaryExpression>(e)->expr);
 
-            if (type == "CompoundAtom")
+            if (type == AstKind::CompoundAtom)
                 return shadowsGuardedNameExpr(std::static_pointer_cast<CompoundAtom>(e)->expr);
 
-            if (type == "CallExpression")
+            if (type == AstKind::CallExpression)
             {
                 auto c = std::static_pointer_cast<CallExpression>(e);
 
@@ -95,29 +95,29 @@ namespace pg
                 return false;
             }
 
-            if (type == "Get")
+            if (type == AstKind::Get)
                 return shadowsGuardedNameExpr(std::static_pointer_cast<Get>(e)->object);
 
-            if (type == "Set")
+            if (type == AstKind::Set)
             {
                 auto st = std::static_pointer_cast<Set>(e);
                 return shadowsGuardedNameExpr(st->object) or shadowsGuardedNameExpr(st->value);
             }
 
-            if (type == "IndexGet")
+            if (type == AstKind::IndexGet)
             {
                 auto i = std::static_pointer_cast<IndexGet>(e);
                 return shadowsGuardedNameExpr(i->object) or shadowsGuardedNameExpr(i->index);
             }
 
-            if (type == "IndexSet")
+            if (type == AstKind::IndexSet)
             {
                 auto i = std::static_pointer_cast<IndexSet>(e);
                 return shadowsGuardedNameExpr(i->object) or shadowsGuardedNameExpr(i->index)
                     or shadowsGuardedNameExpr(i->value);
             }
 
-            if (type == "List")
+            if (type == AstKind::List)
             {
                 auto entries = std::static_pointer_cast<List>(e)->entries;
                 while (not entries.empty())
@@ -132,14 +132,14 @@ namespace pg
                 return false;
             }
 
-            if (type == "AnonymousFunction")
+            if (type == AstKind::AnonymousFunction)
             {
                 auto a = std::static_pointer_cast<AnonymousFunction>(e);
 
                 auto params = a->parameters;
                 while (not params.empty())
                 {
-                    if (params.front()->getType() == "Var" and
+                    if (params.front()->kind() == AstKind::Var and
                         isGuardedName(std::static_pointer_cast<Var>(params.front())->name.text))
                         return true;
 
@@ -157,15 +157,15 @@ namespace pg
             if (not s)
                 return false;
 
-            const auto& type = s->getType();
+            const AstKind type = s->kind();
 
-            if (type == "VariableStatement")
+            if (type == AstKind::VariableStatement)
             {
                 auto v = std::static_pointer_cast<VariableStatement>(s);
                 return isGuardedName(v->name.text) or shadowsGuardedNameExpr(v->expr);
             }
 
-            if (type == "FunctionStatement")
+            if (type == AstKind::FunctionStatement)
             {
                 auto fn = std::static_pointer_cast<FunctionStatement>(s);
 
@@ -175,7 +175,7 @@ namespace pg
                 auto params = fn->parameters;
                 while (not params.empty())
                 {
-                    if (params.front()->getType() == "Var" and
+                    if (params.front()->kind() == AstKind::Var and
                         isGuardedName(std::static_pointer_cast<Var>(params.front())->name.text))
                         return true;
 
@@ -185,7 +185,7 @@ namespace pg
                 return shadowsGuardedNameStmt(fn->body);
             }
 
-            if (type == "ClassStatement")
+            if (type == AstKind::ClassStatement)
             {
                 auto c = std::static_pointer_cast<ClassStatement>(s);
 
@@ -204,10 +204,10 @@ namespace pg
                 return false;
             }
 
-            if (type == "ExpressionStatement")
+            if (type == AstKind::ExpressionStatement)
                 return shadowsGuardedNameExpr(std::static_pointer_cast<ExpressionStatement>(s)->expr);
 
-            if (type == "BlockStatement")
+            if (type == AstKind::BlockStatement)
             {
                 auto statements = std::static_pointer_cast<BlockStatement>(s)->statements;
                 while (not statements.empty())
@@ -221,7 +221,7 @@ namespace pg
                 return false;
             }
 
-            if (type == "IfStatement")
+            if (type == AstKind::IfStatement)
             {
                 auto i = std::static_pointer_cast<IfStatement>(s);
                 return shadowsGuardedNameExpr(i->condition) or
@@ -229,13 +229,13 @@ namespace pg
                        shadowsGuardedNameStmt(i->elseBranch);
             }
 
-            if (type == "WhileStatement")
+            if (type == AstKind::WhileStatement)
             {
                 auto w = std::static_pointer_cast<WhileStatement>(s);
                 return shadowsGuardedNameExpr(w->condition) or shadowsGuardedNameStmt(w->body);
             }
 
-            if (type == "ForStatement")
+            if (type == AstKind::ForStatement)
             {
                 auto fs = std::static_pointer_cast<ForStatement>(s);
                 return shadowsGuardedNameStmt(fs->initializer) or
@@ -244,7 +244,7 @@ namespace pg
                        shadowsGuardedNameStmt(fs->body);
             }
 
-            if (type == "ForInStatement")
+            if (type == AstKind::ForInStatement)
             {
                 auto fi = std::static_pointer_cast<ForInStatement>(s);
                 return isGuardedName(fi->varName.text) or
@@ -252,10 +252,10 @@ namespace pg
                        shadowsGuardedNameStmt(fi->body);
             }
 
-            if (type == "ReturnStatement")
+            if (type == AstKind::ReturnStatement)
                 return shadowsGuardedNameExpr(std::static_pointer_cast<ReturnStatement>(s)->value);
 
-            if (type == "DPrintStatement")
+            if (type == AstKind::DPrintStatement)
                 return shadowsGuardedNameExpr(std::static_pointer_cast<DPrintStatement>(s)->expr);
 
             return false;
@@ -270,7 +270,7 @@ namespace pg
 
         bool isLoopVar(const ExprPtr& e, const std::string& name)
         {
-            return e and e->getType() == "Var" and
+            return e and e->kind() == AstKind::Var and
                 std::static_pointer_cast<Var>(e)->name.text == name;
         }
 
@@ -285,25 +285,25 @@ namespace pg
             if (isLoopVar(e, name))
                 return true;
 
-            const auto& type = e->getType();
+            const AstKind type = e->kind();
 
-            if (type == "BinaryExpression")
+            if (type == AstKind::BinaryExpression)
             {
                 auto b = std::static_pointer_cast<BinaryExpression>(e);
                 return mentionsVarExpr(b->leftExpr, name) or mentionsVarExpr(b->rightExpr, name);
             }
-            if (type == "LogicExpression")
+            if (type == AstKind::LogicExpression)
             {
                 auto l = std::static_pointer_cast<LogicExpression>(e);
                 return mentionsVarExpr(l->leftExpr, name) or mentionsVarExpr(l->rightExpr, name);
             }
-            if (type == "UnaryExpression")
+            if (type == AstKind::UnaryExpression)
                 return mentionsVarExpr(std::static_pointer_cast<UnaryExpression>(e)->expr, name);
-            if (type == "CompoundAtom")
+            if (type == AstKind::CompoundAtom)
                 return mentionsVarExpr(std::static_pointer_cast<CompoundAtom>(e)->expr, name);
-            if (type == "Assign")
+            if (type == AstKind::Assign)
                 return mentionsVarExpr(std::static_pointer_cast<Assign>(e)->expr, name);
-            if (type == "CallExpression")
+            if (type == AstKind::CallExpression)
             {
                 auto c = std::static_pointer_cast<CallExpression>(e);
                 if (mentionsVarExpr(c->caller, name))
@@ -317,25 +317,25 @@ namespace pg
                 }
                 return false;
             }
-            if (type == "Get")
+            if (type == AstKind::Get)
                 return mentionsVarExpr(std::static_pointer_cast<Get>(e)->object, name);
-            if (type == "Set")
+            if (type == AstKind::Set)
             {
                 auto st = std::static_pointer_cast<Set>(e);
                 return mentionsVarExpr(st->object, name) or mentionsVarExpr(st->value, name);
             }
-            if (type == "IndexGet")
+            if (type == AstKind::IndexGet)
             {
                 auto i = std::static_pointer_cast<IndexGet>(e);
                 return mentionsVarExpr(i->object, name) or mentionsVarExpr(i->index, name);
             }
-            if (type == "IndexSet")
+            if (type == AstKind::IndexSet)
             {
                 auto i = std::static_pointer_cast<IndexSet>(e);
                 return mentionsVarExpr(i->object, name) or mentionsVarExpr(i->index, name)
                     or mentionsVarExpr(i->value, name);
             }
-            if (type == "List")
+            if (type == AstKind::List)
             {
                 auto entries = std::static_pointer_cast<List>(e)->entries;
                 while (not entries.empty())
@@ -347,7 +347,7 @@ namespace pg
                 }
                 return false;
             }
-            if (type == "AnonymousFunction")
+            if (type == AstKind::AnonymousFunction)
                 return mentionsVarStmt(std::static_pointer_cast<AnonymousFunction>(e)->body, name);
 
             return false;
@@ -358,13 +358,13 @@ namespace pg
             if (not s)
                 return false;
 
-            const auto& type = s->getType();
+            const AstKind type = s->kind();
 
-            if (type == "ExpressionStatement")
+            if (type == AstKind::ExpressionStatement)
                 return mentionsVarExpr(std::static_pointer_cast<ExpressionStatement>(s)->expr, name);
-            if (type == "VariableStatement")
+            if (type == AstKind::VariableStatement)
                 return mentionsVarExpr(std::static_pointer_cast<VariableStatement>(s)->expr, name);
-            if (type == "BlockStatement")
+            if (type == AstKind::BlockStatement)
             {
                 auto statements = std::static_pointer_cast<BlockStatement>(s)->statements;
                 while (not statements.empty())
@@ -375,19 +375,19 @@ namespace pg
                 }
                 return false;
             }
-            if (type == "IfStatement")
+            if (type == AstKind::IfStatement)
             {
                 auto i = std::static_pointer_cast<IfStatement>(s);
                 return mentionsVarExpr(i->condition, name) or
                        mentionsVarStmt(i->thenBranch, name) or
                        mentionsVarStmt(i->elseBranch, name);
             }
-            if (type == "WhileStatement")
+            if (type == AstKind::WhileStatement)
             {
                 auto w = std::static_pointer_cast<WhileStatement>(s);
                 return mentionsVarExpr(w->condition, name) or mentionsVarStmt(w->body, name);
             }
-            if (type == "ForStatement")
+            if (type == AstKind::ForStatement)
             {
                 auto fs = std::static_pointer_cast<ForStatement>(s);
                 return mentionsVarStmt(fs->initializer, name) or
@@ -395,18 +395,18 @@ namespace pg
                        mentionsVarExpr(fs->increment, name) or
                        mentionsVarStmt(fs->body, name);
             }
-            if (type == "ForInStatement")
+            if (type == AstKind::ForInStatement)
             {
                 auto fi = std::static_pointer_cast<ForInStatement>(s);
                 return mentionsVarExpr(fi->iterable, name) or mentionsVarStmt(fi->body, name);
             }
-            if (type == "ReturnStatement")
+            if (type == AstKind::ReturnStatement)
                 return mentionsVarExpr(std::static_pointer_cast<ReturnStatement>(s)->value, name);
-            if (type == "DPrintStatement")
+            if (type == AstKind::DPrintStatement)
                 return mentionsVarExpr(std::static_pointer_cast<DPrintStatement>(s)->expr, name);
-            if (type == "FunctionStatement")
+            if (type == AstKind::FunctionStatement)
                 return mentionsVarStmt(std::static_pointer_cast<FunctionStatement>(s)->body, name);
-            if (type == "ClassStatement")
+            if (type == AstKind::ClassStatement)
             {
                 auto methods = std::static_pointer_cast<ClassStatement>(s)->methods;
                 while (not methods.empty())
@@ -432,7 +432,7 @@ namespace pg
         /** String-literal index (e["PositionComponent"]) - the common bracket form */
         bool isStringLiteral(const ExprPtr& e, std::string& out)
         {
-            if (not e or e->getType() != "Atom")
+            if (not e or e->kind() != AstKind::Atom)
                 return false;
 
             const auto& v = std::static_pointer_cast<Atom>(e)->value;
@@ -459,9 +459,9 @@ namespace pg
                 return;
             }
 
-            const auto& type = e->getType();
+            const AstKind type = e->kind();
 
-            if (type == "Get")
+            if (type == AstKind::Get)
             {
                 auto g = std::static_pointer_cast<Get>(e);
 
@@ -475,7 +475,7 @@ namespace pg
                 return;
             }
 
-            if (type == "Set")
+            if (type == AstKind::Set)
             {
                 auto st = std::static_pointer_cast<Set>(e);
 
@@ -488,7 +488,7 @@ namespace pg
                 return;
             }
 
-            if (type == "BinaryExpression")
+            if (type == AstKind::BinaryExpression)
             {
                 auto b = std::static_pointer_cast<BinaryExpression>(e);
                 collectUsageExpr(b->leftExpr, name, r);
@@ -496,7 +496,7 @@ namespace pg
                 return;
             }
 
-            if (type == "LogicExpression")
+            if (type == AstKind::LogicExpression)
             {
                 auto l = std::static_pointer_cast<LogicExpression>(e);
                 collectUsageExpr(l->leftExpr, name, r);
@@ -504,25 +504,25 @@ namespace pg
                 return;
             }
 
-            if (type == "UnaryExpression")
+            if (type == AstKind::UnaryExpression)
             {
                 collectUsageExpr(std::static_pointer_cast<UnaryExpression>(e)->expr, name, r);
                 return;
             }
 
-            if (type == "CompoundAtom")
+            if (type == AstKind::CompoundAtom)
             {
                 collectUsageExpr(std::static_pointer_cast<CompoundAtom>(e)->expr, name, r);
                 return;
             }
 
-            if (type == "Assign")
+            if (type == AstKind::Assign)
             {
                 collectUsageExpr(std::static_pointer_cast<Assign>(e)->expr, name, r);
                 return;
             }
 
-            if (type == "CallExpression")
+            if (type == AstKind::CallExpression)
             {
                 auto c = std::static_pointer_cast<CallExpression>(e);
 
@@ -538,7 +538,7 @@ namespace pg
                 return;
             }
 
-            if (type == "IndexGet")
+            if (type == AstKind::IndexGet)
             {
                 auto i = std::static_pointer_cast<IndexGet>(e);
 
@@ -560,7 +560,7 @@ namespace pg
                 return;
             }
 
-            if (type == "IndexSet")
+            if (type == AstKind::IndexSet)
             {
                 auto i = std::static_pointer_cast<IndexSet>(e);
 
@@ -582,7 +582,7 @@ namespace pg
                 return;
             }
 
-            if (type == "List")
+            if (type == AstKind::List)
             {
                 auto entries = std::static_pointer_cast<List>(e)->entries;
                 while (not entries.empty())
@@ -594,7 +594,7 @@ namespace pg
                 return;
             }
 
-            if (type == "AnonymousFunction")
+            if (type == AstKind::AnonymousFunction)
             {
                 // Capturing the loop variable in a closure is an escape
                 if (mentionsVarStmt(std::static_pointer_cast<AnonymousFunction>(e)->body, name))
@@ -611,17 +611,17 @@ namespace pg
             if (not s or not r.ok)
                 return;
 
-            const auto& type = s->getType();
+            const AstKind type = s->kind();
 
-            if (type == "ExpressionStatement")
+            if (type == AstKind::ExpressionStatement)
             {
                 collectUsageExpr(std::static_pointer_cast<ExpressionStatement>(s)->expr, name, r);
             }
-            else if (type == "VariableStatement")
+            else if (type == AstKind::VariableStatement)
             {
                 collectUsageExpr(std::static_pointer_cast<VariableStatement>(s)->expr, name, r);
             }
-            else if (type == "BlockStatement")
+            else if (type == AstKind::BlockStatement)
             {
                 auto statements = std::static_pointer_cast<BlockStatement>(s)->statements;
                 while (not statements.empty())
@@ -630,20 +630,20 @@ namespace pg
                     statements.pop();
                 }
             }
-            else if (type == "IfStatement")
+            else if (type == AstKind::IfStatement)
             {
                 auto i = std::static_pointer_cast<IfStatement>(s);
                 collectUsageExpr(i->condition, name, r);
                 collectUsageStmt(i->thenBranch, name, r);
                 collectUsageStmt(i->elseBranch, name, r);
             }
-            else if (type == "WhileStatement")
+            else if (type == AstKind::WhileStatement)
             {
                 auto w = std::static_pointer_cast<WhileStatement>(s);
                 collectUsageExpr(w->condition, name, r);
                 collectUsageStmt(w->body, name, r);
             }
-            else if (type == "ForStatement")
+            else if (type == AstKind::ForStatement)
             {
                 auto fs = std::static_pointer_cast<ForStatement>(s);
                 collectUsageStmt(fs->initializer, name, r);
@@ -651,7 +651,7 @@ namespace pg
                 collectUsageExpr(fs->increment, name, r);
                 collectUsageStmt(fs->body, name, r);
             }
-            else if (type == "ForInStatement")
+            else if (type == AstKind::ForInStatement)
             {
                 auto fi = std::static_pointer_cast<ForInStatement>(s);
                 collectUsageExpr(fi->iterable, name, r);
@@ -660,21 +660,21 @@ namespace pg
                 // the inner variable; handled by the mutated-set bail
                 collectUsageStmt(fi->body, name, r);
             }
-            else if (type == "ReturnStatement")
+            else if (type == AstKind::ReturnStatement)
             {
                 collectUsageExpr(std::static_pointer_cast<ReturnStatement>(s)->value, name, r);
             }
-            else if (type == "DPrintStatement")
+            else if (type == AstKind::DPrintStatement)
             {
                 collectUsageExpr(std::static_pointer_cast<DPrintStatement>(s)->expr, name, r);
             }
-            else if (type == "FunctionStatement")
+            else if (type == AstKind::FunctionStatement)
             {
                 // Nested function capturing the loop variable is an escape
                 if (mentionsVarStmt(std::static_pointer_cast<FunctionStatement>(s)->body, name))
                     r.bail();
             }
-            else if (type == "ClassStatement")
+            else if (type == AstKind::ClassStatement)
             {
                 auto methods = std::static_pointer_cast<ClassStatement>(s)->methods;
                 while (not methods.empty())
@@ -697,12 +697,12 @@ namespace pg
         /** Matches `getEntities(<one arg>)` as the loop iterable */
         std::shared_ptr<CallExpression> matchGetEntitiesCall(const ExprPtr& iterable)
         {
-            if (not iterable or iterable->getType() != "CallExpression")
+            if (not iterable or iterable->kind() != AstKind::CallExpression)
                 return nullptr;
 
             auto call = std::static_pointer_cast<CallExpression>(iterable);
 
-            if (not call->caller or call->caller->getType() != "Var")
+            if (not call->caller or call->caller->kind() != AstKind::Var)
                 return nullptr;
 
             if (std::static_pointer_cast<Var>(call->caller)->name.text != kGetEntities)
@@ -793,37 +793,37 @@ namespace pg
             if (not e)
                 return;
 
-            const auto& type = e->getType();
+            const AstKind type = e->kind();
 
-            if (type == "AnonymousFunction")
+            if (type == AstKind::AnonymousFunction)
             {
                 walkStmt(std::static_pointer_cast<AnonymousFunction>(e)->body, ctx);
             }
-            else if (type == "BinaryExpression")
+            else if (type == AstKind::BinaryExpression)
             {
                 auto b = std::static_pointer_cast<BinaryExpression>(e);
                 walkExpr(b->leftExpr, ctx);
                 walkExpr(b->rightExpr, ctx);
             }
-            else if (type == "LogicExpression")
+            else if (type == AstKind::LogicExpression)
             {
                 auto l = std::static_pointer_cast<LogicExpression>(e);
                 walkExpr(l->leftExpr, ctx);
                 walkExpr(l->rightExpr, ctx);
             }
-            else if (type == "UnaryExpression")
+            else if (type == AstKind::UnaryExpression)
             {
                 walkExpr(std::static_pointer_cast<UnaryExpression>(e)->expr, ctx);
             }
-            else if (type == "CompoundAtom")
+            else if (type == AstKind::CompoundAtom)
             {
                 walkExpr(std::static_pointer_cast<CompoundAtom>(e)->expr, ctx);
             }
-            else if (type == "Assign")
+            else if (type == AstKind::Assign)
             {
                 walkExpr(std::static_pointer_cast<Assign>(e)->expr, ctx);
             }
-            else if (type == "CallExpression")
+            else if (type == AstKind::CallExpression)
             {
                 auto c = std::static_pointer_cast<CallExpression>(e);
                 walkExpr(c->caller, ctx);
@@ -835,30 +835,30 @@ namespace pg
                     args.pop();
                 }
             }
-            else if (type == "Get")
+            else if (type == AstKind::Get)
             {
                 walkExpr(std::static_pointer_cast<Get>(e)->object, ctx);
             }
-            else if (type == "Set")
+            else if (type == AstKind::Set)
             {
                 auto st = std::static_pointer_cast<Set>(e);
                 walkExpr(st->object, ctx);
                 walkExpr(st->value, ctx);
             }
-            else if (type == "IndexGet")
+            else if (type == AstKind::IndexGet)
             {
                 auto i = std::static_pointer_cast<IndexGet>(e);
                 walkExpr(i->object, ctx);
                 walkExpr(i->index, ctx);
             }
-            else if (type == "IndexSet")
+            else if (type == AstKind::IndexSet)
             {
                 auto i = std::static_pointer_cast<IndexSet>(e);
                 walkExpr(i->object, ctx);
                 walkExpr(i->index, ctx);
                 walkExpr(i->value, ctx);
             }
-            else if (type == "List")
+            else if (type == AstKind::List)
             {
                 auto entries = std::static_pointer_cast<List>(e)->entries;
                 while (not entries.empty())
@@ -875,9 +875,9 @@ namespace pg
             if (not s)
                 return;
 
-            const auto& type = s->getType();
+            const AstKind type = s->kind();
 
-            if (type == "ForInStatement")
+            if (type == AstKind::ForInStatement)
             {
                 auto fi = std::static_pointer_cast<ForInStatement>(s);
 
@@ -887,7 +887,7 @@ namespace pg
 
                 tryLowerLoop(fi, ctx);
             }
-            else if (type == "BlockStatement")
+            else if (type == AstKind::BlockStatement)
             {
                 auto statements = std::static_pointer_cast<BlockStatement>(s)->statements;
                 while (not statements.empty())
@@ -896,20 +896,20 @@ namespace pg
                     statements.pop();
                 }
             }
-            else if (type == "IfStatement")
+            else if (type == AstKind::IfStatement)
             {
                 auto i = std::static_pointer_cast<IfStatement>(s);
                 walkExpr(i->condition, ctx);
                 walkStmt(i->thenBranch, ctx);
                 walkStmt(i->elseBranch, ctx);
             }
-            else if (type == "WhileStatement")
+            else if (type == AstKind::WhileStatement)
             {
                 auto w = std::static_pointer_cast<WhileStatement>(s);
                 walkExpr(w->condition, ctx);
                 walkStmt(w->body, ctx);
             }
-            else if (type == "ForStatement")
+            else if (type == AstKind::ForStatement)
             {
                 auto fs = std::static_pointer_cast<ForStatement>(s);
                 walkStmt(fs->initializer, ctx);
@@ -917,11 +917,11 @@ namespace pg
                 walkExpr(fs->increment, ctx);
                 walkStmt(fs->body, ctx);
             }
-            else if (type == "FunctionStatement")
+            else if (type == AstKind::FunctionStatement)
             {
                 walkStmt(std::static_pointer_cast<FunctionStatement>(s)->body, ctx);
             }
-            else if (type == "ClassStatement")
+            else if (type == AstKind::ClassStatement)
             {
                 auto methods = std::static_pointer_cast<ClassStatement>(s)->methods;
                 while (not methods.empty())
@@ -930,19 +930,19 @@ namespace pg
                     methods.pop();
                 }
             }
-            else if (type == "ExpressionStatement")
+            else if (type == AstKind::ExpressionStatement)
             {
                 walkExpr(std::static_pointer_cast<ExpressionStatement>(s)->expr, ctx);
             }
-            else if (type == "VariableStatement")
+            else if (type == AstKind::VariableStatement)
             {
                 walkExpr(std::static_pointer_cast<VariableStatement>(s)->expr, ctx);
             }
-            else if (type == "ReturnStatement")
+            else if (type == AstKind::ReturnStatement)
             {
                 walkExpr(std::static_pointer_cast<ReturnStatement>(s)->value, ctx);
             }
-            else if (type == "DPrintStatement")
+            else if (type == AstKind::DPrintStatement)
             {
                 walkExpr(std::static_pointer_cast<DPrintStatement>(s)->expr, ctx);
             }

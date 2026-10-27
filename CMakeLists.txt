@@ -199,6 +199,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/bytecode_pass.cpp
     src/Engine/Compiler/bytecode_rewriter.cpp
     src/Engine/Compiler/chunk_serializer.cpp
+    src/Engine/Compiler/module_cache.cpp
     src/Engine/Compiler/bytecode_pass_module.cpp
     src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
     src/Engine/Compiler/pass/constant_folding.cpp
@@ -291,6 +292,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/bytecode_pass.cpp
     src/Engine/Compiler/bytecode_rewriter.cpp
     src/Engine/Compiler/chunk_serializer.cpp
+    src/Engine/Compiler/module_cache.cpp
     src/Engine/Compiler/bytecode_pass_module.cpp
     src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
     src/Engine/Compiler/pass/constant_folding.cpp
@@ -1857,6 +1859,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/unit/test_bytecode_rewriter.cc
             test/pgcompiler/unit/test_none_value.cc
             test/pgcompiler/unit/test_chunk_constants.cc
+            test/pgcompiler/unit/test_module_cache.cc
             test/pgcompiler/unit/test_shape_budget.cc
         )
 

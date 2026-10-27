@@ -160,7 +160,7 @@ namespace pg
             if (function->arity > 255)
                 error(token, "Can't have more than 255 parameters.");
 
-            if (param->getType() != "Var")
+            if (param->kind() != AstKind::Var)
             {
                 error(token, "Invalid parameter in function declaration.");
                 continue;
@@ -174,7 +174,7 @@ namespace pg
 
         if (body)
         {
-            if (body->getType() == "BlockStatement")
+            if (body->kind() == AstKind::BlockStatement)
             {
                 // Mirror CParser::parseFunction: the body block shares the
                 // function scope opened above (no extra begin/endScope and no
@@ -349,7 +349,7 @@ namespace pg
         // name, matching the Pratt front-end which has no upvalue path here)
         setLine(expr->op);
 
-        if (expr->expr->getType() != "Var")
+        if (expr->expr->kind() != AstKind::Var)
         {
             error(expr->op, "Expected variable after prefix operator.");
             return;
@@ -383,7 +383,7 @@ namespace pg
         // value, then emit the post-increment op with the identifier operand
         setLine(expr->op);
 
-        if (expr->expr->getType() != "Var")
+        if (expr->expr->kind() != AstKind::Var)
         {
             error(expr->op, "Expected variable before postfix operator.");
             return;
@@ -467,7 +467,7 @@ namespace pg
             // string constant), mirroring createTable's writeConstant(first.text)
             if (entry.explicitKey)
             {
-                if (entry.key->getType() == "Atom" or entry.key->getType() == "Var")
+                if (entry.key->kind() == AstKind::Atom or entry.key->kind() == AstKind::Var)
                 {
                     root.parser.writeConstant(entry.key->getName());
                 }
@@ -563,7 +563,7 @@ namespace pg
         };
 
         // Method call on a property access compiles to OP_Invoke (mirror dot())
-        if (expr->caller->getType() == "Get")
+        if (expr->caller->kind() == AstKind::Get)
         {
             auto getExpr = std::static_pointer_cast<Get>(expr->caller);
 
@@ -927,7 +927,7 @@ namespace pg
         // Initializer
         if (stmt->initializer)
         {
-            if (stmt->initializer->getType() == "VariableStatement")
+            if (stmt->initializer->kind() == AstKind::VariableStatement)
             {
                 auto varStmt = std::static_pointer_cast<VariableStatement>(stmt->initializer);
 

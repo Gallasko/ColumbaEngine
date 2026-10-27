@@ -191,13 +191,19 @@ namespace pg
         {
             bool foundMatch = false;
 
+            const OpCode here = static_cast<OpCode>(chunk.code[i]);
+
             for (const auto& rule : advancedRules)
             {
+                // Most rules cannot start here: their first opcode says so without a match
+                if (not rule.pattern.empty() and not rule.pattern.front().matches(here))
+                    continue;
+
                 auto match = matchesAdvancedPattern(chunk, i, rule.pattern);
 
                 if (match)
                 {
-                    auto [captured, patternByteSize] = *match;
+                    auto& [captured, patternByteSize] = *match;
 
                     // See if the match is valid for this rule
                     if (not rule.condition(captured))
@@ -442,9 +448,46 @@ namespace pg
         }
 
         size_t currentOffset = offset;
-        std::vector<CapturedInstruction> captured;
         size_t totalPatternSize = 0;
         bool   firstElement     = true;
+        size_t captures         = 0;
+
+        // The whole pattern first, nothing captured: most tries fail, and they now fail
+        // without building the captures
+        for (const auto& element : pattern)
+        {
+            if (currentOffset >= chunk.code.size())
+            {
+                return std::nullopt;
+            }
+
+            if (not firstElement and isJumpTarget(currentOffset))
+            {
+                return std::nullopt;
+            }
+            firstElement = false;
+
+            if (not element.matches(static_cast<OpCode>(chunk.code[currentOffset])))
+            {
+                return std::nullopt;
+            }
+
+            if (element.capture)
+                ++captures;
+
+            const size_t instructionSize = getActualInstructionSize(chunk, currentOffset);
+
+            currentOffset += instructionSize;
+            totalPatternSize += instructionSize;
+        }
+
+        // It matched: the same walk again, capturing
+        std::vector<CapturedInstruction> captured;
+        captured.reserve(captures);
+
+        currentOffset = offset;
+        totalPatternSize = 0;
+        firstElement = true;
 
         for (const auto& element : pattern)
         {
@@ -493,14 +536,14 @@ namespace pg
                     );
                 }
 
-                captured.push_back(captured_inst);
+                captured.push_back(std::move(captured_inst));
             }
 
             currentOffset += instructionSize;
             totalPatternSize += instructionSize;
         }
 
-        return std::make_pair(captured, totalPatternSize);
+        return std::make_pair(std::move(captured), totalPatternSize);
     }
 
     bool BytecodeRewriter::matchesPattern(const Chunk& chunk, size_t offset, const std::vector<OpCode>& pattern)

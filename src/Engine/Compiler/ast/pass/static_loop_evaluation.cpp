@@ -97,9 +97,9 @@ namespace pg
                     return std::nullopt;
                 }
 
-                const auto& type = e->getType();
+                const AstKind type = e->kind();
 
-                if (type == "Atom")
+                if (type == AstKind::Atom)
                 {
                     const auto& v = std::static_pointer_cast<Atom>(e)->value;
 
@@ -113,7 +113,7 @@ namespace pg
                     return std::nullopt;
                 }
 
-                if (type == "Var")
+                if (type == AstKind::Var)
                 {
                     auto* v = env.find(std::static_pointer_cast<Var>(e)->name.text);
 
@@ -126,10 +126,10 @@ namespace pg
                     return *v;
                 }
 
-                if (type == "CompoundAtom")
+                if (type == AstKind::CompoundAtom)
                     return evalExpr(std::static_pointer_cast<CompoundAtom>(e)->expr);
 
-                if (type == "UnaryExpression")
+                if (type == AstKind::UnaryExpression)
                 {
                     auto u = std::static_pointer_cast<UnaryExpression>(e);
 
@@ -147,7 +147,7 @@ namespace pg
                     return std::nullopt;
                 }
 
-                if (type == "BinaryExpression")
+                if (type == AstKind::BinaryExpression)
                 {
                     auto bin = std::static_pointer_cast<BinaryExpression>(e);
 
@@ -206,7 +206,7 @@ namespace pg
                     }
                 }
 
-                if (type == "LogicExpression")
+                if (type == AstKind::LogicExpression)
                 {
                     auto lg = std::static_pointer_cast<LogicExpression>(e);
 
@@ -225,7 +225,7 @@ namespace pg
                     return std::nullopt;
                 }
 
-                if (type == "Assign")
+                if (type == AstKind::Assign)
                 {
                     auto a = std::static_pointer_cast<Assign>(e);
 
@@ -246,9 +246,9 @@ namespace pg
                     return v; // OP_Set_* leaves the value on the stack
                 }
 
-                if (type == "PreFixExpression" or type == "PostFixExpression")
+                if (type == AstKind::PreFixExpression or type == AstKind::PostFixExpression)
                 {
-                    const bool prefix = type == "PreFixExpression";
+                    const bool prefix = type == AstKind::PreFixExpression;
 
                     const auto& name = prefix
                         ? std::static_pointer_cast<PreFixExpression>(e)->name
@@ -284,15 +284,15 @@ namespace pg
                 if (not s)
                     return Flow::Normal;
 
-                const auto& type = s->getType();
+                const AstKind type = s->kind();
 
-                if (type == "ExpressionStatement")
+                if (type == AstKind::ExpressionStatement)
                 {
                     evalExpr(std::static_pointer_cast<ExpressionStatement>(s)->expr);
                     return Flow::Normal;
                 }
 
-                if (type == "VariableStatement")
+                if (type == AstKind::VariableStatement)
                 {
                     auto v = std::static_pointer_cast<VariableStatement>(s);
 
@@ -311,7 +311,7 @@ namespace pg
                     return Flow::Normal;
                 }
 
-                if (type == "BlockStatement")
+                if (type == AstKind::BlockStatement)
                 {
                     env.scopes.push_back({});
 
@@ -328,7 +328,7 @@ namespace pg
                     return flow;
                 }
 
-                if (type == "IfStatement")
+                if (type == AstKind::IfStatement)
                 {
                     auto i = std::static_pointer_cast<IfStatement>(s);
 
@@ -345,7 +345,7 @@ namespace pg
                     return Flow::Normal;
                 }
 
-                if (type == "WhileStatement")
+                if (type == AstKind::WhileStatement)
                 {
                     auto w = std::static_pointer_cast<WhileStatement>(s);
 
@@ -364,7 +364,7 @@ namespace pg
                     return Flow::Normal;
                 }
 
-                if (type == "ForStatement")
+                if (type == AstKind::ForStatement)
                 {
                     auto fs = std::static_pointer_cast<ForStatement>(s);
 
@@ -395,10 +395,10 @@ namespace pg
                     return Flow::Normal;
                 }
 
-                if (type == "BreakStatement")
+                if (type == AstKind::BreakStatement)
                     return Flow::Break;
 
-                if (type == "ContinueStatement")
+                if (type == AstKind::ContinueStatement)
                     return Flow::Continue;
 
                 // for-in (tables), dprint (output side effect), return,
@@ -430,35 +430,35 @@ namespace pg
             if (not s)
                 return;
 
-            const auto& type = s->getType();
+            const AstKind type = s->kind();
 
-            if (type == "BlockStatement")
+            if (type == AstKind::BlockStatement)
             {
                 processStatementList(std::static_pointer_cast<BlockStatement>(s)->statements, ctx);
             }
-            else if (type == "IfStatement")
+            else if (type == AstKind::IfStatement)
             {
                 auto i = std::static_pointer_cast<IfStatement>(s);
                 recurseNested(i->thenBranch, ctx);
                 recurseNested(i->elseBranch, ctx);
             }
-            else if (type == "WhileStatement")
+            else if (type == AstKind::WhileStatement)
             {
                 recurseNested(std::static_pointer_cast<WhileStatement>(s)->body, ctx);
             }
-            else if (type == "ForStatement")
+            else if (type == AstKind::ForStatement)
             {
                 recurseNested(std::static_pointer_cast<ForStatement>(s)->body, ctx);
             }
-            else if (type == "ForInStatement")
+            else if (type == AstKind::ForInStatement)
             {
                 recurseNested(std::static_pointer_cast<ForInStatement>(s)->body, ctx);
             }
-            else if (type == "FunctionStatement")
+            else if (type == AstKind::FunctionStatement)
             {
                 recurseNested(std::static_pointer_cast<FunctionStatement>(s)->body, ctx);
             }
-            else if (type == "ClassStatement")
+            else if (type == AstKind::ClassStatement)
             {
                 auto c = std::static_pointer_cast<ClassStatement>(s);
 
@@ -556,9 +556,9 @@ namespace pg
                     continue;
                 }
 
-                const auto& type = s->getType();
+                const AstKind type = s->kind();
 
-                if (type == "WhileStatement" or type == "ForStatement")
+                if (type == AstKind::WhileStatement or type == AstKind::ForStatement)
                 {
                     auto replacements = foldLoop(s, tracked);
 
@@ -580,7 +580,7 @@ namespace pg
                     continue;
                 }
 
-                if (type == "VariableStatement")
+                if (type == AstKind::VariableStatement)
                 {
                     auto v = std::static_pointer_cast<VariableStatement>(s);
 
@@ -607,7 +607,7 @@ namespace pg
                     continue;
                 }
 
-                if (type == "ExpressionStatement")
+                if (type == AstKind::ExpressionStatement)
                 {
                     // Track through pure assignments; anything else falls back
                     // to conservative invalidation
@@ -625,7 +625,7 @@ namespace pg
                     continue;
                 }
 
-                if (type == "ImportStatement")
+                if (type == AstKind::ImportStatement)
                 {
                     // Imported scripts execute immediately and can write any
                     // global by name - forget everything

@@ -11,6 +11,7 @@
 #include "Interpreter/lexer.h"
 #include "logger.h"
 #include "chunk_serializer.h"
+#include "module_cache.h"
 
 namespace pg
 {
@@ -1457,6 +1458,9 @@ namespace pg
             // .pgc file exists - load from serialized bytecode
             try
             {
+                // The modules compiled around it read bytecode: they are kept by no cache
+                modulecache::readBytecode();
+
                 std::cout << "Trying a compiled source" << std::endl;
 
                 // Load the chunk from the .pgc file
@@ -1523,6 +1527,9 @@ namespace pg
         // Check if .pg file exists
         if (not UniversalFileAccessor::exists(fullPath))
         {
+            // No file: a native module, as long as no file of that name comes (modulecache)
+            modulecache::foundNoFile(fullPath);
+
             // File doesn't exist - return false to allow fallback to native module
             return false;
         }
@@ -1530,31 +1537,71 @@ namespace pg
         // .pg file exists - load and compile the imported file during parsing
         try
         {
-            // Use the Lexer to read and tokenize the file
-            Lexer lexer;
-            lexer.readFromFile(fullPath);
-            auto importTokens = lexer.getTokens();
+            // Read once: for the lexer, and to know the module again
+            const std::string source = UniversalFileAccessor::openTextFile(fullPath).data;
 
             // With the AST front-end (the default), the module is compiled as a script is: to its
-            // AST, through the AST passes, then emitted. Its functions are ours to keep, as the
-            // Pratt path below hands over its own
+            // AST, through the AST passes, then emitted. An earlier script may have compiled it to
+            // what this one would: it is then made from that (modulecache)
             if (vm->frontEnd == ScriptFrontEnd::Ast)
             {
-                AstCompiler importer(vm);
-                Value importedFunction = importer.compile(importTokens);
+                Value importedFunction = modulecache::find(vm, fullPath, moduleName, source);
 
-                if (importedFunction == 0x0 or importer.hasError())
+                if (importedFunction != 0x0)
+                    allocatedFunction.push_back(importedFunction);
+                else
                 {
-                    error("Error compiling imported module '" + moduleName + "'.");
-                    return true; // File exists but compilation error - don't fallback to native module
-                }
+                    Lexer lexer;
 
-                for (auto func : importer.allocatedFunctions())
-                {
-                    allocatedFunction.push_back(func);
-                }
+                    if (not source.empty())
+                        lexer.readFromText(source);
 
-                importer.allocatedFunctions().clear();
+                    auto importTokens = lexer.getTokens();
+
+                    AstCompiler importer(vm);
+                    modulecache::Compiled module;
+
+                    modulecache::begin(fullPath, source, importTokens);
+
+                    try
+                    {
+                        Value compiled = importer.compile(importTokens);
+
+                        if (importer.hasError())
+                            compiled = 0x0;
+
+                        module = modulecache::end(vm, compiled, importer.allocatedFunctions(), moduleName);
+                    }
+                    catch (...)
+                    {
+                        modulecache::end(vm, 0x0, {}, moduleName);
+                        throw;
+                    }
+
+                    if (module.function == 0x0)
+                    {
+                        error("Error compiling imported module '" + moduleName + "'.");
+                        return true; // File exists but compilation error - don't fallback to native module
+                    }
+
+                    if (module.remade)
+                    {
+                        // Made again from its bytecode: the importer frees what it compiled
+                        allocatedFunction.push_back(module.function);
+                    }
+                    else
+                    {
+                        // The compiled functions are the module: ours to keep, as the Pratt path below hands over its own
+                        for (auto func : importer.allocatedFunctions())
+                        {
+                            allocatedFunction.push_back(func);
+                        }
+
+                        importer.allocatedFunctions().clear();
+                    }
+
+                    importedFunction = module.function;
+                }
 
                 // Emit bytecode to call the imported script immediately (as below)
                 uint8_t constant = Compiler::current->getCurrentChunk().addConstantIndex(importedFunction);
@@ -1566,6 +1613,13 @@ namespace pg
 
                 return true;
             }
+
+            Lexer lexer;
+
+            if (not source.empty())
+                lexer.readFromText(source);
+
+            auto importTokens = lexer.getTokens();
 
             // Create a nested compiler for the imported module
             Compiler importCompiler(vm);
