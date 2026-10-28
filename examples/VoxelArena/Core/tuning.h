@@ -73,12 +73,18 @@ namespace arena
             int wallJumpLockFrames = 10;    // frames the push is not steered against
             int dashFrames = 10;            // air dash: no gravity, a straight burst
             float dashSpeed = 16.0f;        // m/s
-            float dashCost = 15.0f;         // stamina
             int dashes = 1;                 // per time in the air
             float dashMinHeight = 1.5f;     // m above the ground: lower, Shift is the landing roll instead
             float fastFallGravityScale = 3.0f;  // crouch held in the air
             float fastFallMaxSpeed = 55.0f;
         } air;
+
+        /** The roll and the air dash spend charges, not stamina: `charges` of them, one back every `recharge` s. */
+        struct Dash
+        {
+            int charges = 2;
+            float recharge = 1.2f;
+        } dash;
 
         struct Mana
         {
@@ -113,7 +119,6 @@ namespace arena
             int recovery = 6;          // last frames: no new action except a buffered one
             float speed = 11.0f;       // m/s at the start
             float endSpeed = 3.0f;     // m/s at the end
-            float cost = 22.0f;
             int attackFrom = 14;       // a light press from this frame on becomes the dodge attack
             int jumpFrom = 1;          // a jump from this frame on cancels the roll (and takes off with its speed)
             bool inAir = false;        // allow rolling while airborne
@@ -179,6 +184,8 @@ namespace arena
 
         /** ability1, 2, 3...: each slot a list, the first one the wielded weapon allows fills it (empty: none) */
         std::vector<std::vector<std::string>> abilities = {{"base:raise_wall"}, {"base:dig_pit"}, {"base:mine"}};
+
+        std::vector<std::string> playerSpells;   // the spells a player starts with on the spell keys (ready-made ids)
 
         std::string playerModel = "base:player";
         std::string startWeapon = "base:sword";

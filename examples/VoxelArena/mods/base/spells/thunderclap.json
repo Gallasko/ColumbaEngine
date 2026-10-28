@@ -1,0 +1,2 @@
+// Ready-made: a beam that bursts where it strikes.
+{ "name": "Thunderclap", "recipe": ["volt", "beam", "nova"] }

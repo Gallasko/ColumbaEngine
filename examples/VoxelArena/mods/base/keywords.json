@@ -1,0 +1,32 @@
+// The keywords of spells. A spell is an element, then keywords: fire > bolt > zone.
+//
+// A form is a shape the spell takes. The first form leaves from you (a bolt or a beam at the crosshair,
+// a nova around you, a zone where the crosshair is on the ground); each later form comes out of the one
+// before it: where a bolt lands, where a beam strikes, where a nova bursts, where a zone ends.
+//   bolt: a shot that flies (speed, gravity, range, radius is its size). zone: an area on the ground
+//   that hurts whoever stands in it (radius, duration, damage per second). nova: a burst all around
+//   (radius). beam: an instant strike along the aim (range).
+//
+// A modifier changes the last form before it: count (copies of it), durationScale, rangeScale,
+// radiusScale, damageScale, chains (its hit jumps on to more enemies). forms: the shapes it can change.
+//
+// mana is added to the spell's cost once per copy of its form; a modifier's manaScale multiplies the
+// cost of its form. cooldown adds up. model: what a bolt flies as, by element (only looks).
+{
+    "bolt": { "kind": "form", "shape": "bolt", "name": "Bolt", "mana": 10, "cooldown": 0.3,
+              "speed": 28, "gravity": 2, "radius": 0.2, "range": 30,
+              "damage": 12, "poiseDamage": 8, "knockback": 3, "terrainDamage": 15,
+              "model": { "fire": "fireball", "ice": "ice_shard", "volt": "volt_orb" }, "modelScale": 0.08 },
+    "zone": { "kind": "form", "shape": "zone", "name": "Zone", "mana": 12, "cooldown": 0.5,
+              "radius": 2.2, "duration": 4, "damage": 6, "poiseDamage": 2, "knockback": 0 },
+    "nova": { "kind": "form", "shape": "nova", "name": "Nova", "mana": 12, "cooldown": 0.4,
+              "radius": 2.8, "damage": 14, "poiseDamage": 14, "knockback": 6, "terrainDamage": 20 },
+    "beam": { "kind": "form", "shape": "beam", "name": "Beam", "mana": 14, "cooldown": 0.5,
+              "range": 24, "damage": 12, "poiseDamage": 6, "knockback": 1, "terrainDamage": 40 },
+
+    "multiply": { "kind": "modifier", "name": "Multiply", "mana": 0, "manaScale": 1.7, "cooldown": 0.2, "count": 2 },
+    "extend":   { "kind": "modifier", "name": "Extend",   "mana": 4, "cooldown": 0.1, "durationScale": 1.75, "rangeScale": 1.5 },
+    "enlarge":  { "kind": "modifier", "name": "Enlarge",  "mana": 6, "cooldown": 0.1, "radiusScale": 1.5 },
+    "chain":    { "kind": "modifier", "name": "Chain",    "mana": 8, "cooldown": 0.2, "chains": 2, "forms": ["bolt", "beam"] },
+    "empower":  { "kind": "modifier", "name": "Empower",  "mana": 0, "manaScale": 1.5, "cooldown": 0.1, "damageScale": 1.5 }
+}

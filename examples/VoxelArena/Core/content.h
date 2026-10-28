@@ -124,6 +124,70 @@ namespace arena
         int stacks = 1;
     };
 
+    // --------------------------------------------------------------------------------------------
+    // Spells: an element, then keywords (elements.json, keywords.json; ready-made ones in spells/)
+    // --------------------------------------------------------------------------------------------
+
+    /** What every spell of an element carries (fire burns...), and what it adds to the cost. */
+    struct ElementDef
+    {
+        Element element = Element::None;
+        std::string name;
+        StatusHit status;
+        float mana = 0.0f;
+    };
+
+    /**
+     * A keyword of a spell. A form is a shape the spell takes: the first one leaves from the caster,
+     * each later one comes out of the one before it. A modifier changes the last form before it.
+     */
+    struct KeywordDef
+    {
+        std::string id, name;
+        bool form = true;
+        std::string shape;              // form: "bolt", "zone", "nova" or "beam"
+        float mana = 0.0f;              // added to the spell's cost (per copy of its form)
+        float manaScale = 1.0f;         // modifier: multiplies the cost of its form
+        float cooldown = 0.0f;          // added to the spell's cooldown
+
+        // A form's numbers
+        float speed = 28.0f;            // bolt, m/s
+        float gravity = 2.0f;           // bolt, m/s^2
+        float radius = 0.2f;            // bolt: its size; zone, nova: their reach
+        float range = 30.0f;            // bolt: how far it flies; beam: its reach
+        float duration = 4.0f;          // zone, s
+        float damage = 10.0f;           // zone: per second
+        float poiseDamage = 8.0f;
+        float knockback = 3.0f;
+        float terrainDamage = 0.0f;     // to the block it strikes
+
+        // A modifier's: multipliers of its form's numbers (1 changes nothing)
+        int count = 1;                  // copies of the form
+        float durationScale = 1.0f, rangeScale = 1.0f, radiusScale = 1.0f, damageScale = 1.0f;
+        int chains = 0;                 // jumps to more enemies after a hit
+        std::vector<std::string> forms; // the shapes it can follow (empty: any)
+
+        // Looks: the model a bolt flies as, by element
+        std::map<std::string, std::string> model;
+        float modelScale = 0.08f;
+    };
+
+    /** The words of a spell: "fire", then keyword ids ("base:bolt", "base:zone"). */
+    struct SpellRecipe
+    {
+        std::string element;
+        std::vector<std::string> keywords;
+
+        bool operator==(const SpellRecipe& o) const { return element == o.element and keywords == o.keywords; }
+    };
+
+    /** A ready-made spell (spells/<name>.json): a name and a recipe. */
+    struct SpellDef
+    {
+        std::string id, name;
+        SpellRecipe recipe;
+    };
+
     /**
      * What an attack shoots, fired on its first active frame. An enemy aims it at the player's chest
      * (dropping for the arc and leading a moving target by `lead`); the player aims it with the crosshair.
@@ -312,10 +376,9 @@ namespace arena
     {
         std::string id;
         std::string name;
-        std::string kind;          // wall, pit, mine; spells: projectile, bolt; weapon skills: attack
+        std::string kind;          // wall, pit, mine; weapon skills: attack
         std::string block;
         float staminaCost = 0.0f;
-        float manaCost = 0.0f;
         float cooldown = 0.5f;
         float range = 6.0f;
         float distance = 2.0f;
@@ -325,19 +388,6 @@ namespace arena
         int width = 3;
         int height = 2;
         int depth = 2;
-
-        // Spells. projectile: `count` of them, `spread` degrees apart. bolt: strikes at once along the
-        // aim up to `range`, then jumps to `chains` more enemies, each within `chainRange` of the last
-        ProjectileDef projectile;
-        int count = 1;
-        float spread = 0.0f;
-        int chains = 0;
-        float chainRange = 6.0f;
-        float poiseDamage = 0.0f;
-        float knockback = 0.0f;
-        float terrainDamage = 0.0f;
-        Element element = Element::None;
-        StatusHit status;
 
         // Weapon skills: usable only with a weapon of one of these types (empty: with any). kind
         // "attack" runs `attack`, an attack like a moveset's, named "@<ability id>" while it runs
@@ -415,6 +465,10 @@ namespace arena
         std::map<std::string, AbilityDef> abilities;
 
         std::map<std::string, StatusDef> statuses;   // statuses.json
+
+        std::map<Element, ElementDef> elements;      // elements.json
+        std::map<std::string, KeywordDef> keywords;  // keywords.json
+        std::map<std::string, SpellDef> spells;      // spells/: ready-made
 
         std::map<std::string, std::shared_ptr<VoxelModel>> models;
 

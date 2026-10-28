@@ -2,11 +2,13 @@
 
 #include <cmath>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "content.h"
+#include "spells.h"
 #include "physics.h"
 #include "terrain.h"
 #include "tuning.h"
@@ -94,7 +96,12 @@ namespace arena
         float mana = 100.0f;
         float manaDelay = 0.0f;
 
+        float dashCharges = 2.0f;     // rolls and air dashes left; the fraction is the next one refilling
+
         std::vector<StatusState> statuses;
+
+        /** The spells on the spell keys (abilities "spell:1".."spell:3"): recipes the player made or picked. */
+        std::vector<SpellRecipe> spells;
 
         // In the air: what was used since the last landing, and a wall jump's push not to steer against
         int airJumpsUsed = 0;
@@ -200,12 +207,33 @@ namespace arena
         int id = 0;
         int owner = 0;
         Team team = Team::Enemy;
-        std::string source;   // what shot it: the enemy type, or the player's weapon (with `attack`, finds its definition)
-        std::string attack;
+        std::string source;   // what shot it: the enemy type or the player's weapon; a spell's bolt: its element
+        std::string attack;   // the attack (with `source`, finds its definition); a spell's bolt: the keyword
         ProjectileDef def;
+        std::shared_ptr<const Spell> spell;   // a spell's bolt: the spell, and the stage it is (the next one comes from its impact)
+        int stage = -1;
         glm::vec3 position = glm::vec3(0.0f);
         glm::vec3 velocity = glm::vec3(0.0f);
         float age = 0.0f;
+    };
+
+    /** A spell's zone on the ground: it hurts whoever stands in it, then the spell's next form comes out of it. */
+    struct Zone
+    {
+        int id = 0;
+        int owner = 0;
+        Team team = Team::Player;
+        Element element = Element::None;
+        glm::vec3 position = glm::vec3(0.0f);   // on the ground, at its centre
+        glm::vec3 dir = glm::vec3(0, 0, 1);     // the way the spell was going
+        float radius = 2.0f;
+        float duration = 4.0f;
+        float remaining = 4.0f;
+        float damage = 0.0f;                    // per second
+        float poiseDamage = 0.0f;
+        float tick = 0.0f;
+        std::shared_ptr<const Spell> spell;
+        int stage = 0;
     };
 
     struct HitEvent
@@ -337,6 +365,17 @@ namespace arena
         /** The attack a fighter is running, or nullptr. */
         const AttackDef* currentAttack(const Fighter& f) const;
 
+        /** The spells on a fighter's spell keys (the server checks nothing: a recipe that makes no spell does nothing). */
+        void setSpells(Fighter& f, const std::vector<SpellRecipe>& spells);
+        static constexpr int SPELL_SLOTS = 3;
+
+        /** A recipe made into a spell, kept (cleared when the content changes). */
+        std::shared_ptr<const Spell> spellOf(const SpellRecipe& recipe) const;
+        /** The spell key a slot of the abilities is ("spell:2" -> 1), or -1. */
+        int spellSlotAt(int index) const;
+
+        std::vector<Zone> zones;
+
         /** Puts a status on a fighter (stacks add up to its maxStacks): what a hit with one does. */
         void applyStatus(Fighter& target, const std::string& id, int stacks = 1);
         const Moveset* movesetOf(const Fighter& f) const;
@@ -386,6 +425,7 @@ namespace arena
         void startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir, bool aimAssist = true, float pitch = NAN);
         void startDodge(Fighter& f, const glm::vec3& dir);
         void startAirDash(Fighter& f, const glm::vec3& dir);
+        void spendDash(Fighter& f);
         void resolveHits();
         void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
         void separate();
@@ -405,8 +445,14 @@ namespace arena
         };
         std::vector<PendingHit> pendingHits;
         void useAbilities(Fighter& f, const InputFrame& in);
-        bool castSpell(Fighter& f, const AbilityDef& a, const InputFrame& in);
-        void strikeBolt(Fighter& f, const AbilityDef& a, const InputFrame& in);
+        bool castSpell(Fighter& f, int spellSlot, const InputFrame& in, int abilityIndex);
+        void runStage(const std::shared_ptr<const Spell>& spell, int stage, const glm::vec3& point, const glm::vec3& dir, int owner, Team team, const InputFrame* aim);
+        void strikeBeam(const std::shared_ptr<const Spell>& spell, int stage, const glm::vec3& start, const glm::vec3& hand, const glm::vec3& dir, int owner, Team team);
+        void hitAround(const AttackDef& hit, const glm::vec3& centre, float radius, int owner, Team team, bool flat);
+        void chainFrom(const AttackDef& hit, Fighter& first, int chains, int owner, Team team, Element element);
+        void stepZones();
+        mutable std::map<std::string, std::shared_ptr<const Spell>> spellCache;
+        int nextZone = 1;
         void impact(const Projectile& p, const glm::vec3& point, Fighter* struck, const RayHit* wall);
         void elementOnTerrain(Element element, const glm::vec3& point, float radius);
         AttackDef hitOf(const std::string& name, float damage, float poiseDamage, float knockback, int hitstop, float shake, Element element, const StatusHit& status) const;

@@ -1,0 +1,2 @@
+// Ready-made: a bolt that bursts where it lands.
+{ "name": "Fireball", "recipe": ["fire", "bolt", "nova"] }

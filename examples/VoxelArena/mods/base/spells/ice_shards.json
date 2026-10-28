@@ -1,0 +1,2 @@
+// Ready-made: four shards in a fan; each one chills.
+{ "name": "Ice shards", "recipe": ["ice", "bolt", "multiply", "multiply"] }

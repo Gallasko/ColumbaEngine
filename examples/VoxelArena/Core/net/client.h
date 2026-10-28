@@ -43,6 +43,9 @@ namespace arena::net
 
         void leave();
 
+        /** The recipes on this player's spell keys: sent to the server (now, or once joined). */
+        void setSpells(const std::vector<SpellRecipe>& recipes);
+
         enum class State { Connecting, Joining, Playing, Refused, Lost };
         State state = State::Connecting;
         std::string refusal;
@@ -101,5 +104,7 @@ namespace arena::net
             double atMs = -1.0;
         };
         std::map<int, StepSmoothing> steps;
+
+        std::vector<SpellRecipe> spells;
     };
 }

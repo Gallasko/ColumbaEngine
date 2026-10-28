@@ -134,6 +134,19 @@ namespace arena::net
                 break;
             }
 
+            case Msg::Spells:
+            {
+                // The recipes on the player's spell keys: a recipe that makes no spell just does nothing
+                SpellsMsg msg;
+
+                if (not c.joined or not decode(data, msg, names))
+                    return;
+
+                if (Fighter* f = world.find(c.playerId))
+                    world.setSpells(*f, msg.spells);
+                break;
+            }
+
             case Msg::Bye:
             {
                 if (c.joined)
@@ -284,6 +297,9 @@ namespace arena::net
 
         for (const auto& piece : world.terrain.falling)
             base.pieces.push_back({piece.id, piece.drop});
+
+        for (const auto& z : world.zones)
+            base.zones.push_back({z.id, z.element, z.position, z.radius, z.remaining, z.duration});
 
         for (const auto& [peer, c] : clients)
         {

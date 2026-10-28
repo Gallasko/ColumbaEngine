@@ -111,6 +111,8 @@ namespace arena
         tuning = t;
         fighters.clear();
         hits.clear();
+        zones.clear();
+        spellCache.clear();
         time = 0.0f;
         steps = 0;
 
@@ -131,6 +133,7 @@ namespace arena
     {
         content = &c;
         tuning = t;
+        spellCache.clear();   // made from the old keywords
 
         if (rebuildArena)
             buildArena();
@@ -247,6 +250,12 @@ namespace arena
         p.spawnPosition = content->arena.playerSpawn + glm::vec3(side * 1.8f, 0.0f, 0.0f);
         p.spawnYaw = 0.0f;
         p.weapon = content->weapons.count(tuning.startWeapon) ? tuning.startWeapon : (content->weaponOrder.empty() ? "" : content->weaponOrder.front());
+        // The spells to begin with: the tuning's ready-made ones
+        for (const auto& id : tuning.playerSpells)
+            if (auto spell = content->spells.find(id); spell != content->spells.end())
+                p.spells.push_back(spell->second.recipe);
+        p.spells.resize(SPELL_SLOTS);
+
         fighters.push_back(p);
         respawn(fighters.back());
 
@@ -390,6 +399,7 @@ namespace arena
         f.push = glm::vec3(0.0f);
         f.mana = tuning.mana.max;
         f.manaDelay = 0.0f;
+        f.dashCharges = static_cast<float>(tuning.dash.charges);
         f.statuses.clear();
         f.airJumpsUsed = f.airDashesUsed = f.wallLock = 0;
         f.body.position = f.spawnPosition;
@@ -454,6 +464,7 @@ namespace arena
         separate();
         fireProjectiles();
         stepProjectiles();
+        stepZones();
         resolvePendingHits();
         resolveHits();
         terrainFromAttacks();
@@ -462,6 +473,12 @@ namespace arena
 
         time += STEP_SECONDS;
         ++steps;
+    }
+
+    void ArenaWorld::spendDash(Fighter& f)
+    {
+        if (not (infiniteStamina and f.team == Team::Player))
+            f.dashCharges = std::max(0.0f, f.dashCharges - 1.0f);
     }
 
     void ArenaWorld::spendStamina(Fighter& f, float amount)
@@ -667,7 +684,7 @@ namespace arena
         glm::vec3 d = flat(dir);
         d = glm::length(d) > 1e-4f ? glm::normalize(d) : yawForward(f.yaw);
 
-        spendStamina(f, tuning.dodge.cost);
+        spendDash(f);
         event("dodge", f.body.position, 1.0f, f.id);
 
         f.action = Action::Dodge;
@@ -685,7 +702,7 @@ namespace arena
         glm::vec3 d = flat(dir);
         d = glm::length(d) > 1e-4f ? glm::normalize(d) : yawForward(f.yaw);
 
-        spendStamina(f, tuning.air.dashCost);
+        spendDash(f);
         event("air_dash", f.body.position, 1.0f, f.id);
 
         f.action = Action::AirDash;
@@ -803,11 +820,12 @@ namespace arena
         const glm::vec3 aimChain = in.faceCamera ? camForward : (hasWish ? wish : yawForward(f.yaw));
         const Moveset* moveset = movesetOf(f);
         const bool canPay = f.stamina >= tuning.stamina.minToAct;
+        const bool canDash = f.dashCharges >= 1.0f or infiniteStamina;   // a roll or an air dash
         const bool canDodgeHere = f.body.onGround or tuning.dodge.inAir;
 
         // In the air, a dodge is an air dash; about to land, it waits for the landing roll instead
         // (landing within landingRollWindow at this fall speed, or nearer the ground than dashMinHeight)
-        bool canAirDash = f.team == Team::Player and not f.body.onGround and f.airDashesUsed < tuning.air.dashes and canPay and f.dodgeQueuedAge >= 0.0f;
+        bool canAirDash = f.team == Team::Player and not f.body.onGround and f.airDashesUsed < tuning.air.dashes and canDash and f.dodgeQueuedAge >= 0.0f;
 
         if (canAirDash)
         {
@@ -824,7 +842,7 @@ namespace arena
         {
             case Action::Free:
             {
-                if (f.dodgeQueuedAge >= 0.0f and canPay and canDodgeHere)
+                if (f.dodgeQueuedAge >= 0.0f and canDash and canDodgeHere)
                 {
                     startDodge(f, hasWish ? wish : yawForward(f.yaw));
                 }
@@ -847,7 +865,7 @@ namespace arena
                     break;
                 }
 
-                if (f.dodgeQueuedAge >= 0.0f and attack->dodgeCancelFrom >= 0 and f.frame >= attack->dodgeCancelFrom and canPay and canDodgeHere)
+                if (f.dodgeQueuedAge >= 0.0f and attack->dodgeCancelFrom >= 0 and f.frame >= attack->dodgeCancelFrom and canDash and canDodgeHere)
                 {
                     startDodge(f, hasWish ? wish : yawForward(f.yaw));
                 }
@@ -895,7 +913,7 @@ namespace arena
             {
                 // A light hit's stagger is short work: a roll gets out of it after a few frames
                 if (f.action == Action::Stagger and not f.heavyStagger and f.frame >= tuning.player.hitstunDodgeFrom and
-                    f.dodgeQueuedAge >= 0.0f and canPay and canDodgeHere and f.body.onGround)
+                    f.dodgeQueuedAge >= 0.0f and canDash and canDodgeHere and f.body.onGround)
                     startDodge(f, hasWish ? wish : yawForward(f.yaw));
                 else if (f.frame >= f.actionLength)
                     f.action = Action::Free;
@@ -908,7 +926,7 @@ namespace arena
         }
 
         // A buffered press can start right away from the action that just ended
-        if (f.action == Action::Free and f.dodgeQueuedAge >= 0.0f and canPay and canDodgeHere)
+        if (f.action == Action::Free and f.dodgeQueuedAge >= 0.0f and canDash and canDodgeHere)
             startDodge(f, hasWish ? wish : yawForward(f.yaw));
         else if (f.action == Action::Free and f.dodgeQueuedAge >= 0.0f and canAirDash)
             startAirDash(f, hasWish ? wish : yawForward(f.yaw));
@@ -1085,7 +1103,7 @@ namespace arena
 
         if (f.landedSpeed > 0.0f or f.body.mantled)
         {
-            const bool dodgeReady = (f.dodgeQueuedAge >= 0.0f or f.airDodgeAge >= 0.0f) and f.stamina >= tuning.stamina.minToAct;
+            const bool dodgeReady = (f.dodgeQueuedAge >= 0.0f or f.airDodgeAge >= 0.0f) and (f.dashCharges >= 1.0f or infiniteStamina);
             const glm::vec3 rollDir = hasWish ? wish : yawForward(f.yaw);
             f.airDodgeAge = -1.0f;
 
@@ -1116,6 +1134,7 @@ namespace arena
             f.airborneStagger = false;
         regenStamina(f);
         regenMana(f);
+        f.dashCharges = std::min(static_cast<float>(tuning.dash.charges), f.dashCharges + STEP_SECONDS / std::max(0.05f, tuning.dash.recharge));
 
         // A roll that started this step: when its owner pressed it, for the dodge grace
         if (f.action == Action::Dodge and f.frame <= 0)
@@ -1720,6 +1739,14 @@ namespace arena
 
         for (int i = 0; i < InputFrame::ABILITIES; ++i)
         {
+            // A spell key: the player's own spell, cast by the server (a client sees it in the snapshots)
+            if (const int spell = spellSlotAt(i); spell >= 0)
+            {
+                if (authority and f.action == Action::Free and in.abilityPressed[i] and f.abilityCooldown[i] <= 0.0f)
+                    castSpell(f, spell, in, i);
+                continue;
+            }
+
             const AbilityDef* a = ability(i, &f);
 
             // The terrain and spells belong to the server: a client sees them in the next snapshot. A
@@ -1739,14 +1766,7 @@ namespace arena
             if (a->staminaCost > 0.0f and f.stamina < tuning.stamina.minToAct)
                 continue;
 
-            // A spell needs all its mana
-            if (a->manaCost > 0.0f and f.mana < a->manaCost)
-                continue;
-
             bool used = false;
-
-            if (a->kind == "projectile" or a->kind == "bolt")
-                used = castSpell(f, *a, in);
 
             if (a->kind == "attack")
             {
@@ -1842,11 +1862,6 @@ namespace arena
                 spendStamina(f, a->staminaCost);
                 f.abilityCooldown[i] = a->cooldown;
 
-                if (a->manaCost > 0.0f and not (infiniteMana and f.team == Team::Player))
-                {
-                    f.mana -= a->manaCost;
-                    f.manaDelay = tuning.mana.regenDelay;
-                }
 
                 if (a->kind == "wall")
                     event("raise", f.body.position + glm::normalize(glm::vec3(in.aimDir.x, 0.0f, in.aimDir.z) + glm::vec3(1e-4f, 0, 0)) * a->distance, 1.0f, f.id, content->block(a->block));
@@ -1856,69 +1871,316 @@ namespace arena
         }
     }
 
-    bool ArenaWorld::castSpell(Fighter& f, const AbilityDef& a, const InputFrame& in)
+    // --------------------------------------------------------------------------------------------
+    // Spells: a recipe made into stages; each stage's form comes out of the one before it
+    // --------------------------------------------------------------------------------------------
+
+    void ArenaWorld::setSpells(Fighter& f, const std::vector<SpellRecipe>& spells)
     {
+        f.spells = spells;
+        f.spells.resize(SPELL_SLOTS);
+    }
+
+    std::shared_ptr<const Spell> ArenaWorld::spellOf(const SpellRecipe& recipe) const
+    {
+        std::string key = recipe.element;
+        for (const auto& k : recipe.keywords)
+            key += "|" + k;
+
+        auto it = spellCache.find(key);
+
+        if (it != spellCache.end())
+            return it->second;
+
+        auto spell = std::make_shared<const Spell>(compileSpell(*content, recipe));
+        spellCache[key] = spell;
+        return spell;
+    }
+
+    int ArenaWorld::spellSlotAt(int index) const
+    {
+        if (index < 0 or index >= static_cast<int>(tuning.abilities.size()))
+            return -1;
+
+        for (const auto& id : tuning.abilities[index])
+            if (id.rfind("spell:", 0) == 0)
+                return std::atoi(id.c_str() + 6) - 1;
+
+        return -1;
+    }
+
+    bool ArenaWorld::castSpell(Fighter& f, int slot, const InputFrame& in, int abilityIndex)
+    {
+        if (slot < 0 or slot >= static_cast<int>(f.spells.size()))
+            return false;
+
+        const auto spell = spellOf(f.spells[slot]);
+        const bool free = infiniteMana and f.team == Team::Player;
+
+        if (not spell->valid() or spell->stages.empty() or (f.mana < spell->mana and not free))
+            return false;
+
+        if (not free)
+        {
+            f.mana -= spell->mana;
+            f.manaDelay = tuning.mana.regenDelay;
+        }
+
+        f.abilityCooldown[abilityIndex] = spell->cooldown;
+
         const glm::vec3 aim = glm::length(in.aimDir) > 1e-4f ? glm::normalize(in.aimDir) : yawForward(f.yaw);
 
         // The body turns to the spell
         if (glm::length(flat(aim)) > 1e-4f)
             f.yaw = yawOf(flat(aim));
 
-        if (a.element != Element::None)
-            event(std::string(elementName(a.element)) + "_cast", chest(f), 1.0f, f.id);
-
-        if (a.kind == "bolt")
-        {
-            strikeBolt(f, a, in);
-            return true;
-        }
-
-        // From the chest at what the crosshair is on (the camera is behind: aiming its own ray would miss)
-        const glm::vec3 from = chest(f) + glm::vec3(aim.x, 0.0f, aim.z) * 0.5f;
-        const RayHit onto = raycast(grid, content->blockTable, in.aimOrigin, aim, 80.0f);
-        const glm::vec3 point = in.aimOrigin + aim * (onto.hit ? onto.distance : 80.0f);
-        const glm::vec3 dir = glm::length(point - from) > 0.5f ? glm::normalize(point - from) : aim;
-
-        for (int k = 0; k < a.count; ++k)
-        {
-            // A fan, `spread` degrees apart, turned about the vertical
-            const float turn = glm::radians(a.spread * (static_cast<float>(k) - static_cast<float>(a.count - 1) * 0.5f));
-            const glm::vec3 d(dir.x * std::cos(turn) + dir.z * std::sin(turn), dir.y, -dir.x * std::sin(turn) + dir.z * std::cos(turn));
-
-            Projectile p;
-            p.id = nextProjectile++;
-            p.owner = f.id;
-            p.team = f.team;
-            p.source = a.id;
-            p.def = a.projectile;
-            p.position = from;
-            p.velocity = glm::normalize(d) * a.projectile.speed;
-            projectiles.push_back(p);
-        }
-
+        event(std::string(elementName(spell->element)) + "_cast", chest(f), 1.0f, f.id);
+        runStage(spell, 0, chest(f), aim, f.id, f.team, &in);
         return true;
     }
 
-    void ArenaWorld::strikeBolt(Fighter& f, const AbilityDef& a, const InputFrame& in)
+    namespace
     {
-        const glm::vec3 dir = glm::length(in.aimDir) > 1e-4f ? glm::normalize(in.aimDir) : yawForward(f.yaw);
+        /** Copy k of n placed around a point (n > 1): a ring, a little inside the radius. */
+        glm::vec3 copyAt(const glm::vec3& centre, int k, int n, float radius)
+        {
+            if (n <= 1)
+                return centre;
 
-        // Along the crosshair's ray, from beside the caster (not from the camera behind it)
-        const float along = std::max(0.0f, glm::dot(chest(f) - in.aimOrigin, dir));
-        const glm::vec3 start = in.aimOrigin + dir * along;
-        const glm::vec3 hand = chest(f) + glm::vec3(dir.x, 0.0f, dir.z) * 0.4f;
+            const float a = 6.2831853f * static_cast<float>(k) / static_cast<float>(n);
+            return centre + glm::vec3(std::cos(a), 0.0f, std::sin(a)) * radius * 0.9f;
+        }
 
-        const RayHit wall = raycast(grid, content->blockTable, start, dir, a.range);
-        float best = wall.hit ? wall.distance : a.range;
+        /** Copy k of n in a fan about the vertical, `degrees` apart. */
+        glm::vec3 fanned(const glm::vec3& dir, int k, int n, float degrees)
+        {
+            const float turn = glm::radians(degrees * (static_cast<float>(k) - static_cast<float>(n - 1) * 0.5f));
+            return glm::normalize(glm::vec3(dir.x * std::cos(turn) + dir.z * std::sin(turn), dir.y, -dir.x * std::sin(turn) + dir.z * std::cos(turn)));
+        }
+    }
+
+    void ArenaWorld::runStage(const std::shared_ptr<const Spell>& spell, int stage, const glm::vec3& point, const glm::vec3& dir, int owner, Team team, const InputFrame* aim)
+    {
+        if (not spell or stage < 0 or stage >= static_cast<int>(spell->stages.size()))
+            return;
+
+        const SpellStage& st = spell->stages[static_cast<size_t>(stage)];
+        const std::string& shape = st.form.shape;
+        const std::string element = elementName(spell->element);
+        const Fighter* caster = find(owner);
+        const bool first = aim and caster;
+
+        if (shape == "bolt")
+        {
+            glm::vec3 from = point, d = dir;
+
+            // The first: from the chest at what the crosshair is on (the camera is behind: its own ray would miss)
+            if (first)
+            {
+                const glm::vec3 a = glm::normalize(aim->aimDir);
+                from = chest(*caster) + glm::vec3(a.x, 0.0f, a.z) * 0.5f;
+                const RayHit onto = raycast(grid, content->blockTable, aim->aimOrigin, a, 80.0f);
+                const glm::vec3 target = aim->aimOrigin + a * (onto.hit ? onto.distance : 80.0f);
+                d = glm::length(target - from) > 0.5f ? glm::normalize(target - from) : a;
+            }
+
+            for (int k = 0; k < st.count; ++k)
+            {
+                Projectile p;
+                p.id = nextProjectile++;
+                p.owner = owner;
+                p.team = team;
+                p.source = element;
+                p.attack = st.form.id;
+                p.def.enabled = true;
+                p.def.speed = st.speed;
+                p.def.gravity = st.gravity;
+                p.def.radius = st.radius;
+                p.def.lifetime = st.range / std::max(0.5f, st.speed);
+                p.def.damage = st.damage;
+                p.def.poiseDamage = st.poiseDamage;
+                p.def.knockback = st.knockback;
+                p.def.terrainDamage = st.terrainDamage;
+                p.def.hitstop = 3;
+                p.def.element = spell->element;
+                p.def.status = spell->status;
+                p.def.terrainRadius = 1.0f;
+                if (auto m = st.form.model.find(element); m != st.form.model.end())
+                    p.def.model = m->second;
+                p.def.modelScale = st.form.modelScale;
+                p.spell = spell;
+                p.stage = stage;
+                p.position = from;
+                p.velocity = fanned(d, k, st.count, 7.0f) * st.speed;
+                projectiles.push_back(p);
+            }
+        }
+        else if (shape == "beam")
+        {
+            glm::vec3 start = point, hand = point;
+
+            // The first: along the crosshair's ray, from beside the caster
+            if (first)
+            {
+                const glm::vec3 a = glm::normalize(aim->aimDir);
+                start = aim->aimOrigin + a * std::max(0.0f, glm::dot(chest(*caster) - aim->aimOrigin, a));
+                hand = chest(*caster) + glm::vec3(a.x, 0.0f, a.z) * 0.4f;
+            }
+
+            const glm::vec3 a = first ? glm::normalize(aim->aimDir) : dir;
+
+            for (int k = 0; k < st.count; ++k)
+                strikeBeam(spell, stage, start, hand, fanned(a, k, st.count, 5.0f), owner, team);
+        }
+        else if (shape == "nova")
+        {
+            const glm::vec3 centre = first ? chest(*caster) : point;
+            const AttackDef hit = hitOf(st.form.id, st.damage, st.poiseDamage, st.knockback, 3, 0.3f, spell->element, spell->status);
+
+            for (int k = 0; k < st.count; ++k)
+            {
+                const glm::vec3 c = copyAt(centre, k, st.count, st.radius);
+                hitAround(hit, c, st.radius, owner, team, false);
+                elementOnTerrain(spell->element, c, st.radius * 0.6f);
+                event(element + "_nova", c, st.radius, 0, AIR, owner);
+                runStage(spell, stage + 1, c, dir, owner, team, nullptr);
+            }
+        }
+        else if (shape == "zone")
+        {
+            glm::vec3 centre = point;
+
+            // The first: on the ground where the crosshair is, within the form's range
+            if (first)
+            {
+                const glm::vec3 a = glm::normalize(aim->aimDir);
+                const RayHit onto = raycast(grid, content->blockTable, aim->aimOrigin, a, st.range);
+                centre = aim->aimOrigin + a * (onto.hit ? onto.distance : st.range) - a * 0.05f;
+            }
+
+            for (int k = 0; k < st.count; ++k)
+            {
+                glm::vec3 c = copyAt(centre, k, st.count, st.radius);
+
+                // Down onto the ground below
+                const RayHit down = raycast(grid, content->blockTable, c + glm::vec3(0, 0.6f, 0), glm::vec3(0, -1, 0), 10.0f);
+                if (down.hit)
+                    c.y = c.y + 0.6f - down.distance;
+
+                Zone z;
+                z.id = nextZone++;
+                z.owner = owner;
+                z.team = team;
+                z.element = spell->element;
+                z.position = c;
+                z.dir = dir;
+                z.radius = st.radius;
+                z.duration = z.remaining = st.duration;
+                z.damage = st.damage;
+                z.poiseDamage = st.poiseDamage;
+                z.spell = spell;
+                z.stage = stage;
+                zones.push_back(z);
+
+                elementOnTerrain(spell->element, c + glm::vec3(0, 0.3f, 0), st.radius);
+                event(element + "_zone", c, st.radius, 0, AIR, owner);
+            }
+        }
+    }
+
+    void ArenaWorld::hitAround(const AttackDef& hit, const glm::vec3& centre, float radius, int owner, Team team, bool flatArea)
+    {
+        // The caster if still there, else a stand-in at the centre (knockback goes away from the centre)
+        Fighter standIn;
+        standIn.team = team;
+        Fighter* o = find(owner);
+        Fighter& attacker = o ? *o : standIn;
+        const glm::vec3 before = attacker.body.position;
+        const int hitstopBefore = attacker.hitstop;
+
+        for (auto& t : fighters)
+        {
+            if (t.team == team or not t.alive() or t.invulnerable(tuning))
+                continue;
+
+            // A zone: a disc on the ground (feet in it); a nova: a ball
+            const bool inside = flatArea
+                ? glm::length(flat(t.body.position - centre)) <= radius + t.body.width * 0.5f and t.body.position.y > centre.y - 1.0f and t.body.position.y < centre.y + 2.0f
+                : glm::length(chest(t) - centre) <= radius + t.body.width * 0.5f;
+
+            if (not inside)
+                continue;
+
+            glm::vec3 away = flat(t.body.position - centre);
+            away = glm::length(away) > 1e-4f ? glm::normalize(away) : glm::vec3(0, 0, 1);
+            attacker.body.position = t.body.position - away;
+            hitOrDefer(attacker, t, hit, chest(t));
+        }
+
+        attacker.body.position = before;
+        attacker.hitstop = hitstopBefore;   // nobody freezes for a spell landing away from them
+    }
+
+    void ArenaWorld::chainFrom(const AttackDef& hit, Fighter& firstStruck, int chains, int owner, Team team, Element element)
+    {
+        // The nearest not yet struck within 6 m of the last, `chains` times
+        std::vector<int> struck = {firstStruck.id};
+        glm::vec3 from = chest(firstStruck);
+        Fighter standIn;
+        standIn.team = team;
+        Fighter* o = find(owner);
+        Fighter& attacker = o ? *o : standIn;
+        const int hitstopBefore = attacker.hitstop;
+
+        for (int k = 0; k < chains; ++k)
+        {
+            Fighter* next = nullptr;
+            float nearest = 6.0f;
+
+            for (auto& t : fighters)
+            {
+                if (t.team == team or not t.alive() or t.invulnerable(tuning) or std::find(struck.begin(), struck.end(), t.id) != struck.end())
+                    continue;
+
+                const float d = glm::length(chest(t) - from);
+
+                if (d < nearest)
+                {
+                    nearest = d;
+                    next = &t;
+                }
+            }
+
+            if (not next)
+                break;
+
+            struck.push_back(next->id);
+            event(std::string(elementName(element)) + "_beam", from, 1.0f, next->id, AIR, owner);
+            events.back().line = true;
+            events.back().to = chest(*next);
+            from = chest(*next);
+            hitOrDefer(attacker, *next, hit, from);
+        }
+
+        attacker.hitstop = hitstopBefore;
+    }
+
+    void ArenaWorld::strikeBeam(const std::shared_ptr<const Spell>& spell, int stage, const glm::vec3& start, const glm::vec3& hand, const glm::vec3& dir, int owner, Team team)
+    {
+        const SpellStage& st = spell->stages[static_cast<size_t>(stage)];
+        const Fighter* caster = find(owner);
+
+        const RayHit wall = raycast(grid, content->blockTable, start, dir, st.range);
+        float best = wall.hit ? wall.distance : st.range;
         Fighter* first = nullptr;
 
         for (auto& o : fighters)
         {
-            if (o.team == f.team or not o.alive() or o.invulnerable(tuning))
+            if (o.team == team or not o.alive() or o.invulnerable(tuning))
                 continue;
 
-            // Where the caster saw it (lag compensation), grown a little: a bolt is hard to miss by a hair
-            const Body& seen = bodyFor(f, o);
+            // Where the caster saw it (lag compensation), grown a little: a beam is hard to miss by a hair
+            const Body& seen = caster ? bodyFor(*caster, o) : o.body;
             const glm::vec3 lo = seen.boxMin() - glm::vec3(0.3f), hi = seen.boxMax() + glm::vec3(0.3f);
             float t0 = 0.0f, t1 = best;
             bool inside = true;
@@ -1946,65 +2208,71 @@ namespace arena
             }
         }
 
-        const AttackDef hit = hitOf(a.id, a.damage, a.poiseDamage, a.knockback, 2, 0.2f, a.element, a.status);
-        const int hitstopBefore = f.hitstop;
+        const std::string element = elementName(spell->element);
+        const glm::vec3 end = first ? chest(*first) : start + dir * best;
 
-        if (not first)
+        event(element + "_beam", hand, 1.0f, first ? first->id : 0, AIR, owner);
+        events.back().line = true;
+        events.back().to = end;
+
+        if (first)
         {
-            const glm::vec3 end = start + dir * best;
-            event("volt_arc", hand, 1.0f, 0, AIR, f.id);
-            events.back().line = true;
-            events.back().to = end;
+            const AttackDef hit = hitOf(st.form.id, st.damage, st.poiseDamage, st.knockback, 2, 0.2f, spell->element, spell->status);
+            Fighter standIn;
+            standIn.team = team;
+            standIn.body.position = start;
+            Fighter* o = find(owner);
+            Fighter& attacker = o ? *o : standIn;
+            const int hitstopBefore = attacker.hitstop;
+            hitOrDefer(attacker, *first, hit, end);
+            attacker.hitstop = hitstopBefore;   // a beam does not freeze its caster
+            chainFrom(hit, *first, st.chains, owner, team, spell->element);
+        }
+        else if (wall.hit and grid.inBounds(wall.cell.x, wall.cell.y, wall.cell.z))
+        {
+            // Stone does not take volt well (the blocks' "weakness")
+            const BlockId block = grid.get(wall.cell.x, wall.cell.y, wall.cell.z);
+            const float scale = block < content->blockTable.size() ? content->blockTable[block].weakness[static_cast<int>(spell->element)] : 1.0f;
 
-            // Stone does not take it well (the blocks' "weakness")
-            if (wall.hit and grid.inBounds(wall.cell.x, wall.cell.y, wall.cell.z))
-            {
-                const BlockId block = grid.get(wall.cell.x, wall.cell.y, wall.cell.z);
-                const float scale = block < content->blockTable.size() ? content->blockTable[block].weakness[static_cast<int>(a.element)] : 1.0f;
+            if (not terrain.damage(wall.cell, st.terrainDamage * scale))
+                event("chip", end, 1.0f, owner, block);
 
-                if (not terrain.damage(wall.cell, a.terrainDamage * scale))
-                    event("chip", end, 1.0f, f.id, block);
-            }
-
-            return;
+            elementOnTerrain(spell->element, end, 1.0f);
         }
 
-        // The first struck, then the nearest not yet struck within chainRange of the last, `chains` times
-        std::vector<int> struck;
-        Fighter* current = first;
-        glm::vec3 from = hand;
+        // The next form where it struck (out of the wall a little)
+        const glm::vec3 at = first or not wall.hit ? end : end + glm::vec3(wall.normal) * 0.3f;
+        runStage(spell, stage + 1, at, dir, owner, team, nullptr);
+    }
 
-        for (int k = 0; current and k <= a.chains; ++k)
+    void ArenaWorld::stepZones()
+    {
+        for (size_t i = 0; i < zones.size();)
         {
-            struck.push_back(current->id);
-            event("volt_arc", from, 1.0f, current->id, AIR, f.id);
-            events.back().line = true;
-            events.back().to = chest(*current);
-            from = chest(*current);
+            Zone& z = zones[i];
+            z.remaining -= STEP_SECONDS;
+            z.tick -= STEP_SECONDS;
 
-            hitOrDefer(f, *current, hit, from);
-
-            Fighter* next = nullptr;
-            float nearest = a.chainRange;
-
-            for (auto& o : fighters)
+            // Twice a second, whoever stands in it
+            if (z.tick <= 0.0f)
             {
-                if (o.team == f.team or not o.alive() or o.invulnerable(tuning) or std::find(struck.begin(), struck.end(), o.id) != struck.end())
-                    continue;
-
-                const float d = glm::length(chest(o) - from);
-
-                if (d < nearest)
-                {
-                    nearest = d;
-                    next = &o;
-                }
+                z.tick += 0.5f;
+                const StatusHit status = z.spell ? z.spell->status : StatusHit{};
+                const AttackDef hit = hitOf("zone", z.damage * 0.5f, z.poiseDamage * 0.5f, 0.0f, 0, 0.0f, z.element, status);
+                hitAround(hit, z.position, z.radius, z.owner, z.team, true);
             }
 
-            current = next;
-        }
+            if (z.remaining > 0.0f)
+            {
+                ++i;
+                continue;
+            }
 
-        f.hitstop = hitstopBefore;   // a bolt does not freeze its caster
+            // Over: the spell's next form comes out of it
+            const Zone done = z;
+            zones.erase(zones.begin() + static_cast<std::ptrdiff_t>(i));
+            runStage(done.spell, done.stage + 1, done.position + glm::vec3(0, 0.8f, 0), done.dir, done.owner, done.team, nullptr);
+        }
     }
 
     void ArenaWorld::impact(const Projectile& p, const glm::vec3& point, Fighter* struck, const RayHit* wall)
@@ -2065,6 +2333,27 @@ namespace arena
         {
             event(std::string(elementName(p.def.element)) + "_burst", point, std::max(p.def.burst, 0.5f), struck ? struck->id : 0, block, p.owner);
             elementOnTerrain(p.def.element, point, p.def.terrainRadius);
+        }
+
+        // A spell's bolt: its hit jumps on (chain), then the next form comes out of where it landed,
+        // off the wall it struck (bounced), or on through the enemy
+        if (p.spell and p.stage >= 0 and p.stage < static_cast<int>(p.spell->stages.size()))
+        {
+            const SpellStage& st = p.spell->stages[static_cast<size_t>(p.stage)];
+
+            if (struck and st.chains > 0)
+                chainFrom(hit, *struck, st.chains, p.owner, p.team, p.def.element);
+
+            glm::vec3 at = point, dir = flight;
+
+            if (wall)
+            {
+                const glm::vec3 n(wall->normal);
+                at = point + n * 0.3f;
+                dir = glm::length(n) > 0.5f ? glm::reflect(flight, n) : -flight;
+            }
+
+            runStage(p.spell, p.stage + 1, at, dir, p.owner, p.team, nullptr);
         }
     }
 

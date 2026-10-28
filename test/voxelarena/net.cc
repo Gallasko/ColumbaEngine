@@ -481,6 +481,43 @@ TEST(arena_net, statuses_and_mana_reach_the_clients)
     EXPECT_NEAR(s.clientPlayer(a)->mana, s.serverPlayer(a)->mana, 0.5f);   // the player's own mana, for its HUD
 }
 
+TEST(arena_net, a_clients_own_spells_reach_the_server_and_its_zones_come_back)
+{
+    Session s(30.0);
+    auto& a = s.join("a");
+    s.run(40);
+
+    SpellRecipe firebolt;
+    firebolt.element = "fire";
+    firebolt.keywords = {"base:bolt", "base:zone"};
+    a.client->setSpells({firebolt, {}, {}});
+    s.run(10);
+
+    ASSERT_TRUE(s.serverPlayer(a));
+    ASSERT_FALSE(s.serverPlayer(a)->spells.empty());
+    EXPECT_EQ(s.serverPlayer(a)->spells[0], firebolt);
+
+    // Cast at the ground ahead: the server makes the zone, the client draws it
+    int key = -1;
+    for (int i = 0; i < InputFrame::ABILITIES; ++i)
+        if (s.serverWorld.spellSlotAt(i) == 0)
+            key = i;
+    ASSERT_GE(key, 0);
+
+    const glm::vec3 me = s.serverPlayer(a)->body.position;
+    a.input.aimOrigin = me + glm::vec3(0, 1.6f, -2.0f);
+    a.input.aimDir = glm::normalize(me + glm::vec3(0, 0.05f, 7.0f) - a.input.aimOrigin);
+    a.input.abilityPressed[key] = true;
+    s.tick();
+    a.input.abilityPressed[key] = false;
+    s.run(60);
+
+    ASSERT_EQ(s.serverWorld.zones.size(), 1u);
+    ASSERT_EQ(a.world.zones.size(), 1u);
+    EXPECT_EQ(a.world.zones[0].element, Element::Fire);
+    EXPECT_LT(glm::length(a.world.zones[0].position - s.serverWorld.zones[0].position), 0.01f);
+}
+
 TEST(arena_net, terrain_changes_reach_every_client)
 {
     Session s(30.0);

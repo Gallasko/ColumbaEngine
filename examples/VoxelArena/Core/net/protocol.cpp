@@ -13,6 +13,7 @@ namespace arena::net
             "hard_land", "step", "chip", "break", "raise", "dig", "piece_fall", "piece_land",
             "air_jump", "wall_jump", "air_dash", "plunge_land", "fire_cast", "ice_cast", "volt_cast",
             "fire_burst", "ice_burst", "volt_arc", "ignite", "freeze", "status", "leap",
+            "volt_burst", "fire_nova", "ice_nova", "volt_nova", "fire_zone", "ice_zone", "volt_zone", "fire_beam", "ice_beam", "volt_beam",
         };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };
@@ -129,6 +130,12 @@ namespace arena::net
         for (const auto& [id, s] : content.statuses)
             all.insert(id);
 
+        // Spells: their elements and keywords
+        for (const char* e : {"fire", "ice", "volt"})
+            all.insert(e);
+        for (const auto& [id, k] : content.keywords)
+            all.insert(id);
+
         for (const auto& [id, a] : content.abilities)
         {
             all.insert(id);
@@ -211,6 +218,46 @@ namespace arena::net
     std::vector<uint8_t> encodeBye()
     {
         return {static_cast<uint8_t>(Msg::Bye)};
+    }
+
+    // ---- Spells -----------------------------------------------------------------------------------
+
+    std::vector<uint8_t> encode(const SpellsMsg& m, const Names& names)
+    {
+        Writer w;
+        w.u8(static_cast<uint8_t>(Msg::Spells));
+        w.u8(static_cast<uint8_t>(std::min<size_t>(m.spells.size(), 8)));
+
+        for (size_t i = 0; i < m.spells.size() and i < 8; ++i)
+        {
+            const SpellRecipe& r = m.spells[i];
+            w.u16(names.id(r.element));
+            w.u8(static_cast<uint8_t>(std::min<size_t>(r.keywords.size(), 16)));
+            for (size_t k = 0; k < r.keywords.size() and k < 16; ++k)
+                w.u16(names.id(r.keywords[k]));
+        }
+
+        return w.data;
+    }
+
+    bool decode(const std::vector<uint8_t>& data, SpellsMsg& m, const Names& names)
+    {
+        Reader r(data);
+        if (r.u8() != static_cast<uint8_t>(Msg::Spells))
+            return false;
+
+        const uint8_t n = r.u8();
+        for (uint8_t i = 0; i < n and i < 8 and not r.failed; ++i)
+        {
+            SpellRecipe recipe;
+            recipe.element = names.name(r.u16());
+            const uint8_t k = r.u8();
+            for (uint8_t j = 0; j < k and j < 16 and not r.failed; ++j)
+                recipe.keywords.push_back(names.name(r.u16()));
+            m.spells.push_back(recipe);
+        }
+
+        return not r.failed;
     }
 
     // ---- Input ------------------------------------------------------------------------------------
@@ -388,6 +435,7 @@ namespace arena::net
         w.u8(static_cast<uint8_t>(std::clamp(f.wallLock, 0, 255)));
         w.vec3(f.wallNormal);
         w.i8(static_cast<int8_t>(std::clamp(f.chargeSlot, -1, 127)));
+        w.f32(f.dashCharges);
     }
 
     void readFighter(Reader& r, Fighter& f, const Names& names)
@@ -465,6 +513,7 @@ namespace arena::net
         f.wallLock = r.u8();
         f.wallNormal = r.vec3();
         f.chargeSlot = r.i8();
+        f.dashCharges = r.f32();
     }
 
     // ---- Snapshot ---------------------------------------------------------------------------------
@@ -498,6 +547,18 @@ namespace arena::net
         {
             w.u16(static_cast<uint16_t>(m.pieces[i].id));
             w.f32(m.pieces[i].drop);
+        }
+
+        w.u8(static_cast<uint8_t>(std::min<size_t>(m.zones.size(), 64)));
+        for (size_t i = 0; i < m.zones.size() and i < 64; ++i)
+        {
+            const ZoneState& z = m.zones[i];
+            w.u16(static_cast<uint16_t>(z.id));
+            w.u8(static_cast<uint8_t>(z.element));
+            w.vec3(z.position);
+            w.f32(z.radius);
+            w.f32(z.remaining);
+            w.f32(z.duration);
         }
 
         w.u8(static_cast<uint8_t>(std::min<size_t>(m.events.size(), 255)));
@@ -557,6 +618,19 @@ namespace arena::net
             p.id = r.u16();
             p.drop = r.f32();
             m.pieces.push_back(p);
+        }
+
+        const uint8_t zones = r.u8();
+        for (uint8_t k = 0; k < zones and k < 64 and not r.failed; ++k)
+        {
+            ZoneState z;
+            z.id = r.u16();
+            z.element = static_cast<Element>(std::min<uint8_t>(r.u8(), static_cast<uint8_t>(Element::Volt)));
+            z.position = r.vec3();
+            z.radius = r.f32();
+            z.remaining = r.f32();
+            z.duration = r.f32();
+            m.zones.push_back(z);
         }
 
         const uint8_t events = r.u8();

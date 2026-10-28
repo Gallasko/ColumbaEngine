@@ -8,9 +8,11 @@
         "weapon": "base:sword",
         // Abilities on the keys ability1 .. ability8 (Q, E, G, R, 1, 2, 3, 4 by default); "" leaves a slot empty.
         // A slot can be a list: the first one the weapon in hand allows is there (weapon skills).
-        // The terrain on Q E G, the spells on 1 2 3, the weapon's skills on R and 4
+        // The terrain on Q E G, your spells on 1 2 3 ("spell:1"...), the weapon's skills on R and 4
         "abilities": ["base:raise_wall", "base:dig_pit", "base:mine", ["base:shadow_dash", "base:whirlwind"],
-                      "base:fireball", "base:ice_shards", "base:volt", ["base:backflip", "base:leap_slam"]],
+                      "spell:1", "spell:2", "spell:3", ["base:backflip", "base:leap_slam"]],
+        // The spells on 1 2 3 to begin with (ready-made, spells/); the spellbook (B) changes them
+        "spells": ["base:firebolt", "base:ice_shards", "base:chain_lightning"],
         "hand": [0.42, 0.95, 0.3],
 
         "width": 0.6,
@@ -77,7 +79,6 @@
         "recovery": 6,
         "speed": 17,
         "endSpeed": 8,
-        "cost": 20,
         "attackFrom": 15,
         "jumpFrom": 1,
         "inAir": false
@@ -159,11 +160,17 @@
         "wallJumpLockFrames": 10,
         "dashFrames": 10,
         "dashSpeed": 16,
-        "dashCost": 15,
         "dashes": 1,
         "dashMinHeight": 1.5,
         "fastFallGravityScale": 3.0,
         "fastFallMaxSpeed": 55
+    },
+
+    // The roll and the air dash (and the landing roll, and rolling out of a hit) spend a dash charge,
+    // not stamina: `charges` of them, one back every `recharge` seconds
+    "dash": {
+        "charges": 2,
+        "recharge": 1.2
     },
 
     // Spells spend mana, not stamina: casting never stops a roll

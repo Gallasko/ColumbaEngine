@@ -63,6 +63,23 @@ namespace arena
         }
     }
 
+    void Hud::setDashes(float charges, int max)
+    {
+        if (std::fabs(charges - lastDashes) < 0.01f)
+            return;
+
+        lastDashes = charges;
+
+        for (int k = 0; k < static_cast<int>(dashBack.size()); ++k)
+        {
+            const float x = MARGIN + BAR_W + 10.0f + static_cast<float>(k) * 20.0f;
+            const float fill = glm::clamp(charges - static_cast<float>(k), 0.0f, 1.0f);
+            show(dashBack[k], k < max);
+            place(dashFill[k], x, barY(h, 1), 16.0f * fill, BAR_H, k < max and fill > 0.0f);
+            color(dashFill[k], fill >= 1.0f ? glm::vec4(225, 232, 245, 255) : glm::vec4(120, 126, 140, 255));
+        }
+    }
+
     void Hud::setHurt(float amount)
     {
         amount = glm::clamp(amount, 0.0f, 1.0f);
@@ -126,6 +143,16 @@ namespace arena
         // Crosshair: where the terrain abilities aim
         crossH = makeQuad(w * 0.5f - 7.0f, h * 0.5f - 1.0f, 2, 14.0f, 2.0f, glm::vec4(255, 255, 255, 190));
         crossV = makeQuad(w * 0.5f - 1.0f, h * 0.5f - 7.0f, 2, 2.0f, 14.0f, glm::vec4(255, 255, 255, 190));
+
+        // Dash charges: pips right of the stamina bar
+        for (int k = 0; k < 4; ++k)
+        {
+            const float x = MARGIN + BAR_W + 10.0f + static_cast<float>(k) * 20.0f;
+            dashBack.push_back(makeQuad(x, barY(h, 1), 1, 16.0f, BAR_H, PANEL));
+            dashFill.push_back(makeQuad(x, barY(h, 1), 2, 16.0f, BAR_H, glm::vec4(225, 232, 245, 255)));
+            show(dashBack.back(), false);
+            show(dashFill.back(), false);
+        }
 
         // Over the world, under the rest of the HUD
         hurt = makeQuad(0, 0, 0, w, h, glm::vec4(200, 30, 24, 0));

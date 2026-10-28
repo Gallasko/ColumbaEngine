@@ -1,4 +1,5 @@
 #include "content.h"
+#include "spells.h"
 
 #include <algorithm>
 #include <cmath>
@@ -35,7 +36,10 @@ namespace arena
             {"enemy", {"name", "model", "modelScale",
                        "moveset.attacks.*.swing", "moveset.attacks.*.shake", "moveset.attacks.*.turn", "moveset.attacks.*.tell",
                        "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
-            {"ability", {"name", "projectile.model", "projectile.modelScale", "projectile.shake", "attack.swing", "attack.shake", "attack.turn"}},
+            {"keyword", {"name", "model", "modelScale"}},
+            {"element", {"name"}},
+            {"spell", {"name"}},
+            {"ability", {"name", "attack.swing", "attack.shake", "attack.turn"}},
         };
 
         void dropPath(Json& j, const std::vector<std::string>& parts, size_t at)
@@ -715,25 +719,29 @@ namespace arena
                 }
             }
 
-            // Statuses: one file, one entry per status (burning, chilled...)
-            const auto statusesFile = (dir / "statuses.json").string();
-
-            if (fs::exists(statusesFile, ec))
+            // One file, one entry per definition: statuses (burning, chilled...), the elements of spells,
+            // the keywords of spells
+            for (const auto& [kind, name] : std::vector<std::pair<std::string, std::string>>{{"status", "statuses.json"}, {"element", "elements.json"}, {"keyword", "keywords.json"}})
             {
+                const auto file = (dir / name).string();
+
+                if (not fs::exists(file, ec))
+                    continue;
+
                 Json json;
 
-                if (readJsonFile(statusesFile, json, report))
+                if (readJsonFile(file, json, report))
                 {
                     if (not json.isObject())
-                        report.error(statusesFile, json.line, "must be an object of status name -> status");
+                        report.error(file, json.line, "must be an object of " + kind + " name -> " + kind);
                     else
                         for (const auto& kv : json.object)
-                            addRaw(content, "status", resolveId(kv.first, mod.id), mod, statusesFile, kv.second);
+                            addRaw(content, kind, resolveId(kv.first, mod.id), mod, file, kv.second);
                 }
             }
 
             // One definition per file
-            for (const auto& [kind, folder] : std::vector<std::pair<std::string, std::string>>{{"weapon", "weapons"}, {"enemy", "enemies"}, {"ability", "abilities"}})
+            for (const auto& [kind, folder] : std::vector<std::pair<std::string, std::string>>{{"weapon", "weapons"}, {"enemy", "enemies"}, {"ability", "abilities"}, {"spell", "spells"}})
             {
                 for (const auto& path : filesIn(dir / folder, ".json"))
                 {
@@ -1028,6 +1036,150 @@ namespace arena
                 content.report.error(raw.file, raw.data.line, "unknown status \"" + hit.status + "\" (statuses.json)");
         }
 
+        void requireModel(Content& content, const std::string& id, const std::string& file, int line);
+
+        void typeElements(Content& content)
+        {
+            auto& report = content.report;
+
+            for (const auto& [id, raw] : content.raw["element"])
+            {
+                const Json& j = raw.data;
+                Element e = Element::None;
+
+                if (not elementFromName(splitId(id).second, e) or e == Element::None)
+                {
+                    report.error(raw.file, j.line, "element \"" + id + "\": the elements are fire, ice and volt");
+                    continue;
+                }
+
+                checkKeys(j, {"name", "status", "mana"}, raw.file, report, "element " + id);
+
+                ElementDef d;
+                d.element = e;
+                d.name = splitId(id).second;
+                readStr(j, "name", d.name, raw.file, report);
+                readNum(j, "mana", d.mana, raw.file, report);
+                readStatusHit(j, d.status, raw.file, report);
+                resolveStatus(content, d.status, raw);
+                content.elements[e] = d;
+            }
+        }
+
+        void typeKeywords(Content& content)
+        {
+            auto& report = content.report;
+
+            for (const auto& [id, raw] : content.raw["keyword"])
+            {
+                const Json& j = raw.data;
+
+                checkKeys(j, {"kind", "shape", "name", "mana", "manaScale", "cooldown", "speed", "gravity", "radius", "range", "duration", "damage", "poiseDamage",
+                              "knockback", "terrainDamage", "count", "durationScale", "rangeScale", "radiusScale", "damageScale", "chains", "forms", "model", "modelScale"},
+                          raw.file, report, "keyword " + id);
+
+                KeywordDef k;
+                k.id = id;
+                k.name = splitId(id).second;
+                k.shape = k.name;
+
+                std::string kind = "form";
+                readStr(j, "kind", kind, raw.file, report);
+                readStr(j, "name", k.name, raw.file, report);
+                readStr(j, "shape", k.shape, raw.file, report);
+                k.form = kind == "form";
+
+                if (kind != "form" and kind != "modifier")
+                {
+                    report.error(raw.file, j.line, "keyword \"" + id + "\": \"kind\" is \"form\" or \"modifier\"");
+                    continue;
+                }
+
+                if (k.form and k.shape != "bolt" and k.shape != "zone" and k.shape != "nova" and k.shape != "beam")
+                {
+                    report.error(raw.file, j.line, "keyword \"" + id + "\": a form's \"shape\" is bolt, zone, nova or beam");
+                    continue;
+                }
+
+                readNum(j, "mana", k.mana, raw.file, report);
+                readNum(j, "manaScale", k.manaScale, raw.file, report);
+                readNum(j, "cooldown", k.cooldown, raw.file, report);
+                readNum(j, "speed", k.speed, raw.file, report);
+                readNum(j, "gravity", k.gravity, raw.file, report);
+                readNum(j, "radius", k.radius, raw.file, report);
+                readNum(j, "range", k.range, raw.file, report);
+                readNum(j, "duration", k.duration, raw.file, report);
+                readNum(j, "damage", k.damage, raw.file, report);
+                readNum(j, "poiseDamage", k.poiseDamage, raw.file, report);
+                readNum(j, "knockback", k.knockback, raw.file, report);
+                readNum(j, "terrainDamage", k.terrainDamage, raw.file, report);
+                readInt(j, "count", k.count, raw.file, report);
+                readNum(j, "durationScale", k.durationScale, raw.file, report);
+                readNum(j, "rangeScale", k.rangeScale, raw.file, report);
+                readNum(j, "radiusScale", k.radiusScale, raw.file, report);
+                readNum(j, "damageScale", k.damageScale, raw.file, report);
+                readInt(j, "chains", k.chains, raw.file, report);
+                readStringList(j, "forms", k.forms, raw.file, report);
+                readNum(j, "modelScale", k.modelScale, raw.file, report);
+                k.speed = std::max(0.5f, k.speed);
+
+                // Looks: a model per element ({ "fire": "fireball" })
+                if (const Json* models = j.find("model"))
+                {
+                    for (const auto& [element, m] : models->object)
+                    {
+                        if (m.isString() and not m.string.empty())
+                        {
+                            k.model[element] = resolveId(m.string, raw.mod);
+                            requireModel(content, k.model[element], raw.file, m.line);
+                        }
+                    }
+                }
+
+                content.keywords[id] = k;
+            }
+        }
+
+        void typeSpells(Content& content)
+        {
+            auto& report = content.report;
+
+            for (const auto& [id, raw] : content.raw["spell"])
+            {
+                const Json& j = raw.data;
+                checkKeys(j, {"id", "name", "recipe"}, raw.file, report, "spell " + id);
+
+                SpellDef s;
+                s.id = id;
+                s.name = splitId(id).second;
+                readStr(j, "name", s.name, raw.file, report);
+
+                std::vector<std::string> words;
+                readStringList(j, "recipe", words, raw.file, report);
+
+                if (words.empty())
+                {
+                    report.error(raw.file, j.line, "spell \"" + id + "\" needs a \"recipe\": an element, then keywords");
+                    continue;
+                }
+
+                // Keywords named in the mod's namespace
+                s.recipe.element = words[0];
+                for (size_t i = 1; i < words.size(); ++i)
+                    s.recipe.keywords.push_back(resolveId(words[i], raw.mod));
+
+                const Spell compiled = compileSpell(content, s.recipe);
+
+                if (not compiled.valid())
+                {
+                    report.error(raw.file, j.line, "spell \"" + id + "\": " + compiled.error);
+                    continue;
+                }
+
+                content.spells[id] = s;
+            }
+        }
+
         void typeArena(Content& content)
         {
             auto& report = content.report;
@@ -1258,8 +1410,7 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"id", "name", "kind", "block", "staminaCost", "manaCost", "cooldown", "range", "distance", "lifetime", "damage", "rate", "width", "height", "depth",
-                              "projectile", "count", "spread", "chains", "chainRange", "poiseDamage", "knockback", "terrainDamage", "element", "status",
+                checkKeys(j, {"id", "name", "kind", "block", "staminaCost", "cooldown", "range", "distance", "lifetime", "damage", "rate", "width", "height", "depth",
                               "weapons", "attack"},
                           raw.file, report, "ability " + id);
 
@@ -1280,36 +1431,6 @@ namespace arena
                 readInt(j, "width", a.width, raw.file, report);
                 readInt(j, "height", a.height, raw.file, report);
                 readInt(j, "depth", a.depth, raw.file, report);
-                readNum(j, "manaCost", a.manaCost, raw.file, report);
-                readInt(j, "count", a.count, raw.file, report);
-                readNum(j, "spread", a.spread, raw.file, report);
-                readInt(j, "chains", a.chains, raw.file, report);
-                readNum(j, "chainRange", a.chainRange, raw.file, report);
-                readNum(j, "poiseDamage", a.poiseDamage, raw.file, report);
-                readNum(j, "knockback", a.knockback, raw.file, report);
-                readNum(j, "terrainDamage", a.terrainDamage, raw.file, report);
-                readElement(j, a.element, raw.file, report);
-                readStatusHit(j, a.status, raw.file, report);
-                resolveStatus(content, a.status, raw);
-
-                if (const Json* pj = j.find("projectile"))
-                {
-                    readProjectile(*pj, a.projectile, raw.file, report, "the projectile of ability " + id);
-                    resolveStatus(content, a.projectile.status, raw);
-
-                    if (not a.projectile.model.empty())
-                    {
-                        a.projectile.model = resolveId(a.projectile.model, raw.mod);
-                        requireModel(content, a.projectile.model, raw.file, pj->line);
-                    }
-                }
-
-                // The projectile carries the spell's element and status unless it names its own
-                if (a.projectile.element == Element::None)
-                    a.projectile.element = a.element;
-                if (a.projectile.status.status.empty())
-                    a.projectile.status = a.status;
-
                 readStringList(j, "weapons", a.weapons, raw.file, report);
 
                 if (const Json* aj = j.find("attack"))
@@ -1318,26 +1439,17 @@ namespace arena
                         resolveStatus(content, a.attack.status, raw);
                 }
 
-                a.count = std::clamp(a.count, 1, 12);
-                a.chains = std::clamp(a.chains, 0, 12);
-
                 const int kindLine = j.find("kind") ? j.find("kind")->line : j.line;
 
-                if (a.kind != "wall" and a.kind != "pit" and a.kind != "mine" and a.kind != "projectile" and a.kind != "bolt" and a.kind != "attack")
+                if (a.kind != "wall" and a.kind != "pit" and a.kind != "mine" and a.kind != "attack")
                 {
-                    report.error(raw.file, kindLine, "ability \"" + id + "\" needs a \"kind\": wall, pit, mine, projectile, bolt or attack");
+                    report.error(raw.file, kindLine, "ability \"" + id + "\" needs a \"kind\": wall, pit, mine or attack (spells are made of keywords: keywords.json)");
                     continue;
                 }
 
                 if (a.kind == "attack" and not j.find("attack"))
                 {
                     report.error(raw.file, kindLine, "ability \"" + id + "\": a weapon skill needs an \"attack\"");
-                    continue;
-                }
-
-                if (a.kind == "projectile" and not a.projectile.enabled)
-                {
-                    report.error(raw.file, kindLine, "ability \"" + id + "\": a projectile spell needs a \"projectile\"");
                     continue;
                 }
 
@@ -1714,10 +1826,13 @@ namespace arena
 
         typeBlocks(content);
         typeStatuses(content);
+        typeElements(content);
+        typeKeywords(content);
         loadModels(content);
         typeWeapons(content);
         typeEnemies(content);
         typeAbilities(content);
+        typeSpells(content);
         typeArena(content);
 
         if (content.tuning.isNull())

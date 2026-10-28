@@ -11,7 +11,7 @@
 namespace arena::net
 {
     /** Bumped when messages change shape: a client and server of different versions refuse each other. */
-    constexpr uint16_t PROTOCOL_VERSION = 6;
+    constexpr uint16_t PROTOCOL_VERSION = 8;
 
     /** The server sends a snapshot every this many steps (60 / 2 = 30 per second). */
     constexpr int SNAPSHOT_EVERY = 2;
@@ -26,6 +26,7 @@ namespace arena::net
         TerrainDelta,    // server -> client, reliable: blocks and damage that changed
         PieceSpawn,      // server -> client, reliable: a piece of the arena broke off (its cells)
         Bye,             // either way, reliable
+        Spells,          // client -> server, reliable: the recipes on its spell keys
     };
 
     /**
@@ -85,6 +86,21 @@ namespace arena::net
         std::string attack;   // finds the model in its own content
     };
 
+    struct ZoneState
+    {
+        int id = 0;
+        Element element = Element::None;
+        glm::vec3 position = glm::vec3(0.0f);
+        float radius = 0.0f;
+        float remaining = 0.0f;
+        float duration = 0.0f;
+    };
+
+    struct SpellsMsg
+    {
+        std::vector<SpellRecipe> spells;
+    };
+
     struct PieceState
     {
         int id = 0;
@@ -100,6 +116,7 @@ namespace arena::net
         std::vector<Fighter> fighters; // the client's own in full, others in what is needed to draw them
         std::vector<ProjectileState> projectiles;
         std::vector<PieceState> pieces;
+        std::vector<ZoneState> zones;
         std::vector<WorldEvent> events;
     };
 
@@ -134,6 +151,8 @@ namespace arena::net
     std::vector<uint8_t> encode(const WorldInitMsg& m);
     std::vector<uint8_t> encode(const PieceSpawnMsg& m);
     std::vector<uint8_t> encodeBye();
+    std::vector<uint8_t> encode(const SpellsMsg& m, const Names& names);
+    bool decode(const std::vector<uint8_t>& data, SpellsMsg& m, const Names& names);
 
     // Decoders return false for a message that does not read cleanly (it is then ignored)
     bool decode(const std::vector<uint8_t>& data, Hello& m);

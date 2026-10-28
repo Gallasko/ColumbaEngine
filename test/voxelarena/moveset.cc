@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include "Core/content.h"
+#include "Core/spells.h"
 #include "Core/tuning.h"
 #include "Core/world.h"
 
@@ -74,17 +75,63 @@ namespace
             return -1;
         }
 
-        /** Casts the ability in `slot`, aimed from behind the player's head at `target`. */
-        void cast(const std::string& id, const glm::vec3& target)
+        /** Puts a recipe ("fire bolt zone") on spell key 1 and casts it, aimed from behind the player's
+         *  head (or from `origin`) at `target`. */
+        void cast(const std::string& words, const glm::vec3& target, const glm::vec3* origin = nullptr)
         {
-            const int s = slot(id);
-            ASSERT_GE(s, 0) << id;
+            std::vector<std::string> list;
+            std::string w;
+            for (char c : words + " ")
+            {
+                if (c == ' ')
+                {
+                    if (not w.empty())
+                        list.push_back(w);
+                    w.clear();
+                }
+                else
+                {
+                    w += c;
+                }
+            }
+
+            SpellRecipe recipe;
+            std::string error;
+            ASSERT_TRUE(parseRecipe(content, list, recipe, error)) << words << ": " << error;
+            player().spells.resize(ArenaWorld::SPELL_SLOTS);
+            player().spells[0] = recipe;
+
+            const int s = slot("spell:1");
+            ASSERT_GE(s, 0);
+            player().abilityCooldown[s] = 0.0f;
 
             InputFrame in;
             in.abilityPressed[s] = true;
-            in.aimOrigin = player().body.position + glm::vec3(0, 1.6f, -2.0f);
+            in.aimOrigin = origin ? *origin : player().body.position + glm::vec3(0, 1.6f, -2.0f);
             in.aimDir = glm::normalize(target - in.aimOrigin);
             world.step(in);
+        }
+
+        /** Steps until no bolt is in the air (or `most` steps). */
+        void land(int most = 90)
+        {
+            for (int i = 0; i < most and not world.projectiles.empty(); ++i)
+                world.step(InputFrame{});
+        }
+
+        Spell spell(const std::string& words)
+        {
+            std::vector<std::string> list;
+            std::string w;
+            for (char c : words + " ")
+            {
+                if (c == ' ') { if (not w.empty()) list.push_back(w); w.clear(); }
+                else w += c;
+            }
+            SpellRecipe recipe;
+            std::string error;
+            parseRecipe(content, list, recipe, error);
+            return compileSpell(content, recipe);
         }
 
         Fighter* brute(const glm::vec3& at)
@@ -279,21 +326,52 @@ TEST(arena_moves, a_heavy_in_the_air_plunges_and_strikes_where_it_lands)
 
 // ---- Spells -----------------------------------------------------------------------------------
 
-TEST(arena_spells, a_fireball_bursts_burns_and_costs_mana)
+TEST(arena_spells, a_recipe_is_an_element_then_forms_and_the_modifiers_of_each)
+{
+    Arena a;
+    const auto& K = a.content.keywords;
+    const float fire = a.content.elements.at(Element::Fire).mana;
+
+    // fire > bolt > zone: one bolt, one zone
+    const Spell firebolt = a.spell("fire bolt zone");
+    ASSERT_TRUE(firebolt.valid()) << firebolt.error;
+    ASSERT_EQ(firebolt.stages.size(), 2u);
+    EXPECT_NEAR(firebolt.mana, fire + K.at("base:bolt").mana + K.at("base:zone").mana, 0.01f);
+
+    // A modifier changes the last form before it: two bolts, then the zone they each leave is longer.
+    // The zones are paid twice (one per bolt)
+    const Spell twin = a.spell("fire bolt multiply zone extend");
+    ASSERT_TRUE(twin.valid()) << twin.error;
+    EXPECT_EQ(twin.stages[0].count, 2);
+    EXPECT_EQ(twin.stages[1].count, 1);
+    EXPECT_NEAR(twin.stages[1].duration, K.at("base:zone").duration * K.at("base:extend").durationScale, 0.01f);
+    EXPECT_NEAR(twin.stages[0].duration, K.at("base:bolt").duration, 0.01f);   // extend went to the zone, not the bolt
+    EXPECT_NEAR(twin.mana, fire + K.at("base:bolt").mana * K.at("base:multiply").manaScale + (K.at("base:zone").mana + K.at("base:extend").mana) * 2.0f, 0.01f);
+
+    // Not spells
+    EXPECT_FALSE(a.spell("bolt zone").valid());           // no element
+    EXPECT_FALSE(a.spell("fire").valid());                // no form
+    EXPECT_FALSE(a.spell("fire multiply bolt").valid());  // a modifier before any form
+    EXPECT_FALSE(a.spell("fire zone chain").valid());     // chain does not go on a zone
+    EXPECT_FALSE(a.spell("fire bolt frobnicate").valid());
+
+    // The ready-made spells all make spells
+    for (const auto& [id, s] : a.content.spells)
+        EXPECT_TRUE(compileSpell(a.content, s.recipe).valid()) << id;
+}
+
+TEST(arena_spells, a_bolt_burns_whoever_it_hits_and_costs_mana)
 {
     Arena a;
     Fighter* target = a.brute(a.player().body.position + glm::vec3(0, 0, 7.0f));
     ASSERT_TRUE(target);
     const int id = target->id;
-    const AbilityDef& fireball = a.content.abilities.at("base:fireball");
+    const float cost = a.spell("fire bolt").mana;
 
-    a.cast("base:fireball", a.world.find(id)->body.position + glm::vec3(0, 1.0f, 0));
-    EXPECT_NEAR(a.player().mana, a.tuning.mana.max - fireball.manaCost, 0.01f);
+    a.cast("fire bolt", a.world.find(id)->body.position + glm::vec3(0, 1.0f, 0));
+    EXPECT_NEAR(a.player().mana, a.tuning.mana.max - cost, 0.01f);
     ASSERT_EQ(a.world.projectiles.size(), 1u);
-
-    int steps = 0;
-    while (not a.world.projectiles.empty() and steps++ < 60)
-        a.world.step(InputFrame{});
+    a.land();
 
     Fighter& hit = *a.world.find(id);
     EXPECT_TRUE(a.has(hit, "base:burn"));
@@ -305,9 +383,68 @@ TEST(arena_spells, a_fireball_bursts_burns_and_costs_mana)
 
     // Not enough mana: nothing
     a.run(60);
-    a.player().mana = fireball.manaCost - 1.0f;
-    a.cast("base:fireball", a.world.find(id)->body.position + glm::vec3(0, 1.0f, 0));
+    a.player().mana = cost - 1.0f;
+    a.cast("fire bolt", a.world.find(id)->body.position + glm::vec3(0, 1.0f, 0));
     EXPECT_TRUE(a.world.projectiles.empty());
+}
+
+TEST(arena_spells, a_firebolt_leaves_a_burning_zone_where_it_lands)
+{
+    Arena a;
+    const glm::vec3 ground = a.player().body.position + glm::vec3(0, 0, 8.0f);
+    a.cast("fire bolt zone", ground + glm::vec3(0, 0.05f, 0));
+    a.land();
+
+    ASSERT_EQ(a.world.zones.size(), 1u);
+    const Zone z = a.world.zones[0];
+    EXPECT_LT(glm::length(glm::vec2(z.position.x, z.position.z) - glm::vec2(ground.x, ground.z)), 1.0f);
+    EXPECT_NEAR(z.position.y, ground.y, 0.1f);   // on the ground
+
+    // A brute walking into it burns, a little at a time
+    Fighter* b = a.brute(glm::vec3(z.position.x, ground.y, z.position.z));
+    const int id = b->id;
+    a.run(60);
+    EXPECT_LT(a.world.find(id)->health, a.world.find(id)->maxHealth);
+    EXPECT_TRUE(a.has(*a.world.find(id), "base:burn"));
+
+    // Then it is gone
+    a.run(static_cast<int>(z.duration * 60.0f));
+    EXPECT_TRUE(a.world.zones.empty());
+}
+
+TEST(arena_spells, multiply_makes_two_bolts_each_with_its_own_longer_zone)
+{
+    Arena a;
+    a.cast("fire bolt multiply zone extend", a.player().body.position + glm::vec3(0, 0.05f, 9.0f));
+    EXPECT_EQ(a.world.projectiles.size(), 2u);
+    a.land();
+
+    ASSERT_EQ(a.world.zones.size(), 2u);
+    const auto& K = a.content.keywords;
+    EXPECT_NEAR(a.world.zones[0].duration, K.at("base:zone").duration * K.at("base:extend").durationScale, 0.05f);
+    EXPECT_GT(glm::length(a.world.zones[0].position - a.world.zones[1].position), 0.5f);   // apart, from the fan
+}
+
+TEST(arena_spells, each_form_comes_out_of_the_one_before_it)
+{
+    // A bolt bursting into a nova where it lands: the nova hits a brute the bolt itself never touched
+    Arena a;
+    const glm::vec3 p = a.player().body.position;
+    const int beside = a.brute(p + glm::vec3(1.8f, 0, 8.0f))->id;
+    a.cast("fire bolt nova", p + glm::vec3(0, 0.05f, 8.0f));
+    a.land();
+    EXPECT_LT(a.world.find(beside)->health, a.world.find(beside)->maxHealth);
+
+    // A zone ending in a nova: nothing at first, the burst when the zone runs out
+    Arena b;
+    b.cast("volt zone nova enlarge", b.player().body.position + glm::vec3(0, 0.05f, 6.0f));
+    ASSERT_EQ(b.world.zones.size(), 1u);
+    const float duration = b.world.zones[0].duration;
+    b.run(static_cast<int>(duration * 60.0f) - 10);
+    EXPECT_EQ(b.count("volt_nova"), 0);
+    b.world.events.clear();
+    b.run(20);
+    EXPECT_EQ(b.count("volt_nova"), 1);
 }
 
 TEST(arena_spells, fire_sets_planks_alight_and_it_spreads_and_burns_away)
@@ -317,10 +454,8 @@ TEST(arena_spells, fire_sets_planks_alight_and_it_spreads_and_burns_away)
     a.world.grid.fill({14, 1, 15}, {18, 1, 15}, planks);   // a row of planks, five long (one high: nothing falls as it burns)
     a.settle(2);
 
-    a.cast("base:fireball", glm::vec3(16.5f, 1.5f, 15.0f));
-    int steps = 0;
-    while (not a.world.projectiles.empty() and steps++ < 60)
-        a.world.step(InputFrame{});
+    a.cast("fire bolt", glm::vec3(16.5f, 1.5f, 15.0f));
+    a.land();
 
     EXPECT_TRUE(a.world.terrain.isBurning({16, 1, 15}));
     EXPECT_FALSE(a.world.terrain.isBurning({14, 1, 15}));   // not yet: it has to spread there
@@ -336,22 +471,15 @@ TEST(arena_spells, fire_sets_planks_alight_and_it_spreads_and_burns_away)
 TEST(arena_spells, ice_chills_then_freezes_solid)
 {
     Arena a;
-    Fighter* target = a.brute(a.player().body.position + glm::vec3(0, 0, 4.0f));
-    ASSERT_TRUE(target);
-    const int id = target->id;
+    const int id = a.brute(a.player().body.position + glm::vec3(0, 0, 4.0f))->id;
 
-    auto castAndWait = [&]() {
-        a.cast("base:ice_shards", a.world.find(id)->body.position + glm::vec3(0, 1.0f, 0));
-        int steps = 0;
-        while (not a.world.projectiles.empty() and steps++ < 60)
-            a.world.step(InputFrame{});
-    };
+    a.cast("ice bolt multiply", a.world.find(id)->body.position + glm::vec3(0, 1.0f, 0));
+    a.land();
+    EXPECT_EQ(a.stacks(*a.world.find(id), "base:chill"), 2);   // both bolts
 
-    castAndWait();
-    EXPECT_EQ(a.stacks(*a.world.find(id), "base:chill"), 3);   // the three shards of the fan
-
-    a.run(40);   // the cooldown
-    castAndWait();
+    a.run(40);
+    a.cast("ice bolt multiply", a.world.find(id)->body.position + glm::vec3(0, 1.0f, 0));
+    a.land();
     Fighter& frozen = *a.world.find(id);
     EXPECT_TRUE(a.has(frozen, "base:frozen"));
     EXPECT_FALSE(a.has(frozen, "base:chill"));
@@ -371,11 +499,12 @@ TEST(arena_spells, chill_slows_by_its_stacks)
         return a.player().body.velocity.z;
     };
 
-    const float slow = Arena().content.statuses.at("base:chill").slow;
+    const Arena ref;
+    const float slow = ref.content.statuses.at("base:chill").slow;
     EXPECT_NEAR(speedWith(2), speedWith(0) * (1.0f - 2.0f * slow), 0.05f);
 }
 
-TEST(arena_spells, ice_freezes_a_dug_pit_over_until_before_it_fills)
+TEST(arena_spells, an_ice_zone_freezes_a_dug_pit_over_until_before_it_fills)
 {
     Arena a;
     const BlockId stone = a.content.block("base:stone"), ice = a.content.block("base:ice");
@@ -390,35 +519,30 @@ TEST(arena_spells, ice_freezes_a_dug_pit_over_until_before_it_fills)
                 a.world.terrain.digFor({x, y, z}, 10.0f);
     a.settle(2);
 
-    // On the ground at the pit's edge (from chest height a shot cannot reach down into it): the
-    // freeze reaches over the pit
-    a.cast("base:ice_shards", glm::vec3(16.5f, 3.0f, 12.6f));
-    int steps = 0;
-    while (not a.world.projectiles.empty() and steps++ < 60)
-        a.world.step(InputFrame{});
-
-    // Ice in the top cell of the pit's columns: a floor at the ground's level
-    EXPECT_EQ(a.world.grid.get(16, 2, 13), ice);
+    // A zone in the pit (aimed from above it): the ice floors it over at the ground's level
+    const glm::vec3 above(16.5f, 9.0f, 14.5f);
+    a.cast("ice zone", glm::vec3(16.5f, 0.5f, 14.5f), &above);
     EXPECT_EQ(a.world.grid.get(16, 2, 14), ice);
-    EXPECT_EQ(a.world.grid.get(16, 1, 13), AIR);
+    EXPECT_EQ(a.world.grid.get(16, 2, 13), ice);
+    EXPECT_EQ(a.world.grid.get(16, 1, 14), AIR);
 
     // It melts before the pit fills back in, and the pit fills as it should
     a.run(11 * 60);
-    EXPECT_EQ(a.world.grid.get(16, 2, 13), stone);
-    EXPECT_EQ(a.world.grid.get(16, 1, 13), stone);
+    EXPECT_EQ(a.world.grid.get(16, 2, 14), stone);
+    EXPECT_EQ(a.world.grid.get(16, 1, 14), stone);
 }
 
-TEST(arena_spells, volt_chains_through_enemies_and_shocks_them)
+TEST(arena_spells, a_chained_beam_jumps_through_enemies_and_shocks_them)
 {
     Arena a;
     const glm::vec3 p = a.player().body.position;
     std::vector<int> ids;
     for (float z : {6.0f, 10.0f, 14.0f})
         ids.push_back(a.brute(p + glm::vec3(0, 0, z))->id);
-    Fighter* far = a.brute(p + glm::vec3(10, 0, 14));   // too far from the others to be chained
-    const int farId = far->id;
+    const int farId = a.brute(p + glm::vec3(10, 0, 14))->id;   // too far from the others to be chained
 
-    a.cast("base:volt", a.world.find(ids[0])->body.position + glm::vec3(0, 1.0f, 0));
+    a.world.events.clear();
+    a.cast("volt beam chain", a.world.find(ids[0])->body.position + glm::vec3(0, 1.0f, 0));
 
     for (int id : ids)
     {
@@ -428,10 +552,10 @@ TEST(arena_spells, volt_chains_through_enemies_and_shocks_them)
     }
 
     EXPECT_FLOAT_EQ(a.world.find(farId)->health, a.world.find(farId)->maxHealth);
-    EXPECT_EQ(a.count("volt_arc"), 3);
+    EXPECT_EQ(a.count("volt_beam"), 3);
 }
 
-TEST(arena_spells, volt_breaks_stone_and_shrugs_off_armor)
+TEST(arena_spells, a_volt_beam_breaks_stone_and_a_shock_is_shrugged_off_by_armor)
 {
     Arena a;
     const BlockId stone = a.content.block("base:stone");
@@ -439,7 +563,7 @@ TEST(arena_spells, volt_breaks_stone_and_shrugs_off_armor)
     a.world.grid.set(16, 2, 14, stone);
     a.settle(2);
 
-    a.cast("base:volt", glm::vec3(16.5f, 1.5f, 14.0f));
+    a.cast("volt beam", glm::vec3(16.5f, 1.5f, 14.0f));
     a.settle(2);
     EXPECT_EQ(a.world.grid.get(16, 1, 14), AIR);   // 40 x 4 against a hardness of 120
 
@@ -452,7 +576,6 @@ TEST(arena_spells, volt_breaks_stone_and_shrugs_off_armor)
     a.world.applyStatus(*brute, "base:shock");
     EXPECT_EQ(brute->action, Action::Attack);
 }
-
 
 // ---- The dagger --------------------------------------------------------------------------------
 
@@ -581,15 +704,16 @@ TEST(arena_moves, infinite_stamina_and_mana_for_testing)
 
     for (int i = 0; i < 4; ++i)
     {
-        a.cast("base:volt", a.player().body.position + glm::vec3(0, 1, 10));
+        a.cast("volt beam", a.player().body.position + glm::vec3(0, 1, 10));
         a.run(70);
     }
     EXPECT_FLOAT_EQ(a.player().mana, a.tuning.mana.max);
 
-    // Off again: a roll costs
+    // Off again: a roll costs a dash charge
     a.world.infiniteStamina = false;
+    a.run(30);
     a.world.step(roll);
-    EXPECT_LT(a.player().stamina, a.tuning.stamina.max);
+    EXPECT_LT(a.player().dashCharges, static_cast<float>(a.tuning.dash.charges));
 }
 
 TEST(arena_moves, a_roll_jump_lands_back_to_run_speed_quickly)
@@ -656,7 +780,7 @@ TEST(arena_skills, the_weapon_in_hand_decides_the_skills)
 
     a.player().weapon = "testmod:spear";   // no skill for a spear in those slots
     EXPECT_EQ(a.world.ability(r, &a.player()), nullptr);
-    EXPECT_NE(a.world.ability(a.slot("base:fireball"), &a.player()), nullptr);   // spells go with any weapon
+    EXPECT_EQ(a.world.spellSlotAt(a.slot("spell:1")), 0);   // the spell keys are there with any weapon
 }
 
 TEST(arena_skills, a_charged_dash_goes_further_and_hits_harder)
@@ -763,4 +887,37 @@ TEST(arena_skills, a_skill_cancels_the_recovery_of_a_basic_attack)
     const AttackDef& light1 = *ref.content.weapons.at("base:sword").moveset.find("light1");
     EXPECT_EQ(skillAt(light1.startup), "light1");                                   // still swinging: no
     EXPECT_EQ(skillAt(light1.startup + light1.active + 2), "@base:whirlwind");      // in its recovery: yes
+}
+
+TEST(arena_moves, rolls_spend_dash_charges_that_come_back_one_at_a_time)
+{
+    Arena a;
+    InputFrame roll;
+    roll.dodgePressed = true;
+    roll.move = glm::vec2(0, 1);
+    const int charges = a.tuning.dash.charges;
+    ASSERT_GE(charges, 2);
+
+    auto rolls = [&]() {
+        a.world.step(roll);
+        const bool rolled = a.player().action == Action::Dodge;
+        a.run(a.tuning.dodge.frames);
+        return rolled;
+    };
+
+    for (int i = 0; i < charges; ++i)
+        EXPECT_TRUE(rolls()) << i;
+    EXPECT_FALSE(rolls());   // out: the charges refill slower than they went
+    EXPECT_FLOAT_EQ(a.player().stamina, a.tuning.stamina.max);   // no stamina spent
+
+    a.run(static_cast<int>(a.tuning.dash.recharge * 60.0f) + 2);
+    EXPECT_TRUE(rolls());
+
+    // The air dash takes from the same charges
+    a.run(static_cast<int>(a.tuning.dash.recharge * charges * 60.0f) + 2);
+    const float full = a.player().dashCharges;
+    a.lift(9.0f);
+    a.world.step(roll);
+    EXPECT_EQ(a.player().action, Action::AirDash);
+    EXPECT_NEAR(a.player().dashCharges, full - 1.0f, 0.05f);
 }

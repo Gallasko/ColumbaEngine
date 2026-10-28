@@ -122,7 +122,7 @@ namespace arena
             {"freeCursor", {"Left Alt"}}, {"toggleView", {"F", "V"}},
             {"ability1", {"Q"}}, {"ability2", {"E"}}, {"ability3", {"G", "Mouse2"}}, {"ability4", {"R"}},
             {"ability5", {"1"}}, {"ability6", {"2"}}, {"ability7", {"3"}}, {"ability8", {"4"}},
-            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}},
+            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"spellbook", {"B"}},
         };
     }
 
@@ -179,6 +179,7 @@ namespace arena
         worldMesh = std::make_shared<GpuMesh>();
 
         hud.init(ecsRef, masterRenderer, screenW, screenH);
+        spellbook.init(&hud);
 
         masterRenderer->getCamera().setAspectRatio(aspect);
 
@@ -224,6 +225,18 @@ namespace arena
 
             camera.distance = tuning.camera.distance;
             camera.yaw = world.player() ? world.player()->yaw : 0.0f;
+
+            // The spellbook: as it was left, else the tuning's ready-made spells
+            if (not loadSpellbook(spellbookPath(), book))
+                book = SpellbookData{};
+
+            if (book.equipped.empty())
+                for (const auto& id : tuning.playerSpells)
+                    if (auto s = content.spells.find(id); s != content.spells.end())
+                        book.equipped.push_back(s->second.recipe);
+
+            book.equipped.resize(ArenaWorld::SPELL_SLOTS);
+            applySpells();
 
             // First person starts looking ahead, not down at the feet as the orbit camera does
             if (firstPerson)
@@ -413,6 +426,13 @@ namespace arena
         // it here too lost every click that system took first. Its click event comes once per press.
         std::lock_guard<std::mutex> lock(inputMutex);
 
+        // The spellbook takes the clicks while it is open
+        if (bookOpen)
+        {
+            bookClicks.emplace_back(event.pos.x, event.pos.y);
+            return;
+        }
+
         // The click that grants a pending lock (browser, WSL window getting focus) does not attack either
         if (cursorLocked and (not window or window->isCursorCaptured()))
             mousePresses.insert(static_cast<int>(event.button));
@@ -507,7 +527,7 @@ namespace arena
             altHeld = held("freeCursor");
         }
 
-        const bool want = not altHeld and not consoleOpen and not cursorFree;
+        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen;
 
         if (want == cursorLocked)
             return;
@@ -593,8 +613,25 @@ namespace arena
                 continue;
             }
 
+            if (bookOpen)
+            {
+                if (p.scancode == SDL_SCANCODE_ESCAPE or (keyIs(p.scancode, "spellbook") and not spellbook.naming and not p.repeat))
+                    setBookOpen(false);
+                else if (p.scancode == SDL_SCANCODE_BACKSPACE)
+                    bookChanged(spellbook.backspace(book));
+                else if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
+                    bookChanged(spellbook.enter(content, book));
+                continue;
+            }
+
             if (p.repeat)
                 continue;
+
+            if (keyIs(p.scancode, "spellbook"))
+            {
+                setBookOpen(true);
+                continue;
+            }
 
             switch (p.scancode)
             {
@@ -646,6 +683,27 @@ namespace arena
             mousePresses.clear();
         }
 
+        // The spellbook: its clicks and its name field; nothing reaches the game
+        if (bookOpen)
+        {
+            std::vector<glm::vec2> clicks;
+            {
+                std::lock_guard<std::mutex> lock(inputMutex);
+                clicks.swap(bookClicks);
+                stepPresses.clear();
+                mousePresses.clear();
+            }
+
+            if (not text.empty() and spellbook.naming)
+            {
+                spellbook.type(text);
+                bookChanged(false);
+            }
+
+            for (const auto& c : clicks)
+                bookChanged(spellbook.click(c.x, c.y, content, book));
+        }
+
         runQueue();
         simulate(frameSeconds);
         updateCamera(frameSeconds);
@@ -663,9 +721,9 @@ namespace arena
         {
             // The mana bar dims when not even the cheapest spell is affordable
             float cheapest = 1e9f;
-            for (int i = 0; i < InputFrame::ABILITIES; ++i)
-                if (const AbilityDef* a = world.ability(i); a and a->manaCost > 0.0f)
-                    cheapest = std::min(cheapest, a->manaCost);
+            for (const auto& r : book.equipped)
+                if (const auto s = world.spellOf(r); s->valid())
+                    cheapest = std::min(cheapest, s->mana);
 
             hud.setBars(p->health / std::max(1.0f, p->maxHealth), p->stamina / std::max(1.0f, tuning.stamina.max), p->exhausted,
                         p->mana / std::max(1.0f, tuning.mana.max), p->mana < cheapest and cheapest < 1e8f);
@@ -684,6 +742,7 @@ namespace arena
             // The hit flash fades in about a third of a second
             hurtFlash = std::max(0.0f, hurtFlash - frameSeconds * 3.0f);
             hud.setHurt(hurtFlash);
+            hud.setDashes(world.infiniteStamina ? static_cast<float>(tuning.dash.charges) : p->dashCharges, tuning.dash.charges);
 
             hud.setCenter(not p->alive() ? "You fell" : (paused ? "Paused" : ""));
         }
@@ -843,7 +902,8 @@ namespace arena
 
     void ArenaGame::simulate(float frameSeconds)
     {
-        if (not paused)
+        // Paused while the spellbook is open, playing alone (a shared game goes on)
+        if (not paused and not (bookOpen and not networked()))
             accumulator += static_cast<double>(frameSeconds) * timeScale;
 
         int steps = 0;
@@ -861,7 +921,7 @@ namespace arena
             {
                 std::lock_guard<std::mutex> lock(inputMutex);
 
-                if (not consoleOpen)
+                if (not consoleOpen and not bookOpen)
                 {
                     glm::vec2 move(0.0f);
                     move.y += held("forward") ? 1.0f : 0.0f;
@@ -1009,6 +1069,32 @@ namespace arena
         }
     }
 
+    void ArenaGame::applySpells()
+    {
+        if (client)
+            client->setSpells(book.equipped);
+        else if (Fighter* me = world.player())
+            world.setSpells(*me, book.equipped);
+    }
+
+    void ArenaGame::setBookOpen(bool open)
+    {
+        bookOpen = open;
+        spellbook.setOpen(open);
+
+        if (open)
+            spellbook.refresh(content, book);
+    }
+
+    void ArenaGame::bookChanged(bool spellsChanged)
+    {
+        if (spellsChanged)
+            applySpells();
+
+        saveSpellbook(spellbookPath(), book);
+        spellbook.refresh(content, book);
+    }
+
     void ArenaGame::playEvent(const WorldEvent& e)
     {
         // A block set alight burns for `strength` seconds: flames until then (or until it is gone)
@@ -1092,9 +1178,35 @@ namespace arena
         // Timers of statuses gone
         for (auto it = statusTimers.begin(); it != statusTimers.end();)
         {
+            if (it->first.first < 0)
+            {
+                const bool still = std::any_of(world.zones.begin(), world.zones.end(), [&](const Zone& z) { return z.id == -it->first.first; });
+                it = still ? std::next(it) : statusTimers.erase(it);
+                continue;
+            }
+
             const Fighter* f = world.find(it->first.first);
             const bool still = f and std::any_of(f->statuses.begin(), f->statuses.end(), [&](const StatusState& s) { return s.id == it->first.second; });
             it = still ? std::next(it) : statusTimers.erase(it);
+        }
+
+        // Spell zones: their element's particles all over them
+        for (const auto& z : world.zones)
+        {
+            auto look = effects.find(std::string("zone:") + elementName(z.element));
+
+            if (look == effects.end() or look->second.every <= 0.0f or look->second.particles.count <= 0)
+                continue;
+
+            float& timer = statusTimers[{-z.id, "zone"}];
+            timer += frameSeconds;
+
+            while (timer >= look->second.every)
+            {
+                timer -= look->second.every;
+                const float a = unit(lookRng) * 6.2831853f, r = std::sqrt(unit(lookRng)) * z.radius;
+                particles.burst(look->second.particles, z.position + glm::vec3(std::cos(a) * r, 0.1f, std::sin(a) * r), look->second.particles.color);
+            }
         }
 
         // Blocks on fire: flames over them
@@ -1473,23 +1585,34 @@ namespace arena
 
         for (int i = 0; i < InputFrame::ABILITIES; ++i)
         {
+            const std::string key = keyName("ability" + std::to_string(i + 1));
+
+            // A spell key: the book's spell, in its element's colour
+            if (const int slot = world.spellSlotAt(i); slot >= 0)
+            {
+                if (slot >= static_cast<int>(book.equipped.size()))
+                    continue;
+
+                const SpellRecipe& r = book.equipped[static_cast<size_t>(slot)];
+                const auto spell = world.spellOf(r);
+                const bool ready = p and spell->valid() and p->abilityCooldown[i] <= 0.0f and (p->mana >= spell->mana or world.infiniteMana);
+
+                std::string colour = "\\c{220,226,236,255}";
+                if (r.element == "fire") colour = "\\c{255,170,100,255}";
+                if (r.element == "ice") colour = "\\c{170,220,255,255}";
+                if (r.element == "volt") colour = "\\c{255,240,140,255}";
+
+                out += (ready ? colour : "\\c{120,124,134,255}") + std::string("[") + key + "] " + spellName(content, book, r) + "   ";
+                continue;
+            }
+
             const AbilityDef* a = world.ability(i);
 
             if (not a)
                 continue;
 
-            const std::string key = keyName("ability" + std::to_string(i + 1));
-
-            const bool ready = p and p->abilityCooldown[i] <= 0.0f and (a->staminaCost <= 0.0f or p->stamina >= tuning.stamina.minToAct) and
-                               (a->manaCost <= 0.0f or p->mana >= a->manaCost);
-
-            // Spells in their element's colour
-            std::string colour = "\\c{220,226,236,255}";
-            if (a->element == Element::Fire) colour = "\\c{255,170,100,255}";
-            if (a->element == Element::Ice) colour = "\\c{170,220,255,255}";
-            if (a->element == Element::Volt) colour = "\\c{255,240,140,255}";
-
-            out += (ready ? colour : "\\c{120,124,134,255}") + std::string("[") + key + "] " + a->name + "   ";
+            const bool ready = p and p->abilityCooldown[i] <= 0.0f and (a->staminaCost <= 0.0f or p->stamina >= tuning.stamina.minToAct);
+            out += (ready ? "\\c{220,226,236,255}" : "\\c{120,124,134,255}") + std::string("[") + key + "] " + a->name + "   ";
         }
 
         return out;
@@ -1803,6 +1926,23 @@ namespace arena
             }
         }
 
+        // Spell zones: a disc on the ground in the element's colour (effects.json "zone:<element>"), fading at the end
+        for (const auto& z : world.zones)
+        {
+            auto look = effects.find(std::string("zone:") + elementName(z.element));
+            const glm::vec3 tint = look != effects.end() and look->second.hasTint ? look->second.tint : glm::vec3(1.0f);
+            const float fade = glm::clamp(z.remaining / 0.6f, 0.0f, 1.0f) * glm::clamp((z.duration - z.remaining) / 0.2f + 0.3f, 0.0f, 1.0f);
+            const float side = z.radius * 2.0f * 0.92f;
+
+            // An octagon of four turned squares
+            for (int k = 0; k < 4; ++k)
+            {
+                const glm::mat4 m = glm::translate(glm::mat4(1.0f), z.position + glm::vec3(0, 0.03f + 0.004f * static_cast<float>(k), 0)) * rotY(22.5f * static_cast<float>(k)) *
+                                    glm::scale(glm::mat4(1.0f), glm::vec3(side, 0.03f, side)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0, -0.5f));
+                pushInstance(danger, view, m, glm::vec4(tint, 0.1f * fade), glm::vec4(0.0f));
+            }
+        }
+
         add(boxMesh, debugMaterial, OpacityType::Normal, std::move(trail));
         add(boxMesh, debugMaterial, OpacityType::Normal, std::move(danger));
 
@@ -2026,7 +2166,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -2126,6 +2266,59 @@ namespace arena
 
         if (cmd == "players")
             return netStatus();
+
+        // Spells: the player's own, so a client may change them too
+        if (cmd == "spellbook")
+        {
+            setBookOpen(not bookOpen);
+            return "";
+        }
+
+        if (cmd == "spells")
+        {
+            std::string out;
+            for (size_t i = 0; i < book.equipped.size(); ++i)
+            {
+                const auto s = world.spellOf(book.equipped[i]);
+                out += "[" + std::to_string(i + 1) + "] " + spellName(content, book, book.equipped[i]) + ": " + recipeText(content, book.equipped[i]) +
+                       (s->valid() ? "  (" + fmt(s->mana, 0) + " mana)\n" : "  (" + s->error + ")\n");
+            }
+
+            out += "ready-made:";
+            for (const auto& [id, s] : content.spells)
+                out += " " + id;
+            out += "\nkeywords:";
+            for (const auto& [id, k] : content.keywords)
+                out += " " + k.name;
+            return out;
+        }
+
+        if (cmd == "spell")
+        {
+            if (args.size() < 3)
+                return "spell <1-3> <element> <keywords...> (spell 1 fire bolt zone), or spell <1-3> <ready-made id>";
+
+            const int slot = std::atoi(args[1].c_str()) - 1;
+
+            if (slot < 0 or slot >= static_cast<int>(book.equipped.size()))
+                return "spell: the keys are 1 to " + std::to_string(book.equipped.size());
+
+            SpellRecipe recipe;
+            std::string error;
+
+            if (auto s = content.spells.find(resolveId(args[2], "base")); s != content.spells.end() and args.size() == 3)
+            {
+                recipe = s->second.recipe;
+            }
+            else if (not parseRecipe(content, std::vector<std::string>(args.begin() + 2, args.end()), recipe, error))
+            {
+                return "spell: " + error;
+            }
+
+            book.equipped[static_cast<size_t>(slot)] = recipe;
+            bookChanged(true);
+            return "[" + args[1] + "] " + recipeText(content, recipe) + "  (" + fmt(world.spellOf(recipe)->mana, 0) + " mana): " + describe(content, *world.spellOf(recipe));
+        }
 
         // The ECS pass pacer (see execute): N passes per rendered frame, or off (free running, or capped)
         if (cmd == "pacer")

@@ -193,7 +193,8 @@ TEST(arena_world, the_dodge_is_invulnerable_then_not)
 
     EXPECT_EQ(safeFrames, a.tuning.dodge.iframeEnd - a.tuning.dodge.iframeStart);
     EXPECT_EQ(a.player().action, Action::Free);
-    EXPECT_LT(a.player().stamina, a.tuning.stamina.max);
+    EXPECT_LT(a.player().dashCharges, static_cast<float>(a.tuning.dash.charges));   // a charge spent, no stamina
+    EXPECT_FLOAT_EQ(a.player().stamina, a.tuning.stamina.max);
 }
 
 TEST(arena_world, three_light_presses_make_the_three_hit_combo)
@@ -312,13 +313,18 @@ TEST(arena_world, stamina_runs_out_and_comes_back)
 {
     Arena a;
 
-    for (int i = 0; i < 12; ++i)
+    // A long sprint
+    InputFrame sprint;
+    sprint.sprintHeld = true;
+    sprint.move = glm::vec2(0, 1);
+    const int seconds = static_cast<int>(a.tuning.stamina.max / a.tuning.stamina.sprintCost) + 2;
+    for (int i = 0; i < seconds * 60; ++i)
     {
-        a.world.step(a.press(&InputFrame::dodgePressed));
-        a.run(a.tuning.dodge.frames);
+        sprint.move = glm::vec2(0, (i / 60) % 2 == 0 ? 1.0f : -1.0f);   // back and forth, inside the arena
+        a.world.step(sprint);
     }
 
-    EXPECT_LT(a.player().stamina, a.tuning.dodge.cost);
+    EXPECT_TRUE(a.player().exhausted);
 
     a.run(60 * 6);
     EXPECT_FLOAT_EQ(a.player().stamina, a.tuning.stamina.max);

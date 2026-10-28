@@ -1,0 +1,2 @@
+// Ready-made: a wide, long field of cold where you aim.
+{ "name": "Glacier", "recipe": ["ice", "zone", "enlarge", "extend"] }

@@ -1,0 +1,8 @@
+// The elements of spells: every spell starts with one. It decides what the spell leaves on whoever it
+// hits (a status, statuses.json) and what it does to the arena: fire sets planks and rope alight, ice
+// freezes dug pits over, volt breaks stone (the blocks' "weakness"). mana: what it adds to the cost.
+{
+    "fire": { "name": "Fire", "status": "burn",  "mana": 4 },
+    "ice":  { "name": "Ice",  "status": "chill", "mana": 3 },
+    "volt": { "name": "Volt", "status": "shock", "mana": 5 }
+}

@@ -24,6 +24,7 @@
 #include "Core/world.h"
 
 #include "Core/effects.h"
+#include "spellbook.h"
 
 #include "gpumesh.h"
 #include "hud.h"
@@ -261,6 +262,15 @@ namespace arena
         std::mt19937 lookRng{7};
 
         float hurtFlash = 0.0f;   // the screen's red wash when the player is hit, fading
+
+        // The spells: the book (what is on the keys, what is saved) and its screen (B)
+        SpellbookData book;
+        Spellbook spellbook;
+        bool bookOpen = false;
+        std::vector<glm::vec2> bookClicks;   // clicks while it is open (input thread -> game)
+        void setBookOpen(bool open);
+        void applySpells();                  // the book's spells onto the player (or to the server)
+        void bookChanged(bool spellsChanged);
 
         // Limbs: a walk cycle per fighter
         struct Gait

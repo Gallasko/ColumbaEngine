@@ -43,6 +43,22 @@
     "burning":    {                        "particles": { "count": 2,  "speed": 0.8, "up": 1.0, "size": 0.12, "life": 0.6,  "gravity": -3, "color": [255, 130, 40] } },
     "freeze":     { "sound": "freeze",     "particles": { "count": 20, "speed": 2,   "up": 0.7, "size": 0.1,  "life": 0.7,  "gravity": 4,  "color": [220, 245, 255] } },
 
+    "volt_burst": { "sound": "volt",       "particles": { "count": 14, "speed": 4,   "up": 0.4, "size": 0.06, "life": 0.2,  "gravity": 0,  "color": [255, 250, 170] } },
+    "fire_nova":  { "sound": "fire_burst", "particles": { "count": 50, "speed": 7,   "up": 0.3, "size": 0.16, "life": 0.5,  "gravity": -1, "color": [255, 140, 40] }, "shake": 0.3 },
+    "ice_nova":   { "sound": "freeze",     "particles": { "count": 46, "speed": 7,   "up": 0.3, "size": 0.12, "life": 0.6,  "gravity": 6,  "color": [210, 240, 255] }, "shake": 0.2 },
+    "volt_nova":  { "sound": "volt",       "particles": { "count": 46, "speed": 8,   "up": 0.3, "size": 0.07, "life": 0.3,  "gravity": 0,  "color": [255, 250, 170] }, "shake": 0.25 },
+    "fire_zone":  { "sound": "ignite" },
+    "ice_zone":   { "sound": "freeze" },
+    "volt_zone":  { "sound": "volt" },
+    "fire_beam":  { "sound": "fire_cast",  "particles": { "count": 40, "speed": 0.6, "up": 0.5, "size": 0.1,  "life": 0.3,  "gravity": -2, "color": [255, 150, 50] },  "along": true },
+    "ice_beam":   { "sound": "ice_cast",   "particles": { "count": 40, "speed": 0.5, "up": 0.0, "size": 0.08, "life": 0.4,  "gravity": 2,  "color": [210, 240, 255] }, "along": true },
+    "volt_beam":  { "sound": "volt",       "particles": { "count": 48, "speed": 0.9, "up": 0.0, "size": 0.09, "life": 0.28, "gravity": 0,  "color": [255, 250, 170] }, "along": true },
+
+    // How a spell's zone looks, by element: the disc's tint, and particles over it every so often
+    "zone:fire":   { "tint": [255, 110, 30],  "every": 0.04, "particles": { "count": 1, "speed": 0.6, "up": 1.0, "size": 0.12, "life": 0.6, "gravity": -3, "color": [255, 140, 40] } },
+    "zone:ice":    { "tint": [150, 210, 255], "every": 0.07, "particles": { "count": 1, "speed": 0.3, "up": 1.0, "size": 0.08, "life": 0.9, "gravity": -0.5, "color": [230, 245, 255] } },
+    "zone:volt":   { "tint": [255, 240, 120], "every": 0.05, "particles": { "count": 1, "speed": 2.0, "up": 0.6, "size": 0.05, "life": 0.15, "gravity": 0, "color": [255, 250, 180] } },
+
     "base:burn":   { "tint": [255, 120, 40],  "every": 0.12, "particles": { "count": 2, "speed": 0.8, "up": 1.0, "size": 0.1, "life": 0.5, "gravity": -3, "color": [255, 140, 40] } },
     "base:chill":  { "tint": [140, 200, 255], "every": 0.35, "particles": { "count": 1, "speed": 0.4, "up": 0.0, "size": 0.07, "life": 0.6, "gravity": 2, "color": [230, 245, 255] } },
     "base:frozen": { "tint": [215, 240, 255] },

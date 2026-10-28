@@ -46,10 +46,11 @@ namespace arena
         f("air.wallJumpHeight", air.wallJumpHeight);
         f("air.wallReach", air.wallReach);
         f("air.dashSpeed", air.dashSpeed);
-        f("air.dashCost", air.dashCost);
         f("air.dashMinHeight", air.dashMinHeight);
         f("air.fastFallGravityScale", air.fastFallGravityScale);
         f("air.fastFallMaxSpeed", air.fastFallMaxSpeed);
+
+        f("dash.recharge", dash.recharge);
 
         f("mana.max", mana.max);
         f("mana.regen", mana.regen);
@@ -68,7 +69,6 @@ namespace arena
 
         f("dodge.speed", dodge.speed);
         f("dodge.endSpeed", dodge.endSpeed);
-        f("dodge.cost", dodge.cost);
 
         f("camera.distance", camera.distance);
         f("camera.minDistance", camera.minDistance);
@@ -127,6 +127,7 @@ namespace arena
         f("air.wallJumpLockFrames", air.wallJumpLockFrames);
         f("air.dashFrames", air.dashFrames);
         f("air.dashes", air.dashes);
+        f("dash.charges", dash.charges);
 
         f("dodge.frames", dodge.frames);
         f("dodge.iframeStart", dodge.iframeStart);
@@ -280,6 +281,11 @@ namespace arena
         {
             t.playerModel = player->str("model", t.playerModel);
             t.startWeapon = player->str("weapon", t.startWeapon);
+
+            if (const Json* list = player->find("spells"))
+                for (const auto& e : list->array)
+                    if (e.isString())
+                        t.playerSpells.push_back(e.string);
 
             if (const Json* list = player->find("abilities"))
             {

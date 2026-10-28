@@ -34,6 +34,9 @@ namespace arena
         void setBars(float health, float stamina, bool exhausted, float mana = 1.0f, bool manaLow = false);
         void setCrosshair(bool visible);
 
+        /** The dash charges: a pip each by the stamina bar, the one refilling partly drawn. */
+        void setDashes(float charges, int max);
+
         /** A red wash over the screen, 0 (none) to 1: being hit. */
         void setHurt(float amount);
 
@@ -47,14 +50,17 @@ namespace arena
         };
         void setEnemyBars(const std::vector<EnemyBar>& bars);
 
-    private:
+        // The 2D pieces, for other screens built the same way (the spellbook). Colours are 0-255
         pg::_unique_id makeQuad(float x, float y, float z, float w, float h, const glm::vec4& color);
         pg::_unique_id makeText(float x, float y, float z, const std::string& font, const std::string& text, float scale, const glm::vec4& color);
         void place(pg::_unique_id id, float x, float y, float w, float h, bool visible);
         void color(pg::_unique_id id, const glm::vec4& c);
         void text(pg::_unique_id id, const std::string& t);
         void show(pg::_unique_id id, bool visible);
+        float width() const { return w; }
+        float height() const { return h; }
 
+    private:
         pg::EntitySystem* ecs = nullptr;
         float w = 1280.0f, h = 720.0f;
 
@@ -64,6 +70,8 @@ namespace arena
         pg::_unique_id healthBack = 0, healthFill = 0, staminaBack = 0, staminaFill = 0, manaBack = 0, manaFill = 0;
         pg::_unique_id crossH = 0, crossV = 0;
         pg::_unique_id hurt = 0;
+        std::vector<pg::_unique_id> dashBack, dashFill;
+        float lastDashes = -1.0f;
         float lastHurt = -1.0f;
         bool lastCrosshair = true;
 

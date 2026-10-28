@@ -1,0 +1,2 @@
+// Ready-made: two bolts, each leaving a long-lasting burning zone.
+{ "name": "Twin embers", "recipe": ["fire", "bolt", "multiply", "zone", "extend"] }

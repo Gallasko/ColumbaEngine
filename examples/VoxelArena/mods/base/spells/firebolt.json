@@ -1,0 +1,2 @@
+// Ready-made: a bolt that leaves a burning zone where it lands.
+{ "name": "Firebolt", "recipe": ["fire", "bolt", "zone"] }

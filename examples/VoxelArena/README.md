@@ -13,7 +13,7 @@ cd release
 make -j18 VoxelArena VoxelArenaServer test_voxelarena
 cd ..
 ./release/VoxelArena            # or ./make_and_play.sh VoxelArena
-./release/test_voxelarena       # 120 tests, about half a second
+./release/test_voxelarena       # 126 tests, about half a second
 ```
 
 The game reads its mods and its shader straight from the source tree (`examples/VoxelArena/mods`,
@@ -47,7 +47,8 @@ Options:
 | Q | Raise a wall of earth in front of you |
 | E | Dig a pit where the crosshair is |
 | G / middle mouse (hold) | Mine the block under the crosshair |
-| 1, 2, 3 | Spells, at the crosshair: fireball, ice shards, volt |
+| 1, 2, 3 | Your spells, at the crosshair (firebolt, ice shards, chain lightning to begin with) |
+| B | The spellbook: build your spells |
 | R, 4 | The weapon's skills (dagger: shadow dash, hold to charge, and backflip; sword: whirlwind and leap slam) |
 | F1 | Debug overlay |
 | F2 | Hitboxes (red: active, orange: winding up) and hurtboxes (green, blue while invulnerable) |
@@ -59,8 +60,11 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
 
 ## How a fight works
 
-- **Stamina** pays for rolls, attacks and sprinting. It refills after a short delay. Hitting zero
+- **Stamina** pays for attacks, skills and sprinting. It refills after a short delay. Hitting zero
   makes you *exhausted*: no sprint, slower refill.
+- **Dash charges** pay for the roll and the air dash (and the landing roll, and rolling out of a
+  hit): 2 of them, the pips by the stamina bar, one back every 1.2 s (the `dash` section of the
+  tuning). Rolling never costs stamina.
 - **The dodge roll** covers about 4.5 m and has invulnerable frames (16 of its 27 frames by default).
   You can roll through enemies while invulnerable.
 - **Movement help**, all in the `player` section of the tuning:
@@ -103,14 +107,28 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
 - **Attacks on the move**: a light press while sprinting (or just after) is the *dash attack*, a long
   lunging thrust. In the air, light is the *air slash* (it catches your fall for a moment) and heavy
   is the *plunge*: a short hang, a dive, and a strike all around where you land.
-- **Spells** cost **mana** (the blue bar; it refills after a short delay, so casting never stops a
-  roll) and aim with the crosshair:
-  - *Fireball*: bursts where it lands, hitting and burning everyone close. Planks and rope catch fire,
-    the fire spreads along them, and what burns is gone. The boulder trap hangs from a rope.
-  - *Ice shards*: three in a fan. Each one chills (slower, stacking); four stacks freeze solid (no
-    rolling out). Shot by a dug pit, they freeze it over: a floor to cross until it melts.
-  - *Volt*: an instant bolt that jumps to up to three more enemies close by, and shocks each one (a
-    short interrupt that an armored attack shrugs off). Stone breaks under it.
+- **Spells** are yours to make: an element, then keywords. `Fire > Bolt > Zone` is a bolt that
+  leaves a burning zone where it lands; `Fire > Bolt > Multiply > Zone > Extend` is two bolts, each
+  leaving a longer zone.
+  - *Forms* are the shapes a spell takes: *bolt* (a shot), *zone* (an area on the ground that hurts
+    whoever stands in it), *nova* (a burst all around), *beam* (an instant strike along the aim). The
+    first form leaves from you; each one after comes out of the one before it: where a bolt lands,
+    where a beam strikes, where a nova bursts, where a zone runs out.
+  - *Modifiers* always change the last form before them: *multiply* (two of it), *extend* (it lasts
+    or reaches further), *enlarge* (bigger), *chain* (its hit jumps on to two more enemies; bolts and
+    beams), *empower* (harder).
+  - *The element* decides what it leaves on whoever it hits and what it does to the arena. Fire
+    burns, and sets planks and rope alight: the fire spreads along them, and what burns is gone (the
+    boulder trap hangs from a rope). Ice chills (slower, stacking; four stacks freeze solid), and
+    freezes a dug pit over, a floor to cross until it melts. Volt shocks (a short interrupt that an
+    armored attack shrugs off), and breaks stone.
+  - *Mana* (the blue bar) pays for them, from the recipe: each keyword adds to the cost, a modifier
+    can multiply its form's, and a form is paid once per copy of it (two bolts that each leave a
+    zone pay for two zones). Casting never stops a roll.
+- **The spellbook** (B) builds them: pick a key (1, 2, 3), then click an element, forms and
+  modifiers; what cannot follow is greyed out, and the cost and what it does show as you build. Save
+  it to your book with a name, or pick a ready-made spell. The book is kept in
+  `~/.local/share/voxelarena/spellbook.json`. Playing alone, the game waits while it is open.
 - **Weapon skills** come with the weapon in hand, on R and 4, and cost stamina and a cooldown (no
   mana), from a standstill or out of the recovery of a basic attack (a combo can end in one). Dagger: *shadow dash*, held to charge (up to 0.75 s: further and up to 2.5 times the
   damage), released to dash through; *backflip*, a kick that flips you up and away. Sword:
@@ -296,7 +314,10 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 |---|---|---|
 | `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable`, `flammable`, `weakness` | `mymod:<key>` |
 | `statuses.json` | statuses: `duration`, `damagePerSecond`, `slow`, `maxStacks`, `atMax`, `stagger`, `heavy` | `mymod:<key>` |
-| `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine), a spell (projectile, bolt) or a weapon skill (attack) | `mymod:<name>` |
+| `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a weapon skill (attack) | `mymod:<name>` |
+| `elements.json` | the elements of spells: `name`, `status`, `mana` (fire, ice, volt) | `mymod:<key>` |
+| `keywords.json` | the keywords of spells: forms (`shape`: bolt, zone, nova, beam) and modifiers | `mymod:<key>` |
+| `spells/<name>.json` | a ready-made spell: `name`, `recipe` (`["fire", "bolt", "zone"]`) | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
 | `enemies/<name>.json` | an enemy: stats, moveset, script, params | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
@@ -355,12 +376,13 @@ A weapon has a `type` (`dagger`, `sword`...). A weapon skill is an ability with 
 an `attack` like a moveset's, and `weapons`, the types it works with. A slot of `player.abilities` can
 be a list, `["base:shadow_dash", "base:whirlwind"]`: the first one the weapon in hand allows is there.
 
-A spell is an ability with `"kind": "projectile"` (a `projectile` object as for an enemy's shot, plus
-`burst`, a radius that hits everyone close, and `terrainRadius`, how far fire or ice reaches into
-the arena; `count` and `spread` make a fan) or `"kind": "bolt"` (`range`, `damage`, `chains`,
-`chainRange`). `manaCost`, `element` and `status` go on the spell. What it looks like is the
-client's: a status's tint and particles are the entry named after it in `effects.json`, and
-`"along": true` spreads an effect's particles along a line (the volt arc).
+A spell keyword (`keywords.json`, the header comment explains every field) is a form, with its
+numbers (`speed`, `radius`, `range`, `duration`, `damage`...), or a modifier, with the multipliers it
+applies to its form (`count`, `durationScale`, `radiusScale`...) and the forms it can follow. Both
+add `mana` and `cooldown`; a modifier's `manaScale` multiplies its form's cost. A mod adds a keyword
+and every player can use it in their spells at once. What spells look like is the client's: a
+bolt's `model` by element on its keyword, a zone's tint and particles in `effects.json` (`zone:fire`),
+a status's under its id (`base:burn`), and `"along": true` spreads an effect along a line (a beam).
 
 ### Enemy scripts
 
@@ -402,11 +424,13 @@ Open with `` ` ``. `help` lists the commands.
 | `weapon <id>`, `weapons` | Wield a weapon; list them |
 | `view [first|third]` | Switch the camera |
 | `god`, `ai`, `hitboxes`, `overlay` | Toggles |
-| `stamina [on\|off]`, `mana [on\|off]` | Infinite stamina, infinite mana for the players (for testing moves and spells) |
+| `stamina [on\|off]`, `mana [on\|off]` | Infinite stamina (and dash charges), infinite mana for the players (for testing moves and spells) |
 | `pause`, `step [n]`, `slowmo <x>` | Freeze, advance n frames, change the speed (frame data checks) |
 | `place x y z <block>`, `fill x0 y0 z0 x1 y1 z1 <block>` | Edit the arena (`air` digs) |
 | `mods`, `errors`, `warnings` | What is loaded, what went wrong |
 | `players` | Who is in the game, and the round trip to the server |
+| `spell <1-3> <recipe>` | Put a spell on a key: `spell 1 fire bolt multiply zone extend`, or a ready-made id: `spell 2 frost_nova` |
+| `spells`, `spellbook` | The spells on the keys, the ready-made ones and the keywords; open the spellbook |
 | `pacer [n\|off [fps]]` | The engine's update pacing: n updates per drawn frame (2 by default), or off (as fast as it can, or capped at fps) |
 
 Scripted input, for tests and for checking frame data: `mouse off` (ignore the real mouse), `press <action>`, `hold <action> <frames>`,

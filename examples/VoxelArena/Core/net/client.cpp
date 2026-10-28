@@ -87,6 +87,10 @@ namespace arena::net
                     lastSnapshotTick = w.tick;
                     lastSnapshotAt = nowMs;
                     state = State::Playing;
+
+                    // The player's own spells, which the server does not know yet
+                    if (not spells.empty())
+                        transport.send(0, encode(SpellsMsg{spells}, names), true);
                     break;
                 }
 
@@ -233,6 +237,7 @@ namespace arena::net
         me->hitThisSwing = keep.hitThisSwing;
         me->aimDir = keep.aimDir;
         me->stepOffset = keep.stepOffset;   // only looks: the server does not send it
+        me->spells = keep.spells;           // this player's own choice: not in the snapshots
 
         while (not pending.empty() and pending.front().seq <= ackSeq)
             pending.pop_front();
@@ -418,12 +423,35 @@ namespace arena::net
             q.source = p.source;
             q.attack = p.attack;
 
-            // Its look comes from this machine's content: an attack's shot, or a spell's
+            // Its look comes from this machine's content: an attack's shot, or a spell's bolt (its keyword's
+            // model for its element)
             if (const AttackDef* a = content.attackOf(p.source, p.attack))
+            {
                 q.def = a->projectile;
-            else if (auto spell = content.abilities.find(p.source); spell != content.abilities.end())
-                q.def = spell->second.projectile;
+            }
+            else if (auto k = content.keywords.find(p.attack); k != content.keywords.end())
+            {
+                if (auto m = k->second.model.find(p.source); m != k->second.model.end())
+                    q.def.model = m->second;
+                q.def.modelScale = k->second.modelScale;
+            }
+
             world.projectiles.push_back(q);
+        }
+
+        // Zones: as the newest snapshot has them
+        world.zones.clear();
+
+        for (const auto& zs : newest.zones)
+        {
+            Zone z;
+            z.id = zs.id;
+            z.element = zs.element;
+            z.position = zs.position;
+            z.radius = zs.radius;
+            z.duration = zs.duration;
+            z.remaining = zs.remaining - static_cast<float>(since);
+            world.zones.push_back(z);
         }
 
         // Falling pieces: the cells from their spawn message, the drop from the newest snapshot
@@ -452,6 +480,17 @@ namespace arena::net
         std::vector<WorldEvent> out;
         out.swap(events);
         return out;
+    }
+
+    void NetClient::setSpells(const std::vector<SpellRecipe>& recipes)
+    {
+        spells = recipes;
+
+        if (state == State::Playing)
+            transport.send(0, encode(SpellsMsg{spells}, names), true);
+
+        if (Fighter* me = world.find(playerId))
+            me->spells = spells;
     }
 
     void NetClient::leave()

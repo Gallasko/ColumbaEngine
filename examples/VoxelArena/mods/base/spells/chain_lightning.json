@@ -1,0 +1,2 @@
+// Ready-made: a beam that jumps on to two more enemies.
+{ "name": "Chain lightning", "recipe": ["volt", "beam", "chain"] }

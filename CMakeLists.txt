@@ -1719,6 +1719,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Core/orbitcamera.cpp
             examples/VoxelArena/Core/terrain.cpp
             examples/VoxelArena/Core/effects.cpp
+            examples/VoxelArena/Core/spells.cpp
             examples/VoxelArena/Core/net/protocol.cpp
             examples/VoxelArena/Core/net/loopback.cpp
             examples/VoxelArena/Core/net/server.cpp
@@ -1734,6 +1735,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Game/arenagame.cpp
             examples/VoxelArena/Game/soundbank.cpp
             examples/VoxelArena/Game/particles.cpp
+            examples/VoxelArena/Game/spellbook.cpp
             examples/VoxelArena/Net/enginetransport.cpp
             ${VOXELARENA_CORE}
         )
