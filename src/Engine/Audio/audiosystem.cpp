@@ -2,6 +2,8 @@
 
 #include "audiosystem.h"
 
+#include <algorithm>
+
 namespace pg
 {
     namespace
@@ -29,61 +31,47 @@ namespace pg
 
         printf("Audio is initialized\n");
 
-        setNumberOfChannel(BASE_NUMBER_OF_CHANNELS);
+        audioOpen = true;
+
+        // A game may have asked for more channels before the device was open
+        setNumberOfChannel(std::max(BASE_NUMBER_OF_CHANNELS, requestedChannels));
     }
 
     void AudioSystem::setNumberOfChannel(unsigned int channel)
     {
         LOG_THIS_MEMBER(DOM);
 
-        if (nbSoundEffectChannels < channel)
+        // Before init the mixer is not open: remember the request, init applies it
+        if (not audioOpen)
         {
-            for (unsigned int i = channel; i < nbSoundEffectChannels; i++)
-            {
-                LOG_INFO(DOM, "Removing channel: " << i);
-
-                Mix_HaltChannel(i);
-
-                channels[i] = nullptr;
-            }
+            requestedChannels = channel;
+            return;
         }
 
-        if (nbSoundEffectChannels == 0)
-        {
-            LOG_INFO(DOM, "Increasing sound effect channel to size: " << channel);
+        if (channel == nbSoundEffectChannels and channels)
+            return;
 
-            channels = new Mix_Chunk*[channel];
+        LOG_INFO(DOM, "Sound effect channels: " << nbSoundEffectChannels << " -> " << channel);
 
-            // Set unallocated channels to nullptr
-            for (unsigned int i = 0; i < channel; i++)
-            {
-                channels[i] = nullptr;
-            }
-        }
-        else if (nbSoundEffectChannels > channel)
-        {
-            LOG_INFO(DOM, "Increasing sound effect channel to size: " << channel);
+        // Shrinking: stop the channels that go away before the mixer forgets them
+        for (unsigned int i = channel; i < nbSoundEffectChannels; i++)
+            Mix_HaltChannel(i);
 
-            auto tmp = new Mix_Chunk*[channel];
+        // Keep what was playing on the channels that stay, clear the new ones
+        auto resized = new Mix_Chunk*[channel];
 
-            memcpy(tmp, channels, nbSoundEffectChannels * sizeof(Mix_Chunk*));
+        for (unsigned int i = 0; i < channel; i++)
+            resized[i] = (channels and i < nbSoundEffectChannels) ? channels[i] : nullptr;
 
-            delete channels;
+        delete[] channels;
+        channels = resized;
 
-            channels = tmp;
-
-            // Set unallocated channels to nullptr
-            for (unsigned int i = nbSoundEffectChannels; i < channel; i++)
-            {
-                channels[i] = nullptr;
-            }
-        }
-
-        Mix_AllocateChannels(channel);
+        Mix_AllocateChannels(static_cast<int>(channel));
 
         nbSoundEffectChannels = channel;
+        requestedChannels = channel;
 
-        soundEffectChannelEnable = true;
+        soundEffectChannelEnable = channel > 0;
     }
 
     void AudioSystem::closeSDLMixer()
@@ -109,12 +97,12 @@ namespace pg
         Mix_CloseAudio();
         Mix_Quit();
 
-        if (soundEffectChannelEnable)
-            delete[] channels;
+        delete[] channels;
 
         channels = nullptr;
         nbSoundEffectChannels = 0;
         soundEffectChannelEnable = false;
+        audioOpen = false;
     }
 
     void AudioSystem::onEvent(const StartAudio& event)
@@ -182,6 +170,7 @@ namespace pg
         if (not soundEffectChannelEnable)
         {
             LOG_ERROR(DOM, "Sound effects are not enabled");
+            return;
         }
 
         auto it = sfxDict.find(event.effect);
@@ -213,7 +202,7 @@ namespace pg
             // This is not an error just not enough channel so we skip the sfx
             LOG_MILE(DOM, "Could not play effect: " << event.effect.c_str());
         }
-        else if (static_cast<unsigned int>(channel) > nbSoundEffectChannels)
+        else if (static_cast<unsigned int>(channel) >= nbSoundEffectChannels)
         {
             LOG_ERROR(DOM, "Error in channel given by Mix_PlayChannel, given:  " << channel << " when only " << nbSoundEffectChannels << " are available !");
         }

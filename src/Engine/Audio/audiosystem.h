@@ -52,6 +52,8 @@ namespace pg
 
         bool soundEffectChannelEnable = false;
         unsigned int nbSoundEffectChannels = 0;
+        unsigned int requestedChannels = 0;   // asked for before the device was open
+        bool audioOpen = false;
         Mix_Chunk **channels = nullptr;
 
         // Pourcentage of the master volume (Percentage calculated from MIX_MAX_VOLUME)
