@@ -76,7 +76,7 @@
         "endSpeed": 8,
         "cost": 20,
         "attackFrom": 15,
-        "jumpFrom": 21,
+        "jumpFrom": 1,
         "inAir": false
     },
 

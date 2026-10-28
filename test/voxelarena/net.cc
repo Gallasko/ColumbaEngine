@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <set>
 
 #include "Core/content.h"
 #include "Core/net/client.h"
@@ -128,6 +129,8 @@ TEST(arena_net, messages_read_back_what_was_written)
     other.stamina = 1.0f;   // a view of someone else: stamina is not sent
     snap.fighters.push_back(other);
     snap.events.push_back({"hit", glm::vec3(1, 2, 3), glm::vec3(0.5f), 10.0f, 8});
+    snap.events.back().source = 7;
+    snap.events.back().tick = 1233;
 
     SnapshotMsg back;
     ASSERT_TRUE(decode(encode(snap, names), back, names));
@@ -140,10 +143,12 @@ TEST(arena_net, messages_read_back_what_was_written)
     EXPECT_EQ(back.fighters[0].frame, 12);
     EXPECT_FLOAT_EQ(back.fighters[0].stamina, 42.0f);
     EXPECT_FLOAT_EQ(back.fighters[0].abilityCooldown[1], 0.3f);
-    EXPECT_EQ(back.fighters[0].body.position, f.body.position);
+    EXPECT_LT(glm::length(back.fighters[0].body.position - f.body.position), 1e-6f);   // positions go across exactly
     EXPECT_FLOAT_EQ(back.fighters[1].stamina, 100.0f);   // the default: not in a view
     ASSERT_EQ(back.events.size(), 1u);
     EXPECT_EQ(back.events[0].kind, "hit");
+    EXPECT_EQ(back.events[0].source, 7);
+    EXPECT_EQ(back.events[0].tick, 1233);
 
     InputMsg in;
     StampedInput si;
@@ -296,6 +301,160 @@ TEST(arena_net, players_see_each_other_and_a_bit_in_the_past)
     b.input.move = glm::vec2(0.0f);
     s.run(60);
     EXPECT_NEAR(glm::length(a.world.find(bId)->body.position - s.serverWorld.find(bId)->body.position), 0.0f, 0.02f);
+}
+
+TEST(arena_net, the_others_actions_play_smoothly_between_snapshots)
+{
+    Session s(40.0);
+    auto& a = s.join("a");
+    auto& b = s.join("b");
+    s.run(40);
+
+    // b rolls; a sees the roll's frame go up a frame a step, and in between when drawn between steps
+    // (snapshots come every other step: their whole frames alone would go up two at a time)
+    b.input.move = glm::vec2(0, 1);
+    b.input.dodgePressed = true;
+    const int bId = b.client->playerId;
+
+    std::vector<float> perStep;
+
+    for (int i = 0; i < 40; ++i)
+    {
+        s.tick();
+
+        const Fighter* seen = a.world.find(bId);
+        ASSERT_TRUE(seen);
+
+        if (seen->action != Action::Dodge or not a.client->displayFrame.count(bId))
+            continue;
+
+        perStep.push_back(a.client->displayFrame.at(bId));
+
+        // A quarter step later, a quarter frame further
+        const float now = a.client->displayFrame.at(bId);
+        a.client->updateDisplay(s.hub.time() + STEP_MS * 0.25);
+        EXPECT_NEAR(a.client->displayFrame.at(bId) - now, 0.25f, 0.05f);
+        a.client->updateDisplay(s.hub.time());
+    }
+
+    ASSERT_GT(perStep.size(), 15u);
+
+    for (size_t i = 1; i < perStep.size(); ++i)
+        EXPECT_NEAR(perStep[i] - perStep[i - 1], 1.0f, 0.05f) << "step " << i;
+}
+
+TEST(arena_net, each_client_draws_with_its_own_looks)
+{
+    std::unique_ptr<Content> looks;   // outlives the session, which holds the client using it
+    Session s(30.0);
+    auto& b = s.join("b");
+
+    // A client with its own looks: another stone colour, another arrow model. Same gameplay, so it joins
+    looks = std::make_unique<Content>(s.content);
+    const BlockId stone = looks->block("base:stone");
+    looks->blockTable[stone].color = glm::vec3(1.0f, 0.0f, 0.0f);
+    looks->enemies.at("base:archer").moveset.attacks.at("shot").projectile.model = "my_arrow";
+
+    auto peer = std::make_unique<Session::Peer>();
+    peer->transport = &s.hub.addClient();
+    peer->client = std::make_unique<NetClient>(peer->world, *looks, s.tuning, *peer->transport, "a");
+    s.peers.push_back(std::move(peer));
+    auto& a = *s.peers.back();
+    s.run(40);
+    ASSERT_EQ(a.client->state, NetClient::State::Playing);
+
+    // An arrow from an archer, flying at b
+    const Fighter* bOnServer = s.serverPlayer(b);
+    ASSERT_TRUE(bOnServer);
+    Projectile arrow;
+    arrow.id = 1;
+    arrow.team = Team::Enemy;
+    arrow.source = "base:archer";
+    arrow.attack = "shot";
+    arrow.def = s.content.enemies.at("base:archer").moveset.attacks.at("shot").projectile;
+    arrow.def.gravity = 0.0f;
+    arrow.position = bOnServer->body.position + glm::vec3(0, 1.2f, -6.0f);
+    arrow.velocity = glm::vec3(0, 0, arrow.def.speed);
+    s.serverWorld.projectiles.push_back(arrow);
+
+    // The block it would chip, and the arrow, in this client's looks
+    s.serverWorld.terrain.damage({3, 0, 3}, 10000.0f);
+
+    bool sawArrow = false, sawFlash = false, sawStone = false;
+
+    for (int i = 0; i < 40; ++i)
+    {
+        s.tick();
+
+        for (const auto& p : a.world.projectiles)
+            sawArrow = sawArrow or p.def.model == "my_arrow";
+
+        if (const Fighter* bForA = a.world.find(b.client->playerId))
+            sawFlash = sawFlash or bForA->flash > 0;
+
+        for (const auto& e : a.client->takeEvents())
+            if (e.kind == "break" and e.block == stone)
+                sawStone = sawStone or e.color == glm::vec3(1.0f, 0.0f, 0.0f);
+    }
+
+    EXPECT_TRUE(sawArrow);   // its model from this client's content
+    EXPECT_TRUE(sawStone);   // the broken block coloured by this client's blocks
+    EXPECT_TRUE(sawFlash);   // b flashes when hit, from the hit event (the flash is not sent)
+    EXPECT_LT(s.serverPlayer(b)->health, s.serverPlayer(b)->maxHealth);
+
+    // And the flash fades
+    s.run(30);
+    EXPECT_EQ(a.world.find(b.client->playerId)->flash, 0);
+}
+
+TEST(arena_net, the_others_events_play_when_they_are_seen_your_own_at_once)
+{
+    // A short latency, so arriving and waiting for the drawn moment are far apart; no dodge grace,
+    // which holds a hit on a remote player on purpose
+    Session s(10.0);
+    s.server->dodgeGrace = false;
+    auto& a = s.join("a");
+    s.run(40);
+
+    // Ticks from when something happens on the server to when this client plays it
+    auto ticksUntil = [&](const std::set<std::string>& kinds, int fighter) {
+        for (int i = 1; i <= 60; ++i)
+        {
+            s.tick();
+            for (const auto& e : a.client->takeEvents())
+                if (kinds.count(e.kind) and e.fighter == fighter)
+                    return i;
+        }
+        return 999;
+    };
+    const int latency = static_cast<int>(std::ceil(10.0 / STEP_MS));
+
+    // A block breaking (nobody's): when the others, drawn INTERP_TICKS behind the server's present,
+    // reach it. It arrived well before (after the latency), and waited
+    s.serverWorld.terrain.damage({3, 0, 3}, 10000.0f);
+    const int breakTicks = ticksUntil({"break"}, 0);
+    EXPECT_GT(breakTicks, latency + 1);
+    EXPECT_GE(breakTicks, NetClient::INTERP_TICKS - 1);
+    EXPECT_LE(breakTicks, NetClient::INTERP_TICKS + 2);
+
+    // An arrow hitting this client's own player: at once, as it arrives
+    const Fighter* me = s.serverPlayer(a);
+    ASSERT_TRUE(me);
+    Projectile arrow;
+    arrow.id = 1;
+    arrow.team = Team::Enemy;
+    arrow.source = "base:archer";
+    arrow.attack = "shot";
+    arrow.def = s.content.enemies.at("base:archer").moveset.attacks.at("shot").projectile;
+    arrow.def.gravity = 0.0f;
+    arrow.position = me->body.position + glm::vec3(0, 1.2f, -1.0f);
+    arrow.velocity = glm::vec3(0, 0, arrow.def.speed);
+    s.serverWorld.projectiles.push_back(arrow);
+
+    // (a stagger: an arrow's poise damage is more than a player's poise)
+    const int hitTicks = ticksUntil({"hit", "stagger", "kill"}, a.client->playerId);
+    EXPECT_LE(hitTicks, latency + 3);   // the arrow's flight, the latency, the next snapshot
+    EXPECT_LT(hitTicks, breakTicks);
 }
 
 TEST(arena_net, terrain_changes_reach_every_client)

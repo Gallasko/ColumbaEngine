@@ -153,9 +153,12 @@ namespace arena
     {
         std::string kind;
         glm::vec3 position = glm::vec3(0.0f);
-        glm::vec3 color = glm::vec3(1.0f);    // the block's colour for terrain events
+        glm::vec3 color = glm::vec3(1.0f);    // the block's colour for terrain events (from `block`)
         float strength = 1.0f;                // damage, fall speed...
         int fighter = 0;                      // who it happened to (0: nobody)
+        BlockId block = AIR;                  // the block of a terrain event: over the network the block goes, each machine colours it
+        int source = 0;                       // who made it happen, when not `fighter` (the attacker of a hit)
+        int tick = 0;                         // the tick of the state it happened in (`steps` once its step is done)
     };
 
     /** Something shot by an attack (see ProjectileDef). */
@@ -164,6 +167,7 @@ namespace arena
         int id = 0;
         int owner = 0;
         Team team = Team::Enemy;
+        std::string source;   // what shot it: the enemy type, or the player's weapon (with `attack`, finds its definition)
         std::string attack;
         ProjectileDef def;
         glm::vec3 position = glm::vec3(0.0f);
@@ -361,7 +365,7 @@ namespace arena
         void useAbilities(Fighter& f, const InputFrame& in);
         void fireProjectiles();
         void stepProjectiles();
-        void event(const std::string& kind, const glm::vec3& position, float strength = 1.0f, int fighter = 0, const glm::vec3& color = glm::vec3(1.0f));
+        void event(const std::string& kind, const glm::vec3& position, float strength = 1.0f, int fighter = 0, BlockId block = AIR, int source = 0);
         glm::vec3 chest(const Fighter& f) const { return f.body.position + glm::vec3(0, f.body.height * 0.6f, 0); }
         int nextProjectile = 1;
         const Fighter* assistTarget = nullptr;   // startAttack: who aim assist picked, for the pitch

@@ -65,7 +65,9 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
   - *Corner correction*: a head that clips a block edge on the way up slides past it (`cornerCorrection`).
   - *Momentum*: the takeoff speed is kept in the air and for a moment after landing (`landingGrace`), so
     sprint jumps and roll jumps chain; extra speed then bleeds off (`overspeedDecel`).
-  - A jump cancels the roll from `dodge.jumpFrom` on (its recovery).
+  - A jump cancels the roll from `dodge.jumpFrom` on (any time by default) and takes off with the
+    roll's speed at that moment: early in the roll is fast and long, but the roll's invulnerability
+    ends with it.
 - **Landings**: a fall faster than `hardLandingSpeed` slows you for `hardLandingFrames` (to
   `hardLandingMoveSpeed` of the walk speed; 0 makes it a root). A dodge pressed in the air up to
   `landingRollWindow` seconds before landing rolls on touchdown instead. Knocked into the air by a
@@ -155,9 +157,12 @@ The arena can be broken, and breaking it is part of the fight.
 A game uses two ports: the TCP port given (7777) and the next one for UDP (7778). Open both on the
 host's firewall.
 
-**Everyone must load the same mods.** The server compares a fingerprint of all the content (every
-file of every mod, the tuning included) and refuses a player whose content differs. For the same
-reason the host cannot reload (F5) while others are connected.
+**Everyone must have the same gameplay content.** The server compares a fingerprint of it and
+refuses a player whose content differs: the tuning, the arena, the scripts, and blocks, weapons,
+enemies and abilities. What only looks is left out, so each player may have their own: models,
+`effects.json`, `sounds.json`, block colours, names, swing poses, camera shake, and the camera,
+first-person and controls settings (a texture pack or a sound mod on one machine only is fine). For
+the same reason the host cannot reload (F5) while others are connected.
 
 How it works:
 
@@ -177,6 +182,13 @@ How it works:
   trip. If a dodge arrives that started in time, the hit is cancelled.
 - The arena's changes (broken blocks, walls, pits, falling pieces) go to everyone reliably. A player
   who joins late gets the arena as it is now.
+- **The server sends gameplay, each machine draws it.** Snapshots carry state (positions, actions
+  and their frames, health) and events (a hit on whom, a block broken, an arrow fired from which
+  attack). Each client makes the animation, particles, sounds, hit flashes and colours from its own
+  content.
+- **Effects play when you see them.** Events about your own player (you were hit, you hit something)
+  play as they arrive. The rest wait until the others, drawn 100 ms in the past, reach the moment
+  they happened, so a spark goes off as the blow is seen landing.
 
 The engine side is `pg::NetworkSystem` (`src/Engine/Networking`), which this work reworked. It carries
 reliable messages over TCP and fast ones over UDP, cuts big messages into fragments and puts them
@@ -330,6 +342,7 @@ Open with `` ` ``. `help` lists the commands.
 | `place x y z <block>`, `fill x0 y0 z0 x1 y1 z1 <block>` | Edit the arena (`air` digs) |
 | `mods`, `errors`, `warnings` | What is loaded, what went wrong |
 | `players` | Who is in the game, and the round trip to the server |
+| `pacer [n\|off [fps]]` | The engine's update pacing: n updates per drawn frame (2 by default), or off (as fast as it can, or capped at fps) |
 
 Scripted input, for tests and for checking frame data: `mouse off` (ignore the real mouse), `press <action>`, `hold <action> <frames>`,
 `wait <frames>`, `sleep <seconds>`, `look <yaw> <pitch>`, `teleport x y z`, `where`, `echo <text>`.

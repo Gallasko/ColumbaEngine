@@ -168,6 +168,7 @@ namespace arena
         // Time
         std::chrono::steady_clock::time_point lastFrame;
         bool clockStarted = false;
+        int64_t lastFrameStartUs = 0;   // the frame clock of the ECS pass pacer, when it runs (see execute)
         double accumulator = 0.0;
         float timeScale = 1.0f;
         bool paused = false;

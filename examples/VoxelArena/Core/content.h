@@ -334,13 +334,18 @@ namespace arena
         ContentReport report;
 
         /**
-         * A hash of everything loaded (definitions after patches, tuning, arena, effects, scripts,
-         * models). Two machines with the same fingerprint run the same game: a client whose
-         * fingerprint differs from the server's is refused.
+         * A hash of the gameplay content (definitions after patches, tuning, arena, scripts), with
+         * what only looks left out: models, effects, sounds, colours, swing poses, camera shake,
+         * names, the camera and the controls. Two machines with the same fingerprint run the same
+         * game: a client whose fingerprint differs from the server's is refused, while a client with
+         * its own looks (a texture pack, other sounds) can join.
          */
         uint64_t fingerprint = 0;
 
         BlockId block(const std::string& id) const;
+
+        /** An attack of an enemy type or a weapon (source: "base:archer", "base:sword"); null if none. */
+        const AttackDef* attackOf(const std::string& source, const std::string& attack) const;
 
         /** Path of an asset of a mod: ("base:sword", "models", ".vxl.json") -> mods/base/models/sword.vxl.json */
         std::string assetPath(const std::string& id, const std::string& folder, const std::string& extension) const;

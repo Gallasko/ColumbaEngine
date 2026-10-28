@@ -11,7 +11,7 @@
 namespace arena::net
 {
     /** Bumped when messages change shape: a client and server of different versions refuse each other. */
-    constexpr uint16_t PROTOCOL_VERSION = 1;
+    constexpr uint16_t PROTOCOL_VERSION = 3;
 
     /** The server sends a snapshot every this many steps (60 / 2 = 30 per second). */
     constexpr int SNAPSHOT_EVERY = 2;
@@ -29,9 +29,9 @@ namespace arena::net
     };
 
     /**
-     * Strings the game names things with (fighter types, weapons, attacks, models, event kinds),
-     * as small numbers. Built the same way from the same content on both sides: the content
-     * fingerprint check makes sure the tables match.
+     * Strings the game names things with (fighter types, weapons, attacks, event kinds), as small
+     * numbers. Built the same way from the same gameplay content on both sides: the content
+     * fingerprint check makes sure the tables match. Nothing visual is in it (models may differ).
      */
     class Names
     {
@@ -81,8 +81,8 @@ namespace arena::net
         int id = 0;
         glm::vec3 position = glm::vec3(0.0f);
         glm::vec3 velocity = glm::vec3(0.0f);
-        std::string model;
-        float modelScale = 0.0625f;
+        std::string source;   // the enemy type or weapon that shot it, and its attack: each client
+        std::string attack;   // finds the model in its own content
     };
 
     struct PieceState

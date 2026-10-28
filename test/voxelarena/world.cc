@@ -589,31 +589,46 @@ TEST(arena_world, in_first_person_the_hitbox_follows_the_view_and_ignores_aim_as
     EXPECT_NEAR(b.player().yaw, 40.0f, 1.0f);
 }
 
-TEST(arena_world, a_jump_cancels_the_roll_in_its_recovery_not_before)
+TEST(arena_world, a_jump_cancels_the_roll_from_jumpFrom_and_keeps_its_speed)
 {
-    // jumpFirst: the frame of the roll on which jump is pressed
-    auto jumpAt = [](int frame, float& speedAtJump) {
+    // frame: the frame of the roll on which jump is pressed. Returns whether it jumped at once, with
+    // the speed going into the jump and the speed after 20 steps in the air (still holding forward)
+    auto jumpAt = [](int frame, float jumpFrom, float& rollSpeed, float& airSpeed) {
         Arena a;
+        a.tuning.dodge.jumpFrom = static_cast<int>(jumpFrom);
+        a.world.tuning = a.tuning;
+
         InputFrame dodge;
         dodge.dodgePressed = true;
         dodge.move = glm::vec2(0, 1);
         a.world.step(dodge);
-        a.run(frame - 1);
+        dodge.dodgePressed = false;
+        a.run(frame - 1, dodge);
+        rollSpeed = glm::length(glm::vec2(a.player().body.velocity.x, a.player().body.velocity.z));
 
         InputFrame jump;
+        jump.move = glm::vec2(0, 1);
         jump.jumpPressed = true;
         jump.jumpHeld = true;
         a.world.step(jump);
-        speedAtJump = glm::length(glm::vec2(a.player().body.velocity.x, a.player().body.velocity.z));
-        return a.player().body.velocity.y > 1.0f;
+        const bool up = a.player().body.velocity.y > 1.0f;
+
+        jump.jumpPressed = false;
+        a.run(20, jump);
+        airSpeed = glm::length(glm::vec2(a.player().body.velocity.x, a.player().body.velocity.z));
+        return up and not a.player().body.onGround;
     };
 
     Arena ref;
-    float speed = 0.0f;
+    float rollSpeed = 0.0f, airSpeed = 0.0f;
 
-    EXPECT_FALSE(jumpAt(5, speed));                          // mid roll: the press waits (and expires)
-    EXPECT_TRUE(jumpAt(ref.tuning.dodge.jumpFrom, speed));   // recovery: up at once
-    EXPECT_GT(speed, ref.tuning.dodge.endSpeed * 0.5f);      // keeping the roll's speed
+    // Early in the roll (the default): up at once, and the roll's speed carries through the air
+    EXPECT_TRUE(jumpAt(3, ref.tuning.dodge.jumpFrom, rollSpeed, airSpeed));
+    EXPECT_GT(rollSpeed, ref.tuning.player.sprintSpeed);
+    EXPECT_GT(airSpeed, rollSpeed * 0.9f);
+
+    // A later jumpFrom makes the press wait (and expire) before it
+    EXPECT_FALSE(jumpAt(5, 18, rollSpeed, airSpeed));
 }
 
 TEST(arena_world, a_jump_that_falls_short_of_a_ledge_is_lifted_onto_it)
@@ -1007,7 +1022,7 @@ TEST(arena_roles, an_arrow_flies_to_the_player_and_hurts)
     for (const auto& e : a.world.events)
     {
         sawShoot = sawShoot or e.kind == "shoot";
-        sawHit = sawHit or e.kind == "arrow_hit";
+        sawHit = sawHit or e.kind == "arrow_hit_fighter";
     }
     EXPECT_TRUE(sawShoot);
     EXPECT_TRUE(sawHit);

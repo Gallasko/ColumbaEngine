@@ -184,9 +184,25 @@ namespace arena::net
         lastSnapshotAt = nowMs;
 
         // The server's events, without the ones already played locally for the predicted player
-        for (const auto& e : m.events)
-            if (not (e.fighter == playerId and predictedKind(e.kind)))
+        for (auto& e : m.events)
+        {
+            // Coloured by this machine's own blocks
+            if (e.block != AIR and e.block < content.blockTable.size())
+                e.color = content.blockTable[e.block].color;
+
+            // A hit makes its target flash, from the tick it happened
+            if (e.fighter != 0 and (e.kind == "hit" or e.kind == "stagger" or e.kind == "kill"))
+                flashUntil[e.fighter] = static_cast<double>(e.tick) + tuning.feel.hitFlashFrames;
+
+            if (e.fighter == playerId and predictedKind(e.kind))
+                continue;
+
+            // About this player: now. About the others: when they are drawn there
+            if (e.fighter == playerId or e.source == playerId)
                 events.push_back(e);
+            else
+                held.push_back(e);
+        }
 
         for (const auto& f : m.fighters)
             if (f.id == playerId)
@@ -215,6 +231,7 @@ namespace arena::net
         *me = server;
         me->hitThisSwing = keep.hitThisSwing;
         me->aimDir = keep.aimDir;
+        me->stepOffset = keep.stepOffset;   // only looks: the server does not send it
 
         while (not pending.empty() and pending.front().seq <= ackSeq)
             pending.pop_front();
@@ -278,6 +295,13 @@ namespace arena::net
 
         const double renderTick = serverTick(nowMs) - INTERP_TICKS;
 
+        // The others' events whose moment is now drawn
+        while (not held.empty() and held.front().tick <= renderTick)
+        {
+            events.push_back(held.front());
+            held.pop_front();
+        }
+
         // The two snapshots around the render tick (or the newest, when the stream runs late)
         const SnapshotMsg* a = &snapshots.back();
         const SnapshotMsg* b = nullptr;
@@ -296,9 +320,19 @@ namespace arena::net
 
         // Everyone but the predicted player, as of the render tick
         std::vector<Fighter> shown;
+        displayFrame.clear();
+
+        // The hit flash, in frames left at a server tick
+        auto flashAt = [&](int id, double tick) {
+            const auto it = flashUntil.find(id);
+            return it == flashUntil.end() ? 0 : static_cast<int>(std::ceil(std::max(0.0, it->second - tick)));
+        };
 
         if (const Fighter* me = world.find(playerId))
+        {
             shown.push_back(*me);
+            shown.back().flash = flashAt(playerId, serverTick(nowMs));
+        }
 
         for (const auto& fa : a->fighters)
         {
@@ -316,15 +350,58 @@ namespace arena::net
 
                     f.body.position = glm::mix(fa.body.position, fb.body.position, t);
                     f.yaw = lerpAngle(fa.yaw, fb.yaw, t);
-                    f.stepOffset = fa.stepOffset + (fb.stepOffset - fa.stepOffset) * t;
                     break;
                 }
+            }
+
+            // The action's frame at the render tick. The same action in both snapshots: between their
+            // frames (a hitstop shows as no change). Otherwise the action of `a` runs on, a frame a step,
+            // until the newer snapshot takes over
+            float frame = static_cast<float>(fa.frame);
+            const Fighter* fb = nullptr;
+
+            if (b)
+                for (const auto& other : b->fighters)
+                    if (other.id == fa.id)
+                        fb = &other;
+
+            if (fb and fb->action == fa.action and fb->attack == fa.attack and fb->frame >= fa.frame)
+                frame += static_cast<float>(fb->frame - fa.frame) * t;
+            else
+                frame += static_cast<float>(std::clamp(renderTick - a->tick - fa.hitstop, 0.0, static_cast<double>(INTERP_TICKS)));
+
+            displayFrame[fa.id] = frame;
+            f.flash = flashAt(f.id, renderTick);
+
+            // Stepping up a block: the height jumps, drawn as an ease instead (like the server's own
+            // step smoothing, which only looks and is not sent). A jump is in the air: not a step
+            {
+                StepSmoothing& s = steps[f.id];
+                const bool grounded = fa.body.onGround and (not fb or fb->body.onGround);
+                const float rise = f.body.position.y - s.y;
+
+                if (s.atMs >= 0.0 and grounded and rise > 0.05f and rise < 1.5f)
+                    s.offset -= rise;
+
+                if (s.atMs >= 0.0)
+                    s.offset *= std::exp(-tuning.player.stepSmoothing * static_cast<float>(std::max(0.0, nowMs - s.atMs) / 1000.0));
+
+                s.y = f.body.position.y;
+                s.atMs = nowMs;
+                f.stepOffset = s.offset;
             }
 
             shown.push_back(std::move(f));
         }
 
         world.fighters = std::move(shown);
+
+        // Forget the looks of who is gone, and flashes long over
+        for (auto it = steps.begin(); it != steps.end();)
+            it = world.find(it->first) ? std::next(it) : steps.erase(it);
+
+        for (auto it = flashUntil.begin(); it != flashUntil.end();)
+            it = it->second < renderTick - 1.0 and it->first != playerId ? flashUntil.erase(it) : std::next(it);
 
         // Projectiles fly straight between snapshots: from the newest, moved on by their speed
         const SnapshotMsg& newest = snapshots.back();
@@ -337,8 +414,12 @@ namespace arena::net
             q.id = p.id;
             q.position = p.position + p.velocity * since;
             q.velocity = p.velocity;
-            q.def.model = p.model;
-            q.def.modelScale = p.modelScale;
+            q.source = p.source;
+            q.attack = p.attack;
+
+            // Its look comes from this machine's content
+            if (const AttackDef* a = content.attackOf(p.source, p.attack))
+                q.def = a->projectile;
             world.projectiles.push_back(q);
         }
 

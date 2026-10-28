@@ -78,7 +78,7 @@ namespace arena::net
                     welcome.reason = "protocol " + std::to_string(hello.version) + ", the server runs " + std::to_string(PROTOCOL_VERSION);
                 else if (hello.fingerprint != content.fingerprint)
                     welcome.reason = "different mods or content than the server (load the same mods)";
-                else if (clientCount() >= maxClients)
+                else if (clientCount() >= static_cast<size_t>(std::max(0, maxClients)))
                     welcome.reason = "the server is full";
 
                 if (not welcome.reason.empty())
@@ -280,7 +280,7 @@ namespace arena::net
         base.events = events;
 
         for (const auto& p : world.projectiles)
-            base.projectiles.push_back({p.id, p.position, p.velocity, p.def.model, p.def.modelScale});
+            base.projectiles.push_back({p.id, p.position, p.velocity, p.source, p.attack});
 
         for (const auto& piece : world.terrain.falling)
             base.pieces.push_back({piece.id, piece.drop});

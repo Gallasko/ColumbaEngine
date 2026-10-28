@@ -9,7 +9,7 @@ namespace arena::net
     {
         // Every event kind the world makes: event names travel as numbers too
         const char* const EVENT_KINDS[] = {
-            "hit", "stagger", "kill", "swing", "windup", "shoot", "arrow_hit", "dodge", "jump", "land",
+            "hit", "stagger", "kill", "swing", "windup", "shoot", "arrow_hit", "arrow_hit_fighter", "dodge", "jump", "land",
             "hard_land", "step", "chip", "break", "raise", "dig", "piece_fall", "piece_land",
         };
 
@@ -123,9 +123,6 @@ namespace arena::net
             for (const auto& [name, a] : w.moveset.attacks)
                 all.insert(name);
         }
-
-        for (const auto& [id, m] : content.models)
-            all.insert(id);
 
         names.assign(all.begin(), all.end());
         ids.clear();
@@ -327,11 +324,8 @@ namespace arena::net
         w.u16(names.id(f.weapon));
         w.u16(names.id(f.attack));
         w.u8(static_cast<uint8_t>(std::clamp(f.hitstop, 0, 255)));
-        w.u8(static_cast<uint8_t>(std::clamp(f.flash, 0, 255)));
-        w.f32(f.stepOffset);
         w.f32(f.attackPitch);
         w.vec3(f.dodgeDir);
-        w.boolean(f.sprinting);
         w.u16(names.id(f.aiMove));
 
         if (not full)
@@ -387,11 +381,8 @@ namespace arena::net
         f.weapon = names.name(r.u16());
         f.attack = names.name(r.u16());
         f.hitstop = r.u8();
-        f.flash = r.u8();
-        f.stepOffset = r.f32();
         f.attackPitch = r.f32();
         f.dodgeDir = r.vec3();
-        f.sprinting = r.boolean();
         f.aiMove = names.name(r.u16());
 
         if (not full)
@@ -444,8 +435,8 @@ namespace arena::net
             w.u16(static_cast<uint16_t>(p.id));
             w.vec3(p.position);
             w.vec3(p.velocity);
-            w.u16(names.id(p.model));
-            w.f32(p.modelScale);
+            w.u16(names.id(p.source));
+            w.u16(names.id(p.attack));
         }
 
         w.u8(static_cast<uint8_t>(std::min<size_t>(m.pieces.size(), 255)));
@@ -461,11 +452,11 @@ namespace arena::net
             const auto& e = m.events[i];
             w.u16(names.id(e.kind));
             w.vec3(e.position);
-            w.u8(colorByte(e.color.r));
-            w.u8(colorByte(e.color.g));
-            w.u8(colorByte(e.color.b));
+            w.u16(e.block);
             w.f32(e.strength);
             w.u16(static_cast<uint16_t>(e.fighter));
+            w.u16(static_cast<uint16_t>(e.source));
+            w.u8(static_cast<uint8_t>(std::clamp(static_cast<int64_t>(m.tick) - e.tick, int64_t(0), int64_t(255))));   // ticks before the snapshot
         }
 
         return w.data;
@@ -497,8 +488,8 @@ namespace arena::net
             p.id = r.u16();
             p.position = r.vec3();
             p.velocity = r.vec3();
-            p.model = names.name(r.u16());
-            p.modelScale = r.f32();
+            p.source = names.name(r.u16());
+            p.attack = names.name(r.u16());
             m.projectiles.push_back(p);
         }
 
@@ -517,10 +508,11 @@ namespace arena::net
             WorldEvent e;
             e.kind = names.name(r.u16());
             e.position = r.vec3();
-            const float cr = r.u8() / 255.0f, cg = r.u8() / 255.0f, cb = r.u8() / 255.0f;
-            e.color = glm::vec3(cr, cg, cb);
+            e.block = r.u16();
             e.strength = r.f32();
             e.fighter = r.u16();
+            e.source = r.u16();
+            e.tick = static_cast<int>(m.tick) - r.u8();
             m.events.push_back(e);
         }
 

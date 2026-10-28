@@ -4,6 +4,8 @@
 
 #include <filesystem>
 #include <fstream>
+#include <sstream>
+#include <tuple>
 
 #include "Core/content.h"
 #include "Core/tuning.h"
@@ -270,4 +272,48 @@ TEST(arena_content, the_voxeltest_editor_reads_every_shipped_model)
         for (const auto& cell : project.cells)
             EXPECT_EQ(model->grid.get(cell.pos.x, cell.pos.y, cell.pos.z), cell.colorIndex + 1) << id;
     }
+}
+
+TEST(arena_content, the_fingerprint_covers_gameplay_not_looks)
+{
+    // A copy of the shipped mods, edited one way or another
+    auto fingerprintWith = [](const std::vector<std::tuple<std::string, std::string, std::string>>& edits) {
+        TempMods mods;
+        fs::copy(VOXELARENA_MODS_DIR, mods.root, fs::copy_options::recursive | fs::copy_options::overwrite_existing);
+
+        for (const auto& [file, from, to] : edits)
+        {
+            std::ifstream in(mods.root / file);
+            std::stringstream ss;
+            ss << in.rdbuf();
+            std::string text = ss.str();
+            const size_t at = text.find(from);
+            EXPECT_NE(at, std::string::npos) << file << ": " << from;
+            if (at != std::string::npos)
+                text.replace(at, from.size(), to);
+            std::ofstream(mods.root / file, std::ios::trunc) << text;
+        }
+
+        const Content c = loadContent(mods.str());
+        EXPECT_TRUE(c.report.errors.empty()) << allMessages(c.report);
+        return c.fingerprint;
+    };
+
+    const uint64_t shipped = fingerprintWith({});
+
+    // Looks: colours, models, swings, names, effects, sounds, the camera. Players may differ in these
+    EXPECT_EQ(fingerprintWith({
+        {"base/blocks.json", "\"color\": [128, 132, 140]", "\"color\": [200, 0, 0]"},
+        {"base/weapons/sword.json", "\"name\": \"Iron Sword\"", "\"name\": \"Rusty Sword\""},
+        {"base/weapons/sword.json", "\"modelScale\": 0.0625", "\"modelScale\": 0.07"},
+        {"base/weapons/sword.json", "\"yawFrom\": 80", "\"yawFrom\": 70"},
+        {"base/models/sword.vxl.json", "{", "{ "},
+        {"base/effects.json", "\"count\": 10", "\"count\": 40"},
+        {"base/tuning.json", "\"distance\": 5.5", "\"distance\": 7"},
+    }), shipped);
+
+    // Gameplay: a different game, refused
+    EXPECT_NE(fingerprintWith({{"base/weapons/sword.json", "\"damage\": 10,", "\"damage\": 11,"}}), shipped);
+    EXPECT_NE(fingerprintWith({{"base/blocks.json", "\"hardness\": 120", "\"hardness\": 121"}}), shipped);
+    EXPECT_NE(fingerprintWith({{"base/tuning.json", "\"walkSpeed\": 5.6", "\"walkSpeed\": 5.7"}}), shipped);
 }

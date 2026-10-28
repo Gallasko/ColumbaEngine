@@ -82,7 +82,7 @@ namespace arena
             float endSpeed = 3.0f;     // m/s at the end
             float cost = 22.0f;
             int attackFrom = 14;       // a light press from this frame on becomes the dodge attack
-            int jumpFrom = 18;         // a jump from this frame on cancels the roll
+            int jumpFrom = 1;          // a jump from this frame on cancels the roll (and takes off with its speed)
             bool inAir = false;        // allow rolling while airborne
         } dodge;
 

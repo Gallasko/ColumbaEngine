@@ -1,6 +1,7 @@
 #include "content.h"
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -11,6 +12,81 @@ namespace fs = std::filesystem;
 
 namespace arena
 {
+    namespace
+    {
+        /**
+         * What in the content only looks, by kind of definition: left out of the fingerprint, so
+         * players may have their own (a texture pack, other sounds, another sword model) and still
+         * play together. Paths go down objects; "*" is every member. Everything else is gameplay
+         * and must match.
+         */
+        const std::vector<std::string> TUNING_LOOKS = {
+            "camera", "firstPerson", "controls",
+            "player.model", "player.modelScale", "player.hand",
+            "feel.hitFlashFrames", "feel.shakeDecay", "feel.shakeOffset", "feel.shakeAngle", "feel.shakeFrequency", "feel.landingShake",
+            "terrain.crushShake",
+        };
+
+        const std::map<std::string, std::vector<std::string>> DEF_LOOKS = {
+            {"block", {"color", "colorNoise", "visible"}},
+            {"weapon", {"name", "model", "modelScale", "grip", "rest",
+                        "moveset.attacks.*.swing", "moveset.attacks.*.shake",
+                        "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
+            {"enemy", {"name", "model", "modelScale",
+                       "moveset.attacks.*.swing", "moveset.attacks.*.shake",
+                       "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
+            {"ability", {"name"}},
+        };
+
+        void dropPath(Json& j, const std::vector<std::string>& parts, size_t at)
+        {
+            if (not j.isObject() or at >= parts.size())
+                return;
+
+            const std::string& key = parts[at];
+            const bool last = at + 1 == parts.size();
+
+            for (auto it = j.object.begin(); it != j.object.end();)
+            {
+                if (key == "*" or it->first == key)
+                {
+                    if (last)
+                    {
+                        it = j.object.erase(it);
+                        continue;
+                    }
+
+                    dropPath(it->second, parts, at + 1);
+                }
+
+                ++it;
+            }
+        }
+
+        Json withoutLooks(Json j, const std::vector<std::string>& paths)
+        {
+            for (const auto& path : paths)
+            {
+                std::vector<std::string> parts;
+                size_t from = 0;
+
+                for (size_t dot = path.find('.'); ; dot = path.find('.', from))
+                {
+                    parts.push_back(path.substr(from, dot == std::string::npos ? std::string::npos : dot - from));
+
+                    if (dot == std::string::npos)
+                        break;
+
+                    from = dot + 1;
+                }
+
+                dropPath(j, parts, 0);
+            }
+
+            return j;
+        }
+    }
+
     std::string ContentMessage::str() const
     {
         if (line > 0)
@@ -47,6 +123,17 @@ namespace arena
     {
         const auto it = blockIds.find(id);
         return it == blockIds.end() ? AIR : it->second;
+    }
+
+    const AttackDef* Content::attackOf(const std::string& source, const std::string& attack) const
+    {
+        if (auto e = enemies.find(source); e != enemies.end())
+            return e->second.moveset.find(attack);
+
+        if (auto w = weapons.find(source); w != weapons.end())
+            return w->second.moveset.find(attack);
+
+        return nullptr;
     }
 
     const ModInfo* Content::mod(const std::string& id) const
@@ -178,7 +265,7 @@ namespace arena
             if (not v)
                 return;
 
-            if (not v->isNumber() or v->number != static_cast<double>(static_cast<int>(v->number)))
+            if (not v->isNumber() or std::fabs(v->number - static_cast<double>(static_cast<int>(v->number))) > 0.0)
             {
                 report.error(file, v->line, std::string("\"") + key + "\" must be a whole number");
                 return;
@@ -1389,28 +1476,24 @@ namespace arena
                 h *= 1099511628211ull;
             };
 
-            for (const auto& m : content.mods)
-                feed(m.id + "@" + m.version);
-
-            feed(toJsonString(content.tuning));
-            feed(toJsonString(content.effects));
-            feed(toJsonString(content.sounds));
+            // Gameplay only (see Content::fingerprint): what only looks is taken out first
+            feed(toJsonString(withoutLooks(content.tuning, TUNING_LOOKS)));
             feed(toJsonString(content.arena.shapes));
 
             for (const auto& [kind, defs] : content.raw)
+            {
+                // Models, and the effects and sounds files, are looks through and through
+                if (kind == "model")
+                    continue;
+
+                const auto looks = DEF_LOOKS.find(kind);
+
                 for (const auto& [id, raw] : defs)
                 {
                     feed(kind + ":" + id);
-                    feed(toJsonString(raw.data));
-
-                    // Models are files of their own
-                    if (kind == "model")
-                    {
-                        std::string text;
-                        if (readText(raw.file, text))
-                            feed(text);
-                    }
+                    feed(toJsonString(looks == DEF_LOOKS.end() ? raw.data : withoutLooks(raw.data, looks->second)));
                 }
+            }
 
             for (const auto& [id, path] : content.scripts)
             {

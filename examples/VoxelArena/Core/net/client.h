@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deque>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -32,7 +33,12 @@ namespace arena::net
         /** Places the other fighters, projectiles and pieces for drawing at this moment. */
         void updateDisplay(double nowMs);
 
-        /** Events to play: the server's, except the ones this client already played for its own player. */
+        /**
+         * Events to play: the server's, except the ones this client already played for its own player.
+         * Those about this client's player (it was hit, it hit something) come at once, with the
+         * player that is drawn in the present; the rest come when the others, drawn INTERP_TICKS in
+         * the past, reach the moment they happened, so a spark goes off as the blow is seen landing.
+         */
         std::vector<WorldEvent> takeEvents();
 
         void leave();
@@ -43,6 +49,13 @@ namespace arena::net
 
         int playerId = 0;
         float rttMs = 0.0f;
+
+        /**
+         * The action frame of everyone but the predicted player, as a fraction, at the moment they are
+         * drawn (see updateDisplay). Snapshots come every other step: drawn from their whole frames,
+         * attacks and rolls would move in steps of two.
+         */
+        std::map<int, float> displayFrame;
 
         /** Where the prediction was minus where the server's correction put it: drawn on top, decays. */
         glm::vec3 correction = glm::vec3(0.0f);
@@ -75,6 +88,18 @@ namespace arena::net
         double startedAt = -1.0;
 
         std::vector<WorldEvent> events;
+        std::deque<WorldEvent> held;   // the others' events, until the render tick reaches them (oldest first)
         std::map<int, FallingPiece> pieces;
+
+        // What only looks: worked out here from what the server sends, never sent
+        std::map<int, double> flashUntil;   // fighter -> server tick its hit flash ends (from hit events)
+
+        struct StepSmoothing
+        {
+            float y = 0.0f;        // the height it was drawn at last
+            float offset = 0.0f;   // drawn this much lower, easing back to 0 (a step up does not pop)
+            double atMs = -1.0;
+        };
+        std::map<int, StepSmoothing> steps;
     };
 }

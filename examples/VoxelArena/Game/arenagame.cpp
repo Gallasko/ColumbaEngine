@@ -532,6 +532,28 @@ namespace arena
         }
 
         float frameSeconds = std::chrono::duration<float>(now - lastFrame).count();
+
+        // The ECS runs a few passes per rendered frame, and the renderer shows the list of whichever
+        // pass gets to it first after a frame is drawn: sometimes the first pass, sometimes a later one,
+        // half a frame apart. Sampled each pass, the shown frames would jump back and forth by half a
+        // step (a jitter you see when the camera pans, strafing). So a frame's work is done once, on its
+        // first pass, timed by the frame clock: whichever pass is shown, it shows the same moment.
+        if (ecsRef->ecsPassPacer.enabled() and ecsRef->ecsPassPacer.scheduleBaseUs() > 0)
+        {
+            const int64_t frameStartUs = ecsRef->ecsPassPacer.scheduleBaseUs();
+
+            if (frameStartUs == lastFrameStartUs)
+                return;
+
+            frameSeconds = lastFrameStartUs > 0 ? static_cast<float>(frameStartUs - lastFrameStartUs) * 1e-6f : 0.0f;
+            lastFrameStartUs = frameStartUs;
+        }
+        else
+        {
+            // Pacer off (console: pacer off): every pass is a frame, on the wall clock
+            lastFrameStartUs = 0;
+        }
+
         lastFrame = now;
         frameSeconds = std::min(frameSeconds, 0.1f);
 
@@ -1120,8 +1142,11 @@ namespace arena
                 const BlockId ground = world.grid.get(below.x, below.y, below.z);
                 const glm::vec3 dust = (ground < content.blockTable.size() ? content.blockTable[ground].color : glm::vec3(0.7f)) * 0.85f + glm::vec3(0.12f);
 
+                // Sprinting, told by the speed: the same for every player, whoever's machine runs it
+                const bool sprinting = speed > (tuning.player.walkSpeed + tuning.player.sprintSpeed) * 0.5f;
+
                 if (f.team == Team::Player)
-                    playEffect(f.sprinting ? "sprint_step" : "step", f.body.position + glm::vec3(0, 0.05f, 0), dust);
+                    playEffect(sprinting ? "sprint_step" : "step", f.body.position + glm::vec3(0, 0.05f, 0), dust);
                 else if (speed > 5.5f)
                     playEffect("run_dust", f.body.position + glm::vec3(0, 0.05f, 0), dust);
             }
@@ -1403,7 +1428,13 @@ namespace arena
             if (client and f.id == client->playerId)
                 pos += client->correction;
 
-            const float frame = static_cast<float>(std::max(0, f.frame - 1)) + (f.hitstop > 0 ? 0.0f : alpha);
+            float frame = static_cast<float>(std::max(0, f.frame - 1)) + (f.hitstop > 0 ? 0.0f : alpha);
+
+            // On a client, the others are as of the render tick: their frame comes with them
+            if (client and f.id != client->playerId)
+                if (auto it = client->displayFrame.find(f.id); it != client->displayFrame.end())
+                    frame = it->second;
+
             const float h = f.body.height;
 
             // The body frame: feet, facing, then the action's pose
@@ -1736,7 +1767,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | weapons | god | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | weapons | god | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -1836,6 +1867,29 @@ namespace arena
 
         if (cmd == "players")
             return netStatus();
+
+        // The ECS pass pacer (see execute): N passes per rendered frame, or off (free running, or capped)
+        if (cmd == "pacer")
+        {
+            if (args.size() > 1 and args[1] == "off")
+            {
+                const int cap = args.size() > 2 ? std::max(0, std::atoi(args[2].c_str())) : 0;
+                ecsRef->setEcsTargetFPS(cap);
+                ecsRef->setEcsPassesPerFrame(0);
+            }
+            else if (args.size() > 1)
+            {
+                ecsRef->setEcsPassesPerFrame(std::max(1, std::atoi(args[1].c_str())));
+            }
+
+            const int n = ecsRef->getEcsPassesPerFrame();
+
+            if (n > 0)
+                return "pacer: " + std::to_string(n) + " passes per frame, the game's work on the first";
+
+            const int cap = ecsRef->getEcsTargetFPS();
+            return std::string("pacer off: the ECS runs ") + (cap > 0 ? "at most " + std::to_string(cap) + " passes a second" : "as fast as it can") + ", each pass a frame";
+        }
 
         // The world belongs to the server: a client asking to change it would only change its own view
         if (client and (cmd == "reload" or cmd == "spawn" or cmd == "clear" or cmd == "reset" or cmd == "place" or cmd == "fill" or

@@ -752,8 +752,8 @@ namespace arena
 
             case Action::Dodge:
             {
-                // A jump ends the roll once it reaches jumpFrom (its recovery by default): the jump
-                // below then starts this same step, with the roll's speed
+                // A jump ends the roll once it reaches jumpFrom: the jump below then starts this same
+                // step, with the roll's speed
                 if (f.jumpBuffer > 0.0f and f.frame >= tuning.dodge.jumpFrom and f.coyote > 0.0f)
                     f.action = Action::Free;
                 else if (f.queued == 1 and f.frame >= tuning.dodge.attackFrom and moveset and not moveset->dodgeAttack.empty() and canPay)
@@ -1487,10 +1487,9 @@ namespace arena
                 if (aimedCell(f, in.aimOrigin, in.aimDir, a->range, hit) and terrain.breakable(grid.get(hit.cell.x, hit.cell.y, hit.cell.z)))
                 {
                     const BlockId block = grid.get(hit.cell.x, hit.cell.y, hit.cell.z);
-                    const glm::vec3 color = block < content->blockTable.size() ? content->blockTable[block].color : glm::vec3(1.0f);
 
                     if (not terrain.damage(hit.cell, a->damage))
-                        event("chip", glm::vec3(hit.cell) + glm::vec3(0.5f) + glm::vec3(hit.normal) * 0.5f, 1.0f, f.id, color);
+                        event("chip", glm::vec3(hit.cell) + glm::vec3(0.5f) + glm::vec3(hit.normal) * 0.5f, 1.0f, f.id, block);
                     f.mineTimer = 1.0f / a->rate;
                     used = true;
                 }
@@ -1502,7 +1501,7 @@ namespace arena
                 f.abilityCooldown[i] = a->cooldown;
 
                 if (a->kind == "wall")
-                    event("raise", f.body.position + glm::normalize(glm::vec3(in.aimDir.x, 0.0f, in.aimDir.z) + glm::vec3(1e-4f, 0, 0)) * a->distance, 1.0f, f.id, content->blockTable[content->block(a->block)].color);
+                    event("raise", f.body.position + glm::normalize(glm::vec3(in.aimDir.x, 0.0f, in.aimDir.z) + glm::vec3(1e-4f, 0, 0)) * a->distance, 1.0f, f.id, content->block(a->block));
                 else if (a->kind == "pit")
                     event("dig", in.aimOrigin + glm::normalize(in.aimDir) * 5.0f, 1.0f, f.id);
             }
@@ -1642,8 +1641,7 @@ namespace arena
         for (size_t i = 0; i < events.broken.size(); ++i)
         {
             const BlockId id = i < events.brokenBlocks.size() ? events.brokenBlocks[i] : AIR;
-            const glm::vec3 color = id < content->blockTable.size() ? content->blockTable[id].color : glm::vec3(0.6f);
-            event("break", glm::vec3(events.broken[i]) + glm::vec3(0.5f), 1.0f, 0, color);
+            event("break", glm::vec3(events.broken[i]) + glm::vec3(0.5f), 1.0f, 0, id);
         }
 
         for (int id : events.fell)
@@ -1667,7 +1665,7 @@ namespace arena
     // Projectiles and events
     // --------------------------------------------------------------------------------------------
 
-    void ArenaWorld::event(const std::string& kind, const glm::vec3& position, float strength, int fighter, const glm::vec3& color)
+    void ArenaWorld::event(const std::string& kind, const glm::vec3& position, float strength, int fighter, BlockId block, int source)
     {
         // Nobody drains the list in a headless run: keep it from growing without end
         if (events.size() > 4096)
@@ -1678,7 +1676,10 @@ namespace arena
         e.position = position;
         e.strength = strength;
         e.fighter = fighter;
-        e.color = color;
+        e.block = block;
+        e.source = source;
+        e.tick = static_cast<int>(steps) + 1;
+        e.color = block != AIR and block < content->blockTable.size() ? content->blockTable[block].color : glm::vec3(1.0f);
         events.push_back(std::move(e));
     }
 
@@ -1706,6 +1707,7 @@ namespace arena
             p.id = nextProjectile++;
             p.owner = f.id;
             p.team = f.team;
+            p.source = f.team == Team::Player ? f.weapon : f.type;
             p.attack = a->name;
             p.def = def;
             p.position = f.body.position + localToWorld(f.yaw, def.spawn);
@@ -1798,9 +1800,8 @@ namespace arena
                 if (grid.inBounds(wall.cell.x, wall.cell.y, wall.cell.z))
                 {
                     const BlockId block = grid.get(wall.cell.x, wall.cell.y, wall.cell.z);
-                    const glm::vec3 color = block < content->blockTable.size() ? content->blockTable[block].color : glm::vec3(0.6f);
                     terrain.damage(wall.cell, p.def.terrainDamage);
-                    event("arrow_hit", p.position + dir * wall.distance, 0.5f, 0, color);
+                    event("arrow_hit", p.position + dir * wall.distance, 0.5f, 0, block);
                 }
 
                 it = projectiles.erase(it);
@@ -1832,7 +1833,7 @@ namespace arena
                 attacker.body.position = shooterPos;
                 attacker.hitstop = hitstopBefore;   // the archer is not frozen by an arrow landing far away
 
-                event("arrow_hit", p.position + dir * best, 1.0f, victim->id, glm::vec3(0.8f, 0.2f, 0.2f));
+                event("arrow_hit_fighter", p.position + dir * best, 1.0f, victim->id, AIR, p.owner);
                 it = projectiles.erase(it);
                 continue;
             }
@@ -2056,7 +2057,7 @@ namespace arena
         }
 
         hits.push_back(e);
-        event(e.killed ? "kill" : (e.staggered ? "stagger" : "hit"), target.body.position + glm::vec3(0, target.body.height * 0.6f, 0), e.damage, target.id);
+        event(e.killed ? "kill" : (e.staggered ? "stagger" : "hit"), target.body.position + glm::vec3(0, target.body.height * 0.6f, 0), e.damage, target.id, AIR, e.attacker);
     }
 
     void ArenaWorld::separate()

@@ -9,6 +9,7 @@
     "windup":     { "sound": "growl" },
     "shoot":      { "sound": "shoot" },
     "arrow_hit":  { "sound": "arrow_hit", "particles": { "count": 6,  "speed": 3,   "up": 0.5, "size": 0.07, "life": 0.35, "gravity": 14, "color": "event" } },
+    "arrow_hit_fighter": { "sound": "arrow_hit", "particles": { "count": 6, "speed": 3, "up": 0.5, "size": 0.07, "life": 0.35, "gravity": 14, "color": [204, 51, 51] } },
     "dodge":      { "sound": "dodge",     "particles": { "count": 8,  "speed": 1.5, "up": 0.8, "size": 0.1,  "life": 0.45, "gravity": 2,  "color": [190, 176, 150] } },
     "jump":       { "sound": "jump" },
     "land":       { "sound": "land",      "particles": { "count": 6,  "speed": 1.5, "up": 0.7, "size": 0.09, "life": 0.4,  "gravity": 2,  "color": [190, 176, 150] } },
