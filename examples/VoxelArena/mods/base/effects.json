@@ -29,6 +29,7 @@
 
     "air_jump":   { "sound": "air_jump",  "particles": { "count": 10, "speed": 2,   "up": 0.1, "size": 0.08, "life": 0.3,  "gravity": 0,  "color": [230, 236, 255] } },
     "wall_jump":  { "sound": "air_jump",  "particles": { "count": 8,  "speed": 2,   "up": 0.5, "size": 0.1,  "life": 0.4,  "gravity": 6,  "color": [190, 176, 150] } },
+    "leap":       { "sound": "dodge",     "particles": { "count": 8,  "speed": 2,   "up": 0.3, "size": 0.08, "life": 0.3,  "gravity": 2,  "color": [190, 176, 150] } },
     "air_dash":   { "sound": "dodge",     "particles": { "count": 12, "speed": 2.5, "up": 0.0, "size": 0.08, "life": 0.3,  "gravity": 0,  "color": [230, 236, 255] } },
     "plunge_land":{ "sound": "hard_land", "particles": { "count": 36, "speed": 6,   "up": 0.4, "size": 0.16, "life": 0.7,  "gravity": 12, "color": [190, 176, 150] }, "shake": 0.5 },
 

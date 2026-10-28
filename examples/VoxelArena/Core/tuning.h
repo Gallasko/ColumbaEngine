@@ -42,7 +42,7 @@ namespace arena
             float cornerCorrection = 0.3f;    // m a rising head slides sideways around a block edge
 
             float landingGrace = 0.15f;       // s after landing the takeoff speed is kept (sprint and roll jumps chain)
-            float overspeedDecel = 14.0f;     // m/s^2 that speed above the run speed bleeds off (instead of the full brake)
+            float overspeedDecel = 45.0f;     // m/s^2 that speed above the run speed bleeds off (instead of the full brake)
 
             float hardLandingSpeed = 19.0f;   // m/s falling: above this, a landing costs hardLandingFrames
             int hardLandingFrames = 16;       // ... unless a dodge pressed just before landing rolls out of it

@@ -46,10 +46,10 @@
         // Corner correction: a head that clips a block edge on the way up slides around it
         "cornerCorrection": 0.3,
 
-        // Momentum: speed at takeoff is kept in the air and for a moment after landing, so sprint
-        // jumps and roll jumps chain; above-run speed then bleeds off instead of braking at once
+        // Momentum: speed at takeoff is kept in the air and for a moment after landing (landingGrace), so
+        // sprint jumps and roll jumps chain; then above-run speed bleeds off fast (overspeedDecel, m/s^2)
         "landingGrace": 0.15,
-        "overspeedDecel": 14,
+        "overspeedDecel": 45,
 
         // Big falls cost a short recovery (a slow, or a root with hardLandingMoveSpeed 0), unless a
         // dodge pressed in the air up to landingRollWindow seconds before landing rolls out of it

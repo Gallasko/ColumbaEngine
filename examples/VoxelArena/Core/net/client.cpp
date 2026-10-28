@@ -11,7 +11,7 @@ namespace arena::net
         bool predictedKind(const std::string& kind)
         {
             return kind == "dodge" or kind == "jump" or kind == "land" or kind == "hard_land" or kind == "swing" or kind == "step" or
-                   kind == "air_jump" or kind == "wall_jump" or kind == "air_dash" or kind == "plunge_land";
+                   kind == "air_jump" or kind == "wall_jump" or kind == "air_dash" or kind == "plunge_land" or kind == "leap";
         }
 
         float lerpAngle(float a, float b, float t)

@@ -748,7 +748,7 @@ namespace arena
               << "   hp " << fmt(p->health, 0) << "/" << fmt(p->maxHealth, 0)
               << "   poise " << fmt(p->poise, 0)
               << "   stamina " << fmt(p->stamina, 0) << (p->exhausted ? " (exhausted)" : "")
-              << (p->sprinting ? "  sprint" : "") << (world.godMode ? "  GOD" : "") << "\n";
+              << (p->sprinting ? "  sprint" : "") << (world.godMode ? "  GOD" : "") << (world.infiniteStamina ? "  INF STAMINA" : "") << (world.infiniteMana ? "  INF MANA" : "") << "\n";
 
             const glm::vec3 v = p->body.velocity;
             o << dim << "        pos " << fmt(p->body.position.x) << " " << fmt(p->body.position.y) << " " << fmt(p->body.position.z)
@@ -1630,6 +1630,14 @@ namespace arena
                 body = body * rotX(poseAt(*attack, SwingPose{}, frame).pitchFrom);
             }
 
+            // The attack turns the body (a backflip, a spin), about its middle; the weapon follows
+            if (attack and attack->turn.to > attack->turn.from)
+            {
+                const float t = easeInOut(glm::clamp((frame - static_cast<float>(attack->turn.from)) / static_cast<float>(attack->turn.to - attack->turn.from), 0.0f, 1.0f));
+                body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, h * 0.5f, 0)) * rotY(attack->turn.yaw * t) * rotX(attack->turn.pitch * t) *
+                       glm::translate(glm::mat4(1.0f), glm::vec3(0, -h * 0.5f, 0));
+            }
+
             const glm::mat4 modelMatrix = body * glm::scale(glm::mat4(1.0f), glm::vec3(scale)) * glm::translate(glm::mat4(1.0f), -model.pivot);
 
             // Hit flash (white), wind-up glow (orange, growing), stagger (yellow pulse)
@@ -1931,7 +1939,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | weapons | god | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -2057,7 +2065,7 @@ namespace arena
 
         // The world belongs to the server: a client asking to change it would only change its own view
         if (client and (cmd == "reload" or cmd == "spawn" or cmd == "clear" or cmd == "reset" or cmd == "place" or cmd == "fill" or
-                        cmd == "god" or cmd == "ai" or cmd == "tune" or cmd == "teleport" or cmd == "pause" or
+                        cmd == "god" or cmd == "stamina" or cmd == "mana" or cmd == "ai" or cmd == "tune" or cmd == "teleport" or cmd == "pause" or
                         cmd == "step" or cmd == "slowmo"))
             return cmd + ": only the host can do that";
 
@@ -2180,6 +2188,20 @@ namespace arena
         {
             world.godMode = not world.godMode;
             return std::string("god mode ") + (world.godMode ? "on" : "off");
+        }
+
+        // For testing moves and spells: players spend nothing (on, off, or a toggle)
+        if (cmd == "stamina" or cmd == "mana")
+        {
+            bool& flag = cmd == "stamina" ? world.infiniteStamina : world.infiniteMana;
+            flag = args.size() > 1 ? (args[1] == "on" or args[1] == "infinite") : not flag;
+
+            if (flag)
+                for (auto& f : world.fighters)
+                    if (f.team == Team::Player)
+                        (cmd == "stamina" ? f.stamina : f.mana) = cmd == "stamina" ? tuning.stamina.max : tuning.mana.max;
+
+            return "infinite " + cmd + (flag ? " on" : " off");
         }
 
         if (cmd == "ai")

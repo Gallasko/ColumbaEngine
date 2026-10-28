@@ -30,10 +30,10 @@ namespace arena
         const std::map<std::string, std::vector<std::string>> DEF_LOOKS = {
             {"block", {"color", "colorNoise", "visible"}},
             {"weapon", {"name", "model", "modelScale", "grip", "rest",
-                        "moveset.attacks.*.swing", "moveset.attacks.*.shake",
+                        "moveset.attacks.*.swing", "moveset.attacks.*.shake", "moveset.attacks.*.turn",
                         "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
             {"enemy", {"name", "model", "modelScale",
-                       "moveset.attacks.*.swing", "moveset.attacks.*.shake",
+                       "moveset.attacks.*.swing", "moveset.attacks.*.shake", "moveset.attacks.*.turn",
                        "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
             {"ability", {"name", "projectile.model", "projectile.modelScale", "projectile.shake"}},
         };
@@ -1368,7 +1368,7 @@ namespace arena
 
         checkKeys(j, {"startup", "active", "recovery", "damage", "poiseDamage", "staminaCost", "knockback", "knockup", "hitstop", "shake",
                       "hitboxes", "lunge", "lungeFrom", "lungeTo", "turnRate", "moveSpeed", "moveUntil", "armor", "terrainDamage", "dodgeCancelFrom", "chainFrom", "bufferFrom",
-                      "next", "swing", "projectile", "element", "status", "gravityScale", "plungeSpeed"},
+                      "next", "swing", "projectile", "element", "status", "gravityScale", "plungeSpeed", "iframes", "leap", "leapAt", "turn"},
                   file, report, "attack " + name);
 
         const size_t errorsBefore = report.errors.size();
@@ -1402,6 +1402,37 @@ namespace arena
         readStatusHit(j, a.status, file, report);
         readNum(j, "gravityScale", a.gravityScale, file, report);
         readNum(j, "plungeSpeed", a.plungeSpeed, file, report);
+        readInt(j, "leapAt", a.leapAt, file, report);
+
+        if (const Json* leap = j.find("leap"))
+        {
+            if (leap->isArray() and leap->array.size() == 2 and leap->array[0].isNumber() and leap->array[1].isNumber())
+                a.leap = glm::vec2(static_cast<float>(leap->array[0].number), static_cast<float>(leap->array[1].number));
+            else
+                report.error(file, leap->line, "\"leap\" is [along the facing, up] in m/s");
+        }
+
+        if (const Json* frames = j.find("iframes"))
+        {
+            if (frames->isArray() and frames->array.size() == 2 and frames->array[0].isNumber() and frames->array[1].isNumber())
+            {
+                a.iframeFrom = static_cast<int>(frames->array[0].number);
+                a.iframeTo = static_cast<int>(frames->array[1].number);
+            }
+            else
+            {
+                report.error(file, frames->line, "\"iframes\" is [first frame, frame after the last]");
+            }
+        }
+
+        if (const Json* turn = j.find("turn"))
+        {
+            checkKeys(*turn, {"pitch", "yaw", "from", "to"}, file, report, "the turn of " + name);
+            readNum(*turn, "pitch", a.turn.pitch, file, report);
+            readNum(*turn, "yaw", a.turn.yaw, file, report);
+            readInt(*turn, "from", a.turn.from, file, report);
+            readInt(*turn, "to", a.turn.to, file, report);
+        }
 
         if (const Json* next = j.find("next"))
         {

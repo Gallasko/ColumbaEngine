@@ -12,7 +12,7 @@ namespace arena::net
             "hit", "stagger", "kill", "swing", "windup", "shoot", "arrow_hit", "arrow_hit_fighter", "dodge", "jump", "land",
             "hard_land", "step", "chip", "break", "raise", "dig", "piece_fall", "piece_land",
             "air_jump", "wall_jump", "air_dash", "plunge_land", "fire_cast", "ice_cast", "volt_cast",
-            "fire_burst", "ice_burst", "volt_arc", "ignite", "freeze", "status",
+            "fire_burst", "ice_burst", "volt_arc", "ignite", "freeze", "status", "leap",
         };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };

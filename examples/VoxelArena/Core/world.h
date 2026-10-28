@@ -157,11 +157,14 @@ namespace arena
         float sinceAttack = 100.0f;   // seconds since the last attack ended
         std::string aiLastError;
 
+        bool attackIframes = false;   // in the invulnerable frames of its attack (AttackDef::iframeFrom), set each step
+
         bool alive() const { return action != Action::Dead; }
         bool invulnerable(const Tuning& t) const
         {
             // Read after the step advanced the counter: the frame just played is frame - 1
-            return action == Action::Dodge and frame - 1 >= t.dodge.iframeStart and frame - 1 < t.dodge.iframeEnd;
+            return (action == Action::Dodge and frame - 1 >= t.dodge.iframeStart and frame - 1 < t.dodge.iframeEnd) or
+                   (action == Action::Attack and attackIframes);
         }
     };
 
@@ -356,6 +359,8 @@ namespace arena
         const AbilityDef* ability(int index) const;
 
         bool godMode = false;         // the player takes no damage
+        bool infiniteStamina = false; // players spend no stamina (testing moves)
+        bool infiniteMana = false;    // players spend no mana (testing spells)
         bool aiEnabled = true;
 
         float time = 0.0f;

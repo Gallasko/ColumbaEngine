@@ -453,3 +453,168 @@ TEST(arena_spells, volt_breaks_stone_and_shrugs_off_armor)
     EXPECT_EQ(brute->action, Action::Attack);
 }
 
+
+// ---- The dagger --------------------------------------------------------------------------------
+
+namespace
+{
+    /** Presses `sequence` ('L' light, 'H' heavy) one after the other, each once the attack before can
+     *  chain, and returns the attacks that ran, in order. */
+    std::vector<std::string> combo(Arena& a, const std::string& sequence, std::vector<float>* zs = nullptr, bool* wasInvulnerable = nullptr)
+    {
+        std::vector<std::string> ran;
+        size_t next = 0;
+
+        for (int step = 0; step < 240; ++step)
+        {
+            InputFrame in;
+            const Fighter& p = a.player();
+            const AttackDef* now = a.world.currentAttack(p);
+
+            // The next press as soon as the current attack remembers it
+            if (next < sequence.size() and (not now or p.frame >= now->bufferFrom + 1))
+            {
+                const bool fresh = ran.empty() or (now and ran.back() == now->name and ran.size() == next);
+                if (fresh)
+                {
+                    (sequence[next] == 'L' ? in.lightPressed : in.heavyPressed) = true;
+                    ++next;
+                }
+            }
+
+            a.world.step(in);
+
+            if (const AttackDef* after = a.world.currentAttack(a.player()); after and (ran.empty() or ran.back() != after->name))
+                ran.push_back(after->name);
+            if (zs)
+                zs->push_back(a.player().body.position.z);
+            if (wasInvulnerable and a.player().invulnerable(a.tuning))
+                *wasInvulnerable = true;
+
+            if (next == sequence.size() and not a.world.currentAttack(a.player()) and a.player().body.onGround)
+                break;
+        }
+
+        return ran;
+    }
+}
+
+TEST(arena_dagger, two_combos_that_end_in_a_dash_or_a_backflip)
+{
+    auto run = [](const std::string& presses) {
+        Arena a;
+        a.player().weapon = "base:dagger";
+        return combo(a, presses);
+    };
+
+    EXPECT_EQ(run("LLLL"), (std::vector<std::string>{"jab1", "jab2", "jab3", "dash_finisher"}));
+    EXPECT_EQ(run("LLLH"), (std::vector<std::string>{"jab1", "jab2", "jab3", "backflip_finisher"}));
+    EXPECT_EQ(run("HHH"), (std::vector<std::string>{"spin_cut", "rising_cut", "backflip_finisher"}));
+    EXPECT_EQ(run("HHL"), (std::vector<std::string>{"spin_cut", "rising_cut", "dash_finisher"}));
+}
+
+TEST(arena_dagger, the_dash_finisher_goes_through_an_enemy)
+{
+    Arena a;
+    a.player().weapon = "base:dagger";
+    const int dummy = a.world.spawnEnemy("base:dummy", a.player().body.position + glm::vec3(0, 0, 2.5f), 180.0f);
+    a.settle(3);
+
+    bool invulnerable = false;
+    combo(a, "LLLL", nullptr, &invulnerable);
+
+    EXPECT_TRUE(invulnerable);
+    EXPECT_GT(a.player().body.position.z, a.world.find(dummy)->body.position.z);   // out the other side
+    EXPECT_LT(a.world.find(dummy)->health, a.world.find(dummy)->maxHealth);
+}
+
+TEST(arena_dagger, the_backflip_leaps_back_and_up)
+{
+    Arena a;
+    a.player().weapon = "base:dagger";
+    std::vector<float> zs;
+    const float start = a.player().body.position.z;
+
+    float highest = 0.0f;
+    combo(a, "LLLH", &zs);
+    const float flipStart = *std::max_element(zs.begin(), zs.end());   // the jabs went forward first
+
+    // Leapt: back behind where the flip began, and off the ground on the way
+    Arena b;
+    b.player().weapon = "base:dagger";
+    b.player().action = Action::Attack;
+    b.player().attack = "backflip_finisher";
+    b.player().frame = 0;
+    for (int i = 0; i < 40; ++i)
+    {
+        b.world.step(InputFrame{});
+        highest = std::max(highest, b.player().body.position.y);
+    }
+
+    EXPECT_GT(highest, b.content.arena.playerSpawn.y + 1.0f);
+    EXPECT_LT(a.player().body.position.z, flipStart - 2.0f);
+    EXPECT_GT(a.player().body.position.z, start - 10.0f);   // a flip, not a flight
+    EXPECT_TRUE(a.player().body.onGround);                   // and down again
+}
+
+TEST(arena_moves, infinite_stamina_and_mana_for_testing)
+{
+    Arena a;
+    a.world.infiniteStamina = true;
+    a.world.infiniteMana = true;
+
+    // Rolls back to back, a sprint, and spells: nothing spent
+    InputFrame roll;
+    roll.dodgePressed = true;
+    roll.move = glm::vec2(0, 1);
+    for (int i = 0; i < 8; ++i)
+    {
+        a.world.step(roll);
+        a.run(30);
+    }
+
+    InputFrame sprint;
+    sprint.sprintHeld = true;
+    sprint.move = glm::vec2(0, -1);
+    a.run(120, sprint);
+    EXPECT_FLOAT_EQ(a.player().stamina, a.tuning.stamina.max);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        a.cast("base:volt", a.player().body.position + glm::vec3(0, 1, 10));
+        a.run(70);
+    }
+    EXPECT_FLOAT_EQ(a.player().mana, a.tuning.mana.max);
+
+    // Off again: a roll costs
+    a.world.infiniteStamina = false;
+    a.world.step(roll);
+    EXPECT_LT(a.player().stamina, a.tuning.stamina.max);
+}
+
+TEST(arena_moves, a_roll_jump_lands_back_to_run_speed_quickly)
+{
+    Arena a;
+    InputFrame run;
+    run.move = glm::vec2(0, 1);
+
+    // A roll, a jump out of it at once, held forward
+    InputFrame roll = run;
+    roll.dodgePressed = true;
+    a.world.step(roll);
+    a.run(2, run);
+    InputFrame jump = run;
+    jump.jumpPressed = true;
+    jump.jumpHeld = true;
+    a.world.step(jump);
+    EXPECT_GT(a.player().body.velocity.z, a.tuning.player.sprintSpeed);   // the speed tech: faster than a sprint
+
+    int steps = 0;
+    while (not a.player().body.onGround and steps++ < 120)
+        a.world.step(run);
+    ASSERT_TRUE(a.player().body.onGround);
+
+    // The grace (for chaining another jump), then back to the run speed within a few tenths of a second
+    a.run(static_cast<int>((a.tuning.player.landingGrace + 0.3f) * 60.0f), run);
+    EXPECT_NEAR(a.player().body.velocity.z, a.tuning.player.walkSpeed, 0.1f);
+}

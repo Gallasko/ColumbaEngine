@@ -212,6 +212,21 @@ namespace arena
         float gravityScale = 1.0f;
         float plungeSpeed = 0.0f;
 
+        // Movement: frames [iframeFrom, iframeTo) the attacker cannot be hit and passes through
+        // others (a dash through), and a leap: at frame leapAt the attacker is thrown `leap.x` m/s
+        // along its facing (negative: backwards) and `leap.y` m/s up (a backflip)
+        int iframeFrom = -1, iframeTo = -1;
+        glm::vec2 leap = glm::vec2(0.0f);
+        int leapAt = -1;
+
+        // Looks: how the body turns over frames [from, to) of the attack, in degrees (pitch -360: a
+        // backflip, yaw 360: a spin)
+        struct Turn
+        {
+            float pitch = 0.0f, yaw = 0.0f;
+            int from = 0, to = 0;
+        } turn;
+
         int total() const { return startup + active + recovery; }
         bool isActive(int frame) const { return frame >= startup and frame < startup + active; }
         bool movesAt(int frame) const { return moveSpeed > 0.0f and (moveUntil < 0 or frame < moveUntil); }

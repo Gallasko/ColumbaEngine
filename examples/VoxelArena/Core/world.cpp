@@ -467,7 +467,7 @@ namespace arena
 
     void ArenaWorld::spendStamina(Fighter& f, float amount)
     {
-        if (amount <= 0.0f)
+        if (amount <= 0.0f or (infiniteStamina and f.team == Team::Player))
             return;
 
         f.stamina = std::max(0.0f, f.stamina - amount);
@@ -933,7 +933,8 @@ namespace arena
                 if (sprint)
                 {
                     f.sprinting = true;
-                    f.stamina = std::max(0.0f, f.stamina - tuning.stamina.sprintCost * dt);
+                    if (not infiniteStamina)
+                        f.stamina = std::max(0.0f, f.stamina - tuning.stamina.sprintCost * dt);
                     f.staminaDelay = tuning.stamina.regenDelay;
 
                     if (f.stamina <= 0.0f)
@@ -987,6 +988,17 @@ namespace arena
 
                 if (a->movesAt(f.frame))
                     wanted = wish * (tuning.player.walkSpeed * a->moveSpeed * speedScale(f));
+
+                // A leap: thrown along the facing and up, once (a backflip out of a finisher)
+                if (a->leapAt >= 0 and f.frame == a->leapAt)
+                {
+                    const glm::vec3 along = yawForward(f.yaw) * a->leap.x;
+                    f.body.velocity = glm::vec3(along.x, a->leap.y, along.z);
+                    f.body.onGround = false;
+                    f.airSpeed = std::fabs(a->leap.x);
+                    f.jumping = false;
+                    event("leap", f.body.position, 1.0f, f.id);
+                }
 
                 // A plunge hangs through its startup, then dives
                 if (a->plungeSpeed > 0.0f and not f.body.onGround)
@@ -1116,6 +1128,10 @@ namespace arena
 
         if (f.action != Action::Free and not holding)
             ++f.frame;
+
+        // The attack's own invulnerable frames, as the dodge's: on the frame just played
+        const AttackDef* after = currentAttack(f);
+        f.attackIframes = f.action == Action::Attack and after and after->iframeFrom >= 0 and f.frame - 1 >= after->iframeFrom and f.frame - 1 < after->iframeTo;
     }
 
     void ArenaWorld::stepEnemy(Fighter& f)
@@ -1356,7 +1372,8 @@ namespace arena
 
             const bool rootedLanding = f.action == Action::Land and P.hardLandingMoveSpeed <= 0.0f;
 
-            if (f.action == Action::Stagger or rootedLanding or (f.action == Action::Attack and not moving))
+            // (an attack in the air keeps its flight: a leap out of it carries on)
+            if (f.action == Action::Stagger or rootedLanding or (f.action == Action::Attack and not moving and body.onGround))
                 rate = std::max(rate, P.groundDecel * 1.5f);
 
             const glm::vec3 next = approach(current, flat(wanted), rate * dt);
@@ -1393,6 +1410,15 @@ namespace arena
         {
             jumped = true;
             f.airSpeed = std::max(speedBefore, glm::length(flat(body.velocity)));
+
+            // The ground's brake ran above this step: the jump takes off with the speed from before it
+            const glm::vec3 now = flat(body.velocity);
+            if (glm::length(now) > 1e-4f and glm::length(now) < speedBefore)
+            {
+                const glm::vec3 kept = glm::normalize(now) * speedBefore;
+                body.velocity.x = kept.x;
+                body.velocity.z = kept.z;
+            }
             body.velocity.y = std::sqrt(2.0f * P.gravity * P.jumpHeight);
             event("jump", body.position, 1.0f, f.id);
             body.onGround = false;
@@ -1747,7 +1773,7 @@ namespace arena
                 spendStamina(f, a->staminaCost);
                 f.abilityCooldown[i] = a->cooldown;
 
-                if (a->manaCost > 0.0f)
+                if (a->manaCost > 0.0f and not (infiniteMana and f.team == Team::Player))
                 {
                     f.mana -= a->manaCost;
                     f.manaDelay = tuning.mana.regenDelay;

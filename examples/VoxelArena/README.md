@@ -13,7 +13,7 @@ cd release
 make -j18 VoxelArena VoxelArenaServer test_voxelarena
 cd ..
 ./release/VoxelArena            # or ./make_and_play.sh VoxelArena
-./release/test_voxelarena       # 109 tests, about half a second
+./release/test_voxelarena       # 114 tests, about half a second
 ```
 
 The game reads its mods and its shader straight from the source tree (`examples/VoxelArena/mods`,
@@ -42,7 +42,7 @@ Options:
 | Left Ctrl / C (held, in the air) | Fast fall |
 | Left mouse / J | Light attack (3-hit combo); while sprinting: dash attack; in the air: air slash |
 | Right mouse / K | Heavy attack; in the air: plunge |
-| Tab | Next weapon (sword, spear from testmod) |
+| Tab | Next weapon (dagger, sword, spear from testmod) |
 | F / V | First person (the default) / third person |
 | Q | Raise a wall of earth in front of you |
 | E | Dig a pit where the crosshair is |
@@ -67,7 +67,7 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
   - *Ledge assist*: a jump that ends with the feet just under a ledge (`mantleHeight`) climbs onto it.
   - *Corner correction*: a head that clips a block edge on the way up slides past it (`cornerCorrection`).
   - *Momentum*: the takeoff speed is kept in the air and for a moment after landing (`landingGrace`), so
-    sprint jumps and roll jumps chain; extra speed then bleeds off (`overspeedDecel`).
+    sprint jumps and roll jumps chain; extra speed then bleeds off quickly (`overspeedDecel`).
   - A jump cancels the roll from `dodge.jumpFrom` on (any time by default) and takes off with the
     roll's speed at that moment: early in the roll is fast and long, but the roll's invulnerability
     ends with it.
@@ -92,6 +92,14 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
   A light press during an attack is remembered and starts the next attack of the combo once the
   attack allows it (`chainFrom`). A dodge can cancel an attack from `dodgeCancelFrom` on. A light
   press at the end of a roll becomes the dodge attack.
+- **The dagger** is fast and keeps you moving (its jabs keep the whole walk speed). Two combos, each
+  ending in a move:
+  - light, light, light, then light: the *dash finisher*, a long lunge you cannot be hit in, straight
+    through the enemy;
+  - light, light, light (or heavy, heavy: a spin, then a rising cut that launches), then heavy: the
+    *backflip finisher*, a launching cut that flips you up and away. Light after the rising cut is
+    the dash.
+  Sprint and light is a sliding cut; in the air, light spins a flurry and heavy dives into a stab.
 - **Attacks on the move**: a light press while sprinting (or just after) is the *dash attack*, a long
   lunging thrust. In the air, light is the *air slash* (it catches your fall for a moment) and heavy
   is the *plunge*: a short hang, a dive, and a strike all around where you land.
@@ -327,6 +335,9 @@ See `mods/base/weapons/sword.json`: the header comment explains every field. In 
   carries.
 - `gravityScale`: the fall while the attack runs (an air attack hangs). `plungeSpeed`: the attack dives
   after its startup and holds its first active frame until it lands.
+- `iframes` `[from, to)`: frames the attacker cannot be hit, passing through whoever is in the way.
+  `leap` `[along, up]` m/s at frame `leapAt` (negative along: backwards). `turn` (`pitch`, `yaw`,
+  `from`, `to`): how the body turns over the attack, a backflip or a spin; it only looks.
 - The moveset names `light`, `heavy`, `dodgeAttack`, `dashAttack`, `airLight` and `airHeavy`.
 
 A spell is an ability with `"kind": "projectile"` (a `projectile` object as for an enemy's shot, plus
@@ -376,6 +387,7 @@ Open with `` ` ``. `help` lists the commands.
 | `weapon <id>`, `weapons` | Wield a weapon; list them |
 | `view [first|third]` | Switch the camera |
 | `god`, `ai`, `hitboxes`, `overlay` | Toggles |
+| `stamina [on\|off]`, `mana [on\|off]` | Infinite stamina, infinite mana for the players (for testing moves and spells) |
 | `pause`, `step [n]`, `slowmo <x>` | Freeze, advance n frames, change the speed (frame data checks) |
 | `place x y z <block>`, `fill x0 y0 z0 x1 y1 z1 <block>` | Edit the arena (`air` digs) |
 | `mods`, `errors`, `warnings` | What is loaded, what went wrong |
