@@ -681,6 +681,10 @@ namespace arena
             hud.setWeapon(weapons + "\n" + abilityLine());
             hud.setCrosshair(p->alive());   // both views: the abilities aim with it
 
+            // The hit flash fades in about a third of a second
+            hurtFlash = std::max(0.0f, hurtFlash - frameSeconds * 3.0f);
+            hud.setHurt(hurtFlash);
+
             hud.setCenter(not p->alive() ? "You fell" : (paused ? "Paused" : ""));
         }
         else if (client)
@@ -988,7 +992,10 @@ namespace arena
 
                 // Hits on the local player shake its camera (the world's hit list is the server's)
                 if (e.fighter == client->playerId and (e.kind == "hit" or e.kind == "stagger" or e.kind == "kill"))
+                {
                     camera.addTrauma(e.kind == "hit" ? 0.2f : 0.45f);
+                    hurtFlash = std::max(hurtFlash, e.kind == "hit" ? 0.6f : 1.0f);
+                }
             }
         }
 
@@ -1150,6 +1157,10 @@ namespace arena
 
             if (involvesPlayer)
                 camera.addTrauma(h.shake);
+
+            // Hit: the screen flashes red, more for a stagger or worse
+            if (p and h.target == p->id)
+                hurtFlash = std::max(hurtFlash, h.killed or h.staggered ? 1.0f : 0.6f);
 
             if (h.killed)
             {
@@ -1541,6 +1552,7 @@ namespace arena
 
         // Fighters, grouped by model: one draw per model with an instance per fighter
         std::map<std::string, std::vector<float>> instances;
+        std::vector<float> trail, danger;   // see-through: slash trails, heavy attack tells
 
         for (const auto& f : world.fighters)
         {
@@ -1592,51 +1604,58 @@ namespace arena
 
             const float h = f.body.height;
 
-            // The body frame: feet, facing, then the action's pose
-            glm::mat4 body = glm::translate(glm::mat4(1.0f), pos + glm::vec3(0, stepOffset, 0)) * rotY(yaw);
-
             const AttackDef* attack = world.currentAttack(f);
 
-            if (f.action == Action::Dodge)
-            {
-                // A forward roll around the body centre
-                const int rollFrames = std::max(1, tuning.dodge.frames - tuning.dodge.recovery);
-                const float t = glm::clamp(frame / static_cast<float>(rollFrames), 0.0f, 1.0f);
-                body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, h * 0.4f, 0)) * rotX(360.0f * easeInOut(t)) * glm::translate(glm::mat4(1.0f), glm::vec3(0, -h * 0.4f, 0));
-            }
-            else if (f.action == Action::Stagger)
-            {
-                // Rocked back, then recovering
-                const float t = frame / std::max(1.0f, static_cast<float>(f.actionLength));
-                body = body * rotX(-14.0f * std::sin(glm::clamp(t, 0.0f, 1.0f) * 3.14159f) - 4.0f * std::sin(frame * 0.9f) * (1.0f - t));
-            }
-            else if (f.action == Action::Dead)
-            {
-                body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.15f, 0)) * rotX(-90.0f);
-            }
-            else if (f.action == Action::AirDash)
-            {
-                // Leaning into the burst
-                body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, h * 0.5f, 0)) * rotX(22.0f) * glm::translate(glm::mat4(1.0f), glm::vec3(0, -h * 0.5f, 0));
-            }
-            else if (f.action == Action::Land)
-            {
-                // Squashed by the impact, standing back up
-                const float t = easeOut(frame / std::max(1.0f, static_cast<float>(f.actionLength)));
-                body = body * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f + 0.1f * (1.0f - t), 0.75f + 0.25f * t, 1.0f + 0.1f * (1.0f - t)));
-            }
-            else if (attack and f.team == Team::Enemy)
-            {
-                body = body * rotX(poseAt(*attack, SwingPose{}, frame).pitchFrom);
-            }
+            // The body frame at a frame of the action: feet, facing, then the action's pose (a function
+            // of the frame, so the slash trail can ask where the body was a few frames ago)
+            auto bodyAt = [&](float fr) {
+                glm::mat4 body = glm::translate(glm::mat4(1.0f), pos + glm::vec3(0, stepOffset, 0)) * rotY(yaw);
 
-            // The attack turns the body (a backflip, a spin), about its middle; the weapon follows
-            if (attack and attack->turn.to > attack->turn.from)
-            {
-                const float t = easeInOut(glm::clamp((frame - static_cast<float>(attack->turn.from)) / static_cast<float>(attack->turn.to - attack->turn.from), 0.0f, 1.0f));
-                body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, h * 0.5f, 0)) * rotY(attack->turn.yaw * t) * rotX(attack->turn.pitch * t) *
-                       glm::translate(glm::mat4(1.0f), glm::vec3(0, -h * 0.5f, 0));
-            }
+                if (f.action == Action::Dodge)
+                {
+                    // A forward roll around the body centre
+                    const int rollFrames = std::max(1, tuning.dodge.frames - tuning.dodge.recovery);
+                    const float t = glm::clamp(fr / static_cast<float>(rollFrames), 0.0f, 1.0f);
+                    body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, h * 0.4f, 0)) * rotX(360.0f * easeInOut(t)) * glm::translate(glm::mat4(1.0f), glm::vec3(0, -h * 0.4f, 0));
+                }
+                else if (f.action == Action::Stagger)
+                {
+                    // Rocked back, then recovering
+                    const float t = fr / std::max(1.0f, static_cast<float>(f.actionLength));
+                    body = body * rotX(-14.0f * std::sin(glm::clamp(t, 0.0f, 1.0f) * 3.14159f) - 4.0f * std::sin(fr * 0.9f) * (1.0f - t));
+                }
+                else if (f.action == Action::Dead)
+                {
+                    body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.15f, 0)) * rotX(-90.0f);
+                }
+                else if (f.action == Action::AirDash)
+                {
+                    // Leaning into the burst
+                    body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, h * 0.5f, 0)) * rotX(22.0f) * glm::translate(glm::mat4(1.0f), glm::vec3(0, -h * 0.5f, 0));
+                }
+                else if (f.action == Action::Land)
+                {
+                    // Squashed by the impact, standing back up
+                    const float t = easeOut(fr / std::max(1.0f, static_cast<float>(f.actionLength)));
+                    body = body * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f + 0.1f * (1.0f - t), 0.75f + 0.25f * t, 1.0f + 0.1f * (1.0f - t)));
+                }
+                else if (attack and f.team == Team::Enemy)
+                {
+                    body = body * rotX(poseAt(*attack, SwingPose{}, fr).pitchFrom);
+                }
+
+                // The attack turns the body (a backflip, a spin), about its middle; the weapon follows
+                if (attack and attack->turn.to > attack->turn.from)
+                {
+                    const float t = easeInOut(glm::clamp((fr - static_cast<float>(attack->turn.from)) / static_cast<float>(attack->turn.to - attack->turn.from), 0.0f, 1.0f));
+                    body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, h * 0.5f, 0)) * rotY(attack->turn.yaw * t) * rotX(attack->turn.pitch * t) *
+                           glm::translate(glm::mat4(1.0f), glm::vec3(0, -h * 0.5f, 0));
+                }
+
+                return body;
+            };
+
+            const glm::mat4 body = bodyAt(frame);
 
             const glm::mat4 modelMatrix = body * glm::scale(glm::mat4(1.0f), glm::vec3(scale)) * glm::translate(glm::mat4(1.0f), -model.pivot);
 
@@ -1645,12 +1664,19 @@ namespace arena
 
             const EffectDef* look = statusLook(f);
 
-            if (f.flash > 0)
+            // A weapon skill being charged: a glow that builds (full: it pulses)
+            const bool charging = attack and attack->charge.at >= 0 and f.chargeFrames > 0 and frame <= static_cast<float>(attack->charge.at + 1);
+            const float charge = f.chargeRatio(attack);
+
+            if (charging)
+                flash = glm::vec4(0.65f, 0.85f, 1.0f, charge >= 1.0f ? 0.55f + 0.2f * std::sin(simTime * 20.0f) : 0.15f + 0.4f * charge);
+            else if (f.flash > 0)
                 flash = glm::vec4(1.0f, 1.0f, 1.0f, 0.85f * static_cast<float>(f.flash) / static_cast<float>(std::max(1, tuning.feel.hitFlashFrames)));
             else if (look)
                 flash = glm::vec4(look->tint, heldStill(f) ? 0.6f : 0.32f + 0.12f * std::sin(simTime * 9.0f + static_cast<float>(f.id)));
             else if (attack and f.team == Team::Enemy and frame < attack->startup)
-                flash = glm::vec4(1.0f, 0.45f, 0.1f, 0.55f * easeInOut(frame / std::max(1.0f, static_cast<float>(attack->startup))));
+                flash = attack->tellHeavy ? glm::vec4(1.0f, 0.12f, 0.08f, 0.65f * easeInOut(frame / std::max(1.0f, static_cast<float>(attack->startup))))
+                                          : glm::vec4(1.0f, 0.45f, 0.1f, 0.55f * easeInOut(frame / std::max(1.0f, static_cast<float>(attack->startup))));
             else if (f.action == Action::Stagger)
                 flash = glm::vec4(1.0f, 0.9f, 0.3f, 0.25f + 0.15f * std::sin(frame * 0.6f));
 
@@ -1682,42 +1708,103 @@ namespace arena
             if (f.team == Team::Player)
             {
                 auto w = content.weapons.find(f.weapon);
+                auto weaponModel = w != content.weapons.end() ? content.models.find(w->second.model) : content.models.end();
 
-                if (w != content.weapons.end() and content.models.count(w->second.model) and f.alive())
+                if (w != content.weapons.end() and weaponModel != content.models.end() and f.alive())
                 {
                     const WeaponDef& weapon = w->second;
 
-                    SwingPose pose;
-                    pose.yawFrom = weapon.rest.yawFrom;
-                    pose.pitchFrom = weapon.rest.pitchFrom;
+                    // Where the weapon is at a frame of the action, in the hand of the body as it was then
+                    auto weaponAt = [&](float fr, const glm::mat4& bodyThen) {
+                        SwingPose pose;
+                        pose.yawFrom = weapon.rest.yawFrom;
+                        pose.pitchFrom = weapon.rest.pitchFrom;
 
-                    if (attack)
-                        pose = poseAt(*attack, weapon.rest, frame);
+                        if (attack)
+                            pose = poseAt(*attack, weapon.rest, fr);
 
-                    // Hand in the body frame; x is the fighter's right, which is the model's -X
-                    glm::mat4 handFrame = body * glm::translate(glm::mat4(1.0f), glm::vec3(-tuning.player.hand.x, tuning.player.hand.y, tuning.player.hand.z)) *
-                                          rotX(attack ? f.attackPitch : 0.0f);   // aimed down at a target below, up at one above
+                        // Hand in the body frame; x is the fighter's right, which is the model's -X
+                        glm::mat4 handFrame = bodyThen * glm::translate(glm::mat4(1.0f), glm::vec3(-tuning.player.hand.x, tuning.player.hand.y, tuning.player.hand.z)) *
+                                              rotX(attack ? f.attackPitch : 0.0f);   // aimed down at a target below, up at one above
 
-                    if (viewModel)
+                        if (viewModel)
+                        {
+                            // Held in front of the eye, turning with the view. Scaled down around the eye:
+                            // the same picture on screen, but close enough not to poke into walls
+                            // A spin (whirlwind, air flurry) turns the body, not the view: the weapon goes round the eye instead
+                            float around = 0.0f;
+                            if (attack and std::fabs(attack->turn.yaw) > 0.01f and attack->turn.to > attack->turn.from)
+                                around = attack->turn.yaw * easeInOut(glm::clamp((fr - static_cast<float>(attack->turn.from)) / static_cast<float>(attack->turn.to - attack->turn.from), 0.0f, 1.0f));
+
+                            const auto& fp = tuning.firstPerson;
+                            handFrame = glm::translate(glm::mat4(1.0f), camera.position) * rotY(camera.viewYaw + around) * rotX(camera.viewPitch) *
+                                        glm::scale(glm::mat4(1.0f), glm::vec3(fp.viewModelScale)) *
+                                        glm::translate(glm::mat4(1.0f), glm::vec3(-fp.weapon.x, fp.weapon.y, fp.weapon.z));
+                        }
+
+                        return handFrame *
+                            rotY(-pose.yawFrom) * rotX(-pose.pitchFrom) *
+                            glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, pose.reach)) *
+                            glm::scale(glm::mat4(1.0f), glm::vec3(weapon.modelScale)) *
+                            glm::translate(glm::mat4(1.0f), -weapon.grip);
+                    };
+
+                    pushInstance(instances[weapon.model], view, weaponAt(frame, body), WHITE, f.flash > 0 or charging ? flash * 0.5f : glm::vec4(0.0f));
+
+                    // The slash: ghosts of the blade along the last frames of the swing, fading, while it
+                    // can hit (and a moment after), so the reach and the arc of the attack read at a glance
+                    constexpr float TRAIL = 5.0f;
+
+                    if (attack and frame >= static_cast<float>(attack->startup) and frame < static_cast<float>(attack->startup + attack->active + 2))
                     {
-                        // Held in front of the eye, turning with the view. Scaled down around the eye:
-                        // the same picture on screen, but close enough not to poke into walls
-                        const auto& fp = tuning.firstPerson;
-                        handFrame = glm::translate(glm::mat4(1.0f), camera.position) * rotY(camera.viewYaw) * rotX(camera.viewPitch) *
-                                    glm::scale(glm::mat4(1.0f), glm::vec3(fp.viewModelScale)) *
-                                    glm::translate(glm::mat4(1.0f), glm::vec3(-fp.weapon.x, fp.weapon.y, fp.weapon.z));
+                        const VoxelModel& wm = *weaponModel->second;
+                        const float bladeFrom = weapon.grip.z + 1.0f;
+                        const float bladeLength = std::max(1.0f, static_cast<float>(wm.grid.depth()) - bladeFrom);
+                        const float oldest = std::max(static_cast<float>(attack->startup) - 1.0f, frame - TRAIL);
+
+                        for (float fr = frame; fr >= oldest; fr -= 0.34f)
+                        {
+                            const float age = (frame - fr) / TRAIL;
+                            const glm::mat4 ghost = weaponAt(fr, bodyAt(fr)) * glm::translate(glm::mat4(1.0f), glm::vec3(weapon.grip.x - 0.6f, weapon.grip.y - 0.6f, bladeFrom)) *
+                                                    glm::scale(glm::mat4(1.0f), glm::vec3(1.2f, 1.2f, bladeLength));
+                            // Softer in first person: right in front of the eye
+                            pushInstance(trail, view, ghost, glm::vec4(0.9f, 0.95f, 1.0f, (viewModel ? 0.28f : 0.5f) * (1.0f - age)), glm::vec4(0.0f));
+                        }
                     }
-
-                    const glm::mat4 weaponMatrix = handFrame *
-                        rotY(-pose.yawFrom) * rotX(-pose.pitchFrom) *
-                        glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, pose.reach)) *
-                        glm::scale(glm::mat4(1.0f), glm::vec3(weapon.modelScale)) *
-                        glm::translate(glm::mat4(1.0f), -weapon.grip);
-
-                    pushInstance(instances[weapon.model], view, weaponMatrix, WHITE, f.flash > 0 ? flash * 0.5f : glm::vec4(0.0f));
                 }
             }
+
+            // An enemy's heavy attack, winding up: where it will land, filling in as it comes, and a
+            // marker over the head
+            if (f.team == Team::Enemy and attack and attack->tellHeavy and frame < static_cast<float>(attack->startup + attack->active))
+            {
+                const float progress = glm::clamp(frame / std::max(1.0f, static_cast<float>(attack->startup)), 0.0f, 1.0f);
+
+                // The lunge still to come moves the strike forward
+                const float lungeFrom = std::max(frame, static_cast<float>(attack->lungeFrom));
+                const float lungeTo = std::min(static_cast<float>(attack->lungeTo), static_cast<float>(attack->startup + attack->active));
+                const float ahead = attack->lunge * std::max(0.0f, lungeTo - lungeFrom) / 60.0f;
+
+                for (const auto& box : attack->hitboxes)
+                {
+                    const glm::vec3 centre = pos + localToWorld(yaw, box.offset + glm::vec3(0, 0, ahead));
+                    const glm::mat4 ground = glm::translate(glm::mat4(1.0f), glm::vec3(centre.x, pos.y + 0.03f, centre.z)) * rotY(yaw);
+
+                    pushInstance(danger, view, ground * glm::scale(glm::mat4(1.0f), glm::vec3(box.size.x, 0.04f, box.size.z)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0, -0.5f)),
+                                 glm::vec4(1.0f, 0.15f, 0.1f, 0.16f + 0.1f * progress), glm::vec4(0.0f));
+                    pushInstance(danger, view, ground * glm::scale(glm::mat4(1.0f), glm::vec3(box.size.x * progress, 0.06f, box.size.z * progress)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0, -0.5f)),
+                                 glm::vec4(1.0f, 0.2f, 0.1f, 0.32f), glm::vec4(0.0f));
+                }
+
+                const float bob = 0.06f * std::sin(simTime * 10.0f);
+                const glm::mat4 marker = glm::translate(glm::mat4(1.0f), pos + glm::vec3(0, h + 0.6f + bob, 0)) * rotY(simTime * 200.0f) * rotX(45.0f) *
+                                         glm::rotate(glm::mat4(1.0f), 45.0f * DEG, glm::vec3(0, 0, 1)) * glm::scale(glm::mat4(1.0f), glm::vec3(0.24f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f));
+                pushInstance(danger, view, marker, glm::vec4(1.0f, 0.2f, 0.12f, 0.6f + 0.35f * progress), glm::vec4(0.0f));
+            }
         }
+
+        add(boxMesh, debugMaterial, OpacityType::Normal, std::move(trail));
+        add(boxMesh, debugMaterial, OpacityType::Normal, std::move(danger));
 
         // Projectiles, along their flight
         for (const auto& pr : world.projectiles)

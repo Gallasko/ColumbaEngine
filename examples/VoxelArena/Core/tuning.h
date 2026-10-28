@@ -177,7 +177,8 @@ namespace arena
             float crushShake = 0.6f;        // camera trauma when a piece lands near the player
         } terrain;
 
-        std::vector<std::string> abilities = {"base:raise_wall", "base:dig_pit", "base:mine"};   // ability1, 2, 3... ("" leaves a slot empty)
+        /** ability1, 2, 3...: each slot a list, the first one the wielded weapon allows fills it (empty: none) */
+        std::vector<std::vector<std::string>> abilities = {{"base:raise_wall"}, {"base:dig_pit"}, {"base:mine"}};
 
         std::string playerModel = "base:player";
         std::string startWeapon = "base:sword";

@@ -130,7 +130,11 @@ namespace arena::net
             all.insert(id);
 
         for (const auto& [id, a] : content.abilities)
+        {
             all.insert(id);
+            if (a.kind == "attack")
+                all.insert("@" + id);   // a weapon skill's attack, while it runs
+        }
 
         names.assign(all.begin(), all.end());
         ids.clear();
@@ -338,6 +342,8 @@ namespace arena::net
         w.vec3(f.dodgeDir);
         w.u16(names.id(f.aiMove));
 
+        w.u8(static_cast<uint8_t>(std::clamp(f.chargeFrames, 0, 255)));   // a charge shows
+
         // Statuses: they slow and they show
         w.u8(static_cast<uint8_t>(std::min<size_t>(f.statuses.size(), 16)));
         for (size_t i = 0; i < f.statuses.size() and i < 16; ++i)
@@ -381,6 +387,7 @@ namespace arena::net
         w.u8(static_cast<uint8_t>(std::clamp(f.airDashesUsed, 0, 255)));
         w.u8(static_cast<uint8_t>(std::clamp(f.wallLock, 0, 255)));
         w.vec3(f.wallNormal);
+        w.i8(static_cast<int8_t>(std::clamp(f.chargeSlot, -1, 127)));
     }
 
     void readFighter(Reader& r, Fighter& f, const Names& names)
@@ -410,6 +417,8 @@ namespace arena::net
         f.attackPitch = r.f32();
         f.dodgeDir = r.vec3();
         f.aiMove = names.name(r.u16());
+
+        f.chargeFrames = r.u8();
 
         f.statuses.clear();
         const uint8_t statuses = r.u8();
@@ -455,6 +464,7 @@ namespace arena::net
         f.airDashesUsed = r.u8();
         f.wallLock = r.u8();
         f.wallNormal = r.vec3();
+        f.chargeSlot = r.i8();
     }
 
     // ---- Snapshot ---------------------------------------------------------------------------------

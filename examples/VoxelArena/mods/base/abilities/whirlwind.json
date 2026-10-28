@@ -1,0 +1,18 @@
+// Sword skill (R by default): a whirlwind. Two turns with the blade out, still walking, hitting all
+// around you; a little armor while it spins.
+{
+    "name": "Whirlwind",
+    "kind": "attack",
+    "weapons": ["sword"],
+    "staminaCost": 20,
+    "cooldown": 4,
+    "attack": {
+        "moveSpeed": 0.7,
+        "startup": 8, "active": 16, "recovery": 14,
+        "damage": 14, "poiseDamage": 20, "armor": 15,
+        "knockback": 5, "hitstop": 3, "shake": 0.3,
+        "hitboxes": [ { "offset": [0, 1.0, 0.0], "size": [3.6, 1.4, 3.6] } ],
+        "turn": { "yaw": 720, "from": 6, "to": 26 },
+        "swing": { "yaw": 90, "pitch": 0, "reach": 0.2 }
+    }
+}

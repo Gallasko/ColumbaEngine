@@ -2,6 +2,7 @@
 // Press 2 in game to wield it (1 goes back to the sword).
 {
     "name": "Ash Spear",
+    "type": "spear",
     "model": "spear",
     "modelScale": 0.0625,
     "grip": [1.5, 1.5, 10.0],

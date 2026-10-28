@@ -1,0 +1,19 @@
+// Sword skill (4 by default): a leap forward that comes down as a slam, striking all around where
+// you land.
+{
+    "name": "Leap slam",
+    "kind": "attack",
+    "weapons": ["sword"],
+    "staminaCost": 18,
+    "cooldown": 5,
+    "attack": {
+        "startup": 20, "active": 6, "recovery": 22,
+        "damage": 20, "poiseDamage": 30, "armor": 20,
+        "knockback": 7, "knockup": 5, "hitstop": 6, "shake": 0.6,
+        "hitboxes": [ { "offset": [0, 0.5, 0.4], "size": [3.4, 1.4, 3.4] } ],
+        "leap": [14, 10], "leapAt": 2,
+        "plungeSpeed": 26,
+        "terrainDamage": 25,
+        "swing": { "yawFrom": 0, "yawTo": 0, "pitchFrom": 110, "pitchTo": -60 }
+    }
+}

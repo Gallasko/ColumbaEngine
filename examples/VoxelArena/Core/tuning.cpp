@@ -285,9 +285,20 @@ namespace arena
             {
                 t.abilities.clear();
 
+                // A slot is an id, "" (empty), or a list of ids (the first the weapon allows)
                 for (const auto& e : list->array)
-                    if (e.isString())
-                        t.abilities.push_back(e.string);
+                {
+                    std::vector<std::string> slot;
+
+                    if (e.isString() and not e.string.empty())
+                        slot.push_back(e.string);
+                    else if (e.isArray())
+                        for (const auto& id : e.array)
+                            if (id.isString())
+                                slot.push_back(id.string);
+
+                    t.abilities.push_back(slot);
+                }
             }
         }
 

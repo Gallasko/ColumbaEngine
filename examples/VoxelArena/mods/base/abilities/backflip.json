@@ -1,0 +1,19 @@
+// Dagger skill (4 by default): a backflip kick out of trouble. Kicks whoever is in front, then flips
+// you up and back; you cannot be hit for most of it.
+{
+    "name": "Backflip",
+    "kind": "attack",
+    "weapons": ["dagger"],
+    "staminaCost": 12,
+    "cooldown": 1.5,
+    "attack": {
+        "startup": 1, "active": 4, "recovery": 18,
+        "damage": 6, "poiseDamage": 10,
+        "knockback": 7, "knockup": 3, "hitstop": 2, "shake": 0.2,
+        "hitboxes": [ { "offset": [0, 0.9, 0.7], "size": [1.2, 1.4, 1.2] } ],
+        "leap": [-9, 11], "leapAt": 2,
+        "iframes": [1, 16],
+        "turn": { "pitch": -360, "from": 2, "to": 22 },
+        "swing": { "yaw": 10, "pitch": 40, "reach": 0.0 }
+    }
+}

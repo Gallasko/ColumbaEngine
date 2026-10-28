@@ -7,8 +7,10 @@
         "modelScale": 0.125,
         "weapon": "base:sword",
         // Abilities on the keys ability1 .. ability8 (Q, E, G, R, 1, 2, 3, 4 by default); "" leaves a slot empty.
-        // The terrain on Q E G, the spells on 1 2 3
-        "abilities": ["base:raise_wall", "base:dig_pit", "base:mine", "", "base:fireball", "base:ice_shards", "base:volt"],
+        // A slot can be a list: the first one the weapon in hand allows is there (weapon skills).
+        // The terrain on Q E G, the spells on 1 2 3, the weapon's skills on R and 4
+        "abilities": ["base:raise_wall", "base:dig_pit", "base:mine", ["base:shadow_dash", "base:whirlwind"],
+                      "base:fireball", "base:ice_shards", "base:volt", ["base:backflip", "base:leap_slam"]],
         "hand": [0.42, 0.95, 0.3],
 
         "width": 0.6,

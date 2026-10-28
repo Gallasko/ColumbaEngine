@@ -69,7 +69,7 @@ namespace
         int slot(const std::string& id) const
         {
             for (size_t i = 0; i < tuning.abilities.size(); ++i)
-                if (tuning.abilities[i] == id)
+                if (std::find(tuning.abilities[i].begin(), tuning.abilities[i].end(), id) != tuning.abilities[i].end())
                     return static_cast<int>(i);
             return -1;
         }
@@ -617,4 +617,150 @@ TEST(arena_moves, a_roll_jump_lands_back_to_run_speed_quickly)
     // The grace (for chaining another jump), then back to the run speed within a few tenths of a second
     a.run(static_cast<int>((a.tuning.player.landingGrace + 0.3f) * 60.0f), run);
     EXPECT_NEAR(a.player().body.velocity.z, a.tuning.player.walkSpeed, 0.1f);
+}
+
+// ---- Weapon skills -----------------------------------------------------------------------------
+
+namespace
+{
+    /** Presses the ability in `slot` and keeps it held `hold` steps, then lets the move play out. */
+    void useSkill(Arena& a, int slot, int hold = 0, int after = 60)
+    {
+        InputFrame in;
+        in.abilityPressed[slot] = true;
+        in.abilityHeld[slot] = true;
+        a.world.step(in);
+
+        InputFrame held;
+        held.abilityHeld[slot] = true;
+        a.run(hold, held);
+        a.run(after);
+    }
+}
+
+TEST(arena_skills, the_weapon_in_hand_decides_the_skills)
+{
+    Arena a;
+    const int r = a.slot("base:shadow_dash"), four = a.slot("base:backflip");
+    ASSERT_GE(r, 0);
+    ASSERT_EQ(r, a.slot("base:whirlwind"));   // the same key, one per weapon
+    ASSERT_EQ(four, a.slot("base:leap_slam"));
+
+    a.player().weapon = "base:dagger";
+    EXPECT_EQ(a.world.ability(r, &a.player())->id, "base:shadow_dash");
+    EXPECT_EQ(a.world.ability(four, &a.player())->id, "base:backflip");
+
+    a.player().weapon = "base:sword";
+    EXPECT_EQ(a.world.ability(r, &a.player())->id, "base:whirlwind");
+    EXPECT_EQ(a.world.ability(four, &a.player())->id, "base:leap_slam");
+
+    a.player().weapon = "testmod:spear";   // no skill for a spear in those slots
+    EXPECT_EQ(a.world.ability(r, &a.player()), nullptr);
+    EXPECT_NE(a.world.ability(a.slot("base:fireball"), &a.player()), nullptr);   // spells go with any weapon
+}
+
+TEST(arena_skills, a_charged_dash_goes_further_and_hits_harder)
+{
+    auto dash = [](int hold, float* damage) {
+        Arena a;
+        a.player().weapon = "base:dagger";
+        const int dummy = a.world.spawnEnemy("base:dummy", a.player().body.position + glm::vec3(0, 0, 3.0f), 180.0f);
+        a.settle(3);
+        const float start = a.player().body.position.z;
+        useSkill(a, a.slot("base:shadow_dash"), hold, 40);
+        *damage = a.world.find(dummy)->maxHealth - a.world.find(dummy)->health;
+        return a.player().body.position.z - start;
+    };
+
+    float tapDamage = 0.0f, fullDamage = 0.0f;
+    const float tap = dash(0, &tapDamage);
+    const float full = dash(60, &fullDamage);   // held past the full charge
+
+    EXPECT_GT(full, tap * 1.5f);
+    EXPECT_GT(tapDamage, 0.0f);
+    EXPECT_NEAR(fullDamage, tapDamage * Arena().content.abilities.at("base:shadow_dash").attack.charge.damage, 0.5f);
+}
+
+TEST(arena_skills, skills_cost_stamina_and_a_cooldown_not_mana)
+{
+    Arena a;
+    a.player().weapon = "base:dagger";
+    const int four = a.slot("base:backflip");
+    const AbilityDef& backflip = a.content.abilities.at("base:backflip");
+
+    InputFrame in;
+    in.abilityPressed[four] = true;
+    a.world.step(in);
+    EXPECT_EQ(a.player().attack, "@base:backflip");
+    EXPECT_NEAR(a.player().stamina, a.tuning.stamina.max - backflip.staminaCost, 0.01f);
+    EXPECT_FLOAT_EQ(a.player().mana, a.tuning.mana.max);
+    EXPECT_GT(a.player().abilityCooldown[four], 0.0f);
+
+    // It leaps back and up
+    a.run(8);
+    EXPECT_GT(a.player().body.velocity.y, 3.0f);
+    EXPECT_LT(a.player().body.velocity.z, -5.0f);
+
+    // Down and free again, but the cooldown is not over: nothing
+    a.run(50);
+    ASSERT_EQ(a.player().action, Action::Free);
+    ASSERT_GT(a.player().abilityCooldown[four], 0.0f);
+    a.world.step(in);
+    EXPECT_EQ(a.player().action, Action::Free);   // nothing started
+}
+
+TEST(arena_skills, the_whirlwind_hits_all_around)
+{
+    Arena a;
+    a.player().weapon = "base:sword";
+    const glm::vec3 p = a.player().body.position;
+    const int front = a.world.spawnEnemy("base:dummy", p + glm::vec3(0, 0, 1.4f), 180.0f);
+    const int back = a.world.spawnEnemy("base:dummy", p + glm::vec3(0, 0, -1.4f), 0.0f);
+    a.settle(3);
+
+    useSkill(a, a.slot("base:whirlwind"), 0, 50);
+    EXPECT_LT(a.world.find(front)->health, a.world.find(front)->maxHealth);
+    EXPECT_LT(a.world.find(back)->health, a.world.find(back)->maxHealth);
+}
+
+TEST(arena_skills, the_leap_slam_flies_forward_and_strikes_where_it_lands)
+{
+    Arena a;
+    a.player().weapon = "base:sword";
+    const float start = a.player().body.position.z;
+    const int target = a.world.spawnEnemy("base:dummy", a.player().body.position + glm::vec3(0, 0, 6.5f), 180.0f);
+    a.settle(3);
+
+    InputFrame in;
+    in.abilityPressed[a.slot("base:leap_slam")] = true;
+    a.world.step(in);
+    a.run(8);
+    EXPECT_FALSE(a.player().body.onGround);   // in the air
+
+    a.run(70);
+    EXPECT_TRUE(a.player().body.onGround);
+    EXPECT_GT(a.player().body.position.z, start + 4.5f);
+    EXPECT_LT(a.world.find(target)->health, a.world.find(target)->maxHealth);
+}
+
+TEST(arena_skills, a_skill_cancels_the_recovery_of_a_basic_attack)
+{
+    auto skillAt = [](int frame) {
+        Arena a;
+        a.player().weapon = "base:sword";
+        InputFrame light;
+        light.lightPressed = true;
+        a.world.step(light);
+        a.run(frame - 1);
+
+        InputFrame skill;
+        skill.abilityPressed[a.slot("base:whirlwind")] = true;
+        a.world.step(skill);
+        return a.player().attack;
+    };
+
+    const Arena ref;   // kept: the attack is read from its content
+    const AttackDef& light1 = *ref.content.weapons.at("base:sword").moveset.find("light1");
+    EXPECT_EQ(skillAt(light1.startup), "light1");                                   // still swinging: no
+    EXPECT_EQ(skillAt(light1.startup + light1.active + 2), "@base:whirlwind");      // in its recovery: yes
 }

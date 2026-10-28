@@ -12,6 +12,7 @@
 // turns over frames from..to, in degrees (pitch -360 is a backflip, yaw 360 a spin); it only looks.
 {
     "name": "Dagger",
+    "type": "dagger",
     "model": "dagger",
     "modelScale": 0.05,
     "grip": [1.5, 1.5, 1.5],
@@ -90,7 +91,7 @@
                 "damage": 16, "poiseDamage": 22, "staminaCost": 10,
                 "knockback": 5, "hitstop": 4, "shake": 0.3,
                 "hitboxes": [ { "offset": [0, 1.0, 0.6], "size": [1.4, 1.4, 1.8] } ],
-                "lunge": 20, "lungeFrom": 2, "lungeTo": 12,
+                "lunge": 20, "lungeFrom": 2, "lungeTo": 12, "dash": true,
                 "iframes": [2, 12],
                 "dodgeCancelFrom": 15,
                 "swing": { "yaw": 0, "pitch": -5, "reach": 0.6 }
@@ -112,7 +113,7 @@
                 "damage": 9, "poiseDamage": 10, "staminaCost": 8,
                 "knockback": 2, "knockup": 5, "hitstop": 3, "shake": 0.2,
                 "hitboxes": [ { "offset": [0, 0.6, 0.9], "size": [1.4, 0.9, 1.6] } ],
-                "lunge": 15, "lungeFrom": 0, "lungeTo": 10,
+                "lunge": 15, "lungeFrom": 0, "lungeTo": 10, "dash": true,
                 "chainFrom": 12, "dodgeCancelFrom": 10,
                 "next": { "light": "jab2", "heavy": "rising_cut" },
                 "swing": { "yaw": 40, "pitchFrom": -30, "pitchTo": -10, "reach": 0.3 }

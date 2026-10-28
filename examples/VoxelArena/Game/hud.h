@@ -34,6 +34,9 @@ namespace arena
         void setBars(float health, float stamina, bool exhausted, float mana = 1.0f, bool manaLow = false);
         void setCrosshair(bool visible);
 
+        /** A red wash over the screen, 0 (none) to 1: being hit. */
+        void setHurt(float amount);
+
         /** One bar per entry, screen pixels; extra bars are hidden. */
         struct EnemyBar
         {
@@ -60,6 +63,8 @@ namespace arena
         pg::_unique_id consoleBack = 0, consoleText = 0;
         pg::_unique_id healthBack = 0, healthFill = 0, staminaBack = 0, staminaFill = 0, manaBack = 0, manaFill = 0;
         pg::_unique_id crossH = 0, crossV = 0;
+        pg::_unique_id hurt = 0;
+        float lastHurt = -1.0f;
         bool lastCrosshair = true;
 
         struct EnemyBarIds { pg::_unique_id back, fill, poise; };

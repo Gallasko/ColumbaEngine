@@ -260,6 +260,8 @@ namespace arena
         std::vector<BurningLook> burningLooks;
         std::mt19937 lookRng{7};
 
+        float hurtFlash = 0.0f;   // the screen's red wash when the player is hit, fading
+
         // Limbs: a walk cycle per fighter
         struct Gait
         {

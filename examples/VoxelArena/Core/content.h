@@ -179,6 +179,7 @@ namespace arena
         float lunge = 0.0f;       // m/s while lunging
         int lungeFrom = 0;
         int lungeTo = 0;
+        bool dash = false;        // the lunge sets the speed outright (a dash), instead of speeding up to it
 
         float turnRate = 0.0f;    // degrees per frame the attacker may still turn during startup
 
@@ -227,6 +228,19 @@ namespace arena
             int from = 0, to = 0;
         } turn;
 
+        // A charge (weapon skills): while the skill's key is held the attack holds at frame `at`, up to
+        // `frames` frames; released (or full), it goes on with its lunge and damage scaled up to
+        // `lunge` and `damage` times at a full charge
+        struct Charge
+        {
+            int at = -1;
+            int frames = 0;
+            float lunge = 1.0f;
+            float damage = 1.0f;
+        } charge;
+
+        bool tellHeavy = false;   // looks: an enemy's heavy attack shows a danger zone while it winds up ("tell": "heavy")
+
         int total() const { return startup + active + recovery; }
         bool isActive(int frame) const { return frame >= startup and frame < startup + active; }
         bool movesAt(int frame) const { return moveSpeed > 0.0f and (moveUntil < 0 or frame < moveUntil); }
@@ -250,6 +264,7 @@ namespace arena
     {
         std::string id;
         std::string name;
+        std::string type;        // "dagger", "sword"...: the weapon skills it can use (AbilityDef::weapons)
         std::string model;       // model id, "base:sword"
         float modelScale = 0.0625f;
         glm::vec3 grip = glm::vec3(0.0f);    // model-space point held in the hand (in model voxels)
@@ -297,7 +312,7 @@ namespace arena
     {
         std::string id;
         std::string name;
-        std::string kind;          // wall, pit, mine; spells: projectile, bolt
+        std::string kind;          // wall, pit, mine; spells: projectile, bolt; weapon skills: attack
         std::string block;
         float staminaCost = 0.0f;
         float manaCost = 0.0f;
@@ -323,6 +338,11 @@ namespace arena
         float terrainDamage = 0.0f;
         Element element = Element::None;
         StatusHit status;
+
+        // Weapon skills: usable only with a weapon of one of these types (empty: with any). kind
+        // "attack" runs `attack`, an attack like a moveset's, named "@<ability id>" while it runs
+        std::vector<std::string> weapons;
+        AttackDef attack;
 
         std::string file;
     };

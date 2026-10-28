@@ -31,6 +31,7 @@
     "moveset": {
         "attacks": {
             "slam": {
+                "tell": "heavy",
                 "terrainDamage": 120,
                 "startup": 36, "active": 5, "recovery": 42,
                 "damage": 25, "poiseDamage": 30,

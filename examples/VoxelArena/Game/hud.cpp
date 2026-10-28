@@ -2,6 +2,8 @@
 
 #include "hud.h"
 
+#include <cmath>
+
 #include "2D/simple2dobject.h"
 #include "UI/ttftext.h"
 
@@ -61,6 +63,19 @@ namespace arena
         }
     }
 
+    void Hud::setHurt(float amount)
+    {
+        amount = glm::clamp(amount, 0.0f, 1.0f);
+
+        // Only a change goes to the renderer
+        if (std::fabs(amount - lastHurt) < 0.004f)
+            return;
+
+        lastHurt = amount;
+        show(hurt, amount > 0.0f);
+        color(hurt, glm::vec4(210, 36, 28, 62.0f * amount));
+    }
+
     void Hud::color(pg::_unique_id id, const glm::vec4& c)
     {
         if (auto* s = ecs->getComponent<Simple2DObject>(id))
@@ -111,6 +126,10 @@ namespace arena
         // Crosshair: where the terrain abilities aim
         crossH = makeQuad(w * 0.5f - 7.0f, h * 0.5f - 1.0f, 2, 14.0f, 2.0f, glm::vec4(255, 255, 255, 190));
         crossV = makeQuad(w * 0.5f - 1.0f, h * 0.5f - 7.0f, 2, 2.0f, 14.0f, glm::vec4(255, 255, 255, 190));
+
+        // Over the world, under the rest of the HUD
+        hurt = makeQuad(0, 0, 0, w, h, glm::vec4(200, 30, 24, 0));
+        show(hurt, false);
 
         consoleBack = makeQuad(0, h - 230.0f, 5, w, 230.0f, glm::vec4(8, 10, 16, 220));
         consoleText = makeText(12, h - 222.0f, 6, MONO, "", 0.8f, TEXT);

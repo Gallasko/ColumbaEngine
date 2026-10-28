@@ -30,12 +30,12 @@ namespace arena
         const std::map<std::string, std::vector<std::string>> DEF_LOOKS = {
             {"block", {"color", "colorNoise", "visible"}},
             {"weapon", {"name", "model", "modelScale", "grip", "rest",
-                        "moveset.attacks.*.swing", "moveset.attacks.*.shake", "moveset.attacks.*.turn",
+                        "moveset.attacks.*.swing", "moveset.attacks.*.shake", "moveset.attacks.*.turn", "moveset.attacks.*.tell",
                         "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
             {"enemy", {"name", "model", "modelScale",
-                       "moveset.attacks.*.swing", "moveset.attacks.*.shake", "moveset.attacks.*.turn",
+                       "moveset.attacks.*.swing", "moveset.attacks.*.shake", "moveset.attacks.*.turn", "moveset.attacks.*.tell",
                        "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
-            {"ability", {"name", "projectile.model", "projectile.modelScale", "projectile.shake"}},
+            {"ability", {"name", "projectile.model", "projectile.modelScale", "projectile.shake", "attack.swing", "attack.shake", "attack.turn"}},
         };
 
         void dropPath(Json& j, const std::vector<std::string>& parts, size_t at)
@@ -1121,13 +1121,14 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"id", "name", "model", "modelScale", "grip", "rest", "moveset"}, raw.file, report, "weapon " + id);
+                checkKeys(j, {"id", "name", "type", "model", "modelScale", "grip", "rest", "moveset"}, raw.file, report, "weapon " + id);
 
                 WeaponDef w;
                 w.id = id;
                 w.file = raw.file;
                 w.name = splitId(id).second;
                 readStr(j, "name", w.name, raw.file, report);
+                readStr(j, "type", w.type, raw.file, report);
                 readStr(j, "model", w.model, raw.file, report);
                 w.model = w.model.empty() ? "" : resolveId(w.model, raw.mod);
                 readNum(j, "modelScale", w.modelScale, raw.file, report);
@@ -1258,7 +1259,8 @@ namespace arena
                 const Json& j = raw.data;
 
                 checkKeys(j, {"id", "name", "kind", "block", "staminaCost", "manaCost", "cooldown", "range", "distance", "lifetime", "damage", "rate", "width", "height", "depth",
-                              "projectile", "count", "spread", "chains", "chainRange", "poiseDamage", "knockback", "terrainDamage", "element", "status"},
+                              "projectile", "count", "spread", "chains", "chainRange", "poiseDamage", "knockback", "terrainDamage", "element", "status",
+                              "weapons", "attack"},
                           raw.file, report, "ability " + id);
 
                 AbilityDef a;
@@ -1308,14 +1310,28 @@ namespace arena
                 if (a.projectile.status.status.empty())
                     a.projectile.status = a.status;
 
+                readStringList(j, "weapons", a.weapons, raw.file, report);
+
+                if (const Json* aj = j.find("attack"))
+                {
+                    if (readAttack(*aj, "@" + id, raw.file, a.attack, report))
+                        resolveStatus(content, a.attack.status, raw);
+                }
+
                 a.count = std::clamp(a.count, 1, 12);
                 a.chains = std::clamp(a.chains, 0, 12);
 
                 const int kindLine = j.find("kind") ? j.find("kind")->line : j.line;
 
-                if (a.kind != "wall" and a.kind != "pit" and a.kind != "mine" and a.kind != "projectile" and a.kind != "bolt")
+                if (a.kind != "wall" and a.kind != "pit" and a.kind != "mine" and a.kind != "projectile" and a.kind != "bolt" and a.kind != "attack")
                 {
-                    report.error(raw.file, kindLine, "ability \"" + id + "\" needs a \"kind\": wall, pit, mine, projectile or bolt");
+                    report.error(raw.file, kindLine, "ability \"" + id + "\" needs a \"kind\": wall, pit, mine, projectile, bolt or attack");
+                    continue;
+                }
+
+                if (a.kind == "attack" and not j.find("attack"))
+                {
+                    report.error(raw.file, kindLine, "ability \"" + id + "\": a weapon skill needs an \"attack\"");
                     continue;
                 }
 
@@ -1368,7 +1384,8 @@ namespace arena
 
         checkKeys(j, {"startup", "active", "recovery", "damage", "poiseDamage", "staminaCost", "knockback", "knockup", "hitstop", "shake",
                       "hitboxes", "lunge", "lungeFrom", "lungeTo", "turnRate", "moveSpeed", "moveUntil", "armor", "terrainDamage", "dodgeCancelFrom", "chainFrom", "bufferFrom",
-                      "next", "swing", "projectile", "element", "status", "gravityScale", "plungeSpeed", "iframes", "leap", "leapAt", "turn"},
+                      "next", "swing", "projectile", "element", "status", "gravityScale", "plungeSpeed", "iframes", "leap", "leapAt", "turn",
+                      "charge", "tell", "dash"},
                   file, report, "attack " + name);
 
         const size_t errorsBefore = report.errors.size();
@@ -1403,6 +1420,7 @@ namespace arena
         readNum(j, "gravityScale", a.gravityScale, file, report);
         readNum(j, "plungeSpeed", a.plungeSpeed, file, report);
         readInt(j, "leapAt", a.leapAt, file, report);
+        readBool(j, "dash", a.dash, file, report);
 
         if (const Json* leap = j.find("leap"))
         {
@@ -1423,6 +1441,23 @@ namespace arena
             {
                 report.error(file, frames->line, "\"iframes\" is [first frame, frame after the last]");
             }
+        }
+
+        if (const Json* charge = j.find("charge"))
+        {
+            checkKeys(*charge, {"at", "frames", "lunge", "damage"}, file, report, "the charge of " + name);
+            readInt(*charge, "at", a.charge.at, file, report);
+            readInt(*charge, "frames", a.charge.frames, file, report);
+            readNum(*charge, "lunge", a.charge.lunge, file, report);
+            readNum(*charge, "damage", a.charge.damage, file, report);
+        }
+
+        if (const Json* tell = j.find("tell"))
+        {
+            if (tell->isString() and (tell->string == "heavy" or tell->string == "light"))
+                a.tellHeavy = tell->string == "heavy";
+            else
+                report.error(file, tell->line, "\"tell\" is \"heavy\" or \"light\"");
         }
 
         if (const Json* turn = j.find("turn"))

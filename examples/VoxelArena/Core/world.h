@@ -159,6 +159,12 @@ namespace arena
 
         bool attackIframes = false;   // in the invulnerable frames of its attack (AttackDef::iframeFrom), set each step
 
+        // A weapon skill's charge: the slot whose key holds it, and how long it has been held
+        int chargeSlot = -1;
+        int chargeFrames = 0;
+        /** 0 (none) to 1 (full) of the current attack's charge. */
+        float chargeRatio(const AttackDef* a) const { return a and a->charge.frames > 0 ? std::min(1.0f, static_cast<float>(chargeFrames) / static_cast<float>(a->charge.frames)) : 0.0f; }
+
         bool alive() const { return action != Action::Dead; }
         bool invulnerable(const Tuning& t) const
         {
@@ -356,7 +362,10 @@ namespace arena
         /** The block the player aims at within range of the player, from an aim ray (the camera's). */
         bool aimedCell(const Fighter& f, const glm::vec3& origin, const glm::vec3& dir, float range, RayHit& out) const;
 
-        const AbilityDef* ability(int index) const;
+        /** The ability in slot `index` for this fighter: the first of the slot its weapon allows. */
+        const AbilityDef* ability(int index, const Fighter* f = nullptr) const;
+        /** An attack by name: of the fighter's moveset, or a weapon skill's ("@<ability id>"). */
+        const AttackDef* attackDef(const Fighter& f, const std::string& name) const;
 
         bool godMode = false;         // the player takes no damage
         bool infiniteStamina = false; // players spend no stamina (testing moves)

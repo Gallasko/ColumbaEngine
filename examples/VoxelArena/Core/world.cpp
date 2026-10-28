@@ -355,8 +355,7 @@ namespace arena
         if (f.action != Action::Attack)
             return nullptr;
 
-        const Moveset* m = movesetOf(f);
-        return m ? m->find(f.attack) : nullptr;
+        return attackDef(f, f.attack);
     }
 
     void ArenaWorld::respawn(Fighter& f)
@@ -581,8 +580,7 @@ namespace arena
 
     void ArenaWorld::startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir, bool aimAssist, float pitch)
     {
-        const Moveset* m = movesetOf(f);
-        const AttackDef* a = m ? m->find(name) : nullptr;
+        const AttackDef* a = attackDef(f, name);
 
         if (not a)
             return;
@@ -1000,11 +998,11 @@ namespace arena
                     event("leap", f.body.position, 1.0f, f.id);
                 }
 
-                // A plunge hangs through its startup, then dives
+                // A plunge hangs through its startup (or flies its leap), then dives
                 if (a->plungeSpeed > 0.0f and not f.body.onGround)
                 {
                     if (f.frame < a->startup)
-                        f.body.velocity.y = 0.0f;
+                        f.body.velocity.y = a->leapAt >= 0 ? f.body.velocity.y : 0.0f;
                     else
                         f.body.velocity.y = -a->plungeSpeed;
 
@@ -1013,9 +1011,10 @@ namespace arena
 
                 if (f.frame >= a->lungeFrom and f.frame < a->lungeTo)
                 {
-                    // The lunge adds to the steering, up to whichever of the two is faster
-                    const float cap = std::max(a->lunge, glm::length(wanted));
-                    wanted += yawForward(f.yaw) * a->lunge;
+                    // The lunge adds to the steering, up to whichever of the two is faster (a charge makes it longer)
+                    const float lunge = a->lunge * (1.0f + f.chargeRatio(a) * (a->charge.lunge - 1.0f));
+                    const float cap = std::max(lunge, glm::length(wanted));
+                    wanted += yawForward(f.yaw) * lunge;
 
                     if (glm::length(wanted) > cap)
                         wanted = glm::normalize(wanted) * cap;
@@ -1126,7 +1125,14 @@ namespace arena
         const AttackDef* now = currentAttack(f);
         const bool holding = f.action == Action::Attack and now and now->plungeSpeed > 0.0f and f.frame >= now->startup and not f.body.onGround;
 
-        if (f.action != Action::Free and not holding)
+        // A charge holds while its key is: up to its length
+        const bool charging = f.action == Action::Attack and now and now->charge.at >= 0 and f.frame == now->charge.at and f.chargeSlot >= 0 and
+                              f.chargeSlot < InputFrame::ABILITIES and in.abilityHeld[f.chargeSlot] and f.chargeFrames < now->charge.frames;
+
+        if (charging)
+            ++f.chargeFrames;
+
+        if (f.action != Action::Free and not holding and not charging)
             ++f.frame;
 
         // The attack's own invulnerable frames, as the dodge's: on the frame just played
@@ -1376,7 +1382,12 @@ namespace arena
             if (f.action == Action::Stagger or rootedLanding or (f.action == Action::Attack and not moving and body.onGround))
                 rate = std::max(rate, P.groundDecel * 1.5f);
 
-            const glm::vec3 next = approach(current, flat(wanted), rate * dt);
+            glm::vec3 next = approach(current, flat(wanted), rate * dt);
+
+            // A dash: its lunge is the speed at once
+            if (attack and attack->dash and f.frame >= attack->lungeFrom and f.frame < attack->lungeTo)
+                next = flat(wanted);
+
             body.velocity.x = next.x;
             body.velocity.z = next.z;
         }
@@ -1498,7 +1509,8 @@ namespace arena
         }
 
         // An air dash, and a plunge (its own speed), fly straight
-        const bool noGravity = f.action == Action::AirDash or (attack and attack->plungeSpeed > 0.0f and not body.onGround);
+        const bool noGravity = f.action == Action::AirDash or
+                               (attack and attack->plungeSpeed > 0.0f and not body.onGround and (attack->leapAt < 0 or f.frame >= attack->startup));
 
         if (not noGravity)
             body.velocity.y = std::max(body.velocity.y - g * dt, -maxFall);
@@ -1563,13 +1575,49 @@ namespace arena
     // Terrain
     // --------------------------------------------------------------------------------------------
 
-    const AbilityDef* ArenaWorld::ability(int index) const
+    const AbilityDef* ArenaWorld::ability(int index, const Fighter* f) const
     {
         if (not content or index < 0 or index >= static_cast<int>(tuning.abilities.size()))
             return nullptr;
 
-        auto it = content->abilities.find(tuning.abilities[index]);
-        return it == content->abilities.end() ? nullptr : &it->second;
+        if (not f)
+            f = player();
+
+        // The weapon's type decides which of the slot's abilities is there
+        std::string type;
+        if (f)
+            if (auto w = content->weapons.find(f->weapon); w != content->weapons.end())
+                type = w->second.type;
+
+        for (const auto& id : tuning.abilities[index])
+        {
+            auto it = content->abilities.find(id);
+
+            if (it == content->abilities.end())
+                continue;
+
+            const auto& allowed = it->second.weapons;
+
+            if (allowed.empty() or std::find(allowed.begin(), allowed.end(), type) != allowed.end())
+                return &it->second;
+        }
+
+        return nullptr;
+    }
+
+    const AttackDef* ArenaWorld::attackDef(const Fighter& f, const std::string& name) const
+    {
+        if (not content)
+            return nullptr;
+
+        if (not name.empty() and name[0] == '@')
+        {
+            auto it = content->abilities.find(name.substr(1));
+            return it != content->abilities.end() and it->second.kind == "attack" ? &it->second.attack : nullptr;
+        }
+
+        const Moveset* m = movesetOf(f);
+        return m ? m->find(name) : nullptr;
     }
 
     bool ArenaWorld::aimedCell(const Fighter& f, const glm::vec3& origin, const glm::vec3& dir, float range, RayHit& out) const
@@ -1663,15 +1711,23 @@ namespace arena
 
         f.mineTimer = std::max(0.0f, f.mineTimer - STEP_SECONDS);
 
-        // The terrain belongs to the server: a client sees the result in the next snapshot
-        if (f.action != Action::Free or not authority)
+        // A weapon skill also cancels the recovery of a basic attack (the moveset's, once it has hit)
+        const AttackDef* busy = currentAttack(f);
+        const bool inRecovery = busy and not f.attack.empty() and f.attack[0] != '@' and f.frame - 1 >= busy->startup + busy->active;
+
+        if (f.action != Action::Free and not inRecovery)
             return;
 
         for (int i = 0; i < InputFrame::ABILITIES; ++i)
         {
-            const AbilityDef* a = ability(i);
+            const AbilityDef* a = ability(i, &f);
 
-            if (not a)
+            // The terrain and spells belong to the server: a client sees them in the next snapshot. A
+            // weapon skill is a move of the player's own: predicted like an attack
+            if (not a or (not authority and a->kind != "attack"))
+                continue;
+
+            if (f.action != Action::Free and a->kind != "attack")
                 continue;
 
             const bool trigger = a->kind == "mine" ? in.abilityHeld[i] or in.abilityPressed[i] : in.abilityPressed[i];
@@ -1691,6 +1747,19 @@ namespace arena
 
             if (a->kind == "projectile" or a->kind == "bolt")
                 used = castSpell(f, *a, in);
+
+            if (a->kind == "attack")
+            {
+                // Aimed as an attack is: the view in first person, else the stick (or the camera)
+                const glm::vec3 camForward = yawForward(in.cameraYaw);
+                glm::vec3 wish = rightOf(in.cameraYaw) * in.move.x + camForward * in.move.y;
+                const glm::vec3 aim = in.faceCamera ? camForward : (glm::length(wish) > 0.1f ? wish : camForward);
+
+                startAttack(f, "@" + a->id, aim, not in.faceCamera, in.faceCamera ? in.cameraPitch : NAN);
+                used = f.action == Action::Attack and f.attack == "@" + a->id;
+                f.chargeSlot = i;
+                f.chargeFrames = 0;
+            }
 
             if (a->kind == "wall")
             {
@@ -2410,7 +2479,14 @@ namespace arena
                     if (boxHitsBody(centre, box.size, attacker.yaw, seen))
                     {
                         attacker.hitThisSwing.push_back(target.id);
-                        hitOrDefer(attacker, target, *a, (centre + seen.position + glm::vec3(0, seen.height * 0.5f, 0)) * 0.5f);
+
+                        // A charged skill hits harder
+                        AttackDef hit = *a;
+                        const float charge = attacker.chargeRatio(a);
+                        hit.damage *= 1.0f + charge * (a->charge.damage - 1.0f);
+                        hit.poiseDamage *= 1.0f + charge * (a->charge.damage - 1.0f);
+
+                        hitOrDefer(attacker, target, hit, (centre + seen.position + glm::vec3(0, seen.height * 0.5f, 0)) * 0.5f);
                     }
                 }
             }

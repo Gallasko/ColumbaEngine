@@ -13,7 +13,7 @@ cd release
 make -j18 VoxelArena VoxelArenaServer test_voxelarena
 cd ..
 ./release/VoxelArena            # or ./make_and_play.sh VoxelArena
-./release/test_voxelarena       # 114 tests, about half a second
+./release/test_voxelarena       # 120 tests, about half a second
 ```
 
 The game reads its mods and its shader straight from the source tree (`examples/VoxelArena/mods`,
@@ -48,7 +48,7 @@ Options:
 | E | Dig a pit where the crosshair is |
 | G / middle mouse (hold) | Mine the block under the crosshair |
 | 1, 2, 3 | Spells, at the crosshair: fireball, ice shards, volt |
-| R, 4 | Free ability slots (`player.abilities`) |
+| R, 4 | The weapon's skills (dagger: shadow dash, hold to charge, and backflip; sword: whirlwind and leap slam) |
 | F1 | Debug overlay |
 | F2 | Hitboxes (red: active, orange: winding up) and hurtboxes (green, blue while invulnerable) |
 | F5 | Reload all content |
@@ -111,6 +111,14 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
     rolling out). Shot by a dug pit, they freeze it over: a floor to cross until it melts.
   - *Volt*: an instant bolt that jumps to up to three more enemies close by, and shocks each one (a
     short interrupt that an armored attack shrugs off). Stone breaks under it.
+- **Weapon skills** come with the weapon in hand, on R and 4, and cost stamina and a cooldown (no
+  mana), from a standstill or out of the recovery of a basic attack (a combo can end in one). Dagger: *shadow dash*, held to charge (up to 0.75 s: further and up to 2.5 times the
+  damage), released to dash through; *backflip*, a kick that flips you up and away. Sword:
+  *whirlwind*, two turns hitting all around, still walking; *leap slam*, a leap forward that comes
+  down striking around the landing. The cooldown is the slot's: changing weapons does not reset it.
+- **Reading attacks**: a swing leaves a fading trail of the blade while it can hit, and an enemy's
+  heavy attack (the brute's slam) glows red as it winds up, with a marker over its head and a red
+  zone on the ground where it will land, filling in until it strikes.
 - **Statuses** (`mods/base/statuses.json`) are what a hit leaves behind: `burn`, `chill`, `frozen`,
   `shock`. Each is data (duration, damage over time, slow, stacks, what it turns into, an
   interrupt), and any attack or projectile can apply one with `"status"`.
@@ -118,7 +126,7 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
   then its poise refills. An attack in progress can add armor, so the brute's slam is not
   interrupted by a jab.
 - **Hit feedback**: hitstop (both fighters freeze for a few frames), knockback, a white flash on the
-  target, camera shake.
+  target, camera shake; hit yourself, the screen flashes red for a moment.
 - **The brute** tracks you while it winds up its slam (it glows orange), then commits. Roll late,
   then punish its long recovery. A heavy attack or a full light combo breaks its poise.
 
@@ -288,7 +296,7 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 |---|---|---|
 | `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable`, `flammable`, `weakness` | `mymod:<key>` |
 | `statuses.json` | statuses: `duration`, `damagePerSecond`, `slow`, `maxStacks`, `atMax`, `stagger`, `heavy` | `mymod:<key>` |
-| `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a spell (projectile, bolt) | `mymod:<name>` |
+| `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine), a spell (projectile, bolt) or a weapon skill (attack) | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
 | `enemies/<name>.json` | an enemy: stats, moveset, script, params | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
@@ -338,7 +346,14 @@ See `mods/base/weapons/sword.json`: the header comment explains every field. In 
 - `iframes` `[from, to)`: frames the attacker cannot be hit, passing through whoever is in the way.
   `leap` `[along, up]` m/s at frame `leapAt` (negative along: backwards). `turn` (`pitch`, `yaw`,
   `from`, `to`): how the body turns over the attack, a backflip or a spin; it only looks.
+- `dash`: the lunge sets the speed at once instead of speeding up to it. `charge` (`at`, `frames`,
+  `lunge`, `damage`): held, the attack waits at frame `at` up to `frames`, then lunges and hits up to
+  `lunge` and `damage` times harder. `tell`: `"heavy"` gives an enemy attack the heavy warning (looks only).
 - The moveset names `light`, `heavy`, `dodgeAttack`, `dashAttack`, `airLight` and `airHeavy`.
+
+A weapon has a `type` (`dagger`, `sword`...). A weapon skill is an ability with `"kind": "attack"`,
+an `attack` like a moveset's, and `weapons`, the types it works with. A slot of `player.abilities` can
+be a list, `["base:shadow_dash", "base:whirlwind"]`: the first one the weapon in hand allows is there.
 
 A spell is an ability with `"kind": "projectile"` (a `projectile` object as for an enemy's shot, plus
 `burst`, a radius that hits everyone close, and `terrainRadius`, how far fire or ice reaches into

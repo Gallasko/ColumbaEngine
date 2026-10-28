@@ -1,0 +1,21 @@
+// Dagger skill (R by default): a dash you can charge. Hold the key to wind it up (up to 0.75 s),
+// release to go: further and harder the longer it was held, and through whoever is in the way.
+// A weapon skill costs stamina and a cooldown, no mana. "weapons" lists the weapon types it works with.
+{
+    "name": "Shadow dash",
+    "kind": "attack",
+    "weapons": ["dagger"],
+    "staminaCost": 15,
+    "cooldown": 3,
+    "attack": {
+        "startup": 6, "active": 8, "recovery": 14,
+        "damage": 12, "poiseDamage": 16,
+        "knockback": 4, "hitstop": 4, "shake": 0.3,
+        "hitboxes": [ { "offset": [0, 1.0, 0.6], "size": [1.4, 1.4, 1.8] } ],
+        "lunge": 16, "lungeFrom": 5, "lungeTo": 15, "dash": true,
+        "iframes": [5, 15],
+        "charge": { "at": 3, "frames": 45, "lunge": 1.8, "damage": 2.5 },
+        "dodgeCancelFrom": 18,
+        "swing": { "yaw": 0, "pitch": -5, "reach": 0.6 }
+    }
+}
