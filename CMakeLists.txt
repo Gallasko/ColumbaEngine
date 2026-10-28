@@ -337,6 +337,7 @@ set(ENGINESOURCE
     src/Engine/Helpers/filedialog.cpp
     src/Engine/Input/input.cpp
     src/Engine/Input/inputcomponent.cpp
+    src/Engine/Input/wslcursor.cpp
     src/Engine/Interpreter/expression.cpp
     src/Engine/Interpreter/lexer.cpp
     src/Engine/Interpreter/parser.cpp

@@ -131,9 +131,6 @@ namespace arena
     {
         input = window ? const_cast<Input*>(window->getInputHandler()) : nullptr;
 
-        // Under WSLg the cursor warp is a no-op and sends no motion event of its own (see VoxelTest's camera)
-        onWSL = std::getenv("WSL_INTEROP") != nullptr or std::getenv("WSL_DISTRO_NAME") != nullptr;
-
         screenW = static_cast<float>(window ? window->getWidth() : 1280);
         screenH = static_cast<float>(window ? window->getHeight() : 720);
         aspect = screenH > 0.0f ? screenW / screenH : 16.0f / 9.0f;
@@ -388,14 +385,15 @@ namespace arena
             return;
         }
 
-        if (not cursorLocked)
+        // A lock the browser has not granted yet (or WSL before its helper holds the cursor): the cursor is free
+        if (not cursorLocked or (window and not window->isCursorCaptured()))
             return;
 
         lookDx += static_cast<float>(event.xrel);
         lookDy += static_cast<float>(event.yrel);
 
         // Keep the hidden cursor away from the edges (a warp on every motion would stutter)
-        if (window and not onWSL)
+        if (window and window->needsCursorRecentering())
         {
             const int w = window->getWidth(), h = window->getHeight();
             const int mx = std::max(80, w / 6), my = std::max(80, h / 6);
@@ -415,7 +413,8 @@ namespace arena
         // it here too lost every click that system took first. Its click event comes once per press.
         std::lock_guard<std::mutex> lock(inputMutex);
 
-        if (cursorLocked)
+        // The click that grants a pending lock (browser, WSL window getting focus) does not attack either
+        if (cursorLocked and (not window or window->isCursorCaptured()))
             mousePresses.insert(static_cast<int>(event.button));
         else if (cursorFree)
             recapture = true;   // a click on a freed window takes the mouse back, it does not attack
@@ -498,6 +497,10 @@ namespace arena
         if (not window)
             return;
 
+        // The browser let go of the mouse (Esc): free it until a click takes it back
+        if (window->takeCursorLockLost())
+            cursorFree = true;
+
         bool altHeld = false;
         {
             std::lock_guard<std::mutex> lock(inputMutex);
@@ -513,7 +516,7 @@ namespace arena
 
         std::lock_guard<std::mutex> lock(inputMutex);
 
-        if (want and not onWSL)
+        if (want and window->needsCursorRecentering())
         {
             warpPendingX = window->getWidth() / 2;
             warpPendingY = window->getHeight() / 2;
@@ -598,7 +601,8 @@ namespace arena
                 case SDL_SCANCODE_F1: showOverlay = not showOverlay; break;
                 case SDL_SCANCODE_F2: showBoxes = not showBoxes; break;
                 case SDL_SCANCODE_F5: print(runCommand("reload")); break;
-                case SDL_SCANCODE_ESCAPE: cursorFree = not cursorFree; break;
+                // A lock not held (Esc in a browser also ends Pointer Lock) is let go, not asked again
+                case SDL_SCANCODE_ESCAPE: cursorFree = (cursorLocked and window and not window->isCursorCaptured()) or not cursorFree; break;
                 default:
                     if (keyIs(p.scancode, "toggleView"))
                     {

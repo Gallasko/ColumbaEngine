@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdarg>
 #include <mutex>
 #include <memory>
@@ -31,6 +32,7 @@ namespace pg
     // Forward declarations
     class EntitySystem;
     class Input;
+    class WslCursor;
     // class UiComponent;
     struct VM;
     class MasterRenderer;
@@ -60,10 +62,27 @@ namespace pg
 
         const Input * getInputHandler() const { return inputHandler; }
 
-        // Hide + pin the cursor to the window center (manual relative-mouse
-        // mode that works on WSL where SDL_SetRelativeMouseMode is unreliable).
-        // Call with false to restore the system cursor in place.
+        // Capture the mouse for a look camera; false gives the system cursor back.
+        // Natively the cursor is hidden and warped to the window center (the
+        // caller keeps it off the edges, see needsCursorRecentering). In a
+        // browser it is the Pointer Lock API, granted on the next click or key
+        // press. On WSLg a helper on the Windows side holds the real cursor
+        // (see WslCursor), its motion arrives as OnSDLMouseMotion.
         void setCursorLocked(bool locked);
+
+        // True while the mouse is really held, so OnSDLMouseMotion's xrel/yrel
+        // can turn a camera. False while a lock is pending (browser waiting for
+        // a click, WSL window without focus): the motion then is the free cursor.
+        bool isCursorCaptured() const { return cursorCaptured.load(); }
+
+        // True once after the platform let go of a lock that was still wanted
+        // (Esc in a browser always ends Pointer Lock)
+        bool takeCursorLockLost() { return cursorLockLost.exchange(false); }
+
+        // Whether a look camera must keep the hidden cursor off the window edges
+        // with SDL_WarpMouseInWindow: false where the capture has no edges
+        // (browser, WSL helper) or the warp does nothing (WSL without helper)
+        bool needsCursorRecentering() const;
 
         // Current window size in pixels. Exposed so input/look controllers
         // can do edge-based cursor recentering without re-querying SDL.
@@ -90,6 +109,16 @@ namespace pg
         void swapBuffer();
 
     private:
+        // Per frame: follows the platform's real lock state and feeds the WSL helper
+        void updateCursorCapture();
+
+        bool cursorLockWanted = false;
+        bool pointerLockSeen = false;
+        std::atomic<bool> cursorCaptured {false};
+        std::atomic<bool> cursorLockLost {false};
+        std::unique_ptr<WslCursor> wslCursor;
+        bool wslCursorTried = false;
+
         SDL_Window* window = nullptr;
         SDL_GLContext context;
 

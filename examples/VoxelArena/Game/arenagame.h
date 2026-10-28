@@ -195,7 +195,6 @@ namespace arena
         bool cursorFree = false;        // Escape toggles it
         bool recapture = false;
         bool mouseLook = true;          // "mouse off": scripted runs ignore the real mouse         // a click while freed takes the mouse back
-        bool onWSL = false;
         int warpPendingX = -1, warpPendingY = -1;
 
         // Debug

@@ -15,6 +15,7 @@
 
 #include "Input/input.h"
 #include "Input/inputcomponent.h"
+#include "Input/wslcursor.h"
 
 #include "UI/focusable.h"
 
@@ -41,6 +42,10 @@
 #include "serialization.h"
 
 #include "SDL_net.h"
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+#endif
 
 namespace pg
 {
@@ -460,7 +465,10 @@ namespace pg
                 // Forward the raw SDL motion (including xrel/yrel) so FPS-style
                 // look controllers can consume the delta directly without
                 // racing the main-thread input reset that zeroes mouseDelta.
-                ecs->sendEvent(OnSDLMouseMotion{event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel});
+                // While the WSL helper holds the cursor these are only the echo
+                // of it putting the cursor back: its own motion is sent instead.
+                if (not (wslCursor and wslCursor->held()))
+                    ecs->sendEvent(OnSDLMouseMotion{event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel});
 
                 *mousePos = currentPos;
                 break;
@@ -556,9 +564,37 @@ namespace pg
         if (not window)
             return;
 
+        cursorLockWanted = locked;
+
+#ifdef __EMSCRIPTEN__
+        // Pointer Lock: SDL asks for it now, the browser grants it on the next
+        // click or key press and hides the cursor itself
+        SDL_SetRelativeMouseMode(locked ? SDL_TRUE : SDL_FALSE);
+
+        if (not locked)
+        {
+            pointerLockSeen = false;
+            cursorCaptured = false;
+            SDL_ShowCursor(SDL_ENABLE);
+        }
+#else
         if (locked)
         {
             SDL_ShowCursor(SDL_DISABLE);
+
+            if (runningOnWsl())
+            {
+                // The warp does nothing under WSLg, the Windows side holds the cursor
+                if (not wslCursorTried)
+                {
+                    wslCursorTried = true;
+                    wslCursor = WslCursor::start();
+                }
+
+                return;
+            }
+
+            cursorCaptured = true;
 
             // Use SDL_GetWindowSize rather than the cached width/height so we
             // stay correct after a resize even if the cache is stale.
@@ -578,8 +614,63 @@ namespace pg
         }
         else
         {
+            cursorCaptured = false;
             SDL_ShowCursor(SDL_ENABLE);
         }
+#endif
+    }
+
+    bool Window::needsCursorRecentering() const
+    {
+#ifdef __EMSCRIPTEN__
+        return false;
+#else
+        return not runningOnWsl();
+#endif
+    }
+
+    void Window::updateCursorCapture()
+    {
+#ifdef __EMSCRIPTEN__
+        if (not cursorLockWanted)
+            return;
+
+        EmscriptenPointerlockChangeEvent status;
+        const bool active = emscripten_get_pointerlock_status(&status) == EMSCRIPTEN_RESULT_SUCCESS and status.isActive;
+
+        // SDL keeps relative mode on when the browser ends the lock (and asks
+        // again on the next click): only the browser knows it was let go
+        if (pointerLockSeen and not active)
+            cursorLockLost = true;
+
+        pointerLockSeen = active;
+        cursorCaptured = active;
+#else
+        if (not runningOnWsl())
+            return;
+
+        // No helper (no powershell.exe, interop off): the cursor is only hidden,
+        // as good as it gets
+        if (not wslCursor or not wslCursor->alive())
+        {
+            cursorCaptured = cursorLockWanted;
+            return;
+        }
+
+        // Asked only while the game has the keyboard and the cursor is over it,
+        // so the helper takes hold of the cursor inside the window
+        const bool focused = SDL_GetKeyboardFocus() == window and SDL_GetMouseFocus() == window;
+
+        wslCursor->hold(cursorLockWanted and focused);
+
+        int dx = 0, dy = 0;
+        wslCursor->takeMotion(dx, dy);
+
+        if ((dx != 0 or dy != 0) and mousePos)
+            ecs->sendEvent(OnSDLMouseMotion{static_cast<Sint32>(mousePos->x), static_cast<Sint32>(mousePos->y), dx, dy});
+
+        cursorCaptured = cursorLockWanted and wslCursor->held();
+#endif
     }
 
     void Window::toggleFullscreen()
@@ -606,6 +697,8 @@ namespace pg
 
         // Frame-start signal for the ECS pass pacer (N passes per frame)
         ecs->ecsPassPacer.frameStarted();
+
+        updateCursorCapture();
 
         currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         static auto lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
