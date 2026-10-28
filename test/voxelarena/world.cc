@@ -778,8 +778,10 @@ TEST(arena_world, a_dodge_on_landing_from_a_knock_up_gets_up_at_once)
 
 TEST(arena_world, the_hard_landing_slows_and_a_dodge_pressed_early_in_the_fall_still_rolls)
 {
-    auto fallFrom = [](float height, int pressFramesBefore, InputFrame hold) {
+    auto fallFrom = [](float height, int pressFramesBefore, InputFrame hold, int airDashes = 0) {
         Arena a;
+        a.tuning.air.dashes = airDashes;
+        a.world.tuning = a.tuning;
         a.player().body.position = glm::vec3(16, height, 16);
         a.player().body.onGround = false;
 
@@ -793,14 +795,17 @@ TEST(arena_world, the_hard_landing_slows_and_a_dodge_pressed_early_in_the_fall_s
             ++landing;
         }
 
+        bool dashed = false;
+
         for (int i = 0; i < landing; ++i)
         {
             InputFrame in = hold;
             in.dodgePressed = (i == landing - 1 - pressFramesBefore);
             a.world.step(in);
+            dashed = dashed or a.player().action == Action::AirDash;
         }
 
-        return std::make_pair(a.player().action, a.player().landedSpeed);
+        return std::make_tuple(a.player().action, a.player().landedSpeed, dashed);
     };
 
     Arena ref;
@@ -808,8 +813,13 @@ TEST(arena_world, the_hard_landing_slows_and_a_dodge_pressed_early_in_the_fall_s
 
     // 18 frames before landing: past the general buffer (12), inside the landing window (21)
     ASSERT_GT(18, static_cast<int>(ref.tuning.combat.inputBuffer * 60.0f));
-    EXPECT_EQ(fallFrom(9.0f, 18, InputFrame{}).first, Action::Dodge);
-    EXPECT_EQ(fallFrom(9.0f, window + 4, InputFrame{}).first, Action::Land);
+    EXPECT_EQ(std::get<0>(fallFrom(9.0f, 18, InputFrame{})), Action::Dodge);
+    EXPECT_EQ(std::get<0>(fallFrom(9.0f, window + 4, InputFrame{})), Action::Land);
+
+    // With an air dash to spend: inside the window it is still the landing roll, before it the air dash
+    EXPECT_EQ(std::get<0>(fallFrom(9.0f, 18, InputFrame{}, 1)), Action::Dodge);
+    EXPECT_FALSE(std::get<2>(fallFrom(9.0f, 18, InputFrame{}, 1)));
+    EXPECT_TRUE(std::get<2>(fallFrom(9.0f, window + 8, InputFrame{}, 1)));
 
     // During the hard landing the player still walks, slowly
     Arena a;

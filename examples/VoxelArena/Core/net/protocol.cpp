@@ -11,6 +11,8 @@ namespace arena::net
         const char* const EVENT_KINDS[] = {
             "hit", "stagger", "kill", "swing", "windup", "shoot", "arrow_hit", "arrow_hit_fighter", "dodge", "jump", "land",
             "hard_land", "step", "chip", "break", "raise", "dig", "piece_fall", "piece_land",
+            "air_jump", "wall_jump", "air_dash", "plunge_land", "fire_cast", "ice_cast", "volt_cast",
+            "fire_burst", "ice_burst", "volt_arc", "ignite", "freeze", "status",
         };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };
@@ -124,6 +126,12 @@ namespace arena::net
                 all.insert(name);
         }
 
+        for (const auto& [id, s] : content.statuses)
+            all.insert(id);
+
+        for (const auto& [id, a] : content.abilities)
+            all.insert(id);
+
         names.assign(all.begin(), all.end());
         ids.clear();
 
@@ -228,6 +236,7 @@ namespace arena::net
             bits |= in.lightPressed ? 1u << 4 : 0u;
             bits |= in.heavyPressed ? 1u << 5 : 0u;
             bits |= in.faceCamera ? 1u << 6 : 0u;
+            bits |= in.crouchHeld ? 1u << 7 : 0u;
             for (int i = 0; i < InputFrame::ABILITIES; ++i)
             {
                 bits |= in.abilityPressed[i] ? 1u << (8 + i) : 0u;
@@ -276,6 +285,7 @@ namespace arena::net
             in.lightPressed = bits & (1u << 4);
             in.heavyPressed = bits & (1u << 5);
             in.faceCamera = bits & (1u << 6);
+            in.crouchHeld = bits & (1u << 7);
             for (int i = 0; i < InputFrame::ABILITIES; ++i)
             {
                 in.abilityPressed[i] = bits & (1u << (8 + i));
@@ -328,6 +338,15 @@ namespace arena::net
         w.vec3(f.dodgeDir);
         w.u16(names.id(f.aiMove));
 
+        // Statuses: they slow and they show
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.statuses.size(), 16)));
+        for (size_t i = 0; i < f.statuses.size() and i < 16; ++i)
+        {
+            w.u16(names.id(f.statuses[i].id));
+            w.f32(f.statuses[i].remaining);
+            w.u8(static_cast<uint8_t>(std::clamp(f.statuses[i].stacks, 0, 255)));
+        }
+
         if (not full)
             return;
 
@@ -355,6 +374,13 @@ namespace arena::net
         w.f32(f.respawnTimer);
         w.vec3(f.spawnPosition);
         w.f32(f.spawnYaw);
+        w.f32(f.mana);
+        w.f32(f.manaDelay);
+        w.f32(f.sinceSprint);
+        w.u8(static_cast<uint8_t>(std::clamp(f.airJumpsUsed, 0, 255)));
+        w.u8(static_cast<uint8_t>(std::clamp(f.airDashesUsed, 0, 255)));
+        w.u8(static_cast<uint8_t>(std::clamp(f.wallLock, 0, 255)));
+        w.vec3(f.wallNormal);
     }
 
     void readFighter(Reader& r, Fighter& f, const Names& names)
@@ -385,6 +411,17 @@ namespace arena::net
         f.dodgeDir = r.vec3();
         f.aiMove = names.name(r.u16());
 
+        f.statuses.clear();
+        const uint8_t statuses = r.u8();
+        for (uint8_t k = 0; k < statuses and k < 16 and not r.failed; ++k)
+        {
+            StatusState s;
+            s.id = names.name(r.u16());
+            s.remaining = r.f32();
+            s.stacks = r.u8();
+            f.statuses.push_back(s);
+        }
+
         if (not full)
             return;
 
@@ -411,6 +448,13 @@ namespace arena::net
         f.respawnTimer = r.f32();
         f.spawnPosition = r.vec3();
         f.spawnYaw = r.f32();
+        f.mana = r.f32();
+        f.manaDelay = r.f32();
+        f.sinceSprint = r.f32();
+        f.airJumpsUsed = r.u8();
+        f.airDashesUsed = r.u8();
+        f.wallLock = r.u8();
+        f.wallNormal = r.vec3();
     }
 
     // ---- Snapshot ---------------------------------------------------------------------------------
@@ -456,6 +500,9 @@ namespace arena::net
             w.f32(e.strength);
             w.u16(static_cast<uint16_t>(e.fighter));
             w.u16(static_cast<uint16_t>(e.source));
+            w.boolean(e.line);
+            if (e.line)
+                w.vec3(e.to);
             w.u8(static_cast<uint8_t>(std::clamp(static_cast<int64_t>(m.tick) - e.tick, int64_t(0), int64_t(255))));   // ticks before the snapshot
         }
 
@@ -512,6 +559,9 @@ namespace arena::net
             e.strength = r.f32();
             e.fighter = r.u16();
             e.source = r.u16();
+            e.line = r.boolean();
+            if (e.line)
+                e.to = r.vec3();
             e.tick = static_cast<int>(m.tick) - r.u8();
             m.events.push_back(e);
         }

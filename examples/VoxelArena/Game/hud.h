@@ -30,7 +30,8 @@ namespace arena
         void setWeapon(const std::string& text);
         void setConsole(bool open, const std::vector<std::string>& lines, const std::string& input);
 
-        void setBars(float health, float stamina, bool exhausted);
+        /** manaLow: not enough for the cheapest spell (the bar dims). */
+        void setBars(float health, float stamina, bool exhausted, float mana = 1.0f, bool manaLow = false);
         void setCrosshair(bool visible);
 
         /** One bar per entry, screen pixels; extra bars are hidden. */
@@ -57,7 +58,7 @@ namespace arena
         pg::_unique_id overlay = 0, overlayBack = 0;
         pg::_unique_id banner = 0, center = 0, weapon = 0;
         pg::_unique_id consoleBack = 0, consoleText = 0;
-        pg::_unique_id healthBack = 0, healthFill = 0, staminaBack = 0, staminaFill = 0;
+        pg::_unique_id healthBack = 0, healthFill = 0, staminaBack = 0, staminaFill = 0, manaBack = 0, manaFill = 0;
         pg::_unique_id crossH = 0, crossV = 0;
         bool lastCrosshair = true;
 

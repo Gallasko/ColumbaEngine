@@ -155,6 +155,21 @@ namespace arena
             EffectDef e;
             e.sound = j.str("sound", "");
             e.shake = static_cast<float>(j.num("shake", 0.0));
+            e.along = j.flag("along", false);
+            e.every = static_cast<float>(j.num("every", 0.0));
+
+            if (const Json* t = j.find("tint"))
+            {
+                if (t->isArray() and t->array.size() >= 3)
+                {
+                    e.hasTint = true;
+                    e.tint = glm::vec3(t->array[0].number, t->array[1].number, t->array[2].number) / 255.0f;
+                }
+                else
+                {
+                    report.error("effects.json", t->line, "effect \"" + name + "\": tint is [r, g, b]");
+                }
+            }
 
             if (not e.sound.empty() and not sounds.count(e.sound))
                 report.error("effects.json", j.line, "effect \"" + name + "\" plays the sound \"" + e.sound + "\", which sounds.json does not have");

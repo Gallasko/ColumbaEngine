@@ -58,6 +58,12 @@ namespace arena
         std::string sound;           // a name from sounds.json, "" = silent
         ParticlePreset particles;
         float shake = 0.0f;          // camera trauma when it happens near the player
+        bool along = false;          // particles spread along a line event, not burst from its point
+
+        // A status's look (the entry named after its id): a glow over the body, and particles every so often
+        bool hasTint = false;
+        glm::vec3 tint = glm::vec3(1.0f);
+        float every = 0.0f;          // s between particle bursts while it lasts (0: none)
     };
 
     std::map<std::string, SoundRecipe> readSounds(const Json& tree, ContentReport& report);

@@ -10,7 +10,8 @@ namespace arena::net
         // What a client plays for its own player as it predicts it: the server's copies are skipped
         bool predictedKind(const std::string& kind)
         {
-            return kind == "dodge" or kind == "jump" or kind == "land" or kind == "hard_land" or kind == "swing" or kind == "step";
+            return kind == "dodge" or kind == "jump" or kind == "land" or kind == "hard_land" or kind == "swing" or kind == "step" or
+                   kind == "air_jump" or kind == "wall_jump" or kind == "air_dash" or kind == "plunge_land";
         }
 
         float lerpAngle(float a, float b, float t)
@@ -417,9 +418,11 @@ namespace arena::net
             q.source = p.source;
             q.attack = p.attack;
 
-            // Its look comes from this machine's content
+            // Its look comes from this machine's content: an attack's shot, or a spell's
             if (const AttackDef* a = content.attackOf(p.source, p.attack))
                 q.def = a->projectile;
+            else if (auto spell = content.abilities.find(p.source); spell != content.abilities.end())
+                q.def = spell->second.projectile;
             world.projectiles.push_back(q);
         }
 

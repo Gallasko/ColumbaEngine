@@ -94,6 +94,7 @@ namespace arena
             case Action::Dodge: return "dodge";
             case Action::Stagger: return "stagger";
             case Action::Land: return "land";
+            case Action::AirDash: return "airdash";
             case Action::Dead: return "dead";
         }
 
@@ -388,6 +389,10 @@ namespace arena
         f.hitstop = 0;
         f.flash = 0;
         f.push = glm::vec3(0.0f);
+        f.mana = tuning.mana.max;
+        f.manaDelay = 0.0f;
+        f.statuses.clear();
+        f.airJumpsUsed = f.airDashesUsed = f.wallLock = 0;
         f.body.position = f.spawnPosition;
         f.body.velocity = glm::vec3(0.0f);
         f.body.onGround = false;
@@ -491,6 +496,68 @@ namespace arena
             f.exhausted = false;
     }
 
+    void ArenaWorld::regenMana(Fighter& f)
+    {
+        if (f.manaDelay > 0.0f)
+            f.manaDelay -= STEP_SECONDS;
+        else
+            f.mana = std::min(tuning.mana.max, f.mana + tuning.mana.regen * STEP_SECONDS);
+    }
+
+    float ArenaWorld::speedScale(const Fighter& f) const
+    {
+        float slow = 0.0f;
+
+        for (const auto& s : f.statuses)
+            if (auto it = content->statuses.find(s.id); it != content->statuses.end())
+                slow += it->second.slow * static_cast<float>(s.stacks);
+
+        return std::clamp(1.0f - slow, 0.1f, 1.0f);
+    }
+
+    float ArenaWorld::heightAboveGround(const Fighter& f) const
+    {
+        const RayHit down = raycast(grid, content->blockTable, f.body.position + glm::vec3(0, 0.05f, 0), glm::vec3(0, -1, 0), 32.0f);
+        return down.hit ? down.distance - 0.05f : 32.0f;
+    }
+
+    glm::vec3 ArenaWorld::touchedWall(const Fighter& f) const
+    {
+        // A solid cell against a side of the body, at the knees or the chest
+        const float reach = f.body.width * 0.5f + tuning.air.wallReach;
+        const glm::vec3 sides[4] = {{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}};
+
+        for (const auto& side : sides)
+            for (float h : {0.4f, f.body.height * 0.7f})
+            {
+                const glm::vec3 probe = f.body.position + glm::vec3(0, h, 0) + side * reach;
+
+                if (grid.isSolid(content->blockTable, static_cast<int>(std::floor(probe.x)), static_cast<int>(std::floor(probe.y)), static_cast<int>(std::floor(probe.z))))
+                    return -side;
+            }
+
+        return glm::vec3(0.0f);
+    }
+
+    const std::string& ArenaWorld::attackFor(const Fighter& f, const Moveset& m, int queued) const
+    {
+        // In the air: the air attacks, when the moveset has them
+        if (not f.body.onGround)
+        {
+            if (queued == 2 and not m.airHeavy.empty())
+                return m.airHeavy;
+            if (queued == 1 and not m.airLight.empty())
+                return m.airLight;
+        }
+        // Sprinting (or just stopped): a light press is the dash attack
+        else if (queued == 1 and not m.dashAttack.empty() and f.sinceSprint <= tuning.combat.dashAttackWindow)
+        {
+            return m.dashAttack;
+        }
+
+        return (queued == 2 and not m.heavy.empty()) ? m.heavy : m.light;
+    }
+
     void ArenaWorld::turnTowards(Fighter& f, const glm::vec3& dir, float degreesPerSecond)
     {
         if (glm::length(flat(dir)) < 1e-4f)
@@ -591,6 +658,10 @@ namespace arena
         f.queuedAge = -1.0f;
         f.sprinting = false;
         f.jumping = false;
+
+        // An air slash hangs: the fall is caught as it starts
+        if (not f.body.onGround and a->gravityScale < 1.0f)
+            f.body.velocity.y = std::max(f.body.velocity.y, 0.0f) * 0.5f;
     }
 
     void ArenaWorld::startDodge(Fighter& f, const glm::vec3& dir)
@@ -609,6 +680,26 @@ namespace arena
         f.queued = 0;
         f.queuedAge = -1.0f;
         f.jumping = false;
+    }
+
+    void ArenaWorld::startAirDash(Fighter& f, const glm::vec3& dir)
+    {
+        glm::vec3 d = flat(dir);
+        d = glm::length(d) > 1e-4f ? glm::normalize(d) : yawForward(f.yaw);
+
+        spendStamina(f, tuning.air.dashCost);
+        event("air_dash", f.body.position, 1.0f, f.id);
+
+        f.action = Action::AirDash;
+        f.frame = 0;
+        f.dodgeDir = d;
+        f.yaw = yawOf(d);
+        f.dodgeQueuedAge = -1.0f;
+        f.airDodgeAge = -1.0f;   // used up here: no landing roll waiting
+        f.queued = 0;
+        f.queuedAge = -1.0f;
+        f.jumping = false;
+        ++f.airDashesUsed;
     }
 
     void ArenaWorld::stepPlayer(Fighter& f, const InputFrame& in)
@@ -676,6 +767,15 @@ namespace arena
         if (f.flash > 0)
             --f.flash;
 
+        stepStatuses(f);
+
+        if (not f.alive())
+            return;
+
+        // Back on the ground: the air jumps and dashes are there again
+        if (f.body.onGround)
+            f.airJumpsUsed = f.airDashesUsed = 0;
+
         if (f.queuedAge >= 0.0f and (f.queuedAge += dt) > tuning.combat.inputBuffer)
         {
             f.queued = 0;
@@ -707,6 +807,20 @@ namespace arena
         const bool canPay = f.stamina >= tuning.stamina.minToAct;
         const bool canDodgeHere = f.body.onGround or tuning.dodge.inAir;
 
+        // In the air, a dodge is an air dash; about to land, it waits for the landing roll instead
+        // (landing within landingRollWindow at this fall speed, or nearer the ground than dashMinHeight)
+        bool canAirDash = f.team == Team::Player and not f.body.onGround and f.airDashesUsed < tuning.air.dashes and canPay and f.dodgeQueuedAge >= 0.0f;
+
+        if (canAirDash)
+        {
+            // Time to fall that far from this speed, under the falling gravity
+            const float height = heightAboveGround(f);
+            const float g = tuning.player.gravity * tuning.player.fallGravityScale;
+            const float down = -f.body.velocity.y;
+            const float toLand = down > 0.0f ? (-down + std::sqrt(down * down + 2.0f * g * height)) / g : 100.0f;
+            canAirDash = height >= tuning.air.dashMinHeight and toLand > tuning.player.landingRollWindow;
+        }
+
         // ---- Decide the action ----
         switch (f.action)
         {
@@ -716,10 +830,13 @@ namespace arena
                 {
                     startDodge(f, hasWish ? wish : yawForward(f.yaw));
                 }
+                else if (f.dodgeQueuedAge >= 0.0f and canAirDash)
+                {
+                    startAirDash(f, hasWish ? wish : yawForward(f.yaw));
+                }
                 else if (f.queued and canPay and moveset)
                 {
-                    const std::string& name = (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light;
-                    startAttack(f, name, aimIdle, not in.faceCamera, aimPitch);
+                    startAttack(f, attackFor(f, *moveset, f.queued), aimIdle, not in.faceCamera, aimPitch);
                 }
                 break;
             }
@@ -764,6 +881,17 @@ namespace arena
                 break;
             }
 
+            case Action::AirDash:
+            {
+                if (f.frame >= tuning.air.dashFrames)
+                {
+                    f.action = Action::Free;
+                    f.airSpeed = std::max(f.airSpeed, tuning.air.dashSpeed * 0.6f);   // some of it carries on
+                }
+
+                break;
+            }
+
             case Action::Stagger:
             case Action::Land:
             {
@@ -784,8 +912,10 @@ namespace arena
         // A buffered press can start right away from the action that just ended
         if (f.action == Action::Free and f.dodgeQueuedAge >= 0.0f and canPay and canDodgeHere)
             startDodge(f, hasWish ? wish : yawForward(f.yaw));
+        else if (f.action == Action::Free and f.dodgeQueuedAge >= 0.0f and canAirDash)
+            startAirDash(f, hasWish ? wish : yawForward(f.yaw));
         else if (f.action == Action::Free and f.queued and canPay and moveset)
-            startAttack(f, (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light, aimIdle, not in.faceCamera, aimPitch);
+            startAttack(f, attackFor(f, *moveset, f.queued), aimIdle, not in.faceCamera, aimPitch);
 
         useAbilities(f, in);
 
@@ -810,7 +940,7 @@ namespace arena
                         f.exhausted = true;
                 }
 
-                float speed = f.sprinting ? tuning.player.sprintSpeed : tuning.player.walkSpeed;
+                float speed = (f.sprinting ? tuning.player.sprintSpeed : tuning.player.walkSpeed) * speedScale(f);
 
                 // Momentum: the speed taken off with is kept in the air, and for a moment after landing
                 if (not f.body.onGround)
@@ -819,6 +949,16 @@ namespace arena
                     speed = std::max(speed, f.landSpeed);
 
                 wanted = wish * speed;
+
+                // Just off a wall: the push away from it is not steered back
+                if (f.wallLock > 0)
+                {
+                    --f.wallLock;
+                    const float into = glm::dot(wanted, f.wallNormal);
+
+                    if (into < 0.0f)
+                        wanted -= f.wallNormal * into;
+                }
 
                 if (in.faceCamera)
                     f.yaw = in.cameraYaw;
@@ -846,7 +986,18 @@ namespace arena
                     turnTowards(f, wish, a->turnRate * 60.0f);
 
                 if (a->movesAt(f.frame))
-                    wanted = wish * (tuning.player.walkSpeed * a->moveSpeed);
+                    wanted = wish * (tuning.player.walkSpeed * a->moveSpeed * speedScale(f));
+
+                // A plunge hangs through its startup, then dives
+                if (a->plungeSpeed > 0.0f and not f.body.onGround)
+                {
+                    if (f.frame < a->startup)
+                        f.body.velocity.y = 0.0f;
+                    else
+                        f.body.velocity.y = -a->plungeSpeed;
+
+                    wanted = glm::vec3(0.0f);
+                }
 
                 if (f.frame >= a->lungeFrom and f.frame < a->lungeTo)
                 {
@@ -874,6 +1025,16 @@ namespace arena
                 break;
             }
 
+            case Action::AirDash:
+            {
+                // A straight burst, no fall
+                f.body.velocity.x = f.dodgeDir.x * tuning.air.dashSpeed;
+                f.body.velocity.z = f.dodgeDir.z * tuning.air.dashSpeed;
+                f.body.velocity.y = 0.0f;
+                wanted = f.dodgeDir * tuning.air.dashSpeed;
+                break;
+            }
+
             case Action::Dodge:
             {
                 const auto& d = tuning.dodge;
@@ -897,7 +1058,15 @@ namespace arena
                 break;
         }
 
+        f.sinceSprint = f.sprinting ? 0.0f : f.sinceSprint + dt;
+
+        const bool diving = f.action == Action::Attack and currentAttack(f) and currentAttack(f)->plungeSpeed > 0.0f and not f.body.onGround;
+
         stepCommon(f, wanted, canJump, &in);
+
+        // A plunge reaching the ground: its strike
+        if (diving and f.body.onGround)
+            event("plunge_land", f.body.position, f.landedSpeed, f.id);
 
         // ---- Landings: the landing roll, the wake-up roll and the hard landing ----
         if (f.landedSpeed > 4.0f)
@@ -935,12 +1104,17 @@ namespace arena
         else
             f.airborneStagger = false;
         regenStamina(f);
+        regenMana(f);
 
         // A roll that started this step: when its owner pressed it, for the dodge grace
         if (f.action == Action::Dodge and f.frame <= 0)
             f.dodgeStamp = in.stamp >= 0 ? in.stamp : static_cast<int>(steps);
 
-        if (f.action != Action::Free)
+        // A diving plunge holds its first active frame until it lands: the strike is the landing
+        const AttackDef* now = currentAttack(f);
+        const bool holding = f.action == Action::Attack and now and now->plungeSpeed > 0.0f and f.frame >= now->startup and not f.body.onGround;
+
+        if (f.action != Action::Free and not holding)
             ++f.frame;
     }
 
@@ -972,6 +1146,11 @@ namespace arena
 
         if (f.flash > 0)
             --f.flash;
+
+        stepStatuses(f);
+
+        if (not f.alive())
+            return;
 
         f.sinceHit += dt;
 
@@ -1137,7 +1316,7 @@ namespace arena
                 break;
         }
 
-        stepCommon(f, wanted, false, nullptr);
+        stepCommon(f, wanted * speedScale(f), false, nullptr);
 
         if (f.action != Action::Free)
             ++f.frame;
@@ -1153,7 +1332,7 @@ namespace arena
         const float speedBefore = glm::length(flat(body.velocity));
 
         // ---- Horizontal: accelerate towards the wanted velocity ----
-        if (f.action != Action::Dodge)
+        if (f.action != Action::Dodge and f.action != Action::AirDash)
         {
             const glm::vec3 current = flat(body.velocity);
             float rate;
@@ -1184,7 +1363,7 @@ namespace arena
             body.velocity.x = next.x;
             body.velocity.z = next.z;
         }
-        else if (f.frame >= tuning.dodge.frames - tuning.dodge.recovery)
+        else if (f.action == Action::Dodge and f.frame >= tuning.dodge.frames - tuning.dodge.recovery)
         {
             const glm::vec3 next = approach(flat(body.velocity), glm::vec3(0.0f), P.groundDecel * dt);
             body.velocity.x = next.x;
@@ -1221,9 +1400,54 @@ namespace arena
             f.coyote = 0.0f;
             f.jumpBuffer = 0.0f;
         }
+        else if (canJump and f.team == Team::Player and f.jumpBuffer > 0.0f and not body.onGround)
+        {
+            const auto& A = tuning.air;
+            const glm::vec3 wall = touchedWall(f);
+
+            if (glm::length(wall) > 0.5f)
+            {
+                // Off the wall: pushed away and up, the air jumps given back
+                body.velocity.x = wall.x * A.wallJumpPush;
+                body.velocity.z = wall.z * A.wallJumpPush;
+                body.velocity.y = std::sqrt(2.0f * P.gravity * A.wallJumpHeight);
+                f.airSpeed = A.wallJumpPush;
+                f.wallLock = A.wallJumpLockFrames;
+                f.wallNormal = wall;
+                f.airJumpsUsed = 0;
+                f.yaw = yawOf(wall);
+                jumped = true;
+                event("wall_jump", body.position, 1.0f, f.id);
+            }
+            else if (f.airJumpsUsed < A.jumps)
+            {
+                // A second jump: the fall stops, and the speed so far turns to where the stick points
+                const float speed = std::max(glm::length(flat(body.velocity)), glm::length(flat(wanted)));
+                const glm::vec3 dir = glm::length(flat(wanted)) > 0.1f ? glm::normalize(flat(wanted)) : glm::vec3(0.0f);
+
+                if (glm::length(dir) > 0.5f)
+                {
+                    body.velocity.x = dir.x * speed;
+                    body.velocity.z = dir.z * speed;
+                }
+
+                body.velocity.y = std::sqrt(2.0f * P.gravity * A.jumpHeight);
+                f.airSpeed = std::max(f.airSpeed, speed);
+                ++f.airJumpsUsed;
+                jumped = true;
+                event("air_jump", body.position, 1.0f, f.id);
+            }
+
+            if (jumped)
+            {
+                f.jumping = true;
+                f.jumpBuffer = 0.0f;
+            }
+        }
 
         // ---- Gravity: heavier on the way down, heavier still when jump is let go (variable height) ----
         float g = P.gravity;
+        float maxFall = P.maxFallSpeed;
 
         if (body.velocity.y > 0.0f)
         {
@@ -1235,7 +1459,23 @@ namespace arena
             g *= P.fallGravityScale;
         }
 
-        body.velocity.y = std::max(body.velocity.y - g * dt, -P.maxFallSpeed);
+        const AttackDef* attack = f.action == Action::Attack ? currentAttack(f) : nullptr;
+
+        if (attack)
+            g *= attack->gravityScale;
+
+        // Crouch held in the air: down fast
+        if (f.team == Team::Player and in and in->crouchHeld and not body.onGround and f.action == Action::Free)
+        {
+            g = P.gravity * tuning.air.fastFallGravityScale;
+            maxFall = tuning.air.fastFallMaxSpeed;
+        }
+
+        // An air dash, and a plunge (its own speed), fly straight
+        const bool noGravity = f.action == Action::AirDash or (attack and attack->plungeSpeed > 0.0f and not body.onGround);
+
+        if (not noGravity)
+            body.velocity.y = std::max(body.velocity.y - g * dt, -maxFall);
 
         // ---- Knockback decays by itself ----
         const float pushLen = glm::length(f.push);
@@ -1417,7 +1657,14 @@ namespace arena
             if (a->staminaCost > 0.0f and f.stamina < tuning.stamina.minToAct)
                 continue;
 
+            // A spell needs all its mana
+            if (a->manaCost > 0.0f and f.mana < a->manaCost)
+                continue;
+
             bool used = false;
+
+            if (a->kind == "projectile" or a->kind == "bolt")
+                used = castSpell(f, *a, in);
 
             if (a->kind == "wall")
             {
@@ -1500,11 +1747,291 @@ namespace arena
                 spendStamina(f, a->staminaCost);
                 f.abilityCooldown[i] = a->cooldown;
 
+                if (a->manaCost > 0.0f)
+                {
+                    f.mana -= a->manaCost;
+                    f.manaDelay = tuning.mana.regenDelay;
+                }
+
                 if (a->kind == "wall")
                     event("raise", f.body.position + glm::normalize(glm::vec3(in.aimDir.x, 0.0f, in.aimDir.z) + glm::vec3(1e-4f, 0, 0)) * a->distance, 1.0f, f.id, content->block(a->block));
                 else if (a->kind == "pit")
                     event("dig", in.aimOrigin + glm::normalize(in.aimDir) * 5.0f, 1.0f, f.id);
             }
+        }
+    }
+
+    bool ArenaWorld::castSpell(Fighter& f, const AbilityDef& a, const InputFrame& in)
+    {
+        const glm::vec3 aim = glm::length(in.aimDir) > 1e-4f ? glm::normalize(in.aimDir) : yawForward(f.yaw);
+
+        // The body turns to the spell
+        if (glm::length(flat(aim)) > 1e-4f)
+            f.yaw = yawOf(flat(aim));
+
+        if (a.element != Element::None)
+            event(std::string(elementName(a.element)) + "_cast", chest(f), 1.0f, f.id);
+
+        if (a.kind == "bolt")
+        {
+            strikeBolt(f, a, in);
+            return true;
+        }
+
+        // From the chest at what the crosshair is on (the camera is behind: aiming its own ray would miss)
+        const glm::vec3 from = chest(f) + glm::vec3(aim.x, 0.0f, aim.z) * 0.5f;
+        const RayHit onto = raycast(grid, content->blockTable, in.aimOrigin, aim, 80.0f);
+        const glm::vec3 point = in.aimOrigin + aim * (onto.hit ? onto.distance : 80.0f);
+        const glm::vec3 dir = glm::length(point - from) > 0.5f ? glm::normalize(point - from) : aim;
+
+        for (int k = 0; k < a.count; ++k)
+        {
+            // A fan, `spread` degrees apart, turned about the vertical
+            const float turn = glm::radians(a.spread * (static_cast<float>(k) - static_cast<float>(a.count - 1) * 0.5f));
+            const glm::vec3 d(dir.x * std::cos(turn) + dir.z * std::sin(turn), dir.y, -dir.x * std::sin(turn) + dir.z * std::cos(turn));
+
+            Projectile p;
+            p.id = nextProjectile++;
+            p.owner = f.id;
+            p.team = f.team;
+            p.source = a.id;
+            p.def = a.projectile;
+            p.position = from;
+            p.velocity = glm::normalize(d) * a.projectile.speed;
+            projectiles.push_back(p);
+        }
+
+        return true;
+    }
+
+    void ArenaWorld::strikeBolt(Fighter& f, const AbilityDef& a, const InputFrame& in)
+    {
+        const glm::vec3 dir = glm::length(in.aimDir) > 1e-4f ? glm::normalize(in.aimDir) : yawForward(f.yaw);
+
+        // Along the crosshair's ray, from beside the caster (not from the camera behind it)
+        const float along = std::max(0.0f, glm::dot(chest(f) - in.aimOrigin, dir));
+        const glm::vec3 start = in.aimOrigin + dir * along;
+        const glm::vec3 hand = chest(f) + glm::vec3(dir.x, 0.0f, dir.z) * 0.4f;
+
+        const RayHit wall = raycast(grid, content->blockTable, start, dir, a.range);
+        float best = wall.hit ? wall.distance : a.range;
+        Fighter* first = nullptr;
+
+        for (auto& o : fighters)
+        {
+            if (o.team == f.team or not o.alive() or o.invulnerable(tuning))
+                continue;
+
+            // Where the caster saw it (lag compensation), grown a little: a bolt is hard to miss by a hair
+            const Body& seen = bodyFor(f, o);
+            const glm::vec3 lo = seen.boxMin() - glm::vec3(0.3f), hi = seen.boxMax() + glm::vec3(0.3f);
+            float t0 = 0.0f, t1 = best;
+            bool inside = true;
+
+            for (int k = 0; k < 3 and inside; ++k)
+            {
+                if (std::fabs(dir[k]) < 1e-8f)
+                {
+                    inside = start[k] >= lo[k] and start[k] <= hi[k];
+                    continue;
+                }
+
+                float p = (lo[k] - start[k]) / dir[k], q = (hi[k] - start[k]) / dir[k];
+                if (p > q)
+                    std::swap(p, q);
+                t0 = std::max(t0, p);
+                t1 = std::min(t1, q);
+                inside = t0 <= t1;
+            }
+
+            if (inside and t0 < best)
+            {
+                best = t0;
+                first = &o;
+            }
+        }
+
+        const AttackDef hit = hitOf(a.id, a.damage, a.poiseDamage, a.knockback, 2, 0.2f, a.element, a.status);
+        const int hitstopBefore = f.hitstop;
+
+        if (not first)
+        {
+            const glm::vec3 end = start + dir * best;
+            event("volt_arc", hand, 1.0f, 0, AIR, f.id);
+            events.back().line = true;
+            events.back().to = end;
+
+            // Stone does not take it well (the blocks' "weakness")
+            if (wall.hit and grid.inBounds(wall.cell.x, wall.cell.y, wall.cell.z))
+            {
+                const BlockId block = grid.get(wall.cell.x, wall.cell.y, wall.cell.z);
+                const float scale = block < content->blockTable.size() ? content->blockTable[block].weakness[static_cast<int>(a.element)] : 1.0f;
+
+                if (not terrain.damage(wall.cell, a.terrainDamage * scale))
+                    event("chip", end, 1.0f, f.id, block);
+            }
+
+            return;
+        }
+
+        // The first struck, then the nearest not yet struck within chainRange of the last, `chains` times
+        std::vector<int> struck;
+        Fighter* current = first;
+        glm::vec3 from = hand;
+
+        for (int k = 0; current and k <= a.chains; ++k)
+        {
+            struck.push_back(current->id);
+            event("volt_arc", from, 1.0f, current->id, AIR, f.id);
+            events.back().line = true;
+            events.back().to = chest(*current);
+            from = chest(*current);
+
+            hitOrDefer(f, *current, hit, from);
+
+            Fighter* next = nullptr;
+            float nearest = a.chainRange;
+
+            for (auto& o : fighters)
+            {
+                if (o.team == f.team or not o.alive() or o.invulnerable(tuning) or std::find(struck.begin(), struck.end(), o.id) != struck.end())
+                    continue;
+
+                const float d = glm::length(chest(o) - from);
+
+                if (d < nearest)
+                {
+                    nearest = d;
+                    next = &o;
+                }
+            }
+
+            current = next;
+        }
+
+        f.hitstop = hitstopBefore;   // a bolt does not freeze its caster
+    }
+
+    void ArenaWorld::impact(const Projectile& p, const glm::vec3& point, Fighter* struck, const RayHit* wall)
+    {
+        const AttackDef hit = hitOf(p.attack.empty() ? p.source : p.attack, p.def.damage, p.def.poiseDamage, p.def.knockback, p.def.hitstop, p.def.shake, p.def.element, p.def.status);
+
+        // Who it hits: the one struck, or everyone close enough to a burst
+        std::vector<Fighter*> targets;
+
+        if (p.def.burst > 0.0f)
+        {
+            for (auto& o : fighters)
+                if (o.team != p.team and o.alive() and not o.invulnerable(tuning) and glm::length(chest(o) - point) <= p.def.burst + o.body.width * 0.5f)
+                    targets.push_back(&o);
+        }
+        else if (struck)
+        {
+            targets.push_back(struck);
+        }
+
+        // The shooter if it is still there, else a stand-in where the shot came from
+        Fighter standIn;
+        standIn.team = p.team;
+        Fighter* owner = find(p.owner);
+        Fighter& attacker = owner ? *owner : standIn;
+        const glm::vec3 shooterPos = attacker.body.position;
+        const int hitstopBefore = attacker.hitstop;
+        const glm::vec3 flight = glm::length(p.velocity) > 1e-4f ? glm::normalize(p.velocity) : glm::vec3(0, 0, 1);
+
+        for (Fighter* t : targets)
+        {
+            // Knockback away from the impact (the way it flew, for the one struck)
+            glm::vec3 away = t == struck ? flight : t->body.position - point;
+            away = glm::length(flat(away)) > 1e-4f ? glm::normalize(flat(away)) : flat(flight);
+            attacker.body.position = t->body.position - away;
+            hitOrDefer(attacker, *t, hit, point);
+
+            if (p.def.element == Element::None)
+                event("arrow_hit_fighter", point, 1.0f, t->id, AIR, p.owner);
+        }
+
+        attacker.body.position = shooterPos;
+        attacker.hitstop = hitstopBefore;   // nobody is frozen by a shot landing far away
+
+        BlockId block = AIR;
+
+        if (wall and grid.inBounds(wall->cell.x, wall->cell.y, wall->cell.z))
+        {
+            block = grid.get(wall->cell.x, wall->cell.y, wall->cell.z);
+            const float scale = block < content->blockTable.size() ? content->blockTable[block].weakness[static_cast<int>(p.def.element)] : 1.0f;
+            terrain.damage(wall->cell, p.def.terrainDamage * scale);
+
+            if (p.def.element == Element::None)
+                event("arrow_hit", point, 0.5f, 0, block);
+        }
+
+        if (p.def.element != Element::None)
+        {
+            event(std::string(elementName(p.def.element)) + "_burst", point, std::max(p.def.burst, 0.5f), struck ? struck->id : 0, block, p.owner);
+            elementOnTerrain(p.def.element, point, p.def.terrainRadius);
+        }
+    }
+
+    void ArenaWorld::elementOnTerrain(Element element, const glm::vec3& point, float radius)
+    {
+        const glm::ivec3 c(glm::floor(point));
+        const int r = static_cast<int>(std::ceil(radius)) + 1;
+
+        if (element == Element::Fire)
+        {
+            // What burns, close enough: the block hit too (the impact sits on its face)
+            for (int y = -r; y <= r; ++y)
+                for (int z = -r; z <= r; ++z)
+                    for (int x = -r; x <= r; ++x)
+                    {
+                        const glm::ivec3 cell = c + glm::ivec3(x, y, z);
+
+                        if (glm::length(glm::vec3(cell) + glm::vec3(0.5f) - point) <= std::max(radius, 0.9f))
+                            terrain.ignite(cell, tuning.elements.burnSeconds, tuning.elements.spreadSeconds);
+                    }
+        }
+        else if (element == Element::Ice)
+        {
+            // A dug pit close by freezes over: ice in the top cell of each of its columns, gone before
+            // the pit fills back in (it would stay a hole forever otherwise)
+            const BlockId ice = content->block("base:ice");
+            bool froze = false;
+
+            if (ice == AIR or radius <= 0.0f)
+                return;
+
+            for (int z = -r; z <= r; ++z)
+                for (int x = -r; x <= r; ++x)
+                {
+                    if (glm::length(glm::vec2(x, z)) > radius)
+                        continue;
+
+                    for (int y = c.y + 2; y >= c.y - 3; --y)
+                    {
+                        const glm::ivec3 cell(c.x + x, y, c.z + z);
+                        const float left = terrain.dugRemaining(cell);
+
+                        // Not part of a pit: further down
+                        if (left < 0.0f)
+                            continue;
+
+                        // The pit's top cell: frozen already, or about to fill anyway, the column is done
+                        if (grid.get(cell.x, cell.y, cell.z) != AIR or left <= 0.2f)
+                            break;
+
+                        if (not cellOccupied(cell))
+                        {
+                            terrain.placeFor(cell, ice, std::min(tuning.elements.iceLifetime, left - 0.1f));
+                            froze = true;
+                        }
+
+                        break;
+                    }
+                }
+
+            if (froze)
+                event("freeze", point, radius, 0, ice);
         }
     }
 
@@ -1643,6 +2170,10 @@ namespace arena
             const BlockId id = i < events.brokenBlocks.size() ? events.brokenBlocks[i] : AIR;
             event("break", glm::vec3(events.broken[i]) + glm::vec3(0.5f), 1.0f, 0, id);
         }
+
+        // Set alight: strength is how long it burns (the flames are each machine's to draw)
+        for (const auto& c : events.ignited)
+            event("ignite", glm::vec3(c) + glm::vec3(0.5f), tuning.elements.burnSeconds, 0, grid.get(c.x, c.y, c.z));
 
         for (int id : events.fell)
             for (const auto& piece : terrain.falling)
@@ -1797,44 +2328,17 @@ namespace arena
             if (wall.hit and wall.distance < best)
             {
                 // Stopped by the arena: a raised wall takes the arrow
-                if (grid.inBounds(wall.cell.x, wall.cell.y, wall.cell.z))
-                {
-                    const BlockId block = grid.get(wall.cell.x, wall.cell.y, wall.cell.z);
-                    terrain.damage(wall.cell, p.def.terrainDamage);
-                    event("arrow_hit", p.position + dir * wall.distance, 0.5f, 0, block);
-                }
-
+                const Projectile shot = p;
                 it = projectiles.erase(it);
+                impact(shot, shot.position + dir * wall.distance, nullptr, &wall);
                 continue;
             }
 
             if (victim)
             {
-                AttackDef hit;
-                hit.name = p.attack;
-                hit.damage = p.def.damage;
-                hit.poiseDamage = p.def.poiseDamage;
-                hit.knockback = p.def.knockback;
-                hit.hitstop = p.def.hitstop;
-                hit.shake = p.def.shake;
-
-                // The shooter if it is still there, else a stand-in where the arrow came from
-                Fighter standIn;
-                standIn.team = p.team;
-                standIn.body.position = p.position - dir * 2.0f;
-                Fighter* owner = find(p.owner);
-                Fighter& attacker = owner ? *owner : standIn;
-
-                // Knockback goes the way the arrow flies, not away from a distant shooter
-                const glm::vec3 shooterPos = attacker.body.position;
-                attacker.body.position = victim->body.position - glm::vec3(dir.x, 0.0f, dir.z);
-                const int hitstopBefore = attacker.hitstop;
-                hitOrDefer(attacker, *victim, hit, p.position + dir * best);
-                attacker.body.position = shooterPos;
-                attacker.hitstop = hitstopBefore;   // the archer is not frozen by an arrow landing far away
-
-                event("arrow_hit_fighter", p.position + dir * best, 1.0f, victim->id, AIR, p.owner);
+                const Projectile shot = p;
                 it = projectiles.erase(it);
+                impact(shot, shot.position + dir * best, victim, nullptr);
                 continue;
             }
 
@@ -2040,24 +2544,131 @@ namespace arena
         if (target.health <= 0.0f)
         {
             target.health = 0.0f;
-            target.action = Action::Dead;
-            target.frame = 0;
-
-            if (target.team == Team::Player)
-            {
-                target.respawnTimer = tuning.player.respawnSeconds;
-            }
-            else
-            {
-                auto it = content->enemies.find(target.type);
-                target.respawnTimer = it != content->enemies.end() ? it->second.respawnSeconds : 3.0f;
-            }
-
             e.killed = true;
         }
 
         hits.push_back(e);
         event(e.killed ? "kill" : (e.staggered ? "stagger" : "hit"), target.body.position + glm::vec3(0, target.body.height * 0.6f, 0), e.damage, target.id, AIR, e.attacker);
+
+        if (e.killed)
+            die(target, attacker.id);
+        else if (not a.status.status.empty())
+            applyStatus(target, a.status.status, a.status.stacks);
+    }
+
+    void ArenaWorld::die(Fighter& target, int)
+    {
+        target.health = 0.0f;
+        target.action = Action::Dead;
+        target.frame = 0;
+        target.statuses.clear();
+
+        if (target.team == Team::Player)
+        {
+            target.respawnTimer = tuning.player.respawnSeconds;
+        }
+        else
+        {
+            auto it = content->enemies.find(target.type);
+            target.respawnTimer = it != content->enemies.end() ? it->second.respawnSeconds : 3.0f;
+        }
+    }
+
+    AttackDef ArenaWorld::hitOf(const std::string& name, float damage, float poiseDamage, float knockback, int hitstop, float shake, Element element, const StatusHit& status) const
+    {
+        AttackDef hit;
+        hit.name = name;
+        hit.damage = damage;
+        hit.poiseDamage = poiseDamage;
+        hit.knockback = knockback;
+        hit.hitstop = hitstop;
+        hit.shake = shake;
+        hit.element = element;
+        hit.status = status;
+        return hit;
+    }
+
+    void ArenaWorld::applyStatus(Fighter& target, const std::string& id, int stacks)
+    {
+        auto defIt = content->statuses.find(id);
+
+        if (defIt == content->statuses.end() or not target.alive())
+            return;
+
+        const StatusDef& def = defIt->second;
+
+        auto holds = [&](const std::string& other) {
+            return std::any_of(target.statuses.begin(), target.statuses.end(), [&](const StatusState& s) { return s.id == other; });
+        };
+
+        // Already what it turns into (frozen): it does not build up again on top
+        if (not def.atMax.empty() and holds(def.atMax))
+            return;
+
+        auto it = std::find_if(target.statuses.begin(), target.statuses.end(), [&](const StatusState& s) { return s.id == id; });
+
+        if (it == target.statuses.end())
+        {
+            target.statuses.push_back({id, def.duration, 0});
+            it = target.statuses.end() - 1;
+        }
+
+        it->stacks = std::min(def.maxStacks, it->stacks + std::max(1, stacks));
+        it->remaining = def.duration;
+
+        // Full: it turns into the next one (chilled through -> frozen)
+        if (it->stacks >= def.maxStacks and not def.atMax.empty())
+        {
+            target.statuses.erase(it);
+            applyStatus(target, def.atMax, 1);
+            return;
+        }
+
+        // An interrupt: a stagger of its own length, whatever the poise. An attack with armor shrugs
+        // a light one off (a brute's slam goes through a shock); a heavy one stops anything
+        const AttackDef* busy = currentAttack(target);
+        const bool shrugged = busy and busy->armor > 0.0f and not def.heavy;
+
+        if (def.stagger > 0 and not shrugged)
+        {
+            target.action = Action::Stagger;
+            target.frame = 0;
+            target.actionLength = def.stagger;
+            target.heavyStagger = def.heavy;
+            target.queued = 0;
+            target.queuedAge = -1.0f;
+        }
+
+        event("status", chest(target), static_cast<float>(it->stacks), target.id);
+    }
+
+    void ArenaWorld::stepStatuses(Fighter& f)
+    {
+        for (auto it = f.statuses.begin(); it != f.statuses.end();)
+        {
+            auto defIt = content->statuses.find(it->id);
+
+            // Damage over time: the server's to deal (a client only counts the time down)
+            if (authority and defIt != content->statuses.end() and defIt->second.damagePerSecond > 0.0f and not (godMode and f.team == Team::Player))
+            {
+                f.health -= defIt->second.damagePerSecond * static_cast<float>(it->stacks) * STEP_SECONDS;
+
+                if (f.health <= 0.0f)
+                {
+                    HitEvent e;
+                    e.target = f.id;
+                    e.attack = it->id;
+                    e.killed = true;
+                    hits.push_back(e);
+                    event("kill", chest(f), 0.0f, f.id);
+                    die(f, 0);
+                    return;
+                }
+            }
+
+            it->remaining -= STEP_SECONDS;
+            it = it->remaining <= 0.0f ? f.statuses.erase(it) : std::next(it);
+        }
     }
 
     void ArenaWorld::separate()

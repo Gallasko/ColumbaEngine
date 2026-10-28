@@ -35,7 +35,7 @@ namespace arena
             {"enemy", {"name", "model", "modelScale",
                        "moveset.attacks.*.swing", "moveset.attacks.*.shake",
                        "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
-            {"ability", {"name"}},
+            {"ability", {"name", "projectile.model", "projectile.modelScale", "projectile.shake"}},
         };
 
         void dropPath(Json& j, const std::vector<std::string>& parts, size_t at)
@@ -93,6 +93,28 @@ namespace arena
             return file + ":" + std::to_string(line) + ": " + text;
 
         return file + ": " + text;
+    }
+
+    bool elementFromName(const std::string& name, Element& out)
+    {
+        if (name.empty()) { out = Element::None; return true; }
+        if (name == "fire") { out = Element::Fire; return true; }
+        if (name == "ice") { out = Element::Ice; return true; }
+        if (name == "volt") { out = Element::Volt; return true; }
+        return false;
+    }
+
+    const char* elementName(Element e)
+    {
+        switch (e)
+        {
+            case Element::Fire: return "fire";
+            case Element::Ice: return "ice";
+            case Element::Volt: return "volt";
+            case Element::None: break;
+        }
+
+        return "";
     }
 
     std::string resolveId(const std::string& ref, const std::string& currentMod)
@@ -373,6 +395,70 @@ namespace arena
             }
         }
 
+        void readElement(const Json& json, Element& out, const std::string& file, ContentReport& report)
+        {
+            const Json* e = json.find("element");
+
+            if (not e)
+                return;
+
+            if (not e->isString() or not elementFromName(e->string, out))
+                report.error(file, e->line, "\"element\" is \"fire\", \"ice\" or \"volt\"");
+        }
+
+        /** "status": "burn", or { "id": "chill", "stacks": 2 } */
+        void readStatusHit(const Json& json, StatusHit& out, const std::string& file, ContentReport& report)
+        {
+            const Json* s = json.find("status");
+
+            if (not s)
+                return;
+
+            if (s->isString())
+            {
+                out.status = s->string;
+            }
+            else if (s->isObject())
+            {
+                checkKeys(*s, {"id", "stacks"}, file, report, "a status");
+                readStr(*s, "id", out.status, file, report);
+                readInt(*s, "stacks", out.stacks, file, report);
+                out.stacks = std::clamp(out.stacks, 1, 99);
+            }
+            else
+            {
+                report.error(file, s->line, "\"status\" is a status id, or { \"id\": ..., \"stacks\": n }");
+            }
+        }
+
+        void readProjectile(const Json& pj, ProjectileDef& p, const std::string& file, ContentReport& report, const std::string& where)
+        {
+            checkKeys(pj, {"speed", "gravity", "radius", "lifetime", "lead", "damage", "poiseDamage", "knockback", "terrainDamage", "hitstop", "shake", "spawn", "model", "modelScale",
+                           "element", "status", "burst", "terrainRadius"},
+                      file, report, where);
+
+            p.enabled = true;
+            readNum(pj, "speed", p.speed, file, report);
+            readNum(pj, "gravity", p.gravity, file, report);
+            readNum(pj, "radius", p.radius, file, report);
+            readNum(pj, "lifetime", p.lifetime, file, report);
+            readNum(pj, "lead", p.lead, file, report);
+            readNum(pj, "damage", p.damage, file, report);
+            readNum(pj, "poiseDamage", p.poiseDamage, file, report);
+            readNum(pj, "knockback", p.knockback, file, report);
+            readNum(pj, "terrainDamage", p.terrainDamage, file, report);
+            readInt(pj, "hitstop", p.hitstop, file, report);
+            readNum(pj, "shake", p.shake, file, report);
+            readVec3(pj, "spawn", p.spawn, file, report);
+            readStr(pj, "model", p.model, file, report);
+            readNum(pj, "modelScale", p.modelScale, file, report);
+            readElement(pj, p.element, file, report);
+            readStatusHit(pj, p.status, file, report);
+            readNum(pj, "burst", p.burst, file, report);
+            readNum(pj, "terrainRadius", p.terrainRadius, file, report);
+            p.speed = std::max(0.1f, p.speed);
+        }
+
         void readSwing(const Json& json, SwingPose& out, const std::string& file, ContentReport& report)
         {
             checkKeys(json, {"yawFrom", "yawTo", "pitchFrom", "pitchTo", "yaw", "pitch", "reach"}, file, report, "a swing");
@@ -629,6 +715,23 @@ namespace arena
                 }
             }
 
+            // Statuses: one file, one entry per status (burning, chilled...)
+            const auto statusesFile = (dir / "statuses.json").string();
+
+            if (fs::exists(statusesFile, ec))
+            {
+                Json json;
+
+                if (readJsonFile(statusesFile, json, report))
+                {
+                    if (not json.isObject())
+                        report.error(statusesFile, json.line, "must be an object of status name -> status");
+                    else
+                        for (const auto& kv : json.object)
+                            addRaw(content, "status", resolveId(kv.first, mod.id), mod, statusesFile, kv.second);
+                }
+            }
+
             // One definition per file
             for (const auto& [kind, folder] : std::vector<std::pair<std::string, std::string>>{{"weapon", "weapons"}, {"enemy", "enemies"}, {"ability", "abilities"}})
             {
@@ -830,7 +933,7 @@ namespace arena
                     continue;
                 }
 
-                checkKeys(j, {"color", "solid", "colorNoise", "name", "hardness", "breakable"}, raw.file, report, "block " + id);
+                checkKeys(j, {"color", "solid", "colorNoise", "name", "hardness", "breakable", "flammable", "weakness"}, raw.file, report, "block " + id);
 
                 BlockDef def;
                 def.id = id;
@@ -842,6 +945,20 @@ namespace arena
                 readNum(j, "colorNoise", def.look.colorNoise, raw.file, report);
                 readNum(j, "hardness", def.look.hardness, raw.file, report);
                 readBool(j, "breakable", def.look.breakable, raw.file, report);
+                readBool(j, "flammable", def.look.flammable, raw.file, report);
+
+                // "weakness": { "volt": 4 }: terrain damage of that element, scaled
+                if (const Json* weak = j.find("weakness"))
+                {
+                    checkKeys(*weak, {"fire", "ice", "volt"}, raw.file, report, "the weakness of block " + id);
+
+                    for (const char* name : {"fire", "ice", "volt"})
+                    {
+                        Element e = Element::None;
+                        elementFromName(name, e);
+                        readNum(*weak, name, def.look.weakness[static_cast<int>(e)], raw.file, report);
+                    }
+                }
 
                 if (content.blocks.size() >= 65535)
                 {
@@ -858,6 +975,57 @@ namespace arena
 
             for (const auto& b : content.blocks)
                 content.blockTable.push_back(b.look);
+        }
+
+        void typeStatuses(Content& content)
+        {
+            auto& report = content.report;
+
+            for (const auto& [id, raw] : content.raw["status"])
+            {
+                const Json& j = raw.data;
+
+                if (not j.isObject())
+                {
+                    report.error(raw.file, j.line, "status \"" + id + "\" must be an object");
+                    continue;
+                }
+
+                checkKeys(j, {"duration", "damagePerSecond", "slow", "maxStacks", "atMax", "stagger", "heavy"}, raw.file, report, "status " + id);
+
+                StatusDef s;
+                s.id = id;
+                readNum(j, "duration", s.duration, raw.file, report);
+                readNum(j, "damagePerSecond", s.damagePerSecond, raw.file, report);
+                readNum(j, "slow", s.slow, raw.file, report);
+                readInt(j, "maxStacks", s.maxStacks, raw.file, report);
+                readStr(j, "atMax", s.atMax, raw.file, report);
+                readInt(j, "stagger", s.stagger, raw.file, report);
+                readBool(j, "heavy", s.heavy, raw.file, report);
+                s.maxStacks = std::clamp(s.maxStacks, 1, 99);
+                s.duration = std::max(0.05f, s.duration);
+                s.atMax = s.atMax.empty() ? "" : resolveId(s.atMax, raw.mod);
+                content.statuses[id] = s;
+            }
+
+            for (const auto& [id, s] : content.statuses)
+                if (not s.atMax.empty() and not content.statuses.count(s.atMax))
+                {
+                    const RawDef& raw = content.raw["status"].at(id);
+                    report.error(raw.file, raw.data.line, "status \"" + id + "\": \"atMax\" names \"" + s.atMax + "\", which no statuses.json has");
+                }
+        }
+
+        /** A status named by an attack, projectile or spell: in the mod's namespace, and known. */
+        void resolveStatus(Content& content, StatusHit& hit, const RawDef& raw)
+        {
+            if (hit.status.empty())
+                return;
+
+            hit.status = resolveId(hit.status, raw.mod);
+
+            if (not content.statuses.count(hit.status))
+                content.report.error(raw.file, raw.data.line, "unknown status \"" + hit.status + "\" (statuses.json)");
         }
 
         void typeArena(Content& content)
@@ -934,6 +1102,9 @@ namespace arena
         {
             for (auto& [name, attack] : m.attacks)
             {
+                resolveStatus(content, attack.status, raw);
+                resolveStatus(content, attack.projectile.status, raw);
+
                 if (attack.projectile.model.empty())
                     continue;
 
@@ -1086,7 +1257,8 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"id", "name", "kind", "block", "staminaCost", "cooldown", "range", "distance", "lifetime", "damage", "rate", "width", "height", "depth"},
+                checkKeys(j, {"id", "name", "kind", "block", "staminaCost", "manaCost", "cooldown", "range", "distance", "lifetime", "damage", "rate", "width", "height", "depth",
+                              "projectile", "count", "spread", "chains", "chainRange", "poiseDamage", "knockback", "terrainDamage", "element", "status"},
                           raw.file, report, "ability " + id);
 
                 AbilityDef a;
@@ -1106,12 +1278,50 @@ namespace arena
                 readInt(j, "width", a.width, raw.file, report);
                 readInt(j, "height", a.height, raw.file, report);
                 readInt(j, "depth", a.depth, raw.file, report);
+                readNum(j, "manaCost", a.manaCost, raw.file, report);
+                readInt(j, "count", a.count, raw.file, report);
+                readNum(j, "spread", a.spread, raw.file, report);
+                readInt(j, "chains", a.chains, raw.file, report);
+                readNum(j, "chainRange", a.chainRange, raw.file, report);
+                readNum(j, "poiseDamage", a.poiseDamage, raw.file, report);
+                readNum(j, "knockback", a.knockback, raw.file, report);
+                readNum(j, "terrainDamage", a.terrainDamage, raw.file, report);
+                readElement(j, a.element, raw.file, report);
+                readStatusHit(j, a.status, raw.file, report);
+                resolveStatus(content, a.status, raw);
+
+                if (const Json* pj = j.find("projectile"))
+                {
+                    readProjectile(*pj, a.projectile, raw.file, report, "the projectile of ability " + id);
+                    resolveStatus(content, a.projectile.status, raw);
+
+                    if (not a.projectile.model.empty())
+                    {
+                        a.projectile.model = resolveId(a.projectile.model, raw.mod);
+                        requireModel(content, a.projectile.model, raw.file, pj->line);
+                    }
+                }
+
+                // The projectile carries the spell's element and status unless it names its own
+                if (a.projectile.element == Element::None)
+                    a.projectile.element = a.element;
+                if (a.projectile.status.status.empty())
+                    a.projectile.status = a.status;
+
+                a.count = std::clamp(a.count, 1, 12);
+                a.chains = std::clamp(a.chains, 0, 12);
 
                 const int kindLine = j.find("kind") ? j.find("kind")->line : j.line;
 
-                if (a.kind != "wall" and a.kind != "pit" and a.kind != "mine")
+                if (a.kind != "wall" and a.kind != "pit" and a.kind != "mine" and a.kind != "projectile" and a.kind != "bolt")
                 {
-                    report.error(raw.file, kindLine, "ability \"" + id + "\" needs a \"kind\": wall, pit or mine");
+                    report.error(raw.file, kindLine, "ability \"" + id + "\" needs a \"kind\": wall, pit, mine, projectile or bolt");
+                    continue;
+                }
+
+                if (a.kind == "projectile" and not a.projectile.enabled)
+                {
+                    report.error(raw.file, kindLine, "ability \"" + id + "\": a projectile spell needs a \"projectile\"");
                     continue;
                 }
 
@@ -1158,7 +1368,7 @@ namespace arena
 
         checkKeys(j, {"startup", "active", "recovery", "damage", "poiseDamage", "staminaCost", "knockback", "knockup", "hitstop", "shake",
                       "hitboxes", "lunge", "lungeFrom", "lungeTo", "turnRate", "moveSpeed", "moveUntil", "armor", "terrainDamage", "dodgeCancelFrom", "chainFrom", "bufferFrom",
-                      "next", "swing", "projectile"},
+                      "next", "swing", "projectile", "element", "status", "gravityScale", "plungeSpeed"},
                   file, report, "attack " + name);
 
         const size_t errorsBefore = report.errors.size();
@@ -1188,6 +1398,10 @@ namespace arena
         readInt(j, "dodgeCancelFrom", a.dodgeCancelFrom, file, report);
         readInt(j, "chainFrom", a.chainFrom, file, report);
         readInt(j, "bufferFrom", a.bufferFrom, file, report);
+        readElement(j, a.element, file, report);
+        readStatusHit(j, a.status, file, report);
+        readNum(j, "gravityScale", a.gravityScale, file, report);
+        readNum(j, "plungeSpeed", a.plungeSpeed, file, report);
 
         if (const Json* next = j.find("next"))
         {
@@ -1197,28 +1411,7 @@ namespace arena
         }
 
         if (const Json* pj = j.find("projectile"))
-        {
-            checkKeys(*pj, {"speed", "gravity", "radius", "lifetime", "lead", "damage", "poiseDamage", "knockback", "terrainDamage", "hitstop", "shake", "spawn", "model", "modelScale"},
-                      file, report, "the projectile of " + name);
-
-            ProjectileDef& p = a.projectile;
-            p.enabled = true;
-            readNum(*pj, "speed", p.speed, file, report);
-            readNum(*pj, "gravity", p.gravity, file, report);
-            readNum(*pj, "radius", p.radius, file, report);
-            readNum(*pj, "lifetime", p.lifetime, file, report);
-            readNum(*pj, "lead", p.lead, file, report);
-            readNum(*pj, "damage", p.damage, file, report);
-            readNum(*pj, "poiseDamage", p.poiseDamage, file, report);
-            readNum(*pj, "knockback", p.knockback, file, report);
-            readNum(*pj, "terrainDamage", p.terrainDamage, file, report);
-            readInt(*pj, "hitstop", p.hitstop, file, report);
-            readNum(*pj, "shake", p.shake, file, report);
-            readVec3(*pj, "spawn", p.spawn, file, report);
-            readStr(*pj, "model", p.model, file, report);
-            readNum(*pj, "modelScale", p.modelScale, file, report);
-            p.speed = std::max(0.1f, p.speed);
-        }
+            readProjectile(*pj, a.projectile, file, report, "the projectile of " + name);
 
         if (const Json* swing = j.find("swing"))
             readSwing(*swing, a.swing, file, report);
@@ -1260,13 +1453,16 @@ namespace arena
             return false;
         }
 
-        checkKeys(j, {"light", "heavy", "dodgeAttack", "attacks"}, file, report, "a moveset");
+        checkKeys(j, {"light", "heavy", "dodgeAttack", "dashAttack", "airLight", "airHeavy", "attacks"}, file, report, "a moveset");
 
         const size_t errorsBefore = report.errors.size();
 
         readStr(j, "light", m.light, file, report);
         readStr(j, "heavy", m.heavy, file, report);
         readStr(j, "dodgeAttack", m.dodgeAttack, file, report);
+        readStr(j, "dashAttack", m.dashAttack, file, report);
+        readStr(j, "airLight", m.airLight, file, report);
+        readStr(j, "airHeavy", m.airHeavy, file, report);
 
         const Json* attacks = j.find("attacks");
 
@@ -1293,6 +1489,9 @@ namespace arena
         check(m.light, j.find("light") ? j.find("light")->line : j.line, "\"light\"");
         check(m.heavy, j.find("heavy") ? j.find("heavy")->line : j.line, "\"heavy\"");
         check(m.dodgeAttack, j.find("dodgeAttack") ? j.find("dodgeAttack")->line : j.line, "\"dodgeAttack\"");
+        check(m.dashAttack, j.find("dashAttack") ? j.find("dashAttack")->line : j.line, "\"dashAttack\"");
+        check(m.airLight, j.find("airLight") ? j.find("airLight")->line : j.line, "\"airLight\"");
+        check(m.airHeavy, j.find("airHeavy") ? j.find("airHeavy")->line : j.line, "\"airHeavy\"");
 
         for (const auto& [name, a] : m.attacks)
         {
@@ -1448,6 +1647,7 @@ namespace arena
         applyPatches(content, patches);
 
         typeBlocks(content);
+        typeStatuses(content);
         loadModels(content);
         typeWeapons(content);
         typeEnemies(content);

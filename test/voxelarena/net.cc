@@ -457,6 +457,30 @@ TEST(arena_net, the_others_events_play_when_they_are_seen_your_own_at_once)
     EXPECT_LT(hitTicks, breakTicks);
 }
 
+TEST(arena_net, statuses_and_mana_reach_the_clients)
+{
+    Session s(30.0);
+    auto& a = s.join("a");
+    auto& b = s.join("b");
+    s.run(40);
+
+    // b chilled on the server: a sees it on b (it slows and shows), b has it on itself too
+    s.serverWorld.applyStatus(*s.serverPlayer(b), "base:chill", 2);
+    s.serverPlayer(a)->mana = 40.0f;
+    s.run(15);
+
+    auto stacks = [](const Fighter* f) {
+        for (const auto& st : f->statuses)
+            if (st.id == "base:chill")
+                return st.stacks;
+        return 0;
+    };
+
+    EXPECT_EQ(stacks(a.world.find(b.client->playerId)), 2);
+    EXPECT_EQ(stacks(s.clientPlayer(b)), 2);
+    EXPECT_NEAR(s.clientPlayer(a)->mana, s.serverPlayer(a)->mana, 0.5f);   // the player's own mana, for its HUD
+}
+
 TEST(arena_net, terrain_changes_reach_every_client)
 {
     Session s(30.0);

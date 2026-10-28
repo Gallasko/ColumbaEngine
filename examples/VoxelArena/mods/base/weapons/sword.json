@@ -7,6 +7,9 @@
 // moveSpeed: how much of the walk speed you keep while the attack runs (0 = rooted). The lights keep
 // you moving with your momentum, the heavy slows you down. moveUntil: the frame you get rooted from.
 // swing: how the blade moves during the active frames, in degrees (yaw: + to the right; pitch: + up).
+// dashAttack: a light press while sprinting. airLight / airHeavy: in the air. gravityScale: the fall
+// while the attack runs (an air slash hangs). plungeSpeed: the attack dives at this speed after its
+// startup and holds its first active frame until it lands; the hitboxes strike around the landing.
 {
     "name": "Iron Sword",
     "model": "sword",
@@ -18,8 +21,40 @@
         "light": "light1",
         "heavy": "heavy",
         "dodgeAttack": "roll_slash",
+        "dashAttack": "dash_thrust",
+        "airLight": "air_slash",
+        "airHeavy": "plunge",
 
         "attacks": {
+            "dash_thrust": {
+                "moveSpeed": 0,
+                "startup": 6, "active": 6, "recovery": 18,
+                "damage": 16, "poiseDamage": 20, "staminaCost": 14,
+                "knockback": 6, "hitstop": 4, "shake": 0.3,
+                "hitboxes": [ { "offset": [0, 1.1, 1.3], "size": [1.2, 1.0, 2.2] } ],
+                "lunge": 13, "lungeFrom": 0, "lungeTo": 12,
+                "turnRate": 3,
+                "dodgeCancelFrom": 14,
+                "swing": { "yaw": 0, "pitchFrom": 5, "pitchTo": 0, "reach": 0.7 }
+            },
+            "air_slash": {
+                "moveSpeed": 0.8, "gravityScale": 0.35,
+                "startup": 4, "active": 5, "recovery": 14,
+                "damage": 10, "poiseDamage": 12, "staminaCost": 8,
+                "knockback": 3, "knockup": 2, "hitstop": 3, "shake": 0.2,
+                "hitboxes": [ { "offset": [0, 0.9, 0.9], "size": [2.0, 1.6, 1.6] } ],
+                "dodgeCancelFrom": 12,
+                "swing": { "yawFrom": 70, "yawTo": -80, "pitchFrom": 20, "pitchTo": -30 }
+            },
+            "plunge": {
+                "plungeSpeed": 30, "armor": 20,
+                "startup": 8, "active": 6, "recovery": 22,
+                "damage": 22, "poiseDamage": 35, "staminaCost": 16,
+                "knockback": 7, "knockup": 4, "hitstop": 6, "shake": 0.6,
+                "terrainDamage": 25,
+                "hitboxes": [ { "offset": [0, 0.5, 0.3], "size": [3.2, 1.4, 3.2] } ],
+                "swing": { "yawFrom": 0, "yawTo": 0, "pitchFrom": 110, "pitchTo": -60 }
+            },
             "light1": {
                 "moveSpeed": 0.9,
                 "startup": 7, "active": 4, "recovery": 16,

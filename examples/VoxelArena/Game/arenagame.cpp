@@ -119,8 +119,10 @@ namespace arena
             {"forward", {"W", "Up"}}, {"back", {"S", "Down"}}, {"left", {"A", "Left"}}, {"right", {"D", "Right"}},
             {"jump", {"Space"}}, {"dodge", {"Left Shift"}}, {"sprint", {"Left Shift"}},
             {"light", {"Mouse1", "J"}}, {"heavy", {"Mouse3", "K"}},
-            {"freeCursor", {"Left Alt"}}, {"toggleView", {"V"}},
-            {"ability1", {"Q"}}, {"ability2", {"E"}}, {"ability3", {"F", "Mouse2"}}, {"ability4", {}},
+            {"freeCursor", {"Left Alt"}}, {"toggleView", {"F", "V"}},
+            {"ability1", {"Q"}}, {"ability2", {"E"}}, {"ability3", {"G", "Mouse2"}}, {"ability4", {"R"}},
+            {"ability5", {"1"}}, {"ability6", {"2"}}, {"ability7", {"3"}}, {"ability8", {"4"}},
+            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}},
         };
     }
 
@@ -225,6 +227,10 @@ namespace arena
 
             camera.distance = tuning.camera.distance;
             camera.yaw = world.player() ? world.player()->yaw : 0.0f;
+
+            // First person starts looking ahead, not down at the feet as the orbit camera does
+            if (firstPerson)
+                camera.pitch = 5.0f;
         }
         else
         {
@@ -600,12 +606,13 @@ namespace arena
                         break;
                     }
 
-                    if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_9)
+                    // The next weapon (the number keys are abilities)
+                    if (keyIs(p.scancode, "nextWeapon") and not content.weaponOrder.empty())
                     {
-                        const size_t index = static_cast<size_t>(p.scancode - SDL_SCANCODE_1);
-
-                        if (index < content.weaponOrder.size())
-                            pendingEquip = static_cast<int>(index) + 1;
+                        const Fighter* me = world.player();
+                        const auto at = me ? std::find(content.weaponOrder.begin(), content.weaponOrder.end(), me->weapon) : content.weaponOrder.end();
+                        const size_t next = at == content.weaponOrder.end() ? 0 : (static_cast<size_t>(at - content.weaponOrder.begin()) + 1) % content.weaponOrder.size();
+                        pendingEquip = static_cast<int>(next) + 1;
                     }
                     break;
             }
@@ -639,6 +646,7 @@ namespace arena
         simulate(frameSeconds);
         updateCamera(frameSeconds);
         stepGaits(frameSeconds);
+        stepLooks(frameSeconds);
         particles.step(frameSeconds, world.grid, content.blockTable);
         remeshIfNeeded();
         buildRenderCalls();
@@ -649,15 +657,23 @@ namespace arena
 
         if (p)
         {
-            hud.setBars(p->health / std::max(1.0f, p->maxHealth), p->stamina / std::max(1.0f, tuning.stamina.max), p->exhausted);
+            // The mana bar dims when not even the cheapest spell is affordable
+            float cheapest = 1e9f;
+            for (int i = 0; i < InputFrame::ABILITIES; ++i)
+                if (const AbilityDef* a = world.ability(i); a and a->manaCost > 0.0f)
+                    cheapest = std::min(cheapest, a->manaCost);
+
+            hud.setBars(p->health / std::max(1.0f, p->maxHealth), p->stamina / std::max(1.0f, tuning.stamina.max), p->exhausted,
+                        p->mana / std::max(1.0f, tuning.mana.max), p->mana < cheapest and cheapest < 1e8f);
 
             std::string weapons;
             for (size_t i = 0; i < content.weaponOrder.size(); ++i)
             {
                 const auto& id = content.weaponOrder[i];
                 const bool current = id == p->weapon;
-                weapons += (current ? "\\c{255,214,120,255}" : "\\c{170,174,184,255}") + std::string("[") + std::to_string(i + 1) + "] " + content.weapons.at(id).name + "   ";
+                weapons += (current ? "\\c{255,214,120,255}" : "\\c{170,174,184,255}") + content.weapons.at(id).name + "   ";
             }
+            weapons += "\\c{120,124,134,255}(" + keyName("nextWeapon") + ": next)";
             hud.setWeapon(weapons + "\n" + abilityLine());
             hud.setCrosshair(p->alive());   // both views: the abilities aim with it
 
@@ -804,7 +820,7 @@ namespace arena
             o << dim << "terrain  " << world.terrain.damagedCount() << " damaged, " << world.terrain.temporaryCount() << " temporary, " << world.terrain.falling.size() << " falling\n";
             o << dim << "content  " << content.mods.size() << " mods, " << content.report.errors.size() << " errors, " << content.report.warnings.size() << " warnings"
               << "   kills " << enemyKills << "   falls " << playerDeaths << "\n";
-            o << dim << "F1 overlay  F2 hitboxes  F5 reload  ` console  1-" << std::max<size_t>(1, content.weaponOrder.size()) << " weapon  Esc mouse  wheel zoom";
+            o << dim << "F1 overlay  F2 hitboxes  F5 reload  ` console  " << keyName("nextWeapon") << " weapon  Esc mouse  wheel zoom";
 
             hud.setOverlay(o.str(), true);
         }
@@ -852,6 +868,7 @@ namespace arena
                     in.dodgePressed = pressed("dodge");
                     in.lightPressed = pressed("light");
                     in.heavyPressed = pressed("heavy");
+                    in.crouchHeld = held("crouch");
 
                     for (int i = 0; i < InputFrame::ABILITIES; ++i)
                     {
@@ -878,6 +895,7 @@ namespace arena
             in.dodgePressed = in.dodgePressed or injectedPresses.count("dodge");
             in.lightPressed = in.lightPressed or injectedPresses.count("light");
             in.heavyPressed = in.heavyPressed or injectedPresses.count("heavy");
+            in.crouchHeld = in.crouchHeld or injected("crouch");
 
             for (int i = 0; i < InputFrame::ABILITIES; ++i)
             {
@@ -962,7 +980,7 @@ namespace arena
 
             for (const auto& e : client->takeEvents())
             {
-                playEffect(e.kind, e.position, e.color);
+                playEvent(e);
 
                 // Hits on the local player shake its camera (the world's hit list is the server's)
                 if (e.fighter == client->playerId and (e.kind == "hit" or e.kind == "stagger" or e.kind == "kill"))
@@ -977,6 +995,119 @@ namespace arena
             for (const auto& f : world.fighters)
                 ids.push_back(f.id);
             brain.forget(ids);
+        }
+    }
+
+    void ArenaGame::playEvent(const WorldEvent& e)
+    {
+        // A block set alight burns for `strength` seconds: flames until then (or until it is gone)
+        if (e.kind == "ignite")
+            burningLooks.push_back({glm::ivec3(glm::floor(e.position)), e.strength, 0.0f});
+
+        auto it = effects.find(e.kind);
+
+        // Along a line (a volt arc): the particles spread from one end to the other
+        if (it != effects.end() and it->second.along and e.line)
+        {
+            const EffectDef& look = it->second;
+            const Fighter* p = world.player();
+            const glm::vec3 middle = (e.position + e.to) * 0.5f;
+            sounds.play(ecsRef, look.sound, p ? glm::length(middle - p->body.position) : 0.0f);
+
+            ParticlePreset one = look.particles;
+            one.count = 1;
+            std::uniform_real_distribution<float> jitter(-0.12f, 0.12f);
+
+            for (int k = 0; k < look.particles.count; ++k)
+            {
+                const float t = (static_cast<float>(k) + 0.5f) / static_cast<float>(look.particles.count);
+                particles.burst(one, glm::mix(e.position, e.to, t) + glm::vec3(jitter(lookRng), jitter(lookRng), jitter(lookRng)), e.color);
+            }
+
+            return;
+        }
+
+        playEffect(e.kind, e.position, e.color);
+    }
+
+    const EffectDef* ArenaGame::statusLook(const Fighter& f) const
+    {
+        // The newest shows (frozen over the burn it came with)
+        for (auto s = f.statuses.rbegin(); s != f.statuses.rend(); ++s)
+            if (auto it = effects.find(s->id); it != effects.end() and it->second.hasTint)
+                return &it->second;
+
+        return nullptr;
+    }
+
+    bool ArenaGame::heldStill(const Fighter& f) const
+    {
+        if (f.action != Action::Stagger or not f.heavyStagger)
+            return false;
+
+        for (const auto& s : f.statuses)
+            if (auto it = content.statuses.find(s.id); it != content.statuses.end() and it->second.heavy and it->second.stagger > 0)
+                return true;
+
+        return false;
+    }
+
+    void ArenaGame::stepLooks(float frameSeconds)
+    {
+        std::uniform_real_distribution<float> unit(0.0f, 1.0f);
+
+        // Statuses: particles every so often, from the body
+        for (const auto& f : world.fighters)
+        {
+            for (const auto& s : f.statuses)
+            {
+                auto it = effects.find(s.id);
+
+                if (it == effects.end() or it->second.every <= 0.0f or it->second.particles.count <= 0)
+                    continue;
+
+                float& timer = statusTimers[{f.id, s.id}];
+                timer += frameSeconds;
+
+                while (timer >= it->second.every)
+                {
+                    timer -= it->second.every;
+                    const glm::vec3 at = f.body.position + glm::vec3((unit(lookRng) - 0.5f) * f.body.width, unit(lookRng) * f.body.height, (unit(lookRng) - 0.5f) * f.body.width);
+                    particles.burst(it->second.particles, at, it->second.particles.color);
+                }
+            }
+        }
+
+        // Timers of statuses gone
+        for (auto it = statusTimers.begin(); it != statusTimers.end();)
+        {
+            const Fighter* f = world.find(it->first.first);
+            const bool still = f and std::any_of(f->statuses.begin(), f->statuses.end(), [&](const StatusState& s) { return s.id == it->first.second; });
+            it = still ? std::next(it) : statusTimers.erase(it);
+        }
+
+        // Blocks on fire: flames over them
+        auto flames = effects.find("burning");
+
+        for (auto it = burningLooks.begin(); it != burningLooks.end();)
+        {
+            it->left -= frameSeconds;
+            it->timer += frameSeconds;
+
+            if (it->left <= 0.0f or world.grid.get(it->cell.x, it->cell.y, it->cell.z) == AIR)
+            {
+                it = burningLooks.erase(it);
+                continue;
+            }
+
+            while (flames != effects.end() and it->timer >= 0.09f)
+            {
+                it->timer -= 0.09f;
+                const glm::vec3 at = glm::vec3(it->cell) + glm::vec3(unit(lookRng), 0.6f + unit(lookRng) * 0.5f, unit(lookRng));
+                particles.burst(flames->second.particles, at, flames->second.particles.color);
+            }
+
+            ++it;
         }
     }
 
@@ -1005,7 +1136,7 @@ namespace arena
         const Fighter* p = world.player();
 
         for (const auto& e : world.events)
-            playEffect(e.kind, e.position, e.color);
+            playEvent(e);
 
         world.events.clear();
 
@@ -1181,6 +1312,10 @@ namespace arena
         if (f.action == Action::Dodge)
             return forward(leg ? 75.0f : 60.0f);
 
+        // Air dash: legs trailing, arms back
+        if (f.action == Action::AirDash)
+            return forward(leg ? (left ? -25.0f : -10.0f) : -40.0f);
+
         if (f.action == Action::Stagger)
             return forward(arm ? -35.0f : 0.0f);
 
@@ -1305,6 +1440,17 @@ namespace arena
         return range > 0.0f and world.aimedCell(*p, camera.position, camera.forward(), range, hit);
     }
 
+    std::string ArenaGame::keyName(const std::string& action) const
+    {
+        auto it = controls.find(action);
+
+        if (it == controls.end() or it->second.empty())
+            return "?";
+
+        const Binding& b = it->second.front();
+        return b.scancode >= 0 ? SDL_GetScancodeName(static_cast<SDL_Scancode>(b.scancode)) : "Mouse" + std::to_string(b.mouseButton);
+    }
+
     std::string ArenaGame::abilityLine() const
     {
         const Fighter* p = world.player();
@@ -1317,17 +1463,18 @@ namespace arena
             if (not a)
                 continue;
 
-            std::string key = "?";
-            auto it = controls.find("ability" + std::to_string(i + 1));
+            const std::string key = keyName("ability" + std::to_string(i + 1));
 
-            if (it != controls.end() and not it->second.empty())
-            {
-                const Binding& b = it->second.front();
-                key = b.scancode >= 0 ? SDL_GetScancodeName(static_cast<SDL_Scancode>(b.scancode)) : "Mouse" + std::to_string(b.mouseButton);
-            }
+            const bool ready = p and p->abilityCooldown[i] <= 0.0f and (a->staminaCost <= 0.0f or p->stamina >= tuning.stamina.minToAct) and
+                               (a->manaCost <= 0.0f or p->mana >= a->manaCost);
 
-            const bool ready = p and p->abilityCooldown[i] <= 0.0f and (a->staminaCost <= 0.0f or p->stamina >= tuning.stamina.minToAct);
-            out += (ready ? "\\c{220,226,236,255}" : "\\c{120,124,134,255}") + std::string("[") + key + "] " + a->name + "   ";
+            // Spells in their element's colour
+            std::string colour = "\\c{220,226,236,255}";
+            if (a->element == Element::Fire) colour = "\\c{255,170,100,255}";
+            if (a->element == Element::Ice) colour = "\\c{170,220,255,255}";
+            if (a->element == Element::Volt) colour = "\\c{255,240,140,255}";
+
+            out += (ready ? colour : "\\c{120,124,134,255}") + std::string("[") + key + "] " + a->name + "   ";
         }
 
         return out;
@@ -1435,6 +1582,10 @@ namespace arena
                 if (auto it = client->displayFrame.find(f.id); it != client->displayFrame.end())
                     frame = it->second;
 
+            // Frozen solid: the pose stops where it was
+            if (heldStill(f))
+                frame = 0.0f;
+
             const float h = f.body.height;
 
             // The body frame: feet, facing, then the action's pose
@@ -1459,6 +1610,11 @@ namespace arena
             {
                 body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.15f, 0)) * rotX(-90.0f);
             }
+            else if (f.action == Action::AirDash)
+            {
+                // Leaning into the burst
+                body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, h * 0.5f, 0)) * rotX(22.0f) * glm::translate(glm::mat4(1.0f), glm::vec3(0, -h * 0.5f, 0));
+            }
             else if (f.action == Action::Land)
             {
                 // Squashed by the impact, standing back up
@@ -1475,8 +1631,12 @@ namespace arena
             // Hit flash (white), wind-up glow (orange, growing), stagger (yellow pulse)
             glm::vec4 flash(0.0f);
 
+            const EffectDef* look = statusLook(f);
+
             if (f.flash > 0)
                 flash = glm::vec4(1.0f, 1.0f, 1.0f, 0.85f * static_cast<float>(f.flash) / static_cast<float>(std::max(1, tuning.feel.hitFlashFrames)));
+            else if (look)
+                flash = glm::vec4(look->tint, heldStill(f) ? 0.6f : 0.32f + 0.12f * std::sin(simTime * 9.0f + static_cast<float>(f.id)));
             else if (attack and f.team == Team::Enemy and frame < attack->startup)
                 flash = glm::vec4(1.0f, 0.45f, 0.1f, 0.55f * easeInOut(frame / std::max(1.0f, static_cast<float>(attack->startup))));
             else if (f.action == Action::Stagger)

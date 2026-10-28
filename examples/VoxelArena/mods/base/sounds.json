@@ -20,5 +20,13 @@
     "boom":       { "wave": "sine",   "tone": 0.55, "frequency": 70,  "frequencyEnd": 30,  "duration": 0.8,  "decay": 0.25, "lowpass": 0.9, "volume": 1.0 },
     "shoot":      { "wave": "triangle", "tone": 0.75, "frequency": 210, "frequencyEnd": 140, "duration": 0.16, "decay": 0.05, "lowpass": 0.2, "volume": 0.5 },
     "arrow_hit":  { "wave": "square", "tone": 0.3,  "frequency": 340, "frequencyEnd": 160, "duration": 0.08, "decay": 0.025, "lowpass": 0.5, "volume": 0.55 },
-    "growl":      { "wave": "saw",    "tone": 0.7,  "frequency": 90,  "frequencyEnd": 130, "duration": 0.5,  "attack": 0.08, "decay": 0.25, "lowpass": 0.75, "volume": 0.5, "pitchJitter": 0.15 }
+    "growl":      { "wave": "saw",    "tone": 0.7,  "frequency": 90,  "frequencyEnd": 130, "duration": 0.5,  "attack": 0.08, "decay": 0.25, "lowpass": 0.75, "volume": 0.5, "pitchJitter": 0.15 },
+    "air_jump":   { "wave": "sine",   "tone": 0.3,  "frequency": 500, "frequencyEnd": 900, "duration": 0.12, "attack": 0.01, "decay": 0.05, "lowpass": 0.6, "volume": 0.3 },
+    "fire_cast":  { "wave": "saw",    "tone": 0.2,  "frequency": 160, "frequencyEnd": 320, "duration": 0.22, "attack": 0.03, "decay": 0.08, "lowpass": 0.7, "volume": 0.5 },
+    "fire_burst": { "wave": "saw",    "tone": 0.15, "frequency": 120, "frequencyEnd": 40,  "duration": 0.5,  "decay": 0.18, "lowpass": 0.75, "volume": 0.85 },
+    "ice_cast":   { "wave": "triangle", "tone": 0.6, "frequency": 1400, "frequencyEnd": 1900, "duration": 0.14, "decay": 0.05, "lowpass": 0.2, "volume": 0.3 },
+    "ice_burst":  { "wave": "triangle", "tone": 0.5, "frequency": 2200, "frequencyEnd": 900, "duration": 0.12, "decay": 0.03, "lowpass": 0.1, "volume": 0.4, "pitchJitter": 0.2 },
+    "volt":       { "wave": "square", "tone": 0.35, "frequency": 1800, "frequencyEnd": 300, "duration": 0.18, "decay": 0.05, "lowpass": 0.1, "volume": 0.55, "pitchJitter": 0.15 },
+    "ignite":     { "wave": "saw",    "tone": 0.1,  "frequency": 300, "frequencyEnd": 150, "duration": 0.3,  "attack": 0.05, "decay": 0.12, "lowpass": 0.6, "volume": 0.4 },
+    "freeze":     { "wave": "triangle", "tone": 0.6, "frequency": 900, "frequencyEnd": 2400, "duration": 0.35, "attack": 0.02, "decay": 0.12, "lowpass": 0.2, "volume": 0.4 }
 }

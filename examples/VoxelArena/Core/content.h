@@ -93,6 +93,37 @@ namespace arena
         float reach = 0.0f;                       // pushes the weapon forward along the swing (thrusts)
     };
 
+    /** What a hit is made of, beyond its force: fire burns, ice freezes, volt shocks (see StatusDef). */
+    enum class Element { None, Fire, Ice, Volt };
+    constexpr int ELEMENTS = 4;
+
+    /** "fire", "ice", "volt" (or "" for none). False for any other name. */
+    bool elementFromName(const std::string& name, Element& out);
+    const char* elementName(Element e);
+
+    /**
+     * Something a hit leaves on its target for a while (statuses.json): burning, chilled, frozen,
+     * shocked. Everything it does is here, so a mod makes new ones without code.
+     */
+    struct StatusDef
+    {
+        std::string id;
+        float duration = 3.0f;         // seconds, renewed by a new hit
+        float damagePerSecond = 0.0f;  // burning
+        float slow = 0.0f;             // move speed taken away, per stack (0.15 = 15%)
+        int maxStacks = 1;
+        std::string atMax;             // reaching maxStacks turns it into this status (chill -> frozen)
+        int stagger = 0;               // frames of stagger when it lands (0: none): interrupts
+        bool heavy = false;            // that stagger cannot be rolled out of (frozen solid)
+    };
+
+    /** A status a hit applies: which, and how many stacks. */
+    struct StatusHit
+    {
+        std::string status;            // "" = none
+        int stacks = 1;
+    };
+
     /**
      * What an attack shoots, fired on its first active frame. An enemy aims it at the player's chest
      * (dropping for the arc and leading a moving target by `lead`); the player aims it with the crosshair.
@@ -114,6 +145,11 @@ namespace arena
         glm::vec3 spawn = glm::vec3(0.0f, 1.4f, 0.6f);   // fighter space: where it leaves from
         std::string model;            // model id drawn along the flight, "" = none
         float modelScale = 0.0625f;
+
+        Element element = Element::None;
+        StatusHit status;
+        float burst = 0.0f;           // > 0: on impact, hits every enemy this close (m), not only the one struck
+        float terrainRadius = 0.0f;   // fire sets alight, ice freezes pits over, this close to the impact
     };
 
     /**
@@ -167,6 +203,15 @@ namespace arena
 
         ProjectileDef projectile;
 
+        Element element = Element::None;
+        StatusHit status;
+
+        // In the air: gravity while the attack runs (an air slash hangs a little), and the plunge:
+        // above 0, the attack dives at this speed once its startup is over and holds its first
+        // active frame until it lands, the hitboxes then strike around the landing
+        float gravityScale = 1.0f;
+        float plungeSpeed = 0.0f;
+
         int total() const { return startup + active + recovery; }
         bool isActive(int frame) const { return frame >= startup and frame < startup + active; }
         bool movesAt(int frame) const { return moveSpeed > 0.0f and (moveUntil < 0 or frame < moveUntil); }
@@ -179,6 +224,9 @@ namespace arena
         std::string light;        // first light attack
         std::string heavy;
         std::string dodgeAttack;  // light pressed at the end of a dodge
+        std::string dashAttack;   // light pressed while sprinting
+        std::string airLight;     // light in the air
+        std::string airHeavy;     // heavy in the air (a plunge)
 
         const AttackDef* find(const std::string& name) const;
     };
@@ -234,9 +282,10 @@ namespace arena
     {
         std::string id;
         std::string name;
-        std::string kind;
+        std::string kind;          // wall, pit, mine; spells: projectile, bolt
         std::string block;
         float staminaCost = 0.0f;
+        float manaCost = 0.0f;
         float cooldown = 0.5f;
         float range = 6.0f;
         float distance = 2.0f;
@@ -246,6 +295,20 @@ namespace arena
         int width = 3;
         int height = 2;
         int depth = 2;
+
+        // Spells. projectile: `count` of them, `spread` degrees apart. bolt: strikes at once along the
+        // aim up to `range`, then jumps to `chains` more enemies, each within `chainRange` of the last
+        ProjectileDef projectile;
+        int count = 1;
+        float spread = 0.0f;
+        int chains = 0;
+        float chainRange = 6.0f;
+        float poiseDamage = 0.0f;
+        float knockback = 0.0f;
+        float terrainDamage = 0.0f;
+        Element element = Element::None;
+        StatusHit status;
+
         std::string file;
     };
 
@@ -315,6 +378,8 @@ namespace arena
         std::map<std::string, EnemyDef> enemies;
 
         std::map<std::string, AbilityDef> abilities;
+
+        std::map<std::string, StatusDef> statuses;   // statuses.json
 
         std::map<std::string, std::shared_ptr<VoxelModel>> models;
 

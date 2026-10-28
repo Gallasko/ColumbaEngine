@@ -1,0 +1,12 @@
+// What a hit can leave on its target. Attacks, projectiles and spells name these with "status".
+// duration: seconds, renewed by each new hit. damagePerSecond: per stack. slow: move speed taken away
+// per stack. maxStacks / atMax: at the most stacks it turns into another status (chill -> frozen).
+// stagger: frames of stagger when it lands, an interrupt whatever the poise (an attack with armor
+// shrugs it off, unless heavy); heavy: it cannot be rolled out of, armor or not.
+// What they look like (tint, particles) is in effects.json, under the status id.
+{
+    "burn":   { "duration": 3,   "damagePerSecond": 6 },
+    "chill":  { "duration": 3,   "slow": 0.15, "maxStacks": 4, "atMax": "frozen" },
+    "frozen": { "duration": 1.5, "stagger": 90, "heavy": true },
+    "shock":  { "duration": 0.4, "stagger": 16 }
+}

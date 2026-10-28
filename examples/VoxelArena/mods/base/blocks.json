@@ -1,23 +1,27 @@
 // Blocks of the arena. Colours are 0-255. colorNoise jitters the brightness of each block a little.
 // hardness: damage it takes to break (the mine ability does 40 a hit, the brute's slam 120).
 // breakable: false for the arena's shell; unbreakable blocks also hold up whatever rests on them.
+// flammable: fire sets it alight, it burns away and spreads. weakness: terrain damage of an element, scaled.
 {
     "bedrock":     { "color": [62, 62, 70],    "colorNoise": 0.10, "breakable": false },
     "arena_wall":  { "color": [86, 88, 98],    "colorNoise": 0.10, "breakable": false },
     "arena_brick": { "color": [150, 72, 56],   "colorNoise": 0.14, "breakable": false },
 
-    "stone":       { "color": [128, 132, 140], "colorNoise": 0.12, "hardness": 120 },
-    "dark_stone":  { "color": [86, 88, 98],    "colorNoise": 0.10, "hardness": 160 },
+    "stone":       { "color": [128, 132, 140], "colorNoise": 0.12, "hardness": 120, "weakness": { "volt": 4 } },
+    "dark_stone":  { "color": [86, 88, 98],    "colorNoise": 0.10, "hardness": 160, "weakness": { "volt": 3 } },
     "grass":       { "color": [106, 162, 74],  "colorNoise": 0.14, "hardness": 40 },
     "dirt":        { "color": [134, 96, 64],   "colorNoise": 0.12, "hardness": 40 },
     "sand":        { "color": [214, 196, 140], "colorNoise": 0.08, "hardness": 30 },
-    "planks":      { "color": [168, 124, 76],  "colorNoise": 0.10, "hardness": 60 },
-    "brick":       { "color": [160, 78, 60],   "colorNoise": 0.14, "hardness": 140 },
+    "planks":      { "color": [168, 124, 76],  "colorNoise": 0.10, "hardness": 60, "flammable": true },
+    "brick":       { "color": [160, 78, 60],   "colorNoise": 0.14, "hardness": 140, "weakness": { "volt": 2 } },
     "gold":        { "color": [232, 190, 72],  "colorNoise": 0.06, "hardness": 80 },
 
     // Raised by the raise_wall ability: quick to make, quick to smash
     "earth":       { "color": [150, 112, 74],  "colorNoise": 0.18, "hardness": 40 },
     // The rock trap: a boulder on a rope
-    "boulder":     { "color": [112, 108, 116], "colorNoise": 0.16, "hardness": 200 },
-    "rope":        { "color": [196, 170, 112], "colorNoise": 0.05, "hardness": 10 }
+    "boulder":     { "color": [112, 108, 116], "colorNoise": 0.16, "hardness": 200, "weakness": { "volt": 2 } },
+    "rope":        { "color": [196, 170, 112], "colorNoise": 0.05, "hardness": 10, "flammable": true },
+
+    // Ice shards freeze a dug pit over with it
+    "ice":         { "color": [178, 222, 246], "colorNoise": 0.05, "hardness": 30 }
 }

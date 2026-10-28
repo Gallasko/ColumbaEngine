@@ -35,6 +35,7 @@ namespace arena
         bool dodgePressed = false;
         bool lightPressed = false;
         bool heavyPressed = false;
+        bool crouchHeld = false;            // in the air: fast fall
 
         /** First person: the body faces where the camera looks, and attacks go there. */
         bool faceCamera = false;
@@ -51,16 +52,24 @@ namespace arena
         /** 1..n: wield the n-th weapon (content load order) from this step on; 0: keep the one held. */
         int equip = 0;
 
-        static constexpr int ABILITIES = 4;
+        static constexpr int ABILITIES = 8;
         bool abilityPressed[ABILITIES] = {};
         bool abilityHeld[ABILITIES] = {};
     };
 
-    enum class Action { Free, Attack, Dodge, Stagger, Land, Dead };
+    enum class Action { Free, Attack, Dodge, Stagger, Land, AirDash, Dead };
 
     const char* actionName(Action a);
 
     enum class Team { Player, Enemy };
+
+    /** A status on a fighter (see StatusDef). */
+    struct StatusState
+    {
+        std::string id;
+        float remaining = 0.0f;   // seconds
+        int stacks = 1;
+    };
 
     struct Fighter
     {
@@ -80,6 +89,18 @@ namespace arena
         float staminaDelay = 0.0f;
         bool exhausted = false;
         bool sprinting = false;
+        float sinceSprint = 100.0f;   // s since the last sprinting step (the dash attack's window)
+
+        float mana = 100.0f;
+        float manaDelay = 0.0f;
+
+        std::vector<StatusState> statuses;
+
+        // In the air: what was used since the last landing, and a wall jump's push not to steer against
+        int airJumpsUsed = 0;
+        int airDashesUsed = 0;
+        int wallLock = 0;             // frames left
+        glm::vec3 wallNormal = glm::vec3(0.0f);
 
         Action action = Action::Free;
         int frame = 0;             // steps into the current action
@@ -147,7 +168,8 @@ namespace arena
     /**
      * Something worth a sound or particles: the game turns these into effects through effects.json.
      * kind: hit, stagger, kill, swing, windup, shoot, arrow_hit, dodge, jump, land, hard_land,
-     *       chip, break, raise, dig, piece_fall, piece_land
+     *       chip, break, raise, dig, piece_fall, piece_land, air_jump, wall_jump, air_dash, plunge_land,
+     *       cast, fire_burst, ice_burst, volt_arc (a line), ignite, freeze, status
      */
     struct WorldEvent
     {
@@ -159,6 +181,8 @@ namespace arena
         BlockId block = AIR;                  // the block of a terrain event: over the network the block goes, each machine colours it
         int source = 0;                       // who made it happen, when not `fighter` (the attacker of a hit)
         int tick = 0;                         // the tick of the state it happened in (`steps` once its step is done)
+        bool line = false;                    // from `position` to `to` (a volt arc)
+        glm::vec3 to = glm::vec3(0.0f);
     };
 
     /** Something shot by an attack (see ProjectileDef). */
@@ -303,6 +327,9 @@ namespace arena
 
         /** The attack a fighter is running, or nullptr. */
         const AttackDef* currentAttack(const Fighter& f) const;
+
+        /** Puts a status on a fighter (stacks add up to its maxStacks): what a hit with one does. */
+        void applyStatus(Fighter& target, const std::string& id, int stacks = 1);
         const Moveset* movesetOf(const Fighter& f) const;
 
         /**
@@ -344,6 +371,7 @@ namespace arena
         /** pitch: NAN aims at the target (aim assist's for the player), a number aims there (first person). */
         void startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir, bool aimAssist = true, float pitch = NAN);
         void startDodge(Fighter& f, const glm::vec3& dir);
+        void startAirDash(Fighter& f, const glm::vec3& dir);
         void resolveHits();
         void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
         void separate();
@@ -363,6 +391,18 @@ namespace arena
         };
         std::vector<PendingHit> pendingHits;
         void useAbilities(Fighter& f, const InputFrame& in);
+        bool castSpell(Fighter& f, const AbilityDef& a, const InputFrame& in);
+        void strikeBolt(Fighter& f, const AbilityDef& a, const InputFrame& in);
+        void impact(const Projectile& p, const glm::vec3& point, Fighter* struck, const RayHit* wall);
+        void elementOnTerrain(Element element, const glm::vec3& point, float radius);
+        AttackDef hitOf(const std::string& name, float damage, float poiseDamage, float knockback, int hitstop, float shake, Element element, const StatusHit& status) const;
+        void stepStatuses(Fighter& f);
+        void die(Fighter& target, int attacker);
+        float speedScale(const Fighter& f) const;
+        float heightAboveGround(const Fighter& f) const;
+        glm::vec3 touchedWall(const Fighter& f) const;
+        const std::string& attackFor(const Fighter& f, const Moveset& m, int queued) const;
+        void regenMana(Fighter& f);
         void fireProjectiles();
         void stepProjectiles();
         void event(const std::string& kind, const glm::vec3& position, float strength = 1.0f, int fighter = 0, BlockId block = AIR, int source = 0);

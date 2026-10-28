@@ -1,6 +1,9 @@
 // What each game event sounds and looks like. The game makes these events; this file decides.
 // particles: count, speed (m/s), up (0 every way .. 1 upwards), size (m), life (s), gravity,
 // color [r, g, b] or "event" (the colour of what broke). shake: camera trauma near the player.
+// along: the particles are spread along a line event (a volt arc) instead of bursting from a point.
+// Entries named after a status id ("base:burn") are how a fighter with it looks: tint [r, g, b]
+// glows over its body, and the particles come every `every` seconds. "burning" is a block on fire.
 {
     "hit":        { "sound": "hit",       "particles": { "count": 10, "speed": 5,   "up": 0.3, "size": 0.07, "life": 0.25, "gravity": 8,  "color": [255, 236, 190] } },
     "stagger":    { "sound": "hit_heavy", "particles": { "count": 18, "speed": 6.5, "up": 0.4, "size": 0.09, "life": 0.35, "gravity": 8,  "color": [255, 214, 120] } },
@@ -22,5 +25,25 @@
     "raise":      { "sound": "raise",     "particles": { "count": 16, "speed": 2.5, "up": 0.8, "size": 0.14, "life": 0.6,  "gravity": 12, "color": "event" } },
     "dig":        { "sound": "dig",       "particles": { "count": 18, "speed": 3,   "up": 0.9, "size": 0.14, "life": 0.7,  "gravity": 16, "color": [134, 96, 64] } },
     "piece_fall": { "sound": "snap" },
-    "piece_land": { "sound": "boom",      "particles": { "count": 40, "speed": 4,   "up": 0.5, "size": 0.18, "life": 1.0,  "gravity": 4,  "color": [170, 160, 150] }, "shake": 0.5 }
+    "piece_land": { "sound": "boom",      "particles": { "count": 40, "speed": 4,   "up": 0.5, "size": 0.18, "life": 1.0,  "gravity": 4,  "color": [170, 160, 150] }, "shake": 0.5 },
+
+    "air_jump":   { "sound": "air_jump",  "particles": { "count": 10, "speed": 2,   "up": 0.1, "size": 0.08, "life": 0.3,  "gravity": 0,  "color": [230, 236, 255] } },
+    "wall_jump":  { "sound": "air_jump",  "particles": { "count": 8,  "speed": 2,   "up": 0.5, "size": 0.1,  "life": 0.4,  "gravity": 6,  "color": [190, 176, 150] } },
+    "air_dash":   { "sound": "dodge",     "particles": { "count": 12, "speed": 2.5, "up": 0.0, "size": 0.08, "life": 0.3,  "gravity": 0,  "color": [230, 236, 255] } },
+    "plunge_land":{ "sound": "hard_land", "particles": { "count": 36, "speed": 6,   "up": 0.4, "size": 0.16, "life": 0.7,  "gravity": 12, "color": [190, 176, 150] }, "shake": 0.5 },
+
+    "fire_cast":  { "sound": "fire_cast" },
+    "ice_cast":   { "sound": "ice_cast" },
+    "volt_cast":  { },
+    "fire_burst": { "sound": "fire_burst", "particles": { "count": 34, "speed": 5,  "up": 0.5, "size": 0.16, "life": 0.55, "gravity": -2, "color": [255, 140, 40] }, "shake": 0.25 },
+    "ice_burst":  { "sound": "ice_burst",  "particles": { "count": 12, "speed": 3.5, "up": 0.4, "size": 0.08, "life": 0.5, "gravity": 10, "color": [200, 235, 255] } },
+    "volt_arc":   { "sound": "volt",       "particles": { "count": 48, "speed": 0.9, "up": 0.0, "size": 0.09, "life": 0.28, "gravity": 0, "color": [255, 250, 170] }, "along": true },
+    "ignite":     { "sound": "ignite",     "particles": { "count": 8,  "speed": 1.5, "up": 1.0, "size": 0.1,  "life": 0.5,  "gravity": -3, "color": [255, 170, 60] } },
+    "burning":    {                        "particles": { "count": 2,  "speed": 0.8, "up": 1.0, "size": 0.12, "life": 0.6,  "gravity": -3, "color": [255, 130, 40] } },
+    "freeze":     { "sound": "freeze",     "particles": { "count": 20, "speed": 2,   "up": 0.7, "size": 0.1,  "life": 0.7,  "gravity": 4,  "color": [220, 245, 255] } },
+
+    "base:burn":   { "tint": [255, 120, 40],  "every": 0.12, "particles": { "count": 2, "speed": 0.8, "up": 1.0, "size": 0.1, "life": 0.5, "gravity": -3, "color": [255, 140, 40] } },
+    "base:chill":  { "tint": [140, 200, 255], "every": 0.35, "particles": { "count": 1, "speed": 0.4, "up": 0.0, "size": 0.07, "life": 0.6, "gravity": 2, "color": [230, 245, 255] } },
+    "base:frozen": { "tint": [215, 240, 255] },
+    "base:shock":  { "tint": [255, 245, 120], "every": 0.06, "particles": { "count": 2, "speed": 3, "up": 0.3, "size": 0.05, "life": 0.12, "gravity": 0, "color": [255, 250, 180] } }
 }

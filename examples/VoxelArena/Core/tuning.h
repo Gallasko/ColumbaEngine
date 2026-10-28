@@ -62,6 +62,39 @@ namespace arena
             glm::vec3 hand = glm::vec3(0.35f, 1.0f, 0.25f);   // where the weapon is held, local space
         } player;
 
+        /** Movement in the air: double jump, wall jump, air dash, fast fall. */
+        struct Air
+        {
+            int jumps = 1;                  // jumps in the air before landing (double jump)
+            float jumpHeight = 1.3f;        // m each of them rises
+            float wallJumpPush = 7.5f;      // m/s away from the wall
+            float wallJumpHeight = 1.4f;    // m it rises
+            float wallReach = 0.25f;        // m from the body a wall still counts as touched
+            int wallJumpLockFrames = 10;    // frames the push is not steered against
+            int dashFrames = 10;            // air dash: no gravity, a straight burst
+            float dashSpeed = 16.0f;        // m/s
+            float dashCost = 15.0f;         // stamina
+            int dashes = 1;                 // per time in the air
+            float dashMinHeight = 1.5f;     // m above the ground: lower, Shift is the landing roll instead
+            float fastFallGravityScale = 3.0f;  // crouch held in the air
+            float fastFallMaxSpeed = 55.0f;
+        } air;
+
+        struct Mana
+        {
+            float max = 100.0f;
+            float regen = 10.0f;            // per second
+            float regenDelay = 1.0f;        // s after a spell before regen starts
+        } mana;
+
+        /** What elements do to the arena. */
+        struct Elements
+        {
+            float burnSeconds = 2.5f;       // a flammable block burns this long, then is gone
+            float spreadSeconds = 0.8f;     // ... setting its flammable neighbours alight after this long
+            float iceLifetime = 8.0f;       // s an ice floor over a pit lasts
+        } elements;
+
         struct Stamina
         {
             float max = 100.0f;
@@ -131,6 +164,7 @@ namespace arena
             float aimAssistAngle = 60.0f;  // degrees: attacks snap to an enemy within this cone ...
             float aimAssistRange = 4.0f;   // ... and this distance
             float maxAttackPitch = 60.0f;  // degrees an attack may aim up or down (at its target, or with the view)
+            float dashAttackWindow = 0.15f; // s after a sprint ends that a light press is still a dash attack
         } combat;
 
         struct Terrain
@@ -143,7 +177,7 @@ namespace arena
             float crushShake = 0.6f;        // camera trauma when a piece lands near the player
         } terrain;
 
-        std::vector<std::string> abilities = {"base:raise_wall", "base:dig_pit", "base:mine"};   // ability1, 2, 3...
+        std::vector<std::string> abilities = {"base:raise_wall", "base:dig_pit", "base:mine"};   // ability1, 2, 3... ("" leaves a slot empty)
 
         std::string playerModel = "base:player";
         std::string startWeapon = "base:sword";

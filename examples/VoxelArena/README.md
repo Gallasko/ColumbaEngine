@@ -13,7 +13,7 @@ cd release
 make -j18 VoxelArena VoxelArenaServer test_voxelarena
 cd ..
 ./release/VoxelArena            # or ./make_and_play.sh VoxelArena
-./release/test_voxelarena       # 90 tests, about half a second
+./release/test_voxelarena       # 109 tests, about half a second
 ```
 
 The game reads its mods and its shader straight from the source tree (`examples/VoxelArena/mods`,
@@ -37,15 +37,18 @@ Options:
 |---|---|
 | WASD | Move (relative to the camera) |
 | Mouse | Turn the camera; wheel zooms |
-| Space | Jump (hold for a higher jump) |
-| Left Shift | Dodge roll; keep holding to sprint out of the roll |
-| Left mouse / J | Light attack (3-hit combo) |
-| Right mouse / K | Heavy attack |
-| 1, 2 ... | Pick a weapon (1 = sword, 2 = spear from testmod) |
-| V | Third person / first person |
+| Space | Jump (hold for a higher jump); again in the air: double jump, or jump off a wall you touch |
+| Left Shift | Dodge roll; keep holding to sprint out of the roll. In the air: air dash (about to land: the landing roll) |
+| Left Ctrl / C (held, in the air) | Fast fall |
+| Left mouse / J | Light attack (3-hit combo); while sprinting: dash attack; in the air: air slash |
+| Right mouse / K | Heavy attack; in the air: plunge |
+| Tab | Next weapon (sword, spear from testmod) |
+| F / V | First person (the default) / third person |
 | Q | Raise a wall of earth in front of you |
 | E | Dig a pit where the crosshair is |
-| F / middle mouse (hold) | Mine the block under the crosshair |
+| G / middle mouse (hold) | Mine the block under the crosshair |
+| 1, 2, 3 | Spells, at the crosshair: fireball, ice shards, volt |
+| R, 4 | Free ability slots (`player.abilities`) |
 | F1 | Debug overlay |
 | F2 | Hitboxes (red: active, orange: winding up) and hurtboxes (green, blue while invulnerable) |
 | F5 | Reload all content |
@@ -72,15 +75,37 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
   `hardLandingMoveSpeed` of the walk speed; 0 makes it a root). A dodge pressed in the air up to
   `landingRollWindow` seconds before landing rolls on touchdown instead. Knocked into the air by a
   hit, the same dodge gets you up at once (wake-up roll).
+- **In the air** (the `air` section of the tuning):
+  - *Double jump*: `jumps` more jumps before landing. It stops the fall and turns the speed you have to
+    where you steer.
+  - *Wall jump*: jump while touching a wall to be pushed away from it and up. The double jump comes
+    back, so you can climb between two walls (a raised earth wall counts).
+  - *Air dash*: Shift in the air, a straight burst with no fall, `dashes` per time in the air. About
+    to land (within `landingRollWindow`, or under `dashMinHeight`), Shift is the landing roll instead.
+  - *Fast fall*: crouch held in the air. A fast landing can be a hard one: roll it.
 - **The camera under a roof** comes down rather than in: when a ceiling blocks it, it lowers until it
   sees the player from its full distance, then eases back up. A wall behind you still pulls it in.
-- **First person** (V): the body faces where you look, so you strafe instead of turning, and attacks
+- **First person** (the default; F or V switches to third person and back): the body faces where you look, so you strafe instead of turning, and attacks
   go where you look (no aim assist; the swing follows the view while it runs). The weapon is drawn in front of the eye with the same swing data; the view
   dips during a roll. Its numbers are the `firstPerson` section of the tuning.
 - **Attacks** have startup, active and recovery frames. Hitboxes exist only during active frames.
   A light press during an attack is remembered and starts the next attack of the combo once the
   attack allows it (`chainFrom`). A dodge can cancel an attack from `dodgeCancelFrom` on. A light
   press at the end of a roll becomes the dodge attack.
+- **Attacks on the move**: a light press while sprinting (or just after) is the *dash attack*, a long
+  lunging thrust. In the air, light is the *air slash* (it catches your fall for a moment) and heavy
+  is the *plunge*: a short hang, a dive, and a strike all around where you land.
+- **Spells** cost **mana** (the blue bar; it refills after a short delay, so casting never stops a
+  roll) and aim with the crosshair:
+  - *Fireball*: bursts where it lands, hitting and burning everyone close. Planks and rope catch fire,
+    the fire spreads along them, and what burns is gone. The boulder trap hangs from a rope.
+  - *Ice shards*: three in a fan. Each one chills (slower, stacking); four stacks freeze solid (no
+    rolling out). Shot by a dug pit, they freeze it over: a floor to cross until it melts.
+  - *Volt*: an instant bolt that jumps to up to three more enemies close by, and shocks each one (a
+    short interrupt that an armored attack shrugs off). Stone breaks under it.
+- **Statuses** (`mods/base/statuses.json`) are what a hit leaves behind: `burn`, `chill`, `frozen`,
+  `shock`. Each is data (duration, damage over time, slow, stacks, what it turns into, an
+  interrupt), and any attack or projectile can apply one with `"status"`.
 - **Poise**: every hit lowers the target's poise. At zero the target is staggered (it cannot act),
   then its poise refills. An attack in progress can add armor, so the brute's slam is not
   interrupted by a jab.
@@ -253,8 +278,9 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 
 | File | Defines | ID |
 |---|---|---|
-| `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable` | `mymod:<key>` |
-| `abilities/<name>.json` | a terrain ability (`kind`: wall, pit, mine) | `mymod:<name>` |
+| `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable`, `flammable`, `weakness` | `mymod:<key>` |
+| `statuses.json` | statuses: `duration`, `damagePerSecond`, `slow`, `maxStacks`, `atMax`, `stagger`, `heavy` | `mymod:<key>` |
+| `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a spell (projectile, bolt) | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
 | `enemies/<name>.json` | an enemy: stats, moveset, script, params | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
@@ -297,6 +323,18 @@ See `mods/base/weapons/sword.json`: the header comment explains every field. In 
 - `armor`: extra poise while the attack runs.
 - `bufferFrom`, `chainFrom`, `dodgeCancelFrom`, `next`: the combo and its cancel windows.
 - `swing`: how the weapon moves (yaw, pitch, reach). On an enemy it bends the whole body.
+- `element` (`fire`, `ice`, `volt`) and `status` (an id, or `{ "id": ..., "stacks": n }`): what the hit
+  carries.
+- `gravityScale`: the fall while the attack runs (an air attack hangs). `plungeSpeed`: the attack dives
+  after its startup and holds its first active frame until it lands.
+- The moveset names `light`, `heavy`, `dodgeAttack`, `dashAttack`, `airLight` and `airHeavy`.
+
+A spell is an ability with `"kind": "projectile"` (a `projectile` object as for an enemy's shot, plus
+`burst`, a radius that hits everyone close, and `terrainRadius`, how far fire or ice reaches into
+the arena; `count` and `spread` make a fan) or `"kind": "bolt"` (`range`, `damage`, `chains`,
+`chainRange`). `manaCost`, `element` and `status` go on the spell. What it looks like is the
+client's: a status's tint and particles are the entry named after it in `effects.json`, and
+`"along": true` spreads an effect's particles along a line (the volt arc).
 
 ### Enemy scripts
 
@@ -358,6 +396,10 @@ For example:
 - The HUD is laid out for the starting window size and does not follow a resize.
 - Chunks, worldgen, lighting and inventory are out of scope for now.
 - Falling pieces do not tumble.
+- Spells cast at once, with no cast animation, and a burning block that falls goes out.
+- The spear (testmod) has no dash or air attacks: in the air it uses its ground attacks.
+- Competences (passives and skills you combine, mastery points) come later; spells and moves are
+  data so a competence can grant them.
 - Multiplayer: no reconnect after a lost connection (start the game again), no host migration, and
   the enemies' scripts run only on the server. Two windows on one desktop take the mouse from each
   other: press Esc in the one you are not playing.

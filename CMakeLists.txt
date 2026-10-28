@@ -1760,6 +1760,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/voxelarena/terrain.cc
             test/voxelarena/effects.cc
             test/voxelarena/net.cc
+            test/voxelarena/moveset.cc
             examples/VoxelTest/voxelserializer.cpp   # the editor's .vxl.json loader, to check the models stay editable
             ${VOXELARENA_CORE}
         )

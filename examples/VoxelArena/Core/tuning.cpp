@@ -41,6 +41,24 @@ namespace arena
         f("player.hand.y", player.hand.y);
         f("player.hand.z", player.hand.z);
 
+        f("air.jumpHeight", air.jumpHeight);
+        f("air.wallJumpPush", air.wallJumpPush);
+        f("air.wallJumpHeight", air.wallJumpHeight);
+        f("air.wallReach", air.wallReach);
+        f("air.dashSpeed", air.dashSpeed);
+        f("air.dashCost", air.dashCost);
+        f("air.dashMinHeight", air.dashMinHeight);
+        f("air.fastFallGravityScale", air.fastFallGravityScale);
+        f("air.fastFallMaxSpeed", air.fastFallMaxSpeed);
+
+        f("mana.max", mana.max);
+        f("mana.regen", mana.regen);
+        f("mana.regenDelay", mana.regenDelay);
+
+        f("elements.burnSeconds", elements.burnSeconds);
+        f("elements.spreadSeconds", elements.spreadSeconds);
+        f("elements.iceLifetime", elements.iceLifetime);
+
         f("stamina.max", stamina.max);
         f("stamina.regen", stamina.regen);
         f("stamina.regenDelay", stamina.regenDelay);
@@ -96,6 +114,7 @@ namespace arena
         f("combat.aimAssistAngle", combat.aimAssistAngle);
         f("combat.aimAssistRange", combat.aimAssistRange);
         f("combat.maxAttackPitch", combat.maxAttackPitch);
+        f("combat.dashAttackWindow", combat.dashAttackWindow);
     }
 
     void Tuning::forEachInt(const std::function<void(const std::string&, int&)>& f)
@@ -103,6 +122,11 @@ namespace arena
         f("player.hitstunFrames", player.hitstunFrames);
         f("player.hardLandingFrames", player.hardLandingFrames);
         f("player.hitstunDodgeFrom", player.hitstunDodgeFrom);
+
+        f("air.jumps", air.jumps);
+        f("air.wallJumpLockFrames", air.wallJumpLockFrames);
+        f("air.dashFrames", air.dashFrames);
+        f("air.dashes", air.dashes);
 
         f("dodge.frames", dodge.frames);
         f("dodge.iframeStart", dodge.iframeStart);

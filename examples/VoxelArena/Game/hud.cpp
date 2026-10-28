@@ -19,12 +19,17 @@ namespace arena
         const glm::vec4 TEXT(236, 238, 242, 255);
         const glm::vec4 HEALTH(214, 64, 58, 255);
         const glm::vec4 STAMINA(86, 196, 110, 255);
+        const glm::vec4 MANA(84, 140, 236, 255);
+        const glm::vec4 MANA_LOW(58, 82, 130, 255);
         const glm::vec4 EXHAUSTED(196, 160, 70, 255);
         const glm::vec4 POISE(232, 196, 84, 255);
 
         constexpr float BAR_W = 260.0f, BAR_H = 12.0f, MARGIN = 18.0f;
         constexpr float ENEMY_BAR_W = 70.0f, ENEMY_BAR_H = 6.0f;
         constexpr size_t MAX_ENEMY_BARS = 32;
+
+        /** The bars from the bottom up: mana, stamina, health. */
+        float barY(float h, int row) { return h - MARGIN - BAR_H - static_cast<float>(row) * (BAR_H + 6.0f); }
     }
 
     pg::_unique_id Hud::makeQuad(float x, float y, float z, float qw, float qh, const glm::vec4& c)
@@ -94,12 +99,14 @@ namespace arena
 
         banner = makeText(w * 0.5f - 300.0f, 12, 3, FONT, "", 0.9f, glm::vec4(255, 120, 110, 255));
         center = makeText(w * 0.5f - 90.0f, h * 0.4f, 3, FONT, "", 1.8f, glm::vec4(255, 230, 220, 255));
-        weapon = makeText(MARGIN, h - MARGIN - BAR_H * 2 - 62.0f, 2, FONT, "", 0.9f, TEXT);   // two lines: weapons, abilities
+        weapon = makeText(MARGIN, barY(h, 2) - 56.0f, 2, FONT, "", 0.9f, TEXT);   // two lines: weapons, abilities
 
-        healthBack = makeQuad(MARGIN, h - MARGIN - BAR_H * 2 - 6.0f, 1, BAR_W, BAR_H, PANEL);
-        healthFill = makeQuad(MARGIN, h - MARGIN - BAR_H * 2 - 6.0f, 2, BAR_W, BAR_H, HEALTH);
-        staminaBack = makeQuad(MARGIN, h - MARGIN - BAR_H, 1, BAR_W, BAR_H, PANEL);
-        staminaFill = makeQuad(MARGIN, h - MARGIN - BAR_H, 2, BAR_W, BAR_H, STAMINA);
+        healthBack = makeQuad(MARGIN, barY(h, 2), 1, BAR_W, BAR_H, PANEL);
+        healthFill = makeQuad(MARGIN, barY(h, 2), 2, BAR_W, BAR_H, HEALTH);
+        staminaBack = makeQuad(MARGIN, barY(h, 1), 1, BAR_W, BAR_H, PANEL);
+        staminaFill = makeQuad(MARGIN, barY(h, 1), 2, BAR_W, BAR_H, STAMINA);
+        manaBack = makeQuad(MARGIN, barY(h, 0), 1, BAR_W, BAR_H, PANEL);
+        manaFill = makeQuad(MARGIN, barY(h, 0), 2, BAR_W, BAR_H, MANA);
 
         // Crosshair: where the terrain abilities aim
         crossH = makeQuad(w * 0.5f - 7.0f, h * 0.5f - 1.0f, 2, 14.0f, 2.0f, glm::vec4(255, 255, 255, 190));
@@ -234,14 +241,17 @@ namespace arena
         lastCrosshair = visible;
     }
 
-    void Hud::setBars(float health, float stamina, bool exhausted)
+    void Hud::setBars(float health, float stamina, bool exhausted, float mana, bool manaLow)
     {
         health = glm::clamp(health, 0.0f, 1.0f);
         stamina = glm::clamp(stamina, 0.0f, 1.0f);
+        mana = glm::clamp(mana, 0.0f, 1.0f);
 
-        place(healthFill, MARGIN, h - MARGIN - BAR_H * 2 - 6.0f, BAR_W * health, BAR_H, health > 0.0f);
-        place(staminaFill, MARGIN, h - MARGIN - BAR_H, BAR_W * stamina, BAR_H, stamina > 0.0f);
+        place(healthFill, MARGIN, barY(h, 2), BAR_W * health, BAR_H, health > 0.0f);
+        place(staminaFill, MARGIN, barY(h, 1), BAR_W * stamina, BAR_H, stamina > 0.0f);
         color(staminaFill, exhausted ? EXHAUSTED : STAMINA);
+        place(manaFill, MARGIN, barY(h, 0), BAR_W * mana, BAR_H, mana > 0.0f);
+        color(manaFill, manaLow ? MANA_LOW : MANA);
     }
 
     void Hud::setEnemyBars(const std::vector<EnemyBar>& bars)

@@ -34,6 +34,7 @@ namespace arena
         std::vector<int> fell;                // pieces that broke off
         std::vector<int> landed;              // pieces that landed (their cells are back in the grid)
         std::vector<glm::ivec3> filled;       // cells filled back in (pit refills, landings): fighters inside need lifting
+        std::vector<glm::ivec3> ignited;      // cells set alight
     };
 
     /**
@@ -85,6 +86,17 @@ namespace arena
 
         bool breakable(BlockId id) const;
 
+        /**
+         * Sets a flammable block alight: it burns `seconds`, then is gone, and after `spread` seconds its
+         * flammable neighbours catch. False when it is not flammable or already burning.
+         */
+        bool ignite(const glm::ivec3& cell, float seconds, float spread);
+        bool isBurning(const glm::ivec3& cell) const;
+        size_t burningCount() const { return burning.size(); }
+
+        /** Seconds a dug cell has left before it fills back in; -1 when the cell is not a dug one. */
+        float dugRemaining(const glm::ivec3& cell) const;
+
         std::vector<FallingPiece> falling;
 
         size_t damagedCount() const { return damageTaken.size(); }
@@ -108,6 +120,17 @@ namespace arena
 
         std::map<size_t, float> damageTaken;   // cell index -> damage so far
         std::vector<Temporary> temporary;
+
+        struct Burning
+        {
+            glm::ivec3 cell;
+            BlockId block;
+            float spreadAt, endsAt;
+            float seconds, spreadSeconds;
+            bool spread = false;
+        };
+        std::vector<Burning> burning;
+        std::vector<glm::ivec3> ignitedSinceStep;
         std::vector<glm::ivec3> removedSinceCheck;
         std::vector<glm::ivec3> brokenSinceStep;
         std::vector<BlockId> brokenBlocksSinceStep;

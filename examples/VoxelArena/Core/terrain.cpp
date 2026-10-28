@@ -23,6 +23,8 @@ namespace arena
         removedSinceCheck.clear();
         brokenSinceStep.clear();
         brokenBlocksSinceStep.clear();
+        burning.clear();
+        ignitedSinceStep.clear();
         falling.clear();
         ++rev;
     }
@@ -148,6 +150,35 @@ namespace arena
 
         if (lifetime > 0.0f)
             temporary.push_back({c, AIR, before, now + lifetime});
+    }
+
+    bool Terrain::ignite(const glm::ivec3& c, float seconds, float spread)
+    {
+        if (not grid or not table or not grid->inBounds(c.x, c.y, c.z))
+            return false;
+
+        const BlockId id = grid->get(c.x, c.y, c.z);
+
+        if (id == AIR or id >= table->size() or not (*table)[id].flammable or isBurning(c))
+            return false;
+
+        burning.push_back({c, id, now + spread, now + seconds, seconds, spread, false});
+        ignitedSinceStep.push_back(c);
+        return true;
+    }
+
+    bool Terrain::isBurning(const glm::ivec3& c) const
+    {
+        return std::any_of(burning.begin(), burning.end(), [&](const Burning& b) { return b.cell == c; });
+    }
+
+    float Terrain::dugRemaining(const glm::ivec3& c) const
+    {
+        for (const auto& t : temporary)
+            if (t.cell == c and t.placed == AIR)
+                return std::max(0.0f, t.expires - now);
+
+        return -1.0f;
     }
 
     float Terrain::damageRatio(int x, int y, int z) const
@@ -312,6 +343,44 @@ namespace arena
                 events.filled.push_back(t.cell);
             }
         }
+
+        // Burning blocks: they catch their neighbours, then burn away
+        for (size_t i = 0; i < burning.size();)
+        {
+            const Burning b = burning[i];
+
+            // Gone some other way
+            if (grid->get(b.cell.x, b.cell.y, b.cell.z) != b.block)
+            {
+                burning.erase(burning.begin() + static_cast<std::ptrdiff_t>(i));
+                continue;
+            }
+
+            if (not b.spread and now >= b.spreadAt)
+            {
+                burning[i].spread = true;
+
+                for (const glm::ivec3 d : {glm::ivec3(1, 0, 0), glm::ivec3(-1, 0, 0), glm::ivec3(0, 1, 0), glm::ivec3(0, -1, 0), glm::ivec3(0, 0, 1), glm::ivec3(0, 0, -1)})
+                    ignite(b.cell + d, b.seconds, b.spreadSeconds);
+            }
+
+            if (now >= b.endsAt)
+            {
+                burning.erase(burning.begin() + static_cast<std::ptrdiff_t>(i));
+                damage(b.cell, 1e9f);
+                continue;
+            }
+
+            ++i;
+        }
+
+        // What burned away this step is broken too
+        events.broken.insert(events.broken.end(), brokenSinceStep.begin(), brokenSinceStep.end());
+        events.brokenBlocks.insert(events.brokenBlocks.end(), brokenBlocksSinceStep.begin(), brokenBlocksSinceStep.end());
+        brokenSinceStep.clear();
+        brokenBlocksSinceStep.clear();
+        events.ignited.insert(events.ignited.end(), ignitedSinceStep.begin(), ignitedSinceStep.end());
+        ignitedSinceStep.clear();
 
         checkSupport(events);
 

@@ -6,8 +6,9 @@
         "model": "base:player",
         "modelScale": 0.125,
         "weapon": "base:sword",
-        // Terrain abilities on the keys ability1, ability2, ability3 (Q, E, F by default)
-        "abilities": ["base:raise_wall", "base:dig_pit", "base:mine"],
+        // Abilities on the keys ability1 .. ability8 (Q, E, G, R, 1, 2, 3, 4 by default); "" leaves a slot empty.
+        // The terrain on Q E G, the spells on 1 2 3
+        "abilities": ["base:raise_wall", "base:dig_pit", "base:mine", "", "base:fireball", "base:ice_shards", "base:volt"],
         "hand": [0.42, 0.95, 0.3],
 
         "width": 0.6,
@@ -132,10 +133,49 @@
         "light": ["Mouse1", "J"],
         "heavy": ["Mouse3", "K"],
         "freeCursor": ["Left Alt"],
-        "toggleView": ["V"],
+        "toggleView": ["F", "V"],
         "ability1": ["Q"],
         "ability2": ["E"],
-        "ability3": ["F", "Mouse2"]
+        "ability3": ["G", "Mouse2"],
+        "ability4": ["R"],
+        "ability5": ["1"],
+        "ability6": ["2"],
+        "ability7": ["3"],
+        "ability8": ["4"],
+        "crouch": ["Left Ctrl", "C"],
+        "nextWeapon": ["Tab"]
+    },
+
+    // In the air: a double jump, a jump off a wall you touch, an air dash (Shift; about to land, within
+    // the player's landingRollWindow or under dashMinHeight, Shift is the landing roll), and a fast fall (crouch held)
+    "air": {
+        "jumps": 1,
+        "jumpHeight": 1.3,
+        "wallJumpPush": 7.5,
+        "wallJumpHeight": 1.4,
+        "wallReach": 0.25,
+        "wallJumpLockFrames": 10,
+        "dashFrames": 10,
+        "dashSpeed": 16,
+        "dashCost": 15,
+        "dashes": 1,
+        "dashMinHeight": 1.5,
+        "fastFallGravityScale": 3.0,
+        "fastFallMaxSpeed": 55
+    },
+
+    // Spells spend mana, not stamina: casting never stops a roll
+    "mana": {
+        "max": 100,
+        "regen": 10,
+        "regenDelay": 1.0
+    },
+
+    // What fire and ice do to the arena (volt's is the blocks' "weakness")
+    "elements": {
+        "burnSeconds": 2.5,
+        "spreadSeconds": 0.8,
+        "iceLifetime": 8
     },
 
     // Pieces of the arena that lose their support fall, and crush what they land on
@@ -153,6 +193,8 @@
         "aimAssistAngle": 55,
         "aimAssistRange": 3.5,
         // Attacks aim up or down at their target (first person: with the view), at most this many degrees
-        "maxAttackPitch": 60
+        "maxAttackPitch": 60,
+        // A light press this soon after a sprint ends is still the dash attack
+        "dashAttackWindow": 0.15
     }
 }

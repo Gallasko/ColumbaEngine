@@ -1,0 +1,18 @@
+// Ice shards (2 by default): three in a fan. Each chills (slower, stacking); four stacks freeze solid
+// for a moment. A shard landing by a dug pit freezes it over: a floor to cross, until it melts.
+{
+    "name": "Ice shards",
+    "kind": "projectile",
+    "element": "ice",
+    "status": "chill",
+    "manaCost": 20,
+    "cooldown": 0.6,
+    "count": 3,
+    "spread": 6,
+    "projectile": {
+        "speed": 32, "gravity": 0, "radius": 0.15, "lifetime": 1.5,
+        "damage": 6, "poiseDamage": 4, "knockback": 1.5, "terrainDamage": 5, "hitstop": 2, "shake": 0.1,
+        "terrainRadius": 2.5,
+        "model": "ice_shard", "modelScale": 0.085
+    }
+}

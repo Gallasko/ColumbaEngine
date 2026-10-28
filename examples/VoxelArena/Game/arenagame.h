@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <set>
 #include <string>
 #include <vector>
@@ -132,7 +133,7 @@ namespace arena
         ArenaWorld world;
         ScriptBrain brain;
         OrbitCamera camera;
-        bool firstPerson = false;          // V switches; see setFirstPerson
+        bool firstPerson = true;           // the default view; F (or V) switches, see setFirstPerson
         void setFirstPerson(bool on);
         float fov() const { return firstPerson ? tuning.firstPerson.fov : tuning.camera.fov; }
 
@@ -151,6 +152,7 @@ namespace arena
         /** The block the camera points at, within reach of the player's abilities. */
         bool aimed(RayHit& hit) const;
         std::string abilityLine() const;
+        std::string keyName(const std::string& action) const;   // the first key bound to an action, for the HUD
         bool meshDirty = true;
         float aspect = 16.0f / 9.0f;
         float screenW = 1280.0f, screenH = 720.0f;
@@ -243,6 +245,21 @@ namespace arena
         SoundBank sounds;
         Particles particles;
         void playEffect(const std::string& kind, const glm::vec3& at, const glm::vec3& color);
+        void playEvent(const WorldEvent& e);   // playEffect, and what an event starts (flames) or draws along (arcs)
+
+        // Looks that last: statuses on fighters (tint, particles now and then) and blocks on fire
+        void stepLooks(float frameSeconds);
+        const EffectDef* statusLook(const Fighter& f) const;
+        bool heldStill(const Fighter& f) const;   // a status that stops the body (frozen solid)
+        std::map<std::pair<int, std::string>, float> statusTimers;
+        struct BurningLook
+        {
+            glm::ivec3 cell;
+            float left = 0.0f;
+            float timer = 0.0f;
+        };
+        std::vector<BurningLook> burningLooks;
+        std::mt19937 lookRng{7};
 
         // Limbs: a walk cycle per fighter
         struct Gait

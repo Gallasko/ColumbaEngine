@@ -21,6 +21,8 @@ namespace arena
         float colorNoise = 0.0f;             // 0..1, per-block brightness jitter so flat ground reads as voxels
         float hardness = 50.0f;              // hit points: damage needed to break it
         bool breakable = true;               // false: nothing breaks it, and it anchors what rests on it
+        bool flammable = false;              // fire sets it alight: it burns away, setting its neighbours alight
+        float weakness[4] = {1, 1, 1, 1};    // terrain damage scale by element (none, fire, ice, volt)
     };
 
     using BlockTable = std::vector<BlockLook>;
