@@ -130,6 +130,7 @@ namespace arena
         int moveUntil = -1;       // from this frame on the player is rooted (-1: the whole attack)
 
         float armor = 0.0f;       // extra poise while the attack runs (hyper armor)
+        float terrainDamage = 0.0f;   // damage to every breakable block its hitboxes touch (once per swing)
 
         // Cancels, as frame numbers counted from the start of the attack
         int dodgeCancelFrom = -1;  // -1: only once the attack has ended
@@ -197,6 +198,32 @@ namespace arena
         std::string file;
     };
 
+    /**
+     * A terrain ability of the player. kind picks the behaviour (C++); the rest is its numbers.
+     *   wall: raises width x height blocks of `block`, `distance` m ahead, across the view
+     *   pit:  digs width x width x depth where the player aims, within `range`
+     *   mine: chips `damage` off the aimed block, `rate` times a second while held
+     * lifetime: seconds until a raised wall crumbles or a pit fills back in (0 = for good).
+     */
+    struct AbilityDef
+    {
+        std::string id;
+        std::string name;
+        std::string kind;
+        std::string block;
+        float staminaCost = 0.0f;
+        float cooldown = 0.5f;
+        float range = 6.0f;
+        float distance = 2.0f;
+        float lifetime = 10.0f;
+        float damage = 40.0f;
+        float rate = 4.0f;
+        int width = 3;
+        int height = 2;
+        int depth = 2;
+        std::string file;
+    };
+
     struct ArenaSpawn
     {
         std::string enemy;
@@ -247,6 +274,8 @@ namespace arena
         std::vector<std::string> weaponOrder;      // load order, for the weapon hot keys
 
         std::map<std::string, EnemyDef> enemies;
+
+        std::map<std::string, AbilityDef> abilities;
 
         std::map<std::string, std::shared_ptr<VoxelModel>> models;
 

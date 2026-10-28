@@ -1,0 +1,12 @@
+// E: a pit where you aim. An enemy in it cannot step out (the brute steps up one block, not two)
+// until it fills back in, which lifts out anyone still inside.
+{
+    "name": "Dig pit",
+    "kind": "pit",
+    "width": 2,
+    "depth": 2,
+    "range": 7,
+    "staminaCost": 30,
+    "cooldown": 1.0,
+    "lifetime": 9
+}

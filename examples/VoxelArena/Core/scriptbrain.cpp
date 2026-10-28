@@ -333,6 +333,8 @@ namespace arena
         me->setField("targetAttacking", makeBoolValue(target.action == Action::Attack));
         me->setField("targetDodging", makeBoolValue(target.action == Action::Dodge));
         me->setField("targetStaggered", makeBoolValue(target.action == Action::Stagger));
+        me->setField("blocked", makeBoolValue(view.blocked));
+        me->setField("blockedDistance", makeDoubleValue(view.blockedDistance));
 
         const std::string action = actionName(target.action);
 

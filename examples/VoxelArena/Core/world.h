@@ -7,6 +7,7 @@
 
 #include "content.h"
 #include "physics.h"
+#include "terrain.h"
 #include "tuning.h"
 
 namespace arena
@@ -35,6 +36,14 @@ namespace arena
 
         /** First person: the body faces where the camera looks, and attacks go there. */
         bool faceCamera = false;
+
+        /** Where the player aims: the camera's ray (for the terrain abilities). */
+        glm::vec3 aimOrigin = glm::vec3(0.0f);
+        glm::vec3 aimDir = glm::vec3(0, 0, 1);
+
+        static constexpr int ABILITIES = 4;
+        bool abilityPressed[ABILITIES] = {};
+        bool abilityHeld[ABILITIES] = {};
     };
 
     enum class Action { Free, Attack, Dodge, Stagger, Land, Dead };
@@ -68,6 +77,10 @@ namespace arena
         std::string weapon;        // player: weapon id
         std::string attack;        // current attack name
         std::vector<int> hitThisSwing;
+        std::vector<size_t> cellsHitThisSwing;   // terrain cells the current swing already damaged
+
+        float abilityCooldown[InputFrame::ABILITIES] = {};
+        float mineTimer = 0.0f;
 
         // Buffered presses: kind and seconds since the press (negative = none)
         int queued = 0;            // 1 light, 2 heavy
@@ -136,6 +149,8 @@ namespace arena
         float distance = 0.0f;       // between feet, horizontal
         float angle = 0.0f;          // degrees from self facing to the target, + = target on the right
         float time = 0.0f;           // seconds since the world started
+        bool blocked = false;        // a block stands between self and the target
+        float blockedDistance = 0.0f;// how far that block is
     };
 
     struct BrainOrder
@@ -206,6 +221,15 @@ namespace arena
         std::vector<Fighter> fighters;
         std::vector<HitEvent> hits;   // since the last drain, read by the game for feedback
 
+        Terrain terrain;
+        TerrainEvents terrainEvents;  // since the last drain, read by the game
+        float terrainShake = 0.0f;    // camera trauma from falling pieces near the player, since the last drain
+
+        /** The block the player aims at within range of the player, from an aim ray (the camera's). */
+        bool aimedCell(const Fighter& f, const glm::vec3& origin, const glm::vec3& dir, float range, RayHit& out) const;
+
+        const AbilityDef* ability(int index) const;
+
         bool godMode = false;         // the player takes no damage
         bool aiEnabled = true;
 
@@ -224,6 +248,11 @@ namespace arena
         void resolveHits();
         void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
         void separate();
+        void useAbilities(Fighter& f, const InputFrame& in);
+        void terrainFromAttacks();
+        void stepTerrain();
+        bool cellOccupied(const glm::ivec3& cell) const;
+        void liftOut(const glm::ivec3& cell);
         void respawn(Fighter& f);
         void spendStamina(Fighter& f, float amount);
         void regenStamina(Fighter& f);

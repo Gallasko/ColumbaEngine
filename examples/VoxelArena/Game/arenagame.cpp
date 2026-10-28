@@ -114,6 +114,7 @@ namespace arena
             {"jump", {"Space"}}, {"dodge", {"Left Shift"}}, {"sprint", {"Left Shift"}},
             {"light", {"Mouse1", "J"}}, {"heavy", {"Mouse3", "K"}},
             {"freeCursor", {"Left Alt"}}, {"toggleView", {"V"}},
+            {"ability1", {"Q"}}, {"ability2", {"E"}}, {"ability3", {"F", "Mouse2"}}, {"ability4", {}},
         };
     }
 
@@ -601,7 +602,8 @@ namespace arena
                 const bool current = id == p->weapon;
                 weapons += (current ? "\\c{255,214,120,255}" : "\\c{170,174,184,255}") + std::string("[") + std::to_string(i + 1) + "] " + content.weapons.at(id).name + "   ";
             }
-            hud.setWeapon(weapons);
+            hud.setWeapon(weapons + "\n" + abilityLine());
+            hud.setCrosshair(p->alive());   // both views: the abilities aim with it
 
             hud.setCenter(not p->alive() ? "You fell" : (paused ? "Paused" : ""));
         }
@@ -732,6 +734,7 @@ namespace arena
             }
 
             o << dim << "scripts  " << scriptStats.line << "\n";
+            o << dim << "terrain  " << world.terrain.damagedCount() << " damaged, " << world.terrain.temporaryCount() << " temporary, " << world.terrain.falling.size() << " falling\n";
             o << dim << "content  " << content.mods.size() << " mods, " << content.report.errors.size() << " errors, " << content.report.warnings.size() << " warnings"
               << "   kills " << enemyKills << "   falls " << playerDeaths << "\n";
             o << dim << "F1 overlay  F2 hitboxes  F5 reload  ` console  1-" << std::max<size_t>(1, content.weaponOrder.size()) << " weapon  Esc mouse  wheel zoom";
@@ -782,6 +785,13 @@ namespace arena
                     in.dodgePressed = pressed("dodge");
                     in.lightPressed = pressed("light");
                     in.heavyPressed = pressed("heavy");
+
+                    for (int i = 0; i < InputFrame::ABILITIES; ++i)
+                    {
+                        const std::string action = "ability" + std::to_string(i + 1);
+                        in.abilityPressed[i] = pressed(action);
+                        in.abilityHeld[i] = held(action);
+                    }
                 }
 
                 // A press is handed to one step only
@@ -801,6 +811,14 @@ namespace arena
             in.dodgePressed = in.dodgePressed or injectedPresses.count("dodge");
             in.lightPressed = in.lightPressed or injectedPresses.count("light");
             in.heavyPressed = in.heavyPressed or injectedPresses.count("heavy");
+
+            for (int i = 0; i < InputFrame::ABILITIES; ++i)
+            {
+                const std::string action = "ability" + std::to_string(i + 1);
+                in.abilityPressed[i] = in.abilityPressed[i] or injectedPresses.count(action);
+                in.abilityHeld[i] = in.abilityHeld[i] or injected(action);
+            }
+
             injectedPresses.clear();
 
             for (auto& [a, n] : injectedHolds)
@@ -811,6 +829,10 @@ namespace arena
 
             in.cameraYaw = camera.yaw;
             in.faceCamera = firstPerson;
+
+            // The abilities aim where the camera looks (the crosshair)
+            in.aimOrigin = camera.position;
+            in.aimDir = camera.forward();
 
             previous.clear();
             for (const auto& f : world.fighters)
@@ -869,6 +891,10 @@ namespace arena
         }
 
         world.hits.clear();
+
+        camera.addTrauma(world.terrainShake);
+        world.terrainShake = 0.0f;
+        world.terrainEvents = TerrainEvents{};
     }
 
     void ArenaGame::updateCamera(float frameSeconds)
@@ -951,13 +977,100 @@ namespace arena
         print(on ? "first person" : "third person");
     }
 
+    void ArenaGame::updatePieceMeshes()
+    {
+        // Pieces that landed give their mesh back
+        for (auto it = pieceMeshes.begin(); it != pieceMeshes.end();)
+        {
+            const bool alive = std::any_of(world.terrain.falling.begin(), world.terrain.falling.end(), [&](const FallingPiece& p) { return p.id == it->first; });
+
+            if (alive)
+            {
+                ++it;
+                continue;
+            }
+
+            freePieceMeshes.push_back(it->second);
+            it = pieceMeshes.erase(it);
+        }
+
+        for (const auto& piece : world.terrain.falling)
+        {
+            if (pieceMeshes.count(piece.id))
+                continue;
+
+            std::shared_ptr<GpuMesh> mesh;
+
+            if (freePieceMeshes.empty())
+            {
+                mesh = std::make_shared<GpuMesh>();
+            }
+            else
+            {
+                mesh = freePieceMeshes.back();
+                freePieceMeshes.pop_back();
+            }
+
+            mesh->setData(buildMesh(piece.cells, content.blockTable));
+            pieceMeshes[piece.id] = mesh;
+        }
+    }
+
+    bool ArenaGame::aimed(RayHit& hit) const
+    {
+        const Fighter* p = world.player();
+
+        if (not p or not p->alive())
+            return false;
+
+        float range = 0.0f;
+        for (int i = 0; i < InputFrame::ABILITIES; ++i)
+            if (const AbilityDef* a = world.ability(i); a and (a->kind == "mine" or a->kind == "pit"))
+                range = std::max(range, a->range);
+
+        return range > 0.0f and world.aimedCell(*p, camera.position, camera.forward(), range, hit);
+    }
+
+    std::string ArenaGame::abilityLine() const
+    {
+        const Fighter* p = world.player();
+        std::string out;
+
+        for (int i = 0; i < InputFrame::ABILITIES; ++i)
+        {
+            const AbilityDef* a = world.ability(i);
+
+            if (not a)
+                continue;
+
+            std::string key = "?";
+            auto it = controls.find("ability" + std::to_string(i + 1));
+
+            if (it != controls.end() and not it->second.empty())
+            {
+                const Binding& b = it->second.front();
+                key = b.scancode >= 0 ? SDL_GetScancodeName(static_cast<SDL_Scancode>(b.scancode)) : "Mouse" + std::to_string(b.mouseButton);
+            }
+
+            const bool ready = p and p->abilityCooldown[i] <= 0.0f and (a->staminaCost <= 0.0f or p->stamina >= tuning.stamina.minToAct);
+            out += (ready ? "\\c{220,226,236,255}" : "\\c{120,124,134,255}") + std::string("[") + key + "] " + a->name + "   ";
+        }
+
+        return out;
+    }
+
     void ArenaGame::remeshIfNeeded()
     {
-        if (not meshDirty and world.grid.revision() == meshedRevision)
+        if (not meshDirty and world.grid.revision() == meshedRevision and world.terrain.revision() == meshedTerrainRevision)
             return;
 
-        worldMesh->setData(buildMesh(world.grid, content.blockTable));
+        // Damaged blocks darken as they get closer to breaking
+        MeshOptions opt;
+        opt.brightness = [this](int x, int y, int z) { return 1.0f - 0.45f * world.terrain.damageRatio(x, y, z); };
+
+        worldMesh->setData(buildMesh(world.grid, content.blockTable, opt));
         meshedRevision = world.grid.revision();
+        meshedTerrainRevision = world.terrain.revision();
         meshDirty = false;
     }
 
@@ -1132,6 +1245,30 @@ namespace arena
                     pushInstance(instances[weapon.model], view, weaponMatrix, WHITE, f.flash > 0 ? flash * 0.5f : glm::vec4(0.0f));
                 }
             }
+        }
+
+        // Falling pieces of the arena
+        updatePieceMeshes();
+
+        for (const auto& piece : world.terrain.falling)
+        {
+            auto it = pieceMeshes.find(piece.id);
+
+            if (it == pieceMeshes.end() or it->second->faces() == 0)
+                continue;
+
+            std::vector<float> d;
+            pushInstance(d, view, glm::translate(glm::mat4(1.0f), glm::vec3(piece.origin) - glm::vec3(0, piece.drop, 0)), WHITE, glm::vec4(0.0f));
+            add(it->second, litMaterial, OpacityType::Opaque, std::move(d));
+        }
+
+        // The block the crosshair is on, when an ability can reach it
+        if (RayHit hit; not consoleOpen and aimed(hit))
+        {
+            std::vector<float> d;
+            const glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(hit.cell) - glm::vec3(0.02f)) * glm::scale(glm::mat4(1.0f), glm::vec3(1.04f));
+            pushInstance(d, view, m, glm::vec4(1.0f, 1.0f, 1.0f, 0.16f), glm::vec4(0.0f));
+            add(boxMesh, debugMaterial, OpacityType::Normal, std::move(d));
         }
 
         for (auto& [id, data] : instances)

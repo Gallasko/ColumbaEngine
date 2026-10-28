@@ -123,6 +123,16 @@ namespace arena
         std::shared_ptr<GpuMesh> worldMesh, skyMesh, boxMesh;
         std::map<std::string, std::shared_ptr<GpuMesh>> modelMeshes;   // kept for the whole run, see GpuMesh
         uint64_t meshedRevision = ~0ull;
+        uint64_t meshedTerrainRevision = ~0ull;
+
+        // Falling pieces of the arena: a mesh each while they fall, taken from and given back to a pool
+        std::map<int, std::shared_ptr<GpuMesh>> pieceMeshes;
+        std::vector<std::shared_ptr<GpuMesh>> freePieceMeshes;
+        void updatePieceMeshes();
+
+        /** The block the camera points at, within reach of the player's abilities. */
+        bool aimed(RayHit& hit) const;
+        std::string abilityLine() const;
         bool meshDirty = true;
         float aspect = 16.0f / 9.0f;
         float screenW = 1280.0f, screenH = 720.0f;

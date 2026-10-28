@@ -2,6 +2,7 @@
 // It tracks you while it winds up and commits once the slam starts: dodge late, then punish the recovery.
 // Its poise (40) is broken by a heavy attack or a full light combo, which staggers it.
 // "swing" on an enemy attack bends the whole body (pitch: + leans forward).
+// The slam breaks terrain (terrainDamage): a wall raised in its way does not last.
 {
     "name": "Brute",
     "model": "brute",
@@ -30,6 +31,7 @@
     "moveset": {
         "attacks": {
             "slam": {
+                "terrainDamage": 120,
                 "startup": 36, "active": 5, "recovery": 42,
                 "damage": 25, "poiseDamage": 30,
                 "knockback": 8, "knockup": 4.5, "hitstop": 5, "shake": 0.7,

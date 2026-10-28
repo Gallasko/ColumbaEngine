@@ -76,6 +76,9 @@ namespace arena
             if (look.colorNoise > 0.0f)
                 color *= 1.0f + (cellHash(x, y, z) - 0.5f) * look.colorNoise;
 
+            if (options.brightness)
+                color *= options.brightness(x, y, z);
+
             const glm::ivec3 p(x, y, z);
 
             for (const auto& face : FACES)

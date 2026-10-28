@@ -1,0 +1,12 @@
+// Q: a wall of earth across your view. Blocks arrows (one day), stops a charge, and the brute smashes it.
+{
+    "name": "Raise wall",
+    "kind": "wall",
+    "block": "earth",
+    "width": 3,
+    "height": 2,
+    "distance": 2.2,
+    "staminaCost": 25,
+    "cooldown": 0.6,
+    "lifetime": 12
+}

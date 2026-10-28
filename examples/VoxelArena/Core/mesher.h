@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 #include "voxelgrid.h"
@@ -32,6 +33,8 @@ namespace arena
         glm::vec3 origin = glm::vec3(0.0f);
         /** Strength of the corner darkening, 0 = off. */
         float aoStrength = 0.6f;
+        /** Optional brightness per cell (1 = as is), e.g. to darken damaged blocks. */
+        std::function<float(int, int, int)> brightness;
     };
 
     /**

@@ -136,6 +136,8 @@ namespace arena
 
         if (rebuildArena)
             buildArena();
+        else
+            terrain.setTable(&content->blockTable);
 
         for (auto& f : fighters)
         {
@@ -175,6 +177,7 @@ namespace arena
     {
         const ArenaDef& a = content->arena;
         grid = VoxelGrid(a.size.x, a.size.y, a.size.z);
+        terrain.reset(&grid, &content->blockTable);
 
         for (const auto& s : a.shapes.array)
         {
@@ -354,6 +357,8 @@ namespace arena
 
         separate();
         resolveHits();
+        terrainFromAttacks();
+        stepTerrain();
 
         time += STEP_SECONDS;
         ++steps;
@@ -451,6 +456,7 @@ namespace arena
         f.attack = name;
         f.frame = 0;
         f.hitThisSwing.clear();
+        f.cellsHitThisSwing.clear();
         f.queued = 0;
         f.queuedAge = -1.0f;
         f.sprinting = false;
@@ -629,6 +635,8 @@ namespace arena
             startDodge(f, hasWish ? wish : yawForward(f.yaw));
         else if (f.action == Action::Free and f.queued and canPay and moveset)
             startAttack(f, (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light, aimIdle, not in.faceCamera);
+
+        useAbilities(f, in);
 
         // ---- Movement for the action ----
         glm::vec3 wanted(0.0f);
@@ -839,6 +847,18 @@ namespace arena
                     // Yaw grows to the left: flip it so that + means the target is on the right
                     view.angle = -wrapDegrees(yawOf(dirToTarget) - f.yaw);
                     view.time = time;
+
+                    // Is a block in the way? (a raised wall, a pillar): from chest to chest
+                    const glm::vec3 from = f.body.position + glm::vec3(0, f.body.height * 0.6f, 0);
+                    const glm::vec3 to = target->body.position + glm::vec3(0, target->body.height * 0.6f, 0);
+                    const float span = glm::length(to - from);
+
+                    if (span > 1e-3f)
+                    {
+                        const RayHit hit = raycast(grid, content->blockTable, from, (to - from) / span, span);
+                        view.blocked = hit.hit;
+                        view.blockedDistance = hit.hit ? hit.distance : 0.0f;
+                    }
 
                     std::string error;
 
@@ -1074,6 +1094,345 @@ namespace arena
 
         if (body.position.y < -20.0f)
             respawn(f);
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Terrain
+    // --------------------------------------------------------------------------------------------
+
+    const AbilityDef* ArenaWorld::ability(int index) const
+    {
+        if (not content or index < 0 or index >= static_cast<int>(tuning.abilities.size()))
+            return nullptr;
+
+        auto it = content->abilities.find(tuning.abilities[index]);
+        return it == content->abilities.end() ? nullptr : &it->second;
+    }
+
+    bool ArenaWorld::aimedCell(const Fighter& f, const glm::vec3& origin, const glm::vec3& dir, float range, RayHit& out) const
+    {
+        if (glm::length(dir) < 1e-4f)
+            return false;
+
+        // The ray starts at the camera, behind the player: reach past the player by the range
+        const glm::vec3 head = f.body.position + glm::vec3(0, f.body.height * 0.9f, 0);
+        const float maxDist = glm::length(head - origin) + range + 1.0f;
+        out = raycast(grid, content->blockTable, origin, glm::normalize(dir), maxDist);
+
+        if (not out.hit or not grid.inBounds(out.cell.x, out.cell.y, out.cell.z))
+            return false;
+
+        // In reach of the player (not of the camera), measured to the nearest point of the block
+        const glm::vec3 lo(out.cell), hi = lo + glm::vec3(1.0f);
+        const glm::vec3 nearest = glm::clamp(head, lo, hi);
+        return glm::length(nearest - head) <= range;
+    }
+
+    bool ArenaWorld::cellOccupied(const glm::ivec3& c) const
+    {
+        for (const auto& f : fighters)
+        {
+            if (not f.alive())
+                continue;
+
+            const glm::vec3 lo = f.body.boxMin(), hi = f.body.boxMax();
+
+            if (hi.x > c.x and lo.x < c.x + 1 and hi.y > c.y and lo.y < c.y + 1 and hi.z > c.z and lo.z < c.z + 1)
+                return true;
+        }
+
+        return false;
+    }
+
+    void ArenaWorld::liftOut(const glm::ivec3& c)
+    {
+        for (auto& f : fighters)
+        {
+            if (not f.alive())
+                continue;
+
+            const glm::vec3 lo = f.body.boxMin(), hi = f.body.boxMax();
+
+            if (not (hi.x > c.x and lo.x < c.x + 1 and hi.y > c.y and lo.y < c.y + 1 and hi.z > c.z and lo.z < c.z + 1))
+                continue;
+
+            // Out to the side first (a boulder landing on someone shoves them out from under it),
+            // nearest free spot at the same height; then up (a pit filling in lifts its prisoner)
+            auto freeAt = [&](const glm::vec3& p) {
+                Body b = f.body;
+                b.position = p;
+                return not overlapsSolid(grid, content->blockTable, b.boxMin(), b.boxMax());
+            };
+
+            bool moved = false;
+
+            for (float r = 0.5f; r <= 3.0f and not moved; r += 0.5f)
+            {
+                for (int k = 0; k < 8; ++k)
+                {
+                    const float angle = static_cast<float>(k) * 0.7853982f;
+                    const glm::vec3 p = f.body.position + glm::vec3(std::cos(angle), 0.0f, std::sin(angle)) * r;
+
+                    if (freeAt(p))
+                    {
+                        f.body.position = p;
+                        moved = true;
+                        break;
+                    }
+                }
+            }
+
+            for (int i = 0; i < 12 and not moved and overlapsSolid(grid, content->blockTable, f.body.boxMin(), f.body.boxMax()); ++i)
+            {
+                const float before = f.body.position.y;
+                f.body.position.y = std::floor(f.body.position.y) + 1.0f;
+                f.stepOffset -= f.body.position.y - before;
+            }
+
+            f.body.velocity.y = std::max(f.body.velocity.y, 0.0f);
+        }
+    }
+
+    void ArenaWorld::useAbilities(Fighter& f, const InputFrame& in)
+    {
+        for (int i = 0; i < InputFrame::ABILITIES; ++i)
+            f.abilityCooldown[i] = std::max(0.0f, f.abilityCooldown[i] - STEP_SECONDS);
+
+        f.mineTimer = std::max(0.0f, f.mineTimer - STEP_SECONDS);
+
+        if (f.action != Action::Free)
+            return;
+
+        for (int i = 0; i < InputFrame::ABILITIES; ++i)
+        {
+            const AbilityDef* a = ability(i);
+
+            if (not a)
+                continue;
+
+            const bool trigger = a->kind == "mine" ? in.abilityHeld[i] or in.abilityPressed[i] : in.abilityPressed[i];
+
+            if (not trigger or f.abilityCooldown[i] > 0.0f)
+                continue;
+
+            // Like an attack: it needs some stamina to start, then costs what it costs
+            if (a->staminaCost > 0.0f and f.stamina < tuning.stamina.minToAct)
+                continue;
+
+            bool used = false;
+
+            if (a->kind == "wall")
+            {
+                // Across the view, `distance` ahead, standing on whatever ground is there
+                glm::vec3 fwd(in.aimDir.x, 0.0f, in.aimDir.z);
+                fwd = glm::length(fwd) > 1e-4f ? glm::normalize(fwd) : yawForward(f.yaw);
+                const glm::vec3 centre = f.body.position + fwd * a->distance;
+                const glm::ivec3 across = std::fabs(fwd.x) > std::fabs(fwd.z) ? glm::ivec3(0, 0, 1) : glm::ivec3(1, 0, 0);
+                const BlockId block = content->block(a->block);
+                const int feet = static_cast<int>(std::floor(f.body.position.y + 0.5f));
+
+                for (int k = 0; k < a->width; ++k)
+                {
+                    const glm::ivec3 column = glm::ivec3(std::floor(centre.x), 0, std::floor(centre.z)) + across * (k - (a->width - 1) / 2);
+
+                    int base = feet;
+                    for (int y = feet; y >= feet - 3; --y)
+                    {
+                        if (grid.isSolid(content->blockTable, column.x, y, column.z))
+                        {
+                            base = y + 1;
+                            break;
+                        }
+                    }
+
+                    for (int h = 0; h < a->height; ++h)
+                    {
+                        const glm::ivec3 cell(column.x, base + h, column.z);
+
+                        if (grid.inBounds(cell.x, cell.y, cell.z) and grid.get(cell.x, cell.y, cell.z) == AIR and not cellOccupied(cell))
+                        {
+                            terrain.placeFor(cell, block, a->lifetime);
+                            used = true;
+                        }
+                    }
+                }
+            }
+            else if (a->kind == "pit")
+            {
+                RayHit hit;
+
+                if (aimedCell(f, in.aimOrigin, in.aimDir, a->range, hit))
+                {
+                    // Centred on the point aimed at, dug down from the block hit
+                    const glm::vec3 point = in.aimOrigin + glm::normalize(in.aimDir) * hit.distance;
+                    const int x0 = static_cast<int>(std::floor(point.x - a->width * 0.5f + 0.5f));
+                    const int z0 = static_cast<int>(std::floor(point.z - a->width * 0.5f + 0.5f));
+
+                    for (int dx = 0; dx < a->width; ++dx)
+                        for (int dz = 0; dz < a->width; ++dz)
+                            for (int dy = 0; dy < a->depth; ++dy)
+                            {
+                                const glm::ivec3 cell(x0 + dx, hit.cell.y - dy, z0 + dz);
+
+                                if (terrain.breakable(grid.get(cell.x, cell.y, cell.z)))
+                                {
+                                    terrain.digFor(cell, a->lifetime);
+                                    used = true;
+                                }
+                            }
+                }
+            }
+            else if (a->kind == "mine" and f.mineTimer <= 0.0f)
+            {
+                RayHit hit;
+
+                if (aimedCell(f, in.aimOrigin, in.aimDir, a->range, hit) and terrain.breakable(grid.get(hit.cell.x, hit.cell.y, hit.cell.z)))
+                {
+                    terrain.damage(hit.cell, a->damage);
+                    f.mineTimer = 1.0f / a->rate;
+                    used = true;
+                }
+            }
+
+            if (used)
+            {
+                spendStamina(f, a->staminaCost);
+                f.abilityCooldown[i] = a->cooldown;
+            }
+        }
+    }
+
+    void ArenaWorld::terrainFromAttacks()
+    {
+        for (auto& attacker : fighters)
+        {
+            if (not attacker.alive() or attacker.hitstop > 0)
+                continue;
+
+            const AttackDef* a = currentAttack(attacker);
+
+            if (not a or a->terrainDamage <= 0.0f or not a->isActive(attacker.frame - 1))
+                continue;
+
+            for (const auto& box : a->hitboxes)
+            {
+                const glm::vec3 centre = attacker.body.position + localToWorld(attacker.yaw, box.offset);
+                const float reach = 0.5f * glm::length(glm::vec2(box.size.x, box.size.z));
+                const glm::ivec3 lo(glm::floor(centre - glm::vec3(reach, box.size.y * 0.5f, reach)));
+                const glm::ivec3 hi(glm::floor(centre + glm::vec3(reach, box.size.y * 0.5f, reach)));
+
+                for (int y = lo.y; y <= hi.y; ++y)
+                    for (int z = lo.z; z <= hi.z; ++z)
+                        for (int x = lo.x; x <= hi.x; ++x)
+                        {
+                            if (not grid.inBounds(x, y, z) or not terrain.breakable(grid.get(x, y, z)))
+                                continue;
+
+                            // The cell as a one-block body, against the rotated hitbox
+                            Body cell;
+                            cell.position = glm::vec3(x + 0.5f, static_cast<float>(y), z + 0.5f);
+                            cell.width = 1.0f;
+                            cell.height = 1.0f;
+
+                            if (not boxHitsBody(centre, box.size, attacker.yaw, cell))
+                                continue;
+
+                            const size_t index = grid.index(x, y, z);
+
+                            if (std::find(attacker.cellsHitThisSwing.begin(), attacker.cellsHitThisSwing.end(), index) != attacker.cellsHitThisSwing.end())
+                                continue;
+
+                            attacker.cellsHitThisSwing.push_back(index);
+                            terrain.damage(glm::ivec3(x, y, z), a->terrainDamage);
+                        }
+            }
+        }
+    }
+
+    void ArenaWorld::stepTerrain()
+    {
+        // Where the falling pieces are, to shake the camera when one lands near the player
+        std::map<int, glm::vec3> pieceCentres;
+        for (const auto& piece : terrain.falling)
+            pieceCentres[piece.id] = glm::vec3(piece.origin) - glm::vec3(0, piece.drop, 0);
+
+        TerrainEvents events;
+        terrain.step(STEP_SECONDS, time, tuning.terrain.gravity, events);
+
+        // Falling pieces crush whoever they fall on, once each
+        for (auto& piece : terrain.falling)
+        {
+            if (piece.speed < 2.0f)
+                continue;
+
+            for (auto& f : fighters)
+            {
+                if (not f.alive() or std::find(piece.crushed.begin(), piece.crushed.end(), f.id) != piece.crushed.end())
+                    continue;
+
+                const glm::vec3 blo = f.body.boxMin(), bhi = f.body.boxMax();
+                bool touching = false;
+
+                for (const auto& l : piece.occupied)
+                {
+                    const glm::vec3 lo = piece.cellMin(l), hi = lo + glm::vec3(1.0f);
+
+                    if (bhi.x > lo.x and blo.x < hi.x and bhi.y > lo.y and blo.y < hi.y and bhi.z > lo.z and blo.z < hi.z)
+                    {
+                        touching = true;
+                        break;
+                    }
+                }
+
+                if (not touching)
+                    continue;
+
+                piece.crushed.push_back(f.id);
+
+                const auto& T = tuning.terrain;
+                const float damage = std::min(T.crushMax, T.crushDamage + T.crushPerBlock * static_cast<float>(piece.occupied.size()));
+
+                AttackDef crush;
+                crush.name = "crush";
+                crush.damage = damage;
+                crush.poiseDamage = T.crushPoise;
+                crush.knockback = 3.0f;
+                crush.hitstop = 4;
+                crush.shake = T.crushShake;
+
+                // A stand-in attacker at the piece's centre, so the knockback pushes out from under it
+                Fighter rock;
+                rock.id = 0;
+                rock.team = f.team == Team::Player ? Team::Enemy : Team::Player;
+                glm::vec3 centre(0.0f);
+                for (const auto& l : piece.occupied)
+                    centre += piece.cellMin(l) + glm::vec3(0.5f);
+                rock.body.position = centre / static_cast<float>(piece.occupied.size());
+                rock.yaw = f.yaw + 180.0f;
+
+                applyHit(rock, f, crush);
+                hits.back().point = f.body.position + glm::vec3(0, f.body.height, 0);
+            }
+        }
+
+        // Blocks back in the grid (a pit filling in, a piece landing) lift whoever stands in them
+        for (const auto& c : events.filled)
+            liftOut(c);
+
+        if (const Fighter* p = player())
+        {
+            for (int id : events.landed)
+            {
+                auto it = pieceCentres.find(id);
+
+                if (it != pieceCentres.end() and glm::length(it->second - p->body.position) < 14.0f)
+                    terrainShake += tuning.terrain.crushShake * 0.5f;
+            }
+        }
+
+        terrainEvents.broken.insert(terrainEvents.broken.end(), events.broken.begin(), events.broken.end());
+        terrainEvents.fell.insert(terrainEvents.fell.end(), events.fell.begin(), events.fell.end());
+        terrainEvents.landed.insert(terrainEvents.landed.end(), events.landed.begin(), events.landed.end());
     }
 
     // --------------------------------------------------------------------------------------------

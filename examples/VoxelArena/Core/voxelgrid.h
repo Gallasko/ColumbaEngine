@@ -19,6 +19,8 @@ namespace arena
         bool solid = true;                   // collides
         bool visible = true;                 // gets faces
         float colorNoise = 0.0f;             // 0..1, per-block brightness jitter so flat ground reads as voxels
+        float hardness = 50.0f;              // hit points: damage needed to break it
+        bool breakable = true;               // false: nothing breaks it, and it anchors what rests on it
     };
 
     using BlockTable = std::vector<BlockLook>;
@@ -76,12 +78,13 @@ namespace arena
 
         const std::vector<BlockId>& raw() const { return cells; }
 
-    private:
+        /** Flat index of a cell (inBounds must hold). */
         size_t index(int x, int y, int z) const
         {
             return static_cast<size_t>(x) + static_cast<size_t>(w) * (static_cast<size_t>(z) + static_cast<size_t>(d) * static_cast<size_t>(y));
         }
 
+    private:
         int w = 0, h = 0, d = 0;
         std::vector<BlockId> cells;
         uint64_t rev = 0;

@@ -10,6 +10,8 @@
 //   me.time, me.dt   seconds since the arena started, length of a frame
 //   me.targetAction  what the player does: "free", "attack", "dodge", "stagger", "dead"
 //   me.targetAttacking, me.targetDodging, me.targetStaggered (true/false)
+//   me.blocked       true when a block stands between me and the player (a raised wall)
+//   me.blockedDistance  how far that block is
 //   me.params        the "params" object of enemies/brute.json
 //   me.id            my id, unique per enemy
 //
@@ -54,6 +56,11 @@ fun think(me)
         me.move = "strafe"
         me.strafe = me.side
         me.speed = 0.6
+    }
+    else if (me.blocked and me.blockedDistance <= p.attackRange and me.sinceAttack > p.cooldown)
+    {
+        // Something in the way: smash it (the slam breaks terrain)
+        me.attack = "slam"
     }
     else if (me.distance <= p.attackRange and abs(me.angle) < p.attackAngle and me.sinceAttack > p.cooldown)
     {

@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "content.h"
 
@@ -128,6 +129,18 @@ namespace arena
             float aimAssistAngle = 60.0f;  // degrees: attacks snap to an enemy within this cone ...
             float aimAssistRange = 4.0f;   // ... and this distance
         } combat;
+
+        struct Terrain
+        {
+            float gravity = 30.0f;          // m/s^2 for falling pieces
+            float crushDamage = 30.0f;      // a falling piece hitting a fighter ...
+            float crushPerBlock = 3.0f;     // ... plus this per block of the piece ...
+            float crushMax = 90.0f;         // ... up to this
+            float crushPoise = 60.0f;
+            float crushShake = 0.6f;        // camera trauma when a piece lands near the player
+        } terrain;
+
+        std::vector<std::string> abilities = {"base:raise_wall", "base:dig_pit", "base:mine"};   // ability1, 2, 3...
 
         std::string playerModel = "base:player";
         std::string startWeapon = "base:sword";

@@ -45,6 +45,7 @@
                 "swing": { "yawFrom": -85, "yawTo": 80, "pitchFrom": -10, "pitchTo": 10 }
             },
             "light3": {
+                "terrainDamage": 20,
                 "moveSpeed": 0.6,
                 "startup": 12, "active": 5, "recovery": 26,
                 "damage": 18, "poiseDamage": 26, "staminaCost": 14,
@@ -56,6 +57,7 @@
                 "swing": { "yawFrom": 0, "yawTo": 0, "pitchFrom": 95, "pitchTo": -40 }
             },
             "heavy": {
+                "terrainDamage": 45,
                 "moveSpeed": 0.25,
                 "startup": 22, "active": 5, "recovery": 28,
                 "damage": 26, "poiseDamage": 40, "staminaCost": 26,

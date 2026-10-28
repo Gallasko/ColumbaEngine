@@ -94,12 +94,16 @@ namespace arena
 
         banner = makeText(w * 0.5f - 300.0f, 12, 3, FONT, "", 0.9f, glm::vec4(255, 120, 110, 255));
         center = makeText(w * 0.5f - 90.0f, h * 0.4f, 3, FONT, "", 1.8f, glm::vec4(255, 230, 220, 255));
-        weapon = makeText(MARGIN, h - MARGIN - BAR_H * 2 - 40.0f, 2, FONT, "", 0.9f, TEXT);
+        weapon = makeText(MARGIN, h - MARGIN - BAR_H * 2 - 62.0f, 2, FONT, "", 0.9f, TEXT);   // two lines: weapons, abilities
 
         healthBack = makeQuad(MARGIN, h - MARGIN - BAR_H * 2 - 6.0f, 1, BAR_W, BAR_H, PANEL);
         healthFill = makeQuad(MARGIN, h - MARGIN - BAR_H * 2 - 6.0f, 2, BAR_W, BAR_H, HEALTH);
         staminaBack = makeQuad(MARGIN, h - MARGIN - BAR_H, 1, BAR_W, BAR_H, PANEL);
         staminaFill = makeQuad(MARGIN, h - MARGIN - BAR_H, 2, BAR_W, BAR_H, STAMINA);
+
+        // Crosshair: where the terrain abilities aim
+        crossH = makeQuad(w * 0.5f - 7.0f, h * 0.5f - 1.0f, 2, 14.0f, 2.0f, glm::vec4(255, 255, 255, 190));
+        crossV = makeQuad(w * 0.5f - 1.0f, h * 0.5f - 7.0f, 2, 2.0f, 14.0f, glm::vec4(255, 255, 255, 190));
 
         consoleBack = makeQuad(0, h - 230.0f, 5, w, 230.0f, glm::vec4(8, 10, 16, 220));
         consoleText = makeText(12, h - 222.0f, 6, MONO, "", 0.8f, TEXT);
@@ -218,6 +222,16 @@ namespace arena
 
         lastConsole = all;
         text(consoleText, all);
+    }
+
+    void Hud::setCrosshair(bool visible)
+    {
+        if (visible == lastCrosshair)
+            return;
+
+        show(crossH, visible);
+        show(crossV, visible);
+        lastCrosshair = visible;
     }
 
     void Hud::setBars(float health, float stamina, bool exhausted)

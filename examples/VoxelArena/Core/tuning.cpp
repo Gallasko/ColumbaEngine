@@ -84,6 +84,13 @@ namespace arena
         f("feel.knockbackFriction", feel.knockbackFriction);
         f("feel.landingShake", feel.landingShake);
 
+        f("terrain.gravity", terrain.gravity);
+        f("terrain.crushDamage", terrain.crushDamage);
+        f("terrain.crushPerBlock", terrain.crushPerBlock);
+        f("terrain.crushMax", terrain.crushMax);
+        f("terrain.crushPoise", terrain.crushPoise);
+        f("terrain.crushShake", terrain.crushShake);
+
         f("combat.inputBuffer", combat.inputBuffer);
         f("combat.aimAssistAngle", combat.aimAssistAngle);
         f("combat.aimAssistRange", combat.aimAssistRange);
@@ -246,6 +253,15 @@ namespace arena
         {
             t.playerModel = player->str("model", t.playerModel);
             t.startWeapon = player->str("weapon", t.startWeapon);
+
+            if (const Json* list = player->find("abilities"))
+            {
+                t.abilities.clear();
+
+                for (const auto& e : list->array)
+                    if (e.isString())
+                        t.abilities.push_back(e.string);
+            }
         }
 
         return t;

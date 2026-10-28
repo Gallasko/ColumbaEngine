@@ -48,6 +48,7 @@
                 "swing": { "yaw": 0, "pitchFrom": 8, "pitchTo": -8, "reach": 1.3 }
             },
             "sweep": {
+                "terrainDamage": 30,
                 "moveSpeed": 0.25,
                 "startup": 18, "active": 7, "recovery": 26,
                 "damage": 20, "poiseDamage": 34, "staminaCost": 24,

@@ -40,6 +40,9 @@ Options:
 | Right mouse / K | Heavy attack |
 | 1, 2 ... | Pick a weapon (1 = sword, 2 = spear from testmod) |
 | V | Third person / first person |
+| Q | Raise a wall of earth in front of you |
+| E | Dig a pit where the crosshair is |
+| F / middle mouse (hold) | Mine the block under the crosshair |
 | F1 | Debug overlay |
 | F2 | Hitboxes (red: active, orange: winding up) and hurtboxes (green, blue while invulnerable) |
 | F5 | Reload all content |
@@ -81,6 +84,26 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
 - **The brute** tracks you while it winds up its slam (it glows orange), then commits. Roll late,
   then punish its long recovery. A heavy attack or a full light combo breaks its poise.
 
+## Terrain as a weapon
+
+The arena can be broken, and breaking it is part of the fight.
+
+- **Blocks** have `hardness` (the damage it takes to break them) and `breakable`. The floor's bedrock
+  and the outer walls are unbreakable. A damaged block darkens as it gets close to breaking.
+- **Abilities** (`mods/base/abilities/`, data like the rest; the player's are listed in
+  `player.abilities`): `raise_wall` puts up a short-lived earth wall, `dig_pit` digs a pit that fills
+  back in later (lifting whoever is inside), `mine` chips at the aimed block. They aim with the
+  crosshair; the block it is on is outlined when an ability can reach it.
+- **Collapse**: blocks that are no longer connected to the ground (or to an unbreakable block) fall as
+  one piece and crush what they land on (`terrain` section of the tuning). The arena has a trap for
+  it: a boulder hanging from a rope between two pillars, near the centre. Stand about 5 m away, aim
+  up at the rope over the boulder and mine it.
+- **Attacks break terrain** with `terrainDamage`: the brute's slam goes through a raised wall, and its
+  script slams on purpose when a block stands between it and you (`me.blocked`). The sword's heavy
+  breaks earth too.
+- An enemy that falls in a pit cannot step out (step-up is one block); the pit fills back in after
+  `lifetime` seconds.
+
 ## Layout
 
 ```
@@ -93,6 +116,7 @@ examples/VoxelArena/
     content      mods, load order, registries, overrides, patches, typed definitions
     tuning       every gameplay number, read from tuning.json
     world        the simulation: player, enemies, attacks, dodges, hits (60 steps per second)
+    terrain      block damage, blocks that last a while, collapse and falling pieces
     scriptbrain  enemy behaviour in pgscript, one sandboxed VM per script
     orbitcamera  the third-person camera: smoothing, wall pull-in, shake
   Game/          the engine side: input, drawing, HUD, console
@@ -129,7 +153,8 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 
 | File | Defines | ID |
 |---|---|---|
-| `blocks.json` | blocks: `color`, `solid`, `colorNoise` | `mymod:<key>` |
+| `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable` | `mymod:<key>` |
+| `abilities/<name>.json` | a terrain ability (`kind`: wall, pit, mine) | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
 | `enemies/<name>.json` | an enemy: stats, moveset, script, params | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
@@ -222,7 +247,7 @@ Scripted input, for tests and for checking frame data: `mouse off` (ignore the r
 For example:
 
 ```sh
-./release/VoxelArena --exec "hitboxes; slowmo 0.25; teleport 37.5 2 24.4; wait 30; press light"
+./release/VoxelArena --exec "hitboxes; slowmo 0.25; teleport 37.5 4 24.4; wait 30; press light"
 ```
 
 ## Not done yet
@@ -230,5 +255,5 @@ For example:
 - Enemies and the player have no limb animation: poses come from rotating the whole model.
 - No sounds and no hit particles.
 - The HUD is laid out for the starting window size and does not follow a resize.
-- Chunks, worldgen, lighting, inventory and digging in normal play are out of scope for 0.1 (the
-  console can still edit the arena, which re-meshes the grid).
+- Chunks, worldgen, lighting and inventory are out of scope for now.
+- Breaking blocks has no particles or sound yet, and falling pieces do not tumble.

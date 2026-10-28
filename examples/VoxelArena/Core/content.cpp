@@ -543,7 +543,7 @@ namespace arena
             }
 
             // One definition per file
-            for (const auto& [kind, folder] : std::vector<std::pair<std::string, std::string>>{{"weapon", "weapons"}, {"enemy", "enemies"}})
+            for (const auto& [kind, folder] : std::vector<std::pair<std::string, std::string>>{{"weapon", "weapons"}, {"enemy", "enemies"}, {"ability", "abilities"}})
             {
                 for (const auto& path : filesIn(dir / folder, ".json"))
                 {
@@ -714,7 +714,7 @@ namespace arena
                     continue;
                 }
 
-                checkKeys(j, {"color", "solid", "colorNoise", "name"}, raw.file, report, "block " + id);
+                checkKeys(j, {"color", "solid", "colorNoise", "name", "hardness", "breakable"}, raw.file, report, "block " + id);
 
                 BlockDef def;
                 def.id = id;
@@ -724,6 +724,8 @@ namespace arena
                 def.look.color = glm::clamp(color / 255.0f, glm::vec3(0.0f), glm::vec3(1.0f));
                 readBool(j, "solid", def.look.solid, raw.file, report);
                 readNum(j, "colorNoise", def.look.colorNoise, raw.file, report);
+                readNum(j, "hardness", def.look.hardness, raw.file, report);
+                readBool(j, "breakable", def.look.breakable, raw.file, report);
 
                 if (content.blocks.size() >= 65535)
                 {
@@ -943,6 +945,63 @@ namespace arena
             }
         }
 
+        void typeAbilities(Content& content)
+        {
+            auto& report = content.report;
+
+            for (const auto& [id, raw] : content.raw["ability"])
+            {
+                const Json& j = raw.data;
+
+                checkKeys(j, {"id", "name", "kind", "block", "staminaCost", "cooldown", "range", "distance", "lifetime", "damage", "rate", "width", "height", "depth"},
+                          raw.file, report, "ability " + id);
+
+                AbilityDef a;
+                a.id = id;
+                a.file = raw.file;
+                a.name = splitId(id).second;
+                readStr(j, "name", a.name, raw.file, report);
+                readStr(j, "kind", a.kind, raw.file, report);
+                readStr(j, "block", a.block, raw.file, report);
+                readNum(j, "staminaCost", a.staminaCost, raw.file, report);
+                readNum(j, "cooldown", a.cooldown, raw.file, report);
+                readNum(j, "range", a.range, raw.file, report);
+                readNum(j, "distance", a.distance, raw.file, report);
+                readNum(j, "lifetime", a.lifetime, raw.file, report);
+                readNum(j, "damage", a.damage, raw.file, report);
+                readNum(j, "rate", a.rate, raw.file, report);
+                readInt(j, "width", a.width, raw.file, report);
+                readInt(j, "height", a.height, raw.file, report);
+                readInt(j, "depth", a.depth, raw.file, report);
+
+                const int kindLine = j.find("kind") ? j.find("kind")->line : j.line;
+
+                if (a.kind != "wall" and a.kind != "pit" and a.kind != "mine")
+                {
+                    report.error(raw.file, kindLine, "ability \"" + id + "\" needs a \"kind\": wall, pit or mine");
+                    continue;
+                }
+
+                if (a.kind == "wall")
+                {
+                    a.block = resolveId(a.block, raw.mod);
+
+                    if (content.block(a.block) == AIR)
+                    {
+                        report.error(raw.file, j.find("block") ? j.find("block")->line : j.line, "ability \"" + id + "\": unknown block \"" + a.block + "\"");
+                        continue;
+                    }
+                }
+
+                a.width = std::clamp(a.width, 1, 9);
+                a.height = std::clamp(a.height, 1, 9);
+                a.depth = std::clamp(a.depth, 1, 9);
+                a.rate = std::max(0.1f, a.rate);
+
+                content.abilities[id] = std::move(a);
+            }
+        }
+
         void loadModels(Content& content)
         {
             for (const auto& [id, raw] : content.raw["model"])
@@ -965,7 +1024,7 @@ namespace arena
         }
 
         checkKeys(j, {"startup", "active", "recovery", "damage", "poiseDamage", "staminaCost", "knockback", "knockup", "hitstop", "shake",
-                      "hitboxes", "lunge", "lungeFrom", "lungeTo", "turnRate", "moveSpeed", "moveUntil", "armor", "dodgeCancelFrom", "chainFrom", "bufferFrom",
+                      "hitboxes", "lunge", "lungeFrom", "lungeTo", "turnRate", "moveSpeed", "moveUntil", "armor", "terrainDamage", "dodgeCancelFrom", "chainFrom", "bufferFrom",
                       "next", "swing"},
                   file, report, "attack " + name);
 
@@ -992,6 +1051,7 @@ namespace arena
         if (a.moveSpeed < 0.0f or a.moveSpeed > 1.5f)
             report.error(file, j.find("moveSpeed")->line, "attack \"" + name + "\": moveSpeed is a fraction of the walk speed, 0 to 1.5");
         readNum(j, "armor", a.armor, file, report);
+        readNum(j, "terrainDamage", a.terrainDamage, file, report);
         readInt(j, "dodgeCancelFrom", a.dodgeCancelFrom, file, report);
         readInt(j, "chainFrom", a.chainFrom, file, report);
         readInt(j, "bufferFrom", a.bufferFrom, file, report);
@@ -1201,6 +1261,7 @@ namespace arena
         loadModels(content);
         typeWeapons(content);
         typeEnemies(content);
+        typeAbilities(content);
         typeArena(content);
 
         if (content.tuning.isNull())

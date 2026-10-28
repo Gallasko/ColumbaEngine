@@ -31,6 +31,7 @@ namespace arena
         void setConsole(bool open, const std::vector<std::string>& lines, const std::string& input);
 
         void setBars(float health, float stamina, bool exhausted);
+        void setCrosshair(bool visible);
 
         /** One bar per entry, screen pixels; extra bars are hidden. */
         struct EnemyBar
@@ -57,6 +58,8 @@ namespace arena
         pg::_unique_id banner = 0, center = 0, weapon = 0;
         pg::_unique_id consoleBack = 0, consoleText = 0;
         pg::_unique_id healthBack = 0, healthFill = 0, staminaBack = 0, staminaFill = 0;
+        pg::_unique_id crossH = 0, crossV = 0;
+        bool lastCrosshair = true;
 
         struct EnemyBarIds { pg::_unique_id back, fill, poise; };
         std::vector<EnemyBarIds> enemyBars;

@@ -6,6 +6,8 @@
         "model": "base:player",
         "modelScale": 0.125,
         "weapon": "base:sword",
+        // Terrain abilities on the keys ability1, ability2, ability3 (Q, E, F by default)
+        "abilities": ["base:raise_wall", "base:dig_pit", "base:mine"],
         "hand": [0.42, 0.95, 0.3],
 
         "width": 0.6,
@@ -127,7 +129,20 @@
         "light": ["Mouse1", "J"],
         "heavy": ["Mouse3", "K"],
         "freeCursor": ["Left Alt"],
-        "toggleView": ["V"]
+        "toggleView": ["V"],
+        "ability1": ["Q"],
+        "ability2": ["E"],
+        "ability3": ["F", "Mouse2"]
+    },
+
+    // Pieces of the arena that lose their support fall, and crush what they land on
+    "terrain": {
+        "gravity": 30,
+        "crushDamage": 30,
+        "crushPerBlock": 3,
+        "crushMax": 90,
+        "crushPoise": 60,
+        "crushShake": 0.6
     },
 
     "combat": {

@@ -1716,6 +1716,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Core/world.cpp
             examples/VoxelArena/Core/scriptbrain.cpp
             examples/VoxelArena/Core/orbitcamera.cpp
+            examples/VoxelArena/Core/terrain.cpp
         )
 
         add_executable(VoxelArena examples/VoxelArena/main.cpp)
@@ -1742,6 +1743,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/voxelarena/content.cc
             test/voxelarena/world.cc
             test/voxelarena/camera.cc
+            test/voxelarena/terrain.cc
             examples/VoxelTest/voxelserializer.cpp   # the editor's .vxl.json loader, to check the models stay editable
             ${VOXELARENA_CORE}
         )

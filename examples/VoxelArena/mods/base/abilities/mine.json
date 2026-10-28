@@ -1,0 +1,10 @@
+// F or the middle mouse button, held: chips at the block you aim at. Cut ropes, break pillars, dig out.
+{
+    "name": "Mine",
+    "kind": "mine",
+    "damage": 40,
+    "rate": 4,
+    "range": 8,
+    "staminaCost": 0,
+    "cooldown": 0
+}

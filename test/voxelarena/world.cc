@@ -808,3 +808,153 @@ TEST(arena_world, the_hard_landing_slows_and_a_dodge_pressed_early_in_the_fall_s
     ASSERT_EQ(a.player().action, Action::Land);
     EXPECT_NEAR(a.player().body.velocity.z, a.tuning.player.walkSpeed * a.tuning.player.hardLandingMoveSpeed, 0.1f);
 }
+
+// ---- Terrain as a weapon ----
+
+namespace
+{
+    /** A thicker floor: bedrock, then two layers of dirt; the player stands at y = 3. */
+    void thickFloor(Arena& a)
+    {
+        a.content.arena.shapes = parseJson(R"([
+            { "block": "bedrock", "from": [0, 0, 0], "to": [31, 0, 31] },
+            { "block": "dirt", "from": [0, 1, 0], "to": [31, 2, 31] } ])").value;
+        a.content.arena.playerSpawn = glm::vec3(16, 3, 8);
+        a.world.start(a.content, a.tuning);
+        a.settle(30);
+    }
+
+    InputFrame aimAt(const Fighter& p, const glm::vec3& target)
+    {
+        InputFrame in;
+        in.aimOrigin = p.body.position + glm::vec3(0, 1.6f, 0);
+        in.aimDir = glm::normalize(target - in.aimOrigin);
+        return in;
+    }
+}
+
+TEST(arena_terrain_play, raise_wall_builds_ahead_and_crumbles_later)
+{
+    Arena a;
+    thickFloor(a);
+    const auto* wall = a.content.abilities.count("base:raise_wall") ? &a.content.abilities.at("base:raise_wall") : nullptr;
+    ASSERT_TRUE(wall);
+
+    InputFrame in;
+    in.aimDir = glm::vec3(0, 0, 1);
+    in.abilityPressed[0] = true;
+    a.world.step(in);
+
+    const BlockId earth = a.content.block("base:earth");
+    int blocks = 0;
+    for (int x = 13; x <= 19; ++x)
+        for (int y = 3; y <= 5; ++y)
+            blocks += a.world.grid.get(x, y, 10) == earth;
+
+    EXPECT_EQ(blocks, wall->width * wall->height);
+    EXPECT_LT(a.player().stamina, a.tuning.stamina.max);
+
+    a.run(static_cast<int>((wall->lifetime + 0.5f) * 60.0f));
+    blocks = 0;
+    for (int x = 13; x <= 19; ++x)
+        for (int y = 3; y <= 5; ++y)
+            blocks += a.world.grid.get(x, y, 10) == earth;
+    EXPECT_EQ(blocks, 0);
+}
+
+TEST(arena_terrain_play, a_pit_drops_an_enemy_and_lifts_it_out_when_it_fills)
+{
+    Arena a;
+    thickFloor(a);
+    const int dummy = a.world.spawnEnemy("base:dummy", glm::vec3(16.5f, 3.0f, 13.5f), 0.0f);
+    a.settle(10);
+
+    InputFrame in = aimAt(a.player(), glm::vec3(16.5f, 3.0f, 13.5f));
+    in.abilityPressed[1] = true;
+    a.world.step(in);
+    a.settle(40);
+
+    EXPECT_NEAR(a.world.find(dummy)->body.position.y, 1.0f, 0.05f);   // two blocks down, on the bedrock
+
+    a.run(static_cast<int>((a.content.abilities.at("base:dig_pit").lifetime + 0.5f) * 60.0f));
+    EXPECT_NEAR(a.world.find(dummy)->body.position.y, 3.0f, 0.05f);   // filled in, back on top
+}
+
+TEST(arena_terrain_play, cutting_the_rope_drops_the_boulder_on_the_brute)
+{
+    Arena a;
+    thickFloor(a);
+    a.world.aiEnabled = false;
+
+    const BlockId stone = a.content.block("base:stone");
+    const BlockId rope = a.content.block("base:rope");
+    const BlockId boulder = a.content.block("base:boulder");
+    a.world.grid.fill({12, 3, 20}, {12, 11, 20}, stone);
+    a.world.grid.fill({12, 12, 20}, {20, 12, 20}, a.content.block("base:planks"));
+    a.world.grid.fill({16, 9, 20}, {16, 11, 20}, rope);
+    a.world.grid.fill({15, 6, 19}, {17, 8, 21}, boulder);   // 3 m over the ground, on a rope long enough to see
+
+    const int brute = a.world.spawnEnemy("base:brute", glm::vec3(16.5f, 3.0f, 20.5f), 0.0f);
+    a.player().body.position = glm::vec3(16.5f, 3.0f, 15.5f);
+    a.settle(10);
+    const float before = a.world.find(brute)->health;
+
+    // Aim up at the rope, over the boulder's top, and mine until it gives
+    InputFrame in = aimAt(a.player(), glm::vec3(16.5f, 10.5f, 20.0f));
+    in.abilityHeld[2] = true;
+    for (int i = 0; i < 30; ++i)
+        a.world.step(in);
+
+    EXPECT_EQ(a.world.grid.get(16, 10, 20), AIR);
+    a.settle(90);
+
+    EXPECT_LT(a.world.find(brute)->health, before - a.tuning.terrain.crushDamage);
+    EXPECT_EQ(a.world.grid.get(16, 8, 20), AIR);       // the boulder left its rope
+    EXPECT_EQ(a.world.grid.get(15, 3, 19), boulder);   // and lies on the ground
+
+    // The brute was shoved out from under it, still on the ground (not stood on top of the rock)
+    const Fighter* b = a.world.find(brute);
+    EXPECT_NEAR(b->body.position.y, 3.0f, 0.05f);
+    EXPECT_FALSE(overlapsSolid(a.world.grid, a.content.blockTable, b->body.boxMin(), b->body.boxMax()));
+}
+
+TEST(arena_terrain_play, the_brute_smashes_a_wall_raised_in_its_way)
+{
+    Arena a;
+    thickFloor(a);
+    ScriptBrain brain;
+    ContentReport report;
+    brain.load(a.content, report);
+    ASSERT_TRUE(report.errors.empty());
+    a.world.setBrain(&brain);
+    a.world.godMode = true;
+
+    const int brute = a.world.spawnEnemy("base:brute", glm::vec3(16.5f, 3.0f, 15.0f), 180.0f);
+    a.settle(5);
+
+    // Wall up between the two
+    InputFrame in;
+    in.aimDir = glm::vec3(0, 0, 1);
+    in.abilityPressed[0] = true;
+    a.world.step(in);
+
+    const BlockId earth = a.content.block("base:earth");
+    auto wallBlocks = [&] {
+        int n = 0;
+        for (int x = 13; x <= 19; ++x)
+            for (int y = 3; y <= 5; ++y)
+                n += a.world.grid.get(x, y, 10) == earth;
+        return n;
+    };
+    ASSERT_GT(wallBlocks(), 0);
+
+    bool slammed = false;
+    for (int i = 0; i < 60 * 6 and wallBlocks() == 6; ++i)
+    {
+        a.world.step(InputFrame{});
+        slammed = slammed or a.world.find(brute)->attack == "slam";
+    }
+
+    EXPECT_TRUE(slammed);
+    EXPECT_LT(wallBlocks(), 6);
+}
