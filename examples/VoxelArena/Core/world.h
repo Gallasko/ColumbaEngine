@@ -102,6 +102,8 @@ namespace arena
         float landedSpeed = 0.0f;   // falling speed of a landing made this step, 0 when none
         bool airborneStagger = false;   // knocked into the air: a dodge on landing gets up at once
         float airDodgeAge = -1.0f;      // seconds since a dodge pressed in the air, kept for the landing
+        glm::vec3 aimDir = glm::vec3(0, 0, 1);   // player: the crosshair's direction, for what the player shoots
+        float aiRadius = 2.5f;          // the circle a flanking enemy keeps around the target
         float jumpBuffer = 0.0f;
         bool jumping = false;
 
@@ -125,6 +127,33 @@ namespace arena
             // Read after the step advanced the counter: the frame just played is frame - 1
             return action == Action::Dodge and frame - 1 >= t.dodge.iframeStart and frame - 1 < t.dodge.iframeEnd;
         }
+    };
+
+    /**
+     * Something worth a sound or particles: the game turns these into effects through effects.json.
+     * kind: hit, stagger, kill, swing, windup, shoot, arrow_hit, dodge, jump, land, hard_land,
+     *       chip, break, raise, dig, piece_fall, piece_land
+     */
+    struct WorldEvent
+    {
+        std::string kind;
+        glm::vec3 position = glm::vec3(0.0f);
+        glm::vec3 color = glm::vec3(1.0f);    // the block's colour for terrain events
+        float strength = 1.0f;                // damage, fall speed...
+        int fighter = 0;                      // who it happened to (0: nobody)
+    };
+
+    /** Something shot by an attack (see ProjectileDef). */
+    struct Projectile
+    {
+        int id = 0;
+        int owner = 0;
+        Team team = Team::Enemy;
+        std::string attack;
+        ProjectileDef def;
+        glm::vec3 position = glm::vec3(0.0f);
+        glm::vec3 velocity = glm::vec3(0.0f);
+        float age = 0.0f;
     };
 
     struct HitEvent
@@ -151,15 +180,22 @@ namespace arena
         float time = 0.0f;           // seconds since the world started
         bool blocked = false;        // a block stands between self and the target
         float blockedDistance = 0.0f;// how far that block is
+
+        // The rest of the group, for scripts that take turns or work together
+        int alliesNear = 0;          // other enemies within 15 m
+        int alliesAttacking = 0;     // other enemies in an attack right now
+        int alliesNearTarget = 0;    // other enemies within 3.5 m of the target
+        float targetFacing = 0.0f;   // degrees between where the target looks and self: 0 in its face, 180 behind it
     };
 
     struct BrainOrder
     {
-        std::string move = "hold";   // hold, chase, strafe, retreat
+        std::string move = "hold";   // hold, chase, strafe, retreat, flank (round to the target's back)
         std::string attack;          // attack name to start now, empty for none
         float strafe = 1.0f;         // strafe side: + right, - left
         float speed = 1.0f;          // walk speed multiplier
         bool face = true;            // turn to the target
+        float radius = 2.5f;         // flank: the distance kept from the target while going round
     };
 
     /** Decides what an enemy does. The game's is pgscript (ScriptBrain); tests use plain C++. */
@@ -221,6 +257,9 @@ namespace arena
         std::vector<Fighter> fighters;
         std::vector<HitEvent> hits;   // since the last drain, read by the game for feedback
 
+        std::vector<Projectile> projectiles;
+        std::vector<WorldEvent> events;   // since the last drain, read by the game for sounds and particles
+
         Terrain terrain;
         TerrainEvents terrainEvents;  // since the last drain, read by the game
         float terrainShake = 0.0f;    // camera trauma from falling pieces near the player, since the last drain
@@ -249,6 +288,11 @@ namespace arena
         void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
         void separate();
         void useAbilities(Fighter& f, const InputFrame& in);
+        void fireProjectiles();
+        void stepProjectiles();
+        void event(const std::string& kind, const glm::vec3& position, float strength = 1.0f, int fighter = 0, const glm::vec3& color = glm::vec3(1.0f));
+        glm::vec3 chest(const Fighter& f) const { return f.body.position + glm::vec3(0, f.body.height * 0.6f, 0); }
+        int nextProjectile = 1;
         void terrainFromAttacks();
         void stepTerrain();
         bool cellOccupied(const glm::ivec3& cell) const;

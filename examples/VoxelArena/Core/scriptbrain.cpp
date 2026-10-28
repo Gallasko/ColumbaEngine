@@ -335,6 +335,10 @@ namespace arena
         me->setField("targetStaggered", makeBoolValue(target.action == Action::Stagger));
         me->setField("blocked", makeBoolValue(view.blocked));
         me->setField("blockedDistance", makeDoubleValue(view.blockedDistance));
+        me->setField("alliesNear", makeIntValue(view.alliesNear));
+        me->setField("alliesAttacking", makeIntValue(view.alliesAttacking));
+        me->setField("alliesNearTarget", makeIntValue(view.alliesNearTarget));
+        me->setField("targetFacing", makeDoubleValue(view.targetFacing));
 
         const std::string action = actionName(target.action);
 
@@ -350,6 +354,7 @@ namespace arena
         me->setField("strafe", makeDoubleValue(1.0));
         me->setField("speed", makeDoubleValue(1.0));
         me->setField("face", makeBoolValue(true));
+        me->setField("radius", makeDoubleValue(2.5));
 
         Capture capture;
         InterpretResult result = InterpretResult::RUNTIME_ERROR;
@@ -390,6 +395,8 @@ namespace arena
         order.attack = IS_STRING(attack) ? vm.asString(attack) : "";
         order.strafe = static_cast<float>(number(me->getField("strafe"), 1.0));
         order.speed = static_cast<float>(number(me->getField("speed"), 1.0));
+
+        order.radius = static_cast<float>(number(me->getField("radius"), 2.5));
 
         const Value face = me->getField("face");
         order.face = IS_BOOL(face) ? AS_BOOL(face) : true;

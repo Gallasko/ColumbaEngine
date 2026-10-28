@@ -1,0 +1,24 @@
+// Every sound of the game, made from numbers when the game starts (no audio file needed).
+// wave: the tone (sine, square, saw, triangle); tone: 1 = all tone, 0 = all noise.
+// frequency -> frequencyEnd: the pitch glides over the duration. attack / decay shape the volume,
+// lowpass (0 bright .. 1 dark) muffles it. A mod can replace any sound with { "file": "sounds/x.wav" }.
+{
+    "hit":        { "wave": "square", "tone": 0.25, "frequency": 520, "frequencyEnd": 140, "duration": 0.12, "decay": 0.035, "lowpass": 0.45, "volume": 0.75 },
+    "hit_heavy":  { "wave": "square", "tone": 0.3,  "frequency": 300, "frequencyEnd": 60,  "duration": 0.28, "decay": 0.07,  "lowpass": 0.6,  "volume": 0.95 },
+    "kill":       { "wave": "saw",    "tone": 0.6,  "frequency": 340, "frequencyEnd": 70,  "duration": 0.45, "decay": 0.15,  "lowpass": 0.5,  "volume": 0.7 },
+    "swing":      { "wave": "sine",   "tone": 0.0,  "frequency": 800, "duration": 0.16, "attack": 0.04, "decay": 0.05, "lowpass": 0.82, "volume": 0.45 },
+    "dodge":      { "wave": "sine",   "tone": 0.0,  "frequency": 600, "duration": 0.22, "attack": 0.05, "decay": 0.07, "lowpass": 0.9,  "volume": 0.4 },
+    "jump":       { "wave": "triangle", "tone": 0.8, "frequency": 220, "frequencyEnd": 330, "duration": 0.08, "decay": 0.04, "volume": 0.18 },
+    "land":       { "wave": "sine",   "tone": 0.5,  "frequency": 140, "frequencyEnd": 70,  "duration": 0.12, "decay": 0.04, "lowpass": 0.85, "volume": 0.4 },
+    "hard_land":  { "wave": "sine",   "tone": 0.6,  "frequency": 110, "frequencyEnd": 40,  "duration": 0.35, "decay": 0.1,  "lowpass": 0.88, "volume": 0.9 },
+    "step":       { "wave": "sine",   "tone": 0.2,  "frequency": 160, "frequencyEnd": 90,  "duration": 0.06, "decay": 0.02, "lowpass": 0.85, "volume": 0.22, "pitchJitter": 0.2 },
+    "chip":       { "wave": "square", "tone": 0.2,  "frequency": 1200, "frequencyEnd": 600, "duration": 0.06, "decay": 0.018, "lowpass": 0.3, "volume": 0.4 },
+    "break":      { "wave": "square", "tone": 0.15, "frequency": 400, "frequencyEnd": 120, "duration": 0.3,  "decay": 0.08, "lowpass": 0.55, "volume": 0.8 },
+    "raise":      { "wave": "saw",    "tone": 0.35, "frequency": 70,  "frequencyEnd": 110, "duration": 0.4,  "attack": 0.05, "decay": 0.15, "lowpass": 0.8, "volume": 0.7 },
+    "dig":        { "wave": "saw",    "tone": 0.3,  "frequency": 110, "frequencyEnd": 55,  "duration": 0.35, "attack": 0.02, "decay": 0.12, "lowpass": 0.8, "volume": 0.7 },
+    "snap":       { "wave": "square", "tone": 0.3,  "frequency": 900, "frequencyEnd": 300, "duration": 0.1,  "decay": 0.03, "lowpass": 0.3, "volume": 0.6 },
+    "boom":       { "wave": "sine",   "tone": 0.55, "frequency": 70,  "frequencyEnd": 30,  "duration": 0.8,  "decay": 0.25, "lowpass": 0.9, "volume": 1.0 },
+    "shoot":      { "wave": "triangle", "tone": 0.75, "frequency": 210, "frequencyEnd": 140, "duration": 0.16, "decay": 0.05, "lowpass": 0.2, "volume": 0.5 },
+    "arrow_hit":  { "wave": "square", "tone": 0.3,  "frequency": 340, "frequencyEnd": 160, "duration": 0.08, "decay": 0.025, "lowpass": 0.5, "volume": 0.55 },
+    "growl":      { "wave": "saw",    "tone": 0.7,  "frequency": 90,  "frequencyEnd": 130, "duration": 0.5,  "attack": 0.08, "decay": 0.25, "lowpass": 0.75, "volume": 0.5, "pitchJitter": 0.15 }
+}

@@ -585,6 +585,35 @@ namespace arena
                 }
             }
 
+            // Effects and sounds: merged over the previous mods' like the tuning. A sound's "file" is
+            // relative to the mod that names it: made absolute here, before the merge forgets the mod
+            for (const auto& [name, target] : std::vector<std::pair<std::string, Json*>>{{"effects.json", &content.effects}, {"sounds.json", &content.sounds}})
+            {
+                const auto path = (dir / name).string();
+
+                if (not fs::exists(path, ec))
+                    continue;
+
+                Json json;
+
+                if (not readJsonFile(path, json, report))
+                    continue;
+
+                if (target == &content.sounds)
+                {
+                    for (auto& [soundName, sound] : json.object)
+                    {
+                        if (Json* f = sound.find("file"); f and f->isString())
+                            f->string = (dir / f->string).string();
+                    }
+                }
+
+                if (target->isNull())
+                    *target = Json::makeObject();
+
+                mergeJson(*target, json);
+            }
+
             // Arena: the last mod that has one wins
             const auto arenaFile = (dir / "arena.json").string();
 
@@ -813,6 +842,19 @@ namespace arena
                 content.report.error(file, line, "unknown model \"" + id + "\" (expected a file models/" + splitId(id).second + ".vxl.json in mod " + splitId(id).first + ")");
         }
 
+        /** Projectile models are named like any model: resolved in the mod's namespace, and checked. */
+        void resolveProjectiles(Content& content, Moveset& m, const RawDef& raw)
+        {
+            for (auto& [name, attack] : m.attacks)
+            {
+                if (attack.projectile.model.empty())
+                    continue;
+
+                attack.projectile.model = resolveId(attack.projectile.model, raw.mod);
+                requireModel(content, attack.projectile.model, raw.file, raw.data.line);
+            }
+        }
+
         void typeWeapons(Content& content)
         {
             auto& report = content.report;
@@ -848,6 +890,8 @@ namespace arena
 
                 if (not readMoveset(*moveset, raw.file, w.moveset, report))
                     continue;
+
+                resolveProjectiles(content, w.moveset, raw);
 
                 if (w.moveset.light.empty())
                 {
@@ -933,6 +977,8 @@ namespace arena
                 {
                     if (not readMoveset(*moveset, raw.file, e.moveset, report))
                         continue;
+
+                    resolveProjectiles(content, e.moveset, raw);
                 }
 
                 if (e.health <= 0.0f)
@@ -1025,7 +1071,7 @@ namespace arena
 
         checkKeys(j, {"startup", "active", "recovery", "damage", "poiseDamage", "staminaCost", "knockback", "knockup", "hitstop", "shake",
                       "hitboxes", "lunge", "lungeFrom", "lungeTo", "turnRate", "moveSpeed", "moveUntil", "armor", "terrainDamage", "dodgeCancelFrom", "chainFrom", "bufferFrom",
-                      "next", "swing"},
+                      "next", "swing", "projectile"},
                   file, report, "attack " + name);
 
         const size_t errorsBefore = report.errors.size();
@@ -1061,6 +1107,30 @@ namespace arena
             checkKeys(*next, {"light", "heavy"}, file, report, "\"next\" of " + name);
             readStr(*next, "light", a.nextLight, file, report);
             readStr(*next, "heavy", a.nextHeavy, file, report);
+        }
+
+        if (const Json* pj = j.find("projectile"))
+        {
+            checkKeys(*pj, {"speed", "gravity", "radius", "lifetime", "lead", "damage", "poiseDamage", "knockback", "terrainDamage", "hitstop", "shake", "spawn", "model", "modelScale"},
+                      file, report, "the projectile of " + name);
+
+            ProjectileDef& p = a.projectile;
+            p.enabled = true;
+            readNum(*pj, "speed", p.speed, file, report);
+            readNum(*pj, "gravity", p.gravity, file, report);
+            readNum(*pj, "radius", p.radius, file, report);
+            readNum(*pj, "lifetime", p.lifetime, file, report);
+            readNum(*pj, "lead", p.lead, file, report);
+            readNum(*pj, "damage", p.damage, file, report);
+            readNum(*pj, "poiseDamage", p.poiseDamage, file, report);
+            readNum(*pj, "knockback", p.knockback, file, report);
+            readNum(*pj, "terrainDamage", p.terrainDamage, file, report);
+            readInt(*pj, "hitstop", p.hitstop, file, report);
+            readNum(*pj, "shake", p.shake, file, report);
+            readVec3(*pj, "spawn", p.spawn, file, report);
+            readStr(*pj, "model", p.model, file, report);
+            readNum(*pj, "modelScale", p.modelScale, file, report);
+            p.speed = std::max(0.1f, p.speed);
         }
 
         if (const Json* swing = j.find("swing"))
@@ -1198,11 +1268,26 @@ namespace arena
 
         // Cells of hidden layers are left out: the model is what the artist sees in the editor
         std::vector<bool> layerVisible;
+        std::vector<std::string> layerNames;
 
         if (const Json* layers = j.find("layers"))
         {
             for (const auto& l : layers->array)
+            {
                 layerVisible.push_back(l.flag("visible", true));
+                layerNames.push_back(l.str("name", "layer"));
+            }
+        }
+
+        // One part per layer, filled below; the empty ones are dropped at the end
+        std::vector<VoxelModel::Part> parts(std::max<size_t>(1, layerNames.size()));
+        std::vector<glm::ivec3> partLo(parts.size(), glm::ivec3(w, h, d)), partHi(parts.size(), glm::ivec3(-1));
+
+        for (size_t i = 0; i < parts.size(); ++i)
+        {
+            parts[i].name = i < layerNames.size() ? layerNames[i] : "body";
+            parts[i].grid = VoxelGrid(w, h, d);
+            parts[i].grid.outsideSolid = false;
         }
 
         glm::ivec3 lo(w, h, d), hi(-1);
@@ -1227,6 +1312,11 @@ namespace arena
             out.grid.set(x, y, z, static_cast<BlockId>(ci + 1));
             lo = glm::min(lo, glm::ivec3(x, y, z));
             hi = glm::max(hi, glm::ivec3(x, y, z));
+
+            const size_t part = (li >= 0 and li < static_cast<int>(parts.size())) ? static_cast<size_t>(li) : 0;
+            parts[part].grid.set(x, y, z, static_cast<BlockId>(ci + 1));
+            partLo[part] = glm::min(partLo[part], glm::ivec3(x, y, z));
+            partHi[part] = glm::max(partHi[part], glm::ivec3(x, y, z));
         }
 
         if (hi.x < 0)
@@ -1237,6 +1327,19 @@ namespace arena
         }
 
         out.pivot = glm::vec3((lo.x + hi.x + 1) * 0.5f, static_cast<float>(lo.y), (lo.z + hi.z + 1) * 0.5f);
+
+        // Parts: a limb turns at its top, a head at its bottom
+        for (size_t i = 0; i < parts.size(); ++i)
+        {
+            if (partHi[i].x < 0)
+                continue;
+
+            const glm::vec3 l(partLo[i]), hgh(partHi[i] + glm::ivec3(1));
+            const bool head = parts[i].name == "head";
+            parts[i].joint = glm::vec3((l.x + hgh.x) * 0.5f, head ? l.y : hgh.y, (l.z + hgh.z) * 0.5f);
+            out.parts.push_back(std::move(parts[i]));
+        }
+
         return true;
     }
 

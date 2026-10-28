@@ -1,0 +1,46 @@
+// The archer: fragile, keeps its distance and shoots. It backs off when you close in, and moves
+// sideways to find a line of fire when a block is in the way. A raised wall stops its arrows.
+// It shoots sooner while you are busy with someone else.
+{
+    "name": "Archer",
+    "model": "archer",
+    "modelScale": 0.125,
+    "size": [0.6, 1.8],
+
+    "health": 60,
+    "poise": 15,
+    "poiseRegenDelay": 2.0,
+    "staggerFrames": 40,
+    "knockbackScale": 1.0,
+
+    "walkSpeed": 3.6,
+    "turnSpeed": 320,
+    "respawnSeconds": 6,
+
+    "script": "archer",
+    "params": {
+        "engageRange": 28,
+        "tooClose": 6,
+        "preferredMax": 14,
+        "cooldown": 2.2,
+        "busyCooldown": 1.2,
+        "aimAngle": 15
+    },
+
+    "moveset": {
+        "attacks": {
+            "shot": {
+                "startup": 36, "active": 1, "recovery": 24,
+                "turnRate": 4,
+                "projectile": {
+                    "speed": 24, "gravity": 6, "lead": 0.5,
+                    "damage": 12, "poiseDamage": 12, "knockback": 3, "terrainDamage": 15,
+                    "hitstop": 3, "shake": 0.2,
+                    "spawn": [0.25, 1.4, 0.6],
+                    "model": "arrow", "modelScale": 0.0625
+                },
+                "swing": { "pitchFrom": -6, "pitchTo": 0 }
+            }
+        }
+    }
+}

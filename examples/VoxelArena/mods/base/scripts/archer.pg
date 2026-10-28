@@ -1,0 +1,62 @@
+// Archer behaviour: keep the player at bow range, shoot when there is a clear line.
+// See brute.pg for everything `me` holds. The group fields used here:
+//   me.alliesAttacking  other enemies attacking right now: the player is busy, shoot sooner
+import "math"
+
+fun think(me)
+{
+    var p = me.params
+
+    if (me.side == none)
+    {
+        me.side = 1
+        me.sideTimer = 0
+    }
+
+    me.sideTimer = me.sideTimer + me.dt
+
+    if (me.sideTimer > 2.0)
+    {
+        me.sideTimer = 0
+        me.side = -me.side
+    }
+
+    var cooldown = p.cooldown
+
+    if (me.targetAttacking or me.alliesAttacking > 0)
+    {
+        cooldown = p.busyCooldown
+    }
+
+    if (me.distance > p.engageRange)
+    {
+        me.move = "hold"
+    }
+    else if (me.distance < p.tooClose)
+    {
+        // Too close for a bow: back away
+        me.move = "retreat"
+        me.speed = 1.1
+    }
+    else if (me.blocked)
+    {
+        // A wall in the way: move sideways to find a line of fire
+        me.move = "strafe"
+        me.strafe = me.side
+    }
+    else if (me.sinceAttack > cooldown and abs(me.angle) < p.aimAngle)
+    {
+        me.attack = "shot"
+    }
+    else if (me.distance > p.preferredMax)
+    {
+        me.move = "chase"
+        me.speed = 0.8
+    }
+    else
+    {
+        me.move = "strafe"
+        me.strafe = me.side
+        me.speed = 0.4
+    }
+}

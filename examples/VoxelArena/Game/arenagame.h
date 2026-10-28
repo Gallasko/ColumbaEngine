@@ -22,8 +22,12 @@
 #include "Core/tuning.h"
 #include "Core/world.h"
 
+#include "Core/effects.h"
+
 #include "gpumesh.h"
 #include "hud.h"
+#include "particles.h"
+#include "soundbank.h"
 
 namespace pg
 {
@@ -208,5 +212,21 @@ namespace arena
         std::chrono::steady_clock::time_point lastReload;
 
         Hud hud;
+
+        // Effects: what world events sound and look like
+        std::map<std::string, EffectDef> effects;
+        SoundBank sounds;
+        Particles particles;
+        void playEffect(const std::string& kind, const glm::vec3& at, const glm::vec3& color);
+
+        // Limbs: a walk cycle per fighter
+        struct Gait
+        {
+            float phase = 0.0f;
+            float amount = 0.0f;   // 0 standing .. 1 walking
+        };
+        std::map<int, Gait> gaits;
+        void stepGaits(float frameSeconds);
+        glm::mat4 partPose(const std::string& part, const Fighter& f, const Gait& g, float frame) const;
     };
 }

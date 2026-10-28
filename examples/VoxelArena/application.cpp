@@ -59,6 +59,9 @@ GameApp::GameApp(const std::string& appName, const LaunchOptions& opts) : engine
         const std::string shaderDir = pick("", VOXELARENA_SHADER_DIR, "arena-shader");
         masterRenderer->registerShader("arena", shaderDir + "/arena.vs", shaderDir + "/arena.fs");
 
+        // The engine starts with 6 sound channels: a busy fight skips some sounds. Not raised here on
+        // purpose: AudioSystem::setNumberOfChannel resizes its channel array the wrong way round.
+
         // The engine made the 2D shape renderer already (with the shaders of res/setupRenderer.pg)
         auto* ttf = ecs.createSystem<TTFTextSystem>(masterRenderer);
         ttf->registerFont("res/font/Inter/static/Inter_18pt-SemiBold.ttf", arena::Hud::FONT, 20);

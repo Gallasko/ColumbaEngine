@@ -94,6 +94,29 @@ namespace arena
     };
 
     /**
+     * What an attack shoots, fired on its first active frame. An enemy aims it at the player's chest
+     * (dropping for the arc and leading a moving target by `lead`); the player aims it with the crosshair.
+     */
+    struct ProjectileDef
+    {
+        bool enabled = false;
+        float speed = 22.0f;          // m/s
+        float gravity = 6.0f;         // m/s^2
+        float radius = 0.12f;
+        float lifetime = 3.0f;        // s
+        float lead = 0.5f;            // 0 shoots where the target is, 1 where it will be
+        float damage = 10.0f;
+        float poiseDamage = 8.0f;
+        float knockback = 3.0f;
+        float terrainDamage = 15.0f;  // to the block it hits
+        int hitstop = 3;
+        float shake = 0.15f;
+        glm::vec3 spawn = glm::vec3(0.0f, 1.4f, 0.6f);   // fighter space: where it leaves from
+        std::string model;            // model id drawn along the flight, "" = none
+        float modelScale = 0.0625f;
+    };
+
+    /**
      * One attack. Frame counts are at 60 frames per second.
      * Timeline: [startup][active][recovery]. Hitboxes only exist during active frames.
      */
@@ -141,6 +164,8 @@ namespace arena
         std::string nextHeavy;
 
         SwingPose swing;
+
+        ProjectileDef projectile;
 
         int total() const { return startup + active + recovery; }
         bool isActive(int frame) const { return frame >= startup and frame < startup + active; }
@@ -250,6 +275,20 @@ namespace arena
         BlockTable table;
         /** Point under the model's feet, in voxels: the bottom centre of its occupied cells. */
         glm::vec3 pivot = glm::vec3(0.0f);
+
+        /**
+         * Body parts, one per visible layer of the editor file (a single layer = one rigid part).
+         * Layers named leg_l, leg_r, leg_fl, leg_fr, leg_bl, leg_br, arm_l, arm_r and head are
+         * animated; any other name stays still. joint: where the part turns, in voxels (the top
+         * centre of a limb, the bottom centre of a head).
+         */
+        struct Part
+        {
+            std::string name;
+            VoxelGrid grid;
+            glm::vec3 joint = glm::vec3(0.0f);
+        };
+        std::vector<Part> parts;
     };
 
     /** Reads a .vxl.json file. Palette index i becomes block i + 1. */
@@ -283,6 +322,11 @@ namespace arena
         std::map<std::string, std::string> scripts;
 
         Json tuning;          // the merged tuning tree
+
+        /** effects.json of every mod merged: per game event, a sound and particles */
+        Json effects;
+        /** sounds.json of every mod merged: per sound, a recipe to synthesise it or a .wav (paths made absolute) */
+        Json sounds;
         std::string tuningFile;
 
         ArenaDef arena;

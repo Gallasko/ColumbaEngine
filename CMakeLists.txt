@@ -1717,6 +1717,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Core/scriptbrain.cpp
             examples/VoxelArena/Core/orbitcamera.cpp
             examples/VoxelArena/Core/terrain.cpp
+            examples/VoxelArena/Core/effects.cpp
         )
 
         add_executable(VoxelArena examples/VoxelArena/main.cpp)
@@ -1726,6 +1727,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Game/gpumesh.cpp
             examples/VoxelArena/Game/hud.cpp
             examples/VoxelArena/Game/arenagame.cpp
+            examples/VoxelArena/Game/soundbank.cpp
+            examples/VoxelArena/Game/particles.cpp
             ${VOXELARENA_CORE}
         )
         target_link_libraries(VoxelArena PRIVATE ColumbaEngine)
@@ -1744,6 +1747,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/voxelarena/world.cc
             test/voxelarena/camera.cc
             test/voxelarena/terrain.cc
+            test/voxelarena/effects.cc
             examples/VoxelTest/voxelserializer.cpp   # the editor's .vxl.json loader, to check the models stay editable
             ${VOXELARENA_CORE}
         )

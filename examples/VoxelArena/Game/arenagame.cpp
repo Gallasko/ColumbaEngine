@@ -11,6 +11,8 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
+#include <filesystem>
+
 #include "Input/input.h"
 #include "Renderer/camera.h"
 #include "logger.h"
@@ -217,7 +219,17 @@ namespace arena
             opt.origin = glm::vec3(0.0f);
             opt.aoStrength = 0.45f;
             modelMesh(id)->setData(buildMesh(model->grid, model->table, opt));
+
+            // Body parts, each its own mesh, so limbs can move
+            if (model->parts.size() > 1)
+                for (const auto& part : model->parts)
+                    modelMesh(id + "#" + part.name)->setData(buildMesh(part.grid, model->table, opt));
         }
+
+        // Sounds and effects: synthesised into a cache folder (the engine's audio plays files)
+        const auto recipes = readSounds(content.sounds, content.report);
+        effects = readEffects(content.effects, recipes, content.report);
+        sounds.load(recipes, (std::filesystem::temp_directory_path() / "voxelarena-sounds").string(), content.report);
 
         meshDirty = true;
         masterRenderer->getCamera().setFovDegrees(fov());
@@ -584,6 +596,8 @@ namespace arena
         runQueue();
         simulate(frameSeconds);
         updateCamera(frameSeconds);
+        stepGaits(frameSeconds);
+        particles.step(frameSeconds, world.grid, content.blockTable);
         remeshIfNeeded();
         buildRenderCalls();
         updateCursorLock();
@@ -870,9 +884,34 @@ namespace arena
         }
     }
 
+    void ArenaGame::playEffect(const std::string& kind, const glm::vec3& at, const glm::vec3& color)
+    {
+        auto it = effects.find(kind);
+
+        if (it == effects.end())
+            return;
+
+        const EffectDef& e = it->second;
+        const Fighter* p = world.player();
+        const float distance = p ? glm::length(at - p->body.position) : 0.0f;
+
+        sounds.play(ecsRef, e.sound, distance);
+
+        if (e.particles.count > 0)
+            particles.burst(e.particles, at, color);
+
+        if (e.shake > 0.0f and distance < 12.0f)
+            camera.addTrauma(e.shake * (1.0f - distance / 12.0f));
+    }
+
     void ArenaGame::feedback()
     {
         const Fighter* p = world.player();
+
+        for (const auto& e : world.events)
+            playEffect(e.kind, e.position, e.color);
+
+        world.events.clear();
 
         for (const auto& h : world.hits)
         {
@@ -975,6 +1014,110 @@ namespace arena
         firstPerson = on;
         masterRenderer->getCamera().setFovDegrees(fov());
         print(on ? "first person" : "third person");
+    }
+
+    void ArenaGame::stepGaits(float frameSeconds)
+    {
+        for (const auto& f : world.fighters)
+        {
+            Gait& g = gaits[f.id];
+
+            float walkSpeed = tuning.player.walkSpeed;
+            if (f.team == Team::Enemy)
+                if (auto it = content.enemies.find(f.type); it != content.enemies.end())
+                    walkSpeed = std::max(1.0f, it->second.walkSpeed);
+
+            const float speed = glm::length(glm::vec2(f.body.velocity.x, f.body.velocity.z));
+            const float target = f.body.onGround ? glm::clamp(speed / walkSpeed, 0.0f, 1.3f) : 0.0f;
+            g.amount += (target - g.amount) * (1.0f - std::exp(-10.0f * frameSeconds));
+
+            // A stride about as long as the body is tall
+            const float before = std::sin(g.phase);
+            g.phase += speed * frameSeconds * 6.2831853f / std::max(0.5f, f.body.height * 0.85f);
+
+            // Footsteps where a foot lands (the swing crosses zero)
+            if (f.team == Team::Player and f.body.onGround and g.amount > 0.35f and (before < 0.0f) != (std::sin(g.phase) < 0.0f))
+                playEffect("step", f.body.position, glm::vec3(1.0f));
+        }
+
+        // Forget the fighters that left
+        for (auto it = gaits.begin(); it != gaits.end();)
+            it = world.find(it->first) ? std::next(it) : gaits.erase(it);
+    }
+
+    glm::mat4 ArenaGame::partPose(const std::string& part, const Fighter& f, const Gait& g, float frame) const
+    {
+        // A limb hangs down: turning it by rotX(-a) swings it forward by a degrees
+        auto forward = [](float degrees) { return rotX(-degrees); };
+
+        const float swing = std::sin(g.phase) * 32.0f * g.amount;
+        const bool leg = part.rfind("leg", 0) == 0;
+        const bool arm = part.rfind("arm", 0) == 0;
+        const bool left = part == "leg_l" or part == "arm_l";
+
+        if (part == "head")
+        {
+            if (f.action == Action::Stagger)
+                return rotX(-15.0f);
+            return rotX(std::sin(g.phase * 2.0f) * 3.0f * g.amount);
+        }
+
+        if (not leg and not arm)
+            return glm::mat4(1.0f);
+
+        // Rolling: tucked
+        if (f.action == Action::Dodge)
+            return forward(leg ? 75.0f : 60.0f);
+
+        if (f.action == Action::Stagger)
+            return forward(arm ? -35.0f : 0.0f);
+
+        // Four legs: a trot, diagonal pairs together
+        if (part == "leg_fl" or part == "leg_br")
+            return forward(swing * 1.2f);
+        if (part == "leg_fr" or part == "leg_bl")
+            return forward(-swing * 1.2f);
+
+        // In the air: a stride
+        if (not f.body.onGround and leg)
+            return forward(left ? -20.0f : 25.0f);
+
+        const AttackDef* attack = world.currentAttack(f);
+
+        if (attack and arm)
+        {
+            const float s = static_cast<float>(attack->startup), act = static_cast<float>(attack->active);
+
+            if (f.team == Team::Player)
+            {
+                // The weapon arm follows the swing; the other one balances
+                if (part == "arm_r")
+                {
+                    auto w = content.weapons.find(f.weapon);
+                    const SwingPose pose = poseAt(*attack, w != content.weapons.end() ? w->second.rest : SwingPose{}, frame);
+                    return rotY(-pose.yawFrom * 0.6f) * forward(60.0f + 0.4f * pose.pitchFrom);
+                }
+
+                return forward(25.0f);
+            }
+
+            if (attack->projectile.enabled)
+                return forward(frame < s + act ? 88.0f : 88.0f * (1.0f - (frame - s - act) / std::max(1.0f, static_cast<float>(attack->recovery))));
+
+            // Both arms up through the wind-up, down with the blow, back to rest in the recovery
+            if (frame < s)
+                return forward(150.0f * easeOut(frame / std::max(1.0f, s)));
+            if (frame < s + act + 2.0f)
+                return forward(150.0f - 130.0f * easeOut((frame - s) / (act + 2.0f)));
+            return forward(20.0f * (1.0f - easeInOut((frame - s - act - 2.0f) / std::max(1.0f, static_cast<float>(attack->recovery)))));
+        }
+
+        // Walking: legs in turn, arms against them
+        if (leg)
+            return forward(left ? swing : -swing);
+
+        const float breathe = std::sin(simTime * 2.0f) * 2.0f;
+        return forward((left ? -swing : swing) * 0.8f + breathe);
     }
 
     void ArenaGame::updatePieceMeshes()
@@ -1205,7 +1348,23 @@ namespace arena
             const bool viewModel = firstPerson and f.team == Team::Player;
 
             if (not viewModel)
-                pushInstance(instances[modelId], view, modelMatrix, tint, flash);
+            {
+                if (model.parts.size() > 1 and f.alive())
+                {
+                    // Each body part turned about its joint by the gait and the action
+                    const Gait& gait = gaits[f.id];
+
+                    for (const auto& part : model.parts)
+                    {
+                        const glm::mat4 local = glm::translate(glm::mat4(1.0f), part.joint) * partPose(part.name, f, gait, frame) * glm::translate(glm::mat4(1.0f), -part.joint);
+                        pushInstance(instances[modelId + "#" + part.name], view, modelMatrix * local, tint, flash);
+                    }
+                }
+                else
+                {
+                    pushInstance(instances[modelId], view, modelMatrix, tint, flash);
+                }
+            }
 
             // The weapon in the hand
             if (f.team == Team::Player)
@@ -1245,6 +1404,41 @@ namespace arena
                     pushInstance(instances[weapon.model], view, weaponMatrix, WHITE, f.flash > 0 ? flash * 0.5f : glm::vec4(0.0f));
                 }
             }
+        }
+
+        // Projectiles, along their flight
+        for (const auto& pr : world.projectiles)
+        {
+            auto modelIt = content.models.find(pr.def.model);
+
+            if (modelIt == content.models.end())
+                continue;
+
+            const VoxelModel& m = *modelIt->second;
+            const glm::vec3 dir = glm::length(pr.velocity) > 1e-4f ? glm::normalize(pr.velocity) : glm::vec3(0, 0, 1);
+            const float yaw = std::atan2(dir.x, dir.z) / DEG;
+            const float pitch = -std::asin(glm::clamp(dir.y, -1.0f, 1.0f)) / DEG;
+            const glm::vec3 centre(m.grid.width() * 0.5f, m.grid.height() * 0.5f, m.grid.depth() * 0.5f);
+            const glm::vec3 at = pr.position + pr.velocity * (alpha * STEP_SECONDS);
+
+            const glm::mat4 mm = glm::translate(glm::mat4(1.0f), at) * rotY(yaw) * rotX(pitch) * glm::scale(glm::mat4(1.0f), glm::vec3(pr.def.modelScale)) * glm::translate(glm::mat4(1.0f), -centre);
+            pushInstance(instances[pr.def.model], view, mm, WHITE, glm::vec4(0.0f));
+        }
+
+        // Particles: little lit cubes, shrinking away
+        if (not particles.all().empty())
+        {
+            std::vector<float> d;
+            d.reserve(particles.all().size() * GpuMesh::INSTANCE_FLOATS);
+
+            for (const auto& q : particles.all())
+            {
+                const float s = q.size * std::sqrt(std::max(0.0f, q.life / q.maxLife));
+                const glm::mat4 m = glm::translate(glm::mat4(1.0f), q.position - glm::vec3(s * 0.5f)) * glm::scale(glm::mat4(1.0f), glm::vec3(s));
+                pushInstance(d, view, m, glm::vec4(q.color, 1.0f), glm::vec4(0.0f));
+            }
+
+            add(boxMesh, litMaterial, OpacityType::Opaque, std::move(d));
         }
 
         // Falling pieces of the arena

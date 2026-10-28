@@ -1,0 +1,44 @@
+// The skulker (the flanker): fast, weak, four legs. It circles to your back while someone else has
+// your attention, bites when you cannot see it, and backs off after each bite. Alone and watched,
+// it keeps its distance and waits for an opening.
+{
+    "name": "Skulker",
+    "model": "skulker",
+    "modelScale": 0.125,
+    "size": [0.8, 1.0],
+
+    "health": 70,
+    "poise": 10,
+    "poiseRegenDelay": 1.5,
+    "staggerFrames": 35,
+    "knockbackScale": 1.3,
+
+    "walkSpeed": 6.2,
+    "turnSpeed": 600,
+    "respawnSeconds": 5,
+
+    "script": "skulker",
+    "params": {
+        "engageRange": 22,
+        "attackRange": 1.9,
+        "behindAngle": 110,
+        "cooldown": 1.4,
+        "backOff": 0.7,
+        "radius": 2.6,
+        "waitRadius": 5.5
+    },
+
+    "moveset": {
+        "attacks": {
+            "bite": {
+                "startup": 13, "active": 4, "recovery": 22,
+                "damage": 10, "poiseDamage": 12,
+                "knockback": 3, "hitstop": 3, "shake": 0.25,
+                "turnRate": 8,
+                "hitboxes": [ { "offset": [0, 0.6, 0.9], "size": [1.0, 0.9, 1.4] } ],
+                "lunge": 9, "lungeFrom": 9, "lungeTo": 17,
+                "swing": { "pitchFrom": -12, "pitchTo": 14 }
+            }
+        }
+    }
+}

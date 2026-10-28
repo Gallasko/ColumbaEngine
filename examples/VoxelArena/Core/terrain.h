@@ -30,6 +30,7 @@ namespace arena
     struct TerrainEvents
     {
         std::vector<glm::ivec3> broken;       // cells broken by damage
+        std::vector<BlockId> brokenBlocks;    // what each of them was
         std::vector<int> fell;                // pieces that broke off
         std::vector<int> landed;              // pieces that landed (their cells are back in the grid)
         std::vector<glm::ivec3> filled;       // cells filled back in (pit refills, landings): fighters inside need lifting
@@ -96,6 +97,7 @@ namespace arena
         std::vector<Temporary> temporary;
         std::vector<glm::ivec3> removedSinceCheck;
         std::vector<glm::ivec3> brokenSinceStep;
+        std::vector<BlockId> brokenBlocksSinceStep;
 
         float now = 0.0f;
         int nextPiece = 1;

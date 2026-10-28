@@ -84,6 +84,41 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
 - **The brute** tracks you while it winds up its slam (it glows orange), then commits. Roll late,
   then punish its long recovery. A heavy attack or a full light combo breaks its poise.
 
+## The enemies
+
+Each one is a JSON file in `mods/base/enemies/` and a pgscript brain in `mods/base/scripts/`.
+
+| Enemy | Role | How it fights |
+|---|---|---|
+| Brute | Tank | Slow, tough, one big slam with a long wind-up. Smashes walls in its way. |
+| Archer | Ranged | Keeps 6 to 14 m away, backs off when you close in, moves sideways to find a line of fire when a block is in the way, shoots sooner while you are busy. |
+| Skulker | Flanker | Fast and weak. Goes round to your back while someone else holds your attention, bites when you cannot see it, backs off after each bite. |
+
+Scripts work as a group through what the game puts in `me`: `alliesNear`, `alliesAttacking`,
+`alliesNearTarget` (other enemies close to you) and `targetFacing` (0 = in front of you, 180 =
+behind). A script answers with `me.move` (`hold`, `chase`, `strafe`, `retreat`, `flank`), `me.attack`,
+and for `flank` the distance it keeps, `me.radius`. The full list is at the top of `brute.pg`.
+
+**Projectiles** are part of an attack: a `projectile` object (`speed`, `gravity`, `lead`, `damage`,
+`poiseDamage`, `terrainDamage`, `spawn`, `model`...) fires on the attack's first active frame. An
+enemy aims at your chest, raised for the arc and leading you by `lead`. A roll's invulnerable frames
+let an arrow through; a block stops it (and takes `terrainDamage`), so a raised wall is cover.
+
+## Sounds, particles and animation
+
+- **Effects** (`mods/base/effects.json`): for each game event (`hit`, `stagger`, `kill`, `swing`,
+  `windup`, `shoot`, `arrow_hit`, `dodge`, `jump`, `land`, `hard_land`, `step`, `chip`, `break`,
+  `raise`, `dig`, `piece_fall`, `piece_land`), the sound it plays, the particles it throws and the
+  camera shake.
+- **Sounds** (`mods/base/sounds.json`) are made from numbers when the game starts: a tone and noise,
+  a pitch glide, attack and decay, a low-pass filter. No audio file is in the repository. A mod can
+  give any sound as a file instead: `"hit": { "file": "sounds/hit.wav" }`. Sounds get quieter past
+  10 m and silent past 32 m.
+- **Limbs**: a model's editor layers are its body parts. Layers named `leg_l`, `leg_r`, `arm_l`,
+  `arm_r` and `head` (four legs: `leg_fl`, `leg_fr`, `leg_bl`, `leg_br`) are animated: a walk cycle
+  with footsteps, arms that follow the attack, a tuck in the roll, a recoil in a stagger. Any other
+  layer is part of the body. A model with a single layer stays rigid.
+
 ## Terrain as a weapon
 
 The arena can be broken, and breaking it is part of the fight.
@@ -252,8 +287,9 @@ For example:
 
 ## Not done yet
 
-- Enemies and the player have no limb animation: poses come from rotating the whole model.
-- No sounds and no hit particles.
+- Limb animation is procedural (no keyframes yet).
+- The engine plays at most 6 sounds at once: a busy fight skips some. `AudioSystem::setNumberOfChannel`
+  resizes its channel array the wrong way round, so the game does not raise it.
 - The HUD is laid out for the starting window size and does not follow a resize.
 - Chunks, worldgen, lighting and inventory are out of scope for now.
-- Breaking blocks has no particles or sound yet, and falling pieces do not tumble.
+- Falling pieces do not tumble.

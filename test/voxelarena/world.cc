@@ -958,3 +958,139 @@ TEST(arena_terrain_play, the_brute_smashes_a_wall_raised_in_its_way)
     EXPECT_TRUE(slammed);
     EXPECT_LT(wallBlocks(), 6);
 }
+
+// ---- Enemy roles ----
+
+namespace
+{
+    /** Holds every enemy still unless asked: a brain that answers the same thing each frame. */
+    struct FixedBrain : Brain
+    {
+        BrainOrder order;
+        bool think(const std::string&, const BrainView&, BrainOrder& out, std::string&) override
+        {
+            out = order;
+            return true;
+        }
+    };
+
+    Fighter* shootAtPlayer(Arena& a, const glm::vec3& archerAt)
+    {
+        const int id = a.world.spawnEnemy("base:archer", archerAt, 0.0f);
+        a.settle(5);
+        Fighter* archer = a.world.find(id);
+        archer->yaw = 180.0f;   // facing the player (at lower z)
+        archer->action = Action::Attack;
+        archer->attack = "shot";
+        archer->frame = 0;
+        return archer;
+    }
+}
+
+TEST(arena_roles, an_arrow_flies_to_the_player_and_hurts)
+{
+    Arena a;
+    a.world.aiEnabled = false;
+    shootAtPlayer(a, a.player().body.position + glm::vec3(0, 0, 12.0f));
+
+    bool shot = false;
+    for (int i = 0; i < 120; ++i)
+    {
+        a.world.step(InputFrame{});
+        shot = shot or not a.world.projectiles.empty();
+    }
+
+    EXPECT_TRUE(shot);
+    EXPECT_LT(a.player().health, a.player().maxHealth);
+
+    bool sawShoot = false, sawHit = false;
+    for (const auto& e : a.world.events)
+    {
+        sawShoot = sawShoot or e.kind == "shoot";
+        sawHit = sawHit or e.kind == "arrow_hit";
+    }
+    EXPECT_TRUE(sawShoot);
+    EXPECT_TRUE(sawHit);
+}
+
+TEST(arena_roles, a_raised_wall_stops_the_arrow)
+{
+    Arena a;
+    a.world.aiEnabled = false;
+    a.world.grid.fill({10, 1, 12}, {22, 3, 12}, a.content.block("base:earth"));   // a wall between them
+    shootAtPlayer(a, a.player().body.position + glm::vec3(0, 0, 12.0f));
+
+    a.run(120);
+    EXPECT_FLOAT_EQ(a.player().health, a.player().maxHealth);
+    EXPECT_GT(a.world.terrain.damagedCount(), 0u);   // the arrow chipped the wall
+}
+
+TEST(arena_roles, a_roll_lets_the_arrow_through)
+{
+    Arena a;
+    a.world.aiEnabled = false;
+    shootAtPlayer(a, a.player().body.position + glm::vec3(0, 0, 12.0f));
+
+    // Roll across just as the arrow arrives (it flies about half a second)
+    const AttackDef* shot = a.content.enemies.at("base:archer").moveset.find("shot");
+    a.run(shot->startup + 22);
+    InputFrame roll;
+    roll.dodgePressed = true;
+    roll.move = glm::vec2(0, 1);    // straight at the archer, into the arrow: only the i-frames can save it
+    a.world.step(roll);
+    a.run(40);
+
+    EXPECT_FLOAT_EQ(a.player().health, a.player().maxHealth);
+}
+
+TEST(arena_roles, the_skulker_goes_round_to_the_back_while_the_brute_holds_the_front)
+{
+    Arena a;
+    ScriptBrain brain;
+    ContentReport report;
+    brain.load(a.content, report);
+    ASSERT_TRUE(report.errors.empty()) << report.errors[0].str();
+    a.world.setBrain(&brain);
+    a.world.godMode = true;
+
+    // The player looks at +Z, where the brute stands; the skulker starts in front too, to the side
+    a.player().body.position = glm::vec3(16, 1, 12);
+    a.player().yaw = 0.0f;
+    a.world.spawnEnemy("base:brute", glm::vec3(16, 1, 14.5f), 180.0f);
+    const int skulker = a.world.spawnEnemy("base:skulker", glm::vec3(19, 1, 16), 180.0f);
+    a.settle(5);
+
+    bool behind = false, bit = false;
+
+    for (int i = 0; i < 60 * 8 and not bit; ++i)
+    {
+        InputFrame in;
+        in.cameraYaw = 0.0f;   // keep looking at the brute
+        a.world.step(in);
+        a.player().yaw = 0.0f;
+
+        const Fighter* s = a.world.find(skulker);
+        const glm::vec3 rel = s->body.position - a.player().body.position;
+        behind = behind or rel.z < -0.5f;
+        bit = s->action == Action::Attack and s->attack == "bite" and rel.z < 0.0f;
+    }
+
+    EXPECT_TRUE(behind);
+    EXPECT_TRUE(bit);
+}
+
+TEST(arena_roles, the_archer_backs_off_when_you_close_in)
+{
+    Arena a;
+    ScriptBrain brain;
+    ContentReport report;
+    brain.load(a.content, report);
+    a.world.setBrain(&brain);
+    a.world.godMode = true;
+
+    const int archer = a.world.spawnEnemy("base:archer", a.player().body.position + glm::vec3(0, 0, 3.0f), 180.0f);
+    a.settle(5);
+    const float start = glm::length(a.world.find(archer)->body.position - a.player().body.position);
+    a.run(60);
+    EXPECT_GT(glm::length(a.world.find(archer)->body.position - a.player().body.position), start + 1.5f);
+}

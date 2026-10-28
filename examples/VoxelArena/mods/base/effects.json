@@ -1,0 +1,23 @@
+// What each game event sounds and looks like. The game makes these events; this file decides.
+// particles: count, speed (m/s), up (0 every way .. 1 upwards), size (m), life (s), gravity,
+// color [r, g, b] or "event" (the colour of what broke). shake: camera trauma near the player.
+{
+    "hit":        { "sound": "hit",       "particles": { "count": 10, "speed": 5,   "up": 0.3, "size": 0.07, "life": 0.25, "gravity": 8,  "color": [255, 236, 190] } },
+    "stagger":    { "sound": "hit_heavy", "particles": { "count": 18, "speed": 6.5, "up": 0.4, "size": 0.09, "life": 0.35, "gravity": 8,  "color": [255, 214, 120] } },
+    "kill":       { "sound": "kill",      "particles": { "count": 30, "speed": 4,   "up": 0.6, "size": 0.12, "life": 0.8,  "gravity": 14, "color": [200, 190, 180] } },
+    "swing":      { "sound": "swing" },
+    "windup":     { "sound": "growl" },
+    "shoot":      { "sound": "shoot" },
+    "arrow_hit":  { "sound": "arrow_hit", "particles": { "count": 6,  "speed": 3,   "up": 0.5, "size": 0.07, "life": 0.35, "gravity": 14, "color": "event" } },
+    "dodge":      { "sound": "dodge",     "particles": { "count": 8,  "speed": 1.5, "up": 0.8, "size": 0.1,  "life": 0.45, "gravity": 2,  "color": [190, 176, 150] } },
+    "jump":       { "sound": "jump" },
+    "land":       { "sound": "land",      "particles": { "count": 6,  "speed": 1.5, "up": 0.7, "size": 0.09, "life": 0.4,  "gravity": 2,  "color": [190, 176, 150] } },
+    "hard_land":  { "sound": "hard_land", "particles": { "count": 20, "speed": 3,   "up": 0.6, "size": 0.12, "life": 0.6,  "gravity": 3,  "color": [190, 176, 150] }, "shake": 0.3 },
+    "step":       { "sound": "step" },
+    "chip":       { "sound": "chip",      "particles": { "count": 4,  "speed": 3,   "up": 0.6, "size": 0.08, "life": 0.4,  "gravity": 18, "color": "event" } },
+    "break":      { "sound": "break",     "particles": { "count": 14, "speed": 4,   "up": 0.6, "size": 0.16, "life": 0.8,  "gravity": 20, "color": "event" } },
+    "raise":      { "sound": "raise",     "particles": { "count": 16, "speed": 2.5, "up": 0.8, "size": 0.14, "life": 0.6,  "gravity": 12, "color": "event" } },
+    "dig":        { "sound": "dig",       "particles": { "count": 18, "speed": 3,   "up": 0.9, "size": 0.14, "life": 0.7,  "gravity": 16, "color": [134, 96, 64] } },
+    "piece_fall": { "sound": "snap" },
+    "piece_land": { "sound": "boom",      "particles": { "count": 40, "speed": 4,   "up": 0.5, "size": 0.18, "life": 1.0,  "gravity": 4,  "color": [170, 160, 150] }, "shake": 0.5 }
+}

@@ -356,6 +356,8 @@ namespace arena
         }
 
         separate();
+        fireProjectiles();
+        stepProjectiles();
         resolveHits();
         terrainFromAttacks();
         stepTerrain();
@@ -451,6 +453,8 @@ namespace arena
 
         if (f.team == Team::Player)
             spendStamina(f, a->staminaCost);
+        else
+            event("windup", chest(f), static_cast<float>(a->startup), f.id);
 
         f.action = Action::Attack;
         f.attack = name;
@@ -469,6 +473,7 @@ namespace arena
         d = glm::length(d) > 1e-4f ? glm::normalize(d) : yawForward(f.yaw);
 
         spendStamina(f, tuning.dodge.cost);
+        event("dodge", f.body.position, 1.0f, f.id);
 
         f.action = Action::Dodge;
         f.frame = 0;
@@ -507,6 +512,9 @@ namespace arena
                 f.queuedAge = 0.0f;
             }
         }
+
+        if (glm::length(in.aimDir) > 1e-4f)
+            f.aimDir = glm::normalize(in.aimDir);
 
         if (in.dodgePressed)
         {
@@ -746,6 +754,9 @@ namespace arena
         stepCommon(f, wanted, canJump, &in);
 
         // ---- Landings: the landing roll, the wake-up roll and the hard landing ----
+        if (f.landedSpeed > 4.0f)
+            event(f.landedSpeed >= tuning.player.hardLandingSpeed ? "hard_land" : "land", f.body.position, f.landedSpeed, f.id);
+
         if (f.landedSpeed > 0.0f or f.body.mantled)
         {
             const bool dodgeReady = (f.dodgeQueuedAge >= 0.0f or f.airDodgeAge >= 0.0f) and f.stamina >= tuning.stamina.minToAct;
@@ -860,6 +871,24 @@ namespace arena
                         view.blockedDistance = hit.hit ? hit.distance : 0.0f;
                     }
 
+                    // The group around it
+                    for (const auto& o : fighters)
+                    {
+                        if (o.team != Team::Enemy or o.id == f.id or not o.alive())
+                            continue;
+
+                        if (glm::length(o.body.position - f.body.position) < 15.0f)
+                            ++view.alliesNear;
+                        if (o.action == Action::Attack)
+                            ++view.alliesAttacking;
+                        if (glm::length(flat(o.body.position - target->body.position)) < 3.5f)
+                            ++view.alliesNearTarget;
+                    }
+
+                    const glm::vec3 fromTarget = flat(f.body.position - target->body.position);
+                    if (glm::length(fromTarget) > 1e-4f)
+                        view.targetFacing = std::fabs(wrapDegrees(yawOf(fromTarget) - target->yaw));
+
                     std::string error;
 
                     if (not brain->think(def.script, view, order, error))
@@ -881,6 +910,7 @@ namespace arena
                 f.aiStrafe = order.strafe;
                 f.aiSpeed = std::clamp(order.speed, 0.0f, 3.0f);
                 f.aiFace = order.face;
+                f.aiRadius = std::clamp(order.radius, 0.5f, 15.0f);
 
                 if (not order.attack.empty() and def.moveset.find(order.attack))
                 {
@@ -896,6 +926,22 @@ namespace arena
                     wanted = -dirToTarget * speed;
                 else if (f.aiMove == "strafe")
                     wanted = glm::normalize(glm::cross(glm::vec3(0, 1, 0), dirToTarget)) * (f.aiStrafe >= 0.0f ? -1.0f : 1.0f) * speed;
+                else if (f.aiMove == "flank" and targetAlive)
+                {
+                    // Round the target towards its back, keeping aiRadius from it: tangent to go round,
+                    // radial to hold the circle
+                    const glm::vec3 rel = flat(f.body.position - target->body.position);
+                    const float r = std::max(0.01f, glm::length(rel));
+                    const glm::vec3 out = rel / r;
+                    const float behind = yawOf(-yawForward(target->yaw));
+                    const float delta = wrapDegrees(behind - yawOf(out));
+                    const glm::vec3 tangent = glm::normalize(glm::cross(glm::vec3(0, 1, 0), out)) * (delta >= 0.0f ? 1.0f : -1.0f);
+                    const glm::vec3 radial = out * std::clamp((f.aiRadius - r) * 0.8f, -1.0f, 1.0f);
+                    glm::vec3 dir = tangent * std::min(1.0f, std::fabs(delta) / 25.0f) + radial;
+
+                    if (glm::length(dir) > 1e-4f)
+                        wanted = glm::normalize(dir) * speed * std::min(1.0f, glm::length(dir));
+                }
 
                 if (f.aiFace)
                     turnTowards(f, dirToTarget, def.turnSpeed);
@@ -1019,6 +1065,7 @@ namespace arena
             jumped = true;
             f.airSpeed = std::max(speedBefore, glm::length(flat(body.velocity)));
             body.velocity.y = std::sqrt(2.0f * P.gravity * P.jumpHeight);
+            event("jump", body.position, 1.0f, f.id);
             body.onGround = false;
             f.jumping = true;
             f.coyote = 0.0f;
@@ -1288,7 +1335,11 @@ namespace arena
 
                 if (aimedCell(f, in.aimOrigin, in.aimDir, a->range, hit) and terrain.breakable(grid.get(hit.cell.x, hit.cell.y, hit.cell.z)))
                 {
-                    terrain.damage(hit.cell, a->damage);
+                    const BlockId block = grid.get(hit.cell.x, hit.cell.y, hit.cell.z);
+                    const glm::vec3 color = block < content->blockTable.size() ? content->blockTable[block].color : glm::vec3(1.0f);
+
+                    if (not terrain.damage(hit.cell, a->damage))
+                        event("chip", glm::vec3(hit.cell) + glm::vec3(0.5f) + glm::vec3(hit.normal) * 0.5f, 1.0f, f.id, color);
                     f.mineTimer = 1.0f / a->rate;
                     used = true;
                 }
@@ -1298,6 +1349,11 @@ namespace arena
             {
                 spendStamina(f, a->staminaCost);
                 f.abilityCooldown[i] = a->cooldown;
+
+                if (a->kind == "wall")
+                    event("raise", f.body.position + glm::normalize(glm::vec3(in.aimDir.x, 0.0f, in.aimDir.z) + glm::vec3(1e-4f, 0, 0)) * a->distance, 1.0f, f.id, content->blockTable[content->block(a->block)].color);
+                else if (a->kind == "pit")
+                    event("dig", in.aimOrigin + glm::normalize(in.aimDir) * 5.0f, 1.0f, f.id);
             }
         }
     }
@@ -1430,9 +1486,208 @@ namespace arena
             }
         }
 
+        for (size_t i = 0; i < events.broken.size(); ++i)
+        {
+            const BlockId id = i < events.brokenBlocks.size() ? events.brokenBlocks[i] : AIR;
+            const glm::vec3 color = id < content->blockTable.size() ? content->blockTable[id].color : glm::vec3(0.6f);
+            event("break", glm::vec3(events.broken[i]) + glm::vec3(0.5f), 1.0f, 0, color);
+        }
+
+        for (int id : events.fell)
+            for (const auto& piece : terrain.falling)
+                if (piece.id == id)
+                    event("piece_fall", glm::vec3(piece.origin), static_cast<float>(piece.occupied.size()));
+
+        for (int id : events.landed)
+        {
+            auto it = pieceCentres.find(id);
+            if (it != pieceCentres.end())
+                event("piece_land", it->second, 1.0f);
+        }
+
         terrainEvents.broken.insert(terrainEvents.broken.end(), events.broken.begin(), events.broken.end());
         terrainEvents.fell.insert(terrainEvents.fell.end(), events.fell.begin(), events.fell.end());
         terrainEvents.landed.insert(terrainEvents.landed.end(), events.landed.begin(), events.landed.end());
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Projectiles and events
+    // --------------------------------------------------------------------------------------------
+
+    void ArenaWorld::event(const std::string& kind, const glm::vec3& position, float strength, int fighter, const glm::vec3& color)
+    {
+        // Nobody drains the list in a headless run: keep it from growing without end
+        if (events.size() > 4096)
+            events.erase(events.begin(), events.begin() + 2048);
+
+        WorldEvent e;
+        e.kind = kind;
+        e.position = position;
+        e.strength = strength;
+        e.fighter = fighter;
+        e.color = color;
+        events.push_back(std::move(e));
+    }
+
+    void ArenaWorld::fireProjectiles()
+    {
+        for (auto& f : fighters)
+        {
+            if (not f.alive() or f.hitstop > 0)
+                continue;
+
+            const AttackDef* a = currentAttack(f);
+
+            // The first active frame was just played (the counter is one ahead)
+            if (not a or f.frame - 1 != a->startup)
+                continue;
+
+            if (not a->projectile.enabled)
+            {
+                event("swing", chest(f), a->damage, f.id);
+                continue;
+            }
+
+            const ProjectileDef& def = a->projectile;
+            Projectile p;
+            p.id = nextProjectile++;
+            p.owner = f.id;
+            p.team = f.team;
+            p.attack = a->name;
+            p.def = def;
+            p.position = f.body.position + localToWorld(f.yaw, def.spawn);
+
+            glm::vec3 dir = yawForward(f.yaw);
+            const Fighter* target = f.team == Team::Enemy ? player() : nullptr;
+
+            if (target and target->alive())
+            {
+                // At the chest, where it will be (by lead), raised for the drop over the flight time
+                const float flight = glm::length(chest(*target) - p.position) / def.speed;
+                glm::vec3 aim = chest(*target) + flat(target->body.velocity) * (flight * def.lead);
+                aim.y += 0.5f * def.gravity * flight * flight;
+                dir = glm::normalize(aim - p.position);
+            }
+            else if (f.team == Team::Player)
+            {
+                dir = f.aimDir;
+            }
+
+            p.velocity = dir * def.speed;
+            projectiles.push_back(p);
+            event("shoot", p.position, 1.0f, f.id);
+        }
+    }
+
+    void ArenaWorld::stepProjectiles()
+    {
+        const float dt = STEP_SECONDS;
+
+        for (auto it = projectiles.begin(); it != projectiles.end();)
+        {
+            Projectile& p = *it;
+            p.age += dt;
+            p.velocity.y -= p.def.gravity * dt;
+
+            const glm::vec3 move = p.velocity * dt;
+            const float length = glm::length(move);
+
+            if (p.age > p.def.lifetime or length < 1e-6f)
+            {
+                it = projectiles.erase(it);
+                continue;
+            }
+
+            const glm::vec3 dir = move / length;
+
+            // The nearest of: a fighter of the other side (its box grown by the radius), a block
+            float best = length;
+            Fighter* victim = nullptr;
+
+            for (auto& f : fighters)
+            {
+                if (f.team == p.team or not f.alive() or f.invulnerable(tuning))
+                    continue;
+
+                const glm::vec3 lo = f.body.boxMin() - glm::vec3(p.def.radius), hi = f.body.boxMax() + glm::vec3(p.def.radius);
+                float t0 = 0.0f, t1 = best;
+                bool inside = true;
+
+                for (int k = 0; k < 3 and inside; ++k)
+                {
+                    if (std::fabs(dir[k]) < 1e-8f)
+                    {
+                        inside = p.position[k] >= lo[k] and p.position[k] <= hi[k];
+                        continue;
+                    }
+
+                    float a = (lo[k] - p.position[k]) / dir[k];
+                    float b = (hi[k] - p.position[k]) / dir[k];
+                    if (a > b)
+                        std::swap(a, b);
+                    t0 = std::max(t0, a);
+                    t1 = std::min(t1, b);
+                    inside = t0 <= t1;
+                }
+
+                if (inside and t0 < best)
+                {
+                    best = t0;
+                    victim = &f;
+                }
+            }
+
+            const RayHit wall = raycast(grid, content->blockTable, p.position, dir, length);
+
+            if (wall.hit and wall.distance < best)
+            {
+                // Stopped by the arena: a raised wall takes the arrow
+                if (grid.inBounds(wall.cell.x, wall.cell.y, wall.cell.z))
+                {
+                    const BlockId block = grid.get(wall.cell.x, wall.cell.y, wall.cell.z);
+                    const glm::vec3 color = block < content->blockTable.size() ? content->blockTable[block].color : glm::vec3(0.6f);
+                    terrain.damage(wall.cell, p.def.terrainDamage);
+                    event("arrow_hit", p.position + dir * wall.distance, 0.5f, 0, color);
+                }
+
+                it = projectiles.erase(it);
+                continue;
+            }
+
+            if (victim)
+            {
+                AttackDef hit;
+                hit.name = p.attack;
+                hit.damage = p.def.damage;
+                hit.poiseDamage = p.def.poiseDamage;
+                hit.knockback = p.def.knockback;
+                hit.hitstop = p.def.hitstop;
+                hit.shake = p.def.shake;
+
+                // The shooter if it is still there, else a stand-in where the arrow came from
+                Fighter standIn;
+                standIn.team = p.team;
+                standIn.body.position = p.position - dir * 2.0f;
+                Fighter* owner = find(p.owner);
+                Fighter& attacker = owner ? *owner : standIn;
+
+                // Knockback goes the way the arrow flies, not away from a distant shooter
+                const glm::vec3 shooterPos = attacker.body.position;
+                attacker.body.position = victim->body.position - glm::vec3(dir.x, 0.0f, dir.z);
+                const int hitstopBefore = attacker.hitstop;
+                applyHit(attacker, *victim, hit);
+                attacker.body.position = shooterPos;
+                attacker.hitstop = hitstopBefore;   // the archer is not frozen by an arrow landing far away
+
+                hits.back().point = p.position + dir * best;
+                event("arrow_hit", p.position + dir * best, 1.0f, victim->id, glm::vec3(0.8f, 0.2f, 0.2f));
+                it = projectiles.erase(it);
+                continue;
+            }
+
+            p.position += move;
+            ++it;
+        }
     }
 
     // --------------------------------------------------------------------------------------------
@@ -1561,6 +1816,7 @@ namespace arena
         }
 
         hits.push_back(e);
+        event(e.killed ? "kill" : (e.staggered ? "stagger" : "hit"), target.body.position + glm::vec3(0, target.body.height * 0.6f, 0), e.damage, target.id);
     }
 
     void ArenaWorld::separate()

@@ -22,6 +22,7 @@ namespace arena
         temporary.clear();
         removedSinceCheck.clear();
         brokenSinceStep.clear();
+        brokenBlocksSinceStep.clear();
         falling.clear();
         ++rev;
     }
@@ -60,6 +61,7 @@ namespace arena
 
         remove(c);
         brokenSinceStep.push_back(c);
+        brokenBlocksSinceStep.push_back(id);
         return true;
     }
 
@@ -221,7 +223,9 @@ namespace arena
 
         now = time;
         events.broken.insert(events.broken.end(), brokenSinceStep.begin(), brokenSinceStep.end());
+        events.brokenBlocks.insert(events.brokenBlocks.end(), brokenBlocksSinceStep.begin(), brokenBlocksSinceStep.end());
         brokenSinceStep.clear();
+        brokenBlocksSinceStep.clear();
 
         // Temporary blocks that ran out, oldest first
         for (auto it = temporary.begin(); it != temporary.end();)

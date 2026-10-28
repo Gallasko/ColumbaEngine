@@ -9,7 +9,7 @@
     [200, 50, 46, 255]
   ],
   "layers": [
-    { "name": "Layer 1", "visible": true }
+    { "name": "body", "visible": true }
   ],
   "cells": [
     { "x": 1, "y": 0, "z": 1, "c": 0, "l": 0 },

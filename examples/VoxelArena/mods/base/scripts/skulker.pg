@@ -1,0 +1,59 @@
+// Skulker behaviour: never fight face to face. See brute.pg for everything `me` holds.
+// The group fields used here:
+//   me.alliesNearTarget  other enemies close to the player: someone holds its attention
+//   me.alliesAttacking   other enemies attacking right now
+//   me.targetFacing      0 = in front of the player, 180 = right behind it
+// And one more answer: me.radius, the distance kept from the player while going round ("flank").
+import "math"
+
+fun think(me)
+{
+    var p = me.params
+
+    if (me.side == none)
+    {
+        me.side = 1
+    }
+
+    var behind = me.targetFacing > p.behindAngle
+    var opening = behind or me.targetAttacking or me.targetStaggered
+
+    if (me.distance > p.engageRange)
+    {
+        me.move = "hold"
+    }
+    else if (me.sinceAttack < p.backOff)
+    {
+        // Just bit: get out before the player turns round
+        me.move = "retreat"
+        me.speed = 0.9
+    }
+    else if (me.distance <= p.attackRange and me.sinceAttack > p.cooldown and opening)
+    {
+        me.attack = "bite"
+    }
+    else if (behind)
+    {
+        // At its back: close in for the bite
+        me.move = "flank"
+        me.radius = p.attackRange * 0.8
+    }
+    else if (me.alliesNearTarget > 0 or me.alliesAttacking > 0)
+    {
+        // Someone else has its attention: round to its back
+        me.move = "flank"
+        me.radius = p.radius
+    }
+    else if (me.distance < p.waitRadius)
+    {
+        // Alone and seen: circle at a distance, waiting
+        me.move = "strafe"
+        me.strafe = me.side
+        me.speed = 0.6
+    }
+    else
+    {
+        me.move = "flank"
+        me.radius = p.waitRadius
+    }
+}
