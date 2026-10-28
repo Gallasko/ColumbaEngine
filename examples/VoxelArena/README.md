@@ -113,7 +113,7 @@ let an arrow through; a block stops it (and takes `terrainDamage`), so a raised 
 - **Sounds** (`mods/base/sounds.json`) are made from numbers when the game starts: a tone and noise,
   a pitch glide, attack and decay, a low-pass filter. No audio file is in the repository. A mod can
   give any sound as a file instead: `"hit": { "file": "sounds/hit.wav" }`. Sounds get quieter past
-  10 m and silent past 32 m.
+  10 m and silent past 32 m. Up to 24 play at once.
 - **Limbs**: a model's editor layers are its body parts. Layers named `leg_l`, `leg_r`, `arm_l`,
   `arm_r` and `head` (four legs: `leg_fl`, `leg_fr`, `leg_bl`, `leg_br`) are animated: a walk cycle
   with footsteps, arms that follow the attack, a tuck in the roll, a recoil in a stagger. Any other
@@ -288,8 +288,6 @@ For example:
 ## Not done yet
 
 - Limb animation is procedural (no keyframes yet).
-- The engine plays at most 6 sounds at once: a busy fight skips some. `AudioSystem::setNumberOfChannel`
-  resizes its channel array the wrong way round, so the game does not raise it.
 - The HUD is laid out for the starting window size and does not follow a resize.
 - Chunks, worldgen, lighting and inventory are out of scope for now.
 - Falling pieces do not tumble.
