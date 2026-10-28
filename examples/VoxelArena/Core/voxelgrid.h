@@ -78,6 +78,9 @@ namespace arena
 
         const std::vector<BlockId>& raw() const { return cells; }
 
+        /** When set, every changed cell is appended here (flat index, new block): what a server sends. */
+        std::vector<std::pair<uint32_t, BlockId>>* changeLog = nullptr;
+
         /** Flat index of a cell (inBounds must hold). */
         size_t index(int x, int y, int z) const
         {

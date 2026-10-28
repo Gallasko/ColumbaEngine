@@ -1,3 +1,4 @@
+#include <cctype>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -33,9 +34,38 @@ int main(int argc, char* argv[])
             options.modsDir = argv[++i];
         else if (a == "--exec" and i + 1 < argc)
             options.startupCommands.push_back(argv[++i]);
+        else if (a == "--name" and i + 1 < argc)
+            options.name = argv[++i];
+        else if (a == "--host")
+        {
+            options.net = LaunchOptions::Net::Host;
+
+            if (i + 1 < argc and std::isdigit(static_cast<unsigned char>(argv[i + 1][0])))
+                options.port = static_cast<uint16_t>(std::stoi(argv[++i]));
+        }
+        else if (a == "--join" and i + 1 < argc)
+        {
+            options.net = LaunchOptions::Net::Join;
+            options.address = argv[++i];
+
+            // address:port
+            if (const auto colon = options.address.rfind(':'); colon != std::string::npos)
+            {
+                options.port = static_cast<uint16_t>(std::stoi(options.address.substr(colon + 1)));
+                options.address = options.address.substr(0, colon);
+            }
+        }
     }
 
-    GameApp app("Voxel Arena", options);
+    // Several on one desktop (a host and who joined it) tell their windows apart by the title
+    std::string title = "Voxel Arena";
+
+    if (options.net == LaunchOptions::Net::Host)
+        title += " (host)";
+    else if (options.net == LaunchOptions::Net::Join)
+        title += " (" + options.name + ")";
+
+    GameApp app(title, options);
 
     return app.exec();
 }

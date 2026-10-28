@@ -104,7 +104,7 @@ namespace arena
     // Setup
     // --------------------------------------------------------------------------------------------
 
-    void ArenaWorld::start(const Content& c, const Tuning& t)
+    void ArenaWorld::start(const Content& c, const Tuning& t, bool withLocalPlayer)
     {
         content = &c;
         tuning = t;
@@ -114,16 +114,13 @@ namespace arena
         steps = 0;
 
         buildArena();
+        history.clear();
+        pendingHits.clear();
+        projectiles.clear();
+        localPlayerId = 0;
 
-        Fighter p;
-        p.id = nextId++;
-        p.team = Team::Player;
-        p.type = "player";
-        p.spawnPosition = c.arena.playerSpawn;
-        p.spawnYaw = 0.0f;
-        p.weapon = c.weapons.count(t.startWeapon) ? t.startWeapon : (c.weaponOrder.empty() ? "" : c.weaponOrder.front());
-        fighters.push_back(p);
-        respawn(fighters.back());
+        if (withLocalPlayer)
+            localPlayerId = addPlayer(0);
 
         for (const auto& s : c.arena.spawns)
             spawnEnemy(s.enemy, s.position, s.yaw);
@@ -232,6 +229,64 @@ namespace arena
         return e.id;
     }
 
+    int ArenaWorld::addPlayer(int owner)
+    {
+        int count = 0;
+        for (const auto& f : fighters)
+            count += f.team == Team::Player;
+
+        Fighter p;
+        p.id = nextId++;
+        p.team = Team::Player;
+        p.type = "player";
+        p.owner = owner;
+
+        // In a row across the spawn point (right, left, further right...), so nobody stands in front of anyone
+        const float side = static_cast<float>((count + 1) / 2) * (count % 2 == 1 ? -1.0f : 1.0f);
+        p.spawnPosition = content->arena.playerSpawn + glm::vec3(side * 1.8f, 0.0f, 0.0f);
+        p.spawnYaw = 0.0f;
+        p.weapon = content->weapons.count(tuning.startWeapon) ? tuning.startWeapon : (content->weaponOrder.empty() ? "" : content->weaponOrder.front());
+        fighters.push_back(p);
+        respawn(fighters.back());
+
+        return p.id;
+    }
+
+    void ArenaWorld::removeFighter(int id)
+    {
+        fighters.erase(std::remove_if(fighters.begin(), fighters.end(), [&](const Fighter& f) { return f.id == id; }), fighters.end());
+
+        if (localPlayerId == id)
+            localPlayerId = 0;
+    }
+
+    const Fighter* ArenaWorld::nearestPlayer(const glm::vec3& at) const
+    {
+        const Fighter* best = nullptr;
+        float bestDistance = 1e9f;
+
+        for (const auto& f : fighters)
+        {
+            if (f.team != Team::Player or not f.alive())
+                continue;
+
+            const float d = glm::length(f.body.position - at);
+
+            if (d < bestDistance)
+            {
+                bestDistance = d;
+                best = &f;
+            }
+        }
+
+        return best;
+    }
+
+    Fighter* ArenaWorld::nearestPlayer(const glm::vec3& at)
+    {
+        return const_cast<Fighter*>(static_cast<const ArenaWorld*>(this)->nearestPlayer(at));
+    }
+
     void ArenaWorld::removeEnemies()
     {
         fighters.erase(std::remove_if(fighters.begin(), fighters.end(), [](const Fighter& f) { return f.team == Team::Enemy; }), fighters.end());
@@ -254,8 +309,12 @@ namespace arena
 
     Fighter* ArenaWorld::player()
     {
+        if (localPlayerId != 0)
+            if (Fighter* f = find(localPlayerId))
+                return f;
+
         for (auto& f : fighters)
-            if (f.team == Team::Player)
+            if (f.team == Team::Player and f.owner == 0)
                 return &f;
 
         return nullptr;
@@ -344,23 +403,58 @@ namespace arena
 
     void ArenaWorld::step(const InputFrame& input)
     {
+        std::map<int, InputFrame> inputs;
+
+        if (const Fighter* p = player())
+            inputs[p->id] = input;
+
+        step(inputs);
+    }
+
+    void ArenaWorld::step(const std::map<int, InputFrame>& inputs)
+    {
         if (not content)
             return;
+
+        static const InputFrame idle;
+
+        // A network client steps only what it predicts: the rest arrives from the server
+        if (not authority)
+        {
+            for (auto& f : fighters)
+            {
+                auto it = inputs.find(f.id);
+
+                if (it != inputs.end() and f.team == Team::Player)
+                    stepPlayer(f, it->second);
+            }
+
+            time += STEP_SECONDS;
+            ++steps;
+            return;
+        }
 
         for (auto& f : fighters)
         {
             if (f.team == Team::Player)
-                stepPlayer(f, input);
+            {
+                auto it = inputs.find(f.id);
+                stepPlayer(f, it != inputs.end() ? it->second : idle);
+            }
             else
+            {
                 stepEnemy(f);
+            }
         }
 
         separate();
         fireProjectiles();
         stepProjectiles();
+        resolvePendingHits();
         resolveHits();
         terrainFromAttacks();
         stepTerrain();
+        recordHistory();
 
         time += STEP_SECONDS;
         ++steps;
@@ -441,7 +535,8 @@ namespace arena
                 if (o.team == f.team or not o.alive())
                     continue;
 
-                const glm::vec3 to = flat(o.body.position - f.body.position);
+                // Where the attacker sees it (lag compensation applies to aiming too)
+                const glm::vec3 to = flat(bodyFor(f, o).position - f.body.position);
                 const float dist = glm::length(to);
 
                 if (dist > tuning.combat.aimAssistRange + o.body.width * 0.5f or dist < 1e-3f)
@@ -465,7 +560,7 @@ namespace arena
             f.yaw = yawOf(aim);
 
         // Up or down: given (first person), else at the target (aim assist's, or the player for an enemy)
-        const Fighter* target = f.team == Team::Player ? assistTarget : player();
+        const Fighter* target = f.team == Team::Player ? assistTarget : nearestPlayer(f.body.position);
         assistTarget = nullptr;
 
         if (std::isnan(pitch))
@@ -546,6 +641,18 @@ namespace arena
 
         if (glm::length(in.aimDir) > 1e-4f)
             f.aimDir = glm::normalize(in.aimDir);
+
+        // What its owner sees (lag compensation): set before anything this step aims or hits
+        f.viewTick = in.viewTick;
+
+        // Another weapon: part of the input, so a server and a predicting client do the same
+        if (in.equip > 0 and static_cast<size_t>(in.equip) <= content->weaponOrder.size())
+        {
+            f.weapon = content->weaponOrder[static_cast<size_t>(in.equip - 1)];
+
+            if (f.action == Action::Attack)
+                f.action = Action::Free;
+        }
 
         if (in.dodgePressed)
         {
@@ -829,6 +936,10 @@ namespace arena
             f.airborneStagger = false;
         regenStamina(f);
 
+        // A roll that started this step: when its owner pressed it, for the dodge grace
+        if (f.action == Action::Dodge and f.frame <= 0)
+            f.dodgeStamp = in.stamp >= 0 ? in.stamp : static_cast<int>(steps);
+
         if (f.action != Action::Free)
             ++f.frame;
     }
@@ -870,7 +981,7 @@ namespace arena
         if (def.regenerates and f.sinceHit > 2.0f)
             f.health = f.maxHealth;
 
-        Fighter* target = player();
+        Fighter* target = nearestPlayer(f.body.position);
         const bool targetAlive = target and target->alive();
 
         glm::vec3 toTarget = targetAlive ? flat(target->body.position - f.body.position) : yawForward(f.yaw);
@@ -1286,7 +1397,8 @@ namespace arena
 
         f.mineTimer = std::max(0.0f, f.mineTimer - STEP_SECONDS);
 
-        if (f.action != Action::Free)
+        // The terrain belongs to the server: a client sees the result in the next snapshot
+        if (f.action != Action::Free or not authority)
             return;
 
         for (int i = 0; i < InputFrame::ABILITIES; ++i)
@@ -1599,7 +1711,7 @@ namespace arena
             p.position = f.body.position + localToWorld(f.yaw, def.spawn);
 
             glm::vec3 dir = yawForward(f.yaw);
-            const Fighter* target = f.team == Team::Enemy ? player() : nullptr;
+            const Fighter* target = f.team == Team::Enemy ? nearestPlayer(f.body.position) : nullptr;
 
             if (target and target->alive())
             {
@@ -1716,11 +1828,10 @@ namespace arena
                 const glm::vec3 shooterPos = attacker.body.position;
                 attacker.body.position = victim->body.position - glm::vec3(dir.x, 0.0f, dir.z);
                 const int hitstopBefore = attacker.hitstop;
-                applyHit(attacker, *victim, hit);
+                hitOrDefer(attacker, *victim, hit, p.position + dir * best);
                 attacker.body.position = shooterPos;
                 attacker.hitstop = hitstopBefore;   // the archer is not frozen by an arrow landing far away
 
-                hits.back().point = p.position + dir * best;
                 event("arrow_hit", p.position + dir * best, 1.0f, victim->id, glm::vec3(0.8f, 0.2f, 0.2f));
                 it = projectiles.erase(it);
                 continue;
@@ -1762,16 +1873,101 @@ namespace arena
                     if (std::find(attacker.hitThisSwing.begin(), attacker.hitThisSwing.end(), target.id) != attacker.hitThisSwing.end())
                         continue;
 
-                    if (boxHitsBody(centre, box.size, attacker.yaw, target.body))
+                    // Where the attacker saw the target (lag compensation for a remote player)
+                    const Body& seen = bodyFor(attacker, target);
+
+                    if (boxHitsBody(centre, box.size, attacker.yaw, seen))
                     {
                         attacker.hitThisSwing.push_back(target.id);
-                        applyHit(attacker, target, *a);
-
-                        HitEvent& e = hits.back();
-                        e.point = (centre + target.body.position + glm::vec3(0, target.body.height * 0.5f, 0)) * 0.5f;
+                        hitOrDefer(attacker, target, *a, (centre + seen.position + glm::vec3(0, seen.height * 0.5f, 0)) * 0.5f);
                     }
                 }
             }
+        }
+    }
+
+    const Body& ArenaWorld::bodyFor(const Fighter& attacker, const Fighter& target) const
+    {
+        // A remote player swings at what its screen showed: enemies as they were at its view tick
+        if (attacker.team != Team::Player or attacker.viewTick < 0 or target.team != Team::Enemy)
+            return target.body;
+
+        for (auto it = history.rbegin(); it != history.rend(); ++it)
+        {
+            if (static_cast<int64_t>(it->tick) > attacker.viewTick)
+                continue;
+
+            for (const auto& [id, body] : it->bodies)
+                if (id == target.id)
+                    return body;
+
+            break;
+        }
+
+        return target.body;
+    }
+
+    void ArenaWorld::recordHistory()
+    {
+        Snapshot s;
+        s.tick = steps;
+        s.bodies.reserve(fighters.size());
+
+        for (const auto& f : fighters)
+            s.bodies.emplace_back(f.id, f.body);
+
+        history.push_back(std::move(s));
+
+        if (history.size() > HISTORY)
+            history.erase(history.begin());
+    }
+
+    void ArenaWorld::hitOrDefer(Fighter& attacker, Fighter& target, const AttackDef& attack, const glm::vec3& point)
+    {
+        // A hit on a remote player waits a moment: its dodge may already be on the way
+        auto grace = defenderGrace.find(target.owner);
+
+        if (target.team == Team::Player and target.owner != 0 and grace != defenderGrace.end() and grace->second > 0)
+        {
+            pendingHits.push_back({attacker, target.id, attack, point, steps, steps + static_cast<uint64_t>(grace->second)});
+            return;
+        }
+
+        applyHit(attacker, target, attack);
+        hits.back().point = point;
+    }
+
+    void ArenaWorld::resolvePendingHits()
+    {
+        for (auto it = pendingHits.begin(); it != pendingHits.end();)
+        {
+            if (it->resolveAt > steps)
+            {
+                ++it;
+                continue;
+            }
+
+            PendingHit hit = *it;
+            it = pendingHits.erase(it);
+
+            Fighter* target = find(hit.target);
+
+            if (not target or not target->alive())
+                continue;
+
+            // Dodged in time by its own clock: the roll was pressed early enough that the hit fell in its i-frames
+            if (target->action == Action::Dodge and target->dodgeStamp >= 0)
+            {
+                const int64_t into = static_cast<int64_t>(hit.tick) - target->dodgeStamp;
+
+                if (into >= tuning.dodge.iframeStart and into < tuning.dodge.iframeEnd)
+                    continue;
+            }
+
+            Fighter* live = find(hit.attacker.id);
+            Fighter& attacker = live ? *live : hit.attacker;
+            applyHit(attacker, *target, hit.attack);
+            hits.back().point = hit.point;
         }
     }
 

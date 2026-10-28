@@ -11,128 +11,220 @@ namespace pg
     namespace
     {
         inline constexpr const char * const DOM = "Backend SDL";
+
+        /** SDL_net must be started before any socket (WSAStartup on Windows, SIGPIPE ignored on Linux). */
+        bool ensureSdlNet()
+        {
+            static bool started = SDLNet_Init() == 0;
+
+            if (not started)
+                LOG_ERROR(DOM, "SDLNet_Init failed: " << SDLNet_GetError());
+
+            return started;
+        }
+
+        std::string numericHost(const IPaddress& a)
+        {
+            const uint32_t ip = SDLNet_Read32(const_cast<Uint32*>(&a.host));
+            return std::to_string((ip >> 24) & 0xFF) + "." + std::to_string((ip >> 16) & 0xFF) + "." + std::to_string((ip >> 8) & 0xFF) + "." + std::to_string(ip & 0xFF);
+        }
     }
 
     SdlNetworkBackend::SdlNetworkBackend(const NetworkConfig& cfg) : _cfg(cfg)
     {
-        sockSet = SDLNet_AllocSocketSet(2);
+        if (not ensureSdlNet())
+            return;
+
+        // Room for every client (the server) or the one connection (the client)
+        sockSetSize = std::max<int>(2, static_cast<int>(_cfg.defaultSystemFlags.socketSetSize));
+        sockSet = SDLNet_AllocSocketSet(sockSetSize);
+
         if (not sockSet)
         {
-            LOG_ERROR(DOM, "Socket set couldn't be created !");
+            LOG_ERROR(DOM, "Socket set couldn't be created: " << SDLNet_GetError());
+            return;
         }
 
-        // Only set up server listener sockets here; client will connect in connectToServer()
+        _udpPkt = SDLNet_AllocPacket(MAX_PAYLOAD);
+
+        if (not _udpPkt)
+        {
+            LOG_ERROR(DOM, "UDP packet couldn't be allocated");
+            return;
+        }
+
         if (_cfg.isServer)
         {
-            // TCP listener
             IPaddress addr{};
-            SDLNet_ResolveHost(&addr, nullptr, _cfg.tcpPort);
-            _listener = SDLNet_TCP_Open(&addr);
 
-            if (sockSet)
-                SDLNet_TCP_AddSocket(sockSet, _listener);
+            if (SDLNet_ResolveHost(&addr, nullptr, _cfg.tcpPort) < 0 or not (_listener = SDLNet_TCP_Open(&addr)))
+            {
+                LOG_ERROR(DOM, "Cannot listen on TCP port " << _cfg.tcpPort << ": " << SDLNet_GetError());
+                return;
+            }
 
-            // UDP socket
-            _udpSock = SDLNet_UDP_Open(_cfg.udpLocalPort);
+            if (not (_udpSock = SDLNet_UDP_Open(_cfg.udpLocalPort)))
+            {
+                LOG_ERROR(DOM, "Cannot open UDP port " << _cfg.udpLocalPort << ": " << SDLNet_GetError());
+                return;
+            }
         }
 
-        // Allocate a reusable UDP packet buffer
-        _udpPkt = SDLNet_AllocPacket(MAX_PAYLOAD);
+        ready = true;
     }
 
     SdlNetworkBackend::~SdlNetworkBackend()
     {
-        if (sockSet)
-            SDLNet_FreeSocketSet(sockSet);
+        joinConnectThread();
+
+        if (connectedSock)
+            SDLNet_TCP_Close(connectedSock);
+
+        for (auto& [sock, buffer] : rxBuffers)
+        {
+            if (sock != _tcpSock)
+            {
+                if (sockSet)
+                    SDLNet_TCP_DelSocket(sockSet, sock);
+                SDLNet_TCP_Close(sock);
+            }
+        }
+
+        disconnectFromServer();
 
         if (_listener)
             SDLNet_TCP_Close(_listener);
 
-        if (_tcpSock)
-            SDLNet_TCP_Close(_tcpSock);
-
         if (_udpSock)
             SDLNet_UDP_Close(_udpSock);
+
+        if (sockSet)
+            SDLNet_FreeSocketSet(sockSet);
 
         if (_udpPkt)
             SDLNet_FreePacket(_udpPkt);
     }
+
+    // ---- Connections -----------------------------------------------------------------------------
 
     SocketHandle SdlNetworkBackend::acceptTcpClient()
     {
         if (not _listener)
             return nullptr;
 
-        auto newSock = SDLNet_TCP_Accept(_listener);
+        TCPsocket newSock = SDLNet_TCP_Accept(_listener);
 
         if (not newSock)
             return nullptr;
 
-        bool addedToSet = false;
-
-        for (size_t setId = 0; setId < sockSets.size(); setId++)
+        if (socketsInSet >= sockSetSize or SDLNet_TCP_AddSocket(sockSet, newSock) == -1)
         {
-            auto res = SDLNet_TCP_AddSocket(sockSets[setId], newSock);
-
-            if (res != -1)
-            {
-                sockSetsMap[newSock] = sockSets[setId];
-                addedToSet = true;
-                break;
-            }
+            LOG_WARNING(DOM, "Too many connections: refused one");
+            SDLNet_TCP_Close(newSock);
+            return nullptr;
         }
 
-        if (not addedToSet)
-        {
-            auto newSet = SDLNet_AllocSocketSet(_cfg.defaultSystemFlags.socketSetSize);
-
-            if (newSet)
-            {
-                sockSets.push_back(newSet);
-                LOG_INFO("NetSys", "Created socket set " << sockSets.size() - 1);
-
-                auto res = SDLNet_TCP_AddSocket(newSet, newSock);
-
-                if (res == -1)
-                {
-                    LOG_ERROR("NetSys", "Failed to add this new socket in the new set");
-                    return nullptr;
-                }
-
-                sockSetsMap[newSock] = newSet;
-            }
-            else
-            {
-                LOG_WARNING("NetSys", "Failed to create socket set");
-                return nullptr;
-            }
-        }
-
+        ++socketsInSet;
+        rxBuffers[newSock];
         return newSock;
+    }
+
+    bool SdlNetworkBackend::openClientUdp()
+    {
+        if (_udpSock)
+            return true;
+
+        _udpSock = SDLNet_UDP_Open(_cfg.udpLocalPort);
+
+        if (not _udpSock)
+            LOG_ERROR(DOM, "Cannot open the client UDP socket: " << SDLNet_GetError());
+
+        return _udpSock != nullptr;
     }
 
     bool SdlNetworkBackend::connectToServer()
     {
-        if (_tcpSock)
-            return true;  // already connected
+        if (_isConnectedToServer)
+            return true;
 
-        // Resolve and open TCP
-        IPaddress serv {};
+        IPaddress serv{};
+
         if (SDLNet_ResolveHost(&serv, _cfg.peerAddress.c_str(), _cfg.tcpPort) < 0)
             return false;
 
-        _tcpSock = SDLNet_TCP_Open(&serv);
-        if (not _tcpSock)
+        TCPsocket sock = SDLNet_TCP_Open(&serv);
+
+        if (not sock)
             return false;
 
-        // Open UDP on local port (0 = ephemeral)
-        _udpSock = SDLNet_UDP_Open(_cfg.udpLocalPort);
-        if (not _udpSock)
+        if (not openClientUdp() or SDLNet_TCP_AddSocket(sockSet, sock) == -1)
+        {
+            SDLNet_TCP_Close(sock);
             return false;
+        }
 
-        _isConnectedToServer = SDLNet_TCP_AddSocket(sockSet, _tcpSock) != -1;
+        _tcpSock = sock;
+        rxBuffers[_tcpSock];
+        _isConnectedToServer = true;
+        return true;
+    }
 
-        return _isConnectedToServer;
+    void SdlNetworkBackend::joinConnectThread()
+    {
+        if (connectThread.joinable())
+            connectThread.join();
+    }
+
+    void SdlNetworkBackend::startConnect()
+    {
+        if (_isConnectedToServer or connectState == 0)
+            return;
+
+        joinConnectThread();
+        connectState = 0;
+
+        // Resolving and connecting block (seconds for a host that does not answer): not on the game's thread
+        const std::string host = _cfg.peerAddress;
+        const uint16_t port = _cfg.tcpPort;
+
+        connectThread = std::thread([this, host, port]() {
+            IPaddress serv{};
+            TCPsocket sock = nullptr;
+
+            if (SDLNet_ResolveHost(&serv, host.c_str(), port) == 0)
+                sock = SDLNet_TCP_Open(&serv);
+
+            connectedSock = sock;
+            connectState = sock ? 1 : -1;
+        });
+    }
+
+    int SdlNetworkBackend::connectStatus()
+    {
+        if (_isConnectedToServer)
+            return 1;
+
+        const int state = connectState;
+
+        if (state != 1)
+            return state;
+
+        // Done on the other thread: finish here, on the caller's
+        joinConnectThread();
+        TCPsocket sock = connectedSock;
+        connectedSock = nullptr;
+        connectState = -1;
+
+        if (not openClientUdp() or SDLNet_TCP_AddSocket(sockSet, sock) == -1)
+        {
+            SDLNet_TCP_Close(sock);
+            return -1;
+        }
+
+        _tcpSock = sock;
+        rxBuffers[_tcpSock];
+        _isConnectedToServer = true;
+        return 1;
     }
 
     void SdlNetworkBackend::disconnectFromServer()
@@ -141,10 +233,12 @@ namespace pg
         {
             SDLNet_TCP_DelSocket(sockSet, _tcpSock);
             SDLNet_TCP_Close(_tcpSock);
+            rxBuffers.erase(_tcpSock);
             _tcpSock = nullptr;
         }
 
-        if (_udpSock)
+        // The client's UDP socket goes with the connection; the server's stays bound
+        if (_udpSock and not _cfg.isServer)
         {
             SDLNet_UDP_Close(_udpSock);
             _udpSock = nullptr;
@@ -153,136 +247,150 @@ namespace pg
         _isConnectedToServer = false;
     }
 
-    void SdlNetworkBackend::closeTcp(SocketHandle sock)
+    void SdlNetworkBackend::closeTcp(SocketHandle handle)
     {
-        if (sock)
+        auto sock = static_cast<TCPsocket>(handle);
+
+        if (not sock)
+            return;
+
+        if (rxBuffers.erase(sock))
         {
-            auto tcpSock = static_cast<TCPsocket>(sock);
-
-            auto it = sockSetsMap.find(tcpSock);
-            if (it != sockSetsMap.end())
-            {
-                SDLNet_TCP_DelSocket(it->second, tcpSock);
-                sockSetsMap.erase(it);
-            }
-
-            SDLNet_TCP_Close(tcpSock);
+            SDLNet_TCP_DelSocket(sockSet, sock);
+            --socketsInSet;
         }
+
+        SDLNet_TCP_Close(sock);
     }
 
-    bool SdlNetworkBackend::sendTcp(SocketHandle sock, const NetPayload& data)
+    // ---- Sending ---------------------------------------------------------------------------------
+
+    bool SdlNetworkBackend::sendTcp(SocketHandle handle, const NetPayload& data)
     {
-        if (not sock)
+        if (not handle or data.size() > MAX_FRAME)
             return false;
 
-        const uint8_t* buf = data.data();
-        int remaining = (int)data.size();
+        // Length then bytes, in one write
+        NetPayload frame(4 + data.size());
+        SDLNet_Write32(static_cast<Uint32>(data.size()), frame.data());
 
-        while (remaining > 0)
-        {
-            int sent = SDLNet_TCP_Send(static_cast<TCPsocket>(sock), buf, remaining);
+        if (not data.empty())
+            std::memcpy(frame.data() + 4, data.data(), data.size());
 
-            if (sent <= 0)
-                return false;
-
-            buf       += sent;
-            remaining -= sent;
-        }
-
-        return true;
+        const int sent = SDLNet_TCP_Send(static_cast<TCPsocket>(handle), frame.data(), static_cast<int>(frame.size()));
+        return sent == static_cast<int>(frame.size());
     }
 
     bool SdlNetworkBackend::sendTcp(const NetPayload& data)
     {
-        if (_isConnectedToServer)
-            return sendTcp(_tcpSock, data);
-        else
-            return false;
+        return _isConnectedToServer and sendTcp(_tcpSock, data);
     }
 
     bool SdlNetworkBackend::sendUdp(const IpEndpoint& dest, const NetPayload& data)
     {
-        if (not _udpPkt)
+        if (not _udpPkt or not _udpSock or data.size() > static_cast<size_t>(_udpPkt->maxlen))
             return false;
 
-        // prepare packet
-        IPaddress sdlDest;
-        if (SDLNet_ResolveHost(&sdlDest, dest.host.c_str(), dest.port) < 0) {
-            return false;
+        // Resolved once per destination: a lookup per datagram would stall the sender
+        const std::string key = dest.host + ":" + std::to_string(dest.port);
+        auto it = resolved.find(key);
+
+        if (it == resolved.end())
+        {
+            IPaddress addr{};
+
+            if (SDLNet_ResolveHost(&addr, dest.host.c_str(), dest.port) < 0)
+                return false;
+
+            it = resolved.emplace(key, addr).first;
         }
 
-        _udpPkt->address = sdlDest;
-        _udpPkt->len     = SDL_min((int)data.size(), _udpPkt->maxlen);
-
-        std::memcpy(_udpPkt->data, data.data(), _udpPkt->len);
+        _udpPkt->address = it->second;
+        _udpPkt->len = static_cast<int>(data.size());
+        std::memcpy(_udpPkt->data, data.data(), data.size());
 
         return SDLNet_UDP_Send(_udpSock, -1, _udpPkt) == 1;
     }
 
-    bool SdlNetworkBackend::receive(SocketHandle& tcpSock,
-        IpEndpoint& srcUdp,
-        NetPayload& out)
+    // ---- Receiving -------------------------------------------------------------------------------
+
+    bool SdlNetworkBackend::readFrame(TCPsocket sock, NetPayload& out, bool& closed)
     {
+        auto& rx = rxBuffers[sock];
 
-        if (sockSet)
+        auto extract = [&]() {
+            if (rx.size() < 4)
+                return false;
+
+            const uint32_t len = SDLNet_Read32(rx.data());
+
+            if (len > MAX_FRAME)
+            {
+                LOG_ERROR(DOM, "A peer sent a " << len << " byte message: connection closed");
+                closed = true;
+                return false;
+            }
+
+            if (rx.size() < 4 + static_cast<size_t>(len))
+                return false;
+
+            out.assign(rx.begin() + 4, rx.begin() + 4 + len);
+            rx.erase(rx.begin(), rx.begin() + 4 + len);
+            return true;
+        };
+
+        // A whole frame may already be waiting from an earlier read
+        if (extract() or closed)
+            return not closed;
+
+        SDLNet_CheckSockets(sockSet, 0);
+
+        if (not SDLNet_SocketReady(sock))
+            return false;
+
+        uint8_t buf[MAX_PAYLOAD];
+        const int rec = SDLNet_TCP_Recv(sock, buf, sizeof(buf));
+
+        if (rec <= 0)
         {
-            SDLNet_CheckSockets(sockSet, 0);
+            closed = true;
+            return false;
         }
 
-        // 1) Try UDP (non-blocking)
-        if (_udpSock)
-        {
-            UDPpacket* pkt = _udpPkt;
-
-            if (SDLNet_UDP_Recv(_udpSock, pkt) > 0)
-            {
-                srcUdp.host = SDLNet_ResolveIP(&pkt->address);;
-                srcUdp.port = pkt->address.port;
-
-                out.assign(pkt->data, pkt->data + pkt->len);
-                tcpSock = nullptr;
-
-                return true;
-            }
-        }
-
-        // 2) Try TCP (non-blocking)
-        if (_tcpSock and SDLNet_SocketReady(_tcpSock))
-        {
-            // peek a chunk
-            char buf[MAX_PAYLOAD];
-            int rec = SDLNet_TCP_Recv(_tcpSock, buf, sizeof(buf));
-            if (rec > 0)
-            {
-                out.assign((uint8_t*)buf, (uint8_t*)buf + rec);
-                tcpSock = _tcpSock;
-                return true;
-            }
-            else
-            {
-                disconnectFromServer();
-                LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
-            }
-        }
-
-        return false;
+        rx.insert(rx.end(), buf, buf + rec);
+        return extract();
     }
 
     bool SdlNetworkBackend::receiveUdp(IpEndpoint& srcUdp, NetPayload& out)
     {
-        if (_udpSock)
+        if (not _udpSock or not _udpPkt)
+            return false;
+
+        if (SDLNet_UDP_Recv(_udpSock, _udpPkt) <= 0)
+            return false;
+
+        out.assign(_udpPkt->data, _udpPkt->data + _udpPkt->len);
+
+        // Numbers, not a name: a reverse lookup per datagram can take seconds
+        srcUdp.host = numericHost(_udpPkt->address);
+        srcUdp.port = SDLNet_Read16(&_udpPkt->address.port);
+        return true;
+    }
+
+    bool SdlNetworkBackend::receive(SocketHandle& tcpSock, IpEndpoint& srcUdp, NetPayload& out)
+    {
+        if (receiveUdp(srcUdp, out))
         {
-            UDPpacket* pkt = _udpPkt;
+            tcpSock = nullptr;
+            return true;
+        }
 
-            if (SDLNet_UDP_Recv(_udpSock, pkt) > 0)
-            {
-                out.assign(pkt->data, pkt->data + pkt->len);
+        bool closed = false;
 
-                srcUdp.host = SDLNet_ResolveIP(&pkt->address);;
-                srcUdp.port = pkt->address.port;
-
-                return true;
-            }
+        if (receiveTcp(out, closed))
+        {
+            tcpSock = _tcpSock;
+            return true;
         }
 
         return false;
@@ -290,88 +398,27 @@ namespace pg
 
     bool SdlNetworkBackend::receiveTcp(SocketHandle& tcpHandle, NetPayload& out, bool& socketClosed)
     {
-        auto tcpSock = static_cast<TCPsocket>(tcpHandle);
+        auto sock = static_cast<TCPsocket>(tcpHandle);
 
-        auto it = sockSetsMap.find(tcpSock);
-
-        SDLNet_SocketSet socketSet = nullptr;
-
-        if (it != sockSetsMap.end())
-        {
-            socketSet = it->second;
-            auto dataReceived = SDLNet_CheckSockets(socketSet, 0);
-
-            if ( dataReceived > 0)
-                LOG_INFO(DOM, "Tcp data received: " << dataReceived);
-        }
-        else
-        {
-            LOG_ERROR(DOM, "Invalid socket set");
+        if (not sock or not rxBuffers.count(sock))
             return false;
-        }
 
-        if (tcpSock and SDLNet_SocketReady(tcpSock))
-        {
-            // peek a chunk
-            char buf[MAX_PAYLOAD];
-            int rec = SDLNet_TCP_Recv(tcpSock, buf, sizeof(buf));
-
-            if (rec > 0)
-            {
-                out.assign((uint8_t*)buf, (uint8_t*)buf + rec);
-
-                return true;
-            }
-            else
-            {
-                socketClosed = true;
-                LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
-            }
-        }
-
-        return false;
+        return readFrame(sock, out, socketClosed);
     }
 
     bool SdlNetworkBackend::receiveTcp(NetPayload& out, bool& socketClosed)
     {
-        if (_tcpSock and SDLNet_SocketReady(_tcpSock))
+        if (not _tcpSock)
+            return false;
+
+        const bool got = readFrame(_tcpSock, out, socketClosed);
+
+        if (socketClosed)
         {
-            // peek a chunk
-            char buf[MAX_PAYLOAD];
-            int rec = SDLNet_TCP_Recv(_tcpSock, buf, sizeof(buf));
-            if (rec > 0)
-            {
-                out.assign((uint8_t*)buf, (uint8_t*)buf + rec);
-
-                return true;
-            }
-            else
-            {
-                disconnectFromServer();
-                socketClosed = true;
-
-                LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
-            }
+            LOG_WARNING(DOM, "Connection to the server closed");
+            disconnectFromServer();
         }
 
-        return false;
+        return got;
     }
-
-    // bool SdlNetworkBackend::recvUdpHeader(UdpHeader& hdr, IPaddress& src)
-    // {
-    //     TCPsocket dummySock;
-    //     std::vector<uint8_t> raw;
-
-    //     if (not receive(dummySock, src, raw) or dummySock != nullptr)
-    //     {
-    //         return false;
-    //     }
-
-    //     if ((int)raw.size() < (int)sizeof(UdpHeader))
-    //         return false;
-
-    //     hdr = readHeader(raw.data());
-    //     return true;
-    // }
-
 }

@@ -52,11 +52,10 @@ namespace pg
 
         auto pSize = payload.size();
 
-        uint16_t totalFrags = uint16_t((pSize + chunkMax - 1) / chunkMax);
+        // An empty message is still one (empty) fragment: it has to arrive
+        uint16_t totalFrags = uint16_t(std::max<size_t>(1, (pSize + chunkMax - 1) / chunkMax));
 
-        auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::system_clock::now().time_since_epoch())
-                    .count();
+        const auto now = steadyMs();
 
         NetFragmentedPayload out;
         out.reserve(totalFrags);
@@ -64,7 +63,7 @@ namespace pg
         for (uint16_t idx = 0; idx < totalFrags; idx++)
         {
             size_t offset = size_t(idx) * chunkMax;
-            uint16_t thisLen = uint16_t(std::min(chunkMax, pSize - offset));
+            uint16_t thisLen = uint16_t(pSize > offset ? std::min(chunkMax, pSize - offset) : 0);
 
             PacketHeader h {
                 clientId,
@@ -90,68 +89,108 @@ namespace pg
         return out;
     }
 
+    uint64_t steadyMs()
+    {
+        return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+    }
+
     // Reassemble fragments
     bool parseAndReassemble(
         const NetPayload& raw,
         NetPacketBuffer& buffer,
-        std::map<uint32_t, uint64_t>& rTimers,
+        NetPacketTimers& rTimers,
         INetworkBackend* backend,
         ParsedPacket& out)
     {
         if (raw.size() < HEADER_SIZE)
             return false;
 
-        auto hdr = readHeader(raw.data(), backend);
+        const auto hdr = readHeader(raw.data(), backend);
 
-        auto key = std::make_tuple(hdr.clientId, hdr.token, hdr.packetNumber, hdr.type);
-
-        auto& slots = buffer[key];
-
-        if (slots.empty())
-        {
-            slots.resize(hdr.totalFragments);
-
-            auto now =  std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count();
-
-            rTimers[hdr.packetNumber] = now;
-        }
-
-        if (hdr.fragmentIndex >= hdr.totalFragments)
+        // Checked before the fragment takes any room
+        if (hdr.totalFragments == 0 or hdr.fragmentIndex >= hdr.totalFragments)
             return false;
 
         if (HEADER_SIZE + hdr.payloadLen > raw.size())
             return false;
 
-        slots[hdr.fragmentIndex] =
-            NetPayload(
-            raw.begin() + HEADER_SIZE,
-            raw.begin() + HEADER_SIZE + hdr.payloadLen);
-
-        // check if complete
-        bool complete = true;
-
-        for (auto& s : slots)
-        {
-            if (s.empty())
-            {
-                complete = false;
-                break;
-            }
-        }
-
-        if (not complete)
+        if (static_cast<size_t>(hdr.totalFragments) * (MAX_PAYLOAD - HEADER_SIZE) > MAX_MESSAGE + MAX_PAYLOAD)
             return false;
 
-        // assemble
+        NetPayload fragment(raw.begin() + HEADER_SIZE, raw.begin() + HEADER_SIZE + hdr.payloadLen);
+
+        // The common case: a message in one piece
+        if (hdr.totalFragments == 1)
+        {
+            out.header = hdr;
+            out.payload = std::move(fragment);
+            return true;
+        }
+
+        const auto key = std::make_tuple(hdr.clientId, hdr.token, hdr.packetNumber, hdr.type);
+        auto& slots = buffer[key];
+
+        if (slots.empty())
+        {
+            slots.resize(hdr.totalFragments);
+            rTimers[key] = steadyMs();
+        }
+
+        // A fragment that disagrees with the first one about the message's size: drop the message
+        if (slots.size() != hdr.totalFragments)
+        {
+            buffer.erase(key);
+            rTimers.erase(key);
+            return false;
+        }
+
+        // An empty fragment marks a slot as filled with nothing: keep one byte of bookkeeping apart
+        slots[hdr.fragmentIndex] = std::move(fragment);
+        slots[hdr.fragmentIndex].insert(slots[hdr.fragmentIndex].begin(), 1);
+
+        for (const auto& s : slots)
+            if (s.empty())
+                return false;
+
         NetPayload full;
-        for (auto& s : slots)
-            full.insert(full.end(), s.begin(), s.end());
+        for (const auto& s : slots)
+            full.insert(full.end(), s.begin() + 1, s.end());
 
         out.header = hdr;
         out.payload = std::move(full);
         buffer.erase(key);
+        rTimers.erase(key);
 
         return true;
+    }
+
+    size_t dropStaleFragments(NetPacketBuffer& buffer, NetPacketTimers& timers, uint64_t now, uint64_t timeoutMs)
+    {
+        size_t dropped = 0;
+
+        for (auto it = buffer.begin(); it != buffer.end();)
+        {
+            auto t = timers.find(it->first);
+            const bool stale = t == timers.end() or now - t->second > timeoutMs;
+
+            if (stale)
+            {
+                if (t != timers.end())
+                    timers.erase(t);
+
+                it = buffer.erase(it);
+                ++dropped;
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
+        // Timers left without a buffer entry
+        for (auto it = timers.begin(); it != timers.end();)
+            it = buffer.count(it->first) ? std::next(it) : timers.erase(it);
+
+        return dropped;
     }
 }

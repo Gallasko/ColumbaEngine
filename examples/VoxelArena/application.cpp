@@ -4,6 +4,8 @@
 
 #include "2D/simple2dobject.h"
 #include "Audio/audiosystem.h"
+#include "Networking/backend_sdl.h"
+#include "Networking/network_system.h"
 #include "ECS/entitysystem.h"
 #include "Renderer/renderer.h"
 #include "UI/ttftext.h"
@@ -75,6 +77,25 @@ GameApp::GameApp(const std::string& appName, const LaunchOptions& opts) : engine
 
         LOG_INFO(DOM, "Mods from " << arenaOptions.modsDir << ", shaders from " << shaderDir);
 
+        // Multiplayer: the engine's network system carries the messages, the game reads them each step
+        if (options.net != LaunchOptions::Net::None)
+        {
+            NetworkConfig net;
+            net.isServer = options.net == LaunchOptions::Net::Host;
+            net.peerAddress = options.address;
+            net.tcpPort = options.port;
+            net.udpLocalPort = net.isServer ? static_cast<uint16_t>(options.port + 1) : 0;
+            net.udpPeerPort = static_cast<uint16_t>(options.port + 1);
+            net.emitEvents = false;      // the game polls
+            net.autoReconnect = false;   // a lost client says so instead of rejoining a world it no longer knows
+
+            arenaOptions.network = ecs.createSystem<NetworkSystem>(new SdlNetworkBackend(net), net);
+            arenaOptions.mode = net.isServer ? arena::ArenaOptions::Mode::Host : arena::ArenaOptions::Mode::Client;
+            arenaOptions.playerName = options.name;
+
+            LOG_INFO(DOM, (net.isServer ? "Hosting on port " : "Joining ") << (net.isServer ? "" : options.address + ":") << options.port);
+        }
+
         ecs.createSystem<arena::ArenaGame>(masterRenderer, &window, arenaOptions);
 
         // The game first (it moves the HUD), then the 2D renderers, then the frame is put together
@@ -83,6 +104,10 @@ GameApp::GameApp(const std::string& appName, const LaunchOptions& opts) : engine
         ecs.succeed<MasterRenderer, arena::ArenaGame>();
         ecs.succeed<MasterRenderer, Simple2DObjectSystem>();
         ecs.succeed<MasterRenderer, TTFTextSystem>();
+
+        // The game reads what the network received this pass
+        if (arenaOptions.network)
+            ecs.succeed<arena::ArenaGame, NetworkSystem>();
     });
 }
 

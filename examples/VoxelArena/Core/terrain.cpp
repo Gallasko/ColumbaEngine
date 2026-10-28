@@ -38,7 +38,50 @@ namespace arena
     void Terrain::forget(size_t index)
     {
         if (damageTaken.erase(index))
+        {
             ++rev;
+
+            if (damageLog)
+                damageLog->push_back(static_cast<uint32_t>(index));
+        }
+    }
+
+    void Terrain::setDamageRatio(size_t index, float ratio)
+    {
+        if (not grid)
+            return;
+
+        const auto& cells = grid->raw();
+
+        if (index >= cells.size())
+            return;
+
+        if (ratio <= 0.0f)
+        {
+            damageTaken.erase(index);
+        }
+        else
+        {
+            const BlockId id = cells[index];
+            const float hardness = (table and id < table->size()) ? std::max(1.0f, (*table)[id].hardness) : 50.0f;
+            damageTaken[index] = ratio * hardness;
+        }
+
+        ++rev;
+    }
+
+    std::vector<std::pair<uint32_t, float>> Terrain::damagedCells() const
+    {
+        std::vector<std::pair<uint32_t, float>> out;
+
+        for (const auto& [index, taken] : damageTaken)
+        {
+            const BlockId id = grid->raw()[index];
+            const float hardness = (table and id < table->size()) ? std::max(1.0f, (*table)[id].hardness) : 50.0f;
+            out.emplace_back(static_cast<uint32_t>(index), std::clamp(taken / hardness, 0.0f, 1.0f));
+        }
+
+        return out;
     }
 
     bool Terrain::damage(const glm::ivec3& c, float amount)
@@ -55,6 +98,9 @@ namespace arena
         float& taken = damageTaken[grid->index(c.x, c.y, c.z)];
         taken += amount;
         ++rev;
+
+        if (damageLog)
+            damageLog->push_back(static_cast<uint32_t>(grid->index(c.x, c.y, c.z)));
 
         if (taken < hardness)
             return false;
@@ -115,6 +161,18 @@ namespace arena
             return 0.0f;
 
         const BlockId id = grid->get(x, y, z);
+        const float hardness = (table and id < table->size()) ? std::max(1.0f, (*table)[id].hardness) : 50.0f;
+        return std::clamp(it->second / hardness, 0.0f, 1.0f);
+    }
+
+    float Terrain::damageRatioAt(size_t index) const
+    {
+        auto it = damageTaken.find(index);
+
+        if (not grid or it == damageTaken.end() or index >= grid->raw().size())
+            return 0.0f;
+
+        const BlockId id = grid->raw()[index];
         const float hardness = (table and id < table->size()) ? std::max(1.0f, (*table)[id].hardness) : 50.0f;
         return std::clamp(it->second / hardness, 0.0f, 1.0f);
     }

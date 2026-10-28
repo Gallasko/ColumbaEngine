@@ -19,6 +19,16 @@ namespace pg
 
         // Client-side: try to connect; return true on success
         virtual bool connectToServer() = 0;
+
+        /**
+         * Connecting without blocking: start, then ask until done. 1 connected, 0 still trying,
+         * -1 failed. The defaults just connect (for backends where connecting is quick).
+         */
+        virtual void startConnect() { connectToServer(); }
+        virtual int connectStatus() { return isConnectedToServer() ? 1 : -1; }
+
+        /** False when the backend could not open what it needed (a port in use...). */
+        virtual bool isReady() const { return true; }
         virtual void disconnectFromServer() = 0;
 
         bool _isConnectedToServer = false;
@@ -37,6 +47,7 @@ namespace pg
         virtual bool receive(SocketHandle& tcpSock, IpEndpoint& srcUdp, NetPayload& out) = 0;
 
         virtual bool receiveUdp(IpEndpoint& srcUdp, NetPayload& out) = 0;
+        /** One whole message sent with sendTcp (TCP is a stream: the backend frames it). */
         virtual bool receiveTcp(SocketHandle& tcpSock, NetPayload& out, bool& socketClosed) = 0;
         virtual bool receiveTcp(NetPayload& out, bool& socketClosed) = 0;
 

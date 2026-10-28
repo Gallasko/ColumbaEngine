@@ -102,6 +102,12 @@ public:
     //
     std::function<bool(const IpEndpoint&, const NetPayload&)> sendUdpFn;
     std::vector<std::pair<IpEndpoint, NetPayload>> sentUdpPackets;
+    void disconnectFromServer() override { _isConnectedToServer = false; }
+
+    void closeTcp(SocketHandle sock) override { closedSockets.push_back(sock); }
+
+    std::vector<SocketHandle> closedSockets;
+
     bool sendUdp(const IpEndpoint& dest, const NetPayload& data) override
     {
         sentUdpPackets.emplace_back(dest, data);

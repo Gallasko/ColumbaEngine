@@ -24,6 +24,10 @@ namespace pg
         // --- Default flags for all net‐systems ---
         SystemFlags defaultSystemFlags;
 
+        float       timeoutMs      = 6000.0f;       // a peer silent this long is dropped
+        bool        autoReconnect  = true;          // client: try again after losing the server
+        bool        emitEvents     = true;          // also send NetPeerConnected/Disconnected, NetMessageReceived as ECS events
+
         // (Optional) Hook you can set to dispatch deserialized state:
         // std::function<void(const Packet&, Entity)> onPacketReceived;
     };

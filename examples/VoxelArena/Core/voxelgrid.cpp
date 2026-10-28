@@ -23,6 +23,10 @@ namespace arena
 
         cell = id;
         ++rev;
+
+        if (changeLog)
+            changeLog->emplace_back(static_cast<uint32_t>(index(x, y, z)), id);
+
         return true;
     }
 
@@ -34,7 +38,14 @@ namespace arena
         for (int y = lo.y; y <= hi.y; ++y)
             for (int z = lo.z; z <= hi.z; ++z)
                 for (int x = lo.x; x <= hi.x; ++x)
-                    cells[index(x, y, z)] = id;
+                {
+                    BlockId& c = cells[index(x, y, z)];
+
+                    if (changeLog and c != id)
+                        changeLog->emplace_back(static_cast<uint32_t>(index(x, y, z)), id);
+
+                    c = id;
+                }
 
         ++rev;
     }

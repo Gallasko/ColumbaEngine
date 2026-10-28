@@ -14,6 +14,10 @@
 #include <filesystem>
 
 #include "Input/input.h"
+
+#include "Core/net/client.h"
+#include "Core/net/server.h"
+#include "Net/enginetransport.h"
 #include "Renderer/camera.h"
 #include "logger.h"
 #include "window.h"
@@ -201,8 +205,24 @@ namespace arena
 
         if (first)
         {
-            world.start(content, tuning);
-            world.setBrain(&brain);
+            if (options.mode == ArenaOptions::Mode::Client and options.network)
+            {
+                // The world is the server's: the client builds an empty arena and fills it from the network
+                transport = std::make_unique<net::EngineTransport>(options.network);
+                client = std::make_unique<net::NetClient>(world, content, tuning, *transport, options.playerName);
+            }
+            else
+            {
+                world.start(content, tuning);
+                world.setBrain(&brain);
+
+                if (options.mode == ArenaOptions::Mode::Host and options.network)
+                {
+                    transport = std::make_unique<net::EngineTransport>(options.network);
+                    server = std::make_unique<net::NetServer>(world, content, *transport, false);
+                }
+            }
+
             camera.distance = tuning.camera.distance;
             camera.yaw = world.player() ? world.player()->yaw : 0.0f;
         }
@@ -563,7 +583,7 @@ namespace arena
                         const size_t index = static_cast<size_t>(p.scancode - SDL_SCANCODE_1);
 
                         if (index < content.weaponOrder.size())
-                            world.equip(content.weaponOrder[index]);
+                            pendingEquip = static_cast<int>(index) + 1;
                     }
                     break;
             }
@@ -620,6 +640,17 @@ namespace arena
             hud.setCrosshair(p->alive());   // both views: the abilities aim with it
 
             hud.setCenter(not p->alive() ? "You fell" : (paused ? "Paused" : ""));
+        }
+        else if (client)
+        {
+            switch (client->state)
+            {
+                case net::NetClient::State::Connecting: hud.setCenter("Connecting..."); break;
+                case net::NetClient::State::Joining: hud.setCenter("Joining..."); break;
+                case net::NetClient::State::Refused: hud.setCenter("Refused: " + client->refusal); break;
+                case net::NetClient::State::Lost: hud.setCenter("Connection lost"); break;
+                case net::NetClient::State::Playing: hud.setCenter(""); break;
+            }
         }
 
         if (content.report.errors.empty())
@@ -841,6 +872,9 @@ namespace arena
             if (waitSteps > 0)
                 --waitSteps;
 
+            in.equip = pendingEquip;
+            pendingEquip = 0;
+
             in.cameraYaw = camera.yaw;
             in.cameraPitch = camera.pitch;
             in.faceCamera = firstPerson;
@@ -856,7 +890,26 @@ namespace arena
             const float vyBefore = world.player() ? world.player()->body.velocity.y : 0.0f;
             const bool groundBefore = world.player() ? world.player()->body.onGround : true;
 
-            world.step(in);
+            // Who steps the world: the server (host), the prediction (client), or nobody else (single)
+            if (server)
+            {
+                server->poll();
+                server->step(&in);
+
+                for (const auto& line : server->log)
+                    print(line);
+                server->log.clear();
+            }
+            else if (client)
+            {
+                client->poll(netNowMs());
+                client->step(in, netNowMs());
+            }
+            else
+            {
+                world.step(in);
+            }
+
             simTime += STEP_SECONDS;
 
             // A big fall shakes the camera when it lands
@@ -874,6 +927,26 @@ namespace arena
         }
 
         alpha = paused ? 1.0f : static_cast<float>(glm::clamp(accumulator / STEP_SECONDS, 0.0, 1.0));
+
+        // A client draws the others where the snapshots put them (already smooth): no step-to-step blend for them
+        if (client)
+        {
+            client->poll(netNowMs());
+            client->updateDisplay(netNowMs());
+
+            for (const auto& f : world.fighters)
+                if (f.id != client->playerId)
+                    previous[f.id] = Pose{f.body.position, f.yaw, f.stepOffset};
+
+            for (const auto& e : client->takeEvents())
+            {
+                playEffect(e.kind, e.position, e.color);
+
+                // Hits on the local player shake its camera (the world's hit list is the server's)
+                if (e.fighter == client->playerId and (e.kind == "hit" or e.kind == "stagger" or e.kind == "kill"))
+                    camera.addTrauma(e.kind == "hit" ? 0.2f : 0.45f);
+            }
+        }
 
         // Script tables of enemies that are gone
         if (world.steps % 120 == 0)
@@ -972,6 +1045,10 @@ namespace arena
             feet = glm::mix(it->second.position, p->body.position, alpha);
             stepOffset = lerp(it->second.stepOffset, p->stepOffset, alpha);
         }
+
+        // A client's own player is drawn where it was predicted, easing into the server's correction
+        if (client)
+            feet += client->correction;
 
         if (firstPerson)
         {
@@ -1128,6 +1205,25 @@ namespace arena
 
         const float breathe = std::sin(simTime * 2.0f) * 2.0f;
         return forward((left ? -swing : swing) * 0.8f + breathe);
+    }
+
+    std::string ArenaGame::netStatus() const
+    {
+        if (server)
+        {
+            std::string out = "hosting, " + std::to_string(server->clientCount()) + " joined";
+
+            for (const auto& f : world.fighters)
+                if (f.team == Team::Player)
+                    out += "\n  player #" + std::to_string(f.id) + (f.owner == 0 ? " (you)" : " (peer " + std::to_string(f.owner) + ")");
+
+            return out;
+        }
+
+        if (client)
+            return "joined as #" + std::to_string(client->playerId) + ", round trip " + fmt(client->rttMs, 0) + " ms, " + std::to_string(client->pendingInputs()) + " inputs in flight";
+
+        return "single player";
     }
 
     void ArenaGame::updatePieceMeshes()
@@ -1304,6 +1400,9 @@ namespace arena
                 stepOffset = lerp(it->second.stepOffset, f.stepOffset, alpha);
             }
 
+            if (client and f.id == client->playerId)
+                pos += client->correction;
+
             const float frame = static_cast<float>(std::max(0, f.frame - 1)) + (f.hitstop > 0 ? 0.0f : alpha);
             const float h = f.body.height;
 
@@ -1355,7 +1454,7 @@ namespace arena
             const glm::vec4 tint = f.action == Action::Dead ? glm::vec4(0.6f, 0.6f, 0.6f, 1.0f) : WHITE;
 
             // In first person the player is the camera: no body, the weapon is drawn as a view model
-            const bool viewModel = firstPerson and f.team == Team::Player;
+            const bool viewModel = firstPerson and f.team == Team::Player and f.id == world.localPlayerId;
 
             if (not viewModel)
             {
@@ -1735,6 +1834,19 @@ namespace arena
             return "";
         }
 
+        if (cmd == "players")
+            return netStatus();
+
+        // The world belongs to the server: a client asking to change it would only change its own view
+        if (client and (cmd == "reload" or cmd == "spawn" or cmd == "clear" or cmd == "reset" or cmd == "place" or cmd == "fill" or
+                        cmd == "god" or cmd == "ai" or cmd == "tune" or cmd == "teleport" or cmd == "pause" or
+                        cmd == "step" or cmd == "slowmo"))
+            return cmd + ": only the host can do that";
+
+        // Every machine must run the same content (the fingerprint): no reload once others have joined
+        if (server and cmd == "reload" and server->clientCount() > 0)
+            return "reload: not while players are connected (their content would no longer match)";
+
         if (cmd == "reload")
         {
             loadAll(false);
@@ -1827,7 +1939,15 @@ namespace arena
                 return "weapon <id>";
 
             const std::string id = resolveId(args[1], "base");
-            return world.equip(id) ? "wielding " + id : "no weapon " + id;
+
+            // Through the input, like the number keys: a client's choice reaches the server that way
+            const auto it = std::find(content.weaponOrder.begin(), content.weaponOrder.end(), id);
+
+            if (it == content.weaponOrder.end())
+                return "no weapon " + id;
+
+            pendingEquip = static_cast<int>(it - content.weaponOrder.begin()) + 1;
+            return "wielding " + id;
         }
 
         if (cmd == "weapons")

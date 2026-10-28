@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <map>
 #include <chrono>
+#include <string>
+#include <tuple>
+#include <vector>
 
 namespace pg
 {
@@ -36,7 +39,15 @@ namespace pg
 
     using NetPayload = std::vector<uint8_t>;
     using NetFragmentedPayload = std::vector<NetPayload>;
-    using NetPacketBuffer = std::map<std::tuple<uint32_t, uint32_t, uint32_t, NetMsgType>, NetFragmentedPayload>;
+    using NetPacketKey = std::tuple<uint32_t, uint32_t, uint32_t, NetMsgType>;   // clientId, token, packetNumber, type
+    using NetPacketBuffer = std::map<NetPacketKey, NetFragmentedPayload>;
+    using NetPacketTimers = std::map<NetPacketKey, uint64_t>;                       // first fragment seen (steady ms)
+
+    /** Largest message a peer may send (after reassembly): anything bigger is refused. */
+    constexpr size_t MAX_MESSAGE = 16 * 1024 * 1024;
+
+    /** Milliseconds on a steady clock (not the wall clock: it never jumps). */
+    uint64_t steadyMs();
 
     // Total header size:
     constexpr size_t HEADER_SIZE =
@@ -92,11 +103,18 @@ namespace pg
     };
 
     // Reassemble fragments
+    /**
+     * Adds one fragment; true (and out filled) when it completes its message. A fragment that does
+     * not read cleanly is refused before it takes any room in the buffer.
+     */
     bool parseAndReassemble(
         const NetPayload& raw,
         NetPacketBuffer& buffer,
-        std::map<uint32_t, uint64_t>& rTimers,
+        NetPacketTimers& rTimers,
         INetworkBackend* backend,
         ParsedPacket& out);
+
+    /** Drops the messages whose fragments have been waiting longer than timeoutMs. Returns how many. */
+    size_t dropStaleFragments(NetPacketBuffer& buffer, NetPacketTimers& timers, uint64_t now, uint64_t timeoutMs);
 }
 

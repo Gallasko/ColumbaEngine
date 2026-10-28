@@ -1718,6 +1718,10 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Core/orbitcamera.cpp
             examples/VoxelArena/Core/terrain.cpp
             examples/VoxelArena/Core/effects.cpp
+            examples/VoxelArena/Core/net/protocol.cpp
+            examples/VoxelArena/Core/net/loopback.cpp
+            examples/VoxelArena/Core/net/server.cpp
+            examples/VoxelArena/Core/net/client.cpp
         )
 
         add_executable(VoxelArena examples/VoxelArena/main.cpp)
@@ -1729,6 +1733,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Game/arenagame.cpp
             examples/VoxelArena/Game/soundbank.cpp
             examples/VoxelArena/Game/particles.cpp
+            examples/VoxelArena/Net/enginetransport.cpp
             ${VOXELARENA_CORE}
         )
         target_link_libraries(VoxelArena PRIVATE ColumbaEngine)
@@ -1736,6 +1741,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_compile_definitions(VoxelArena PRIVATE VOXELARENA_MODS_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/mods"
                                                       VOXELARENA_SHADER_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/shader"
                                                       ENGINE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
+        # The dedicated server: the same simulation, no window
+        add_executable(VoxelArenaServer examples/VoxelArena/server_main.cpp examples/VoxelArena/Net/enginetransport.cpp ${VOXELARENA_CORE})
+        target_include_directories(VoxelArenaServer PUBLIC examples/VoxelArena examples/VoxelArena/Core)
+        target_link_libraries(VoxelArenaServer PRIVATE ColumbaEngine)
+        target_compile_definitions(VoxelArenaServer PRIVATE VOXELARENA_MODS_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/mods")
 
         add_executable(test_voxelarena test/voxelarena/maintest.cc)
         target_include_directories(test_voxelarena PUBLIC examples/VoxelArena examples/VoxelArena/Core examples/VoxelTest)
@@ -1748,6 +1759,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/voxelarena/camera.cc
             test/voxelarena/terrain.cc
             test/voxelarena/effects.cc
+            test/voxelarena/net.cc
             examples/VoxelTest/voxelserializer.cpp   # the editor's .vxl.json loader, to check the models stay editable
             ${VOXELARENA_CORE}
         )

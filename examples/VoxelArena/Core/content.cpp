@@ -1376,6 +1376,53 @@ namespace arena
         if (content.weapons.empty())
             report.error(modsDir, 0, "no mod defines a usable weapon");
 
+        // Fingerprint: FNV-1a over the content as the game will use it
+        {
+            uint64_t h = 1469598103934665603ull;
+            auto feed = [&](const std::string& s) {
+                for (unsigned char c : s)
+                {
+                    h ^= c;
+                    h *= 1099511628211ull;
+                }
+                h ^= 0xff;
+                h *= 1099511628211ull;
+            };
+
+            for (const auto& m : content.mods)
+                feed(m.id + "@" + m.version);
+
+            feed(toJsonString(content.tuning));
+            feed(toJsonString(content.effects));
+            feed(toJsonString(content.sounds));
+            feed(toJsonString(content.arena.shapes));
+
+            for (const auto& [kind, defs] : content.raw)
+                for (const auto& [id, raw] : defs)
+                {
+                    feed(kind + ":" + id);
+                    feed(toJsonString(raw.data));
+
+                    // Models are files of their own
+                    if (kind == "model")
+                    {
+                        std::string text;
+                        if (readText(raw.file, text))
+                            feed(text);
+                    }
+                }
+
+            for (const auto& [id, path] : content.scripts)
+            {
+                std::string text;
+                feed(id);
+                if (readText(path, text))
+                    feed(text);
+            }
+
+            content.fingerprint = h;
+        }
+
         return content;
     }
 }

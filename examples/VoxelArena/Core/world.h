@@ -39,9 +39,17 @@ namespace arena
         /** First person: the body faces where the camera looks, and attacks go there. */
         bool faceCamera = false;
 
+        // Network stamps (-1 when local): the server tick the player saw enemies at (lag compensation),
+        // and the server tick the player pressed this input at, by its own clock (the dodge grace)
+        int viewTick = -1;
+        int stamp = -1;
+
         /** Where the player aims: the camera's ray (for the terrain abilities). */
         glm::vec3 aimOrigin = glm::vec3(0.0f);
         glm::vec3 aimDir = glm::vec3(0, 0, 1);
+
+        /** 1..n: wield the n-th weapon (content load order) from this step on; 0: keep the one held. */
+        int equip = 0;
 
         static constexpr int ABILITIES = 4;
         bool abilityPressed[ABILITIES] = {};
@@ -59,6 +67,7 @@ namespace arena
         int id = 0;
         Team team = Team::Enemy;
         std::string type;          // enemy id, or "player"
+        int owner = 0;             // player: the peer that controls it (0 = this machine)
 
         Body body;
         float yaw = 0.0f;
@@ -107,6 +116,8 @@ namespace arena
         glm::vec3 aimDir = glm::vec3(0, 0, 1);   // player: the crosshair's direction, for what the player shoots
         float aiRadius = 2.5f;          // the circle a flanking enemy keeps around the target
         float attackPitch = 0.0f;       // degrees the current attack aims down (+) or up (-): hitboxes tilt with it
+        int viewTick = -1;              // network: the tick its owner saw enemies at (lag compensation)
+        int dodgeStamp = -1;            // network: the tick its owner pressed the current dodge at
         bool heavyStagger = false;      // the stagger came from a heavy hit: no rolling out of it
         float jumpBuffer = 0.0f;
         bool jumping = false;
@@ -218,7 +229,8 @@ namespace arena
     {
     public:
         /** Builds the arena and spawns everyone. content must outlive the world (or be replaced with setContent). */
-        void start(const Content& content, const Tuning& tuning);
+        /** withLocalPlayer: false for a dedicated server, whose players all come over the network. */
+        void start(const Content& content, const Tuning& tuning, bool withLocalPlayer = true);
 
         /** New definitions after a hot reload: everyone keeps their place, stats are refreshed. */
         void setContent(const Content& content, const Tuning& tuning, bool rebuildArena);
@@ -226,6 +238,38 @@ namespace arena
         void setBrain(Brain* b) { brain = b; }
 
         void step(const InputFrame& input);
+
+        /** One input per player fighter id; a player with none stands still for this step. */
+        void step(const std::map<int, InputFrame>& inputs);
+
+        /** A player for a peer (0 = this machine). Returns its fighter id. */
+        int addPlayer(int owner);
+        void removeFighter(int id);
+
+        /** The alive player closest to a point (enemies target it), or nullptr. */
+        const Fighter* nearestPlayer(const glm::vec3& at) const;
+        Fighter* nearestPlayer(const glm::vec3& at);
+
+        /**
+         * false on a network client: only the fighters given an input are stepped (the predicted
+         * local player); AI, hits, projectiles, terrain and abilities belong to the server.
+         */
+        bool authority = true;
+
+        /** The player of this machine (player() returns it). */
+        int localPlayerId = 0;
+
+        /** Network: per peer, the ticks a hit on its player waits for a dodge pressed in time (0 = none). */
+        std::map<int, int> defenderGrace;
+
+        /** Bodies of the last ticks, for lag-compensated hits. */
+        struct Snapshot
+        {
+            uint64_t tick;
+            std::vector<std::pair<int, Body>> bodies;
+        };
+        std::vector<Snapshot> history;
+        static constexpr size_t HISTORY = 40;
 
         /** Rebuilds the grid from the arena definition. */
         void buildArena();
@@ -299,6 +343,21 @@ namespace arena
         void resolveHits();
         void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
         void separate();
+        void hitOrDefer(Fighter& attacker, Fighter& target, const AttackDef& attack, const glm::vec3& point);
+        void resolvePendingHits();
+        const Body& bodyFor(const Fighter& attacker, const Fighter& target) const;
+        void recordHistory();
+
+        struct PendingHit
+        {
+            Fighter attacker;    // a copy: the attacker may be gone when it resolves
+            int target;
+            AttackDef attack;
+            glm::vec3 point;
+            uint64_t tick;
+            uint64_t resolveAt;
+        };
+        std::vector<PendingHit> pendingHits;
         void useAbilities(Fighter& f, const InputFrame& in);
         void fireProjectiles();
         void stepProjectiles();

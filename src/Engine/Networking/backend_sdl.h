@@ -4,34 +4,48 @@
 #include "ibackend.h"
 #include "network_config.h"
 #include <SDL_net.h>
+
+#include <atomic>
+#include <map>
+#include <string>
+#include <thread>
+#include <unordered_map>
 #include <vector>
 
 namespace pg
 {
-
+    /**
+     * TCP and UDP over SDL_net.
+     *
+     * TCP is a byte stream: every sendTcp is written as a 4-byte big-endian length then the bytes,
+     * and each socket keeps a receive buffer, so receiveTcp hands back whole messages however the
+     * stream was cut. UDP sources are read as numeric addresses (no reverse lookup), and resolved
+     * destinations are kept. The client connects on a thread of its own (connecting can take seconds).
+     */
     class SdlNetworkBackend : public INetworkBackend
     {
     public:
         explicit SdlNetworkBackend(const NetworkConfig& cfg);
         virtual ~SdlNetworkBackend() override;
 
-        // Server‐side: accept one new TCP client (or return nullptr)
+        bool isReady() const override { return ready; }
+
+        // Server-side: accept one new TCP client (or return nullptr)
         SocketHandle acceptTcpClient() override;
 
-        // Client‐side: connect to server using cfg.peerAddress/cfg.tcpPort
+        // Client-side: connect to cfg.peerAddress/cfg.tcpPort (blocking)
         bool connectToServer() override;
+        void startConnect() override;
+        int connectStatus() override;
         virtual void disconnectFromServer() override;
 
         virtual void closeTcp(SocketHandle sock) override;
 
-        // Send raw data
         bool sendUdp(const IpEndpoint& dest, const NetPayload& data) override;
         bool sendTcp(SocketHandle sock, const NetPayload& data) override;
         bool sendTcp(const NetPayload& data) override;
 
-        // Receive exactly one packet: either UDP or TCP (non-blocking)
-        //  - If you get a UDP packet, tcpSock=nullptr and srcUdp is set.
-        //  - If you get a TCP packet, tcpSock is the socket and srcUdp is untouched.
+        // One message, UDP first then TCP (client side)
         bool receive(SocketHandle& tcpSock, IpEndpoint& srcUdp, NetPayload& out) override;
 
         virtual bool receiveUdp(IpEndpoint& srcUdp, NetPayload& out) override;
@@ -42,7 +56,6 @@ namespace pg
         virtual void writeU32BE(uint8_t* buf, uint32_t v) override { SDLNet_Write32(v, buf); }
         virtual void writeU64BE(uint8_t* buf, uint64_t v) override
         {
-            // split into two 32-bit
             writeU32BE(buf,     uint32_t(v >> 32));
             writeU32BE(buf + 4, uint32_t(v & 0xFFFFFFFF));
         }
@@ -56,26 +69,38 @@ namespace pg
             return (hi << 32) | lo;
         }
 
-        // Helper: just read one UDP header into hdr and src
-        // bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) override;
+        /** The largest TCP message accepted: a bigger length means a broken or hostile peer, and the socket is closed. */
+        static constexpr uint32_t MAX_FRAME = 16 * 1024 * 1024;
 
     private:
+        /** Reads what a socket has and returns one whole frame if there is one; closed when the peer left or broke the framing. */
+        bool readFrame(TCPsocket sock, NetPayload& out, bool& closed);
+        bool openClientUdp();
+        void joinConnectThread();
+
         NetworkConfig   _cfg;
+        bool            ready = false;
 
         // Server sockets
         TCPsocket       _listener = nullptr;
         UDPsocket       _udpSock  = nullptr;
 
-        // Client sockets
+        // Client socket
         TCPsocket       _tcpSock  = nullptr;
 
-        // Shared receive buffer
         UDPpacket*      _udpPkt   = nullptr;
 
+        // Every TCP socket in one set (the listener is not in it)
         SDLNet_SocketSet sockSet  = nullptr;
+        int              sockSetSize = 0;
+        int              socketsInSet = 0;
 
-        std::unordered_map<TCPsocket, SDLNet_SocketSet> sockSetsMap;
-        std::vector<SDLNet_SocketSet> sockSets;
+        std::unordered_map<TCPsocket, NetPayload> rxBuffers;
+        std::map<std::string, IPaddress> resolved;
+
+        // Background connect
+        std::thread       connectThread;
+        std::atomic<int>  connectState{-1};   // 1 done, 0 trying, -1 idle or failed
+        TCPsocket         connectedSock = nullptr;
     };
 }
-

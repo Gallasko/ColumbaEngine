@@ -333,6 +333,13 @@ namespace arena
 
         ContentReport report;
 
+        /**
+         * A hash of everything loaded (definitions after patches, tuning, arena, effects, scripts,
+         * models). Two machines with the same fingerprint run the same game: a client whose
+         * fingerprint differs from the server's is refused.
+         */
+        uint64_t fingerprint = 0;
+
         BlockId block(const std::string& id) const;
 
         /** Path of an asset of a mod: ("base:sword", "models", ".vxl.json") -> mods/base/models/sword.vxl.json */

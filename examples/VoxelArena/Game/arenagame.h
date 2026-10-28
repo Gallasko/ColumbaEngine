@@ -33,6 +33,14 @@ namespace pg
 {
     class Input;
     class Window;
+    struct NetworkSystem;
+}
+
+namespace arena::net
+{
+    class EngineTransport;
+    class NetServer;
+    class NetClient;
 }
 
 namespace arena
@@ -41,6 +49,12 @@ namespace arena
     {
         std::string modsDir;
         std::vector<std::string> startupCommands;
+
+        /** Networking: single player, hosting (a listen server) or joining a server. */
+        enum class Mode { Single, Host, Client };
+        Mode mode = Mode::Single;
+        pg::NetworkSystem* network = nullptr;   // the engine's, for Host and Client
+        std::string playerName = "player";
     };
 
     /** A key or a mouse button an action is bound to (from the "controls" section of the tuning). */
@@ -212,6 +226,16 @@ namespace arena
         std::chrono::steady_clock::time_point lastReload;
 
         Hud hud;
+
+        // Networking (see ArenaOptions::mode)
+        std::unique_ptr<net::EngineTransport> transport;
+        std::unique_ptr<net::NetServer> server;
+        std::unique_ptr<net::NetClient> client;
+        std::chrono::steady_clock::time_point netEpoch = std::chrono::steady_clock::now();
+        double netNowMs() const { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - netEpoch).count(); }
+        bool networked() const { return options.mode != ArenaOptions::Mode::Single; }
+        int pendingEquip = 0;   // weapon key pressed, handed to the next step's input
+        std::string netStatus() const;
 
         // Effects: what world events sound and look like
         std::map<std::string, EffectDef> effects;

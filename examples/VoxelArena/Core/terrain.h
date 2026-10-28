@@ -66,6 +66,19 @@ namespace arena
 
         /** 0 (intact) to 1 (about to break), for darkening damaged blocks. */
         float damageRatio(int x, int y, int z) const;
+        float damageRatioAt(size_t index) const;
+
+        /** Network client: the damage the server reports (0..1 of the block's hardness). */
+        void setDamageRatio(size_t index, float ratio);
+
+        /** When set, every cell whose damage changed is appended here (flat index): what a server sends. */
+        std::vector<uint32_t>* damageLog = nullptr;
+
+        /** Network client: a piece the server says is falling. */
+        void addFalling(FallingPiece piece) { falling.push_back(std::move(piece)); }
+
+        /** Every damaged cell and its ratio, for a client joining. */
+        std::vector<std::pair<uint32_t, float>> damagedCells() const;
 
         /** Changes when damage changes (the grid's own revision covers block changes). */
         uint64_t revision() const { return rev; }

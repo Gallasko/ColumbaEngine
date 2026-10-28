@@ -10,10 +10,10 @@ any other mod. Every gameplay number is in a data file and reloads with F5.
 
 ```sh
 cd release
-make -j18 VoxelArena test_voxelarena
+make -j18 VoxelArena VoxelArenaServer test_voxelarena
 cd ..
 ./release/VoxelArena            # or ./make_and_play.sh VoxelArena
-./release/test_voxelarena       # 49 tests, about half a second
+./release/test_voxelarena       # 90 tests, about half a second
 ```
 
 The game reads its mods and its shader straight from the source tree (`examples/VoxelArena/mods`,
@@ -27,6 +27,9 @@ Options:
 |---|---|
 | `--mods <dir>` | Load mods from another folder |
 | `--exec "<commands>"` | Run console commands at start, joined with `;` (see Console) |
+| `--host [port]` | Host a game others can join (port 7777 by default) |
+| `--join <address>[:port]` | Join a game |
+| `--name <name>` | Your name, as the others see it |
 
 ## Controls
 
@@ -139,6 +142,52 @@ The arena can be broken, and breaking it is part of the fight.
 - An enemy that falls in a pit cannot step out (step-up is one block); the pit fills back in after
   `lifetime` seconds.
 
+## Multiplayer
+
+2 to 8 players, together against the arena's enemies.
+
+```sh
+./release/VoxelArena --host                       # play and host (a listen server)
+./release/VoxelArena --join 192.168.1.20 --name bob
+./release/VoxelArenaServer --port 7777            # or a dedicated server: no window, no player of its own
+```
+
+A game uses two ports: the TCP port given (7777) and the next one for UDP (7778). Open both on the
+host's firewall.
+
+**Everyone must load the same mods.** The server compares a fingerprint of all the content (every
+file of every mod, the tuning included) and refuses a player whose content differs. For the same
+reason the host cannot reload (F5) while others are connected.
+
+How it works:
+
+- **The server decides.** It runs the one real simulation, the same `ArenaWorld` as single player,
+  60 steps a second. A host's game is the server, with its own player in it. A dedicated server is the
+  same code with no player of its own.
+- **Your own player responds at once.** The client sends its inputs and plays them straight away on
+  its own copy of the world. When the server's answer comes back (30 times a second), the client
+  starts again from it and replays the inputs the server has not seen yet. A small difference is
+  smoothed out over a few frames. A big one snaps.
+- **Everyone else is drawn 100 ms in the past.** Other players and enemies are drawn between two
+  states the server has already sent, so they move smoothly even when messages are late or lost.
+- **Hits are judged on what you saw.** Each input says which moment the player was looking at. The
+  server keeps the last 40 steps of everyone's position and checks your attack against where they
+  were on your screen.
+- **A dodge already on its way still counts.** A hit on a remote player waits half that player's round
+  trip. If a dodge arrives that started in time, the hit is cancelled.
+- The arena's changes (broken blocks, walls, pits, falling pieces) go to everyone reliably. A player
+  who joins late gets the arena as it is now.
+
+The engine side is `pg::NetworkSystem` (`src/Engine/Networking`), which this work reworked. It carries
+reliable messages over TCP and fast ones over UDP, cuts big messages into fragments and puts them
+back together, and drops a peer that has been silent for 6 seconds. Its tests run on real sockets
+(`t1 --gtest_filter='network*'`). The game's protocol (`Core/net/`) does not depend on it: the
+multiplayer tests run a server and clients in one process, over a simulated network with latency,
+jitter and lost packets.
+
+On the client, the world-changing console commands (`spawn`, `clear`, `reset`, `place`, `tune`...)
+only work on the host. `players` lists who is in the game.
+
 ## Layout
 
 ```
@@ -154,7 +203,11 @@ examples/VoxelArena/
     terrain      block damage, blocks that last a while, collapse and falling pieces
     scriptbrain  enemy behaviour in pgscript, one sandboxed VM per script
     orbitcamera  the third-person camera: smoothing, wall pull-in, shake
+    net/         multiplayer: messages, the server, the client (prediction, interpolation),
+                 a simulated network for the tests
   Game/          the engine side: input, drawing, HUD, console
+  Net/           the engine's NetworkSystem as the game's transport
+  server_main    the dedicated server
   shader/        the voxel shader
   mods/base/     the game's content
   mods/testmod/  the spear
@@ -276,6 +329,7 @@ Open with `` ` ``. `help` lists the commands.
 | `pause`, `step [n]`, `slowmo <x>` | Freeze, advance n frames, change the speed (frame data checks) |
 | `place x y z <block>`, `fill x0 y0 z0 x1 y1 z1 <block>` | Edit the arena (`air` digs) |
 | `mods`, `errors`, `warnings` | What is loaded, what went wrong |
+| `players` | Who is in the game, and the round trip to the server |
 
 Scripted input, for tests and for checking frame data: `mouse off` (ignore the real mouse), `press <action>`, `hold <action> <frames>`,
 `wait <frames>`, `sleep <seconds>`, `look <yaw> <pitch>`, `teleport x y z`, `where`, `echo <text>`.
@@ -291,3 +345,6 @@ For example:
 - The HUD is laid out for the starting window size and does not follow a resize.
 - Chunks, worldgen, lighting and inventory are out of scope for now.
 - Falling pieces do not tumble.
+- Multiplayer: no reconnect after a lost connection (start the game again), no host migration, and
+  the enemies' scripts run only on the server. Two windows on one desktop take the mouse from each
+  other: press Esc in the one you are not playing.

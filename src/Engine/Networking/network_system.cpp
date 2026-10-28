@@ -4,400 +4,526 @@
 
 #include <random>
 
+#include "ECS/entitysystem.h"
+
 namespace pg
 {
+    namespace
+    {
+        constexpr const char* DOM = "NetSys";
+
+        // How often a client repeats its UDP handshake until the server says it got it
+        constexpr uint64_t HANDSHAKE_EVERY_MS = 250;
+        constexpr uint64_t RETRY_CONNECT_MS = 1000;
+    }
+
     NetworkSystem::~NetworkSystem()
     {
         if (backend)
             delete backend;
     }
 
-    uint64_t NetworkSystem::getCurrentTime() const
-    {
-        return std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-    }
-
     uint32_t NetworkSystem::genToken() const
     {
         static std::mt19937 rng{ std::random_device{}() };
-        return rng();
+        return rng() | 1u;   // never 0: 0 is "no token yet"
     }
 
-    std::string NetworkSystem::ipPortKey(const IpEndpoint& addr) const
+    std::vector<uint32_t> NetworkSystem::getClientIds() const
     {
-        // Todo
-        return addr.host + ":" + std::to_string(addr.port);
-        // Uint32 rawIP   = SDLNet_Read32(reinterpret_cast<const Uint8*>(&addr.host));
-        // Uint16 rawPort = SDLNet_Read16(reinterpret_cast<const Uint8*>(&addr.port));
+        std::vector<uint32_t> ids;
+        ids.reserve(idToTcp.size());
 
-        // Uint8 b0 = (rawIP >> 24) & 0xFF;
-        // Uint8 b1 = (rawIP >> 16) & 0xFF;
-        // Uint8 b2 = (rawIP >>  8) & 0xFF;
-        // Uint8 b3 = (rawIP      ) & 0xFF;
+        for (const auto& pair : idToTcp)
+            ids.push_back(pair.first);
 
-        // return std::to_string(b0) + "." + std::to_string(b1) + "." +
-        //         std::to_string(b2) + "." + std::to_string(b3) + ":" + std::to_string(rawPort);
+        return ids;
     }
 
-    void NetworkSystem::cleanReassemblyBuffer()
+    float NetworkSystem::rttMs(uint32_t clientId) const
     {
-        auto now = getCurrentTime();
+        auto it = idToTcp.find(clientId);
+        return it == idToTcp.end() ? 0.0f : clients.at(it->second).rttMs;
+    }
 
-        for (auto& [key, slots] : reassembly)
+    // ---- Queues ----------------------------------------------------------------------------------
+
+    void NetworkSystem::push(NetIncoming incoming)
+    {
+        if (netCfg.emitEvents and ecsRef)
         {
-            uint64_t firstSeen = fragmentTimers[std::get<2>(key)];
-
-            if (now - firstSeen > netCfg.defaultSystemFlags.dropPacketTimeout)
+            switch (incoming.kind)
             {
-                // 5s timeout
-                reassembly.erase(key);
-                fragmentTimers.erase(std::get<2>(key));
-                LOG_ERROR("NetSys", "Reassembly buffer cleaned for key: " << std::get<2>(key));
+                case NetIncoming::Kind::Connected: ecsRef->sendEvent(NetPeerConnected{incoming.clientId}); break;
+                case NetIncoming::Kind::Disconnected: ecsRef->sendEvent(NetPeerDisconnected{incoming.clientId}); break;
+                case NetIncoming::Kind::Message: ecsRef->sendEvent(NetMessageReceived{incoming.clientId, incoming.data, incoming.reliable}); break;
+            }
+        }
+
+        std::lock_guard<std::mutex> lock(queueMutex);
+        inbox.push_back(std::move(incoming));
+
+        // Nobody reads the queue (an app using the events only): keep it from growing for ever
+        while (inbox.size() > 4096)
+            inbox.pop_front();
+    }
+
+    bool NetworkSystem::poll(NetIncoming& out)
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+
+        if (inbox.empty())
+            return false;
+
+        out = std::move(inbox.front());
+        inbox.pop_front();
+        return true;
+    }
+
+    void NetworkSystem::send(uint32_t clientId, const NetPayload& data, bool reliable)
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        outbox.push_back({clientId, data, reliable});
+    }
+
+    void NetworkSystem::sendToServer(const NetPayload& data, bool reliable)
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        outbox.push_back({0, data, reliable});
+    }
+
+    void NetworkSystem::disconnect()
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        leaving = true;
+    }
+
+    void NetworkSystem::flushOutbox()
+    {
+        std::deque<Outgoing> pending;
+        {
+            std::lock_guard<std::mutex> lock(queueMutex);
+            pending.swap(outbox);
+        }
+
+        for (auto& o : pending)
+        {
+            if (netCfg.isServer)
+            {
+                auto it = idToTcp.find(o.clientId);
+
+                if (it == idToTcp.end())
+                    continue;
+
+                const ClientInfo& ci = clients[it->second];
+
+                if (not o.reliable and ci.udpLinked)
+                    sendUDPMessage(ci.clientId, ci.token, NetMsgType::Custom, o.data, ci.udpAddr);
+                else
+                    sendTCPMessage(ci.clientId, ci.token, NetMsgType::Custom, o.data, ci.tcpSock);
+            }
+            else if (currentClientState == ClientState::Connected)
+            {
+                // Unreliable over UDP once the server has our address, over TCP until then
+                if (not o.reliable and udpAcked)
+                    sendUDPMessage(_myClientId, _myToken, NetMsgType::Custom, o.data, IpEndpoint{netCfg.peerAddress, netCfg.udpPeerPort});
+                else
+                    sendTCPMessage(_myClientId, _myToken, NetMsgType::Custom, o.data);
             }
         }
     }
 
-    // ----- Initialization -----
-    void NetworkSystem::initServer()
-    {
-        // nothing to do here: backend ctor did the listening
-        LOG_INFO("NetSys", "Server ready (TCP:" << netCfg.tcpPort << " UDP:" << netCfg.udpLocalPort << ")");
-    }
+    // ---- Sending ---------------------------------------------------------------------------------
 
-    void NetworkSystem::initClient()
+    bool NetworkSystem::sendTCPMessage(uint32_t clientId, uint32_t token, NetMsgType type, const NetPayload& payload, SocketHandle tcpSock)
     {
-        // attempt TCP connect, with simple back-off
-        if (currentClientState == ClientState::Connecting)
+        const auto frags = fragmentPayload(clientId, token, type, nextPacketNumber++, backend, payload);
+
+        for (const auto& pkt : frags)
         {
-            if (backend->connectToServer())
-            {
-                currentClientState = ClientState::WaitingForId;
-                LOG_INFO("NetSys", "TCP connected to " << netCfg.peerAddress << ":" << netCfg.tcpPort);
-            }
-            else
-            {
-                LOG_WARNING("NetSys", "TCP connect failed, retry in 1s");
-                timeSinceFail = 0.0f;
-                return;
-            }
-        }
-    }
-
-    void NetworkSystem::sendUdpHandshake()
-    {
-        // send with zero‐length payload
-        IpEndpoint dest{netCfg.peerAddress, netCfg.udpPeerPort};
-
-        sendUDPMessage(_myClientId, _myToken, NetMsgType::Handshake, {0}, dest);
-        LOG_INFO("NetSys", "UDP handshake sent");
-    }
-
-    void NetworkSystem::sendToServer(const std::vector<uint8_t>& data, bool overTcp)
-    {
-        if (overTcp)
-        {
-            sendTCPMessage(_myClientId, _myToken, NetMsgType::Custom, data);
-        }
-        else
-        {
-            // send with zero‐length payload
-            IpEndpoint dest{netCfg.peerAddress, netCfg.udpPeerPort};
-
-            sendUDPMessage(_myClientId, _myToken, NetMsgType::Custom, data, dest);
-        }
-    }
-
-    bool NetworkSystem::sendTCPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
-        const NetPayload& payload, SocketHandle tcpSock)
-    {
-        auto frags = fragmentPayload(clientId, token, type,
-                        nextPacketNumber++, backend, payload);
-
-        bool sent = true;
-
-        for (auto& pkt : frags)
-        {
-            if (not tcpSock)
-                sent = backend->sendTcp(pkt);
-            else
-                sent = backend->sendTcp(tcpSock, pkt);
+            const bool sent = tcpSock ? backend->sendTcp(tcpSock, pkt) : backend->sendTcp(pkt);
 
             if (not sent)
-                break;
+                return false;
         }
 
-        return sent;
+        return true;
     }
 
-    bool NetworkSystem::sendUDPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
-        const NetPayload& payload, const IpEndpoint& udpDest)
+    bool NetworkSystem::sendUDPMessage(uint32_t clientId, uint32_t token, NetMsgType type, const NetPayload& payload, const IpEndpoint& udpDest)
     {
-        auto frags = fragmentPayload(clientId, token, type,
-                        nextPacketNumber++, backend, payload);
+        const auto frags = fragmentPayload(clientId, token, type, nextPacketNumber++, backend, payload);
 
-        bool sent = true;
+        for (const auto& pkt : frags)
+            if (not backend->sendUdp(udpDest, pkt))
+                return false;
 
-        for (auto& pkt : frags)
-        {
-            sent = backend->sendUdp(udpDest, pkt);
-
-            if (not sent)
-                break;
-        }
-
-        return sent;
+        return true;
     }
 
-    void NetworkSystem::readData()
+    // ---- Frame -----------------------------------------------------------------------------------
+
+    void NetworkSystem::init()
     {
-        SocketHandle sock;
-        IpEndpoint udpSrc; // ignored for TCP
-        std::vector<uint8_t> buf;
-
-        while (backend->receive(sock, udpSrc, buf))
+        if (not backend or not backend->isReady())
         {
-            ParsedPacket msg;
-            if (parseAndReassemble(buf, reassembly, fragmentTimers, backend, msg))
-            {
-                // msg.header.clientId, msg.header.token,
-                // msg.header.packetNumber, msg.header.timestamp,
-                // msg.header.type, msg.payload
-
-                LOG_INFO("NetSys", "Received packet from client: "
-                    << msg.header.clientId << " type: " << int(msg.header.type)
-                    << " payload size: " << msg.payload.size());
-
-                // handleMessage(msg.header, msg.payload);
-            }
-        }
-    }
-
-    // ----- Per-frame logic -----
-    void NetworkSystem::runServerFrame(float dt)
-    {
-        // 1) Accept new TCP clients
-        if (auto newSock = backend->acceptTcpClient())
-        {
-            ClientInfo ci;
-            ci.tcpSock  = newSock;
-            ci.clientId = nextClientId++;
-            ci.token    = genToken();
-
-            clients[newSock] = ci;
-            idToTcp[ci.clientId] = newSock;
-
-            // send welcome
-
-            if (sendTCPMessage(ci.clientId, ci.token, NetMsgType::Connect, {0}, newSock))
-            {
-                LOG_INFO("NetSys", "Sent client Id and Token to the client: " << ci.clientId << " " << ci.token);
-            }
-            else
-            {
-                LOG_ERROR("NetSys", "Couldn't send client id and token to the client");
-            }
-
-            LOG_INFO("NetSys", "New client " << ci.clientId);
-        }
-
-        // 2) Process incoming packets
-        // Process Tcp data
-
-        std::set<uint32_t> disconnectedClients;
-
-        for (auto& client : clients)
-        {
-            auto& ci = client.second;
-
-            ci.lastHeartbeatMs += dt;
-            ci.lastPingSentMs += dt;
-
-            if (ci.lastPingSentMs >= netCfg.defaultSystemFlags.pingTimer)
-            {
-                if (sendTCPMessage(ci.clientId, ci.token, NetMsgType::Ping, {0}, ci.tcpSock))
-                {
-                    auto now = getCurrentTime();
-                    LOG_INFO("NetSys", "Sent ping to client: " << ci.clientId << " at time: " << now);
-                    ci.lastPingSentMs = 0;
-                }
-            }
-
-            std::vector<uint8_t> data;
-            bool tcpClosed = false; // Todo need to use this
-
-            while (backend->receiveTcp(ci.tcpSock, data, tcpClosed))
-            {
-                LOG_INFO("NetSys", "Received TCP request from client: " << ci.clientId);
-
-                ci.lastHeartbeatMs = 0.0f;
-
-                // ParsedPacket pkt;
-
-                ParsedPacket msg;
-                if (parseAndReassemble(data, reassembly, fragmentTimers, backend, msg))
-                {
-                    LOG_INFO("NetSys", "Parsed packet from client:" << ci.clientId << " that should match header: " << msg.header.clientId);
-
-                    handleServerMessage(msg.header, msg.payload);
-                }
-            }
-
-            if (tcpClosed)
-            {
-                LOG_WARNING("NetSys", "TCP connection closed by client: " << ci.clientId);
-
-                disconnectedClients.insert(ci.clientId);
-                break;
-            }
-        }
-
-        // Process Udp data
-        IpEndpoint ip;
-
-        std::vector<uint8_t> data;
-
-        while (backend->receiveUdp(ip, data))
-        {
-            ParsedPacket msg;
-            if (parseAndReassemble(data, reassembly, fragmentTimers, backend, msg))
-            {
-                LOG_INFO("NetSys", "Parsed packet from client:"  << msg.header.clientId);
-
-                handleServerMessage(msg.header, msg.payload);
-            }
-            // LOG_INFO("NetSys", "Received UDP request from ip: " << ipPortKey(ip));
-        }
-
-        for (auto id : disconnectedClients)
-        {
-            disconnectClient(id);
-        }
-    }
-
-    void NetworkSystem::runClientFrame(float dt)
-    {
-        if (currentClientState == ClientState::Connecting)
-        {
-            timeSinceFail += dt;
-
-            if (timeSinceFail > 1000.0f)
-                initClient();
-
+            LOG_ERROR(DOM, "The network backend is not ready (port in use, or SDL_net failed): nothing will connect");
             return;
         }
 
-        SocketHandle sock;
-        IpEndpoint udpSrc; // ignored for TCP
-        std::vector<uint8_t> buf;
+        if (netCfg.isServer)
+            LOG_INFO(DOM, "Server ready (TCP:" << netCfg.tcpPort << " UDP:" << netCfg.udpLocalPort << ")");
+    }
 
-        while (backend->receive(sock, udpSrc, buf))
+    void NetworkSystem::execute()
+    {
+        if (not backend or not backend->isReady())
+            return;
+
+        if (netCfg.isServer)
+            runServerFrame();
+        else
+            runClientFrame();
+
+        const size_t dropped = dropStaleFragments(reassembly, fragmentTimers, steadyMs(), static_cast<uint64_t>(netCfg.defaultSystemFlags.dropPacketTimeout));
+
+        if (dropped > 0)
+            LOG_WARNING(DOM, dropped << " message(s) dropped: their fragments never all arrived");
+    }
+
+    void NetworkSystem::runServerFrame()
+    {
+        const uint64_t now = steadyMs();
+
+        // 1) New clients (a few a frame)
+        for (int i = 0; i < 4; ++i)
+        {
+            SocketHandle sock = backend->acceptTcpClient();
+
+            if (not sock)
+                break;
+
+            ClientInfo ci;
+            ci.tcpSock = sock;
+            ci.clientId = nextClientId++;
+            ci.token = genToken();
+            ci.state = ClientState::Connected;
+            ci.lastHeartbeatMs = now;
+            ci.lastPingSentMs = now;
+
+            clients[sock] = ci;
+            idToTcp[ci.clientId] = sock;
+
+            // The welcome carries the id and token in its header
+            if (not sendTCPMessage(ci.clientId, ci.token, NetMsgType::Connect, {}, sock))
+            {
+                LOG_ERROR(DOM, "Could not welcome client " << ci.clientId);
+                disconnectClient(ci.clientId);
+                continue;
+            }
+
+            LOG_INFO(DOM, "Client " << ci.clientId << " connected");
+            push({NetIncoming::Kind::Connected, ci.clientId, {}, true});
+        }
+
+        // 2) What the application wants sent
+        flushOutbox();
+
+        // 3) TCP from every client
+        std::set<uint32_t> gone;
+
+        for (auto& [sock, ci] : clients)
+        {
+            NetPayload data;
+            bool closed = false;
+            SocketHandle s = sock;
+
+            while (backend->receiveTcp(s, data, closed))
+            {
+                ParsedPacket msg;
+
+                if (parseAndReassemble(data, reassembly, fragmentTimers, backend, msg))
+                {
+                    // A message on this socket must carry this client's id and token
+                    if (msg.header.clientId != ci.clientId or msg.header.token != ci.token)
+                        continue;
+
+                    ci.lastHeartbeatMs = now;
+                    handleServerMessage(sock, nullptr, msg.header, msg.payload);
+                }
+            }
+
+            if (closed)
+                gone.insert(ci.clientId);
+
+            if (closed or leavingClients.count(ci.clientId))
+                continue;
+
+            // 4) Ping, timeout
+            if (static_cast<float>(now - ci.lastPingSentMs) >= netCfg.defaultSystemFlags.pingTimer)
+            {
+                sendTCPMessage(ci.clientId, ci.token, NetMsgType::Ping, {}, ci.tcpSock);
+                ci.lastPingSentMs = now;
+            }
+
+            if (static_cast<float>(now - ci.lastHeartbeatMs) > netCfg.timeoutMs)
+            {
+                LOG_WARNING(DOM, "Client " << ci.clientId << " timed out");
+                gone.insert(ci.clientId);
+            }
+        }
+
+        // 5) UDP
+        IpEndpoint from;
+        NetPayload data;
+
+        while (backend->receiveUdp(from, data))
         {
             ParsedPacket msg;
-            if (parseAndReassemble(buf, reassembly, fragmentTimers, backend, msg))
-            {
-                handleClientMessage(msg.header, msg.payload);
-            }
+
+            if (not parseAndReassemble(data, reassembly, fragmentTimers, backend, msg))
+                continue;
+
+            auto it = idToTcp.find(msg.header.clientId);
+
+            // Unknown id or wrong token: not one of ours
+            if (it == idToTcp.end() or clients[it->second].token != msg.header.token)
+                continue;
+
+            ClientInfo& ci = clients[it->second];
+
+            // Once linked, only that address speaks for the client
+            if (ci.udpLinked and (ci.udpAddr.host != from.host or ci.udpAddr.port != from.port) and msg.header.type != NetMsgType::Handshake)
+                continue;
+
+            ci.lastHeartbeatMs = now;
+            handleServerMessage(it->second, &from, msg.header, msg.payload);
         }
 
-        // If we were disconnected going back to trying to connect to server
-        if (not backend->isConnectedToServer())
-        {
-            currentClientState = ClientState::Connecting;
-        }
+        gone.insert(leavingClients.begin(), leavingClients.end());
+        leavingClients.clear();
+
+        for (uint32_t id : gone)
+            disconnectClient(id);
     }
 
-    void NetworkSystem::handleMessage(const PacketHeader&, const NetPayload&)
+    void NetworkSystem::handleServerMessage(SocketHandle from, const IpEndpoint* udpFrom, const PacketHeader& header, NetPayload& payload)
     {
-    }
+        ClientInfo& ci = clients[from];
 
-    void NetworkSystem::handleServerMessage(const PacketHeader& header, const NetPayload& payload)
-    {
-
-        if (header.type == NetMsgType::Pong)
+        switch (header.type)
         {
-            auto now = getCurrentTime();
-
-            LOG_INFO("NetSys", "Received Pong from client: " << header.clientId << " at time: " << now);
-
-            auto it = idToTcp.find(header.clientId);
-
-            if (it == idToTcp.end())
+            case NetMsgType::Handshake:
             {
-                LOG_ERROR("NetSys", "Received Pong from unknown client: " << header.clientId);
-                return;
+                if (not udpFrom)
+                    break;
+
+                // The client's UDP address, proven by the token it got over TCP
+                const bool changed = not ci.udpLinked or ci.udpAddr.host != udpFrom->host or ci.udpAddr.port != udpFrom->port;
+                ci.udpAddr = *udpFrom;
+                ci.udpLinked = true;
+
+                if (changed)
+                    LOG_INFO(DOM, "Client " << ci.clientId << " UDP linked at " << ipPortKey(ci.udpAddr));
+
+                sendTCPMessage(ci.clientId, ci.token, NetMsgType::Handshake, {}, ci.tcpSock);
+                break;
             }
 
-            auto& state = clients[it->second];
-
-            // payload is original timestamp
-            uint64_t sentTs = backend->readU64BE(payload.data());
-
-            float sampleRtt = float(now - sentTs);
-
-            // simple smoothing
-            // state.rttMs = state.rttMs == 0 ? sampleRtt : (state.rttMs * 0.8f + sampleRtt * 0.2f);
-            state.rttMs = sampleRtt;
-            LOG_INFO("NetSys", "Received Pong from client: " << header.clientId << " rtt: " << state.rttMs);
-        }
-
-        handleMessage(header, payload);
-    }
-
-    void NetworkSystem::handleClientMessage(const PacketHeader& header, const NetPayload& payload)
-    {
-        LOG_INFO("NetSys", "Received packet from client: "
-            << header.clientId << " type: " << int(header.type)
-            << " payload size: " << payload.size());
-
-        if (currentClientState == ClientState::WaitingForId)
-        {
-            _myClientId = header.clientId;
-            _myToken = header.token;
-
-            currentClientState = ClientState::Connected;
-
-            LOG_INFO("NetSys", "Connected to server");
-
-            sendUdpHandshake();
-        }
-
-        if (header.type == NetMsgType::Ping)
-        {
-            // send pong back
-
-            // Todo make helpers that convert str, uint16, uint32, uint64 -> vector<uint8_t>
-            uint8_t buf[8];
-            backend->writeU64BE(buf, header.timestamp);
-
-            if (sendTCPMessage(_myClientId, _myToken, NetMsgType::Pong, std::vector<uint8_t>(buf, buf + 8)))
+            case NetMsgType::Pong:
             {
-                LOG_INFO("NetSys", "Sent Pong to server");
-            }
-            else
-            {
-                LOG_ERROR("NetSys", "Failed to send Pong to server");
-            }
-        }
+                if (payload.size() < 8)
+                    break;
 
-        handleMessage(header, payload);
+                const uint64_t sent = backend->readU64BE(payload.data());
+                const uint64_t now = steadyMs();
+
+                if (now >= sent)
+                {
+                    const float sample = static_cast<float>(now - sent);
+                    ci.rttMs = ci.rttMs <= 0.0f ? sample : ci.rttMs * 0.8f + sample * 0.2f;
+                }
+                break;
+            }
+
+            case NetMsgType::Disconnect:
+                leavingClients.insert(ci.clientId);
+                break;
+
+            case NetMsgType::Custom:
+                push({NetIncoming::Kind::Message, ci.clientId, std::move(payload), udpFrom == nullptr});
+                break;
+
+            default:
+                break;
+        }
     }
 
     void NetworkSystem::disconnectClient(uint32_t id)
     {
         auto it = idToTcp.find(id);
 
-        if (it != idToTcp.end())
+        if (it == idToTcp.end())
+            return;
+
+        SocketHandle sock = it->second;
+        clients.erase(sock);
+        idToTcp.erase(it);
+        backend->closeTcp(sock);
+
+        LOG_INFO(DOM, "Client " << id << " disconnected");
+        push({NetIncoming::Kind::Disconnected, id, {}, true});
+    }
+
+    void NetworkSystem::lostServer()
+    {
+        const bool wasConnected = currentClientState == ClientState::Connected or currentClientState == ClientState::WaitingForId;
+
+        backend->disconnectFromServer();
+        udpAcked = false;
+        connecting = false;
+        lastAttemptMs = steadyMs();
+
+        currentClientState = (netCfg.autoReconnect and not leaving) ? ClientState::Connecting : ClientState::Disconnected;
+
+        if (wasConnected)
         {
-            auto tcpSock = it->second;
-
-            clients.erase(tcpSock);
-            idToTcp.erase(it);
-
-            backend->closeTcp(tcpSock);
-
-            LOG_INFO("NetSys", "Client " << id << " disconnected and cleaned up");
+            LOG_WARNING(DOM, "Lost the server");
+            push({NetIncoming::Kind::Disconnected, _myClientId, {}, true});
         }
     }
 
-} // namespace pg
+    void NetworkSystem::runClientFrame()
+    {
+        const uint64_t now = steadyMs();
+
+        if (currentClientState == ClientState::Disconnected)
+            return;
+
+        if (leaving)
+        {
+            if (currentClientState == ClientState::Connected)
+                sendTCPMessage(_myClientId, _myToken, NetMsgType::Disconnect, {});
+
+            lostServer();
+            currentClientState = ClientState::Disconnected;
+            return;
+        }
+
+        // Connecting, without blocking the frame
+        if (currentClientState == ClientState::Connecting)
+        {
+            if (not connecting)
+            {
+                if (lastAttemptMs != 0 and now - lastAttemptMs < RETRY_CONNECT_MS)
+                    return;
+
+                backend->startConnect();
+                connecting = true;
+                lastAttemptMs = now;
+            }
+
+            const int status = backend->connectStatus();
+
+            if (status == 0)
+                return;
+
+            connecting = false;
+
+            if (status < 0)
+            {
+                lastAttemptMs = now;
+
+                if (not netCfg.autoReconnect)
+                    currentClientState = ClientState::Disconnected;
+                return;
+            }
+
+            LOG_INFO(DOM, "Connected to " << netCfg.peerAddress << ":" << netCfg.tcpPort);
+            currentClientState = ClientState::WaitingForId;
+            lastHeardMs = now;
+        }
+
+        flushOutbox();
+
+        SocketHandle sock;
+        IpEndpoint udpSrc;
+        NetPayload buf;
+
+        while (backend->receive(sock, udpSrc, buf))
+        {
+            ParsedPacket msg;
+
+            if (parseAndReassemble(buf, reassembly, fragmentTimers, backend, msg))
+            {
+                lastHeardMs = now;
+                handleClientMessage(msg.header, msg.payload, sock != nullptr);
+            }
+        }
+
+        if (not backend->isConnectedToServer())
+        {
+            lostServer();
+            return;
+        }
+
+        // Keep offering the UDP address until the server confirms it
+        if (currentClientState == ClientState::Connected and not udpAcked and now - lastHandshakeMs >= HANDSHAKE_EVERY_MS)
+        {
+            sendUDPMessage(_myClientId, _myToken, NetMsgType::Handshake, {}, IpEndpoint{netCfg.peerAddress, netCfg.udpPeerPort});
+            lastHandshakeMs = now;
+        }
+
+        if (static_cast<float>(now - lastHeardMs) > netCfg.timeoutMs)
+        {
+            LOG_WARNING(DOM, "The server stopped answering");
+            lostServer();
+        }
+    }
+
+    void NetworkSystem::handleClientMessage(const PacketHeader& header, NetPayload& payload, bool reliable)
+    {
+        switch (header.type)
+        {
+            case NetMsgType::Connect:
+            {
+                if (currentClientState != ClientState::WaitingForId)
+                    break;
+
+                _myClientId = header.clientId;
+                _myToken = header.token;
+                currentClientState = ClientState::Connected;
+                udpAcked = false;
+                lastHandshakeMs = 0;
+
+                LOG_INFO(DOM, "Welcomed by the server as client " << _myClientId);
+                push({NetIncoming::Kind::Connected, _myClientId, {}, true});
+                break;
+            }
+
+            case NetMsgType::Handshake:
+                udpAcked = true;
+                break;
+
+            case NetMsgType::Ping:
+            {
+                uint8_t buf[8];
+                backend->writeU64BE(buf, header.timestamp);
+                sendTCPMessage(_myClientId, _myToken, NetMsgType::Pong, NetPayload(buf, buf + 8));
+                break;
+            }
+
+            case NetMsgType::Disconnect:
+                lostServer();
+                break;
+
+            case NetMsgType::Custom:
+                if (currentClientState == ClientState::Connected and header.token == _myToken)
+                    push({NetIncoming::Kind::Message, _myClientId, std::move(payload), reliable});
+                break;
+
+            default:
+                break;
+        }
+    }
+}
