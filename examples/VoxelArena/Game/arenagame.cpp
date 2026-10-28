@@ -842,6 +842,7 @@ namespace arena
                 --waitSteps;
 
             in.cameraYaw = camera.yaw;
+            in.cameraPitch = camera.pitch;
             in.faceCamera = firstPerson;
 
             // The abilities aim where the camera looks (the crosshair)
@@ -1035,9 +1036,18 @@ namespace arena
             const float before = std::sin(g.phase);
             g.phase += speed * frameSeconds * 6.2831853f / std::max(0.5f, f.body.height * 0.85f);
 
-            // Footsteps where a foot lands (the swing crosses zero)
-            if (f.team == Team::Player and f.body.onGround and g.amount > 0.35f and (before < 0.0f) != (std::sin(g.phase) < 0.0f))
-                playEffect("step", f.body.position, glm::vec3(1.0f));
+            // Footsteps where a foot lands (the swing crosses zero): a sound for the player, dust when running
+            if (f.body.onGround and g.amount > 0.35f and (before < 0.0f) != (std::sin(g.phase) < 0.0f))
+            {
+                const glm::ivec3 below(glm::floor(f.body.position - glm::vec3(0, 0.5f, 0)));
+                const BlockId ground = world.grid.get(below.x, below.y, below.z);
+                const glm::vec3 dust = (ground < content.blockTable.size() ? content.blockTable[ground].color : glm::vec3(0.7f)) * 0.85f + glm::vec3(0.12f);
+
+                if (f.team == Team::Player)
+                    playEffect(f.sprinting ? "sprint_step" : "step", f.body.position + glm::vec3(0, 0.05f, 0), dust);
+                else if (speed > 5.5f)
+                    playEffect("run_dust", f.body.position + glm::vec3(0, 0.05f, 0), dust);
+            }
         }
 
         // Forget the fighters that left
@@ -1383,7 +1393,8 @@ namespace arena
                         pose = poseAt(*attack, weapon.rest, frame);
 
                     // Hand in the body frame; x is the fighter's right, which is the model's -X
-                    glm::mat4 handFrame = body * glm::translate(glm::mat4(1.0f), glm::vec3(-tuning.player.hand.x, tuning.player.hand.y, tuning.player.hand.z));
+                    glm::mat4 handFrame = body * glm::translate(glm::mat4(1.0f), glm::vec3(-tuning.player.hand.x, tuning.player.hand.y, tuning.player.hand.z)) *
+                                          rotX(attack ? f.attackPitch : 0.0f);   // aimed down at a target below, up at one above
 
                     if (viewModel)
                     {

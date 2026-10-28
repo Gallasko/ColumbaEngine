@@ -408,7 +408,17 @@ namespace arena
         f.yaw = wrapDegrees(f.yaw + std::clamp(diff, -maxTurn, maxTurn));
     }
 
-    void ArenaWorld::startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir, bool aimAssist)
+    void ArenaWorld::hitboxInWorld(const Fighter& f, const HitBox& box, glm::vec3& centre, glm::vec3& size) const
+    {
+        const float p = f.attackPitch * DEG;
+        const float c = std::cos(p), s = std::sin(p);
+
+        const glm::vec3 local(box.offset.x, box.offset.y - box.offset.z * s, box.offset.z * c);
+        centre = f.body.position + localToWorld(f.yaw, local);
+        size = glm::vec3(box.size.x, box.size.y * std::fabs(c) + box.size.z * std::fabs(s), box.size.z * std::fabs(c) + box.size.y * std::fabs(s));
+    }
+
+    void ArenaWorld::startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir, bool aimAssist, float pitch)
     {
         const Moveset* m = movesetOf(f);
         const AttackDef* a = m ? m->find(name) : nullptr;
@@ -424,6 +434,7 @@ namespace arena
             aim = glm::normalize(aim);
             float best = tuning.combat.aimAssistAngle;
             glm::vec3 bestDir = aim;
+            const Fighter* picked = nullptr;
 
             for (const auto& o : fighters)
             {
@@ -442,14 +453,34 @@ namespace arena
                 {
                     best = angle;
                     bestDir = to / dist;
+                    picked = &o;
                 }
             }
 
             aim = bestDir;
+            assistTarget = picked;
         }
 
         if (glm::length(aim) > 1e-4f)
             f.yaw = yawOf(aim);
+
+        // Up or down: given (first person), else at the target (aim assist's, or the player for an enemy)
+        const Fighter* target = f.team == Team::Player ? assistTarget : player();
+        assistTarget = nullptr;
+
+        if (std::isnan(pitch))
+        {
+            pitch = 0.0f;
+
+            if (target and target->alive())
+            {
+                const float drop = chest(f).y - chest(*target).y;
+                const float across = std::max(0.3f, glm::length(flat(target->body.position - f.body.position)));
+                pitch = std::atan2(drop, across) / DEG;
+            }
+        }
+
+        f.attackPitch = std::clamp(pitch, -tuning.combat.maxAttackPitch, tuning.combat.maxAttackPitch);
 
         if (f.team == Team::Player)
             spendStamina(f, a->staminaCost);
@@ -563,6 +594,7 @@ namespace arena
 
         // Where an attack goes: the view in first person, else the stick (or the camera when idle)
         const glm::vec3 aimIdle = in.faceCamera ? camForward : (hasWish ? wish : camForward);
+        const float aimPitch = in.faceCamera ? in.cameraPitch : NAN;
         const glm::vec3 aimChain = in.faceCamera ? camForward : (hasWish ? wish : yawForward(f.yaw));
         const Moveset* moveset = movesetOf(f);
         const bool canPay = f.stamina >= tuning.stamina.minToAct;
@@ -580,7 +612,7 @@ namespace arena
                 else if (f.queued and canPay and moveset)
                 {
                     const std::string& name = (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light;
-                    startAttack(f, name, aimIdle, not in.faceCamera);
+                    startAttack(f, name, aimIdle, not in.faceCamera, aimPitch);
                 }
                 break;
             }
@@ -602,7 +634,7 @@ namespace arena
                     const std::string& next = f.queued == 2 ? attack->nextHeavy : attack->nextLight;
 
                     if (not next.empty() and canPay)
-                        startAttack(f, next, aimChain, not in.faceCamera);
+                        startAttack(f, next, aimChain, not in.faceCamera, aimPitch);
                 }
 
                 if (f.action == Action::Attack and f.frame >= currentAttack(f)->total())
@@ -618,7 +650,7 @@ namespace arena
                 if (f.jumpBuffer > 0.0f and f.frame >= tuning.dodge.jumpFrom and f.coyote > 0.0f)
                     f.action = Action::Free;
                 else if (f.queued == 1 and f.frame >= tuning.dodge.attackFrom and moveset and not moveset->dodgeAttack.empty() and canPay)
-                    startAttack(f, moveset->dodgeAttack, in.faceCamera ? camForward : (hasWish ? wish : f.dodgeDir), not in.faceCamera);
+                    startAttack(f, moveset->dodgeAttack, in.faceCamera ? camForward : (hasWish ? wish : f.dodgeDir), not in.faceCamera, aimPitch);
                 else if (f.frame >= tuning.dodge.frames)
                     f.action = Action::Free;
 
@@ -628,7 +660,11 @@ namespace arena
             case Action::Stagger:
             case Action::Land:
             {
-                if (f.frame >= f.actionLength)
+                // A light hit's stagger is short work: a roll gets out of it after a few frames
+                if (f.action == Action::Stagger and not f.heavyStagger and f.frame >= tuning.player.hitstunDodgeFrom and
+                    f.dodgeQueuedAge >= 0.0f and canPay and canDodgeHere and f.body.onGround)
+                    startDodge(f, hasWish ? wish : yawForward(f.yaw));
+                else if (f.frame >= f.actionLength)
                     f.action = Action::Free;
 
                 break;
@@ -642,7 +678,7 @@ namespace arena
         if (f.action == Action::Free and f.dodgeQueuedAge >= 0.0f and canPay and canDodgeHere)
             startDodge(f, hasWish ? wish : yawForward(f.yaw));
         else if (f.action == Action::Free and f.queued and canPay and moveset)
-            startAttack(f, (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light, aimIdle, not in.faceCamera);
+            startAttack(f, (f.queued == 2 and not moveset->heavy.empty()) ? moveset->heavy : moveset->light, aimIdle, not in.faceCamera, aimPitch);
 
         useAbilities(f, in);
 
@@ -695,7 +731,10 @@ namespace arena
                 // First person: the swing follows the view for its whole length, or the hitbox would
                 // land where the view was when the attack started
                 if (in.faceCamera)
+                {
                     f.yaw = in.cameraYaw;
+                    f.attackPitch = std::clamp(in.cameraPitch, -tuning.combat.maxAttackPitch, tuning.combat.maxAttackPitch);
+                }
                 else if (f.frame < a->startup and a->turnRate > 0.0f and hasWish)
                     turnTowards(f, wish, a->turnRate * 60.0f);
 
@@ -1370,9 +1409,11 @@ namespace arena
             if (not a or a->terrainDamage <= 0.0f or not a->isActive(attacker.frame - 1))
                 continue;
 
-            for (const auto& box : a->hitboxes)
+            for (const auto& raw : a->hitboxes)
             {
-                const glm::vec3 centre = attacker.body.position + localToWorld(attacker.yaw, box.offset);
+                glm::vec3 centre, size;
+                hitboxInWorld(attacker, raw, centre, size);
+                const HitBox box{centre, size};
                 const float reach = 0.5f * glm::length(glm::vec2(box.size.x, box.size.z));
                 const glm::ivec3 lo(glm::floor(centre - glm::vec3(reach, box.size.y * 0.5f, reach)));
                 const glm::ivec3 hi(glm::floor(centre + glm::vec3(reach, box.size.y * 0.5f, reach)));
@@ -1707,9 +1748,11 @@ namespace arena
             if (not a or not a->isActive(attacker.frame - 1))
                 continue;
 
-            for (const auto& box : a->hitboxes)
+            for (const auto& raw : a->hitboxes)
             {
-                const glm::vec3 centre = attacker.body.position + localToWorld(attacker.yaw, box.offset);
+                glm::vec3 centre, size;
+                hitboxInWorld(attacker, raw, centre, size);
+                const HitBox box{centre, size};
 
                 for (auto& target : fighters)
                 {
@@ -1771,6 +1814,7 @@ namespace arena
             target.poise = target.maxPoise;
             target.queued = 0;
             target.queuedAge = -1.0f;
+            target.heavyStagger = a.poiseDamage >= tuning.player.heavyHitPoise;
             e.staggered = true;
         }
 
@@ -1885,7 +1929,11 @@ namespace arena
                 continue;
 
             for (const auto& box : a->hitboxes)
-                out.push_back({f.body.position + localToWorld(f.yaw, box.offset), box.size, f.yaw, false, active, false, f.id});
+            {
+                glm::vec3 centre, size;
+                hitboxInWorld(f, box, centre, size);
+                out.push_back({centre, size, f.yaw, false, active, false, f.id});
+            }
         }
 
         return out;

@@ -15,6 +15,9 @@
         "health": 100,
         "poise": 10,
         "hitstunFrames": 22,
+        // A light hit's stagger can be rolled out of from this frame; a hit doing heavyHitPoise or more cannot
+        "hitstunDodgeFrom": 6,
+        "heavyHitPoise": 25,
         "respawnSeconds": 2.0,
 
         "walkSpeed": 5.6,
@@ -148,6 +151,8 @@
     "combat": {
         "inputBuffer": 0.2,
         "aimAssistAngle": 55,
-        "aimAssistRange": 3.5
+        "aimAssistRange": 3.5,
+        // Attacks aim up or down at their target (first person: with the view), at most this many degrees
+        "maxAttackPitch": 60
     }
 }

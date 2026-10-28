@@ -1094,3 +1094,105 @@ TEST(arena_roles, the_archer_backs_off_when_you_close_in)
     a.run(60);
     EXPECT_GT(glm::length(a.world.find(archer)->body.position - a.player().body.position), start + 1.5f);
 }
+
+TEST(arena_world, a_dodge_cancels_a_light_attack_from_its_recovery)
+{
+    // Pressed early, it waits for the cancel frame; pressed later, it goes at once
+    Arena ref;
+    const int cancel = ref.content.weapons.at("base:sword").moveset.find("light1")->dodgeCancelFrom;
+
+    for (int pressAt : {2, cancel, cancel + 5})
+    {
+        Arena a;
+        a.world.step(a.press(&InputFrame::lightPressed));
+        int dodgeAt = -1;
+
+        for (int i = 1; i < 40 and dodgeAt < 0; ++i)
+        {
+            InputFrame in;
+            in.dodgePressed = (i == pressAt);
+            a.world.step(in);
+            if (a.player().action == Action::Dodge)
+                dodgeAt = i;
+        }
+
+        EXPECT_EQ(dodgeAt, std::max(pressAt, cancel)) << "pressed at " << pressAt;
+    }
+}
+
+TEST(arena_world, a_light_hit_can_be_rolled_out_of_a_heavy_one_cannot)
+{
+    auto hitThenRoll = [](const std::string& enemy, const std::string& attackName) {
+        Arena a;
+        a.world.aiEnabled = false;
+        // On the ground: a knock-up would make it the wake-up roll's case instead
+        a.content.enemies[enemy].moveset.attacks[attackName].knockup = 0.0f;
+        Fighter* e = a.world.find(a.world.spawnEnemy(enemy, a.player().body.position + glm::vec3(0, 0, 1.6f), 180.0f));
+        a.settle(5);
+        e->action = Action::Attack;
+        e->attack = attackName;
+        e->frame = 0;
+
+        // Until the hit lands
+        for (int i = 0; i < 120 and a.player().action != Action::Stagger; ++i)
+            a.world.step(InputFrame{});
+
+        if (a.player().action != Action::Stagger)
+            return std::string("no stagger");
+
+        // Let the knock-up settle, then press dodge
+        for (int i = 0; i < 60 and not a.player().body.onGround; ++i)
+            a.world.step(InputFrame{});
+
+        // Dodge pressed at once: it waits for hitstunDodgeFrom (the hitstop pauses the stagger meanwhile)
+        a.world.step(a.press(&InputFrame::dodgePressed));
+
+        for (int i = 0; i < a.tuning.player.hitstunDodgeFrom + 6; ++i)
+        {
+            if (a.player().action == Action::Dodge)
+                return std::string("dodge");
+            a.world.step(InputFrame{});
+        }
+
+        return std::string(actionName(a.player().action));
+    };
+
+    EXPECT_EQ(hitThenRoll("base:skulker", "bite"), "dodge");    // 12 poise: a light hit
+    EXPECT_EQ(hitThenRoll("base:brute", "slam"), "stagger");    // 30 poise: a heavy one, even on the ground
+}
+
+TEST(arena_world, an_attack_aims_down_at_an_enemy_below_the_ledge)
+{
+    // The player on a two block ledge, a dummy just past its edge, two blocks lower
+    auto attempt = [](bool firstPerson) {
+        Arena a;
+        a.world.grid.fill({0, 1, 0}, {31, 2, 9}, a.content.block("base:stone"));
+        a.player().body.position = glm::vec3(16.5f, 3.0f, 9.0f);
+        const int dummy = a.world.spawnEnemy("base:dummy", glm::vec3(16.5f, 1.0f, 10.6f), 180.0f);
+        a.settle(20);
+
+        InputFrame in;
+        in.lightPressed = true;
+        in.faceCamera = firstPerson;
+        in.cameraPitch = firstPerson ? 50.0f : 0.0f;   // first person: looking down at it
+        a.world.step(in);
+
+        InputFrame hold;
+        hold.faceCamera = firstPerson;
+        hold.cameraPitch = in.cameraPitch;
+
+        int hits = 0;
+        for (int i = 0; i < 30; ++i)
+        {
+            a.world.step(hold);
+            for (const auto& h : a.world.hits)
+                hits += h.target == dummy;
+            a.world.hits.clear();
+        }
+
+        return hits;
+    };
+
+    EXPECT_EQ(attempt(false), 1);   // third person: aim assist picks it, the swing tilts down to it
+    EXPECT_EQ(attempt(true), 1);    // first person: the swing follows the view down
+}

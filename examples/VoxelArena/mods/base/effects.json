@@ -14,6 +14,8 @@
     "land":       { "sound": "land",      "particles": { "count": 6,  "speed": 1.5, "up": 0.7, "size": 0.09, "life": 0.4,  "gravity": 2,  "color": [190, 176, 150] } },
     "hard_land":  { "sound": "hard_land", "particles": { "count": 20, "speed": 3,   "up": 0.6, "size": 0.12, "life": 0.6,  "gravity": 3,  "color": [190, 176, 150] }, "shake": 0.3 },
     "step":       { "sound": "step" },
+    "sprint_step":{ "sound": "step",      "particles": { "count": 4,  "speed": 1.2, "up": 0.8, "size": 0.1,  "life": 0.5,  "gravity": 1,  "color": "event" } },
+    "run_dust":   {                       "particles": { "count": 3,  "speed": 1.0, "up": 0.8, "size": 0.09, "life": 0.45, "gravity": 1,  "color": "event" } },
     "chip":       { "sound": "chip",      "particles": { "count": 4,  "speed": 3,   "up": 0.6, "size": 0.08, "life": 0.4,  "gravity": 18, "color": "event" } },
     "break":      { "sound": "break",     "particles": { "count": 14, "speed": 4,   "up": 0.6, "size": 0.16, "life": 0.8,  "gravity": 20, "color": "event" } },
     "raise":      { "sound": "raise",     "particles": { "count": 16, "speed": 2.5, "up": 0.8, "size": 0.14, "life": 0.6,  "gravity": 12, "color": "event" } },

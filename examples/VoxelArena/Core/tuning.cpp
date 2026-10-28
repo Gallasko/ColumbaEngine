@@ -29,6 +29,7 @@ namespace arena
         f("player.landingGrace", player.landingGrace);
         f("player.overspeedDecel", player.overspeedDecel);
         f("player.hardLandingSpeed", player.hardLandingSpeed);
+        f("player.heavyHitPoise", player.heavyHitPoise);
         f("player.hardLandingMoveSpeed", player.hardLandingMoveSpeed);
         f("player.landingRollWindow", player.landingRollWindow);
         f("player.turnSpeed", player.turnSpeed);
@@ -94,12 +95,14 @@ namespace arena
         f("combat.inputBuffer", combat.inputBuffer);
         f("combat.aimAssistAngle", combat.aimAssistAngle);
         f("combat.aimAssistRange", combat.aimAssistRange);
+        f("combat.maxAttackPitch", combat.maxAttackPitch);
     }
 
     void Tuning::forEachInt(const std::function<void(const std::string&, int&)>& f)
     {
         f("player.hitstunFrames", player.hitstunFrames);
         f("player.hardLandingFrames", player.hardLandingFrames);
+        f("player.hitstunDodgeFrom", player.hitstunDodgeFrom);
 
         f("dodge.frames", dodge.frames);
         f("dodge.iframeStart", dodge.iframeStart);

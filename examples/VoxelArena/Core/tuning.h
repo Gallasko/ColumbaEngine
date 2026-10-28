@@ -54,6 +54,8 @@ namespace arena
             float health = 100.0f;
             float poise = 10.0f;
             int hitstunFrames = 20;
+            int hitstunDodgeFrom = 6;         // a light hit's stagger can be rolled out of from this frame ...
+            float heavyHitPoise = 25.0f;      // ... unless the hit did this much poise damage (a heavy stagger)
             float respawnSeconds = 2.0f;
 
             float modelScale = 0.125f;
@@ -128,6 +130,7 @@ namespace arena
             float inputBuffer = 0.18f;     // s an attack or dodge press waits for the current action to allow it
             float aimAssistAngle = 60.0f;  // degrees: attacks snap to an enemy within this cone ...
             float aimAssistRange = 4.0f;   // ... and this distance
+            float maxAttackPitch = 60.0f;  // degrees an attack may aim up or down (at its target, or with the view)
         } combat;
 
         struct Terrain

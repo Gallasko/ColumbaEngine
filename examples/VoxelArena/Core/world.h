@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <functional>
 #include <memory>
 #include <string>
@@ -26,6 +27,7 @@ namespace arena
     {
         glm::vec2 move = glm::vec2(0.0f);   // x right, y forward, relative to the camera; length <= 1
         float cameraYaw = 0.0f;             // degrees, same convention as yawForward
+        float cameraPitch = 0.0f;           // degrees, + looks down (first person aims attacks with it)
 
         bool jumpPressed = false;
         bool jumpHeld = false;
@@ -104,6 +106,8 @@ namespace arena
         float airDodgeAge = -1.0f;      // seconds since a dodge pressed in the air, kept for the landing
         glm::vec3 aimDir = glm::vec3(0, 0, 1);   // player: the crosshair's direction, for what the player shoots
         float aiRadius = 2.5f;          // the circle a flanking enemy keeps around the target
+        float attackPitch = 0.0f;       // degrees the current attack aims down (+) or up (-): hitboxes tilt with it
+        bool heavyStagger = false;      // the stagger came from a heavy hit: no rolling out of it
         float jumpBuffer = 0.0f;
         bool jumping = false;
 
@@ -253,6 +257,13 @@ namespace arena
         const AttackDef* currentAttack(const Fighter& f) const;
         const Moveset* movesetOf(const Fighter& f) const;
 
+        /**
+         * A hitbox in the world: turned by the fighter's yaw, and tilted by its attack pitch about the
+         * box's own height above the feet (a swing aimed down reaches down). The tilted box is bounded
+         * by a box upright in that plane, a little generous at steep angles.
+         */
+        void hitboxInWorld(const Fighter& f, const HitBox& box, glm::vec3& centre, glm::vec3& size) const;
+
         VoxelGrid grid;
         std::vector<Fighter> fighters;
         std::vector<HitEvent> hits;   // since the last drain, read by the game for feedback
@@ -282,7 +293,8 @@ namespace arena
         void stepPlayer(Fighter& f, const InputFrame& in);
         void stepEnemy(Fighter& f);
         void stepCommon(Fighter& f, glm::vec3 wantedVelocity, bool canJump, const InputFrame* in);
-        void startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir, bool aimAssist = true);
+        /** pitch: NAN aims at the target (aim assist's for the player), a number aims there (first person). */
+        void startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir, bool aimAssist = true, float pitch = NAN);
         void startDodge(Fighter& f, const glm::vec3& dir);
         void resolveHits();
         void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
@@ -293,6 +305,7 @@ namespace arena
         void event(const std::string& kind, const glm::vec3& position, float strength = 1.0f, int fighter = 0, const glm::vec3& color = glm::vec3(1.0f));
         glm::vec3 chest(const Fighter& f) const { return f.body.position + glm::vec3(0, f.body.height * 0.6f, 0); }
         int nextProjectile = 1;
+        const Fighter* assistTarget = nullptr;   // startAttack: who aim assist picked, for the pitch
         void terrainFromAttacks();
         void stepTerrain();
         bool cellOccupied(const glm::ivec3& cell) const;
