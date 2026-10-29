@@ -1254,7 +1254,7 @@ namespace arena
             {
                 const Json& j = raw.data;
                 checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
-                              "statusStacks", "most"},
+                              "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "price"},
                           raw.file, report, "boon " + id);
 
                 UpgradeDef u;
@@ -1273,6 +1273,11 @@ namespace arena
                 readNum(j, "lifeOnHit", u.lifeOnHit, raw.file, report);
                 readInt(j, "statusStacks", u.statusStacks, raw.file, report);
                 readInt(j, "most", u.most, raw.file, report);
+                readNum(j, "armor", u.armor, raw.file, report);
+                readNum(j, "crit", u.crit, raw.file, report);
+                readNum(j, "pickupRange", u.pickupRange, raw.file, report);
+                readNum(j, "regen", u.regen, raw.file, report);
+                readInt(j, "price", u.price, raw.file, report);
                 content.upgrades[id] = u;
             }
         }
@@ -1290,78 +1295,131 @@ namespace arena
             RunDef& r = content.run;
             r.file = raw.file;
 
-            checkKeys(j, {"waves", "warn", "breather", "choose", "choices", "centre", "spawnRadius", "coopScale", "waveScore", "timeBonus", "timePar", "arena", "resetEachWave"},
+            checkKeys(j, {"waves", "duration", "spawnRate", "maxAlive", "eliteFrom", "eliteChance", "healthGrowth", "pools", "bosses", "warn", "centre", "spawnRadius", "coopScale",
+                          "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "resetEachWave"},
                       raw.file, report, "the run");
+
+            readInt(j, "waves", r.waves, raw.file, report);
+            r.waves = std::clamp(r.waves, 1, 200);
+            auto pair = [&](const char* key, glm::vec2& out) {
+                if (const Json* v = j.find(key))
+                {
+                    if (v->isArray() and v->array.size() == 2)
+                        out = glm::vec2(static_cast<float>(v->array[0].number), static_cast<float>(v->array[1].number));
+                    else
+                        report.error(raw.file, v->line, std::string("\"") + key + "\" is [the first wave's, the last wave's]");
+                }
+            };
+            pair("duration", r.duration);
+            pair("spawnRate", r.spawnRate);
+            glm::vec2 alive(r.maxAlive);
+            pair("maxAlive", alive);
+            r.maxAlive = glm::ivec2(alive);
+            readNum(j, "eliteFrom", r.eliteFrom, raw.file, report);
+            readNum(j, "eliteChance", r.eliteChance, raw.file, report);
+            readNum(j, "healthGrowth", r.healthGrowth, raw.file, report);
+            readNum(j, "warn", r.warn, raw.file, report);
+            readVec3(j, "centre", r.centre, raw.file, report);
+            readNum(j, "spawnRadius", r.spawnRadius, raw.file, report);
+            readNum(j, "coopScale", r.coopScale, raw.file, report);
+            readInt(j, "waveScore", r.waveScore, raw.file, report);
+            readInt(j, "victoryScore", r.victoryScore, raw.file, report);
+            readNum(j, "pickupRange", r.pickupRange, raw.file, report);
             readBool(j, "resetEachWave", r.resetEachWave, raw.file, report);
 
-            // Its own arena (else the training one)
             if (const Json* arena = j.find("arena"))
             {
                 readArena(content, *arena, raw, r.arena, "the run's arena");
                 r.hasArena = true;
             }
-            readNum(j, "warn", r.warn, raw.file, report);
-            readNum(j, "breather", r.breather, raw.file, report);
-            readNum(j, "choose", r.choose, raw.file, report);
-            readInt(j, "choices", r.choices, raw.file, report);
-            readVec3(j, "centre", r.centre, raw.file, report);
-            readNum(j, "spawnRadius", r.spawnRadius, raw.file, report);
-            readNum(j, "coopScale", r.coopScale, raw.file, report);
-            readInt(j, "waveScore", r.waveScore, raw.file, report);
-            readInt(j, "timeBonus", r.timeBonus, raw.file, report);
-            readNum(j, "timePar", r.timePar, raw.file, report);
 
-            const Json* waves = j.find("waves");
-
-            if (not waves or not waves->isArray() or waves->array.empty())
+            if (const Json* pools = j.find("pools"))
             {
-                report.error(raw.file, j.line, "the run needs \"waves\": a list of { \"enemies\": { \"brute\": [1, 2] }, \"boss\": ... }");
-                return;
+                for (const auto& p : pools->array)
+                {
+                    checkKeys(p, {"enemy", "from", "to", "weight"}, raw.file, report, "a spawn pool");
+                    SpawnPool pool;
+                    readStr(p, "enemy", pool.enemy, raw.file, report);
+                    pool.enemy = resolveId(pool.enemy, raw.mod);
+                    readInt(p, "from", pool.from, raw.file, report);
+                    readInt(p, "to", pool.to, raw.file, report);
+                    readNum(p, "weight", pool.weight, raw.file, report);
+
+                    if (not content.enemies.count(pool.enemy))
+                        report.error(raw.file, p.line, "a spawn pool names the enemy \"" + pool.enemy + "\", which no mod has");
+                    else
+                        r.pools.push_back(pool);
+                }
             }
 
-            for (const auto& w : waves->array)
+            if (const Json* bosses = j.find("bosses"))
             {
-                checkKeys(w, {"enemies", "boss"}, raw.file, report, "a wave");
-                WaveDef wave;
-
-                if (const Json* enemies = w.find("enemies"))
+                for (const auto& [wave, boss] : bosses->object)
                 {
-                    for (const auto& [name, count] : enemies->object)
+                    const std::string id = resolveId(boss.string, raw.mod);
+
+                    if (not content.enemies.count(id))
+                        report.error(raw.file, boss.line, "a boss \"" + id + "\" is no enemy of any mod");
+                    else
+                        r.bosses[std::atoi(wave.c_str())] = id;
+                }
+            }
+
+            if (const Json* xp = j.find("xp"))
+            {
+                checkKeys(*xp, {"base", "step"}, raw.file, report, "the run's xp");
+                readInt(*xp, "base", r.xpBase, raw.file, report);
+                readInt(*xp, "step", r.xpStep, raw.file, report);
+            }
+
+            if (const Json* start = j.find("start"))
+            {
+                checkKeys(*start, {"weapon", "owned"}, raw.file, report, "the run's start");
+                readStr(*start, "weapon", r.startWeapon, raw.file, report);
+                r.startWeapon = resolveId(r.startWeapon, raw.mod);
+                if (start->has("owned"))
+                {
+                    r.startOwned.clear();
+                    readStringList(*start, "owned", r.startOwned, raw.file, report);
+                    for (auto& id : r.startOwned)
+                        if (id.rfind("element:", 0) != 0)
+                            id = resolveId(id, raw.mod);
+                }
+            }
+
+            if (const Json* shop = j.find("shop"))
+            {
+                checkKeys(*shop, {"slots", "reroll", "rerollStep", "priceGrowth", "levelChoices", "weaponPrice", "unlocks"}, raw.file, report, "the run's shop");
+                readInt(*shop, "slots", r.shopSlots, raw.file, report);
+                readInt(*shop, "reroll", r.rerollPrice, raw.file, report);
+                readInt(*shop, "rerollStep", r.rerollStep, raw.file, report);
+                readNum(*shop, "priceGrowth", r.priceGrowth, raw.file, report);
+                readInt(*shop, "levelChoices", r.levelChoices, raw.file, report);
+                readInt(*shop, "weaponPrice", r.weaponPrice, raw.file, report);
+                r.shopSlots = std::clamp(r.shopSlots, 1, 4);
+                r.levelChoices = std::clamp(r.levelChoices, 1, 4);
+
+                // What is bought once: weapons, weapon skills, spell keywords and elements ("element:ice")
+                if (const Json* unlocks = shop->find("unlocks"))
+                {
+                    for (const auto& [name, price] : unlocks->object)
                     {
-                        const std::string id = resolveId(name, raw.mod);
+                        const std::string id = name.rfind("element:", 0) == 0 ? name : resolveId(name, raw.mod);
+                        const bool known = content.weapons.count(id) or content.abilities.count(id) or content.keywords.count(id) or
+                                           (id.rfind("element:", 0) == 0);
 
-                        if (not content.enemies.count(id))
-                        {
-                            report.error(raw.file, count.line, "a wave names the enemy \"" + id + "\", which no mod has");
-                            continue;
-                        }
-
-                        glm::ivec2 range(1, 1);
-                        if (count.isNumber())
-                            range = glm::ivec2(static_cast<int>(count.number));
-                        else if (count.isArray() and count.array.size() == 2)
-                            range = glm::ivec2(static_cast<int>(count.array[0].number), static_cast<int>(count.array[1].number));
+                        if (not known)
+                            report.error(raw.file, price.line, "the shop sells \"" + id + "\", which is no weapon, skill, keyword or element");
                         else
-                            report.error(raw.file, count.line, "an enemy's count is a number or [least, most]");
-
-                        wave.enemies.emplace_back(id, glm::ivec2(std::max(0, range.x), std::max(range.x, range.y)));
+                            r.unlocks[id] = static_cast<int>(price.number);
                     }
                 }
-
-                readStr(w, "boss", wave.boss, raw.file, report);
-
-                if (not wave.boss.empty())
-                {
-                    wave.boss = resolveId(wave.boss, raw.mod);
-
-                    if (not content.enemies.count(wave.boss))
-                        report.error(raw.file, w.line, "a wave's boss \"" + wave.boss + "\" is no enemy of any mod");
-                }
-
-                r.waves.push_back(wave);
             }
 
-            r.choices = std::clamp(r.choices, 1, 3);
+            // Every mod's weapons are for sale: the ones not named, for weaponPrice
+            for (const auto& [id, w] : content.weapons)
+                if (id != r.startWeapon and not r.unlocks.count(id))
+                    r.unlocks[id] = r.weaponPrice;
         }
 
         void typeArena(Content& content)
@@ -1470,7 +1528,7 @@ namespace arena
 
                 checkKeys(j, {"id", "name", "model", "modelScale", "size", "health", "poise", "poiseRegenDelay", "staggerFrames",
                               "knockbackScale", "walkSpeed", "turnSpeed", "respawnSeconds", "regenerates", "script", "params", "moveset",
-                              "weakness", "score", "boss"},
+                              "weakness", "score", "boss", "drops"},
                           raw.file, report, "enemy " + id);
 
                 EnemyDef e;
@@ -1504,6 +1562,7 @@ namespace arena
                 readNum(j, "knockbackScale", e.knockbackScale, raw.file, report);
                 readInt(j, "score", e.score, raw.file, report);
                 readBool(j, "boss", e.boss, raw.file, report);
+                readInt(j, "drops", e.drops, raw.file, report);
 
                 if (const Json* weak = j.find("weakness"))
                 {

@@ -15,6 +15,7 @@ namespace arena::net
             "fire_burst", "ice_burst", "volt_arc", "ignite", "freeze", "status", "leap",
             "volt_burst", "fire_nova", "ice_nova", "volt_nova", "fire_zone", "ice_zone", "volt_zone", "fire_beam", "ice_beam", "volt_beam",
             "run_start", "spawn_warn", "boss_warn", "spawn", "boss_spawn", "wave_clear", "run_victory", "run_defeat", "boon",
+            "wave_start", "arena_reset", "despawn", "elite_warn", "pickup", "level_up", "buy", "crit",
         };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };
@@ -133,7 +134,10 @@ namespace arena::net
 
         // Spells: their elements and keywords
         for (const char* e : {"fire", "ice", "volt"})
+        {
             all.insert(e);
+            all.insert(std::string("element:") + e);   // a run's unlock of it
+        }
         for (const auto& [id, k] : content.keywords)
             all.insert(id);
         for (const auto& [id, u] : content.upgrades)
@@ -395,6 +399,7 @@ namespace arena::net
         w.u16(names.id(f.aiMove));
 
         w.u8(static_cast<uint8_t>(std::clamp(f.chargeFrames, 0, 255)));   // a charge shows
+        w.boolean(f.elite);
 
         // Statuses: they slow and they show
         w.u8(static_cast<uint8_t>(std::min<size_t>(f.statuses.size(), 16)));
@@ -446,9 +451,27 @@ namespace arena::net
         w.u8(static_cast<uint8_t>(std::min<size_t>(f.boons.size(), 64)));
         for (size_t i = 0; i < f.boons.size() and i < 64; ++i)
             w.u16(names.id(f.boons[i]));
-        w.u8(static_cast<uint8_t>(std::min<size_t>(f.offer.size(), 3)));
-        for (size_t i = 0; i < f.offer.size() and i < 3; ++i)
-            w.u16(names.id(f.offer[i]));
+
+        // ... and what the shop has: shards, the level, what is owned, the offers, the level up's picks
+        w.u16(static_cast<uint16_t>(std::clamp(f.shards, 0, 65535)));
+        w.u16(static_cast<uint16_t>(std::clamp(f.xp, 0, 65535)));
+        w.u8(static_cast<uint8_t>(std::clamp(f.level, 0, 255)));
+        w.u8(static_cast<uint8_t>(std::clamp(f.levelUps, 0, 255)));
+        w.u8(static_cast<uint8_t>(std::clamp(f.rerolls, 0, 255)));
+        w.boolean(f.ready);
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.owned.size(), 64)));
+        for (size_t i = 0; i < f.owned.size() and i < 64; ++i)
+            w.u16(names.id(f.owned[i]));
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.shop.size(), 8)));
+        for (size_t i = 0; i < f.shop.size() and i < 8; ++i)
+        {
+            w.u16(names.id(f.shop[i].id));
+            w.u16(static_cast<uint16_t>(std::clamp(f.shop[i].price, 0, 65535)));
+            w.u8(static_cast<uint8_t>((f.shop[i].locked ? 1 : 0) | (f.shop[i].bought ? 2 : 0)));
+        }
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.levelOffer.size(), 8)));
+        for (size_t i = 0; i < f.levelOffer.size() and i < 8; ++i)
+            w.u16(names.id(f.levelOffer[i]));
     }
 
     void readFighter(Reader& r, Fighter& f, const Names& names)
@@ -480,6 +503,7 @@ namespace arena::net
         f.aiMove = names.name(r.u16());
 
         f.chargeFrames = r.u8();
+        f.elite = r.boolean();
 
         f.statuses.clear();
         const uint8_t statuses = r.u8();
@@ -532,10 +556,33 @@ namespace arena::net
         const uint8_t boons = r.u8();
         for (uint8_t k = 0; k < boons and k < 64 and not r.failed; ++k)
             f.boons.push_back(names.name(r.u16()));
-        f.offer.clear();
-        const uint8_t offer = r.u8();
-        for (uint8_t k = 0; k < offer and k < 3 and not r.failed; ++k)
-            f.offer.push_back(names.name(r.u16()));
+
+        f.shards = r.u16();
+        f.xp = r.u16();
+        f.level = r.u8();
+        f.levelUps = r.u8();
+        f.rerolls = r.u8();
+        f.ready = r.boolean();
+        f.owned.clear();
+        const uint8_t owned = r.u8();
+        for (uint8_t k = 0; k < owned and k < 64 and not r.failed; ++k)
+            f.owned.push_back(names.name(r.u16()));
+        f.shop.clear();
+        const uint8_t shop = r.u8();
+        for (uint8_t k = 0; k < shop and k < 8 and not r.failed; ++k)
+        {
+            Fighter::ShopOffer o;
+            o.id = names.name(r.u16());
+            o.price = r.u16();
+            const uint8_t flags = r.u8();
+            o.locked = flags & 1;
+            o.bought = flags & 2;
+            f.shop.push_back(o);
+        }
+        f.levelOffer.clear();
+        const uint8_t level = r.u8();
+        for (uint8_t k = 0; k < level and k < 8 and not r.failed; ++k)
+            f.levelOffer.push_back(names.name(r.u16()));
     }
 
     // ---- Snapshot ---------------------------------------------------------------------------------
@@ -580,6 +627,19 @@ namespace arena::net
         w.u16(static_cast<uint16_t>(std::clamp(m.run.kills, 0, 65535)));
         w.u8(static_cast<uint8_t>(std::clamp(m.run.enemiesLeft, 0, 255)));
         w.u16(static_cast<uint16_t>(m.run.bossId));
+        w.boolean(m.run.bossWave);
+
+        // Shards: where they are, to a centimetre
+        w.u8(static_cast<uint8_t>(std::min<size_t>(m.pickups.size(), 255)));
+        for (size_t i = 0; i < m.pickups.size() and i < 255; ++i)
+        {
+            const Pickup& p = m.pickups[i];
+            w.u16(static_cast<uint16_t>(p.id));
+            for (int a = 0; a < 3; ++a)
+                w.i16(static_cast<int16_t>(std::clamp(std::lround(p.position[a] * 100.0f), -32767l, 32767l)));
+            w.u8(static_cast<uint8_t>(std::clamp(p.value, 0, 255)));
+            w.u16(static_cast<uint16_t>(p.target));
+        }
 
         w.u8(static_cast<uint8_t>(std::min<size_t>(m.zones.size(), 64)));
         for (size_t i = 0; i < m.zones.size() and i < 64; ++i)
@@ -661,6 +721,19 @@ namespace arena::net
         m.run.kills = r.u16();
         m.run.enemiesLeft = r.u8();
         m.run.bossId = r.u16();
+        m.run.bossWave = r.boolean();
+
+        const uint8_t pickups = r.u8();
+        for (uint8_t k = 0; k < pickups and not r.failed; ++k)
+        {
+            Pickup p;
+            p.id = r.u16();
+            for (int a = 0; a < 3; ++a)
+                p.position[a] = static_cast<float>(r.i16()) / 100.0f;
+            p.value = r.u8();
+            p.target = r.u16();
+            m.pickups.push_back(p);
+        }
 
         const uint8_t zones = r.u8();
         for (uint8_t k = 0; k < zones and k < 64 and not r.failed; ++k)

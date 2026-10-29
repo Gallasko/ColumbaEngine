@@ -16,6 +16,7 @@
 //   me.id            my id, unique per enemy
 //   me.alliesNear, me.alliesAttacking, me.alliesNearTarget  the rest of the group (see skulker.pg)
 //   me.targetFacing  degrees: 0 = I am in front of the player, 180 = right behind it
+//   me.hunting       true in an arena run: every enemy comes for the players, however far
 //
 // The answer, reset to "do nothing" before each call:
 //   me.move    "hold", "chase", "strafe" or "retreat"
@@ -48,7 +49,7 @@ fun think(me)
         me.side = -me.side
     }
 
-    if (me.distance > p.engageRange)
+    if (me.distance > p.engageRange and me.hunting == false)
     {
         me.move = "hold"
     }

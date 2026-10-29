@@ -20,6 +20,8 @@
     "respawnSeconds": 4,
 
     "score": 30,
+
+    "drops": 3,
     "weakness": { "volt": 1.3, "fire": 0.8 },
 
     "script": "brute",

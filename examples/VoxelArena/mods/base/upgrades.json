@@ -1,15 +1,22 @@
-// The boons of an arena run: after each wave, pick one of three. Their numbers add up with each pick
-// (most: how many times one can be picked in a run). damage 0.15 is 15% more, manaCost 0.15 is 15%
-// cheaper spells, cooldown 0.2 is 20% shorter skill and spell cooldowns, speed 0.08 is 8% faster.
+// The stat items of an arena run: the shop sells them between waves (for `price` shards, more each
+// wave: run.json priceGrowth), and a level up gives one free. Their numbers add up with each one
+// taken (most: how many one can have in a run). damage 0.15 is 15% more, manaCost 0.15 is 15% cheaper
+// spells, cooldown 0.2 is 20% shorter skill and spell cooldowns, speed 0.08 is 8% faster, armor 0.06
+// takes 6% off the damage taken (70% at most), crit 0.06 is a 6% chance of a hit doing twice the
+// damage, pickupRange in metres, regen in health a second.
 {
-    "tough":      { "name": "Tough",        "text": "+25 max health",                     "maxHealth": 25, "most": 4 },
-    "keen":       { "name": "Keen edge",    "text": "+15% damage",                         "damage": 0.15, "most": 4 },
-    "nimble":     { "name": "Nimble",       "text": "+1 dash charge",                      "dashCharges": 1, "most": 2 },
-    "focus":      { "name": "Focus",        "text": "Spells cost 15% less",                "manaCost": 0.15, "most": 3 },
-    "wellspring": { "name": "Wellspring",   "text": "+40% mana regeneration",              "manaRegen": 0.4, "most": 3 },
-    "second_wind":{ "name": "Second wind",  "text": "+35% stamina regeneration",           "staminaRegen": 0.35, "most": 3 },
-    "swift":      { "name": "Swift",        "text": "+8% move speed",                      "speed": 0.08, "most": 3 },
-    "quick":      { "name": "Quick hands",  "text": "Skills and spells recharge 20% faster", "cooldown": 0.2, "most": 2 },
-    "leech":      { "name": "Leech",        "text": "Heal 2 on every hit",                 "lifeOnHit": 2, "most": 3 },
-    "potent":     { "name": "Potent",       "text": "Your statuses land 1 stack deeper",  "statusStacks": 1, "most": 2 }
+    "tough":      { "name": "Tough",        "text": "+25 max health",                       "maxHealth": 25,     "most": 5, "price": 10 },
+    "keen":       { "name": "Keen edge",    "text": "+15% damage",                           "damage": 0.15,      "most": 5, "price": 14 },
+    "nimble":     { "name": "Nimble",       "text": "+1 dash charge",                        "dashCharges": 1,    "most": 2, "price": 20 },
+    "focus":      { "name": "Focus",        "text": "Spells cost 15% less",                  "manaCost": 0.15,    "most": 3, "price": 12 },
+    "wellspring": { "name": "Wellspring",   "text": "+40% mana regeneration",                "manaRegen": 0.4,    "most": 3, "price": 12 },
+    "second_wind":{ "name": "Second wind",  "text": "+35% stamina regeneration",             "staminaRegen": 0.35,"most": 3, "price": 10 },
+    "swift":      { "name": "Swift",        "text": "+8% move speed",                        "speed": 0.08,       "most": 3, "price": 12 },
+    "quick":      { "name": "Quick hands",  "text": "Skills and spells recharge 20% faster", "cooldown": 0.2,     "most": 2, "price": 18 },
+    "leech":      { "name": "Leech",        "text": "Heal 2 on every hit",                   "lifeOnHit": 2,      "most": 3, "price": 16 },
+    "potent":     { "name": "Potent",       "text": "Your statuses land 1 stack deeper",     "statusStacks": 1,   "most": 2, "price": 18 },
+    "plated":     { "name": "Plated",       "text": "Take 6% less damage",                   "armor": 0.06,       "most": 5, "price": 12 },
+    "precise":    { "name": "Precise",      "text": "+6% chance of a double damage hit",     "crit": 0.06,        "most": 5, "price": 12 },
+    "magnet":     { "name": "Magnet",       "text": "Pick up shards 1.5 m further",          "pickupRange": 1.5,  "most": 3, "price": 6 },
+    "mending":    { "name": "Mending",      "text": "Regenerate 0.6 health a second",        "regen": 0.6,        "most": 4, "price": 12 }
 }

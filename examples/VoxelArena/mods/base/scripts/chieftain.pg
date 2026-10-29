@@ -1,0 +1,58 @@
+// The Brute Chieftain's brain (see brute.pg for what the game puts in `me` and what it reads back).
+// Close in front: a slam. Crowded, or angry and close: a stomp all around. Middle: a leap.
+// Under `angryAt` of its health it rests less between attacks.
+
+import "math"
+import "random"
+
+fun think(me)
+{
+    var p = me.params
+
+    if (me.side == none)
+    {
+        me.side = 1
+    }
+
+    var angry = me.hp < me.maxHp * p.angryAt
+    var rest = p.cooldown
+
+    if (angry)
+    {
+        rest = p.cooldown * 0.6
+    }
+
+    if (me.distance > p.engageRange and me.hunting == false)
+    {
+        me.move = "hold"
+    }
+    else if (me.sinceAttack < p.backOffTime)
+    {
+        me.move = "strafe"
+        me.strafe = me.side
+        me.speed = 0.5
+    }
+    else if (me.sinceAttack < rest)
+    {
+        me.move = "chase"
+        me.speed = 0.8
+    }
+    else if (me.distance <= p.stompRange and (abs(me.angle) > 50 or (angry and random() < 0.5)))
+    {
+        me.attack = "stomp"
+        me.side = -me.side
+    }
+    else if (me.distance <= p.slamRange and abs(me.angle) < 35)
+    {
+        me.attack = "slam"
+    }
+    else if (me.distance >= p.leapMin and me.distance <= p.leapMax and abs(me.angle) < 20)
+    {
+        me.attack = "leap"
+    }
+    else
+    {
+        me.move = "chase"
+        me.speed = 1.2
+    }
+}

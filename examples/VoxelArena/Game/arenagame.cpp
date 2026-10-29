@@ -183,6 +183,13 @@ namespace arena
         hud.init(ecsRef, masterRenderer, screenW, screenH);
         spellbook.init(&hud);
         optionsScreen.init(&hud);
+        shopScreen.init(&hud);
+
+        // In a run, the spellbook builds only from what was bought
+        spellbook.owned = [this](const std::string& id) {
+            const Fighter* me = world.player();
+            return not me or world.owns(*me, id);
+        };
 
         masterRenderer->getCamera().setAspectRatio(aspect);
 
@@ -455,6 +462,12 @@ namespace arena
             return;
         }
 
+        if (shopOpen)
+        {
+            shopClicks.emplace_back(event.pos.x, event.pos.y);
+            return;
+        }
+
         // The click that grants a pending lock (browser, WSL window getting focus) does not attack either
         if (cursorLocked and (not window or window->isCursorCaptured()))
             mousePresses.insert(static_cast<int>(event.button));
@@ -549,7 +562,7 @@ namespace arena
             altHeld = held("freeCursor");
         }
 
-        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen and not optionsOpen;
+        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen and not optionsOpen and not shopOpen;
 
         if (want == cursorLocked)
             return;
@@ -685,15 +698,21 @@ namespace arena
                 continue;
             }
 
-            // A run: 1-3 pick a boon, Enter plays again, T goes training
+            // A run: in the shop 1-4 buy, R rerolls, Enter is ready; at its end Enter plays again, T goes training
             if (world.inRun())
             {
-                const Fighter* me = world.player();
                 const RunPhase phase = world.run.phase;
 
-                if (phase == RunPhase::Choosing and me and not me->offer.empty() and p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_3)
+                if (shopOpen)
                 {
-                    pendingPick = static_cast<int>(p.scancode - SDL_SCANCODE_1) + 1;
+                    if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_4)
+                        pendingPick = InputFrame::BUY + static_cast<int>(p.scancode - SDL_SCANCODE_1);
+                    else if (p.scancode == SDL_SCANCODE_R)
+                        pendingPick = InputFrame::REROLL;
+                    else if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
+                        pendingPick = InputFrame::START;
+                    else if (p.scancode == SDL_SCANCODE_ESCAPE)
+                        cursorFree = not cursorFree;
                     continue;
                 }
 
@@ -736,7 +755,13 @@ namespace arena
                     {
                         const Fighter* me = world.player();
                         const auto at = me ? std::find(content.weaponOrder.begin(), content.weaponOrder.end(), me->weapon) : content.weaponOrder.end();
-                        const size_t next = at == content.weaponOrder.end() ? 0 : (static_cast<size_t>(at - content.weaponOrder.begin()) + 1) % content.weaponOrder.size();
+                        const size_t n = content.weaponOrder.size();
+                        size_t next = at == content.weaponOrder.end() ? 0 : (static_cast<size_t>(at - content.weaponOrder.begin()) + 1) % n;
+
+                        // In a run: the next one owned
+                        for (size_t k = 0; k < n and me and not world.owns(*me, content.weaponOrder[next]); ++k)
+                            next = (next + 1) % n;
+
                         pendingEquip = static_cast<int>(next) + 1;
                     }
                     break;
@@ -815,6 +840,8 @@ namespace arena
                 bookChanged(spellbook.click(c.x, c.y, content, book));
         }
 
+        updateShop();
+
         runQueue();
         simulate(frameSeconds);
         updateCamera(frameSeconds);
@@ -844,6 +871,11 @@ namespace arena
             {
                 const auto& id = content.weaponOrder[i];
                 const bool current = id == p->weapon;
+
+                // In a run: the ones bought
+                if (not world.owns(*p, id))
+                    continue;
+
                 weapons += (current ? "\\c{255,214,120,255}" : "\\c{170,174,184,255}") + content.weapons.at(id).name + "   ";
             }
             weapons += "\\c{120,124,134,255}(" + keyName("nextWeapon") + ": next)";
@@ -1033,7 +1065,7 @@ namespace arena
             {
                 std::lock_guard<std::mutex> lock(inputMutex);
 
-                if (not consoleOpen and not bookOpen and not optionsOpen)
+                if (not consoleOpen and not bookOpen and not optionsOpen and not shopOpen)
                 {
                     glm::vec2 move(0.0f);
                     move.y += held("forward") ? 1.0f : 0.0f;
@@ -1096,12 +1128,6 @@ namespace arena
             pendingEquip = 0;
             in.pick = pendingPick;
             pendingPick = 0;
-
-            // Choosing a boon: the number keys pick, they cast nothing
-            if (world.run.phase == RunPhase::Choosing)
-                for (int i = 0; i < InputFrame::ABILITIES; ++i)
-                    if (world.spellSlotAt(i) >= 0)
-                        in.abilityPressed[i] = false;
 
             in.cameraYaw = camera.yaw;
             in.cameraPitch = camera.pitch;
@@ -1217,6 +1243,41 @@ namespace arena
             std::filesystem::create_directories(std::filesystem::path(spellbookPath()).parent_path(), ec);
             std::ofstream(std::filesystem::path(spellbookPath()).parent_path() / "best.txt") << bestScore;
         }
+
+        // A run begins: with no spell on the keys it can cast (the book's want what is not bought yet), key 1 gets
+        // one of the start kit, for the run (the book on disk keeps its own)
+        if (r.phase == RunPhase::Fighting and (lastPhase == RunPhase::Off or lastPhase == RunPhase::Victory or lastPhase == RunPhase::Defeat) and me and
+            not book.equipped.empty())
+        {
+            auto usable = [&](const SpellRecipe& recipe) {
+                if (not world.spellOf(recipe)->valid() or not world.owns(*me, "element:" + recipe.element))
+                    return false;
+                for (const auto& k : recipe.keywords)
+                    if (not world.owns(*me, k))
+                        return false;
+                return true;
+            };
+
+            if (std::none_of(book.equipped.begin(), book.equipped.end(), usable))
+            {
+                SpellRecipe start;
+                for (const auto& id : me->owned)
+                {
+                    if (start.element.empty() and id.rfind("element:", 0) == 0)
+                        start.element = id.substr(8);
+                    else if (start.keywords.empty() and content.keywords.count(id) and content.keywords.at(id).form)
+                        start.keywords.push_back(id);
+                }
+
+                if (usable(start))
+                {
+                    book.equipped[0] = start;
+                    applySpells();
+                    print("spell 1 is " + recipeText(content, start) + " for this run: buy elements and keywords in the shop, build with them in the spellbook (B)");
+                }
+            }
+        }
+
         lastPhase = r.phase;
 
         if (titleOpen)
@@ -1224,7 +1285,7 @@ namespace arena
             hud.setRunLine("");
             hud.setBoss("", 0.0f, false);
             hud.setPanel("VOXEL ARENA",
-                         "\\c{255,214,120,255}Enter\\c{236,238,242,255}   The Arena: ten waves, a boon after each,\n         the Stone Warden at the end\n\n"
+                         "\\c{255,214,120,255}Enter\\c{236,238,242,255}   The Arena: " + std::to_string(content.run.waves) + " timed waves, a shop between them,\n         bosses midway and at the end\n\n"
                          "\\c{255,214,120,255}T\\c{236,238,242,255}        Training ground\n"
                          "\\c{255,214,120,255}B\\c{236,238,242,255}        Spellbook\n"
                          "\\c{255,214,120,255}O\\c{236,238,242,255}        Options\n\n"
@@ -1240,9 +1301,18 @@ namespace arena
             return;
         }
 
-        hud.setRunLine("Wave " + std::to_string(r.wave) + "/" + std::to_string(r.waves) + "      " +
-                       (r.phase == RunPhase::Fighting ? std::to_string(r.enemiesLeft) + " left      " : "") +
-                       "Score " + std::to_string(r.score) + "      " + clock(r.elapsed));
+        // The top line: the wave and its time, the shards and the level, the score
+        std::string line = "Wave " + std::to_string(r.wave) + "/" + std::to_string(r.waves) + "      ";
+
+        if (r.phase == RunPhase::Fighting)
+            line += r.bossWave ? std::string("\\c{230,120,255,255}BOSS\\c{236,238,242,255}      ") : (r.timer <= 5.0f ? "\\c{255,214,120,255}" : "") + clock(std::ceil(r.timer)) + "\\c{236,238,242,255}      ";
+
+        if (me)
+            line += "\\c{190,160,255,255}" + std::to_string(me->shards) + " shards\\c{236,238,242,255}      Lv " + std::to_string(me->level) + " \\c{150,154,166,255}" +
+                    std::to_string(me->xp) + "/" + std::to_string(world.xpFor(me->level)) + (me->levelUps > 0 ? "\\c{255,214,120,255}  +" + std::to_string(me->levelUps) : std::string()) +
+                    "\\c{236,238,242,255}      ";
+
+        hud.setRunLine(line + "Score " + std::to_string(r.score));
 
         // The boss's bar
         const Fighter* boss = r.bossId ? world.find(r.bossId) : nullptr;
@@ -1258,42 +1328,30 @@ namespace arena
 
         switch (r.phase)
         {
-            case RunPhase::Warn:
+            case RunPhase::Fighting:
             {
-                const bool bossWave = r.wave >= 1 and r.wave <= static_cast<int>(content.run.waves.size()) and not content.run.waves[static_cast<size_t>(r.wave - 1)].boss.empty();
                 hud.setPanel("", "");
-                runCenter = bossWave ? "The Stone Warden" : "Wave " + std::to_string(r.wave);
+
+                // The wave's name as it starts (a boss's), its last seconds counted down
+                const RunDef& def = content.run;
+                const float t = def.waves > 1 ? static_cast<float>(r.wave - 1) / static_cast<float>(def.waves - 1) : 0.0f;
+                const float duration = def.duration.x + (def.duration.y - def.duration.x) * t;
+
+                if (duration - r.timer < 2.0f)
+                {
+                    auto b = def.bosses.find(r.wave);
+                    auto e = b != def.bosses.end() ? content.enemies.find(b->second) : content.enemies.end();
+                    runCenter = e != content.enemies.end() ? e->second.name : "Wave " + std::to_string(r.wave);
+                }
+                else if (not r.bossWave and r.timer > 0.0f and r.timer <= 3.0f)
+                {
+                    runCenter = std::to_string(static_cast<int>(std::ceil(r.timer)));
+                }
                 break;
             }
 
-            case RunPhase::Choosing:
-            {
-                std::string body;
-
-                if (me and not me->offer.empty())
-                {
-                    body = "Pick a boon:\n\n";
-                    for (size_t i = 0; i < me->offer.size(); ++i)
-                    {
-                        auto u = content.upgrades.find(me->offer[i]);
-                        const int had = static_cast<int>(std::count(me->boons.begin(), me->boons.end(), me->offer[i]));
-                        body += "\\c{255,214,120,255}[" + std::to_string(i + 1) + "]\\c{236,238,242,255}  " + (u != content.upgrades.end() ? u->second.name : me->offer[i]) +
-                                "\\c{170,174,184,255}   " + (u != content.upgrades.end() ? u->second.text : "") + (had > 0 ? "  (have " + std::to_string(had) + ")" : "") + "\\c{236,238,242,255}\n";
-                    }
-                    body += "\n\\c{150,154,166,255}" + std::to_string(static_cast<int>(std::ceil(r.timer))) + " s";
-                }
-                else
-                {
-                    body = "Waiting for the others to pick...";
-                }
-
-                hud.setPanel("Wave " + std::to_string(r.wave) + " cleared", body);
-                break;
-            }
-
-            case RunPhase::Breather:
-                hud.setPanel("", "");
-                runCenter = "Next wave in " + std::to_string(static_cast<int>(std::ceil(r.timer)));
+            case RunPhase::Shop:
+                hud.setPanel("", "");   // the shop screen
                 break;
 
             case RunPhase::Victory:
@@ -1301,9 +1359,9 @@ namespace arena
             {
                 const bool won = r.phase == RunPhase::Victory;
                 hud.setPanel(won ? "Victory" : "Defeated",
-                             (won ? std::string("The Stone Warden falls.\n\n") : "At wave " + std::to_string(r.wave) + " of " + std::to_string(r.waves) + ".\n\n") +
+                             (won ? std::string("All ") + std::to_string(r.waves) + " waves, and the Stone Warden falls.\n\n" : "At wave " + std::to_string(r.wave) + " of " + std::to_string(r.waves) + ".\n\n") +
                              "Score  " + std::to_string(r.score) + (r.score >= bestScore and r.score > 0 ? "   \\c{255,214,120,255}best!\\c{236,238,242,255}" : "   (best " + std::to_string(bestScore) + ")") + "\n" +
-                             "Kills  " + std::to_string(r.kills) + "      Time  " + clock(r.elapsed) + "\n\n" +
+                             "Kills  " + std::to_string(r.kills) + "      Level  " + std::to_string(me ? me->level : 1) + "      Time  " + clock(r.elapsed) + "\n\n" +
                              "\\c{255,214,120,255}Enter\\c{236,238,242,255}  play again" + (client ? "" : "      \\c{255,214,120,255}T\\c{236,238,242,255}  training"));
                 break;
             }
@@ -1312,6 +1370,40 @@ namespace arena
                 hud.setPanel("", "");
                 break;
         }
+    }
+
+    void ArenaGame::updateShop()
+    {
+        // Open while the run is in its shop (and nothing else is in front)
+        const Fighter* me = world.player();
+        const bool want = me and world.run.phase == RunPhase::Shop and not titleOpen and not bookOpen and not optionsOpen;
+
+        if (want != shopOpen)
+        {
+            shopOpen = want;
+            shopScreen.setOpen(want);
+        }
+
+        std::vector<glm::vec2> clicks;
+        {
+            std::lock_guard<std::mutex> lock(inputMutex);
+            clicks.swap(shopClicks);
+
+            if (shopOpen)
+            {
+                stepPresses.clear();
+                mousePresses.clear();
+            }
+        }
+
+        if (not shopOpen)
+            return;
+
+        for (const auto& c : clicks)
+            if (const int pick = shopScreen.click(c.x, c.y))
+                pendingPick = pick;
+
+        shopScreen.refresh(content, world, *me);
     }
 
     void ArenaGame::setOptionsOpen(bool open)
@@ -1364,8 +1456,8 @@ namespace arena
     void ArenaGame::playEvent(const WorldEvent& e)
     {
         // A run's spawn points, shown until the enemies come out
-        if (e.kind == "spawn_warn" or e.kind == "boss_warn")
-            spawnMarks.push_back({e.position, e.strength, e.kind == "boss_warn"});
+        if (e.kind == "spawn_warn" or e.kind == "boss_warn" or e.kind == "elite_warn")
+            spawnMarks.push_back({e.position, e.strength, e.kind == "boss_warn", e.kind == "elite_warn"});
 
         // A block set alight burns for `strength` seconds: flames until then (or until it is gone)
         if (e.kind == "ignite")
@@ -1482,7 +1574,7 @@ namespace arena
         // Spawn points: shown until they come out (or the run moved on)
         for (auto& m : spawnMarks)
             m.left -= frameSeconds;
-        spawnMarks.erase(std::remove_if(spawnMarks.begin(), spawnMarks.end(), [&](const SpawnMark& m) { return m.left <= 0.0f or world.run.phase != RunPhase::Warn; }), spawnMarks.end());
+        spawnMarks.erase(std::remove_if(spawnMarks.begin(), spawnMarks.end(), [&](const SpawnMark& m) { return m.left <= 0.0f or world.run.phase != RunPhase::Fighting; }), spawnMarks.end());
 
         // Blocks on fire: flames over them
         auto flames = effects.find("burning");
@@ -1875,6 +1967,21 @@ namespace arena
                 const auto spell = world.spellOf(r);
                 const bool ready = p and spell->valid() and p->abilityCooldown[i] <= 0.0f and (p->mana >= spell->mana or world.infiniteMana);
 
+                // In a run: a spell of something not bought yet does nothing
+                bool locked = false;
+                if (p)
+                {
+                    locked = not world.owns(*p, "element:" + r.element);
+                    for (const auto& k : r.keywords)
+                        locked = locked or not world.owns(*p, k);
+                }
+
+                if (locked)
+                {
+                    out += "\\c{120,124,134,255}[" + key + "] " + spellName(content, book, r) + " (locked)   ";
+                    continue;
+                }
+
                 std::string colour = "\\c{220,226,236,255}";
                 if (r.element == "fire") colour = "\\c{255,170,100,255}";
                 if (r.element == "ice") colour = "\\c{170,220,255,255}";
@@ -2086,6 +2193,8 @@ namespace arena
                                           : glm::vec4(1.0f, 0.45f, 0.1f, 0.55f * easeInOut(frame / std::max(1.0f, static_cast<float>(attack->startup))));
             else if (f.action == Action::Stagger)
                 flash = glm::vec4(1.0f, 0.9f, 0.3f, 0.25f + 0.15f * std::sin(frame * 0.6f));
+            else if (f.elite and f.alive())
+                flash = glm::vec4(1.0f, 0.75f, 0.2f, 0.2f + 0.08f * std::sin(simTime * 4.0f + static_cast<float>(f.id)));
 
             const glm::vec4 tint = f.action == Action::Dead ? glm::vec4(0.6f, 0.6f, 0.6f, 1.0f) : WHITE;
 
@@ -2231,7 +2340,9 @@ namespace arena
         for (const auto& m : spawnMarks)
         {
             const float size = m.boss ? 2.4f : 1.0f, pulse = 0.5f + 0.5f * std::sin(simTime * 12.0f);
-            const glm::vec4 colour = m.boss ? glm::vec4(0.75f, 0.2f, 1.0f, 0.35f + 0.2f * pulse) : glm::vec4(1.0f, 0.2f, 0.15f, 0.3f + 0.2f * pulse);
+            const glm::vec4 colour = m.boss    ? glm::vec4(0.75f, 0.2f, 1.0f, 0.35f + 0.2f * pulse)
+                                     : m.elite ? glm::vec4(1.0f, 0.78f, 0.2f, 0.35f + 0.2f * pulse)
+                                               : glm::vec4(1.0f, 0.2f, 0.15f, 0.3f + 0.2f * pulse);
             const glm::mat4 column = glm::translate(glm::mat4(1.0f), m.position) * glm::scale(glm::mat4(1.0f), glm::vec3(size * 0.5f, 3.0f, size * 0.5f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0, -0.5f));
             const glm::mat4 patch = glm::translate(glm::mat4(1.0f), m.position + glm::vec3(0, 0.03f, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(size * 1.6f, 0.04f, size * 1.6f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0, -0.5f));
             pushInstance(danger, view, column, colour, glm::vec4(0.0f));
@@ -2258,6 +2369,24 @@ namespace arena
 
             const glm::mat4 mm = glm::translate(glm::mat4(1.0f), at) * rotY(yaw) * rotX(pitch) * glm::scale(glm::mat4(1.0f), glm::vec3(pr.def.modelScale)) * glm::translate(glm::mat4(1.0f), -centre);
             pushInstance(instances[pr.def.model], view, mm, WHITE, glm::vec4(0.0f));
+        }
+
+        // A run's shards: little spinning crystals, bobbing where they lie, streaking to whoever picks them up
+        if (not world.pickups.empty())
+        {
+            std::vector<float> d;
+
+            for (const auto& pk : world.pickups)
+            {
+                const float s = 0.16f + 0.04f * static_cast<float>(std::min(pk.value, 5));
+                const float bob = pk.target ? 0.0f : 0.08f * std::sin(simTime * 3.0f + static_cast<float>(pk.id));
+                const glm::vec3 at = pk.position + pk.velocity * (alpha * STEP_SECONDS) + glm::vec3(0, bob, 0);
+                const glm::mat4 m = glm::translate(glm::mat4(1.0f), at) * rotY(simTime * 140.0f + static_cast<float>(pk.id) * 37.0f) * rotX(45.0f) *
+                                    glm::scale(glm::mat4(1.0f), glm::vec3(s)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f));
+                pushInstance(d, view, m, glm::vec4(0.62f, 0.45f, 1.0f, 1.0f), glm::vec4(0.7f, 0.55f, 1.0f, 0.35f));
+            }
+
+            add(boxMesh, litMaterial, OpacityType::Opaque, std::move(d));
         }
 
         // Particles: little lit cubes, shrinking away
@@ -2461,7 +2590,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | training | wave <n> | options | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | training | wave <n> | timeup | shards <n> | kill | options | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -2581,6 +2710,45 @@ namespace arena
             return "wave " + std::to_string(world.run.wave);
         }
 
+        if (cmd == "timeup")
+        {
+            if (world.run.phase != RunPhase::Fighting)
+                return "timeup: only while a wave is on";
+
+            // A boss wave ends with its boss
+            if (Fighter* boss = world.run.bossId ? world.find(world.run.bossId) : nullptr)
+            {
+                boss->health = 0.01f;
+                world.applyStatus(*boss, "base:burn");
+            }
+
+            world.run.timer = 0.0f;
+            return "the wave's time is up";
+        }
+
+        if (cmd == "kill")
+        {
+            // A real death for each (it counts, and drops its shards in a run): burning, at its last breath
+            int n = 0;
+            for (auto& f : world.fighters)
+                if (f.team == Team::Enemy and f.alive())
+                {
+                    f.health = 0.01f;
+                    world.applyStatus(f, "base:burn");
+                    ++n;
+                }
+            return std::to_string(n) + " enemies fall";
+        }
+
+        if (cmd == "shards")
+        {
+            if (not p or args.size() < 2)
+                return "shards <n>: that many more shards (a run's money, and XP)";
+
+            world.collect(*p, std::max(0, std::atoi(args[1].c_str())));
+            return std::to_string(p->shards) + " shards, level " + std::to_string(p->level);
+        }
+
         if (cmd == "training")
         {
             if (client)
@@ -2675,7 +2843,7 @@ namespace arena
         // The world belongs to the server: a client asking to change it would only change its own view
         if (client and (cmd == "reload" or cmd == "spawn" or cmd == "clear" or cmd == "reset" or cmd == "place" or cmd == "fill" or
                         cmd == "god" or cmd == "stamina" or cmd == "mana" or cmd == "ai" or cmd == "tune" or cmd == "wave" or cmd == "teleport" or cmd == "pause" or
-                        cmd == "step" or cmd == "slowmo"))
+                        cmd == "step" or cmd == "slowmo" or cmd == "shards" or cmd == "timeup" or cmd == "kill"))
             return cmd + ": only the host can do that";
 
         // Every machine must run the same content (the fingerprint): no reload once others have joined

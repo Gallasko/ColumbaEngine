@@ -26,6 +26,7 @@
 #include "Core/effects.h"
 #include "spellbook.h"
 #include "options.h"
+#include "shop.h"
 
 #include "gpumesh.h"
 #include "hud.h"
@@ -282,6 +283,12 @@ namespace arena
         void setOptionsOpen(bool open);
         void applyOptions();
 
+        // The shop between a run's waves: open while the run is in it
+        ShopScreen shopScreen;
+        bool shopOpen = false;
+        std::vector<glm::vec2> shopClicks;
+        void updateShop();
+
         // The arena run: the title screen, a pick waiting for the next step, the best score
         bool titleOpen = false;
         int pendingPick = 0;
@@ -294,6 +301,7 @@ namespace arena
             glm::vec3 position;
             float left = 0.0f;
             bool boss = false;
+            bool elite = false;
         };
         std::vector<SpawnMark> spawnMarks;
         std::string runCenter;   // the run's word in the middle of the screen ("Wave 3")

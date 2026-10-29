@@ -339,6 +339,7 @@ namespace arena
         me->setField("alliesAttacking", makeIntValue(view.alliesAttacking));
         me->setField("alliesNearTarget", makeIntValue(view.alliesNearTarget));
         me->setField("targetFacing", makeDoubleValue(view.targetFacing));
+        me->setField("hunting", makeBoolValue(view.hunting));
 
         const std::string action = actionName(target.action);
 

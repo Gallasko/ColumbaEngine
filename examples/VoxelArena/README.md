@@ -1,7 +1,8 @@
 # Voxel Arena 0.1
 
-A small voxel arena game, the combat demo of the voxel RPG: ten waves of enemies, a boon to pick after
-each, a boss at the end, a score to beat. Three weapons with their combos and skills, spells you make
+A small voxel arena game, the combat demo of the voxel RPG: twenty timed waves of enemies that keep
+coming, the shards they drop to spend in a shop between waves, bosses midway and at the end, a score
+to beat. Three weapons with their combos and skills, spells you make
 yourself, movement tech, an arena you can break, and co-op. A second mod, `testmod`, adds a spear
 without any C++.
 
@@ -41,24 +42,42 @@ and enemies that come back), **B** for the spellbook, **O** for the options.
 - **Its own arena**: a 40 x 40 pit with four pillars, a platform and a boulder on a rope over the
   middle. It is built anew before each wave, whatever was broken, with everyone put back in place.
 
-- **Ten waves.** Each one is announced, its spawn points glow red for a moment, then they come out.
-  The counts are random within each wave's range, and there are more of them with more players.
-- **A boon after each wave**: pick one of three with 1, 2, 3 (+health, +damage, a dash charge,
-  cheaper spells, faster cooldowns, life on hit...). They add up through the run, so no two runs play
-  the same.
-- **The Stone Warden** on wave 10: huge, armored through its attacks, every one of them heavy and
-  told in red (a slam, a sweep all around, a long charge, a thrown rock). Volt cracks it, fire barely
-  warms it; under half its health it gets angry.
-- **The score**: points per kill, per wave cleared, and a time bonus for a quick run. The best is kept
-  (`~/.local/share/voxelarena/best.txt`). **Enter** at the end plays again, **T** goes training.
+- **Twenty timed waves**, from 20 seconds to a minute. Enemies keep coming in from the edges all
+  through a wave (their spawn point glows red a moment first), more and faster as the run goes on,
+  and more with more players. Survive until the time is up; whoever is left then goes. From wave 6
+  some come as **elites**, glowing gold: tougher, harder hitting, three times the shards.
+- **Shards**: what the enemies drop. They fly to you within pickup range (and the ones left lying
+  are yours at the end of the wave). They are money and XP at once: each **level** gives a free stat
+  item to pick in the shop.
+- **The shop**, between waves, each player their own: four offers to buy with 1-4 or a click, and
+  **Lock** keeps one for the next shop. **R** rerolls (dearer each time), **Enter** is ready; in co-op
+  the next wave waits for everyone. On sale:
+  - stat items (`upgrades.json`): health, damage, armor, crit, speed, regeneration, pickup range,
+    dash charges, cheaper spells, faster cooldowns, life on hit... They add up through the run;
+  - weapons (a run starts with the sword only; every mod's weapons are for sale), weapon skills,
+    spell elements (fire to begin with) and keywords (bolt to begin with). A spell casts only when its
+    element and every keyword are bought: the spellbook greys out the rest, the HUD marks a spell
+    `(locked)`. With nothing on the keys it can cast, key 1 gets Fire > Bolt for the run.
+  Prices go up each wave.
+- **Bosses**: the **Brute Chieftain** on wave 10 (a brute twice the size: a slam, a stomp all around
+  when crowded, a rush when you keep away) and the **Stone Warden** on wave 20 (a slam, a sweep all
+  around, a long charge, a thrown rock; volt cracks it, fire barely warms it, under half its health it
+  gets angry). A boss wave lasts until the boss falls, with fewer others around it.
+- **Its own arena**: a 40 x 40 pit with four pillars, a platform and a boulder on a rope over the
+  middle. It is built anew before each wave, whatever was broken, with everyone put back in place.
+- **The score**: points per kill (twice for an elite), per wave survived, and a bonus for the victory.
+  The best is kept (`~/.local/share/voxelarena/best.txt`). **Enter** at the end plays again, **T** goes
+  training.
 - **Falling**: alone, the run is over. In co-op you are back up at the next wave; the run is lost
   only when everyone is down.
 - In multiplayer the host starts the run from its title; on a dedicated server, any player's
   Enter does.
 
-The run is data: `mods/base/run.json` (the waves, the timings, the score, its arena and
-`resetEachWave`) and `mods/base/upgrades.json`
-(the boons). Enemies take damage by element (`"weakness": { "volt": 1.5 }`) and give `score`.
+The run is data: `mods/base/run.json` (the waves' durations, spawn rates and pools, elites, bosses,
+XP, the start kit, the shop and what it unlocks, the score, its arena) and `mods/base/upgrades.json`
+(the stat items and their prices). Enemies take damage by element (`"weakness": { "volt": 1.5 }`),
+give `score` and drop `drops` shards. In a run every enemy's script gets `me.hunting = true`: it comes
+for the players from anywhere, whatever its engage range.
 
 ## Controls
 
@@ -349,8 +368,8 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 | `elements.json` | the elements of spells: `name`, `status`, `mana` (fire, ice, volt) | `mymod:<key>` |
 | `keywords.json` | the keywords of spells: forms (`shape`: bolt, zone, nova, beam) and modifiers | `mymod:<key>` |
 | `spells/<name>.json` | a ready-made spell: `name`, `recipe` (`["fire", "bolt", "zone"]`) | `mymod:<name>` |
-| `upgrades.json` | the boons of a run: what each adds (`maxHealth`, `damage`, `dashCharges`...), how often it can be picked | `mymod:<key>` |
-| `run.json` | the arena run: its waves (`enemies` and counts, a `boss`), timings, score (the last mod with one wins) | |
+| `upgrades.json` | the stat items of a run: what each adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`...), its `price`, how many one can have (`most`) | `mymod:<key>` |
+| `run.json` | the arena run: waves, spawn pools, elites, bosses, XP, the start kit, the shop and its unlocks, score, its arena (the last mod with one wins) | |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
 | `enemies/<name>.json` | an enemy: stats, moveset, script, params | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
@@ -465,6 +484,7 @@ Open with `` ` ``. `help` lists the commands.
 | `spell <1-3> <recipe>` | Put a spell on a key: `spell 1 fire bolt multiply zone extend`, or a ready-made id: `spell 2 frost_nova` |
 | `spells`, `spellbook` | The spells on the keys, the ready-made ones and the keywords; open the spellbook |
 | `arena`, `training`, `wave <n>` | Start the arena run, go back to training, jump to a wave of the run |
+| `timeup`, `kill`, `shards <n>` | End the wave now (a boss wave: its boss falls), kill every enemy (they drop their shards), get shards (and their XP) |
 | `pacer [n\|off [fps]]` | The engine's update pacing: n updates per drawn frame (2 by default), or off (as fast as it can, or capped at fps) |
 
 Scripted input, for tests and for checking frame data: `mouse off` (ignore the real mouse), `press <action>`, `hold <action> <frames>`,

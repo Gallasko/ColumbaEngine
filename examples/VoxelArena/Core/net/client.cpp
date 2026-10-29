@@ -451,6 +451,7 @@ namespace arena::net
 
         // The run, as the newest snapshot has it
         world.run = newest.run;
+        world.pickups = newest.pickups;
 
         // Zones: as the newest snapshot has them
         world.zones.clear();

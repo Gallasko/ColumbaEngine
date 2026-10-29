@@ -1,19 +1,65 @@
-// The arena run (Enter at the title): ten waves, a boon between each, the Stone Warden at the end.
-// enemies: how many of each, a random count between the two numbers (more with more players:
-// coopScale per extra player). warn: seconds the spawn points show before they come out. choose:
-// seconds to pick a boon (then the first is taken). centre and spawnRadius: where they come in.
-// The score: each enemy's "score" for the kill, waveScore times the wave's number for clearing it,
-// and up to timeBonus for a whole run under timePar seconds.
-// arena: the run's own, smaller arena (as arena.json); resetEachWave builds it anew before each wave,
-// with everyone put back in place.
+// The arena run (Enter at the title): 20 timed waves in a small pit. Enemies keep coming in from the
+// edges all through a wave (their spawn point shows `warn` seconds first); what they drop are shards,
+// both money and XP. Between waves, a shop: each player's own.
+//
+// duration, spawnRate (enemies a second), maxAlive (at once): [the first wave's, the last wave's],
+// in between they grow evenly. More with more players: coopScale per extra player. healthGrowth:
+// enemies have that much more health with each wave (0.06: 6%).
+// pools: who comes, from wave `from` to wave `to`, picked by weight among the ones open.
+// eliteFrom, eliteChance: from that wave on, that chance an enemy comes as an elite (tougher, harder
+// hitting, three times the shards). bosses: wave -> boss; that wave lasts until it falls.
+// xp: shards to level 2, and how many more for each level after; a level up gives a free stat pick.
+// start: the weapon in hand and what is owned at the start (weapons, weapon skills, spell keywords,
+// "element:fire"): a spell can only be cast with its element and every one of its keywords owned.
+// shop: offers a time (stat items of upgrades.json, and the unlocks not owned yet, for their price),
+// weaponPrice: what a weapon not in unlocks sells for (every mod's weapons are in the shop). The reroll's price (reroll, + rerollStep each time in a shop, + 1 every 2 waves), priceGrowth: every
+// price this much higher each wave. levelChoices: stat items to pick from for a level up.
+// Score: each enemy's "score" for the kill (twice for an elite), waveScore times the wave's number
+// for getting through it, victoryScore for the last one.
+// arena: the run's own arena (as arena.json); resetEachWave builds it anew before each wave.
 {
-    "warn": 1.4,
-    "breather": 3,
-    "choose": 20,
-    "choices": 3,
+    "waves": 20,
+    "duration": [20, 60],
+    "spawnRate": [0.6, 2.2],
+    "maxAlive": [6, 26],
+    "healthGrowth": 0.06,
+    "warn": 1.2,
+    "eliteFrom": 6,
+    "eliteChance": 0.08,
     "centre": [20, 4, 21],
-    "spawnRadius": 10,
+    "spawnRadius": 16,
+    "coopScale": 0.5,
+    "pickupRange": 3.5,
     "resetEachWave": true,
+
+    "pools": [
+        { "enemy": "skulker", "from": 1,  "weight": 3 },
+        { "enemy": "archer",  "from": 2,  "weight": 1.2 },
+        { "enemy": "brute",   "from": 4,  "weight": 1 },
+        { "enemy": "brute",   "from": 12, "weight": 1 },
+        { "enemy": "archer",  "from": 14, "weight": 0.8 }
+    ],
+    "bosses": { "10": "chieftain", "20": "warden" },
+
+    "xp": { "base": 10, "step": 6 },
+    "start": { "weapon": "sword", "owned": ["element:fire", "bolt"] },
+    "shop": {
+        "slots": 4,
+        "reroll": 2,
+        "rerollStep": 2,
+        "priceGrowth": 0.08,
+        "levelChoices": 4,
+        "unlocks": {
+            "dagger": 30,
+            "leap_slam": 22, "whirlwind": 22, "shadow_dash": 22, "backflip": 18,
+            "element:ice": 20, "element:volt": 20,
+            "zone": 16, "nova": 16, "beam": 18,
+            "multiply": 24, "extend": 12, "enlarge": 12, "chain": 20, "empower": 22
+        }
+    },
+
+    "waveScore": 50,
+    "victoryScore": 2000,
 
     // A 40 x 40 pit: four pillars to fight around, a raised platform, a boulder on a rope over the middle
     "arena": {
@@ -44,22 +90,5 @@
             { "block": "rope",    "from": [20, 9, 21], "to": [20, 11, 21] },
             { "block": "boulder", "from": [19, 6, 20], "to": [21, 8, 22] }
         ]
-    },
-    "coopScale": 0.5,
-    "waveScore": 100,
-    "timeBonus": 3000,
-    "timePar": 480,
-
-    "waves": [
-        { "enemies": { "skulker": [2, 3] } },
-        { "enemies": { "skulker": [2, 3], "archer": 1 } },
-        { "enemies": { "brute": 1, "skulker": 2 } },
-        { "enemies": { "archer": [2, 3], "skulker": [1, 2] } },
-        { "enemies": { "brute": [1, 2], "archer": [1, 2] } },
-        { "enemies": { "skulker": [4, 5], "archer": 1 } },
-        { "enemies": { "brute": 2, "skulker": [2, 3] } },
-        { "enemies": { "brute": [1, 2], "archer": [2, 3], "skulker": 2 } },
-        { "enemies": { "brute": 3, "archer": 2 } },
-        { "boss": "warden", "enemies": { "skulker": 2 } }
-    ]
+    }
 }

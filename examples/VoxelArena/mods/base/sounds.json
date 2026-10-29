@@ -28,5 +28,7 @@
     "ice_burst":  { "wave": "triangle", "tone": 0.5, "frequency": 2200, "frequencyEnd": 900, "duration": 0.12, "decay": 0.03, "lowpass": 0.1, "volume": 0.4, "pitchJitter": 0.2 },
     "volt":       { "wave": "square", "tone": 0.35, "frequency": 1800, "frequencyEnd": 300, "duration": 0.18, "decay": 0.05, "lowpass": 0.1, "volume": 0.55, "pitchJitter": 0.15 },
     "ignite":     { "wave": "saw",    "tone": 0.1,  "frequency": 300, "frequencyEnd": 150, "duration": 0.3,  "attack": 0.05, "decay": 0.12, "lowpass": 0.6, "volume": 0.4 },
-    "freeze":     { "wave": "triangle", "tone": 0.6, "frequency": 900, "frequencyEnd": 2400, "duration": 0.35, "attack": 0.02, "decay": 0.12, "lowpass": 0.2, "volume": 0.4 }
+    "freeze":     { "wave": "triangle", "tone": 0.6, "frequency": 900, "frequencyEnd": 2400, "duration": 0.35, "attack": 0.02, "decay": 0.12, "lowpass": 0.2, "volume": 0.4 },
+    "pickup":     { "wave": "sine",   "tone": 0.0,  "frequency": 1300, "frequencyEnd": 1900, "duration": 0.06, "decay": 0.04, "volume": 0.25 },
+    "level_up":   { "wave": "triangle", "tone": 0.4, "frequency": 520, "frequencyEnd": 1250, "duration": 0.45, "decay": 0.3, "volume": 0.6 }
 }

@@ -518,52 +518,67 @@ TEST(arena_net, a_clients_own_spells_reach_the_server_and_its_zones_come_back)
     EXPECT_LT(glm::length(a.world.zones[0].position - s.serverWorld.zones[0].position), 0.01f);
 }
 
-TEST(arena_net, the_run_plays_for_every_client_and_each_picks_a_boon)
+TEST(arena_net, the_run_plays_for_every_client_and_each_has_their_own_shop)
 {
     Session s(30.0);
     auto& a = s.join("a");
     auto& b = s.join("b");
     s.run(40);
 
-    s.content.run.centre = glm::vec3(16, 1, 18);
-    s.content.run.spawnRadius = 6.0f;
-    WaveDef one;
-    one.enemies.emplace_back("base:skulker", glm::ivec2(1));
-    s.content.run.waves = {one, one};
+    s.content.run.pools = {{"base:skulker", 1, 1000, 1.0f}};
     s.serverWorld.startRun(5);
     s.run(10);
 
     // Both see the run
-    EXPECT_EQ(a.world.run.phase, RunPhase::Warn);
+    EXPECT_EQ(a.world.run.phase, RunPhase::Fighting);
     EXPECT_EQ(b.world.run.wave, 1);
+    EXPECT_NEAR(a.world.run.timer, s.serverWorld.run.timer, 0.5f);
 
-    // Two players: more enemies (coopScale)
-    s.run(static_cast<int>(s.content.run.warn * 60.0f) + 10);
-    int enemies = 0;
-    for (const auto& f : s.serverWorld.fighters)
-        enemies += f.team == Team::Enemy ? 1 : 0;
-    EXPECT_EQ(enemies, static_cast<int>(std::lround(1.0f * (1.0f + s.content.run.coopScale))));
-
-    // Cleared: each gets their own offer, and picks
-    s.serverWorld.removeEnemies();
+    // A kill: its shards, where the server has them
+    const int id = s.serverWorld.spawnEnemy("base:brute", s.serverPlayer(a)->body.position + glm::vec3(0, 0, 12.0f), 180.0f);
+    s.run(5);
+    Fighter* brute = s.serverWorld.find(id);
+    brute->health = 0.01f;
+    s.serverWorld.applyStatus(*brute, "base:burn");
     s.run(10);
-    ASSERT_EQ(a.world.run.phase, RunPhase::Choosing);
-    ASSERT_FALSE(s.clientPlayer(a)->offer.empty());
-    const std::string wanted = s.clientPlayer(a)->offer[0];
+    ASSERT_FALSE(s.serverWorld.pickups.empty());
+    ASSERT_EQ(a.world.pickups.size(), s.serverWorld.pickups.size());
+    EXPECT_LT(glm::length(a.world.pickups[0].position - s.serverWorld.pickups[0].position), 0.5f);
 
-    a.input.pick = 1;
+    // The time is up: each their own shop
+    s.serverPlayer(a)->shards = 100;
+    s.serverWorld.run.timer = 0.0f;
+    s.run(10);
+    ASSERT_EQ(a.world.run.phase, RunPhase::Shop);
+    ASSERT_EQ(s.clientPlayer(a)->shop.size(), static_cast<size_t>(s.content.run.shopSlots));
+    EXPECT_GE(s.clientPlayer(a)->shards, 100);
+    EXPECT_EQ(s.clientPlayer(b)->shop.size(), static_cast<size_t>(s.content.run.shopSlots));
+
+    // a buys, and is ready; the wave waits for b
+    const auto offer = s.clientPlayer(a)->shop[0];
+    const int shards = s.clientPlayer(a)->shards;
+    a.input.pick = InputFrame::BUY;
     s.tick();
     a.input.pick = 0;
     s.run(10);
-    EXPECT_EQ(s.serverPlayer(a)->boons, std::vector<std::string>{wanted});
-    EXPECT_EQ(s.clientPlayer(a)->boons, std::vector<std::string>{wanted});
-    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Choosing);   // b has not picked yet
+    EXPECT_TRUE(s.serverPlayer(a)->shop[0].bought);
+    EXPECT_TRUE(s.clientPlayer(a)->shop[0].bought);
+    EXPECT_EQ(s.clientPlayer(a)->shards, shards - offer.price);
+    EXPECT_FALSE(s.clientPlayer(b)->shop[0].bought);
 
-    b.input.pick = 2;
+    a.input.pick = InputFrame::START;
+    s.tick();
+    a.input.pick = 0;
+    s.run(10);
+    EXPECT_TRUE(s.clientPlayer(a)->ready);
+    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Shop);
+
+    b.input.pick = InputFrame::START;
     s.tick();
     b.input.pick = 0;
     s.run(10);
-    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Breather);
+    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Fighting);
+    EXPECT_EQ(b.world.run.wave, 2);
 }
 
 TEST(arena_net, a_client_gets_the_runs_arena_and_each_reset)
@@ -572,9 +587,6 @@ TEST(arena_net, a_client_gets_the_runs_arena_and_each_reset)
     auto& a = s.join("a");
     s.run(40);
 
-    WaveDef one;
-    one.enemies.emplace_back("base:skulker", glm::ivec2(1));
-    s.content.run.waves = {one, one};
     s.serverWorld.startRun(5);
     s.run(15);
 

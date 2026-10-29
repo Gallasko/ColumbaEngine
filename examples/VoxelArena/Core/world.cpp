@@ -546,6 +546,10 @@ namespace arena
             f.manaDelay -= STEP_SECONDS;
         else
             f.mana = std::min(tuning.mana.max, f.mana + tuning.mana.regen * (1.0f + f.boon.manaRegen) * STEP_SECONDS);
+
+        // Health back over time: a run's regen items
+        if (f.boon.regen > 0.0f and f.alive())
+            f.health = std::min(f.maxHealth, f.health + f.boon.regen * STEP_SECONDS);
     }
 
     float ArenaWorld::speedScale(const Fighter& f) const
@@ -781,7 +785,7 @@ namespace arena
         f.viewTick = in.viewTick;
 
         // Another weapon: part of the input, so a server and a predicting client do the same
-        if (in.equip > 0 and static_cast<size_t>(in.equip) <= content->weaponOrder.size())
+        if (in.equip > 0 and static_cast<size_t>(in.equip) <= content->weaponOrder.size() and owns(f, content->weaponOrder[static_cast<size_t>(in.equip - 1)]))
         {
             f.weapon = content->weaponOrder[static_cast<size_t>(in.equip - 1)];
 
@@ -1265,6 +1269,7 @@ namespace arena
                     // Yaw grows to the left: flip it so that + means the target is on the right
                     view.angle = -wrapDegrees(yawOf(dirToTarget) - f.yaw);
                     view.time = time;
+                    view.hunting = inRun();
 
                     // Is a block in the way? (a raised wall, a pillar): from chest to chest
                     const glm::vec3 from = f.body.position + glm::vec3(0, f.body.height * 0.6f, 0);
@@ -1654,6 +1659,10 @@ namespace arena
 
             const auto& allowed = it->second.weapons;
 
+            // A run's weapon skills are bought first
+            if (f and it->second.kind == "attack" and not owns(*f, id))
+                continue;
+
             if (allowed.empty() or std::find(allowed.begin(), allowed.end(), type) != allowed.end())
                 return &it->second;
         }
@@ -2002,6 +2011,14 @@ namespace arena
 
         if (not spell->valid() or spell->stages.empty() or (f.mana < cost and not free))
             return false;
+
+        // In a run: only with the element and the keywords bought
+        if (not owns(f, "element:" + f.spells[slot].element))
+            return false;
+
+        for (const auto& k : f.spells[slot].keywords)
+            if (not owns(f, k))
+                return false;
 
         if (not free)
         {
@@ -2957,6 +2974,24 @@ namespace arena
     {
         // A player's boons, and the target's take on the element
         float damage = a.damage * (attacker.team == Team::Player ? 1.0f + attacker.boon.damage : 1.0f);
+        bool crit = false;
+
+        // A critical hit: twice the damage, by chance (a hash of the step and the two, not the run's random: a client
+        // predicting must not move it)
+        if (attacker.boon.crit > 0.0f)
+        {
+            uint32_t h = static_cast<uint32_t>(steps) * 2654435761u ^ static_cast<uint32_t>(attacker.id) * 40503u ^ static_cast<uint32_t>(target.id) * 97u;
+            h ^= h >> 15;
+            h *= 2246822519u;
+            h ^= h >> 13;
+            crit = static_cast<float>(h % 1000u) / 1000.0f < attacker.boon.crit;
+            damage *= crit ? 2.0f : 1.0f;
+        }
+
+        // An elite hits harder; armor takes some off
+        if (attacker.elite)
+            damage *= 1.4f;
+        damage *= 1.0f - std::clamp(target.boon.armor, 0.0f, 0.7f);
 
         if (target.team == Team::Enemy)
             if (auto def = content->enemies.find(target.type); def != content->enemies.end())
@@ -3035,6 +3070,8 @@ namespace arena
         }
 
         hits.push_back(e);
+        if (crit)
+            event("crit", chest(target), e.damage, target.id, AIR, e.attacker);
         event(e.killed ? "kill" : (e.staggered ? "stagger" : "hit"), target.body.position + glm::vec3(0, target.body.height * 0.6f, 0), e.damage, target.id, AIR, e.attacker);
 
         if (e.killed)
@@ -3049,7 +3086,10 @@ namespace arena
         {
             ++run.kills;
             if (auto def = content->enemies.find(target.type); def != content->enemies.end())
-                run.score += def->second.score;
+            {
+                run.score += def->second.score * (target.elite ? 2 : 1);
+                spawnShards(target, def->second.drops * (target.elite ? 3 : 1));
+            }
         }
 
         target.health = 0.0f;

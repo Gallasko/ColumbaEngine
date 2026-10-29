@@ -18,6 +18,8 @@
     "respawnSeconds": 6,
 
     "score": 15,
+
+    "drops": 2,
     "weakness": { "ice": 1.3 },
 
     "script": "archer",

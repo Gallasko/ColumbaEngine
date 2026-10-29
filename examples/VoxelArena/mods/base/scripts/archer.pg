@@ -28,7 +28,7 @@ fun think(me)
         cooldown = p.busyCooldown
     }
 
-    if (me.distance > p.engageRange)
+    if (me.distance > p.engageRange and me.hunting == false)
     {
         me.move = "hold"
     }

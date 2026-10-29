@@ -325,6 +325,7 @@ namespace arena::net
 
         base.run = world.run;
         base.run.pending.clear();
+        base.pickups = world.pickups;
 
         for (const auto& [peer, c] : clients)
         {

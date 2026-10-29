@@ -21,6 +21,7 @@
 
     "boss": true,
     "score": 300,
+    "drops": 40,
     "weakness": { "volt": 1.5, "fire": 0.6 },
 
     "script": "warden",

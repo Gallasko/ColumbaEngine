@@ -18,6 +18,8 @@
     "respawnSeconds": 5,
 
     "score": 10,
+
+    "drops": 1,
     "weakness": { "fire": 1.4 },
 
     "script": "skulker",

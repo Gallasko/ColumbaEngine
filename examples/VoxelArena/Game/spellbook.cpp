@@ -285,7 +285,8 @@ namespace arena
             Element el = Element::None;
             elementFromName(e, el);
             const std::string name = content.elements.count(el) ? content.elements.at(el).name : e;
-            setButton(button(used++), x, py + 210, 130, 36, std::string(elementColour(e)) + name, true, r.element == e, Act::Element, e);
+            const bool have = not owned or owned(std::string("element:") + e);
+            setButton(button(used++), x, py + 210, 130, 36, (have ? std::string(elementColour(e)) : std::string()) + name, have, r.element == e, Act::Element, e);
             x += 140.0f;
         }
 
@@ -293,7 +294,7 @@ namespace arena
 
         for (const auto& [id, k] : content.keywords)
         {
-            const bool ok = canAdd(content, probe, id);
+            const bool ok = canAdd(content, probe, id) and (not owned or owned(id));
 
             if (k.form)
             {

@@ -54,9 +54,12 @@ namespace arena
         /** 1..n: wield the n-th weapon (content load order) from this step on; 0: keep the one held. */
         int equip = 0;
 
-        /** The arena run: 1..3 picks the boon offered, START (any player) starts a run or plays again. */
+        /**
+         * The arena run's shop and menus: BUY + i buys offer i, LOCK + i keeps it for the next shop,
+         * REROLL rolls the shop again, LEVEL + i takes level-up pick i, START is ready (or plays again).
+         */
         int pick = 0;
-        static constexpr int START = 9;
+        static constexpr int START = 9, BUY = 1, LOCK = 11, REROLL = 20, LEVEL = 31;
 
         static constexpr int ABILITIES = 8;
         bool abilityPressed[ABILITIES] = {};
@@ -107,15 +110,31 @@ namespace arena
         /** The spells on the spell keys (abilities "spell:1".."spell:3"): recipes the player made or picked. */
         std::vector<SpellRecipe> spells;
 
-        // The arena run: the boons picked (ids, in order), what they add up to, and the ones offered now
+        // The arena run: the stat items taken (ids, in order) and what they add up to
         std::vector<std::string> boons;
         struct Boons
         {
             float maxHealth = 0.0f, damage = 0.0f, manaCost = 0.0f, manaRegen = 0.0f, staminaRegen = 0.0f;
-            float speed = 0.0f, cooldown = 0.0f, lifeOnHit = 0.0f;
+            float speed = 0.0f, cooldown = 0.0f, lifeOnHit = 0.0f, armor = 0.0f, crit = 0.0f, pickupRange = 0.0f, regen = 0.0f;
             int dashCharges = 0, statusStacks = 0;
         } boon;
-        std::vector<std::string> offer;
+
+        // ... shards (money and XP), the level, what is owned (weapons, skills, keywords, "element:fire"),
+        // the shop between waves, and the free stat items of a level up
+        int shards = 0, xp = 0, level = 1, levelUps = 0;
+        std::vector<std::string> owned;
+        struct ShopOffer
+        {
+            std::string id;           // a stat item (upgrades.json) or an unlock
+            int price = 0;
+            bool locked = false, bought = false;
+        };
+        std::vector<ShopOffer> shop;
+        std::vector<std::string> levelOffer;
+        bool ready = false;
+        int rerolls = 0;
+
+        bool elite = false;           // an enemy of a run: tougher, harder hitting, worth more
         bool gone = false;            // a dead enemy of a run: taken out of the arena at the end of the step
 
         // In the air: what was used since the last landing, and a wall jump's push not to steer against
@@ -252,28 +271,42 @@ namespace arena
     };
 
     /** Where the arena run is (see ArenaWorld::startRun). */
-    enum class RunPhase { Off, Warn, Fighting, Choosing, Breather, Victory, Defeat };
+    enum class RunPhase { Off, Fighting, Shop, Victory, Defeat };
 
     struct RunState
     {
         RunPhase phase = RunPhase::Off;
         int wave = 0;                 // 1-based, the current or last one
         int waves = 0;
-        float timer = 0.0f;           // s left in this phase (warn, choosing, breather)
+        float timer = 0.0f;           // s left in the wave (a boss wave: until the boss falls)
         float elapsed = 0.0f;         // s of the run so far
         int score = 0;
         int kills = 0;
         int enemiesLeft = 0;
         int bossId = 0;
+        bool bossWave = false;
         uint32_t seed = 1;
+        float spawnDue = 0.0f;        // enemies owed to the spawn rate
 
         struct Spawn
         {
             std::string enemy;
             glm::vec3 position;
-            bool boss = false;
+            float in = 1.0f;          // s until it comes out (its spawn point shows until then)
+            bool boss = false, elite = false;
         };
-        std::vector<Spawn> pending;   // shown during the warning, then they come out
+        std::vector<Spawn> pending;
+    };
+
+    /** A shard an enemy dropped: it flies to a player in pickup range. */
+    struct Pickup
+    {
+        int id = 0;
+        glm::vec3 position = glm::vec3(0.0f);
+        glm::vec3 velocity = glm::vec3(0.0f);
+        int value = 1;
+        int target = 0;               // the player it flies to (0: lying there)
+        float age = 0.0f;
     };
 
     struct HitEvent
@@ -306,6 +339,7 @@ namespace arena
         int alliesAttacking = 0;     // other enemies in an attack right now
         int alliesNearTarget = 0;    // other enemies within 3.5 m of the target
         float targetFacing = 0.0f;   // degrees between where the target looks and self: 0 in its face, 180 behind it
+        bool hunting = false;        // in an arena run: come for the target from anywhere (no engage range)
     };
 
     struct BrainOrder
@@ -416,7 +450,7 @@ namespace arena
 
         std::vector<Zone> zones;
 
-        // ---- The arena run: waves (run.json), boons between them, a boss, a score ----
+        // ---- The arena run (run.json): timed waves, shards, a shop between waves, bosses, a score ----
         RunState run;
         /** A run from the start: a fresh arena, the players as new, wave 1. */
         void startRun(uint32_t seed);
@@ -435,6 +469,15 @@ namespace arena
         int arenaBuilds = 0;
         /** Each player's place in the arena (a row across its spawn point). */
         void placePlayers();
+        std::vector<Pickup> pickups;
+        /** In a run, whether a player has bought (or started with) something; outside a run, everything is theirs. */
+        bool owns(const Fighter& f, const std::string& id) const;
+        /** Shards to the next level. */
+        int xpFor(int level) const;
+        /** Shards to a player: money and XP (its level ups with them). */
+        void collect(Fighter& f, int value);
+        /** What the shop's reroll costs this player now. */
+        int rerollPrice(const Fighter& f) const;
         /** What a fighter's boons add up to (from its list: a client works it out the same way). */
         void sumBoons(Fighter& f) const;
         int maxDashes(const Fighter& f) const { return tuning.dash.charges + f.boon.dashCharges; }
@@ -517,9 +560,17 @@ namespace arena
         void rideFallingPieces();
         void stepRun(const std::map<int, InputFrame>& inputs);
         void beginWave(int wave);
-        void offerBoons();
+        void endWave();
+        void rollShop(Fighter& f);
+        void rollLevel(Fighter& f);
+        void shopPick(Fighter& f, int pick);
         void takeBoon(Fighter& f, const std::string& id);
+        void stepPickups();
+        void spawnShards(const Fighter& from, int value);
+        glm::vec3 edgePoint(float awayFromPlayers);
+        float waveDuration(int wave) const;
         uint32_t runRandom();
+        int nextPickup = 1;
         mutable std::map<std::string, std::shared_ptr<const Spell>> spellCache;
         int nextZone = 1;
         void impact(const Projectile& p, const glm::vec3& point, Fighter* struck, const RayHit* wall);

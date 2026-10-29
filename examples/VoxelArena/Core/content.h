@@ -363,6 +363,8 @@ namespace arena
         int score = 10;
         bool boss = false;
 
+        int drops = 1;                   // shards dropped in a run
+
         std::string script;              // script id, "base:brute"; empty = stands still
         Json params;                     // handed to the script as me.params
 
@@ -436,30 +438,54 @@ namespace arena
         float cooldown = 0.0f;
         float lifeOnHit = 0.0f;
         int statusStacks = 0;
-        int most = 3;                 // picked at most this many times in a run
+        float armor = 0.0f;           // damage taken: armor / (armor + 20) of it is stopped
+        float crit = 0.0f;            // chance of a critical hit (1.75 times the damage)
+        float pickupRange = 0.0f;     // m more that shards fly to you from
+        float regen = 0.0f;           // health a second
+        int most = 3;                 // bought at most this many times in a run
+        int price = 10;               // in shards, at the shop (it goes up with the waves)
     };
 
-    /** One wave of a run: enemy types with how many (a random count between the two), and a boss. */
-    struct WaveDef
+    /** Who comes in during the waves of a run, from which wave on, how often (weight). */
+    struct SpawnPool
     {
-        std::vector<std::pair<std::string, glm::ivec2>> enemies;
-        std::string boss;
+        std::string enemy;
+        int from = 1, to = 1000;
+        float weight = 1.0f;
     };
 
-    /** The arena run (run.json): its waves, and how it plays out. */
+    /** The arena run (run.json): timed waves, the enemies, the bosses, the shop between waves. */
     struct RunDef
     {
-        std::vector<WaveDef> waves;
-        float warn = 1.2f;            // s the spawn points show before the enemies come out
-        float breather = 3.0f;        // s between a boon and the next wave
-        float choose = 20.0f;         // s to pick a boon, then the first one is taken
-        int choices = 3;              // boons offered
+        int waves = 20;
+        glm::vec2 duration = glm::vec2(20, 60);   // s a wave lasts, the first to the last
+        glm::vec2 spawnRate = glm::vec2(0.6f, 2.4f);   // enemies a second, the first wave to the last
+        glm::ivec2 maxAlive = glm::ivec2(6, 30);
+        float eliteFrom = 8;          // wave elites start to come in from
+        float eliteChance = 0.1f;
+        float healthGrowth = 0.05f;      // enemies' health: this much more each wave     // then this share of the enemies
+        std::vector<SpawnPool> pools;
+        std::map<int, std::string> bosses;   // wave -> boss: the wave lasts until it falls
+        float warn = 1.0f;            // s a spawn point shows before its enemy comes out
         glm::vec3 centre = glm::vec3(32, 4, 38);
         float spawnRadius = 12.0f;
         float coopScale = 0.5f;       // more enemies per player after the first
-        int waveScore = 100;          // per wave cleared, times its number
-        int timeBonus = 3000;         // at the end, for a run under timePar seconds
-        float timePar = 600.0f;
+        int waveScore = 50;           // per wave survived, times its number
+        int victoryScore = 2000;
+
+        // The economy: shards dropped (each enemy's "drops"), picked up in range, money and XP
+        float pickupRange = 2.5f;
+        int xpBase = 10, xpStep = 6;  // shards to the next level: base + step x (level - 1)
+        std::string startWeapon = "base:sword";
+        std::vector<std::string> startOwned = {"element:fire", "base:bolt"};
+
+        // The shop between waves: offers, rerolls, prices
+        int shopSlots = 4;
+        int weaponPrice = 30;         // a weapon not in unlocks (another mod's) sells for this
+        int rerollPrice = 2, rerollStep = 2;   // the first reroll of a shop, then this much more each
+        float priceGrowth = 0.08f;    // prices grow this much a wave
+        int levelChoices = 4;         // stat items offered free for a level
+        std::map<std::string, int> unlocks;   // weapons, skills, keywords, elements ("element:ice") -> price
         bool resetEachWave = true;    // the arena is built anew before each wave (and the players put back)
         bool hasArena = false;
         ArenaDef arena;               // the run's own arena ("arena", as arena.json)

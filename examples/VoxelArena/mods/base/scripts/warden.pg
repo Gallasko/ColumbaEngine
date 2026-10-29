@@ -22,7 +22,7 @@ fun think(me)
         rest = p.cooldown * 0.55
     }
 
-    if (me.distance > p.engageRange)
+    if (me.distance > p.engageRange and me.hunting == false)
     {
         me.move = "hold"
     }

@@ -18,7 +18,7 @@ fun think(me)
     var behind = me.targetFacing > p.behindAngle
     var opening = behind or me.targetAttacking or me.targetStaggered
 
-    if (me.distance > p.engageRange)
+    if (me.distance > p.engageRange and me.hunting == false)
     {
         me.move = "hold"
     }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -51,6 +52,8 @@ namespace arena
         std::string name;         // for saving
         bool naming = false;      // the name field has the keyboard
         std::string message;      // the last thing that happened ("saved")
+        /** What may be built with (an arena run's: only what was bought); unset: everything. */
+        std::function<bool(const std::string&)> owned;
 
     private:
         enum class Act { None, Slot, Element, Keyword, RemoveLast, Clear, Save, Name, Load, Delete };
