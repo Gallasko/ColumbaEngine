@@ -64,12 +64,7 @@ else
     var spent = clamp(monthsIn, 0, months)
 
     // Every stat as it is, less what beginning it takes
-    var atStart = {}
-
-    for (var k : character)
-    {
-        atStart[k] = character[k]
-    }
+    var atStart = copy(character)
 
     for (var c = 0; c < len(activity.costs); c++)
     {
@@ -85,14 +80,8 @@ else
     var takenBack = 0
     var begins = []
     var leaves = []
-    var atLeave = {}
-    var atOwed = {}
-
-    for (var k : character)
-    {
-        atLeave[k] = character[k]
-        atOwed[k] = character[k]
-    }
+    var atLeave = copy(character)
+    var atOwed = copy(character)
 
     if (upFront > 0)
     {
@@ -127,10 +116,7 @@ else
         base = atStart
     }
 
-    for (var k : base)
-    {
-        atTerm[k] = base[k]
-    }
+    atTerm = copy(base)
 
     var figure = ""
 

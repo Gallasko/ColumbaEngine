@@ -15,12 +15,7 @@ import "algorithm"
 
 fun withBag(stats)
 {
-    var held = {remedy: 2, rations: 4, coin: 5}
-
-    for (var k : stats)
-    {
-        held[k] = stats[k]
-    }
+    var held = merge({remedy: 2, rations: 4, coin: 5}, stats)
 
     held.vitmax = held.vit
 

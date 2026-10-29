@@ -338,12 +338,7 @@ var mortal = [
 var lived = monthOf(age)
 
 // Every stat as it is, then the month on top
-var after = {}
-
-for (var k : character)
-{
-    after[k] = character[k]
-}
+var after = copy(character)
 
 // What the month changes, by stat: the rates come from it
 var change = {}

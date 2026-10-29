@@ -11,15 +11,14 @@ import "algorithm"
 
 fun encounterOf(id)
 {
-    for (var i = 0; i < len(walkEncounters); i++)
+    var found = findBy(walkEncounters, "id", id)
+
+    if (found == none)
     {
-        if (walkEncounters[i].id == id)
-        {
-            return walkEncounters[i]
-        }
+        return {id: "", name: "", foes: [], boss: false, level: 9, rarity: "rare"}
     }
 
-    return {id: "", name: "", foes: [], boss: false, level: 9, rarity: "rare"}
+    return found
 }
 
 // The encounter a find names ("enc.<id>"), or "" for a beast
@@ -429,7 +428,7 @@ fun checkPhase(n)
 
             say(p.line, "", "note")
 
-            if (typeOf(p.calls) != "none")
+            if (p.calls != none)
             {
                 callFoes(p.calls.mob, p.calls.count)
             }

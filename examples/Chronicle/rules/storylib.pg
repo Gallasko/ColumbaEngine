@@ -37,15 +37,14 @@ import "algorithm"
 
 fun storyOf(id)
 {
-    for (var i = 0; i < len(walkStories); i++)
+    var found = findBy(walkStories, "id", id)
+
+    if (found == none)
     {
-        if (walkStories[i].id == id)
-        {
-            return walkStories[i]
-        }
+        return {id: ""}
     }
 
-    return {id: ""}
+    return found
 }
 
 fun storyTile(story, id)
@@ -780,7 +779,7 @@ fun gateBehind(story)
     var on = pick(gate, "day", 0)
     var day = runOf("day")
 
-    if (typeOf(story.gate) == "none" or on <= 1 or day >= on or gateHolds(story))
+    if (story.gate == none or on <= 1 or day >= on or gateHolds(story))
     {
         return false
     }
@@ -893,7 +892,7 @@ fun endDay(days)
 // is said by its name and its `said` word ("Firebolt learned"); a counted stat by its figure
 fun giftText(gift)
 {
-    if (typeOf(gift.stat) != "none")
+    if (gift.stat != none)
     {
         // (a count the rules keep for themselves, a book read: not said)
         if (statHidden(gift.stat))
@@ -909,17 +908,17 @@ fun giftText(gift)
         return "+" + toString(gift.amount) + " " + statName(gift.stat)
     }
 
-    if (typeOf(gift.item) != "none")
+    if (gift.item != none)
     {
         return itemText(gift.item, gift.amount)
     }
 
-    if (typeOf(gift.hp) != "none")
+    if (gift.hp != none)
     {
         return "+" + toString(gift.hp) + " Vitality"
     }
 
-    if (typeOf(gift.fight) != "none")
+    if (gift.fight != none)
     {
         var mob = mobOf(gift.fight)
 
@@ -939,13 +938,13 @@ fun givesText(story, tile)
 
     for (var i = 0; i < len(gives); i++)
     {
-        if (typeOf(gives[i].mark) != "none")
+        if (gives[i].mark != none)
         {
             push(parts, markName(story, gives[i].mark))
         }
         else if (len(pick(gives[i], "when", [])) > 0)
         {
-            if (typeOf(gives[i].stat) != "none" and mine(gives[i].stat) <= 0)
+            if (gives[i].stat != none and mine(gives[i].stat) <= 0)
             {
                 push(parts, statName(gives[i].stat) + " in time")
             }
@@ -989,12 +988,12 @@ fun giftDue(gift)
         }
     }
 
-    if (typeOf(gift.stat) != "none")
+    if (gift.stat != none)
     {
         return mine(gift.stat) <= 0
     }
 
-    if (typeOf(gift.mark) != "none")
+    if (gift.mark != none)
     {
         return markOf(gift.mark) <= 0
     }
@@ -1025,24 +1024,24 @@ fun giveGift(gift)
         return
     }
 
-    if (typeOf(gift.mark) != "none")
+    if (gift.mark != none)
     {
         addMark(gift.mark, gift.amount)
     }
-    else if (typeOf(gift.stat) != "none")
+    else if (gift.stat != none)
     {
         after[gift.stat] = mine(gift.stat) + gift.amount
         push(marks, {step: len(record), kind: "stat", id: gift.stat, n: gift.amount, said: pick(gift, "said", "")})
     }
-    else if (typeOf(gift.item) != "none")
+    else if (gift.item != none)
     {
         give(gift.item, gift.amount)
     }
-    else if (typeOf(gift.hp) != "none")
+    else if (gift.hp != none)
     {
         storyHp(gift.hp)
     }
-    else if (typeOf(gift.fight) != "none")
+    else if (gift.fight != none)
     {
         var mob = mobOf(gift.fight)
 
@@ -1109,7 +1108,7 @@ fun takeTile(id)
         // (a fight is told in its own line)
         var text = giftText(gives[i])
 
-        if (due and text != "" and typeOf(gives[i].fight) == "none")
+        if (due and text != "" and gives[i].fight == none)
         {
             push(gave, text)
         }
@@ -1405,12 +1404,12 @@ fun meets(cond)
         return false
     }
 
-    if (typeOf(cond.mark) != "none")
+    if (cond.mark != none)
     {
         return markOf(cond.mark) >= at
     }
 
-    if (typeOf(cond.flag) != "none")
+    if (cond.flag != none)
     {
         return storyStat(cond.flag) >= at
     }
@@ -1502,7 +1501,7 @@ fun dueCard()
         }
     }
 
-    if (typeOf(story.gate) != "none" and day >= pick(gate, "day", 0) and not gateHolds(story))
+    if (story.gate != none and day >= pick(gate, "day", 0) and not gateHolds(story))
     {
         if (gateCard != "" and not answered(gateCard))
         {
@@ -1692,7 +1691,7 @@ fun answerLine(option, isTest)
 
     for (var i = 0; i < len(gives); i++)
     {
-        if (typeOf(gives[i].mark) != "none")
+        if (gives[i].mark != none)
         {
             push(parts, markName(story, gives[i].mark))
         }
@@ -1846,7 +1845,7 @@ fun answerStep(kind, target, days, option)
 
         giveGift(gives[i])
 
-        if (due and typeOf(gives[i].mark) == "none" and typeOf(gives[i].item) == "none" and giftText(gives[i]) != "")
+        if (due and gives[i].mark == none and gives[i].item == none and giftText(gives[i]) != "")
         {
             step.gave = addTo(step.gave, giftText(gives[i]))
         }
@@ -1980,12 +1979,12 @@ fun termValue(term, option)
     var kind = "stat"
     var key = pick(term, "stat", "")
 
-    if (typeOf(term.mark) != "none")
+    if (term.mark != none)
     {
         kind = "mark"
         key = term.mark
     }
-    else if (typeOf(term.flag) != "none")
+    else if (term.flag != none)
     {
         kind = "flag"
         key = term.flag
@@ -2323,7 +2322,7 @@ fun fightWins(origin)
 
     for (var i = 0; i < len(gives); i++)
     {
-        if (typeOf(gives[i].fight) != "none")
+        if (gives[i].fight != none)
         {
             return pick(gives[i], "wins", [])
         }

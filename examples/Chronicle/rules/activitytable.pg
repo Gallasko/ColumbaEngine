@@ -1723,15 +1723,7 @@ for (var k : done)
 // The table by id, now that it is whole: what a row says of another (the event it is shut by,
 // what it follows, a window's activity) is looked up here rather than searched for. The first of
 // an id, as a search would find it
-var activityById = {}
-
-for (var ai = 0; ai < len(activities); ai++)
-{
-    if (not contain(activityById, activities[ai].id))
-    {
-        activityById[activities[ai].id] = activities[ai]
-    }
-}
+var activityById = indexBy(activities, "id")
 
 // The events he has stood by in this life (lib.pg's `lifeEvents`: he holds the flag of each
 // since the month resources.pg settled it), and what each has shut: the id of a row -> the line

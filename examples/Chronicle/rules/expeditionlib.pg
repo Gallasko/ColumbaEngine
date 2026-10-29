@@ -49,17 +49,8 @@ fun share(value, percent)
     return wholeOf(value * percent, 100)
 }
 
-fun pick(table, key, fallback)
-{
-    var found = table[key]
-
-    if (typeOf(found) == "none")
-    {
-        return fallback
-    }
-
-    return found
-}
+// pick(table, key, fallback): the algorithm module's (native), table[key] or the fallback when it
+// is none
 
 // A number of the walk as it stands, 0 when it has none
 fun runOf(key)
@@ -202,54 +193,50 @@ fun chance(percent)
 
 fun zoneOf(id)
 {
-    for (var i = 0; i < len(walkZones); i++)
+    var found = findBy(walkZones, "id", id)
+
+    if (found == none)
     {
-        if (walkZones[i].id == id)
-        {
-            return walkZones[i]
-        }
+        return {id: ""}
     }
 
-    return {id: ""}
+    return found
 }
 
 fun mobOf(id)
 {
-    for (var i = 0; i < len(walkMobs); i++)
+    var found = findBy(walkMobs, "id", id)
+
+    if (found == none)
     {
-        if (walkMobs[i].id == id)
-        {
-            return walkMobs[i]
-        }
+        return {id: ""}
     }
 
-    return {id: ""}
+    return found
 }
 
 fun itemOf(id)
 {
-    for (var i = 0; i < len(walkItems); i++)
+    var found = findBy(walkItems, "id", id)
+
+    if (found == none)
     {
-        if (walkItems[i].id == id)
-        {
-            return walkItems[i]
-        }
+        return {id: "", name: id, one: id, glyph: "trade", kind: "sold"}
     }
 
-    return {id: "", name: id, one: id, glyph: "trade", kind: "sold"}
+    return found
 }
 
 fun eventOf(id)
 {
-    for (var i = 0; i < len(walkEvents); i++)
+    var found = findBy(walkEvents, "id", id)
+
+    if (found == none)
     {
-        if (walkEvents[i].id == id)
-        {
-            return walkEvents[i]
-        }
+        return {id: ""}
     }
 
-    return {id: ""}
+    return found
 }
 
 // How much of a thing he holds: what a walk brings is his, whether it is to sell or for the town
@@ -2797,15 +2784,14 @@ fun addFigures(form)
 
 fun recipeById(id)
 {
-    for (var i = 0; i < len(recipes); i++)
+    var found = findBy(recipes, "id", id)
+
+    if (found == none)
     {
-        if (recipes[i].id == id)
-        {
-            return recipes[i]
-        }
+        return {id: ""}
     }
 
-    return {id: ""}
+    return found
 }
 
 // The ways a queue may stop before its last walk

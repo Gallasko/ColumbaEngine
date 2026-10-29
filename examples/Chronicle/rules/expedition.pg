@@ -70,12 +70,7 @@ var errors = []
 var entries = []
 
 // The character as the walk leaves him: every stat as it is, then what the run does to it
-var after = {}
-
-for (var k : character)
-{
-    after[k] = character[k]
-}
+var after = copy(character)
 
 var site = {mode: "", screen: ""}
 var seeks = []

@@ -188,16 +188,7 @@ fun capitalised(word)
     return toUpperCase(substring(word, 0, 1)) + substring(word, 1, strlen(word))
 }
 
-// Whether a text begins with another.
-fun startsWith(text, prefix)
-{
-    if (strlen(text) < strlen(prefix))
-    {
-        return false
-    }
-
-    return substring(text, 0, strlen(prefix)) == prefix
-}
+// Whether a text begins with another: the string module's startsWith (native).
 
 // `lookup(table, key, fallback)`, the field or the fallback when the table has none, is the
 // algorithm module's (a native): the rules look names up hundreds of thousands of times a run,
@@ -237,14 +228,7 @@ fun entriesCopied(list)
 
     for (var i = 0; i < len(list); i++)
     {
-        var copy = {}
-
-        for (var k : list[i])
-        {
-            copy[k] = list[i][k]
-        }
-
-        push(out, copy)
+        push(out, copy(list[i]))
     }
 
     return out
@@ -317,15 +301,14 @@ fun roomFor(character, stat)
 // The kind of familiar with an id, an empty table when there is none.
 fun kindById(id)
 {
-    for (var k = 0; k < len(familiarKinds); k++)
+    var found = findBy(familiarKinds, "id", id)
+
+    if (found == none)
     {
-        if (familiarKinds[k].id == id)
-        {
-            return familiarKinds[k]
-        }
+        return {}
     }
 
-    return {}
+    return found
 }
 
 // The levels of the town that stand, every place's in towntable.pg's order and each place's

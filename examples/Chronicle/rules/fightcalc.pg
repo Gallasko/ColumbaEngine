@@ -126,7 +126,7 @@ fun foeField(n, key, fallback)
     {
         var p = phases[k]
 
-        if (typeOf(p[key]) != "none")
+        if (p[key] != none)
         {
             return p[key]
         }

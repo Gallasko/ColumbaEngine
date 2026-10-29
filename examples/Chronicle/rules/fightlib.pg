@@ -16,28 +16,26 @@ import "algorithm"
 
 fun stanceOf(id)
 {
-    for (var i = 0; i < len(walkStances); i++)
+    var found = findBy(walkStances, "id", id)
+
+    if (found == none)
     {
-        if (walkStances[i].id == id)
-        {
-            return walkStances[i]
-        }
+        return walkStances[0]
     }
 
-    return walkStances[0]
+    return found
 }
 
 fun techOf(id)
 {
-    for (var i = 0; i < len(walkTechniques); i++)
+    var found = findBy(walkTechniques, "id", id)
+
+    if (found == none)
     {
-        if (walkTechniques[i].id == id)
-        {
-            return walkTechniques[i]
-        }
+        return {id: ""}
     }
 
-    return {id: ""}
+    return found
 }
 
 fun standing()
