@@ -213,6 +213,10 @@ namespace pg
         // chunk some other way in between calls this before its next edit.
         void refreshJumpTargets(const Chunk& chunk) { collectJumpTargets(chunk); }
 
+        // The lists are kept for the chunk last edited, recognised by its address and size: before
+        // working on another chunk, which a freed one's place could hold, they are forgotten
+        void forgetJumps() { trackedChunk = nullptr; }
+
     private:
         void collectJumpTargets(const Chunk& chunk);
 

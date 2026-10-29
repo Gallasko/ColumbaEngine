@@ -185,7 +185,9 @@ namespace pg
     {
         bool anyChanges = false;
 
-        collectJumpTargets(chunk);
+        // The lists as the last edit left them, when it was this chunk: every edit keeps them up to
+        // date, and a walk of the whole chunk at each pass's request cost more than the matching
+        trackJumps(chunk);
 
         for (size_t i = 0; i < chunk.code.size();)
         {
@@ -401,7 +403,7 @@ namespace pg
     {
         bool anyChanges = false;
 
-        collectJumpTargets(chunk);
+        trackJumps(chunk);
 
         for (size_t i = 0; i < chunk.code.size();)
         {

@@ -44,6 +44,9 @@ namespace pg {
 
         rewriter->setVm(vm);
 
+        // A new chunk: the rewriter's jump lists are of the last one, which may have stood at this address
+        rewriter->forgetJumps();
+
         for (auto& pass : passes)
         {
             if (enableDebugOutput)
