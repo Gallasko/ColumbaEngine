@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -38,6 +39,9 @@ namespace pg
             constexpr const char* Prefix = "rules-compiled-";
 
             std::string compiledDir;
+
+            // Why the rules did not compile, empty when they did
+            std::string compileFailure;
 
             long processId()
             {
@@ -99,8 +103,8 @@ namespace pg
 #endif
             }
 
-            // The scripts compiled from their sources, once. Any error stops the run: a test must
-            // never read a .pgc left by an earlier compile
+            // The scripts compiled from their sources, once. Any error fails every test that asks
+            // for them: a test must never read a .pgc left by an earlier compile
             bool compileRules()
             {
                 compiledDir = Prefix + std::to_string(processId());
@@ -125,24 +129,32 @@ namespace pg
                 if (ok and logged.empty())
                     return true;
 
-                std::cerr << "\n*** The rule scripts in rules/ do not compile: no test is run ***\n";
+                compileFailure = "The rule scripts in rules/ do not compile:\n";
 
                 for (const auto& line : logged)
-                    std::cerr << "  " << line << "\n";
+                    compileFailure += "  " + line + "\n";
 
                 for (const auto& line : errors)
-                    std::cerr << "  " << line << "\n";
+                    compileFailure += "  " + line + "\n";
 
-                std::cerr << std::endl;
-
+                // The folder goes, so a fixture that loads it anyway fails instead of reading a stale .pgc
                 removeCompiled(compiledDir);
 
                 return false;
             }
         }
 
+        // Compiled on the first ask, not before the run: ctest starts a process for every test,
+        // and many Chronicle tests never read the rules
         const std::string& compiledRules()
         {
+            static std::once_flag compiled;
+
+            std::call_once(compiled, [] { compileRules(); });
+
+            if (not compileFailure.empty())
+                ADD_FAILURE() << compileFailure;
+
             return compiledDir;
         }
     }
@@ -156,15 +168,11 @@ int main(int argc, char **argv)
    std::cout << "Start all the tests" << std::endl;
    ::testing::InitGoogleTest( &argc, argv );
 
-   // The rules compiled once for every fixture (compiledrules.h); a listing of the tests (the
-   // build's gtest_discover_tests) runs none, and needs none
-   if (not GTEST_FLAG_GET(list_tests) and not pg::test::compileRules())
-      return 1;
-
    int result = RUN_ALL_TESTS();
 
-   if (not pg::test::compiledRules().empty())
-      pg::test::removeCompiled(pg::test::compiledRules());
+   // Only a process whose tests asked for the rules compiled them (compiledrules.h)
+   if (not pg::test::compiledDir.empty())
+      pg::test::removeCompiled(pg::test::compiledDir);
 
    return result;
 }
