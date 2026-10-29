@@ -77,7 +77,7 @@
             return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_INT(a)), static_cast<float>(AS_DOUBLE(b))));
         if (IS_DOUBLE(a) and IS_INT(b))
             return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_DOUBLE(a)), static_cast<float>(AS_INT(b))));
-        return BOOL_VAL(a == b);
+        return BOOL_VAL(a == b or sameLongString(a, b));
     }
 
     Value VM::notEqualsValues(const Value& a, const Value& b)
@@ -90,7 +90,7 @@
             return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_INT(a)), static_cast<float>(AS_DOUBLE(b))));
         if (IS_DOUBLE(a) and IS_INT(b))
             return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_DOUBLE(a)), static_cast<float>(AS_INT(b))));
-        return BOOL_VAL(a != b);
+        return BOOL_VAL(a != b and not sameLongString(a, b));
     }
 
     Value VM::greaterValues(const Value& a, const Value& b)

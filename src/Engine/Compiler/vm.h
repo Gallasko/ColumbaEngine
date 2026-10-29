@@ -479,6 +479,13 @@ namespace pg
             return static_cast<Type*>(pools.getCustomPointer(v));
         }
 
+        // Two long strings of the same text (equalsValues): only constants are interned, so a string
+        // made while running can hold the text of another
+        inline bool sameLongString(const Value& a, const Value& b)
+        {
+            return IS_LONG_STRING(a) and IS_LONG_STRING(b) and *asStringPtr(a) == *asStringPtr(b);
+        }
+
         // Helper to get string content from long, small, or interned strings
         inline std::string asString(Value v)
         {

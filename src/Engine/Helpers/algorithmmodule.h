@@ -16,6 +16,11 @@ namespace pg
             // Add utility functions
             addNativeFunction("contain", nativeContain);
             addNativeFunction("lookup", nativeLookup);
+            addNativeFunction("pick", nativePick);
+            addNativeFunction("findBy", nativeFindBy);
+            addNativeFunction("indexBy", nativeIndexBy);
+            addNativeFunction("copy", nativeCopy);
+            addNativeFunction("merge", nativeMerge);
             addNativeFunction("toInt", nativeToInt);
             addNativeFunction("toFloat", nativeToFloat);
             addNativeFunction("typeOf", nativeTypeOf);
@@ -112,6 +117,239 @@ namespace pg
                 return vm->retainValue(instance->fieldValue(slot));
 
             return vm->retainValue(args[2]);
+        }
+
+        // The text a table keys a field by: a string as it is, an integer written out (as t[k] does)
+        static bool keyText(VM* vm, const Value& key, std::string& text)
+        {
+            if (IS_STRING(key))
+                text = vm->asString(key);
+            else if (IS_INT(key))
+                text = std::to_string(AS_INT(key));
+            else
+                return false;
+
+            return true;
+        }
+
+        /**
+         * A field read with a default
+         * Usage: pick(table, key, fallback)
+         * Returns: table[key], or fallback when the table has no such field or it holds none
+         *
+         * What a script wrote as `var found = table[key]; if (typeOf(found) == "none") return fallback`:
+         * the commonest read of the rules. A list takes an integer index (out of range: the fallback).
+         * A table's __get metamethod is not asked
+         */
+        static Value nativePick(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 3)
+                throw std::runtime_error("pick expects exactly 3 arguments (table, key, fallback)");
+
+            if (IS_INSTANCE(args[0]))
+            {
+                std::string key;
+
+                if (not keyText(vm, args[1], key))
+                    throw std::runtime_error("pick expects a string or integer key");
+
+                const ObjInstance* instance = vm->asInstance(args[0]);
+                const size_t slot = instance->findField(key);
+
+                if (slot != ObjInstance::npos and not IS_NONE(instance->fieldValue(slot)))
+                    return vm->retainValue(instance->fieldValue(slot));
+
+                return vm->retainValue(args[2]);
+            }
+
+            if (IS_VECTOR(args[0]))
+            {
+                if (not IS_INT(args[1]))
+                    throw std::runtime_error("pick expects an integer index for a list");
+
+                const ObjVector* vec = vm->asVector(args[0]);
+                int64_t index = AS_INT(args[1]);
+
+                if (index < 0)
+                    index += static_cast<int64_t>(vec->fields.size());
+
+                if (index >= 0 and index < static_cast<int64_t>(vec->fields.size()) and not IS_NONE(vec->fields[index]))
+                    return vm->retainValue(vec->fields[index]);
+
+                return vm->retainValue(args[2]);
+            }
+
+            throw std::runtime_error("pick expects a table or a list");
+        }
+
+        /**
+         * The first entry of a list whose field has a value
+         * Usage: findBy(list, "id", id)
+         * Returns: the first table of the list whose field equals the value (as == compares), none when none does
+         *
+         * The search a script wrote as a loop over the list. Entries that are not tables, or have
+         * no such field, are passed over
+         */
+        static Value nativeFindBy(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 3)
+                throw std::runtime_error("findBy expects exactly 3 arguments (list, field, value)");
+
+            if (not IS_VECTOR(args[0]) or not IS_STRING(args[1]))
+                throw std::runtime_error("findBy expects a list and a field name");
+
+            const std::string field = vm->asString(args[1]);
+
+            for (const Value& entry : vm->asVector(args[0])->fields)
+            {
+                if (not IS_INSTANCE(entry))
+                    continue;
+
+                const ObjInstance* instance = vm->asInstance(entry);
+                const size_t slot = instance->findField(field);
+
+                if (slot != ObjInstance::npos and AS_BOOL(vm->equalsValues(instance->fieldValue(slot), args[2])))
+                    return vm->retainValue(entry);
+            }
+
+            return makeNoneValue();
+        }
+
+        /**
+         * A table of a list's entries by one of their fields
+         * Usage: var byId = indexBy(list, "id")
+         * Returns: a table whose key is each entry's field (a string or an integer) and whose value is that entry
+         *
+         * The first entry of a key is the one kept, as a search would find it. Built once, a
+         * findBy over the same list is a field read
+         */
+        static Value nativeIndexBy(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 2)
+                throw std::runtime_error("indexBy expects exactly 2 arguments (list, field)");
+
+            if (not IS_VECTOR(args[0]) or not IS_STRING(args[1]))
+                throw std::runtime_error("indexBy expects a list and a field name");
+
+            const std::string field = vm->asString(args[1]);
+
+            Value indexValue = vm->createTable();
+            ObjInstance* index = vm->asInstance(indexValue);
+
+            std::string key;
+
+            for (const Value& entry : vm->asVector(args[0])->fields)
+            {
+                if (not IS_INSTANCE(entry))
+                    continue;
+
+                const ObjInstance* instance = vm->asInstance(entry);
+                const size_t slot = instance->findField(field);
+
+                if (slot == ObjInstance::npos or not keyText(vm, instance->fieldValue(slot), key))
+                    continue;
+
+                if (index->findField(key) == ObjInstance::npos)
+                    index->appendNewField(key, vm->retainValue(entry));
+            }
+
+            return indexValue;
+        }
+
+        /**
+         * A copy of a table or of a list, one level deep
+         * Usage: var after = copy(character)
+         * Returns: a new table with the same fields in the same order (or a new list with the same
+         * entries); the values are the same values, not copies of them
+         *
+         * What a script wrote as `for (var k : t) { copy[k] = t[k] }`. A table copied keeps the
+         * layout of its fields, so it is filled at once. The copy of an instance is a table
+         */
+        static Value nativeCopy(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 1)
+                throw std::runtime_error("copy expects exactly 1 argument (a table or a list)");
+
+            if (IS_VECTOR(args[0]))
+            {
+                Value copyValue = vm->createVector();
+                ObjVector* to = vm->asVector(copyValue);
+                const ObjVector* from = vm->asVector(args[0]);
+
+                to->fields.reserve(from->fields.size());
+
+                for (const Value& entry : from->fields)
+                    to->fields.push_back(vm->retainValue(entry));
+
+                return copyValue;
+            }
+
+            if (not IS_INSTANCE(args[0]))
+                throw std::runtime_error("copy expects a table or a list");
+
+            ObjInstance* from = vm->asInstance(args[0]);
+
+            Value copyValue = vm->createTable();
+            ObjInstance* to = vm->asInstance(copyValue);
+
+            const size_t count = from->fieldCount();
+
+            if (Shape* shape = from->layout())
+            {
+                to->fillShaped(shape, from->allFieldValues().data(), count, 1);
+            }
+            else
+            {
+                to->reserveFields(count);
+
+                for (size_t slot = 0; slot < count; ++slot)
+                    to->appendNewField(from->fieldName(slot), from->fieldValue(slot));
+            }
+
+            for (Value& value : to->allFieldValues())
+                vm->retainValue(value);
+
+            return copyValue;
+        }
+
+        /**
+         * One table's fields written into another
+         * Usage: merge(into, from)
+         * Returns: into, with each field of from set on it in from's order (a field it had takes from's value)
+         *
+         * What a script wrote as `for (var k : from) { into[k] = from[k] }`. A __set metamethod is not asked
+         */
+        static Value nativeMerge(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 2)
+                throw std::runtime_error("merge expects exactly 2 arguments (into, from)");
+
+            if (not IS_INSTANCE(args[0]) or not IS_INSTANCE(args[1]))
+                throw std::runtime_error("merge expects two tables");
+
+            ObjInstance* into = vm->asInstance(args[0]);
+            ObjInstance* from = vm->asInstance(args[1]);
+
+            const size_t count = from->fieldCount();
+
+            for (size_t slot = 0; slot < count; ++slot)
+            {
+                const std::string& name = from->fieldName(slot);
+                const Value value = vm->retainValue(from->fieldValue(slot));
+                const size_t at = into->findField(name);
+
+                if (at != ObjInstance::npos)
+                {
+                    vm->releaseAndDelete(into->fieldValueRef(at));
+                    into->fieldValueRef(at) = value;
+                }
+                else
+                {
+                    into->appendNewField(name, value);
+                }
+            }
+
+            return vm->retainValue(args[0]);
         }
 
         static Value nativeToInt(VM* vm, int argCount, Value* args)

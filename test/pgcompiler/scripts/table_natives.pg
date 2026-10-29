@@ -1,0 +1,60 @@
+// The algorithm module's table natives (pick, findBy, indexBy, copy, merge), and strings made while
+// running compared with constants (only constants are interned)
+import "algorithm"
+import "string"
+
+var stats = {vit: 7, coin: 0, none_here: none}
+
+// pick: the field, or the fallback when there is none or it holds none
+__dprint(pick(stats, "vit", 1))
+__dprint(pick(stats, "coin", 5))
+__dprint(pick(stats, "missing", 3))
+__dprint(pick(stats, "none_here", 4))
+__dprint(pick([10, 20, 30], 1, 0))
+__dprint(pick([10, 20, 30], 7, -1))
+
+var mobs = [{id: "wolf", hp: 12}, {id: "boar", hp: 20}, {id: "wolf", hp: 99}]
+
+// findBy: the first whose field equals, none when none does
+__dprint(findBy(mobs, "id", "wolf").hp)
+__dprint(findBy(mobs, "id", "boar").hp)
+__dprint(typeOf(findBy(mobs, "id", "bear")))
+__dprint(findBy(mobs, "hp", 20).id)
+
+// indexBy: by the field, the first of a key kept
+var byId = indexBy(mobs, "id")
+__dprint(byId.wolf.hp)
+__dprint(byId.boar.hp)
+__dprint(contain(byId, "bear"))
+
+// copy: the same fields in the same order, a table of its own
+var copied = copy(stats)
+copied.vit = 1
+__dprint(stats.vit)
+__dprint(copied.vit)
+__dprint(copied.coin)
+
+var keys = ""
+for (var k : copied)
+{
+    keys = keys + k + ";"
+}
+__dprint(keys)
+
+var list = copy([1, 2, 3])
+push(list, 4)
+__dprint(len(list))
+
+// merge: from's fields set on into, which is returned
+var held = merge({remedy: 2, vit: 0}, {vit: 9, coin: 5})
+__dprint(held.remedy)
+__dprint(held.vit)
+__dprint(held.coin)
+
+// A string made while running (by a native: no fold can make it a constant) equals the constant
+// of its text, and differs from another
+var made = toLowerCase("WOLVES.PACK")
+__dprint(made == "wolves.pack")
+__dprint(made != "wolves.pack")
+__dprint(made == "wolves.herd")
+__dprint(findBy([{id: "wolves.pack", n: 1}], "id", made).n)

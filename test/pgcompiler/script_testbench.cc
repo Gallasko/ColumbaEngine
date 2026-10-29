@@ -399,6 +399,11 @@ TEST_F(ScriptTestBench, FunctionInlining)
     testScript("function_inlining");
 }
 
+TEST_F(ScriptTestBench, TableNatives)
+{
+    testScript("table_natives");
+}
+
 TEST_F(ScriptTestBench, LengthHoisting)
 {
     testScript("length_hoisting");

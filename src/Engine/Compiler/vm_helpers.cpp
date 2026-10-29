@@ -254,9 +254,18 @@ namespace pg
         // Perform type-specific deletion
         if (IS_LONG_STRING(value))
         {
-            // Remove from interned strings map before releasing
+            // Out of the intern map when it is the string interned there: only the constants are
+            // (createString), so a string made while running passes by without a look
             std::string* str = asStringPtr(value);
-            pools.internedStrings.erase(*str);
+
+            if (pools.maxConstantStringIndex == UINT32_MAX or AS_STRING_INDEX(value) <= pools.maxConstantStringIndex)
+            {
+                auto it = pools.internedStrings.find(*str);
+
+                if (it != pools.internedStrings.end() and it->second == AS_STRING_INDEX(value))
+                    pools.internedStrings.erase(it);
+            }
+
             pools.stringPool.release(str);
         }
         else if (IS_SMALL_STRING(value))
@@ -493,7 +502,17 @@ namespace pg
             return makeSmallStringValue(stringContent.data(), static_cast<uint8_t>(stringContent.length()));
         }
 
-        // // Check if string already exists in the intern map
+        // Once the VM runs (its constants frozen), a string is made as it is: interning it hashed its
+        // text twice, made and freed, for every concatenation. Equal texts still compare equal
+        // (sameLongString), and a table keys by text
+        if (pools.maxConstantStringIndex != UINT32_MAX)
+        {
+            auto [ptr, index] = pools.stringPool.allocateWithIndex(stringContent);
+
+            return trackNewValue(makeStringValue(static_cast<uint32_t>(index)));
+        }
+
+        // A constant: one of each text (the table literal cache knows a key by its value)
         auto it = pools.internedStrings.find(stringContent);
         if (it != pools.internedStrings.end())
         {

@@ -74,7 +74,9 @@ fun binaryOps()
                 tail: "moduloValuesTail" })
 
     // Equality: canonical NaN-boxed ints compare as raw bits; anything
-    // involving a double keeps the epsilon semantics, helper-only.
+    // involving a double keeps the epsilon semantics, helper-only. Two long
+    // strings compare their text: a string made while running is not
+    // interned (createString), so one text can stand at two places.
     push(ops, { name: "equal", opcode: "OP_Equal", kind: "cmp",
                 helper: "equalsValues", commutative: true,
                 kernels: [
@@ -82,7 +84,7 @@ fun binaryOps()
                     ["dbl", "dbl", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["int", "dbl", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["dbl", "int", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"]],
-                tailExpr: "BOOL_VAL(a == b)" })
+                tailExpr: "BOOL_VAL(a == b or sameLongString(a, b))" })
 
     push(ops, { name: "notEqual", opcode: "OP_NotEqual", kind: "cmp",
                 helper: "notEqualsValues", commutative: true,
@@ -91,7 +93,7 @@ fun binaryOps()
                     ["dbl", "dbl", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["int", "dbl", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["dbl", "int", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"]],
-                tailExpr: "BOOL_VAL(a != b)" })
+                tailExpr: "BOOL_VAL(a != b and not sameLongString(a, b))" })
 
     push(ops, { name: "greater", opcode: "OP_Greater", kind: "cmp", op: ">",
                 helper: "greaterValues", commutative: false,

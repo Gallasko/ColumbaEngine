@@ -139,6 +139,48 @@ namespace pg
         /** Max constant index for vector pool */
         uint32_t maxConstantVectorIndex = UINT32_MAX;
 
+        // A refcounted value's tag is its pool (TAG_STRING .. TAG_VECTOR, value_nanbox.h): its
+        // refcounts and its pool's last constant index are found by the tag in one look, where every
+        // retain and release tested each type in turn, twice. Members, not pointers: a copy stays right
+        using RefCounts = std::vector<uint32_t> VMPools::*;
+        using MaxConstant = uint32_t VMPools::*;
+
+        static_assert(TAG_STRING == 0 and TAG_CLOSURE == 1 and TAG_FUNCTION == 2 and TAG_UPVALUE == 3 and
+                      TAG_CLASS == 4 and TAG_INSTANCE == 5 and TAG_BOUND_METHOD == 6 and TAG_VECTOR == 7,
+                      "refCountsOf and maxConstantOf list the pools in the order of their tags");
+
+        static RefCounts refCountsOf(uint8_t tag)
+        {
+            static constexpr RefCounts byTag[8] = {
+                &VMPools::stringRefCounts,      // TAG_STRING
+                &VMPools::closureRefCounts,     // TAG_CLOSURE
+                &VMPools::functionRefCounts,    // TAG_FUNCTION
+                &VMPools::upvalueRefCounts,     // TAG_UPVALUE
+                &VMPools::classRefCounts,       // TAG_CLASS
+                &VMPools::instanceRefCounts,    // TAG_INSTANCE
+                &VMPools::boundMethodRefCounts, // TAG_BOUND_METHOD
+                &VMPools::vectorRefCounts,      // TAG_VECTOR
+            };
+
+            return byTag[tag];
+        }
+
+        static MaxConstant maxConstantOf(uint8_t tag)
+        {
+            static constexpr MaxConstant byTag[8] = {
+                &VMPools::maxConstantStringIndex,
+                &VMPools::maxConstantClosureIndex,
+                &VMPools::maxConstantFunctionIndex,
+                &VMPools::maxConstantUpvalueIndex,
+                &VMPools::maxConstantClassIndex,
+                &VMPools::maxConstantInstanceIndex,
+                &VMPools::maxConstantBoundMethodIndex,
+                &VMPools::maxConstantVectorIndex,
+            };
+
+            return byTag[tag];
+        }
+
         // ====================================================================
         // Public API
         // ====================================================================
@@ -215,6 +257,13 @@ namespace pg
          */
         inline bool isConstant(Value v) const
         {
+            // A refcounted value: its pool's last constant index, found by its tag
+            if (IS_POS_TAGGED(v))
+            {
+                const uint32_t max = this->*maxConstantOf(GET_TAG(v));
+                return max != UINT32_MAX and GET_INDEX(v) <= max;
+            }
+
             // Interned strings are ALWAYS constants (they live in VM's constantStrings vector)
             if (IS_INTERNED_STRING(v))
             {
@@ -278,6 +327,10 @@ namespace pg
          */
         std::vector<uint32_t>& getRefCountVector(Value v)
         {
+            // A refcounted value: its pool's refcounts, found by its tag
+            if (IS_POS_TAGGED(v))
+                return this->*refCountsOf(GET_TAG(v));
+
             if (IS_STRING(v))
                 return stringRefCounts;
 

@@ -172,9 +172,12 @@ namespace pg
                 stub.slot = static_cast<uint32_t>(fieldSlot);
             }
 
+            // The field before the instance is let go: the stack may hold its last reference (a
+            // table just returned by a call), and its fields go with it
+            Value found = vm->retainValue(instance->fieldValue(fieldSlot));
             auto inst = vm->pop();
             vm->releaseAndDelete(inst);
-            vm->push(vm->retainValue(instance->fieldValue(fieldSlot)));
+            vm->push(found);
             return &instr + 1;
         }
 
@@ -704,9 +707,9 @@ namespace pg
                     }
                 }
 
-                vm->releaseAndDelete(keyValue);
+                // The frame holds the target and the key now, and lets them go as it returns: a
+                // release here freed a key made for the call before the metamethod read it
                 vm->releaseAndDelete(index);
-                vm->releaseAndDelete(target);
 
                 return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
             }
@@ -850,7 +853,9 @@ namespace pg
 
                 if (IS_CLOSURE(setMethod))
                 {
-                    vm->push(target);
+                    // The frame's own reference to the target, which stays on the stack too (the
+                    // frame lets go of what it holds as it returns)
+                    vm->push(vm->retainValue(target));
                     vm->push(keyValue);
                     vm->push(value);
 
@@ -892,9 +897,7 @@ namespace pg
                         }
                     }
 
-                    vm->releaseAndDelete(keyValue);
-                    vm->releaseAndDelete(value);
-
+                    // The key and the value are the frame's, let go as it returns
                     return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
                 }
                 else // IS_NAT_FUNC(setMethod)
@@ -1475,6 +1478,32 @@ namespace pg
 
         Value vectorVal = vm->createVector();
         ObjVector* vector = vm->asVector(vectorVal);
+
+        // The pairs lie on the stack as they were written, each value under its index. A list
+        // written in order (indices 0, 1, 2...) takes its values where they are: the stack's
+        // references are the list's now, no copy, no sort, no retain and release
+        {
+            const size_t base = vm->stack.size() - 2 * static_cast<size_t>(pairCount);
+            bool inOrder = true;
+
+            for (size_t i = 0; i < pairCount and inOrder; i++)
+            {
+                const Value index = vm->stack[base + 2 * i + 1];
+                inOrder = IS_INT(index) and AS_INT(index) == static_cast<int64_t>(i);
+            }
+
+            if (inOrder)
+            {
+                vector->fields.reserve(pairCount);
+
+                for (size_t i = 0; i < pairCount; i++)
+                    vector->fields.push_back(vm->stack[base + 2 * i]);
+
+                vm->stack.truncateTo(base);
+                vm->push(vectorVal);
+                return &instr + 1;
+            }
+        }
 
         std::vector<std::pair<int64_t, Value>> pairs;
         pairs.reserve(pairCount);
