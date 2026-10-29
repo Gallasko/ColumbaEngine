@@ -2,6 +2,7 @@
 
 #include <string>
 #include <queue>
+#include <vector>
 
 #include "expression.h"
 
@@ -52,6 +53,10 @@ namespace pg
         // script's first run on a VM and kept by the later runs (the initializer is skipped); the
         // script promises it would make the same value again and never changes it. Elsewhere it is a `var`
         bool isConst = false;
+
+        // The top-level statements right after it that set its entries to constants, run with its
+        // initializer and so kept with it (RunOncePass)
+        std::vector<StatementPtr> keptFills;
     };
 
     struct FunctionStatement : public Statement
@@ -63,6 +68,10 @@ namespace pg
         virtual std::string prettyPrint() const override {auto p = parameters; std::string res = ""; while(p.size() > 0) { res += p.front()->prettyPrint() + ", "; p.pop();} return "Function statement :" + name.text + " with parameters: " + res; }
         virtual std::string getType() const override { return "FunctionStatement"; }
         virtual AstKind kind() const override { return AstKind::FunctionStatement; }
+
+        // Defined once by the whole program and never written: made on the script's first run on a
+        // VM and kept by the later runs, as a `const` is (RunOncePass)
+        bool keptOnce = false;
 
         Token name;
         std::queue<ExprPtr> parameters;

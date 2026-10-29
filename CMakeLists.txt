@@ -216,6 +216,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/ast/pass/function_inlining.cpp
     src/Engine/Compiler/ast/pass/length_hoisting.cpp
     src/Engine/Compiler/ast/pass/program_view.cpp
+    src/Engine/Compiler/ast/pass/run_once.cpp
     src/Engine/Compiler/componentattach.cpp
     src/Engine/Compiler/componentproxy.cpp
     src/Engine/Compiler/ecsserialization.cpp
@@ -309,6 +310,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/ast/pass/function_inlining.cpp
     src/Engine/Compiler/ast/pass/length_hoisting.cpp
     src/Engine/Compiler/ast/pass/program_view.cpp
+    src/Engine/Compiler/ast/pass/run_once.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
@@ -1859,6 +1861,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/unit/test_bytecode_rewriter.cc
             test/pgcompiler/unit/test_none_value.cc
             test/pgcompiler/unit/test_chunk_constants.cc
+            test/pgcompiler/unit/test_run_once.cc
             test/pgcompiler/unit/test_module_cache.cc
             test/pgcompiler/unit/test_shape_budget.cc
         )

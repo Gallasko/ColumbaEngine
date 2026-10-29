@@ -690,6 +690,10 @@ namespace pg
             root.parser.writeConstant(stmt->name.text);
             root.parser.writeByte(OpCode::OP_Define_Global);
 
+            // The constant entries set right after it, kept with it (RunOncePass)
+            for (const auto& fill : stmt->keptFills)
+                fill->accept(this);
+
             int endJump = root.parser.emitJump(OpCode::OP_Long_Jump);
 
             root.parser.patchJump(keptJump);
@@ -726,6 +730,32 @@ namespace pg
             Compiler::current->addLocal(stmt->name);
 
         Compiler::current->markInitialized();
+
+        // A function of the program defined once and never written: made while no global of its
+        // name is defined (the script's first run on this VM), kept by the later runs as a `const`
+        // is (RunOncePass)
+        if (stmt->keptOnce and Compiler::current->scopeDepth == 0)
+        {
+            root.parser.writeConstant(stmt->name.text);
+            root.parser.writeByte(OpCode::OP_Global_Missing);
+
+            int keptJump = root.parser.emitJump(OpCode::OP_Long_Jump_If_False);
+            root.parser.writeByte(OpCode::OP_Pop); // Pop the condition
+
+            compileFunction(FunctionType::TYPE_FUNCTION, stmt->name.text, stmt->parameters, stmt->body, stmt->name);
+
+            setLine(stmt->name);
+            root.parser.writeConstant(stmt->name.text);
+            root.parser.writeByte(OpCode::OP_Define_Global);
+
+            int endJump = root.parser.emitJump(OpCode::OP_Long_Jump);
+
+            root.parser.patchJump(keptJump);
+            root.parser.writeByte(OpCode::OP_Pop); // Pop the condition
+
+            root.parser.patchJump(endJump);
+            return;
+        }
 
         compileFunction(FunctionType::TYPE_FUNCTION, stmt->name.text, stmt->parameters, stmt->body, stmt->name);
 
