@@ -358,6 +358,11 @@ namespace arena
         float respawnSeconds = 3.0f;
         bool regenerates = false;        // a training dummy refills its health
 
+        // The arena run: damage taken by element (volt 1.5: weak to volt), points for the kill, a boss
+        float weakness[4] = {1, 1, 1, 1};
+        int score = 10;
+        bool boss = false;
+
         std::string script;              // script id, "base:brute"; empty = stands still
         Json params;                     // handed to the script as me.params
 
@@ -412,6 +417,53 @@ namespace arena
         std::vector<ArenaSpawn> spawns;
         std::string file;
         std::string mod;             // block names without a namespace are this mod's
+    };
+
+    /**
+     * A boon (upgrades.json), picked between the waves of a run. Its numbers add up with each pick:
+     * damage 0.15 is 15% more, manaCost 0.15 is 15% cheaper, cooldown 0.2 is 20% shorter.
+     */
+    struct UpgradeDef
+    {
+        std::string id, name, text;
+        float maxHealth = 0.0f;
+        float damage = 0.0f;
+        int dashCharges = 0;
+        float manaCost = 0.0f;
+        float manaRegen = 0.0f;
+        float staminaRegen = 0.0f;
+        float speed = 0.0f;
+        float cooldown = 0.0f;
+        float lifeOnHit = 0.0f;
+        int statusStacks = 0;
+        int most = 3;                 // picked at most this many times in a run
+    };
+
+    /** One wave of a run: enemy types with how many (a random count between the two), and a boss. */
+    struct WaveDef
+    {
+        std::vector<std::pair<std::string, glm::ivec2>> enemies;
+        std::string boss;
+    };
+
+    /** The arena run (run.json): its waves, and how it plays out. */
+    struct RunDef
+    {
+        std::vector<WaveDef> waves;
+        float warn = 1.2f;            // s the spawn points show before the enemies come out
+        float breather = 3.0f;        // s between a boon and the next wave
+        float choose = 20.0f;         // s to pick a boon, then the first one is taken
+        int choices = 3;              // boons offered
+        glm::vec3 centre = glm::vec3(32, 4, 38);
+        float spawnRadius = 12.0f;
+        float coopScale = 0.5f;       // more enemies per player after the first
+        int waveScore = 100;          // per wave cleared, times its number
+        int timeBonus = 3000;         // at the end, for a run under timePar seconds
+        float timePar = 600.0f;
+        bool resetEachWave = true;    // the arena is built anew before each wave (and the players put back)
+        bool hasArena = false;
+        ArenaDef arena;               // the run's own arena ("arena", as arena.json)
+        std::string file;
     };
 
     /** A voxel model from the VoxelTest editor (.vxl.json). */
@@ -469,6 +521,9 @@ namespace arena
         std::map<Element, ElementDef> elements;      // elements.json
         std::map<std::string, KeywordDef> keywords;  // keywords.json
         std::map<std::string, SpellDef> spells;      // spells/: ready-made
+
+        std::map<std::string, UpgradeDef> upgrades;  // upgrades.json: the boons of a run
+        RunDef run;                                  // run.json (the last mod with one)
 
         std::map<std::string, std::shared_ptr<VoxelModel>> models;
 

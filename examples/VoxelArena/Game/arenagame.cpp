@@ -12,8 +12,10 @@
 #include "glm/gtc/type_ptr.hpp"
 
 #include <filesystem>
+#include <fstream>
 
 #include "Input/input.h"
+#include "Audio/audiosystem.h"
 
 #include "Core/net/client.h"
 #include "Core/net/server.h"
@@ -122,7 +124,7 @@ namespace arena
             {"freeCursor", {"Left Alt"}}, {"toggleView", {"F", "V"}},
             {"ability1", {"Q"}}, {"ability2", {"E"}}, {"ability3", {"G", "Mouse2"}}, {"ability4", {"R"}},
             {"ability5", {"1"}}, {"ability6", {"2"}}, {"ability7", {"3"}}, {"ability8", {"4"}},
-            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"spellbook", {"B"}},
+            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"spellbook", {"B"}}, {"options", {"O"}},
         };
     }
 
@@ -180,6 +182,7 @@ namespace arena
 
         hud.init(ecsRef, masterRenderer, screenW, screenH);
         spellbook.init(&hud);
+        optionsScreen.init(&hud);
 
         masterRenderer->getCamera().setAspectRatio(aspect);
 
@@ -237,6 +240,19 @@ namespace arena
 
             book.equipped.resize(ArenaWorld::SPELL_SLOTS);
             applySpells();
+
+            // The title: the arena or the training ground (a client follows its host)
+            titleOpen = not client;
+
+            // The player's options, as they were left
+            loadOptions(optionsPath(), prefs);
+            firstPerson = prefs.firstPerson;
+            showOverlay = prefs.overlay;
+            camera.pitch = firstPerson ? 5.0f : camera.pitch;
+            applyOptions();
+
+            std::ifstream bestFile(std::filesystem::path(spellbookPath()).parent_path() / "best.txt");
+            bestFile >> bestScore;
 
             // First person starts looking ahead, not down at the feet as the orbit camera does
             if (firstPerson)
@@ -426,7 +442,13 @@ namespace arena
         // it here too lost every click that system took first. Its click event comes once per press.
         std::lock_guard<std::mutex> lock(inputMutex);
 
-        // The spellbook takes the clicks while it is open
+        // The options screen, then the spellbook, take the clicks while open
+        if (optionsOpen)
+        {
+            optionsClicks.emplace_back(event.pos.x, event.pos.y);
+            return;
+        }
+
         if (bookOpen)
         {
             bookClicks.emplace_back(event.pos.x, event.pos.y);
@@ -527,7 +549,7 @@ namespace arena
             altHeld = held("freeCursor");
         }
 
-        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen;
+        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen and not optionsOpen;
 
         if (want == cursorLocked)
             return;
@@ -613,6 +635,13 @@ namespace arena
                 continue;
             }
 
+            if (optionsOpen)
+            {
+                if (p.scancode == SDL_SCANCODE_ESCAPE or (keyIs(p.scancode, "options") and not p.repeat))
+                    setOptionsOpen(false);
+                continue;
+            }
+
             if (bookOpen)
             {
                 if (p.scancode == SDL_SCANCODE_ESCAPE or (keyIs(p.scancode, "spellbook") and not spellbook.naming and not p.repeat))
@@ -633,9 +662,62 @@ namespace arena
                 continue;
             }
 
+            if (keyIs(p.scancode, "options"))
+            {
+                setOptionsOpen(true);
+                continue;
+            }
+
+            // The title: Enter the arena, T the training ground
+            if (titleOpen)
+            {
+                if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
+                    startArena();
+                else if (p.scancode == SDL_SCANCODE_T)
+                    titleOpen = false;
+                continue;
+            }
+
+            // No run (a client of a dedicated server): Enter asks for one
+            if (not world.inRun() and client and (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER))
+            {
+                pendingPick = InputFrame::START;
+                continue;
+            }
+
+            // A run: 1-3 pick a boon, Enter plays again, T goes training
+            if (world.inRun())
+            {
+                const Fighter* me = world.player();
+                const RunPhase phase = world.run.phase;
+
+                if (phase == RunPhase::Choosing and me and not me->offer.empty() and p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_3)
+                {
+                    pendingPick = static_cast<int>(p.scancode - SDL_SCANCODE_1) + 1;
+                    continue;
+                }
+
+                if ((phase == RunPhase::Victory or phase == RunPhase::Defeat) and (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER))
+                {
+                    pendingPick = InputFrame::START;
+                    continue;
+                }
+
+                if ((phase == RunPhase::Victory or phase == RunPhase::Defeat) and p.scancode == SDL_SCANCODE_T and not client)
+                {
+                    world.stopRun();
+                    print(runCommand("reset"));
+                    continue;
+                }
+            }
+
             switch (p.scancode)
             {
-                case SDL_SCANCODE_F1: showOverlay = not showOverlay; break;
+                case SDL_SCANCODE_F1:
+                    showOverlay = not showOverlay;
+                    prefs.overlay = showOverlay;
+                    saveOptions(optionsPath(), prefs);
+                    break;
                 case SDL_SCANCODE_F2: showBoxes = not showBoxes; break;
                 case SDL_SCANCODE_F5: print(runCommand("reload")); break;
                 // A lock not held (Esc in a browser also ends Pointer Lock) is let go, not asked again
@@ -644,6 +726,8 @@ namespace arena
                     if (keyIs(p.scancode, "toggleView"))
                     {
                         setFirstPerson(not firstPerson);
+                        prefs.firstPerson = firstPerson;
+                        saveOptions(optionsPath(), prefs);
                         break;
                     }
 
@@ -681,6 +765,33 @@ namespace arena
             std::lock_guard<std::mutex> lock(inputMutex);
             stepPresses.clear();
             mousePresses.clear();
+        }
+
+        // The options screen: its clicks; nothing reaches the game
+        if (optionsOpen)
+        {
+            std::vector<glm::vec2> clicks;
+            {
+                std::lock_guard<std::mutex> lock(inputMutex);
+                clicks.swap(optionsClicks);
+                stepPresses.clear();
+                mousePresses.clear();
+            }
+
+            for (const auto& c : clicks)
+            {
+                bool closed = false;
+
+                if (optionsScreen.click(c.x, c.y, prefs, closed))
+                {
+                    applyOptions();
+                    saveOptions(optionsPath(), prefs);
+                    optionsScreen.refresh(prefs);
+                }
+
+                if (closed)
+                    setOptionsOpen(false);
+            }
         }
 
         // The spellbook: its clicks and its name field; nothing reaches the game
@@ -741,10 +852,11 @@ namespace arena
 
             // The hit flash fades in about a third of a second
             hurtFlash = std::max(0.0f, hurtFlash - frameSeconds * 3.0f);
-            hud.setHurt(hurtFlash);
-            hud.setDashes(world.infiniteStamina ? static_cast<float>(tuning.dash.charges) : p->dashCharges, tuning.dash.charges);
+            hud.setHurt(hurtFlash * prefs.hitFlash);
+            hud.setDashes(world.infiniteStamina ? static_cast<float>(world.maxDashes(*p)) : p->dashCharges, world.maxDashes(*p));
+            runHud();
 
-            hud.setCenter(not p->alive() ? "You fell" : (paused ? "Paused" : ""));
+            hud.setCenter(not p->alive() ? (world.inRun() and world.run.phase != RunPhase::Defeat ? "You fell: back up next wave" : (world.inRun() ? "" : "You fell")) : (paused ? "Paused" : runCenter));
         }
         else if (client)
         {
@@ -903,7 +1015,7 @@ namespace arena
     void ArenaGame::simulate(float frameSeconds)
     {
         // Paused while the spellbook is open, playing alone (a shared game goes on)
-        if (not paused and not (bookOpen and not networked()))
+        if (not paused and not ((bookOpen or titleOpen or optionsOpen) and not networked()))
             accumulator += static_cast<double>(frameSeconds) * timeScale;
 
         int steps = 0;
@@ -921,7 +1033,7 @@ namespace arena
             {
                 std::lock_guard<std::mutex> lock(inputMutex);
 
-                if (not consoleOpen and not bookOpen)
+                if (not consoleOpen and not bookOpen and not optionsOpen)
                 {
                     glm::vec2 move(0.0f);
                     move.y += held("forward") ? 1.0f : 0.0f;
@@ -982,6 +1094,14 @@ namespace arena
 
             in.equip = pendingEquip;
             pendingEquip = 0;
+            in.pick = pendingPick;
+            pendingPick = 0;
+
+            // Choosing a boon: the number keys pick, they cast nothing
+            if (world.run.phase == RunPhase::Choosing)
+                for (int i = 0; i < InputFrame::ABILITIES; ++i)
+                    if (world.spellSlotAt(i) >= 0)
+                        in.abilityPressed[i] = false;
 
             in.cameraYaw = camera.yaw;
             in.cameraPitch = camera.pitch;
@@ -1069,6 +1189,152 @@ namespace arena
         }
     }
 
+    void ArenaGame::startArena()
+    {
+        titleOpen = false;
+        const uint32_t seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+        world.startRun(seed);
+        world.setBrain(&brain);
+        meshDirty = true;
+    }
+
+    void ArenaGame::runHud()
+    {
+        const RunState& r = world.run;
+        const Fighter* me = world.player();
+        runCenter.clear();
+
+        auto clock = [](float seconds) {
+            const int s = static_cast<int>(seconds);
+            return std::to_string(s / 60) + ":" + (s % 60 < 10 ? "0" : "") + std::to_string(s % 60);
+        };
+
+        // A run just ended: the best score
+        if (r.phase != lastPhase and (r.phase == RunPhase::Victory or r.phase == RunPhase::Defeat) and r.score > bestScore)
+        {
+            bestScore = r.score;
+            std::error_code ec;
+            std::filesystem::create_directories(std::filesystem::path(spellbookPath()).parent_path(), ec);
+            std::ofstream(std::filesystem::path(spellbookPath()).parent_path() / "best.txt") << bestScore;
+        }
+        lastPhase = r.phase;
+
+        if (titleOpen)
+        {
+            hud.setRunLine("");
+            hud.setBoss("", 0.0f, false);
+            hud.setPanel("VOXEL ARENA",
+                         "\\c{255,214,120,255}Enter\\c{236,238,242,255}   The Arena: ten waves, a boon after each,\n         the Stone Warden at the end\n\n"
+                         "\\c{255,214,120,255}T\\c{236,238,242,255}        Training ground\n"
+                         "\\c{255,214,120,255}B\\c{236,238,242,255}        Spellbook\n"
+                         "\\c{255,214,120,255}O\\c{236,238,242,255}        Options\n\n"
+                         "\\c{170,174,184,255}Best score: " + std::to_string(bestScore));
+            return;
+        }
+
+        if (not world.inRun())
+        {
+            hud.setRunLine("");
+            hud.setBoss("", 0.0f, false);
+            hud.setPanel("", "");
+            return;
+        }
+
+        hud.setRunLine("Wave " + std::to_string(r.wave) + "/" + std::to_string(r.waves) + "      " +
+                       (r.phase == RunPhase::Fighting ? std::to_string(r.enemiesLeft) + " left      " : "") +
+                       "Score " + std::to_string(r.score) + "      " + clock(r.elapsed));
+
+        // The boss's bar
+        const Fighter* boss = r.bossId ? world.find(r.bossId) : nullptr;
+        if (boss and boss->alive())
+        {
+            auto def = content.enemies.find(boss->type);
+            hud.setBoss(def != content.enemies.end() ? def->second.name : boss->type, boss->health / std::max(1.0f, boss->maxHealth), true);
+        }
+        else
+        {
+            hud.setBoss("", 0.0f, false);
+        }
+
+        switch (r.phase)
+        {
+            case RunPhase::Warn:
+            {
+                const bool bossWave = r.wave >= 1 and r.wave <= static_cast<int>(content.run.waves.size()) and not content.run.waves[static_cast<size_t>(r.wave - 1)].boss.empty();
+                hud.setPanel("", "");
+                runCenter = bossWave ? "The Stone Warden" : "Wave " + std::to_string(r.wave);
+                break;
+            }
+
+            case RunPhase::Choosing:
+            {
+                std::string body;
+
+                if (me and not me->offer.empty())
+                {
+                    body = "Pick a boon:\n\n";
+                    for (size_t i = 0; i < me->offer.size(); ++i)
+                    {
+                        auto u = content.upgrades.find(me->offer[i]);
+                        const int had = static_cast<int>(std::count(me->boons.begin(), me->boons.end(), me->offer[i]));
+                        body += "\\c{255,214,120,255}[" + std::to_string(i + 1) + "]\\c{236,238,242,255}  " + (u != content.upgrades.end() ? u->second.name : me->offer[i]) +
+                                "\\c{170,174,184,255}   " + (u != content.upgrades.end() ? u->second.text : "") + (had > 0 ? "  (have " + std::to_string(had) + ")" : "") + "\\c{236,238,242,255}\n";
+                    }
+                    body += "\n\\c{150,154,166,255}" + std::to_string(static_cast<int>(std::ceil(r.timer))) + " s";
+                }
+                else
+                {
+                    body = "Waiting for the others to pick...";
+                }
+
+                hud.setPanel("Wave " + std::to_string(r.wave) + " cleared", body);
+                break;
+            }
+
+            case RunPhase::Breather:
+                hud.setPanel("", "");
+                runCenter = "Next wave in " + std::to_string(static_cast<int>(std::ceil(r.timer)));
+                break;
+
+            case RunPhase::Victory:
+            case RunPhase::Defeat:
+            {
+                const bool won = r.phase == RunPhase::Victory;
+                hud.setPanel(won ? "Victory" : "Defeated",
+                             (won ? std::string("The Stone Warden falls.\n\n") : "At wave " + std::to_string(r.wave) + " of " + std::to_string(r.waves) + ".\n\n") +
+                             "Score  " + std::to_string(r.score) + (r.score >= bestScore and r.score > 0 ? "   \\c{255,214,120,255}best!\\c{236,238,242,255}" : "   (best " + std::to_string(bestScore) + ")") + "\n" +
+                             "Kills  " + std::to_string(r.kills) + "      Time  " + clock(r.elapsed) + "\n\n" +
+                             "\\c{255,214,120,255}Enter\\c{236,238,242,255}  play again" + (client ? "" : "      \\c{255,214,120,255}T\\c{236,238,242,255}  training"));
+                break;
+            }
+
+            default:
+                hud.setPanel("", "");
+                break;
+        }
+    }
+
+    void ArenaGame::setOptionsOpen(bool open)
+    {
+        optionsOpen = open;
+        optionsScreen.setOpen(open);
+
+        if (open)
+            optionsScreen.refresh(prefs);
+    }
+
+    void ArenaGame::applyOptions()
+    {
+        camera.shakeScale = prefs.shake;
+        showOverlay = prefs.overlay;
+        ecsRef->sendEvent(SetMasterVolume{prefs.volume});
+
+        if (firstPerson != prefs.firstPerson)
+            setFirstPerson(prefs.firstPerson);
+        else
+            masterRenderer->getCamera().setFovDegrees(fov());
+    }
+
     void ArenaGame::applySpells()
     {
         if (client)
@@ -1097,6 +1363,10 @@ namespace arena
 
     void ArenaGame::playEvent(const WorldEvent& e)
     {
+        // A run's spawn points, shown until the enemies come out
+        if (e.kind == "spawn_warn" or e.kind == "boss_warn")
+            spawnMarks.push_back({e.position, e.strength, e.kind == "boss_warn"});
+
         // A block set alight burns for `strength` seconds: flames until then (or until it is gone)
         if (e.kind == "ignite")
             burningLooks.push_back({glm::ivec3(glm::floor(e.position)), e.strength, 0.0f});
@@ -1209,6 +1479,11 @@ namespace arena
             }
         }
 
+        // Spawn points: shown until they come out (or the run moved on)
+        for (auto& m : spawnMarks)
+            m.left -= frameSeconds;
+        spawnMarks.erase(std::remove_if(spawnMarks.begin(), spawnMarks.end(), [&](const SpawnMark& m) { return m.left <= 0.0f or world.run.phase != RunPhase::Warn; }), spawnMarks.end());
+
         // Blocks on fire: flames over them
         auto flames = effects.find("burning");
 
@@ -1300,6 +1575,9 @@ namespace arena
             zoom = wheel;
             lookDx = lookDy = wheel = 0.0f;
         }
+
+        dx *= prefs.sensitivity;
+        dy *= prefs.sensitivity * (prefs.invertY ? -1.0f : 1.0f);
 
         if (cursorLocked and not consoleOpen and mouseLook)
         {
@@ -1620,6 +1898,12 @@ namespace arena
 
     void ArenaGame::remeshIfNeeded()
     {
+        if (world.arenaBuilds != meshedArenaBuilds)
+        {
+            meshedArenaBuilds = world.arenaBuilds;
+            meshDirty = true;
+        }
+
         if (not meshDirty and world.grid.revision() == meshedRevision and world.terrain.revision() == meshedTerrainRevision)
             return;
 
@@ -1878,7 +2162,7 @@ namespace arena
                     // can hit (and a moment after), so the reach and the arc of the attack read at a glance
                     constexpr float TRAIL = 5.0f;
 
-                    if (attack and frame >= static_cast<float>(attack->startup) and frame < static_cast<float>(attack->startup + attack->active + 2))
+                    if (prefs.trails and attack and frame >= static_cast<float>(attack->startup) and frame < static_cast<float>(attack->startup + attack->active + 2))
                     {
                         const VoxelModel& wm = *weaponModel->second;
                         const float bladeFrom = weapon.grip.z + 1.0f;
@@ -1941,6 +2225,17 @@ namespace arena
                                     glm::scale(glm::mat4(1.0f), glm::vec3(side, 0.03f, side)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0, -0.5f));
                 pushInstance(danger, view, m, glm::vec4(tint, 0.1f * fade), glm::vec4(0.0f));
             }
+        }
+
+        // A run's spawn points while they are warned of: a red column, pulsing, over a patch of ground
+        for (const auto& m : spawnMarks)
+        {
+            const float size = m.boss ? 2.4f : 1.0f, pulse = 0.5f + 0.5f * std::sin(simTime * 12.0f);
+            const glm::vec4 colour = m.boss ? glm::vec4(0.75f, 0.2f, 1.0f, 0.35f + 0.2f * pulse) : glm::vec4(1.0f, 0.2f, 0.15f, 0.3f + 0.2f * pulse);
+            const glm::mat4 column = glm::translate(glm::mat4(1.0f), m.position) * glm::scale(glm::mat4(1.0f), glm::vec3(size * 0.5f, 3.0f, size * 0.5f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0, -0.5f));
+            const glm::mat4 patch = glm::translate(glm::mat4(1.0f), m.position + glm::vec3(0, 0.03f, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(size * 1.6f, 0.04f, size * 1.6f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0, -0.5f));
+            pushInstance(danger, view, column, colour, glm::vec4(0.0f));
+            pushInstance(danger, view, patch, colour * glm::vec4(1, 1, 1, 0.8f), glm::vec4(0.0f));
         }
 
         add(boxMesh, debugMaterial, OpacityType::Normal, std::move(trail));
@@ -2166,7 +2461,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | training | wave <n> | options | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -2268,6 +2563,40 @@ namespace arena
             return netStatus();
 
         // Spells: the player's own, so a client may change them too
+        if (cmd == "arena")
+        {
+            if (client)
+                return "arena: the host starts the run (Enter at the end of one plays again)";
+
+            startArena();
+            return "the arena: wave 1";
+        }
+
+        if (cmd == "wave")
+        {
+            if (not world.inRun() or args.size() < 2)
+                return "wave <n>: straight to a wave of the run (start one with: arena)";
+
+            world.skipToWave(std::atoi(args[1].c_str()));
+            return "wave " + std::to_string(world.run.wave);
+        }
+
+        if (cmd == "training")
+        {
+            if (client)
+                return "training: only the host can do that";
+
+            titleOpen = false;
+            world.stopRun();
+            return runCommand("reset");
+        }
+
+        if (cmd == "options")
+        {
+            setOptionsOpen(not optionsOpen);
+            return "";
+        }
+
         if (cmd == "spellbook")
         {
             setBookOpen(not bookOpen);
@@ -2345,7 +2674,7 @@ namespace arena
 
         // The world belongs to the server: a client asking to change it would only change its own view
         if (client and (cmd == "reload" or cmd == "spawn" or cmd == "clear" or cmd == "reset" or cmd == "place" or cmd == "fill" or
-                        cmd == "god" or cmd == "stamina" or cmd == "mana" or cmd == "ai" or cmd == "tune" or cmd == "teleport" or cmd == "pause" or
+                        cmd == "god" or cmd == "stamina" or cmd == "mana" or cmd == "ai" or cmd == "tune" or cmd == "wave" or cmd == "teleport" or cmd == "pause" or
                         cmd == "step" or cmd == "slowmo"))
             return cmd + ": only the host can do that";
 

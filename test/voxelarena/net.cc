@@ -518,6 +518,84 @@ TEST(arena_net, a_clients_own_spells_reach_the_server_and_its_zones_come_back)
     EXPECT_LT(glm::length(a.world.zones[0].position - s.serverWorld.zones[0].position), 0.01f);
 }
 
+TEST(arena_net, the_run_plays_for_every_client_and_each_picks_a_boon)
+{
+    Session s(30.0);
+    auto& a = s.join("a");
+    auto& b = s.join("b");
+    s.run(40);
+
+    s.content.run.centre = glm::vec3(16, 1, 18);
+    s.content.run.spawnRadius = 6.0f;
+    WaveDef one;
+    one.enemies.emplace_back("base:skulker", glm::ivec2(1));
+    s.content.run.waves = {one, one};
+    s.serverWorld.startRun(5);
+    s.run(10);
+
+    // Both see the run
+    EXPECT_EQ(a.world.run.phase, RunPhase::Warn);
+    EXPECT_EQ(b.world.run.wave, 1);
+
+    // Two players: more enemies (coopScale)
+    s.run(static_cast<int>(s.content.run.warn * 60.0f) + 10);
+    int enemies = 0;
+    for (const auto& f : s.serverWorld.fighters)
+        enemies += f.team == Team::Enemy ? 1 : 0;
+    EXPECT_EQ(enemies, static_cast<int>(std::lround(1.0f * (1.0f + s.content.run.coopScale))));
+
+    // Cleared: each gets their own offer, and picks
+    s.serverWorld.removeEnemies();
+    s.run(10);
+    ASSERT_EQ(a.world.run.phase, RunPhase::Choosing);
+    ASSERT_FALSE(s.clientPlayer(a)->offer.empty());
+    const std::string wanted = s.clientPlayer(a)->offer[0];
+
+    a.input.pick = 1;
+    s.tick();
+    a.input.pick = 0;
+    s.run(10);
+    EXPECT_EQ(s.serverPlayer(a)->boons, std::vector<std::string>{wanted});
+    EXPECT_EQ(s.clientPlayer(a)->boons, std::vector<std::string>{wanted});
+    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Choosing);   // b has not picked yet
+
+    b.input.pick = 2;
+    s.tick();
+    b.input.pick = 0;
+    s.run(10);
+    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Breather);
+}
+
+TEST(arena_net, a_client_gets_the_runs_arena_and_each_reset)
+{
+    Session s(30.0);
+    auto& a = s.join("a");
+    s.run(40);
+
+    WaveDef one;
+    one.enemies.emplace_back("base:skulker", glm::ivec2(1));
+    s.content.run.waves = {one, one};
+    s.serverWorld.startRun(5);
+    s.run(15);
+
+    // The run's own arena, its size and all
+    const glm::ivec3 size = s.content.run.arena.size;
+    EXPECT_EQ(glm::ivec3(a.world.grid.width(), a.world.grid.height(), a.world.grid.depth()), size);
+    EXPECT_EQ(a.world.grid.raw(), s.serverWorld.grid.raw());
+
+    // A pillar broken, then the next wave: whole again for the client too
+    const glm::ivec3 pillar(9, 5, 13);
+    const BlockId stone = s.serverWorld.grid.get(pillar.x, pillar.y, pillar.z);
+    s.serverWorld.terrain.damage(pillar, 1e6f);
+    s.run(10);
+    EXPECT_EQ(a.world.grid.get(pillar.x, pillar.y, pillar.z), AIR);
+
+    s.serverWorld.skipToWave(2);
+    s.run(10);
+    EXPECT_EQ(a.world.grid.get(pillar.x, pillar.y, pillar.z), stone);
+    EXPECT_EQ(a.world.grid.raw(), s.serverWorld.grid.raw());
+}
+
 TEST(arena_net, terrain_changes_reach_every_client)
 {
     Session s(30.0);

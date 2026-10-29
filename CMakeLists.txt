@@ -1720,6 +1720,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Core/terrain.cpp
             examples/VoxelArena/Core/effects.cpp
             examples/VoxelArena/Core/spells.cpp
+            examples/VoxelArena/Core/run.cpp
             examples/VoxelArena/Core/net/protocol.cpp
             examples/VoxelArena/Core/net/loopback.cpp
             examples/VoxelArena/Core/net/server.cpp
@@ -1736,6 +1737,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Game/soundbank.cpp
             examples/VoxelArena/Game/particles.cpp
             examples/VoxelArena/Game/spellbook.cpp
+            examples/VoxelArena/Game/options.cpp
             examples/VoxelArena/Net/enginetransport.cpp
             ${VOXELARENA_CORE}
         )
@@ -1764,6 +1766,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/voxelarena/effects.cc
             test/voxelarena/net.cc
             test/voxelarena/moveset.cc
+            test/voxelarena/run.cc
             examples/VoxelTest/voxelserializer.cpp   # the editor's .vxl.json loader, to check the models stay editable
             ${VOXELARENA_CORE}
         )

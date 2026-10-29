@@ -1,0 +1,86 @@
+// The Stone Warden, the arena's boss: huge, slow, armored through its attacks, every one of them heavy
+// and told in red. Its core hums with charge: volt cracks it (1.5 times the damage), fire barely warms
+// it. Under half its health it gets angry: shorter rests, and it sweeps.
+//   slam: overhead, breaks the ground. sweep: all around it, roll through or get out. charge: a long,
+//   fast rush that smashes walls; step aside. throw: a rock lobbed at you when you keep away.
+{
+    "name": "Stone Warden",
+    "model": "warden",
+    "modelScale": 0.125,
+    "size": [1.8, 3.0],
+
+    "health": 900,
+    "poise": 140,
+    "poiseRegenDelay": 3.0,
+    "staggerFrames": 45,
+    "knockbackScale": 0.15,
+
+    "walkSpeed": 2.6,
+    "turnSpeed": 140,
+    "respawnSeconds": 6,
+
+    "boss": true,
+    "score": 300,
+    "weakness": { "volt": 1.5, "fire": 0.6 },
+
+    "script": "warden",
+    "params": {
+        "engageRange": 40,
+        "slamRange": 3.2,
+        "sweepRange": 2.8,
+        "chargeMin": 6,
+        "chargeMax": 14,
+        "throwMin": 9,
+        "cooldown": 1.6,
+        "backOffTime": 1.0,
+        "angryAt": 0.5
+    },
+
+    "moveset": {
+        "attacks": {
+            "slam": {
+                "tell": "heavy",
+                "startup": 40, "active": 6, "recovery": 40,
+                "damage": 30, "poiseDamage": 40, "armor": 60,
+                "knockback": 9, "knockup": 5, "hitstop": 6, "shake": 0.8,
+                "terrainDamage": 120,
+                "turnRate": 2.5,
+                "hitboxes": [ { "offset": [0, 1.2, 1.9], "size": [2.6, 2.4, 2.8] } ],
+                "lunge": 6, "lungeFrom": 34, "lungeTo": 42,
+                "swing": { "pitchFrom": -25, "pitchTo": 35 }
+            },
+            "sweep": {
+                "tell": "heavy",
+                "startup": 34, "active": 8, "recovery": 36,
+                "damage": 24, "poiseDamage": 30, "armor": 60,
+                "knockback": 10, "hitstop": 5, "shake": 0.6,
+                "hitboxes": [ { "offset": [0, 1.0, 0.0], "size": [6.0, 1.6, 6.0] } ],
+                "turn": { "yaw": 360, "from": 34, "to": 44 },
+                "swing": { "pitch": 10 }
+            },
+            "charge": {
+                "tell": "heavy",
+                "startup": 30, "active": 22, "recovery": 34,
+                "damage": 22, "poiseDamage": 40, "armor": 80,
+                "knockback": 12, "knockup": 3, "hitstop": 5, "shake": 0.6,
+                "terrainDamage": 60,
+                "turnRate": 3,
+                "hitboxes": [ { "offset": [0, 1.4, 1.3], "size": [2.2, 2.4, 1.8] } ],
+                "lunge": 15, "lungeFrom": 30, "lungeTo": 52, "dash": true,
+                "swing": { "pitch": 25 }
+            },
+            "throw": {
+                "startup": 32, "active": 1, "recovery": 30,
+                "turnRate": 3,
+                "swing": { "pitchFrom": -30, "pitchTo": 20 },
+                "projectile": {
+                    "speed": 20, "gravity": 9, "radius": 0.45, "lifetime": 3, "lead": 0.6,
+                    "damage": 18, "poiseDamage": 20, "knockback": 6, "terrainDamage": 40, "hitstop": 4, "shake": 0.4,
+                    "burst": 1.4,
+                    "spawn": [0, 2.8, 0.8],
+                    "model": "rock", "modelScale": 0.125
+                }
+            }
+        }
+    }
+}

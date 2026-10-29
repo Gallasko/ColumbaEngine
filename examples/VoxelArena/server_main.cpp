@@ -73,6 +73,7 @@ int main(int argc, char* argv[])
     arena::ArenaWorld world;
     world.start(content, tuning, false);
     world.setBrain(&brain);
+    world.runOnRequest = true;   // a player's Enter starts the arena run
 
     pg::NetworkConfig net;
     net.isServer = true;

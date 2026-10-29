@@ -1,0 +1,15 @@
+// The boons of an arena run: after each wave, pick one of three. Their numbers add up with each pick
+// (most: how many times one can be picked in a run). damage 0.15 is 15% more, manaCost 0.15 is 15%
+// cheaper spells, cooldown 0.2 is 20% shorter skill and spell cooldowns, speed 0.08 is 8% faster.
+{
+    "tough":      { "name": "Tough",        "text": "+25 max health",                     "maxHealth": 25, "most": 4 },
+    "keen":       { "name": "Keen edge",    "text": "+15% damage",                         "damage": 0.15, "most": 4 },
+    "nimble":     { "name": "Nimble",       "text": "+1 dash charge",                      "dashCharges": 1, "most": 2 },
+    "focus":      { "name": "Focus",        "text": "Spells cost 15% less",                "manaCost": 0.15, "most": 3 },
+    "wellspring": { "name": "Wellspring",   "text": "+40% mana regeneration",              "manaRegen": 0.4, "most": 3 },
+    "second_wind":{ "name": "Second wind",  "text": "+35% stamina regeneration",           "staminaRegen": 0.35, "most": 3 },
+    "swift":      { "name": "Swift",        "text": "+8% move speed",                      "speed": 0.08, "most": 3 },
+    "quick":      { "name": "Quick hands",  "text": "Skills and spells recharge 20% faster", "cooldown": 0.2, "most": 2 },
+    "leech":      { "name": "Leech",        "text": "Heal 2 on every hit",                 "lifeOnHit": 2, "most": 3 },
+    "potent":     { "name": "Potent",       "text": "Your statuses land 1 stack deeper",  "statusStacks": 1, "most": 2 }
+}

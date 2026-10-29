@@ -11,7 +11,7 @@
 namespace arena::net
 {
     /** Bumped when messages change shape: a client and server of different versions refuse each other. */
-    constexpr uint16_t PROTOCOL_VERSION = 8;
+    constexpr uint16_t PROTOCOL_VERSION = 9;
 
     /** The server sends a snapshot every this many steps (60 / 2 = 30 per second). */
     constexpr int SNAPSHOT_EVERY = 2;
@@ -118,6 +118,7 @@ namespace arena::net
         std::vector<PieceState> pieces;
         std::vector<ZoneState> zones;
         std::vector<WorldEvent> events;
+        RunState run;                  // the arena run, as it stands (without what only the server needs)
     };
 
     struct TerrainDeltaMsg

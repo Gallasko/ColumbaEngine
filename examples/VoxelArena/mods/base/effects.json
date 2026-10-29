@@ -54,6 +54,15 @@
     "ice_beam":   { "sound": "ice_cast",   "particles": { "count": 40, "speed": 0.5, "up": 0.0, "size": 0.08, "life": 0.4,  "gravity": 2,  "color": [210, 240, 255] }, "along": true },
     "volt_beam":  { "sound": "volt",       "particles": { "count": 48, "speed": 0.9, "up": 0.0, "size": 0.09, "life": 0.28, "gravity": 0,  "color": [255, 250, 170] }, "along": true },
 
+    // The arena run
+    "spawn":       { "sound": "raise", "particles": { "count": 22, "speed": 3,   "up": 0.8, "size": 0.14, "life": 0.7, "gravity": 8,  "color": [200, 60, 50] } },
+    "boss_spawn":  { "sound": "boom",  "particles": { "count": 60, "speed": 6,   "up": 0.7, "size": 0.2,  "life": 1.0, "gravity": 8,  "color": [170, 80, 220] }, "shake": 0.8 },
+    "wave_clear":  { "sound": "air_jump" },
+    "boon":        { "sound": "ice_cast", "particles": { "count": 24, "speed": 2, "up": 0.9, "size": 0.08, "life": 0.8, "gravity": -2, "color": [255, 214, 120] } },
+    "run_victory": { "sound": "freeze" },
+    "run_defeat":  { "sound": "kill" },
+    "run_start":   { "sound": "raise" },
+
     // How a spell's zone looks, by element: the disc's tint, and particles over it every so often
     "zone:fire":   { "tint": [255, 110, 30],  "every": 0.04, "particles": { "count": 1, "speed": 0.6, "up": 1.0, "size": 0.12, "life": 0.6, "gravity": -3, "color": [255, 140, 40] } },
     "zone:ice":    { "tint": [150, 210, 255], "every": 0.07, "particles": { "count": 1, "speed": 0.3, "up": 1.0, "size": 0.08, "life": 0.9, "gravity": -0.5, "color": [230, 245, 255] } },

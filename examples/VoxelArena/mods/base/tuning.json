@@ -146,7 +146,9 @@
         "ability7": ["3"],
         "ability8": ["4"],
         "crouch": ["Left Ctrl", "C"],
-        "nextWeapon": ["Tab"]
+        "nextWeapon": ["Tab"],
+        "spellbook": ["B"],
+        "options": ["O"]
     },
 
     // In the air: a double jump, a jump off a wall you touch, an air dash (Shift; about to land, within
@@ -176,7 +178,7 @@
     // Spells spend mana, not stamina: casting never stops a roll
     "mana": {
         "max": 100,
-        "regen": 10,
+        "regen": 7,
         "regenDelay": 1.0
     },
 

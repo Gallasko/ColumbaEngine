@@ -19,6 +19,9 @@
     "turnSpeed": 220,
     "respawnSeconds": 4,
 
+    "score": 30,
+    "weakness": { "volt": 1.3, "fire": 0.8 },
+
     "script": "brute",
     "params": {
         "engageRange": 14,

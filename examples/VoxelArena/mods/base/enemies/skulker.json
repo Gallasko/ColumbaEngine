@@ -17,6 +17,9 @@
     "turnSpeed": 600,
     "respawnSeconds": 5,
 
+    "score": 10,
+    "weakness": { "fire": 1.4 },
+
     "script": "skulker",
     "params": {
         "engageRange": 22,

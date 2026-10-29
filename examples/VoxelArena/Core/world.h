@@ -54,6 +54,10 @@ namespace arena
         /** 1..n: wield the n-th weapon (content load order) from this step on; 0: keep the one held. */
         int equip = 0;
 
+        /** The arena run: 1..3 picks the boon offered, START (any player) starts a run or plays again. */
+        int pick = 0;
+        static constexpr int START = 9;
+
         static constexpr int ABILITIES = 8;
         bool abilityPressed[ABILITIES] = {};
         bool abilityHeld[ABILITIES] = {};
@@ -102,6 +106,17 @@ namespace arena
 
         /** The spells on the spell keys (abilities "spell:1".."spell:3"): recipes the player made or picked. */
         std::vector<SpellRecipe> spells;
+
+        // The arena run: the boons picked (ids, in order), what they add up to, and the ones offered now
+        std::vector<std::string> boons;
+        struct Boons
+        {
+            float maxHealth = 0.0f, damage = 0.0f, manaCost = 0.0f, manaRegen = 0.0f, staminaRegen = 0.0f;
+            float speed = 0.0f, cooldown = 0.0f, lifeOnHit = 0.0f;
+            int dashCharges = 0, statusStacks = 0;
+        } boon;
+        std::vector<std::string> offer;
+        bool gone = false;            // a dead enemy of a run: taken out of the arena at the end of the step
 
         // In the air: what was used since the last landing, and a wall jump's push not to steer against
         int airJumpsUsed = 0;
@@ -234,6 +249,31 @@ namespace arena
         float tick = 0.0f;
         std::shared_ptr<const Spell> spell;
         int stage = 0;
+    };
+
+    /** Where the arena run is (see ArenaWorld::startRun). */
+    enum class RunPhase { Off, Warn, Fighting, Choosing, Breather, Victory, Defeat };
+
+    struct RunState
+    {
+        RunPhase phase = RunPhase::Off;
+        int wave = 0;                 // 1-based, the current or last one
+        int waves = 0;
+        float timer = 0.0f;           // s left in this phase (warn, choosing, breather)
+        float elapsed = 0.0f;         // s of the run so far
+        int score = 0;
+        int kills = 0;
+        int enemiesLeft = 0;
+        int bossId = 0;
+        uint32_t seed = 1;
+
+        struct Spawn
+        {
+            std::string enemy;
+            glm::vec3 position;
+            bool boss = false;
+        };
+        std::vector<Spawn> pending;   // shown during the warning, then they come out
     };
 
     struct HitEvent
@@ -376,6 +416,29 @@ namespace arena
 
         std::vector<Zone> zones;
 
+        // ---- The arena run: waves (run.json), boons between them, a boss, a score ----
+        RunState run;
+        /** A run from the start: a fresh arena, the players as new, wave 1. */
+        void startRun(uint32_t seed);
+        /** Training: no run (the arena's own enemies, respawning). */
+        void stopRun();
+        /** Testing: straight to a wave of the run (the enemies now in the arena go). */
+        void skipToWave(int wave);
+        bool inRun() const { return run.phase != RunPhase::Off; }
+        /** A player's START begins a run even outside one (a dedicated server: there is no title there). */
+        bool runOnRequest = false;
+
+        /** The arena being played: the run's own during a run (run.json "arena"), else arena.json. */
+        const ArenaDef& arena() const { return useRunArena and content->run.hasArena ? content->run.arena : content->arena; }
+        bool useRunArena = false;
+        /** Goes up each time the arena is built anew: a server sends it whole, the game meshes it again. */
+        int arenaBuilds = 0;
+        /** Each player's place in the arena (a row across its spawn point). */
+        void placePlayers();
+        /** What a fighter's boons add up to (from its list: a client works it out the same way). */
+        void sumBoons(Fighter& f) const;
+        int maxDashes(const Fighter& f) const { return tuning.dash.charges + f.boon.dashCharges; }
+
         /** Puts a status on a fighter (stacks add up to its maxStacks): what a hit with one does. */
         void applyStatus(Fighter& target, const std::string& id, int stacks = 1);
         const Moveset* movesetOf(const Fighter& f) const;
@@ -451,6 +514,12 @@ namespace arena
         void hitAround(const AttackDef& hit, const glm::vec3& centre, float radius, int owner, Team team, bool flat);
         void chainFrom(const AttackDef& hit, Fighter& first, int chains, int owner, Team team, Element element);
         void stepZones();
+        void rideFallingPieces();
+        void stepRun(const std::map<int, InputFrame>& inputs);
+        void beginWave(int wave);
+        void offerBoons();
+        void takeBoon(Fighter& f, const std::string& id);
+        uint32_t runRandom();
         mutable std::map<std::string, std::shared_ptr<const Spell>> spellCache;
         int nextZone = 1;
         void impact(const Projectile& p, const glm::vec3& point, Fighter* struck, const RayHit* wall);

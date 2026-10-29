@@ -80,6 +80,48 @@ namespace arena
         }
     }
 
+    void Hud::setRunLine(const std::string& t)
+    {
+        if (t == lastRunLine)
+            return;
+
+        lastRunLine = t;
+        text(runLine, t);
+    }
+
+    void Hud::setPanel(const std::string& title, const std::string& body)
+    {
+        const std::string key = title + "\n" + body;
+
+        if (key == lastPanel)
+            return;
+
+        lastPanel = key;
+        const bool visible = not title.empty() or not body.empty();
+
+        for (auto id : {panelBack, panelTitle, panelBody})
+            show(id, visible);
+
+        text(panelTitle, title);
+        text(panelBody, body);
+    }
+
+    void Hud::setBoss(const std::string& name, float health, bool visible)
+    {
+        const float value = visible ? glm::clamp(health, 0.0f, 1.0f) : -1.0f;
+
+        if (std::fabs(value - lastBoss) < 0.002f)
+            return;
+
+        lastBoss = value;
+
+        for (auto id : {bossName, bossBack})
+            show(id, visible);
+
+        text(bossName, name);
+        place(bossFill, w * 0.5f - 200.0f, 72, 400.0f * std::max(0.0f, value), 10.0f, visible and value > 0.0f);
+    }
+
     void Hud::setHurt(float amount)
     {
         amount = glm::clamp(amount, 0.0f, 1.0f);
@@ -157,6 +199,18 @@ namespace arena
         // Over the world, under the rest of the HUD
         hurt = makeQuad(0, 0, 0, w, h, glm::vec4(200, 30, 24, 0));
         show(hurt, false);
+
+        // The run: its line at the top, its panel in the middle, the boss's bar
+        runLine = makeText(w * 0.5f - 260.0f, 14, 3, FONT, "", 1.0f, TEXT);
+        panelBack = makeQuad(w * 0.5f - 330.0f, h * 0.5f - 170.0f, 4, 660.0f, 300.0f, glm::vec4(12, 14, 22, 225));
+        panelTitle = makeText(w * 0.5f - 300.0f, h * 0.5f - 150.0f, 5, FONT, "", 1.8f, TEXT);
+        panelBody = makeText(w * 0.5f - 300.0f, h * 0.5f - 80.0f, 5, FONT, "", 1.0f, TEXT);
+        bossName = makeText(w * 0.5f - 200.0f, 48, 3, FONT, "", 0.9f, glm::vec4(255, 210, 200, 255));
+        bossBack = makeQuad(w * 0.5f - 200.0f, 72, 2, 400.0f, 10.0f, PANEL);
+        bossFill = makeQuad(w * 0.5f - 200.0f, 72, 3, 400.0f, 10.0f, glm::vec4(200, 60, 52, 255));
+
+        for (auto id : {panelBack, panelTitle, panelBody, bossName, bossBack, bossFill})
+            show(id, false);
 
         consoleBack = makeQuad(0, h - 230.0f, 5, w, 230.0f, glm::vec4(8, 10, 16, 220));
         consoleText = makeText(12, h - 222.0f, 6, MONO, "", 0.8f, TEXT);

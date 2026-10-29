@@ -40,6 +40,12 @@ namespace arena
         /** A red wash over the screen, 0 (none) to 1: being hit. */
         void setHurt(float amount);
 
+        /** The arena run: a line at the top (wave, score), a panel in the middle (the title, the boons
+         *  to pick, the end of a run: "" hides it), and the boss's bar. */
+        void setRunLine(const std::string& text);
+        void setPanel(const std::string& title, const std::string& body);
+        void setBoss(const std::string& name, float health, bool visible);
+
         /** One bar per entry, screen pixels; extra bars are hidden. */
         struct EnemyBar
         {
@@ -70,6 +76,9 @@ namespace arena
         pg::_unique_id healthBack = 0, healthFill = 0, staminaBack = 0, staminaFill = 0, manaBack = 0, manaFill = 0;
         pg::_unique_id crossH = 0, crossV = 0;
         pg::_unique_id hurt = 0;
+        pg::_unique_id runLine = 0, panelBack = 0, panelTitle = 0, panelBody = 0, bossName = 0, bossBack = 0, bossFill = 0;
+        std::string lastRunLine, lastPanel;
+        float lastBoss = -2.0f;
         std::vector<pg::_unique_id> dashBack, dashFill;
         float lastDashes = -1.0f;
         float lastHurt = -1.0f;

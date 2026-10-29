@@ -25,6 +25,7 @@
 
 #include "Core/effects.h"
 #include "spellbook.h"
+#include "options.h"
 
 #include "gpumesh.h"
 #include "hud.h"
@@ -136,7 +137,7 @@ namespace arena
         OrbitCamera camera;
         bool firstPerson = true;           // the default view; F (or V) switches, see setFirstPerson
         void setFirstPerson(bool on);
-        float fov() const { return firstPerson ? tuning.firstPerson.fov : tuning.camera.fov; }
+        float fov() const { return (firstPerson ? tuning.firstPerson.fov : tuning.camera.fov) + prefs.fovOffset; }
 
         // Rendering
         size_t litMaterial = 0, skyMaterial = 0, debugMaterial = 0;
@@ -155,6 +156,7 @@ namespace arena
         std::string abilityLine() const;
         std::string keyName(const std::string& action) const;   // the first key bound to an action, for the HUD
         bool meshDirty = true;
+        int meshedArenaBuilds = -1;   // the world's arena builds already meshed (a new grid starts its revisions over)
         float aspect = 16.0f / 9.0f;
         float screenW = 1280.0f, screenH = 720.0f;
 
@@ -199,7 +201,7 @@ namespace arena
         int warpPendingX = -1, warpPendingY = -1;
 
         // Debug
-        bool showOverlay = true;
+        bool showOverlay = false;   // F1
         bool showBoxes = false;
         bool consoleOpen = false;
         std::string consoleLine;
@@ -271,6 +273,30 @@ namespace arena
         void setBookOpen(bool open);
         void applySpells();                  // the book's spells onto the player (or to the server)
         void bookChanged(bool spellsChanged);
+
+        // The options (O): kept between runs
+        GameOptions prefs;
+        OptionsScreen optionsScreen;
+        bool optionsOpen = false;
+        std::vector<glm::vec2> optionsClicks;
+        void setOptionsOpen(bool open);
+        void applyOptions();
+
+        // The arena run: the title screen, a pick waiting for the next step, the best score
+        bool titleOpen = false;
+        int pendingPick = 0;
+        RunPhase lastPhase = RunPhase::Off;
+        int bestScore = 0;
+        void startArena();
+        void runHud();
+        struct SpawnMark
+        {
+            glm::vec3 position;
+            float left = 0.0f;
+            bool boss = false;
+        };
+        std::vector<SpawnMark> spawnMarks;
+        std::string runCenter;   // the run's word in the middle of the screen ("Wave 3")
 
         // Limbs: a walk cycle per fighter
         struct Gait

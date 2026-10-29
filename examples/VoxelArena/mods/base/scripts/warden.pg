@@ -1,0 +1,62 @@
+// The Stone Warden's brain (see brute.pg for what the game puts in `me` and what it reads back).
+// Close: a slam in front, a sweep all around once it is angry. Middle: a charge. Far: a rock.
+// Under `angryAt` of its health it rests less between attacks.
+
+import "math"
+import "random"
+
+fun think(me)
+{
+    var p = me.params
+
+    if (me.side == none)
+    {
+        me.side = 1
+    }
+
+    var angry = me.hp < me.maxHp * p.angryAt
+    var rest = p.cooldown
+
+    if (angry)
+    {
+        rest = p.cooldown * 0.55
+    }
+
+    if (me.distance > p.engageRange)
+    {
+        me.move = "hold"
+    }
+    else if (me.sinceAttack < p.backOffTime)
+    {
+        me.move = "strafe"
+        me.strafe = me.side
+        me.speed = 0.5
+    }
+    else if (me.sinceAttack < rest)
+    {
+        me.move = "chase"
+        me.speed = 0.8
+    }
+    else if (me.distance <= p.sweepRange and angry and random() < 0.6)
+    {
+        me.attack = "sweep"
+        me.side = -me.side
+    }
+    else if (me.distance <= p.slamRange and abs(me.angle) < 35)
+    {
+        me.attack = "slam"
+    }
+    else if (me.distance >= p.chargeMin and me.distance <= p.chargeMax and abs(me.angle) < 20)
+    {
+        me.attack = "charge"
+    }
+    else if (me.distance > p.throwMin and abs(me.angle) < 25 and random() < 0.5)
+    {
+        me.attack = "throw"
+    }
+    else
+    {
+        me.move = "chase"
+        me.speed = 1.1
+    }
+}

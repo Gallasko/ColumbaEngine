@@ -72,6 +72,7 @@ namespace arena::net
         std::map<int, Client> clients;
         std::vector<std::pair<uint32_t, BlockId>> gridLog;
         std::vector<uint32_t> damageLog;
+        int sentArenaBuilds = -1;   // the arena's builds already sent whole
         std::vector<WorldEvent> events;   // since the last snapshot
         std::set<int> knownPieces;
         int stepsSinceSnapshot = 0;

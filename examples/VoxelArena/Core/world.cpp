@@ -113,6 +113,8 @@ namespace arena
         hits.clear();
         zones.clear();
         spellCache.clear();
+        useRunArena = false;
+        run = RunState{};
         time = 0.0f;
         steps = 0;
 
@@ -174,9 +176,26 @@ namespace arena
         }), fighters.end());
     }
 
+    void ArenaWorld::placePlayers()
+    {
+        int k = 0;
+
+        for (auto& f : fighters)
+        {
+            if (f.team != Team::Player)
+                continue;
+
+            // In a row across the spawn point (right, left, further right...), so nobody stands in front of anyone
+            const float side = static_cast<float>((k + 1) / 2) * (k % 2 == 1 ? -1.0f : 1.0f);
+            f.spawnPosition = arena().playerSpawn + glm::vec3(side * 1.8f, 0.0f, 0.0f);
+            ++k;
+        }
+    }
+
     void ArenaWorld::buildArena()
     {
-        const ArenaDef& a = content->arena;
+        const ArenaDef& a = arena();
+        ++arenaBuilds;
         grid = VoxelGrid(a.size.x, a.size.y, a.size.z);
         terrain.reset(&grid, &content->blockTable);
 
@@ -247,7 +266,7 @@ namespace arena
 
         // In a row across the spawn point (right, left, further right...), so nobody stands in front of anyone
         const float side = static_cast<float>((count + 1) / 2) * (count % 2 == 1 ? -1.0f : 1.0f);
-        p.spawnPosition = content->arena.playerSpawn + glm::vec3(side * 1.8f, 0.0f, 0.0f);
+        p.spawnPosition = arena().playerSpawn + glm::vec3(side * 1.8f, 0.0f, 0.0f);
         p.spawnYaw = 0.0f;
         p.weapon = content->weapons.count(tuning.startWeapon) ? tuning.startWeapon : (content->weaponOrder.empty() ? "" : content->weaponOrder.front());
         // The spells to begin with: the tuning's ready-made ones
@@ -371,7 +390,7 @@ namespace arena
     {
         if (f.team == Team::Player)
         {
-            f.maxHealth = tuning.player.health;
+            f.maxHealth = tuning.player.health + f.boon.maxHealth;
             f.maxPoise = tuning.player.poise;
             f.body.width = tuning.player.width;
             f.body.height = tuning.player.height;
@@ -399,7 +418,7 @@ namespace arena
         f.push = glm::vec3(0.0f);
         f.mana = tuning.mana.max;
         f.manaDelay = 0.0f;
-        f.dashCharges = static_cast<float>(tuning.dash.charges);
+        f.dashCharges = static_cast<float>(maxDashes(f));
         f.statuses.clear();
         f.airJumpsUsed = f.airDashesUsed = f.wallLock = 0;
         f.body.position = f.spawnPosition;
@@ -443,6 +462,9 @@ namespace arena
                     stepPlayer(f, it->second);
             }
 
+            // The pieces the server says are falling carry the predicted player as they do on the server
+            rideFallingPieces();
+
             time += STEP_SECONDS;
             ++steps;
             return;
@@ -465,6 +487,12 @@ namespace arena
         fireProjectiles();
         stepProjectiles();
         stepZones();
+
+        if (inRun() or runOnRequest)
+            stepRun(inputs);
+
+        // A run's dead enemies leave the arena
+        fighters.erase(std::remove_if(fighters.begin(), fighters.end(), [](const Fighter& f) { return f.gone; }), fighters.end());
         resolvePendingHits();
         resolveHits();
         terrainFromAttacks();
@@ -506,7 +534,7 @@ namespace arena
         if (f.sprinting or f.action == Action::Attack or f.action == Action::Dodge)
             return;
 
-        f.stamina = std::min(s.max, f.stamina + s.regen * STEP_SECONDS * (f.exhausted ? s.exhaustedRegenScale : 1.0f));
+        f.stamina = std::min(s.max, f.stamina + s.regen * (1.0f + f.boon.staminaRegen) * STEP_SECONDS * (f.exhausted ? s.exhaustedRegenScale : 1.0f));
 
         if (f.exhausted and f.stamina >= s.max * 0.3f)
             f.exhausted = false;
@@ -517,7 +545,7 @@ namespace arena
         if (f.manaDelay > 0.0f)
             f.manaDelay -= STEP_SECONDS;
         else
-            f.mana = std::min(tuning.mana.max, f.mana + tuning.mana.regen * STEP_SECONDS);
+            f.mana = std::min(tuning.mana.max, f.mana + tuning.mana.regen * (1.0f + f.boon.manaRegen) * STEP_SECONDS);
     }
 
     float ArenaWorld::speedScale(const Fighter& f) const
@@ -528,7 +556,7 @@ namespace arena
             if (auto it = content->statuses.find(s.id); it != content->statuses.end())
                 slow += it->second.slow * static_cast<float>(s.stacks);
 
-        return std::clamp(1.0f - slow, 0.1f, 1.0f);
+        return std::clamp(1.0f - slow, 0.1f, 1.0f) * (1.0f + f.boon.speed);
     }
 
     float ArenaWorld::heightAboveGround(const Fighter& f) const
@@ -725,7 +753,8 @@ namespace arena
         {
             f.respawnTimer -= dt;
 
-            if (f.respawnTimer <= 0.0f)
+            // In a run, down until the next wave
+            if (f.respawnTimer <= 0.0f and not inRun())
                 respawn(f);
 
             return;
@@ -1134,7 +1163,7 @@ namespace arena
             f.airborneStagger = false;
         regenStamina(f);
         regenMana(f);
-        f.dashCharges = std::min(static_cast<float>(tuning.dash.charges), f.dashCharges + STEP_SECONDS / std::max(0.05f, tuning.dash.recharge));
+        f.dashCharges = std::min(static_cast<float>(maxDashes(f)), f.dashCharges + STEP_SECONDS / std::max(0.05f, tuning.dash.recharge));
 
         // A roll that started this step: when its owner pressed it, for the dodge grace
         if (f.action == Action::Dodge and f.frame <= 0)
@@ -1173,8 +1202,16 @@ namespace arena
         {
             f.respawnTimer -= dt;
 
-            if (f.respawnTimer <= 0.0f)
+            // In a run, the dead leave once they have fallen (1.5 s); training: they come back
+            if (inRun())
+            {
+                if (++f.frame > 90)
+                    f.gone = true;
+            }
+            else if (f.respawnTimer <= 0.0f)
+            {
                 respawn(f);
+            }
 
             return;
         }
@@ -1674,6 +1711,42 @@ namespace arena
         return false;
     }
 
+    void ArenaWorld::rideFallingPieces()
+    {
+        // Whoever stands on a falling piece rides it down (it is out of the grid while it falls: without
+        // this they would drop through it, faster than it, and be crushed when it lands on them)
+        for (auto& f : fighters)
+        {
+            if (not f.alive() or f.body.velocity.y > 1.0f)
+                continue;
+
+            const glm::vec3 blo = f.body.boxMin(), bhi = f.body.boxMax();
+            float top = -1e9f, speed = 0.0f;
+
+            for (const auto& piece : terrain.falling)
+                for (const auto& l : piece.occupied)
+                {
+                    const glm::vec3 lo = piece.cellMin(l), hi = lo + glm::vec3(1.0f);
+
+                    // Under the feet (or just sunk into its top), across the body's footprint
+                    if (bhi.x > lo.x + 0.05f and blo.x < hi.x - 0.05f and bhi.z > lo.z + 0.05f and blo.z < hi.z - 0.05f and hi.y <= blo.y + 0.4f and hi.y >= blo.y - 0.6f and hi.y > top)
+                    {
+                        top = hi.y;
+                        speed = piece.speed;
+                    }
+                }
+
+            // On it, going down at its speed (not faster: the rider would sink in as it lands)
+            if (top > -1e8f)
+            {
+                f.body.position.y = top;
+                f.body.velocity.y = -speed;
+                f.body.onGround = true;
+            }
+        }
+
+    }
+
     void ArenaWorld::liftOut(const glm::ivec3& c)
     {
         for (auto& f : fighters)
@@ -1695,6 +1768,15 @@ namespace arena
             };
 
             bool moved = false;
+
+            // Mostly above it (riding a piece down as it lands): up onto it
+            if (lo.y > static_cast<float>(c.y) + 0.4f and freeAt(glm::vec3(f.body.position.x, static_cast<float>(c.y) + 1.0f, f.body.position.z)))
+            {
+                f.body.position.y = static_cast<float>(c.y) + 1.0f;
+                f.body.velocity.y = 0.0f;
+                f.body.onGround = true;
+                continue;
+            }
 
             for (float r = 0.5f; r <= 3.0f and not moved; r += 0.5f)
             {
@@ -1860,7 +1942,7 @@ namespace arena
             if (used)
             {
                 spendStamina(f, a->staminaCost);
-                f.abilityCooldown[i] = a->cooldown;
+                f.abilityCooldown[i] = a->cooldown * std::max(0.3f, 1.0f - f.boon.cooldown);
 
 
                 if (a->kind == "wall")
@@ -1916,17 +1998,18 @@ namespace arena
 
         const auto spell = spellOf(f.spells[slot]);
         const bool free = infiniteMana and f.team == Team::Player;
+        const float cost = spell->mana * std::max(0.3f, 1.0f - f.boon.manaCost);
 
-        if (not spell->valid() or spell->stages.empty() or (f.mana < spell->mana and not free))
+        if (not spell->valid() or spell->stages.empty() or (f.mana < cost and not free))
             return false;
 
         if (not free)
         {
-            f.mana -= spell->mana;
+            f.mana -= cost;
             f.manaDelay = tuning.mana.regenDelay;
         }
 
-        f.abilityCooldown[abilityIndex] = spell->cooldown;
+        f.abilityCooldown[abilityIndex] = spell->cooldown * std::max(0.3f, 1.0f - f.boon.cooldown);
 
         const glm::vec3 aim = glm::length(in.aimDir) > 1e-4f ? glm::normalize(in.aimDir) : yawForward(f.yaw);
 
@@ -2478,6 +2561,8 @@ namespace arena
         TerrainEvents events;
         terrain.step(STEP_SECONDS, time, tuning.terrain.gravity, events);
 
+        rideFallingPieces();
+
         // Falling pieces crush whoever they fall on, once each
         for (auto& piece : terrain.falling)
         {
@@ -2496,7 +2581,8 @@ namespace arena
                 {
                     const glm::vec3 lo = piece.cellMin(l), hi = lo + glm::vec3(1.0f);
 
-                    if (bhi.x > lo.x and blo.x < hi.x and bhi.y > lo.y and blo.y < hi.y and bhi.z > lo.z and blo.z < hi.z)
+                    // Coming down onto them: the cell's bottom above their feet (not someone standing on top)
+                    if (bhi.x > lo.x and blo.x < hi.x and bhi.y > lo.y and blo.y < hi.y and bhi.z > lo.z and blo.z < hi.z and lo.y > blo.y + 0.3f)
                     {
                         touching = true;
                         break;
@@ -2869,18 +2955,28 @@ namespace arena
 
     void ArenaWorld::applyHit(Fighter& attacker, Fighter& target, const AttackDef& a)
     {
+        // A player's boons, and the target's take on the element
+        float damage = a.damage * (attacker.team == Team::Player ? 1.0f + attacker.boon.damage : 1.0f);
+
+        if (target.team == Team::Enemy)
+            if (auto def = content->enemies.find(target.type); def != content->enemies.end())
+                damage *= def->second.weakness[static_cast<int>(a.element)];
+
         HitEvent e;
         e.attacker = attacker.id;
         e.target = target.id;
         e.attack = a.name;
-        e.damage = a.damage;
+        e.damage = damage;
         e.shake = a.shake;
         e.hitstop = static_cast<int>(std::lround(a.hitstop * tuning.feel.hitstopScale));
 
         const bool spared = godMode and target.team == Team::Player;
 
         if (not spared)
-            target.health -= a.damage;
+            target.health -= damage;
+
+        if (attacker.boon.lifeOnHit > 0.0f and attacker.alive() and damage > 0.0f)
+            attacker.health = std::min(attacker.maxHealth, attacker.health + attacker.boon.lifeOnHit);
 
         target.sinceHit = 0.0f;
         target.flash = tuning.feel.hitFlashFrames;
@@ -2944,11 +3040,18 @@ namespace arena
         if (e.killed)
             die(target, attacker.id);
         else if (not a.status.status.empty())
-            applyStatus(target, a.status.status, a.status.stacks);
+            applyStatus(target, a.status.status, a.status.stacks + attacker.boon.statusStacks);
     }
 
     void ArenaWorld::die(Fighter& target, int)
     {
+        if (inRun() and target.team == Team::Enemy and target.alive())
+        {
+            ++run.kills;
+            if (auto def = content->enemies.find(target.type); def != content->enemies.end())
+                run.score += def->second.score;
+        }
+
         target.health = 0.0f;
         target.action = Action::Dead;
         target.frame = 0;

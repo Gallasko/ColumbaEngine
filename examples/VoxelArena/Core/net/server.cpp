@@ -188,6 +188,7 @@ namespace arena::net
         InputFrame held = c.last;
         held.jumpPressed = held.dodgePressed = held.lightPressed = held.heavyPressed = false;
         held.equip = 0;
+        held.pick = 0;
         for (bool& p : held.abilityPressed)
             p = false;
         return held;
@@ -224,6 +225,27 @@ namespace arena::net
         // Nobody plays the events of a dedicated server
         if (headless)
             world.events.clear();
+
+        // The arena built anew (a run, its next wave): sent whole to everyone, its old changes dropped
+        if (sentArenaBuilds < 0)
+            sentArenaBuilds = world.arenaBuilds;
+
+        if (world.arenaBuilds != sentArenaBuilds)
+        {
+            sentArenaBuilds = world.arenaBuilds;
+            gridLog.clear();
+            damageLog.clear();
+            knownPieces.clear();
+
+            WorldInitMsg init;
+            init.size = glm::ivec3(world.grid.width(), world.grid.height(), world.grid.depth());
+            init.cells = world.grid.raw();
+            init.damage = world.terrain.damagedCells();
+
+            for (auto& [peer, c] : clients)
+                if (c.joined)
+                    transport.send(peer, encode(init), true);
+        }
 
         sendTerrain();
 
@@ -300,6 +322,9 @@ namespace arena::net
 
         for (const auto& z : world.zones)
             base.zones.push_back({z.id, z.element, z.position, z.radius, z.remaining, z.duration});
+
+        base.run = world.run;
+        base.run.pending.clear();
 
         for (const auto& [peer, c] : clients)
         {

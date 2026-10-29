@@ -67,7 +67,7 @@ namespace arena
         pitch = glm::clamp(pitch, tuning.firstPerson.minPitch, tuning.firstPerson.maxPitch);
 
         trauma = std::max(0.0f, trauma - tuning.feel.shakeDecay * dt);
-        const float shake = trauma * trauma;
+        const float shake = trauma * trauma * shakeScale;
         const float ft = time * tuning.feel.shakeFrequency;
 
         viewYaw = yaw + wobble(ft, 1.3f) * tuning.feel.shakeAngle * shake;
@@ -144,7 +144,7 @@ namespace arena
 
         // Shake
         trauma = std::max(0.0f, trauma - tuning.feel.shakeDecay * dt);
-        const float shake = trauma * trauma;
+        const float shake = trauma * trauma * shakeScale;
         const float ft = time * tuning.feel.shakeFrequency;
 
         viewYaw = yaw + wobble(ft, 1.3f) * tuning.feel.shakeAngle * shake;

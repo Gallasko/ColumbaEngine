@@ -17,6 +17,9 @@
     "turnSpeed": 320,
     "respawnSeconds": 6,
 
+    "score": 15,
+    "weakness": { "ice": 1.3 },
+
     "script": "archer",
     "params": {
         "engageRange": 28,

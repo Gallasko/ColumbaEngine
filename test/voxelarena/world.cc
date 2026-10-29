@@ -911,6 +911,35 @@ TEST(arena_terrain_play, a_pit_drops_an_enemy_and_lifts_it_out_when_it_fills)
     EXPECT_NEAR(a.world.find(dummy)->body.position.y, 3.0f, 0.05f);   // filled in, back on top
 }
 
+TEST(arena_terrain_play, standing_on_the_boulder_when_its_rope_goes_rides_it_down_unhurt)
+{
+    Arena a;
+    thickFloor(a);
+    a.world.aiEnabled = false;
+
+    const BlockId stone = a.content.block("base:stone");
+    const BlockId boulder = a.content.block("base:boulder");
+    a.world.grid.fill({12, 3, 20}, {12, 11, 20}, stone);
+    a.world.grid.fill({12, 12, 20}, {20, 12, 20}, a.content.block("base:planks"));
+    a.world.grid.fill({16, 9, 20}, {16, 11, 20}, a.content.block("base:rope"));
+    a.world.grid.fill({15, 6, 19}, {17, 8, 21}, boulder);
+
+    // On top of the boulder, beside the rope; a brute under it
+    a.player().body.position = glm::vec3(15.5f, 9.0f, 19.5f);
+    const int brute = a.world.spawnEnemy("base:brute", glm::vec3(17.0f, 3.0f, 21.0f), 0.0f);
+    a.settle(10);
+    ASSERT_NEAR(a.player().body.position.y, 9.0f, 0.05f);
+    const float health = a.player().health, bruteHealth = a.world.find(brute)->health;
+
+    a.world.terrain.damage({16, 10, 20}, 1e6f);   // the rope goes
+    a.settle(90);
+
+    EXPECT_FLOAT_EQ(a.player().health, health);                           // not crushed by what it stood on
+    EXPECT_NEAR(a.player().body.position.y, 6.0f, 0.1f);                  // down with it, standing on it
+    EXPECT_EQ(a.world.grid.get(15, 5, 19), boulder);
+    EXPECT_LT(a.world.find(brute)->health, bruteHealth);                  // what was under it still is
+}
+
 TEST(arena_terrain_play, cutting_the_rope_drops_the_boulder_on_the_brute)
 {
     Arena a;

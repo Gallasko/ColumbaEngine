@@ -97,8 +97,17 @@ namespace arena::net
                 case Msg::WorldInit:
                 {
                     WorldInitMsg m;
-                    if (not decode(e.data, m) or m.size != glm::ivec3(world.grid.width(), world.grid.height(), world.grid.depth()))
+                    if (not decode(e.data, m) or m.cells.size() != static_cast<size_t>(m.size.x) * static_cast<size_t>(m.size.y) * static_cast<size_t>(m.size.z))
                         break;
+
+                    // Another arena (a run's): its size
+                    if (m.size != glm::ivec3(world.grid.width(), world.grid.height(), world.grid.depth()))
+                        world.grid = VoxelGrid(m.size.x, m.size.y, m.size.z);
+
+                    world.terrain.reset(&world.grid, &content.blockTable);
+                    world.terrain.falling.clear();
+                    pieces.clear();
+                    ++world.arenaBuilds;   // the game meshes it again
 
                     for (int y = 0; y < m.size.y; ++y)
                         for (int z = 0; z < m.size.z; ++z)
@@ -238,6 +247,7 @@ namespace arena::net
         me->aimDir = keep.aimDir;
         me->stepOffset = keep.stepOffset;   // only looks: the server does not send it
         me->spells = keep.spells;           // this player's own choice: not in the snapshots
+        world.sumBoons(*me);                // the boons' numbers, from the list (the prediction moves with them)
 
         while (not pending.empty() and pending.front().seq <= ackSeq)
             pending.pop_front();
@@ -438,6 +448,9 @@ namespace arena::net
 
             world.projectiles.push_back(q);
         }
+
+        // The run, as the newest snapshot has it
+        world.run = newest.run;
 
         // Zones: as the newest snapshot has them
         world.zones.clear();

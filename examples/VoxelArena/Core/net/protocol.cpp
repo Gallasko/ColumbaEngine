@@ -14,6 +14,7 @@ namespace arena::net
             "air_jump", "wall_jump", "air_dash", "plunge_land", "fire_cast", "ice_cast", "volt_cast",
             "fire_burst", "ice_burst", "volt_arc", "ignite", "freeze", "status", "leap",
             "volt_burst", "fire_nova", "ice_nova", "volt_nova", "fire_zone", "ice_zone", "volt_zone", "fire_beam", "ice_beam", "volt_beam",
+            "run_start", "spawn_warn", "boss_warn", "spawn", "boss_spawn", "wave_clear", "run_victory", "run_defeat", "boon",
         };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };
@@ -134,6 +135,8 @@ namespace arena::net
         for (const char* e : {"fire", "ice", "volt"})
             all.insert(e);
         for (const auto& [id, k] : content.keywords)
+            all.insert(id);
+        for (const auto& [id, u] : content.upgrades)
             all.insert(id);
 
         for (const auto& [id, a] : content.abilities)
@@ -300,6 +303,7 @@ namespace arena::net
             w.vec3(in.aimOrigin);
             w.dir(in.aimDir);
             w.u8(static_cast<uint8_t>(std::clamp(in.equip, 0, 255)));
+            w.u8(static_cast<uint8_t>(std::clamp(in.pick, 0, 255)));
         }
 
         return w.data;
@@ -348,6 +352,7 @@ namespace arena::net
             in.aimOrigin = r.vec3();
             in.aimDir = r.dir();
             in.equip = r.u8();
+            in.pick = r.u8();
 
             if (glm::length(in.move) > 1.0f)
                 in.move = glm::normalize(in.move);
@@ -436,6 +441,14 @@ namespace arena::net
         w.vec3(f.wallNormal);
         w.i8(static_cast<int8_t>(std::clamp(f.chargeSlot, -1, 127)));
         w.f32(f.dashCharges);
+
+        // The run: the boons picked and the ones offered now
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.boons.size(), 64)));
+        for (size_t i = 0; i < f.boons.size() and i < 64; ++i)
+            w.u16(names.id(f.boons[i]));
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.offer.size(), 3)));
+        for (size_t i = 0; i < f.offer.size() and i < 3; ++i)
+            w.u16(names.id(f.offer[i]));
     }
 
     void readFighter(Reader& r, Fighter& f, const Names& names)
@@ -514,6 +527,15 @@ namespace arena::net
         f.wallNormal = r.vec3();
         f.chargeSlot = r.i8();
         f.dashCharges = r.f32();
+
+        f.boons.clear();
+        const uint8_t boons = r.u8();
+        for (uint8_t k = 0; k < boons and k < 64 and not r.failed; ++k)
+            f.boons.push_back(names.name(r.u16()));
+        f.offer.clear();
+        const uint8_t offer = r.u8();
+        for (uint8_t k = 0; k < offer and k < 3 and not r.failed; ++k)
+            f.offer.push_back(names.name(r.u16()));
     }
 
     // ---- Snapshot ---------------------------------------------------------------------------------
@@ -548,6 +570,16 @@ namespace arena::net
             w.u16(static_cast<uint16_t>(m.pieces[i].id));
             w.f32(m.pieces[i].drop);
         }
+
+        w.u8(static_cast<uint8_t>(m.run.phase));
+        w.u8(static_cast<uint8_t>(std::clamp(m.run.wave, 0, 255)));
+        w.u8(static_cast<uint8_t>(std::clamp(m.run.waves, 0, 255)));
+        w.f32(m.run.timer);
+        w.f32(m.run.elapsed);
+        w.u32(static_cast<uint32_t>(std::max(0, m.run.score)));
+        w.u16(static_cast<uint16_t>(std::clamp(m.run.kills, 0, 65535)));
+        w.u8(static_cast<uint8_t>(std::clamp(m.run.enemiesLeft, 0, 255)));
+        w.u16(static_cast<uint16_t>(m.run.bossId));
 
         w.u8(static_cast<uint8_t>(std::min<size_t>(m.zones.size(), 64)));
         for (size_t i = 0; i < m.zones.size() and i < 64; ++i)
@@ -619,6 +651,16 @@ namespace arena::net
             p.drop = r.f32();
             m.pieces.push_back(p);
         }
+
+        m.run.phase = static_cast<RunPhase>(std::min<uint8_t>(r.u8(), static_cast<uint8_t>(RunPhase::Defeat)));
+        m.run.wave = r.u8();
+        m.run.waves = r.u8();
+        m.run.timer = r.f32();
+        m.run.elapsed = r.f32();
+        m.run.score = static_cast<int>(r.u32());
+        m.run.kills = r.u16();
+        m.run.enemiesLeft = r.u8();
+        m.run.bossId = r.u16();
 
         const uint8_t zones = r.u8();
         for (uint8_t k = 0; k < zones and k < 64 and not r.failed; ++k)

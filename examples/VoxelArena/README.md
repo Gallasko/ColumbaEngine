@@ -1,7 +1,9 @@
 # Voxel Arena 0.1
 
-A small voxel arena to find the combat feel of the voxel RPG: run, jump, roll, and fight a training
-dummy and one enemy (the brute) with a sword. A second mod, `testmod`, adds a spear without any C++.
+A small voxel arena game, the combat demo of the voxel RPG: ten waves of enemies, a boon to pick after
+each, a boss at the end, a score to beat. Three weapons with their combos and skills, spells you make
+yourself, movement tech, an arena you can break, and co-op. A second mod, `testmod`, adds a spear
+without any C++.
 
 All the game content lives in `mods/`. The game's own content is the `base` mod, written exactly like
 any other mod. Every gameplay number is in a data file and reloads with F5.
@@ -13,7 +15,7 @@ cd release
 make -j18 VoxelArena VoxelArenaServer test_voxelarena
 cd ..
 ./release/VoxelArena            # or ./make_and_play.sh VoxelArena
-./release/test_voxelarena       # 126 tests, about half a second
+./release/test_voxelarena       # 135 tests, about half a second
 ```
 
 The game reads its mods and its shader straight from the source tree (`examples/VoxelArena/mods`,
@@ -30,6 +32,33 @@ Options:
 | `--host [port]` | Host a game others can join (port 7777 by default) |
 | `--join <address>[:port]` | Join a game |
 | `--name <name>` | Your name, as the others see it |
+
+## The arena run
+
+The title screen: **Enter** for the arena, **T** for the training ground (the sandbox, with dummies
+and enemies that come back), **B** for the spellbook, **O** for the options.
+
+- **Its own arena**: a 40 x 40 pit with four pillars, a platform and a boulder on a rope over the
+  middle. It is built anew before each wave, whatever was broken, with everyone put back in place.
+
+- **Ten waves.** Each one is announced, its spawn points glow red for a moment, then they come out.
+  The counts are random within each wave's range, and there are more of them with more players.
+- **A boon after each wave**: pick one of three with 1, 2, 3 (+health, +damage, a dash charge,
+  cheaper spells, faster cooldowns, life on hit...). They add up through the run, so no two runs play
+  the same.
+- **The Stone Warden** on wave 10: huge, armored through its attacks, every one of them heavy and
+  told in red (a slam, a sweep all around, a long charge, a thrown rock). Volt cracks it, fire barely
+  warms it; under half its health it gets angry.
+- **The score**: points per kill, per wave cleared, and a time bonus for a quick run. The best is kept
+  (`~/.local/share/voxelarena/best.txt`). **Enter** at the end plays again, **T** goes training.
+- **Falling**: alone, the run is over. In co-op you are back up at the next wave; the run is lost
+  only when everyone is down.
+- In multiplayer the host starts the run from its title; on a dedicated server, any player's
+  Enter does.
+
+The run is data: `mods/base/run.json` (the waves, the timings, the score, its arena and
+`resetEachWave`) and `mods/base/upgrades.json`
+(the boons). Enemies take damage by element (`"weakness": { "volt": 1.5 }`) and give `score`.
 
 ## Controls
 
@@ -49,6 +78,7 @@ Options:
 | G / middle mouse (hold) | Mine the block under the crosshair |
 | 1, 2, 3 | Your spells, at the crosshair (firebolt, ice shards, chain lightning to begin with) |
 | B | The spellbook: build your spells |
+| O | Options: mouse sensitivity, invert Y, field of view, volume, camera shake, hit flash, slash trails, view, debug overlay (kept in `~/.local/share/voxelarena/options.json`) |
 | R, 4 | The weapon's skills (dagger: shadow dash, hold to charge, and backflip; sword: whirlwind and leap slam) |
 | F1 | Debug overlay |
 | F2 | Hitboxes (red: active, orange: winding up) and hurtboxes (green, blue while invulnerable) |
@@ -157,6 +187,7 @@ Each one is a JSON file in `mods/base/enemies/` and a pgscript brain in `mods/ba
 | Brute | Tank | Slow, tough, one big slam with a long wind-up. Smashes walls in its way. |
 | Archer | Ranged | Keeps 6 to 14 m away, backs off when you close in, moves sideways to find a line of fire when a block is in the way, shoots sooner while you are busy. |
 | Skulker | Flanker | Fast and weak. Goes round to your back while someone else holds your attention, bites when you cannot see it, backs off after each bite. |
+| Stone Warden | Boss | Slow and huge. Slams, sweeps all around once angry, charges from the middle distance, throws rocks when you keep away. Weak to volt, resists fire. |
 
 Scripts work as a group through what the game puts in `me`: `alliesNear`, `alliesAttacking`,
 `alliesNearTarget` (other enemies close to you) and `targetFacing` (0 = in front of you, 180 =
@@ -318,6 +349,8 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 | `elements.json` | the elements of spells: `name`, `status`, `mana` (fire, ice, volt) | `mymod:<key>` |
 | `keywords.json` | the keywords of spells: forms (`shape`: bolt, zone, nova, beam) and modifiers | `mymod:<key>` |
 | `spells/<name>.json` | a ready-made spell: `name`, `recipe` (`["fire", "bolt", "zone"]`) | `mymod:<name>` |
+| `upgrades.json` | the boons of a run: what each adds (`maxHealth`, `damage`, `dashCharges`...), how often it can be picked | `mymod:<key>` |
+| `run.json` | the arena run: its waves (`enemies` and counts, a `boss`), timings, score (the last mod with one wins) | |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
 | `enemies/<name>.json` | an enemy: stats, moveset, script, params | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
@@ -431,6 +464,7 @@ Open with `` ` ``. `help` lists the commands.
 | `players` | Who is in the game, and the round trip to the server |
 | `spell <1-3> <recipe>` | Put a spell on a key: `spell 1 fire bolt multiply zone extend`, or a ready-made id: `spell 2 frost_nova` |
 | `spells`, `spellbook` | The spells on the keys, the ready-made ones and the keywords; open the spellbook |
+| `arena`, `training`, `wave <n>` | Start the arena run, go back to training, jump to a wave of the run |
 | `pacer [n\|off [fps]]` | The engine's update pacing: n updates per drawn frame (2 by default), or off (as fast as it can, or capped at fps) |
 
 Scripted input, for tests and for checking frame data: `mouse off` (ignore the real mouse), `press <action>`, `hold <action> <frames>`,

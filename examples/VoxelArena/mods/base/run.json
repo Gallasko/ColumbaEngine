@@ -1,0 +1,65 @@
+// The arena run (Enter at the title): ten waves, a boon between each, the Stone Warden at the end.
+// enemies: how many of each, a random count between the two numbers (more with more players:
+// coopScale per extra player). warn: seconds the spawn points show before they come out. choose:
+// seconds to pick a boon (then the first is taken). centre and spawnRadius: where they come in.
+// The score: each enemy's "score" for the kill, waveScore times the wave's number for clearing it,
+// and up to timeBonus for a whole run under timePar seconds.
+// arena: the run's own, smaller arena (as arena.json); resetEachWave builds it anew before each wave,
+// with everyone put back in place.
+{
+    "warn": 1.4,
+    "breather": 3,
+    "choose": 20,
+    "choices": 3,
+    "centre": [20, 4, 21],
+    "spawnRadius": 10,
+    "resetEachWave": true,
+
+    // A 40 x 40 pit: four pillars to fight around, a raised platform, a boulder on a rope over the middle
+    "arena": {
+        "size": [40, 24, 40],
+        "playerSpawn": [20, 4, 8],
+        "shapes": [
+            { "block": "bedrock", "from": [0, 0, 0], "to": [39, 0, 39] },
+            { "block": "dirt",    "from": [1, 1, 1], "to": [38, 2, 38] },
+            { "block": "grass",   "from": [1, 3, 1], "to": [38, 3, 38] },
+            { "block": "arena_wall",  "from": [0, 1, 0], "to": [39, 6, 39], "hollow": true },
+            { "block": "arena_brick", "from": [0, 7, 0], "to": [39, 7, 39], "hollow": true },
+
+            { "block": "sand",  "from": [11, 3, 12], "to": [29, 3, 30] },
+            { "block": "grass", "from": [13, 3, 14], "to": [27, 3, 28] },
+
+            { "block": "stone", "from": [9, 4, 13],  "to": [10, 7, 14] },
+            { "block": "stone", "from": [29, 4, 13], "to": [30, 7, 14] },
+            { "block": "stone", "from": [9, 4, 28],  "to": [10, 7, 29] },
+            { "block": "stone", "from": [29, 4, 28], "to": [30, 7, 29] },
+
+            { "block": "planks", "from": [3, 4, 33], "to": [9, 5, 37] },
+            { "block": "planks", "from": [3, 4, 32], "to": [9, 4, 32] },
+            { "block": "brick",  "from": [31, 4, 33], "to": [36, 4, 36] },
+
+            { "block": "stone",   "from": [15, 4, 21], "to": [15, 11, 21] },
+            { "block": "stone",   "from": [25, 4, 21], "to": [25, 11, 21] },
+            { "block": "planks",  "from": [15, 12, 21], "to": [25, 12, 21] },
+            { "block": "rope",    "from": [20, 9, 21], "to": [20, 11, 21] },
+            { "block": "boulder", "from": [19, 6, 20], "to": [21, 8, 22] }
+        ]
+    },
+    "coopScale": 0.5,
+    "waveScore": 100,
+    "timeBonus": 3000,
+    "timePar": 480,
+
+    "waves": [
+        { "enemies": { "skulker": [2, 3] } },
+        { "enemies": { "skulker": [2, 3], "archer": 1 } },
+        { "enemies": { "brute": 1, "skulker": 2 } },
+        { "enemies": { "archer": [2, 3], "skulker": [1, 2] } },
+        { "enemies": { "brute": [1, 2], "archer": [1, 2] } },
+        { "enemies": { "skulker": [4, 5], "archer": 1 } },
+        { "enemies": { "brute": 2, "skulker": [2, 3] } },
+        { "enemies": { "brute": [1, 2], "archer": [2, 3], "skulker": 2 } },
+        { "enemies": { "brute": 3, "archer": 2 } },
+        { "boss": "warden", "enemies": { "skulker": 2 } }
+    ]
+}

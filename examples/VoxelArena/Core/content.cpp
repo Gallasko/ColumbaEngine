@@ -39,6 +39,7 @@ namespace arena
             {"keyword", {"name", "model", "modelScale"}},
             {"element", {"name"}},
             {"spell", {"name"}},
+            {"upgrade", {"name", "text"}},
             {"ability", {"name", "attack.swing", "attack.shake", "attack.turn"}},
         };
 
@@ -721,7 +722,8 @@ namespace arena
 
             // One file, one entry per definition: statuses (burning, chilled...), the elements of spells,
             // the keywords of spells
-            for (const auto& [kind, name] : std::vector<std::pair<std::string, std::string>>{{"status", "statuses.json"}, {"element", "elements.json"}, {"keyword", "keywords.json"}})
+            for (const auto& [kind, name] : std::vector<std::pair<std::string, std::string>>{{"status", "statuses.json"}, {"element", "elements.json"}, {"keyword", "keywords.json"},
+                                                                                                 {"upgrade", "upgrades.json"}})
             {
                 const auto file = (dir / name).string();
 
@@ -810,6 +812,17 @@ namespace arena
                     *target = Json::makeObject();
 
                 mergeJson(*target, json);
+            }
+
+            // The arena run: the last mod that has one wins
+            const auto runFile = (dir / "run.json").string();
+
+            if (fs::exists(runFile, ec))
+            {
+                Json json;
+
+                if (readJsonFile(runFile, json, report))
+                    addRaw(content, "run", "run", mod, runFile, std::move(json));
             }
 
             // Arena: the last mod that has one wins
@@ -1180,24 +1193,14 @@ namespace arena
             }
         }
 
-        void typeArena(Content& content)
+        /** An arena: arena.json, or the run's own (run.json "arena"). */
+        void readArena(Content& content, const Json& j, const RawDef& raw, ArenaDef& a, const std::string& what)
         {
             auto& report = content.report;
-            auto& raws = content.raw["arena"];
-
-            if (raws.empty())
-            {
-                report.error("mods", 0, "no mod defines an arena.json");
-                return;
-            }
-
-            const RawDef& raw = raws.begin()->second;
-            const Json& j = raw.data;
-            ArenaDef& a = content.arena;
             a.file = raw.file;
             a.mod = raw.mod;
 
-            checkKeys(j, {"size", "playerSpawn", "shapes", "spawns"}, raw.file, report, "the arena");
+            checkKeys(j, {"size", "playerSpawn", "shapes", "spawns"}, raw.file, report, what);
 
             readIVec3(j, "size", a.size, raw.file, report);
             a.size = glm::clamp(a.size, glm::ivec3(4), glm::ivec3(256));
@@ -1241,6 +1244,139 @@ namespace arena
                         a.spawns.push_back(spawn);
                 }
             }
+        }
+
+        void typeUpgrades(Content& content)
+        {
+            auto& report = content.report;
+
+            for (const auto& [id, raw] : content.raw["upgrade"])
+            {
+                const Json& j = raw.data;
+                checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
+                              "statusStacks", "most"},
+                          raw.file, report, "boon " + id);
+
+                UpgradeDef u;
+                u.id = id;
+                u.name = splitId(id).second;
+                readStr(j, "name", u.name, raw.file, report);
+                readStr(j, "text", u.text, raw.file, report);
+                readNum(j, "maxHealth", u.maxHealth, raw.file, report);
+                readNum(j, "damage", u.damage, raw.file, report);
+                readInt(j, "dashCharges", u.dashCharges, raw.file, report);
+                readNum(j, "manaCost", u.manaCost, raw.file, report);
+                readNum(j, "manaRegen", u.manaRegen, raw.file, report);
+                readNum(j, "staminaRegen", u.staminaRegen, raw.file, report);
+                readNum(j, "speed", u.speed, raw.file, report);
+                readNum(j, "cooldown", u.cooldown, raw.file, report);
+                readNum(j, "lifeOnHit", u.lifeOnHit, raw.file, report);
+                readInt(j, "statusStacks", u.statusStacks, raw.file, report);
+                readInt(j, "most", u.most, raw.file, report);
+                content.upgrades[id] = u;
+            }
+        }
+
+        void typeRun(Content& content)
+        {
+            auto& report = content.report;
+            auto& raws = content.raw["run"];
+
+            if (raws.empty())
+                return;
+
+            const RawDef& raw = raws.begin()->second;
+            const Json& j = raw.data;
+            RunDef& r = content.run;
+            r.file = raw.file;
+
+            checkKeys(j, {"waves", "warn", "breather", "choose", "choices", "centre", "spawnRadius", "coopScale", "waveScore", "timeBonus", "timePar", "arena", "resetEachWave"},
+                      raw.file, report, "the run");
+            readBool(j, "resetEachWave", r.resetEachWave, raw.file, report);
+
+            // Its own arena (else the training one)
+            if (const Json* arena = j.find("arena"))
+            {
+                readArena(content, *arena, raw, r.arena, "the run's arena");
+                r.hasArena = true;
+            }
+            readNum(j, "warn", r.warn, raw.file, report);
+            readNum(j, "breather", r.breather, raw.file, report);
+            readNum(j, "choose", r.choose, raw.file, report);
+            readInt(j, "choices", r.choices, raw.file, report);
+            readVec3(j, "centre", r.centre, raw.file, report);
+            readNum(j, "spawnRadius", r.spawnRadius, raw.file, report);
+            readNum(j, "coopScale", r.coopScale, raw.file, report);
+            readInt(j, "waveScore", r.waveScore, raw.file, report);
+            readInt(j, "timeBonus", r.timeBonus, raw.file, report);
+            readNum(j, "timePar", r.timePar, raw.file, report);
+
+            const Json* waves = j.find("waves");
+
+            if (not waves or not waves->isArray() or waves->array.empty())
+            {
+                report.error(raw.file, j.line, "the run needs \"waves\": a list of { \"enemies\": { \"brute\": [1, 2] }, \"boss\": ... }");
+                return;
+            }
+
+            for (const auto& w : waves->array)
+            {
+                checkKeys(w, {"enemies", "boss"}, raw.file, report, "a wave");
+                WaveDef wave;
+
+                if (const Json* enemies = w.find("enemies"))
+                {
+                    for (const auto& [name, count] : enemies->object)
+                    {
+                        const std::string id = resolveId(name, raw.mod);
+
+                        if (not content.enemies.count(id))
+                        {
+                            report.error(raw.file, count.line, "a wave names the enemy \"" + id + "\", which no mod has");
+                            continue;
+                        }
+
+                        glm::ivec2 range(1, 1);
+                        if (count.isNumber())
+                            range = glm::ivec2(static_cast<int>(count.number));
+                        else if (count.isArray() and count.array.size() == 2)
+                            range = glm::ivec2(static_cast<int>(count.array[0].number), static_cast<int>(count.array[1].number));
+                        else
+                            report.error(raw.file, count.line, "an enemy's count is a number or [least, most]");
+
+                        wave.enemies.emplace_back(id, glm::ivec2(std::max(0, range.x), std::max(range.x, range.y)));
+                    }
+                }
+
+                readStr(w, "boss", wave.boss, raw.file, report);
+
+                if (not wave.boss.empty())
+                {
+                    wave.boss = resolveId(wave.boss, raw.mod);
+
+                    if (not content.enemies.count(wave.boss))
+                        report.error(raw.file, w.line, "a wave's boss \"" + wave.boss + "\" is no enemy of any mod");
+                }
+
+                r.waves.push_back(wave);
+            }
+
+            r.choices = std::clamp(r.choices, 1, 3);
+        }
+
+        void typeArena(Content& content)
+        {
+            auto& report = content.report;
+            auto& raws = content.raw["arena"];
+
+            if (raws.empty())
+            {
+                report.error("mods", 0, "no mod defines an arena.json");
+                return;
+            }
+
+            const RawDef& raw = raws.begin()->second;
+            readArena(content, raw.data, raw, content.arena, "the arena");
         }
 
         void requireModel(Content& content, const std::string& id, const std::string& file, int line)
@@ -1333,7 +1469,8 @@ namespace arena
                 const Json& j = raw.data;
 
                 checkKeys(j, {"id", "name", "model", "modelScale", "size", "health", "poise", "poiseRegenDelay", "staggerFrames",
-                              "knockbackScale", "walkSpeed", "turnSpeed", "respawnSeconds", "regenerates", "script", "params", "moveset"},
+                              "knockbackScale", "walkSpeed", "turnSpeed", "respawnSeconds", "regenerates", "script", "params", "moveset",
+                              "weakness", "score", "boss"},
                           raw.file, report, "enemy " + id);
 
                 EnemyDef e;
@@ -1365,6 +1502,20 @@ namespace arena
                 readNum(j, "poiseRegenDelay", e.poiseRegenDelay, raw.file, report);
                 readInt(j, "staggerFrames", e.staggerFrames, raw.file, report);
                 readNum(j, "knockbackScale", e.knockbackScale, raw.file, report);
+                readInt(j, "score", e.score, raw.file, report);
+                readBool(j, "boss", e.boss, raw.file, report);
+
+                if (const Json* weak = j.find("weakness"))
+                {
+                    checkKeys(*weak, {"fire", "ice", "volt"}, raw.file, report, "the weakness of enemy " + id);
+
+                    for (const char* name : {"fire", "ice", "volt"})
+                    {
+                        Element el = Element::None;
+                        elementFromName(name, el);
+                        readNum(*weak, name, e.weakness[static_cast<int>(el)], raw.file, report);
+                    }
+                }
                 readNum(j, "walkSpeed", e.walkSpeed, raw.file, report);
                 readNum(j, "turnSpeed", e.turnSpeed, raw.file, report);
                 readNum(j, "respawnSeconds", e.respawnSeconds, raw.file, report);
@@ -1833,6 +1984,8 @@ namespace arena
         typeEnemies(content);
         typeAbilities(content);
         typeSpells(content);
+        typeUpgrades(content);
+        typeRun(content);
         typeArena(content);
 
         if (content.tuning.isNull())

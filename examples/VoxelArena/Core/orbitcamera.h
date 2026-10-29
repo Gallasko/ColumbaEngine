@@ -17,6 +17,7 @@ namespace arena
     {
         float yaw = 0.0f;        // degrees, game convention: 0 looks towards +Z
         float pitch = 18.0f;     // degrees, + looks down
+        float shakeScale = 1.0f; // the player's option: 0 no shake
         float distance = 5.0f;   // wanted distance (zoom)
 
         float currentDistance = 5.0f;
