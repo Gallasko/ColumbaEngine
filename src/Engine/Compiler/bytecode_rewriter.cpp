@@ -265,8 +265,10 @@ namespace pg
 
             if (isJumpInstruction(opcode))
             {
-                jumpSites.push_back(i);
-                jumpTargets.push_back(calculateJumpTarget(chunk, i, opcode));
+                const size_t target = calculateJumpTarget(chunk, i, opcode);
+
+                jumpSites.push_back({i, target});
+                jumpTargets.push_back(target);
             }
 
             // Never 0 inside the chunk: a walk always moves on
@@ -292,13 +294,15 @@ namespace pg
 
     void BytecodeRewriter::forgetJumpsIn(const Chunk& chunk, size_t index, size_t size)
     {
-        auto first = std::lower_bound(jumpSites.begin(), jumpSites.end(), index);
-        auto last = std::lower_bound(first, jumpSites.end(), index + size);
+        (void)chunk;
 
-        // Their bytes are as they were: adjustJumpOffsetsBeforeRewrite leaves the region's jumps alone
+        auto first = std::lower_bound(jumpSites.begin(), jumpSites.end(), index, [](const JumpSite& jump, size_t at) { return jump.site < at; });
+        auto last = std::lower_bound(first, jumpSites.end(), index + size, [](const JumpSite& jump, size_t at) { return jump.site < at; });
+
+        // Their targets are as they were: adjustJumpOffsetsBeforeRewrite leaves the region's jumps alone
         for (auto site = first; site != last; ++site)
         {
-            const size_t target = calculateJumpTarget(chunk, *site, static_cast<OpCode>(chunk.code[*site]));
+            const size_t target = site->target;
 
             auto it = std::lower_bound(jumpTargets.begin(), jumpTargets.end(), target);
 
@@ -316,8 +320,17 @@ namespace pg
         if (delta != 0)
         {
             // What lay past the region moved with it (the region's own jumps are already gone)
-            for (auto it = std::lower_bound(jumpSites.begin(), jumpSites.end(), index); it != jumpSites.end(); ++it)
-                *it = static_cast<size_t>(static_cast<long long>(*it) + delta);
+            const auto past = std::lower_bound(jumpSites.begin(), jumpSites.end(), index, [](const JumpSite& jump, size_t at) { return jump.site < at; });
+
+            for (auto it = past; it != jumpSites.end(); ++it)
+                it->site = static_cast<size_t>(static_cast<long long>(it->site) + delta);
+
+            // Where each lands moves as the landings below do
+            for (auto& jump : jumpSites)
+            {
+                if (jump.target > index)
+                    jump.target = static_cast<size_t>(std::max(0LL, static_cast<long long>(jump.target) + delta));
+            }
 
             // A landing past the start of the region moved too: adjustJumpOffsetsBeforeRewrite
             // rewrote every jump so that it still lands on the same instruction, and one at the
@@ -339,7 +352,7 @@ namespace pg
             {
                 const size_t target = calculateJumpTarget(chunk, i, opcode);
 
-                jumpSites.insert(std::lower_bound(jumpSites.begin(), jumpSites.end(), i), i);
+                jumpSites.insert(std::lower_bound(jumpSites.begin(), jumpSites.end(), i, [](const JumpSite& jump, size_t at) { return jump.site < at; }), {i, target});
                 jumpTargets.insert(std::lower_bound(jumpTargets.begin(), jumpTargets.end(), target), target);
             }
 
@@ -759,8 +772,9 @@ namespace pg
         const bool rewriteIsAtJumpTarget = isJumpTarget(rewriteIndex);
 
         // Only the jumps are visited, not every instruction of the chunk
-        for (size_t i : jumpSites)
+        for (const auto& jump : jumpSites)
         {
+            const size_t i = jump.site;
             OpCode opcode = static_cast<OpCode>(chunk.code[i]);
 
             if (not isJumpInstruction(opcode))
@@ -776,7 +790,7 @@ namespace pg
                     continue;
                 }
 
-                size_t currentTarget = calculateJumpTarget(chunk, i, opcode);
+                size_t currentTarget = jump.target;
                 bool needsAdjustment = false;
 
                 if (opcode == OpCode::OP_Loop or opcode == OpCode::OP_Long_Loop)

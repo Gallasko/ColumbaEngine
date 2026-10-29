@@ -108,7 +108,9 @@ namespace pg
         decoded->instructions.reserve(chunk.code.size());
         decoded->meta.reserve(chunk.code.size());
 
-        // Decode all instructions and build jump target map
+        // Decode all instructions and build jump target map (an entry for every offset, one past the end too)
+        decoded->jumpTargets.indexOf.assign(chunk.code.size() + 1, OffsetIndex::none);
+
         size_t offset = 0;
         size_t instructionIndex = 0;
 
@@ -117,7 +119,7 @@ namespace pg
             // Record jump target mapping (bytecode offset to instruction index)
             // This is needed for ALL control flow instructions:
             // OP_Jump, OP_Long_Jump, OP_Jump_If_False, OP_Long_Jump_If_False, OP_Loop, OP_Long_Loop
-            decoded->jumpTargets[offset] = instructionIndex;
+            decoded->jumpTargets.set(offset, instructionIndex);
 
             size_t nextOffset;
             DecodedInstruction instr;
@@ -167,7 +169,7 @@ namespace pg
             decoded->meta.push_back(haltMeta);
 
             // A forward jump targeting end-of-code resolves to the halt.
-            decoded->jumpTargets[chunk.code.size()] = decoded->instructions.size() - 1;
+            decoded->jumpTargets.set(chunk.code.size(), decoded->instructions.size() - 1);
             instructionIndex++;
         }
 
@@ -573,10 +575,10 @@ namespace pg
                     bool encodable = true;
                     if (usesConst)
                     {
-                        auto it = decoded->jumpTargets.find(branchTarget);
-                        const ptrdiff_t rel = (it == decoded->jumpTargets.end())
+                        const uint32_t target = decoded->jumpTargets.at(branchTarget);
+                        const ptrdiff_t rel = (target == OffsetIndex::none)
                             ? PTRDIFF_MAX
-                            : static_cast<ptrdiff_t>(it->second) - static_cast<ptrdiff_t>(i);
+                            : static_cast<ptrdiff_t>(target) - static_cast<ptrdiff_t>(i);
                         encodable = (rel >= INT16_MIN and rel <= INT16_MAX);
                     }
 
@@ -758,8 +760,11 @@ namespace pg
         // 2. Remap the offset → index table to the compacted array (offsets
         // of fused-away members map to their window head, which also keeps
         // findInstructionIndex / the nested-resume path coherent).
-        for (auto& entry : decoded->jumpTargets)
-            entry.second = oldToNew[entry.second];
+        for (auto& index : decoded->jumpTargets.indexOf)
+        {
+            if (index != OffsetIndex::none)
+                index = static_cast<uint32_t>(oldToNew[index]);
+        }
 
         decoded->instructions = std::move(outI);
         decoded->meta         = std::move(outM);
@@ -769,8 +774,8 @@ namespace pg
         for (const auto& fx : branchFixups)
         {
             DecodedInstruction& di = decoded->instructions[fx.newIndex];
-            auto it = decoded->jumpTargets.find(fx.targetOffset);
-            if (it == decoded->jumpTargets.end())
+            const uint32_t target = decoded->jumpTargets.at(fx.targetOffset);
+            if (target == OffsetIndex::none)
             {
                 LOG_ERROR("ChunkDecoder", "Unresolved fused branch target (offset "
                           << fx.targetOffset << ") — falling back to "
@@ -791,19 +796,19 @@ namespace pg
                 // the target as a signed 16-bit relative instruction offset in
                 // operand bytes 3/4 (range guaranteed at fusion time). The
                 // separate operand union leaves constantPtr untouched.
-                const ptrdiff_t rel = static_cast<ptrdiff_t>(it->second)
+                const ptrdiff_t rel = static_cast<ptrdiff_t>(target)
                                     - static_cast<ptrdiff_t>(fx.newIndex);
                 di.operands.indexed.byte3 = static_cast<uint8_t>(rel & 0xFF);
                 di.operands.indexed.byte4 = static_cast<uint8_t>((rel >> 8) & 0xFF);
             }
             else
             {
-                di.jumpTargetPtr = decoded->instructions.data() + it->second;
+                di.jumpTargetPtr = decoded->instructions.data() + target;
             }
 
             // The branch's opcode/operands are fused away, so later passes
             // can't recover this target — record the index explicitly.
-            decoded->fusedBranchTargets.push_back(it->second);
+            decoded->fusedBranchTargets.push_back(target);
         }
 
         LOG_INFO("ChunkDecoder", "Fused " << fusedWindows << " windows ("
@@ -1102,10 +1107,10 @@ namespace pg
                 continue;  // Not a control flow instruction
 
             // Resolve to an instruction pointer in the decoded array.
-            auto it = decoded->jumpTargets.find(targetBytecodeOffset);
-            if (it != decoded->jumpTargets.end())
+            const uint32_t target = decoded->jumpTargets.at(targetBytecodeOffset);
+            if (target != OffsetIndex::none)
             {
-                instr.jumpTargetPtr = decoded->instructions.data() + it->second;
+                instr.jumpTargetPtr = decoded->instructions.data() + target;
             }
             else
             {

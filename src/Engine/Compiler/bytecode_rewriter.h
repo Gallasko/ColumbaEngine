@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk.h"
+#include <bitset>
 #include <vector>
 #include <functional>
 #include <optional>
@@ -44,9 +45,21 @@ namespace pg
         std::vector<OpCode> opcodes; // Empty means wildcard, multiple means OR matching
         bool capture; // Whether to capture this instruction
 
-        PatternElement(OpCode op, bool cap = false) : opcodes({op}), capture(cap) {}
-        PatternElement(const std::vector<OpCode>& ops, bool cap = false) : opcodes(ops), capture(cap) {}
-        PatternElement() : capture(false) {} // Wildcard constructor
+        // The opcodes as a set to test in one look: a rule is tried at every offset of a chunk
+        std::bitset<256> mask;
+
+        PatternElement(OpCode op, bool cap = false) : opcodes({op}), capture(cap) { fillMask(); }
+        PatternElement(const std::vector<OpCode>& ops, bool cap = false) : opcodes(ops), capture(cap) { fillMask(); }
+        PatternElement() : capture(false) { fillMask(); } // Wildcard constructor
+
+        void fillMask()
+        {
+            if (opcodes.empty())
+                mask.set(); // Wildcard matches everything
+
+            for (auto op : opcodes)
+                mask.set(static_cast<uint8_t>(op));
+        }
 
         static PatternElement wildcard(bool cap = false)
         {
@@ -117,10 +130,7 @@ namespace pg
         // Check if this pattern matches a given opcode
         bool matches(OpCode opcode) const
         {
-            if (opcodes.empty())
-                return true; // Wildcard matches everything
-
-            return std::find(opcodes.begin(), opcodes.end(), opcode) != opcodes.end();
+            return mask.test(static_cast<uint8_t>(opcode));
         }
     };
 
@@ -155,7 +165,13 @@ namespace pg
         // again by a walk of the whole chunk after each one (that walk made a pass quadratic in
         // the chunk's size). `jumpSites` is where the jumps are, in order; `jumpTargets` is where
         // they land, sorted, one entry a jump (two jumps to one place are there twice).
-        std::vector<size_t> jumpSites;
+        struct JumpSite
+        {
+            size_t site;    // Where the jump is
+            size_t target;  // Where it lands: kept with it, so an edit reads no jump's bytes again
+        };
+
+        std::vector<JumpSite> jumpSites;
         std::vector<size_t> jumpTargets;
 
         // The chunk the two lists describe, and its size when they were last brought up to date:

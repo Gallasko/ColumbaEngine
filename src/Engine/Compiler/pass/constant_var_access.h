@@ -116,6 +116,8 @@ namespace pg
 
         bool changesSize() const override { return true; }
 
-        bool requiresMultiplePasses() const override { return true; }
+        // One walk finds them all: what it writes (the Constant_Global ops) continues none of its
+        // patterns, and it removes no jump, so a second walk finds nothing (it cost half the pass)
+        bool requiresMultiplePasses() const override { return false; }
     };
 }

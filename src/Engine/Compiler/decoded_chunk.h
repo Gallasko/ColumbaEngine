@@ -3,6 +3,7 @@
 #include "chunk.h"
 #include <deque>
 #include <string>
+#include <cstdint>
 #include <vector>
 #include <unordered_map>
 
@@ -151,6 +152,30 @@ namespace pg
     // Created once from Chunk, then executed many times without decode overhead.
     // ============================================================================
 
+    // Bytecode offset → decoded instruction index, for the offset of every instruction (and the end
+    // of the code): a vector indexed by offset, `none` where no instruction starts. A hash map of
+    // every instruction cost an allocation each, a third of decoding
+    struct OffsetIndex
+    {
+        static constexpr uint32_t none = UINT32_MAX;
+
+        std::vector<uint32_t> indexOf;
+
+        void set(size_t offset, size_t index)
+        {
+            if (offset >= indexOf.size())
+                indexOf.resize(offset + 1, none);
+
+            indexOf[offset] = static_cast<uint32_t>(index);
+        }
+
+        // The index of the instruction at `offset`, `none` when no instruction starts there
+        uint32_t at(size_t offset) const
+        {
+            return offset < indexOf.size() ? indexOf[offset] : none;
+        }
+    };
+
     struct DecodedChunk
     {
         // Array of pre-decoded instructions (the "executable code")
@@ -171,7 +196,7 @@ namespace pg
 
         // Jump target mapping: bytecode offset → decoded instruction index
         // Needed for control flow instructions
-        std::unordered_map<size_t, size_t> jumpTargets;
+        OffsetIndex jumpTargets;
 
         // Instruction INDICES targeted by fused conditional branches (whose
         // original opcode/operands are gone after fusion, so they can no
@@ -200,10 +225,10 @@ namespace pg
         // Find decoded instruction index from bytecode offset
         size_t findInstructionIndex(size_t bytecodeOffset) const
         {
-            auto it = jumpTargets.find(bytecodeOffset);
-            if (it != jumpTargets.end())
+            const uint32_t index = jumpTargets.at(bytecodeOffset);
+            if (index != OffsetIndex::none)
             {
-                return it->second;
+                return index;
             }
             // Fallback: linear search (shouldn't happen if jumpTargets is built correctly)
             for (size_t i = 0; i < meta.size(); ++i)

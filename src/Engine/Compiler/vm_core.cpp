@@ -236,7 +236,9 @@ namespace pg
             // constants came with the file and are in no compiler's list, so decode the tree.
             if (func->precompiled)
             {
-                predecodeFunctionTree(func, this);
+                // Compiled only, the code is not run here: whoever runs it decodes it (executeChunk)
+                if (not compileOnly)
+                    predecodeFunctionTree(func, this);
 
                 if (profiler.isEnabled())
                     compiledFunctions.push_back(func);
@@ -271,8 +273,9 @@ namespace pg
     #endif
             }
 
-            // Pre-decode chunk for faster execution
-            if (not func->chunk.code.empty())
+            // Pre-decode chunk for faster execution (compiled only, it is not run here: whoever runs
+            // it decodes it, as executeChunk does)
+            if (not compileOnly and not func->chunk.code.empty())
             {
                 begin = std::chrono::steady_clock::now();
 
