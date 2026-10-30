@@ -4,1287 +4,441 @@
 
 #include "logger.h"
 
+#include <algorithm>
+#include <cctype>
 #include <sstream>
+#include <utility>
 
 namespace pg
 {
     namespace ast
     {
+        using namespace analysis;
+
         namespace
         {
             const char* DOM = "Effects";
 
-            // Walks of a function or a statement until what its locals hold stops growing
-            constexpr int MaxWalks = 32;
-
-            // Rounds of the whole program until nothing it knows grows
-            constexpr int MaxRounds = 64;
-
-            // The field of entries not known when compiled: a list's, a key computed
-            const std::string AnyField = "*";
-
-            template <typename T>
-            std::vector<T> listOf(std::queue<T> q)
+            void sortUnique(std::vector<LocId>& s)
             {
-                std::vector<T> out;
-
-                while (not q.empty())
-                {
-                    out.push_back(q.front());
-                    q.pop();
-                }
-
-                return out;
+                std::sort(s.begin(), s.end());
+                s.erase(std::unique(s.begin(), s.end()), s.end());
             }
 
-            // What a native known to the analysis does with its arguments
-            enum class Native
+            // A function that runs behind a field read or a loop, which no body shows as a call
+            bool isMetamethod(const std::string& name)
             {
-                Fresh,      // Returns a value of its own (a number, a string, a new list of strings)
-                Lookup,     // Returns the field of its first named by its second, or its third (lookup, pick)
-                Entry,      // Returns an entry of its first (findBy)
-                IndexBy,    // Returns a new table of the entries of its first
-                Copy,       // Returns a new table or list holding what its first holds
-                Push,       // Writes its first, puts its second in it
-                Insert,     // Writes its first, puts its third in it
-                Take,       // Writes its first, returns an entry of it (pop, removeAt)
-                Merge,      // Writes its first, puts what its second holds in it, returns the first
+                return name == "__get" or name == "__set" or name == "__iter" or name == "__next";
+            }
+
+            // A list's entry: a key that is an index
+            bool isIndex(const Locations& locs, LocId l)
+            {
+                const std::string text = locs.text(l);
+                const size_t dot = text.rfind('.');
+                return dot != std::string::npos and dot + 1 < text.size() and
+                       std::all_of(text.begin() + dot + 1, text.end(), [](unsigned char c) { return std::isdigit(c); });
+            }
+
+            std::vector<std::string> textsOf(const Locations& locs, const std::vector<LocId>& at)
+            {
+                std::vector<std::string> out;
+
+                for (auto l : at)
+                    out.push_back(locs.text(l));
+
+                std::sort(out.begin(), out.end());
+                return out;
+            }
+        }
+
+        Summary ProgramEffects::evaluate(const BodyIR& body, size_t& collapsed) const
+        {
+            auto isFollowed = [this](const std::string& name) { return followed.count(name) > 0; };
+            auto isDefined = [this](const std::string& name) { return defined.count(name) > 0; };
+
+            Evaluator evaluator(locs, summaries, isFollowed, isDefined);
+            Summary out = evaluator.evaluate(body);
+            collapsed += evaluator.collapsed();
+            return out;
+        }
+
+        Summary ProgramEffects::summaryOfStatement(const StatementPtr& statement) const
+        {
+            if (not statement)
+                return {};
+
+            auto known = topLevel.find(statement.get());
+
+            if (known != topLevel.end())
+                return known->second;
+
+            size_t ignored = 0;
+            auto isNative = [this](const std::string& name) { return defined.count(name) == 0; };
+            return evaluate(buildTopLevel(statement, locs, isNative), ignored);
+        }
+
+        StatementEffects ProgramEffects::effectsFrom(const Summary& summary) const
+        {
+            StatementEffects effects;
+            effects.reads = summary.reads;
+            effects.edges = summary.edges;
+            effects.rebinds = summary.rebinds;
+            effects.unknown = summary.unknown;
+
+            for (const auto& w : summary.writes)
+                effects.writes.push_back(w.at);
+
+            return effects;
+        }
+
+        bool ProgramEffects::isInput(LocId l) const
+        {
+            const LocId root = locs.rootOf(l);
+            return locs.rootKind(root) == RootKind::Input or (locs.rootKind(root) == RootKind::Global and defined.count(locs.text(root).substr(2)) == 0);
+        }
+
+        void ProgramEffects::findHolders(const std::vector<Edge>& edges)
+        {
+            std::map<LocId, std::set<LocId>> storedAt;
+
+            for (const auto& e : edges)
+            {
+                if (locs.rootKind(e.value) == RootKind::Site and locs.depth(e.value) == 0)
+                    storedAt[e.value].insert(e.at);
+            }
+
+            for (const auto& [site, places] : storedAt)
+            {
+                if (places.size() == 1 and locs.rootKind(*places.begin()) != RootKind::Unknown and locs.rootKind(*places.begin()) != RootKind::Param)
+                    holderOf[site] = *places.begin();
+            }
+
+            // A table stored inside itself keeps its own name: a path of holders must end
+            for (const auto& [site, places] : storedAt)
+            {
+                std::unordered_set<LocId> seen{site};
+                LocId root = site;
+
+                for (auto holder = holderOf.find(root); holder != holderOf.end(); holder = holderOf.find(root))
+                {
+                    root = locs.rootOf(holder->second);
+
+                    if (not seen.insert(root).second)
+                    {
+                        holderOf.erase(holder);
+                        break;
+                    }
+                }
+            }
+        }
+
+        LocId ProgramEffects::objectNamed(LocId site) const
+        {
+            auto memo = namedObjects.find(site);
+
+            if (memo != namedObjects.end())
+                return memo->second;
+
+            // The path of its holders down from a root that is not one, entries as one key
+            std::vector<LocId> ups;
+            LocId root = site;
+
+            for (auto holder = holderOf.find(root); holder != holderOf.end(); holder = holderOf.find(root))
+            {
+                ups.push_back(holder->second);
+                root = locs.rootOf(holder->second);
+            }
+
+            LocId named = root;
+
+            for (auto up = ups.rbegin(); up != ups.rend(); ++up)
+            {
+                std::vector<LocId> path;
+
+                for (LocId at = *up; locs.depth(at) > 0; at = locs.parent(at))
+                    path.push_back(at);
+
+                for (auto at = path.rbegin(); at != path.rend(); ++at)
+                    named = locs.child(named, isIndex(locs, *at) ? Locations::AnyKey : locs.keyOf(*at));
+            }
+
+            return namedObjects[site] = named;
+        }
+
+        bool ProgramEffects::reachesAll(LocId l) const
+        {
+            return locs.deep(l) or reachingAll.count(l) > 0;
+        }
+
+        void ProgramEffects::addFieldsOf(LocId object, KeyId key, Objects& out) const
+        {
+            // Nothing is known of what is inside these
+            if (locs.rootKind(object) == RootKind::Unknown or isInput(object))
+                out.insert(object);
+
+            auto fields = heap.find(object);
+
+            if (fields == heap.end())
+                return;
+
+            if (key == Locations::AnyKey or locs.isParamKey(key))
+            {
+                for (const auto& [name, held] : fields->second)
+                    out.insert(held.begin(), held.end());
+
+                return;
+            }
+
+            for (const KeyId k : {key, Locations::AnyKey})
+            {
+                auto held = fields->second.find(k);
+
+                if (held != fields->second.end())
+                    out.insert(held->second.begin(), held->second.end());
+            }
+        }
+
+        ProgramEffects::Objects ProgramEffects::reachableFrom(Objects objects) const
+        {
+            std::vector<LocId> todo(objects.begin(), objects.end());
+
+            while (not todo.empty())
+            {
+                auto fields = heap.find(todo.back());
+                todo.pop_back();
+
+                if (fields == heap.end())
+                    continue;
+
+                for (const auto& [name, held] : fields->second)
+                {
+                    for (auto o : held)
+                    {
+                        if (objects.insert(o).second)
+                            todo.push_back(o);
+                    }
+                }
+            }
+
+            return objects;
+        }
+
+        const ProgramEffects::Objects& ProgramEffects::objectsAt(LocId l) const
+        {
+            auto memo = objectsMemo.find(l);
+
+            if (memo != objectsMemo.end())
+                return memo->second;
+
+            Objects out;
+
+            if (locs.depth(l) == 0)
+            {
+                // A global is an object of its own besides what it holds: what it is given and what
+                // is stored in it when nothing shows it holds a table
+                if (locs.rootKind(l) == RootKind::Site)
+                    out.insert(objectNamed(l));
+                else if (locs.rootKind(l) != RootKind::Param)
+                    out.insert(l);
+
+                auto held = holds.find(l);
+
+                if (held != holds.end())
+                    out.insert(held->second.begin(), held->second.end());
+            }
+            else
+            {
+                for (auto o : objectsAt(locs.parent(l)))
+                    addFieldsOf(o, locs.keyOf(l), out);
+
+                out.insert(anywhere.begin(), anywhere.end());
+
+                if (locs.deep(l))
+                    out = reachableFrom(std::move(out));
+            }
+
+            return objectsMemo[l] = std::move(out);
+        }
+
+        ProgramEffects::Objects ProgramEffects::objectsOf(LocId write) const
+        {
+            if (locs.depth(write) == 0)
+                return {write};
+
+            const Objects& parents = objectsAt(locs.parent(write));
+            Objects objects = reachesAll(write) ? reachableFrom(parents) : parents;
+
+            // A slot of no object known: of a parameter, or of a value no table is seen in
+            if (objects.empty())
+                objects.insert(locs.rootOf(write));
+
+            return objects;
+        }
+
+        ProgramEffects::Objects ProgramEffects::written(const std::vector<LocId>& writes) const
+        {
+            Objects out;
+
+            for (auto w : writes)
+            {
+                const Objects objects = objectsOf(w);
+                out.insert(objects.begin(), objects.end());
+            }
+
+            return out;
+        }
+
+        void ProgramEffects::resolveEdges(const std::vector<Edge>& edges)
+        {
+            findHolders(edges);
+
+            // A location holding a value and all inside it: what a call not followed left, the two go
+            // together through every summary. It stands for all that is reachable, a store for one slot
+            std::unordered_set<uint64_t> seen;
+
+            for (const auto& e : edges)
+                seen.insert((static_cast<uint64_t>(e.at) << 32) | e.value);
+
+            for (const auto& e : edges)
+            {
+                if (locs.depth(e.at) == 0 or locs.keyOf(e.at) != Locations::AnyKey or locs.rootKind(e.value) == RootKind::Unknown)
+                    continue;
+
+                const LocId inside = locs.child(e.value, Locations::AnyKey);
+
+                if (inside != e.value and seen.count((static_cast<uint64_t>(e.at) << 32) | inside))
+                    reachingAll.insert(e.at);
+            }
+
+            auto addAll = [](Objects& into, const Objects& from)
+            {
+                const size_t before = into.size();
+                into.insert(from.begin(), from.end());
+                return into.size() != before;
             };
 
-            const std::map<std::string, Native>& natives()
+            // Each edge holds at every object its location may name, itself found through the edges
+            bool grew = true;
+
+            while (grew)
             {
-                static const std::map<std::string, Native> known = {
-                    // algorithm
-                    {"contain", Native::Fresh}, {"lookup", Native::Lookup}, {"pick", Native::Lookup},
-                    {"findBy", Native::Entry}, {"indexBy", Native::IndexBy}, {"copy", Native::Copy},
-                    {"merge", Native::Merge}, {"toInt", Native::Fresh}, {"toFloat", Native::Fresh},
-                    {"typeOf", Native::Fresh}, {"len", Native::Fresh}, {"push", Native::Push},
-                    {"pop", Native::Take}, {"insert", Native::Insert}, {"removeAt", Native::Take},
-                    // string
-                    {"toString", Native::Fresh}, {"strlen", Native::Fresh}, {"split", Native::Fresh},
-                    {"splitLines", Native::Fresh}, {"startsWith", Native::Fresh}, {"endsWith", Native::Fresh},
-                    {"contains", Native::Fresh}, {"charAt", Native::Fresh}, {"substring", Native::Fresh},
-                    {"replace", Native::Fresh}, {"join", Native::Fresh}, {"capitalize", Native::Fresh},
-                    {"lowerize", Native::Fresh}, {"toLowerCase", Native::Fresh}, {"toUpperCase", Native::Fresh},
-                    {"trim", Native::Fresh}, {"indexOf", Native::Fresh},
-                    // math
-                    {"sqrt", Native::Fresh}, {"abs", Native::Fresh}, {"pow", Native::Fresh}, {"floor", Native::Fresh},
-                    {"ceil", Native::Fresh}, {"sin", Native::Fresh}, {"cos", Native::Fresh}, {"tan", Native::Fresh},
-                    {"asin", Native::Fresh}, {"acos", Native::Fresh}, {"atan", Native::Fresh},
-                };
+                grew = false;
+                objectsMemo.clear();
 
-                return known;
-            }
-
-            bool isParam(const std::string& name) { return not name.empty() and name[0] == '#'; }
-            bool isInput(const std::string& name) { return name.compare(0, 3, "in:") == 0; }
-            bool isSite(const std::string& name) { return not name.empty() and name[0] == '@'; }
-
-            size_t paramIndex(const std::string& name) { return static_cast<size_t>(std::stoul(name.substr(1))); }
-            std::string paramName(size_t i) { return "#" + std::to_string(i); }
-
-            std::string siteOf(const void* node)
-            {
-                std::ostringstream out;
-                out << '@' << node;
-                return out.str();
-            }
-
-            std::string varName(const ExprPtr& e)
-            {
-                if (e and e->kind() == AstKind::Var)
-                    return std::static_pointer_cast<Var>(e)->name.text;
-
-                return "";
-            }
-
-            // The field an index or a key names when it is a string written out, else any
-            std::string fieldOf(const ExprPtr& key)
-            {
-                if (key and key->kind() == AstKind::Atom)
+                for (const auto& e : edges)
                 {
-                    const auto& value = std::static_pointer_cast<Atom>(key)->value;
+                    const bool all = locs.depth(e.at) > 0 and reachesAll(e.at);
+                    const Objects values = all ? reachableFrom(objectsAt(e.value)) : objectsAt(e.value);
 
-                    if (value.isLitteral())
-                        return value.toString();
-                }
+                    if (values.empty())
+                        continue;
 
-                return AnyField;
-            }
-
-            Roots one(const std::string& name)
-            {
-                Roots r;
-                r.names.insert(name);
-                return r;
-            }
-
-            Roots anything()
-            {
-                Roots r;
-                r.any = true;
-                return r;
-            }
-
-            // The elements the analysis on this thread has gone through: what its work is counted in
-            thread_local uint64_t elementsSeen = 0;
-        }
-
-        bool Roots::add(const Roots& other)
-        {
-            bool grew = false;
-
-            elementsSeen += other.names.size() + other.deep.size() + 1;
-
-            for (const auto& name : other.names)
-                grew = names.insert(name).second or grew;
-
-            for (const auto& name : other.deep)
-                grew = deep.insert(name).second or grew;
-
-            if (other.any and not any)
-            {
-                any = true;
-                grew = true;
-            }
-
-            return grew;
-        }
-
-        bool Roots::add(const std::string& name)
-        {
-            return names.insert(name).second;
-        }
-
-        namespace
-        {
-            bool sameRoots(const Roots& a, const Roots& b) { return a.names == b.names and a.deep == b.deep and a.any == b.any; }
-
-            template <typename K>
-            bool sameMap(const std::map<K, Roots>& a, const std::map<K, Roots>& b)
-            {
-                if (a.size() != b.size())
-                    return false;
-
-                for (const auto& [k, v] : a)
-                {
-                    auto it = b.find(k);
-
-                    if (it == b.end() or not sameRoots(v, it->second))
-                        return false;
-                }
-
-                return true;
-            }
-
-            void text(std::ostream& out, const Roots& r)
-            {
-                out << '{';
-                for (const auto& n : r.names) out << n << ',';
-                for (const auto& n : r.deep) out << n << "...,";
-                out << (r.any ? "*" : "") << '}';
-            }
-        }
-
-        bool FunctionEffects::operator==(const FunctionEffects& o) const
-        {
-            return arity == o.arity and writesParams == o.writesParams and sameRoots(result, o.result) and
-                   sameMap(paramStores, o.paramStores) and sameMap(pending, o.pending) and reads == o.reads and
-                   writes == o.writes and writesDeep == o.writesDeep and writesAny == o.writesAny and
-                   rebinds == o.rebinds and unknown == o.unknown;
-        }
-
-        std::string FunctionEffects::digest() const
-        {
-            std::ostringstream out;
-
-            out << "w";
-            for (auto i : writesParams) out << i << ',';
-            out << "r";
-            text(out, result);
-            for (const auto& [i, r] : paramStores) { out << 's' << i; text(out, r); }
-            for (const auto& [at, r] : pending) { out << 'p' << at.first << '.' << at.second; text(out, r); }
-            out << "R";
-            for (const auto& n : reads) out << n << ',';
-            out << "W";
-            for (const auto& n : writes) out << n << ',';
-            for (const auto& n : writesDeep) out << n << "...,";
-            out << (writesAny ? "*" : "") << "B";
-            for (const auto& n : rebinds) out << n << ',';
-            out << (unknown ? "?" : "");
-
-            return out.str();
-        }
-
-        // Walks a function's body or a top-level statement: what each value may be, what it writes
-        class EffectsWalker
-        {
-        public:
-            // `learning`: what is learnt goes into the program (globals, objects' fields); else only
-            // `function` or `statement` is told
-            EffectsWalker(const ProgramEffects& program, ProgramEffects* learning, FunctionEffects* function, StatementEffects* statement)
-                : program(program), learning(learning), function(function), statement(statement) {}
-
-            void walkFunction(const FunctionStatement& f)
-            {
-                auto params = listOf(f.parameters);
-
-                for (int walk = 0; walk < MaxWalks; ++walk)
-                {
-                    grew = false;
-                    scopes.clear();
-                    scopes.emplace_back();
-
-                    for (size_t i = 0; i < params.size(); ++i)
+                    if (locs.rootKind(e.at) == RootKind::Unknown)
+                        grew = addAll(anywhere, values) or grew;
+                    else if (locs.depth(e.at) == 0)
+                        grew = addAll(holds[e.at], values) or grew;
+                    else
                     {
-                        const std::string name = varName(params[i]);
+                        const Objects& parents = objectsAt(locs.parent(e.at));
 
-                        if (not name.empty())
-                            declare(name, params[i].get(), one(paramName(i)));
+                        // A field named by a parameter may be any field
+                        const KeyId key = all or locs.isParamKey(locs.keyOf(e.at)) ? Locations::AnyKey : locs.keyOf(e.at);
+
+                        // No object known: it is in the global the path starts from
+                        const Objects held = parents.empty() ? Objects{locs.rootOf(e.at)} : all ? reachableFrom(parents) : parents;
+
+                        for (auto o : held)
+                        {
+                            if (locs.rootKind(o) == RootKind::Unknown)
+                                grew = addAll(anywhere, values) or grew;
+                            else
+                                grew = addAll(heap[o][key], values) or grew;
+                        }
                     }
+                }
+            }
+        }
 
-                    stmt(f.body);
+        void ProgramEffects::findRegions()
+        {
+            // Every global: those defined, those assigned, those stored into
+            std::set<std::string> globals = rebinds;
 
-                    if (not grew)
+            for (const auto& [name, count] : defined)
+                globals.insert(name);
+
+            for (const auto& [object, fields] : heap)
+            {
+                if (locs.rootKind(object) == RootKind::Global)
+                    globals.insert(locs.text(locs.rootOf(object)).substr(2));
+            }
+
+            for (const auto& name : globals)
+            {
+                Objects reached = objectsAt(locs.global(name));
+                reached.insert(anywhere.begin(), anywhere.end());
+                reached = reachableFrom(std::move(reached));
+
+                for (auto o : reached)
+                    reachedBy[o].insert(name);
+
+                regions[name] = std::move(reached);
+            }
+        }
+
+        void ProgramEffects::inferConsts(const std::vector<Objects>& writers, const std::unordered_map<const Statement*, size_t>& writerOf)
+        {
+            // Who writes what, by object
+            std::unordered_map<LocId, std::vector<size_t>> writersOf;
+
+            for (size_t writer = 0; writer < writers.size(); ++writer)
+            {
+                for (auto object : writers[writer])
+                {
+                    // A statement that writes anything may write any of them
+                    if (locs.rootKind(object) == RootKind::Unknown)
                         return;
-                }
 
-                LOG_INFO(DOM, "Function " << f.name.text << " still growing after " << MaxWalks << " walks");
-            }
-
-            void walkTopLevel(const StatementPtr& s)
-            {
-                for (int walk = 0; walk < MaxWalks; ++walk)
-                {
-                    grew = false;
-                    scopes.clear();
-                    stmt(s);
-
-                    if (not grew)
-                        return;
+                    writersOf[object].push_back(writer);
                 }
             }
 
-        private:
-            const ProgramEffects& program;
-            ProgramEffects* learning;
-            FunctionEffects* function;
-            StatementEffects* statement;
-
-            // The locals in the scopes around, innermost last: a name and the declaration it stands for
-            std::vector<std::map<std::string, const void*>> scopes;
-
-            // What each local (by its declaration) may hold, kept from walk to walk
-            std::map<const void*, Roots> localValues;
-
-            // What this walk put in objects: seen by its own reads before the program learns it (and
-            // the only place a function's values holding a parameter are kept)
-            std::map<std::string, std::map<std::string, Roots>> localHeap;
-
-            bool grew = false;
-
-            const void* localOf(const std::string& name) const
+            auto writtenElsewhere = [&](const std::string& name, size_t definition)
             {
-                for (auto it = scopes.rbegin(); it != scopes.rend(); ++it)
+                for (auto object : regions[name])
                 {
-                    auto found = it->find(name);
-
-                    if (found != it->end())
-                        return found->second;
-                }
-
-                return nullptr;
-            }
-
-            void declare(const std::string& name, const void* key, const Roots& value)
-            {
-                if (localValues[key].add(value))
-                    grew = true;
-
-                if (not scopes.empty())
-                    scopes.back()[name] = key;
-            }
-
-            void read(const std::string& name)
-            {
-                if (function)
-                    function->reads.insert(name);
-                else if (statement)
-                    statement->reads.insert(name);
-            }
-
-            void markUnknown()
-            {
-                if (function)
-                    function->unknown = true;
-                else if (statement)
-                    statement->unknown = true;
-            }
-
-            void rebind(const std::string& name)
-            {
-                if (function)
-                    function->rebinds.insert(name);
-                else if (statement)
-                    statement->rebinds.insert(name);
-
-                if (learning)
-                    learning->rebinds.insert(name);
-            }
-
-            template <typename F>
-            void eachField(const std::string& object, F&& f) const
-            {
-                for (const auto* heap : {&program.heap, &localHeap})
-                {
-                    auto it = heap->find(object);
-
-                    if (it == heap->end())
-                        continue;
-
-                    for (const auto& [name, held] : it->second)
-                        f(name, held);
-                }
-            }
-
-            // What the objects' field may hold
-            Roots field(const Roots& objects, const std::string& name) const
-            {
-                Roots out;
-                out.any = objects.any;
-
-                // Inside what is reachable from them: still reachable from them
-                out.deep = objects.deep;
-
-                for (const auto& o : objects.names)
-                {
-                    // A parameter's or an input's insides are themselves: not known apart
-                    if (not isSite(o))
+                    // It may be anything: all that is written may be in it
+                    if (locs.rootKind(object) == RootKind::Unknown)
                     {
-                        out.add(o);
+                        for (size_t writer = 0; writer < writers.size(); ++writer)
+                        {
+                            if (writer != definition and not writers[writer].empty())
+                                return true;
+                        }
+
                         continue;
                     }
 
-                    eachField(o, [&](const std::string& f, const Roots& held)
-                    {
-                        if (name == AnyField or f == name or f == AnyField)
-                            out.add(held);
-                    });
-                }
+                    auto found = writersOf.find(object);
 
-                return out;
-            }
-
-            // The objects and all they may hold, unexpanded
-            static Roots reachable(const Roots& r)
-            {
-                Roots out;
-                out.any = r.any;
-                out.deep = r.deep;
-                out.deep.insert(r.names.begin(), r.names.end());
-                return out;
-            }
-
-            // The objects and all they may hold, every one named (for putting something in each)
-            Roots expanded(const Roots& r) const
-            {
-                // What the program knows alone (this walk holds nothing of its own): kept while it holds
-                if (localHeap.empty() and r.names.empty())
-                {
-                    auto& memo = program.expandedAt[r.deep];
-
-                    if (memo.first != program.heapVersion + 1)
-                    {
-                        Roots deep;
-                        deep.deep = r.deep;
-                        memo.second = program.reachable(deep);
-                        memo.first = program.heapVersion + 1;
-                    }
-
-                    elementsSeen += memo.second.size();
-
-                    Roots out;
-                    out.any = r.any;
-                    out.names = memo.second;
-                    return out;
-                }
-
-                Roots out;
-                out.any = r.any;
-                out.names = r.names;
-
-                std::vector<std::string> todo(r.deep.begin(), r.deep.end());
-                todo.insert(todo.end(), r.names.begin(), r.names.end());
-
-                std::set<std::string> seen;
-
-                while (not todo.empty())
-                {
-                    const std::string o = todo.back();
-                    todo.pop_back();
-
-                    if (not seen.insert(o).second)
+                    if (found == writersOf.end())
                         continue;
 
-                    ++elementsSeen;
-                    out.names.insert(o);
-
-                    if (not isSite(o))
-                        continue;
-
-                    eachField(o, [&](const std::string&, const Roots& held)
+                    for (auto writer : found->second)
                     {
-                        if (held.any)
-                            out.any = true;
-
-                        elementsSeen += held.names.size() + held.deep.size() + 1;
-                        todo.insert(todo.end(), held.names.begin(), held.names.end());
-                        todo.insert(todo.end(), held.deep.begin(), held.deep.end());
-                    });
-                }
-
-                return out;
-            }
-
-            void write(const Roots& objects)
-            {
-                for (const auto& o : objects.names)
-                {
-                    if (isParam(o))
-                    {
-                        if (function)
-                            function->writesParams.insert(paramIndex(o));
-                    }
-                    else if (function)
-                        function->writes.insert(o);
-                    else if (statement)
-                        statement->writes.insert(o);
-                }
-
-                for (const auto& o : objects.deep)
-                {
-                    if (isParam(o))
-                    {
-                        if (function)
-                            function->writesParams.insert(paramIndex(o));
-                    }
-                    else if (function)
-                        function->writesDeep.insert(o);
-                    else if (statement)
-                        statement->writesDeep.insert(o);
-                }
-
-                if (objects.any)
-                {
-                    if (function)
-                        function->writesAny = true;
-                    else if (statement)
-                        statement->writesAny = true;
-                }
-            }
-
-            static bool holdsParam(const Roots& r)
-            {
-                for (const auto* set : {&r.names, &r.deep})
-                {
-                    for (const auto& n : *set)
-                    {
-                        if (isParam(n))
+                        if (writer != definition)
                             return true;
                     }
                 }
 
                 return false;
-            }
-
-            // `value` put in the objects' field
-            void store(const Roots& into, const std::string& name, const Roots& value)
-            {
-                if (into.any)
-                    write(reachable(value)); // Into anything: whatever writes anything may write it
-
-                // Into all reachable from some: each of them named
-                Roots objects = into;
-
-                if (not into.deep.empty())
-                {
-                    Roots concreteDeep;
-                    Roots params;
-
-                    for (const auto& o : into.deep)
-                        (isParam(o) ? params : concreteDeep).names.insert(o);
-
-                    objects.add(params);
-                    objects.add(expanded(concreteDeep));
-                    objects.deep.clear();
-                }
-
-                elementsSeen += objects.names.size();
-
-                for (const auto& o : objects.names)
-                {
-                    if (learning and elementsSeen - learning->workFrom > ProgramEffects::Budget)
-                        return;
-
-                    if (isParam(o))
-                    {
-                        if (function and function->paramStores[paramIndex(o)].add(value))
-                            grew = true;
-                    }
-                    else if (isInput(o))
-                    {
-                        // Into what was handed in: whoever handed it may do anything with it
-                        write(reachable(value));
-                    }
-                    else
-                    {
-                        if (function and holdsParam(value) and function->pending[{o, name}].add(value))
-                            grew = true;
-
-                        // What only this walk knows (it learns nothing, or a parameter is in it): for its own reads
-                        if ((not learning or holdsParam(value)) and localHeap[o][name].add(value))
-                            grew = true;
-
-                        if (learning)
-                        {
-                            Roots concrete;
-                            concrete.any = value.any;
-
-                            for (const auto& v : value.names)
-                            {
-                                if (not isParam(v))
-                                    concrete.names.insert(v);
-                            }
-
-                            for (const auto& v : value.deep)
-                            {
-                                if (not isParam(v))
-                                    concrete.deep.insert(v);
-                            }
-
-                            if (not concrete.empty() and learning->heap[o][name].add(concrete))
-                                ++learning->heapVersion;
-                        }
-                    }
-                }
-            }
-
-            Roots unknownCall(const std::vector<Roots>& args)
-            {
-                markUnknown();
-
-                Roots out;
-
-                for (const auto& a : args)
-                {
-                    const Roots all = reachable(a);
-                    write(all);
-                    out.add(all);
-                }
-
-                return out;
-            }
-
-            // A summary's value with the call's arguments in its parameters' places
-            Roots substitute(const Roots& r, const std::vector<Roots>& args) const
-            {
-                Roots out;
-                out.any = r.any;
-
-                for (const auto& n : r.names)
-                {
-                    if (not isParam(n))
-                        out.names.insert(n);
-                    else if (paramIndex(n) < args.size())
-                        out.add(reachable(args[paramIndex(n)]));
-                }
-
-                for (const auto& n : r.deep)
-                {
-                    if (not isParam(n))
-                        out.deep.insert(n);
-                    else if (paramIndex(n) < args.size())
-                        out.add(reachable(args[paramIndex(n)]));
-                }
-
-                return out;
-            }
-
-            Roots callFunction(const FunctionEffects& f, const std::vector<Roots>& args)
-            {
-                if (function)
-                    function->reads.insert(f.reads.begin(), f.reads.end());
-                else if (statement)
-                    statement->reads.insert(f.reads.begin(), f.reads.end());
-
-                Roots written;
-                written.any = f.writesAny;
-                written.names = f.writes;
-                written.deep = f.writesDeep;
-
-                write(written);
-
-                for (auto i : f.writesParams)
-                {
-                    if (i < args.size())
-                        write(reachable(args[i]));
-                }
-
-                for (const auto& name : f.rebinds)
-                    rebind(name);
-
-                for (const auto& [i, value] : f.paramStores)
-                {
-                    if (i < args.size())
-                        store(reachable(args[i]), AnyField, substitute(value, args));
-                }
-
-                for (const auto& [at, value] : f.pending)
-                    store(one(at.first), at.second, substitute(value, args));
-
-                if (f.unknown)
-                    markUnknown();
-
-                return substitute(f.result, args);
-            }
-
-            // Every field of the objects put in `into`, field by field (a copy, a merge)
-            void storeFields(const Roots& into, const Roots& from)
-            {
-                if (not from.deep.empty())
-                {
-                    Roots deep;
-                    deep.deep = from.deep;
-                    store(into, AnyField, deep);
-                }
-
-                for (const auto& o : from.names)
-                {
-                    if (not isSite(o))
-                    {
-                        store(into, AnyField, one(o));
-                        continue;
-                    }
-
-                    std::vector<std::pair<std::string, Roots>> fields;
-                    eachField(o, [&](const std::string& f, const Roots& held) { fields.emplace_back(f, held); });
-
-                    for (const auto& [f, held] : fields)
-                        store(into, f, held);
-                }
-
-                if (from.any)
-                    store(into, AnyField, anything());
-            }
-
-            Roots callNative(Native kind, const std::shared_ptr<CallExpression>& c, const std::vector<Roots>& args)
-            {
-                auto arg = [&args](size_t i) { return i < args.size() ? args[i] : Roots{}; };
-                const auto exprs = listOf(c->args);
-
-                switch (kind)
-                {
-                    case Native::Fresh:
-                        return {};
-
-                    case Native::Lookup:
-                    {
-                        Roots out = field(arg(0), exprs.size() > 1 ? fieldOf(exprs[1]) : AnyField);
-                        out.add(arg(2));
-                        return out;
-                    }
-
-                    case Native::Entry:
-                        return field(arg(0), AnyField);
-
-                    case Native::IndexBy:
-                    {
-                        const Roots made = one(siteOf(c.get()));
-                        store(made, AnyField, field(arg(0), AnyField));
-                        return made;
-                    }
-
-                    case Native::Copy:
-                    {
-                        const Roots made = one(siteOf(c.get()));
-                        storeFields(made, arg(0));
-                        return made;
-                    }
-
-                    case Native::Push:
-                        write(arg(0));
-                        store(arg(0), AnyField, arg(1));
-                        return {};
-
-                    case Native::Insert:
-                        write(arg(0));
-                        store(arg(0), AnyField, arg(2));
-                        return {};
-
-                    case Native::Take:
-                        write(arg(0));
-                        return field(arg(0), AnyField);
-
-                    case Native::Merge:
-                        write(arg(0));
-                        storeFields(arg(0), arg(1));
-                        return arg(0);
-                }
-
-                return {};
-            }
-
-            Roots call(const std::shared_ptr<CallExpression>& c)
-            {
-                std::vector<Roots> args;
-
-                for (const auto& a : listOf(c->args))
-                    args.push_back(expr(a));
-
-                const std::string name = varName(c->caller);
-
-                if (name.empty() or localOf(name))
-                {
-                    expr(c->caller);
-                    return unknownCall(args);
-                }
-
-                read(name);
-
-                // One of the program's functions, as it is defined once and never rebound
-                auto summary = program.summaries.find(name);
-
-                if (summary != program.summaries.end() and not program.rebinds.count(name))
-                    return callFunction(summary->second, args);
-
-                // A native, when the program defines nothing of its name
-                auto native = natives().find(name);
-
-                if (native != natives().end() and program.definitions(name) == 0)
-                    return callNative(native->second, c, args);
-
-                return unknownCall(args);
-            }
-
-            Roots globalValue(const std::string& name)
-            {
-                read(name);
-
-                // A function or a native is a value of no object
-                if (program.summaries.count(name) or (natives().count(name) and program.definitions(name) == 0))
-                    return {};
-
-                // A global of the program: what it is ever given
-                if (program.vars.count(name) or program.consts.count(name))
-                {
-                    auto it = program.globalValue.find(name);
-                    return it == program.globalValue.end() ? Roots{} : it->second;
-                }
-
-                // Defined nowhere: handed in
-                return one("in:" + name);
-            }
-
-            void assignGlobal(const std::string& name, const Roots& value)
-            {
-                if (learning and learning->globalValue[name].add(value))
-                    grew = true;
-            }
-
-            Roots literal(const std::shared_ptr<List>& list)
-            {
-                const Roots made = one(siteOf(list.get()));
-
-                for (const auto& entry : listOf(list->entries))
-                {
-                    std::string name = AnyField;
-
-                    if (entry.explicitKey and entry.key)
-                        name = entry.key->kind() == AstKind::Var ? varName(entry.key) : fieldOf(entry.key);
-                    else
-                        expr(entry.key);
-
-                    // Made, not written: an object being built
-                    store(made, name, expr(entry.value));
-                }
-
-                return made;
-            }
-
-            Roots expr(const ExprPtr& e)
-            {
-                if (not e)
-                    return {};
-
-                // Past the budget the analysis is given up: nothing more is walked
-                if (learning)
-                {
-                    learning->work = ++elementsSeen - learning->workFrom;
-
-                    if (learning->work > ProgramEffects::Budget)
-                        return {};
-                }
-
-                switch (e->kind())
-                {
-                    case AstKind::Atom:
-                    case AstKind::NoneAtom:
-                        return {};
-
-                    case AstKind::This:
-                        return anything();
-
-                    case AstKind::Var:
-                    {
-                        const std::string name = varName(e);
-
-                        if (auto key = localOf(name))
-                        {
-                            auto it = localValues.find(key);
-                            return it == localValues.end() ? Roots{} : it->second;
-                        }
-
-                        return globalValue(name);
-                    }
-
-                    case AstKind::Assign:
-                    {
-                        auto a = std::static_pointer_cast<Assign>(e);
-                        Roots value = expr(a->expr);
-
-                        if (auto key = localOf(a->name.text))
-                        {
-                            if (localValues[key].add(value))
-                                grew = true;
-                        }
-                        else
-                        {
-                            rebind(a->name.text);
-                            assignGlobal(a->name.text, value);
-                        }
-
-                        return value;
-                    }
-
-                    case AstKind::PreFixExpression:
-                    case AstKind::PostFixExpression:
-                    {
-                        const std::string name = e->kind() == AstKind::PreFixExpression ?
-                            std::static_pointer_cast<PreFixExpression>(e)->name.text :
-                            std::static_pointer_cast<PostFixExpression>(e)->name.text;
-
-                        if (not localOf(name))
-                            rebind(name);
-
-                        return {};
-                    }
-
-                    case AstKind::BinaryExpression:
-                    {
-                        auto b = std::static_pointer_cast<BinaryExpression>(e);
-                        expr(b->leftExpr);
-                        expr(b->rightExpr);
-                        return {};
-                    }
-
-                    case AstKind::LogicExpression:
-                    {
-                        // `a or b` is one of them
-                        auto l = std::static_pointer_cast<LogicExpression>(e);
-                        Roots out = expr(l->leftExpr);
-                        out.add(expr(l->rightExpr));
-                        return out;
-                    }
-
-                    case AstKind::UnaryExpression:
-                        expr(std::static_pointer_cast<UnaryExpression>(e)->expr);
-                        return {};
-
-                    case AstKind::CompoundAtom:
-                        return expr(std::static_pointer_cast<CompoundAtom>(e)->expr);
-
-                    case AstKind::CallExpression:
-                        return call(std::static_pointer_cast<CallExpression>(e));
-
-                    case AstKind::Get:
-                    {
-                        auto g = std::static_pointer_cast<Get>(e);
-                        return field(expr(g->object), g->name.text);
-                    }
-
-                    case AstKind::IndexGet:
-                    {
-                        auto g = std::static_pointer_cast<IndexGet>(e);
-                        Roots of = expr(g->object);
-                        expr(g->index);
-                        return field(of, fieldOf(g->index));
-                    }
-
-                    case AstKind::Set:
-                    {
-                        auto s = std::static_pointer_cast<Set>(e);
-                        Roots of = expr(s->object);
-                        Roots value = expr(s->value);
-                        write(of);
-                        store(of, s->name.text, value);
-                        return value;
-                    }
-
-                    case AstKind::IndexSet:
-                    {
-                        auto s = std::static_pointer_cast<IndexSet>(e);
-                        Roots of = expr(s->object);
-                        expr(s->index);
-                        Roots value = expr(s->value);
-                        write(of);
-                        store(of, fieldOf(s->index), value);
-                        return value;
-                    }
-
-                    case AstKind::List:
-                        return literal(std::static_pointer_cast<List>(e));
-
-                    case AstKind::AnonymousFunction:
-                        // A closure: who calls it and with what is not followed. Its parameters may
-                        // be anything, so whatever it writes may be anything
-                        markUnknown();
-                        write(anything());
-                        return {};
-
-                    default:
-                        return {};
-                }
-            }
-
-            void stmt(const StatementPtr& s)
-            {
-                if (not s or (learning and elementsSeen - learning->workFrom > ProgramEffects::Budget))
-                    return;
-
-                switch (s->kind())
-                {
-                    case AstKind::ExpressionStatement:
-                        expr(std::static_pointer_cast<ExpressionStatement>(s)->expr);
-                        return;
-
-                    case AstKind::VariableStatement:
-                    {
-                        auto v = std::static_pointer_cast<VariableStatement>(s);
-                        Roots value = expr(v->expr);
-
-                        // At a file's top level it defines a global of the program
-                        if (scopes.empty())
-                        {
-                            assignGlobal(v->name.text, value);
-
-                            for (const auto& fill : v->keptFills)
-                                stmt(fill);
-                        }
-                        else
-                        {
-                            declare(v->name.text, v.get(), value);
-                        }
-
-                        return;
-                    }
-
-                    case AstKind::FunctionStatement:
-                    {
-                        // A function of the top level is summed up of its own; one declared inside
-                        // another is a closure: not followed
-                        if (not scopes.empty())
-                        {
-                            auto f = std::static_pointer_cast<FunctionStatement>(s);
-                            declare(f->name.text, f.get(), {});
-                            markUnknown();
-                            write(anything());
-                        }
-
-                        return;
-                    }
-
-                    case AstKind::ClassStatement:
-                        // Its methods run on instances not followed
-                        markUnknown();
-                        write(anything());
-                        return;
-
-                    case AstKind::BlockStatement:
-                    {
-                        scopes.emplace_back();
-
-                        for (const auto& b : listOf(std::static_pointer_cast<BlockStatement>(s)->statements))
-                            stmt(b);
-
-                        scopes.pop_back();
-                        return;
-                    }
-
-                    case AstKind::IfStatement:
-                    {
-                        auto i = std::static_pointer_cast<IfStatement>(s);
-                        expr(i->condition);
-                        stmt(i->thenBranch);
-                        stmt(i->elseBranch);
-                        return;
-                    }
-
-                    case AstKind::WhileStatement:
-                    {
-                        auto w = std::static_pointer_cast<WhileStatement>(s);
-                        expr(w->condition);
-                        stmt(w->body);
-                        return;
-                    }
-
-                    case AstKind::ForStatement:
-                    {
-                        auto f = std::static_pointer_cast<ForStatement>(s);
-                        scopes.emplace_back();
-                        stmt(f->initializer);
-                        expr(f->condition);
-                        expr(f->increment);
-                        stmt(f->body);
-                        scopes.pop_back();
-                        return;
-                    }
-
-                    case AstKind::ForInStatement:
-                    {
-                        // Its variable takes the keys of a table or the entries of a list
-                        auto f = std::static_pointer_cast<ForInStatement>(s);
-                        Roots entries = field(expr(f->iterable), AnyField);
-
-                        scopes.emplace_back();
-                        declare(f->varName.text, f.get(), entries);
-                        stmt(f->body);
-                        scopes.pop_back();
-                        return;
-                    }
-
-                    case AstKind::ReturnStatement:
-                    {
-                        Roots value = expr(std::static_pointer_cast<ReturnStatement>(s)->value);
-
-                        if (function and function->result.add(value))
-                            grew = true;
-
-                        return;
-                    }
-
-                    case AstKind::DPrintStatement:
-                        // It prints: something the run does, not a value it makes
-                        expr(std::static_pointer_cast<DPrintStatement>(s)->expr);
-                        markUnknown();
-                        return;
-
-                    default:
-                        return;
-                }
-            }
-        };
-
-        int ProgramEffects::definitions(const std::string& name) const
-        {
-            auto it = defined.find(name);
-            return it == defined.end() ? 0 : it->second;
-        }
-
-        std::set<std::string> ProgramEffects::reachable(const Roots& r) const
-        {
-            std::set<std::string> out;
-            std::vector<std::string> todo(r.names.begin(), r.names.end());
-            todo.insert(todo.end(), r.deep.begin(), r.deep.end());
-
-            while (not todo.empty())
-            {
-                const std::string o = todo.back();
-                todo.pop_back();
-
-                if (not out.insert(o).second or not isSite(o))
-                    continue;
-
-                auto it = heap.find(o);
-
-                if (it == heap.end())
-                    continue;
-
-                for (const auto& [f, held] : it->second)
-                {
-                    todo.insert(todo.end(), held.names.begin(), held.names.end());
-                    todo.insert(todo.end(), held.deep.begin(), held.deep.end());
-                }
-            }
-
-            return out;
-        }
-
-        std::set<std::string> ProgramEffects::written(const StatementEffects& effects) const
-        {
-            Roots deep;
-            deep.deep = effects.writesDeep;
-
-            std::set<std::string> out = reachable(deep);
-            out.insert(effects.writes.begin(), effects.writes.end());
-
-            return out;
-        }
-
-        bool ProgramEffects::analyze(const std::vector<std::vector<StatementPtr>>& files)
-        {
-            *this = ProgramEffects();
-            workFrom = elementsSeen;
-
-            // What the top levels define
-            for (const auto& file : files)
-            {
-                for (const auto& s : file)
-                {
-                    if (not s)
-                        continue;
-
-                    if (s->kind() == AstKind::VariableStatement)
-                    {
-                        auto v = std::static_pointer_cast<VariableStatement>(s);
-                        ++defined[v->name.text];
-                        (v->isConst ? consts : vars).insert(v->name.text);
-                        definitionOf[v->name.text] = v;
-                    }
-                    else if (s->kind() == AstKind::FunctionStatement)
-                    {
-                        auto f = std::static_pointer_cast<FunctionStatement>(s);
-                        ++defined[f->name.text];
-                        bodies[f->name.text] = f;
-                    }
-                    else if (s->kind() == AstKind::ClassStatement)
-                    {
-                        ++defined[std::static_pointer_cast<ClassStatement>(s)->name.text];
-                    }
-                }
-            }
-
-            // A function defined twice is the last one at run time: not followed
-            for (auto it = bodies.begin(); it != bodies.end();)
-            {
-                if (defined[it->first] != 1)
-                    it = bodies.erase(it);
-                else
-                {
-                    summaries[it->first].arity = it->second->parameters.size();
-                    ++it;
-                }
-            }
-
-            auto size = [this]()
-            {
-                size_t n = rebinds.size();
-
-                for (const auto& [g, v] : globalValue)
-                    n += v.names.size() + v.deep.size() + (v.any ? 1 : 0);
-
-                for (const auto& [o, fields] : heap)
-                {
-                    for (const auto& [f, held] : fields)
-                        n += held.names.size() + held.deep.size() + (held.any ? 1 : 0);
-                }
-
-                return n;
             };
-
-            // Every function and every top-level statement again, until nothing grows
-            for (int round = 0; round < MaxRounds; ++round)
-            {
-                bool changed = false;
-                const size_t before = size();
-
-                for (const auto& [name, body] : bodies)
-                {
-                    FunctionEffects fresh;
-                    fresh.arity = body->parameters.size();
-
-                    EffectsWalker walker(*this, this, &fresh, nullptr);
-                    walker.walkFunction(*body);
-
-                    // What it learnt joins what was known of it: a summary only grows, so the rounds end
-                    FunctionEffects& known = summaries[name];
-                    const FunctionEffects before = known;
-
-                    known.writesParams.insert(fresh.writesParams.begin(), fresh.writesParams.end());
-                    known.result.add(fresh.result);
-
-                    for (const auto& [i, r] : fresh.paramStores)
-                        known.paramStores[i].add(r);
-
-                    for (const auto& [at, r] : fresh.pending)
-                        known.pending[at].add(r);
-
-                    known.reads.insert(fresh.reads.begin(), fresh.reads.end());
-                    known.writes.insert(fresh.writes.begin(), fresh.writes.end());
-                    known.writesDeep.insert(fresh.writesDeep.begin(), fresh.writesDeep.end());
-                    known.writesAny = known.writesAny or fresh.writesAny;
-                    known.rebinds.insert(fresh.rebinds.begin(), fresh.rebinds.end());
-                    known.unknown = known.unknown or fresh.unknown;
-
-                    if (not (known == before))
-                        changed = true;
-                }
-
-                for (const auto& file : files)
-                {
-                    for (const auto& s : file)
-                    {
-                        if (not s or s->kind() == AstKind::FunctionStatement or s->kind() == AstKind::ImportStatement)
-                            continue;
-
-                        StatementEffects effects;
-                        EffectsWalker walker(*this, this, nullptr, &effects);
-                        walker.walkTopLevel(s);
-                        topLevel[s.get()] = effects;
-                    }
-                }
-
-                if (size() != before)
-                    changed = true;
-
-
-                work = elementsSeen - workFrom;
-
-
-                if (work > Budget)
-                {
-                    LOG_INFO(DOM, "Given up: more work than " << Budget);
-                    return false;
-                }
-
-                if (not changed)
-                    break;
-            }
-
-            // Which objects each global reaches, and which globals reach each object
-            for (const auto& [name, value] : globalValue)
-            {
-                reachOf[name] = reachable(value);
-
-                for (const auto& o : reachOf[name])
-                    reachedBy[o].insert(name);
-            }
-
-            // Every object a statement writes, and whether one writes anything
-            std::map<std::string, std::set<const Statement*>> writers;
-            bool anyWritten = false;
-
-            for (const auto& [s, effects] : topLevel)
-            {
-                anyWritten = anyWritten or effects.writesAny;
-
-                for (const auto& o : written(effects))
-                    writers[o].insert(s);
-            }
 
             // The vars as good as consts: defined once, never rebound, what they reach written by
             // no other statement, their own made of what is the same on every run (found again as
             // each one found makes more of them so)
-            bool found = not anyWritten;
+            bool found = true;
 
             while (found)
             {
@@ -1295,51 +449,202 @@ namespace pg
                     if (inferred.count(name) or definitions(name) != 1 or rebinds.count(name))
                         continue;
 
-                    const Statement* definition = definitionOf[name].get();
-                    auto effects = topLevel.find(definition);
+                    const Statement* definition = definitionOf[name];
+                    auto facts = topLevel.find(definition);
 
-                    if (effects == topLevel.end() or not onlyMakes(effects->second, {name}))
+                    if (facts == topLevel.end() or not onlyMakes(effectsFrom(facts->second), {name}))
                         continue;
 
-                    bool writtenElsewhere = false;
-
-                    for (const auto& o : reachOf[name])
-                    {
-                        auto w = writers.find(o);
-
-                        if (w != writers.end() and (w->second.size() > 1 or not w->second.count(definition)))
-                            writtenElsewhere = true;
-                    }
-
-                    if (writtenElsewhere)
+                    if (writtenElsewhere(name, writerOf.at(definition)))
                         continue;
 
                     inferred.insert(name);
                     found = true;
                 }
             }
+        }
+
+        bool ProgramEffects::analyze(const std::vector<std::vector<StatementPtr>>& files)
+        {
+            *this = ProgramEffects();
+
+            // What the top levels define
+            std::map<std::string, int> functions;
+            bool hiddenCode = false;
+
+            for (const auto& file : files)
+            {
+                for (const auto& s : file)
+                {
+                    if (not s)
+                        continue;
+
+                    kept.push_back(s);
+
+                    if (s->kind() == AstKind::VariableStatement)
+                    {
+                        auto v = std::static_pointer_cast<VariableStatement>(s);
+                        ++defined[v->name.text];
+                        (v->isConst ? consts : vars).insert(v->name.text);
+                        definitionOf[v->name.text] = v.get();
+                    }
+                    else if (s->kind() == AstKind::FunctionStatement)
+                    {
+                        const std::string& name = std::static_pointer_cast<FunctionStatement>(s)->name.text;
+                        ++defined[name];
+                        ++functions[name];
+                        hiddenCode = hiddenCode or isMetamethod(name);
+                    }
+                    else if (s->kind() == AstKind::ClassStatement)
+                    {
+                        ++defined[std::static_pointer_cast<ClassStatement>(s)->name.text];
+                        hiddenCode = true;
+                    }
+                }
+            }
+
+            // Code runs behind a field read or a loop, which the IR does not show
+            if (hiddenCode)
+            {
+                LOG_INFO(DOM, "Not analyzed: a class or a metamethod runs behind what the bodies show");
+                return false;
+            }
+
+            usable = true;
+
+            auto isNative = [this](const std::string& name) { return defined.count(name) == 0; };
+            auto isDefined = [this](const std::string& name) { return defined.count(name) > 0; };
+
+            // Every body and every statement: what they assign decides which functions are followed
+            std::vector<std::pair<std::string, BodyIR>> functionBodies;
+            std::vector<std::pair<const Statement*, BodyIR>> statementBodies;
+
+            auto noteRebinds = [this](const BodyIR& body)
+            {
+                for (const auto& [name, value] : body.rebinds)
+                    rebinds.insert(name);
+            };
+
+            for (const auto& s : kept)
+            {
+                if (s->kind() == AstKind::FunctionStatement)
+                {
+                    auto f = std::static_pointer_cast<FunctionStatement>(s);
+                    functionBodies.emplace_back(f->name.text, buildFunction(*f, locs, isNative));
+                    noteRebinds(functionBodies.back().second);
+                }
+                else if (s->kind() != AstKind::ImportStatement)
+                {
+                    statementBodies.emplace_back(s.get(), buildTopLevel(s, locs, isNative));
+                    noteRebinds(statementBodies.back().second);
+                }
+            }
+
+            // Defined once, as a function, and never assigned: what a call of it runs is known
+            for (const auto& [name, count] : functions)
+            {
+                if (count == 1 and definitions(name) == 1 and not rebinds.count(name))
+                    followed.insert(name);
+            }
+
+            std::map<std::string, BodyIR> followedBodies;
+            std::vector<BodyIR> otherBodies;
+
+            for (auto& [name, body] : functionBodies)
+            {
+                if (followed.count(name))
+                    followedBodies.emplace(name, std::move(body));
+                else
+                    otherBodies.push_back(std::move(body));
+            }
+
+            summaries = summarize(followedBodies, locs, [this](const std::string& name) { return followed.count(name) > 0; }, isDefined, collapsedValues);
+
+            // Who writes what, each with the edges it adds: the statements, and every function (a host
+            // may call one by name, or a statement read as anything may), but for what it does to its
+            // parameters, which is only known at a call
+            std::vector<std::vector<LocId>> ownWrites;
+            std::unordered_map<const Statement*, size_t> writerOf;
+            std::vector<Edge> edges;
+
+            auto notAParameter = [this](LocId l) { return locs.rootKind(l) != RootKind::Param; };
+
+            for (const auto& [statement, body] : statementBodies)
+            {
+                Summary summary = evaluate(body, collapsedValues);
+
+                writerOf[statement] = ownWrites.size();
+                ownWrites.emplace_back();
+
+                for (const auto& w : summary.writes)
+                    ownWrites.back().push_back(w.at);
+
+                edges.insert(edges.end(), summary.edges.begin(), summary.edges.end());
+                topLevel.emplace(statement, std::move(summary));
+            }
+
+            auto addFunction = [&](const Summary& summary)
+            {
+                ownWrites.emplace_back();
+
+                // A location rooted at a site here is a table made by the call itself: no table of the
+                // program. Stored in one, that is the store's write
+                for (const auto& w : summary.writes)
+                {
+                    if (notAParameter(w.at) and locs.rootKind(w.at) != RootKind::Site)
+                        ownWrites.back().push_back(w.at);
+                }
+
+                for (const auto& e : summary.edges)
+                {
+                    if (notAParameter(e.at) and notAParameter(e.value))
+                        edges.push_back(e);
+                }
+            };
+
+            for (const auto& [name, summary] : summaries)
+                addFunction(summary);
+
+            for (const auto& body : otherBodies)
+                addFunction(evaluate(body, collapsedValues));
+
+            resolveEdges(edges);
+            findRegions();
+
+            std::vector<Objects> writers;
+
+            for (const auto& writes : ownWrites)
+                writers.push_back(written(writes));
+
+            inferConsts(writers, writerOf);
 
             return true;
         }
 
         StatementEffects ProgramEffects::effectsOf(const StatementPtr& statement) const
         {
-            StatementEffects effects;
-            EffectsWalker walker(*this, nullptr, nullptr, &effects);
-            walker.walkTopLevel(statement);
+            if (not usable)
+            {
+                StatementEffects effects;
+                effects.unknown = true;
+                return effects;
+            }
 
-            return effects;
+            return effectsFrom(summaryOfStatement(statement));
         }
 
         bool ProgramEffects::invariant(const std::string& name) const
         {
-            if (consts.count(name) and definitions(name) == 1 and not rebinds.count(name))
+            if (not usable or rebinds.count(name))
+                return false;
+
+            if (consts.count(name) and definitions(name) == 1)
                 return true;
 
-            if (summaries.count(name) and not rebinds.count(name))
+            if (followed.count(name))
                 return true;
 
-            if (natives().count(name) and definitions(name) == 0)
+            if (nativeKind(name) != NativeKind::None and definitions(name) == 0)
                 return true;
 
             return inferred.count(name) > 0;
@@ -1347,49 +652,106 @@ namespace pg
 
         bool ProgramEffects::onlyMakes(const StatementEffects& effects, const std::set<std::string>& targets) const
         {
-            if (effects.unknown or effects.writesAny or not effects.rebinds.empty())
+            if (not usable or effects.unknown or not effects.rebinds.empty())
                 return false;
 
             for (const auto& name : effects.reads)
             {
                 if (not targets.count(name) and not invariant(name))
-                {
                     return false;
-                }
             }
 
-            // What the targets hold: theirs to make, whoever else reaches it (whatever reaches it
-            // later in a run sees it made, as it did)
-            std::set<std::string> theirs;
-
-            for (const auto& g : targets)
+            for (auto object : written(effects.writes))
             {
-                auto reach = reachOf.find(g);
+                const RootKind kind = locs.rootKind(object);
 
-                if (reach != reachOf.end())
-                    theirs.insert(reach->second.begin(), reach->second.end());
-            }
+                // A global never defined is an input, whoever holds it
+                if (kind == RootKind::Unknown or kind == RootKind::Param or isInput(object))
+                    return false;
 
-            for (const auto& o : written(effects))
-            {
-                if (not isSite(o))
-                    return false; // An input, or a parameter's insides
+                // What the targets reach: theirs to make, whoever else reaches it (whatever reaches it
+                // later in a run sees it made, as it did)
+                auto reached = reachedBy.find(object);
 
-                if (theirs.count(o))
+                if (reached != reachedBy.end() and std::any_of(targets.begin(), targets.end(), [&](const std::string& t) { return reached->second.count(t) > 0; }))
                     continue;
 
                 // Else made by itself: reached by no global
-                if (reachedBy.count(o))
-                {
+                if (kind != RootKind::Site or reached != reachedBy.end() or reachedBy.count(locs.unknown()) > 0)
                     return false;
+            }
+
+            return true;
+        }
+
+        bool ProgramEffects::idempotent(const StatementPtr& statement) const
+        {
+            if (not usable)
+                return false;
+
+            const Summary summary = summaryOfStatement(statement);
+
+            // A rebind or a call not followed is no write, and nothing shows it the same on every run
+            if (summary.unknown or not summary.rebinds.empty())
+                return false;
+
+            for (const auto& w : summary.writes)
+            {
+                if (not w.idempotence.shape)
+                    return false;
+
+                for (const auto& name : w.idempotence.needsGlobals)
+                {
+                    if (not invariant(name))
+                        return false;
                 }
             }
 
             return true;
         }
 
+        const Summary* ProgramEffects::summaryOf(const std::string& function) const
+        {
+            auto it = summaries.find(function);
+            return it == summaries.end() ? nullptr : &it->second;
+        }
+
+        std::vector<std::string> ProgramEffects::writtenTexts(const StatementPtr& statement) const
+        {
+            if (not usable)
+                return {locs.text(locs.unknown())};
+
+            const std::vector<LocId> writes = effectsOf(statement).writes;
+
+            // Each as it is written, and as a slot of each object it names
+            std::vector<LocId> all = writes;
+
+            for (auto w : writes)
+            {
+                if (locs.depth(w) == 0)
+                    continue;
+
+                const KeyId key = reachesAll(w) ? Locations::AnyKey : locs.keyOf(w);
+
+                for (auto object : objectsOf(w))
+                    all.push_back(locs.rootKind(object) == RootKind::Unknown ? object : locs.child(object, key));
+            }
+
+            sortUnique(all);
+            return textsOf(locs, all);
+        }
+
+        std::vector<std::string> ProgramEffects::regionsOf(const std::string& global) const
+        {
+            auto it = regions.find(global);
+            return it == regions.end() ? std::vector<std::string>{} : textsOf(locs, {it->second.begin(), it->second.end()});
+        }
+
         std::string ProgramEffects::factsOf(const std::string& name) const
         {
+            if (not usable)
+                return "";
+
             std::ostringstream out;
 
             if (inferred.count(name))
@@ -1401,30 +763,36 @@ namespace pg
             auto f = summaries.find(name);
 
             if (f != summaries.end())
-                out << 'f' << f->second.digest();
+                out << 'f' << f->second.digest(locs);
 
             // What it reaches, and which other globals reach some of it
-            auto reach = reachOf.find(name);
+            auto reach = regions.find(name);
 
-            if (reach != reachOf.end() and not reach->second.empty())
+            if (reach != regions.end())
             {
                 std::set<std::string> sharing;
 
-                for (const auto& o : reach->second)
+                for (auto object : reach->second)
                 {
-                    auto by = reachedBy.find(o);
-
-                    if (by != reachedBy.end())
-                        sharing.insert(by->second.begin(), by->second.end());
+                    const auto& by = reachedBy.at(object);
+                    sharing.insert(by.begin(), by.end());
                 }
 
                 sharing.erase(name);
 
                 out << 'r' << reach->second.size() << 's';
-                for (const auto& g : sharing) out << g << ',';
+
+                for (const auto& g : sharing)
+                    out << g << ',';
             }
 
             return out.str();
+        }
+
+        int ProgramEffects::definitions(const std::string& name) const
+        {
+            auto it = defined.find(name);
+            return it == defined.end() ? 0 : it->second;
         }
     }
 }

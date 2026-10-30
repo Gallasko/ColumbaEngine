@@ -4,80 +4,51 @@
  * @file effects.h
  * @brief What a program's code reads and writes, for passes that must know whether a value changes.
  *
- * A points-to analysis, by allocation site and by field:
+ * Built on the SSA form of each body (analysis/ssa.h) and the summaries by access path
+ * (analysis/summaries.h). A location names slots: `base[key] = v` writes `base.key`, and
+ * "all that is reachable from l" is `l.*`.
  *
- * - An object is where it is made: a table or list literal of the source (and the table a copy or
- *   an indexBy makes) is one object for all it makes there. A value handed in (an input: a global
- *   the program never defines) is one object of its own, whose insides are not known.
- * - A value is the objects it may be; a global holds what it is ever given. An object's field
- *   (`t.name`, `t["name"]`) holds what is ever put in it; a key not known when compiled and a
- *   list's entries are its field "*", which every read sees.
- * - A function is summed up once (FunctionEffects), its parameters standing for whatever its
- *   calls hand it (#0, #1, ... meaning "any object reachable from that argument"), and applied at
- *   each call with what that call hands it.
- * - The natives whose effects are known (algorithm, string, math) are followed; anything else
- *   called (another native, a value called, a method, a closure) is taken to write all it is
- *   handed and to return any of it.
+ * - An edge says what a location may hold. The edges of the program are those of its top-level
+ *   statements and a function's own: a host may call it by name, for what is not about a parameter.
+ * - Edges are resolved over objects: a table made by a literal (a site), a global, a value not
+ *   known. What a path names is found through what its prefix holds, so an edge holds at every
+ *   object its location may be (`t.b.x` is also `u.x` once `t.b` holds `u`), and a path that names
+ *   no object (a number's field, a table's field never given a table) goes no further.
+ * - A table stored in one place only is named by that place, and a list's entries are one key: the
+ *   200 rows of a table are the one object `g:rows.*`. A container is not gone through entry by
+ *   entry. An object still rooted at a site is stored in several places, or in none.
+ * - What a slot holds is not written with it, unless the location stands for all that is
+ *   reachable (what a call not followed left): then it is, all the way down.
+ * - The region of a global is the objects it may reach. A write touches a global when it writes
+ *   into one of them.
+ * - A global the program never defines is an input: what it holds is not known and changes from
+ *   run to run. `?` is any object: stored in it, a value may be anywhere.
  *
  * What a top-level statement does (StatementEffects) is what it and every call it makes do: the
  * whole program runs from its top levels.
  */
 
+#include "Compiler/ast/analysis/summaries.h"
 #include "Interpreter/statement.h"
 
 #include <map>
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace pg
 {
     namespace ast
     {
-        // Objects: "@<site>" (made by the source there), "in:<name>" (an input), "#<i>" (a
-        // function's parameter i, inside its summary)
-        struct Roots
-        {
-            std::set<std::string> names;
-            std::set<std::string> deep;     // These and anything reachable from them (kept unexpanded:
-                                            // a table of a hundred rows is one name, not its rows)
-            bool any = false;               // Anything at all
-
-            bool add(const Roots& other);
-            bool add(const std::string& name);
-
-            bool empty() const { return names.empty() and deep.empty() and not any; }
-        };
-
-        // A function summed up, its parameters by their index
-        struct FunctionEffects
-        {
-            size_t arity = 0;
-            std::set<size_t> writesParams;                          // Writes into what is reachable from them
-            Roots result;                                           // What it returns
-            std::map<size_t, Roots> paramStores;                    // Put into what is reachable from a parameter
-            std::map<std::pair<std::string, std::string>, Roots> pending;   // An object's field given a value holding parameters
-            std::set<std::string> reads;                            // Globals read (functions, natives too)
-            std::set<std::string> writes;                           // Objects written, not through a parameter
-            std::set<std::string> writesDeep;                       // ... and all reachable from these
-            bool writesAny = false;
-            std::set<std::string> rebinds;                          // Globals assigned
-            bool unknown = false;                                   // Calls something that may do anything
-
-            bool operator==(const FunctionEffects& other) const;
-
-            // A text of it, the same for the same summary
-            std::string digest() const;
-        };
-
         // What one top-level statement does
         struct StatementEffects
         {
             std::set<std::string> reads;
-            std::set<std::string> writes;       // Objects
-            std::set<std::string> writesDeep;   // ... and all reachable from these
-            bool writesAny = false;
+            std::vector<analysis::LocId> writes;
+            std::vector<analysis::Edge> edges;
             std::set<std::string> rebinds;
             bool unknown = false;
         };
@@ -85,13 +56,10 @@ namespace pg
         class ProgramEffects
         {
         public:
-            // The program: its files' top-level statements, the script's first. False when it was
-            // given up (more work than the budget allows): then nothing it says may be used
+            // The program: its files' top-level statements, the script's first. False when code of
+            // the program runs behind what the bodies show (a class, a function named as a
+            // metamethod): then nothing it says may be used
             bool analyze(const std::vector<std::vector<StatementPtr>>& files);
-
-            // The work an analysis may do (the elements of the sets it goes through) before it is
-            // given up: a little more than the Chronicle rules need where they are followed whole
-            static constexpr uint64_t Budget = 3000000;
 
             // A statement of the program's top level (or one like it), against what the program does
             StatementEffects effectsOf(const StatementPtr& statement) const;
@@ -102,14 +70,29 @@ namespace pg
 
             // Whether a statement only makes what these globals hold: it reads only what is the same
             // on every run and them, calls nothing unknown, rebinds nothing, and writes only into
-            // objects reachable from them or made by itself (reachable from no global)
+            // what they reach or what it made itself (reached by no global)
             bool onlyMakes(const StatementEffects& effects, const std::set<std::string>& targets) const;
 
             // The top-level vars the program defines once and never changes, made of what is the
             // same on every run: as good as consts
             const std::set<std::string>& inferredConsts() const { return inferred; }
 
-            const std::map<std::string, FunctionEffects>& functions() const { return summaries; }
+            // Every write of the statement stores what it stored last run, by the values stored only
+            // (analysis::Idempotence says what that leaves unchecked: nothing is decided on it)
+            bool idempotent(const StatementPtr& statement) const;
+
+            // A function followed; nullptr for any other name
+            const analysis::Summary* summaryOf(const std::string& function) const;
+
+            // The locations a statement writes, as written and as slots of the objects they name, as
+            // sorted texts
+            std::vector<std::string> writtenTexts(const StatementPtr& statement) const;
+
+            // What a global may reach, as sorted texts
+            std::vector<std::string> regionsOf(const std::string& global) const;
+
+            // Values that hit their guard, now the unknown: sound, reported only
+            size_t collapsed() const { return collapsedValues; }
 
             // What the program's choices about a global rest on, as text (a module cache's key)
             std::string factsOf(const std::string& name) const;
@@ -117,39 +100,68 @@ namespace pg
             int definitions(const std::string& name) const;
 
         private:
-            friend class EffectsWalker;
+            using Objects = std::set<analysis::LocId>;  // Each named by a location: a root, or a path of holders
 
-            std::map<std::string, int> defined;                 // Top-level definitions by name (var, const, fun, class)
+            bool usable = false;
+
+            std::map<std::string, int> defined;  // Top-level definitions by name (var, const, fun, class)
             std::set<std::string> consts;
             std::set<std::string> vars;
-            std::set<std::string> rebinds;                      // Globals assigned besides their definition
+            std::set<std::string> rebinds;       // Globals assigned besides their definition
+            std::map<std::string, const Statement*> definitionOf;  // A top-level var's statement
 
-            std::map<std::string, Roots> globalValue;           // What each global of the program may hold
-            std::map<std::string, std::map<std::string, Roots>> heap;   // Object -> field -> what it may hold
+            std::vector<StatementPtr> kept;      // What the sites and `topLevel` are keyed by, kept alive
 
-            std::map<std::string, FunctionEffects> summaries;   // The top-level functions
-            std::map<std::string, std::shared_ptr<FunctionStatement>> bodies;
-            std::map<std::string, std::shared_ptr<VariableStatement>> definitionOf;   // A top-level var's statement
-            std::map<const Statement*, StatementEffects> topLevel;
+            std::set<std::string> followed;      // The functions summed up
+            std::map<std::string, analysis::Summary> summaries;
+            std::unordered_map<const Statement*, analysis::Summary> topLevel;
 
-            // After the analysis: the objects reachable from each global, and which globals reach each object
-            std::map<std::string, std::set<std::string>> reachOf;
-            std::map<std::string, std::set<std::string>> reachedBy;
+            // What the edges come to: object -> field -> objects it may hold
+            std::unordered_map<analysis::LocId, std::unordered_map<analysis::KeyId, Objects>> heap;
+            std::unordered_map<analysis::LocId, Objects> holds;  // Global -> objects it may hold
+            std::unordered_map<analysis::LocId, analysis::LocId> holderOf;  // A site stored in one place: that place
+            Objects anywhere;                                    // Stored in `?`: any field may hold them
+            std::unordered_set<analysis::LocId> reachingAll;     // Locations that stand for all that is reachable
+
+            std::map<std::string, Objects> regions;              // Global -> objects it may reach
+            std::unordered_map<analysis::LocId, std::set<std::string>> reachedBy;
 
             std::set<std::string> inferred;
+            size_t collapsedValues = 0;
 
-            // Grows each time an object's field is given more: what was expanded at a version holds
-            // while it lasts
-            uint64_t heapVersion = 0;
+            // Every location is made where it is first needed, questions included
+            mutable analysis::Locations locs;
+            mutable std::unordered_map<analysis::LocId, Objects> objectsMemo;
+            mutable std::unordered_map<analysis::LocId, analysis::LocId> namedObjects;
 
-            uint64_t work = 0;
-            uint64_t workFrom = 0;
-            mutable std::map<std::set<std::string>, std::pair<uint64_t, std::set<std::string>>> expandedAt;
+            analysis::Summary evaluate(const analysis::BodyIR& body, size_t& collapsed) const;
 
-            std::set<std::string> reachable(const Roots& roots) const;
+            // What a statement does: from the analysis when it is of the program, else read now
+            analysis::Summary summaryOfStatement(const StatementPtr& statement) const;
+            StatementEffects effectsFrom(const analysis::Summary& summary) const;
 
-            // Every object a statement writes
-            std::set<std::string> written(const StatementEffects& effects) const;
+            bool isInput(analysis::LocId l) const;
+
+            void findHolders(const std::vector<analysis::Edge>& edges);
+            analysis::LocId objectNamed(analysis::LocId site) const;
+
+            bool reachesAll(analysis::LocId l) const;
+
+            void addFieldsOf(analysis::LocId object, analysis::KeyId key, Objects& out) const;
+            Objects reachableFrom(Objects objects) const;
+
+            // The objects a location may hold
+            const Objects& objectsAt(analysis::LocId l) const;
+
+            // The objects a write writes into, and those of every write
+            Objects objectsOf(analysis::LocId write) const;
+            Objects written(const std::vector<analysis::LocId>& writes) const;
+
+            void resolveEdges(const std::vector<analysis::Edge>& edges);
+            void findRegions();
+
+            // `writers`: the objects each statement or function writes into
+            void inferConsts(const std::vector<Objects>& writers, const std::unordered_map<const Statement*, size_t>& writerOf);
         };
     }
 }

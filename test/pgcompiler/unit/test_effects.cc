@@ -3,6 +3,7 @@
 #include "Compiler/ast/analysis/locations.h"
 #include "Compiler/ast/analysis/ssa.h"
 #include "Compiler/ast/analysis/summaries.h"
+#include "Compiler/ast/pass/effects.h"
 
 #include "Interpreter/lexer.h"
 #include "Interpreter/parser.h"
@@ -913,6 +914,553 @@ namespace pg
             const std::string d = s->of("amountsOf").digest(s->locs);
             EXPECT_EQ(d, s->of("amountsOf").digest(s->locs));
             EXPECT_NE(d.find("#0.[#1].*.amount"), std::string::npos);
+        }
+
+        namespace
+        {
+            using Texts = std::vector<std::string>;
+
+            bool holds(const Texts& texts, const std::string& text)
+            {
+                return std::find(texts.begin(), texts.end(), text) != texts.end();
+            }
+
+            bool anyStartsWith(const Texts& texts, const std::string& prefix)
+            {
+                return std::any_of(texts.begin(), texts.end(), [&](const std::string& t) { return t.compare(0, prefix.size(), prefix) == 0; });
+            }
+
+            bool share(const Texts& a, const Texts& b)
+            {
+                return std::any_of(a.begin(), a.end(), [&](const std::string& t) { return holds(b, t); });
+            }
+
+            // A slot written is a slot of one of the objects of a region
+            bool writesInto(const Texts& written, const Texts& region)
+            {
+                return std::any_of(region.begin(), region.end(), [&](const std::string& object) { return anyStartsWith(written, object + "."); });
+            }
+
+            // A program of one file, its statements kept for the questions asked of them
+            struct Analyzed
+            {
+                std::vector<StatementPtr> statements;
+                ast::ProgramEffects effects;
+                bool usable = false;
+
+                explicit Analyzed(const std::string& source) : statements(parsed(source))
+                {
+                    usable = effects.analyze({statements});
+                }
+
+                std::set<std::string> consts() const { return effects.inferredConsts(); }
+                bool inferred(const std::string& name) const { return effects.inferredConsts().count(name) > 0; }
+            };
+
+            const std::string activitiesSource =
+                amountsOfSource +
+                "var activities = [{id: \"a\", gains: [{stat: \"s\"}]}, {id: \"b\", gains: [{stat: \"t\", amount: 2}]}]\n"
+                "var other = {x: [1]}\n"
+                "for (var i = 0; i < len(activities); i++)\n"
+                "{\n"
+                "    amountsOf(activities[i], \"gains\")\n"
+                "}\n";
+
+            const std::string rewrittenSlotSource =
+                "fun f(t, u)\n{\n    var a = t.b\n    t.b = u\n    var c = t.b\n    c.x = a.x\n}\n"
+                "var inner = {y: 1}\n"
+                "var t = {b: {x: inner}}\n"
+                "var u = {}\n"
+                "f(t, u)\n";
+        }
+
+        TEST(ProgramEffects, TheActivityLoopWritesOnlyTheAmounts)
+        {
+            Analyzed p(activitiesSource);
+            ASSERT_TRUE(p.usable);
+
+            const StatementPtr& loop = p.statements.back();
+            const Texts written = p.effects.writtenTexts(loop);
+
+            EXPECT_TRUE(holds(written, "g:activities.*.gains.*.amount"));
+            EXPECT_FALSE(anyStartsWith(written, "g:other"));
+            EXPECT_TRUE(std::is_sorted(written.begin(), written.end()));
+
+            EXPECT_FALSE(share(p.effects.regionsOf("activities"), p.effects.regionsOf("other")));
+            EXPECT_TRUE(p.inferred("other"));
+            EXPECT_FALSE(p.inferred("activities"));
+            EXPECT_TRUE(p.effects.idempotent(loop));
+            EXPECT_EQ(p.effects.collapsed(), 0u);
+        }
+
+        TEST(ProgramEffects, AWriteThroughAnAliasWritesTheOriginal)
+        {
+            Analyzed p("var rows = [{a: 1}, {a: 2}]\nvar index = {}\nindex[\"x\"] = rows[0]\nindex[\"x\"].a = 5\n");
+            EXPECT_FALSE(p.inferred("rows"));
+            EXPECT_FALSE(p.inferred("index"));
+        }
+
+        TEST(ProgramEffects, AGlobalAssignedInAFunctionIsNoConst)
+        {
+            Analyzed p("var lastAge = 3\nfun f()\n{\n    lastAge = 4\n}\nf()\n");
+            EXPECT_FALSE(p.inferred("lastAge"));
+        }
+
+        TEST(ProgramEffects, AFunctionDefinedTwiceIsNotFollowed)
+        {
+            Analyzed p("fun g(t)\n{\n    return 0\n}\nfun g(t)\n{\n    t.x = 1\n}\nvar rows = {x: 0}\ng(rows)\n");
+            EXPECT_EQ(p.effects.summaryOf("g"), nullptr);
+            EXPECT_FALSE(p.inferred("rows"));
+        }
+
+        TEST(ProgramEffects, AFunctionDefinedInTwoFilesIsNotFollowed)
+        {
+            auto first = parsed("var rows = {x: 0}\nfun g(t)\n{\n    return 0\n}\ng(rows)\n");
+            auto second = parsed("fun g(t)\n{\n    t.x = 1\n}\n");
+
+            ast::ProgramEffects effects;
+            ASSERT_TRUE(effects.analyze({first, second}));
+            EXPECT_EQ(effects.summaryOf("g"), nullptr);
+            EXPECT_EQ(effects.definitions("g"), 2);
+            EXPECT_FALSE(effects.invariant("g"));
+            EXPECT_EQ(effects.inferredConsts().count("rows"), 0u);
+        }
+
+        TEST(ProgramEffects, AConstantVarIsInferred)
+        {
+            Analyzed p("var lastAge = 30\nvar noBreak = {a: 1}\nfun f()\n{\n    return lastAge\n}\n");
+            EXPECT_EQ(p.consts(), (std::set<std::string>{"lastAge", "noBreak"}));
+            ASSERT_NE(p.effects.summaryOf("f"), nullptr);
+            EXPECT_TRUE(p.effects.summaryOf("f")->reads.count("lastAge"));
+            EXPECT_TRUE(p.effects.invariant("lastAge"));
+            EXPECT_TRUE(p.effects.invariant("f"));
+            EXPECT_TRUE(p.effects.invariant("len"));
+            EXPECT_EQ(p.effects.definitions("lastAge"), 1);
+        }
+
+        TEST(ProgramEffects, AValueMadeOfConstsIsInferredInTurn)
+        {
+            Analyzed p("var base = {a: 1}\nvar derived = base.a\nconst fixed = 2\nvar sum = fixed + 1\n");
+            EXPECT_EQ(p.consts(), (std::set<std::string>{"base", "derived", "sum"}));
+        }
+
+        // Code runs behind what the IR shows: nothing the analysis says may be used
+        TEST(ProgramEffects, ACodeBehindAFieldOrALoopGivesUp)
+        {
+            const std::vector<std::string> sources = {
+                "class Box\n{\n    size()\n    {\n        return 1\n    }\n}\nvar x = 1\nx\n",
+                "fun __get(t, k)\n{\n    return 1\n}\nvar x = 1\nx\n",
+                "fun __set(t, k, v)\n{\n    return 1\n}\nvar x = 1\nx\n",
+                "fun __iter(t)\n{\n    return 1\n}\nvar x = 1\nx\n",
+                "fun __next(t)\n{\n    return 1\n}\nvar x = 1\nx\n",
+            };
+
+            for (const auto& source : sources)
+            {
+                Analyzed p(source);
+                EXPECT_FALSE(p.usable) << source;
+                EXPECT_TRUE(p.consts().empty()) << source;
+                EXPECT_FALSE(p.effects.invariant("x")) << source;
+                EXPECT_FALSE(p.effects.invariant("len")) << source;
+                EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(p.statements.back()), {"x"})) << source;
+                EXPECT_FALSE(p.effects.idempotent(p.statements.back())) << source;
+            }
+        }
+
+        TEST(ProgramEffects, ACollapseIsOnlyReported)
+        {
+            // A value that may be any of 300 fields: past the guard, it is the unknown
+            std::string body = "fun many(t, c)\n{\n    var v = t.k0\n";
+
+            for (int i = 1; i < 300; ++i)
+                body += "    if (c == " + std::to_string(i) + ")\n    {\n        v = t.k" + std::to_string(i) + "\n    }\n";
+
+            body += "    return v\n}\nvar kept = 1\n";
+
+            Analyzed p(body);
+            EXPECT_TRUE(p.usable);
+            EXPECT_GT(p.effects.collapsed(), 0u);
+            EXPECT_TRUE(p.inferred("kept"));
+
+            // What the value names is written: that is any location
+            Analyzed q(body + "var rows = {x: 1}\nfun put(t, c)\n{\n    var v = many(t, c)\n    v.x = 1\n}\n");
+            EXPECT_TRUE(q.usable);
+            EXPECT_TRUE(q.consts().empty());
+        }
+
+        TEST(ProgramEffects, AGlobalNotDefinedIsAnInput)
+        {
+            Analyzed p("var copyOf = character\nvar made = {}\nmade.a = 1\ncharacter.x = 1\nvar fine = 1\n");
+            EXPECT_FALSE(p.inferred("copyOf"));
+            EXPECT_TRUE(p.inferred("fine"));
+            EXPECT_FALSE(p.effects.invariant("character"));
+
+            // Refused, even named as a target or held by one
+            const StatementPtr& write = p.statements[3];
+            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(write), {"character"}));
+
+            Analyzed held("var holder = {c: character}\nfun w()\n{\n    return 1\n}\nholder.c.x = 1\n");
+            EXPECT_FALSE(held.effects.onlyMakes(held.effects.effectsOf(held.statements.back()), {"holder", "character"}));
+        }
+
+        TEST(ProgramEffects, WhatOnlyMakesAccepts)
+        {
+            Analyzed p(
+                "const places = {a: 1}\n"
+                "const byId = {}\n"
+                "const plain = {n: 1}\n"
+                "var count = 0\n"
+                "byId.a = 1\n"
+                "for (var i = 0; i < 2; i++)\n"
+                "{\n"
+                "    var mine = {}\n"
+                "    mine.x = i\n"
+                "}\n"
+                "plain.n = places.a\n"
+                "count = 1\n"
+                "byId.b = character\n");
+
+            const auto& s = p.statements;
+            EXPECT_TRUE(p.effects.onlyMakes(p.effects.effectsOf(s[4]), {"byId"}));
+            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(s[4]), {"places"}));
+
+            // A table made by the statement itself, that no global holds
+            EXPECT_TRUE(p.effects.onlyMakes(p.effects.effectsOf(s[5]), {"byId"}));
+
+            // Reads a const, writes another's
+            EXPECT_TRUE(p.effects.onlyMakes(p.effects.effectsOf(s[6]), {"plain"}));
+            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(s[6]), {"byId"}));
+
+            // A rebind; an input read
+            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(s[7]), {"count"}));
+            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(s[8]), {"byId"}));
+        }
+
+        TEST(ProgramEffects, ANativeNotKnownIsRefusedByOnlyMakes)
+        {
+            Analyzed p("const a = {}\nengineCall(1)\n");
+            const auto e = p.effects.effectsOf(p.statements.back());
+            EXPECT_TRUE(e.unknown);
+            EXPECT_FALSE(p.effects.onlyMakes(e, {"a"}));
+            EXPECT_FALSE(p.effects.idempotent(p.statements.back()));
+        }
+
+        TEST(ProgramEffects, AStatementLikeOneOfTheProgramIsReadAgainstIt)
+        {
+            const std::string source = "const places = {a: 1}\nconst byId = {}\nbyId.a = places.a\n";
+            Analyzed p(source);
+
+            // The same source parsed again: a module is compiled from its own parse
+            const auto again = parsed(source);
+            const auto e = p.effects.effectsOf(again.back());
+            EXPECT_TRUE(e.reads.count("places"));
+            EXPECT_TRUE(p.effects.onlyMakes(e, {"byId"}));
+            EXPECT_TRUE(holds(p.effects.writtenTexts(again.back()), "g:byId.a"));
+        }
+
+        TEST(ProgramEffects, ARegionHoldsWhatItsGlobalIsGiven)
+        {
+            Analyzed p("var rows = [{a: 1}]\nvar index = {}\nvar apart = {b: {}}\nindex.x = rows\n");
+            EXPECT_TRUE(holds(p.effects.regionsOf("index"), "g:index"));
+            EXPECT_TRUE(holds(p.effects.regionsOf("index"), "g:rows"));
+            EXPECT_TRUE(share(p.effects.regionsOf("index"), p.effects.regionsOf("rows")));
+            EXPECT_FALSE(share(p.effects.regionsOf("index"), p.effects.regionsOf("apart")));
+            EXPECT_TRUE(p.effects.regionsOf("nothing").empty());
+        }
+
+        TEST(ProgramEffects, ATableStoredElsewhereIsNotWrittenByThatStore)
+        {
+            Analyzed p("var rows = {a: 1}\nvar index = {}\nindex.x = rows\n");
+            EXPECT_TRUE(p.inferred("rows"));
+            EXPECT_FALSE(p.inferred("index"));
+        }
+
+        TEST(ProgramEffects, AnEdgeAtAnythingReachesEveryGlobal)
+        {
+            // `v` is the unknown: rows may be stored anywhere
+            Analyzed p(
+                "var cb = 1\n"
+                "var rows = {a: 1}\n"
+                "var apart = {b: 1}\n"
+                "fun put()\n"
+                "{\n"
+                "    var v = cb()\n"
+                "    v.x = rows\n"
+                "}\n"
+                "put()\n");
+
+            EXPECT_TRUE(holds(p.effects.regionsOf("apart"), "g:rows"));
+            EXPECT_TRUE(holds(p.effects.regionsOf("cb"), "g:rows"));
+            EXPECT_TRUE(p.consts().empty());
+        }
+
+        TEST(ProgramEffects, AGlobalHoldingAnythingIsWrittenByEverything)
+        {
+            Analyzed p("var cb = 1\nvar held = cb()\nvar rows = {a: 1}\nrows.a = 2\n");
+            EXPECT_TRUE(holds(p.effects.regionsOf("held"), "?"));
+            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(parsed("var fresh = 1\nfor (var i = 0; i < 2; i++)\n{\n    var mine = {}\n    mine.x = i\n}").back()), {"rows"}));
+        }
+
+        TEST(ProgramEffects, AnEdgeHoldsAtEveryAliasOfItsLocation)
+        {
+            // c.x = a.x with c = u and a = the old t.b: u's field holds what t.b.x held
+            Analyzed p(rewrittenSlotSource);
+            EXPECT_TRUE(holds(p.effects.regionsOf("u"), "g:inner"));
+            EXPECT_TRUE(share(p.effects.regionsOf("u"), p.effects.regionsOf("inner")));
+            EXPECT_FALSE(p.inferred("t"));
+            EXPECT_FALSE(p.inferred("u"));
+        }
+
+        TEST(ProgramEffects, AWriteThroughAnAliasOfASlotReachesWhatItHolds)
+        {
+            // t.b holds u, so t.b.x = rows is u.x: what is written through u is the row
+            Analyzed p(
+                "var rows = [{a: 1}]\n"
+                "var t = {b: {}}\n"
+                "var u = {}\n"
+                "t.b = u\n"
+                "t.b.x = rows[0]\n"
+                "u.x.a = 5\n");
+
+            EXPECT_TRUE(writesInto(p.effects.writtenTexts(p.statements.back()), p.effects.regionsOf("rows")));
+            EXPECT_FALSE(p.inferred("rows"));
+        }
+
+        TEST(ProgramEffects, AnEdgesAliasesComeWithNoEndOnASelfEdge)
+        {
+            Analyzed p(
+                "var l = [{v: 1}, {v: 2}]\n"
+                "for (var i = 0; i < len(l); i++)\n"
+                "{\n"
+                "    l[i].v = l[i + 1].v\n"
+                "}\n"
+                "var next = {n: {n: {}}}\n"
+                "next = next.n\n");
+
+            EXPECT_FALSE(p.inferred("l"));
+            EXPECT_FALSE(p.inferred("next"));
+            EXPECT_EQ(p.effects.collapsed(), 0u);
+        }
+
+        TEST(ProgramEffects, AStoreInACallReachesTheAliasOfItsArgument)
+        {
+            // `index.x` is a row: what is written through the call is the row
+            Analyzed p(
+                "fun mark(t)\n{\n    t.seen = true\n}\n"
+                "var rows = [{a: 1}]\n"
+                "var index = {}\n"
+                "var quiet = {}\n"
+                "index[\"x\"] = rows[0]\n"
+                "mark(index.x)\n");
+
+            EXPECT_TRUE(holds(p.effects.writtenTexts(p.statements.back()), "g:index.x.seen"));
+            EXPECT_TRUE(writesInto(p.effects.writtenTexts(p.statements.back()), p.effects.regionsOf("rows")));
+            EXPECT_FALSE(p.inferred("rows"));
+            EXPECT_TRUE(p.inferred("quiet"));
+        }
+
+        TEST(ProgramEffects, AnEngineNativeMayWriteAllItIsHanded)
+        {
+            Analyzed p("var rows = {a: {b: 1}}\nvar inner = rows.a\nvar apart = {c: 1}\nengineCall(rows)\n");
+            EXPECT_FALSE(p.inferred("rows"));
+            EXPECT_FALSE(p.inferred("inner"));
+            EXPECT_TRUE(p.inferred("apart"));
+        }
+
+        TEST(ProgramEffects, AnEngineNativeReachesAllTheWayDown)
+        {
+            Analyzed p("var inner = {y: 1}\nvar mid = {i: inner}\nvar rows = {m: mid}\nvar apart = {c: 1}\nengineCall(rows)\n");
+            EXPECT_FALSE(p.inferred("rows"));
+            EXPECT_FALSE(p.inferred("mid"));
+            EXPECT_FALSE(p.inferred("inner"));
+            EXPECT_TRUE(p.inferred("apart"));
+            EXPECT_TRUE(holds(p.effects.writtenTexts(p.statements.back()), "g:rows.*"));
+            EXPECT_TRUE(writesInto(p.effects.writtenTexts(p.statements.back()), p.effects.regionsOf("inner")));
+        }
+
+        TEST(ProgramEffects, AnEngineNativeMayStoreOneArgumentInsideAnother)
+        {
+            // handed `rows` and `extra`: extra may now be in the table inner holds, so what writes inner's
+            // fields may write extra
+            Analyzed p(
+                "var inner = {y: {}}\n"
+                "var rows = {m: inner}\n"
+                "var extra = {z: 1}\n"
+                "engineCall(rows, extra)\n"
+                "const after = {}\n"
+                "inner.y.z = 2\n");
+
+            EXPECT_TRUE(holds(p.effects.regionsOf("inner"), "g:extra"));
+            EXPECT_TRUE(writesInto(p.effects.writtenTexts(p.statements.back()), p.effects.regionsOf("extra")));
+        }
+
+        // A host may call any function by name
+        TEST(ProgramEffects, AFunctionNoStatementCallsCounts)
+        {
+            Analyzed writes("var rows = {x: 0}\nvar apart = {y: 0}\nfun hostOnly()\n{\n    rows.x = 1\n}\n");
+            EXPECT_FALSE(writes.inferred("rows"));
+            EXPECT_TRUE(writes.inferred("apart"));
+
+            Analyzed rebinds("var age = 1\nfun hostOnly()\n{\n    age = 2\n}\n");
+            EXPECT_FALSE(rebinds.inferred("age"));
+
+            Analyzed stores("var rows = {x: 0}\nvar holder = {}\nfun hostOnly()\n{\n    holder.r = rows\n}\n");
+            EXPECT_TRUE(share(stores.effects.regionsOf("holder"), stores.effects.regionsOf("rows")));
+            EXPECT_FALSE(stores.inferred("holder"));
+
+            // Writing its parameter says nothing of what it may be handed
+            Analyzed param("var rows = {x: 0}\nfun set(t, v)\n{\n    t.x = v\n}\n");
+            EXPECT_TRUE(param.inferred("rows"));
+
+            // The alias of what it writes
+            Analyzed aliased("var rows = {x: 0}\nvar holder = {}\nholder.r = rows\nfun hostOnly()\n{\n    holder.r.x = 1\n}\n");
+            EXPECT_FALSE(aliased.inferred("rows"));
+        }
+
+        TEST(ProgramEffects, WhatAFunctionMakesAndFillsIsNoWriteOfTheProgram)
+        {
+            // As testbuilds.pg's withBag: each call makes its own table
+            Analyzed p(
+                "fun withBag(s)\n{\n    var held = merge({a: 1}, s)\n    held.b = 1\n    return held\n}\n"
+                "var rows = [{s: withBag({c: 1})}, {s: withBag({d: 2})}]\n");
+
+            EXPECT_TRUE(p.inferred("rows"));
+
+            // Stored in a table of the program, it is a write of that table
+            Analyzed stored("var cache = {}\nfun f()\n{\n    var t = {}\n    cache.t = t\n    t.x = 1\n}\n");
+            EXPECT_FALSE(stored.inferred("cache"));
+
+            // A statement that runs it to write a table that exists writes it
+            Analyzed written(
+                "fun fill(t)\n{\n    var made = {n: 1}\n    t.made = made\n    made.n = 2\n}\n"
+                "var rows = {}\n"
+                "fill(rows)\n");
+
+            EXPECT_FALSE(written.inferred("rows"));
+        }
+
+        TEST(ProgramEffects, AFieldNamedByAParameterMayBeAnyField)
+        {
+            Analyzed p("var inner = {y: 1}\nvar rows = {x: {}}\nfun host(k)\n{\n    rows[k] = inner\n}\nrows.x.y = 2\n");
+            EXPECT_TRUE(writesInto(p.effects.writtenTexts(p.statements.back()), p.effects.regionsOf("inner")));
+            EXPECT_FALSE(p.inferred("inner"));
+        }
+
+        TEST(ProgramEffects, AFunctionThatWritesAnythingBlocksEveryConst)
+        {
+            Analyzed p("var kept = 1\nfun hostOnly(f)\n{\n    f()\n}\n");
+            EXPECT_TRUE(p.consts().empty());
+        }
+
+        TEST(ProgramEffects, AFunctionNotFollowedCountsToo)
+        {
+            Analyzed twice("var rows = {x: 0}\nvar age = 1\nfun g()\n{\n    return 0\n}\nfun g()\n{\n    rows.x = 1\n    age = 2\n}\n");
+            EXPECT_FALSE(twice.inferred("rows"));
+            EXPECT_FALSE(twice.inferred("age"));
+
+            Analyzed rebound("var rows = {x: 0}\nfun g()\n{\n    rows.x = 1\n}\ng = 1\n");
+            EXPECT_EQ(rebound.effects.summaryOf("g"), nullptr);
+            EXPECT_FALSE(rebound.inferred("rows"));
+            EXPECT_FALSE(rebound.effects.invariant("g"));
+        }
+
+        TEST(ProgramEffects, AStatementThatWritesAnythingBlocksEveryConst)
+        {
+            Analyzed p("var kept = 1\nvar cb = 1\ncb()\n");
+            EXPECT_TRUE(p.consts().empty());
+
+            Analyzed closure("var kept = 1\nvar f = fun()\n{\n    return 1\n}\n");
+            EXPECT_TRUE(closure.consts().empty());
+        }
+
+        TEST(ProgramEffects, ATableHoldingOthersLeavesThemConsts)
+        {
+            Analyzed p("var a = {x: 1}\nvar b = {y: 1}\nvar c = {a: a, b: b}\n");
+            EXPECT_EQ(p.consts(), (std::set<std::string>{"a", "b", "c"}));
+            EXPECT_TRUE(share(p.effects.regionsOf("c"), p.effects.regionsOf("a")));
+        }
+
+        TEST(ProgramEffects, TwoTablesStoredInOneSlotStayApart)
+        {
+            Analyzed p("var y = {f: 1}\nvar z = {f: 1}\nvar x = {}\nx.a = y\nx.a = z\ny.f = 2\n");
+            EXPECT_FALSE(p.inferred("y"));
+            EXPECT_TRUE(p.inferred("z"));
+            EXPECT_FALSE(share(p.effects.regionsOf("y"), p.effects.regionsOf("z")));
+        }
+
+        TEST(ProgramEffects, EntriesStoredInOneTableStayApart)
+        {
+            Analyzed p(
+                "var y = {f: 1}\n"
+                "var z = {f: 1}\n"
+                "var x = []\n"
+                "push(x, y)\n"
+                "for (var i = 0; i < 2; i++)\n"
+                "{\n"
+                "    x[i] = z\n"
+                "}\n"
+                "y.f = 2\n");
+
+            EXPECT_FALSE(p.inferred("y"));
+            EXPECT_TRUE(p.inferred("z"));
+            EXPECT_FALSE(share(p.effects.regionsOf("y"), p.effects.regionsOf("z")));
+        }
+
+        TEST(ProgramEffects, AWriteOfAFieldLeavesItsSiblingsAlone)
+        {
+            Analyzed p("var rows = {list: [1], n: 0}\nvar held = {n: 0, list: rows}\nheld.n = 1\n");
+            EXPECT_TRUE(p.inferred("rows"));
+        }
+
+        TEST(ProgramEffects, IdempotentAsksEveryWriteAndWhatItNeeds)
+        {
+            Analyzed p(
+                "var level = 1\n"
+                "var rows = {x: 0, y: 0, n: 0}\n"
+                "const fixed = 2\n"
+                "rows.x = 3\n"
+                "rows.y = fixed\n"
+                "rows.n = rows.n + 1\n"
+                "rows.y = level\n"
+                "level = 2\n");
+
+            EXPECT_TRUE(p.effects.idempotent(p.statements[3]));
+            EXPECT_TRUE(p.effects.idempotent(p.statements[4]));
+            EXPECT_FALSE(p.effects.idempotent(p.statements[5]));
+            EXPECT_FALSE(p.effects.idempotent(p.statements[6]));  // level is rebound
+            EXPECT_FALSE(p.effects.idempotent(p.statements[7]));  // a rebind is no write, and no fixed value
+        }
+
+        TEST(ProgramEffects, FactsAreTheSameFromOneCompileToTheNext)
+        {
+            Analyzed a(activitiesSource), b(activitiesSource);
+
+            for (const std::string name : {"activities", "other", "amountsOf", "len", "nothing"})
+                EXPECT_EQ(a.effects.factsOf(name), b.effects.factsOf(name)) << name;
+
+            EXPECT_EQ(a.effects.factsOf("other").find('c'), 0u);
+            EXPECT_NE(a.effects.factsOf("amountsOf").find("#0.[#1].*.amount"), std::string::npos);
+            EXPECT_TRUE(a.effects.factsOf("nothing").empty());
+
+            // Two globals that share, each named in the other's facts
+            Analyzed s("var rows = {a: 1}\nvar index = {}\nindex.x = rows\n");
+            EXPECT_NE(s.effects.factsOf("index").find("rows,"), std::string::npos);
+            EXPECT_NE(s.effects.factsOf("rows").find("index,"), std::string::npos);
+        }
+
+        TEST(ProgramEffects, EffectsOfAStatementAreItsOwn)
+        {
+            Analyzed p("var rows = {x: 0}\nvar index = {}\nvar age = 1\nindex.r = rows\nage = rows.x\n");
+
+            const auto store = p.effects.effectsOf(p.statements[3]);
+            EXPECT_TRUE(store.reads.count("rows"));
+            EXPECT_TRUE(store.reads.count("index"));
+            ASSERT_EQ(store.writes.size(), 1u);
+            ASSERT_EQ(store.edges.size(), 1u);
+            EXPECT_TRUE(store.rebinds.empty());
+            EXPECT_FALSE(store.unknown);
+
+            EXPECT_TRUE(p.effects.effectsOf(p.statements[4]).rebinds.count("age"));
         }
     }
 }

@@ -7,6 +7,7 @@
 #include "Interpreter/lexer.h"
 #include "Interpreter/parser.h"
 
+#include <algorithm>
 #include <atomic>
 #include <filesystem>
 #include <fstream>
@@ -43,6 +44,12 @@ namespace pg
                 }
 
                 return out;
+            }
+
+            // A block at the end of a source leaves the parser's empty statement after it
+            size_t statementCount(const std::vector<StatementPtr>& statements)
+            {
+                return std::count_if(statements.begin(), statements.end(), [](const StatementPtr& s) { return s != nullptr; });
             }
 
             std::map<std::string, std::shared_ptr<FunctionStatement>> functionsOf(const std::vector<StatementPtr>& statements)
@@ -232,6 +239,33 @@ TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
             EXPECT_EQ(names->keptFills.size(), 1u);
             EXPECT_EQ(derived->keptFills.size(), 0u);
             EXPECT_EQ(statements.size(), 5u);
+        }
+
+        TEST(RunOncePass, TheLoopFillingAConstJoinsIt)
+        {
+            const std::string source =
+                "const places = [{id: \"a\"}, {id: \"b\"}]\n"
+                "const byId = {}\n"
+                "for (var i = 0; i < len(places); i++)\n"
+                "{\n"
+                "    byId[places[i].id] = places[i]\n"
+                "}\n";
+
+            auto on = runOnce(source, true);
+            ASSERT_NE(variable(on, "byId"), nullptr);
+            EXPECT_EQ(variable(on, "byId")->keptFills.size(), 1u);
+            EXPECT_EQ(statementCount(on), 2u);
+
+            auto off = runOnce(source);
+            ASSERT_NE(variable(off, "byId"), nullptr);
+            EXPECT_EQ(variable(off, "byId")->keptFills.size(), 0u);
+            EXPECT_EQ(statementCount(off), 3u);
+        }
+
+        TEST(RunOncePass, AProgramWithAClassIsNotAnalyzed)
+        {
+            auto statements = runOnce("class Box\n{\n    size()\n    {\n        return 1\n    }\n}\nvar x = 1\n", true);
+            EXPECT_FALSE(variable(statements, "x")->isConst);
         }
 
         TEST(RunOncePass, KeptCodeAnswersTheSameOnEveryRun)
