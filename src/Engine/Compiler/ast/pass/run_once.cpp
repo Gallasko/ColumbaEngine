@@ -41,6 +41,153 @@ namespace pg
 
             return q;
         }
+
+        bool isConstantValue(const ExprPtr& e)
+        {
+            return e and (e->kind() == AstKind::Atom or e->kind() == AstKind::NoneAtom);
+        }
+
+        // A value made of constants only (constants, negated ones, lists and tables of them): it
+        // reads nothing, so no earlier const
+        bool isConstantData(const ExprPtr& e)
+        {
+            if (isConstantValue(e))
+                return true;
+
+            if (e and e->kind() == AstKind::UnaryExpression)
+                return isConstantValue(std::static_pointer_cast<UnaryExpression>(e)->expr);
+
+            if (e and e->kind() == AstKind::List)
+            {
+                for (const auto& entry : listOf(std::static_pointer_cast<List>(e)->entries))
+                {
+                    // A key written `key: value` is its name, emitted as a string constant
+                    const bool constantKey = not entry.key or entry.explicitKey or isConstantData(entry.key);
+
+                    if (not constantKey or not isConstantData(entry.value))
+                        return false;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        std::string varName(const ExprPtr& e)
+        {
+            if (e and e->kind() == AstKind::Var)
+                return std::static_pointer_cast<Var>(e)->name.text;
+
+            return "";
+        }
+
+        // The const a statement fills with a constant entry (`t["key"] = value`, `t.key = value`),
+        // "" when it is no such fill
+        std::string filledConst(const StatementPtr& s)
+        {
+            if (not s or s->kind() != AstKind::ExpressionStatement)
+                return "";
+
+            const ExprPtr& e = std::static_pointer_cast<ExpressionStatement>(s)->expr;
+
+            if (not e)
+                return "";
+
+            if (e->kind() == AstKind::IndexSet)
+            {
+                auto set = std::static_pointer_cast<IndexSet>(e);
+
+                if (isConstantValue(set->index) and isConstantValue(set->value))
+                    return varName(set->object);
+            }
+            else if (e->kind() == AstKind::Set)
+            {
+                auto set = std::static_pointer_cast<Set>(e);
+
+                if (isConstantValue(set->value))
+                    return varName(set->object);
+            }
+
+            return "";
+        }
+    }
+
+    namespace ast
+    {
+        std::vector<Join> walkConsts(const std::vector<StatementPtr>& statements,
+                                     const std::function<bool(const VariableStatement&)>& isConst,
+                                     const std::function<int(size_t statement, const std::vector<size_t>& open)>& makes)
+        {
+            std::vector<Join> out(statements.size());
+
+            // The consts the statements since the last other one declared, in their order: a fill of
+            // one joins it
+            std::vector<size_t> open;
+
+            auto openNamed = [&](const std::string& name) -> int
+            {
+                // A later declaration of the name wins
+                for (auto it = open.rbegin(); it != open.rend(); ++it)
+                {
+                    if (std::static_pointer_cast<VariableStatement>(statements[*it])->name.text == name)
+                        return static_cast<int>(*it);
+                }
+
+                return -1;
+            };
+
+            for (size_t i = 0; i < statements.size(); ++i)
+            {
+                const StatementPtr& s = statements[i];
+
+                // A definition runs no code: the fills after it still follow their const
+                if (s and s->kind() == AstKind::FunctionStatement)
+                    continue;
+
+                if (s and s->kind() == AstKind::VariableStatement)
+                {
+                    auto v = std::static_pointer_cast<VariableStatement>(s);
+
+                    if (isConst(*v) and v->expr)
+                    {
+                        // An initializer that may read the consts before it: their later fills would
+                        // be seen by it too early, joined to them
+                        if (not isConstantData(v->expr))
+                            open.clear();
+
+                        open.push_back(i);
+                        continue;
+                    }
+                }
+
+                const std::string filled = filledConst(s);
+                int target = filled.empty() ? -1 : openNamed(filled);
+
+                Join& join = out[i];
+                join.fill = target >= 0;
+
+                // What makes the open consts (a loop putting their tables in order)
+                if (target < 0 and not open.empty())
+                    target = makes(i, open);
+
+                if (target >= 0)
+                {
+                    join.joined = true;
+                    join.target = static_cast<size_t>(target);
+
+                    for (auto o : open)
+                        join.open.insert(std::static_pointer_cast<VariableStatement>(statements[o])->name.text);
+
+                    continue;
+                }
+
+                // Anything else may read a const: what comes after it fills no initializer
+                open.clear();
+            }
+
+            return out;
+        }
     }
 
     bool RunOncePass::runPass(VM* vm, std::queue<StatementPtr>& statements)
@@ -61,34 +208,17 @@ namespace pg
                         keptFunctions.insert(name);
                 }
             }
-
-            analyzed = false;
-            effects = ast::ProgramEffects();
-
-            if (wholeProgram)
-            {
-                const ast::ProgramFiles files = ast::readProgramFiles(vm, statements);
-
-                analyzed = files.complete;
-
-                if (analyzed)
-                    analyzed = effects.analyze(files.files);
-            }
         }
 
         bool changed = false;
         size_t kept = 0;
         size_t joined = 0;
-        size_t inferred = 0;
-        size_t made = 0;
 
         const std::vector<StatementPtr> all = listOf(statements);
 
-        // A module's own parse, read as the one analyzed
-        if (analyzed and vm and vm->astCompileDepth > 1)
-            effects.readModule(all);
-
-        const std::vector<ast::Join> joins = effects.joinsOf(all);
+        const std::vector<ast::Join> joins = ast::walkConsts(all,
+            [](const VariableStatement& v) { return v.isConst; },
+            [](size_t, const std::vector<size_t>&) { return -1; });
 
         std::vector<StatementPtr> out;
 
@@ -107,24 +237,12 @@ namespace pg
                     ++kept;
                 }
             }
-            else if (s and s->kind() == AstKind::VariableStatement)
-            {
-                auto v = std::static_pointer_cast<VariableStatement>(s);
 
-                // A var found to be as good as a const is one
-                if (not v->isConst and v->expr and analyzed and effects.inferredConsts().count(v->name.text))
-                {
-                    v->isConst = true;
-                    changed = true;
-                    ++inferred;
-                }
-            }
-
-            if (joins[i].target)
+            if (joins[i].joined)
             {
-                joins[i].target->keptFills.push_back(s);
+                std::static_pointer_cast<VariableStatement>(all[joins[i].target])->keptFills.push_back(s);
                 changed = true;
-                ++(joins[i].fill ? joined : made);
+                ++joined;
                 continue;
             }
 
@@ -133,33 +251,9 @@ namespace pg
 
         statements = queueOf(out);
 
-        LOG_INFO(DOM, "Kept " << kept << " functions, " << inferred << " vars made consts, joined " << joined << " fills and "
-                 << made << " statements to their const");
+        LOG_INFO(DOM, "Kept " << kept << " functions, joined " << joined << " fills to their const");
 
         return changed;
-    }
-
-    std::string RunOncePass::factsAboutIdentifiers(const std::set<std::string>& identifiers) const
-    {
-        // What its choices for a module (consts inferred, statements joined) rest on: of every
-        // name the module holds, what the program says of it
-        if (not wholeProgram)
-            return "";
-
-        if (not analyzed)
-            return "unread";
-
-        std::string facts;
-
-        for (const auto& name : identifiers)
-        {
-            const std::string flags = effects.factsOf(name);
-
-            if (not flags.empty())
-                facts += name + ":" + flags + ";";
-        }
-
-        return facts;
     }
 
     std::string RunOncePass::factsAbout(const std::set<std::string>& names, std::vector<std::shared_ptr<const void>>&) const

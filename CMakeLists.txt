@@ -217,6 +217,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/ast/pass/length_hoisting.cpp
     src/Engine/Compiler/ast/pass/program_view.cpp
     src/Engine/Compiler/ast/pass/run_once.cpp
+    src/Engine/Compiler/ast/pass/program_consts.cpp
     src/Engine/Compiler/ast/pass/effects.cpp
     src/Engine/Compiler/ast/analysis/locations.cpp
     src/Engine/Compiler/ast/analysis/ssa.cpp
@@ -315,6 +316,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/ast/pass/length_hoisting.cpp
     src/Engine/Compiler/ast/pass/program_view.cpp
     src/Engine/Compiler/ast/pass/run_once.cpp
+    src/Engine/Compiler/ast/pass/program_consts.cpp
     src/Engine/Compiler/ast/pass/effects.cpp
     src/Engine/Compiler/ast/analysis/locations.cpp
     src/Engine/Compiler/ast/analysis/ssa.cpp

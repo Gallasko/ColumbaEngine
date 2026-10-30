@@ -1111,31 +1111,32 @@ namespace pg
                 "const places = {a: 1}\n"
                 "const byId = {}\n"
                 "const plain = {n: 1}\n"
-                "var count = 0\n"
                 "byId.a = 1\n"
+                "plain.n = places.a\n"
                 "for (var i = 0; i < 2; i++)\n"
                 "{\n"
                 "    var mine = {}\n"
                 "    mine.x = i\n"
                 "}\n"
-                "plain.n = places.a\n"
+                "var count = 0\n"
                 "count = 1\n"
-                "byId.b = character\n");
+                "const later = {}\n"
+                "later.b = character\n");
 
             const auto& s = p.statements;
-            EXPECT_TRUE(p.effects.onlyMakes(p.effects.effectsOf(s[4]), {"byId"}));
-            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(s[4]), {"places"}));
+            EXPECT_TRUE(p.effects.onlyMakes(p.effects.effectsOf(s[3]), {"byId"}));
+            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(s[3]), {"places"}));
+
+            // Reads a const, writes another's
+            EXPECT_TRUE(p.effects.onlyMakes(p.effects.effectsOf(s[4]), {"plain"}));
+            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(s[4]), {"byId"}));
 
             // A table made by the statement itself, that no global holds
             EXPECT_TRUE(p.effects.onlyMakes(p.effects.effectsOf(s[5]), {"byId"}));
 
-            // Reads a const, writes another's
-            EXPECT_TRUE(p.effects.onlyMakes(p.effects.effectsOf(s[6]), {"plain"}));
-            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(s[6]), {"byId"}));
-
             // A rebind; an input read
             EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(s[7]), {"count"}));
-            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(s[8]), {"byId"}));
+            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(s[9]), {"later"}));
         }
 
         TEST(ProgramEffects, ANativeNotKnownIsRefusedByOnlyMakes)
@@ -1147,7 +1148,7 @@ namespace pg
             EXPECT_FALSE(p.effects.idempotent(p.statements.back()));
         }
 
-        TEST(ProgramEffects, AModulesOwnParseIsReadAgainstTheOneAnalyzed)
+        TEST(ProgramEffects, AModulesOwnParseIsFoundByItsStatements)
         {
             const std::string module = "const places = {a: 1}\nconst byId = {}\nbyId.a = places.a\n";
             auto script = parsed("var out = 1\n");
@@ -1156,31 +1157,14 @@ namespace pg
             ast::ProgramEffects effects;
             ASSERT_TRUE(effects.analyze({script, analyzed}));
 
-            // A module is compiled from its own parse
-            const auto again = parsed(module);
-            ASSERT_TRUE(effects.readModule(again));
+            EXPECT_EQ(effects.fileOf(parsed(module)), 1);
+            EXPECT_TRUE(effects.joinsInFile(1)[2].joined);
+            EXPECT_EQ(effects.joinsInFile(1)[2].target, 1u);
 
-            const auto e = effects.effectsOf(again.back());
-            EXPECT_TRUE(e.reads.count("places"));
-            EXPECT_TRUE(effects.onlyMakes(e, {"byId"}));
-            EXPECT_TRUE(holds(effects.writtenTexts(again.back()), "g:byId.a"));
-        }
-
-        TEST(ProgramEffects, AModulesStatementAPassRewroteIsReadAtItsPosition)
-        {
-            auto analyzed = parsed("const a = {n: 1}\nfor (var i = 0; i < 2; i++)\n{\n    a.n = 2\n}\n");
-            auto script = parsed("var out = 1\n");
-
-            ast::ProgramEffects effects;
-            ASSERT_TRUE(effects.analyze({script, analyzed}));
-
-            // The loop came back from a pass as a block
-            const auto rewritten = parsed("const a = {n: 1}\n{\n    var k = 1\n}\n");
-            ASSERT_TRUE(effects.readModule(rewritten));
-            EXPECT_TRUE(holds(effects.writtenTexts(rewritten.back()), "g:a.n"));
-
-            // A declaration is its position
-            EXPECT_FALSE(effects.readModule(parsed("const b = {n: 1}\n{\n    var k = 1\n}\n")));
+            // Any statement of another kind or name at an index: not that file
+            EXPECT_EQ(effects.fileOf(parsed("const places = {a: 1}\nconst byId = {}\n{\n    var k = 1\n}\n")), -1);
+            EXPECT_EQ(effects.fileOf(parsed("const places = {a: 1}\nconst other = {}\nbyId.a = places.a\n")), -1);
+            EXPECT_EQ(effects.fileOf(parsed("const places = {a: 1}\nconst byId = {}\n")), -1);
         }
 
         TEST(ProgramEffects, AStatementNotOfTheProgramIsRefused)
@@ -1194,13 +1178,26 @@ namespace pg
             EXPECT_FALSE(p.effects.onlyMakes(e, {"byId"}));
             EXPECT_FALSE(p.effects.idempotent(again.back()));
 
-            // A file the program does not hold, or that two of its files could be
-            EXPECT_FALSE(p.effects.readModule(parsed("const other = 1\n")));
+            EXPECT_EQ(p.effects.fileOf(parsed("const other = 1\n")), -1);
+        }
 
-            const std::string twin = "for (var i = 0; i < 2; i++)\n{\n    i\n}\n";
+        TEST(ProgramEffects, FilesThatCannotBeToldApartJoinNothing)
+        {
+            const std::string twin = "const t = {}\nt.a = 1\n";
+            const std::string other = "const u = {}\nu.a = 1\nconst t = {}\nt.b = 1\n";
+            const std::string same = "for (var i = 0; i < 2; i++)\n{\n    i\n}\n";
+
             ast::ProgramEffects effects;
-            ASSERT_TRUE(effects.analyze({parsed("var out = 1\n"), parsed(twin), parsed(twin)}));
-            EXPECT_FALSE(effects.readModule(parsed(twin)));
+            ASSERT_TRUE(effects.analyze({parsed(twin), parsed(twin), parsed(other)}));
+            EXPECT_EQ(effects.fileOf(parsed(twin)), -1);
+            EXPECT_FALSE(effects.joinsInFile(0)[1].joined);
+            EXPECT_FALSE(effects.joinsInFile(1)[1].joined);
+            EXPECT_TRUE(effects.joinsInFile(2)[1].joined);
+            EXPECT_FALSE(effects.invariant("t"));
+
+            ast::ProgramEffects two;
+            ASSERT_TRUE(two.analyze({parsed("var out = 1\n"), parsed(same), parsed(same)}));
+            EXPECT_EQ(two.fileOf(parsed(same)), -1);
         }
 
         TEST(ProgramEffects, ARegionHoldsWhatItsGlobalIsGiven)
@@ -1243,7 +1240,10 @@ namespace pg
         {
             Analyzed p("var cb = 1\nvar held = cb()\nvar rows = {a: 1}\nrows.a = 2\n");
             EXPECT_TRUE(holds(p.effects.regionsOf("held"), "?"));
-            EXPECT_FALSE(p.effects.onlyMakes(p.effects.effectsOf(parsed("var fresh = 1\nfor (var i = 0; i < 2; i++)\n{\n    var mine = {}\n    mine.x = i\n}").back()), {"rows"}));
+
+            // Any table may be in it: none is made by a statement alone
+            Analyzed fresh("var cb = 1\nvar held = cb()\nfor (var i = 0; i < 2; i++)\n{\n    var mine = {}\n    mine.x = i\n}\n");
+            EXPECT_FALSE(fresh.effects.onlyMakes(fresh.effects.effectsOf(fresh.statements.back()), {"held"}));
         }
 
         TEST(ProgramEffects, AnEdgeHoldsAtEveryAliasOfItsLocation)
@@ -1464,9 +1464,9 @@ namespace pg
                 "u.z = table.v\n"
                 "var out = u.z\n");
 
-            const auto joined = passed.effects.joinsOf(passed.statements);
+            const auto& joined = passed.effects.joinsInFile(0);
             ASSERT_EQ(joined.size(), passed.statements.size());
-            EXPECT_EQ(joined[9].target, nullptr);
+            EXPECT_FALSE(joined[9].joined);
             EXPECT_FALSE(passed.inferred("out"));
         }
 
@@ -1523,7 +1523,7 @@ namespace pg
 
             // That is what a join is: run once, on the first run, whatever it computes
             Analyzed counted("const count = {n: 0}\ncount.n = count.n + 1\n");
-            EXPECT_NE(counted.effects.joinsOf(counted.statements)[1].target, nullptr);
+            EXPECT_TRUE(counted.effects.joinsInFile(0)[1].joined);
             EXPECT_TRUE(counted.effects.invariant("count"));
         }
 
@@ -1540,9 +1540,78 @@ namespace pg
                 "var out = second.k\n");
 
             EXPECT_FALSE(p.effects.invariant("base"));
-            EXPECT_EQ(p.effects.joinsOf(p.statements)[5].target, nullptr);
+            EXPECT_FALSE(p.effects.joinsInFile(0)[5].joined);
             EXPECT_FALSE(p.effects.invariant("second"));
             EXPECT_FALSE(p.inferred("out"));
+        }
+
+        TEST(ProgramEffects, AnOpenConstThatIsNotTheSameStopsAJoinThatReadsIt)
+        {
+            // a stays open past b, and is written on every run later: b.m cannot be made from it once
+            Analyzed p(
+                "const a = {n: 0}\n"
+                "const b = {m: 0}\n"
+                "b.m = a.n\n"
+                "var gate = 0\n"
+                "gate = 1\n"
+                "a.n = a.n + 1\n"
+                "var out = 0\n"
+                "out = b.m\n");
+
+            EXPECT_FALSE(p.effects.invariant("a"));
+            EXPECT_FALSE(p.effects.joinsInFile(0)[2].joined);
+            EXPECT_FALSE(p.effects.invariant("b"));
+
+            // A const that is reads as one, open or not
+            Analyzed fine("const a = {n: 1}\nconst b = {m: 0}\nb.m = a.n\n");
+            EXPECT_TRUE(fine.effects.joinsInFile(0)[2].joined);
+            EXPECT_TRUE(fine.effects.invariant("a"));
+            EXPECT_TRUE(fine.effects.invariant("b"));
+        }
+
+        TEST(ProgramEffects, NothingJoinsBeforeAFunctionItCalls)
+        {
+            Analyzed direct("const a = {n: 0}\nfun fill(t)\n{\n    t.n = 1\n}\nfill(a)\n");
+            EXPECT_FALSE(direct.effects.joinsInFile(0)[2].joined);
+            EXPECT_FALSE(direct.effects.invariant("a"));
+
+            // Through what it calls
+            Analyzed through(
+                "fun outer(t)\n{\n    inner(t)\n}\n"
+                "const a = {n: 0}\n"
+                "fun inner(t)\n{\n    t.n = 1\n}\n"
+                "outer(a)\n");
+
+            EXPECT_FALSE(through.effects.joinsInFile(0)[3].joined);
+
+            // Defined before the const, it is there
+            Analyzed before("fun fill(t)\n{\n    t.n = 1\n}\nconst a = {n: 0}\nfill(a)\n");
+            EXPECT_TRUE(before.effects.joinsInFile(0)[2].joined);
+            EXPECT_TRUE(before.effects.invariant("a"));
+
+            // A constant fill calls nothing: it follows its const past a function
+            Analyzed fill("const a = {n: 0}\nfun f()\n{\n    return 1\n}\na.n = 1\n");
+            EXPECT_TRUE(fill.effects.joinsInFile(0)[2].joined);
+        }
+
+        TEST(ProgramEffects, FactsCarryWhatWasDecidedForAConst)
+        {
+            Analyzed joined("const t = {a: 1}\nt.b = 2\n");
+            Analyzed apart("const t = {a: 1}\nvar k = 0\nk = 1\nt.b = 2\n");
+
+            EXPECT_NE(joined.effects.factsOf("t").find("j1,"), std::string::npos);
+            EXPECT_EQ(apart.effects.factsOf("t").find('j'), std::string::npos);
+            EXPECT_EQ(apart.effects.factsOf("t").find('i'), std::string::npos);
+            EXPECT_NE(joined.effects.factsOf("t"), apart.effects.factsOf("t"));
+
+            // A join that rests on a function of another file: the const's facts move with it
+            ast::ProgramEffects on, off;
+            auto module = parsed("const t = {a: 1}\nt.b = read()\n");
+            ASSERT_TRUE(on.analyze({parsed("const k = 1\nfun read()\n{\n    return k\n}\n"), module}));
+            ASSERT_TRUE(off.analyze({parsed("var k = 1\nk = 2\nfun read()\n{\n    return k\n}\n"), module}));
+            EXPECT_TRUE(on.joinsInFile(1)[1].joined);
+            EXPECT_FALSE(off.joinsInFile(1)[1].joined);
+            EXPECT_NE(on.factsOf("t"), off.factsOf("t"));
         }
 
         TEST(ProgramEffects, ANativeReboundIsNoNative)

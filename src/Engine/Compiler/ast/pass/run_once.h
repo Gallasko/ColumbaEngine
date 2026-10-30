@@ -17,48 +17,52 @@
  *   (VariableStatement::keptFills): nothing runs between them, so nothing could see the table
  *   half filled. Function definitions and other consts made of constant data may stand between;
  *   any other statement ends the run of fills.
- * - A top-level `var` the program defines once, never rebinds and never writes into, made of what
- *   is the same on every run (ast::ProgramEffects::inferredConsts), is a const.
- * - A statement in such a run that reads only what is the same on every run and those consts,
- *   writes only into them (and what they hold) and calls nothing unknown is part of making them:
- *   it joins the last of the consts it uses (a `const` promises its value is made the same and
- *   never changed: what writes into it right after is how it is made).
  *
  * The whole program is read for each outermost script compiled; a module compiled meanwhile
- * shares what was read (as FunctionInlining does), its own parse read as the one analyzed.
- * The walk of the statements is ast::ProgramEffects::joinsOf: what makes a const once depends on it.
+ * shares what was read (as FunctionInlining does). The walk of the consts is ast::walkConsts:
+ * ProgramConstsPass walks them the same way.
  */
 
 #include "../ast_pass.h"
-#include "effects.h"
 
+#include <functional>
 #include <set>
 #include <string>
+#include <vector>
 
 namespace pg
 {
+    namespace ast
+    {
+        // What the walk of a file's top level found for one statement
+        struct Join
+        {
+            bool joined = false;
+            size_t target = 0;           // Joined: the index of the const it joins
+            bool fill = false;           // A constant entry of it, or else found to make it
+            std::set<std::string> open;  // Joined: the consts open then
+        };
+
+        // The walk of a file's top level, one Join per statement. The consts declared in a row stay
+        // open: a statement setting a constant entry of one joins it, one that `makes` says makes them
+        // joins the const of the index it gives (negative: none), anything else closes them.
+        // `isConst`: a declaration that counts as a const
+        std::vector<Join> walkConsts(const std::vector<StatementPtr>& statements,
+                                     const std::function<bool(const VariableStatement&)>& isConst,
+                                     const std::function<int(size_t statement, const std::vector<size_t>& open)>& makes);
+    }
+
     class RunOncePass : public AstPass
     {
     public:
-        // The whole program is read (and consts inferred from it) only when asked: it costs a compile
-        explicit RunOncePass(bool wholeProgram = false) : wholeProgram(wholeProgram) {}
-
         std::string getName() const override { return "RunOnce"; }
 
         bool runPass(VM* vm, std::queue<StatementPtr>& statements) override;
 
         std::string factsAbout(const std::set<std::string>& names, std::vector<std::shared_ptr<const void>>& keep) const override;
 
-        std::string factsAboutIdentifiers(const std::set<std::string>& identifiers) const override;
-
     private:
-        bool wholeProgram = false;
-
         // The functions of the program defined once and never written: kept from run to run
         std::set<std::string> keptFunctions;
-
-        // What the program's code reads and writes (when it could be read whole)
-        ast::ProgramEffects effects;
-        bool analyzed = false;
     };
 }

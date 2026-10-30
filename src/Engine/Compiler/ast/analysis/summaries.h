@@ -69,7 +69,7 @@ namespace pg
                 std::vector<LocId> returns;         // sorted, unique
                 std::vector<Write> writes;          // one per location, sorted by location
                 std::vector<Edge> edges;            // sorted, unique
-                std::set<std::string> reads;        // globals read, transitively through calls
+                std::set<std::string> reads;        // globals read and functions called, transitively through calls
                 std::set<std::string> rebinds;      // globals assigned, transitively through calls
                 bool unknown = false;               // calls what is not followed, or holds a closure
 

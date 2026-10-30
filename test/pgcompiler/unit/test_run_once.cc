@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 
 #include "Compiler/vm.h"
+#include "Compiler/ast/pass/program_consts.h"
 #include "Compiler/ast/pass/run_once.h"
 #include "ECS/entitysystem.h"
 
@@ -32,7 +33,12 @@ namespace pg
 
                 EXPECT_FALSE(parser.hasError()) << "test source failed to parse";
 
-                RunOncePass pass(wholeProgram);
+                ProgramConstsPass consts;
+
+                if (wholeProgram)
+                    consts.runPass(nullptr, statements);
+
+                RunOncePass pass;
                 pass.runPass(nullptr, statements);
 
                 std::vector<StatementPtr> out;
@@ -96,8 +102,11 @@ namespace pg
 
             // A script importing one module, passed as a compile does: the script at depth 1, then the
             // module from a parse of its own at depth 2. What comes out is the module's statements
-            std::vector<StatementPtr> moduleAfterThePass(const std::string& module)
+            std::vector<StatementPtr> moduleAfterThePass(const std::string& module, std::string compiled = "")
             {
+                if (compiled.empty())
+                    compiled = module;
+
                 namespace fs = std::filesystem;
                 const fs::path dir = fs::temp_directory_path() / ("pg_run_once_module_" + std::to_string(counter.fetch_add(1)));
                 fs::create_directories(dir);
@@ -108,15 +117,18 @@ namespace pg
                 std::ofstream((dir / "joined.pg").string()) << module;
 
                 VM vm;
-                RunOncePass pass(true);
+                ProgramConstsPass consts;
+                RunOncePass pass;
                 vm.currentFileName = (dir / "main.pg").string();
 
                 auto statements = parsedQueue(script);
                 vm.astCompileDepth = 1;
+                consts.runPass(&vm, statements);
                 pass.runPass(&vm, statements);
 
-                auto own = parsedQueue(module);
+                auto own = parsedQueue(compiled);
                 vm.astCompileDepth = 2;
+                consts.runPass(&vm, own);
                 pass.runPass(&vm, own);
                 vm.astCompileDepth = 0;
 
@@ -132,6 +144,71 @@ namespace pg
                 }
 
                 return out;
+            }
+
+            // Files compiled through every pass, then run three times on one VM: the globals asked after
+            // each run. `main.pg` is the script
+            std::vector<std::string> threeRuns(const std::map<std::string, std::string>& files, bool analysis, const std::vector<std::string>& globals)
+            {
+                namespace fs = std::filesystem;
+                const fs::path dir = fs::temp_directory_path() / ("pg_run_once_runs_" + std::to_string(counter.fetch_add(1)));
+                fs::create_directories(dir);
+
+                for (const auto& [name, text] : files)
+                    std::ofstream((dir / name).string()) << text;
+
+                EntitySystem ecs;
+                ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
+                ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
+                ecs.setWholeProgramAnalysis(analysis);
+
+                const std::string compiled = (dir / "out.pgc").string();
+
+                {
+                    VM compiler;
+                    ecs.setupVm(compiler);
+                    EXPECT_EQ(compiler.interpretFromFile((dir / "main.pg").string(), true, compiled), InterpretResult::OK);
+                }
+
+                std::ifstream in(compiled, std::ios::binary);
+                const std::vector<char> bytes{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+                in.close();
+
+                VM vm;
+                ecs.setupVm(vm);
+                ObjFunction* fn = vm.prepareCachedFunction(bytes, "runs");
+                EXPECT_NE(fn, nullptr);
+
+                std::vector<std::string> out;
+
+                for (int run = 0; run < 3; ++run)
+                {
+                    if (vm.runPreparedFunction(fn, 0, "runs") != InterpretResult::OK)
+                    {
+                        out.push_back("failed");
+                        continue;
+                    }
+
+                    std::string line;
+
+                    for (const auto& g : globals)
+                    {
+                        const Value value = vm.findGlobal(g);
+                        line += g + "=" + (IS_INT(value) ? std::to_string(AS_INT(value)) : "?") + " ";
+                    }
+
+                    out.push_back(line);
+                }
+
+                std::error_code ec;
+                fs::remove_all(dir, ec);
+
+                return out;
+            }
+
+            std::vector<std::string> lines(std::initializer_list<const char*> l)
+            {
+                return std::vector<std::string>(l.begin(), l.end());
             }
 
             // The script compiled and prepared as the game does it (the passes of an EntitySystem's VM)
@@ -347,6 +424,110 @@ TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
             auto wrong = moduleAfterThePass(throughACopy);
             ASSERT_NE(variable(wrong, "seen"), nullptr);
             EXPECT_EQ(variable(wrong, "seen")->keptFills.size(), 0u);
+        }
+
+        TEST(ProgramConstsPass, AModuleThatDoesNotLineUpHasNothingApplied)
+        {
+            const std::string module = "var kept = 1\nconst t = {}\nt.a = kept\n";
+
+            auto lined = moduleAfterThePass(module);
+            EXPECT_TRUE(variable(lined, "kept")->isConst);
+            EXPECT_EQ(variable(lined, "t")->keptFills.size(), 1u);
+
+            // One statement more, then a kind that differs at an index
+            auto longer = moduleAfterThePass(module, module + "var more = 2\n");
+            EXPECT_FALSE(variable(longer, "kept")->isConst);
+            EXPECT_EQ(variable(longer, "t")->keptFills.size(), 0u);
+
+            auto other = moduleAfterThePass(module, "var kept = 1\nconst t = {}\nfor (var i = 0; i < 2; i++)\n{\n    t.a = kept\n}\n");
+            EXPECT_FALSE(variable(other, "kept")->isConst);
+            EXPECT_EQ(variable(other, "t")->keptFills.size(), 0u);
+        }
+
+        TEST(ProgramConstsPass, ALoopFoldedAwayInAModuleChangesNoDecision)
+        {
+            const std::string module =
+                "const c = {n: 0}\n"
+                "var gate = 0\n"
+                "gate = 1\n"
+                "c.n = c.n + 1\n"
+                "var p = 0\n"
+                "var q = 0\n"
+                "const n = 2\n"
+                "const t = {v: 0}\n"
+                "for (var i = 0; i < n; i++)\n"
+                "{\n"
+                "    var k = i\n"
+                "}\n"
+                "t.v = c.n\n"
+                "for (var i = 0; i < 2; i++)\n"
+                "{\n"
+                "    p = p + 1\n"
+                "    q = q + 1\n"
+                "}\n";
+
+            const auto expected = lines({"out=1 ", "out=2 ", "out=3 "});
+
+            EXPECT_EQ(threeRuns({{"main.pg", "import \"m\"\nvar out = 0\nout = t.v\n"}, {"m.pg", module}}, false, {"out"}), expected);
+            EXPECT_EQ(threeRuns({{"main.pg", "import \"m\"\nvar out = 0\nout = t.v\n"}, {"m.pg", module}}, true, {"out"}), expected);
+            EXPECT_EQ(threeRuns({{"main.pg", module + "var out = 0\nout = t.v\n"}}, true, {"out"}), expected);
+        }
+
+        TEST(ProgramConstsPass, AJoinIsTheSameForAllThatReadsTheConst)
+        {
+            const std::string module =
+                "const count = {n: 0}\n"
+                "count.n = count.n + 1\n"
+                "var out = count.n\n"
+                "for (var i = 0; i < 2; i++)\n"
+                "{\n"
+                "    var k = i\n"
+                "}\n";
+
+            const std::map<std::string, std::string> split = {{"main.pg", "import \"m\"\nvar live = 0\nlive = count.n\n"}, {"m.pg", module}};
+
+            EXPECT_EQ(threeRuns(split, false, {"out", "live"}), lines({"out=1 live=1 ", "out=2 live=2 ", "out=3 live=3 "}));
+
+            // Joined, it runs once: `out`, kept as a const, and `live`, read on every run, say the same
+            EXPECT_EQ(threeRuns(split, true, {"out", "live"}), lines({"out=1 live=1 ", "out=1 live=1 ", "out=1 live=1 "}));
+        }
+
+        TEST(ProgramConstsPass, AJoinDoesNotReadAConstThatChanges)
+        {
+            const std::string source =
+                "const a = {n: 0}\n"
+                "const b = {m: 0}\n"
+                "b.m = a.n\n"
+                "var gate = 0\n"
+                "gate = 1\n"
+                "a.n = a.n + 1\n"
+                "var out = 0\n"
+                "out = b.m\n";
+
+            const auto expected = lines({"out=0 ", "out=1 ", "out=2 "});
+
+            EXPECT_EQ(threeRuns({{"main.pg", source}}, false, {"out"}), expected);
+            EXPECT_EQ(threeRuns({{"main.pg", source}}, true, {"out"}), expected);
+        }
+
+        TEST(ProgramConstsPass, NothingRunsBeforeAFunctionItCalls)
+        {
+            const std::string module =
+                "const a = {n: 0}\n"
+                "fun fill(t)\n"
+                "{\n"
+                "    t.n = t.n + 1\n"
+                "}\n"
+                "fill(a)\n"
+                "var out = a.n\n";
+
+            const auto expected = lines({"out=1 live=1 ", "out=2 live=2 ", "out=3 live=3 "});
+            const std::map<std::string, std::string> split = {{"main.pg", "import \"m\"\nvar live = 0\nlive = a.n\n"}, {"m.pg", module}};
+            const std::map<std::string, std::string> single = {{"main.pg", module + "var live = 0\nlive = a.n\n"}};
+
+            EXPECT_EQ(threeRuns(split, false, {"out", "live"}), expected);
+            EXPECT_EQ(threeRuns(split, true, {"out", "live"}), expected);
+            EXPECT_EQ(threeRuns(single, true, {"out", "live"}), expected);
         }
 
         TEST(RunOncePass, AProgramWithAClassIsNotAnalyzed)

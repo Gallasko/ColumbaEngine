@@ -92,6 +92,7 @@ namespace
 #include "Compiler/ast/pass/function_inlining.h"
 #include "Compiler/ast/pass/length_hoisting.h"
 #include "Compiler/ast/pass/run_once.h"
+#include "Compiler/ast/pass/program_consts.h"
 #include "Compiler/pass/comparison_local_indexing.h"
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
 #include "Compiler/pass/constant_var_access.h"
@@ -1135,7 +1136,12 @@ namespace pg
 
             // AST-level passes: only run on the AST front-end path (between
             // parse and emission); the Pratt front-end never sees them.
-            // Entity-loop lowering runs FIRST (it matches the pristine
+            // What the whole program makes once, read before anything rewrites it (ahead-of-time
+            // compiles only: ProgramConstsPass)
+            if (wholeProgramAnalysis)
+                vm.addAstPass(std::make_unique<ProgramConstsPass>());
+
+            // Entity-loop lowering runs FIRST of the others (it matches the pristine
             // ForIn(getEntities(...)) shape; its call-containing output is
             // skipped by the other passes anyway), then static evaluation so
             // fully-folded loops disappear before hoisting sees the leftovers.
@@ -1148,7 +1154,7 @@ namespace pg
             vm.addAstPass(std::make_unique<LengthHoistingPass>());
 
             // Last: it marks what the others leave of the top level to be run once a VM
-            vm.addAstPass(std::make_unique<RunOncePass>(wholeProgramAnalysis));
+            vm.addAstPass(std::make_unique<RunOncePass>());
 
             // A report of what other passes could do, changing nothing: PG_AST_SURVEY=<file>
             if (const char* survey = std::getenv("PG_AST_SURVEY"))

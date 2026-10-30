@@ -491,6 +491,7 @@ namespace pg
                     {
                         const Node& n = body.nodes[v];
 
+                        reads.insert(n.name);
                         reads.insert(callee.reads.begin(), callee.reads.end());
                         rebinds.insert(callee.rebinds.begin(), callee.rebinds.end());
                         unknown = unknown or callee.unknown;

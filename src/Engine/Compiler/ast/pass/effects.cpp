@@ -31,90 +31,6 @@ namespace pg
                 return name == "__get" or name == "__set" or name == "__iter" or name == "__next";
             }
 
-            template <typename T>
-            std::vector<T> listOf(std::queue<T> q)
-            {
-                std::vector<T> out;
-
-                while (not q.empty())
-                {
-                    out.push_back(q.front());
-                    q.pop();
-                }
-
-                return out;
-            }
-
-            bool isConstantValue(const ExprPtr& e)
-            {
-                return e and (e->kind() == AstKind::Atom or e->kind() == AstKind::NoneAtom);
-            }
-
-            // A value made of constants only (constants, negated ones, lists and tables of them): it
-            // reads nothing, so no earlier const
-            bool isConstantData(const ExprPtr& e)
-            {
-                if (isConstantValue(e))
-                    return true;
-
-                if (e and e->kind() == AstKind::UnaryExpression)
-                    return isConstantValue(std::static_pointer_cast<UnaryExpression>(e)->expr);
-
-                if (e and e->kind() == AstKind::List)
-                {
-                    for (const auto& entry : listOf(std::static_pointer_cast<List>(e)->entries))
-                    {
-                        // A key written `key: value` is its name, emitted as a string constant
-                        const bool constantKey = not entry.key or entry.explicitKey or isConstantData(entry.key);
-
-                        if (not constantKey or not isConstantData(entry.value))
-                            return false;
-                    }
-
-                    return true;
-                }
-
-                return false;
-            }
-
-            std::string varName(const ExprPtr& e)
-            {
-                if (e and e->kind() == AstKind::Var)
-                    return std::static_pointer_cast<Var>(e)->name.text;
-
-                return "";
-            }
-
-            // The const a statement fills with a constant entry (`t["key"] = value`, `t.key = value`),
-            // "" when it is no such fill
-            std::string filledConst(const StatementPtr& s)
-            {
-                if (not s or s->kind() != AstKind::ExpressionStatement)
-                    return "";
-
-                const ExprPtr& e = std::static_pointer_cast<ExpressionStatement>(s)->expr;
-
-                if (not e)
-                    return "";
-
-                if (e->kind() == AstKind::IndexSet)
-                {
-                    auto set = std::static_pointer_cast<IndexSet>(e);
-
-                    if (isConstantValue(set->index) and isConstantValue(set->value))
-                        return varName(set->object);
-                }
-                else if (e->kind() == AstKind::Set)
-                {
-                    auto set = std::static_pointer_cast<Set>(e);
-
-                    if (isConstantValue(set->value))
-                        return varName(set->object);
-                }
-
-                return "";
-            }
-
             // What a statement declares at the top level, "" when nothing
             std::string declaredBy(const StatementPtr& s)
             {
@@ -125,6 +41,15 @@ namespace pg
                     case AstKind::ClassStatement: return std::static_pointer_cast<ClassStatement>(s)->name.text;
                     default: return "";
                 }
+            }
+
+            // The same statements by kind and name, at every index
+            bool shapeIs(const std::vector<StatementPtr>& a, const std::vector<StatementPtr>& b)
+            {
+                return a.size() == b.size() and std::equal(a.begin(), a.end(), b.begin(), [](const StatementPtr& x, const StatementPtr& y)
+                {
+                    return x->kind() == y->kind() and declaredBy(x) == declaredBy(y);
+                });
             }
 
             // A list's entry: a key that is an index
@@ -164,8 +89,7 @@ namespace pg
             if (not statement)
                 return {};
 
-            auto twin = moduleStatements.find(statement.get());
-            auto known = topLevel.find(twin == moduleStatements.end() ? statement.get() : twin->second);
+            auto known = topLevel.find(statement.get());
 
             if (known != topLevel.end())
                 return known->second;
@@ -543,6 +467,23 @@ namespace pg
                     invariantConsts.insert(name);
             }
 
+            // Files that cannot be told apart: a module of them could not be given what was decided
+            std::vector<size_t> sameShape;
+
+            for (size_t f = 0; f < programFiles.size(); ++f)
+            {
+                for (size_t other = 0; other < programFiles.size(); ++other)
+                {
+                    if (f != other and shapeIs(programFiles[f], programFiles[other]))
+                    {
+                        sameShape.push_back(f);
+                        break;
+                    }
+                }
+            }
+
+            fileJoins.resize(programFiles.size());
+
             bool lost = true;
 
             while (lost)
@@ -581,14 +522,15 @@ namespace pg
                 // What will join which const, by the walk the pass does
                 std::unordered_map<size_t, std::set<std::string>> joinedAmong;
 
-                for (const auto& file : programFiles)
+                for (size_t f = 0; f < programFiles.size(); ++f)
                 {
-                    const auto joins = joinsOf(file);
+                    const auto& file = programFiles[f];
+                    fileJoins[f] = std::find(sameShape.begin(), sameShape.end(), f) == sameShape.end() ? walkFile(file) : std::vector<Join>(file.size());
 
                     for (size_t i = 0; i < file.size(); ++i)
                     {
-                        if (joins[i].target)
-                            joinedAmong[writerOf.at(file[i].get())] = joins[i].open;
+                        if (fileJoins[f][i].joined)
+                            joinedAmong[writerOf.at(file[i].get())] = fileJoins[f][i].open;
                     }
                 }
 
@@ -615,12 +557,23 @@ namespace pg
                     }
                 }
             }
+
+            for (size_t f = 0; f < programFiles.size(); ++f)
+            {
+                for (size_t i = 0; i < programFiles[f].size(); ++i)
+                {
+                    if (fileJoins[f][i].joined)
+                        joinedTo[declaredBy(programFiles[f][fileJoins[f][i].target])].push_back(i);
+                }
+            }
         }
 
-        std::shared_ptr<VariableStatement> ProgramEffects::joinTarget(const StatementPtr& s, const std::vector<std::shared_ptr<VariableStatement>>& open) const
+        int ProgramEffects::joinTarget(const std::vector<StatementPtr>& file, size_t statement, const std::vector<size_t>& open) const
         {
+            const StatementPtr& s = file[statement];
+
             if (not usable or not s)
-                return nullptr;
+                return -1;
 
             switch (s->kind())
             {
@@ -633,142 +586,62 @@ namespace pg
                     break;
 
                 default:
-                    return nullptr; // A definition is no part of making another
+                    return -1; // A definition is no part of making another
             }
 
             const StatementEffects e = effectsOf(s);
 
             std::set<std::string> openNames;
 
-            for (const auto& v : open)
-                openNames.insert(v->name.text);
+            for (auto o : open)
+                openNames.insert(declaredBy(file[o]));
 
             if (not onlyMakes(e, openNames))
-                return nullptr;
+                return -1;
 
             // It reads the consts whose data it writes (itself or through what it calls): the last
             // of those it reads is where it joins, after all it uses is made
             for (auto it = open.rbegin(); it != open.rend(); ++it)
             {
-                if (e.reads.count((*it)->name.text))
-                    return *it;
+                if (not e.reads.count(declaredBy(file[*it])))
+                    continue;
+
+                // It would run there: what the file defines since (a function in the run) is not there yet
+                for (size_t between = *it + 1; between < statement; ++between)
+                {
+                    if (e.reads.count(declaredBy(file[between])))
+                        return -1;
+                }
+
+                return static_cast<int>(*it);
             }
 
-            return nullptr;
+            return -1;
         }
 
-        std::vector<Join> ProgramEffects::joinsOf(const std::vector<StatementPtr>& statements) const
+        std::vector<Join> ProgramEffects::walkFile(const std::vector<StatementPtr>& file) const
         {
-            std::vector<Join> out(statements.size());
-
-            // The consts the statements since the last other one declared, in their order: a fill of
-            // one joins it
-            std::vector<std::shared_ptr<VariableStatement>> open;
-
-            auto openNamed = [&open](const std::string& name) -> std::shared_ptr<VariableStatement>
-            {
-                // A later declaration of the name wins
-                for (auto it = open.rbegin(); it != open.rend(); ++it)
-                {
-                    if ((*it)->name.text == name)
-                        return *it;
-                }
-
-                return nullptr;
-            };
-
-            for (size_t i = 0; i < statements.size(); ++i)
-            {
-                const StatementPtr& s = statements[i];
-
-                // A definition runs no code: the fills after it still follow their const
-                if (s and s->kind() == AstKind::FunctionStatement)
-                    continue;
-
-                if (s and s->kind() == AstKind::VariableStatement)
-                {
-                    auto v = std::static_pointer_cast<VariableStatement>(s);
-
-                    if ((v->isConst or inferred.count(v->name.text)) and v->expr)
-                    {
-                        // An initializer that may read the consts before it: their later fills would
-                        // be seen by it too early, joined to them
-                        if (not isConstantData(v->expr))
-                            open.clear();
-
-                        open.push_back(v);
-                        continue;
-                    }
-                }
-
-                Join& join = out[i];
-                const std::string target = filledConst(s);
-
-                join.target = target.empty() ? nullptr : openNamed(target);
-                join.fill = join.target != nullptr;
-
-                // What makes the open consts (a loop putting their tables in order): with the last of them it uses
-                if (not join.target and not open.empty())
-                    join.target = joinTarget(s, open);
-
-                if (join.target)
-                {
-                    for (const auto& v : open)
-                        join.open.insert(v->name.text);
-
-                    continue;
-                }
-
-                // Anything else may read a const: what comes after it fills no initializer
-                open.clear();
-            }
-
-            return out;
+            return walkConsts(file,
+                [this](const VariableStatement& v) { return v.isConst or inferred.count(v.name.text) > 0; },
+                [this, &file](size_t statement, const std::vector<size_t>& open) { return joinTarget(file, statement, open); });
         }
 
-        bool ProgramEffects::readModule(const std::vector<StatementPtr>& statements)
+        int ProgramEffects::fileOf(const std::vector<StatementPtr>& statements) const
         {
-            moduleStatements.clear();
+            int found = -1;
 
-            std::vector<StatementPtr> own;
-
-            for (const auto& s : statements)
+            for (size_t f = 0; f < programFiles.size(); ++f)
             {
-                if (s)
-                    own.push_back(s);
-            }
-
-            auto sameFile = [&own](const std::vector<StatementPtr>& file)
-            {
-                return file.size() == own.size() and std::equal(file.begin(), file.end(), own.begin(), [](const StatementPtr& a, const StatementPtr& b)
-                {
-                    // The passes before this one may turn a statement that declares nothing into another (a
-                    // loop into a block with what it hoists): what it does is the same
-                    const bool declares = not declaredBy(a).empty() or a->kind() == AstKind::ImportStatement;
-                    return declaredBy(a) == declaredBy(b) and (a->kind() == b->kind() or (not declares and b->kind() != AstKind::ImportStatement));
-                });
-            };
-
-            const std::vector<StatementPtr>* twin = nullptr;
-
-            for (const auto& file : programFiles)
-            {
-                if (not sameFile(file))
+                if (not shapeIs(programFiles[f], statements))
                     continue;
 
-                if (twin)
-                    return false;
+                if (found >= 0)
+                    return -1;
 
-                twin = &file;
+                found = static_cast<int>(f);
             }
 
-            if (not twin)
-                return false;
-
-            for (size_t i = 0; i < own.size(); ++i)
-                moduleStatements[own[i].get()] = (*twin)[i].get();
-
-            return true;
+            return found;
         }
 
         bool ProgramEffects::analyze(const std::vector<std::vector<StatementPtr>>& files)
@@ -1003,9 +876,11 @@ namespace pg
             if (not usable or effects.unknown or not effects.rebinds.empty())
                 return false;
 
+            // A target says what it may write. What it reads must be the same on every run: a const that
+            // is not does not become so by being open, only a var in the making may read itself
             for (const auto& name : effects.reads)
             {
-                if (not targets.count(name) and not invariant(name))
+                if (not invariant(name) and (not targets.count(name) or consts.count(name)))
                     return false;
             }
 
@@ -1107,6 +982,17 @@ namespace pg
 
             if (invariant(name))
                 out << 'i';
+
+            // The statements that join it: what its module's code comes to
+            auto joins = joinedTo.find(name);
+
+            if (joins != joinedTo.end())
+            {
+                out << 'j';
+
+                for (auto statement : joins->second)
+                    out << statement << ',';
+            }
 
             auto f = summaries.find(name);
 

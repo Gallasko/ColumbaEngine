@@ -28,6 +28,8 @@
  * whole program runs from its top levels.
  */
 
+#include "run_once.h"
+
 #include "Compiler/ast/analysis/summaries.h"
 #include "Interpreter/statement.h"
 
@@ -53,14 +55,6 @@ namespace pg
             bool unknown = false;
         };
 
-        // What the walk of a file's top level found for one statement
-        struct Join
-        {
-            std::shared_ptr<VariableStatement> target;  // The const it joins; null: it stays where it is
-            bool fill = false;                          // A constant entry of it, or else found to make it
-            std::set<std::string> open;                 // The consts open when it joins
-        };
-
         class ProgramEffects
         {
         public:
@@ -69,16 +63,13 @@ namespace pg
             // metamethod): then nothing it says may be used
             bool analyze(const std::vector<std::vector<StatementPtr>>& files);
 
-            // A module is compiled from a parse of its own, not the one analyzed: its statements are read
-            // as those of the file of the program with the same declarations in the same order, position
-            // by position, until the next module. What a pass made of a statement that declares nothing
-            // does what the statement did. False, and none of them read, when no file is that one or two
-            // could be
-            bool readModule(const std::vector<StatementPtr>& statements);
-
-            // A top-level statement of the program, or of the module read last; any other is unknown: it
-            // may do anything, and onlyMakes refuses it
+            // A top-level statement of the program; any other is unknown: it may do anything, and
+            // onlyMakes refuses it
             StatementEffects effectsOf(const StatementPtr& statement) const;
+
+            // The file of the program a module's own parse is (the same source): the one with the same
+            // statements, by kind and name, at every index. Negative when none is, or two could be
+            int fileOf(const std::vector<StatementPtr>& statements) const;
 
             // A name whose value is the same on every run: a const all of whose writers join it, a
             // function defined once and never rebound, a known native, or a var found to be a const
@@ -86,19 +77,18 @@ namespace pg
             bool invariant(const std::string& name) const;
 
             // Whether a statement only makes what these globals hold: it reads only what is the same
-            // on every run and them, calls nothing unknown, rebinds nothing, and writes only into
-            // what they reach or what it made itself (reached by no global)
+            // on every run (a var in the making counts, a const must be one that does), calls nothing
+            // unknown, rebinds nothing, and writes only into what they reach or what it made itself
+            // (reached by no global)
             bool onlyMakes(const StatementEffects& effects, const std::set<std::string>& targets) const;
 
             // The top-level vars the program defines once and never changes, made of what is the
             // same on every run: as good as consts
             const std::set<std::string>& inferredConsts() const { return inferred; }
 
-            // The walk of a file's top level, one Join per statement. The consts declared in a row stay
-            // open: a statement setting a constant entry of one joins it, one that only makes them
-            // joins the last it uses (when analyzed), anything else closes them. The pass joins what
-            // this says, and the analysis counts on it to know which consts are made once
-            std::vector<Join> joinsOf(const std::vector<StatementPtr>& statements) const;
+            // What the program decided for a file: one Join per statement of it (ast::walkConsts, the
+            // parser's empty statements left aside). Nothing joins in a file another could be taken for
+            const std::vector<Join>& joinsInFile(size_t file) const { return fileJoins[file]; }
 
             // Every write of the statement stores what it stored last run, by the values stored only
             // (analysis::Idempotence says what that leaves unchecked: nothing is decided on it)
@@ -137,7 +127,8 @@ namespace pg
             std::unordered_set<analysis::LocId> definedRoots;
 
             std::vector<std::vector<StatementPtr>> programFiles;  // What the sites and `topLevel` are keyed by, kept alive
-            std::unordered_map<const Statement*, const Statement*> moduleStatements;  // Of the module read: as analyzed
+            std::vector<std::vector<Join>> fileJoins;             // By file, by statement
+            std::map<std::string, std::vector<size_t>> joinedTo;  // Const -> the statements joined to it
 
             std::set<std::string> followed;      // The functions summed up
             std::map<std::string, analysis::Summary> summaries;
@@ -187,8 +178,11 @@ namespace pg
             void resolveEdges(const std::vector<analysis::Edge>& edges);
             void findRegions();
 
-            // The statement of a walk that makes open consts: the one it joins
-            std::shared_ptr<VariableStatement> joinTarget(const StatementPtr& s, const std::vector<std::shared_ptr<VariableStatement>>& open) const;
+            // The walk of a file with what the program knows now
+            std::vector<Join> walkFile(const std::vector<StatementPtr>& file) const;
+
+            // A statement standing among open consts that is part of making them: the const it joins
+            int joinTarget(const std::vector<StatementPtr>& file, size_t statement, const std::vector<size_t>& open) const;
 
             // `writers`: the objects each statement or function writes into. The vars found to be consts
             // and the consts found not to be rest on each other: both found again until none is lost
