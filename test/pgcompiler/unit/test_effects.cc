@@ -2,11 +2,14 @@
 
 #include "Compiler/ast/analysis/locations.h"
 #include "Compiler/ast/analysis/ssa.h"
+#include "Compiler/ast/analysis/summaries.h"
 
 #include "Interpreter/lexer.h"
 #include "Interpreter/parser.h"
 
 #include <algorithm>
+#include <map>
+#include <memory>
 #include <set>
 
 namespace pg
@@ -410,6 +413,286 @@ namespace pg
             ASSERT_EQ(abc.in.size(), 1u);
             EXPECT_EQ(ir.nodes[abc.in[0]].op, Op::Field);
             EXPECT_EQ(ir.stores[1].key, locs.key("d"));
+        }
+    
+
+        namespace
+        {
+            // Every function of a source summed up, each one followed; the statements live as long as the IR
+            struct Summed
+            {
+                std::vector<StatementPtr> statements;
+                Locations locs;
+                std::map<std::string, BodyIR> bodies;
+                std::map<std::string, Summary> summaries;
+                size_t collapsed = 0;
+
+                const Summary& of(const std::string& name) const { return summaries.at(name); }
+
+                std::set<std::string> writeTexts(const std::string& name) const
+                {
+                    std::set<std::string> out;
+
+                    for (const auto& w : of(name).writes)
+                        out.insert(locs.text(w.at));
+
+                    return out;
+                }
+
+                const Write* write(const std::string& name, const std::string& text) const
+                {
+                    for (const auto& w : of(name).writes)
+                    {
+                        if (locs.text(w.at) == text)
+                            return &w;
+                    }
+
+                    return nullptr;
+                }
+
+                bool hasEdge(const std::string& name, const std::string& at, const std::string& value) const
+                {
+                    for (const auto& e : of(name).edges)
+                    {
+                        if (locs.text(e.at) == at and locs.text(e.value) == value)
+                            return true;
+                    }
+
+                    return false;
+                }
+            };
+
+            std::unique_ptr<Summed> summed(const std::string& source)
+            {
+                auto out = std::make_unique<Summed>();
+                out->statements = parsed(source);
+                std::set<std::string> defined;
+
+                for (const auto& s : out->statements)
+                {
+                    if (s->kind() == AstKind::FunctionStatement)
+                        defined.insert(std::static_pointer_cast<FunctionStatement>(s)->name.text);
+                }
+
+                auto isNative = [&defined](const std::string& n) { return defined.count(n) == 0; };
+
+                for (const auto& s : out->statements)
+                {
+                    if (s->kind() == AstKind::FunctionStatement)
+                    {
+                        auto f = std::static_pointer_cast<FunctionStatement>(s);
+                        out->bodies[f->name.text] = buildFunction(*f, out->locs, isNative);
+                    }
+                }
+
+                out->summaries = summarize(out->bodies, out->locs, [defined](const std::string& n) { return defined.count(n) > 0; }, out->collapsed);
+                return out;
+            }
+
+            const std::string amountsOfSource =
+                "fun amountsOf(table, key)\n"
+                "{\n"
+                "    var list = lookup(table, key, [])\n"
+                "\n"
+                "    for (var i = 0; i < len(list); i++)\n"
+                "    {\n"
+                "        list[i].amount = lookup(list[i], \"amount\", 1)\n"
+                "    }\n"
+                "\n"
+                "    return list\n"
+                "}\n";
+        }
+
+        TEST(EffectSummaries, AmountsOfWritesTheAmountOfItsListEntriesIdempotently)
+        {
+            auto s = summed(amountsOfSource);
+            const Summary& a = s->of("amountsOf");
+
+            // The rows' entries, and the fresh default, which escapes through the return
+            EXPECT_EQ(s->writeTexts("amountsOf"), (std::set<std::string>{"#0.[#1].*.amount", "@0.*.amount"}));
+
+            for (const auto& w : a.writes)
+            {
+                EXPECT_TRUE(w.idempotence.shape) << s->locs.text(w.at);
+                EXPECT_TRUE(w.idempotence.needsParams.empty()) << s->locs.text(w.at);
+                EXPECT_TRUE(w.idempotence.needsGlobals.empty()) << s->locs.text(w.at);
+            }
+
+            std::set<std::string> returns;
+
+            for (auto r : a.returns)
+                returns.insert(s->locs.text(r));
+
+            EXPECT_TRUE(returns.count("#0.[#1]"));
+            EXPECT_TRUE(a.edges.empty());  // the amount written back is the one already there
+            EXPECT_FALSE(a.unknown);
+            EXPECT_EQ(a.arity, 2u);
+            EXPECT_EQ(s->collapsed, 0u);
+        }
+
+        TEST(EffectSummaries, ACounterIsNotIdempotent)
+        {
+            auto s = summed("fun bump(t)\n{\n    t.count = t.count + 1\n}\n");
+            const Write* w = s->write("bump", "#0.count");
+            ASSERT_NE(w, nullptr);
+            EXPECT_FALSE(w->idempotence.shape);
+            EXPECT_EQ(s->collapsed, 0u);
+        }
+
+        TEST(EffectSummaries, AFlagIsIdempotent)
+        {
+            auto s = summed("fun mark(t)\n{\n    t.done = true\n}\n");
+            const Write* w = s->write("mark", "#0.done");
+            ASSERT_NE(w, nullptr);
+            EXPECT_TRUE(w->idempotence.shape);
+            EXPECT_TRUE(w->idempotence.needsParams.empty());
+            EXPECT_EQ(s->collapsed, 0u);
+        }
+
+        TEST(EffectSummaries, AParameterStoredNeedsItsArgument)
+        {
+            auto s = summed("fun put(t, v)\n{\n    t.x = v\n}\n");
+            const Write* w = s->write("put", "#0.x");
+            ASSERT_NE(w, nullptr);
+            EXPECT_TRUE(w->idempotence.shape);
+            EXPECT_EQ(w->idempotence.needsParams, (std::set<uint32_t>{1}));
+            EXPECT_TRUE(s->hasEdge("put", "#0.x", "#1"));
+            EXPECT_EQ(s->collapsed, 0u);
+        }
+
+        TEST(EffectSummaries, AGlobalStoredNeedsTheGlobal)
+        {
+            auto s = summed("fun put(t)\n{\n    t.x = level\n}\n");
+            const Write* w = s->write("put", "#0.x");
+            ASSERT_NE(w, nullptr);
+            EXPECT_TRUE(w->idempotence.shape);
+            EXPECT_EQ(w->idempotence.needsGlobals, (std::set<std::string>{"level"}));
+            EXPECT_TRUE(s->of("put").reads.count("level"));
+            EXPECT_EQ(s->collapsed, 0u);
+        }
+
+        TEST(EffectSummaries, APushIsNotIdempotent)
+        {
+            auto s = summed("fun add(l, v)\n{\n    push(l, v)\n}\n");
+            const Summary& a = s->of("add");
+            ASSERT_FALSE(a.writes.empty());
+            bool within = false;
+
+            for (const auto& w : a.writes)
+            {
+                within = within or s->locs.within(w.at, s->locs.param(0));
+                EXPECT_FALSE(w.idempotence.shape) << s->locs.text(w.at);
+            }
+
+            EXPECT_TRUE(within);
+            EXPECT_TRUE(s->hasEdge("add", "#0.*", "#1"));
+            EXPECT_EQ(s->collapsed, 0u);
+        }
+
+        TEST(EffectSummaries, ACallSubstitutesTheKey)
+        {
+            auto s = summed("fun g(a)\n{\n    amountsOf(a, \"gains\")\n}\n\n" + amountsOfSource);
+            EXPECT_TRUE(s->writeTexts("g").count("#0.gains.*.amount"));
+            const Write* w = s->write("g", "#0.gains.*.amount");
+            ASSERT_NE(w, nullptr);
+            EXPECT_TRUE(w->idempotence.shape);
+            EXPECT_FALSE(s->of("g").unknown);
+            EXPECT_EQ(s->collapsed, 0u);
+        }
+
+        TEST(EffectSummaries, RecursionConverges)
+        {
+            auto s = summed("fun walk(t)\n{\n    if (t.next)\n    {\n        walk(t.next)\n    }\n\n    t.seen = 1\n}\n");
+            const Summary& w = s->of("walk");
+            EXPECT_TRUE(s->writeTexts("walk").count("#0.seen"));
+            const LocId next = s->locs.child(s->locs.param(0), s->locs.key("next"));
+            bool below = false;
+
+            for (const auto& write : w.writes)
+                below = below or s->locs.within(write.at, next);
+
+            EXPECT_TRUE(below);
+            EXPECT_FALSE(w.unknown);
+            EXPECT_EQ(s->collapsed, 0u);
+        }
+
+        TEST(EffectSummaries, AValueCalledIsUnknown)
+        {
+            auto s = summed("fun cb(f, t)\n{\n    f(t)\n}\n");
+            EXPECT_TRUE(s->of("cb").unknown);
+            const Write* w = s->write("cb", "#1.*");
+            ASSERT_NE(w, nullptr);
+            EXPECT_FALSE(w->idempotence.shape);
+            EXPECT_EQ(s->collapsed, 0u);
+        }
+
+        TEST(EffectSummaries, AClosureIsUnknown)
+        {
+            auto s = summed("fun mk(t)\n{\n    var g = fun()\n    {\n        t.x = 1\n    }\n\n    return 0\n}\n");
+            EXPECT_TRUE(s->of("mk").unknown);
+            EXPECT_TRUE(s->writeTexts("mk").count("?"));
+            EXPECT_EQ(s->collapsed, 0u);
+        }
+
+        TEST(EffectSummaries, AnUnknownCallMayStoreOneOperandInAnother)
+        {
+            auto s = summed("fun h(a, b)\n{\n    helper(a, b)\n}\n");
+            EXPECT_TRUE(s->of("h").unknown);
+            EXPECT_TRUE(s->writeTexts("h").count("#0.*"));
+            EXPECT_TRUE(s->writeTexts("h").count("#1.*"));
+            EXPECT_TRUE(s->hasEdge("h", "#0.*", "#1"));
+            EXPECT_TRUE(s->hasEdge("h", "#1.*", "#0.*"));
+        }
+
+        TEST(EffectSummaries, IdempotenceThroughACall)
+        {
+            // put's write needs its argument 1: a constant at one call, a counter at the other
+            auto s = summed("fun put(t, v)\n{\n    t.x = v\n}\n\n"
+                            "fun good(t)\n{\n    put(t, 3)\n}\n\n"
+                            "fun bad(t)\n{\n    put(t, t.x + 1)\n}\n\n"
+                            "fun passes(t, w)\n{\n    put(t, w)\n}\n");
+            const Write* good = s->write("good", "#0.x");
+            ASSERT_NE(good, nullptr);
+            EXPECT_TRUE(good->idempotence.shape);
+            const Write* bad = s->write("bad", "#0.x");
+            ASSERT_NE(bad, nullptr);
+            EXPECT_FALSE(bad->idempotence.shape);
+            const Write* passes = s->write("passes", "#0.x");
+            ASSERT_NE(passes, nullptr);
+            EXPECT_TRUE(passes->idempotence.shape);
+            EXPECT_EQ(passes->idempotence.needsParams, (std::set<uint32_t>{1}));
+            EXPECT_TRUE(s->hasEdge("passes", "#0.x", "#1"));
+        }
+
+        TEST(EffectSummaries, AParamKeyMadeAnyAtTheCallIsNotIdempotent)
+        {
+            auto s = summed("fun g(a, i)\n{\n    amountsOf(a, i + 1)\n}\n\n" + amountsOfSource);
+            const Write* w = s->write("g", "#0.*.*.amount");
+            ASSERT_NE(w, nullptr);
+            EXPECT_TRUE(w->idempotence.shape);  // the last key is still `amount`
+            auto t = summed("fun set(t, k)\n{\n    t[k] = 1\n}\n\nfun g(a, i)\n{\n    set(a, i + 1)\n}\n");
+            const Write* named = t->write("set", "#0.[#1]");
+            ASSERT_NE(named, nullptr);
+            EXPECT_TRUE(named->idempotence.shape);
+            const Write* any = t->write("g", "#0.*");
+            ASSERT_NE(any, nullptr);
+            EXPECT_FALSE(any->idempotence.shape);
+        }
+
+        TEST(EffectSummaries, ACopyOfAnotherEntryIsNotTheOwnValue)
+        {
+            auto s = summed("fun shift(l)\n{\n    for (var i = 0; i < len(l); i++)\n    {\n        l[i].v = l[i + 1].v\n    }\n}\n");
+            const Write* w = s->write("shift", "#0.*.v");
+            ASSERT_NE(w, nullptr);
+            EXPECT_FALSE(w->idempotence.shape);
+        }
+
+        TEST(EffectSummaries, DigestIsStableAndNamesTheWrites)
+        {
+            auto s = summed(amountsOfSource);
+            const std::string d = s->of("amountsOf").digest(s->locs);
+            EXPECT_EQ(d, s->of("amountsOf").digest(s->locs));
+            EXPECT_NE(d.find("#0.[#1].*.amount"), std::string::npos);
         }
     }
 }

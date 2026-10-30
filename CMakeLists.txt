@@ -220,6 +220,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/ast/pass/effects.cpp
     src/Engine/Compiler/ast/analysis/locations.cpp
     src/Engine/Compiler/ast/analysis/ssa.cpp
+    src/Engine/Compiler/ast/analysis/summaries.cpp
     src/Engine/Compiler/componentattach.cpp
     src/Engine/Compiler/componentproxy.cpp
     src/Engine/Compiler/ecsserialization.cpp
@@ -317,6 +318,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/ast/pass/effects.cpp
     src/Engine/Compiler/ast/analysis/locations.cpp
     src/Engine/Compiler/ast/analysis/ssa.cpp
+    src/Engine/Compiler/ast/analysis/summaries.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
