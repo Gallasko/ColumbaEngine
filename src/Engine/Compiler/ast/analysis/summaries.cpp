@@ -41,6 +41,12 @@ namespace pg
                     return a.at == b.at and a.value == b.value;
                 }
 
+                // A native of the Fresh kind whose result is a table a body may write: a list of its own
+                bool makesTable(const std::string& name)
+                {
+                    return name == "split" or name == "splitLines";
+                }
+
                 uint32_t arityOf(const BodyIR& body)
                 {
                     uint32_t arity = 0;
@@ -100,8 +106,9 @@ namespace pg
                 {
                 public:
                     Run(Locations& locs, const std::map<std::string, Summary>& summaries,
-                        const std::function<bool(const std::string&)>& followed, const BodyIR& body) :
-                        locs(locs), summaries(summaries), followed(followed), body(body), pts(body.nodes.size())
+                        const std::function<bool(const std::string&)>& followed,
+                        const std::function<bool(const std::string&)>& defined, const BodyIR& body) :
+                        locs(locs), summaries(summaries), followed(followed), defined(defined), body(body), pts(body.nodes.size())
                     {
                     }
 
@@ -157,6 +164,7 @@ namespace pg
                     Locations& locs;
                     const std::map<std::string, Summary>& summaries;
                     const std::function<bool(const std::string&)>& followed;
+                    const std::function<bool(const std::string&)>& defined;
                     const BodyIR& body;
 
                     std::vector<LocSet> pts;
@@ -218,6 +226,14 @@ namespace pg
 
                         auto it = summaries.find(n.name);
                         return it == summaries.end() ? nullptr : &it->second;
+                    }
+
+                    // A call not followed that runs code of the program (a value, a function not followed):
+                    // that code may reach any global. A name the program does not define is an engine native,
+                    // which sees only what it is handed
+                    bool runsProgramCode(const Node& n) const
+                    {
+                        return n.name.empty() or followed(n.name) or defined(n.name);
                     }
 
                     LocId siteOf(const Node& n) { return locs.site(n.origin ? n.origin : static_cast<const void*>(&n)); }
@@ -313,9 +329,13 @@ namespace pg
                         return at;
                     }
 
-                    // What a call not followed may return: all it is handed and all reachable from it
+                    // What a call not followed may return: anything when it runs code of the program, else
+                    // all it is handed and all reachable from it
                     LocSet unknownResult(const Node& n)
                     {
+                        if (runsProgramCode(n))
+                            return {locs.unknown()};
+
                         LocSet out;
 
                         for (auto l : operandLocs(n))
@@ -373,7 +393,13 @@ namespace pg
                             {
                                 switch (nativeKind(n.name))
                                 {
-                                    case NativeKind::Fresh: break;
+                                    case NativeKind::Fresh:
+                                    {
+                                        if (makesTable(n.name))
+                                            out.push_back(siteOf(n));
+
+                                        break;
+                                    }
 
                                     case NativeKind::Lookup:
                                     {
@@ -428,16 +454,40 @@ namespace pg
                         pending.push_back(std::move(p));
                     }
 
+                    // A path of one slot: no `*`, no parameter key, not deep
+                    bool exactPath(LocId l) const
+                    {
+                        if (locs.deep(l))
+                            return false;
+
+                        for (; locs.depth(l) > 0; l = locs.parent(l))
+                        {
+                            const KeyId k = locs.keyOf(l);
+
+                            if (k == Locations::AnyKey or locs.isParamKey(k))
+                                return false;
+                        }
+
+                        return true;
+                    }
+
+                    // An object stored at a location. A location stored in itself says nothing when it is one
+                    // slot; when it names several, one of its objects has moved to another of its slots
                     void edge(LocId at, LocId value)
                     {
-                        if (at != value)
+                        if (at != value or not exactPath(at))
                             edges.push_back(Edge{at, value});
                     }
 
-                    // A call not followed: it may write all it is handed, and store any of it in any other
+                    // A call not followed: it may write all it is handed, and store any of it in any other;
+                    // when it runs code of the program, it may write anything
                     void unknownCall(const Node& n)
                     {
                         unknown = true;
+
+                        if (runsProgramCode(n))
+                            write(locs.unknown(), Pending::From::Never);
+
                         const LocSet all = operandLocs(n);
 
                         for (auto a : all)
@@ -539,11 +589,8 @@ namespace pg
                             // The field's own old value written back makes no new alias
                             LocSet stored;
 
-                            for (auto leaf : body.leaves(s.value))
-                            {
-                                if (not ownOldValue(leaf, s))
-                                    stored.insert(stored.end(), pts[leaf].begin(), pts[leaf].end());
-                            }
+                            for (auto leaf : newLeaves(s))
+                                stored.insert(stored.end(), pts[leaf].begin(), pts[leaf].end());
 
                             sortUnique(stored);
 
@@ -561,6 +608,12 @@ namespace pg
                         {
                             rebinds.insert(name);
 
+                            for (auto l : pts[value])
+                                edge(locs.global(name), l);
+                        }
+
+                        for (const auto& [name, value] : body.defines)
+                        {
                             for (auto l : pts[value])
                                 edge(locs.global(name), l);
                         }
@@ -628,6 +681,58 @@ namespace pg
                         return n.op == Op::Field and n.key == s.key and not n.in.empty() and sameObject(n.in[0], s.base);
                     }
 
+                    // A loop's header phi: fed by the end of the loop's body, which comes after it
+                    bool loopPhi(ValueId v) const
+                    {
+                        const Node& n = body.nodes[v];
+                        return n.op == Op::Phi and std::any_of(n.in.begin(), n.in.end(), [v](ValueId in) { return in > v; });
+                    }
+
+                    // The leaves of a value that may come from an earlier turn of a loop: all behind a header phi.
+                    // One SSA id stands for every turn, so such a leaf is not what the field holds now
+                    std::set<ValueId> carriedLeaves(ValueId v) const
+                    {
+                        std::set<ValueId> out;
+                        std::vector<bool> seen(body.nodes.size(), false);
+                        std::vector<ValueId> todo{v};
+
+                        while (not todo.empty())
+                        {
+                            const ValueId at = todo.back();
+                            todo.pop_back();
+
+                            if (seen[at] or body.nodes[at].op != Op::Phi)
+                                continue;
+
+                            seen[at] = true;
+
+                            if (loopPhi(at))
+                            {
+                                const auto behind = body.leaves(at);
+                                out.insert(behind.begin(), behind.end());
+                            }
+                            else
+                                todo.insert(todo.end(), body.nodes[at].in.begin(), body.nodes[at].in.end());
+                        }
+
+                        return out;
+                    }
+
+                    // The leaves of a store's value, without the field's own old value
+                    std::vector<ValueId> newLeaves(const Store& s) const
+                    {
+                        const auto carried = carriedLeaves(s.value);
+                        std::vector<ValueId> out;
+
+                        for (auto leaf : body.leaves(s.value))
+                        {
+                            if (carried.count(leaf) or not ownOldValue(leaf, s))
+                                out.push_back(leaf);
+                        }
+
+                        return out;
+                    }
+
                     // A slot whose write may be idempotent: not the unknown, not deep, not of a key not known
                     bool mayBeIdempotent(LocId at) const
                     {
@@ -661,6 +766,31 @@ namespace pg
                         return true;
                     }
 
+                    void noteNeed(const Node& n, Idempotence& out) const
+                    {
+                        if (n.op == Op::Param)
+                            out.needsParams.insert(n.param);
+                        else
+                            out.needsGlobals.insert(n.name);
+                    }
+
+                    // The base of a field read: only its reference must be the same on every run, the field
+                    // read itself is what must not be written
+                    bool invariantBase(ValueId base, Idempotence& out, const LocSet& written, std::map<ValueId, int>& state) const
+                    {
+                        for (auto leaf : body.leaves(base))
+                        {
+                            const Node& n = body.nodes[leaf];
+
+                            if (n.op == Op::Param or n.op == Op::Global)
+                                noteNeed(n, out);
+                            else if (not invariantLeaf(leaf, out, written, state))
+                                return false;
+                        }
+
+                        return true;
+                    }
+
                     bool invariantLeaf(ValueId v, Idempotence& out, const LocSet& written, std::map<ValueId, int>& state) const
                     {
                         auto it = state.find(v);
@@ -676,13 +806,19 @@ namespace pg
                         switch (n.op)
                         {
                             case Op::Const: fine = true; break;
-                            case Op::Param: out.needsParams.insert(n.param); fine = true; break;
-                            case Op::Global: out.needsGlobals.insert(n.name); fine = true; break;
 
+                            // What this body writes is not the same on every run, even handed in
+                            case Op::Param:
+                            case Op::Global:
+                                noteNeed(n, out);
+                                fine = not writtenHere(pts[v], written);
+                                break;
+
+                            // A native making a table makes a new one each run, as a literal does
                             case Op::Native:
                             case Op::Pure:
                             {
-                                fine = n.op == Op::Pure or nativeKind(n.name) == NativeKind::Fresh;
+                                fine = n.op == Op::Pure or (nativeKind(n.name) == NativeKind::Fresh and not makesTable(n.name));
 
                                 for (auto in : n.in)
                                     fine = fine and invariantMade(in, out, written, state);
@@ -691,7 +827,7 @@ namespace pg
                             }
 
                             case Op::Field:
-                                fine = not n.in.empty() and invariantMade(n.in[0], out, written, state) and not writtenHere(pts[v], written);
+                                fine = not n.in.empty() and invariantBase(n.in[0], out, written, state) and not writtenHere(pts[v], written);
                                 break;
 
                             default:
@@ -716,13 +852,9 @@ namespace pg
                             const Store& s = body.stores[p.store];
                             out.shape = true;
 
-                            // A table made by this body: written before anything else sees it
-                            if (body.nodes[s.base].op == Op::Literal)
-                                return out;
-
-                            for (auto leaf : body.leaves(s.value))
+                            for (auto leaf : newLeaves(s))
                             {
-                                if (not ownOldValue(leaf, s) and not invariantLeaf(leaf, out, written, state))
+                                if (not invariantLeaf(leaf, out, written, state))
                                 {
                                     out.shape = false;
                                     break;
@@ -736,6 +868,9 @@ namespace pg
                         const Node& call = body.nodes[p.call];
                         out.shape = p.callee.shape;
                         out.needsGlobals = p.callee.needsGlobals;
+
+                        for (const auto& name : p.callee.needsGlobals)
+                            out.shape = out.shape and not writtenHere({locs.global(name)}, written);
 
                         for (auto param : p.callee.needsParams)
                         {
@@ -895,14 +1030,14 @@ namespace pg
             }
 
             Evaluator::Evaluator(Locations& locs, const std::map<std::string, Summary>& summaries,
-                                 const std::function<bool(const std::string&)>& followed) :
-                locs(locs), summaries(summaries), followed(followed)
+                                 std::function<bool(const std::string&)> followed, std::function<bool(const std::string&)> defined) :
+                locs(locs), summaries(summaries), followed(std::move(followed)), defined(std::move(defined))
             {
             }
 
             Summary Evaluator::evaluate(const BodyIR& body)
             {
-                return Run(locs, summaries, followed, body).go(collapsedCount);
+                return Run(locs, summaries, followed, defined, body).go(collapsedCount);
             }
 
             size_t Evaluator::collapsed() const
@@ -911,7 +1046,8 @@ namespace pg
             }
 
             std::map<std::string, Summary> summarize(const std::map<std::string, BodyIR>& bodies, Locations& locs,
-                                                     const std::function<bool(const std::string&)>& followed, size_t& collapsed)
+                                                     const std::function<bool(const std::string&)>& followed,
+                                                     const std::function<bool(const std::string&)>& defined, size_t& collapsed)
             {
                 collapsed = 0;
 
@@ -957,7 +1093,7 @@ namespace pg
                     if (component.size() == 1 and not selfCall[component[0]])
                     {
                         const std::string& name = names[component[0]];
-                        Evaluator evaluator(locs, out, followed);
+                        Evaluator evaluator(locs, out, followed, defined);
                         out[name] = evaluator.evaluate(bodies.at(name));
                         collapsed += evaluator.collapsed();
                         continue;
@@ -985,7 +1121,7 @@ namespace pg
                         for (auto f : component)
                         {
                             const std::string& name = names[f];
-                            Evaluator evaluator(locs, out, followed);
+                            Evaluator evaluator(locs, out, followed, defined);
                             Summary next = joined(out[name], evaluator.evaluate(bodies.at(name)));
                             lastCollapsed[name] = evaluator.collapsed();
 

@@ -9,7 +9,9 @@
  * a location (edges), the globals it reads and rebinds, and what it returns. A function is summed
  * up once, its parameters as roots (`#0.[#1].*.amount`); a call of a function followed puts the
  * call's arguments in place of the parameters. A call of anything else is unknown: it may write
- * all that is reachable from what it is handed, written as `l.*`, and return any of it.
+ * all that is reachable from what it is handed, written as `l.*`, and return any of it. When that
+ * call runs code of the program (a value called, a function not followed), it may also write
+ * anything (`?`) and return anything.
  *
  * A write is idempotent (`shape`) when every value it may store is the field's own old value or
  * a value made only of what is the same on every run: constants, and the arguments (`needsParams`)
@@ -34,6 +36,9 @@ namespace pg
         {
             constexpr size_t MaxLocsPerValue = 256;
 
+            // Of the values stored only: what guards a store is not looked at. `if (t.on) { t.on = false }
+            // else { t.on = true }` stores constants and reads as idempotent, and it is not. So this says
+            // nothing alone: nothing may be decided on it until control dependence is checked as well
             struct Idempotence
             {
                 bool shape = false;                  // every stored value is the field's own old value or invariant-made
@@ -70,9 +75,11 @@ namespace pg
             class Evaluator
             {
             public:
-                // `followed(name)`: a program function defined once, never rebound; its summary is in `summaries`
+                // `followed(name)`: a program function defined once, never rebound; its summary is in `summaries`.
+                // `defined(name)`: the program defines that name, as a function, a class or a global (a global
+                // may hold a function); a name it does not define is an engine native
                 Evaluator(Locations& locs, const std::map<std::string, Summary>& summaries,
-                          const std::function<bool(const std::string&)>& followed);
+                          std::function<bool(const std::string&)> followed, std::function<bool(const std::string&)> defined);
 
                 Summary evaluate(const BodyIR& body);
                 size_t collapsed() const;  // values that hit MaxLocsPerValue
@@ -80,13 +87,15 @@ namespace pg
             private:
                 Locations& locs;
                 const std::map<std::string, Summary>& summaries;
-                const std::function<bool(const std::string&)>& followed;
+                std::function<bool(const std::string&)> followed;
+                std::function<bool(const std::string&)> defined;
                 size_t collapsedCount = 0;
             };
 
             // Every followed function summed up: reverse topological order of the call graph, a fixpoint inside each cycle
             std::map<std::string, Summary> summarize(const std::map<std::string, BodyIR>& bodies, Locations& locs,
-                                                     const std::function<bool(const std::string&)>& followed, size_t& collapsed);
+                                                     const std::function<bool(const std::string&)>& followed,
+                                                     const std::function<bool(const std::string&)>& defined, size_t& collapsed);
         }
     }
 }

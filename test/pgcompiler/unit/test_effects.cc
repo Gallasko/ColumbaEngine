@@ -414,7 +414,6 @@ namespace pg
             EXPECT_EQ(ir.nodes[abc.in[0]].op, Op::Field);
             EXPECT_EQ(ir.stores[1].key, locs.key("d"));
         }
-    
 
         namespace
         {
@@ -466,12 +465,12 @@ namespace pg
             {
                 auto out = std::make_unique<Summed>();
                 out->statements = parsed(source);
-                std::set<std::string> defined;
+                std::map<std::string, int> defined;
 
                 for (const auto& s : out->statements)
                 {
                     if (s->kind() == AstKind::FunctionStatement)
-                        defined.insert(std::static_pointer_cast<FunctionStatement>(s)->name.text);
+                        ++defined[std::static_pointer_cast<FunctionStatement>(s)->name.text];
                 }
 
                 auto isNative = [&defined](const std::string& n) { return defined.count(n) == 0; };
@@ -485,7 +484,9 @@ namespace pg
                     }
                 }
 
-                out->summaries = summarize(out->bodies, out->locs, [defined](const std::string& n) { return defined.count(n) > 0; }, out->collapsed);
+                auto once = [&defined](const std::string& n) { auto it = defined.find(n); return it != defined.end() and it->second == 1; };
+                auto isDefined = [&defined](const std::string& n) { return defined.count(n) > 0; };
+                out->summaries = summarize(out->bodies, out->locs, once, isDefined, out->collapsed);
                 return out;
             }
 
@@ -685,6 +686,191 @@ namespace pg
             const Write* w = s->write("shift", "#0.*.v");
             ASSERT_NE(w, nullptr);
             EXPECT_FALSE(w->idempotence.shape);
+        }
+
+        TEST(EffectSummaries, AValueCarriedRoundALoopIsNotTheOwnValue)
+        {
+            auto s = summed("fun rot(l)\n{\n    var prev = 0\n\n    for (var i = 0; i < len(l); i++)\n    {\n"
+                            "        var o = l[i].x\n        l[i].x = prev\n        prev = o\n    }\n}\n");
+            const Write* w = s->write("rot", "#0.*.x");
+            ASSERT_NE(w, nullptr);
+            EXPECT_FALSE(w->idempotence.shape);
+        }
+
+        TEST(EffectSummaries, AValueCarriedToAnotherObjectIsAnEdge)
+        {
+            auto s = summed("fun mv(a, b)\n{\n    var cur = a\n    var prev = 0\n\n    for (var i = 0; i < 2; i++)\n    {\n"
+                            "        var o = cur.x\n        cur.x = prev\n        prev = o\n        cur = b\n    }\n}\n");
+            EXPECT_TRUE(s->hasEdge("mv", "#1.x", "#0.x"));
+        }
+
+        TEST(EffectSummaries, ACallOfAFunctionNotFollowedMayWriteAnything)
+        {
+            auto s = summed("fun dupWrite()\n{\n    rows.x = 1\n}\n\nfun dupWrite()\n{\n    rows.y = 2\n}\n\nfun top1()\n{\n    dupWrite()\n}\n");
+            EXPECT_EQ(s->summaries.count("dupWrite"), 0u);
+            EXPECT_TRUE(s->of("top1").unknown);
+            EXPECT_TRUE(s->writeTexts("top1").count("?"));
+        }
+
+        TEST(EffectSummaries, AValueCalledMayWriteAnythingAndReturnAnything)
+        {
+            auto s = summed("fun cb(f, t)\n{\n    return f(t)\n}\n");
+            EXPECT_TRUE(s->writeTexts("cb").count("?"));
+            ASSERT_EQ(s->of("cb").returns.size(), 1u);
+            EXPECT_EQ(s->locs.text(s->of("cb").returns[0]), "?");
+        }
+
+        TEST(EffectSummaries, AnEngineNativeSeesOnlyWhatItIsHanded)
+        {
+            auto s = summed("fun t(a)\n{\n    return someNative(a)\n}\n");
+            EXPECT_TRUE(s->of("t").unknown);
+            EXPECT_EQ(s->writeTexts("t"), (std::set<std::string>{"#0.*"}));
+            std::set<std::string> returns;
+
+            for (auto r : s->of("t").returns)
+                returns.insert(s->locs.text(r));
+
+            EXPECT_EQ(returns, (std::set<std::string>{"#0", "#0.*"}));
+        }
+
+        TEST(EffectSummaries, ADefineIsAnEdgeOfItsGlobal)
+        {
+            Locations locs;
+            auto statements = parsed("var index = rows[0]\n");
+            ASSERT_EQ(statements.size(), 1u);
+            auto ir = buildTopLevel(statements[0], locs, [](const std::string&) { return true; });
+
+            const std::map<std::string, Summary> none;
+            const std::set<std::string> nothing;
+            Evaluator evaluator(locs, none, [nothing](const std::string& n) { return nothing.count(n) > 0; },
+                                [nothing](const std::string& n) { return nothing.count(n) > 0; });
+
+            const Summary s = evaluator.evaluate(ir);
+            ASSERT_EQ(s.edges.size(), 1u);
+            EXPECT_EQ(locs.text(s.edges[0].at), "g:index");
+            EXPECT_EQ(locs.text(s.edges[0].value), "g:rows.*");
+            EXPECT_TRUE(s.rebinds.empty());
+        }
+
+        TEST(EffectSummaries, AnArgumentThisBodyWritesIsNotInvariant)
+        {
+            auto s = summed("fun selfLen(t)\n{\n    t.n = len(t)\n}\n");
+            const Write* w = s->write("selfLen", "#0.n");
+            ASSERT_NE(w, nullptr);
+            EXPECT_FALSE(w->idempotence.shape);
+
+            auto c = summed("fun add(a, b)\n{\n    a.n = b.n + 1\n}\n\nfun twice(t)\n{\n    add(t, t)\n}\n");
+            const Write* inner = c->write("add", "#0.n");
+            ASSERT_NE(inner, nullptr);
+            EXPECT_TRUE(inner->idempotence.shape);
+            EXPECT_EQ(inner->idempotence.needsParams, (std::set<uint32_t>{1}));
+            const Write* twice = c->write("twice", "#0.n");
+            ASSERT_NE(twice, nullptr);
+            EXPECT_FALSE(twice->idempotence.shape);
+        }
+
+        TEST(EffectSummaries, AGlobalNeededAndWrittenIsNotInvariant)
+        {
+            auto s = summed("fun put(t)\n{\n    t.x = level\n}\n\nfun both()\n{\n    put(level)\n}\n");
+            const Write* w = s->write("both", "g:level.x");
+            ASSERT_NE(w, nullptr);
+            EXPECT_FALSE(w->idempotence.shape);
+        }
+
+        TEST(EffectSummaries, AFieldOfAnObjectWrittenElsewhereStaysInvariant)
+        {
+            auto s = summed("fun copyField(t)\n{\n    t.y = t.x\n}\n");
+            const Write* w = s->write("copyField", "#0.y");
+            ASSERT_NE(w, nullptr);
+            EXPECT_TRUE(w->idempotence.shape);
+            EXPECT_EQ(w->idempotence.needsParams, (std::set<uint32_t>{0}));
+        }
+
+        TEST(EffectSummaries, ASplitListIsATableThatCanBeWritten)
+        {
+            auto s = summed("fun viaFresh(s, r)\n{\n    var l = split(s, \",\")\n    push(l, r)\n    l[1].x = 5\n}\n");
+            EXPECT_TRUE(s->writeTexts("viaFresh").count("@0.*"));
+            EXPECT_TRUE(s->writeTexts("viaFresh").count("@0.*.x"));
+            EXPECT_TRUE(s->hasEdge("viaFresh", "@0.*", "#1"));
+
+            // A new list on each run, as a literal is
+            auto k = summed("fun keep(t, s)\n{\n    t.parts = split(s, \",\")\n}\n");
+            const Write* w = k->write("keep", "#0.parts");
+            ASSERT_NE(w, nullptr);
+            EXPECT_FALSE(w->idempotence.shape);
+        }
+
+        TEST(EffectSummaries, AnEntryMovedToAnotherEntryIsASelfEdge)
+        {
+            auto s = summed("fun shift(l)\n{\n    for (var i = 0; i < len(l); i++)\n    {\n        l[i].v = l[i + 1].v\n    }\n}\n");
+            EXPECT_TRUE(s->hasEdge("shift", "#0.*.v", "#0.*.v"));
+
+            // One slot stored in itself says nothing
+            auto e = summed("fun same(t)\n{\n    var prev = 0\n\n    for (var i = 0; i < 2; i++)\n    {\n"
+                            "        var o = t.a\n        t.a = prev\n        prev = o\n    }\n}\n");
+            EXPECT_FALSE(e->hasEdge("same", "#0.a", "#0.a"));
+        }
+
+        TEST(EffectSummaries, ALiteralKeepsTheNeedsOfWhatFillsIt)
+        {
+            Locations locs;
+            auto statements = parsed("var cfg = {a: level}\n");
+            ASSERT_EQ(statements.size(), 1u);
+            auto ir = buildTopLevel(statements[0], locs, [](const std::string&) { return true; });
+
+            const std::map<std::string, Summary> none;
+            auto no = [](const std::string&) { return false; };
+            const Summary s = Evaluator(locs, none, no, no).evaluate(ir);
+
+            ASSERT_EQ(s.writes.size(), 1u);
+            EXPECT_EQ(locs.text(s.writes[0].at), "@0.a");
+            EXPECT_TRUE(s.writes[0].idempotence.shape);
+            EXPECT_EQ(s.writes[0].idempotence.needsGlobals, (std::set<std::string>{"level"}));
+        }
+
+        TEST(EffectSummaries, MergeWritesItsFirstWithWhatTheSecondHolds)
+        {
+            auto s = summed("fun m(a, b)\n{\n    return merge(a, b)\n}\n");
+            EXPECT_EQ(s->writeTexts("m"), (std::set<std::string>{"#0.*"}));
+            EXPECT_FALSE(s->write("m", "#0.*")->idempotence.shape);
+            EXPECT_TRUE(s->hasEdge("m", "#0.*", "#1.*"));
+            ASSERT_EQ(s->of("m").returns.size(), 1u);
+            EXPECT_EQ(s->locs.text(s->of("m").returns[0]), "#0");
+            EXPECT_FALSE(s->of("m").unknown);
+        }
+
+        TEST(EffectSummaries, CopyAndIndexByMakeATableOfTheEntries)
+        {
+            for (const std::string call : {"copy(t)", "indexBy(t, \"id\")"})
+            {
+                auto s = summed("fun c(t)\n{\n    return " + call + "\n}\n");
+                EXPECT_TRUE(s->of("c").writes.empty()) << call;
+                ASSERT_EQ(s->of("c").returns.size(), 1u) << call;
+                EXPECT_EQ(s->locs.text(s->of("c").returns[0]), "@0") << call;
+                EXPECT_TRUE(s->hasEdge("c", "@0.*", "#0.*")) << call;
+                EXPECT_FALSE(s->of("c").unknown) << call;
+            }
+        }
+
+        TEST(EffectSummaries, TakeWritesItsFirstAndReturnsAnEntry)
+        {
+            for (const std::string call : {"pop(l)", "removeAt(l, 0)"})
+            {
+                auto s = summed("fun p(l)\n{\n    return " + call + "\n}\n");
+                EXPECT_EQ(s->writeTexts("p"), (std::set<std::string>{"#0.*"})) << call;
+                EXPECT_FALSE(s->write("p", "#0.*")->idempotence.shape) << call;
+                ASSERT_EQ(s->of("p").returns.size(), 1u) << call;
+                EXPECT_EQ(s->locs.text(s->of("p").returns[0]), "#0.*") << call;
+            }
+        }
+
+        TEST(EffectSummaries, ARebindIsAnEdgeOfItsGlobalThroughACall)
+        {
+            auto s = summed("fun keep(t)\n{\n    cache = t\n}\n\nfun c(a)\n{\n    keep(a.x)\n}\n");
+            EXPECT_TRUE(s->of("keep").rebinds.count("cache"));
+            EXPECT_TRUE(s->hasEdge("keep", "g:cache", "#0"));
+            EXPECT_TRUE(s->of("c").rebinds.count("cache"));
+            EXPECT_TRUE(s->hasEdge("c", "g:cache", "#0.x"));
         }
 
         TEST(EffectSummaries, DigestIsStableAndNamesTheWrites)
