@@ -80,7 +80,7 @@ namespace arena::net
     {
 #ifdef VOXELARENA_UPNP
         int error = 0;
-        UPNPDev* devices = upnpDiscover(2000, nullptr, nullptr, UPNP_LOCAL_PORT_ANY, 0, 2, &error);
+        UPNPDev* devices = upnpDiscover(1000, nullptr, nullptr, UPNP_LOCAL_PORT_ANY, 0, 2, &error);
 
         UPNPUrls urls{};
         IGDdatas data{};

@@ -105,6 +105,13 @@ else()
     add_subdirectory(${GLEW_DIR})
     add_subdirectory(${TTF_DIR})
     add_subdirectory(${GLTF_DIR})
+
+    # UPnP (VoxelArena opens its host's ports on the router): the static library only
+    set(UPNPC_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+    set(UPNPC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(UPNPC_BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
+    set(UPNPC_NO_INSTALL ON CACHE BOOL "" FORCE)
+    add_subdirectory(import/miniupnpc-2.2.8 EXCLUDE_FROM_ALL)
 endif()
 
 # Always add GLM (header-only)
@@ -1745,7 +1752,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Net/portmapper.cpp
             ${VOXELARENA_CORE}
         )
-        target_link_libraries(VoxelArena PRIVATE ColumbaEngine)
+        target_link_libraries(VoxelArena PRIVATE ColumbaEngine libminiupnpc-static)
+        target_compile_definitions(VoxelArena PRIVATE VOXELARENA_UPNP)
         # Content is read straight from the source tree, so editing a mod and pressing F5 needs no rebuild
         target_compile_definitions(VoxelArena PRIVATE VOXELARENA_MODS_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/mods"
                                                       VOXELARENA_SHADER_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/shader"
@@ -1754,7 +1762,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         # The dedicated server: the same simulation, no window
         add_executable(VoxelArenaServer examples/VoxelArena/server_main.cpp examples/VoxelArena/Net/enginetransport.cpp examples/VoxelArena/Net/portmapper.cpp ${VOXELARENA_CORE})
         target_include_directories(VoxelArenaServer PUBLIC examples/VoxelArena examples/VoxelArena/Core)
-        target_link_libraries(VoxelArenaServer PRIVATE ColumbaEngine)
+        target_link_libraries(VoxelArenaServer PRIVATE ColumbaEngine libminiupnpc-static)
+        target_compile_definitions(VoxelArenaServer PRIVATE VOXELARENA_UPNP)
         target_compile_definitions(VoxelArenaServer PRIVATE VOXELARENA_MODS_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/mods")
 
         add_executable(test_voxelarena test/voxelarena/maintest.cc)
