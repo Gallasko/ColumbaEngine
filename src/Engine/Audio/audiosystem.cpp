@@ -209,6 +209,9 @@ namespace pg
         else
         {
             channels[channel] = effect;
+
+            // Every play sets its channel's panning: a channel keeps it from the sound before (255, 255 clears it)
+            Mix_SetPanning(channel, event.left, event.right);
         }
     }
 

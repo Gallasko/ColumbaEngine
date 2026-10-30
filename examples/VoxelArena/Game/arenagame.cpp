@@ -1460,7 +1460,7 @@ namespace arena
             const EffectDef& look = it->second;
             const Fighter* p = world.player();
             const glm::vec3 middle = (e.position + e.to) * 0.5f;
-            sounds.play(ecsRef, look.sound, p ? glm::length(middle - p->body.position) : 0.0f);
+            playSound(look.sound, middle, p ? glm::length(middle - p->body.position) : 0.0f);
 
             ParticlePreset one = look.particles;
             one.count = 1;
@@ -1592,6 +1592,34 @@ namespace arena
         }
     }
 
+    void ArenaGame::playSound(const std::string& sound, const glm::vec3& at, float distance)
+    {
+        // Where it is from where the camera looks: to the side pans it, behind makes it a little quieter.
+        // The player's own sounds (steps, swings) stay in the middle
+        float pan = 0.0f, behind = 0.0f;
+        glm::vec3 to = at - camera.position;
+        to.y = 0.0f;
+
+        if (distance > 1.5f and glm::length(to) > 0.5f)
+        {
+            glm::vec3 forward = camera.forward();
+            forward.y = 0.0f;
+            forward = glm::length(forward) > 1e-4f ? glm::normalize(forward) : glm::vec3(0, 0, 1);
+            to = glm::normalize(to);
+
+            const glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0, 1, 0)));
+            pan = glm::dot(to, right);
+            behind = std::max(0.0f, -glm::dot(to, forward));
+
+            // Fades in over the first metres, so something close by does not jump from ear to ear
+            const float near = std::clamp((distance - 1.5f) / 2.5f, 0.0f, 1.0f);
+            pan *= near;
+            behind *= near;
+        }
+
+        sounds.play(ecsRef, sound, distance, pan, behind);
+    }
+
     void ArenaGame::playEffect(const std::string& kind, const glm::vec3& at, const glm::vec3& color)
     {
         auto it = effects.find(kind);
@@ -1603,7 +1631,7 @@ namespace arena
         const Fighter* p = world.player();
         const float distance = p ? glm::length(at - p->body.position) : 0.0f;
 
-        sounds.play(ecsRef, e.sound, distance);
+        playSound(e.sound, at, distance);
 
         if (e.particles.count > 0)
             particles.burst(e.particles, at, color);

@@ -13,7 +13,7 @@ namespace arena
         float sensitivity = 1.0f;    // times the tuning's mouse sensitivity
         bool invertY = false;
         float fovOffset = 0.0f;      // degrees added to the field of view
-        float volume = 1.0f;         // the whole game's sound
+        float volume = 0.5f;         // the whole game's sound
         float shake = 1.0f;          // camera shake
         float hitFlash = 1.0f;       // the red flash when hit
         bool trails = true;          // slash trails

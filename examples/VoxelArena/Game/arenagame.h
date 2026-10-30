@@ -288,6 +288,7 @@ namespace arena
         SoundBank sounds;
         Particles particles;
         void playEffect(const std::string& kind, const glm::vec3& at, const glm::vec3& color);
+        void playSound(const std::string& sound, const glm::vec3& at, float distance);   // panned from where the camera looks
         void playEvent(const WorldEvent& e);   // playEffect, and what an event starts (flames) or draws along (arcs)
 
         // Looks that last: statuses on fighters (tint, particles now and then) and blocks on fire

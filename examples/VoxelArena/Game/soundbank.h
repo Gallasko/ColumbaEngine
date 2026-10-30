@@ -24,8 +24,15 @@ namespace arena
     public:
         void load(const std::map<std::string, SoundRecipe>& recipes, const std::string& cacheDir, ContentReport& report);
 
-        /** distance from the listener: full up close, quieter further, silent past FAR. */
-        void play(pg::EntitySystem* ecs, const std::string& name, float distance);
+        /**
+         * distance from the listener: full up close, quieter further, silent past FAR. pan: -1 all
+         * left to 1 all right, behind: 0 (in front) to 1 (right behind, a little quieter).
+         */
+        void play(pg::EntitySystem* ecs, const std::string& name, float distance, float pan = 0.0f, float behind = 0.0f);
+
+        /** How much the far ear loses at a sound fully to one side (0.65: it keeps 35%). */
+        static constexpr float PAN_DEPTH = 0.65f;
+        static constexpr float BEHIND_DROP = 0.2f;
 
         static constexpr float NEAR = 10.0f;
         static constexpr float FAR = 32.0f;

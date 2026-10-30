@@ -21,7 +21,8 @@ namespace pg
     struct SetMusicVolume        { float volume; };
     struct SetSoundEffectsVolume { float volume; };
 
-    struct PlaySoundEffect { std::string effect; int loops = 0; int channel = -1; };
+    /** left / right: each ear's level, 255 full (both 255: centred, the default). */
+    struct PlaySoundEffect { std::string effect; int loops = 0; int channel = -1; uint8_t left = 255; uint8_t right = 255; };
 
     struct AudioSystem : public System<Listener<StartAudio>, Listener<StopAudio>, Listener<PauseAudio>, Listener<ResumeAudio>, QueuedListener<PlaySoundEffect>, Listener<SetMasterVolume>, Listener<SetMusicVolume>, Listener<SetSoundEffectsVolume>, InitSys>
     {

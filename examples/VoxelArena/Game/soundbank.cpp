@@ -2,6 +2,8 @@
 
 #include "soundbank.h"
 
+#include <algorithm>
+#include <cmath>
 #include <filesystem>
 
 #include "Audio/audiosystem.h"
@@ -55,7 +57,7 @@ namespace arena
         }
     }
 
-    void SoundBank::play(pg::EntitySystem* ecs, const std::string& name, float distance)
+    void SoundBank::play(pg::EntitySystem* ecs, const std::string& name, float distance, float pan, float behind)
     {
         if (not ecs or name.empty() or distance > FAR)
             return;
@@ -70,7 +72,16 @@ namespace arena
         if (list.empty())
             return;
 
+        // Each ear: the far one loses up to PAN_DEPTH, both a little behind the listener
+        pan = std::clamp(pan, -1.0f, 1.0f);
+        const float back = 1.0f - BEHIND_DROP * std::clamp(behind, 0.0f, 1.0f);
+        const float left = (1.0f - PAN_DEPTH * std::max(0.0f, pan)) * back;
+        const float right = (1.0f - PAN_DEPTH * std::max(0.0f, -pan)) * back;
+
         // The audio system reads its effects on its own queue: a path is enough
-        ecs->sendEvent(pg::PlaySoundEffect{list[rng() % list.size()]});
+        pg::PlaySoundEffect play{list[rng() % list.size()]};
+        play.left = static_cast<uint8_t>(std::lround(255.0f * left));
+        play.right = static_cast<uint8_t>(std::lround(255.0f * right));
+        ecs->sendEvent(play);
     }
 }
