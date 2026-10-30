@@ -614,3 +614,104 @@ TEST(arena_run, the_slime_hops_up_a_block)
     EXPECT_GE(highest, 1.99f);   // stood on the step
     EXPECT_LT(glm::length(r.world.find(id)->body.position - r.player().body.position), 4.0f);
 }
+
+// ---- The final duel (multiplayer) -------------------------------------------------------------
+
+namespace
+{
+    /** A run of two players straight to its last wave, the Warden down: the duel begins. */
+    int toTheDuel(RunArena& r)
+    {
+        const int second = r.world.addPlayer(1);
+        r.world.startRun(5);
+        r.world.skipToWave(20);
+        r.past(2.5f);
+        r.killAll();
+        return second;
+    }
+}
+
+TEST(arena_run, alone_the_last_wave_is_the_victory_with_others_a_duel_follows)
+{
+    RunArena solo;
+    solo.world.startRun(5);
+    solo.world.skipToWave(20);
+    solo.past(2.5f);
+    solo.killAll();
+    EXPECT_EQ(solo.world.run.phase, RunPhase::Victory);
+    EXPECT_EQ(solo.world.run.champion, 0);
+
+    RunArena r;
+    const int second = toTheDuel(r);
+    ASSERT_EQ(r.world.run.phase, RunPhase::Duel);
+    EXPECT_EQ(r.enemies(), 0);
+    EXPECT_GT(r.world.run.warmup, 0.0f);
+
+    // Everyone back up, at full, across the ring from each other
+    const Fighter& a = r.player();
+    const Fighter* b = r.world.find(second);
+    ASSERT_TRUE(b);
+    EXPECT_FLOAT_EQ(a.health, a.maxHealth);
+    EXPECT_FLOAT_EQ(b->health, b->maxHealth);
+    EXPECT_NEAR(glm::length(a.body.position - b->body.position), 2.0f * r.content.run.duel.radius, 0.5f);
+}
+
+TEST(arena_run, in_the_duel_players_hurt_each_other_once_the_countdown_is_over)
+{
+    RunArena r;
+    const int second = toTheDuel(r);
+    Fighter& a = r.player();
+
+    // The countdown: nobody may hurt anybody; never yourself
+    EXPECT_FALSE(r.world.hostile(Team::Player, a.id, *r.world.find(second)));
+    r.past(r.content.run.duel.countdown);
+    EXPECT_EQ(r.world.run.warmup, 0.0f);
+    EXPECT_TRUE(r.world.hostile(Team::Player, a.id, *r.world.find(second)));
+    EXPECT_FALSE(r.world.hostile(Team::Player, a.id, a));
+
+    // A real swing: the other player right in front
+    Fighter* b = r.world.find(second);
+    b->body.position = a.body.position + glm::vec3(0, 0, 1.3f);
+    a.yaw = 0.0f;
+    r.run(10);
+    b = r.world.find(second);
+    b->body.position = r.player().body.position + glm::vec3(0, 0, 1.3f);
+    const float before = b->health;
+
+    std::map<int, InputFrame> inputs;
+    inputs[r.player().id].lightPressed = true;
+    r.world.step(inputs);
+    r.run(30);
+
+    EXPECT_LT(r.world.find(second)->health, before);
+}
+
+TEST(arena_run, the_last_one_standing_wins_the_duel)
+{
+    RunArena r;
+    const int second = toTheDuel(r);
+    r.past(r.content.run.duel.countdown);
+
+    // The second player falls: one life each, nobody gets back up
+    Fighter* b = r.world.find(second);
+    b->health = 0.01f;
+    r.world.applyStatus(*b, "base:burn");
+    r.run(3);
+
+    EXPECT_EQ(r.world.run.phase, RunPhase::Victory);
+    EXPECT_EQ(r.world.run.champion, r.player().id);
+}
+
+TEST(arena_run, when_the_duels_time_is_up_the_most_health_left_wins)
+{
+    RunArena r;
+    const int second = toTheDuel(r);
+    r.past(r.content.run.duel.countdown);
+
+    r.player().health = r.player().maxHealth * 0.3f;
+    r.world.run.timer = 0.01f;
+    r.run(2);
+
+    EXPECT_EQ(r.world.run.phase, RunPhase::Victory);
+    EXPECT_EQ(r.world.run.champion, second);
+}

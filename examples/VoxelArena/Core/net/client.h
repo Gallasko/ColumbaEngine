@@ -46,6 +46,16 @@ namespace arena::net
         /** The recipes on this player's spell keys: sent to the server (now, or once joined). */
         void setSpells(const std::vector<SpellRecipe>& recipes);
 
+        /** Ready (or not) to start the run, in the lobby: sent to the server (now, or once joined). */
+        void setReady(bool ready);
+        bool ready = false;
+
+        /** Who is in the game, as the server last said. */
+        LobbyMsg lobby;
+
+        /** A player's name from the lobby, or "" when not known. */
+        std::string nameOf(int playerId) const;
+
         enum class State { Connecting, Joining, Playing, Refused, Lost };
         State state = State::Connecting;
         std::string refusal;

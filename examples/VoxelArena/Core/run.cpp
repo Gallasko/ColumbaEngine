@@ -297,6 +297,15 @@ namespace arena
         if (run.wave >= run.waves)
         {
             run.score += def.victoryScore;
+
+            // Two players or more: a final duel first
+            const auto players = std::count_if(fighters.begin(), fighters.end(), [](const Fighter& f) { return f.team == Team::Player; });
+            if (def.duel.enabled and players >= 2)
+            {
+                beginDuel();
+                return;
+            }
+
             run.phase = RunPhase::Victory;
             event("run_victory", def.centre, static_cast<float>(run.score));
             return;
@@ -317,6 +326,47 @@ namespace arena
         }
 
         event("wave_clear", def.centre, static_cast<float>(run.wave));
+    }
+
+    void ArenaWorld::beginDuel()
+    {
+        const RunDef& def = content->run;
+
+        run.phase = RunPhase::Duel;
+        run.timer = def.duel.duration;
+        run.warmup = def.duel.countdown;
+        run.champion = 0;
+        run.bossWave = false;
+        run.bossId = 0;
+        run.pending.clear();
+
+        // The arena anew, nothing left in it but the players
+        buildArena();
+        projectiles.clear();
+        zones.clear();
+        pendingHits.clear();
+        pickups.clear();
+        removeEnemies();
+
+        // Everyone back up, in a ring around the middle, facing it
+        std::vector<Fighter*> players;
+        for (auto& f : fighters)
+            if (f.team == Team::Player)
+                players.push_back(&f);
+
+        for (size_t k = 0; k < players.size(); ++k)
+        {
+            Fighter& f = *players[k];
+            const float angle = static_cast<float>(k) * 2.0f * 3.14159265f / static_cast<float>(players.size());
+            f.spawnPosition = def.centre + glm::vec3(std::sin(angle), 0.0f, std::cos(angle)) * def.duel.radius;
+            const glm::vec3 toCentre = def.centre - f.spawnPosition;
+            f.spawnYaw = glm::degrees(std::atan2(toCentre.x, toCentre.z));
+            f.ready = false;
+            f.statuses.clear();
+            respawn(f);
+        }
+
+        event("duel_start", def.centre, static_cast<float>(players.size()));
     }
 
     // ---- Shards ---------------------------------------------------------------------------------
@@ -601,7 +651,7 @@ namespace arena
             }
         };
 
-        if (run.phase == RunPhase::Fighting or run.phase == RunPhase::Shop)
+        if (run.phase == RunPhase::Fighting or run.phase == RunPhase::Shop or run.phase == RunPhase::Duel)
             run.elapsed += dt;
 
         int players = 0, standing = 0;
@@ -748,6 +798,36 @@ namespace arena
 
                 if (all)
                     beginWave(run.wave + 1);
+                break;
+            }
+
+            case RunPhase::Duel:
+            {
+                // The countdown: nobody may hurt anybody yet (see hostile)
+                if (run.warmup > 0.0f)
+                {
+                    run.warmup = std::max(0.0f, run.warmup - dt);
+                    if (run.warmup <= 0.0f)
+                        event("duel_fight", def.centre, 1.0f);
+                    break;
+                }
+
+                run.timer = std::max(0.0f, run.timer - dt);
+
+                // One life each: the last one standing, or when the time is up the most health left
+                const Fighter* last = nullptr;
+                for (const auto& f : fighters)
+                    if (f.team == Team::Player and f.alive())
+                        if (not last or f.health / std::max(1.0f, f.maxHealth) > last->health / std::max(1.0f, last->maxHealth))
+                            last = &f;
+
+                if (standing <= 1 or run.timer <= 0.0f)
+                {
+                    run.champion = last ? last->id : 0;
+                    run.phase = RunPhase::Victory;
+                    event("duel_end", last ? last->body.position : def.centre, static_cast<float>(run.champion));
+                    event("run_victory", def.centre, static_cast<float>(run.score));
+                }
                 break;
             }
 

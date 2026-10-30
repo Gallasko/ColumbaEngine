@@ -19,6 +19,7 @@ struct LaunchOptions
     std::string address = "127.0.0.1";
     uint16_t port = 7777;              // TCP; UDP is the next port
     std::string name = "player";
+    bool upnp = true;                  // a host opens its ports on the router (--no-upnp: not)
 };
 
 class GameApp

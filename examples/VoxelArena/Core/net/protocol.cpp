@@ -227,6 +227,69 @@ namespace arena::net
         return {static_cast<uint8_t>(Msg::Bye)};
     }
 
+    // ---- Lobby ------------------------------------------------------------------------------------
+
+    std::vector<uint8_t> encode(const LobbyMsg& m)
+    {
+        Writer w;
+        w.u8(static_cast<uint8_t>(Msg::Lobby));
+        w.boolean(m.dedicated);
+        w.u8(static_cast<uint8_t>(std::min<size_t>(m.players.size(), 32)));
+
+        for (size_t i = 0; i < m.players.size() and i < 32; ++i)
+        {
+            const LobbyPlayer& p = m.players[i];
+            w.i32(p.playerId);
+            w.str(p.name);
+            w.boolean(p.host);
+            w.boolean(p.ready);
+            w.u16(p.pingMs);
+        }
+
+        return w.data;
+    }
+
+    bool decode(const std::vector<uint8_t>& data, LobbyMsg& m)
+    {
+        Reader r(data);
+        if (r.u8() != static_cast<uint8_t>(Msg::Lobby))
+            return false;
+
+        m = LobbyMsg{};
+        m.dedicated = r.boolean();
+        const int n = r.u8();
+
+        for (int i = 0; i < n and not r.failed; ++i)
+        {
+            LobbyPlayer p;
+            p.playerId = r.i32();
+            p.name = r.str();
+            p.host = r.boolean();
+            p.ready = r.boolean();
+            p.pingMs = r.u16();
+            m.players.push_back(p);
+        }
+
+        return not r.failed;
+    }
+
+    std::vector<uint8_t> encode(const ReadyMsg& m)
+    {
+        Writer w;
+        w.u8(static_cast<uint8_t>(Msg::Ready));
+        w.boolean(m.ready);
+        return w.data;
+    }
+
+    bool decode(const std::vector<uint8_t>& data, ReadyMsg& m)
+    {
+        Reader r(data);
+        if (r.u8() != static_cast<uint8_t>(Msg::Ready))
+            return false;
+        m.ready = r.boolean();
+        return not r.failed;
+    }
+
     // ---- Spells -----------------------------------------------------------------------------------
 
     std::vector<uint8_t> encode(const SpellsMsg& m, const Names& names)
@@ -628,6 +691,8 @@ namespace arena::net
         w.u8(static_cast<uint8_t>(std::clamp(m.run.enemiesLeft, 0, 255)));
         w.u16(static_cast<uint16_t>(m.run.bossId));
         w.boolean(m.run.bossWave);
+        w.u16(static_cast<uint16_t>(m.run.champion));
+        w.f32(m.run.warmup);
 
         // Shards: where they are, to a centimetre
         w.u8(static_cast<uint8_t>(std::min<size_t>(m.pickups.size(), 255)));
@@ -712,7 +777,7 @@ namespace arena::net
             m.pieces.push_back(p);
         }
 
-        m.run.phase = static_cast<RunPhase>(std::min<uint8_t>(r.u8(), static_cast<uint8_t>(RunPhase::Defeat)));
+        m.run.phase = static_cast<RunPhase>(std::min<uint8_t>(r.u8(), static_cast<uint8_t>(RunPhase::Duel)));
         m.run.wave = r.u8();
         m.run.waves = r.u8();
         m.run.timer = r.f32();
@@ -722,6 +787,8 @@ namespace arena::net
         m.run.enemiesLeft = r.u8();
         m.run.bossId = r.u16();
         m.run.bossWave = r.boolean();
+        m.run.champion = r.u16();
+        m.run.warmup = r.f32();
 
         const uint8_t pickups = r.u8();
         for (uint8_t k = 0; k < pickups and not r.failed; ++k)

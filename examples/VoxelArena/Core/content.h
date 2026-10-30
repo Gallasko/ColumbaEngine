@@ -487,6 +487,15 @@ namespace arena
         int levelChoices = 4;         // stat items offered free for a level
         std::map<std::string, int> unlocks;   // weapons, skills, keywords, elements ("element:ice") -> price
         bool resetEachWave = true;    // the arena is built anew before each wave (and the players put back)
+
+        // After the last wave, two players or more: a final duel, everyone for themselves
+        struct Duel
+        {
+            bool enabled = true;
+            float duration = 120.0f;  // s; then the one with the most health left (of their max) wins
+            float countdown = 3.0f;   // s before anyone may hurt anyone
+            float radius = 9.0f;      // m from the arena's centre the players start, in a ring
+        } duel;
         bool hasArena = false;
         ArenaDef arena;               // the run's own arena ("arena", as arena.json)
         std::string file;

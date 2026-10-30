@@ -2,6 +2,7 @@
 
 #include <filesystem>
 
+#include "2D/position.h"
 #include "2D/simple2dobject.h"
 #include "Audio/audiosystem.h"
 #include "Networking/backend_sdl.h"
@@ -91,15 +92,23 @@ GameApp::GameApp(const std::string& appName, const LaunchOptions& opts) : engine
             arenaOptions.network = ecs.createSystem<NetworkSystem>(new SdlNetworkBackend(net), net);
             arenaOptions.mode = net.isServer ? arena::ArenaOptions::Mode::Host : arena::ArenaOptions::Mode::Client;
             arenaOptions.playerName = options.name;
+            arenaOptions.address = options.address;
+            arenaOptions.port = options.port;
+            arenaOptions.upnp = options.upnp;
 
             LOG_INFO(DOM, (net.isServer ? "Hosting on port " : "Joining ") << (net.isServer ? "" : options.address + ":") << options.port);
         }
 
         ecs.createSystem<arena::ArenaGame>(masterRenderer, &window, arenaOptions);
 
-        // The game first (it moves the HUD), then the 2D renderers, then the frame is put together
+        // The game first (it moves the HUD), then the positions settle, then the 2D renderers, then the
+        // frame is put together. Positions settle in their own system: unordered, a piece's new colour
+        // or text could reach the frame a pass before its new place (the UI flickered)
+        ecs.succeed<PositionComponentSystem, arena::ArenaGame>();
         ecs.succeed<Simple2DObjectSystem, arena::ArenaGame>();
         ecs.succeed<TTFTextSystem, arena::ArenaGame>();
+        ecs.succeed<Simple2DObjectSystem, PositionComponentSystem>();
+        ecs.succeed<TTFTextSystem, PositionComponentSystem>();
         ecs.succeed<MasterRenderer, arena::ArenaGame>();
         ecs.succeed<MasterRenderer, Simple2DObjectSystem>();
         ecs.succeed<MasterRenderer, TTFTextSystem>();

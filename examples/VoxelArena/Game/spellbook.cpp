@@ -266,6 +266,7 @@ namespace arena
         // ---- The spell keys
         for (size_t i = 0; i < book.equipped.size() and i < 3; ++i)
         {
+            const auto itemScope = ui.scope(i);
             const float x = 90.0f + static_cast<float>(i) * 369.0f, y = 104.0f, w = 361.0f, h = 40.0f;
             const SpellRecipe& ri = book.equipped[i];
             const Spell si = compileSpell(content, ri);
@@ -318,6 +319,7 @@ namespace arena
 
             for (const auto& k : r.keywords)
             {
+                const auto itemScope = ui.scope(static_cast<uint64_t>(&k - r.keywords.data()));
                 const KeywordDef* def = findKeyword(content, k);
                 const std::string label = def ? def->name : k;
 
@@ -394,6 +396,7 @@ namespace arena
 
             for (size_t i = 0; i < parts.size(); ++i)
             {
+                const auto itemScope = ui.scope(static_cast<uint64_t>(group) * 1000u + i);
                 const std::string& id = parts[i];
                 const float x = 176.0f + static_cast<float>(i) * 104.0f;
 
@@ -510,6 +513,7 @@ namespace arena
 
                 for (const auto& st : shown.stages)
                 {
+                    const auto itemScope = ui.scope(static_cast<uint64_t>(&st - shown.stages.data()));
                     // The copies of this stage, from each copy of the one before
                     std::vector<float> next;
                     const int copies = std::min(st.count, 3);
@@ -578,6 +582,7 @@ namespace arena
         {
             float x = 90.0f;
             auto button = [&](const std::string& key, const std::string& label, int action, bool enabled, bool gold) {
+                const auto itemScope = ui.scope(static_cast<uint64_t>(action));
                 const float kw = ui.measure(key, Font::Display, 15) + 10.0f;
                 const float w = 6.0f + kw + 8.0f + ui.measure(label, Font::Text600, 13) + 12.0f;
                 const bool over = enabled and ui.hover(x, 478, w, 32);
@@ -644,6 +649,7 @@ namespace arena
 
         for (int k = 0; k < PER_PAGE; ++k)
         {
+            const auto itemScope = ui.scope(static_cast<uint64_t>(k));
             const int index = page * PER_PAGE + k;
             if (index >= static_cast<int>(entries.size()))
                 break;

@@ -33,6 +33,7 @@ Options:
 | `--host [port]` | Host a game others can join (port 7777 by default) |
 | `--join <address>[:port]` | Join a game |
 | `--name <name>` | Your name, as the others see it |
+| `--no-upnp` | Host without asking the router to open the ports |
 
 ## The arena run
 
@@ -69,6 +70,13 @@ and enemies that come back), **B** for the spellbook, **O** for the options.
   gets angry). A boss wave lasts until the boss falls, with fewer others around it.
 - **Its own arena**: a 40 x 40 pit with four pillars, a platform and a boulder on a rope over the
   middle. It is built anew before each wave, whatever was broken, with everyone put back in place.
+- **The final duel**, in multiplayer: after the last wave, instead of the victory at once, everyone for
+  themselves. The arena is built anew, everyone is back up at full in a ring around its middle, facing
+  it; FINAL DUEL counts down 3 s (no one can hurt anyone yet), then FIGHT. Every hit, spell, arrow and
+  zone of a player now lands on the other players too. One life each: the last one standing is the
+  champion (CHAMPION on their screen, "<name> won the final duel" on the others'); after two minutes,
+  the one with the most of their health left. The `duel` section of `run.json` (`enabled`, `duration`,
+  `countdown`, `radius`). Alone, the last wave is the victory as before.
 - **The score**: points per kill (twice for an elite), per wave survived, and a bonus for the victory.
   The best is kept (`~/.local/share/voxelarena/best.txt`). **Enter** at the end plays again, **T** goes
   training.
@@ -107,7 +115,7 @@ for the players from anywhere, whatever its engage range.
 | F2 | Hitboxes (red: active, orange: winding up) and hurtboxes (green, blue while invulnerable) |
 | F5 | Reload all content |
 | `` ` `` | Console |
-| Esc | Free or capture the mouse (hold Left Alt for a moment) |
+| Esc | Pause and open the options (alone; a shared game goes on); Esc again resumes. Hold Left Alt to free the mouse for a moment |
 
 Bindings are data: the `controls` section of `mods/base/tuning.json`.
 
@@ -272,7 +280,26 @@ The arena can be broken, and breaking it is part of the fight.
 ```
 
 A game uses two ports: the TCP port given (7777) and the next one for UDP (7778). Open both on the
-host's firewall.
+host's firewall. Players who join need nothing open: the server learns their address from what they send.
+
+**The lobby** is multiplayer's title screen: who is in (by name, the host first), who is ready, their
+ping, and the latest joins, leaves and refusals. The host starts the run (Enter) whenever it likes,
+"2 of 3 ready" beside the button; the others press Enter to be ready. On a dedicated server there is
+no host: the run starts when everyone is ready. T goes to the training ground meanwhile, together;
+L brings the lobby back outside a run, and it comes back by itself for those who joined when the host
+leaves the end of a run.
+
+**Inviting**: the + at the top left of the title and the lobby (or I). Playing alone, it offers to
+host the game right there (no restart: the training ground goes on, now open to others), then shows
+the addresses to share with a Copy button each (online when the router opened the ports, and on the
+same network) and the command a friend starts the game with. Someone who joined sees the address they
+joined, to pass on.
+
+**Over the internet** the host's router has to let the two ports in. The host shows how friends join:
+its address on the local network, and, when its router opened the ports by itself (UPnP), its public
+address. A router without UPnP (or with it off) says so, and the lobby says which ports to forward to
+which machine. `--no-upnp` (game or dedicated server) leaves the router alone. The ports are closed
+again when the game quits; a mapping left by a crash runs out within an hour.
 
 **Everyone must have the same gameplay content.** The server compares a fingerprint of it and
 refuses a player whose content differs: the tuning, the arena, the scripts, and blocks, weapons,
@@ -315,7 +342,7 @@ multiplayer tests run a server and clients in one process, over a simulated netw
 jitter and lost packets.
 
 On the client, the world-changing console commands (`spawn`, `clear`, `reset`, `place`, `tune`...)
-only work on the host. `players` lists who is in the game.
+only work on the host. `duel` (host) goes straight to the final duel, and `timeup` ends it. `players` lists who is in the game.
 
 ## Layout
 
@@ -522,4 +549,4 @@ For example:
   data so a competence can grant them.
 - Multiplayer: no reconnect after a lost connection (start the game again), no host migration, and
   the enemies' scripts run only on the server. Two windows on one desktop take the mouse from each
-  other: press Esc in the one you are not playing.
+  other: press Esc (the options) in the one you are not playing.

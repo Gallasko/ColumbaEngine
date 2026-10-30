@@ -182,6 +182,7 @@ namespace arena
 
             for (size_t i = 0; i < n; ++i)
             {
+                const auto itemScope = ui.scope(i);
                 const float px = std::round(startX + static_cast<float>(i) * (pw + 10.0f));
                 const OfferInfo about = offerInfo(content, me.levelOffer[i]);
                 const bool over = ui.hover(px, 117, pw, 46);
@@ -197,6 +198,7 @@ namespace arena
         // The offers
         for (int i = 0; i < CARDS; ++i)
         {
+            const auto itemScope = ui.scope(static_cast<uint64_t>(i));
             const float x = CARD_X[i], y = CARD_Y;
 
             if (i >= static_cast<int>(me.shop.size()))
@@ -307,6 +309,7 @@ namespace arena
             float ry = y + 34.0f;
             for (const auto& row : rows)
             {
+                const auto itemScope = ui.scope(Ui::idOf(row.label));
                 ui.text(x + 14, ry + 3, row.label, Font::Text500, 13, TEXT_DIM);
                 float vx = x + w - 14.0f;
                 if (not row.faint.empty())
@@ -325,6 +328,7 @@ namespace arena
             float tx = x + 14.0f;
             for (const auto& id : me.owned)
             {
+                const auto itemScope = ui.scope(Ui::idOf(id));
                 const OfferInfo about = offerInfo(content, id);
                 const float tw = 6.0f + 6.0f + 6.0f + ui.measure(about.name, Font::Text600, 11) + 8.0f;
 

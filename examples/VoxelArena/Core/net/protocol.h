@@ -11,7 +11,7 @@
 namespace arena::net
 {
     /** Bumped when messages change shape: a client and server of different versions refuse each other. */
-    constexpr uint16_t PROTOCOL_VERSION = 10;
+    constexpr uint16_t PROTOCOL_VERSION = 12;
 
     /** The server sends a snapshot every this many steps (60 / 2 = 30 per second). */
     constexpr int SNAPSHOT_EVERY = 2;
@@ -27,6 +27,8 @@ namespace arena::net
         PieceSpawn,      // server -> client, reliable: a piece of the arena broke off (its cells)
         Bye,             // either way, reliable
         Spells,          // client -> server, reliable: the recipes on its spell keys
+        Lobby,           // server -> client, reliable: who is in the game, ready or not, their ping
+        Ready,           // client -> server, reliable: ready (or not) to start the run
     };
 
     /**
@@ -143,6 +145,27 @@ namespace arena::net
         VoxelGrid cells;
     };
 
+    /** One player of the game, as the lobby shows them. */
+    struct LobbyPlayer
+    {
+        int playerId = 0;
+        std::string name;
+        bool host = false;       // the listen server's own player
+        bool ready = false;
+        uint16_t pingMs = 0;
+    };
+
+    struct LobbyMsg
+    {
+        bool dedicated = false;  // no host: the run starts when everyone is ready
+        std::vector<LobbyPlayer> players;
+    };
+
+    struct ReadyMsg
+    {
+        bool ready = false;
+    };
+
     Msg peek(const std::vector<uint8_t>& data);
 
     std::vector<uint8_t> encode(const Hello& m);
@@ -155,6 +178,10 @@ namespace arena::net
     std::vector<uint8_t> encodeBye();
     std::vector<uint8_t> encode(const SpellsMsg& m, const Names& names);
     bool decode(const std::vector<uint8_t>& data, SpellsMsg& m, const Names& names);
+    std::vector<uint8_t> encode(const LobbyMsg& m);
+    bool decode(const std::vector<uint8_t>& data, LobbyMsg& m);
+    std::vector<uint8_t> encode(const ReadyMsg& m);
+    bool decode(const std::vector<uint8_t>& data, ReadyMsg& m);
 
     // Decoders return false for a message that does not read cleanly (it is then ignored)
     bool decode(const std::vector<uint8_t>& data, Hello& m);

@@ -20,6 +20,8 @@
 #include "Core/net/client.h"
 #include "Core/net/server.h"
 #include "Net/enginetransport.h"
+#include "Networking/backend_sdl.h"
+#include "Networking/network_system.h"
 #include "Renderer/camera.h"
 #include "logger.h"
 #include "window.h"
@@ -124,7 +126,7 @@ namespace arena
             {"freeCursor", {"Left Alt"}}, {"toggleView", {"F", "V"}},
             {"ability1", {"Q"}}, {"ability2", {"E"}}, {"ability3", {"G", "Mouse2"}}, {"ability4", {"R"}},
             {"ability5", {"1"}}, {"ability6", {"2"}}, {"ability7", {"3"}}, {"ability8", {"4"}},
-            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"spellbook", {"B"}}, {"options", {"O"}},
+            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"spellbook", {"B"}}, {"options", {"O"}}, {"lobby", {"L"}}, {"invite", {"I"}},
             // The spellbook's parts, while it is open: elements, forms, modifiers
             {"spellElement1", {"Z"}}, {"spellElement2", {"X"}}, {"spellElement3", {"C"}},
             {"spellForm1", {"A"}}, {"spellForm2", {"S"}}, {"spellForm3", {"D"}}, {"spellForm4", {"F"}},
@@ -231,6 +233,12 @@ namespace arena
                 {
                     transport = std::make_unique<net::EngineTransport>(options.network);
                     server = std::make_unique<net::NetServer>(world, content, *transport, false);
+                    server->hostName = options.playerName;
+
+                    // Friends join over the internet when the router opens the ports (UPnP)
+                    lanAddress = net::PortMapper::localAddress();
+                    if (options.upnp)
+                        portMapper.start(options.port, static_cast<uint16_t>(options.port + 1), "Voxel Arena");
                 }
             }
 
@@ -249,8 +257,8 @@ namespace arena
             book.equipped.resize(ArenaWorld::SPELL_SLOTS);
             applySpells();
 
-            // The title: the arena or the training ground (a client follows its host)
-            titleOpen = not client;
+            // The title (in multiplayer, the lobby): the arena or the training ground
+            titleOpen = true;
 
             // The player's options, as they were left
             loadOptions(optionsPath(), prefs);
@@ -547,9 +555,9 @@ namespace arena
         if (not window)
             return;
 
-        // The browser let go of the mouse (Esc): free it until a click takes it back
-        if (window->takeCursorLockLost())
-            cursorFree = true;
+        // The mouse was let go (Esc in a browser, another window in front): the game pauses in its options
+        if (window->takeCursorLockLost() and not (optionsOpen or bookOpen or shopOpen or titleOpen or endOpen or consoleOpen))
+            setOptionsOpen(true);
 
         bool altHeld = false;
         {
@@ -699,22 +707,43 @@ namespace arena
                 continue;
             }
 
-            // The title: Enter the arena, T the training ground
-            if (titleOpen)
+            // Inviting, over the title: Esc closes, Enter hosts this game (alone)
+            if (titleOpen and inviteOpen)
             {
-                if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
-                    startArena();
-                else if (p.scancode == SDL_SCANCODE_T)
-                    titleOpen = false;
-                else if (p.scancode == SDL_SCANCODE_ESCAPE)
-                    cursorFree = not cursorFree;
+                if (p.scancode == SDL_SCANCODE_ESCAPE or keyIs(p.scancode, "invite"))
+                    inviteOpen = false;
+                else if ((p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER) and not networked())
+                    hostNow();
                 continue;
             }
 
-            // No run (a client of a dedicated server): Enter asks for one
-            if (not world.inRun() and client and (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER))
+            if (titleOpen and keyIs(p.scancode, "invite"))
             {
-                pendingPick = InputFrame::START;
+                inviteOpen = true;
+                inviteMessage.clear();
+                continue;
+            }
+
+            // The title (the lobby): Enter the arena (a client: ready or not), T the training ground
+            if (titleOpen)
+            {
+                if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
+                {
+                    if (client)
+                    {
+                        bool mine = client->ready;
+                        for (const auto& pl : client->lobby.players)
+                            if (pl.playerId == client->playerId)
+                                mine = pl.ready;
+                        client->setReady(not mine);
+                    }
+                    else
+                        startArena();
+                }
+                else if (p.scancode == SDL_SCANCODE_T)
+                    titleOpen = false;
+                else if (p.scancode == SDL_SCANCODE_ESCAPE)
+                    setOptionsOpen(true);
                 continue;
             }
 
@@ -738,7 +767,7 @@ namespace arena
                     else if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
                         pendingPick = InputFrame::START;
                     else if (p.scancode == SDL_SCANCODE_ESCAPE)
-                        cursorFree = not cursorFree;
+                        setOptionsOpen(true);
                     continue;
                 }
 
@@ -765,9 +794,16 @@ namespace arena
                     break;
                 case SDL_SCANCODE_F2: showBoxes = not showBoxes; break;
                 case SDL_SCANCODE_F5: print(runCommand("reload")); break;
-                // A lock not held (Esc in a browser also ends Pointer Lock) is let go, not asked again
-                case SDL_SCANCODE_ESCAPE: cursorFree = (cursorLocked and window and not window->isCursorCaptured()) or not cursorFree; break;
+                // Esc: the options, and the game waits (alone); Esc again goes back. Left Alt held frees the mouse
+                case SDL_SCANCODE_ESCAPE: setOptionsOpen(true); break;
                 default:
+                    // Back to the title (the lobby), outside a run
+                    if (keyIs(p.scancode, "lobby") and not world.inRun())
+                    {
+                        titleOpen = true;
+                        break;
+                    }
+
                     if (keyIs(p.scancode, "toggleView"))
                     {
                         setFirstPerson(not firstPerson);
@@ -935,6 +971,7 @@ namespace arena
             }
 
             o << dim << "scripts  " << scriptStats.line << "\n";
+            o << dim << "ui       " << ui.piecesDrawn() << " pieces, " << ui.changesSent() << " changes (most in a frame lately " << ui.mostChanges() << ")\n";
             o << dim << "terrain  " << world.terrain.damagedCount() << " damaged, " << world.terrain.temporaryCount() << " temporary, " << world.terrain.falling.size() << " falling\n";
             o << dim << "content  " << content.mods.size() << " mods, " << content.report.errors.size() << " errors, " << content.report.warnings.size() << " warnings"
               << "   kills " << enemyKills << "   falls " << playerDeaths << "\n";
@@ -952,6 +989,10 @@ namespace arena
 
     void ArenaGame::simulate(float frameSeconds)
     {
+        // Hosting started from the title: its network is stepped here (the engine's runs on its own)
+        if (ownNetwork)
+            ownNetwork->execute();
+
         // Paused while the spellbook is open, playing alone (a shared game goes on)
         if (not paused and not ((bookOpen or titleOpen or optionsOpen) and not networked()))
             accumulator += static_cast<double>(frameSeconds) * timeScale;
@@ -1057,8 +1098,14 @@ namespace arena
                 server->step(&in);
 
                 for (const auto& line : server->log)
+                {
                     print(line);
+                    netLog.push_back(line);
+                }
                 server->log.clear();
+
+                while (netLog.size() > 2)
+                    netLog.pop_front();
             }
             else if (client)
             {
@@ -1210,7 +1257,8 @@ namespace arena
             if (f.team != Team::Player or (me and f.id == me->id))
                 continue;
             ++mate;
-            v.team.push_back({"P" + std::to_string(mate + 1), f.health / std::max(1.0f, f.maxHealth), not f.alive()});
+            const std::string name = playerNameOf(f.id);
+            v.team.push_back({name.empty() ? "P" + std::to_string(mate + 1) : name, f.health / std::max(1.0f, f.maxHealth), not f.alive()});
         }
 
         // The boss's bar: enraged under its "angryAt"
@@ -1224,6 +1272,22 @@ namespace arena
             v.bossPoise = boss->poise / std::max(1.0f, boss->maxPoise);
             const float angryAt = def != content.enemies.end() ? static_cast<float>(def->second.params.num("angryAt", 0.0)) : 0.0f;
             v.enraged = angryAt > 0.0f and v.bossHealth < angryAt;
+        }
+
+        // The final duel: its name and a count down to the fight, then FIGHT
+        if (r.phase == RunPhase::Duel)
+        {
+            v.duel = true;
+            v.bossWave = false;
+            if (r.warmup > 0.0f)
+            {
+                v.headline = "FINAL DUEL";
+                v.countdown = static_cast<int>(std::ceil(r.warmup));
+            }
+            else if (content.run.duel.duration - r.timer < 1.0f)
+            {
+                v.headline = "FIGHT!";
+            }
         }
 
         // The wave's name as it starts (a boss's), its last seconds counted down
@@ -1900,6 +1964,19 @@ namespace arena
         return optionsOpen or bookOpen or shopOpen or titleOpen or endOpen;
     }
 
+    std::string ArenaGame::playerNameOf(int id) const
+    {
+        if (client)
+            return client->nameOf(id);
+
+        if (server)
+            for (const auto& pl : server->lobby().players)
+                if (pl.playerId == id)
+                    return pl.name;
+
+        return "";
+    }
+
     std::string ArenaGame::statusName(const std::string& id) const
     {
         std::string name = localId(id);
@@ -2013,9 +2090,14 @@ namespace arena
         const glm::mat4 proj = glm::perspective(fov() * DEG, aspect, 0.1f, 500.0f);
         const glm::mat4 view = glm::lookAt(camera.position, camera.position + camera.forward(), glm::vec3(0, 1, 0));
 
+        // In the final duel, the other players get bars (and names) too
+        const Fighter* me = world.player();
+        const bool duel = world.run.phase == RunPhase::Duel;
+
         for (const auto& f : world.fighters)
         {
-            if (f.team != Team::Enemy or not f.alive() or v.enemies.size() >= 32)
+            const bool rival = duel and f.team == Team::Player and (not me or f.id != me->id);
+            if ((f.team != Team::Enemy and not rival) or not f.alive() or v.enemies.size() >= 32)
                 continue;
 
             const auto prev = previous.find(f.id);
@@ -2036,8 +2118,10 @@ namespace arena
             bar.poise = f.poise / std::max(1.0f, f.maxPoise);
             bar.staggered = f.action == Action::Stagger;
             bar.elite = f.elite;
-            bar.boss = f.id == world.run.bossId;
+            bar.boss = f.team == Team::Enemy and f.id == world.run.bossId;
             bar.statuses = statusesOf(f);
+            if (rival)
+                bar.name = playerNameOf(f.id);
             v.enemies.push_back(bar);
         }
 
@@ -2087,11 +2171,34 @@ namespace arena
                 continue;
             }
 
+            if (titleOpen and inviteOpen)
+            {
+                inviteAction(action);
+                continue;
+            }
+
             if (titleOpen)
             {
                 switch (action)
                 {
-                    case screens::TITLE_ARENA: startArena(); break;
+                    case screens::TITLE_INVITE:
+                        inviteOpen = true;
+                        inviteMessage.clear();
+                        break;
+                    case screens::TITLE_ARENA:
+                        if (not client)
+                            startArena();
+                        break;
+                    case screens::LOBBY_READY:
+                        if (client)
+                        {
+                            bool mine = client->ready;
+                            for (const auto& pl : client->lobby.players)
+                                if (pl.playerId == client->playerId)
+                                    mine = pl.ready;
+                            client->setReady(not mine);
+                        }
+                        break;
                     case screens::TITLE_TRAINING: titleOpen = false; break;
                     case screens::TITLE_SPELLBOOK: setBookOpen(true); break;
                     case screens::TITLE_OPTIONS: setOptionsOpen(true); break;
@@ -2113,6 +2220,163 @@ namespace arena
         }
     }
 
+    bool ArenaGame::hostNow()
+    {
+        if (networked())
+            return true;
+
+        // A server on the usual ports, owned by the game: the engine cannot add a system once running
+        NetworkConfig net;
+        net.isServer = true;
+        net.tcpPort = options.port;
+        net.udpLocalPort = static_cast<uint16_t>(options.port + 1);
+        net.udpPeerPort = static_cast<uint16_t>(options.port + 1);
+        net.emitEvents = false;
+        net.autoReconnect = false;
+
+        auto* backend = new SdlNetworkBackend(net);
+        auto network = std::make_unique<NetworkSystem>(backend, net);
+        network->init();
+
+        if (not backend->isReady())
+        {
+            inviteMessage = "Could not open port " + std::to_string(options.port) + " (another game hosting on this machine?)";
+            return false;
+        }
+
+        ownBackend = backend;
+        ownNetwork = std::move(network);
+        options.network = ownNetwork.get();
+        options.mode = ArenaOptions::Mode::Host;
+
+        transport = std::make_unique<net::EngineTransport>(options.network);
+        server = std::make_unique<net::NetServer>(world, content, *transport, false);
+        server->hostName = options.playerName;
+
+        lanAddress = net::PortMapper::localAddress();
+        if (options.upnp)
+            portMapper.start(options.port, static_cast<uint16_t>(options.port + 1), "Voxel Arena");
+
+        inviteMessage.clear();
+        print("hosting on port " + std::to_string(options.port) + " (TCP) and " + std::to_string(options.port + 1) + " (UDP)");
+        return true;
+    }
+
+    void ArenaGame::inviteAction(int action)
+    {
+        auto copy = [&](const std::string& text) {
+            SDL_SetClipboardText(text.c_str());
+            inviteMessage = "Copied: " + text;
+        };
+
+        const std::string port = ":" + std::to_string(options.port);
+        const auto st = portMapper.status();
+        const std::string lan = st.lanIp.empty() ? lanAddress : st.lanIp;
+
+        switch (action)
+        {
+            case screens::INVITE_HOST: hostNow(); break;
+            case screens::INVITE_COPY_ONLINE: if (not st.externalIp.empty()) copy(st.externalIp + port); break;
+            case screens::INVITE_COPY_LAN: copy((client ? options.address : lan) + port); break;
+            case screens::INVITE_COPY_JOIN:
+            {
+                const std::string address = client ? options.address : (st.state == net::PortMapper::State::Open and not st.externalIp.empty() ? st.externalIp : lan);
+                copy("VoxelArena --join " + address + port);
+                break;
+            }
+            case screens::INVITE_CLOSE: inviteOpen = false; break;
+            default: break;
+        }
+    }
+
+    void ArenaGame::drawInvite()
+    {
+        InviteView v;
+        v.hosting = server != nullptr;
+        v.joined = client != nullptr;
+        v.port = options.port;
+        v.message = inviteMessage;
+        v.players = static_cast<int>(std::count_if(world.fighters.begin(), world.fighters.end(), [](const Fighter& f) { return f.team == Team::Player; }));
+
+        if (client)
+        {
+            v.lanAddress = options.address;
+        }
+        else
+        {
+            const auto st = portMapper.status();
+            v.lanAddress = st.lanIp.empty() ? lanAddress : st.lanIp;
+            v.externalAddress = st.externalIp;
+            v.routerError = st.error;
+            switch (st.state)
+            {
+                case net::PortMapper::State::Off: v.router = LobbyView::Router::Off; break;
+                case net::PortMapper::State::Searching: v.router = LobbyView::Router::Searching; break;
+                case net::PortMapper::State::Open: v.router = LobbyView::Router::Open; break;
+                case net::PortMapper::State::NoRouter: case net::PortMapper::State::Failed: v.router = LobbyView::Router::Closed; break;
+            }
+        }
+
+        screens::drawInvite(ui, v);
+    }
+
+    void ArenaGame::drawLobby()
+    {
+        LobbyView v;
+        v.isHost = server != nullptr;
+        v.port = options.port;
+        v.waves = content.run.waves;
+        v.time = uiTime;
+        v.log.assign(netLog.begin(), netLog.end());
+
+        net::LobbyMsg lobby;
+
+        if (server)
+        {
+            lobby = server->lobby();
+            v.lanAddress = lanAddress;
+
+            const auto st = portMapper.status();
+            v.externalAddress = st.externalIp;
+            v.routerError = st.error;
+            if (st.lanIp.size())
+                v.lanAddress = st.lanIp;
+
+            switch (st.state)
+            {
+                case net::PortMapper::State::Off: v.router = LobbyView::Router::Off; break;
+                case net::PortMapper::State::Searching: v.router = LobbyView::Router::Searching; break;
+                case net::PortMapper::State::Open: v.router = LobbyView::Router::Open; break;
+                case net::PortMapper::State::NoRouter: case net::PortMapper::State::Failed: v.router = LobbyView::Router::Closed; break;
+            }
+        }
+        else if (client)
+        {
+            lobby = client->lobby;
+            v.joined = options.address;
+            v.dedicated = lobby.dedicated;
+
+            switch (client->state)
+            {
+                case net::NetClient::State::Connecting: v.status = "Connecting to " + options.address + "\xE2\x80\xA6"; break;
+                case net::NetClient::State::Joining: v.status = "Joining\xE2\x80\xA6"; break;
+                case net::NetClient::State::Refused: v.status = "Refused: " + client->refusal; v.statusBad = true; break;
+                case net::NetClient::State::Lost: v.status = "Connection lost"; v.statusBad = true; break;
+                case net::NetClient::State::Playing: break;
+            }
+        }
+
+        const int me = client ? client->playerId : (world.player() ? world.player()->id : 0);
+        for (const auto& pl : lobby.players)
+        {
+            v.players.push_back({pl.name, pl.host, pl.playerId == me, pl.ready, pl.pingMs});
+            if (pl.playerId == me)
+                v.youReady = pl.ready;
+        }
+
+        screens::drawLobby(ui, v);
+    }
+
     void ArenaGame::drawUi(float frameSeconds)
     {
         if (ui.width() != screenW or ui.height() != screenH)
@@ -2132,6 +2396,26 @@ namespace arena
 
         const Fighter* p = world.player();
         const RunPhase phase = world.run.phase;
+
+        // A client: the host started the run (the lobby goes), or went back from its end (it comes back)
+        if (client)
+        {
+            if (world.inRun() and clientPhase == RunPhase::Off)
+                titleOpen = false;
+            if (phase == RunPhase::Off and (clientPhase == RunPhase::Victory or clientPhase == RunPhase::Defeat))
+                titleOpen = true;
+            clientPhase = phase;
+        }
+
+        // The final duel begins: the view turns to the middle, and the others
+        if (p and phase == RunPhase::Duel and duelSeen != RunPhase::Duel)
+        {
+            const glm::vec3 toCentre = content.run.centre - p->body.position;
+            if (glm::length(glm::vec2(toCentre.x, toCentre.z)) > 0.5f)
+                camera.yaw = glm::degrees(std::atan2(toCentre.x, toCentre.z));
+        }
+        duelSeen = phase;
+
         endOpen = p and world.inRun() and (phase == RunPhase::Victory or phase == RunPhase::Defeat) and not titleOpen;
 
         if (p)
@@ -2140,14 +2424,19 @@ namespace arena
             runHud(v);
 
             if (not p->alive())
-                v.message = world.inRun() ? (phase != RunPhase::Defeat ? "You fell: back up next wave" : "") : "You fell";
+            {
+                if (phase == RunPhase::Duel)
+                    v.message = "Out of the duel";
+                else
+                    v.message = world.inRun() ? (phase != RunPhase::Defeat ? "You fell: back up next wave" : "") : "You fell";
+            }
             else if (paused)
             {
                 v.message = "Paused";
                 v.messageDim = true;
             }
         }
-        else if (client)
+        else if (client and not titleOpen)
         {
             switch (client->state)
             {
@@ -2167,7 +2456,11 @@ namespace arena
             hud.draw(ui, v, frameSeconds);
 
         // The screens, the one in front last
-        if (titleOpen)
+        if (titleOpen and networked())
+        {
+            drawLobby();
+        }
+        else if (titleOpen)
         {
             TitleView t;
             t.waves = content.run.waves;
@@ -2176,7 +2469,12 @@ namespace arena
             t.time = uiTime;
             screens::drawTitle(ui, t);
         }
-        else if (endOpen)
+        if (titleOpen and inviteOpen)
+            drawInvite();
+        else if (not titleOpen)
+            inviteOpen = false;
+
+        if (endOpen and not titleOpen)
         {
             const RunState& r = world.run;
             EndView e;
@@ -2189,6 +2487,13 @@ namespace arena
             e.level = p->level;
             e.time = r.elapsed;
             e.solo = not networked();
+            if (r.champion != 0)
+            {
+                e.youChampion = r.champion == p->id;
+                e.champion = playerNameOf(r.champion);
+                if (e.champion.empty())
+                    e.champion = "P" + std::to_string(r.champion);
+            }
             if (auto b = content.run.bosses.find(r.waves); b != content.run.bosses.end())
                 if (auto d = content.enemies.find(b->second); d != content.enemies.end())
                     e.boss = "the " + d->second.name;
@@ -2214,7 +2519,7 @@ namespace arena
         }
 
         if (optionsOpen)
-            optionsScreen.draw(ui, prefs);
+            optionsScreen.draw(ui, prefs, not networked(), not (titleOpen or endOpen));
 
         std::string banner;
         if (not content.report.errors.empty())
@@ -2813,7 +3118,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | training | wave <n> | timeup | shards <n> | kill | options | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | training | wave <n> | duel | timeup | shards <n> | kill | options | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | click <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -2944,8 +3249,27 @@ namespace arena
             return "wave " + std::to_string(world.run.wave);
         }
 
+        if (cmd == "duel")
+        {
+            const auto players = std::count_if(world.fighters.begin(), world.fighters.end(), [](const Fighter& f) { return f.team == Team::Player; });
+            if (players < 2)
+                return "duel: it takes two players or more";
+
+            if (not world.inRun())
+                startArena();
+            world.beginDuel();
+            return "the final duel";
+        }
+
         if (cmd == "timeup")
         {
+            if (world.run.phase == RunPhase::Duel)
+            {
+                world.run.warmup = 0.0f;
+                world.run.timer = 0.0f;
+                return "the duel's time is up";
+            }
+
             if (world.run.phase != RunPhase::Fighting)
                 return "timeup: only while a wave is on";
 
@@ -3077,7 +3401,7 @@ namespace arena
         // The world belongs to the server: a client asking to change it would only change its own view
         if (client and (cmd == "reload" or cmd == "spawn" or cmd == "clear" or cmd == "reset" or cmd == "place" or cmd == "fill" or
                         cmd == "god" or cmd == "stamina" or cmd == "mana" or cmd == "ai" or cmd == "tune" or cmd == "wave" or cmd == "teleport" or cmd == "pause" or
-                        cmd == "step" or cmd == "slowmo" or cmd == "shards" or cmd == "timeup" or cmd == "kill"))
+                        cmd == "step" or cmd == "slowmo" or cmd == "shards" or cmd == "timeup" or cmd == "kill" or cmd == "duel"))
             return cmd + ": only the host can do that";
 
         // Every machine must run the same content (the fingerprint): no reload once others have joined

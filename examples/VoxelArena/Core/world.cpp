@@ -188,6 +188,7 @@ namespace arena
             // In a row across the spawn point (right, left, further right...), so nobody stands in front of anyone
             const float side = static_cast<float>((k + 1) / 2) * (k % 2 == 1 ? -1.0f : 1.0f);
             f.spawnPosition = arena().playerSpawn + glm::vec3(side * 1.8f, 0.0f, 0.0f);
+            f.spawnYaw = 0.0f;
             ++k;
         }
     }
@@ -646,7 +647,7 @@ namespace arena
 
             for (const auto& o : fighters)
             {
-                if (o.team == f.team or not o.alive())
+                if (not hostile(f.team, f.id, o) or not o.alive())
                     continue;
 
                 // Where the attacker sees it (lag compensation applies to aiming too)
@@ -2214,7 +2215,7 @@ namespace arena
 
         for (auto& t : fighters)
         {
-            if (t.team == team or not t.alive() or t.invulnerable(tuning))
+            if (not hostile(team, owner, t) or not t.alive() or t.invulnerable(tuning))
                 continue;
 
             // A zone: a disc on the ground (feet in it); a nova: a ball
@@ -2253,7 +2254,7 @@ namespace arena
 
             for (auto& t : fighters)
             {
-                if (t.team == team or not t.alive() or t.invulnerable(tuning) or std::find(struck.begin(), struck.end(), t.id) != struck.end())
+                if (not hostile(team, owner, t) or not t.alive() or t.invulnerable(tuning) or std::find(struck.begin(), struck.end(), t.id) != struck.end())
                     continue;
 
                 const float d = glm::length(chest(t) - from);
@@ -2290,7 +2291,7 @@ namespace arena
 
         for (auto& o : fighters)
         {
-            if (o.team == team or not o.alive() or o.invulnerable(tuning))
+            if (not hostile(team, owner, o) or not o.alive() or o.invulnerable(tuning))
                 continue;
 
             // Where the caster saw it (lag compensation), grown a little: a beam is hard to miss by a hair
@@ -2399,7 +2400,7 @@ namespace arena
         if (p.def.burst > 0.0f)
         {
             for (auto& o : fighters)
-                if (o.team != p.team and o.alive() and not o.invulnerable(tuning) and glm::length(chest(o) - point) <= p.def.burst + o.body.width * 0.5f)
+                if (hostile(p.team, p.owner, o) and o.alive() and not o.invulnerable(tuning) and glm::length(chest(o) - point) <= p.def.burst + o.body.width * 0.5f)
                     targets.push_back(&o);
         }
         else if (struck)
@@ -2793,7 +2794,7 @@ namespace arena
 
             for (auto& f : fighters)
             {
-                if (f.team == p.team or not f.alive() or f.invulnerable(tuning))
+                if (not hostile(p.team, p.owner, f) or not f.alive() or f.invulnerable(tuning))
                     continue;
 
                 const glm::vec3 lo = f.body.boxMin() - glm::vec3(p.def.radius), hi = f.body.boxMax() + glm::vec3(p.def.radius);
@@ -2873,7 +2874,7 @@ namespace arena
 
                 for (auto& target : fighters)
                 {
-                    if (target.team == attacker.team or not target.alive() or target.invulnerable(tuning))
+                    if (not hostile(attacker.team, attacker.id, target) or not target.alive() or target.invulnerable(tuning))
                         continue;
 
                     if (std::find(attacker.hitThisSwing.begin(), attacker.hitThisSwing.end(), target.id) != attacker.hitThisSwing.end())
@@ -2899,10 +2900,18 @@ namespace arena
         }
     }
 
+    bool ArenaWorld::hostile(Team team, int owner, const Fighter& target) const
+    {
+        if (target.team != team)
+            return true;
+
+        return run.phase == RunPhase::Duel and run.warmup <= 0.0f and team == Team::Player and target.id != owner and owner != 0;
+    }
+
     const Body& ArenaWorld::bodyFor(const Fighter& attacker, const Fighter& target) const
     {
-        // A remote player swings at what its screen showed: enemies as they were at its view tick
-        if (attacker.team != Team::Player or attacker.viewTick < 0 or target.team != Team::Enemy)
+        // A remote player swings at what its screen showed: enemies (and in the duel, the other players) as they were at its view tick
+        if (attacker.team != Team::Player or attacker.viewTick < 0 or (target.team != Team::Enemy and run.phase != RunPhase::Duel))
             return target.body;
 
         for (auto it = history.rbegin(); it != history.rend(); ++it)

@@ -36,6 +36,8 @@ int main(int argc, char* argv[])
             options.startupCommands.push_back(argv[++i]);
         else if (a == "--name" and i + 1 < argc)
             options.name = argv[++i];
+        else if (a == "--no-upnp")
+            options.upnp = false;
         else if (a == "--host")
         {
             options.net = LaunchOptions::Net::Host;

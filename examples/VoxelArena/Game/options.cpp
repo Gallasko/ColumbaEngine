@@ -138,7 +138,7 @@ namespace arena
         return static_cast<bool>(file);
     }
 
-    void OptionsScreen::draw(Ui& ui, const GameOptions& o)
+    void OptionsScreen::draw(Ui& ui, const GameOptions& o, bool paused, bool inGame)
     {
         using namespace ui;
 
@@ -152,11 +152,20 @@ namespace arena
         ui.anchor(Anchor::Centre);
         ui.raised(320, 44, 640, 632, PANEL, 4.0f);
 
-        const float tw = ui.text(348, 64, "Options", Font::Display, 44, TEXT);
-        ui.text(348 + tw + 14, 84, "saved as you change it", Font::Text500, 12, GOOD);
+        float hx = 348.0f + ui.text(348, 64, "Options", Font::Display, 44, TEXT) + 14.0f;
+        if (inGame)
+        {
+            const std::string tag = paused ? "PAUSED" : "THE GAME GOES ON";
+            const float tw = ui.measure(tag, Font::Display, 16, 1.0f) + 12.0f;
+            ui.rect(hx, 80, tw, 20, LINE);
+            ui.text(hx + 6, 81, tag, Font::Display, 16, TEXT, Align::Left, 1.0f);
+            hx += tw + 12.0f;
+        }
+        ui.text(hx, 84, "saved as you change it", Font::Text500, 12, GOOD);
 
         for (int row = 0; row < ROWS; ++row)
         {
+            const auto itemScope = ui.scope(static_cast<uint64_t>(row));
             const float y = 122.0f + 52.0f * static_cast<float>(row);
             if (ui.hover(348, y, 584, 46))
                 focus = row;
@@ -211,10 +220,10 @@ namespace arena
         const float kw = ui.measure("ESC", Font::Display, 15) + 10.0f;
         ui.box(360, 620, kw, 22, INK, 0.0f);
         ui.text(360 + kw * 0.5f, 622, "ESC", Font::Display, 15, GOLD, Align::Centre);
-        ui.text(360 + kw + 10, 617, "Back", Font::Display, 24, GOLD_INK);
+        ui.text(360 + kw + 10, 617, inGame ? "Resume" : "Back", Font::Display, 24, GOLD_INK);
         ui.hit(348, 610, 150, 42, BACK);
 
-        ui.text(512, 624, "Up / Down pick a row \xC2\xB7 Left / Right change it \xC2\xB7 O or Esc closes", Font::Text500, 11, FAINT);
+        ui.text(512, 624, "Up / Down pick a row \xC2\xB7 Left / Right change it \xC2\xB7 Esc closes", Font::Text500, 11, FAINT);
     }
 
     bool OptionsScreen::act(int action, GameOptions& o, bool& closed)

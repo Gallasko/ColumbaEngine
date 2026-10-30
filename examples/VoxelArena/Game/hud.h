@@ -54,6 +54,7 @@ namespace arena
             float health = 1.0f, poise = 1.0f;
             bool staggered = false, elite = false, boss = false;
             std::vector<Status> statuses;
+            std::string name;        // a player's, in the final duel
         };
 
         struct Marker
@@ -89,6 +90,7 @@ namespace arena
             int wave = 0, waves = 20;
             float timer = 0.0f;
             bool bossWave = false;
+            bool duel = false;      // the final duel: its time instead of the wave's
             int shards = 0, level = 1, xp = 0, xpNext = 1, levelUps = 0, score = 0;
             std::vector<Mate> team;   // co-op: the others
 

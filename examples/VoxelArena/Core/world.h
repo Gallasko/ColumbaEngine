@@ -270,8 +270,8 @@ namespace arena
         int stage = 0;
     };
 
-    /** Where the arena run is (see ArenaWorld::startRun). */
-    enum class RunPhase { Off, Fighting, Shop, Victory, Defeat };
+    /** Where the arena run is (see ArenaWorld::startRun). Duel: after the last wave, in multiplayer, everyone for themselves. */
+    enum class RunPhase { Off, Fighting, Shop, Victory, Defeat, Duel };
 
     struct RunState
     {
@@ -285,6 +285,8 @@ namespace arena
         int enemiesLeft = 0;
         int bossId = 0;
         bool bossWave = false;
+        int champion = 0;             // the final duel's winner (0: none, or no duel)
+        float warmup = 0.0f;          // s before the duel's fighters may hurt each other
         uint32_t seed = 1;
         float spawnDue = 0.0f;        // enemies owed to the spawn rate
 
@@ -459,6 +461,14 @@ namespace arena
         /** Testing: straight to a wave of the run (the enemies now in the arena go). */
         void skipToWave(int wave);
         bool inRun() const { return run.phase != RunPhase::Off; }
+
+        /**
+         * Whether a hit from `team` (cast or struck by fighter `owner`) can land on `target`: the other
+         * team, and in the final duel, once its countdown is over, every other player too.
+         */
+        bool hostile(Team team, int owner, const Fighter& target) const;
+        /** The final duel: everyone revived, in a ring, the last one standing wins (run.json "duel"). */
+        void beginDuel();
         /** A player's START begins a run even outside one (a dedicated server: there is no title there). */
         bool runOnRequest = false;
 

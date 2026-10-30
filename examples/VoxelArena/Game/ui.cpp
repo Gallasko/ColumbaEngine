@@ -194,12 +194,13 @@ namespace arena
 
     void Ui::begin()
     {
-        for (auto& [name, p] : pools)
-        {
-            p.usedQuads = 0;
-            p.usedTexts = 0;
-        }
+        ++frameCount;
+        pieces = changes = 0;
 
+        for (auto& [name, p] : pools)
+            p.drawn.clear();
+
+        scopes.clear();
         grid.assign(static_cast<size_t>(gridW * gridH), BASE_LEVEL - 1.0f);
         regions.clear();
         current = ui::Anchor::TopLeft;
@@ -208,39 +209,47 @@ namespace arena
 
     void Ui::end()
     {
-        // What was not drawn this frame is hidden
+        // What was not drawn this frame is hidden (and keeps its entity for when it comes back)
         for (auto& [name, p] : pools)
         {
-            for (size_t i = p.usedQuads; i < p.quads.size(); ++i)
+            for (auto& q : p.quads)
             {
-                QuadSlot& q = p.quads[i];
-                if (q.visible or not q.known)
+                if (q.frame == frameCount or not (q.visible or not q.known))
+                    continue;
+
+                if (auto* pos = ecs->getComponent<PositionComponent>(q.id))
                 {
-                    if (auto* pos = ecs->getComponent<PositionComponent>(q.id))
-                    {
-                        pos->setVisible(false);
-                        q.visible = false;
-                        q.known = true;
-                    }
+                    pos->setVisible(false);
+                    q.visible = false;
+                    q.known = true;
                 }
             }
 
-            for (size_t i = p.usedTexts; i < p.texts.size(); ++i)
+            for (auto& t : p.texts)
             {
-                TextSlot& t = p.texts[i];
-                if (t.visible or not t.known)
+                if (t.frame == frameCount or not (t.visible or not t.known))
+                    continue;
+
+                if (auto* pos = ecs->getComponent<PositionComponent>(t.id))
                 {
-                    if (auto* pos = ecs->getComponent<PositionComponent>(t.id))
-                    {
-                        pos->setVisible(false);
-                        t.visible = false;
-                        t.known = true;
-                    }
+                    pos->setVisible(false);
+                    t.visible = false;
+                    t.known = true;
                 }
             }
         }
 
         lastRegions.swap(regions);
+
+        lastPieces = pieces;
+        lastChanges = changes;
+        mostChangesNow = std::max(mostChangesNow, changes);
+        if (++statFrames >= 60)
+        {
+            mostChangesLately = mostChangesNow;
+            mostChangesNow = 0;
+            statFrames = 0;
+        }
 
         if (measured.size() > 4000)
             measured.clear();
@@ -249,6 +258,50 @@ namespace arena
     void Ui::section(const std::string& name)
     {
         pool = &pools[name];
+    }
+
+    Ui::Scope::Scope(Ui& u, uint64_t id) : ui(u)
+    {
+        ui.scopes.push_back(mix(ui.scopes.empty() ? 0x5C0BEull : ui.scopes.back(), id));
+    }
+
+    Ui::Scope::~Scope()
+    {
+        ui.scopes.pop_back();
+    }
+
+    uint64_t Ui::idOf(const std::string& str)
+    {
+        uint64_t h = 1469598103934665603ull;
+        for (unsigned char c : str)
+            h = (h ^ c) * 1099511628211ull;
+        return h;
+    }
+
+    Ui::Key Ui::mix(Key k, uint64_t v)
+    {
+        k ^= v + 0x9E3779B97F4A7C15ull + (k << 6) + (k >> 2);
+        return k;
+    }
+
+    Ui::Key Ui::site(int line, const char* file) const
+    {
+        Key k = scopes.empty() ? 0x5C0BEull : scopes.back();
+        k = mix(k, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(file)));
+        return mix(k, static_cast<uint64_t>(line));
+    }
+
+    size_t Ui::claim(std::unordered_map<Key, size_t>& keys, Key base, size_t count)
+    {
+        int& n = pool->drawn[base];
+        const Key key = mix(base, 0xD3A1ull + static_cast<uint64_t>(n++));
+
+        auto it = keys.find(key);
+        if (it != keys.end())
+            return it->second;
+
+        keys.emplace(key, count);
+        return count;
     }
 
     // ---- Coordinates ------------------------------------------------------------------------------
@@ -328,14 +381,15 @@ namespace arena
 
     // ---- Drawing ----------------------------------------------------------------------------------
 
-    void Ui::putQuad(float x0, float y0, float x1, float y1, const ui::Colour& c)
+    void Ui::quadK(Key k, float x0, float y0, float x1, float y1, const ui::Colour& c)
     {
         if (x1 <= x0 or y1 <= y0 or c.a <= 0.0f)
             return;
 
         const float z = levelFor(x0, y0, x1, y1);
+        const size_t index = claim(pool->quadKeys, k, pool->quads.size());
 
-        if (pool->usedQuads >= pool->quads.size())
+        if (index >= pool->quads.size())
         {
             auto comp = makeUiSimple2DShape(ecs, Shape2D::Square, x1 - x0, y1 - y0, rgba(c));
             comp.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
@@ -344,7 +398,9 @@ namespace arena
             pool->quads.push_back(slot);
         }
 
-        QuadSlot& q = pool->quads[pool->usedQuads++];
+        QuadSlot& q = pool->quads[index];
+        q.frame = frameCount;
+        ++pieces;
         auto* pos = ecs->getComponent<PositionComponent>(q.id);
 
         // Made this frame: its components come with the next one
@@ -353,6 +409,7 @@ namespace arena
 
         if (not q.known or q.x != x0 or q.y != y0 or q.w != x1 - x0 or q.h != y1 - y0 or q.z != z)
         {
+            ++changes;
             pos->setX(x0);
             pos->setY(y0);
             pos->setZ(z);
@@ -367,6 +424,7 @@ namespace arena
 
         if (not q.known or q.c != c)
         {
+            ++changes;
             if (auto* shape = ecs->getComponent<Simple2DObject>(q.id))
                 shape->setColors(rgba(c));
             q.c = c;
@@ -381,52 +439,70 @@ namespace arena
         q.known = true;
     }
 
-    void Ui::rect(float x, float y, float rw, float rh, const ui::Colour& c)
-    {
-        putQuad(X(x), Y(y), X(x + rw), Y(y + rh), c);
-    }
-
-    void Ui::box(float x, float y, float bw, float bh, const ui::Colour& fill, float border, const ui::Colour& borderColour)
+    void Ui::boxK(Key k, float x, float y, float bw, float bh, const ui::Colour& fill, float border, const ui::Colour& borderColour)
     {
         if (border > 0.0f)
         {
-            rect(x, y, bw, bh, borderColour);
-            rect(x + border, y + border, bw - 2.0f * border, bh - 2.0f * border, fill);
+            rectK(mix(k, 1), x, y, bw, bh, borderColour);
+            rectK(mix(k, 2), x + border, y + border, bw - 2.0f * border, bh - 2.0f * border, fill);
         }
         else
         {
-            rect(x, y, bw, bh, fill);
+            rectK(mix(k, 2), x, y, bw, bh, fill);
         }
     }
 
-    void Ui::frame(float x, float y, float fw, float fh, float t, const ui::Colour& c)
+    void Ui::raisedK(Key k, float x, float y, float rw, float rh, const ui::Colour& fill, float shadow, float border, const ui::Colour& borderColour)
     {
-        rect(x, y, fw, t, c);
-        rect(x, y + fh - t, fw, t, c);
-        rect(x, y + t, t, fh - 2.0f * t, c);
-        rect(x + fw - t, y + t, t, fh - 2.0f * t, c);
+        if (shadow > 0.0f)
+            rectK(mix(k, 3), x + shadow, y + shadow, rw, rh, ui::INK);
+        boxK(mix(k, 4), x, y, rw, rh, fill, border, borderColour);
     }
 
-    void Ui::dashed(float x, float y, float fw, float fh, float t, float dash, const ui::Colour& c)
+    void Ui::rect(float x, float y, float rw, float rh, const ui::Colour& c, int line_, const char* file_)
     {
+        rectK(site(line_, file_), x, y, rw, rh, c);
+    }
+
+    void Ui::rectPx(float x0, float y0, float x1, float y1, const ui::Colour& c, int line_, const char* file_)
+    {
+        quadK(site(line_, file_), std::round(x0), std::round(y0), std::round(x1), std::round(y1), c);
+    }
+
+    void Ui::box(float x, float y, float bw, float bh, const ui::Colour& fill, float border, const ui::Colour& borderColour, int line_, const char* file_)
+    {
+        boxK(site(line_, file_), x, y, bw, bh, fill, border, borderColour);
+    }
+
+    void Ui::frame(float x, float y, float fw, float fh, float t, const ui::Colour& c, int line_, const char* file_)
+    {
+        const Key k = site(line_, file_);
+        rectK(mix(k, 1), x, y, fw, t, c);
+        rectK(mix(k, 2), x, y + fh - t, fw, t, c);
+        rectK(mix(k, 3), x, y + t, t, fh - 2.0f * t, c);
+        rectK(mix(k, 4), x + fw - t, y + t, t, fh - 2.0f * t, c);
+    }
+
+    void Ui::dashed(float x, float y, float fw, float fh, float t, float dash, const ui::Colour& c, int line_, const char* file_)
+    {
+        const Key k = site(line_, file_);
+
         for (float d = 0.0f; d < fw; d += dash * 2.0f)
         {
-            rect(x + d, y, std::min(dash, fw - d), t, c);
-            rect(x + d, y + fh - t, std::min(dash, fw - d), t, c);
+            rectK(mix(k, 1), x + d, y, std::min(dash, fw - d), t, c);
+            rectK(mix(k, 2), x + d, y + fh - t, std::min(dash, fw - d), t, c);
         }
 
         for (float d = t; d < fh - t; d += dash * 2.0f)
         {
-            rect(x, y + d, t, std::min(dash, fh - t - d), c);
-            rect(x + fw - t, y + d, t, std::min(dash, fh - t - d), c);
+            rectK(mix(k, 3), x, y + d, t, std::min(dash, fh - t - d), c);
+            rectK(mix(k, 4), x + fw - t, y + d, t, std::min(dash, fh - t - d), c);
         }
     }
 
-    void Ui::raised(float x, float y, float rw, float rh, const ui::Colour& fill, float shadow, float border, const ui::Colour& borderColour)
+    void Ui::raised(float x, float y, float rw, float rh, const ui::Colour& fill, float shadow, float border, const ui::Colour& borderColour, int line_, const char* file_)
     {
-        if (shadow > 0.0f)
-            rect(x + shadow, y + shadow, rw, rh, ui::INK);
-        box(x, y, rw, rh, fill, border, borderColour);
+        raisedK(site(line_, file_), x, y, rw, rh, fill, shadow, border, borderColour);
     }
 
     std::pair<std::string, float> Ui::pick(ui::Font f, float px) const
@@ -478,12 +554,31 @@ namespace arena
         return a;
     }
 
-    float Ui::textOn(float x, float baseline, const std::string& t, ui::Font f, float size, const ui::Colour& c, ui::Align a, float tracking, float shadow)
+    float Ui::textOn(float x, float baseline, const std::string& t, ui::Font f, float size, const ui::Colour& c, ui::Align a, float tracking, float shadow,
+                     int line_, const char* file_)
     {
-        return textShadow(x, baseline - ascent(f, size), t, f, size, c, shadow, a, tracking);
+        return textShadowK(site(line_, file_), x, baseline - ascent(f, size), t, f, size, c, shadow, a, tracking);
     }
 
-    float Ui::text(float x, float y, const std::string& t, ui::Font f, float size, const ui::Colour& c, ui::Align a, float tracking)
+    float Ui::text(float x, float y, const std::string& t, ui::Font f, float size, const ui::Colour& c, ui::Align a, float tracking, int line_, const char* file_)
+    {
+        return textK(site(line_, file_), x, y, t, f, size, c, a, tracking);
+    }
+
+    float Ui::textShadow(float x, float y, const std::string& t, ui::Font f, float size, const ui::Colour& c, float shadow, ui::Align a, float tracking,
+                         int line_, const char* file_)
+    {
+        return textShadowK(site(line_, file_), x, y, t, f, size, c, shadow, a, tracking);
+    }
+
+    float Ui::textShadowK(Key k, float x, float y, const std::string& t, ui::Font f, float size, const ui::Colour& c, float shadow, ui::Align a, float tracking)
+    {
+        if (shadow > 0.0f)
+            textK(mix(k, 1), x + shadow, y + shadow, t, f, size, ui::Colour(ui::INK.r, ui::INK.g, ui::INK.b, c.a), a, tracking);
+        return textK(mix(k, 2), x, y, t, f, size, c, a, tracking);
+    }
+
+    float Ui::textK(Key k, float x, float y, const std::string& t, ui::Font f, float size, const ui::Colour& c, ui::Align a, float tracking)
     {
         if (t.empty())
             return 0.0f;
@@ -502,8 +597,9 @@ namespace arena
         const auto [font, scale] = pick(f, size * s);
         const float px = X(left), py = Y(y);
         const float z = levelFor(px, py, px + tw * s, py + size * s * 1.2f);
+        const size_t index = claim(pool->textKeys, k, pool->texts.size());
 
-        if (pool->usedTexts >= pool->texts.size())
+        if (index >= pool->texts.size())
         {
             auto comp = makeTTFText(ecs, px, py, z, font, t, scale, rgba(c));
             comp.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
@@ -512,7 +608,9 @@ namespace arena
             pool->texts.push_back(slot);
         }
 
-        TextSlot& slot = pool->texts[pool->usedTexts++];
+        TextSlot& slot = pool->texts[index];
+        slot.frame = frameCount;
+        ++pieces;
         auto* pos = ecs->getComponent<PositionComponent>(slot.id);
         auto* comp = ecs->getComponent<TTFText>(slot.id);
 
@@ -545,12 +643,14 @@ namespace arena
 
         if (not slot.known or slot.text != t)
         {
+            ++changes;
             comp->setText(t);
             slot.text = t;
         }
 
         if (not slot.known or slot.x != px or slot.y != py or slot.z != z)
         {
+            ++changes;
             pos->setX(px);
             pos->setY(py);
             pos->setZ(z);
@@ -567,13 +667,6 @@ namespace arena
 
         slot.known = true;
         return tw;
-    }
-
-    float Ui::textShadow(float x, float y, const std::string& t, ui::Font f, float size, const ui::Colour& c, float shadow, ui::Align a, float tracking)
-    {
-        if (shadow > 0.0f)
-            text(x + shadow, y + shadow, t, f, size, ui::Colour(ui::INK.r, ui::INK.g, ui::INK.b, c.a), a, tracking);
-        return text(x, y, t, f, size, c, a, tracking);
     }
 
     std::string Ui::fit(const std::string& t, ui::Font f, float size, float width) const
@@ -625,8 +718,10 @@ namespace arena
         return lines;
     }
 
-    float Ui::paragraph(float x, float y, float width, const std::string& t, ui::Font f, float size, const ui::Colour& c, float lineHeight, int maxLines)
+    float Ui::paragraph(float x, float y, float width, const std::string& t, ui::Font f, float size, const ui::Colour& c, float lineHeight, int maxLines,
+                        int line_, const char* file_)
     {
+        const Key k = site(line_, file_);
         auto lines = wrap(t, f, size, width);
 
         if (maxLines > 0 and static_cast<int>(lines.size()) > maxLines)
@@ -636,57 +731,60 @@ namespace arena
         }
 
         for (size_t i = 0; i < lines.size(); ++i)
-            text(x, y + static_cast<float>(i) * lineHeight, lines[i], f, size, c);
+            textK(mix(k, 100 + i), x, y + static_cast<float>(i) * lineHeight, lines[i], f, size, c, ui::Align::Left, 0.0f);
 
         return static_cast<float>(lines.size()) * lineHeight;
     }
 
-    void Ui::icon(const std::string& name, float x, float y, float cell, const ui::Colour& c, float shadow)
+    void Ui::icon(const std::string& name, float x, float y, float cell, const ui::Colour& c, float shadow, int line_, const char* file_)
     {
+        const Key k = site(line_, file_);
         const auto& rows = ui::icon(name);
 
-        auto draw = [&](float ox, float oy, const ui::Colour& colour) {
+        auto draw = [&](Key part, float ox, float oy, const ui::Colour& colour) {
             for (size_t r = 0; r < rows.size(); ++r)
             {
                 // A run of filled cells is one rect
                 const std::string& row = rows[r];
-                size_t k = 0;
-                while (k < row.size())
+                size_t col = 0;
+                while (col < row.size())
                 {
-                    if (row[k] != '#')
+                    if (row[col] != '#')
                     {
-                        ++k;
+                        ++col;
                         continue;
                     }
 
-                    size_t end = k;
+                    size_t end = col;
                     while (end < row.size() and row[end] == '#')
                         ++end;
 
-                    rect(ox + static_cast<float>(k) * cell, oy + static_cast<float>(r) * cell, static_cast<float>(end - k) * cell, cell, colour);
-                    k = end;
+                    rectK(mix(part, r * 8 + col), ox + static_cast<float>(col) * cell, oy + static_cast<float>(r) * cell, static_cast<float>(end - col) * cell, cell, colour);
+                    col = end;
                 }
             }
         };
 
         if (shadow > 0.0f)
-            draw(x + shadow, y + shadow, ui::Colour(ui::INK.r, ui::INK.g, ui::INK.b, c.a));
-        draw(x, y, c);
+            draw(mix(k, 1), x + shadow, y + shadow, ui::Colour(ui::INK.r, ui::INK.g, ui::INK.b, c.a));
+        draw(mix(k, 2), x, y, c);
     }
 
     void Ui::keycap(float x, float y, float size, const std::string& key, const ui::Colour& fill, const ui::Colour& ink, float fontSize, float border,
-                    const ui::Colour& borderColour, float shadow)
+                    const ui::Colour& borderColour, float shadow, int line_, const char* file_)
     {
-        raised(x, y, size, size, fill, shadow, border, borderColour);
-        text(x + size * 0.5f, y + (size - fontSize) * 0.5f - 1.0f, key, ui::Font::Display, fontSize, ink, ui::Align::Centre);
+        const Key k = site(line_, file_);
+        raisedK(mix(k, 1), x, y, size, size, fill, shadow, border, borderColour);
+        textK(mix(k, 2), x + size * 0.5f, y + (size - fontSize) * 0.5f - 1.0f, key, ui::Font::Display, fontSize, ink, ui::Align::Centre, 0.0f);
     }
 
     float Ui::keycapWide(float x, float y, float size, const std::string& key, const ui::Colour& fill, const ui::Colour& ink, float fontSize, float border,
-                         const ui::Colour& borderColour, float shadow)
+                         const ui::Colour& borderColour, float shadow, int line_, const char* file_)
     {
+        const Key k = site(line_, file_);
         const float kw = std::max(size, std::ceil(measure(key, ui::Font::Display, fontSize)) + 2.0f * border + 8.0f);
-        raised(x, y, kw, size, fill, shadow, border, borderColour);
-        text(x + kw * 0.5f, y + (size - fontSize) * 0.5f - 1.0f, key, ui::Font::Display, fontSize, ink, ui::Align::Centre);
+        raisedK(mix(k, 1), x, y, kw, size, fill, shadow, border, borderColour);
+        textK(mix(k, 2), x + kw * 0.5f, y + (size - fontSize) * 0.5f - 1.0f, key, ui::Font::Display, fontSize, ink, ui::Align::Centre, 0.0f);
         return kw;
     }
 

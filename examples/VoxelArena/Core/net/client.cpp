@@ -88,9 +88,19 @@ namespace arena::net
                     lastSnapshotAt = nowMs;
                     state = State::Playing;
 
-                    // The player's own spells, which the server does not know yet
+                    // The player's own spells, which the server does not know yet, and whether it is ready
                     if (not spells.empty())
                         transport.send(0, encode(SpellsMsg{spells}, names), true);
+                    if (ready)
+                        transport.send(0, encode(ReadyMsg{ready}), true);
+                    break;
+                }
+
+                case Msg::Lobby:
+                {
+                    LobbyMsg m;
+                    if (decode(e.data, m))
+                        lobby = m;
                     break;
                 }
 
@@ -505,6 +515,22 @@ namespace arena::net
 
         if (Fighter* me = world.find(playerId))
             me->spells = spells;
+    }
+
+    void NetClient::setReady(bool r)
+    {
+        ready = r;
+
+        if (state == State::Playing)
+            transport.send(0, encode(ReadyMsg{ready}), true);
+    }
+
+    std::string NetClient::nameOf(int id) const
+    {
+        for (const auto& p : lobby.players)
+            if (p.playerId == id)
+                return p.name;
+        return "";
     }
 
     void NetClient::leave()

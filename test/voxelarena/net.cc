@@ -754,3 +754,124 @@ TEST(arena_net, a_player_who_leaves_is_removed)
     EXPECT_EQ(a.world.fighters.size(), 1u);
     EXPECT_FALSE(s.server->log.empty());
 }
+
+// ---- The lobby --------------------------------------------------------------------------------
+
+TEST(arena_net, lobby_messages_read_back)
+{
+    LobbyMsg m;
+    m.dedicated = true;
+    m.players = {{3, "ann", true, true, 0}, {7, "bob", false, false, 85}};
+
+    LobbyMsg back;
+    ASSERT_TRUE(decode(encode(m), back));
+    EXPECT_TRUE(back.dedicated);
+    ASSERT_EQ(back.players.size(), 2u);
+    EXPECT_EQ(back.players[1].name, "bob");
+    EXPECT_EQ(back.players[1].pingMs, 85);
+    EXPECT_TRUE(back.players[0].host);
+
+    ReadyMsg r{true}, rb;
+    ASSERT_TRUE(decode(encode(r), rb));
+    EXPECT_TRUE(rb.ready);
+}
+
+TEST(arena_net, every_client_sees_who_is_in_by_name_and_who_is_ready)
+{
+    Session s(20.0);
+    auto& a = s.join("ann");
+    auto& b = s.join("bob");
+    s.run(30);
+
+    // In the order they came, by name, nobody ready yet
+    ASSERT_EQ(a.client->lobby.players.size(), 2u);
+    EXPECT_EQ(a.client->lobby.players[0].name, "ann");
+    EXPECT_EQ(a.client->lobby.players[1].name, "bob");
+    EXPECT_TRUE(a.client->lobby.dedicated);
+    EXPECT_FALSE(a.client->lobby.players[1].ready);
+    EXPECT_EQ(a.client->nameOf(b.client->playerId), "bob");
+
+    b.client->setReady(true);
+    s.run(10);
+    EXPECT_TRUE(a.client->lobby.players[1].ready);
+
+    // Someone leaves: gone from everyone's list
+    s.hub.disconnect(*b.transport);
+    s.run(20);
+    ASSERT_EQ(a.client->lobby.players.size(), 1u);
+    EXPECT_EQ(a.client->lobby.players[0].name, "ann");
+}
+
+TEST(arena_net, a_dedicated_server_starts_the_run_when_everyone_is_ready)
+{
+    Session s(20.0);
+    auto& a = s.join("ann");
+    auto& b = s.join("bob");
+    s.run(30);
+
+    a.client->setReady(true);
+    s.run(20);
+    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Off);   // bob is not
+
+    b.client->setReady(true);
+    s.run(20);
+    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Fighting);
+
+    // Not ready any more, for the next time in the lobby
+    s.run(10);
+    for (const auto& p : s.server->lobby().players)
+        EXPECT_FALSE(p.ready);
+}
+
+TEST(arena_net, a_ready_set_while_joining_is_sent_once_in)
+{
+    Session s(40.0);
+    auto& a = s.join("ann");
+    a.client->setReady(true);   // before the welcome
+    s.run(30);
+
+    ASSERT_EQ(s.server->lobby().players.size(), 1u);
+    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Fighting);   // alone and ready: it began
+}
+
+TEST(arena_net, a_listen_servers_lobby_has_its_host_first)
+{
+    Content content = loadContent(VOXELARENA_MODS_DIR);
+    ContentReport r;
+    Tuning tuning = readTuning(content.tuning, content.tuningFile, r);
+
+    LoopbackHub hub;
+    ArenaWorld host;
+    host.start(content, tuning, true);
+    NetServer server(host, content, hub.server(), false);
+    server.hostName = "hana";
+
+    ArenaWorld world;
+    NetClient client(world, content, tuning, hub.addClient(), "ann");
+
+    for (int i = 0; i < 30; ++i)
+    {
+        client.poll(hub.time());
+        client.step(InputFrame{}, hub.time());
+        server.poll();
+        server.step(nullptr);
+        hub.advance(STEP_MS);
+    }
+
+    ASSERT_EQ(client.lobby.players.size(), 2u);
+    EXPECT_EQ(client.lobby.players[0].name, "hana");
+    EXPECT_TRUE(client.lobby.players[0].host);
+    EXPECT_EQ(client.lobby.players[1].name, "ann");
+    EXPECT_FALSE(client.lobby.dedicated);
+
+    // A host has to start it: everyone ready is not enough
+    client.setReady(true);
+    for (int i = 0; i < 20; ++i)
+    {
+        client.poll(hub.time());
+        server.poll();
+        server.step(nullptr);
+        hub.advance(STEP_MS);
+    }
+    EXPECT_EQ(host.run.phase, RunPhase::Off);
+}

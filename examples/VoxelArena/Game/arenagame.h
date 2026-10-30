@@ -33,6 +33,7 @@
 #include "screens.h"
 #include "ui.h"
 #include "particles.h"
+#include "Net/portmapper.h"
 #include "soundbank.h"
 
 namespace pg
@@ -40,6 +41,7 @@ namespace pg
     class Input;
     class Window;
     struct NetworkSystem;
+    class SdlNetworkBackend;
 }
 
 namespace arena::net
@@ -61,6 +63,9 @@ namespace arena
         Mode mode = Mode::Single;
         pg::NetworkSystem* network = nullptr;   // the engine's, for Host and Client
         std::string playerName = "player";
+        std::string address;                    // a client: where it joined
+        uint16_t port = 7777;                   // TCP; UDP is the next one
+        bool upnp = true;                       // a host opens its ports on the router
     };
 
     /** A key or a mouse button an action is bound to (from the "controls" section of the tuning). */
@@ -247,6 +252,8 @@ namespace arena
         void playerHud(Hud::View& v, const Fighter& p);
         void enemyHud(Hud::View& v);
         std::string statusName(const std::string& id) const;
+        /** A player's name: the lobby's in multiplayer, "" when not known. */
+        std::string playerNameOf(int id) const;
         std::vector<Hud::Status> statusesOf(const Fighter& f) const;
 
         // Networking (see ArenaOptions::mode)
@@ -256,6 +263,23 @@ namespace arena
         std::chrono::steady_clock::time_point netEpoch = std::chrono::steady_clock::now();
         double netNowMs() const { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - netEpoch).count(); }
         bool networked() const { return options.mode != ArenaOptions::Mode::Single; }
+
+        // The lobby: what a host shows its friends to join with, and what happened lately
+        net::PortMapper portMapper;
+        std::string lanAddress;
+        std::deque<std::string> netLog;
+        RunPhase clientPhase = RunPhase::Off;
+        RunPhase duelSeen = RunPhase::Off;      // the run's phase last frame, for the duel's start   // a client: the run's phase last frame (its end brings the lobby back)
+        void drawLobby();
+
+        // Inviting: the + of the title and the lobby. Alone, it hosts this game first (hostNow)
+        bool inviteOpen = false;
+        std::string inviteMessage;
+        std::unique_ptr<pg::NetworkSystem> ownNetwork;   // hosting started from the title: stepped here, not by the engine
+        pg::SdlNetworkBackend* ownBackend = nullptr;
+        bool hostNow();
+        void drawInvite();
+        void inviteAction(int action);
         int pendingEquip = 0;   // weapon key pressed, handed to the next step's input
         std::string netStatus() const;
 

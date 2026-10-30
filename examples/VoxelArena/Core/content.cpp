@@ -1296,7 +1296,7 @@ namespace arena
             r.file = raw.file;
 
             checkKeys(j, {"waves", "duration", "spawnRate", "maxAlive", "eliteFrom", "eliteChance", "healthGrowth", "pools", "bosses", "warn", "centre", "spawnRadius", "coopScale",
-                          "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "resetEachWave"},
+                          "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "resetEachWave", "duel"},
                       raw.file, report, "the run");
 
             readInt(j, "waves", r.waves, raw.file, report);
@@ -1326,6 +1326,17 @@ namespace arena
             readInt(j, "victoryScore", r.victoryScore, raw.file, report);
             readNum(j, "pickupRange", r.pickupRange, raw.file, report);
             readBool(j, "resetEachWave", r.resetEachWave, raw.file, report);
+
+            if (const Json* duel = j.find("duel"))
+            {
+                checkKeys(*duel, {"enabled", "duration", "countdown", "radius"}, raw.file, report, "the run's duel");
+                readBool(*duel, "enabled", r.duel.enabled, raw.file, report);
+                readNum(*duel, "duration", r.duel.duration, raw.file, report);
+                readNum(*duel, "countdown", r.duel.countdown, raw.file, report);
+                readNum(*duel, "radius", r.duel.radius, raw.file, report);
+                r.duel.duration = std::max(5.0f, r.duel.duration);
+                r.duel.countdown = std::max(0.0f, r.duel.countdown);
+            }
 
             if (const Json* arena = j.find("arena"))
             {

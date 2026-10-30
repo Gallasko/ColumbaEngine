@@ -1,9 +1,10 @@
 // Voxel Arena dedicated server: the same simulation and server as a host, with no window, no
 // player of its own and nothing drawn or played.
 //
-//   VoxelArenaServer [--port 7777] [--mods path]
+//   VoxelArenaServer [--port 7777] [--mods path] [--no-upnp]
 //
-// Players join with VoxelArena --join address[:port]. Stop it with Ctrl+C.
+// Players join with VoxelArena --join address[:port]; the run starts when everyone is ready.
+// It opens its ports on the router itself (UPnP) unless told not to. Stop it with Ctrl+C.
 
 #include <atomic>
 #include <chrono>
@@ -22,6 +23,7 @@
 #include "Core/world.h"
 #include "Core/net/server.h"
 #include "Net/enginetransport.h"
+#include "Net/portmapper.h"
 
 #ifndef VOXELARENA_MODS_DIR
     #define VOXELARENA_MODS_DIR nullptr
@@ -47,6 +49,7 @@ int main(int argc, char* argv[])
 {
     std::string modsDir;
     uint16_t port = 7777;
+    bool upnp = true;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -56,6 +59,8 @@ int main(int argc, char* argv[])
             port = static_cast<uint16_t>(std::stoi(argv[++i]));
         else if (a == "--mods" and i + 1 < argc)
             modsDir = argv[++i];
+        else if (a == "--no-upnp")
+            upnp = false;
     }
 
     if (modsDir.empty())
@@ -73,7 +78,6 @@ int main(int argc, char* argv[])
     arena::ArenaWorld world;
     world.start(content, tuning, false);
     world.setBrain(&brain);
-    world.runOnRequest = true;   // a player's Enter starts the arena run
 
     pg::NetworkConfig net;
     net.isServer = true;
@@ -94,6 +98,15 @@ int main(int argc, char* argv[])
     std::cout << "Voxel Arena server on port " << port << " (TCP) and " << port + 1 << " (UDP), mods from " << modsDir
               << ", content " << std::hex << content.fingerprint << std::dec << std::endl;
 
+    const std::string lan = arena::net::PortMapper::localAddress();
+    std::cout << "On this network: " << (lan.empty() ? "?" : lan) << ":" << port << std::endl;
+
+    // The router's ports, opened for players from outside (said once it is known)
+    arena::net::PortMapper portMapper;
+    if (upnp)
+        portMapper.start(port, static_cast<uint16_t>(port + 1), "Voxel Arena server");
+    auto routerState = arena::net::PortMapper::State::Off;
+
     // 60 steps a second, on a fixed schedule (a late step is caught up, a far behind one skipped)
     using clock = std::chrono::steady_clock;
     const auto stepLength = std::chrono::duration_cast<clock::duration>(std::chrono::duration<double>(arena::STEP_SECONDS));
@@ -109,6 +122,15 @@ int main(int argc, char* argv[])
         for (const auto& line : server.log)
             std::cout << line << std::endl;
         server.log.clear();
+
+        if (const auto st = portMapper.status(); st.state != routerState)
+        {
+            routerState = st.state;
+            if (st.state == arena::net::PortMapper::State::Open)
+                std::cout << "Router ports opened: players join with " << (st.externalIp.empty() ? "your public address" : st.externalIp) << ":" << port << std::endl;
+            else if (st.state == arena::net::PortMapper::State::NoRouter or st.state == arena::net::PortMapper::State::Failed)
+                std::cout << "Router ports not opened (" << st.error << "): forward TCP " << port << " and UDP " << port + 1 << " to this machine" << std::endl;
+        }
 
         next += stepLength;
 

@@ -147,14 +147,22 @@ namespace arena
         ui.anchor(Anchor::TopLeft);
         const float base = 14.0f + ui.ascent(Font::Display, 46);
 
-        ui.textOn(24, base - 3, "WAVE", Font::Text700, 12, TEXT, Align::Left, 2.0f, 2.0f);
         float x = 70.0f;
-        x += ui.textOn(x, base, std::to_string(v.wave), Font::Display, 46, TEXT, Align::Left, 0.0f, 3.0f);
-        x += 4.0f;
-        x += ui.textOn(x, base, "/" + std::to_string(v.waves), Font::Display, 24, WAVE_TOTAL, Align::Left, 0.0f, 2.0f);
-        x += 14.0f;
+        if (v.duel)
+        {
+            ui.textOn(24, base - 3, "FINAL", Font::Text700, 12, TEXT, Align::Left, 2.0f, 2.0f);
+            x = 80.0f + ui.textOn(80, base, "DUEL", Font::Display, 46, BOSS, Align::Left, 1.0f, 3.0f) + 14.0f;
+        }
+        else
+        {
+            ui.textOn(24, base - 3, "WAVE", Font::Text700, 12, TEXT, Align::Left, 2.0f, 2.0f);
+            x += ui.textOn(x, base, std::to_string(v.wave), Font::Display, 46, TEXT, Align::Left, 0.0f, 3.0f);
+            x += 4.0f;
+            x += ui.textOn(x, base, "/" + std::to_string(v.waves), Font::Display, 24, WAVE_TOTAL, Align::Left, 0.0f, 2.0f);
+            x += 14.0f;
+        }
 
-        if (v.bossWave)
+        if (v.bossWave and not v.duel)
             ui.textOn(x, base, "BOSS", Font::Display, 40, BOSS, Align::Left, 1.0f, 2.0f);
         else
             ui.textOn(x, base, clock(v.timer), Font::Display, 40, v.timer <= 5.0f ? GOLD : TEXT, Align::Left, 0.0f, 2.0f);
@@ -163,7 +171,9 @@ namespace arena
         {
             const float px = 24.0f + static_cast<float>(i) * 11.0f;
             Colour fill = withAlpha(INK, 0.45f);
-            if (i < v.wave - 1)
+            if (v.duel)
+                fill = TEXT;
+            else if (i < v.wave - 1)
                 fill = TEXT;
             else if (i == v.wave - 1)
                 fill = v.bossWave ? BOSS : GOLD;
@@ -174,6 +184,7 @@ namespace arena
         float ty = 92.0f;
         for (const auto& m : v.team)
         {
+            const auto itemScope = ui.scope(Ui::idOf(m.name));
             ui.textShadow(24, ty, m.name, Font::Text700, 12, m.down ? MUTED : TEXT, 2.0f);
             const int pips = m.down ? 0 : static_cast<int>(std::ceil(std::clamp(m.health, 0.0f, 1.0f) * 10.0f - 0.001f));
             for (int k = 0; k < 10; ++k)
@@ -264,6 +275,7 @@ namespace arena
         float x = 24.0f;
         for (const auto& [name, current] : v.weapons)
         {
+            const auto itemScope = ui.scope(Ui::idOf(name));
             const float tw = ui.textShadow(x, 600, name, Font::Text600, 14, current ? GOLD : TEXT_DIM, 2.0f);
             if (current)
             {
@@ -335,6 +347,7 @@ namespace arena
             float sx = 96.0f;
             for (const auto& st : v.statuses)
             {
+                const auto itemScope = ui.scope(Ui::idOf(st.id));
                 for (const auto& c : statusSquares(st))
                 {
                     ui.rect(sx + 1, 694, 8, 8, INK);
@@ -369,7 +382,9 @@ namespace arena
                     it.right = oneDecimal(s.seconds);
                 else if (s.noStamina)
                     it.right = std::to_string(s.cost);
-                it.rightW = it.right.empty() ? 0.0f : ui.measure(it.right, Font::Display, 20) + 6.0f;
+                // Room for whatever it may show there (seconds, "hold", its cost): the row does not move when it does
+                it.rightW = 6.0f + std::max({ui.measure("88.8", Font::Display, 20), ui.measure("hold", Font::Display, 20),
+                                             ui.measure(std::to_string(s.cost), Font::Display, 20)});
                 it.w = 24.0f + 6.0f + it.nameW + it.rightW;
                 total += it.w;
                 items.push_back(it);
@@ -379,6 +394,7 @@ namespace arena
             float x = 1256.0f - total;
             for (size_t i = 0; i < v.skills.size(); ++i)
             {
+                const auto itemScope = ui.scope(i);
                 const Skill& s = v.skills[i];
                 const Item& it = items[i];
                 const bool cooling = s.charging or s.progress < 1.0f;
@@ -424,7 +440,10 @@ namespace arena
                     case SpellKey::State::Cooldown: it.right = oneDecimal(s.seconds); break;
                     case SpellKey::State::Locked: it.right = "locked"; break;
                 }
-                it.w = 28.0f + 6.0f + it.nameW + 6.0f + ui.measure(it.right, Font::Display, 20);
+                // Room for its cost or its seconds (and "locked" when it is): the row does not move as they come and go
+                const float room = std::max({ui.measure(std::to_string(s.mana), Font::Display, 20), ui.measure("88.8", Font::Display, 20),
+                                             s.state == SpellKey::State::Locked ? ui.measure("locked", Font::Display, 20) : 0.0f});
+                it.w = 28.0f + 6.0f + it.nameW + 6.0f + room;
                 total += it.w;
                 items.push_back(it);
             }
@@ -433,6 +452,7 @@ namespace arena
             float x = 1256.0f - total;
             for (size_t i = 0; i < v.spells.size(); ++i)
             {
+                const auto itemScope = ui.scope(i);
                 const SpellKey& s = v.spells[i];
                 const Item& it = items[i];
                 const Colour el = elementColour(s.element);
@@ -514,6 +534,7 @@ namespace arena
 
         for (const auto& e : v.enemies)
         {
+            const auto itemScope = ui.scope(static_cast<uint64_t>(&e - v.enemies.data()));
             const float cx = std::round(ui.baseX(e.head.x));
             const float top = std::round(ui.baseY(e.head.y)) - 6.0f - 11.0f;
             const float x = cx - 33.0f;
@@ -531,10 +552,13 @@ namespace arena
 
             if (e.staggered)
                 ui.textShadow(cx, top - 20, "STAGGERED", Font::Display, 16, POISE, 2.0f, Align::Centre, 1.0f);
+            else if (not e.name.empty())
+                ui.textShadow(cx, top - 17, e.name, Font::Text700, 11, TEXT, 2.0f, Align::Centre);
 
             float sx = x + 70.0f;
             for (const auto& st : e.statuses)
             {
+                const auto itemScope = ui.scope(Ui::idOf(st.id));
                 for (const auto& c : statusSquares(st))
                 {
                     ui.rect(sx - 1, top - 1, 10, 10, INK);
@@ -551,6 +575,7 @@ namespace arena
     {
         for (const auto& m : v.markers)
         {
+            const auto itemScope = ui.scope(static_cast<uint64_t>(&m - v.markers.data()));
             const Colour c = m.kind == Marker::Kind::Boss ? BOSS : (m.kind == Marker::Kind::Elite ? GOLD : WARNING);
             const float y = std::clamp(m.y, 80.0f, 560.0f) - 17.0f;
 
@@ -590,8 +615,9 @@ namespace arena
 
         ui.anchor(Anchor::Centre);
 
+        // A name with a count down under it (the duel's): the name goes up out of its way
         if (not v.headline.empty())
-            ui.textShadow(640, 200 - 28, v.headline, Font::Display, 56, TEXT, 3.0f, Align::Centre, 2.0f);
+            ui.textShadow(640, (v.countdown > 0 ? 112.0f : 200.0f) - 28.0f, v.headline, Font::Display, 56, TEXT, 3.0f, Align::Centre, 2.0f);
 
         if (levelUpAge < 1.0f and v.run)
             ui.textShadow(640, (v.headline.empty() ? 200.0f : 262.0f) - 28.0f, "LEVEL UP", Font::Display, 56, GOLD, 3.0f, Align::Centre, 2.0f);

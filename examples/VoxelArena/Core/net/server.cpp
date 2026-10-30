@@ -38,6 +38,7 @@ namespace arena::net
                     {
                         if (it->second.joined)
                         {
+                            lobbyDirty = true;
                             log.push_back(it->second.name + " left");
                             world.removeFighter(it->second.playerId);
                             world.defenderGrace.erase(e.peer);
@@ -89,6 +90,9 @@ namespace arena::net
                 }
 
                 c.joined = true;
+                c.ready = false;
+                c.joinOrder = ++joins;
+                lobbyDirty = true;
                 c.name = hello.name.empty() ? "player " + std::to_string(c.peer) : hello.name.substr(0, 32);
                 c.playerId = world.addPlayer(c.peer);
                 welcome.accepted = true;
@@ -147,10 +151,26 @@ namespace arena::net
                 break;
             }
 
+            case Msg::Ready:
+            {
+                ReadyMsg msg;
+
+                if (not c.joined or not decode(data, msg))
+                    return;
+
+                if (c.ready != msg.ready)
+                {
+                    c.ready = msg.ready;
+                    lobbyDirty = true;
+                }
+                break;
+            }
+
             case Msg::Bye:
             {
                 if (c.joined)
                 {
+                    lobbyDirty = true;
                     log.push_back(c.name + " left");
                     world.removeFighter(c.playerId);
                 }
@@ -248,6 +268,7 @@ namespace arena::net
         }
 
         sendTerrain();
+        stepLobby();
 
         if (++stepsSinceSnapshot >= SNAPSHOT_EVERY)
         {
@@ -255,6 +276,69 @@ namespace arena::net
             sendSnapshots();
             events.clear();
         }
+    }
+
+    LobbyMsg NetServer::lobby() const
+    {
+        LobbyMsg m;
+        m.dedicated = headless;
+
+        if (not headless)
+            if (const Fighter* p = world.player())
+                m.players.push_back({p->id, hostName, true, true, 0});
+
+        std::vector<const Client*> joined;
+        for (const auto& [peer, c] : clients)
+            if (c.joined)
+                joined.push_back(&c);
+        std::sort(joined.begin(), joined.end(), [](const Client* a, const Client* b) { return a->joinOrder < b->joinOrder; });
+
+        for (const Client* c : joined)
+            m.players.push_back({c->playerId, c->name, false, c->ready, c->rttMs});
+
+        return m;
+    }
+
+    void NetServer::stepLobby()
+    {
+        // A run begins: everyone is not ready again, for the next time in the lobby
+        const RunPhase phase = world.run.phase;
+        if (phase != lastPhase)
+        {
+            if (phase == RunPhase::Fighting and (lastPhase == RunPhase::Off or lastPhase == RunPhase::Victory or lastPhase == RunPhase::Defeat))
+            {
+                for (auto& [peer, c] : clients)
+                    c.ready = false;
+                lobbyDirty = true;
+            }
+            lastPhase = phase;
+        }
+
+        // A dedicated server has no host to start the run: it starts when everyone is ready
+        if (headless and phase == RunPhase::Off and clientCount() > 0)
+        {
+            bool all = true;
+            for (const auto& [peer, c] : clients)
+                if (c.joined)
+                    all = all and c.ready;
+
+            if (all)
+            {
+                log.push_back("everyone is ready: the run begins");
+                world.startRun(static_cast<uint32_t>(world.steps) * 2654435761u + 7u);
+            }
+        }
+
+        if (not lobbyDirty and ++stepsSinceLobby < LOBBY_EVERY)
+            return;
+
+        lobbyDirty = false;
+        stepsSinceLobby = 0;
+        const auto bytes = encode(lobby());
+
+        for (const auto& [peer, c] : clients)
+            if (c.joined)
+                transport.send(peer, bytes, true);
     }
 
     void NetServer::sendTerrain()

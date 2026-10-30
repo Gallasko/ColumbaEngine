@@ -32,7 +32,8 @@ namespace arena
         void setOpen(bool open) { this->open = open; }
         bool isOpen() const { return open; }
 
-        void draw(Ui& ui, const GameOptions& options);
+        /** paused: the game waits while it is open (alone); inGame: opened from playing (Esc), its button resumes. */
+        void draw(Ui& ui, const GameOptions& options, bool paused = false, bool inGame = false);
 
         /** A click's action (Ui::hitAt); returns true when an option changed (`closed` on Back). */
         bool act(int action, GameOptions& options, bool& closed);

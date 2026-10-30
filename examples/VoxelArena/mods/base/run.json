@@ -17,6 +17,9 @@
 // Score: each enemy's "score" for the kill (twice for an elite), waveScore times the wave's number
 // for getting through it, victoryScore for the last one.
 // arena: the run's own arena (as arena.json); resetEachWave builds it anew before each wave.
+// duel: in multiplayer, after the last wave, a final duel: the arena anew, everyone back up and in a
+// ring `radius` m from its centre, `countdown` s with no harm done, then everyone for themselves, one life
+// each. The last one standing wins; after `duration` s, the one with the most of their health left.
 {
     "waves": 20,
     "duration": [60, 90],
@@ -31,6 +34,7 @@
     "coopScale": 0.5,
     "pickupRange": 3.5,
     "resetEachWave": true,
+    "duel": { "enabled": true, "duration": 120, "countdown": 3, "radius": 9 },
 
     "pools": [
         { "enemy": "slime",   "from": 1,  "to": 6, "weight": 4 },

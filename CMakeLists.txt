@@ -1742,6 +1742,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Game/options.cpp
             examples/VoxelArena/Game/shop.cpp
             examples/VoxelArena/Net/enginetransport.cpp
+            examples/VoxelArena/Net/portmapper.cpp
             ${VOXELARENA_CORE}
         )
         target_link_libraries(VoxelArena PRIVATE ColumbaEngine)
@@ -1751,7 +1752,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
                                                       ENGINE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
         # The dedicated server: the same simulation, no window
-        add_executable(VoxelArenaServer examples/VoxelArena/server_main.cpp examples/VoxelArena/Net/enginetransport.cpp ${VOXELARENA_CORE})
+        add_executable(VoxelArenaServer examples/VoxelArena/server_main.cpp examples/VoxelArena/Net/enginetransport.cpp examples/VoxelArena/Net/portmapper.cpp ${VOXELARENA_CORE})
         target_include_directories(VoxelArenaServer PUBLIC examples/VoxelArena examples/VoxelArena/Core)
         target_link_libraries(VoxelArenaServer PRIVATE ColumbaEngine)
         target_compile_definitions(VoxelArenaServer PRIVATE VOXELARENA_MODS_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/mods")

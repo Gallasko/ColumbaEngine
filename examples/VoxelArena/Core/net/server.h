@@ -41,6 +41,15 @@ namespace arena::net
         /** How many may join: 7 next to a host's own player, 8 on a dedicated server. */
         int maxClients = 7;
 
+        /** The host's own name, for the lobby (a listen server). */
+        std::string hostName = "host";
+
+        /** Who is in the game, the host first: what the lobby shows (and the clients are sent). */
+        LobbyMsg lobby() const;
+
+        /** The lobby is sent when it changes, and this often for the pings. */
+        static constexpr int LOBBY_EVERY = 120;
+
         /** Input buffered per client beyond the one used each step: more is dropped (lag), none repeats the last. */
         static constexpr size_t MAX_BUFFER = 4;
 
@@ -56,12 +65,15 @@ namespace arena::net
             InputFrame last;
             uint32_t lastClientTimeMs = 0;
             uint16_t rttMs = 0;
+            bool ready = false;      // in the lobby: ready to start the run
+            uint64_t joinOrder = 0;
         };
 
         void onMessage(Client& c, const std::vector<uint8_t>& data);
         InputFrame nextInput(Client& c);
         void sendTerrain();
         void sendSnapshots();
+        void stepLobby();
 
         ArenaWorld& world;
         const Content& content;
@@ -76,5 +88,10 @@ namespace arena::net
         std::vector<WorldEvent> events;   // since the last snapshot
         std::set<int> knownPieces;
         int stepsSinceSnapshot = 0;
+
+        bool lobbyDirty = true;
+        int stepsSinceLobby = 0;
+        uint64_t joins = 0;
+        RunPhase lastPhase = RunPhase::Off;
     };
 }
