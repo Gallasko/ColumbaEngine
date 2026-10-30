@@ -64,6 +64,16 @@ namespace pg
             (void)keep;
             return "";
         }
+
+        /**
+         * The same, of every name the module holds (read, called, declared): for a pass whose
+         * choices for a module depend on more than what it calls
+         */
+        virtual std::string factsAboutIdentifiers(const std::set<std::string>& identifiers) const
+        {
+            (void)identifiers;
+            return "";
+        }
     };
 
     class AstPassManager
@@ -85,7 +95,7 @@ namespace pg
         std::string passNames() const;
 
         /** What every pass learnt about the names a module uses, and those they bring (AstPass::factsAbout) */
-        std::string moduleFacts(std::set<std::string> names, std::vector<std::shared_ptr<const void>>& keep) const;
+        std::string moduleFacts(std::set<std::string> names, const std::set<std::string>& identifiers, std::vector<std::shared_ptr<const void>>& keep) const;
 
     private:
         void debugPrint(const std::string& message) const;

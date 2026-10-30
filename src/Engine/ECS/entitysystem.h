@@ -884,6 +884,9 @@ namespace pg
             vmOptimizationLevel = level;
         }
 
+        // Whether the scripts' compile reads the whole program for what it never changes (RunOncePass)
+        inline void setWholeProgramAnalysis(bool on) { wholeProgramAnalysis = on; }
+
         /**
          * @brief Select the compiler front-end (Pratt or AST) used by every
          * VM this ECS sets up, including ScriptRegistry compilations.
@@ -1083,6 +1086,8 @@ namespace pg
         std::atomic<bool> stopRequested{false};
 
         VmOptimizationLevel vmOptimizationLevel = VmOptimizationLevel::O3;
+
+        bool wholeProgramAnalysis = false;
 
         ScriptFrontEnd vmFrontEnd = ScriptFrontEnd::Ast;
 

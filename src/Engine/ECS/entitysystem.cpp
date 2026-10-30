@@ -1148,7 +1148,7 @@ namespace pg
             vm.addAstPass(std::make_unique<LengthHoistingPass>());
 
             // Last: it marks what the others leave of the top level to be run once a VM
-            vm.addAstPass(std::make_unique<RunOncePass>());
+            vm.addAstPass(std::make_unique<RunOncePass>(wholeProgramAnalysis));
 
             // A report of what other passes could do, changing nothing: PG_AST_SURVEY=<file>
             if (const char* survey = std::getenv("PG_AST_SURVEY"))

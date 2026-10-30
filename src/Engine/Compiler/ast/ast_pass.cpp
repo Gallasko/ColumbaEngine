@@ -60,7 +60,7 @@ namespace pg
         return names;
     }
 
-    std::string AstPassManager::moduleFacts(std::set<std::string> names, std::vector<std::shared_ptr<const void>>& keep) const
+    std::string AstPassManager::moduleFacts(std::set<std::string> names, const std::set<std::string>& identifiers, std::vector<std::shared_ptr<const void>>& keep) const
     {
         // The names brought bring names in turn, until no pass brings more
         size_t before = 0;
@@ -76,7 +76,7 @@ namespace pg
         std::string facts;
 
         for (const auto& pass : passes)
-            facts += pass->getName() + "{" + pass->factsAbout(names, keep) + "}";
+            facts += pass->getName() + "{" + pass->factsAbout(names, keep) + "|" + pass->factsAboutIdentifiers(identifiers) + "}";
 
         return facts;
     }

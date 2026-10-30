@@ -35,6 +35,7 @@ namespace pg
                 std::vector<std::pair<std::string, std::string>> sources;  // Path, source: the module first
                 std::vector<std::string> absent;                           // Imports that are no file: natives
                 std::set<std::string> names;                               // Every name the sources call
+                std::set<std::string> identifiers;                         // Every name they hold
                 std::vector<std::string> natives;                          // The native modules they import
                 bool keepable = true;                                      // False: it read bytecode
 
@@ -43,6 +44,7 @@ namespace pg
                     sources.insert(sources.end(), other.sources.begin(), other.sources.end());
                     absent.insert(absent.end(), other.absent.begin(), other.absent.end());
                     names.insert(other.names.begin(), other.names.end());
+                    identifiers.insert(other.identifiers.begin(), other.identifiers.end());
 
                     for (const auto& native : other.natives)
                         addNative(native);
@@ -86,13 +88,13 @@ namespace pg
                 return setup + "|" + vm->passManager.passNames();
             }
 
-            std::string factsOf(VM* vm, const std::set<std::string>& names, std::vector<std::shared_ptr<const void>>& keep)
+            std::string factsOf(VM* vm, const std::set<std::string>& names, const std::set<std::string>& identifiers, std::vector<std::shared_ptr<const void>>& keep)
             {
                 // No pass runs without optimizations: nothing they learnt reaches the module
                 if (not vm->enableOptimizations or not vm->astPassManager)
                     return "";
 
-                return vm->astPassManager->moduleFacts(names, keep);
+                return vm->astPassManager->moduleFacts(names, identifiers, keep);
             }
 
             bool importsBytecode(const std::string& fullPath)
@@ -189,7 +191,7 @@ namespace pg
 
                 std::vector<std::shared_ptr<const void>> keep;
 
-                if (factsOf(vm, entry->reads.names, keep) != entry->facts)
+                if (factsOf(vm, entry->reads.names, entry->reads.identifiers, keep) != entry->facts)
                     continue;
 
                 Value function = remake(vm, *entry, moduleName);
@@ -227,6 +229,9 @@ namespace pg
 
                 if (token.type == TokenType::PENTER and last)
                     reads.names.insert(last->text);
+
+                if (token.type == TokenType::EXPRESSION)
+                    reads.identifiers.insert(token.text);
 
                 if (token.type != TokenType::EOL)
                 {
@@ -292,7 +297,7 @@ namespace pg
 
             entry->bytes = out.str();
             entry->setup = setupOf(vm);
-            entry->facts = factsOf(vm, reads.names, entry->keep);
+            entry->facts = factsOf(vm, reads.names, reads.identifiers, entry->keep);
             entry->reads = reads;
 
             Value function = remake(vm, *entry, moduleName);

@@ -21,7 +21,7 @@ namespace pg
         namespace
         {
             // The top-level statements of a source after the pass, by what they are
-            std::vector<StatementPtr> runOnce(const std::string& source)
+            std::vector<StatementPtr> runOnce(const std::string& source, bool wholeProgram = false)
             {
                 Lexer lexer;
                 lexer.readFromText(source);
@@ -31,7 +31,7 @@ namespace pg
 
                 EXPECT_FALSE(parser.hasError()) << "test source failed to parse";
 
-                RunOncePass pass;
+                RunOncePass pass(wholeProgram);
                 pass.runPass(nullptr, statements);
 
                 std::vector<StatementPtr> out;
@@ -120,7 +120,19 @@ namespace pg
             };
         }
 
-        TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
+        TEST(RunOncePass, InfersNoConstWhenTheAnalysisIsOff)
+{
+    auto statements = runOnce("var x = 1\nfun f() \n{\n    return x\n}\n");
+    EXPECT_FALSE(variable(statements, "x")->isConst);
+}
+
+TEST(RunOncePass, InfersAConstWhenTheAnalysisIsOn)
+{
+    auto statements = runOnce("var x = 1\nfun f() \n{\n    return x\n}\n", true);
+    EXPECT_TRUE(variable(statements, "x")->isConst);
+}
+
+TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
         {
             auto statements = runOnce(
                 "fun once(x) \n{\n    return x\n}\n"

@@ -217,6 +217,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/ast/pass/length_hoisting.cpp
     src/Engine/Compiler/ast/pass/program_view.cpp
     src/Engine/Compiler/ast/pass/run_once.cpp
+    src/Engine/Compiler/ast/pass/effects.cpp
     src/Engine/Compiler/componentattach.cpp
     src/Engine/Compiler/componentproxy.cpp
     src/Engine/Compiler/ecsserialization.cpp
@@ -311,6 +312,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/ast/pass/length_hoisting.cpp
     src/Engine/Compiler/ast/pass/program_view.cpp
     src/Engine/Compiler/ast/pass/run_once.cpp
+    src/Engine/Compiler/ast/pass/effects.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp

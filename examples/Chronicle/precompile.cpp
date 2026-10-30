@@ -9,18 +9,21 @@
 // Chronicle's rules compiled as the game compiles them, for a build that ships the .pgc instead
 // of the sources (the web build, given this tool's path in CHRONICLE_RULES_COMPILER):
 //
-//   ChronicleRules <rules dir> <out dir>
+//   ChronicleRules <rules dir> <out dir> [--no-analysis]
 //
 // No window and no scene: the EntitySystem is there for its script registry, as in the tests.
 int main(int argc, char* argv[])
 {
-    if (argc != 3)
+    if (argc < 3 or argc > 4 or (argc == 4 and std::string(argv[3]) != "--no-analysis"))
     {
-        std::fprintf(stderr, "usage: ChronicleRules <rules dir> <out dir>\n");
+        std::fprintf(stderr, "usage: ChronicleRules <rules dir> <out dir> [--no-analysis]\n");
         return 2;
     }
 
     pg::EntitySystem ecs;
+
+    // The whole-program analysis is what the shipped rules are compiled with; off only for timing
+    ecs.setWholeProgramAnalysis(argc == 3);
     std::vector<std::string> errors;
 
     if (not chronicle::precompileRules(&ecs, argv[1], argv[2], errors))
