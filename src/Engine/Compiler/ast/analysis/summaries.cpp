@@ -171,6 +171,7 @@ namespace pg
                     std::set<ValueId> collapsedValues;
 
                     std::vector<Pending> pending;
+                    LocSet written;  // every location the body writes, known once effects() has collected them
                     std::vector<Edge> edges;
                     std::set<std::string> reads;
                     std::set<std::string> rebinds;
@@ -454,29 +455,11 @@ namespace pg
                         pending.push_back(std::move(p));
                     }
 
-                    // A path of one slot: no `*`, no parameter key, not deep
-                    bool exactPath(LocId l) const
-                    {
-                        if (locs.deep(l))
-                            return false;
-
-                        for (; locs.depth(l) > 0; l = locs.parent(l))
-                        {
-                            const KeyId k = locs.keyOf(l);
-
-                            if (k == Locations::AnyKey or locs.isParamKey(k))
-                                return false;
-                        }
-
-                        return true;
-                    }
-
-                    // An object stored at a location. A location stored in itself says nothing when it is one
-                    // slot; when it names several, one of its objects has moved to another of its slots
+                    // An object stored at a location. One stored in its own location is kept: a path may name
+                    // several objects (entries, or a slot rewritten), and one of them has moved to another
                     void edge(LocId at, LocId value)
                     {
-                        if (at != value or not exactPath(at))
-                            edges.push_back(Edge{at, value});
+                        edges.push_back(Edge{at, value});
                     }
 
                     // A call not followed: it may write all it is handed, and store any of it in any other;
@@ -584,8 +567,24 @@ namespace pg
 
                         for (size_t i = 0; i < body.stores.size(); ++i)
                         {
-                            const Store& s = body.stores[i];
+                            for (auto l : pts[body.stores[i].base])
+                                write(childOf(l, body.stores[i].key), Pending::From::Store, i);
+                        }
 
+                        if (body.unknown)
+                        {
+                            unknown = true;
+                            write(locs.unknown(), Pending::From::Never);
+                        }
+
+                        // Every write of the body is known: what depends on them may be decided
+                        for (const auto& p : pending)
+                            written.push_back(p.at);
+
+                        sortUnique(written);
+
+                        for (const auto& s : body.stores)
+                        {
                             // The field's own old value written back makes no new alias
                             LocSet stored;
 
@@ -597,7 +596,6 @@ namespace pg
                             for (auto l : pts[s.base])
                             {
                                 const LocId at = childOf(l, s.key);
-                                write(at, Pending::From::Store, i);
 
                                 for (auto value : stored)
                                     edge(at, value);
@@ -616,12 +614,6 @@ namespace pg
                         {
                             for (auto l : pts[value])
                                 edge(locs.global(name), l);
-                        }
-
-                        if (body.unknown)
-                        {
-                            unknown = true;
-                            write(locs.unknown(), Pending::From::Never);
                         }
                     }
 
@@ -650,8 +642,25 @@ namespace pg
                         return true;
                     }
 
-                    // Two values that are the one object: the same value, or the same field of the one object
-                    // (a field of a key not known only when both are read with the same index value)
+                    // A write of the slot a field reads, or above it: the field may read another object after it.
+                    // A write below the slot leaves the object in place
+                    bool slotRewritten(ValueId field) const
+                    {
+                        for (auto l : pts[field])
+                        {
+                            for (auto w : written)
+                            {
+                                if (locs.depth(w) <= locs.depth(l) and locs.overlaps(w, l))
+                                    return true;
+                            }
+                        }
+
+                        return false;
+                    }
+
+                    // Two values that are the one object: the same value, or the same field of the one object,
+                    // a slot this body does not rewrite (a field of a key not known only when both are read with
+                    // the same index value)
                     bool sameObject(ValueId a, ValueId b) const
                     {
                         if (a == b)
@@ -671,7 +680,7 @@ namespace pg
                                 return false;
                         }
 
-                        return sameObject(na.in[0], nb.in[0]);
+                        return not slotRewritten(a) and not slotRewritten(b) and sameObject(na.in[0], nb.in[0]);
                     }
 
                     // A store's value that is the field it writes, read before: `t.f = lookup(t, "f", 1)`
@@ -739,7 +748,7 @@ namespace pg
                         return not isUnknown(at) and locs.depth(at) > 0 and not locs.deep(at) and locs.keyOf(at) != Locations::AnyKey;
                     }
 
-                    bool writtenHere(const LocSet& at, const LocSet& written) const
+                    bool writtenHere(const LocSet& at) const
                     {
                         for (auto l : at)
                         {
@@ -755,11 +764,11 @@ namespace pg
 
                     // Made only of what is the same on every run (the arguments and globals it needs noted);
                     // `state`: 1 while looked at (a cycle is not shown invariant), 2 invariant, 3 not
-                    bool invariantMade(ValueId v, Idempotence& out, const LocSet& written, std::map<ValueId, int>& state) const
+                    bool invariantMade(ValueId v, Idempotence& out, std::map<ValueId, int>& state) const
                     {
                         for (auto leaf : body.leaves(v))
                         {
-                            if (not invariantLeaf(leaf, out, written, state))
+                            if (not invariantLeaf(leaf, out, state))
                                 return false;
                         }
 
@@ -776,7 +785,7 @@ namespace pg
 
                     // The base of a field read: only its reference must be the same on every run, the field
                     // read itself is what must not be written
-                    bool invariantBase(ValueId base, Idempotence& out, const LocSet& written, std::map<ValueId, int>& state) const
+                    bool invariantBase(ValueId base, Idempotence& out, std::map<ValueId, int>& state) const
                     {
                         for (auto leaf : body.leaves(base))
                         {
@@ -784,14 +793,14 @@ namespace pg
 
                             if (n.op == Op::Param or n.op == Op::Global)
                                 noteNeed(n, out);
-                            else if (not invariantLeaf(leaf, out, written, state))
+                            else if (not invariantLeaf(leaf, out, state))
                                 return false;
                         }
 
                         return true;
                     }
 
-                    bool invariantLeaf(ValueId v, Idempotence& out, const LocSet& written, std::map<ValueId, int>& state) const
+                    bool invariantLeaf(ValueId v, Idempotence& out, std::map<ValueId, int>& state) const
                     {
                         auto it = state.find(v);
 
@@ -811,7 +820,7 @@ namespace pg
                             case Op::Param:
                             case Op::Global:
                                 noteNeed(n, out);
-                                fine = not writtenHere(pts[v], written);
+                                fine = not writtenHere(pts[v]);
                                 break;
 
                             // A native making a table makes a new one each run, as a literal does
@@ -821,13 +830,13 @@ namespace pg
                                 fine = n.op == Op::Pure or (nativeKind(n.name) == NativeKind::Fresh and not makesTable(n.name));
 
                                 for (auto in : n.in)
-                                    fine = fine and invariantMade(in, out, written, state);
+                                    fine = fine and invariantMade(in, out, state);
 
                                 break;
                             }
 
                             case Op::Field:
-                                fine = not n.in.empty() and invariantBase(n.in[0], out, written, state) and not writtenHere(pts[v], written);
+                                fine = not n.in.empty() and invariantBase(n.in[0], out, state) and not writtenHere(pts[v]);
                                 break;
 
                             default:
@@ -838,7 +847,7 @@ namespace pg
                         return fine;
                     }
 
-                    Idempotence decide(const Pending& p, const LocSet& written) const
+                    Idempotence decide(const Pending& p) const
                     {
                         Idempotence out;
 
@@ -854,7 +863,7 @@ namespace pg
 
                             for (auto leaf : newLeaves(s))
                             {
-                                if (not invariantLeaf(leaf, out, written, state))
+                                if (not invariantLeaf(leaf, out, state))
                                 {
                                     out.shape = false;
                                     break;
@@ -870,14 +879,14 @@ namespace pg
                         out.needsGlobals = p.callee.needsGlobals;
 
                         for (const auto& name : p.callee.needsGlobals)
-                            out.shape = out.shape and not writtenHere({locs.global(name)}, written);
+                            out.shape = out.shape and not writtenHere({locs.global(name)});
 
                         for (auto param : p.callee.needsParams)
                         {
                             if (not out.shape)
                                 break;
 
-                            if (param < call.in.size() and not invariantMade(call.in[param], out, written, state))
+                            if (param < call.in.size() and not invariantMade(call.in[param], out, state))
                                 out.shape = false;
                         }
 
@@ -886,18 +895,11 @@ namespace pg
 
                     void decideWrites(Summary& out) const
                     {
-                        LocSet written;
-
-                        for (const auto& p : pending)
-                            written.push_back(p.at);
-
-                        sortUnique(written);
-
                         std::map<LocId, Idempotence> writes;
 
                         for (const auto& p : pending)
                         {
-                            const Idempotence decided = decide(p, written);
+                            const Idempotence decided = decide(p);
                             auto it = writes.find(p.at);
 
                             if (it == writes.end())

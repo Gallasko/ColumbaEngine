@@ -805,10 +805,30 @@ namespace pg
             auto s = summed("fun shift(l)\n{\n    for (var i = 0; i < len(l); i++)\n    {\n        l[i].v = l[i + 1].v\n    }\n}\n");
             EXPECT_TRUE(s->hasEdge("shift", "#0.*.v", "#0.*.v"));
 
-            // One slot stored in itself says nothing
+            // An exact path too: the value carried round the loop is not the slot's own
             auto e = summed("fun same(t)\n{\n    var prev = 0\n\n    for (var i = 0; i < 2; i++)\n    {\n"
                             "        var o = t.a\n        t.a = prev\n        prev = o\n    }\n}\n");
-            EXPECT_FALSE(e->hasEdge("same", "#0.a", "#0.a"));
+            EXPECT_TRUE(e->hasEdge("same", "#0.a", "#0.a"));
+        }
+
+        TEST(EffectSummaries, ASlotRewrittenBetweenTwoReadsIsAnEdgeOfItself)
+        {
+            // `a` is the old object of t.b, `c` is u: one path, two objects
+            auto s = summed("fun f(t, u)\n{\n    var a = t.b\n    t.b = u\n    var c = t.b\n    c.x = a.x\n}\n");
+            EXPECT_TRUE(s->hasEdge("f", "#0.b.x", "#0.b.x"));
+            EXPECT_TRUE(s->hasEdge("f", "#0.b", "#1"));
+
+            // Rewritten by a callee
+            auto called = summed("fun reset(t, u)\n{\n    t.b = u\n}\n\n"
+                                 "fun f(t, u)\n{\n    var a = t.b\n    reset(t, u)\n    var c = t.b\n    c.x = a.x\n}\n");
+            EXPECT_TRUE(called->hasEdge("f", "#0.b.x", "#0.b.x"));
+
+            // The slot not rewritten: the same object, its own value written back
+            auto own = summed("fun g(t)\n{\n    t.b.x = t.b.x\n}\n");
+            EXPECT_TRUE(own->of("g").edges.empty());
+            const Write* w = own->write("g", "#0.b.x");
+            ASSERT_NE(w, nullptr);
+            EXPECT_TRUE(w->idempotence.shape);
         }
 
         TEST(EffectSummaries, ALiteralKeepsTheNeedsOfWhatFillsIt)
