@@ -137,6 +137,8 @@ namespace pg
                         case Op::Param: out.push_back("param"); break;
                         case Op::Literal: out.push_back("literal"); break;
                         case Op::Call: out.push_back("call " + n.name); break;
+                        case Op::Unknown: out.push_back("unknown"); break;
+                        case Op::Global: out.push_back("global " + n.name); break;
                         default: out.push_back("other"); break;
                     }
                 }
@@ -310,6 +312,104 @@ namespace pg
             ASSERT_EQ(ir.returns.size(), 1u);
             EXPECT_EQ(ir.nodes[ir.returns[0]].op, Op::Call);
             EXPECT_EQ(ir.nodes[ir.returns[0]].name, "");
+        }
+            TEST(EffectSsa, ThisIsUnknown)
+        {
+            Locations locs;
+            auto ir = firstFunction("fun s()\n{\n    var a = this\n    return a\n}\n", locs);
+            EXPECT_TRUE(ir.unknown);
+            ASSERT_EQ(ir.returns.size(), 1u);
+            EXPECT_EQ(ir.nodes[ir.returns[0]].op, Op::Unknown);
+        }
+
+        TEST(EffectSsa, TheDefaultOfALookupRunsBeforeItsField)
+        {
+            // touch(t) runs before the field is read and may set t.x: the field is not the 1 of the literal
+            Locations locs;
+            auto ir = firstFunction("fun f()\n{\n    var t = {x: 1}\n    var v = lookup(t, \"x\", touch(t))\n    return v\n}\n", locs);
+            ASSERT_EQ(ir.returns.size(), 1u);
+            EXPECT_EQ(leafTexts(ir, ir.returns[0]), (std::vector<std::string>{"call touch", "field"}));
+        }
+
+        TEST(EffectSsa, ANameBoundOnOneSideIsUnknownOnTheOther)
+        {
+            // `if (c) var x = 1` without a block: the parser takes no var there, so it is grafted
+            auto statements = parsed("fun g(c)\n{\n    if (c)\n    {\n        c = 1\n    }\n    return x\n}\n");
+            auto bare = parsed("var x = 1\n");
+            ASSERT_EQ(statements.size(), 1u);
+            ASSERT_EQ(bare.size(), 1u);
+
+            auto f = std::static_pointer_cast<FunctionStatement>(statements[0]);
+            auto body = std::static_pointer_cast<BlockStatement>(f->body);
+            ASSERT_EQ(body->statements.front()->kind(), AstKind::IfStatement);
+            std::static_pointer_cast<IfStatement>(body->statements.front())->thenBranch = bare[0];
+
+            Locations locs;
+            auto ir = buildFunction(*f, locs, [](const std::string&) { return true; });
+            ASSERT_EQ(ir.returns.size(), 1u);
+            EXPECT_EQ(leafTexts(ir, ir.returns[0]), (std::vector<std::string>{"const 1", "unknown"}));
+        }
+
+        TEST(EffectSsa, AnAssignmentInsideAndReachesTheJoin)
+        {
+            Locations locs;
+            auto ir = firstFunction("fun a(c)\n{\n    var z = 0\n    var w = c or (z = 5)\n    return z\n}\n", locs);
+            ASSERT_EQ(ir.returns.size(), 1u);
+            EXPECT_EQ(leafTexts(ir, ir.returns[0]), (std::vector<std::string>{"const 0", "const 5"}));
+        }
+
+        TEST(EffectSsa, AnInnerLoopsBreakFeedsTheOuterHeader)
+        {
+            Locations locs;
+            auto ir = firstFunction(
+                "fun n(a)\n{\n    var y = 0\n    var i = 0\n    while (i < a)\n    {\n        while (true)\n        {\n            y = 3\n            break\n        }\n"
+                "        i = i + 1\n    }\n    return y\n}\n", locs);
+            ASSERT_EQ(ir.returns.size(), 1u);
+
+            // y after the outer loop is its header phi: what it was before, and what the inner break left
+            const Node& header = ir.nodes[ir.returns[0]];
+            EXPECT_EQ(header.op, Op::Phi);
+            EXPECT_EQ(header.in.size(), 2u);
+            EXPECT_EQ(leafTexts(ir, ir.returns[0]), (std::vector<std::string>{"const 0", "const 3"}));
+        }
+
+        TEST(EffectSsa, InsertAndMergeStore)
+        {
+            Locations locs;
+            auto ir = firstFunction("fun i(l, v)\n{\n    insert(l, 0, v)\n    merge(l, v)\n}\n", locs);
+            ASSERT_EQ(ir.stores.size(), 2u);
+            EXPECT_EQ(ir.stores[0].base, 0u);
+            EXPECT_EQ(ir.stores[0].key, Locations::AnyKey);
+            EXPECT_EQ(ir.stores[0].value, 1u);
+
+            // merge puts what its second holds in its first
+            EXPECT_EQ(ir.stores[1].base, 0u);
+            EXPECT_EQ(ir.stores[1].key, Locations::AnyKey);
+            const Node& held = ir.nodes[ir.stores[1].value];
+            EXPECT_EQ(held.op, Op::Field);
+            EXPECT_EQ(held.key, Locations::AnyKey);
+            EXPECT_EQ(held.in, (std::vector<ValueId>{1}));
+        }
+
+        TEST(EffectSsa, AChainedSetWritesTheFieldRead)
+        {
+            Locations locs;
+            auto ir = firstFunction("fun s(a, v)\n{\n    a.b.c = v\n    a.b.c.d = v\n}\n", locs);
+            ASSERT_EQ(ir.stores.size(), 2u);
+
+            const Node& ab = ir.nodes[ir.stores[0].base];
+            EXPECT_EQ(ab.op, Op::Field);
+            EXPECT_EQ(ab.key, locs.key("b"));
+            EXPECT_EQ(ab.in, (std::vector<ValueId>{0}));
+            EXPECT_EQ(ir.stores[0].key, locs.key("c"));
+
+            // a.b.c: a field of a field
+            const Node& abc = ir.nodes[ir.stores[1].base];
+            EXPECT_EQ(abc.op, Op::Field);
+            EXPECT_EQ(abc.key, locs.key("c"));
+            ASSERT_EQ(abc.in.size(), 1u);
+            EXPECT_EQ(ir.nodes[abc.in[0]].op, Op::Field);
+            EXPECT_EQ(ir.stores[1].key, locs.key("d"));
         }
     }
 }

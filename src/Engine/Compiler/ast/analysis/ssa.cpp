@@ -588,24 +588,40 @@ namespace pg
                         Env out = *live[0];
                         out.scopes.resize(std::min(depth, out.scopes.size()));
 
+                        // Every name bound in any env: one that lacks it gives an unknown value
                         for (size_t s = 0; s < out.scopes.size(); ++s)
                         {
-                            for (auto& [name, v] : out.scopes[s])
+                            std::set<std::string> names;
+
+                            for (const auto* e : live)
+                            {
+                                if (s < e->scopes.size())
+                                {
+                                    for (const auto& bound : e->scopes[s])
+                                        names.insert(bound.first);
+                                }
+                            }
+
+                            for (const auto& name : names)
                             {
                                 std::vector<ValueId> values;
 
                                 for (const auto* e : live)
                                 {
-                                    if (s >= e->scopes.size())
-                                        continue;
+                                    const ValueId* bound = nullptr;
 
-                                    auto it = e->scopes[s].find(name);
+                                    if (s < e->scopes.size())
+                                    {
+                                        auto it = e->scopes[s].find(name);
 
-                                    if (it != e->scopes[s].end())
-                                        values.push_back(it->second);
+                                        if (it != e->scopes[s].end())
+                                            bound = &it->second;
+                                    }
+
+                                    values.push_back(bound ? *bound : make(Op::Unknown, {}, nullptr));
                                 }
 
-                                v = phi(values, nullptr);
+                                out.scopes[s][name] = phi(values, nullptr);
                             }
                         }
 
@@ -863,12 +879,20 @@ namespace pg
                             // lookup(t, k, d): the field, or the default
                             const ValueId table = args.size() > 0 ? expr(args[0]) : constant("none", nullptr);
                             const KeyId key = args.size() > 1 ? keyOf(expr(args[1])) : Locations::AnyKey;
-                            const ValueId field = readField(table, key, c.get());
+
+                            // The default runs before the field is read: a field followed is read after it
+                            // (it may write the table or end its following); a field not followed cannot
+                            // become so, its node is made first
+                            const bool after = isNameKey(key) and followed(table);
+                            ValueId field = after ? 0 : readField(table, key, c.get());
 
                             std::vector<ValueId> rest;
 
                             for (size_t i = 2; i < args.size(); ++i)
                                 rest.push_back(expr(args[i]));
+
+                            if (after)
+                                field = readField(table, key, c.get());
 
                             return rest.empty() ? field : phi({field, rest[0]}, c.get());
                         }
@@ -893,6 +917,8 @@ namespace pg
                             writeField(in[0], Locations::AnyKey, in[1]);
                         else if (kind == NativeKind::Insert and in.size() > 2)
                             writeField(in[0], Locations::AnyKey, in[2]);
+                        else if (kind == NativeKind::Merge and in.size() > 1)
+                            writeField(in[0], Locations::AnyKey, readField(in[1], Locations::AnyKey, c.get()));  // what the second holds, put in the first
 
                         return made;
                     }
