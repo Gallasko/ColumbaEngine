@@ -831,6 +831,20 @@ namespace pg
             EXPECT_TRUE(w->idempotence.shape);
         }
 
+        TEST(EffectSummaries, AStoreOfAKeyNotKnownIsNeverTheOwnValue)
+        {
+            auto whole = summed("fun wholeShift(l)\n{\n    for (var i = 0; i < len(l); i++)\n    {\n        l[i] = l[i + 1]\n    }\n}\n");
+            EXPECT_TRUE(whole->hasEdge("wholeShift", "#0.*", "#0.*"));
+
+            auto gap = summed("fun gapShift(l, n)\n{\n    l[n + 1] = l[n + 2]\n}\n");
+            EXPECT_TRUE(gap->hasEdge("gapShift", "#0.*", "#0.*"));
+
+            // The entry is made before the loop's phis, so no phi of the loop has an operand above it
+            auto carry = summed("fun forInCarry(l)\n{\n    var i = 0\n    var prev = 0\n\n    for (var e : l)\n    {\n"
+                                "        l[i + 1] = prev\n        prev = e\n        i = i + 1\n    }\n}\n");
+            EXPECT_TRUE(carry->hasEdge("forInCarry", "#0.*", "#0.*"));
+        }
+
         TEST(EffectSummaries, ALiteralKeepsTheNeedsOfWhatFillsIt)
         {
             Locations locs;

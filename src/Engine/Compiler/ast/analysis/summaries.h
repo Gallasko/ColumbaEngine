@@ -36,9 +36,14 @@ namespace pg
         {
             constexpr size_t MaxLocsPerValue = 256;
 
-            // Of the values stored only: what guards a store is not looked at. `if (t.on) { t.on = false }
-            // else { t.on = true }` stores constants and reads as idempotent, and it is not. So this says
-            // nothing alone: nothing may be decided on it until control dependence is checked as well
+            // Of the values stored only, so it says nothing alone: nothing may be decided on it until both of
+            // these are checked as well.
+            // - What guards a store is not looked at: `if (t.on) { t.on = false } else { t.on = true }` stores
+            //   constants and reads as idempotent, and it is not.
+            // - Whether a store's key or index is invariant is not looked at. In `var i = t.n; t.y = l[i];
+            //   t.n = i + 1` the write of `t.y` reads as idempotent, though each run reads the next entry. In
+            //   `markAt(t.list, t.n); t.n = t.n + 1` with `fun markAt(l, i) { l[i].done = true }`, the write of
+            //   `done` reads as idempotent, though each run marks the next entry
             struct Idempotence
             {
                 bool shape = false;                  // every stored value is the field's own old value or invariant-made

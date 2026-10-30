@@ -683,14 +683,18 @@ namespace pg
                         return not slotRewritten(a) and not slotRewritten(b) and sameObject(na.in[0], nb.in[0]);
                     }
 
-                    // A store's value that is the field it writes, read before: `t.f = lookup(t, "f", 1)`
+                    // A store's value that is the field it writes, read before: `t.f = lookup(t, "f", 1)`. A store
+                    // of a key not known writes some entry: nothing shows it is the entry read
                     bool ownOldValue(ValueId leaf, const Store& s) const
                     {
                         const Node& n = body.nodes[leaf];
-                        return n.op == Op::Field and n.key == s.key and not n.in.empty() and sameObject(n.in[0], s.base);
+                        return s.key != Locations::AnyKey and n.op == Op::Field and n.key == s.key and not n.in.empty() and
+                               sameObject(n.in[0], s.base);
                     }
 
-                    // A loop's header phi: fed by the end of the loop's body, which comes after it
+                    // A loop's header phi fed by a value made inside the loop, which comes after the phi. One fed
+                    // only by what was made before it is not seen: a for-in's entry, made once before the phis and
+                    // standing for every turn. That entry's key is `*`, so ownOldValue refuses it by its key
                     bool loopPhi(ValueId v) const
                     {
                         const Node& n = body.nodes[v];
