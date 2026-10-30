@@ -30,6 +30,8 @@
 
 #include "gpumesh.h"
 #include "hud.h"
+#include "screens.h"
+#include "ui.h"
 #include "particles.h"
 #include "soundbank.h"
 
@@ -154,7 +156,6 @@ namespace arena
 
         /** The block the camera points at, within reach of the player's abilities. */
         bool aimed(RayHit& hit) const;
-        std::string abilityLine() const;
         std::string keyName(const std::string& action) const;   // the first key bound to an action, for the HUD
         bool meshDirty = true;
         int meshedArenaBuilds = -1;   // the world's arena builds already meshed (a new grid starts its revisions over)
@@ -203,6 +204,7 @@ namespace arena
 
         // Debug
         bool showOverlay = false;   // F1
+        std::string overlayText;    // its text this frame
         bool showBoxes = false;
         bool consoleOpen = false;
         std::string consoleLine;
@@ -231,7 +233,21 @@ namespace arena
         int enemyKills = 0;
         std::chrono::steady_clock::time_point lastReload;
 
+        // The 2D layer: drawn anew each frame (see drawUi), clicked through its last frame's regions
+        Ui ui;
         Hud hud;
+        std::vector<glm::vec2> uiClicks;     // clicks on a screen (input thread -> game)
+        float mouseX = -1.0f, mouseY = -1.0f;
+        float uiTime = 0.0f;
+        bool endOpen = false;               // the end of a run is up
+        bool uiTakesClicks() const;         // a screen is up that the mouse clicks on
+        void handleUiClicks();
+        void drawUi(float frameSeconds);
+        void fillHud(Hud::View& v);
+        void playerHud(Hud::View& v, const Fighter& p);
+        void enemyHud(Hud::View& v);
+        std::string statusName(const std::string& id) const;
+        std::vector<Hud::Status> statusesOf(const Fighter& f) const;
 
         // Networking (see ArenaOptions::mode)
         std::unique_ptr<net::EngineTransport> transport;
@@ -270,7 +286,6 @@ namespace arena
         SpellbookData book;
         Spellbook spellbook;
         bool bookOpen = false;
-        std::vector<glm::vec2> bookClicks;   // clicks while it is open (input thread -> game)
         void setBookOpen(bool open);
         void applySpells();                  // the book's spells onto the player (or to the server)
         void bookChanged(bool spellsChanged);
@@ -279,14 +294,12 @@ namespace arena
         GameOptions prefs;
         OptionsScreen optionsScreen;
         bool optionsOpen = false;
-        std::vector<glm::vec2> optionsClicks;
         void setOptionsOpen(bool open);
         void applyOptions();
 
         // The shop between a run's waves: open while the run is in it
         ShopScreen shopScreen;
         bool shopOpen = false;
-        std::vector<glm::vec2> shopClicks;
         void updateShop();
 
         // The arena run: the title screen, a pick waiting for the next step, the best score
@@ -295,7 +308,7 @@ namespace arena
         RunPhase lastPhase = RunPhase::Off;
         int bestScore = 0;
         void startArena();
-        void runHud();
+        void runHud(Hud::View& v);
         struct SpawnMark
         {
             glm::vec3 position;
@@ -304,7 +317,16 @@ namespace arena
             bool elite = false;
         };
         std::vector<SpawnMark> spawnMarks;
-        std::string runCenter;   // the run's word in the middle of the screen ("Wave 3")
+        // Enemies just come in: pointed at from the screen's edge for a moment while out of view
+        struct SpawnPing
+        {
+            int fighter = 0;
+            float left = 0.0f;
+        };
+        std::vector<SpawnPing> spawnPings;
+        int headlineWave = 0;     // the wave whose name was put up, and when (simTime)
+        float waveStartedAt = 0.0f;
+        void edgeArrows(Hud::View& v, const glm::mat4& proj, const glm::mat4& view);
 
         // Limbs: a walk cycle per fighter
         struct Gait

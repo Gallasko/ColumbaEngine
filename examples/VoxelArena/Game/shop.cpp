@@ -8,55 +8,35 @@
 
 namespace arena
 {
+    using namespace ui;
+
     namespace
     {
-        const glm::vec4 PANEL(14, 16, 26, 238);
-        const glm::vec4 CARD(30, 34, 48, 245);
-        const glm::vec4 CARD_LOCKED(52, 46, 26, 245);
-        const glm::vec4 CARD_BOUGHT(22, 24, 30, 230);
-        const glm::vec4 BUTTON(42, 48, 66, 240);
-        const glm::vec4 SELECTED(92, 112, 168, 250);
-        const glm::vec4 DISABLED(26, 28, 36, 210);
-        const glm::vec4 READY(60, 120, 80, 250);
-        const glm::vec4 TEXT(236, 238, 242, 255);
+        const Colour BOSS_TAG = hex(0x2E1636);
+        const Colour LEVEL_STRIP = hex(0x2A2414);
+        const Colour LEVEL_PICK = hex(0x3A321C);
+        const Colour BOUGHT_FILL = hex(0x16261C);
+        const Colour WAITING = hex(0x3A3E4A);
 
-        constexpr int CARDS = 4, LEVELS = 4;
-        constexpr float CARD_W = 226.0f, CARD_H = 210.0f, GAP = 12.0f;
-        constexpr float PANEL_Z = 6.0f, CARD_Z = 7.0f, BUTTON_Z = 8.0f, LABEL_Z = 9.0f;
-
-        const char* const GOLD = "\\c{255,214,120,255}";
-        const char* const SHARD = "\\c{190,160,255,255}";
-        const char* const GREY = "\\c{150,154,166,255}";
-        const char* const WHITE_TEXT = "\\c{236,238,242,255}";
-
-        /** Words onto lines of at most `width` letters. */
-        std::string wrap(const std::string& text, size_t width)
-        {
-            std::istringstream words(text);
-            std::string word, line, out;
-
-            while (words >> word)
-            {
-                if (not line.empty() and line.size() + 1 + word.size() > width)
-                {
-                    out += line + "\n";
-                    line.clear();
-                }
-                line += (line.empty() ? "" : " ") + word;
-            }
-
-            return out + line;
-        }
+        constexpr int CARDS = 4;
+        constexpr float CARD_X[CARDS] = {66, 287, 508, 729};
+        constexpr float CARD_Y = 186, CARD_W = 209, CARD_H = 416;
 
         std::string percent(float v) { return std::to_string(static_cast<int>(std::lround(v * 100.0f))) + "%"; }
 
-        std::string kindColour(const std::string& kind)
+        std::string oneDecimal(float v)
         {
-            if (kind == "Stat") return "\\c{150,200,255,255}";
-            if (kind == "Weapon") return "\\c{255,190,120,255}";
-            if (kind == "Skill") return "\\c{140,230,170,255}";
-            if (kind == "Element") return "\\c{255,150,150,255}";
-            return "\\c{210,170,255,255}";   // spell keywords
+            std::ostringstream o;
+            o.setf(std::ios::fixed);
+            o.precision(1);
+            o << v;
+            return o.str();
+        }
+
+        std::string localName(const std::string& id)
+        {
+            const size_t colon = id.find(':');
+            return colon == std::string::npos ? id : id.substr(colon + 1);
         }
     }
 
@@ -94,235 +74,328 @@ namespace arena
         return {"", id, ""};
     }
 
-    void ShopScreen::init(Hud* h)
+    std::string offerIcon(const Content& content, const std::string& id)
     {
-        hud = h;
-        pw = 4.0f * CARD_W + 3.0f * GAP + 48.0f;
-        ph = 600.0f;
-        px = std::floor((hud->width() - pw) * 0.5f);
-        py = std::floor((hud->height() - ph) * 0.5f);
+        if (id.rfind("element:", 0) == 0)
+            return id.substr(8);
 
-        panel = hud->makeQuad(px, py, PANEL_Z, pw, ph, PANEL);
-        title = hud->makeText(px + 24, py + 14, LABEL_Z, Hud::FONT, "", 1.25f, TEXT);
-        info = hud->makeText(px + 24, py + 54, LABEL_Z, Hud::FONT, "", 1.0f, TEXT);
-        levelTitle = hud->makeText(px + 24, py + 334, LABEL_Z, Hud::FONT, "", 1.0f, TEXT);
-        build = hud->makeText(px + 24, py + 462, LABEL_Z, Hud::MONO, "", 0.8f, glm::vec4(200, 204, 214, 255));
-        hint = hud->makeText(px + 260, py + ph - 42, LABEL_Z, Hud::MONO, "1-4 buy    R reroll    Enter ready    click Lock to keep an offer", 0.8f, glm::vec4(150, 154, 166, 255));
+        const std::string name = localName(id);
 
-        auto makeButton = [&](Button& b) {
-            b.back = hud->makeQuad(0, 0, BUTTON_Z, 10, 10, BUTTON);
-            b.label = hud->makeText(0, 0, LABEL_Z, Hud::FONT, "", 0.85f, TEXT);
-            hud->show(b.back, false);
-            hud->show(b.label, false);
-        };
-
-        // Made now, every one (an entity made while the screen is drawn has no components that frame)
-        cards.resize(CARDS);
-        for (int i = 0; i < CARDS; ++i)
+        if (content.upgrades.count(id))
         {
-            Card& c = cards[static_cast<size_t>(i)];
-            const float x = px + 24.0f + static_cast<float>(i) * (CARD_W + GAP), y = py + 92.0f;
-            c.back = hud->makeQuad(x, y, CARD_Z, CARD_W, CARD_H, CARD);
-            c.kind = hud->makeText(x + 12, y + 8, LABEL_Z, Hud::MONO, "", 0.8f, TEXT);
-            c.name = hud->makeText(x + 12, y + 30, LABEL_Z, Hud::FONT, "", 1.05f, TEXT);
-            c.text = hud->makeText(x + 12, y + 64, LABEL_Z, Hud::FONT, "", 0.8f, glm::vec4(200, 204, 214, 255));
-            makeButton(c.buy);
-            makeButton(c.lock);
+            static const std::map<std::string, std::string> stats = {
+                {"tough", "heart"}, {"keen", "keen"}, {"nimble", "dash"}, {"focus", "eye"}, {"wellspring", "drop"},
+                {"second_wind", "wind"}, {"swift", "dash"}, {"quick", "clock"}, {"leech", "drop"}, {"potent", "stacks"},
+                {"plated", "shield"}, {"precise", "target"}, {"magnet", "magnet"}, {"mending", "plus"},
+            };
+            auto it = stats.find(name);
+            return it != stats.end() ? it->second : "star";
         }
 
-        level.resize(LEVELS);
-        for (auto& b : level)
-            makeButton(b);
-        makeButton(reroll);
-        makeButton(ready);
-
-        setOpen(false);
-    }
-
-    void ShopScreen::setButton(Button& b, float x, float y, float w, float h, const std::string& label, int pick, bool enabled, bool selected)
-    {
-        b.x = x;
-        b.y = y;
-        b.w = w;
-        b.h = h;
-        b.pick = enabled ? pick : 0;
-        b.shown = true;
-        hud->place(b.back, x, y, w, h, true);
-        hud->color(b.back, selected ? SELECTED : (enabled ? BUTTON : DISABLED));
-        hud->place(b.label, x + 10.0f, y + h * 0.5f - 11.0f, w, h, true);
-        hud->text(b.label, (enabled ? "" : std::string("\\c{110,114,124,255}")) + label);
-    }
-
-    void ShopScreen::hideButton(Button& b)
-    {
-        b.shown = false;
-        b.pick = 0;
-        hud->show(b.back, false);
-        hud->show(b.label, false);
-    }
-
-    void ShopScreen::setOpen(bool o)
-    {
-        open = o;
-        lastKey.clear();
-
-        for (auto id : {panel, title, info, levelTitle, build, hint})
-            hud->show(id, open);
-
-        for (auto& c : cards)
+        if (auto w = content.weapons.find(id); w != content.weapons.end())
         {
-            for (auto id : {c.back, c.kind, c.name, c.text})
-                hud->show(id, open);
-            hideButton(c.buy);
-            hideButton(c.lock);
+            const std::string& type = w->second.type;
+            if (type == "dagger" or type == "spear" or type == "sword")
+                return type;
+            return "sword";
         }
 
-        for (auto& b : level)
-            hideButton(b);
-        hideButton(reroll);
-        hideButton(ready);
+        if (content.abilities.count(id))
+        {
+            if (name == "whirlwind") return "whirlwind";
+            if (name == "leap_slam" or name == "backflip") return "leap";
+            if (name == "shadow_dash") return "dash";
+            if (name == "raise_wall") return "wall";
+            if (name == "dig_pit") return "pit";
+            if (name == "mine") return "mine";
+            return "star";
+        }
+
+        if (content.keywords.count(id))
+            return ui::icon(name).empty() ? "star" : name;
+
+        return "star";
     }
 
-    void ShopScreen::refresh(const Content& content, const ArenaWorld& world, const Fighter& me)
+    void ShopScreen::draw(Ui& ui, const Content& content, const ArenaWorld& world, const Fighter& me)
     {
-        if (not open)
-            return;
-
-        // Only when something changed: laying out text each frame costs
-        std::ostringstream key;
-        key << world.run.wave << "|" << me.shards << "|" << me.xp << "|" << me.level << "|" << me.levelUps << "|" << me.ready << "|" << me.rerolls << "|" << me.boons.size() << "|" << me.owned.size();
-        for (const auto& o : me.shop)
-            key << "|" << o.id << o.price << o.locked << o.bought;
-        for (const auto& l : me.levelOffer)
-            key << "|" << l;
-        int waiting = 0;
-        for (const auto& f : world.fighters)
-            waiting += f.team == Team::Player and not f.ready ? 1 : 0;
-        key << "|" << waiting;
-
-        if (key.str() == lastKey)
-            return;
-        lastKey = key.str();
-
         const RunState& r = world.run;
-        hud->text(title, "Wave " + std::to_string(r.wave) + " of " + std::to_string(r.waves) + " survived" +
-                         (content.run.bosses.count(r.wave + 1) ? std::string("     ") + "\\c{230,120,255,255}next: a boss" : std::string()));
-        hud->text(info, std::string(SHARD) + std::to_string(me.shards) + " shards" + WHITE_TEXT + "      Level " + std::to_string(me.level) + GREY + "   (" +
-                        std::to_string(me.xp) + " / " + std::to_string(world.xpFor(me.level)) + " to the next)" + WHITE_TEXT + "      Score " + std::to_string(r.score));
+
+        ui.section("shop");
+        ui.anchor(Anchor::TopLeft);
+        ui.rectPx(0, 0, ui.width(), ui.height(), withAlpha(INK, 0.58f));
+
+        ui.anchor(Anchor::Centre);
+        ui.raised(40, 28, 1200, 664, PANEL, 4.0f);
+
+        // The title, and a boss next
+        const float titleW = ui.text(66, 52, "WAVE " + std::to_string(r.wave) + " OF " + std::to_string(r.waves) + " SURVIVED", Font::Display, 40, TEXT, Align::Left, 1.0f);
+
+        if (content.run.bosses.count(r.wave + 1))
+        {
+            const float tx = 66.0f + titleW + 14.0f;
+            const float tw = 14.0f + 6.0f + ui.measure("next: a boss", Font::Text700, 12) + 16.0f;
+            ui.rect(tx, 62, tw, 24, BOSS_TAG);
+            ui.icon("skull", tx + 8, 67, 2.0f, BOSS);
+            ui.text(tx + 28, 67, "next: a boss", Font::Text700, 12, BOSS);
+        }
+
+        // The chips, right to left: the score, the level, the shards
+        {
+            float right = 1214.0f;
+            auto chip = [&](float w) { right -= w; ui.box(right, 52, w, 42, CARD); const float x = right; right -= 14.0f; return x; };
+
+            const std::string score = std::to_string(r.score);
+            const float scoreW = 14.0f + ui.measure("SCORE", Font::Text700, 11, 1.5f) + 8.0f + ui.measure(score, Font::Display, 28) + 14.0f;
+            float x = chip(scoreW);
+            ui.text(x + 14, 66, "SCORE", Font::Text700, 11, MUTED, Align::Left, 1.5f);
+            ui.text(x + scoreW - 14, 58, score, Font::Display, 28, TEXT, Align::Right);
+
+            const std::string lv = "Lv " + std::to_string(me.level);
+            const std::string next = std::to_string(me.xp) + "/" + std::to_string(world.xpFor(me.level)) + " to Lv " + std::to_string(me.level + 1);
+            const float lvW = ui.measure(lv, Font::Display, 28);
+            const float levelW = 14.0f + lvW + 10.0f + std::max(12.0f * 8.0f - 2.0f, ui.measure(next, Font::Text600, 10)) + 14.0f;
+            x = chip(levelW);
+            ui.text(x + 14, 58, lv, Font::Display, 28, TEXT);
+            const int pips = static_cast<int>(std::floor(std::clamp(static_cast<float>(me.xp) / static_cast<float>(std::max(1, world.xpFor(me.level))), 0.0f, 1.0f) * 12.0f));
+            for (int k = 0; k < 12; ++k)
+                ui.rect(x + 14 + lvW + 10 + static_cast<float>(k) * 8.0f, 62, 6, 6, k < pips ? GOLD : WELL);
+            ui.text(x + 14 + lvW + 10, 72, next, Font::Text600, 10, MUTED);
+
+            const std::string shards = std::to_string(me.shards);
+            const float shardW = 14.0f + 21.0f + 8.0f + ui.measure(shards, Font::Display, 30) + 14.0f;
+            x = chip(shardW);
+            ui.icon("shard", x + 14, 62, 3.0f, SHARDS);
+            ui.text(x + 14 + 21 + 8, 57, shards, Font::Display, 30, SHARDS);
+        }
+
+        // A level up: free stat items
+        if (me.levelUps > 0 and not me.levelOffer.empty())
+        {
+            ui.box(66, 108, 872, 64, LEVEL_STRIP, 2.0f, GOLD);
+            ui.text(82, 116, "LEVEL UP! +" + std::to_string(me.levelUps), Font::Display, 28, GOLD);
+            ui.text(82, 146, std::string("A stat item, free") + (me.levelUps > 1 ? " (" + std::to_string(me.levelUps) + " to pick)" : ""), Font::Text600, 11, TEXT_DIM);
+
+            const size_t n = me.levelOffer.size();
+            const float startX = 288.0f, endX = 928.0f;
+            const float pw = (endX - startX - 10.0f * static_cast<float>(n - 1)) / static_cast<float>(n);
+
+            for (size_t i = 0; i < n; ++i)
+            {
+                const float px = std::round(startX + static_cast<float>(i) * (pw + 10.0f));
+                const OfferInfo about = offerInfo(content, me.levelOffer[i]);
+                const bool over = ui.hover(px, 117, pw, 46);
+                ui.box(px, 117, pw, 46, LEVEL_PICK, 2.0f, over ? GOLD : LEVEL_PICK);
+                ui.keycap(px + 10, 129, 22, std::to_string(5 + static_cast<int>(i)), GOLD, GOLD_INK, 18, 0.0f);
+                ui.text(px + 40, 122, about.name, Font::Display, 20, TEXT);
+                const auto lines = ui.wrap(about.text, Font::Text500, 10, pw - 48.0f);
+                ui.text(px + 40, 144, lines.empty() ? "" : lines[0] + (lines.size() > 1 ? "\xE2\x80\xA6" : ""), Font::Text500, 10, TEXT_DIM);
+                ui.hit(px, 117, pw, 46, InputFrame::LEVEL + static_cast<int>(i));
+            }
+        }
 
         // The offers
         for (int i = 0; i < CARDS; ++i)
         {
-            Card& c = cards[static_cast<size_t>(i)];
-            const float x = px + 24.0f + static_cast<float>(i) * (CARD_W + GAP), y = py + 92.0f;
+            const float x = CARD_X[i], y = CARD_Y;
 
             if (i >= static_cast<int>(me.shop.size()))
             {
-                for (auto id : {c.kind, c.name, c.text})
-                    hud->text(id, "");
-                hud->color(c.back, CARD_BOUGHT);
-                hideButton(c.buy);
-                hideButton(c.lock);
+                ui.raised(x, y, CARD_W, CARD_H, CARD_DIM, 0.0f, 2.0f, LINE);
                 continue;
             }
 
             const auto& o = me.shop[static_cast<size_t>(i)];
             const OfferInfo about = offerInfo(content, o.id);
+            const Colour kind = kindColour(about.kind);
             const int had = static_cast<int>(std::count(me.boons.begin(), me.boons.end(), o.id));
-            hud->color(c.back, o.bought ? CARD_BOUGHT : (o.locked ? CARD_LOCKED : CARD));
-            hud->text(c.kind, kindColour(about.kind) + about.kind + (had > 0 ? std::string(GREY) + "  (have " + std::to_string(had) + ")" : ""));
-            hud->text(c.name, (o.bought ? std::string(GREY) : std::string()) + about.name);
-            hud->text(c.text, wrap(about.text, 28));
+            const bool afford = me.shards >= o.price;
 
-            const float by = y + CARD_H - 44.0f;
+            if (o.bought)
+                ui.raised(x, y, CARD_W, CARD_H, CARD_DIM, 0.0f, 2.0f, INK);
+            else
+                ui.raised(x, y, CARD_W, CARD_H, CARD, 3.0f, 2.0f, o.locked ? GOLD : INK);
+
+            const Colour main = o.bought ? MUTED : TEXT;
+            float cy = y + 14.0f;
+
+            // The kind row
+            ui.rect(x + 14, cy + 2, 8, 8, o.bought ? MUTED : kind);
+            float kx = x + 28.0f + ui.text(x + 28, cy, std::string(about.kind.empty() ? "?" : about.kind), Font::Text700, 11, o.bought ? MUTED : kind, Align::Left, 1.5f);
+            if (had > 0)
+                ui.text(kx + 8, cy, "(have " + std::to_string(had) + ")", Font::Text600, 11, MUTED);
+            cy += 14.0f + 10.0f;
+
+            // The icon
+            ui.box(x + 14, cy, 52, 52, WELL, 2.0f, o.bought ? LINE : kind);
+            ui.icon(offerIcon(content, o.id), x + 26, cy + 12, 4.0f, o.bought ? MUTED : kind);
+            cy += 52.0f + 10.0f;
+
+            ui.text(x + 14, cy, about.name, Font::Display, 30, main);
+            cy += 30.0f + 10.0f;
+
+            ui.paragraph(x + 14, cy, CARD_W - 28.0f, about.text, Font::Text500, 13, o.bought ? MUTED : TEXT_DIM, 18.2f, 9);
+
+            // Buy
+            const float buyY = y + CARD_H - 14 - 30 - 10 - 40;
+            const float bx = x + 14, bw = CARD_W - 28;
 
             if (o.bought)
             {
-                setButton(c.buy, x + 12, by, CARD_W - 24, 34, "Bought", 0, false);
-                hideButton(c.lock);
+                ui.box(bx, buyY, bw, 40, BOUGHT_FILL, 2.0f, INK);
+                const float lw = 14.0f + 8.0f + ui.measure("BOUGHT", Font::Display, 22);
+                ui.icon("check", bx + (bw - lw) * 0.5f, buyY + 13, 2.0f, GOOD);
+                ui.text(bx + (bw - lw) * 0.5f + 22, buyY + 8, "BOUGHT", Font::Display, 22, GOOD);
             }
             else
             {
-                const bool afford = me.shards >= o.price;
-                setButton(c.buy, x + 12, by, 128, 34, "[" + std::to_string(i + 1) + "] " + (afford ? SHARD : "\\c{255,120,110,255}") + std::to_string(o.price), InputFrame::BUY + i, true);
-                setButton(c.lock, x + 148, by, CARD_W - 160, 34, o.locked ? "Locked" : "Lock", InputFrame::LOCK + i, true, o.locked);
+                const bool over = ui.hover(bx, buyY, bw, 40);
+                if (afford)
+                    ui.raised(bx, buyY, bw, 40, GOLD, 3.0f, 2.0f, over ? TEXT : INK);
+                else
+                    ui.box(bx, buyY, bw, 40, CARD, 2.0f, over ? GOLD : LINE);
+
+                ui.keycap(bx + 10, buyY + 10, 20, std::to_string(i + 1), INK, GOLD, 16, 0.0f);
+                ui.text(bx + 38, buyY + 11, "Buy", Font::Text700, 14, afford ? GOLD_INK : TEXT);
+                ui.text(bx + bw - 12, buyY + 8, std::to_string(o.price), Font::Display, 22, afford ? SHARD_ON_GOLD : WARNING, Align::Right);
+                ui.hit(bx, buyY, bw, 40, InputFrame::BUY + i);
             }
-        }
 
-        // A level up: a free stat item
-        if (me.levelUps > 0 and not me.levelOffer.empty())
-        {
-            hud->text(levelTitle, std::string(GOLD) + "Level up!" + WHITE_TEXT + "  A stat item, free" + (me.levelUps > 1 ? " (" + std::to_string(me.levelUps) + " to pick)" : std::string()) + ":");
-
-            for (int i = 0; i < LEVELS; ++i)
+            // Lock
+            if (not o.bought)
             {
-                if (i >= static_cast<int>(me.levelOffer.size()))
+                const float ly = y + CARD_H - 14 - 30;
+                const bool over = ui.hover(bx, ly, bw, 30);
+
+                if (o.locked)
                 {
-                    hideButton(level[static_cast<size_t>(i)]);
-                    continue;
+                    ui.box(bx, ly, bw, 30, GOLD, 2.0f, over ? TEXT : INK);
+                    ui.icon("lock", bx + 10, ly + 8, 2.0f, GOLD_INK);
+                    ui.text(bx + 30, ly + 8, "Kept for next shop", Font::Text700, 12, GOLD_INK);
+                }
+                else
+                {
+                    ui.box(bx, ly, bw, 30, CARD_DIM, 2.0f, over ? GOLD : LINE);
+                    ui.icon("lock", bx + 10, ly + 8, 2.0f, MUTED);
+                    ui.text(bx + 30, ly + 8, "Lock", Font::Text700, 12, TEXT_DIM);
+                    ui.text(bx + bw - 10, ly + 8, "Shift+" + std::to_string(i + 1), Font::Text600, 11, FAINT, Align::Right);
                 }
 
-                // Its name, and what it does on two lines at most
-                const OfferInfo about = offerInfo(content, me.levelOffer[static_cast<size_t>(i)]);
-                std::string text = wrap(about.text, 23);
-                if (const size_t second = text.find('\n'); second != std::string::npos)
-                    if (const size_t third = text.find('\n', second + 1); third != std::string::npos)
-                        text = text.substr(0, third) + "...";
-
-                setButton(level[static_cast<size_t>(i)], px + 24.0f + static_cast<float>(i) * (CARD_W + GAP), py + 364, CARD_W, 78,
-                          about.name + "\n" + GREY + text, InputFrame::LEVEL + i, true);
-                hud->place(level[static_cast<size_t>(i)].label, px + 34.0f + static_cast<float>(i) * (CARD_W + GAP), py + 370, CARD_W, 78, true);
+                ui.hit(bx, ly, bw, 30, InputFrame::LOCK + i);
             }
         }
-        else
+
+        // The build so far
         {
-            hud->text(levelTitle, "");
-            for (auto& b : level)
-                hideButton(b);
+            const float x = 954, y = 108, w = 260;
+            ui.raised(x, y, w, 494, CARD, 3.0f);
+            ui.text(x + 14, y + 12, "YOUR BUILD", Font::Text700, 11, MUTED, Align::Left, 1.5f);
+
+            const auto& b = me.boon;
+            struct Row { std::string label, value, faint; };
+            const std::vector<Row> rows = {
+                {"Health", std::to_string(static_cast<int>(me.maxHealth)), ""},
+                {"Damage", "+" + percent(b.damage), ""},
+                {"Armor", percent(std::min(b.armor, 0.7f)), " / 70"},
+                {"Crit", percent(b.crit), ""},
+                {"Speed", "+" + percent(b.speed), ""},
+                {"Regen", oneDecimal(b.regen) + "/s", ""},
+                {"Dashes", std::to_string(world.maxDashes(me)), ""},
+                {"Pickup", oneDecimal(content.run.pickupRange + b.pickupRange) + " m", ""},
+            };
+
+            float ry = y + 34.0f;
+            for (const auto& row : rows)
+            {
+                ui.text(x + 14, ry + 3, row.label, Font::Text500, 13, TEXT_DIM);
+                float vx = x + w - 14.0f;
+                if (not row.faint.empty())
+                    vx -= ui.text(vx, ry, row.faint, Font::Display, 20, FAINT, Align::Right);
+                ui.text(vx, ry, row.value, Font::Display, 20, TEXT, Align::Right);
+                ry += 22.0f;
+            }
+
+            ry += 8.0f;
+            ui.rect(x + 14, ry, w - 28, 2, LINE);
+            ry += 12.0f;
+            ui.text(x + 14, ry, "OWNED", Font::Text700, 11, MUTED, Align::Left, 1.5f);
+            ry += 20.0f;
+
+            // The owned tags, wrapping
+            float tx = x + 14.0f;
+            for (const auto& id : me.owned)
+            {
+                const OfferInfo about = offerInfo(content, id);
+                const float tw = 6.0f + 6.0f + 6.0f + ui.measure(about.name, Font::Text600, 11) + 8.0f;
+
+                if (tx + tw > x + w - 14.0f)
+                {
+                    tx = x + 14.0f;
+                    ry += 24.0f;
+                }
+
+                if (ry > y + 494 - 28)
+                    break;
+
+                ui.rect(tx, ry, tw, 20, WELL);
+                ui.rect(tx + 6, ry + 7, 6, 6, kindColour(about.kind));
+                ui.text(tx + 18, ry + 3, about.name, Font::Text600, 11, TEXT_DIM);
+                tx += tw + 4.0f;
+            }
         }
 
-        // What the player has
-        const auto& b = me.boon;
-        std::string stats = "Health " + std::to_string(static_cast<int>(me.maxHealth)) + "   Damage +" + percent(b.damage) + "   Armor " + percent(std::min(b.armor, 0.7f)) +
-                            "   Crit " + percent(b.crit) + "   Speed +" + percent(b.speed) + "   Regen " + std::to_string(b.regen).substr(0, 3) + "/s   Dashes " +
-                            std::to_string(world.maxDashes(me)) + "   Pickup " + std::to_string(content.run.pickupRange + b.pickupRange).substr(0, 3) + " m";
-        std::string owned;
-        for (const auto& id : me.owned)
-            owned += (owned.empty() ? "" : ", ") + offerInfo(content, id).name;
-        hud->text(build, stats + "\nOwned: " + wrap(owned, 120));
-
-        // Reroll, Ready
-        const int price = world.rerollPrice(me);
-        setButton(reroll, px + 24, py + ph - 52, 200, 38, "[R] Reroll  " + std::string(me.shards >= price ? SHARD : "\\c{255,120,110,255}") + std::to_string(price), InputFrame::REROLL, true);
-        setButton(ready, px + pw - 254, py + ph - 52, 230, 38,
-                  me.ready ? (waiting > 0 ? "Waiting for " + std::to_string(waiting) + "..." : "Ready") : "[Enter] Ready", InputFrame::START, true, me.ready);
-        hud->color(ready.back, me.ready ? READY : BUTTON);
-    }
-
-    int ShopScreen::click(float x, float y) const
-    {
-        if (not open)
-            return 0;
-
-        auto inside = [&](const Button& b) { return b.shown and b.pick != 0 and x >= b.x and x <= b.x + b.w and y >= b.y and y <= b.y + b.h; };
-
-        for (const auto& c : cards)
+        // Reroll
         {
-            if (inside(c.buy))
-                return c.buy.pick;
-            if (inside(c.lock))
-                return c.lock.pick;
+            const int price = world.rerollPrice(me);
+            Fighter after = me;
+            ++after.rerolls;
+            const int next = world.rerollPrice(after);
+            const bool afford = me.shards >= price;
+
+            const float x = 66, y = 621, w = 250, h = 42;
+            const bool over = ui.hover(x, y, w, h);
+            ui.box(x, y, w, h, CARD, 2.0f, over ? GOLD : LINE);
+            ui.keycap(x + 10, y + 10, 22, "R", GOLD, GOLD_INK, 18, 0.0f);
+            ui.text(x + 42, y + 12, "Reroll", Font::Text700, 14, TEXT);
+            const float px = x + 42 + ui.measure("Reroll", Font::Text700, 14) + 10.0f;
+            const float pw = ui.text(px, y + 9, std::to_string(price), Font::Display, 22, afford ? SHARDS : WARNING);
+            ui.text(px + pw + 10, y + 14, "next " + std::to_string(next), Font::Text600, 11, FAINT);
+            ui.hit(x, y, w, h, InputFrame::REROLL);
         }
 
-        for (const auto& b : level)
-            if (inside(b))
-                return b.pick;
+        ui.text(340, 636, "1-4 buy \xC2\xB7 5-" + std::to_string(4 + static_cast<int>(std::max<size_t>(1, me.levelOffer.size()))) +
+                          " level-up picks \xC2\xB7 Shift+n lock \xC2\xB7 R reroll \xC2\xB7 Enter ready", Font::Text500, 11, FAINT);
 
-        if (inside(reroll))
-            return reroll.pick;
-        if (inside(ready))
-            return ready.pick;
+        // Ready
+        {
+            int waiting = 0, players = 0;
+            for (const auto& f : world.fighters)
+            {
+                if (f.team != Team::Player)
+                    continue;
+                ++players;
+                waiting += f.ready ? 0 : 1;
+            }
 
-        return 0;
+            const float x = 954, y = 616, w = 260, h = 52;
+            const bool over = ui.hover(x, y, w, h);
+
+            if (me.ready)
+            {
+                ui.box(x, y, w, h, WAITING, 2.0f, INK);
+                ui.text(x + 18, y + 11, waiting > 0 ? "WAITING\xE2\x80\xA6" : "READY", Font::Display, 30, TEXT, Align::Left, 2.0f);
+                ui.text(x + w - 18, y + 15, std::to_string(players - waiting) + " / " + std::to_string(players), Font::Display, 24, TEXT_DIM, Align::Right);
+            }
+            else
+            {
+                ui.raised(x, y, w, h, GOLD, 3.0f, 2.0f, over ? TEXT : INK);
+                ui.text(x + 18, y + 11, "READY", Font::Display, 30, GOLD_INK, Align::Left, 2.0f);
+                const float kw = ui.measure("ENTER", Font::Display, 16) + 12.0f;
+                ui.box(x + w - 18 - kw, y + 15, kw, 22, INK);
+                ui.text(x + w - 18 - kw * 0.5f, y + 17, "ENTER", Font::Display, 16, GOLD, Align::Centre);
+            }
+
+            ui.hit(x, y, w, h, InputFrame::START);
+        }
     }
 }

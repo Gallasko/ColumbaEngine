@@ -1381,6 +1381,20 @@ namespace arena
                 if (f.frame >= a->lungeFrom and f.frame < a->lungeTo)
                     wanted = yawForward(f.yaw) * a->lunge;
 
+                // A leap: thrown along the facing (back, for a negative one) and up, once. It keeps pushing along
+                // through its flight: a leap into a step rises up the face of it and carries on over the top
+                if (a->leapAt >= 0 and f.frame == a->leapAt and f.body.onGround)
+                {
+                    const glm::vec3 along = yawForward(f.yaw) * a->leap.x;
+                    f.body.velocity = glm::vec3(along.x, a->leap.y, along.z);
+                    f.body.onGround = false;
+                    event("leap", f.body.position, 1.0f, f.id);
+                }
+                else if (a->leapAt >= 0 and f.frame > a->leapAt and not f.body.onGround)
+                {
+                    wanted = yawForward(f.yaw) * a->leap.x;
+                }
+
                 break;
             }
 

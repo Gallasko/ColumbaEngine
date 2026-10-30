@@ -125,6 +125,10 @@ namespace arena
             {"ability1", {"Q"}}, {"ability2", {"E"}}, {"ability3", {"G", "Mouse2"}}, {"ability4", {"R"}},
             {"ability5", {"1"}}, {"ability6", {"2"}}, {"ability7", {"3"}}, {"ability8", {"4"}},
             {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"spellbook", {"B"}}, {"options", {"O"}},
+            // The spellbook's parts, while it is open: elements, forms, modifiers
+            {"spellElement1", {"Z"}}, {"spellElement2", {"X"}}, {"spellElement3", {"C"}},
+            {"spellForm1", {"A"}}, {"spellForm2", {"S"}}, {"spellForm3", {"D"}}, {"spellForm4", {"F"}},
+            {"spellModifier1", {"Q"}}, {"spellModifier2", {"W"}}, {"spellModifier3", {"E"}}, {"spellModifier4", {"R"}}, {"spellModifier5", {"T"}},
         };
     }
 
@@ -180,10 +184,7 @@ namespace arena
 
         worldMesh = std::make_shared<GpuMesh>();
 
-        hud.init(ecsRef, masterRenderer, screenW, screenH);
-        spellbook.init(&hud);
-        optionsScreen.init(&hud);
-        shopScreen.init(&hud);
+        ui.init(ecsRef, masterRenderer, screenW, screenH);
 
         // In a run, the spellbook builds only from what was bought
         spellbook.owned = [this](const std::string& id) {
@@ -421,6 +422,9 @@ namespace arena
             return;
         }
 
+        mouseX = static_cast<float>(event.x);
+        mouseY = static_cast<float>(event.y);
+
         // A lock the browser has not granted yet (or WSL before its helper holds the cursor): the cursor is free
         if (not cursorLocked or (window and not window->isCursorCaptured()))
             return;
@@ -449,22 +453,12 @@ namespace arena
         // it here too lost every click that system took first. Its click event comes once per press.
         std::lock_guard<std::mutex> lock(inputMutex);
 
-        // The options screen, then the spellbook, take the clicks while open
-        if (optionsOpen)
+        // A screen up (options, spellbook, shop, title, the end of a run) takes the clicks
+        if (uiTakesClicks())
         {
-            optionsClicks.emplace_back(event.pos.x, event.pos.y);
-            return;
-        }
-
-        if (bookOpen)
-        {
-            bookClicks.emplace_back(event.pos.x, event.pos.y);
-            return;
-        }
-
-        if (shopOpen)
-        {
-            shopClicks.emplace_back(event.pos.x, event.pos.y);
+            uiClicks.emplace_back(event.pos.x, event.pos.y);
+            mouseX = event.pos.x;
+            mouseY = event.pos.y;
             return;
         }
 
@@ -487,8 +481,9 @@ namespace arena
             return;
 
         aspect = event.width / event.height;
-        masterRenderer->getCamera().setAspectRatio(aspect);
-        hud.resize(event.width, event.height);
+        screenW = event.width;
+        screenH = event.height;
+        masterRenderer->getCamera().setAspectRatio(aspect);   // the UI follows on its next frame (drawUi)
     }
 
     // --------------------------------------------------------------------------------------------
@@ -562,7 +557,7 @@ namespace arena
             altHeld = held("freeCursor");
         }
 
-        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen and not optionsOpen and not shopOpen;
+        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen and not optionsOpen and not shopOpen and not titleOpen and not endOpen;
 
         if (want == cursorLocked)
             return;
@@ -651,7 +646,19 @@ namespace arena
             if (optionsOpen)
             {
                 if (p.scancode == SDL_SCANCODE_ESCAPE or (keyIs(p.scancode, "options") and not p.repeat))
+                {
                     setOptionsOpen(false);
+                    continue;
+                }
+
+                const int dx = p.scancode == SDL_SCANCODE_LEFT ? -1 : (p.scancode == SDL_SCANCODE_RIGHT ? 1 : 0);
+                const int dy = p.scancode == SDL_SCANCODE_UP ? -1 : (p.scancode == SDL_SCANCODE_DOWN ? 1 : 0);
+
+                if ((dx != 0 or dy != 0) and optionsScreen.key(dx, dy, prefs))
+                {
+                    applyOptions();
+                    saveOptions(optionsPath(), prefs);
+                }
                 continue;
             }
 
@@ -663,6 +670,17 @@ namespace arena
                     bookChanged(spellbook.backspace(book));
                 else if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
                     bookChanged(spellbook.enter(content, book));
+                else if (p.scancode == SDL_SCANCODE_DELETE and not spellbook.naming)
+                    bookChanged(spellbook.clear(book));
+                else if (not spellbook.naming and not p.repeat)
+                {
+                    // The part keys: elements, forms, modifiers
+                    static const std::pair<const char*, int> groups[] = {{"spellElement", 3}, {"spellForm", 4}, {"spellModifier", 5}};
+                    for (int g = 0; g < 3; ++g)
+                        for (int i = 0; i < groups[g].second; ++i)
+                            if (keyIs(p.scancode, groups[g].first + std::to_string(i + 1)))
+                                bookChanged(spellbook.part(g, i, content, book));
+                }
                 continue;
             }
 
@@ -688,6 +706,8 @@ namespace arena
                     startArena();
                 else if (p.scancode == SDL_SCANCODE_T)
                     titleOpen = false;
+                else if (p.scancode == SDL_SCANCODE_ESCAPE)
+                    cursorFree = not cursorFree;
                 continue;
             }
 
@@ -705,8 +725,14 @@ namespace arena
 
                 if (shopOpen)
                 {
+                    const bool shift = (p.mod & KMOD_SHIFT) != 0;
+                    const Fighter* me = world.player();
+                    const int levelPicks = me and me->levelUps > 0 ? static_cast<int>(me->levelOffer.size()) : 0;
+
                     if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_4)
-                        pendingPick = InputFrame::BUY + static_cast<int>(p.scancode - SDL_SCANCODE_1);
+                        pendingPick = (shift ? InputFrame::LOCK : InputFrame::BUY) + static_cast<int>(p.scancode - SDL_SCANCODE_1);
+                    else if (p.scancode >= SDL_SCANCODE_5 and p.scancode <= SDL_SCANCODE_9 and static_cast<int>(p.scancode - SDL_SCANCODE_5) < levelPicks)
+                        pendingPick = InputFrame::LEVEL + static_cast<int>(p.scancode - SDL_SCANCODE_5);
                     else if (p.scancode == SDL_SCANCODE_R)
                         pendingPick = InputFrame::REROLL;
                     else if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
@@ -792,53 +818,21 @@ namespace arena
             mousePresses.clear();
         }
 
-        // The options screen: its clicks; nothing reaches the game
-        if (optionsOpen)
+        // A screen's clicks; nothing reaches the game
+        if (optionsOpen or bookOpen)
         {
-            std::vector<glm::vec2> clicks;
-            {
-                std::lock_guard<std::mutex> lock(inputMutex);
-                clicks.swap(optionsClicks);
-                stepPresses.clear();
-                mousePresses.clear();
-            }
-
-            for (const auto& c : clicks)
-            {
-                bool closed = false;
-
-                if (optionsScreen.click(c.x, c.y, prefs, closed))
-                {
-                    applyOptions();
-                    saveOptions(optionsPath(), prefs);
-                    optionsScreen.refresh(prefs);
-                }
-
-                if (closed)
-                    setOptionsOpen(false);
-            }
+            std::lock_guard<std::mutex> lock(inputMutex);
+            stepPresses.clear();
+            mousePresses.clear();
         }
 
-        // The spellbook: its clicks and its name field; nothing reaches the game
-        if (bookOpen)
+        if (bookOpen and not text.empty() and spellbook.naming)
         {
-            std::vector<glm::vec2> clicks;
-            {
-                std::lock_guard<std::mutex> lock(inputMutex);
-                clicks.swap(bookClicks);
-                stepPresses.clear();
-                mousePresses.clear();
-            }
-
-            if (not text.empty() and spellbook.naming)
-            {
-                spellbook.type(text);
-                bookChanged(false);
-            }
-
-            for (const auto& c : clicks)
-                bookChanged(spellbook.click(c.x, c.y, content, book));
+            spellbook.type(text);
+            bookChanged(false);
         }
+
+        handleUiClicks();
 
         updateShop();
 
@@ -852,96 +846,9 @@ namespace arena
         buildRenderCalls();
         updateCursorLock();
 
-        // ---- HUD ----
+        // ---- Debug overlay ----
         const Fighter* p = world.player();
 
-        if (p)
-        {
-            // The mana bar dims when not even the cheapest spell is affordable
-            float cheapest = 1e9f;
-            for (const auto& r : book.equipped)
-                if (const auto s = world.spellOf(r); s->valid())
-                    cheapest = std::min(cheapest, s->mana);
-
-            hud.setBars(p->health / std::max(1.0f, p->maxHealth), p->stamina / std::max(1.0f, tuning.stamina.max), p->exhausted,
-                        p->mana / std::max(1.0f, tuning.mana.max), p->mana < cheapest and cheapest < 1e8f);
-
-            std::string weapons;
-            for (size_t i = 0; i < content.weaponOrder.size(); ++i)
-            {
-                const auto& id = content.weaponOrder[i];
-                const bool current = id == p->weapon;
-
-                // In a run: the ones bought
-                if (not world.owns(*p, id))
-                    continue;
-
-                weapons += (current ? "\\c{255,214,120,255}" : "\\c{170,174,184,255}") + content.weapons.at(id).name + "   ";
-            }
-            weapons += "\\c{120,124,134,255}(" + keyName("nextWeapon") + ": next)";
-            hud.setWeapon(weapons + "\n" + abilityLine());
-            hud.setCrosshair(p->alive());   // both views: the abilities aim with it
-
-            // The hit flash fades in about a third of a second
-            hurtFlash = std::max(0.0f, hurtFlash - frameSeconds * 3.0f);
-            hud.setHurt(hurtFlash * prefs.hitFlash);
-            hud.setDashes(world.infiniteStamina ? static_cast<float>(world.maxDashes(*p)) : p->dashCharges, world.maxDashes(*p));
-            runHud();
-
-            hud.setCenter(not p->alive() ? (world.inRun() and world.run.phase != RunPhase::Defeat ? "You fell: back up next wave" : (world.inRun() ? "" : "You fell")) : (paused ? "Paused" : runCenter));
-        }
-        else if (client)
-        {
-            switch (client->state)
-            {
-                case net::NetClient::State::Connecting: hud.setCenter("Connecting..."); break;
-                case net::NetClient::State::Joining: hud.setCenter("Joining..."); break;
-                case net::NetClient::State::Refused: hud.setCenter("Refused: " + client->refusal); break;
-                case net::NetClient::State::Lost: hud.setCenter("Connection lost"); break;
-                case net::NetClient::State::Playing: hud.setCenter(""); break;
-            }
-        }
-
-        if (content.report.errors.empty())
-            hud.setBanner("");
-        else
-            hud.setBanner(std::to_string(content.report.errors.size()) + " content error(s), first: " + content.report.errors[0].str() + "   (console: errors)");
-
-        // Bars over the enemies, projected by hand: the engine camera matrices belong to the render thread
-        {
-            std::vector<Hud::EnemyBar> bars;
-            const glm::mat4 proj = glm::perspective(fov() * DEG, aspect, 0.1f, 500.0f);
-            const glm::mat4 view = glm::lookAt(camera.position, camera.position + camera.forward(), glm::vec3(0, 1, 0));
-
-            for (const auto& f : world.fighters)
-            {
-                if (f.team != Team::Enemy or not f.alive())
-                    continue;
-
-                const auto prev = previous.find(f.id);
-                const glm::vec3 pos = prev != previous.end() ? glm::mix(prev->second.position, f.body.position, alpha) : f.body.position;
-                const glm::vec4 clip = proj * view * glm::vec4(pos + glm::vec3(0, f.body.height + 0.35f, 0), 1.0f);
-
-                if (clip.w <= 0.1f or glm::length(pos - camera.position) > 22.0f or not f.alive())
-                    continue;
-
-                const glm::vec3 ndc = glm::vec3(clip) / clip.w;
-
-                if (std::fabs(ndc.x) > 1.1f or std::fabs(ndc.y) > 1.1f)
-                    continue;
-
-                Hud::EnemyBar bar;
-                bar.position = glm::vec2((ndc.x * 0.5f + 0.5f) * screenW, (0.5f - ndc.y * 0.5f) * screenH);
-                bar.health = f.health / std::max(1.0f, f.maxHealth);
-                bar.poise = f.poise / std::max(1.0f, f.maxPoise);
-                bar.staggered = f.action == Action::Stagger;
-                bars.push_back(bar);
-            }
-
-            hud.setEnemyBars(bars);
-        }
-
-        // ---- Debug overlay ----
         if (showOverlay and p)
         {
             std::ostringstream o;
@@ -1033,15 +940,14 @@ namespace arena
               << "   kills " << enemyKills << "   falls " << playerDeaths << "\n";
             o << dim << "F1 overlay  F2 hitboxes  F5 reload  ` console  " << keyName("nextWeapon") << " weapon  Esc mouse  wheel zoom";
 
-            hud.setOverlay(o.str(), true);
+            overlayText = o.str();
         }
         else
         {
-            hud.setOverlay("", false);
+            overlayText.clear();
         }
 
-        std::vector<std::string> lines(consoleLog.begin(), consoleLog.end());
-        hud.setConsole(consoleOpen, lines, consoleLine);
+        drawUi(frameSeconds);
     }
 
     void ArenaGame::simulate(float frameSeconds)
@@ -1224,16 +1130,10 @@ namespace arena
         meshDirty = true;
     }
 
-    void ArenaGame::runHud()
+    void ArenaGame::runHud(Hud::View& v)
     {
         const RunState& r = world.run;
         const Fighter* me = world.player();
-        runCenter.clear();
-
-        auto clock = [](float seconds) {
-            const int s = static_cast<int>(seconds);
-            return std::to_string(s / 60) + ":" + (s % 60 < 10 ? "0" : "") + std::to_string(s % 60);
-        };
 
         // A run just ended: the best score
         if (r.phase != lastPhase and (r.phase == RunPhase::Victory or r.phase == RunPhase::Defeat) and r.score > bestScore)
@@ -1280,95 +1180,145 @@ namespace arena
 
         lastPhase = r.phase;
 
-        if (titleOpen)
-        {
-            hud.setRunLine("");
-            hud.setBoss("", 0.0f, false);
-            hud.setPanel("VOXEL ARENA",
-                         "\\c{255,214,120,255}Enter\\c{236,238,242,255}   The Arena: " + std::to_string(content.run.waves) + " timed waves, a shop between them,\n         bosses midway and at the end\n\n"
-                         "\\c{255,214,120,255}T\\c{236,238,242,255}        Training ground\n"
-                         "\\c{255,214,120,255}B\\c{236,238,242,255}        Spellbook\n"
-                         "\\c{255,214,120,255}O\\c{236,238,242,255}        Options\n\n"
-                         "\\c{170,174,184,255}Best score: " + std::to_string(bestScore));
+        if (r.phase != RunPhase::Fighting and r.phase != RunPhase::Shop)
+            headlineWave = 0;
+
+        if (titleOpen or not world.inRun())
             return;
-        }
 
-        if (not world.inRun())
-        {
-            hud.setRunLine("");
-            hud.setBoss("", 0.0f, false);
-            hud.setPanel("", "");
-            return;
-        }
-
-        // The top line: the wave and its time, the shards and the level, the score
-        std::string line = "Wave " + std::to_string(r.wave) + "/" + std::to_string(r.waves) + "      ";
-
-        if (r.phase == RunPhase::Fighting)
-            line += r.bossWave ? std::string("\\c{230,120,255,255}BOSS\\c{236,238,242,255}      ") : (r.timer <= 5.0f ? "\\c{255,214,120,255}" : "") + clock(std::ceil(r.timer)) + "\\c{236,238,242,255}      ";
+        // The top: the wave and its time, the shards and the level, the score
+        v.run = true;
+        v.wave = r.wave;
+        v.waves = r.waves;
+        v.timer = r.timer;
+        v.bossWave = r.bossWave;
+        v.score = r.score;
 
         if (me)
-            line += "\\c{190,160,255,255}" + std::to_string(me->shards) + " shards\\c{236,238,242,255}      Lv " + std::to_string(me->level) + " \\c{150,154,166,255}" +
-                    std::to_string(me->xp) + "/" + std::to_string(world.xpFor(me->level)) + (me->levelUps > 0 ? "\\c{255,214,120,255}  +" + std::to_string(me->levelUps) : std::string()) +
-                    "\\c{236,238,242,255}      ";
+        {
+            v.shards = me->shards;
+            v.level = me->level;
+            v.xp = me->xp;
+            v.xpNext = world.xpFor(me->level);
+            v.levelUps = me->levelUps;
+        }
 
-        hud.setRunLine(line + "Score " + std::to_string(r.score));
+        // The others, in co-op
+        int mate = 0;
+        for (const auto& f : world.fighters)
+        {
+            if (f.team != Team::Player or (me and f.id == me->id))
+                continue;
+            ++mate;
+            v.team.push_back({"P" + std::to_string(mate + 1), f.health / std::max(1.0f, f.maxHealth), not f.alive()});
+        }
 
-        // The boss's bar
+        // The boss's bar: enraged under its "angryAt"
         const Fighter* boss = r.bossId ? world.find(r.bossId) : nullptr;
         if (boss and boss->alive())
         {
             auto def = content.enemies.find(boss->type);
-            hud.setBoss(def != content.enemies.end() ? def->second.name : boss->type, boss->health / std::max(1.0f, boss->maxHealth), true);
-        }
-        else
-        {
-            hud.setBoss("", 0.0f, false);
+            v.boss = true;
+            v.bossName = def != content.enemies.end() ? def->second.name : boss->type;
+            v.bossHealth = boss->health / std::max(1.0f, boss->maxHealth);
+            v.bossPoise = boss->poise / std::max(1.0f, boss->maxPoise);
+            const float angryAt = def != content.enemies.end() ? static_cast<float>(def->second.params.num("angryAt", 0.0)) : 0.0f;
+            v.enraged = angryAt > 0.0f and v.bossHealth < angryAt;
         }
 
-        switch (r.phase)
+        // The wave's name as it starts (a boss's), its last seconds counted down
+        if (r.phase == RunPhase::Fighting)
         {
-            case RunPhase::Fighting:
+            const RunDef& def = content.run;
+
+            if (r.wave != headlineWave)
             {
-                hud.setPanel("", "");
-
-                // The wave's name as it starts (a boss's), its last seconds counted down
-                const RunDef& def = content.run;
-                const float t = def.waves > 1 ? static_cast<float>(r.wave - 1) / static_cast<float>(def.waves - 1) : 0.0f;
-                const float duration = def.duration.x + (def.duration.y - def.duration.x) * t;
-
-                if (duration - r.timer < 2.0f)
-                {
-                    auto b = def.bosses.find(r.wave);
-                    auto e = b != def.bosses.end() ? content.enemies.find(b->second) : content.enemies.end();
-                    runCenter = e != content.enemies.end() ? e->second.name : "Wave " + std::to_string(r.wave);
-                }
-                else if (not r.bossWave and r.timer > 0.0f and r.timer <= 3.0f)
-                {
-                    runCenter = std::to_string(static_cast<int>(std::ceil(r.timer)));
-                }
-                break;
+                headlineWave = r.wave;
+                waveStartedAt = simTime;
             }
 
-            case RunPhase::Shop:
-                hud.setPanel("", "");   // the shop screen
-                break;
-
-            case RunPhase::Victory:
-            case RunPhase::Defeat:
+            if (simTime - waveStartedAt < 1.5f)
             {
-                const bool won = r.phase == RunPhase::Victory;
-                hud.setPanel(won ? "Victory" : "Defeated",
-                             (won ? std::string("All ") + std::to_string(r.waves) + " waves, and the Stone Warden falls.\n\n" : "At wave " + std::to_string(r.wave) + " of " + std::to_string(r.waves) + ".\n\n") +
-                             "Score  " + std::to_string(r.score) + (r.score >= bestScore and r.score > 0 ? "   \\c{255,214,120,255}best!\\c{236,238,242,255}" : "   (best " + std::to_string(bestScore) + ")") + "\n" +
-                             "Kills  " + std::to_string(r.kills) + "      Level  " + std::to_string(me ? me->level : 1) + "      Time  " + clock(r.elapsed) + "\n\n" +
-                             "\\c{255,214,120,255}Enter\\c{236,238,242,255}  play again" + (client ? "" : "      \\c{255,214,120,255}T\\c{236,238,242,255}  training"));
-                break;
+                auto b = def.bosses.find(r.wave);
+                auto e = b != def.bosses.end() ? content.enemies.find(b->second) : content.enemies.end();
+                v.headline = r.bossWave and e != content.enemies.end() ? e->second.name : "Wave " + std::to_string(r.wave);
+            }
+            else if (not r.bossWave and r.timer > 0.0f and r.timer <= 3.0f)
+            {
+                v.countdown = static_cast<int>(std::ceil(r.timer));
+            }
+        }
+    }
+
+    void ArenaGame::edgeArrows(Hud::View& v, const glm::mat4& proj, const glm::mat4& view)
+    {
+        const Fighter* me = world.player();
+
+        spawnPings.erase(std::remove_if(spawnPings.begin(), spawnPings.end(), [&](const SpawnPing& p) {
+            const Fighter* f = world.find(p.fighter);
+            return p.left <= 0.0f or not f or not f->alive();
+        }), spawnPings.end());
+
+        if (not me or not world.inRun() or not me->alive())
+            return;
+
+        // Something near, out of view: an arrow at the left or right edge, level with where it is
+        auto point = [&](const glm::vec3& at, Hud::Marker::Kind kind, const std::string& name) {
+            if ((kind != Hud::Marker::Kind::Boss and glm::length(at - me->body.position) > 30.0f) or v.markers.size() >= 10)
+                return;
+
+            const glm::vec4 clip = proj * view * glm::vec4(at + glm::vec3(0, 0.8f, 0), 1.0f);
+            if (clip.w > 0.1f)
+            {
+                const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+                if (std::fabs(ndc.x) <= 1.0f and std::fabs(ndc.y) <= 1.0f)
+                    return;   // in view: its spawn column (or itself) shows
             }
 
-            default:
-                hud.setPanel("", "");
-                break;
+            // Its way from the middle of the screen, from the camera's point of view (behind: still left or right)
+            const glm::vec4 eye = view * glm::vec4(at, 1.0f);
+            glm::vec2 dir(eye.x, -eye.y);
+            if (glm::length(dir) < 1e-3f)
+                dir = glm::vec2(1.0f, 0.0f);
+            dir = glm::normalize(dir);
+
+            Hud::Marker m;
+            m.kind = kind;
+            m.right = dir.x >= 0.0f;
+            m.y = 360.0f + std::clamp(dir.y / std::max(0.2f, std::fabs(dir.x)), -1.0f, 1.0f) * 280.0f;
+            m.name = name;
+            m.distance = glm::length(at - me->body.position);
+            v.markers.push_back(m);
+        };
+
+        auto bossName = [&](const std::string& type) {
+            auto def = content.enemies.find(type);
+            return def != content.enemies.end() ? def->second.name : type;
+        };
+
+        for (const auto& m : spawnMarks)
+        {
+            const auto kind = m.boss ? Hud::Marker::Kind::Boss : (m.elite ? Hud::Marker::Kind::Elite : Hud::Marker::Kind::Spawn);
+            std::string name;
+            if (m.boss)
+                if (auto b = content.run.bosses.find(world.run.wave); b != content.run.bosses.end())
+                    name = bossName(b->second);
+            point(m.position, kind, name);
+        }
+
+        for (const auto& ping : spawnPings)
+            if (const Fighter* f = world.find(ping.fighter))
+            {
+                const bool boss = f->id == world.run.bossId;
+                point(f->body.position, boss ? Hud::Marker::Kind::Boss : (f->elite ? Hud::Marker::Kind::Elite : Hud::Marker::Kind::Spawn), boss ? bossName(f->type) : "");
+            }
+
+        // The boss, out of view, always
+        if (const Fighter* boss = world.run.bossId ? world.find(world.run.bossId) : nullptr; boss and boss->alive())
+        {
+            const bool pinged = std::any_of(spawnPings.begin(), spawnPings.end(), [&](const SpawnPing& p) { return p.fighter == boss->id; });
+            if (not pinged)
+                point(boss->body.position, Hud::Marker::Kind::Boss, bossName(boss->type));
         }
     }
 
@@ -1376,43 +1326,20 @@ namespace arena
     {
         // Open while the run is in its shop (and nothing else is in front)
         const Fighter* me = world.player();
-        const bool want = me and world.run.phase == RunPhase::Shop and not titleOpen and not bookOpen and not optionsOpen;
+        shopOpen = me and world.run.phase == RunPhase::Shop and not titleOpen and not bookOpen and not optionsOpen;
 
-        if (want != shopOpen)
-        {
-            shopOpen = want;
-            shopScreen.setOpen(want);
-        }
-
-        std::vector<glm::vec2> clicks;
+        if (shopOpen)
         {
             std::lock_guard<std::mutex> lock(inputMutex);
-            clicks.swap(shopClicks);
-
-            if (shopOpen)
-            {
-                stepPresses.clear();
-                mousePresses.clear();
-            }
+            stepPresses.clear();
+            mousePresses.clear();
         }
-
-        if (not shopOpen)
-            return;
-
-        for (const auto& c : clicks)
-            if (const int pick = shopScreen.click(c.x, c.y))
-                pendingPick = pick;
-
-        shopScreen.refresh(content, world, *me);
     }
 
     void ArenaGame::setOptionsOpen(bool open)
     {
         optionsOpen = open;
         optionsScreen.setOpen(open);
-
-        if (open)
-            optionsScreen.refresh(prefs);
     }
 
     void ArenaGame::applyOptions()
@@ -1439,9 +1366,6 @@ namespace arena
     {
         bookOpen = open;
         spellbook.setOpen(open);
-
-        if (open)
-            spellbook.refresh(content, book);
     }
 
     void ArenaGame::bookChanged(bool spellsChanged)
@@ -1450,7 +1374,6 @@ namespace arena
             applySpells();
 
         saveSpellbook(spellbookPath(), book);
-        spellbook.refresh(content, book);
     }
 
     void ArenaGame::playEvent(const WorldEvent& e)
@@ -1458,6 +1381,8 @@ namespace arena
         // A run's spawn points, shown until the enemies come out
         if (e.kind == "spawn_warn" or e.kind == "boss_warn" or e.kind == "elite_warn")
             spawnMarks.push_back({e.position, e.strength, e.kind == "boss_warn", e.kind == "elite_warn"});
+        else if ((e.kind == "spawn" or e.kind == "boss_spawn") and e.fighter)
+            spawnPings.push_back({e.fighter, e.kind == "boss_spawn" ? 4.0f : 2.5f});
 
         // A block set alight burns for `strength` seconds: flames until then (or until it is gone)
         if (e.kind == "ignite")
@@ -1574,6 +1499,8 @@ namespace arena
         // Spawn points: shown until they come out (or the run moved on)
         for (auto& m : spawnMarks)
             m.left -= frameSeconds;
+        for (auto& ping : spawnPings)
+            ping.left -= frameSeconds;
         spawnMarks.erase(std::remove_if(spawnMarks.begin(), spawnMarks.end(), [&](const SpawnMark& m) { return m.left <= 0.0f or world.run.phase != RunPhase::Fighting; }), spawnMarks.end());
 
         // Blocks on fire: flames over them
@@ -1948,59 +1875,355 @@ namespace arena
         return b.scancode >= 0 ? SDL_GetScancodeName(static_cast<SDL_Scancode>(b.scancode)) : "Mouse" + std::to_string(b.mouseButton);
     }
 
-    std::string ArenaGame::abilityLine() const
+    // --------------------------------------------------------------------------------------------
+    // The UI: the HUD and the screens, drawn anew each frame
+    // --------------------------------------------------------------------------------------------
+
+    namespace
     {
-        const Fighter* p = world.player();
-        std::string out;
+        std::string upper(std::string s)
+        {
+            for (auto& c : s)
+                c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            return s;
+        }
+
+        std::string localId(const std::string& id)
+        {
+            const size_t colon = id.find(':');
+            return colon == std::string::npos ? id : id.substr(colon + 1);
+        }
+    }
+
+    bool ArenaGame::uiTakesClicks() const
+    {
+        return optionsOpen or bookOpen or shopOpen or titleOpen or endOpen;
+    }
+
+    std::string ArenaGame::statusName(const std::string& id) const
+    {
+        std::string name = localId(id);
+        if (not name.empty())
+            name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
+        return name;
+    }
+
+    std::vector<Hud::Status> ArenaGame::statusesOf(const Fighter& f) const
+    {
+        std::vector<Hud::Status> out;
+        for (const auto& st : f.statuses)
+            out.push_back({localId(st.id), statusName(st.id), st.stacks});
+        return out;
+    }
+
+    void ArenaGame::playerHud(Hud::View& v, const Fighter& p)
+    {
+        v.player = true;
+        v.alive = p.alive();
+        v.crosshair = p.alive();
+        v.health = p.health;
+        v.maxHealth = p.maxHealth;
+        v.stamina = p.stamina / std::max(1.0f, tuning.stamina.max);
+        v.exhausted = p.exhausted;
+        v.mana = p.mana / std::max(1.0f, tuning.mana.max);
+        v.dashes = world.infiniteStamina ? static_cast<float>(world.maxDashes(p)) : p.dashCharges;
+        v.maxDashes = world.maxDashes(p);
+        v.nextWeaponKey = upper(keyName("nextWeapon"));
+        v.statuses = statusesOf(p);
+
+        // The mana dims when not even the cheapest spell is affordable
+        float cheapest = 1e9f;
+        for (const auto& r : book.equipped)
+            if (const auto sp = world.spellOf(r); sp->valid())
+                cheapest = std::min(cheapest, sp->mana);
+        v.manaLow = p.mana < cheapest and cheapest < 1e8f and not world.infiniteMana;
+
+        // The weapons owned (in a run: bought)
+        for (const auto& id : content.weaponOrder)
+            if (world.owns(p, id))
+                v.weapons.emplace_back(content.weapons.at(id).name, id == p.weapon);
+
+        // The ability keys: spells, then terrain and weapon skills
+        const float cooldownScale = std::max(0.3f, 1.0f - p.boon.cooldown);
 
         for (int i = 0; i < InputFrame::ABILITIES; ++i)
         {
-            const std::string key = keyName("ability" + std::to_string(i + 1));
+            const std::string key = upper(keyName("ability" + std::to_string(i + 1)));
 
-            // A spell key: the book's spell, in its element's colour
             if (const int slot = world.spellSlotAt(i); slot >= 0)
             {
                 if (slot >= static_cast<int>(book.equipped.size()))
                     continue;
 
                 const SpellRecipe& r = book.equipped[static_cast<size_t>(slot)];
-                const auto spell = world.spellOf(r);
-                const bool ready = p and spell->valid() and p->abilityCooldown[i] <= 0.0f and (p->mana >= spell->mana or world.infiniteMana);
+                const auto sp = world.spellOf(r);
+
+                Hud::SpellKey k;
+                k.key = key;
+                k.name = spellName(content, book, r);
+                k.element = r.element;
+                k.mana = static_cast<int>(std::lround(sp->mana));
 
                 // In a run: a spell of something not bought yet does nothing
-                bool locked = false;
-                if (p)
-                {
-                    locked = not world.owns(*p, "element:" + r.element);
-                    for (const auto& k : r.keywords)
-                        locked = locked or not world.owns(*p, k);
-                }
+                bool locked = not sp->valid() or not world.owns(p, "element:" + r.element);
+                for (const auto& kw : r.keywords)
+                    locked = locked or not world.owns(p, kw);
 
+                const float left = p.abilityCooldown[i];
                 if (locked)
+                    k.state = Hud::SpellKey::State::Locked;
+                else if (left > 0.0f)
                 {
-                    out += "\\c{120,124,134,255}[" + key + "] " + spellName(content, book, r) + " (locked)   ";
-                    continue;
+                    k.state = Hud::SpellKey::State::Cooldown;
+                    k.seconds = left;
+                    k.progress = 1.0f - left / std::max(0.01f, sp->cooldown * cooldownScale);
                 }
+                else if (p.mana < sp->mana and not world.infiniteMana)
+                    k.state = Hud::SpellKey::State::NoMana;
 
-                std::string colour = "\\c{220,226,236,255}";
-                if (r.element == "fire") colour = "\\c{255,170,100,255}";
-                if (r.element == "ice") colour = "\\c{170,220,255,255}";
-                if (r.element == "volt") colour = "\\c{255,240,140,255}";
-
-                out += (ready ? colour : "\\c{120,124,134,255}") + std::string("[") + key + "] " + spellName(content, book, r) + "   ";
+                v.spells.push_back(k);
                 continue;
             }
 
             const AbilityDef* a = world.ability(i);
-
             if (not a)
                 continue;
 
-            const bool ready = p and p->abilityCooldown[i] <= 0.0f and (a->staminaCost <= 0.0f or p->stamina >= tuning.stamina.minToAct);
-            out += (ready ? "\\c{220,226,236,255}" : "\\c{120,124,134,255}") + std::string("[") + key + "] " + a->name + "   ";
+            Hud::Skill sk;
+            sk.key = key;
+            sk.name = a->name;
+            sk.cost = static_cast<int>(std::lround(a->staminaCost));
+            sk.charging = p.chargeSlot == i;
+
+            const float left = p.abilityCooldown[i];
+            if (left > 0.0f)
+            {
+                sk.seconds = left;
+                sk.progress = 1.0f - left / std::max(0.01f, a->cooldown * cooldownScale);
+            }
+
+            sk.noStamina = a->staminaCost > 0.0f and p.stamina < tuning.stamina.minToAct and not world.infiniteStamina;
+            v.skills.push_back(sk);
+        }
+    }
+
+    void ArenaGame::enemyHud(Hud::View& v)
+    {
+        // Bars over the enemies, projected by hand: the engine camera matrices belong to the render thread
+        const glm::mat4 proj = glm::perspective(fov() * DEG, aspect, 0.1f, 500.0f);
+        const glm::mat4 view = glm::lookAt(camera.position, camera.position + camera.forward(), glm::vec3(0, 1, 0));
+
+        for (const auto& f : world.fighters)
+        {
+            if (f.team != Team::Enemy or not f.alive() or v.enemies.size() >= 32)
+                continue;
+
+            const auto prev = previous.find(f.id);
+            const glm::vec3 pos = prev != previous.end() ? glm::mix(prev->second.position, f.body.position, alpha) : f.body.position;
+            const glm::vec4 clip = proj * view * glm::vec4(pos + glm::vec3(0, f.body.height + 0.15f, 0), 1.0f);
+
+            if (clip.w <= 0.1f or glm::length(pos - camera.position) > 22.0f)
+                continue;
+
+            const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+
+            if (std::fabs(ndc.x) > 1.1f or std::fabs(ndc.y) > 1.1f)
+                continue;
+
+            Hud::EnemyBar bar;
+            bar.head = glm::vec2((ndc.x * 0.5f + 0.5f) * screenW, (0.5f - ndc.y * 0.5f) * screenH);
+            bar.health = f.health / std::max(1.0f, f.maxHealth);
+            bar.poise = f.poise / std::max(1.0f, f.maxPoise);
+            bar.staggered = f.action == Action::Stagger;
+            bar.elite = f.elite;
+            bar.boss = f.id == world.run.bossId;
+            bar.statuses = statusesOf(f);
+            v.enemies.push_back(bar);
         }
 
-        return out;
+        edgeArrows(v, proj, view);
+    }
+
+    void ArenaGame::handleUiClicks()
+    {
+        std::vector<glm::vec2> clicks;
+        {
+            std::lock_guard<std::mutex> lock(inputMutex);
+            clicks.swap(uiClicks);
+        }
+
+        for (const auto& c : clicks)
+        {
+            const int action = ui.hitAt(c.x, c.y);
+
+            if (action == 0)
+                continue;
+
+            if (optionsOpen)
+            {
+                bool closed = false;
+                if (optionsScreen.act(action, prefs, closed))
+                {
+                    applyOptions();
+                    saveOptions(optionsPath(), prefs);
+                }
+                if (closed)
+                    setOptionsOpen(false);
+                continue;
+            }
+
+            if (bookOpen)
+            {
+                bool closed = false;
+                bookChanged(spellbook.act(action, content, book, closed));
+                if (closed)
+                    setBookOpen(false);
+                continue;
+            }
+
+            if (shopOpen)
+            {
+                pendingPick = action;
+                continue;
+            }
+
+            if (titleOpen)
+            {
+                switch (action)
+                {
+                    case screens::TITLE_ARENA: startArena(); break;
+                    case screens::TITLE_TRAINING: titleOpen = false; break;
+                    case screens::TITLE_SPELLBOOK: setBookOpen(true); break;
+                    case screens::TITLE_OPTIONS: setOptionsOpen(true); break;
+                    default: break;
+                }
+                continue;
+            }
+
+            if (endOpen)
+            {
+                if (action == screens::END_AGAIN)
+                    pendingPick = InputFrame::START;
+                else if (action == screens::END_TRAINING and not networked())
+                {
+                    world.stopRun();
+                    print(runCommand("reset"));
+                }
+            }
+        }
+    }
+
+    void ArenaGame::drawUi(float frameSeconds)
+    {
+        if (ui.width() != screenW or ui.height() != screenH)
+            ui.resize(screenW, screenH);
+
+        {
+            std::lock_guard<std::mutex> lock(inputMutex);
+            ui.mouse(mouseX, mouseY);
+        }
+
+        uiTime += frameSeconds;
+        hurtFlash = std::max(0.0f, hurtFlash - frameSeconds * 3.0f);   // fades in about a third of a second
+
+        Hud::View v;
+        v.time = uiTime;
+        v.hurt = hurtFlash * prefs.hitFlash;
+
+        const Fighter* p = world.player();
+        const RunPhase phase = world.run.phase;
+        endOpen = p and world.inRun() and (phase == RunPhase::Victory or phase == RunPhase::Defeat) and not titleOpen;
+
+        if (p)
+        {
+            playerHud(v, *p);
+            runHud(v);
+
+            if (not p->alive())
+                v.message = world.inRun() ? (phase != RunPhase::Defeat ? "You fell: back up next wave" : "") : "You fell";
+            else if (paused)
+            {
+                v.message = "Paused";
+                v.messageDim = true;
+            }
+        }
+        else if (client)
+        {
+            switch (client->state)
+            {
+                case net::NetClient::State::Connecting: v.message = "Connecting..."; break;
+                case net::NetClient::State::Joining: v.message = "Joining..."; break;
+                case net::NetClient::State::Refused: v.message = "Refused: " + client->refusal; break;
+                case net::NetClient::State::Lost: v.message = "Connection lost"; break;
+                case net::NetClient::State::Playing: break;
+            }
+        }
+
+        enemyHud(v);
+
+        ui.begin();
+
+        if (not titleOpen)
+            hud.draw(ui, v, frameSeconds);
+
+        // The screens, the one in front last
+        if (titleOpen)
+        {
+            TitleView t;
+            t.waves = content.run.waves;
+            t.best = bestScore;
+            t.waitingForHost = client != nullptr;
+            t.time = uiTime;
+            screens::drawTitle(ui, t);
+        }
+        else if (endOpen)
+        {
+            const RunState& r = world.run;
+            EndView e;
+            e.won = phase == RunPhase::Victory;
+            e.wave = r.wave;
+            e.waves = r.waves;
+            e.score = r.score;
+            e.best = bestScore;
+            e.kills = r.kills;
+            e.level = p->level;
+            e.time = r.elapsed;
+            e.solo = not networked();
+            if (auto b = content.run.bosses.find(r.waves); b != content.run.bosses.end())
+                if (auto d = content.enemies.find(b->second); d != content.enemies.end())
+                    e.boss = "the " + d->second.name;
+            screens::drawEnd(ui, e);
+        }
+
+        if (shopOpen and p)
+            shopScreen.draw(ui, content, world, *p);
+
+        if (bookOpen)
+        {
+            // The spell keys' names, in the order of their slots
+            std::vector<std::string> keys(book.equipped.size());
+            for (int i = 0; i < InputFrame::ABILITIES; ++i)
+                if (const int slot = world.spellSlotAt(i); slot >= 0 and slot < static_cast<int>(keys.size()))
+                    keys[static_cast<size_t>(slot)] = upper(keyName("ability" + std::to_string(i + 1)));
+
+            spellbook.draw(ui, content, book, not networked(), keys, [this](int group, int index) {
+                static const char* names[] = {"spellElement", "spellForm", "spellModifier"};
+                const std::string action = names[std::clamp(group, 0, 2)] + std::to_string(index + 1);
+                return controls.count(action) ? upper(keyName(action)) : std::string();
+            });
+        }
+
+        if (optionsOpen)
+            optionsScreen.draw(ui, prefs);
+
+        std::string banner;
+        if (not content.report.errors.empty())
+            banner = std::to_string(content.report.errors.size()) + " content error(s), first: " + content.report.errors[0].str() + "   (console: errors)";
+
+        std::vector<std::string> lines(consoleLog.begin(), consoleLog.end());
+        hud.devLayers(ui, overlayText, consoleOpen, lines, consoleLine, banner);
+
+        ui.end();
     }
 
     void ArenaGame::remeshIfNeeded()
@@ -2591,7 +2814,7 @@ namespace arena
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
                    "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | training | wave <n> | timeup | shards <n> | kill | options | mods | errors | warnings\n"
-                   "scripted input: mouse [on|off] | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
+                   "scripted input: mouse [on|off] | click <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
         if (cmd == "where" and p)
@@ -2670,9 +2893,20 @@ namespace arena
             return "";   // the grid's revision changed: the next frame re-meshes it
         }
 
+        if (cmd == "click" and args.size() > 2)
+        {
+            // A click on the UI at window pixels, as the mouse would make it
+            std::lock_guard<std::mutex> lock(inputMutex);
+            uiClicks.emplace_back(static_cast<float>(std::atof(args[1].c_str())), static_cast<float>(std::atof(args[2].c_str())));
+            mouseX = uiClicks.back().x;
+            mouseY = uiClicks.back().y;
+            return "";
+        }
+
         if (cmd == "mouse")
         {
             mouseLook = args.size() > 1 ? args[1] != "off" : not mouseLook;
+            cursorFree = not mouseLook;   // off also lets go of the cursor: a scripted run must not hold the user's mouse
             return std::string("mouse look ") + (mouseLook ? "on" : "off");
         }
 

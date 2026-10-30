@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "hud.h"
+#include "ui.h"
 
 namespace arena
 {
@@ -25,35 +25,25 @@ namespace arena
     bool loadOptions(const std::string& path, GameOptions& out);
     bool saveOptions(const std::string& path, const GameOptions& options);
 
-    /** The options screen: a row per option, - and + (or a toggle), Back. */
+    /** The options screen (UI_SPEC.md section 10): a row per option, pips and - + or two choices, Back. */
     class OptionsScreen
     {
     public:
-        void init(Hud* hud);
-        void setOpen(bool open);
+        void setOpen(bool open) { this->open = open; }
         bool isOpen() const { return open; }
-        void refresh(const GameOptions& options);
 
-        /** A click at screen pixels; returns true when an option changed (or `closed` on Back). */
-        bool click(float x, float y, GameOptions& options, bool& closed);
+        void draw(Ui& ui, const GameOptions& options);
+
+        /** A click's action (Ui::hitAt); returns true when an option changed (`closed` on Back). */
+        bool act(int action, GameOptions& options, bool& closed);
+
+        /** The keys: up and down pick a row, left and right change it. Returns true when an option changed. */
+        bool key(int dx, int dy, GameOptions& options);
+
+        static constexpr int BACK = 99, ROW = 100;   // ROW + row * 10 + (1 minus, 2 plus, 3 first choice, 4 second)
 
     private:
-        struct Button
-        {
-            pg::_unique_id back = 0, label = 0;
-            float x = 0, y = 0, w = 0, h = 0;
-            int row = -1;
-            int step = 0;            // -1, +1, or 0 for a toggle / Back
-            bool shown = false;
-        };
-
-        void setButton(Button& b, float x, float y, float w, float h, const std::string& label, int row, int step);
-
-        Hud* hud = nullptr;
         bool open = false;
-        float px = 0, py = 0, pw = 0, ph = 0;
-        pg::_unique_id panel = 0, title = 0, hint = 0;
-        std::vector<pg::_unique_id> names, values;   // a text each per row, level with its buttons
-        std::vector<Button> buttons;
+        int focus = 0;
     };
 }

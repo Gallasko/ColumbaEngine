@@ -3,92 +3,141 @@
 #include <string>
 #include <vector>
 
-#include "ECS/entitysystem.h"
-#include "Renderer/renderer.h"
-
-#include "glm/glm.hpp"
+#include "ui.h"
 
 namespace arena
 {
     /**
-     * The 2D layer on top of the arena (viewport 1): health and stamina bars, enemy bars,
-     * the debug overlay text, the console and the content error banner.
-     * Holds entity ids only and looks components up when it writes them.
+     * The combat HUD (UI_SPEC.md section 4) and the developer layers (section 11), drawn each frame
+     * from a View the game fills in. It keeps what its moments need between frames: the health pips
+     * falling off, the level up badge popping, a spell's key flashing as it comes off cooldown.
      */
     class Hud
     {
     public:
-        static constexpr const char* FONT = "arena";
-        static constexpr const char* MONO = "arena-mono";
+        struct Status
+        {
+            std::string id;        // "burn", "chill", "frozen", "shock"
+            std::string name;
+            int stacks = 1;
+        };
 
-        void init(pg::EntitySystem* ecs, pg::MasterRenderer* renderer, float width, float height);
-        void resize(float width, float height);
+        struct Skill
+        {
+            std::string key, name;
+            float progress = 1.0f;   // 1 ready, else how far its cooldown (or charge) is
+            float seconds = 0.0f;    // left on the cooldown
+            bool charging = false;   // held to charge: shows "hold"
+            bool noStamina = false;
+            int cost = 0;            // stamina
+        };
 
-        void setOverlay(const std::string& text, bool visible);
-        void setBanner(const std::string& text);         // content errors, red, top centre
-        void setCenter(const std::string& text);         // "YOU DIED"
-        void setWeapon(const std::string& text);
-        void setConsole(bool open, const std::vector<std::string>& lines, const std::string& input);
+        struct SpellKey
+        {
+            enum class State { Ready, Cooldown, NoMana, Locked };
+            std::string key, name, element;
+            State state = State::Ready;
+            float progress = 1.0f, seconds = 0.0f;
+            int mana = 0;
+        };
 
-        /** manaLow: not enough for the cheapest spell (the bar dims). */
-        void setBars(float health, float stamina, bool exhausted, float mana = 1.0f, bool manaLow = false);
-        void setCrosshair(bool visible);
+        struct Mate
+        {
+            std::string name;
+            float health = 1.0f;
+            bool down = false;
+        };
 
-        /** The dash charges: a pip each by the stamina bar, the one refilling partly drawn. */
-        void setDashes(float charges, int max);
-
-        /** A red wash over the screen, 0 (none) to 1: being hit. */
-        void setHurt(float amount);
-
-        /** The arena run: a line at the top (wave, score), a panel in the middle (the title, the boons
-         *  to pick, the end of a run: "" hides it), and the boss's bar. */
-        void setRunLine(const std::string& text);
-        void setPanel(const std::string& title, const std::string& body);
-        void setBoss(const std::string& name, float health, bool visible);
-
-        /** One bar per entry, screen pixels; extra bars are hidden. */
         struct EnemyBar
         {
-            glm::vec2 position;   // centre
-            float health;         // 0..1
-            float poise;          // 0..1
-            bool staggered;
+            glm::vec2 head;          // window pixels: the top of its head
+            float health = 1.0f, poise = 1.0f;
+            bool staggered = false, elite = false, boss = false;
+            std::vector<Status> statuses;
         };
-        void setEnemyBars(const std::vector<EnemyBar>& bars);
 
-        // The 2D pieces, for other screens built the same way (the spellbook). Colours are 0-255
-        pg::_unique_id makeQuad(float x, float y, float z, float w, float h, const glm::vec4& color);
-        pg::_unique_id makeText(float x, float y, float z, const std::string& font, const std::string& text, float scale, const glm::vec4& color);
-        void place(pg::_unique_id id, float x, float y, float w, float h, bool visible);
-        void color(pg::_unique_id id, const glm::vec4& c);
-        void text(pg::_unique_id id, const std::string& t);
-        void show(pg::_unique_id id, bool visible);
-        float width() const { return w; }
-        float height() const { return h; }
+        struct Marker
+        {
+            enum class Kind { Spawn, Elite, Boss };
+            Kind kind = Kind::Spawn;
+            bool right = true;       // the screen side it is on
+            float y = 360.0f;        // base layout
+            std::string name;        // a boss's
+            float distance = 0.0f;   // m
+        };
+
+        struct View
+        {
+            bool player = false, alive = true;
+
+            // The body
+            float health = 100.0f, maxHealth = 100.0f;
+            float stamina = 1.0f, mana = 1.0f;       // 0..1
+            bool exhausted = false, manaLow = false;
+            float dashes = 2.0f;
+            int maxDashes = 2;
+            std::vector<std::pair<std::string, bool>> weapons;   // owned, and whether in hand
+            std::string nextWeaponKey = "TAB";
+            std::vector<Status> statuses;
+
+            std::vector<Skill> skills;
+            std::vector<SpellKey> spells;
+            bool crosshair = true;
+
+            // The run
+            bool run = false;
+            int wave = 0, waves = 20;
+            float timer = 0.0f;
+            bool bossWave = false;
+            int shards = 0, level = 1, xp = 0, xpNext = 1, levelUps = 0, score = 0;
+            std::vector<Mate> team;   // co-op: the others
+
+            bool boss = false, enraged = false;
+            std::string bossName;
+            float bossHealth = 1.0f, bossPoise = 1.0f;
+
+            std::vector<EnemyBar> enemies;
+            std::vector<Marker> markers;
+
+            // Moments
+            float hurt = 0.0f;              // the red wash, 0..1 (already times the option)
+            std::string headline;           // a wave's or a boss's name as it starts
+            int countdown = 0;              // 3, 2, 1 at a wave's end (0: none)
+            std::string message;            // "Paused", "You fell", "Connecting..."
+            bool messageDim = false;        // over an ink wash (Paused)
+            float time = 0.0f;              // s, for pulses
+        };
+
+        void draw(Ui& ui, const View& v, float dt);
+
+        /** The F1 overlay, the console and the content error banner. */
+        void devLayers(Ui& ui, const std::string& overlay, bool console, const std::vector<std::string>& lines, const std::string& input, const std::string& banner);
 
     private:
-        pg::EntitySystem* ecs = nullptr;
-        float w = 1280.0f, h = 720.0f;
+        void drawRun(Ui& ui, const View& v);
+        void drawBoss(Ui& ui, const View& v);
+        void drawBody(Ui& ui, const View& v);
+        void drawAbilities(Ui& ui, const View& v);
+        void drawCrosshair(Ui& ui);
+        void drawEnemies(Ui& ui, const View& v);
+        void drawMarkers(Ui& ui, const View& v);
+        void drawMoments(Ui& ui, const View& v);
 
-        pg::_unique_id overlay = 0, overlayBack = 0;
-        pg::_unique_id banner = 0, center = 0, weapon = 0;
-        pg::_unique_id consoleBack = 0, consoleText = 0;
-        pg::_unique_id healthBack = 0, healthFill = 0, staminaBack = 0, staminaFill = 0, manaBack = 0, manaFill = 0;
-        pg::_unique_id crossH = 0, crossV = 0;
-        pg::_unique_id hurt = 0;
-        pg::_unique_id runLine = 0, panelBack = 0, panelTitle = 0, panelBody = 0, bossName = 0, bossBack = 0, bossFill = 0;
-        std::string lastRunLine, lastPanel;
-        float lastBoss = -2.0f;
-        std::vector<pg::_unique_id> dashBack, dashFill;
-        float lastDashes = -1.0f;
-        float lastHurt = -1.0f;
-        bool lastCrosshair = true;
+        // Health pips falling off
+        struct Falling
+        {
+            int pip = 0;
+            float age = 0.0f;
+        };
+        std::vector<Falling> falling;
+        int lastPips = -1;
 
-        struct EnemyBarIds { pg::_unique_id back, fill, poise; };
-        std::vector<EnemyBarIds> enemyBars;
+        int lastLevelUps = 0;
+        float badgeAge = 10.0f;       // s since the +N badge changed
+        float levelUpAge = 10.0f;     // s since a level up ("LEVEL UP")
+        int lastLevel = 0;
 
-        // Last values written, so unchanged text is not re-laid out every frame
-        std::string lastOverlay, lastBanner, lastCenter, lastWeapon, lastConsole;
-        bool lastOverlayVisible = true, lastConsoleOpen = false;
+        std::vector<int> lastSpellState;
+        std::vector<int> spellFlash;  // frames of white left
     };
 }

@@ -1182,11 +1182,12 @@ TEST(arena_world, a_dodge_cancels_a_light_attack_from_its_recovery)
 
 TEST(arena_world, a_light_hit_can_be_rolled_out_of_a_heavy_one_cannot)
 {
-    auto hitThenRoll = [](const std::string& enemy, const std::string& attackName) {
+    auto hitThenRoll = [](const std::string& enemy, const std::string& attackName, float poiseDamage) {
         Arena a;
         a.world.aiEnabled = false;
         // On the ground: a knock-up would make it the wake-up roll's case instead
         a.content.enemies[enemy].moveset.attacks[attackName].knockup = 0.0f;
+        a.content.enemies[enemy].moveset.attacks[attackName].poiseDamage = poiseDamage;
         Fighter* e = a.world.find(a.world.spawnEnemy(enemy, a.player().body.position + glm::vec3(0, 0, 1.6f), 180.0f));
         a.settle(5);
         e->action = Action::Attack;
@@ -1217,8 +1218,8 @@ TEST(arena_world, a_light_hit_can_be_rolled_out_of_a_heavy_one_cannot)
         return std::string(actionName(a.player().action));
     };
 
-    EXPECT_EQ(hitThenRoll("base:skulker", "bite"), "dodge");    // 12 poise: a light hit
-    EXPECT_EQ(hitThenRoll("base:brute", "slam"), "stagger");    // 30 poise: a heavy one, even on the ground
+    EXPECT_EQ(hitThenRoll("base:skulker", "bite", 12.0f), "dodge");    // a light hit
+    EXPECT_EQ(hitThenRoll("base:brute", "slam", 30.0f), "stagger");    // a heavy one, even on the ground
 }
 
 TEST(arena_world, an_attack_aims_down_at_an_enemy_below_the_ledge)

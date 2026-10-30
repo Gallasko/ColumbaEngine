@@ -1,0 +1,46 @@
+// The slime's brain (see brute.pg for what the game puts in `me` and what it reads back).
+// It moves by hopping: a hop at the player, a short rest (a little different each time), another.
+// Close enough, now and then, it pounces, and the next thing it does is bounce back off.
+
+import "math"
+import "random"
+
+fun think(me)
+{
+    var p = me.params
+
+    if (me.lastPounce == none)
+    {
+        me.lastPounce = -10
+        me.bounceNext = false
+        me.wait = p.rest
+    }
+
+    if (me.distance > p.engageRange and me.hunting == false)
+    {
+        me.move = "hold"
+    }
+    else if (me.sinceAttack < me.wait)
+    {
+        // Squashed on the ground between hops, turning to the player
+        me.move = "hold"
+    }
+    else if (me.bounceNext)
+    {
+        me.attack = "bounce"
+        me.bounceNext = false
+        me.wait = p.rest + random() * p.restJitter
+    }
+    else if (me.distance <= p.pounceRange and me.time - me.lastPounce > p.pounceCooldown and abs(me.angle) < 30)
+    {
+        me.attack = "pounce"
+        me.lastPounce = me.time
+        me.bounceNext = true
+        me.wait = p.rest
+    }
+    else
+    {
+        me.attack = "hop"
+        me.wait = p.rest + random() * p.restJitter
+    }
+}

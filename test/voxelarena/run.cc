@@ -526,3 +526,91 @@ TEST(arena_run, it_plays_in_its_own_arena_built_anew_for_each_wave)
     r.world.stopRun();
     EXPECT_EQ(glm::ivec3(r.world.grid.width(), r.world.grid.height(), r.world.grid.depth()), training);
 }
+
+TEST(arena_run, the_first_waves_are_slimes_for_a_minute)
+{
+    RunArena r;
+    r.world.startRun(17);
+    EXPECT_FLOAT_EQ(r.world.run.timer, 60.0f);
+
+    r.past(20.0f);
+    int slimes = 0;
+    for (const auto& f : r.world.fighters)
+        if (f.team == Team::Enemy)
+        {
+            EXPECT_EQ(f.type, "base:slime");
+            ++slimes;
+        }
+    EXPECT_GE(slimes, 2);
+}
+
+TEST(arena_run, the_slime_hops_at_the_player_and_bounces_off)
+{
+    RunArena r;
+    ScriptBrain brain;
+    ContentReport report;
+    brain.load(r.content, report);
+    ASSERT_TRUE(report.errors.empty()) << report.errors.front().text;
+    r.world.setBrain(&brain);
+    r.world.aiEnabled = true;
+
+    const int id = r.world.spawnEnemy("base:slime", r.player().body.position + glm::vec3(0, 0, 9.0f), 180.0f);
+    const float start = glm::length(r.world.find(id)->body.position - r.player().body.position);
+    const float health = r.player().health;
+
+    bool airborne = false;
+    bool staggered = false;
+    std::vector<std::string> attacks;
+    for (int i = 0; i < 60 * 8; ++i)
+    {
+        r.world.step(InputFrame{});
+        const Fighter* s = r.world.find(id);
+        ASSERT_TRUE(s);
+        EXPECT_TRUE(s->aiLastError.empty()) << s->aiLastError;
+        airborne = airborne or not s->body.onGround;
+        staggered = staggered or r.player().action == Action::Stagger;
+        if (s->action == Action::Attack and (attacks.empty() or attacks.back() != s->attack))
+            attacks.push_back(s->attack);
+    }
+
+    // It moves by hopping, it closes in, it pounces and bounces back off, and it hurts a little,
+    // without ever staggering the player
+    EXPECT_TRUE(airborne);
+    EXPECT_FALSE(staggered);
+    EXPECT_TRUE(std::find(attacks.begin(), attacks.end(), "hop") != attacks.end());
+    const auto pounce = std::find(attacks.begin(), attacks.end(), "pounce");
+    ASSERT_NE(pounce, attacks.end());
+    ASSERT_NE(pounce + 1, attacks.end());
+    EXPECT_EQ(*(pounce + 1), "bounce");
+    EXPECT_LT(glm::length(r.world.find(id)->body.position - r.player().body.position), start);
+    EXPECT_LT(r.player().health, health);
+}
+
+TEST(arena_run, the_slime_hops_up_a_block)
+{
+    RunArena r;
+    ScriptBrain brain;
+    ContentReport report;
+    brain.load(r.content, report);
+    r.world.setBrain(&brain);
+    r.world.aiEnabled = true;
+    r.world.godMode = true;
+
+    // The player on a step one block high, the slime below it
+    r.world.grid.fill({8, 1, 2}, {24, 1, 10}, r.content.block("base:stone"));
+    r.player().body.position = glm::vec3(16, 2, 6);
+    const int id = r.world.spawnEnemy("base:slime", glm::vec3(16, 1, 17), 180.0f);
+
+    float highest = 0.0f;
+    for (int i = 0; i < 60 * 8; ++i)
+    {
+        r.world.step(InputFrame{});
+        const Fighter* s = r.world.find(id);
+        ASSERT_TRUE(s);
+        if (s->body.onGround)
+            highest = std::max(highest, s->body.position.y);
+    }
+
+    EXPECT_GE(highest, 1.99f);   // stood on the step
+    EXPECT_LT(glm::length(r.world.find(id)->body.position - r.player().body.position), 4.0f);
+}

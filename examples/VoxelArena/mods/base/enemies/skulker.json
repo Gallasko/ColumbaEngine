@@ -1,6 +1,6 @@
 // The skulker (the flanker): fast, weak, four legs. It circles to your back while someone else has
 // your attention, bites when you cannot see it, and backs off after each bite. Alone and watched,
-// it keeps its distance and waits for an opening.
+// it keeps its distance and waits for an opening. Its bite hurts but never staggers you.
 {
     "name": "Skulker",
     "model": "skulker",
@@ -37,7 +37,7 @@
         "attacks": {
             "bite": {
                 "startup": 13, "active": 4, "recovery": 22,
-                "damage": 10, "poiseDamage": 12,
+                "damage": 10, "poiseDamage": 0,
                 "knockback": 3, "hitstop": 3, "shake": 0.25,
                 "turnRate": 8,
                 "hitboxes": [ { "offset": [0, 0.6, 0.9], "size": [1.0, 0.9, 1.4] } ],

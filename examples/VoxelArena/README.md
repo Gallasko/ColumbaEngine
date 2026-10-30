@@ -42,16 +42,20 @@ and enemies that come back), **B** for the spellbook, **O** for the options.
 - **Its own arena**: a 40 x 40 pit with four pillars, a platform and a boulder on a rope over the
   middle. It is built anew before each wave, whatever was broken, with everyone put back in place.
 
-- **Twenty timed waves**, from 20 seconds to a minute. Enemies keep coming in from the edges all
-  through a wave (their spawn point glows red a moment first), more and faster as the run goes on,
-  and more with more players. Survive until the time is up; whoever is left then goes. From wave 6
+- **Twenty timed waves**, from a minute to a minute and a half. Enemies keep coming in from the edges
+  all through a wave (their spawn point glows red a moment first; one out of view, an arrow at the
+  edge of the screen points the way), more and faster as the run goes on, and more with more players.
+  Survive until the time is up; whoever is left then goes.
+- **Slimes first**: the first waves are slimes only. They hop their way to you (a hop that lands on
+  you stings a little), and close up they squash down, glow, pounce, and bounce back off. Skulkers
+  join from wave 3, archers from 4, brutes from 6. From wave 7
   some come as **elites**, glowing gold: tougher, harder hitting, three times the shards.
 - **Shards**: what the enemies drop. They fly to you within pickup range (and the ones left lying
   are yours at the end of the wave). They are money and XP at once: each **level** gives a free stat
   item to pick in the shop.
 - **The shop**, between waves, each player their own: four offers to buy with 1-4 or a click, and
-  **Lock** keeps one for the next shop. **R** rerolls (dearer each time), **Enter** is ready; in co-op
-  the next wave waits for everyone. On sale:
+  **Lock** (Shift + 1-4) keeps one for the next shop. A level up's free stat items are on 5 and up.
+  **R** rerolls (dearer each time), **Enter** is ready; in co-op the next wave waits for everyone. On sale:
   - stat items (`upgrades.json`): health, damage, armor, crit, speed, regeneration, pickup range,
     dash charges, cheaper spells, faster cooldowns, life on hit... They add up through the run;
   - weapons (a run starts with the sword only; every mod's weapons are for sale), weapon skills,
@@ -97,7 +101,7 @@ for the players from anywhere, whatever its engage range.
 | G / middle mouse (hold) | Mine the block under the crosshair |
 | 1, 2, 3 | Your spells, at the crosshair (firebolt, ice shards, chain lightning to begin with) |
 | B | The spellbook: build your spells |
-| O | Options: mouse sensitivity, invert Y, field of view, volume, camera shake, hit flash, slash trails, view, debug overlay (kept in `~/.local/share/voxelarena/options.json`) |
+| O | Options: mouse sensitivity, invert Y, field of view, volume, camera shake, hit flash, slash trails, view, debug overlay (kept in `~/.local/share/voxelarena/options.json`); the arrows pick and change a row |
 | R, 4 | The weapon's skills (dagger: shadow dash, hold to charge, and backflip; sword: whirlwind and leap slam) |
 | F1 | Debug overlay |
 | F2 | Hitboxes (red: active, orange: winding up) and hurtboxes (green, blue while invulnerable) |
@@ -175,7 +179,11 @@ Bindings are data: the `controls` section of `mods/base/tuning.json`.
     can multiply its form's, and a form is paid once per copy of it (two bolts that each leave a
     zone pay for two zones). Casting never stops a roll.
 - **The spellbook** (B) builds them: pick a key (1, 2, 3), then click an element, forms and
-  modifiers; what cannot follow is greyed out, and the cost and what it does show as you build. Save
+  modifiers, or press their keys (elements Z X C, forms A S D F, modifiers Q W E R T: the
+  `spellElement1`... `spellModifier5` controls). What cannot follow is greyed out with the reason; the
+  recipe shows as a row of blocks with a diagram of what it does, and its cost, cooldown and damage
+  update as you build (the part under the mouse previews what it would do). Backspace takes the last
+  part off, Delete clears. Save
   it to your book with a name, or pick a ready-made spell. The book is kept in
   `~/.local/share/voxelarena/spellbook.json`. Playing alone, the game waits while it is open.
 - **Weapon skills** come with the weapon in hand, on R and 4, and cost stamina and a cooldown (no
@@ -326,7 +334,8 @@ examples/VoxelArena/
     orbitcamera  the third-person camera: smoothing, wall pull-in, shake
     net/         multiplayer: messages, the server, the client (prediction, interpolation),
                  a simulated network for the tests
-  Game/          the engine side: input, drawing, HUD, console
+  Game/          the engine side: input, drawing, HUD, console; the UI (ui.h: an immediate-mode layer
+                 of rects, text and pixel icons over the engine's 2D entities, UI_SPEC.md's look)
   Net/           the engine's NetworkSystem as the game's transport
   server_main    the dedicated server
   shader/        the voxel shader
@@ -334,6 +343,11 @@ examples/VoxelArena/
   mods/testmod/  the spear
 test/voxelarena/ the tests
 ```
+
+The UI is drawn in a 1280 x 720 base layout scaled to the window (every number times
+`min(width / 1280, height / 720)`, rounded to whole pixels), with two fonts from `res/font` under the
+SIL Open Font License: Jersey 15 for numbers, keys and titles, Rubik (static 500, 600 and 700 cuts) for
+the rest.
 
 From VoxelTest it keeps the `.vxl.json` model format (models stay editable in its editor, which a
 test checks) and the mouse capture handling (including the WSL case). It does not keep the
@@ -417,7 +431,7 @@ See `mods/base/weapons/sword.json`: the header comment explains every field. In 
 - `gravityScale`: the fall while the attack runs (an air attack hangs). `plungeSpeed`: the attack dives
   after its startup and holds its first active frame until it lands.
 - `iframes` `[from, to)`: frames the attacker cannot be hit, passing through whoever is in the way.
-  `leap` `[along, up]` m/s at frame `leapAt` (negative along: backwards). `turn` (`pitch`, `yaw`,
+  `leap` `[along, up]` m/s at frame `leapAt` (negative along: backwards; enemies leap too, the slime hops with it). `turn` (`pitch`, `yaw`,
   `from`, `to`): how the body turns over the attack, a backflip or a spin; it only looks.
 - `dash`: the lunge sets the speed at once instead of speeding up to it. `charge` (`at`, `frames`,
   `lunge`, `damage`): held, the attack waits at frame `at` up to `frames`, then lunges and hits up to
@@ -487,7 +501,8 @@ Open with `` ` ``. `help` lists the commands.
 | `timeup`, `kill`, `shards <n>` | End the wave now (a boss wave: its boss falls), kill every enemy (they drop their shards), get shards (and their XP) |
 | `pacer [n\|off [fps]]` | The engine's update pacing: n updates per drawn frame (2 by default), or off (as fast as it can, or capped at fps) |
 
-Scripted input, for tests and for checking frame data: `mouse off` (ignore the real mouse), `press <action>`, `hold <action> <frames>`,
+Scripted input, for tests and for checking frame data: `mouse off` (ignore the real mouse and let go of the cursor), `click <x> <y>` (a click on the
+UI, window pixels), `press <action>`, `hold <action> <frames>`,
 `wait <frames>`, `sleep <seconds>`, `look <yaw> <pitch>`, `teleport x y z`, `where`, `echo <text>`.
 For example:
 

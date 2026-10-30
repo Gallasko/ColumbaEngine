@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "Core/spells.h"
-#include "hud.h"
+#include "ui.h"
 
 namespace arena
 {
@@ -25,27 +25,31 @@ namespace arena
     std::string spellName(const Content& content, const SpellbookData& book, const SpellRecipe& recipe);
 
     /**
-     * The spellbook screen (B): pick a spell key, then build its spell with the mouse: an element,
-     * forms and modifiers. Its cost and what it does show as it is built. The book lists the
-     * ready-made spells and the saved ones: a click puts one on the key being built.
+     * The spellbook screen (B, UI_SPEC.md section 7): pick a spell key, then build its spell from
+     * parts (an element, forms, modifiers), with the mouse or the part keys. The recipe shows as a row
+     * of blocks with a diagram of what it does; its cost, cooldown and damage update as it is built.
+     * The book lists the saved and ready-made spells: a click puts one on the key being built.
      */
     class Spellbook
     {
     public:
-        void init(Hud* hud);
-
         void setOpen(bool open);
         bool isOpen() const { return open; }
 
-        /** Draws it as it is now. */
-        void refresh(const Content& content, const SpellbookData& book);
+        /** Draws it. `keys`: the spell keys' names (bindings); `partKey`: a part's key name by group and index. */
+        void draw(Ui& ui, const Content& content, const SpellbookData& book, bool paused, const std::vector<std::string>& keys,
+                  const std::function<std::string(int group, int index)>& partKey);
 
-        /** A click at screen pixels. Returns true when the spells on the keys changed. */
-        bool click(float x, float y, const Content& content, SpellbookData& book);
+        /** A click's action (Ui::hitAt). Returns true when the spells on the keys changed; `closed` on Close. */
+        bool act(int action, const Content& content, SpellbookData& book, bool& closed);
 
-        /** Keys while open: Backspace takes the last word off (or a letter of the name), Enter saves. */
+        /** A part key: group 0 elements, 1 forms, 2 modifiers. Returns true when the spells changed. */
+        bool part(int group, int index, const Content& content, SpellbookData& book);
+
+        /** Keys while open: Backspace takes the last word off (or a letter of the name), Enter saves, Delete clears. */
         bool backspace(SpellbookData& book);
         bool enter(const Content& content, SpellbookData& book);
+        bool clear(SpellbookData& book);
         void type(const std::string& text);
 
         int editing = 0;          // the spell key being built
@@ -55,27 +59,29 @@ namespace arena
         /** What may be built with (an arena run's: only what was bought); unset: everything. */
         std::function<bool(const std::string&)> owned;
 
+        // Click actions
+        static constexpr int SLOT = 100, ELEMENT = 200, FORM = 300, MODIFIER = 400, REMOVE = 500, CLEAR = 501, NAME = 502, SAVE = 503, CLOSE = 504,
+                             PREV = 505, NEXT = 506, LOAD = 1000, DELETE = 2000;
+
     private:
-        enum class Act { None, Slot, Element, Keyword, RemoveLast, Clear, Save, Name, Load, Delete };
+        /** The parts in the order shown (and keyed): elements, forms, modifiers. */
+        void order(const Content& content);
+        bool add(const std::string& keyword, const Content& content, SpellbookData& book);
 
-        struct Button
-        {
-            pg::_unique_id back = 0, label = 0;
-            float x = 0, y = 0, w = 0, h = 0;
-            Act act = Act::None;
-            std::string value;    // element name, keyword id, spell id
-            int index = -1;       // slot, saved entry
-            bool shown = false;
-        };
-
-        Button& button(size_t i);
-        void setButton(Button& b, float x, float y, float w, float h, const std::string& label, bool enabled, bool selected, Act act, const std::string& value = "", int index = -1);
-
-        Hud* hud = nullptr;
         bool open = false;
-        float px = 0, py = 0, pw = 0, ph = 0;   // the panel
-        pg::_unique_id panel = 0, title = 0, recipe = 0, cost = 0, description = 0, hint = 0, labels = 0;
-        std::vector<Button> buttons;
-        size_t used = 0;
+        std::vector<std::string> elements, forms, modifiers;
+
+        struct Entry
+        {
+            std::string name, id;   // id: a ready-made spell's
+            SpellRecipe recipe;
+            int saved = -1;         // index in the book's saved list
+        };
+        std::vector<Entry> entries;
+        int page = 0;
+
+        // The mana the recipe cost before its last change
+        std::string lastRecipe;
+        float lastMana = -1.0f, manaChange = 0.0f;
     };
 }

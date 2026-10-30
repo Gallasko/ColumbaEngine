@@ -2,6 +2,7 @@
 
 #include "options.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -14,12 +15,7 @@ namespace arena
 {
     namespace
     {
-        const glm::vec4 PANEL(14, 16, 26, 235);
-        const glm::vec4 BUTTON(42, 48, 66, 240);
-        const glm::vec4 TEXT(236, 238, 242, 255);
-
         constexpr int ROWS = 9;
-        constexpr float ROW = 32.0f, TOP = 72.0f;
         const char* const NAMES[ROWS] = {"Mouse sensitivity", "Invert mouse Y", "Field of view", "Volume", "Camera shake", "Hit flash", "Slash trails", "View", "Debug overlay (F1)"};
 
         bool isToggle(int row) { return row == 1 or row == 6 or row == 7 or row == 8; }
@@ -33,7 +29,7 @@ namespace arena
             {
                 case 0: s.setf(std::ios::fixed); s.precision(2); s << o.sensitivity; return s.str();
                 case 1: return o.invertY ? "On" : "Off";
-                case 2: return (o.fovOffset >= 0.0f ? "+" : "") + std::to_string(static_cast<int>(o.fovOffset)) + " degrees";
+                case 2: return (o.fovOffset >= 0.0f ? "+" : "") + std::to_string(static_cast<int>(o.fovOffset)) + "\xC2\xB0";
                 case 3: return percent(o.volume);
                 case 4: return percent(o.shake);
                 case 5: return percent(o.hitFlash);
@@ -42,6 +38,20 @@ namespace arena
                 case 8: return o.overlay ? "On" : "Off";
             }
             return "";
+        }
+
+        /** Where a number option is in its range, 0..1. */
+        float fraction(const GameOptions& o, int row)
+        {
+            switch (row)
+            {
+                case 0: return (o.sensitivity - 0.2f) / 2.8f;
+                case 2: return (o.fovOffset + 20.0f) / 50.0f;
+                case 3: return o.volume;
+                case 4: return o.shake / 1.5f;
+                case 5: return o.hitFlash;
+            }
+            return 0.0f;
         }
 
         void change(GameOptions& o, int row, int step)
@@ -128,128 +138,138 @@ namespace arena
         return static_cast<bool>(file);
     }
 
-    void OptionsScreen::init(Hud* h)
+    void OptionsScreen::draw(Ui& ui, const GameOptions& o)
     {
-        hud = h;
-        pw = 640.0f;
-        ph = 520.0f;
-        px = (hud->width() - pw) * 0.5f;
-        py = (hud->height() - ph) * 0.5f;
+        using namespace ui;
 
-        panel = hud->makeQuad(px, py, 6, pw, ph, PANEL);
-        title = hud->makeText(px + 24, py + 16, 8, Hud::FONT, "Options", 1.25f, TEXT);
-        hint = hud->makeText(px + 24, py + ph - 34, 8, Hud::MONO, "O / Esc: close    saved as you change it", 0.8f, glm::vec4(150, 154, 166, 255));
-
-        for (int row = 0; row < ROWS; ++row)
-        {
-            const float y = py + TOP + static_cast<float>(row) * ROW;
-            names.push_back(hud->makeText(px + 24, y, 8, Hud::FONT, NAMES[row], 0.95f, glm::vec4(200, 204, 214, 255)));
-            values.push_back(hud->makeText(px + 330, y, 8, Hud::FONT, "", 0.95f, TEXT));
-        }
-
-        for (auto id : {panel, title, hint})
-            hud->show(id, false);
-        for (auto id : names)
-            hud->show(id, false);
-        for (auto id : values)
-            hud->show(id, false);
-
-        // Made now, every one (an entity made while the screen is drawn has no components that frame)
-        buttons.resize(ROWS * 2 + 1);
-        for (auto& b : buttons)
-        {
-            b.back = hud->makeQuad(0, 0, 7, 10, 10, BUTTON);
-            b.label = hud->makeText(0, 0, 8, Hud::FONT, "", 0.95f, TEXT);
-            hud->show(b.back, false);
-            hud->show(b.label, false);
-        }
-    }
-
-    void OptionsScreen::setButton(Button& b, float x, float y, float w, float h, const std::string& label, int row, int step)
-    {
-        b.x = x;
-        b.y = y;
-        b.w = w;
-        b.h = h;
-        b.row = row;
-        b.step = step;
-        b.shown = true;
-        hud->place(b.back, x, y, w, h, true);
-        hud->place(b.label, x + w * 0.5f - 6.0f * static_cast<float>(label.size()) * 0.5f - 2.0f, y + h * 0.5f - 11.0f, w, h, true);
-        hud->text(b.label, label);
-    }
-
-    void OptionsScreen::setOpen(bool o)
-    {
-        open = o;
-
-        for (auto id : {panel, title, hint})
-            hud->show(id, open);
-        for (auto id : names)
-            hud->show(id, open);
-        for (auto id : values)
-            hud->show(id, open);
-
-        if (not open)
-            for (auto& b : buttons)
-            {
-                b.shown = false;
-                hud->show(b.back, false);
-                hud->show(b.label, false);
-            }
-    }
-
-    void OptionsScreen::refresh(const GameOptions& o)
-    {
         if (not open)
             return;
 
-        for (int row = 0; row < ROWS; ++row)
-            hud->text(values[static_cast<size_t>(row)], valueOf(o, row));
+        ui.section("options");
+        ui.anchor(Anchor::TopLeft);
+        ui.rectPx(0, 0, ui.width(), ui.height(), withAlpha(INK, 0.58f));
 
-        // Each row's buttons level with its text
-        size_t k = 0;
+        ui.anchor(Anchor::Centre);
+        ui.raised(320, 44, 640, 632, PANEL, 4.0f);
+
+        const float tw = ui.text(348, 64, "Options", Font::Display, 44, TEXT);
+        ui.text(348 + tw + 14, 84, "saved as you change it", Font::Text500, 12, GOOD);
+
         for (int row = 0; row < ROWS; ++row)
         {
-            const float y = py + TOP + static_cast<float>(row) * ROW - 1.0f;
+            const float y = 122.0f + 52.0f * static_cast<float>(row);
+            if (ui.hover(348, y, 584, 46))
+                focus = row;
+
+            if (row == focus)
+            {
+                ui.rect(348, y, 584, 46, hex(0x252833));
+                ui.rect(348, y, 4, 46, GOLD);
+            }
+
+            ui.text(366, y + 14, NAMES[row], Font::Text600, 15, row == focus ? TEXT : TEXT_DIM);
 
             if (isToggle(row))
             {
-                setButton(buttons[k++], px + 520, y, 80, 26, "switch", row, 0);
-                buttons[k].shown = false;
-                hud->show(buttons[k].back, false);
-                hud->show(buttons[k].label, false);
-                ++k;
+                // Two choices side by side, the one in effect filled
+                const bool second = (row == 1 and o.invertY) or (row == 6 and o.trails) or (row == 7 and not o.firstPerson) or (row == 8 and o.overlay);
+                const std::string a = row == 7 ? "First person" : "Off";
+                const std::string b = row == 7 ? "Third person" : "On";
+                const float aw = ui.measure(a, Font::Display, 20) + 28.0f, bw = ui.measure(b, Font::Display, 20) + 28.0f;
+                const float x1 = 918.0f - bw, x0 = x1 - aw;
+
+                ui.box(x0, y + 7, aw, 32, second ? CARD : TEXT, 2.0f, INK);
+                ui.text(x0 + aw * 0.5f, y + 12, a, Font::Display, 20, second ? MUTED : INK, Align::Centre);
+                ui.box(x1, y + 7, bw, 32, second ? TEXT : CARD, 2.0f, INK);
+                ui.text(x1 + bw * 0.5f, y + 12, b, Font::Display, 20, second ? INK : MUTED, Align::Centre);
+
+                ui.hit(x0, y + 7, aw, 32, ROW + row * 10 + 3);
+                ui.hit(x1, y + 7, bw, 32, ROW + row * 10 + 4);
             }
             else
             {
-                setButton(buttons[k++], px + 520, y, 36, 26, "-", row, -1);
-                setButton(buttons[k++], px + 564, y, 36, 26, "+", row, 1);
+                const float fill = fraction(o, row);
+                const int pips = static_cast<int>(std::lround(fill * 10.0f));
+                for (int k = 0; k < 10; ++k)
+                    ui.box(568.0f + static_cast<float>(k) * 14.0f, y + 16, 12, 14, k < pips ? GOLD : WELL, 2.0f, INK);
+
+                ui.text(788, y + 11, valueOf(o, row), Font::Display, 24, TEXT, Align::Right);
+
+                for (int step : {-1, 1})
+                {
+                    const float bx = step < 0 ? 846.0f : 886.0f;
+                    const bool over = ui.hover(bx, y + 7, 32, 32);
+                    ui.box(bx, y + 7, 32, 32, CARD, 2.0f, over ? GOLD : LINE);
+                    ui.text(bx + 16, y + 9, step < 0 ? "\xE2\x88\x92" : "+", Font::Display, 26, TEXT, Align::Centre);
+                    ui.hit(bx, y + 7, 32, 32, ROW + row * 10 + (step < 0 ? 1 : 2));
+                }
             }
         }
 
-        setButton(buttons[k], px + 24, py + ph - 80, 120, 34, "Back", -1, 0);
+        const bool over = ui.hover(348, 610, 150, 42);
+        ui.raised(348, 610, 150, 42, GOLD, 3.0f, 2.0f, over ? TEXT : INK);
+        const float kw = ui.measure("ESC", Font::Display, 15) + 10.0f;
+        ui.box(360, 620, kw, 22, INK, 0.0f);
+        ui.text(360 + kw * 0.5f, 622, "ESC", Font::Display, 15, GOLD, Align::Centre);
+        ui.text(360 + kw + 10, 617, "Back", Font::Display, 24, GOLD_INK);
+        ui.hit(348, 610, 150, 42, BACK);
+
+        ui.text(512, 624, "Up / Down pick a row \xC2\xB7 Left / Right change it \xC2\xB7 O or Esc closes", Font::Text500, 11, FAINT);
     }
 
-    bool OptionsScreen::click(float x, float y, GameOptions& o, bool& closed)
+    bool OptionsScreen::act(int action, GameOptions& o, bool& closed)
     {
         closed = false;
 
         if (not open)
             return false;
 
-        for (const auto& b : buttons)
+        if (action == BACK)
         {
-            if (not b.shown or x < b.x or x > b.x + b.w or y < b.y or y > b.y + b.h)
-                continue;
+            closed = true;
+            return false;
+        }
 
-            if (b.row < 0)
-            {
-                closed = true;
-                return false;
-            }
+        if (action < ROW)
+            return false;
 
-            change(o, b.row, b.step);
+        const int row = (action - ROW) / 10, kind = (action - ROW) % 10;
+        if (row < 0 or row >= ROWS)
+            return false;
+
+        focus = row;
+
+        if (kind == 1 or kind == 2)
+        {
+            change(o, row, kind == 1 ? -1 : 1);
+            return true;
+        }
+
+        // A choice: only a change when it is not the one in effect
+        const bool second = (row == 1 and o.invertY) or (row == 6 and o.trails) or (row == 7 and not o.firstPerson) or (row == 8 and o.overlay);
+        if ((kind == 4) != second)
+        {
+            change(o, row, 0);
+            return true;
+        }
+
+        return false;
+    }
+
+    bool OptionsScreen::key(int dx, int dy, GameOptions& o)
+    {
+        if (not open)
+            return false;
+
+        if (dy != 0)
+        {
+            focus = (focus + dy + ROWS) % ROWS;
+            return false;
+        }
+
+        if (dx != 0)
+        {
+            change(o, focus, dx);
             return true;
         }
 

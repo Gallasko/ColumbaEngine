@@ -68,8 +68,7 @@ GameApp::GameApp(const std::string& appName, const LaunchOptions& opts) : engine
 
         // The engine made the 2D shape renderer already (with the shaders of res/setupRenderer.pg)
         auto* ttf = ecs.createSystem<TTFTextSystem>(masterRenderer);
-        ttf->registerFont("res/font/Inter/static/Inter_18pt-SemiBold.ttf", arena::Hud::FONT, 20);
-        ttf->registerFont("res/font/Inter/static/Inter_18pt-Regular.ttf", arena::Hud::MONO, 17);
+        arena::Ui::registerFonts(ttf);
 
         arena::ArenaOptions arenaOptions;
         arenaOptions.modsDir = pick(options.modsDir, VOXELARENA_MODS_DIR, "mods");

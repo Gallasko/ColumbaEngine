@@ -451,7 +451,7 @@ TEST(arena_net, the_others_events_play_when_they_are_seen_your_own_at_once)
     arrow.velocity = glm::vec3(0, 0, arrow.def.speed);
     s.serverWorld.projectiles.push_back(arrow);
 
-    // (a stagger: an arrow's poise damage is more than a player's poise)
+    // (a hit: an arrow does no poise damage)
     const int hitTicks = ticksUntil({"hit", "stagger", "kill"}, a.client->playerId);
     EXPECT_LE(hitTicks, latency + 3);   // the arrow's flight, the latency, the next snapshot
     EXPECT_LT(hitTicks, breakTicks);

@@ -19,12 +19,12 @@
 // arena: the run's own arena (as arena.json); resetEachWave builds it anew before each wave.
 {
     "waves": 20,
-    "duration": [20, 60],
-    "spawnRate": [0.6, 2.2],
-    "maxAlive": [6, 26],
+    "duration": [60, 90],
+    "spawnRate": [0.4, 1.8],
+    "maxAlive": [5, 22],
     "healthGrowth": 0.06,
     "warn": 1.2,
-    "eliteFrom": 6,
+    "eliteFrom": 7,
     "eliteChance": 0.08,
     "centre": [20, 4, 21],
     "spawnRadius": 16,
@@ -33,9 +33,11 @@
     "resetEachWave": true,
 
     "pools": [
-        { "enemy": "skulker", "from": 1,  "weight": 3 },
-        { "enemy": "archer",  "from": 2,  "weight": 1.2 },
-        { "enemy": "brute",   "from": 4,  "weight": 1 },
+        { "enemy": "slime",   "from": 1,  "to": 6, "weight": 4 },
+        { "enemy": "slime",   "from": 7,  "weight": 1.5 },
+        { "enemy": "skulker", "from": 3,  "weight": 3 },
+        { "enemy": "archer",  "from": 4,  "weight": 1.2 },
+        { "enemy": "brute",   "from": 6,  "weight": 1 },
         { "enemy": "brute",   "from": 12, "weight": 1 },
         { "enemy": "archer",  "from": 14, "weight": 0.8 }
     ],

@@ -1,0 +1,58 @@
+// The slime: the first thing the arena throws at you. Soft, slow, all bounce: it hops its way to you
+// (a hop that lands on you stings a little), and close enough it squashes down, glows and pounces,
+// then bounces back off. Its hops clear a block: a step or a low wall does not stop it. Easy to read,
+// easy to hit, knocked about by everything. Its hits sting and push you back, but never stagger you.
+{
+    "name": "Slime",
+    "model": "slime",
+    "modelScale": 0.125,
+    "size": [0.9, 0.8],
+
+    "health": 40,
+    "poise": 6,
+    "poiseRegenDelay": 1.2,
+    "staggerFrames": 30,
+    "knockbackScale": 1.6,
+
+    "walkSpeed": 2.0,
+    "turnSpeed": 300,
+    "respawnSeconds": 4,
+
+    "score": 5,
+    "drops": 1,
+    "weakness": { "fire": 1.25 },
+
+    "script": "slime",
+    "params": {
+        "engageRange": 18,
+        "pounceRange": 4.5,
+        "pounceCooldown": 2.5,
+        "rest": 0.25,
+        "restJitter": 0.45
+    },
+
+    "moveset": {
+        "attacks": {
+            "hop": {
+                "startup": 10, "active": 32, "recovery": 8,
+                "leap": [4.5, 9.0], "leapAt": 10,
+                "damage": 5, "poiseDamage": 0, "knockback": 4, "hitstop": 2, "shake": 0.1,
+                "turnRate": 2,
+                "hitboxes": [ { "offset": [0, 0.4, 0.2], "size": [1.0, 0.8, 1.0] } ]
+            },
+            "pounce": {
+                "startup": 24, "active": 34, "recovery": 18,
+                "leap": [8.0, 9.5], "leapAt": 24,
+                "damage": 10, "poiseDamage": 0, "knockback": 6, "hitstop": 3, "shake": 0.2,
+                "turnRate": 3,
+                "hitboxes": [ { "offset": [0, 0.4, 0.3], "size": [1.2, 0.9, 1.2] } ],
+                "swing": { "pitchFrom": 0, "pitchTo": -12 }
+            },
+            "bounce": {
+                "startup": 4, "active": 1, "recovery": 30,
+                "leap": [-4.0, 6.0], "leapAt": 4,
+                "hitboxes": []
+            }
+        }
+    }
+}

@@ -1733,6 +1733,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/application.cpp
             examples/VoxelArena/Game/gpumesh.cpp
             examples/VoxelArena/Game/hud.cpp
+            examples/VoxelArena/Game/ui.cpp
+            examples/VoxelArena/Game/screens.cpp
             examples/VoxelArena/Game/arenagame.cpp
             examples/VoxelArena/Game/soundbank.cpp
             examples/VoxelArena/Game/particles.cpp
