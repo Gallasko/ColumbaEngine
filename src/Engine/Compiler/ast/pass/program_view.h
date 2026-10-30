@@ -16,6 +16,7 @@
 #include <queue>
 #include <set>
 #include <string>
+#include <vector>
 
 namespace pg
 {
@@ -44,5 +45,15 @@ namespace pg
         };
 
         ProgramView readProgram(VM* vm, const std::queue<StatementPtr>& statements);
+
+        // The program's files whole: the script's statements first, then those of each module it
+        // imports (once, as parsed from its source: shared, never to be changed)
+        struct ProgramFiles
+        {
+            std::vector<std::vector<StatementPtr>> files;
+            bool complete = true;
+        };
+
+        ProgramFiles readProgramFiles(VM* vm, const std::queue<StatementPtr>& statements);
     }
 }

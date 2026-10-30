@@ -139,6 +139,26 @@ namespace pg
             EXPECT_FALSE(functions["shadowed"]->keptOnce);
         }
 
+        TEST(RunOncePass, ALocalOfTheSameNameWritesNoFunction)
+        {
+            // A local (a variable of a function or a block, a parameter, a loop's variable) of a
+            // function's name is not the function: only a global written makes it not kept
+            auto statements = runOnce(
+                "fun has(x) \n{\n    return x\n}\n"
+                "fun floor(x) \n{\n    return x\n}\n"
+                "fun count(x) \n{\n    return x\n}\n"
+                "fun first(x) \n{\n    return x\n}\n"
+                "fun user(floor) \n{\n    var has = 0\n    has = 1\n    for (var count = 0; count < 2; count++)\n    {\n        has = has + count\n    }\n    return has + floor\n}\n"
+                "fun writer() \n{\n    first = 2\n    return 0\n}\n");
+
+            auto functions = functionsOf(statements);
+
+            EXPECT_TRUE(functions["has"]->keptOnce);
+            EXPECT_TRUE(functions["floor"]->keptOnce);
+            EXPECT_TRUE(functions["count"]->keptOnce);
+            EXPECT_FALSE(functions["first"]->keptOnce); // written as a global inside writer
+        }
+
         TEST(RunOncePass, JoinsTheConstantFillsOfAConstToIt)
         {
             auto statements = runOnce(
