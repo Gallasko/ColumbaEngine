@@ -28,6 +28,7 @@
  * whole program runs from its top levels.
  */
 
+#include "program_view.h"
 #include "run_once.h"
 
 #include "Compiler/ast/analysis/summaries.h"
@@ -58,17 +59,23 @@ namespace pg
         class ProgramEffects
         {
         public:
-            // The program: its files' top-level statements, the script's first. False when code of
-            // the program runs behind what the bodies show (a class, a function named as a
-            // metamethod): then nothing it says may be used
-            bool analyze(const std::vector<std::vector<StatementPtr>>& files);
+            // The program: its files' top-level statements, the script's first, and what each imports
+            // where (`imports`: what is not imported runs after, in order). False when code of the
+            // program runs behind what the bodies show (a class, a function named as a metamethod) or a
+            // `return` in a top-level statement decides whether what follows runs at all: then nothing
+            // it says may be used
+            bool analyze(const std::vector<std::vector<StatementPtr>>& files, const FileImports& imports = {});
 
             // A top-level statement of the program; any other is unknown: it may do anything, and
             // onlyMakes refuses it
             StatementEffects effectsOf(const StatementPtr& statement) const;
 
             // The file of the program a module's own parse is (the same source): the one with the same
-            // statements, by kind and name, at every index. Negative when none is, or two could be
+            // statements, by kind and name, at every index. NoFile when none is; TwinFiles when two could
+            // be: nothing was decided for those
+            static constexpr int NoFile = -1;
+            static constexpr int TwinFiles = -2;
+
             int fileOf(const std::vector<StatementPtr>& statements) const;
 
             // A name whose value is the same on every run: a const all of whose writers join it, a
@@ -128,6 +135,10 @@ namespace pg
 
             std::vector<std::vector<StatementPtr>> programFiles;  // What the sites and `topLevel` are keyed by, kept alive
             std::vector<std::vector<Join>> fileJoins;             // By file, by statement
+
+            // The order the program runs in, an import where it stands
+            std::unordered_map<const Statement*, size_t> ranAt;
+            std::unordered_map<std::string, size_t> definedAt;    // The last definition of a name
             std::map<std::string, std::vector<size_t>> joinedTo;  // Const -> the statements joined to it
 
             std::set<std::string> followed;      // The functions summed up
@@ -177,6 +188,8 @@ namespace pg
 
             void resolveEdges(const std::vector<analysis::Edge>& edges);
             void findRegions();
+
+            void findRunOrder(const FileImports& imports);
 
             // The walk of a file with what the program knows now
             std::vector<Join> walkFile(const std::vector<StatementPtr>& file) const;

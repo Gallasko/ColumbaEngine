@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <functional>
 #include <sstream>
 #include <utility>
 
@@ -606,10 +607,15 @@ namespace pg
                 if (not e.reads.count(declaredBy(file[*it])))
                     continue;
 
-                // It would run there: what the file defines since (a function in the run) is not there yet
-                for (size_t between = *it + 1; between < statement; ++between)
+                // It would run there: what the program defines after that (a function in the run, one of
+                // a file that runs later) is not there yet, whatever a pass may have made of its call
+                const size_t at = ranAt.at(file[*it].get());
+
+                for (const auto& name : e.reads)
                 {
-                    if (e.reads.count(declaredBy(file[between])))
+                    auto defined = definedAt.find(name);
+
+                    if (defined != definedAt.end() and defined->second > at)
                         return -1;
                 }
 
@@ -623,12 +629,48 @@ namespace pg
         {
             return walkConsts(file,
                 [this](const VariableStatement& v) { return v.isConst or inferred.count(v.name.text) > 0; },
-                [this, &file](size_t statement, const std::vector<size_t>& open) { return joinTarget(file, statement, open); });
+                [this, &file](size_t statement, const std::vector<size_t>& open) { return joinTarget(file, statement, open); }, true);
+        }
+
+        void ProgramEffects::findRunOrder(const FileImports& imports)
+        {
+            std::vector<bool> ran(programFiles.size(), false);
+            size_t position = 0;
+
+            std::function<void(size_t)> run = [&](size_t f)
+            {
+                if (ran[f])
+                    return;
+
+                ran[f] = true;
+
+                size_t next = 0;
+
+                for (size_t i = 0; i < programFiles[f].size(); ++i)
+                {
+                    // A module runs at the import that reaches it first
+                    while (f < imports.size() and next < imports[f].size() and imports[f][next].first == i)
+                        run(imports[f][next++].second);
+
+                    const StatementPtr& s = programFiles[f][i];
+                    const std::string name = declaredBy(s);
+
+                    ranAt[s.get()] = position;
+
+                    if (not name.empty())
+                        definedAt[name] = position;
+
+                    ++position;
+                }
+            };
+
+            for (size_t f = 0; f < programFiles.size(); ++f)
+                run(f);
         }
 
         int ProgramEffects::fileOf(const std::vector<StatementPtr>& statements) const
         {
-            int found = -1;
+            int found = NoFile;
 
             for (size_t f = 0; f < programFiles.size(); ++f)
             {
@@ -636,7 +678,7 @@ namespace pg
                     continue;
 
                 if (found >= 0)
-                    return -1;
+                    return TwinFiles;
 
                 found = static_cast<int>(f);
             }
@@ -644,13 +686,14 @@ namespace pg
             return found;
         }
 
-        bool ProgramEffects::analyze(const std::vector<std::vector<StatementPtr>>& files)
+        bool ProgramEffects::analyze(const std::vector<std::vector<StatementPtr>>& files, const FileImports& imports)
         {
             *this = ProgramEffects();
 
             // What the top levels define
             std::map<std::string, int> functions;
             bool hiddenCode = false;
+            bool returnsEarly = false;
 
             for (const auto& file : files)
             {
@@ -662,6 +705,7 @@ namespace pg
                         continue;
 
                     programFiles.back().push_back(s);
+                    returnsEarly = returnsEarly or holdsStatement(s, AstKind::ReturnStatement, false);
 
                     if (s->kind() == AstKind::VariableStatement)
                     {
@@ -692,7 +736,16 @@ namespace pg
                 return false;
             }
 
+            // What runs after it depends on what the bodies do not show
+            if (returnsEarly)
+            {
+                LOG_INFO(DOM, "Not analyzed: a return at the top level decides what runs after it");
+                return false;
+            }
+
             usable = true;
+
+            findRunOrder(imports);
 
             auto isNative = [this](const std::string& name) { return defined.count(name) == 0; };
             auto isDefined = [this](const std::string& name) { return defined.count(name) > 0; };

@@ -7,6 +7,7 @@
 #include "Compiler/vm.h"
 #include "logger.h"
 
+#include <algorithm>
 #include <map>
 #include <vector>
 
@@ -117,13 +118,21 @@ namespace pg
     {
         std::vector<Join> walkConsts(const std::vector<StatementPtr>& statements,
                                      const std::function<bool(const VariableStatement&)>& isConst,
-                                     const std::function<int(size_t statement, const std::vector<size_t>& open)>& makes)
+                                     const std::function<int(size_t statement, const std::vector<size_t>& open)>& makes,
+                                     bool inOrder)
         {
             std::vector<Join> out(statements.size());
 
             // The consts the statements since the last other one declared, in their order: a fill of
             // one joins it
             std::vector<size_t> open;
+            int lastJoined = -1;
+
+            auto close = [&]()
+            {
+                open.clear();
+                lastJoined = -1;
+            };
 
             auto openNamed = [&](const std::string& name) -> int
             {
@@ -152,9 +161,11 @@ namespace pg
                     if (isConst(*v) and v->expr)
                     {
                         // An initializer that may read the consts before it: their later fills would
-                        // be seen by it too early, joined to them
-                        if (not isConstantData(v->expr))
-                            open.clear();
+                        // be seen by it too early, joined to them. What joined it runs with it
+                        const bool constantFills = std::all_of(v->keptFills.begin(), v->keptFills.end(), [](const StatementPtr& fill) { return not filledConst(fill).empty(); });
+
+                        if (not isConstantData(v->expr) or not constantFills)
+                            close();
 
                         open.push_back(i);
                         continue;
@@ -171,10 +182,11 @@ namespace pg
                 if (target < 0 and not open.empty())
                     target = makes(i, open);
 
-                if (target >= 0)
+                if (target >= 0 and (not inOrder or target >= lastJoined))
                 {
                     join.joined = true;
                     join.target = static_cast<size_t>(target);
+                    lastJoined = target;
 
                     for (auto o : open)
                         join.open.insert(std::static_pointer_cast<VariableStatement>(statements[o])->name.text);
@@ -183,7 +195,8 @@ namespace pg
                 }
 
                 // Anything else may read a const: what comes after it fills no initializer
-                open.clear();
+                join.fill = false;
+                close();
             }
 
             return out;
@@ -217,8 +230,8 @@ namespace pg
         const std::vector<StatementPtr> all = listOf(statements);
 
         const std::vector<ast::Join> joins = ast::walkConsts(all,
-            [](const VariableStatement& v) { return v.isConst; },
-            [](size_t, const std::vector<size_t>&) { return -1; });
+            [](const VariableStatement& v) { return v.isConst and not v.inferredConst; },
+            [](size_t, const std::vector<size_t>&) { return -1; }, false);
 
         std::vector<StatementPtr> out;
 

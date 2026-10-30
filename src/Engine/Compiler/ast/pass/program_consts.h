@@ -9,7 +9,7 @@
  * module it imports (ast::ProgramEffects):
  *
  * - A top-level `var` the program defines once, never rebinds and never writes into, made of what
- *   is the same on every run, is a const.
+ *   is the same on every run, is a const (VariableStatement::inferredConst).
  * - A statement in a run of consts (ast::walkConsts) that sets a constant entry of one, or reads
  *   only what is the same on every run and writes only into them, joins it
  *   (VariableStatement::keptFills): it is part of making it. The passes after this one do not see

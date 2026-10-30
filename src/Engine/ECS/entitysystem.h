@@ -884,7 +884,7 @@ namespace pg
             vmOptimizationLevel = level;
         }
 
-        // Whether the scripts' compile reads the whole program for what it never changes (RunOncePass)
+        // Whether the scripts' compile reads the whole program for what it never changes (ProgramConstsPass)
         inline void setWholeProgramAnalysis(bool on) { wholeProgramAnalysis = on; }
 
         /**

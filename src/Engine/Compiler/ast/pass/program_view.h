@@ -46,14 +46,25 @@ namespace pg
 
         ProgramView readProgram(VM* vm, const std::queue<StatementPtr>& statements);
 
+        // By file: the statements (their index, the parser's empty ones left aside) that import a file
+        // first, and which
+        using FileImports = std::vector<std::vector<std::pair<size_t, size_t>>>;
+
         // The program's files whole: the script's statements first, then those of each module it
-        // imports (once, as parsed from its source: shared, never to be changed)
+        // imports (once, as parsed from its source: shared, never to be changed). Not complete when
+        // what runs is not what is read: a module compiled to a .pgc (the compiler takes that, source
+        // or not), an import below a file's top level (it runs, and is not read)
         struct ProgramFiles
         {
             std::vector<std::vector<StatementPtr>> files;
+            FileImports imports;
             bool complete = true;
         };
 
         ProgramFiles readProgramFiles(VM* vm, const std::queue<StatementPtr>& statements);
+
+        // A statement of that kind in `s` or anywhere in the statements below it; in the bodies of
+        // functions and classes only with `intoFunctions`
+        bool holdsStatement(const StatementPtr& s, AstKind kind, bool intoFunctions);
     }
 }

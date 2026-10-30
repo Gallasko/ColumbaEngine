@@ -45,11 +45,16 @@ namespace pg
 
         // The walk of a file's top level, one Join per statement. The consts declared in a row stay
         // open: a statement setting a constant entry of one joins it, one that `makes` says makes them
-        // joins the const of the index it gives (negative: none), anything else closes them.
-        // `isConst`: a declaration that counts as a const
+        // joins the const of the index it gives (negative: none), anything else closes them. A const
+        // that already holds a statement joined to it reads what that reads: it closes those before it.
+        // `isConst`: a declaration that counts as a const.
+        // `inOrder`: joined, statements run in the order of their consts, so a statement whose const
+        // comes before the last one joined stays where it is and closes them: it would run before
+        // what it follows
         std::vector<Join> walkConsts(const std::vector<StatementPtr>& statements,
                                      const std::function<bool(const VariableStatement&)>& isConst,
-                                     const std::function<int(size_t statement, const std::vector<size_t>& open)>& makes);
+                                     const std::function<int(size_t statement, const std::vector<size_t>& open)>& makes,
+                                     bool inOrder);
     }
 
     class RunOncePass : public AstPass

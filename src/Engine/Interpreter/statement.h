@@ -54,6 +54,10 @@ namespace pg
         // script promises it would make the same value again and never changes it. Elsewhere it is a `var`
         bool isConst = false;
 
+        // A `var` the whole-program analysis found to be as good as a const (ProgramConstsPass), `isConst`
+        // set with it. It was written a var: the passes that follow what the source says treat it as one
+        bool inferredConst = false;
+
         // The top-level statements right after it that set its entries to constants, run with its
         // initializer and so kept with it (RunOncePass)
         std::vector<StatementPtr> keptFills;

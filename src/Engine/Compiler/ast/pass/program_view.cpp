@@ -424,10 +424,12 @@ namespace pg
 
         namespace
         {
+            void filesOfStatements(const std::string& baseDir, const std::vector<StatementPtr>& statements, size_t file, std::set<std::string>& visited, ProgramFiles& out);
+
             // The modules of a program in the order an import reaches them, each once: their
-            // statements as parsed. Native modules (no file) are none of them; a module read only
-            // as bytecode makes the reading incomplete
-            void filesOf(const std::string& baseDir, const std::string& name, std::set<std::string>& visited, ProgramFiles& out)
+            // statements as parsed. Native modules (no file) are none of them. What the compiler would
+            // take from a .pgc cannot be read from a source. The file a name adds, negative when none
+            int filesOf(const std::string& baseDir, const std::string& name, std::set<std::string>& visited, ProgramFiles& out)
             {
                 std::string fileName = name;
 
@@ -437,42 +439,116 @@ namespace pg
                 const std::string fullPath = baseDir + fileName;
 
                 if (visited.count(fullPath))
-                    return;
+                    return -1;
 
                 visited.insert(fullPath);
 
-                if (not UniversalFileAccessor::exists(fullPath))
+                if (UniversalFileAccessor::exists(fullPath + "c") or UniversalFileAccessor::exists(baseDir + name + ".pgc"))
                 {
-                    if (UniversalFileAccessor::exists(fullPath + "c") or UniversalFileAccessor::exists(baseDir + name + ".pgc"))
-                        out.complete = false;
-
-                    return;
+                    out.complete = false;
+                    return -1;
                 }
+
+                if (not UniversalFileAccessor::exists(fullPath))
+                    return -1;
 
                 const auto summary = summaryOf(fullPath);
 
                 if (not summary->read)
                 {
                     out.complete = false;
-                    return;
+                    return -1;
                 }
+
+                const size_t file = out.files.size();
 
                 out.files.push_back(summary->statements);
+                out.imports.emplace_back();
 
-                for (const auto& import : summary->imports)
-                    filesOf(baseDir, import, visited, out);
+                filesOfStatements(baseDir, summary->statements, file, visited, out);
+
+                return static_cast<int>(file);
             }
 
-            void filesOfStatements(const std::string& baseDir, const std::vector<StatementPtr>& statements, std::set<std::string>& visited, ProgramFiles& out)
+            void filesOfStatements(const std::string& baseDir, const std::vector<StatementPtr>& statements, size_t file, std::set<std::string>& visited, ProgramFiles& out)
             {
+                size_t index = 0;
+
                 for (const auto& s : statements)
                 {
-                    if (s and s->kind() == AstKind::ImportStatement)
+                    if (not s)
+                        continue;
+
+                    if (s->kind() == AstKind::ImportStatement)
                     {
                         for (const auto& import : listOf(std::static_pointer_cast<ImportStatement>(s)->imports))
-                            filesOf(baseDir, importName(import), visited, out);
+                        {
+                            const int imported = filesOf(baseDir, importName(import), visited, out);
+
+                            if (imported >= 0)
+                                out.imports[file].push_back({index, static_cast<size_t>(imported)});
+                        }
                     }
+                    else if (holdsStatement(s, AstKind::ImportStatement, true))
+                        out.complete = false;
+
+                    ++index;
                 }
+            }
+        }
+
+        bool holdsStatement(const StatementPtr& s, AstKind kind, bool intoFunctions)
+        {
+            if (not s)
+                return false;
+
+            if (s->kind() == kind)
+                return true;
+
+            auto inBody = [&](const StatementPtr& body) { return holdsStatement(body, kind, intoFunctions); };
+
+            switch (s->kind())
+            {
+                case AstKind::BlockStatement:
+                {
+                    for (const auto& b : listOf(std::static_pointer_cast<BlockStatement>(s)->statements))
+                    {
+                        if (inBody(b))
+                            return true;
+                    }
+
+                    return false;
+                }
+
+                case AstKind::IfStatement:
+                {
+                    auto i = std::static_pointer_cast<IfStatement>(s);
+                    return inBody(i->thenBranch) or inBody(i->elseBranch);
+                }
+
+                case AstKind::WhileStatement: return inBody(std::static_pointer_cast<WhileStatement>(s)->body);
+                case AstKind::ForStatement: return inBody(std::static_pointer_cast<ForStatement>(s)->body);
+                case AstKind::ForInStatement: return inBody(std::static_pointer_cast<ForInStatement>(s)->body);
+
+                case AstKind::FunctionStatement:
+                    return intoFunctions and inBody(std::static_pointer_cast<FunctionStatement>(s)->body);
+
+                case AstKind::ClassStatement:
+                {
+                    if (not intoFunctions)
+                        return false;
+
+                    for (const auto& method : listOf(std::static_pointer_cast<ClassStatement>(s)->methods))
+                    {
+                        if (inBody(method->body))
+                            return true;
+                    }
+
+                    return false;
+                }
+
+                default:
+                    return false;
             }
         }
 
@@ -495,8 +571,9 @@ namespace pg
 
             const auto main = listOf(statements);
             program.files.push_back(main);
+            program.imports.emplace_back();
 
-            filesOfStatements(baseDir, main, visited, program);
+            filesOfStatements(baseDir, main, 0, visited, program);
 
             return program;
         }

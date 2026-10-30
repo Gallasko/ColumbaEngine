@@ -1162,9 +1162,9 @@ namespace pg
             EXPECT_EQ(effects.joinsInFile(1)[2].target, 1u);
 
             // Any statement of another kind or name at an index: not that file
-            EXPECT_EQ(effects.fileOf(parsed("const places = {a: 1}\nconst byId = {}\n{\n    var k = 1\n}\n")), -1);
-            EXPECT_EQ(effects.fileOf(parsed("const places = {a: 1}\nconst other = {}\nbyId.a = places.a\n")), -1);
-            EXPECT_EQ(effects.fileOf(parsed("const places = {a: 1}\nconst byId = {}\n")), -1);
+            EXPECT_EQ(effects.fileOf(parsed("const places = {a: 1}\nconst byId = {}\n{\n    var k = 1\n}\n")), ast::ProgramEffects::NoFile);
+            EXPECT_EQ(effects.fileOf(parsed("const places = {a: 1}\nconst other = {}\nbyId.a = places.a\n")), ast::ProgramEffects::NoFile);
+            EXPECT_EQ(effects.fileOf(parsed("const places = {a: 1}\nconst byId = {}\n")), ast::ProgramEffects::NoFile);
         }
 
         TEST(ProgramEffects, AStatementNotOfTheProgramIsRefused)
@@ -1178,7 +1178,7 @@ namespace pg
             EXPECT_FALSE(p.effects.onlyMakes(e, {"byId"}));
             EXPECT_FALSE(p.effects.idempotent(again.back()));
 
-            EXPECT_EQ(p.effects.fileOf(parsed("const other = 1\n")), -1);
+            EXPECT_EQ(p.effects.fileOf(parsed("const other = 1\n")), ast::ProgramEffects::NoFile);
         }
 
         TEST(ProgramEffects, FilesThatCannotBeToldApartJoinNothing)
@@ -1189,7 +1189,7 @@ namespace pg
 
             ast::ProgramEffects effects;
             ASSERT_TRUE(effects.analyze({parsed(twin), parsed(twin), parsed(other)}));
-            EXPECT_EQ(effects.fileOf(parsed(twin)), -1);
+            EXPECT_EQ(effects.fileOf(parsed(twin)), ast::ProgramEffects::TwinFiles);
             EXPECT_FALSE(effects.joinsInFile(0)[1].joined);
             EXPECT_FALSE(effects.joinsInFile(1)[1].joined);
             EXPECT_TRUE(effects.joinsInFile(2)[1].joined);
@@ -1197,7 +1197,7 @@ namespace pg
 
             ast::ProgramEffects two;
             ASSERT_TRUE(two.analyze({parsed("var out = 1\n"), parsed(same), parsed(same)}));
-            EXPECT_EQ(two.fileOf(parsed(same)), -1);
+            EXPECT_EQ(two.fileOf(parsed(same)), ast::ProgramEffects::TwinFiles);
         }
 
         TEST(ProgramEffects, ARegionHoldsWhatItsGlobalIsGiven)
@@ -1592,6 +1592,88 @@ namespace pg
             // A constant fill calls nothing: it follows its const past a function
             Analyzed fill("const a = {n: 0}\nfun f()\n{\n    return 1\n}\na.n = 1\n");
             EXPECT_TRUE(fill.effects.joinsInFile(0)[2].joined);
+        }
+
+        TEST(ProgramEffects, RunOrderFollowsTheImports)
+        {
+            using Imports = std::vector<std::vector<std::pair<size_t, size_t>>>;
+
+            auto helper = parsed("fun fill(t)\n{\n    t.n = 1\n}\n");
+            auto module = parsed("const a = {n: 0}\nfill(a)\n");
+            auto first = parsed("import \"h\"\nimport \"m\"\n");
+            auto last = parsed("import \"m\"\nimport \"h\"\n");
+
+            // Run before the const, in another file
+            ast::ProgramEffects before;
+            ASSERT_TRUE(before.analyze({first, helper, module}, Imports{{{0, 1}, {1, 2}}, {}, {}}));
+            EXPECT_TRUE(before.joinsInFile(2)[1].joined);
+
+            // After it
+            ast::ProgramEffects after;
+            ASSERT_TRUE(after.analyze({last, module, helper}, Imports{{{0, 1}, {1, 2}}, {}, {}}));
+            EXPECT_FALSE(after.joinsInFile(1)[1].joined);
+
+            // A module imports what it uses, above its const or below it
+            auto above = parsed("import \"h\"\nconst a = {n: 0}\nfill(a)\n");
+            auto below = parsed("const a = {n: 0}\nimport \"h\"\nfill(a)\n");
+            auto script = parsed("import \"m\"\n");
+
+            ast::ProgramEffects inAbove, inBelow;
+            ASSERT_TRUE(inAbove.analyze({script, above, helper}, Imports{{{0, 1}}, {{0, 2}}, {}}));
+            ASSERT_TRUE(inBelow.analyze({script, below, helper}, Imports{{{0, 1}}, {{1, 2}}, {}}));
+            EXPECT_TRUE(inAbove.joinsInFile(1)[2].joined);
+            EXPECT_FALSE(inBelow.joinsInFile(1)[2].joined);
+        }
+
+        TEST(ProgramEffects, AJoinDoesNotGoBackInARun)
+        {
+            Analyzed writes("const a = {n: 0}\nconst b = {k: 7}\na.n = b.k\na.n = 5\nvar out = a.n\n");
+            EXPECT_FALSE(writes.effects.joinsInFile(0)[3].joined);
+            EXPECT_FALSE(writes.effects.invariant("a"));
+
+            // It wrote a before b was made, and a stays open: a.n = b.k reads a const now lost
+            EXPECT_FALSE(writes.effects.joinsInFile(0)[2].joined);
+            EXPECT_FALSE(writes.inferred("out"));
+
+            // It ends the run: what follows does not join either
+            Analyzed ended("const a = {n: 0}\nconst b = {k: 7}\nb.k = 1\na.n = 5\nb.k = 2\n");
+            EXPECT_TRUE(ended.effects.joinsInFile(0)[2].joined);
+            EXPECT_FALSE(ended.effects.joinsInFile(0)[3].joined);
+            EXPECT_FALSE(ended.effects.joinsInFile(0)[4].joined);
+
+            // In order, each stays
+            Analyzed forward("const a = {n: 0}\nconst b = {k: 7}\na.n = 5\nb.k = 1\nb.k = a.n\n");
+            EXPECT_TRUE(forward.effects.joinsInFile(0)[2].joined);
+            EXPECT_TRUE(forward.effects.joinsInFile(0)[3].joined);
+            EXPECT_TRUE(forward.effects.joinsInFile(0)[4].joined);
+        }
+
+        TEST(ProgramEffects, AReturnInATopLevelStatementGivesUp)
+        {
+            const std::vector<std::string> sources = {
+                "var x = 1\nreturn 2\n",
+                "var x = 1\nif (x == 1)\n{\n    return 2\n}\n",
+                "var x = 1\nif (x == 2)\n{\n    x\n}\nelse\n{\n    return 2\n}\n",
+                "var x = 1\nwhile (x == 1)\n{\n    return 2\n}\n",
+                "var x = 1\nfor (var i = 0; i < 2; i++)\n{\n    return 2\n}\n",
+                "var x = 1\nfor (var i : list)\n{\n    return 2\n}\n",
+                "var x = 1\n{\n    {\n        return 2\n    }\n}\n",
+            };
+
+            for (const auto& source : sources)
+            {
+                Analyzed p(source);
+                EXPECT_FALSE(p.usable) << source;
+                EXPECT_TRUE(p.consts().empty()) << source;
+            }
+
+            ast::ProgramEffects effects;
+            EXPECT_FALSE(effects.analyze({parsed("var x = 1\n"), parsed("if (x == 1)\n{\n    return 2\n}\n")}));
+
+            // A function's own return is its own
+            Analyzed function("var x = 1\nfun f()\n{\n    return 2\n}\n");
+            EXPECT_TRUE(function.usable);
+            EXPECT_TRUE(function.inferred("x"));
         }
 
         TEST(ProgramEffects, FactsCarryWhatWasDecidedForAConst)

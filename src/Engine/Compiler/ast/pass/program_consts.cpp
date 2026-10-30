@@ -31,7 +31,7 @@ namespace pg
             analyzed = files.complete;
 
             if (analyzed)
-                analyzed = effects.analyze(files.files);
+                analyzed = effects.analyze(files.files, files.imports);
         }
 
         if (not analyzed)
@@ -52,7 +52,10 @@ namespace pg
 
         if (file < 0)
         {
-            LOG_ERROR(DOM, "A module does not line up with the file analyzed: nothing is applied to it");
+            if (file == ast::ProgramEffects::TwinFiles)
+                LOG_INFO(DOM, "A module two files of the program could be: nothing was decided for it");
+            else
+                LOG_ERROR(DOM, "A module does not line up with the file analyzed: nothing is applied to it");
 
             for (const auto& s : all)
                 statements.push(s);
@@ -86,6 +89,7 @@ namespace pg
                 if (not v->isConst and v->expr and effects.inferredConsts().count(v->name.text))
                 {
                     v->isConst = true;
+                    v->inferredConst = true;
                     changed = true;
                     ++inferred;
                 }
