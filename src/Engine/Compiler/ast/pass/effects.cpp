@@ -627,8 +627,11 @@ namespace pg
 
         std::vector<Join> ProgramEffects::walkFile(const std::vector<StatementPtr>& file) const
         {
+            // A constant entry joins its const on the same terms as any other statement: the const must
+            // be one made once, else the fill runs on every run and closes the run like anything else
             return walkConsts(file,
                 [this](const VariableStatement& v) { return v.isConst or inferred.count(v.name.text) > 0; },
+                [this, &file](size_t target) { return invariantConsts.count(declaredBy(file[target])) > 0; },
                 [this, &file](size_t statement, const std::vector<size_t>& open) { return joinTarget(file, statement, open); }, true);
         }
 
@@ -648,7 +651,8 @@ namespace pg
 
                 for (size_t i = 0; i < programFiles[f].size(); ++i)
                 {
-                    // A module runs at the import that reaches it first
+                    // A module runs at every import of it; its names exist from the first one on, so
+                    // that is where what it defines is placed
                     while (f < imports.size() and next < imports[f].size() and imports[f][next].first == i)
                         run(imports[f][next++].second);
 

@@ -23,7 +23,8 @@ namespace pg
     {
         namespace
         {
-            // The top-level statements of a source after the pass, by what they are
+            // The top-level statements of a source after the passes, as an EntitySystem registers them:
+            // with the whole-program analysis, ProgramConstsPass decides the fills and RunOncePass joins none
             std::vector<StatementPtr> runOnce(const std::string& source, bool wholeProgram = false)
             {
                 Lexer lexer;
@@ -39,7 +40,7 @@ namespace pg
                 if (wholeProgram)
                     consts.runPass(nullptr, statements);
 
-                RunOncePass pass;
+                RunOncePass pass(not wholeProgram);
                 pass.runPass(nullptr, statements);
 
                 std::vector<StatementPtr> out;
@@ -120,7 +121,7 @@ namespace pg
 
                 VM vm;
                 ProgramConstsPass consts;
-                RunOncePass pass;
+                RunOncePass pass(false);
                 vm.currentFileName = (dir / "main.pg").string();
 
                 auto statements = parsedQueue(script);
@@ -150,9 +151,10 @@ namespace pg
 
             // Files compiled through every pass, then run three times on one VM: the globals asked after
             // each run. `main.pg` is the script
-            // `precompiled`: a file compiled to its .pgc beside it first, as a build leaves it
+            // `precompiled`: a file compiled to its .pgc beside it first, as a build leaves it, named
+            // `compiledAs` (its name with a `c` when empty)
             std::vector<std::string> threeRuns(const std::map<std::string, std::string>& files, bool analysis, const std::vector<std::string>& globals,
-                                               const std::string& precompiled = "")
+                                               const std::string& precompiled = "", const std::string& compiledAs = "")
             {
                 namespace fs = std::filesystem;
                 const fs::path dir = fs::temp_directory_path() / ("pg_run_once_runs_" + std::to_string(counter.fetch_add(1)));
@@ -177,7 +179,8 @@ namespace pg
 
                     VM compiler;
                     plain.setupVm(compiler);
-                    EXPECT_EQ(compiler.interpretFromFile((dir / precompiled).string(), true, (dir / precompiled).string() + "c"), InterpretResult::OK);
+                    const std::string target = compiledAs.empty() ? precompiled + "c" : compiledAs;
+                    EXPECT_EQ(compiler.interpretFromFile((dir / precompiled).string(), true, (dir / target).string()), InterpretResult::OK);
                 }
 
                 {
@@ -228,10 +231,11 @@ namespace pg
             }
 
             // The runs with the analysis, which must be those without it
-            std::vector<std::string> sameBothWays(const std::map<std::string, std::string>& files, const std::vector<std::string>& globals, const std::string& precompiled = "")
+            std::vector<std::string> sameBothWays(const std::map<std::string, std::string>& files, const std::vector<std::string>& globals, const std::string& precompiled = "",
+                                                  const std::string& compiledAs = "")
             {
-                const auto off = threeRuns(files, false, globals, precompiled);
-                EXPECT_EQ(threeRuns(files, true, globals, precompiled), off);
+                const auto off = threeRuns(files, false, globals, precompiled, compiledAs);
+                EXPECT_EQ(threeRuns(files, true, globals, precompiled, compiledAs), off);
                 return off;
             }
 
@@ -669,6 +673,114 @@ TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
             EXPECT_EQ(variable(statements, "a")->keptFills.size(), 2u);
             EXPECT_EQ(variable(statements, "b")->keptFills.size(), 2u);
             EXPECT_EQ(statementCount(statements), 3u);
+
+            // The stat names of the rules: two tables filled in alternation, every fill joins its own
+            std::string names = "const statNames = {}\nconst statShort = {}\n";
+
+            for (const std::string stat : {"vit", "str", "agi", "wis", "cha", "luck"})
+                names += "statNames." + stat + " = \"" + stat + "\"\nstatShort." + stat + " = \"" + stat.substr(0, 1) + "\"\n";
+
+            auto alternating = runOnce(names + "var out = 1\n", true);
+            EXPECT_EQ(variable(alternating, "statNames")->keptFills.size(), 6u);
+            EXPECT_EQ(variable(alternating, "statShort")->keptFills.size(), 6u);
+            EXPECT_EQ(statementCount(alternating), 3u);
+
+            // Not past a statement that may read the const it fills: a is then made on every run, and
+            // what read it as made once may not join either
+            auto past = runOnce("const a = {n: 0}\nconst b = {k: 7}\nb.k = a.n\na.n = 5\nvar out = 1\n", true);
+            EXPECT_EQ(variable(past, "b")->keptFills.size(), 0u);
+            EXPECT_EQ(variable(past, "a")->keptFills.size(), 0u);
+            EXPECT_EQ(statementCount(past), 5u);
+        }
+
+        TEST(RunOncePass, JoinsNoFillWhenTheFillsAreNotIts)
+        {
+            auto statements = parsedQueue("const a = {}\na.x = 1\nfun f()\n{\n    return 1\n}\n");
+
+            RunOncePass pass(false);
+            pass.runPass(nullptr, statements);
+
+            std::vector<StatementPtr> out;
+
+            while (not statements.empty())
+            {
+                out.push_back(statements.front());
+                statements.pop();
+            }
+
+            EXPECT_EQ(variable(out, "a")->keptFills.size(), 0u);
+            EXPECT_EQ(statementCount(out), 3u);
+            EXPECT_TRUE(functionsOf(out).at("f")->keptOnce);
+        }
+
+        TEST(ProgramConstsPass, AFillOfAConstWrittenOnEveryRunStaysWhereItIs)
+        {
+            // A const written by a statement that does not join is made on every run: a constant entry
+            // set in its run is part of that, past a var found const or a joined statement alike
+            EXPECT_EQ(sameBothWays({{"main.pg",
+                "const t = {n: 0}\n"
+                "var k = 5\n"
+                "t.n = 1\n"
+                "var out = 0\n"
+                "t.n = t.n + 1\n"
+                "out = t.n\n"}}, {"out"}), lines({"out=2 ", "out=2 ", "out=2 "}));
+
+            EXPECT_EQ(sameBothWays({{"main.pg",
+                "const row = {cost: 0, seen: 0}\n"
+                "var limit = 10\n"
+                "row.cost = 3\n"
+                "var out = 0\n"
+                "row.seen = row.cost\n"
+                "row.cost = row.cost * 2\n"
+                "out = row.cost\n"}}, {"out"}), lines({"out=6 ", "out=6 ", "out=6 "}));
+
+            EXPECT_EQ(sameBothWays({{"main.pg",
+                "const c0 = {n: 7}\n"
+                "var p1 = 3\n"
+                "c0.n = 3\n"
+                "var v1 = {n: c0.n}\n"
+                "c0.n = 2\n"
+                "var out = 0\n"
+                "out = c0.n * 3 + v1.n\n"}}, {"out"}), lines({"out=9 ", "out=9 ", "out=9 "}));
+
+            EXPECT_EQ(sameBothWays({{"main.pg",
+                "const c = {v: 1}\n"
+                "const u = {m: 0}\n"
+                "const t = {n: 0}\n"
+                "u.m = c.v + 1\n"
+                "t.n = 1\n"
+                "var out = 0\n"
+                "t.n = t.n + 1\n"
+                "out = t.n\n"}}, {"out"}), lines({"out=2 ", "out=2 ", "out=2 "}));
+        }
+
+        TEST(ProgramConstsPass, AFillThePlainWalkJoinsStaysJoined)
+        {
+            // The const is written on every run, yet its constant entry right after it is part of
+            // making it either way: a program counting runs in it keeps counting
+            EXPECT_EQ(sameBothWays({{"main.pg", "const t = {n: 0}\nt.n = 1\nvar out = 0\nt.n = t.n + 1\nout = t.n\n"}}, {"out"}),
+                      lines({"out=2 ", "out=3 ", "out=4 "}));
+
+            // A module imported twice in a run sets a constant entry it does not keep at every import
+            EXPECT_EQ(sameBothWays({{"main.pg", "import \"m\"\nc0.n = 1\nimport \"h\"\nvar out = 0\nout = c0.n\n"},
+                                    {"m.pg", "import \"h\"\n"},
+                                    {"h.pg", "const c0 = {n: 1}\nc0.n = 7\n"}}, {"out"}), lines({"out=1 ", "out=1 ", "out=1 "}));
+
+            // Not past a var found to be a const: the plain walk closes there
+            auto past = runOnce("const t = {n: 0}\nvar k = 5\nt.n = 1\nvar out = 0\nt.n = t.n + 1\nout = t.n\n", true);
+            EXPECT_EQ(variable(past, "t")->keptFills.size(), 0u);
+
+            auto plain = runOnce("const t = {n: 0}\nt.n = 1\nvar out = 0\nt.n = t.n + 1\nout = t.n\n", true);
+            EXPECT_EQ(variable(plain, "t")->keptFills.size(), 1u);
+        }
+
+        TEST(ProgramConstsPass, AModuleCompiledAsPgPgcIsNotReadEither)
+        {
+            // The compiler takes `m.pg.pgc` as it takes `m.pgc`
+            const auto expected = lines({"seen=1 live=1 ", "seen=2 live=2 ", "seen=3 live=3 "});
+
+            EXPECT_EQ(sameBothWays({{"main.pg", "import \"m\"\nvar seen = count.n\nvar live = 0\nlive = count.n\n"},
+                                    {"m.pg", "const count = {n: 0}\ncount.n = count.n + 1\n"}}, {"seen", "live"}, "m.pg", "m.pg.pgc"), expected);
         }
 
         TEST(RunOncePass, AVarInferredDoesNotKeepARunOpen)

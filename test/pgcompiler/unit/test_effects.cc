@@ -1525,6 +1525,36 @@ namespace pg
             Analyzed counted("const count = {n: 0}\ncount.n = count.n + 1\n");
             EXPECT_TRUE(counted.effects.joinsInFile(0)[1].joined);
             EXPECT_TRUE(counted.effects.invariant("count"));
+
+            // Constant entries of two consts set in alternation all join: both stay invariant
+            Analyzed alternating("const names = {}\nconst abbr = {}\nnames.a = \"a\"\nabbr.a = \"A\"\nnames.b = \"b\"\nabbr.b = \"B\"\nvar first = names.a\n");
+            EXPECT_TRUE(alternating.effects.invariant("names"));
+            EXPECT_TRUE(alternating.effects.invariant("abbr"));
+            EXPECT_TRUE(alternating.inferred("first"));
+
+            for (size_t i = 2; i < 6; ++i)
+                EXPECT_TRUE(alternating.effects.joinsInFile(0)[i].joined) << i;
+        }
+
+        TEST(ProgramEffects, AConstantFillOfAConstWrittenOnEveryRunDoesNotJoin)
+        {
+            // `t.n = t.n + 1` runs on every run (`out` closed its run): t is not invariant, and the
+            // constant entry set in its run is no longer joined, as the pass without the analysis does
+            Analyzed p("const t = {n: 0}\nvar k = 5\nt.n = 1\nvar out = 0\nt.n = t.n + 1\nout = t.n\n");
+
+            EXPECT_TRUE(p.inferred("k"));
+            EXPECT_FALSE(p.effects.invariant("t"));
+
+            for (const auto& join : p.effects.joinsInFile(0))
+                EXPECT_FALSE(join.joined);
+
+            // Right after its const, with nothing found between, it is part of the const as the pass
+            // without the analysis has it, invariant or not
+            Analyzed plain("const t = {n: 0}\nt.n = 1\nvar out = 0\nt.n = t.n + 1\nout = t.n\n");
+
+            EXPECT_FALSE(plain.effects.invariant("t"));
+            EXPECT_TRUE(plain.effects.joinsInFile(0)[1].joined);
+            EXPECT_FALSE(plain.effects.joinsInFile(0)[3].joined);
         }
 
         TEST(ProgramEffects, ALosingConstCanUnjoinAnother)
@@ -1635,11 +1665,22 @@ namespace pg
             EXPECT_FALSE(writes.effects.joinsInFile(0)[2].joined);
             EXPECT_FALSE(writes.inferred("out"));
 
-            // It ends the run: what follows does not join either
-            Analyzed ended("const a = {n: 0}\nconst b = {k: 7}\nb.k = 1\na.n = 5\nb.k = 2\n");
+            // Constant entries of distinct consts are independent: one may go back past another
+            Analyzed fills("const a = {n: 0}\nconst b = {k: 7}\nb.k = 1\na.n = 5\nb.k = 2\n");
+            EXPECT_TRUE(fills.effects.joinsInFile(0)[2].joined);
+            EXPECT_TRUE(fills.effects.joinsInFile(0)[3].joined);
+            EXPECT_TRUE(fills.effects.joinsInFile(0)[4].joined);
+            EXPECT_TRUE(fills.effects.invariant("a"));
+            EXPECT_TRUE(fills.effects.invariant("b"));
+
+            // Not past a statement that may read its const: it ends the run, and what follows does
+            // not join either
+            Analyzed ended("const a = {n: 0}\nconst b = {k: 7}\nb.k = 1\nb.k = b.k + 1\na.n = 5\nvar out = a.n\n");
             EXPECT_TRUE(ended.effects.joinsInFile(0)[2].joined);
-            EXPECT_FALSE(ended.effects.joinsInFile(0)[3].joined);
+            EXPECT_TRUE(ended.effects.joinsInFile(0)[3].joined);
             EXPECT_FALSE(ended.effects.joinsInFile(0)[4].joined);
+            EXPECT_FALSE(ended.effects.invariant("a"));
+            EXPECT_FALSE(ended.inferred("out"));
 
             // In order, each stays
             Analyzed forward("const a = {n: 0}\nconst b = {k: 7}\na.n = 5\nb.k = 1\nb.k = a.n\n");

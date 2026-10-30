@@ -19,8 +19,9 @@
  *   any other statement ends the run of fills.
  *
  * The whole program is read for each outermost script compiled; a module compiled meanwhile
- * shares what was read (as FunctionInlining does). The walk of the consts is ast::walkConsts:
- * ProgramConstsPass walks them the same way.
+ * shares what was read (as FunctionInlining does). The walk of the consts is ast::walkConsts.
+ * One walk decides the fills: with the whole-program analysis on, ProgramConstsPass walks them
+ * first, with all it knows, and this pass is made with `fills` off, marking the functions only.
  */
 
 #include "../ast_pass.h"
@@ -39,20 +40,23 @@ namespace pg
         {
             bool joined = false;
             size_t target = 0;           // Joined: the index of the const it joins
-            bool fill = false;           // A constant entry of it, or else found to make it
             std::set<std::string> open;  // Joined: the consts open then
         };
 
         // The walk of a file's top level, one Join per statement. The consts declared in a row stay
-        // open: a statement setting a constant entry of one joins it, one that `makes` says makes them
-        // joins the const of the index it gives (negative: none), anything else closes them. A const
-        // that already holds a statement joined to it reads what that reads: it closes those before it.
+        // open: a statement setting a constant entry of one joins it when `fills` allows that const,
+        // one that `makes` says makes them joins the const of the index it gives (negative: none),
+        // anything else closes them. A constant entry the plain walk joins (its const declared one,
+        // only declared consts, definitions and such entries between) joins whatever `fills` says: a
+        // module imported twice in a run would otherwise set it again at the second import.
         // `isConst`: a declaration that counts as a const.
         // `inOrder`: joined, statements run in the order of their consts, so a statement whose const
         // comes before the last one joined stays where it is and closes them: it would run before
-        // what it follows
+        // what it follows. Constant entries of distinct consts are independent of each other, so one
+        // may still go back past them, not past a statement that may read its const
         std::vector<Join> walkConsts(const std::vector<StatementPtr>& statements,
                                      const std::function<bool(const VariableStatement&)>& isConst,
+                                     const std::function<bool(size_t target)>& fills,
                                      const std::function<int(size_t statement, const std::vector<size_t>& open)>& makes,
                                      bool inOrder);
     }
@@ -60,6 +64,10 @@ namespace pg
     class RunOncePass : public AstPass
     {
     public:
+        // `fills`: whether this pass joins the constant fills of the consts (off when ProgramConstsPass
+        // decided them)
+        explicit RunOncePass(bool fills = true) : fills(fills) {}
+
         std::string getName() const override { return "RunOnce"; }
 
         bool runPass(VM* vm, std::queue<StatementPtr>& statements) override;
@@ -67,6 +75,8 @@ namespace pg
         std::string factsAbout(const std::set<std::string>& names, std::vector<std::shared_ptr<const void>>& keep) const override;
 
     private:
+        bool fills;
+
         // The functions of the program defined once and never written: kept from run to run
         std::set<std::string> keptFunctions;
     };

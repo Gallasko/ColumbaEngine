@@ -1153,8 +1153,9 @@ namespace pg
             vm.addAstPass(std::make_unique<LoopInvariantHoistingPass>());
             vm.addAstPass(std::make_unique<LengthHoistingPass>());
 
-            // Last: it marks what the others leave of the top level to be run once a VM
-            vm.addAstPass(std::make_unique<RunOncePass>());
+            // Last: it marks what the others leave of the top level to be run once a VM. The fills of
+            // the consts are ProgramConstsPass's when it runs: one walk decides them
+            vm.addAstPass(std::make_unique<RunOncePass>(not wholeProgramAnalysis));
 
             // A report of what other passes could do, changing nothing: PG_AST_SURVEY=<file>
             if (const char* survey = std::getenv("PG_AST_SURVEY"))

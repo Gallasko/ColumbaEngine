@@ -443,7 +443,9 @@ namespace pg
 
                 visited.insert(fullPath);
 
-                if (UniversalFileAccessor::exists(fullPath + "c") or UniversalFileAccessor::exists(baseDir + name + ".pgc"))
+                // The spellings the compiler takes bytecode from (CParser::parseImportFile): a name
+                // given as one, `m.pgc`, or `m.pg.pgc`
+                if (fileName.find(".pgc") != std::string::npos or UniversalFileAccessor::exists(fullPath + "c") or UniversalFileAccessor::exists(fullPath + ".pgc"))
                 {
                     out.complete = false;
                     return -1;
