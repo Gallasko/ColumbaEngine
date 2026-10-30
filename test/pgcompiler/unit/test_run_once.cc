@@ -191,6 +191,26 @@ TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
             EXPECT_EQ(statements.size(), 4u);
         }
 
+        TEST(RunOncePass, AFillJoinsTheLaterOfTwoConstsOfTheSameName)
+        {
+            auto statements = runOnce(
+                "const t = {a: 1}\n"
+                "const t = {b: 2}\n"
+                "t[\"c\"] = 3\n");
+
+            std::vector<std::shared_ptr<VariableStatement>> consts;
+
+            for (const auto& s : statements)
+            {
+                if (auto v = std::dynamic_pointer_cast<VariableStatement>(s))
+                    consts.push_back(v);
+            }
+
+            ASSERT_EQ(consts.size(), 2u);
+            EXPECT_EQ(consts[0]->keptFills.size(), 0u);
+            EXPECT_EQ(consts[1]->keptFills.size(), 1u);
+        }
+
         TEST(RunOncePass, JoinsNoFillPastAConstThatMayReadIt)
         {
             auto statements = runOnce(

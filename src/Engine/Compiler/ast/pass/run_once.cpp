@@ -160,10 +160,11 @@ namespace pg
 
         auto openNamed = [&open](const std::string& name) -> std::shared_ptr<VariableStatement>
         {
-            for (const auto& v : open)
+            // A later declaration of the name wins
+            for (auto it = open.rbegin(); it != open.rend(); ++it)
             {
-                if (v->name.text == name)
-                    return v;
+                if ((*it)->name.text == name)
+                    return *it;
             }
 
             return nullptr;
