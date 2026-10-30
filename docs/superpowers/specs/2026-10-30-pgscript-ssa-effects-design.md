@@ -202,7 +202,7 @@ so a second run writes back the value it holds.
 - The joins and inferred consts found today are still found: `towntable`'s loop joins
   `townPlaces` (in `town` and `resources`); `lastAge`, `anyAge`, `noBreak`, `town`'s
   `foundLine`/`opened` are inferred.
-- Speed (my target): the analysis of the whole rules (all seven programs) under 0.2 s, about the
+- Speed (my target): the analysis of the whole rules (all eight programs) under 0.2 s, about the
   time of the rest of the compile.
 - Rulecheck answers byte-identical to the baseline, and the beam life reaches the same tasks the
   same ways, both run on rules compiled with the analysis on.
