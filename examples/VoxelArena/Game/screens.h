@@ -41,6 +41,7 @@ namespace arena
         };
 
         bool isHost = false;            // this game hosts it
+        bool canLeave = false;          // a Leave (or Stop hosting) back to playing alone
         bool dedicated = false;         // a dedicated server: no host, it starts when everyone is ready
         bool youReady = false;
         std::vector<Row> players;
@@ -71,13 +72,25 @@ namespace arena
         LobbyView::Router router = LobbyView::Router::Off;
     };
 
+    /** Joining a friend's game (the title's J): the host's address and the name the others see. */
+    struct JoinView
+    {
+        std::string address, name, message;
+        int focus = 0;                  // 0 the address, 1 the name
+        float time = 0.0f;
+    };
+
     namespace screens
     {
         // Click actions
         constexpr int TITLE_ARENA = 1, TITLE_TRAINING = 2, TITLE_SPELLBOOK = 3, TITLE_OPTIONS = 4;
         constexpr int END_AGAIN = 11, END_TRAINING = 12;
         constexpr int LOBBY_READY = 5;   // the host's start is TITLE_ARENA
-        constexpr int TITLE_INVITE = 6;
+        constexpr int TITLE_INVITE = 6, TITLE_JOIN = 7, LOBBY_LEAVE = 8;
+        constexpr int INVITE_JOIN = 26;
+        constexpr int JOIN_ADDRESS = 31, JOIN_NAME = 32, JOIN_PASTE = 33, JOIN_GO = 34, JOIN_CLOSE = 35;
+
+        void drawJoin(Ui& ui, const JoinView& v);
         constexpr int INVITE_HOST = 21, INVITE_COPY_ONLINE = 22, INVITE_COPY_LAN = 23, INVITE_COPY_JOIN = 24, INVITE_CLOSE = 25;
 
         /** The + at the top left of the title and the lobby. */

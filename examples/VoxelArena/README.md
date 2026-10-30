@@ -295,6 +295,12 @@ the addresses to share with a Copy button each (online when the router opened th
 same network) and the command a friend starts the game with. Someone who joined sees the address they
 joined, to pass on.
 
+**Joining from the game**: the title's J (or the invite panel's "Join a friend's game instead") asks
+for the host's address (`address` or `address:port`, 7777 when none; Paste takes what their invite
+copied, the address or the whole command) and the name the others see. Both are kept for next time.
+This game becomes a client of theirs on the spot, in their lobby; Leave (Stop hosting, for a game that
+started hosting from its title) makes it a game alone again. Console: `join <address>`, `leave`.
+
 **Over the internet** the host's router has to let the two ports in. The host shows how friends join:
 its address on the local network, and, when its router opened the ports by itself (UPnP), its public
 address. A router without UPnP (or with it off) says so, and the lobby says which ports to forward to

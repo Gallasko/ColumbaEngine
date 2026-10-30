@@ -278,6 +278,17 @@ namespace arena
         std::unique_ptr<pg::NetworkSystem> ownNetwork;   // hosting started from the title: stepped here, not by the engine
         pg::SdlNetworkBackend* ownBackend = nullptr;
         bool hostNow();
+
+        // Joining a friend's game from the title (J): this game becomes a client of theirs, and Leave
+        // (or Stop hosting) makes it a game alone again
+        bool joinOpen = false;
+        std::string joinAddress, joinName, joinMessage;
+        int joinFocus = 0;
+        bool joinNow();
+        void leaveGame();
+        void openJoin();
+        void joinAction(int action);
+        void resetLocalState();
         void drawInvite();
         void inviteAction(int action);
         int pendingEquip = 0;   // weapon key pressed, handed to the next step's input

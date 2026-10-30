@@ -110,8 +110,26 @@ namespace arena
         o.trails = j.flag("trails", o.trails);
         o.firstPerson = j.flag("firstPerson", o.firstPerson);
         o.overlay = j.flag("overlay", o.overlay);
+        o.name = j.str("name", o.name).substr(0, 24);
+        o.lastJoin = j.str("lastJoin", o.lastJoin).substr(0, 64);
         out = o;
         return true;
+    }
+
+    namespace
+    {
+        std::string quoted(const std::string& s)
+        {
+            std::string out = "\"";
+            for (char c : s)
+            {
+                if (c == '"' or c == '\\')
+                    out += '\\';
+                if (static_cast<unsigned char>(c) >= 32)
+                    out += c;
+            }
+            return out + "\"";
+        }
     }
 
     bool saveOptions(const std::string& path, const GameOptions& o)
@@ -133,7 +151,9 @@ namespace arena
              << "    \"hitFlash\": " << o.hitFlash << ",\n"
              << "    \"trails\": " << flag(o.trails) << ",\n"
              << "    \"firstPerson\": " << flag(o.firstPerson) << ",\n"
-             << "    \"overlay\": " << flag(o.overlay) << "\n"
+             << "    \"overlay\": " << flag(o.overlay) << ",\n"
+             << "    \"name\": " << quoted(o.name) << ",\n"
+             << "    \"lastJoin\": " << quoted(o.lastJoin) << "\n"
              << "}\n";
         return static_cast<bool>(file);
     }

@@ -126,7 +126,7 @@ namespace arena
             {"freeCursor", {"Left Alt"}}, {"toggleView", {"F", "V"}},
             {"ability1", {"Q"}}, {"ability2", {"E"}}, {"ability3", {"G", "Mouse2"}}, {"ability4", {"R"}},
             {"ability5", {"1"}}, {"ability6", {"2"}}, {"ability7", {"3"}}, {"ability8", {"4"}},
-            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"spellbook", {"B"}}, {"options", {"O"}}, {"lobby", {"L"}}, {"invite", {"I"}},
+            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"spellbook", {"B"}}, {"options", {"O"}}, {"lobby", {"L"}}, {"invite", {"I"}}, {"join", {"J"}},
             // The spellbook's parts, while it is open: elements, forms, modifiers
             {"spellElement1", {"Z"}}, {"spellElement2", {"X"}}, {"spellElement3", {"C"}},
             {"spellForm1", {"A"}}, {"spellForm2", {"S"}}, {"spellForm3", {"D"}}, {"spellForm4", {"F"}},
@@ -262,6 +262,15 @@ namespace arena
 
             // The player's options, as they were left
             loadOptions(optionsPath(), prefs);
+
+            // The name the others see: --name, else the one kept in the options
+            if ((options.playerName.empty() or options.playerName == "player") and not prefs.name.empty())
+                options.playerName = prefs.name;
+            if (server)
+                server->hostName = options.playerName;
+            if (client)
+                client->setName(options.playerName);
+
             firstPerson = prefs.firstPerson;
             showOverlay = prefs.overlay;
             camera.pitch = firstPerson ? 5.0f : camera.pitch;
@@ -707,6 +716,33 @@ namespace arena
                 continue;
             }
 
+            // Joining, over the title: typing goes to the field, Tab the other one, Enter joins, Esc closes
+            if (titleOpen and joinOpen)
+            {
+                if (p.scancode == SDL_SCANCODE_ESCAPE)
+                    joinOpen = false;
+                else if (p.scancode == SDL_SCANCODE_TAB)
+                    joinFocus = 1 - joinFocus;
+                else if (p.scancode == SDL_SCANCODE_BACKSPACE)
+                {
+                    std::string& field = joinFocus == 0 ? joinAddress : joinName;
+                    if (not field.empty())
+                        field.pop_back();
+                }
+                else if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
+                    joinNow();
+                else if (p.scancode == SDL_SCANCODE_V and (p.mod & KMOD_CTRL))
+                    joinAction(screens::JOIN_PASTE);
+                continue;
+            }
+
+            if (titleOpen and not networked() and keyIs(p.scancode, "join"))
+            {
+                openJoin();
+                text.clear();   // the key that opened it is not typed into it
+                continue;
+            }
+
             // Inviting, over the title: Esc closes, Enter hosts this game (alone)
             if (titleOpen and inviteOpen)
             {
@@ -714,6 +750,12 @@ namespace arena
                     inviteOpen = false;
                 else if ((p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER) and not networked())
                     hostNow();
+                else if (keyIs(p.scancode, "join") and not networked())
+                {
+                    inviteOpen = false;
+                    openJoin();
+                    text.clear();
+                }
                 continue;
             }
 
@@ -860,6 +902,15 @@ namespace arena
             std::lock_guard<std::mutex> lock(inputMutex);
             stepPresses.clear();
             mousePresses.clear();
+        }
+
+        if (joinOpen and not text.empty())
+        {
+            std::string& field = joinFocus == 0 ? joinAddress : joinName;
+            for (char c : text)
+                if (c >= 32 and c < 127 and field.size() < (joinFocus == 0 ? 64u : 24u) and not (joinFocus == 0 and c == ' '))
+                    field += c;
+            joinMessage.clear();
         }
 
         if (bookOpen and not text.empty() and spellbook.naming)
@@ -2199,9 +2250,21 @@ namespace arena
                 continue;
             }
 
+            if (titleOpen and joinOpen)
+            {
+                joinAction(action);
+                continue;
+            }
+
             if (titleOpen and inviteOpen)
             {
-                inviteAction(action);
+                if (action == screens::INVITE_JOIN)
+                {
+                    inviteOpen = false;
+                    openJoin();
+                }
+                else
+                    inviteAction(action);
                 continue;
             }
 
@@ -2212,6 +2275,13 @@ namespace arena
                     case screens::TITLE_INVITE:
                         inviteOpen = true;
                         inviteMessage.clear();
+                        break;
+                    case screens::TITLE_JOIN:
+                        if (not networked())
+                            openJoin();
+                        break;
+                    case screens::LOBBY_LEAVE:
+                        leaveGame();
                         break;
                     case screens::TITLE_ARENA:
                         if (not client)
@@ -2290,6 +2360,181 @@ namespace arena
         return true;
     }
 
+    void ArenaGame::openJoin()
+    {
+        joinOpen = true;
+        joinFocus = 0;
+        joinMessage.clear();
+        joinAddress = prefs.lastJoin;
+        joinName = options.playerName == "player" ? prefs.name : options.playerName;
+    }
+
+    void ArenaGame::joinAction(int action)
+    {
+        switch (action)
+        {
+            case screens::JOIN_ADDRESS: joinFocus = 0; break;
+            case screens::JOIN_NAME: joinFocus = 1; break;
+            case screens::JOIN_GO: joinNow(); break;
+            case screens::JOIN_CLOSE: joinOpen = false; break;
+            case screens::JOIN_PASTE:
+            {
+                // What their invite copied: an address, or the whole command
+                char* clip = SDL_GetClipboardText();
+                std::string pasted = clip ? clip : "";
+                SDL_free(clip);
+
+                if (const size_t at = pasted.find("--join"); at != std::string::npos)
+                    pasted = pasted.substr(at + 6);
+                pasted.erase(std::remove_if(pasted.begin(), pasted.end(), [](char c) { return c == ' ' or c == '\n' or c == '\r' or c == '\t'; }), pasted.end());
+
+                if (pasted.empty())
+                    joinMessage = "Nothing to paste: copy their address first";
+                else
+                {
+                    joinAddress = pasted.substr(0, 64);
+                    joinFocus = 0;
+                    joinMessage.clear();
+                }
+                break;
+            }
+            default: break;
+        }
+    }
+
+    void ArenaGame::resetLocalState()
+    {
+        // What this game kept of the world it was showing: gone with it
+        previous.clear();
+        gaits.clear();
+        spawnMarks.clear();
+        spawnPings.clear();
+        statusTimers.clear();
+        burningLooks.clear();
+        pendingPick = 0;
+        pendingEquip = 0;
+        clientPhase = RunPhase::Off;
+        duelSeen = RunPhase::Off;
+        lastPhase = RunPhase::Off;
+        headlineWave = 0;
+        hurtFlash = 0.0f;
+        meshDirty = true;
+        accumulator = 0.0;
+    }
+
+    bool ArenaGame::joinNow()
+    {
+        if (networked())
+            return false;
+
+        // "address" or "address:port"
+        std::string address = joinAddress;
+        uint16_t port = 7777;
+
+        if (const size_t colon = address.rfind(':'); colon != std::string::npos)
+        {
+            const std::string digits = address.substr(colon + 1);
+            if (digits.empty() or digits.size() > 5 or not std::all_of(digits.begin(), digits.end(), [](char c) { return std::isdigit(static_cast<unsigned char>(c)); }))
+            {
+                joinMessage = "The port after the : is a number (7777)";
+                return false;
+            }
+            port = static_cast<uint16_t>(std::stoi(digits));
+            address = address.substr(0, colon);
+        }
+
+        if (address.empty())
+        {
+            joinMessage = "Type the host's address first";
+            return false;
+        }
+
+        if (not joinName.empty())
+            options.playerName = joinName;
+
+        NetworkConfig net;
+        net.isServer = false;
+        net.peerAddress = address;
+        net.tcpPort = port;
+        net.udpLocalPort = 0;
+        net.udpPeerPort = static_cast<uint16_t>(port + 1);
+        net.emitEvents = false;
+        net.autoReconnect = false;
+
+        auto* backend = new SdlNetworkBackend(net);
+        auto network = std::make_unique<NetworkSystem>(backend, net);
+        network->init();
+
+        if (not backend->isReady())
+        {
+            joinMessage = "The network could not start on this machine";
+            return false;
+        }
+
+        // Kept for next time
+        prefs.lastJoin = joinAddress;
+        prefs.name = joinName;
+        saveOptions(optionsPath(), prefs);
+
+        // This game becomes a client of theirs: its world is the server's from now on
+        if (world.inRun())
+            world.stopRun();
+
+        ownBackend = backend;
+        ownNetwork = std::move(network);
+        options.network = ownNetwork.get();
+        options.mode = ArenaOptions::Mode::Client;
+        options.address = address;
+        options.port = port;
+
+        resetLocalState();
+        transport = std::make_unique<net::EngineTransport>(options.network);
+        client = std::make_unique<net::NetClient>(world, content, tuning, *transport, options.playerName);
+        applySpells();
+
+        joinOpen = false;
+        inviteOpen = false;
+        titleOpen = true;   // the lobby, connecting
+        print("joining " + address + ":" + std::to_string(port));
+        return true;
+    }
+
+    void ArenaGame::leaveGame()
+    {
+        if (not networked())
+            return;
+
+        if (client)
+        {
+            client->leave();
+            if (ownNetwork)
+                ownNetwork->execute();   // the goodbye goes out before the network does
+        }
+
+        client.reset();
+        server.reset();
+        transport.reset();
+        portMapper.stop();
+        ownNetwork.reset();
+        ownBackend = nullptr;
+        options.network = nullptr;
+        options.mode = ArenaOptions::Mode::Single;
+        netLog.clear();
+
+        // A game alone again, in the training ground, from its title
+        resetLocalState();
+        world.start(content, tuning);
+        world.authority = true;
+        world.setBrain(&brain);
+        applySpells();
+
+        if (const Fighter* p = world.player())
+            camera.yaw = p->yaw;
+
+        titleOpen = true;
+        print("playing alone");
+    }
+
     void ArenaGame::inviteAction(int action)
     {
         auto copy = [&](const std::string& text) {
@@ -2352,6 +2597,8 @@ namespace arena
     {
         LobbyView v;
         v.isHost = server != nullptr;
+        // Leave: a client always; a host when it started hosting from the title (the engine's own network cannot be closed)
+        v.canLeave = client != nullptr or (server != nullptr and ownNetwork != nullptr);
         v.port = options.port;
         v.waves = content.run.waves;
         v.time = uiTime;
@@ -2497,10 +2744,20 @@ namespace arena
             t.time = uiTime;
             screens::drawTitle(ui, t);
         }
-        if (titleOpen and inviteOpen)
+        if (titleOpen and joinOpen)
+        {
+            JoinView jv;
+            jv.address = joinAddress;
+            jv.name = joinName;
+            jv.message = joinMessage;
+            jv.focus = joinFocus;
+            jv.time = uiTime;
+            screens::drawJoin(ui, jv);
+        }
+        else if (titleOpen and inviteOpen)
             drawInvite();
         else if (not titleOpen)
-            inviteOpen = false;
+            inviteOpen = joinOpen = false;
 
         if (endOpen and not titleOpen)
         {
@@ -3146,7 +3403,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | training | wave <n> | duel | timeup | shards <n> | kill | options | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | training | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | options | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | click <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -3275,6 +3532,27 @@ namespace arena
 
             world.skipToWave(std::atoi(args[1].c_str()));
             return "wave " + std::to_string(world.run.wave);
+        }
+
+        if (cmd == "join")
+        {
+            if (args.size() < 2)
+                return "join <address[:port]>: join a friend's game (the title's J does it too)";
+            if (networked())
+                return "join: already in a game (leave first)";
+
+            joinAddress = args[1];
+            if (joinName.empty())
+                joinName = options.playerName == "player" ? prefs.name : options.playerName;
+            return joinNow() ? "" : "join: " + joinMessage;
+        }
+
+        if (cmd == "leave")
+        {
+            if (not networked())
+                return "leave: not in a game with others";
+            leaveGame();
+            return "";
         }
 
         if (cmd == "duel")

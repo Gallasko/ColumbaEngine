@@ -107,6 +107,13 @@ namespace arena::screens
             ui.text(x + w - 44, ry + 25, "port " + std::to_string(v.port) + " and " + std::to_string(v.port + 1), Font::Text600, 12, hex(0x5A4718), Align::Right);
             ui.hit(x + 28, ry, w - 56, 64, INVITE_HOST);
             ry += 84.0f;
+
+            const bool overJoin = ui.hover(x + 28, ry, w - 56, 44);
+            ui.box(x + 28, ry, w - 56, 44, CARD, 2.0f, overJoin ? GOLD : LINE);
+            ui.keycap(x + 40, ry + 10, 24, "J", GOLD, GOLD_INK, 18, 0.0f);
+            ui.text(x + 76, ry + 9, "Join a friend's game instead", Font::Display, 26, TEXT);
+            ui.hit(x + 28, ry, w - 56, 44, INVITE_JOIN);
+            ry += 54.0f;
         }
         else if (v.joined)
         {
@@ -143,6 +150,70 @@ namespace arena::screens
             ui.text(x + 28, y + h - 34, ui.fit(v.message, Font::Text600, 12, w - 56), Font::Text600, 12, v.message.rfind("Copied", 0) == 0 ? GOOD : WARNING);
         else if (v.hosting)
             ui.text(x + 28, y + h - 34, std::to_string(v.players) + (v.players == 1 ? " player" : " players") + " in \xC2\xB7 everyone needs the same mods", Font::Text600, 12, FAINT);
+    }
+
+    void drawJoin(Ui& ui, const JoinView& v)
+    {
+        ui.section("join");
+        ui.anchor(Anchor::TopLeft);
+        ui.rectPx(0, 0, ui.width(), ui.height(), withAlpha(INK, 0.6f));
+        ui.hit(0, 0, ui.baseX(ui.width()), ui.baseY(ui.height()), JOIN_CLOSE);
+
+        ui.anchor(Anchor::Centre);
+        const float x = 330, y = 140, w = 620, h = 440;
+        ui.raised(x, y, w, h, PANEL, 4.0f);
+        ui.hit(x, y, w, h, -1);
+
+        ui.text(x + 28, y + 22, "Join a game", Font::Display, 40, TEXT);
+        {
+            const float cw = 22.0f + 8.0f + ui.measure("Close", Font::Text600, 13) + 18.0f;
+            const bool over = ui.hover(x + w - 28 - cw, y + 26, cw, 30);
+            ui.box(x + w - 28 - cw, y + 26, cw, 30, CARD, 2.0f, over ? GOLD : LINE);
+            const float kw = ui.measure("ESC", Font::Display, 13) + 8.0f;
+            ui.box(x + w - 28 - cw + 6, y + 31, kw, 20, TEXT_DIM, 0.0f);
+            ui.text(x + w - 28 - cw + 6 + kw * 0.5f, y + 32, "ESC", Font::Display, 13, INK, Align::Centre);
+            ui.text(x + w - 28 - cw + 12 + kw, y + 33, "Close", Font::Text600, 13, TEXT);
+            ui.hit(x + w - 28 - cw, y + 26, cw, 30, JOIN_CLOSE);
+        }
+
+        const bool caret = static_cast<int>(v.time * 2.0f) % 2 == 0;
+
+        // A field: its label, the box (gold when it has the keyboard), what is typed
+        auto field = [&](float fy, const std::string& label, const std::string& value, const std::string& placeholder, bool focused, int action, float fw) {
+            ui.text(x + 28, fy, label, Font::Text700, 11, MUTED, Align::Left, 1.5f);
+            const bool over = ui.hover(x + 28, fy + 18, fw, 44);
+            ui.box(x + 28, fy + 18, fw, 44, WELL, 2.0f, focused ? GOLD : (over ? TEXT_DIM : LINE));
+            const std::string shown = value.empty() and not focused ? placeholder : value + (focused and caret ? "_" : "");
+            ui.text(x + 44, fy + 26, ui.fit(shown, Font::Display, 26, fw - 32), Font::Display, 26, value.empty() and not focused ? FAINT : TEXT);
+            ui.hit(x + 28, fy + 18, fw, 44, action);
+        };
+
+        field(y + 86, "THE HOST'S ADDRESS", v.address, "81.2.3.4:7777", v.focus == 0, JOIN_ADDRESS, w - 56 - 110);
+        {
+            const float bx = x + w - 28 - 100;
+            const bool over = ui.hover(bx, y + 104, 100, 44);
+            ui.box(bx, y + 104, 100, 44, CARD, 2.0f, over ? GOLD : LINE);
+            ui.text(bx + 50, y + 111, "Paste", Font::Display, 24, TEXT, Align::Centre);
+            ui.hit(bx, y + 104, 100, 44, JOIN_PASTE);
+        }
+        ui.text(x + 28, y + 156, "As their invite shows it (the + at the top left of their game). The port is 7777 unless they said otherwise.",
+                Font::Text500, 11, FAINT);
+
+        field(y + 186, "YOUR NAME", v.name, "player", v.focus == 1, JOIN_NAME, 300);
+        ui.text(x + 340, y + 226, "Tab: the other field", Font::Text500, 11, FAINT);
+
+        const float by = y + 286;
+        const bool over = ui.hover(x + 28, by, w - 56, 64);
+        ui.raised(x + 28, by, w - 56, 64, GOLD, 3.0f, 2.0f, over ? TEXT : INK);
+        const float kw = ui.measure("ENTER", Font::Display, 18) + 12.0f;
+        ui.box(x + 46, by + 19, kw, 26, INK, 0.0f);
+        ui.text(x + 46 + kw * 0.5f, by + 22, "ENTER", Font::Display, 18, GOLD, Align::Centre);
+        ui.text(x + 46 + kw + 14, by + 12, "Join", Font::Display, 32, GOLD_INK);
+        ui.text(x + w - 44, by + 25, "everyone needs the same mods", Font::Text600, 12, hex(0x5A4718), Align::Right);
+        ui.hit(x + 28, by, w - 56, 64, JOIN_GO);
+
+        if (not v.message.empty())
+            ui.text(x + 28, y + h - 36, ui.fit(v.message, Font::Text600, 12, w - 56), Font::Text600, 12, WARNING);
     }
 
     void drawTitle(Ui& ui, const TitleView& v)
@@ -194,27 +265,28 @@ namespace arena::screens
         struct Item { std::string key, name, hint; int action; };
         const Item items[] = {
             {"T", "Training ground", "dummies, enemies that come back", TITLE_TRAINING},
+            {"J", "Join a game", "a friend's, by their address", TITLE_JOIN},
             {"B", "Spellbook", "build your spells", TITLE_SPELLBOOK},
             {"O", "Options", "mouse, view, sound", TITLE_OPTIONS},
         };
 
-        for (int k = 0; k < 3; ++k)
+        for (int k = 0; k < 4; ++k)
         {
             const auto itemScope = ui.scope(static_cast<uint64_t>(k));
-            const float y = 404.0f + static_cast<float>(k) * 56.0f;
-            const bool over = ui.hover(72, y, 472, 48);
-            ui.box(72, y, 472, 48, CARD, 2.0f, over ? GOLD : LINE);
-            ui.keycap(84, y + 11, 26, items[k].key, GOLD, GOLD_INK, 20, 0.0f);
-            ui.text(124, y + 9, items[k].name, Font::Display, 28, TEXT);
-            ui.text(530, y + 17, items[k].hint, Font::Text500, 12, MUTED, Align::Right);
-            ui.hit(72, y, 472, 48, items[k].action);
+            const float y = 404.0f + static_cast<float>(k) * 52.0f;
+            const bool over = ui.hover(72, y, 472, 46);
+            ui.box(72, y, 472, 46, CARD, 2.0f, over ? GOLD : LINE);
+            ui.keycap(84, y + 10, 26, items[k].key, GOLD, GOLD_INK, 20, 0.0f);
+            ui.text(124, y + 8, items[k].name, Font::Display, 28, TEXT);
+            ui.text(530, y + 16, items[k].hint, Font::Text500, 12, MUTED, Align::Right);
+            ui.hit(72, y, 472, 46, items[k].action);
         }
 
-        ui.text(72, 596, "BEST SCORE", Font::Text700, 11, MUTED, Align::Left, 1.5f);
-        const float bw = ui.text(72, 610, grouped(v.best), Font::Display, 40, TEXT);
-        ui.text(72 + bw + 12, 628, v.best > 0 ? "your best run so far" : "no run yet", Font::Text500, 12, MUTED);
+        ui.text(72, 616, "BEST SCORE", Font::Text700, 11, MUTED, Align::Left, 1.5f);
+        const float bw = ui.text(72, 630, grouped(v.best), Font::Display, 40, TEXT);
+        ui.text(72 + bw + 12, 648, v.best > 0 ? "your best run so far" : "no run yet", Font::Text500, 12, MUTED);
 
-        ui.text(72, 668, "F1 overlay \xC2\xB7 ` console \xC2\xB7 Esc options \xC2\xB7 hold Left Alt to free the mouse", Font::Text500, 11, FAINT);
+        ui.text(72, 684, "F1 overlay \xC2\xB7 ` console \xC2\xB7 Esc options \xC2\xB7 hold Left Alt to free the mouse", Font::Text500, 11, FAINT);
     }
 
     void drawLobby(Ui& ui, const LobbyView& v)
@@ -240,6 +312,16 @@ namespace arena::screens
         const float lw = ui.text(72, 164, "LOBBY", Font::Text700, 11, MUTED, Align::Left, 1.5f);
         if (v.status.empty())
             ui.text(72 + lw + 10, 163, std::to_string(v.players.size()) + " / " + std::to_string(v.maxPlayers) + " players", Font::Text600, 12, FAINT);
+
+        if (v.canLeave)
+        {
+            const std::string label = v.isHost ? "Stop hosting" : "Leave";
+            const float bw = ui.measure(label, Font::Text600, 12) + 20.0f;
+            const bool over = ui.hover(544 - bw, 156, bw, 24);
+            ui.box(544 - bw, 156, bw, 24, CARD, 2.0f, over ? WARNING : LINE);
+            ui.text(544 - bw * 0.5f, 161, label, Font::Text600, 12, over ? WARNING : TEXT_DIM, Align::Centre);
+            ui.hit(544 - bw, 156, bw, 24, LOBBY_LEAVE);
+        }
 
         if (not v.status.empty())
         {

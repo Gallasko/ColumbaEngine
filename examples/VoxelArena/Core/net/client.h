@@ -43,6 +43,9 @@ namespace arena::net
 
         void leave();
 
+        /** The name sent when it joins (before it connects). */
+        void setName(const std::string& n) { name = n; }
+
         /** The recipes on this player's spell keys: sent to the server (now, or once joined). */
         void setSpells(const std::vector<SpellRecipe>& recipes);
 

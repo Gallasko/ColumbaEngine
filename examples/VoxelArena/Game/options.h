@@ -19,6 +19,10 @@ namespace arena
         bool trails = true;          // slash trails
         bool firstPerson = true;     // the view to play in
         bool overlay = false;        // the debug overlay (F1)
+
+        // Multiplayer: the name the others see, and the last address joined (the join panel's start)
+        std::string name;
+        std::string lastJoin;
     };
 
     std::string optionsPath();
