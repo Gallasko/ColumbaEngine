@@ -1129,7 +1129,7 @@ namespace pg
             vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
 
             // Loop rotation runs LAST: it consumes the popping/shrunk jump forms
-            // and rewrites test-at-top loops (while / for-in) into test-at-bottom
+            // and rewrites test-at-top loops (while / for) into test-at-bottom
             // form, dropping the unconditional OP_Loop. No later pass observes the
             // new OP_Jump_If_True_Popping opcode.
             vm.addOptimizationPass(std::make_unique<LoopRotationPass>());

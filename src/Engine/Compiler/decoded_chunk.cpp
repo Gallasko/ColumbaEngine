@@ -181,6 +181,7 @@ namespace pg
         {
             fuseInstructions(decoded, chunk, vm);
             fuseIndexedAccess(decoded);
+            compactElided(decoded);
         }
 
         // Optimize: pre-resolve constant pointers
@@ -773,6 +774,8 @@ namespace pg
         // 3. Resolve fused branch targets now that the array is final.
         for (const auto& fx : branchFixups)
         {
+            decoded->fusedBranches.push_back({fx.newIndex, fx.relative});
+
             DecodedInstruction& di = decoded->instructions[fx.newIndex];
             const uint32_t target = decoded->jumpTargets.at(fx.targetOffset);
             if (target == OffsetIndex::none)
@@ -832,9 +835,9 @@ namespace pg
     // at fusion time) may sit in between, and none of them may dig below the
     // handle's stack position. Anything else — calls, branches, stores,
     // unknown effects, or a branch target landing inside the window — bails.
-    // Elided instructions become 1-dispatch no-ops rather than being
-    // compacted away, keeping instruction indices and resolved branch
-    // pointers stable.
+    // Elided instructions are only marked here, keeping instruction indices
+    // and resolved branch pointers stable for the sweep; compactElided takes
+    // them out once it is done.
     void ChunkDecoder::fuseIndexedAccess(DecodedChunk* decoded)
     {
         using namespace fusion;
@@ -973,6 +976,84 @@ namespace pg
 
         if (rewrites > 0)
             LOG_INFO("ChunkDecoder", "Fused " << rewrites << " local indexed accesses");
+    }
+
+    void ChunkDecoder::compactElided(DecodedChunk* decoded)
+    {
+        using namespace fusion;
+
+        std::vector<DecodedInstruction>&     ins = decoded->instructions;
+        std::vector<DecodedInstructionMeta>& im  = decoded->meta;
+
+        const size_t n = ins.size();
+
+        // Where each instruction ends up. An elided one maps to the instruction after it, which is
+        // where a branch to it was going to fall through to anyway (the last one always stays: it
+        // is the terminator, never elided)
+        std::vector<uint32_t> oldToNew(n, 0);
+        uint32_t kept = 0;
+
+        for (size_t i = 0; i < n; ++i)
+        {
+            oldToNew[i] = kept;
+
+            if (ins[i].decodedHandler != &fusedElidedProducer)
+                ++kept;
+        }
+
+        if (kept == n)
+            return;
+
+        // Branches first, while they still sit at their old index. Instructions only move down
+        // inside the same array, so its pointers stay valid.
+        for (auto& branch : decoded->fusedBranches)
+        {
+            DecodedInstruction& di = ins[branch.index];
+            const uint32_t newIndex = oldToNew[branch.index];
+
+            if (branch.relative)
+            {
+                const int16_t distance = static_cast<int16_t>(di.operands.indexed.byte3
+                                                           | (di.operands.indexed.byte4 << 8));
+                const uint32_t target = oldToNew[static_cast<ptrdiff_t>(branch.index) + distance];
+
+                // Only ever shorter than the distance it replaces: it fits
+                const ptrdiff_t moved = static_cast<ptrdiff_t>(target) - static_cast<ptrdiff_t>(newIndex);
+                di.operands.indexed.byte3 = static_cast<uint8_t>(moved & 0xFF);
+                di.operands.indexed.byte4 = static_cast<uint8_t>((moved >> 8) & 0xFF);
+            }
+            else
+            {
+                di.jumpTargetPtr = ins.data() + oldToNew[di.jumpTargetPtr - ins.data()];
+            }
+
+            branch.index = newIndex;
+        }
+
+        for (auto& target : decoded->fusedBranchTargets)
+            target = oldToNew[target];
+
+        for (auto& index : decoded->jumpTargets.indexOf)
+        {
+            if (index != OffsetIndex::none)
+                index = oldToNew[index];
+        }
+
+        for (size_t i = 0; i < n; ++i)
+        {
+            if (ins[i].decodedHandler == &fusedElidedProducer)
+                continue;
+
+            ins[oldToNew[i]] = ins[i];
+            im[oldToNew[i]]  = im[i];
+        }
+
+        ins.resize(kept);
+        im.resize(kept);
+
+        decoded->totalInstructions = kept;
+
+        LOG_INFO("ChunkDecoder", "Compacted " << (n - kept) << " elided instructions");
     }
 
     void ChunkDecoder::analyzePureBatches(DecodedChunk*)

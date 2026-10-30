@@ -173,10 +173,11 @@ namespace fusion
     // the handle's push/pop round-trip — disappear entirely.
     // ------------------------------------------------------------------
 
-    // Stands in for a producer (or trailing Pop) whose work is now done by a
-    // downstream fused indexed-access handler. Kept as a 1-dispatch no-op so
-    // instruction indices/branch targets stay stable (the windows here are
-    // not contiguous, unlike fuseInstructions' shapes).
+    // Marks a producer (or trailing Pop) whose work is now done by a downstream
+    // fused indexed-access handler. A no-op so instruction indices/branch
+    // targets stay stable during the sweep (the windows here are not
+    // contiguous, unlike fuseInstructions' shapes); compactElided then takes
+    // the instruction out, so it never actually runs.
     inline const DecodedInstruction* fusedElidedProducer(VM*, const DecodedInstruction& instr)
     {
         return &instr + 1;

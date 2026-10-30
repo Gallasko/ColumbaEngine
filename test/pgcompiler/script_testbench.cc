@@ -705,6 +705,21 @@ TEST_F(ScriptTestBench, StringIndexReadOnRuntimeString)
     testScript("string_index_read_runtime");
 }
 
+TEST_F(ScriptTestBench, StringLen)
+{
+    testScript("string_len");
+}
+
+TEST_F(ScriptTestBench, ForContinue)
+{
+    testScript("for_continue");
+}
+
+TEST_F(ScriptTestBench, AndInIf)
+{
+    testScript("and_in_if");
+}
+
 TEST_F(ScriptTestBench, StringIndexWriteOnGlobalIsAnError)
 {
     testScriptError("string_index_write_global", InterpretResult::RUNTIME_ERROR);

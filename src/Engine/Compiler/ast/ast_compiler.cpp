@@ -21,6 +21,12 @@ namespace pg
     namespace
     {
         const char* DOM = "AstCompiler";
+
+        bool isAnd(const ExprPtr& e)
+        {
+            return e->kind() == AstKind::LogicExpression
+                and std::static_pointer_cast<LogicExpression>(e)->op.type == TokenType::LOGICAND;
+        }
     }
 
     Value AstCompiler::compile(std::queue<Token> tokens)
@@ -832,8 +838,50 @@ namespace pg
         Compiler::current->endScope();
     }
 
+    void AstCompiler::emitAndClauses(const ExprPtr& condition, std::vector<int>& falseJumps)
+    {
+        if (isAnd(condition))
+        {
+            auto logic = std::static_pointer_cast<LogicExpression>(condition);
+
+            emitAndClauses(logic->leftExpr, falseJumps);
+            emitAndClauses(logic->rightExpr, falseJumps);
+            return;
+        }
+
+        condition->accept(this);
+
+        falseJumps.push_back(root.parser.emitJump(OpCode::OP_Long_Jump_If_False_Popping));
+    }
+
     void AstCompiler::visitStatement(IfStatement* stmt)
     {
+        // Nothing wants the value of an `and` tested here: each clause leaves for the else on its
+        // own, with no value kept on the stack to test again
+        if (isAnd(stmt->condition))
+        {
+            std::vector<int> falseJumps;
+            emitAndClauses(stmt->condition, falseJumps);
+
+            stmt->thenBranch->accept(this);
+
+            int endJump = -1;
+
+            if (stmt->elseBranch)
+                endJump = root.parser.emitJump(OpCode::OP_Long_Jump);
+
+            for (int offset : falseJumps)
+                root.parser.patchJump(offset);
+
+            if (stmt->elseBranch)
+            {
+                stmt->elseBranch->accept(this);
+                root.parser.patchJump(endJump);
+            }
+
+            return;
+        }
+
         stmt->condition->accept(this);
 
         int thenJump = root.parser.emitJump(OpCode::OP_Long_Jump_If_False);
@@ -997,26 +1045,23 @@ namespace pg
             root.parser.writeByte(OpCode::OP_Pop); // Pop the condition
         }
 
-        // Increment (runs after the body; jump-threaded like the Pratt front-end)
-        if (stmt->increment)
-        {
-            int bodyJump = root.parser.emitJump(OpCode::OP_Long_Jump);
-            int incrementStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
-
-            stmt->increment->accept(this);
-            root.parser.writeByte(OpCode::OP_Pop); // Pop the increment expression result
-
-            root.parser.emitLoop(loopStart);
-            loopStart = incrementStart;
-
-            // Continue must jump to the increment, not the condition
-            Compiler::current->loopContexts.back().loopStart = incrementStart;
-
-            root.parser.patchJump(bodyJump);
-        }
+        // Continue must reach the increment, not the condition, and it is written after the body
+        Compiler::current->loopContexts.back().continuesForward = stmt->increment != nullptr;
 
         // Body
         stmt->body->accept(this);
+
+        // Increment: one back-branch for the whole loop, the shape LoopRotationPass turns into a
+        // test at the bottom (the Pratt front-end threads a jump around it instead)
+        if (stmt->increment)
+        {
+            for (int offset : Compiler::current->loopContexts.back().continueJumps)
+                root.parser.patchJump(offset);
+
+            stmt->increment->accept(this);
+            root.parser.writeByte(OpCode::OP_Pop); // Pop the increment expression result
+        }
+
         root.parser.emitLoop(loopStart);
 
         if (exitJump != -1)
@@ -1076,7 +1121,12 @@ namespace pg
 
         emitLoopScopeUnwind();
 
-        root.parser.emitLoop(Compiler::current->loopContexts.back().loopStart);
+        LoopContext& loop = Compiler::current->loopContexts.back();
+
+        if (loop.continuesForward)
+            loop.continueJumps.push_back(root.parser.emitJump(OpCode::OP_Long_Jump));
+        else
+            root.parser.emitLoop(loop.loopStart);
     }
 
     void AstCompiler::visitStatement(DPrintStatement* stmt)

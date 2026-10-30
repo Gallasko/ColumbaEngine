@@ -165,6 +165,8 @@ namespace pg
                 return OpCode::OP_Jump;
             case OpCode::OP_Long_Jump_If_False:
                 return OpCode::OP_Jump_If_False;
+            case OpCode::OP_Long_Jump_If_False_Popping:
+                return OpCode::OP_Jump_If_False_Popping;
             case OpCode::OP_Long_Loop:
                 return OpCode::OP_Loop;
             default:
@@ -176,6 +178,7 @@ namespace pg
     {
         return opcode == OpCode::OP_Long_Jump or
                opcode == OpCode::OP_Long_Jump_If_False or
+               opcode == OpCode::OP_Long_Jump_If_False_Popping or
                opcode == OpCode::OP_Long_Loop;
     }
 

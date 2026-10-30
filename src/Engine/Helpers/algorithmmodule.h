@@ -504,6 +504,10 @@ namespace pg
             }
             else if (IS_STRING(args[0]))
             {
+                // A long string is measured where it lives, a copy would be as long as it is
+                if (IS_LONG_STRING(args[0]))
+                    return makeIntValue(vm->asStringPtr(args[0])->size());
+
                 auto str = vm->asString(args[0]);
                 return makeIntValue(str.size());
             }

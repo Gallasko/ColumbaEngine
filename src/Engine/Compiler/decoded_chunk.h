@@ -205,6 +205,11 @@ namespace pg
         // jump-into-window safety check.
         std::vector<size_t> fusedBranchTargets;
 
+        // The fused conditional branches themselves: `relative` ones keep their target as a distance
+        // in the operand bytes, the others as a pointer. compactElided moves both.
+        struct FusedBranch { size_t index; bool relative; };
+        std::vector<FusedBranch> fusedBranches;
+
         // What the field accesses and the table literals learn as they run (a deque: the instructions
         // point at its elements, which never move)
         std::deque<PropertyCache> propertyCaches;
@@ -291,6 +296,10 @@ namespace pg
         // is read straight from the slot (borrowed) instead of being pushed,
         // retained and released around the index expression.
         void fuseIndexedAccess(DecodedChunk* decoded);
+
+        // Takes out what fuseIndexedAccess elided, so it costs no dispatch: moves the instructions
+        // down and everything that points at them.
+        void compactElided(DecodedChunk* decoded);
 
         // Build jump target map for control flow
         void buildJumpTargets(const Chunk& chunk, DecodedChunk* decoded);

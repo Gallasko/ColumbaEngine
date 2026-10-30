@@ -1,0 +1,110 @@
+// Every clause of an `and` tested by an `if` branches on its own: same clauses run, in the same order
+fun yes(name)
+{
+    __dprint(name)
+    return true
+}
+
+fun no(name)
+{
+    __dprint(name)
+    return false
+}
+
+if (yes("a") and yes("b"))
+{
+    __dprint("then")
+}
+else
+{
+    __dprint("else")
+}
+
+if (no("c") and yes("never"))
+{
+    __dprint("then")
+}
+else
+{
+    __dprint("else")
+}
+
+if (yes("d") and no("e"))
+{
+    __dprint("then")
+}
+else
+{
+    __dprint("else")
+}
+
+if (yes("f") and yes("g") and no("h") and yes("never"))
+{
+    __dprint("then")
+}
+else
+{
+    __dprint("else")
+}
+
+// No else: a false clause lands after the then branch
+if (no("i") and yes("never"))
+{
+    __dprint("then")
+}
+
+if (yes("j") and yes("k"))
+{
+    __dprint("then")
+}
+
+// An `or` in a clause keeps its own jumps
+if ((no("l") or yes("m")) and yes("n"))
+{
+    __dprint("then")
+}
+
+if (yes("o") and (no("p") or yes("q")))
+{
+    __dprint("then")
+}
+
+// A value that lives in the pool is let go by the test
+var left = "a string long enough "
+var right = "to live in the pool"
+
+if (left + right and yes("r"))
+{
+    __dprint("then")
+}
+
+if (none and yes("never"))
+{
+    __dprint("then")
+}
+else
+{
+    __dprint("else")
+}
+
+// Leaving a loop from inside the then branch
+for (var i = 0; i < 4; i++)
+{
+    if (i > 0 and i < 2)
+    {
+        continue
+    }
+
+    if (i > 1 and i < 3)
+    {
+        break
+    }
+
+    __dprint(i)
+}
+
+// Not tested by an `if`, an `and` still gives its value
+var kept = 1 and 2
+__dprint(kept)
+
+__dprint("end")

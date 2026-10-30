@@ -1,0 +1,10 @@
+import "algorithm"
+
+// A string built while running lives in the pool, a short one in its Value, a literal in the chunk
+var left = "a string long enough "
+var right = "to live in the pool"
+
+__dprint(len(left + right))
+__dprint(len("abc"))
+__dprint(len(""))
+__dprint(len(left))

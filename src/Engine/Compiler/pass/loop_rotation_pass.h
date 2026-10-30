@@ -3,7 +3,7 @@
 /**
  * @pass_doc
  * @name: Loop Rotation Pass
- * @purpose: Rotates test-at-top loops (while / for-in) into test-at-bottom form,
+ * @purpose: Rotates test-at-top loops (while / for) into test-at-bottom form,
  *           eliminating the unconditional back-branch. The guard
  *           OP_Jump_If_False_Popping + trailing OP_Loop become a single
  *           OP_Jump_If_True_Popping at the bottom, with a one-time entry jump.
@@ -30,9 +30,11 @@
  * @notes:
  *   - Runs LAST in the pipeline: it consumes the popping/shrunk forms produced
  *     by PoppingJump/LongJump and no later pass observes the new opcodes.
- *   - Only the canonical single-guard shape (while, for-in) is handled. The
- *     C-style for double-loop shape is intentionally left untouched (the guard
- *     target does not match the inner loop's exit, so it is skipped).
+ *   - Only the canonical single-guard shape is handled: while, and a for from
+ *     the AST front-end (its increment closes the body). The Pratt front-end's
+ *     for double-loop shape is left untouched (the guard target does not match
+ *     the inner loop's exit, so it is skipped), and so is for-in (a list and an
+ *     iterator class each have their own exit).
  * @end_pass_doc
  */
 

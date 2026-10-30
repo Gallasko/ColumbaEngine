@@ -1,0 +1,103 @@
+import "algorithm"
+
+// The increment runs after the body, a continue has to reach it from wherever it is
+for (var i = 0; i < 5; i++)
+{
+    if (i == 2)
+    {
+        continue
+    }
+
+    __dprint(i)
+}
+
+// With locals of the body to drop on the way
+for (var i = 0; i < 3; i++)
+{
+    var doubled = i * 2
+
+    {
+        var kept = doubled + 1
+
+        if (i == 1)
+        {
+            continue
+        }
+
+        __dprint(kept)
+    }
+}
+
+// A continue and a break of the inner loop leave the outer one alone
+for (var i = 0; i < 3; i++)
+{
+    for (var j = 0; j < 3; j++)
+    {
+        if (j == 0)
+        {
+            continue
+        }
+
+        if (j == 2)
+        {
+            break
+        }
+
+        __dprint(i * 10 + j)
+    }
+}
+
+// A closure keeps the variable of its turn
+var kept = []
+for (var i = 0; i < 3; i++)
+{
+    var value = i * i
+
+    if (i == 1)
+    {
+        continue
+    }
+
+    kept[len(kept)] = fun() { return value; };
+}
+
+__dprint(kept[0]())
+__dprint(kept[1]())
+
+// No increment: a continue goes to the condition
+var w = 0
+for (; w < 3;)
+{
+    w++
+
+    if (w == 2)
+    {
+        continue
+    }
+
+    __dprint(w)
+}
+
+// No condition: only a break ends it
+for (var i = 0; ; i++)
+{
+    if (i == 1)
+    {
+        continue
+    }
+
+    if (i == 3)
+    {
+        break
+    }
+
+    __dprint(i)
+}
+
+// Never entered
+for (var i = 5; i < 3; i++)
+{
+    __dprint("never")
+}
+
+__dprint("end")

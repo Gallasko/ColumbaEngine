@@ -32,6 +32,8 @@ namespace pg
         int loopStart;                    // Offset for continue (future use)
         std::vector<int> breakJumps;      // Patch points for break statements
         int scopeDepth;                   // Scope depth at loop entry
+        bool continuesForward = false;    // Continue is ahead of the body (a for's increment), not at loopStart
+        std::vector<int> continueJumps;   // Patch points for continue statements, when it is ahead
     };
 
     struct VM;
