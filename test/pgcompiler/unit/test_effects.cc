@@ -18,6 +18,7 @@ namespace pg
     namespace test
     {
         using namespace ast::analysis;
+        using ast::StatementEffects;
 
         TEST(EffectLocations, PathsInternAndOverlap)
         {
@@ -731,7 +732,8 @@ namespace pg
             for (auto r : s->of("t").returns)
                 returns.insert(s->locs.text(r));
 
-            EXPECT_EQ(returns, (std::set<std::string>{"#0", "#0.*"}));
+            // What it is handed, and a table of its own
+            EXPECT_EQ(returns, (std::set<std::string>{"#0", "#0.*", "in:@0"}));
         }
 
         TEST(EffectSummaries, ADefineIsAnEdgeOfItsGlobal)
@@ -1145,17 +1147,60 @@ namespace pg
             EXPECT_FALSE(p.effects.idempotent(p.statements.back()));
         }
 
-        TEST(ProgramEffects, AStatementLikeOneOfTheProgramIsReadAgainstIt)
+        TEST(ProgramEffects, AModulesOwnParseIsReadAgainstTheOneAnalyzed)
+        {
+            const std::string module = "const places = {a: 1}\nconst byId = {}\nbyId.a = places.a\n";
+            auto script = parsed("var out = 1\n");
+            auto analyzed = parsed(module);
+
+            ast::ProgramEffects effects;
+            ASSERT_TRUE(effects.analyze({script, analyzed}));
+
+            // A module is compiled from its own parse
+            const auto again = parsed(module);
+            ASSERT_TRUE(effects.readModule(again));
+
+            const auto e = effects.effectsOf(again.back());
+            EXPECT_TRUE(e.reads.count("places"));
+            EXPECT_TRUE(effects.onlyMakes(e, {"byId"}));
+            EXPECT_TRUE(holds(effects.writtenTexts(again.back()), "g:byId.a"));
+        }
+
+        TEST(ProgramEffects, AModulesStatementAPassRewroteIsReadAtItsPosition)
+        {
+            auto analyzed = parsed("const a = {n: 1}\nfor (var i = 0; i < 2; i++)\n{\n    a.n = 2\n}\n");
+            auto script = parsed("var out = 1\n");
+
+            ast::ProgramEffects effects;
+            ASSERT_TRUE(effects.analyze({script, analyzed}));
+
+            // The loop came back from a pass as a block
+            const auto rewritten = parsed("const a = {n: 1}\n{\n    var k = 1\n}\n");
+            ASSERT_TRUE(effects.readModule(rewritten));
+            EXPECT_TRUE(holds(effects.writtenTexts(rewritten.back()), "g:a.n"));
+
+            // A declaration is its position
+            EXPECT_FALSE(effects.readModule(parsed("const b = {n: 1}\n{\n    var k = 1\n}\n")));
+        }
+
+        TEST(ProgramEffects, AStatementNotOfTheProgramIsRefused)
         {
             const std::string source = "const places = {a: 1}\nconst byId = {}\nbyId.a = places.a\n";
             Analyzed p(source);
 
-            // The same source parsed again: a module is compiled from its own parse
             const auto again = parsed(source);
             const auto e = p.effects.effectsOf(again.back());
-            EXPECT_TRUE(e.reads.count("places"));
-            EXPECT_TRUE(p.effects.onlyMakes(e, {"byId"}));
-            EXPECT_TRUE(holds(p.effects.writtenTexts(again.back()), "g:byId.a"));
+            EXPECT_TRUE(e.unknown);
+            EXPECT_FALSE(p.effects.onlyMakes(e, {"byId"}));
+            EXPECT_FALSE(p.effects.idempotent(again.back()));
+
+            // A file the program does not hold, or that two of its files could be
+            EXPECT_FALSE(p.effects.readModule(parsed("const other = 1\n")));
+
+            const std::string twin = "for (var i = 0; i < 2; i++)\n{\n    i\n}\n";
+            ast::ProgramEffects effects;
+            ASSERT_TRUE(effects.analyze({parsed("var out = 1\n"), parsed(twin), parsed(twin)}));
+            EXPECT_FALSE(effects.readModule(parsed(twin)));
         }
 
         TEST(ProgramEffects, ARegionHoldsWhatItsGlobalIsGiven)
@@ -1344,6 +1389,177 @@ namespace pg
             Analyzed p("var inner = {y: 1}\nvar rows = {x: {}}\nfun host(k)\n{\n    rows[k] = inner\n}\nrows.x.y = 2\n");
             EXPECT_TRUE(writesInto(p.effects.writtenTexts(p.statements.back()), p.effects.regionsOf("inner")));
             EXPECT_FALSE(p.inferred("inner"));
+        }
+
+        // The table a call makes may hold one of the program's: only its own slots are nobody else's
+        TEST(ProgramEffects, WhatAFunctionsTableHoldsIsTheProgramsStill)
+        {
+            const std::vector<std::string> sources = {
+                "var rows = [{x: 0}]\nfun touch()\n{\n    var c = copy(rows)\n    c[0].x = 1\n}\n",
+                "var rows = [{id: \"a\", x: 0}]\nfun touch()\n{\n    var c = indexBy(rows, \"id\")\n    c[\"a\"].x = 1\n}\n",
+                "var rows = {x: 0}\nfun touch()\n{\n    var c = [rows]\n    c[0].x = 1\n}\n",
+                "var rows = {x: 0}\nfun touch()\n{\n    var c = {a: rows}\n    c.a.x = 1\n}\n",
+                "var rows = {x: 0}\nfun touch()\n{\n    var c = {a: rows}\n    engineCall(c)\n}\n",
+            };
+
+            for (const auto& source : sources)
+            {
+                Analyzed p(source);
+                EXPECT_FALSE(p.inferred("rows")) << source;
+            }
+        }
+
+        // An engine native's table: nothing is known of it, what is stored in it stays there
+        TEST(ProgramEffects, WhatAnEngineTableHoldsIsReachedThroughIt)
+        {
+            Analyzed local("var base = {n: 0}\nfun f()\n{\n    var l = makeTable()\n    l.r = base\n    l.r.n = 1\n}\n");
+            EXPECT_FALSE(local.inferred("base"));
+
+            Analyzed held(
+                "var base = {n: 0}\n"
+                "var t = {}\n"
+                "fun f()\n{\n    t.a = makeTable()\n    t.a.b = base\n    t.a.b.n = 1\n}\n");
+
+            EXPECT_FALSE(held.inferred("base"));
+            EXPECT_TRUE(share(held.effects.regionsOf("t"), held.effects.regionsOf("base")));
+
+            // A write into it is no statement making a const
+            Analyzed made("const a = {}\nvar l = makeTable()\nl.x = 1\n");
+            EXPECT_TRUE(anyStartsWith(made.effects.writtenTexts(made.statements.back()), "in:"));
+            StatementEffects known = made.effects.effectsOf(made.statements.back());
+            known.unknown = false;
+            EXPECT_FALSE(made.effects.onlyMakes(known, {"a", "l"}));
+        }
+
+        // A const counts as the same on every run only when all that writes it joins it
+        TEST(ProgramEffects, AConstFilledOnEveryRunIsNotInvariant)
+        {
+            Analyzed filled(
+                "const tick = [0]\n"
+                "var bump = 0\n"
+                "bump = 1\n"
+                "push(tick, bump)\n"
+                "const table = {v: 0}\n"
+                "var age = 0\n"
+                "age = len(tick)\n"
+                "table.v = age\n"
+                "var derived = table.v\n"
+                "var out = derived\n");
+
+            EXPECT_FALSE(filled.effects.invariant("tick"));
+            EXPECT_FALSE(filled.effects.invariant("table"));
+            EXPECT_FALSE(filled.inferred("derived"));
+            EXPECT_FALSE(filled.inferred("out"));
+
+            Analyzed passed(
+                "const tick = [0]\n"
+                "var bump = 0\n"
+                "bump = 1\n"
+                "push(tick, bump)\n"
+                "const table = {v: 0}\n"
+                "var age = 0\n"
+                "age = len(tick)\n"
+                "table.v = age\n"
+                "const u = {z: 0}\n"
+                "u.z = table.v\n"
+                "var out = u.z\n");
+
+            const auto joined = passed.effects.joinsOf(passed.statements);
+            ASSERT_EQ(joined.size(), passed.statements.size());
+            EXPECT_EQ(joined[9].target, nullptr);
+            EXPECT_FALSE(passed.inferred("out"));
+        }
+
+        TEST(ProgramEffects, AConstWrittenByADefinitionIsNotInvariant)
+        {
+            Analyzed p(
+                "const a = {}\n"
+                "fun touch(t)\n{\n    t.n = lookup(t, \"n\", 0) + 1\n    return t\n}\n"
+                "var b = touch(a)\n"
+                "var out = a.n\n");
+
+            EXPECT_FALSE(p.effects.invariant("a"));
+            EXPECT_FALSE(p.inferred("b"));
+            EXPECT_FALSE(p.inferred("out"));
+        }
+
+        TEST(ProgramEffects, AConstWrittenThroughACopyAfterItsRunIsNotInvariant)
+        {
+            Analyzed p(
+                "const rows = [{x: 0}]\n"
+                "var age = 0\n"
+                "age = 1\n"
+                "const seen = {n: 0}\n"
+                "for (var i = 0; i < 1; i++)\n"
+                "{\n"
+                "    var c = copy(rows)\n"
+                "    c[0].x = c[0].x + 1\n"
+                "    seen.n = 1\n"
+                "}\n"
+                "var out = rows[0].x\n");
+
+            EXPECT_FALSE(p.effects.invariant("rows"));
+            EXPECT_FALSE(p.inferred("out"));
+        }
+
+        TEST(ProgramEffects, AConstAllWritersJoinStaysInvariant)
+        {
+            Analyzed p(
+                "const places = [{id: \"a\"}, {id: \"b\"}]\n"
+                "const byId = {}\n"
+                "for (var i = 0; i < len(places); i++)\n"
+                "{\n"
+                "    byId[places[i].id] = places[i]\n"
+                "}\n"
+                "var first = byId[\"a\"]\n"
+                "const plain = {a: 1}\n"
+                "var read = plain.a\n");
+
+            EXPECT_TRUE(p.effects.invariant("places"));
+            EXPECT_TRUE(p.effects.invariant("byId"));
+            EXPECT_TRUE(p.effects.invariant("plain"));
+            EXPECT_TRUE(p.inferred("first"));
+            EXPECT_TRUE(p.inferred("read"));
+
+            // That is what a join is: run once, on the first run, whatever it computes
+            Analyzed counted("const count = {n: 0}\ncount.n = count.n + 1\n");
+            EXPECT_NE(counted.effects.joinsOf(counted.statements)[1].target, nullptr);
+            EXPECT_TRUE(counted.effects.invariant("count"));
+        }
+
+        TEST(ProgramEffects, ALosingConstCanUnjoinAnother)
+        {
+            // second.k reads base: it joins only while base is the same on every run, and it is not
+            Analyzed p(
+                "const base = {n: 0}\n"
+                "var cut = 0\n"
+                "cut = 1\n"
+                "base.n = cut\n"
+                "const second = {k: 0}\n"
+                "second.k = base.n\n"
+                "var out = second.k\n");
+
+            EXPECT_FALSE(p.effects.invariant("base"));
+            EXPECT_EQ(p.effects.joinsOf(p.statements)[5].target, nullptr);
+            EXPECT_FALSE(p.effects.invariant("second"));
+            EXPECT_FALSE(p.inferred("out"));
+        }
+
+        TEST(ProgramEffects, ANativeReboundIsNoNative)
+        {
+            Analyzed p(
+                "var base = {n: 0}\n"
+                "fun mine(t)\n{\n    t.n = t.n + 1\n    return t.n\n}\n"
+                "len = mine\n"
+                "var r = 0\n"
+                "r = len(base)\n"
+                "var out = 0\n"
+                "out = base.n\n");
+
+            EXPECT_FALSE(p.inferred("base"));
+            EXPECT_FALSE(p.effects.invariant("len"));
+            EXPECT_GT(p.effects.definitions("len"), 0);
+            EXPECT_TRUE(p.effects.effectsOf(p.statements[4]).unknown);
         }
 
         TEST(ProgramEffects, AFunctionThatWritesAnythingBlocksEveryConst)

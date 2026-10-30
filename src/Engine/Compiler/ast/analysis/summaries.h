@@ -9,9 +9,9 @@
  * a location (edges), the globals it reads and rebinds, and what it returns. A function is summed
  * up once, its parameters as roots (`#0.[#1].*.amount`); a call of a function followed puts the
  * call's arguments in place of the parameters. A call of anything else is unknown: it may write
- * all that is reachable from what it is handed, written as `l.*`, and return any of it. When that
- * call runs code of the program (a value called, a function not followed), it may also write
- * anything (`?`) and return anything.
+ * all that is reachable from what it is handed, written as `l.*`, and return any of it or a value
+ * of its own (`in:@n`, an input made at that call). When that call runs code of the program (a
+ * value called, a function not followed), it may also write anything (`?`) and return anything.
  *
  * A write is idempotent (`shape`) when every value it may store is the field's own old value or
  * a value made only of what is the same on every run: constants, and the arguments (`needsParams`)

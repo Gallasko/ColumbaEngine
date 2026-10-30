@@ -58,7 +58,7 @@ namespace pg
 
                 for (const auto& s : statements)
                 {
-                    if (s->kind() == AstKind::FunctionStatement)
+                    if (s and s->kind() == AstKind::FunctionStatement)
                     {
                         auto f = std::static_pointer_cast<FunctionStatement>(s);
                         out[f->name.text] = f;
@@ -72,7 +72,7 @@ namespace pg
             {
                 for (const auto& s : statements)
                 {
-                    if (s->kind() == AstKind::VariableStatement and std::static_pointer_cast<VariableStatement>(s)->name.text == name)
+                    if (s and s->kind() == AstKind::VariableStatement and std::static_pointer_cast<VariableStatement>(s)->name.text == name)
                         return std::static_pointer_cast<VariableStatement>(s);
                 }
 
@@ -80,6 +80,59 @@ namespace pg
             }
 
             std::atomic<uint64_t> counter{0};
+
+            std::queue<StatementPtr> parsedQueue(const std::string& source)
+            {
+                Lexer lexer;
+                lexer.readFromText(source);
+
+                Parser parser(lexer.getTokens());
+                auto statements = parser.parse();
+
+                EXPECT_FALSE(parser.hasError()) << "test source failed to parse";
+
+                return statements;
+            }
+
+            // A script importing one module, passed as a compile does: the script at depth 1, then the
+            // module from a parse of its own at depth 2. What comes out is the module's statements
+            std::vector<StatementPtr> moduleAfterThePass(const std::string& module)
+            {
+                namespace fs = std::filesystem;
+                const fs::path dir = fs::temp_directory_path() / ("pg_run_once_module_" + std::to_string(counter.fetch_add(1)));
+                fs::create_directories(dir);
+
+                const std::string script = "import joined\nvar out = 1\n";
+
+                std::ofstream((dir / "main.pg").string()) << script;
+                std::ofstream((dir / "joined.pg").string()) << module;
+
+                VM vm;
+                RunOncePass pass(true);
+                vm.currentFileName = (dir / "main.pg").string();
+
+                auto statements = parsedQueue(script);
+                vm.astCompileDepth = 1;
+                pass.runPass(&vm, statements);
+
+                auto own = parsedQueue(module);
+                vm.astCompileDepth = 2;
+                pass.runPass(&vm, own);
+                vm.astCompileDepth = 0;
+
+                std::error_code ec;
+                fs::remove_all(dir, ec);
+
+                std::vector<StatementPtr> out;
+
+                while (not own.empty())
+                {
+                    out.push_back(own.front());
+                    own.pop();
+                }
+
+                return out;
+            }
 
             // The script compiled and prepared as the game does it (the passes of an EntitySystem's VM)
             struct Prepared
@@ -260,6 +313,40 @@ TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
             ASSERT_NE(variable(off, "byId"), nullptr);
             EXPECT_EQ(variable(off, "byId")->keptFills.size(), 0u);
             EXPECT_EQ(statementCount(off), 3u);
+        }
+
+        TEST(RunOncePass, AModuleJoinsAsTheScriptDoes)
+        {
+            const std::string filling =
+                "const places = [{id: \"a\"}, {id: \"b\"}]\n"
+                "const byId = {}\n"
+                "for (var i = 0; i < len(places); i++)\n"
+                "{\n"
+                "    byId[places[i].id] = places[i]\n"
+                "}\n";
+
+            auto module = moduleAfterThePass(filling);
+            ASSERT_NE(variable(module, "byId"), nullptr);
+            EXPECT_EQ(variable(module, "byId")->keptFills.size(), 1u);
+            EXPECT_EQ(statementCount(module), 2u);
+
+            const std::string throughACopy =
+                "const rows = [{x: 0}]\n"
+                "var age = character.age\n"
+                "const seen = {n: 0}\n"
+                "for (var i = 0; i < 1; i++)\n"
+                "{\n"
+                "    var c = copy(rows)\n"
+                "    c[0].x = 7\n"
+                "    seen.n = 1\n"
+                "}\n";
+
+            // The loop writes rows through the copy, in a module as in a script
+            EXPECT_EQ(variable(runOnce(throughACopy, true), "seen")->keptFills.size(), 0u);
+
+            auto wrong = moduleAfterThePass(throughACopy);
+            ASSERT_NE(variable(wrong, "seen"), nullptr);
+            EXPECT_EQ(variable(wrong, "seen")->keptFills.size(), 0u);
         }
 
         TEST(RunOncePass, AProgramWithAClassIsNotAnalyzed)

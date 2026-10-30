@@ -31,6 +31,102 @@ namespace pg
                 return name == "__get" or name == "__set" or name == "__iter" or name == "__next";
             }
 
+            template <typename T>
+            std::vector<T> listOf(std::queue<T> q)
+            {
+                std::vector<T> out;
+
+                while (not q.empty())
+                {
+                    out.push_back(q.front());
+                    q.pop();
+                }
+
+                return out;
+            }
+
+            bool isConstantValue(const ExprPtr& e)
+            {
+                return e and (e->kind() == AstKind::Atom or e->kind() == AstKind::NoneAtom);
+            }
+
+            // A value made of constants only (constants, negated ones, lists and tables of them): it
+            // reads nothing, so no earlier const
+            bool isConstantData(const ExprPtr& e)
+            {
+                if (isConstantValue(e))
+                    return true;
+
+                if (e and e->kind() == AstKind::UnaryExpression)
+                    return isConstantValue(std::static_pointer_cast<UnaryExpression>(e)->expr);
+
+                if (e and e->kind() == AstKind::List)
+                {
+                    for (const auto& entry : listOf(std::static_pointer_cast<List>(e)->entries))
+                    {
+                        // A key written `key: value` is its name, emitted as a string constant
+                        const bool constantKey = not entry.key or entry.explicitKey or isConstantData(entry.key);
+
+                        if (not constantKey or not isConstantData(entry.value))
+                            return false;
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+
+            std::string varName(const ExprPtr& e)
+            {
+                if (e and e->kind() == AstKind::Var)
+                    return std::static_pointer_cast<Var>(e)->name.text;
+
+                return "";
+            }
+
+            // The const a statement fills with a constant entry (`t["key"] = value`, `t.key = value`),
+            // "" when it is no such fill
+            std::string filledConst(const StatementPtr& s)
+            {
+                if (not s or s->kind() != AstKind::ExpressionStatement)
+                    return "";
+
+                const ExprPtr& e = std::static_pointer_cast<ExpressionStatement>(s)->expr;
+
+                if (not e)
+                    return "";
+
+                if (e->kind() == AstKind::IndexSet)
+                {
+                    auto set = std::static_pointer_cast<IndexSet>(e);
+
+                    if (isConstantValue(set->index) and isConstantValue(set->value))
+                        return varName(set->object);
+                }
+                else if (e->kind() == AstKind::Set)
+                {
+                    auto set = std::static_pointer_cast<Set>(e);
+
+                    if (isConstantValue(set->value))
+                        return varName(set->object);
+                }
+
+                return "";
+            }
+
+            // What a statement declares at the top level, "" when nothing
+            std::string declaredBy(const StatementPtr& s)
+            {
+                switch (s->kind())
+                {
+                    case AstKind::VariableStatement: return std::static_pointer_cast<VariableStatement>(s)->name.text;
+                    case AstKind::FunctionStatement: return std::static_pointer_cast<FunctionStatement>(s)->name.text;
+                    case AstKind::ClassStatement: return std::static_pointer_cast<ClassStatement>(s)->name.text;
+                    default: return "";
+                }
+            }
+
             // A list's entry: a key that is an index
             bool isIndex(const Locations& locs, LocId l)
             {
@@ -68,14 +164,17 @@ namespace pg
             if (not statement)
                 return {};
 
-            auto known = topLevel.find(statement.get());
+            auto twin = moduleStatements.find(statement.get());
+            auto known = topLevel.find(twin == moduleStatements.end() ? statement.get() : twin->second);
 
             if (known != topLevel.end())
                 return known->second;
 
-            size_t ignored = 0;
-            auto isNative = [this](const std::string& name) { return defined.count(name) == 0; };
-            return evaluate(buildTopLevel(statement, locs, isNative), ignored);
+            // Not one of the program's: it may do anything
+            Summary anything;
+            anything.unknown = true;
+            anything.writes.push_back(Write{locs.unknown(), {}});
+            return anything;
         }
 
         StatementEffects ProgramEffects::effectsFrom(const Summary& summary) const
@@ -95,7 +194,7 @@ namespace pg
         bool ProgramEffects::isInput(LocId l) const
         {
             const LocId root = locs.rootOf(l);
-            return locs.rootKind(root) == RootKind::Input or (locs.rootKind(root) == RootKind::Global and defined.count(locs.text(root).substr(2)) == 0);
+            return locs.rootKind(root) == RootKind::Input or (locs.rootKind(root) == RootKind::Global and definedRoots.count(root) == 0);
         }
 
         void ProgramEffects::findHolders(const std::vector<Edge>& edges)
@@ -387,25 +486,28 @@ namespace pg
             }
         }
 
-        void ProgramEffects::inferConsts(const std::vector<Objects>& writers, const std::unordered_map<const Statement*, size_t>& writerOf)
+        void ProgramEffects::settleConsts(const std::vector<Objects>& writers, const std::unordered_map<const Statement*, size_t>& writerOf)
         {
             // Who writes what, by object
             std::unordered_map<LocId, std::vector<size_t>> writersOf;
+            std::set<size_t> writeAnything;
 
             for (size_t writer = 0; writer < writers.size(); ++writer)
             {
                 for (auto object : writers[writer])
                 {
-                    // A statement that writes anything may write any of them
                     if (locs.rootKind(object) == RootKind::Unknown)
-                        return;
-
-                    writersOf[object].push_back(writer);
+                        writeAnything.insert(writer);
+                    else
+                        writersOf[object].push_back(writer);
                 }
             }
 
-            auto writtenElsewhere = [&](const std::string& name, size_t definition)
+            // All that may write what a global reaches
+            auto writersReaching = [&](const std::string& name)
             {
+                std::set<size_t> out = writeAnything;
+
                 for (auto object : regions[name])
                 {
                     // It may be anything: all that is written may be in it
@@ -413,8 +515,8 @@ namespace pg
                     {
                         for (size_t writer = 0; writer < writers.size(); ++writer)
                         {
-                            if (writer != definition and not writers[writer].empty())
-                                return true;
+                            if (not writers[writer].empty())
+                                out.insert(writer);
                         }
 
                         continue;
@@ -422,46 +524,251 @@ namespace pg
 
                     auto found = writersOf.find(object);
 
-                    if (found == writersOf.end())
-                        continue;
+                    if (found != writersOf.end())
+                        out.insert(found->second.begin(), found->second.end());
+                }
 
-                    for (auto writer : found->second)
+                return out;
+            };
+
+            auto writtenElsewhere = [&](const std::string& name)
+            {
+                const auto reaching = writersReaching(name);
+                return std::any_of(reaching.begin(), reaching.end(), [&](size_t writer) { return writer != writerOf.at(definitionOf[name]); });
+            };
+
+            for (const auto& name : consts)
+            {
+                if (definitions(name) == 1 and not rebinds.count(name))
+                    invariantConsts.insert(name);
+            }
+
+            bool lost = true;
+
+            while (lost)
+            {
+                lost = false;
+                inferred.clear();
+
+                // The vars as good as consts: defined once, never rebound, what they reach written by
+                // no other statement, their own made of what is the same on every run (found again as
+                // each one found makes more of them so). A statement that writes anything may write
+                // any of them
+                bool found = writeAnything.empty();
+
+                while (found)
+                {
+                    found = false;
+
+                    for (const auto& name : vars)
                     {
-                        if (writer != definition)
-                            return true;
+                        if (inferred.count(name) or definitions(name) != 1 or rebinds.count(name))
+                            continue;
+
+                        auto facts = topLevel.find(definitionOf[name]);
+
+                        if (facts == topLevel.end() or not onlyMakes(effectsFrom(facts->second), {name}))
+                            continue;
+
+                        if (writtenElsewhere(name))
+                            continue;
+
+                        inferred.insert(name);
+                        found = true;
                     }
                 }
 
-                return false;
-            };
+                // What will join which const, by the walk the pass does
+                std::unordered_map<size_t, std::set<std::string>> joinedAmong;
 
-            // The vars as good as consts: defined once, never rebound, what they reach written by
-            // no other statement, their own made of what is the same on every run (found again as
-            // each one found makes more of them so)
-            bool found = true;
-
-            while (found)
-            {
-                found = false;
-
-                for (const auto& name : vars)
+                for (const auto& file : programFiles)
                 {
-                    if (inferred.count(name) or definitions(name) != 1 or rebinds.count(name))
-                        continue;
+                    const auto joins = joinsOf(file);
 
-                    const Statement* definition = definitionOf[name];
-                    auto facts = topLevel.find(definition);
+                    for (size_t i = 0; i < file.size(); ++i)
+                    {
+                        if (joins[i].target)
+                            joinedAmong[writerOf.at(file[i].get())] = joins[i].open;
+                    }
+                }
 
-                    if (facts == topLevel.end() or not onlyMakes(effectsFrom(facts->second), {name}))
-                        continue;
+                // A const is made once when what writes it, besides its definition, joins its run. Any
+                // other runs on every run: what reads it was not made of what is the same, and a
+                // statement that took it for so may no longer join
+                for (auto it = invariantConsts.begin(); it != invariantConsts.end();)
+                {
+                    const size_t definition = writerOf.at(definitionOf[*it]);
+                    const auto reaching = writersReaching(*it);
 
-                    if (writtenElsewhere(name, writerOf.at(definition)))
-                        continue;
+                    const bool madeOnce = std::all_of(reaching.begin(), reaching.end(), [&](size_t writer)
+                    {
+                        auto joined = joinedAmong.find(writer);
+                        return writer == definition or (joined != joinedAmong.end() and joined->second.count(*it) > 0);
+                    });
 
-                    inferred.insert(name);
-                    found = true;
+                    if (madeOnce)
+                        ++it;
+                    else
+                    {
+                        it = invariantConsts.erase(it);
+                        lost = true;
+                    }
                 }
             }
+        }
+
+        std::shared_ptr<VariableStatement> ProgramEffects::joinTarget(const StatementPtr& s, const std::vector<std::shared_ptr<VariableStatement>>& open) const
+        {
+            if (not usable or not s)
+                return nullptr;
+
+            switch (s->kind())
+            {
+                case AstKind::ExpressionStatement:
+                case AstKind::ForStatement:
+                case AstKind::ForInStatement:
+                case AstKind::WhileStatement:
+                case AstKind::IfStatement:
+                case AstKind::BlockStatement:
+                    break;
+
+                default:
+                    return nullptr; // A definition is no part of making another
+            }
+
+            const StatementEffects e = effectsOf(s);
+
+            std::set<std::string> openNames;
+
+            for (const auto& v : open)
+                openNames.insert(v->name.text);
+
+            if (not onlyMakes(e, openNames))
+                return nullptr;
+
+            // It reads the consts whose data it writes (itself or through what it calls): the last
+            // of those it reads is where it joins, after all it uses is made
+            for (auto it = open.rbegin(); it != open.rend(); ++it)
+            {
+                if (e.reads.count((*it)->name.text))
+                    return *it;
+            }
+
+            return nullptr;
+        }
+
+        std::vector<Join> ProgramEffects::joinsOf(const std::vector<StatementPtr>& statements) const
+        {
+            std::vector<Join> out(statements.size());
+
+            // The consts the statements since the last other one declared, in their order: a fill of
+            // one joins it
+            std::vector<std::shared_ptr<VariableStatement>> open;
+
+            auto openNamed = [&open](const std::string& name) -> std::shared_ptr<VariableStatement>
+            {
+                // A later declaration of the name wins
+                for (auto it = open.rbegin(); it != open.rend(); ++it)
+                {
+                    if ((*it)->name.text == name)
+                        return *it;
+                }
+
+                return nullptr;
+            };
+
+            for (size_t i = 0; i < statements.size(); ++i)
+            {
+                const StatementPtr& s = statements[i];
+
+                // A definition runs no code: the fills after it still follow their const
+                if (s and s->kind() == AstKind::FunctionStatement)
+                    continue;
+
+                if (s and s->kind() == AstKind::VariableStatement)
+                {
+                    auto v = std::static_pointer_cast<VariableStatement>(s);
+
+                    if ((v->isConst or inferred.count(v->name.text)) and v->expr)
+                    {
+                        // An initializer that may read the consts before it: their later fills would
+                        // be seen by it too early, joined to them
+                        if (not isConstantData(v->expr))
+                            open.clear();
+
+                        open.push_back(v);
+                        continue;
+                    }
+                }
+
+                Join& join = out[i];
+                const std::string target = filledConst(s);
+
+                join.target = target.empty() ? nullptr : openNamed(target);
+                join.fill = join.target != nullptr;
+
+                // What makes the open consts (a loop putting their tables in order): with the last of them it uses
+                if (not join.target and not open.empty())
+                    join.target = joinTarget(s, open);
+
+                if (join.target)
+                {
+                    for (const auto& v : open)
+                        join.open.insert(v->name.text);
+
+                    continue;
+                }
+
+                // Anything else may read a const: what comes after it fills no initializer
+                open.clear();
+            }
+
+            return out;
+        }
+
+        bool ProgramEffects::readModule(const std::vector<StatementPtr>& statements)
+        {
+            moduleStatements.clear();
+
+            std::vector<StatementPtr> own;
+
+            for (const auto& s : statements)
+            {
+                if (s)
+                    own.push_back(s);
+            }
+
+            auto sameFile = [&own](const std::vector<StatementPtr>& file)
+            {
+                return file.size() == own.size() and std::equal(file.begin(), file.end(), own.begin(), [](const StatementPtr& a, const StatementPtr& b)
+                {
+                    // The passes before this one may turn a statement that declares nothing into another (a
+                    // loop into a block with what it hoists): what it does is the same
+                    const bool declares = not declaredBy(a).empty() or a->kind() == AstKind::ImportStatement;
+                    return declaredBy(a) == declaredBy(b) and (a->kind() == b->kind() or (not declares and b->kind() != AstKind::ImportStatement));
+                });
+            };
+
+            const std::vector<StatementPtr>* twin = nullptr;
+
+            for (const auto& file : programFiles)
+            {
+                if (not sameFile(file))
+                    continue;
+
+                if (twin)
+                    return false;
+
+                twin = &file;
+            }
+
+            if (not twin)
+                return false;
+
+            for (size_t i = 0; i < own.size(); ++i)
+                moduleStatements[own[i].get()] = (*twin)[i].get();
+
+            return true;
         }
 
         bool ProgramEffects::analyze(const std::vector<std::vector<StatementPtr>>& files)
@@ -474,12 +781,14 @@ namespace pg
 
             for (const auto& file : files)
             {
+                programFiles.emplace_back();
+
                 for (const auto& s : file)
                 {
                     if (not s)
                         continue;
 
-                    kept.push_back(s);
+                    programFiles.back().push_back(s);
 
                     if (s->kind() == AstKind::VariableStatement)
                     {
@@ -519,26 +828,56 @@ namespace pg
             std::vector<std::pair<std::string, BodyIR>> functionBodies;
             std::vector<std::pair<const Statement*, BodyIR>> statementBodies;
 
-            auto noteRebinds = [this](const BodyIR& body)
+            auto buildBodies = [&]()
             {
-                for (const auto& [name, value] : body.rebinds)
-                    rebinds.insert(name);
+                functionBodies.clear();
+                statementBodies.clear();
+
+                auto noteRebinds = [this](const BodyIR& body)
+                {
+                    for (const auto& [name, value] : body.rebinds)
+                        rebinds.insert(name);
+                };
+
+                for (const auto& file : programFiles)
+                {
+                    for (const auto& s : file)
+                    {
+                        if (s->kind() == AstKind::FunctionStatement)
+                        {
+                            auto f = std::static_pointer_cast<FunctionStatement>(s);
+                            functionBodies.emplace_back(f->name.text, buildFunction(*f, locs, isNative));
+                            noteRebinds(functionBodies.back().second);
+                        }
+                        else if (s->kind() != AstKind::ImportStatement)
+                        {
+                            statementBodies.emplace_back(s.get(), buildTopLevel(s, locs, isNative));
+                            noteRebinds(statementBodies.back().second);
+                        }
+                    }
+                }
             };
 
-            for (const auto& s : kept)
+            buildBodies();
+
+            // A native the program assigns is what it is given: a name of the program. The bodies are
+            // read again for it, which assigns nothing new
+            bool nativeRebound = false;
+
+            for (const auto& name : rebinds)
             {
-                if (s->kind() == AstKind::FunctionStatement)
+                if (nativeKind(name) != NativeKind::None and defined.count(name) == 0)
                 {
-                    auto f = std::static_pointer_cast<FunctionStatement>(s);
-                    functionBodies.emplace_back(f->name.text, buildFunction(*f, locs, isNative));
-                    noteRebinds(functionBodies.back().second);
-                }
-                else if (s->kind() != AstKind::ImportStatement)
-                {
-                    statementBodies.emplace_back(s.get(), buildTopLevel(s, locs, isNative));
-                    noteRebinds(statementBodies.back().second);
+                    ++defined[name];
+                    nativeRebound = true;
                 }
             }
+
+            if (nativeRebound)
+                buildBodies();
+
+            for (const auto& [name, count] : defined)
+                definedRoots.insert(locs.global(name));
 
             // Defined once, as a function, and never assigned: what a call of it runs is known
             for (const auto& [name, count] : functions)
@@ -583,15 +922,15 @@ namespace pg
                 topLevel.emplace(statement, std::move(summary));
             }
 
+            const size_t statementsWriting = ownWrites.size();
+
             auto addFunction = [&](const Summary& summary)
             {
                 ownWrites.emplace_back();
 
-                // A location rooted at a site here is a table made by the call itself: no table of the
-                // program. Stored in one, that is the store's write
                 for (const auto& w : summary.writes)
                 {
-                    if (notAParameter(w.at) and locs.rootKind(w.at) != RootKind::Site)
+                    if (notAParameter(w.at))
                         ownWrites.back().push_back(w.at);
                 }
 
@@ -611,12 +950,24 @@ namespace pg
             resolveEdges(edges);
             findRegions();
 
+            // A slot of a table a call makes is written in that table, no table of the program: stored in
+            // one, that is the store's write. Anything deeper may be below what that table holds
+            for (size_t i = statementsWriting; i < ownWrites.size(); ++i)
+            {
+                auto& writes = ownWrites[i];
+
+                writes.erase(std::remove_if(writes.begin(), writes.end(), [this](LocId w)
+                {
+                    return locs.rootKind(w) == RootKind::Site and locs.depth(w) == 1 and not reachesAll(w);
+                }), writes.end());
+            }
+
             std::vector<Objects> writers;
 
             for (const auto& writes : ownWrites)
                 writers.push_back(written(writes));
 
-            inferConsts(writers, writerOf);
+            settleConsts(writers, writerOf);
 
             return true;
         }
@@ -638,10 +989,7 @@ namespace pg
             if (not usable or rebinds.count(name))
                 return false;
 
-            if (consts.count(name) and definitions(name) == 1)
-                return true;
-
-            if (followed.count(name))
+            if (invariantConsts.count(name) or followed.count(name))
                 return true;
 
             if (nativeKind(name) != NativeKind::None and definitions(name) == 0)

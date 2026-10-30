@@ -25,7 +25,8 @@
  *   never changed: what writes into it right after is how it is made).
  *
  * The whole program is read for each outermost script compiled; a module compiled meanwhile
- * shares what was read (as FunctionInlining does).
+ * shares what was read (as FunctionInlining does), its own parse read as the one analyzed.
+ * The walk of the statements is ast::ProgramEffects::joinsOf: what makes a const once depends on it.
  */
 
 #include "../ast_pass.h"
@@ -59,8 +60,5 @@ namespace pg
         // What the program's code reads and writes (when it could be read whole)
         ast::ProgramEffects effects;
         bool analyzed = false;
-
-        // A statement standing among open consts that is part of making them: the const it joins
-        std::shared_ptr<VariableStatement> joinTarget(const StatementPtr& s, const std::vector<std::shared_ptr<VariableStatement>>& open) const;
     };
 }

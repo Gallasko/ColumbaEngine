@@ -331,13 +331,14 @@ namespace pg
                     }
 
                     // What a call not followed may return: anything when it runs code of the program, else
-                    // all it is handed and all reachable from it
+                    // all it is handed, all reachable from it, and a value of the engine's own: an input
+                    // made at that call, of which nothing is known
                     LocSet unknownResult(const Node& n)
                     {
                         if (runsProgramCode(n))
                             return {locs.unknown()};
 
-                        LocSet out;
+                        LocSet out{locs.input(locs.text(siteOf(n)))};
 
                         for (auto l : operandLocs(n))
                         {
