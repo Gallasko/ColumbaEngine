@@ -49,7 +49,20 @@ namespace pg
             EXPECT_EQ(l.paramOfKey(l.keyOf(l.parent(l.parent(p)))), 1u);
             EXPECT_EQ(l.rootOf(p), l.param(0));
             EXPECT_TRUE(l.within(p, l.param(0)));
-            EXPECT_TRUE(l.within(p, l.unknown()));
+            EXPECT_FALSE(l.within(p, l.unknown()));
+            EXPECT_FALSE(l.within(l.unknown(), l.unknown()));
+        }
+
+        TEST(EffectLocations, DeepFromCreationAndSeededAnyKey)
+        {
+            Locations l;
+            LocId n = l.global("a");
+            for (int i = 0; i < MaxDepth - 1; ++i) n = l.child(n, l.key("k"));
+            EXPECT_FALSE(l.deep(n));
+            n = l.child(n, l.key("k"));
+            EXPECT_TRUE(l.deep(n));  // deep before any child is asked of it
+            Locations fresh;
+            EXPECT_EQ(fresh.text(fresh.child(fresh.param(0), Locations::AnyKey)), "#0.*");
         }
     }
 }

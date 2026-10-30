@@ -2,20 +2,22 @@
 
 #include "locations.h"
 
+#include <cassert>
+
 namespace pg
 {
     namespace ast
     {
         namespace analysis
         {
+            Locations::Locations()
+            {
+                keyNames.push_back("*");
+                keyIds["*"] = AnyKey;
+            }
+
             KeyId Locations::key(const std::string& name)
             {
-                if (keyNames.empty())
-                {
-                    keyNames.push_back("*");
-                    keyIds["*"] = AnyKey;
-                }
-
                 auto it = keyIds.find(name);
 
                 if (it != keyIds.end())
@@ -29,6 +31,7 @@ namespace pg
 
             KeyId Locations::paramKey(uint32_t param)
             {
+                assert(param < ParamKeyBit);
                 return ParamKeyBit | param;
             }
 
@@ -45,7 +48,7 @@ namespace pg
             LocId Locations::addRoot(RootKind kind, uint32_t payload)
             {
                 const LocId id = static_cast<LocId>(nodes.size());
-                nodes.push_back({NoParent, payload, 0, kind, false, id});
+                nodes.push_back({NoParent, payload, 0, kind, id});
                 return id;
             }
 
@@ -88,7 +91,10 @@ namespace pg
                 if (it != sites.end())
                     return it->second;
 
-                return sites[node] = addRoot(RootKind::Site, static_cast<uint32_t>(sites.size()));
+                const uint32_t order = static_cast<uint32_t>(sites.size());
+                const LocId loc = addRoot(RootKind::Site, order);
+                sites[node] = loc;
+                return loc;
             }
 
             LocId Locations::unknown()
@@ -102,10 +108,7 @@ namespace pg
             LocId Locations::child(LocId parentLoc, KeyId k)
             {
                 if (nodes[parentLoc].depth >= MaxDepth)
-                {
-                    nodes[parentLoc].deep = true;
                     return parentLoc;
-                }
 
                 const uint64_t id = (static_cast<uint64_t>(parentLoc) << 32) | k;
                 auto it = children.find(id);
@@ -115,7 +118,7 @@ namespace pg
 
                 const LocId loc = static_cast<LocId>(nodes.size());
                 const Node p = nodes[parentLoc];
-                nodes.push_back({parentLoc, k, static_cast<uint8_t>(p.depth + 1), p.kind, false, p.root});
+                nodes.push_back({parentLoc, k, static_cast<uint8_t>(p.depth + 1), p.kind, p.root});
                 children[id] = loc;
                 return loc;
             }
@@ -125,7 +128,7 @@ namespace pg
             uint8_t Locations::depth(LocId l) const { return nodes[l].depth; }
             RootKind Locations::rootKind(LocId l) const { return nodes[l].kind; }
             LocId Locations::rootOf(LocId l) const { return nodes[l].root; }
-            bool Locations::deep(LocId l) const { return nodes[l].deep; }
+            bool Locations::deep(LocId l) const { return nodes[l].depth == MaxDepth; }
 
             // A parameter key may be any field at a call, so for overlap it agrees with every key
             bool Locations::keysAgree(KeyId a, KeyId b)
@@ -162,8 +165,8 @@ namespace pg
 
             bool Locations::within(LocId inner, LocId outer) const
             {
-                if (nodes[outer].kind == RootKind::Unknown)
-                    return true;
+                if (nodes[inner].kind == RootKind::Unknown or nodes[outer].kind == RootKind::Unknown)
+                    return false;
 
                 if (nodes[inner].root != nodes[outer].root or nodes[inner].depth < nodes[outer].depth)
                     return false;

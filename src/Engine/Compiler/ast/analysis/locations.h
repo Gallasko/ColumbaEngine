@@ -33,6 +33,8 @@ namespace pg
             class Locations
             {
             public:
+                Locations();
+
                 static constexpr KeyId AnyKey = 0;  // "*": a key not known when compiled, a list's entries
 
                 KeyId key(const std::string& name);  // interned; "*" gives AnyKey
@@ -70,7 +72,6 @@ namespace pg
                     KeyId key;  // below a root: the key; of a root: its name key, index or order
                     uint8_t depth;
                     RootKind kind;
-                    bool deep;
                     LocId root;
                 };
 
