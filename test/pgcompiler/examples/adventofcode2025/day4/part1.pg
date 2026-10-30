@@ -1,0 +1,102 @@
+import "file"
+import "string"
+import "algorithm"
+
+fun printTable(table)
+{
+    for (var i = 0; i < len(table); i++)
+    {
+        var row = ""
+        for (var j = 0; j < len(table[i]); j++)
+        {
+            row += toString(table[i][j])
+        }
+
+        print(row)
+    }
+}
+
+var path = "test/pgcompiler/examples/adventofcode2025/day4/"
+var files = ["aoc4_1", "aoc4_1full"]
+
+for (var file : files)
+{
+    var f = readFile(path + file)
+
+    var lines = splitLines(f)
+
+    var table = []
+
+    var l = 0
+
+    for (var line : lines)
+    {
+        table[l] = []
+
+        for (var i = 0; i < len(f); i++)
+        {
+            if (line[i] == ".")
+            {
+                table[l][i] = 0
+            }
+            else if (line[i] == "@")
+            {
+                table[l][i] = 1
+            }
+        }
+
+        l++
+    }
+
+    // printTable(table)
+
+    var resTable = []
+
+    for (var i = 0; i < len(table); i++)
+    {
+        resTable[i] = []
+
+        for (var j = 0; j < len(table[i]); j++)
+        {
+            resTable[i][j] = -1
+
+            if (table[i][j] == 0)
+            {
+                resTable[i][j] = 0
+                continue
+            }
+
+            for (var x = -1; x < 2; x++)
+            {
+                for (var y = -1; y < 2; y++)
+                {
+                    if (i + x < len(table) and i + x >= 0 and j + y < len(table[i]) and j + y >= 0)
+                    {
+                        // print("i: " + toString(i) + " j: " + toString(j) + " x: " + toString(x) + " y: " + toString(y) + " table[i+x][j+y]: " + toString(table[i+x][j+y]))
+                        if (table[i + x][j + y] == 1)
+                        {
+                            resTable[i][j] += 1
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // printTable(resTable)
+
+    var res = 0
+
+    for (var i = 0; i < len(resTable); i++)
+    {
+        for (var j = 0; j < len(resTable[i]); j++)
+        {
+            if (table[i][j] == 1 and resTable[i][j] < 4)
+            {
+                res++
+            }
+        }
+    }
+
+    __dprint(toString(len(resTable)) + " " + toString(len(resTable[0])) + " " + toString(res))
+}
