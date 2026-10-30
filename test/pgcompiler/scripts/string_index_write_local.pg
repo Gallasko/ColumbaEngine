@@ -1,0 +1,8 @@
+// A local goes through the fused set, it must fail the same way as a global
+fun write()
+{
+    var text = "a string long enough to live in the pool"
+    text[0] = "W"
+}
+
+write()

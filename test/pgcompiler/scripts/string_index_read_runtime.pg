@@ -1,0 +1,30 @@
+// A string built while running lives in the pool, unlike the literals of string_indexing
+var left = "a string long enough "
+var right = "to live in the pool"
+
+// A local goes through the fused get: a negative index counts from the end, as far as the first char
+fun read(text)
+{
+    __dprint(text[0])
+    __dprint(text[39])
+    __dprint(text[40])
+    __dprint(text[-1])
+    __dprint(text[-40])
+    __dprint(text[-41])
+    __dprint(text[-80])
+}
+
+read(left + right)
+
+// The stack holds the only reference: the char must be read before it is released
+__dprint((left + right)[3])
+__dprint((left + right)[-41])
+
+// A small string goes through the generic get
+var small = "abc"
+__dprint(small[-3])
+__dprint(small[-4])
+
+// Nothing to count from
+var empty = ""
+__dprint(empty[-1])

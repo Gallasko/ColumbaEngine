@@ -578,20 +578,32 @@ namespace pg
                 return nullptr;
             }
 
-            std::string str = vm->asString(target);
+            // A heap string is read where it lives, only the others need their text built
+            std::string copied;
+            const std::string* str;
+            if (IS_LONG_STRING(target))
+                str = vm->asStringPtr(target);
+            else
+            {
+                copied = vm->asString(target);
+                str = &copied;
+            }
+
+            const int length = static_cast<int>(str->length());
             int idx = AS_INT(index);
-            if (idx < 0) idx = static_cast<int>(str.length()) + idx;
+            if (idx < 0) idx = length + idx;
 
             // Same as a vector: reading past either end gives none
-            if (idx < 0 || idx >= static_cast<int>(str.length()))
+            if (idx < 0 || idx >= length)
             {
                 if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
                 vm->push(makeNoneValue());
                 return &instr + 1;
             }
 
+            // Read the char before letting go of the string, it may be its last owner
+            unsigned char ch = static_cast<unsigned char>((*str)[idx]);
             if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
-            unsigned char ch = static_cast<unsigned char>(str[idx]);
             vm->push(vm->retainValue(vm->singleCharCache[ch]));
             return &instr + 1;
         }
@@ -936,64 +948,14 @@ namespace pg
             return &instr + 1;
         }
 
-        // String indexing — assign one character at idx (append allowed).
+        // Strings cannot be changed: a small string lives in its Value and a long one can be shared.
         if (IS_STRING(target))
         {
-            if (!IS_INT(index))
-            {
-                vm->releaseAndDelete(value);
-                vm->releaseAndDelete(index);
-                vm->runtimeError("String index must be integer");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return nullptr;
-            }
-
-            if (!IS_STRING(value))
-            {
-                vm->releaseAndDelete(value);
-                vm->releaseAndDelete(index);
-                vm->runtimeError("Can only assign string to string index");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return nullptr;
-            }
-
-            std::string str = vm->asString(target);
-            int idx = AS_INT(index);
-            if (idx < 0) idx = static_cast<int>(str.length()) + idx;
-
-            if (idx < 0 || idx > static_cast<int>(str.length()))
-            {
-                vm->releaseAndDelete(value);
-                vm->releaseAndDelete(index);
-                vm->runtimeError("String index out of range");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return nullptr;
-            }
-
-            std::string valueString = vm->asString(value);
-            if (valueString.length() != 1)
-            {
-                vm->releaseAndDelete(value);
-                vm->releaseAndDelete(index);
-                vm->runtimeError("Can only assign single character to string index");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return nullptr;
-            }
-
-            if (idx == static_cast<int>(str.length()))
-            {
-                str += valueString[0];
-            }
-            else
-            {
-                str[idx] = valueString[0];
-            }
-
-            vm->pop();                          // remove old string
-            vm->push(vm->createString(str));    // push new one
             vm->releaseAndDelete(value);
             vm->releaseAndDelete(index);
-            return &instr + 1;
+            vm->runtimeError("Strings cannot be changed, build a new one or use a vector of characters");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
         }
 
         // Unreachable: the type guard at the top rejects anything that is

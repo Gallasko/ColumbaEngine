@@ -700,6 +700,21 @@ TEST_F(ScriptTestBench, StringIndexing)
     testScript("string_indexing");
 }
 
+TEST_F(ScriptTestBench, StringIndexReadOnRuntimeString)
+{
+    testScript("string_index_read_runtime");
+}
+
+TEST_F(ScriptTestBench, StringIndexWriteOnGlobalIsAnError)
+{
+    testScriptError("string_index_write_global", InterpretResult::RUNTIME_ERROR);
+}
+
+TEST_F(ScriptTestBench, StringIndexWriteOnLocalIsAnError)
+{
+    testScriptError("string_index_write_local", InterpretResult::RUNTIME_ERROR);
+}
+
 TEST_F(ScriptTestBench, StringConcatenation)
 {
     testScript("string_concatenation");

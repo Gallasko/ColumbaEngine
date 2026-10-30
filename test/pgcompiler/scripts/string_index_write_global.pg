@@ -1,0 +1,3 @@
+// Strings cannot be changed: writing to an index is an error, not a write that is lost
+var text = "hello"
+text[0] = "W"

@@ -203,6 +203,23 @@ namespace fusion
             }
         }
 
+        // s[i] read on a heap string: the slot keeps it alive, so no retain and no copy.
+        // Single chars are small strings, not refcounted. Reading past either end gives none.
+        if (IS_LONG_STRING(target) and IS_INT(index))
+        {
+            const std::string& str = *vm->asStringPtr(target);
+            int64_t idx = AS_INT(index);
+            if (idx < 0)
+                idx += static_cast<int64_t>(str.size());
+
+            if (idx >= 0 and idx < static_cast<int64_t>(str.size()))
+                vm->push(vm->singleCharCache[static_cast<unsigned char>(str[idx])]);
+            else
+                vm->push(makeNoneValue());
+
+            return &instr + 1;
+        }
+
         vm->push(vm->retainValue(target));
         vm->push(index);
         return op_get_index_decoded(vm, instr);
