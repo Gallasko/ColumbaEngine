@@ -94,6 +94,8 @@ namespace arena::net
                 if (not decode(data, hello) or c.joined)
                     return;
 
+                const std::string name = cleanName(hello.name);
+
                 Welcome welcome;
                 welcome.peer = c.peer;
                 welcome.tick = static_cast<uint32_t>(world.steps);
@@ -109,7 +111,7 @@ namespace arena::net
                     {
                         c.modsSent = true;
                         transport.send(c.peer, modBundle, true);
-                        log.push_back(hello.name + " is getting the server's mods");
+                        log.push_back((name.empty() ? "a player" : name) + " is getting the server's mods");
                         return;
                     }
 
@@ -119,7 +121,7 @@ namespace arena::net
                 if (not welcome.reason.empty())
                 {
                     transport.send(c.peer, encode(welcome), true);
-                    log.push_back(hello.name + " was refused: " + welcome.reason);
+                    log.push_back((name.empty() ? "a player" : name) + " was refused: " + welcome.reason);
                     return;
                 }
 
@@ -127,7 +129,7 @@ namespace arena::net
                 c.ready = false;
                 c.joinOrder = ++joins;
                 lobbyDirty = true;
-                c.name = hello.name.empty() ? "player " + std::to_string(c.peer) : hello.name.substr(0, 32);
+                c.name = name.empty() ? "player " + std::to_string(c.peer) : name;
                 c.playerId = world.addPlayer(c.peer);
                 welcome.accepted = true;
                 welcome.playerId = c.playerId;
@@ -204,11 +206,16 @@ namespace arena::net
             {
                 NameMsg msg;
 
-                if (not c.joined or not decode(data, msg) or msg.name.empty() or msg.name.substr(0, 32) == c.name)
+                if (not c.joined or not decode(data, msg))
                     return;
 
-                log.push_back(c.name + " is now " + msg.name.substr(0, 32));
-                c.name = msg.name.substr(0, 32);
+                const std::string name = cleanName(msg.name);
+
+                if (name.empty() or name == c.name)
+                    return;
+
+                log.push_back(c.name + " is now " + name);
+                c.name = name;
                 lobbyDirty = true;
                 break;
             }

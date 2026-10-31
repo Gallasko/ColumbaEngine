@@ -188,6 +188,15 @@ namespace arena::net
         std::string name;
     };
 
+    /** The longest player name, in bytes. */
+    constexpr size_t MAX_NAME_BYTES = 32;
+
+    /**
+     * A name another machine sent, made safe to show and log: valid UTF-8 only, without control or
+     * text-direction characters, trimmed, at most maxBytes (cut between characters). May come back empty.
+     */
+    std::string cleanName(const std::string& name, size_t maxBytes = MAX_NAME_BYTES);
+
     Msg peek(const std::vector<uint8_t>& data);
 
     std::vector<uint8_t> encode(const Hello& m);

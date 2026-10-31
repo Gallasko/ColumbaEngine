@@ -1213,3 +1213,29 @@ TEST(arena_net, broken_counts_do_not_wrap_into_small_sizes)
     EXPECT_FALSE(decode(d.data, damage));
     EXPECT_TRUE(damage.damage.empty());
 }
+
+TEST(arena_net, names_from_the_network_are_made_safe)
+{
+    EXPECT_EQ(cleanName("ann"), "ann");
+    EXPECT_EQ(cleanName("  ann  "), "ann");
+    EXPECT_EQ(cleanName("\x1b[31mred\n\r\t"), "[31mred");
+    EXPECT_EQ(cleanName("an\xe2\x80\xaen"), "ann");   // right-to-left override
+    EXPECT_EQ(cleanName("bad\xff\xc0\x80utf"), "badutf");   // not UTF-8, an overlong NUL
+    EXPECT_EQ(cleanName("\xc3\xa9t\xc3\xa9"), "\xc3\xa9t\xc3\xa9");
+    EXPECT_EQ(cleanName(std::string(100, 'x')).size(), MAX_NAME_BYTES);
+
+    // Cut between characters, never in one: 31 bytes, then a 2-byte one that does not fit
+    const std::string cut = cleanName(std::string(31, 'x') + "\xc3\xa9");
+    EXPECT_EQ(cut, std::string(31, 'x'));
+
+    Session s;
+    RawPeer raw(s);
+    raw.hello(s, "\x1b]0;evil\x07" + std::string(5000, 'y'));
+    pump(s, raw, 5);
+
+    const LobbyMsg lobby = s.server->lobby();
+    ASSERT_EQ(lobby.players.size(), 1u);
+    EXPECT_LE(lobby.players[0].name.size(), MAX_NAME_BYTES);
+    EXPECT_EQ(lobby.players[0].name.find('\x1b'), std::string::npos);
+    EXPECT_EQ(lobby.players[0].name.find('\x07'), std::string::npos);
+}

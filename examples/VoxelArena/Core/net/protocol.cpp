@@ -172,6 +172,59 @@ namespace arena::net
         return id < names.size() ? names[id] : empty;
     }
 
+    std::string cleanName(const std::string& name, size_t maxBytes)
+    {
+        std::string out;
+        size_t i = 0;
+
+        while (i < name.size())
+        {
+            const auto byte = [&](size_t k) { return static_cast<uint8_t>(name[k]); };
+            const uint8_t b = byte(i);
+            size_t len = b < 0x80 ? 1 : (b >> 5) == 0x6 ? 2 : (b >> 4) == 0xE ? 3 : (b >> 3) == 0x1E ? 4 : 0;
+
+            // A broken sequence: skip the byte
+            bool valid = len > 0 and i + len <= name.size();
+            uint32_t cp = len == 1 ? b : len == 2 ? (b & 0x1Fu) : len == 3 ? (b & 0x0Fu) : (b & 0x07u);
+
+            for (size_t k = 1; valid and k < len; ++k)
+            {
+                valid = (byte(i + k) & 0xC0) == 0x80;
+                cp = (cp << 6) | (byte(i + k) & 0x3Fu);
+            }
+
+            // Overlong forms, surrogates and beyond Unicode are not characters
+            static const uint32_t least[] = {0, 0, 0x80, 0x800, 0x10000};
+            valid = valid and cp >= least[len] and cp <= 0x10FFFF and not (cp >= 0xD800 and cp <= 0xDFFF);
+
+            if (not valid)
+            {
+                ++i;
+                continue;
+            }
+
+            // Controls, and what turns the text around (a name could make the next words read backwards)
+            const bool control = cp < 0x20 or (cp >= 0x7F and cp < 0xA0);
+            const bool direction = (cp >= 0x200E and cp <= 0x200F) or (cp >= 0x202A and cp <= 0x202E) or (cp >= 0x2066 and cp <= 0x2069);
+
+            if (not control and not direction)
+            {
+                if (out.size() + len > maxBytes)
+                    break;
+
+                out.append(name, i, len);
+            }
+
+            i += len;
+        }
+
+        const size_t first = out.find_first_not_of(' ');
+        if (first == std::string::npos)
+            return "";
+
+        return out.substr(first, out.find_last_not_of(' ') - first + 1);
+    }
+
     Msg peek(const std::vector<uint8_t>& data)
     {
         return data.empty() ? Msg::Bye : static_cast<Msg>(data[0]);
@@ -303,7 +356,7 @@ namespace arena::net
         {
             LobbyPlayer p;
             p.playerId = r.i32();
-            p.name = r.str();
+            p.name = cleanName(r.str());
             p.host = r.boolean();
             p.ready = r.boolean();
             p.pingMs = r.u16();
@@ -334,7 +387,7 @@ namespace arena::net
     {
         Writer w;
         w.u8(static_cast<uint8_t>(Msg::Name));
-        w.str(m.name.substr(0, 32));
+        w.str(cleanName(m.name));
         return w.data;
     }
 
