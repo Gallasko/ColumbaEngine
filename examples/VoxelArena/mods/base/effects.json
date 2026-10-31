@@ -65,6 +65,8 @@
     "wave_start":  { "sound": "growl" },
     "despawn":     { "particles": { "count": 14, "speed": 1.5, "up": 1.0, "size": 0.12, "life": 0.6, "gravity": -4, "color": [120, 110, 130] } },
     "pickup":      { "sound": "pickup" },
+    "present":     { "sound": "level_up", "particles": { "count": 26, "speed": 2.5, "up": 1.0, "size": 0.1, "life": 0.8, "gravity": -2, "color": [255, 200, 70] } },
+    "present_drop":{ "sound": "pickup", "particles": { "count": 18, "speed": 3, "up": 0.9, "size": 0.1, "life": 0.7, "gravity": 4, "color": [255, 200, 70] } },
     "heal":        { "particles": { "count": 8, "speed": 1.2, "up": 1.0, "size": 0.08, "life": 0.7, "gravity": -3, "color": [140, 240, 160] } },
     "heal_burst":  { "sound": "level_up", "particles": { "count": 40, "speed": 4.0, "up": 0.6, "size": 0.09, "life": 0.6, "gravity": -1, "color": [170, 255, 190] } },
     "heal_zone":   { "sound": "ice_cast", "particles": { "count": 24, "speed": 2.0, "up": 1.0, "size": 0.08, "life": 0.8, "gravity": -2, "color": [170, 255, 190] } },

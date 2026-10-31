@@ -256,6 +256,60 @@ int SDLNet_TCP_Send(TCPsocket sock, const void *datap, int len)
     return(sent);
 }
 
+/* PgEngine addition: see SDL_net.h */
+int SDLNet_TCP_SendNonBlocking(TCPsocket sock, const void *datap, int len)
+{
+    int sent, err;
+
+    if ( sock->sflag ) {
+        SDLNet_SetError("Server sockets cannot send");
+        return(-1);
+    }
+
+    if ( len <= 0 ) {
+        return(0);
+    }
+
+    SDLNet_SetLastError(0);
+
+#ifdef WIN32
+    {
+        /* No per-call flag on Windows: non-blocking for this send, then back */
+        unsigned long mode = 1;
+        ioctlsocket(sock->channel, FIONBIO, &mode);
+
+        do {
+            sent = send(sock->channel, (const char *) datap, len, 0);
+            err = (sent == SOCKET_ERROR) ? SDLNet_GetLastError() : 0;
+        } while ( (sent == SOCKET_ERROR) && (err == EINTR) );
+
+        mode = 0;
+        ioctlsocket(sock->channel, FIONBIO, &mode);
+
+        if ( sent == SOCKET_ERROR ) {
+            return (err == WSAEWOULDBLOCK) ? 0 : -1;
+        }
+    }
+#else
+    {
+        int flags = MSG_DONTWAIT;
+#ifdef MSG_NOSIGNAL
+        flags |= MSG_NOSIGNAL;
+#endif
+        do {
+            sent = send(sock->channel, (const char *) datap, len, flags);
+            err = (sent < 0) ? errno : 0;
+        } while ( (sent < 0) && (err == EINTR) );
+
+        if ( sent < 0 ) {
+            return (err == EAGAIN || err == EWOULDBLOCK) ? 0 : -1;
+        }
+    }
+#endif
+
+    return(sent);
+}
+
 /* Receive up to 'maxlen' bytes of data over the non-server socket 'sock',
    and store them in the buffer pointed to by 'data'.
    This function returns the actual amount of data received.  If the return

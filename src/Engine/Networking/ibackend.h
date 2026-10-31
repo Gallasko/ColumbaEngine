@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <functional>
+#include <string>
 #include "common.h"   // Packet, UdpHeader, writeHeader, readHeader
 
 
@@ -35,6 +36,12 @@ namespace pg
         inline bool isConnectedToServer() const { return _isConnectedToServer; }
 
         virtual void closeTcp(SocketHandle sock) = 0;
+
+        /** The numeric address a TCP peer connects from ("" when the backend cannot tell). */
+        virtual std::string tcpPeerHost(SocketHandle sock) { (void)sock; return ""; }
+
+        /** Sends what waits in the backend's queues, as far as it goes without blocking (called every frame). */
+        virtual void flush() {}
 
         // Send raw packet (header+payload)
         virtual bool sendUdp(const IpEndpoint& dest, const NetPayload& data) = 0;

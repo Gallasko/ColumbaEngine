@@ -1,5 +1,6 @@
 #include "server.h"
 
+#include "client.h"
 #include "modfiles.h"
 
 #include <algorithm>
@@ -30,6 +31,7 @@ namespace arena::net
             {
                 case NetEvent::Type::Connected:
                     clients[e.peer].peer = e.peer;
+                    clients[e.peer].since = ticks;
                     break;
 
                 case NetEvent::Type::Disconnected:
@@ -53,9 +55,19 @@ namespace arena::net
 
                 case NetEvent::Type::Message:
                 {
-                    Client& c = clients[e.peer];
-                    c.peer = e.peer;
-                    onMessage(c, e.data);
+                    auto it = clients.find(e.peer);
+
+                    // From a connection never announced, or one already refused: nothing to say to it
+                    if (it == clients.end())
+                    {
+                        Client& c = clients[e.peer];
+                        c.peer = e.peer;
+                        c.since = ticks;
+                        it = clients.find(e.peer);
+                    }
+
+                    if (it->second.closeAt == 0)
+                        onMessage(it->second, e.data);
                     break;
                 }
             }
@@ -94,6 +106,8 @@ namespace arena::net
                 if (not decode(data, hello) or c.joined)
                     return;
 
+                const std::string name = cleanName(hello.name);
+
                 Welcome welcome;
                 welcome.peer = c.peer;
                 welcome.tick = static_cast<uint32_t>(world.steps);
@@ -108,8 +122,9 @@ namespace arena::net
                     if (not modBundle.empty() and not c.modsSent)
                     {
                         c.modsSent = true;
+                        c.since = ticks;
                         transport.send(c.peer, modBundle, true);
-                        log.push_back(hello.name + " is getting the server's mods");
+                        log.push_back((name.empty() ? "a player" : name) + " is getting the server's mods");
                         return;
                     }
 
@@ -119,7 +134,7 @@ namespace arena::net
                 if (not welcome.reason.empty())
                 {
                     transport.send(c.peer, encode(welcome), true);
-                    log.push_back(hello.name + " was refused: " + welcome.reason);
+                    refuse(c, name, welcome.reason);
                     return;
                 }
 
@@ -127,7 +142,7 @@ namespace arena::net
                 c.ready = false;
                 c.joinOrder = ++joins;
                 lobbyDirty = true;
-                c.name = hello.name.empty() ? "player " + std::to_string(c.peer) : hello.name.substr(0, 32);
+                c.name = name.empty() ? "player " + std::to_string(c.peer) : name;
                 c.playerId = world.addPlayer(c.peer);
                 welcome.accepted = true;
                 welcome.playerId = c.playerId;
@@ -163,7 +178,7 @@ namespace arena::net
                     return;
 
                 c.lastClientTimeMs = std::max(c.lastClientTimeMs, msg.clientTimeMs);
-                c.rttMs = msg.rttMs;
+                c.rttMs = msg.rttMs;   // only used when the transport cannot measure it (see rttOf)
 
                 // Several inputs per message (repeated against loss): keep the ones not played yet
                 for (const auto& s : msg.inputs)
@@ -204,11 +219,16 @@ namespace arena::net
             {
                 NameMsg msg;
 
-                if (not c.joined or not decode(data, msg) or msg.name.empty() or msg.name.substr(0, 32) == c.name)
+                if (not c.joined or not decode(data, msg))
                     return;
 
-                log.push_back(c.name + " is now " + msg.name.substr(0, 32));
-                c.name = msg.name.substr(0, 32);
+                const std::string name = cleanName(msg.name);
+
+                if (name.empty() or name == c.name)
+                    return;
+
+                log.push_back(c.name + " is now " + name);
+                c.name = name;
                 lobbyDirty = true;
                 break;
             }
@@ -223,12 +243,62 @@ namespace arena::net
                 }
 
                 c.joined = false;
+                c.since = ticks;   // it may say hello again, in time
                 break;
             }
 
             default:
                 break;
         }
+    }
+
+    void NetServer::refuse(Client& c, const std::string& name, const std::string& reason)
+    {
+        log.push_back((name.empty() ? "a player" : name) + " was refused: " + reason);
+        c.closeAt = ticks + REFUSED_LINGER;
+    }
+
+    void NetServer::closeIdle()
+    {
+        for (auto& [peer, c] : clients)
+        {
+            if (c.joined)
+                continue;
+
+            // Refused, its refusal sent: closed. Connected and never joined: closed after a while
+            const bool refused = c.closeAt != 0 and ticks >= c.closeAt;
+            const bool idle = c.closeAt == 0 and ticks - c.since > (c.modsSent ? MODS_TIMEOUT : JOIN_TIMEOUT);
+
+            if (refused or idle)
+            {
+                if (idle)
+                    log.push_back("closed a connection that never joined");
+
+                transport.disconnect(peer);
+                c.closeAt = ticks + MODS_TIMEOUT;   // asked once; the transport says when it is gone
+            }
+        }
+    }
+
+    float NetServer::rttOf(const Client& c) const
+    {
+        const float measured = transport.rttMs(c.peer);
+        return std::clamp(measured > 0.0f ? measured : static_cast<float>(c.rttMs), 0.0f, MAX_COMPENSATED_RTT_MS);
+    }
+
+    void NetServer::clampStamps(const Client& c, InputFrame& in) const
+    {
+        // What a client sees is INTERP_TICKS behind its estimate of the server, and its input then waits
+        // half a round trip and the buffer: older than that is a client claiming to see the past
+        const int rttSteps = static_cast<int>(std::ceil(rttOf(c) / (STEP_SECONDS * 1000.0f)));
+        const int now = static_cast<int>(world.steps);
+        const int oldest = now - (NetClient::INTERP_TICKS + rttSteps + static_cast<int>(MAX_BUFFER) + SNAPSHOT_EVERY + 4);
+
+        if (in.viewTick >= 0)
+            in.viewTick = std::clamp(in.viewTick, std::max(0, oldest), now);
+
+        if (in.stamp >= 0)
+            in.stamp = std::clamp(in.stamp, std::max(0, oldest), now);
     }
 
     InputFrame NetServer::nextInput(Client& c)
@@ -248,11 +318,13 @@ namespace arena::net
             c.lastSeq = it->first;
             c.last = it->second;
             c.inputs.erase(it);
+            clampStamps(c, c.last);
             return c.last;
         }
 
         // Nothing arrived in time: hold what was held, press nothing
         InputFrame held = c.last;
+        clampStamps(c, held);
         held.jumpPressed = held.dodgePressed = held.lightPressed = held.heavyPressed = false;
         held.equip = 0;
         held.pick = 0;
@@ -263,6 +335,9 @@ namespace arena::net
 
     void NetServer::step(const InputFrame* localInput)
     {
+        ++ticks;
+        closeIdle();
+
         // The arena may have been rebuilt (a reset): keep listening to the current one
         world.grid.changeLog = &gridLog;
         world.terrain.damageLog = &damageLog;
@@ -281,7 +356,7 @@ namespace arena::net
             inputs[c.playerId] = nextInput(c);
 
             // How long a hit on this player waits for a dodge already on its way: half the round trip
-            world.defenderGrace[peer] = dodgeGrace ? std::clamp(static_cast<int>(std::lround(c.rttMs * 0.5 / (STEP_SECONDS * 1000.0))), 0, 8) : 0;
+            world.defenderGrace[peer] = dodgeGrace ? std::clamp(static_cast<int>(std::lround(rttOf(c) * 0.5 / (STEP_SECONDS * 1000.0))), 0, 8) : 0;
         }
 
         const size_t eventsBefore = world.events.size();
@@ -341,7 +416,10 @@ namespace arena::net
         std::sort(joined.begin(), joined.end(), [](const Client* a, const Client* b) { return a->joinOrder < b->joinOrder; });
 
         for (const Client* c : joined)
-            m.players.push_back({c->playerId, c->name, false, c->ready, c->rttMs});
+        {
+            const float measured = transport.rttMs(c->peer);
+            m.players.push_back({c->playerId, c->name, false, c->ready, static_cast<uint16_t>(std::clamp(measured > 0.0f ? measured : static_cast<float>(c->rttMs), 0.0f, 65535.0f))});
+        }
 
         return m;
     }

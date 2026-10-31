@@ -1,0 +1,68 @@
+// The Icefall: snow, and ice that does not hold.
+//  - The frozen pond in the middle is a crust over a hollow: break the ice under an enemy and it
+//    drops into a hole it cannot climb out of (a player jumps out). A floe cut loose sinks a step.
+//  - A frost cap in each corner: a wide slab of ice on a thin stem. Break the stem and the cap
+//    comes down on everything under it.
+//  - Two stone arches with icicles over the paths to the pond: volt both legs of one to bring it
+//    down on whoever is passing under.
+{
+    "name": "The Icefall",
+    "size": [44, 26, 44],
+    "playerSpawn": [22, 4, 5],
+    "centre": [22, 4, 22],
+    "spawnRadius": 17,
+    "shapes": [
+        { "block": "bedrock", "from": [0, 0, 0], "to": [43, 0, 43] },
+        { "block": "dirt",    "from": [1, 1, 1], "to": [42, 2, 42] },
+        { "block": "snow",    "from": [1, 3, 1], "to": [42, 3, 42] },
+        { "block": "arena_wall",  "from": [0, 1, 0], "to": [43, 6, 43], "hollow": true },
+        { "block": "arena_brick", "from": [0, 7, 0], "to": [43, 7, 43], "hollow": true },
+
+        // The pond: an ice crust, a hollow under it
+        { "block": "air", "from": [14, 2, 14], "to": [29, 2, 29] },
+        { "block": "ice", "from": [14, 3, 14], "to": [29, 3, 29] },
+        { "block": "ice", "from": [21, 4, 21], "to": [22, 4, 22] },
+
+        // The frost caps: a stem two wide, a cap six wide, icicles at its corners
+        { "block": "ice", "from": [6, 4, 6],   "to": [7, 9, 7] },
+        { "block": "ice", "from": [4, 10, 4],  "to": [9, 11, 9] },
+        { "block": "ice", "from": [4, 9, 4],   "to": [4, 9, 4] },
+        { "block": "ice", "from": [9, 9, 9],   "to": [9, 9, 9] },
+
+        { "block": "ice", "from": [36, 4, 6],  "to": [37, 9, 7] },
+        { "block": "ice", "from": [34, 10, 4], "to": [39, 11, 9] },
+        { "block": "ice", "from": [34, 9, 9],  "to": [34, 9, 9] },
+        { "block": "ice", "from": [39, 9, 4],  "to": [39, 9, 4] },
+
+        { "block": "ice", "from": [6, 4, 36],  "to": [7, 9, 37] },
+        { "block": "ice", "from": [4, 10, 34], "to": [9, 11, 39] },
+        { "block": "ice", "from": [9, 9, 34],  "to": [9, 9, 34] },
+        { "block": "ice", "from": [4, 9, 39],  "to": [4, 9, 39] },
+
+        { "block": "ice", "from": [36, 4, 36],  "to": [37, 9, 37] },
+        { "block": "ice", "from": [34, 10, 34], "to": [39, 11, 39] },
+        { "block": "ice", "from": [34, 9, 34],  "to": [34, 9, 34] },
+        { "block": "ice", "from": [39, 9, 39],  "to": [39, 9, 39] },
+
+        // The arches over the paths, north and south of the pond
+        { "block": "stone", "from": [18, 4, 9],  "to": [18, 8, 10] },
+        { "block": "stone", "from": [25, 4, 9],  "to": [25, 8, 10] },
+        { "block": "stone", "from": [18, 9, 9],  "to": [25, 9, 10] },
+        { "block": "ice",   "from": [19, 8, 9],  "to": [24, 8, 10] },
+        { "block": "ice",   "from": [20, 7, 9],  "to": [20, 7, 10] },
+        { "block": "ice",   "from": [23, 7, 9],  "to": [23, 7, 10] },
+
+        { "block": "stone", "from": [18, 4, 33], "to": [18, 8, 34] },
+        { "block": "stone", "from": [25, 4, 33], "to": [25, 8, 34] },
+        { "block": "stone", "from": [18, 9, 33], "to": [25, 9, 34] },
+        { "block": "ice",   "from": [19, 8, 33], "to": [24, 8, 34] },
+        { "block": "ice",   "from": [21, 7, 33], "to": [21, 7, 34] },
+        { "block": "ice",   "from": [22, 7, 33], "to": [22, 7, 34] },
+
+        // Snowdrifts: low cover, a step up
+        { "block": "snow", "from": [8, 4, 18],  "to": [10, 4, 25] },
+        { "block": "snow", "from": [9, 5, 20],  "to": [9, 5, 23] },
+        { "block": "snow", "from": [33, 4, 18], "to": [35, 4, 25] },
+        { "block": "snow", "from": [34, 5, 20], "to": [34, 5, 23] }
+    ]
+}

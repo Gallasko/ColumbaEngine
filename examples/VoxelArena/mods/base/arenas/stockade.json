@@ -1,0 +1,87 @@
+// The Stockade: a timber yard, and everything in it burns.
+//  - The barn in the middle: a brick roof on eight plank posts and a plank beam. Fire climbs the
+//    posts and runs round the beam; once the last post goes, the whole roof comes down on whoever
+//    is under it (enemies and players alike).
+//  - A watchtower in each corner: plank legs, a deck, a boulder on top. Burn or break the legs and
+//    the deck drops with its boulder.
+//  - Hay bales and woodpiles for cover: hay catches at a spark and passes it on.
+{
+    "name": "The Stockade",
+    "size": [44, 24, 44],
+    "playerSpawn": [22, 4, 6],
+    "centre": [22, 4, 22],
+    "spawnRadius": 18,
+    "shapes": [
+        { "block": "bedrock", "from": [0, 0, 0], "to": [43, 0, 43] },
+        { "block": "dirt",    "from": [1, 1, 1], "to": [42, 2, 42] },
+        { "block": "grass",   "from": [1, 3, 1], "to": [42, 3, 42] },
+        { "block": "arena_wall",  "from": [0, 1, 0], "to": [43, 6, 43], "hollow": true },
+        { "block": "arena_brick", "from": [0, 7, 0], "to": [43, 7, 43], "hollow": true },
+
+        // Trodden paths, crossing at the barn
+        { "block": "dirt", "from": [20, 3, 1], "to": [24, 3, 42] },
+        { "block": "dirt", "from": [1, 3, 20], "to": [42, 3, 24] },
+
+        // The barn: eight posts, a beam round their tops, a brick roof stepped up to a ridge
+        { "block": "planks", "from": [16, 4, 16], "to": [16, 7, 16] },
+        { "block": "planks", "from": [22, 4, 16], "to": [22, 7, 16] },
+        { "block": "planks", "from": [28, 4, 16], "to": [28, 7, 16] },
+        { "block": "planks", "from": [16, 4, 22], "to": [16, 7, 22] },
+        { "block": "planks", "from": [28, 4, 22], "to": [28, 7, 22] },
+        { "block": "planks", "from": [16, 4, 28], "to": [16, 7, 28] },
+        { "block": "planks", "from": [22, 4, 28], "to": [22, 7, 28] },
+        { "block": "planks", "from": [28, 4, 28], "to": [28, 7, 28] },
+        { "block": "planks", "from": [16, 8, 16], "to": [28, 8, 28], "hollow": true },
+        { "block": "brick",  "from": [15, 9, 15], "to": [29, 9, 29] },
+        { "block": "brick",  "from": [17, 10, 17], "to": [27, 10, 27] },
+        { "block": "brick",  "from": [20, 11, 17], "to": [24, 11, 27] },
+
+        // Inside: hay to hide behind (and to set alight under the beam)
+        { "block": "hay", "from": [18, 4, 18], "to": [19, 5, 19] },
+        { "block": "hay", "from": [25, 4, 25], "to": [26, 4, 26] },
+        { "block": "hay", "from": [25, 4, 18], "to": [26, 4, 18] },
+
+        // The watchtowers: four legs, a deck, a boulder
+        { "block": "planks", "from": [4, 4, 4],  "to": [4, 9, 4] },
+        { "block": "planks", "from": [7, 4, 4],  "to": [7, 9, 4] },
+        { "block": "planks", "from": [4, 4, 7],  "to": [4, 9, 7] },
+        { "block": "planks", "from": [7, 4, 7],  "to": [7, 9, 7] },
+        { "block": "planks", "from": [4, 10, 4], "to": [7, 10, 7] },
+        { "block": "boulder", "from": [5, 11, 5], "to": [6, 12, 6] },
+
+        { "block": "planks", "from": [36, 4, 4],  "to": [36, 9, 4] },
+        { "block": "planks", "from": [39, 4, 4],  "to": [39, 9, 4] },
+        { "block": "planks", "from": [36, 4, 7],  "to": [36, 9, 7] },
+        { "block": "planks", "from": [39, 4, 7],  "to": [39, 9, 7] },
+        { "block": "planks", "from": [36, 10, 4], "to": [39, 10, 7] },
+        { "block": "boulder", "from": [37, 11, 5], "to": [38, 12, 6] },
+
+        { "block": "planks", "from": [4, 4, 36],  "to": [4, 9, 36] },
+        { "block": "planks", "from": [7, 4, 36],  "to": [7, 9, 36] },
+        { "block": "planks", "from": [4, 4, 39],  "to": [4, 9, 39] },
+        { "block": "planks", "from": [7, 4, 39],  "to": [7, 9, 39] },
+        { "block": "planks", "from": [4, 10, 36], "to": [7, 10, 39] },
+        { "block": "boulder", "from": [5, 11, 37], "to": [6, 12, 38] },
+
+        { "block": "planks", "from": [36, 4, 36],  "to": [36, 9, 36] },
+        { "block": "planks", "from": [39, 4, 36],  "to": [39, 9, 36] },
+        { "block": "planks", "from": [36, 4, 39],  "to": [36, 9, 39] },
+        { "block": "planks", "from": [39, 4, 39],  "to": [39, 9, 39] },
+        { "block": "planks", "from": [36, 10, 36], "to": [39, 10, 39] },
+        { "block": "boulder", "from": [37, 11, 37], "to": [38, 12, 38] },
+
+        // Woodpiles and hay bales round the yard
+        { "block": "planks", "from": [9, 4, 10],  "to": [11, 5, 11] },
+        { "block": "planks", "from": [32, 4, 32], "to": [34, 5, 33] },
+        { "block": "hay",    "from": [32, 4, 10], "to": [34, 4, 11] },
+        { "block": "hay",    "from": [33, 5, 10], "to": [33, 5, 11] },
+        { "block": "hay",    "from": [9, 4, 32],  "to": [11, 4, 33] },
+        { "block": "hay",    "from": [10, 5, 32], "to": [10, 5, 33] },
+
+        // A low fence along the paths (one block: stepped over)
+        { "block": "planks", "from": [13, 4, 19], "to": [14, 4, 19] },
+        { "block": "planks", "from": [30, 4, 25], "to": [31, 4, 25] },
+        { "block": "planks", "from": [19, 4, 31], "to": [19, 4, 32] },
+        { "block": "planks", "from": [25, 4, 12], "to": [25, 4, 13] }
+    ]
+}

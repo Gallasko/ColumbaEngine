@@ -1,0 +1,40 @@
+// The Pit: where a run starts. A 40 x 40 pit: four pillars to fight around, a raised platform,
+// a boulder on a rope over the middle (burn the rope, or the beam, and it drops on whoever is under).
+//
+// An arena (arenas/<name>.json, picked by the run's "arenas"): a grid of "size" filled by boxes in
+// order, a later one over an earlier one. "from" and "to" are cells, both included; "hollow" fills
+// only the four walls; "air" carves. "centre": where the waves' enemies come in round (at
+// "spawnRadius" m, most of the way to the walls) and the final duel's ring; "playerSpawn": where
+// the players start, in a row. Enemies only step up one block: keep every floor reachable by steps.
+{
+    "name": "The Pit",
+    "size": [40, 24, 40],
+    "playerSpawn": [20, 4, 8],
+    "centre": [20, 4, 21],
+    "spawnRadius": 16,
+    "shapes": [
+        { "block": "bedrock", "from": [0, 0, 0], "to": [39, 0, 39] },
+        { "block": "dirt",    "from": [1, 1, 1], "to": [38, 2, 38] },
+        { "block": "grass",   "from": [1, 3, 1], "to": [38, 3, 38] },
+        { "block": "arena_wall",  "from": [0, 1, 0], "to": [39, 6, 39], "hollow": true },
+        { "block": "arena_brick", "from": [0, 7, 0], "to": [39, 7, 39], "hollow": true },
+
+        { "block": "sand",  "from": [11, 3, 12], "to": [29, 3, 30] },
+        { "block": "grass", "from": [13, 3, 14], "to": [27, 3, 28] },
+
+        { "block": "stone", "from": [9, 4, 13],  "to": [10, 7, 14] },
+        { "block": "stone", "from": [29, 4, 13], "to": [30, 7, 14] },
+        { "block": "stone", "from": [9, 4, 28],  "to": [10, 7, 29] },
+        { "block": "stone", "from": [29, 4, 28], "to": [30, 7, 29] },
+
+        { "block": "planks", "from": [3, 4, 33], "to": [9, 5, 37] },
+        { "block": "planks", "from": [3, 4, 32], "to": [9, 4, 32] },
+        { "block": "brick",  "from": [31, 4, 33], "to": [36, 4, 36] },
+
+        { "block": "stone",   "from": [15, 4, 21], "to": [15, 11, 21] },
+        { "block": "stone",   "from": [25, 4, 21], "to": [25, 11, 21] },
+        { "block": "planks",  "from": [15, 12, 21], "to": [25, 12, 21] },
+        { "block": "rope",    "from": [20, 9, 21], "to": [20, 11, 21] },
+        { "block": "boulder", "from": [19, 6, 20], "to": [21, 8, 22] }
+    ]
+}

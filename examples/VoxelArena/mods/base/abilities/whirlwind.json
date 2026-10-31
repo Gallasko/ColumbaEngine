@@ -14,5 +14,11 @@
         "hitboxes": [ { "offset": [0, 1.0, 0.0], "size": [3.6, 1.4, 3.6] } ],
         "turn": { "yaw": 720, "from": 6, "to": 26 },
         "swing": { "yaw": 90, "pitch": 0, "reach": 0.2 }
-    }
+    },
+    "tags": ["melee", "area"],
+    "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
+    "branches": [
+        { "name": "Firestorm", "text": "The blade burns: its hits set enemies on fire.", "element": "fire", "status": "burn", "tags": ["fire"] },
+        { "name": "Cyclone", "text": "A far wider spin.", "boost": { "area": 0.4 } }
+    ]
 }

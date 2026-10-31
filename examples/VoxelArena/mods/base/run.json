@@ -1,4 +1,4 @@
-// The arena run (Enter at the title): 20 timed waves in a small pit. Enemies keep coming in from the
+// The arena run (Enter at the title): 20 timed waves through five arenas. Enemies keep coming in from the
 // edges all through a wave (their spawn point shows `warn` seconds first); what they drop are shards,
 // both money and XP. Between waves, a shop: each player's own.
 //
@@ -8,36 +8,49 @@
 // pools: who comes, from wave `from` to wave `to`, picked by weight among the ones open.
 // eliteFrom, eliteChance: from that wave on, that chance an enemy comes as an elite (tougher, harder
 // hitting, three times the shards). bosses: wave -> boss; that wave lasts until it falls.
-// xp: shards to level 2, and how many more for each level after; a level up gives a free stat pick.
-// start: the weapon in hand and what is owned at the start (weapons, weapon skills, spell keywords,
-// "element:fire"): a spell can only be cast with its element and every one of its keywords owned.
-// shop: offers a time (stat items of upgrades.json, and the unlocks not owned yet, for their price),
-// weaponPrice: what a weapon not in unlocks sells for (every mod's weapons are in the shop). The reroll's price (reroll, + rerollStep each time in a shop, + 1 every 2 waves), priceGrowth: every
-// price this much higher each wave. levelChoices: stat items to pick from for a level up.
+// xp: shards to level 2, and how many more for each level after.
+// start: the weapon in hand, what is owned (weapons, weapon skills) and the spells (spells/*.json) the
+// run starts with; chooseSpell: the first spell each player picks among, after the weapon (fire, ice, volt). Players make no spells in a run: level ups give them. As a wave ends, after
+// `intermission` s, each level up offers levelChoices picks: a spell not had yet (while one of the
+// three spell keys is free), a technique of levelSkills for the weapon in hand not had yet, or the
+// next level of one had. Levels never run out: after a spell's or technique's written "levels", at
+// `branchLevel` it takes one of its "branches" (the player picks), and every level past those adds
+// `mastery`. Then the presents, then the shop.
+// presents: an elite may leave one (chance), at most perWave a wave; each is a free pick among
+// `choices` shop items, made after the level ups.
+// shop: offers a time (stat and tag items of upgrades.json, each of a rarity: its numbers times
+// `power`, its price times `price`, how often by `weight` [at the first wave, at the last]; and the
+// unlocks not owned yet, for their price: a mod's, the base run sells none). priceScale: every price
+// times this, [at the first wave, at the last]. interest: shards kept through a shop grow as the prices
+// do by the next one, so what could be bought then still can.
+// weaponPrice: what a weapon not in unlocks sells for (every mod's weapons are in the shop). The reroll's price (reroll, + rerollStep each time in a shop, + 1 every 2 waves).
+// levelChoices: picks offered for a level up.
+// spawnScale: the spawn rate and the most at once times this; coopScale: half again for each player
+// past the first (0.5).
 // Score: each enemy's "score" for the kill (twice for an elite), waveScore times the wave's number
 // for getting through it, victoryScore for the last one.
-// arena: the run's own arena (as arena.json); resetEachWave builds it anew before each wave.
+// arenas: the arena of each stretch of waves (arenas/*.json: see arenas/pit.json), each from its
+// wave on; resetEachWave builds it anew before each wave. ("arena": one written in, as arena.json.)
 // chooseWeapon: each player picks a weapon before the first wave (start.weapon is in hand until then),
 // and none are for sale: the shop sells the skills of the weapon in hand instead.
 // duel: in multiplayer, after the last wave, a final duel: the arena anew, everyone back up and in a
-// ring `radius` m from its centre, `countdown` s with no harm done, then everyone for themselves, one life
+// ring `radius` m from the centre of its arena (duel.arena: "" fights it in the last wave's), `countdown` s with no harm done, then everyone for themselves, one life
 // each. The last one standing wins; after `duration` s, the one with the most of their health left.
 {
     "waves": 20,
-    "duration": [60, 90],
+    "duration": [45, 90],
     "spawnRate": [0.4, 1.8],
     "maxAlive": [5, 22],
     "healthGrowth": 0.06,
     "warn": 1.2,
     "eliteFrom": 7,
     "eliteChance": 0.08,
-    "centre": [20, 4, 21],
-    "spawnRadius": 16,
+    "spawnScale": 0.75,
     "coopScale": 0.5,
     "pickupRange": 3.5,
     "resetEachWave": true,
     "chooseWeapon": true,
-    "duel": { "enabled": true, "duration": 120, "countdown": 3, "radius": 9 },
+    "duel": { "enabled": true, "duration": 120, "countdown": 3, "radius": 9, "arena": "crucible" },
 
     "pools": [
         { "enemy": "slime",   "from": 1,  "to": 6, "weight": 4 },
@@ -50,54 +63,39 @@
     ],
     "bosses": { "10": "chieftain", "20": "warden" },
 
-    "xp": { "base": 10, "step": 5 },
-    "start": { "weapon": "sword", "owned": ["element:fire", "bolt"] },
+    "xp": { "base": 10, "step": 3 },
+    "start": { "weapon": "sword", "owned": [], "spells": [], "chooseSpell": ["firebolt", "frostbolt", "spark"] },
+    "levelSkills": ["leap_slam", "whirlwind", "shadow_dash", "backflip", "volley", "disengage", "sanctuary", "radiance"],
+    "intermission": 2.5,
+    "branchLevel": 5,
+    "mastery": { "damage": 0.1, "cooldown": 0.03 },
+    "presents": { "chance": 0.35, "perWave": 3, "choices": 3 },
     "shop": {
         "slots": 4,
         "reroll": 2,
         "rerollStep": 2,
-        "priceGrowth": 0.08,
-        "levelChoices": 4,
-        "unlocks": {
-            "leap_slam": 22, "whirlwind": 22, "shadow_dash": 22, "backflip": 18,
-            "volley": 22, "disengage": 18, "sanctuary": 24, "radiance": 24,
-            "element:ice": 20, "element:volt": 20,
-            "zone": 16, "nova": 16, "beam": 18,
-            "multiply": 24, "extend": 12, "enlarge": 12, "chain": 20, "empower": 22
-        }
+        "priceScale": [0.5, 1.5],
+        "interest": true,
+        "levelChoices": 3,
+        "unlocks": {},
+        "rarities": [
+            { "name": "Common",    "power": 1.0, "price": 1.0, "weight": [70, 30] },
+            { "name": "Rare",      "power": 1.5, "price": 1.4, "weight": [24, 38] },
+            { "name": "Epic",      "power": 2.1, "price": 1.9, "weight": [5, 22] },
+            { "name": "Legendary", "power": 3.0, "price": 2.6, "weight": [1, 10] }
+        ]
     },
 
     "waveScore": 50,
     "victoryScore": 2000,
 
-    // A 40 x 40 pit: four pillars to fight around, a raised platform, a boulder on a rope over the middle
-    "arena": {
-        "size": [40, 24, 40],
-        "playerSpawn": [20, 4, 8],
-        "shapes": [
-            { "block": "bedrock", "from": [0, 0, 0], "to": [39, 0, 39] },
-            { "block": "dirt",    "from": [1, 1, 1], "to": [38, 2, 38] },
-            { "block": "grass",   "from": [1, 3, 1], "to": [38, 3, 38] },
-            { "block": "arena_wall",  "from": [0, 1, 0], "to": [39, 6, 39], "hollow": true },
-            { "block": "arena_brick", "from": [0, 7, 0], "to": [39, 7, 39], "hollow": true },
-
-            { "block": "sand",  "from": [11, 3, 12], "to": [29, 3, 30] },
-            { "block": "grass", "from": [13, 3, 14], "to": [27, 3, 28] },
-
-            { "block": "stone", "from": [9, 4, 13],  "to": [10, 7, 14] },
-            { "block": "stone", "from": [29, 4, 13], "to": [30, 7, 14] },
-            { "block": "stone", "from": [9, 4, 28],  "to": [10, 7, 29] },
-            { "block": "stone", "from": [29, 4, 28], "to": [30, 7, 29] },
-
-            { "block": "planks", "from": [3, 4, 33], "to": [9, 5, 37] },
-            { "block": "planks", "from": [3, 4, 32], "to": [9, 4, 32] },
-            { "block": "brick",  "from": [31, 4, 33], "to": [36, 4, 36] },
-
-            { "block": "stone",   "from": [15, 4, 21], "to": [15, 11, 21] },
-            { "block": "stone",   "from": [25, 4, 21], "to": [25, 11, 21] },
-            { "block": "planks",  "from": [15, 12, 21], "to": [25, 12, 21] },
-            { "block": "rope",    "from": [20, 9, 21], "to": [20, 11, 21] },
-            { "block": "boulder", "from": [19, 6, 20], "to": [21, 8, 22] }
-        ]
-    }
+    // Where the waves are fought: each arena (arenas/*.json) from its wave on. A new one is built as
+    // its first wave starts, everyone at its spawn point; the duel has its own.
+    "arenas": [
+        { "arena": "pit",      "from": 1 },
+        { "arena": "stockade", "from": 5 },
+        { "arena": "gorge",    "from": 9 },
+        { "arena": "icefall",  "from": 13 },
+        { "arena": "quarry",   "from": 17 }
+    ]
 }

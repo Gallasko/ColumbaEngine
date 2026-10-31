@@ -1,4 +1,5 @@
 // The sword: a fast 3-hit light combo, a slow heavy that breaks poise, and a slash out of a roll.
+// regen: health a second while it is in hand (the melee weapons mend a little).
 //
 // Every attack is [startup][active][recovery] frames at 60 fps. Hitboxes exist only during active frames.
 // Hitbox offsets are in the fighter's space: x to the right, y up from the feet, z forward. Sizes are full sizes.
@@ -14,6 +15,7 @@
     "name": "Iron Sword",
     "type": "sword",
     "role": "melee",
+    "regen": 0.5,
     "text": "Steady and strong: a three-hit combo, a heavy that breaks poise, a slash out of a roll.",
     "model": "sword",
     "modelScale": 0.0625,

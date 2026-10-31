@@ -47,6 +47,8 @@ namespace
             ContentReport r;
             tuning = readTuning(content.tuning, content.tuningFile, r);
             content.run.chooseWeapon = false;   // straight to the first wave
+            content.run.startSpells = {"base:firebolt"};
+            content.run.startChoices.clear();
 
             // A bare floor, no enemies: tests add what they need
             content.arena.size = glm::ivec3(32, 16, 32);
@@ -675,6 +677,43 @@ TEST(arena_net, the_run_plays_for_every_client_and_each_has_their_own_shop)
     EXPECT_GE(s.clientPlayer(a)->shards, 100);
     EXPECT_EQ(s.clientPlayer(b)->shop.size(), static_cast<size_t>(s.content.run.shopSlots));
 
+    // The moment after the wave, the same for the client; then a's level ups (the kill's XP), first
+    EXPECT_GT(a.world.run.timer, 0.0f);
+    s.run(static_cast<int>(s.content.run.intermission * 60.0f) + 10);
+    EXPECT_EQ(a.world.run.timer, 0.0f);
+    for (int k = 0; k < 8 and s.clientPlayer(a)->levelUps > 0; ++k)
+    {
+        const size_t spells = s.serverPlayer(a)->runSpells.size();
+        a.input.pick = InputFrame::LEVEL;
+        s.tick();
+        a.input.pick = 0;
+        s.run(10);
+        EXPECT_TRUE(s.serverPlayer(a)->runSpells.size() > spells or s.serverPlayer(a)->runSpells.size() == spells);
+    }
+    ASSERT_EQ(s.clientPlayer(a)->levelUps, 0);
+    EXPECT_EQ(s.clientPlayer(a)->runSpells.size(), s.serverPlayer(a)->runSpells.size());
+
+    // Techniques, branches, presents and the interest reach the client as the server has them
+    Fighter* server = s.serverPlayer(a);
+    server->runSkills = {{"base:whirlwind", 5, 1}};
+    server->presents = 2;
+    server->presentOffer = {{"base:tough", 0, false, false, 2}};
+    server->banked = 40;
+    server->interest = 3;
+    s.run(10);
+    const Fighter* client = s.clientPlayer(a);
+    ASSERT_EQ(client->runSkills.size(), 1u);
+    EXPECT_EQ(client->runSkills[0].id, "base:whirlwind");
+    EXPECT_EQ(client->runSkills[0].level, 5);
+    EXPECT_EQ(client->runSkills[0].branch, 1);
+    EXPECT_EQ(client->presents, 2);
+    ASSERT_EQ(client->presentOffer.size(), 1u);
+    EXPECT_EQ(client->presentOffer[0].rarity, 2);
+    EXPECT_EQ(client->interest, 3);
+    server->presents = 0;
+    server->presentOffer.clear();
+    s.run(10);
+
     // a buys, and is ready; the wave waits for b
     const auto offer = s.clientPlayer(a)->shop[0];
     const int shards = s.clientPlayer(a)->shards;
@@ -712,7 +751,7 @@ TEST(arena_net, a_client_gets_the_runs_arena_and_each_reset)
     s.run(15);
 
     // The run's own arena, its size and all
-    const glm::ivec3 size = s.content.run.arena.size;
+    const glm::ivec3 size = s.content.arenaById(s.content.run.arenas.front().arena).size;
     EXPECT_EQ(glm::ivec3(a.world.grid.width(), a.world.grid.height(), a.world.grid.depth()), size);
     EXPECT_EQ(a.world.grid.raw(), s.serverWorld.grid.raw());
 
@@ -1010,4 +1049,278 @@ TEST(arena_net, a_player_who_changes_name_is_shown_by_it_to_everyone)
     ASSERT_EQ(a.client->lobby.players.size(), 2u);
     EXPECT_EQ(a.client->nameOf(b.client->playerId), "bobby");
     EXPECT_EQ(s.server->lobby().players[1].name, "bobby");
+}
+
+// ---- Hostile peers ------------------------------------------------------------------------------
+
+namespace
+{
+    /** A peer that speaks the protocol by hand, as a modified client would. */
+    struct RawPeer
+    {
+        Transport& t;
+        std::vector<NetEvent> got;
+
+        explicit RawPeer(Session& s) : t(s.hub.addClient()) {}
+
+        void hello(const Session& s, const std::string& name = "raw")
+        {
+            Hello h;
+            h.fingerprint = s.content.fingerprint;
+            h.name = name;
+            t.send(0, encode(h), true);
+        }
+
+        void input(const InputFrame& in, uint32_t seq)
+        {
+            InputMsg m;
+            m.clientTimeMs = seq;
+            m.inputs.push_back({seq, in});
+            t.send(0, encode(m), false);
+        }
+
+        bool disconnected() const
+        {
+            return std::any_of(got.begin(), got.end(), [](const NetEvent& e) { return e.type == NetEvent::Type::Disconnected; });
+        }
+    };
+
+    void pump(Session& s, RawPeer& raw, int steps)
+    {
+        for (int i = 0; i < steps; ++i)
+        {
+            NetEvent e;
+            while (raw.t.poll(e))
+                raw.got.push_back(e);
+
+            s.server->poll();
+            s.server->step(nullptr);
+            s.hub.advance(STEP_MS);
+        }
+    }
+}
+
+TEST(arena_net, an_aim_from_far_away_does_not_stall_the_server)
+{
+    // The ray of a mine (every player has it) is as long as its start is far: from 2e7 above, past where a
+    // float still moves by one cell, it walked for ever
+    Session s;
+    RawPeer raw(s);
+    raw.hello(s);
+    pump(s, raw, 5);
+    ASSERT_EQ(s.server->clientCount(), 1u);
+
+    InputFrame in;
+    in.aimOrigin = glm::vec3(16.0f, 2e7f, 8.0f);
+    in.aimDir = glm::vec3(1.0f, 0.0f, 0.0f);
+    for (int i = 0; i < InputFrame::ABILITIES; ++i)
+        in.abilityPressed[i] = in.abilityHeld[i] = true;
+
+    for (uint32_t seq = 1; seq < 20; ++seq)
+    {
+        raw.input(in, seq);
+        pump(s, raw, 1);
+    }
+
+    EXPECT_EQ(s.server->clientCount(), 1u);
+}
+
+TEST(arena_net, a_far_ray_ends)
+{
+    VoxelGrid grid(32, 16, 32);
+    const BlockTable table;
+
+    // Above the open sky, a horizontal ray as long as its start is high
+    const RayHit hit = raycast(grid, table, glm::vec3(16.0f, 2e7f, 8.0f), glm::vec3(1.0f, 0.0f, 0.0f), 2e7f);
+    EXPECT_FALSE(hit.hit);
+
+    // NaN and infinity: nothing, at once
+    EXPECT_FALSE(raycast(grid, table, glm::vec3(NAN), glm::vec3(1, 0, 0), 10.0f).hit);
+    EXPECT_FALSE(raycast(grid, table, glm::vec3(1.0f), glm::vec3(INFINITY, 0, 0), 10.0f).hit);
+}
+
+TEST(arena_net, a_spell_aimed_at_nothing_keeps_every_snapshot_readable)
+{
+    // A zero aim direction once made NaN spells, and a NaN in a snapshot made every client drop them all
+    Session s(10.0);
+    auto& a = s.join("a");
+    s.run(40);
+
+    SpellRecipe spell;
+    spell.element = "fire";
+    spell.keywords = {"base:bolt", "base:zone"};
+    a.client->setSpells({spell, {}, {}});
+    s.run(10);
+
+    int key = -1;
+    for (int i = 0; i < InputFrame::ABILITIES; ++i)
+        if (s.serverWorld.spellSlotAt(i) == 0)
+            key = i;
+    ASSERT_GE(key, 0);
+
+    a.input.aimDir = glm::vec3(0.0f);
+    a.input.abilityPressed[key] = true;
+    s.tick();
+    a.input.abilityPressed[key] = false;
+    s.run(30);
+
+    const auto finite = [](const glm::vec3& v) { return std::isfinite(v.x) and std::isfinite(v.y) and std::isfinite(v.z); };
+
+    for (const auto& p : s.serverWorld.projectiles)
+        EXPECT_TRUE(finite(p.position) and finite(p.velocity));
+    for (const auto& z : s.serverWorld.zones)
+        EXPECT_TRUE(finite(z.position));
+
+    // The client still follows the server
+    const uint32_t before = static_cast<uint32_t>(s.serverWorld.steps);
+    s.run(10);
+    ASSERT_TRUE(s.clientPlayer(a));
+    EXPECT_GT(s.serverWorld.steps, before);
+    EXPECT_NEAR(glm::length(s.clientPlayer(a)->body.position - s.serverPlayer(a)->body.position), 0.0f, 0.5f);
+
+    // And a NaN that would still get in goes as 0, not as a snapshot nobody can read
+    Names names;
+    names.build(s.content);
+    SnapshotMsg snap;
+    ProjectileState p;
+    p.position = glm::vec3(NAN);
+    snap.projectiles.push_back(p);
+    SnapshotMsg back;
+    ASSERT_TRUE(decode(encode(snap, names), back, names));
+    EXPECT_EQ(back.projectiles[0].position, glm::vec3(0.0f));
+}
+
+TEST(arena_net, an_aim_starts_near_its_player)
+{
+    Session s;
+    RawPeer raw(s);
+    raw.hello(s);
+    pump(s, raw, 5);
+
+    Fighter* f = nullptr;
+    for (auto& g : s.serverWorld.fighters)
+        if (g.team == Team::Player)
+            f = &g;
+    ASSERT_TRUE(f);
+
+    InputFrame in;
+    in.aimOrigin = glm::vec3(1e6f, 5.0f, 1e6f);
+    in.aimDir = glm::vec3(0.0f, -3.0f, 0.0f);
+
+    const InputFrame safe = s.serverWorld.sanitized(*f, in);
+    EXPECT_LT(glm::length(safe.aimOrigin - f->body.position), 40.0f);
+    EXPECT_NEAR(glm::length(safe.aimDir), 1.0f, 1e-5f);
+
+    // No aim stays no aim
+    in.aimDir = glm::vec3(0.0f);
+    EXPECT_EQ(s.serverWorld.sanitized(*f, in).aimDir, glm::vec3(0.0f));
+}
+
+TEST(arena_net, a_client_cannot_claim_to_see_far_in_the_past)
+{
+    Session s;
+    RawPeer raw(s);
+    raw.hello(s);
+    pump(s, raw, 200);
+
+    InputFrame in;
+    in.viewTick = 0;
+    in.stamp = 0;
+    raw.input(in, 1);
+    pump(s, raw, 2);
+
+    const Fighter* f = nullptr;
+    for (const auto& g : s.serverWorld.fighters)
+        if (g.team == Team::Player)
+            f = &g;
+    ASSERT_TRUE(f);
+
+    // Lag compensation goes back by what the link explains (no lag here), not to the start of the game
+    EXPECT_GT(f->viewTick, static_cast<int>(s.serverWorld.steps) - 30);
+}
+
+TEST(arena_net, broken_counts_do_not_wrap_into_small_sizes)
+{
+    // A count whose size wraps around 32 bits: 0x2AAAAAAB * 6 is 2. It allocated gigabytes
+    Writer w;
+    w.u8(static_cast<uint8_t>(Msg::TerrainDelta));
+    w.u32(0x2AAAAAABu);
+    w.u32(0);
+    TerrainDeltaMsg delta;
+    EXPECT_FALSE(decode(w.data, delta));
+    EXPECT_TRUE(delta.blocks.empty());
+
+    Writer d;
+    d.u8(static_cast<uint8_t>(Msg::TerrainDelta));
+    d.u32(0);
+    d.u32(0x33333334u);   // damage: * 5 is 4
+    d.u32(0);
+    TerrainDeltaMsg damage;
+    EXPECT_FALSE(decode(d.data, damage));
+    EXPECT_TRUE(damage.damage.empty());
+}
+
+TEST(arena_net, names_from_the_network_are_made_safe)
+{
+    EXPECT_EQ(cleanName("ann"), "ann");
+    EXPECT_EQ(cleanName("  ann  "), "ann");
+    EXPECT_EQ(cleanName("\x1b[31mred\n\r\t"), "[31mred");
+    EXPECT_EQ(cleanName("an\xe2\x80\xaen"), "ann");   // right-to-left override
+    EXPECT_EQ(cleanName("bad\xff\xc0\x80utf"), "badutf");   // not UTF-8, an overlong NUL
+    EXPECT_EQ(cleanName("\xc3\xa9t\xc3\xa9"), "\xc3\xa9t\xc3\xa9");
+    EXPECT_EQ(cleanName(std::string(100, 'x')).size(), MAX_NAME_BYTES);
+
+    // Cut between characters, never in one: 31 bytes, then a 2-byte one that does not fit
+    const std::string cut = cleanName(std::string(31, 'x') + "\xc3\xa9");
+    EXPECT_EQ(cut, std::string(31, 'x'));
+
+    Session s;
+    RawPeer raw(s);
+    raw.hello(s, "\x1b]0;evil\x07" + std::string(5000, 'y'));
+    pump(s, raw, 5);
+
+    const LobbyMsg lobby = s.server->lobby();
+    ASSERT_EQ(lobby.players.size(), 1u);
+    EXPECT_LE(lobby.players[0].name.size(), MAX_NAME_BYTES);
+    EXPECT_EQ(lobby.players[0].name.find('\x1b'), std::string::npos);
+    EXPECT_EQ(lobby.players[0].name.find('\x07'), std::string::npos);
+}
+
+TEST(arena_net, a_refused_client_is_disconnected)
+{
+    Session s;
+    s.server->maxClients = 0;
+
+    RawPeer raw(s);
+    raw.hello(s);
+    pump(s, raw, static_cast<int>(NetServer::REFUSED_LINGER) + 10);
+
+    // The refusal first, then the connection closed
+    ASSERT_FALSE(raw.got.empty());
+    const auto refusal = std::find_if(raw.got.begin(), raw.got.end(), [](const NetEvent& e) { return e.type == NetEvent::Type::Message and peek(e.data) == Msg::Welcome; });
+    ASSERT_NE(refusal, raw.got.end());
+    Welcome w;
+    ASSERT_TRUE(decode(refusal->data, w));
+    EXPECT_FALSE(w.accepted);
+    EXPECT_TRUE(raw.disconnected());
+}
+
+TEST(arena_net, a_connection_that_never_joins_is_closed)
+{
+    Session s;
+    RawPeer raw(s);
+    pump(s, raw, static_cast<int>(NetServer::JOIN_TIMEOUT) - 10);
+    EXPECT_FALSE(raw.disconnected());
+
+    pump(s, raw, 20);
+    EXPECT_TRUE(raw.disconnected());
+}
+
+TEST(arena_net, a_server_cannot_ship_bytecode)
+{
+    // The script compiler loads anything with ".pgc" in its name as bytecode, unchecked
+    for (const char* bad : {"base/x.pgc", "base/x.pgc.json", "base/X.PGC.json", "base/scripts.pgc/a.json"})
+        EXPECT_FALSE(safeModPath(bad)) << bad;
+
+    EXPECT_TRUE(safeModPath("base/pgcore.json"));
 }

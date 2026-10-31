@@ -3,6 +3,7 @@
 #include "hud.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <sstream>
 
@@ -22,6 +23,13 @@ namespace arena
             o.precision(1);
             o << std::max(0.0f, v);
             return o.str();
+        }
+
+        std::string upper(std::string s)
+        {
+            for (auto& c : s)
+                c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            return s;
         }
 
         std::string clock(float seconds)
@@ -190,6 +198,9 @@ namespace arena
                 fill = v.bossWave ? BOSS : GOLD;
             ui.box(px, 62, 8, 8, fill, 2.0f);
         }
+
+        if (not v.arenaName.empty())
+            ui.textShadow(24, 74, upper(v.arenaName), Font::Text700, 11, MUTED, 2.0f, Align::Left, 2.0f);
 
         // The team, in co-op
         float ty = 92.0f;
@@ -647,6 +658,9 @@ namespace arena
         // A name with a count down under it (the duel's): the name goes up out of its way
         if (not v.headline.empty())
             ui.textShadow(640, (v.countdown > 0 ? 112.0f : 200.0f) - 28.0f, v.headline, Font::Display, 56, TEXT, 3.0f, Align::Centre, 2.0f);
+
+        if (not v.headline.empty() and not v.subline.empty())
+            ui.textShadow(640, (v.countdown > 0 ? 112.0f : 200.0f) + 34.0f, upper(v.subline), Font::Text700, 16, GOLD, 2.0f, Align::Centre, 3.0f);
 
         if (levelUpAge < 1.0f and v.run)
             ui.textShadow(640, (v.headline.empty() ? 200.0f : 262.0f) - 28.0f, "LEVEL UP", Font::Display, 56, GOLD, 3.0f, Align::Centre, 2.0f);

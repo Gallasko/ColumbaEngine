@@ -38,59 +38,108 @@ Options:
 ## The arena run
 
 The title screen: **Enter** for the arena, **T** for the training ground (the sandbox, with dummies
-and enemies that come back), **B** for the spellbook, **O** for the options.
+and enemies that come back), **O** for the options.
 
-- **Its own arena**: a 40 x 40 pit with four pillars, a platform and a boulder on a rope over the
-  middle. It is built anew before each wave, whatever was broken, with everyone put back in place.
+- **Five arenas**, four waves each, every one built around the terrain (`mods/base/arenas/`):
+  - *The Pit* (waves 1-4): four pillars, a platform, a boulder on a rope over the middle.
+  - *The Stockade* (5-8): a timber yard. The barn's brick roof stands on eight plank posts: burn
+    them all and it comes down on whoever is under it. Watchtowers with a boulder on each deck, hay
+    that catches at a spark.
+  - *The Gorge* (9-12): two plateaus and a stepped ravine, three plank bridges with rope rails (fire
+    runs along the rope and drops the middle of the bridge into the ravine), two boulders hanging
+    over it.
+  - *The Icefall* (13-16): snow, a frozen pond whose crust breaks (an enemy that falls in cannot
+    climb out; you can jump), ice frost caps on thin stems, stone arches hung with icicles (volt
+    both legs).
+  - *The Quarry* (17-20): a stone mesa with stairs (volt breaks stone four times as fast), two
+    plank cranes with stone loads on ropes, stone tables on one plank prop.
+  - *The Crucible*: the final duel's. An island ringed by planks over a trench, a boulder over the
+    dais, a brick-roofed pavilion on each diagonal.
 
-- **Twenty timed waves**, from a minute to a minute and a half. Enemies keep coming in from the edges
+  A new arena is built as its first wave starts (its name under the wave's), everyone at its spawn
+  point; within an arena it is built anew before each wave, whatever was broken. The HUD names it
+  under the wave's pips. Enemies only step up one block, so every floor has steps.
+
+- **Twenty timed waves**, from 45 seconds to a minute and a half. Enemies keep coming in from the edges
   all through a wave (their spawn point glows red a moment first; one out of view, an arrow at the
-  edge of the screen points the way), more and faster as the run goes on, and more with more players.
-  Survive until the time is up; whoever is left then goes.
+  edge of the screen points the way), more and faster as the run goes on (`spawnScale` 0.75 of the
+  written rates for one player), and half again for each player past the first. Survive until the
+  time is up; whoever is left then goes.
 - **Slimes first**: the first waves are slimes only. They hop their way to you (a hop that lands on
   you stings a little), and close up they squash down, glow, pounce, and bounce back off. Skulkers
   join from wave 3, archers from 4, brutes from 6. From wave 7
-  some come as **elites**, glowing gold: tougher, harder hitting, three times the shards.
+  some come as **elites**, glowing gold: tougher, harder hitting, three times the shards, and now and
+  then (35%, three a wave at most) a **present**: a gold box with a red ribbon. Each one picked up is a
+  free shop item, picked among three after the level ups.
 - **Shards**: what the enemies drop. They fly to you within pickup range (and the ones left lying
-  are yours at the end of the wave). They are money and XP at once: each **level** gives a free stat
-  item to pick in the shop.
-- **The weapon choice**: a run begins with each player picking a weapon (1-5 or a click), for the whole
+  are yours at the end of the wave). They are money and XP at once.
+- **Spells and techniques come from levels**: no spell is made in a run. After the weapon, each
+  player picks a **first spell** for key 1 (1-3 or a click; Backspace back to the weapons): Firebolt
+  (fire: a bolt leaving a burning patch), Frostbolt (ice: a bolt bursting into a chilling blast) or
+  Spark (volt: a bolt jumping on to 2 more enemies) — `run.json` `start.chooseSpell`. As a wave ends, after a moment (**Wave cleared**: 2.5 s in which nothing can be clicked, so a
+  click from the fight buys nothing), each level up offers three picks (1-3 or a click): a **new
+  spell** (while one of the three spell keys is free), a **new technique** of the weapon in hand, or
+  the **next level** of one you have. Levels never run out:
+  - a spell's written `levels` add keywords (Firebolt II adds Enlarge, III Extend, IV Empower); a
+    technique's add a boost (+15% damage, a faster recharge...);
+  - at level 5 (`run.json` `branchLevel`) it **branches**: its branches are offered side by side and
+    you take one, for good. Firebolt's Inferno makes its burning patch burst as it ends, Twin bolts
+    shoots one more bolt; the Whirlwind's Firestorm sets enemies on fire, Cyclone spins far wider...
+    A branch adds keywords (a spell), an element and a status (a technique), tags and a boost;
+  - every level past those is **mastery**: +10% damage and a 3% faster recharge each (`mastery`).
+
+  Each card shows what changes, before -> after (green better, red worse). The XP to the next level
+  grows slowly (10, then 3 more each level). Then the presents, then the shop.
+- **The weapon choice**: a run begins with each player picking a weapon (1-5 or a click; the melee ones,
+  sword, dagger and spear, mend 0.5 health a second while in hand: a weapon's `regen`), for the whole
   run: the bow, the dagger, the healer's staff, the sword (and testmod's spear). The first wave waits for
-  everyone. No weapon is for sale after that: the shop sells the skills of the one in hand instead
+  everyone. No weapon is for sale after that: level ups offer the skills of the one in hand instead
   (`run.json` `chooseWeapon`; off, the start kit's weapon is the one, and weapons are for sale).
 - **The bow** (ranged): arrows where you aim. Light is drawn while you hold it: a tap is a weak quick
   arrow, a full draw (0.7 s, the pips under the crosshair) about 2.5 times as hard and faster, and it
   waits for you to let go. Heavy is a slow power shot; Volley
-  (five arrows fanned out) and Disengage (a leap back out of reach, an arrow as you go) in the shop.
+  (five arrows fanned out) and Disengage (a leap back out of reach, an arrow as you go) by level ups.
 - **The healer's staff** (support): orbs that burst a little on light, a mending pulse on heavy (health
   back to you and every ally within 5 m); Sanctuary (a circle on the ground healing everyone in it for
-  5 s) and Radiance (enemies close by thrown back, allies further out healed) in the shop. In the
+  5 s) and Radiance (enemies close by thrown back, allies further out healed) by level ups. In the
   final duel it heals only its holder. An attack heals with `"heal": { "amount", "radius" }`, or leaves
   a healing zone with `"healZone": { "radius", "duration", "perSecond" }`; a projectile shoots
   several at once with `"count"` and `"spread"` (degrees).
-- **The shop**, between waves, each player their own: four offers to buy with 1-4 or a click, and
-  **Lock** (Shift + 1-4) keeps one for the next shop. A level up's free stat items are on 5 and up.
-  **R** rerolls (dearer each time), **Enter** is ready; in co-op the next wave waits for everyone. On sale:
-  - stat items (`upgrades.json`): health, damage, armor, crit, speed, regeneration, pickup range,
-    dash charges, cheaper spells, faster cooldowns, life on hit... They add up through the run;
-  - the skills of your weapon (the weapon itself is chosen at the start, see above),
-    spell elements (fire to begin with) and keywords (bolt to begin with). A spell casts only when its
-    element and every keyword are bought: the spellbook greys out the rest, the HUD marks a spell
-    `(locked)`. With nothing on the keys it can cast, key 1 gets Fire > Bolt for the run.
-  Prices go up each wave.
+- **The shop**, after the level ups and the presents, each player their own: four offers to buy with 1-4 or a click,
+  and **Lock** (Shift + 1-4) keeps one for the next shop. **R** rerolls (dearer each time), **Enter**
+  is ready; in co-op the next wave waits for everyone. On sale, only items (`upgrades.json`):
+  - stat items: health, damage, armor, crit, speed, attack speed (Frenzy: the weapon's light and heavy
+    attacks 10% quicker each), regeneration, pickup range, dash charges,
+    cheaper spells, faster cooldowns, life on hit...;
+  - tag items: a boost for **every** spell and technique of yours with a tag. Spells are tagged with
+    "spell", their element and their shapes ("projectile" for a bolt, "area" for a nova or a zone,
+    "zone", "beam"); techniques with "technique", their own ("melee", "area", "dash", "heal") and
+    "projectile" when they shoot; your weapon's light and heavy attacks with "attack", its role
+    ("melee", "ranged", "support"), its type and "projectile" when they shoot (they take damage, area
+    and projectile speed, not more projectiles). Fire: +20% damage; Melee: +20% damage (your sword's
+    swings too); Attacks: +15% damage; Projectiles: +1 projectile, or +25% projectile speed; Area: +20%
+    area; Zones: last longer; Spells or Techniques: recharge faster, cost less... One is offered only
+    when something of yours has its tag. Leech (life on hit) heals in full from a direct hit (a
+    swing, an arrow, a bolt or a beam striking), a fifth from an area's, a zone's or a chain's.
+
+  Hover a card: a tooltip lists what buying it changes, before -> after (your numbers, each spell's
+  and technique's). Each item comes at a **rarity**: Common, Rare (x1.5 its numbers), Epic (x2.1),
+  Legendary (x3), shown by the card's colour, dearer the rarer; rarer ones come up more as the run
+  goes on (`run.json` `shop.rarities`). They add up through the run. **Prices** start at half and end
+  at one and a half times the written ones (`shop.priceScale`). **Interest**: the shards you keep
+  through a shop grow by the next one as much as the prices did, so what you could buy and did not,
+  you still can (shown under your shards).
 - **Bosses**: the **Brute Chieftain** on wave 10 (a brute twice the size: a slam, a stomp all around
   when crowded, a rush when you keep away) and the **Stone Warden** on wave 20 (a slam, a sweep all
   around, a long charge, a thrown rock; volt cracks it, fire barely warms it, under half its health it
   gets angry). A boss wave lasts until the boss falls, with fewer others around it.
-- **Its own arena**: a 40 x 40 pit with four pillars, a platform and a boulder on a rope over the
-  middle. It is built anew before each wave, whatever was broken, with everyone put back in place.
 - **The final duel**, in multiplayer: after the last wave, instead of the victory at once, everyone for
-  themselves. The arena is built anew, everyone is back up at full in a ring around its middle, facing
+  themselves. In the Crucible, everyone is back up at full in a ring around its middle, facing
   it; FINAL DUEL counts down 3 s (no one can hurt anyone yet), then FIGHT. Every hit, spell, arrow and
   zone of a player now lands on the other players too. One life each: the last one standing is the
   champion (CHAMPION on their screen, "<name> won the final duel" on the others'); after two minutes,
   the one with the most of their health left. The `duel` section of `run.json` (`enabled`, `duration`,
-  `countdown`, `radius`). Alone, the last wave is the victory as before.
+  `countdown`, `radius`, `arena`). Alone, the last wave is the victory as before.
 - **The score**: points per kill (twice for an elite), per wave survived, and a bonus for the victory.
   The best is kept (`~/.local/share/voxelarena/best.txt`). **Enter** at the end plays again, **T** goes
   training.
@@ -100,8 +149,10 @@ and enemies that come back), **B** for the spellbook, **O** for the options.
   Enter does.
 
 The run is data: `mods/base/run.json` (the waves' durations, spawn rates and pools, elites, bosses,
-XP, the start kit, the shop and what it unlocks, the score, its arena) and `mods/base/upgrades.json`
-(the stat items and their prices). Enemies take damage by element (`"weakness": { "volt": 1.5 }`),
+XP, the start kit and spells, the level ups' skills, the branch level and mastery, presents, the pause
+after a wave, the shop, its prices and rarities, the score, the arenas by wave), `mods/base/upgrades.json`
+(the stat and tag items and their prices), `mods/base/spells/` (each spell's levels and branches),
+`mods/base/abilities/` (each technique's tags, levels and branches) and `mods/base/arenas/`. Enemies take damage by element (`"weakness": { "volt": 1.5 }`),
 give `score` and drop `drops` shards. In a run every enemy's script gets `me.hunting = true`: it comes
 for the players from anywhere, whatever its engage range.
 
@@ -121,8 +172,7 @@ for the players from anywhere, whatever its engage range.
 | Q | Raise a wall of earth in front of you |
 | E | Dig a pit where the crosshair is |
 | G / middle mouse (hold) | Mine the block under the crosshair |
-| 1, 2, 3 | Your spells, at the crosshair (firebolt, ice shards, chain lightning to begin with) |
-| B | The spellbook: build your spells |
+| 1, 2, 3 | Your spells, at the crosshair (training: firebolt, ice shards, chain lightning; a run: what level ups gave) |
 | O | Options: mouse sensitivity, invert Y, field of view, volume, camera shake, hit flash, slash trails, view, debug overlay (kept in `~/.local/share/voxelarena/options.json`); the arrows pick and change a row |
 | R, 4 | The weapon's skills (dagger: shadow dash, hold to charge, and backflip; sword: whirlwind and leap slam) |
 | F1 | Debug overlay |
@@ -205,7 +255,8 @@ Z Q S D where a QWERTY shows W A S D: the same keys, by position).
   - *Mana* (the blue bar) pays for them, from the recipe: each keyword adds to the cost, a modifier
     can multiply its form's, and a form is paid once per copy of it (two bolts that each leave a
     zone pay for two zones). Casting never stops a roll.
-- **The spellbook** (B) builds them: pick a key (1, 2, 3), then click an element, forms and
+- **The spellbook** (console: `spellbook`; a tool for mods and the training ground, not part of a
+  run, where level ups give the spells) builds them: pick a key (1, 2, 3), then click an element, forms and
   modifiers, or press their keys (elements Z X C, forms A S D F, modifiers Q W E R T: the
   `spellElement1`... `spellModifier5` controls). What cannot follow is greyed out with the reason; the
   recipe shows as a row of blocks with a diagram of what it does, and its cost, cooldown and damage
@@ -453,18 +504,19 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 |---|---|---|
 | `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable`, `flammable`, `weakness` | `mymod:<key>` |
 | `statuses.json` | statuses: `duration`, `damagePerSecond`, `slow`, `maxStacks`, `atMax`, `stagger`, `heavy` | `mymod:<key>` |
-| `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a weapon skill (attack) | `mymod:<name>` |
+| `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a weapon skill (attack); a run's technique also has `tags`, `levels` (a boost each: `[{ "damage": 0.15 }]`) and `branches` (`name`, `text`, `element`, `status`, `tags`, `boost`) | `mymod:<name>` |
 | `elements.json` | the elements of spells: `name`, `status`, `mana` (fire, ice, volt) | `mymod:<key>` |
 | `keywords.json` | the keywords of spells: forms (`shape`: bolt, zone, nova, beam) and modifiers | `mymod:<key>` |
-| `spells/<name>.json` | a ready-made spell: `name`, `recipe` (`["fire", "bolt", "zone"]`) | `mymod:<name>` |
-| `upgrades.json` | the stat items of a run: what each adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`...), its `price`, how many one can have (`most`) | `mymod:<key>` |
-| `run.json` | the arena run: waves, spawn pools, elites, bosses, XP, the start kit, the shop and its unlocks, score, its arena (the last mod with one wins) | |
+| `spells/<name>.json` | a ready-made spell: `name`, `text`, `recipe` (`["fire", "bolt", "zone"]`), `levels` (what each level after the first adds: `[["enlarge"], ["extend"]]`), `branches` (`name`, `text`, `keywords` added to the recipe, `tags`, `boost`) | `mymod:<name>` |
+| `upgrades.json` | the items of a run's shop: what a stat item adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`...) or a tag item does to everything of the player with its `tag` (`"boost": { "damage", "area", "cooldown", "cost", "duration", "speed", "count" }`), its `price`, how many one can have (`most`) | `mymod:<key>` |
+| `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `branchLevel`, `mastery`, `presents`, `intermission`, the shop (`priceScale`, `interest`, `rarities`), score, the `arenas` by wave and the duel's (the last mod with one wins) | |
+| `arenas/<name>.json` | an arena for the run: `name`, `size`, `shapes`, `playerSpawn`, `centre`, `spawnRadius` | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
 | `enemies/<name>.json` | an enemy: stats, moveset, script, params | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
 | `scripts/<name>.pg` | an enemy brain | `mymod:<name>` |
 | `tuning.json` | numbers merged over the tuning of earlier mods | |
-| `arena.json` | the arena (the last mod with one wins) | |
+| `arena.json` | the training arena (the last mod with one wins) | |
 | `patches/*.json` | changes to content of other mods | |
 
 IDs are always `namespace:name`. Inside a mod, a name without a namespace means the mod's own
@@ -572,7 +624,8 @@ Open with `` ` ``. `help` lists the commands.
 | `players` | Who is in the game, and the round trip to the server |
 | `spell <1-3> <recipe>` | Put a spell on a key: `spell 1 fire bolt multiply zone extend`, or a ready-made id: `spell 2 frost_nova` |
 | `spells`, `spellbook` | The spells on the keys, the ready-made ones and the keywords; open the spellbook |
-| `arena`, `training`, `wave <n>` | Start the arena run, go back to training, jump to a wave of the run |
+| `arena`, `training`, `wave <n>` | Start the arena run, go back to training, jump to a wave of the run (and its arena) |
+| `map [arena]` | Outside a run: the training ground becomes that arena (`map gorge`, `map training`); alone, the list |
 | `timeup`, `kill`, `shards <n>` | End the wave now (a boss wave: its boss falls), kill every enemy (they drop their shards), get shards (and their XP) |
 | `pacer [n\|off [fps]]` | The engine's update pacing: n updates per drawn frame (2 by default), or off (as fast as it can, or capped at fps) |
 

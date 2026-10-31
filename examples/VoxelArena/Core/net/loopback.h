@@ -31,6 +31,9 @@ namespace arena::net
         Transport& addClient();
         void disconnect(Transport& client);
 
+        /** The server closed this client's connection: both sides hear of it after one trip. */
+        void kick(int peer);
+
         void advance(double ms) { now += ms; }
         double time() const { return now; }
 
@@ -49,6 +52,7 @@ namespace arena::net
             void send(int peer, const std::vector<uint8_t>& data, bool reliable) override;
             bool poll(NetEvent& out) override;
             float rttMs(int) const override { return static_cast<float>(hub->link.latencyMs * 2.0); }
+            void disconnect(int peer) override;
 
             LoopbackHub* hub;
             int self;                  // 0 = server, else the client's peer id

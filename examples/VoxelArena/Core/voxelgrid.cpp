@@ -60,6 +60,21 @@ namespace arena
     {
         RayHit result;
 
+        // Far beyond any arena. A ray from further (an aim sent over the network) finds nothing: past
+        // 2^24 a float no longer moves by one cell, and the walk below would never end
+        constexpr float FARTHEST = 4096.0f;
+
+        const bool finite = std::isfinite(origin.x) and std::isfinite(origin.y) and std::isfinite(origin.z) and
+                            std::isfinite(dir.x) and std::isfinite(dir.y) and std::isfinite(dir.z) and std::isfinite(maxDist);
+
+        if (not finite or std::fabs(origin.x) > FARTHEST or std::fabs(origin.y) > FARTHEST or std::fabs(origin.z) > FARTHEST)
+            return result;
+
+        maxDist = std::min(maxDist, FARTHEST);
+
+        // A cell boundary is crossed at most every 1/sqrt(3) along a unit ray: more steps than this is a bug
+        const int maxSteps = static_cast<int>(maxDist * 2.0f * std::max(1.0f, glm::length(dir))) + 8;
+
         glm::ivec3 cell = glm::ivec3(glm::floor(origin));
         const glm::ivec3 step(dir.x > 0 ? 1 : -1, dir.y > 0 ? 1 : -1, dir.z > 0 ? 1 : -1);
 
@@ -92,7 +107,7 @@ namespace arena
 
         float t = 0.0f;
 
-        while (t <= maxDist)
+        for (int n = 0; t <= maxDist and n < maxSteps; ++n)
         {
             int axis = 0;
             if (tMax.y < tMax[axis]) axis = 1;

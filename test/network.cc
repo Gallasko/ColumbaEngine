@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstring>
 #include <random>
 #include <thread>
 #include <unistd.h>
@@ -340,6 +341,234 @@ namespace pg
 
             lossy->dropUdp = false;
             EXPECT_TRUE(arrivesBy(false, 8000)) << "UDP never tried again";
+        }
+
+        // ---- Hostile peers --------------------------------------------------------------------------
+
+        namespace
+        {
+            /** A datagram from anywhere, built by hand. */
+            void sendRawUdp(const std::string& host, uint16_t port, const NetPayload& data)
+            {
+                UDPsocket sock = SDLNet_UDP_Open(0);
+                ASSERT_TRUE(sock);
+                UDPpacket* pkt = SDLNet_AllocPacket(MAX_PAYLOAD);
+                SDLNet_ResolveHost(&pkt->address, host.c_str(), port);
+                pkt->len = static_cast<int>(data.size());
+                std::memcpy(pkt->data, data.data(), data.size());
+                SDLNet_UDP_Send(sock, -1, pkt);
+                SDLNet_FreePacket(pkt);
+                SDLNet_UDP_Close(sock);
+            }
+
+            double msSince(std::chrono::steady_clock::time_point t)
+            {
+                return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t).count();
+            }
+
+            NetPayload rawHeader(MockBackend& backend, uint32_t id, uint32_t token, NetMsgType type, uint16_t total, uint16_t index, uint16_t len)
+            {
+                NetPayload p(HEADER_SIZE + len);
+                writeHeader(p.data(), &backend, PacketHeader{id, token, 1, 0, type, total, index, len});
+                return p;
+            }
+        }
+
+        TEST(network_fragments, a_sender_gets_only_so_much_room)
+        {
+            MockBackend backend;
+            NetPacketBuffer buffer;
+            NetPacketTimers timers;
+            ParsedPacket out;
+
+            // First fragments of messages that never finish: the oldest give way
+            for (uint32_t k = 0; k < 500; ++k)
+            {
+                auto frags = fragmentPayload(1, 2, NetMsgType::Custom, k, &backend, bytes(9000, 1));
+                EXPECT_FALSE(parseAndReassemble(frags[0], buffer, timers, &backend, out));
+            }
+
+            EXPECT_LE(buffer.size(), MAX_PENDING_MESSAGES);
+
+            // ... and the biggest messages: one at a time
+            for (uint32_t k = 0; k < 4; ++k)
+                EXPECT_FALSE(parseAndReassemble(rawHeader(backend, 1, 2, NetMsgType::Custom, 4000, 0, 10), buffer, timers, &backend, out));
+
+            size_t reserved = 0;
+            for (const auto& [key, slots] : buffer)
+                if (std::get<0>(key) == 1)
+                    reserved += slots.size() * (MAX_PAYLOAD - HEADER_SIZE);
+            EXPECT_LE(reserved, MAX_PENDING_BYTES);
+
+            // Another sender still gets its messages through
+            const auto other = fragmentPayload(7, 8, NetMsgType::Custom, 1, &backend, bytes(9000, 3));
+            bool whole = false;
+            for (const auto& f : other)
+                whole = parseAndReassemble(f, buffer, timers, &backend, out);
+            EXPECT_TRUE(whole);
+            EXPECT_EQ(out.payload, bytes(9000, 3));
+
+            // A fragment bigger than any sender cuts: it would let a message grow past MAX_MESSAGE
+            EXPECT_FALSE(parseAndReassemble(rawHeader(backend, 1, 2, NetMsgType::Custom, 2, 0, 60000), buffer, timers, &backend, out));
+        }
+
+        TEST(network_sockets, forged_datagrams_neither_cut_a_client_off_nor_take_room)
+        {
+            const uint16_t tcp = static_cast<uint16_t>(basePort() + 60), udp = static_cast<uint16_t>(tcp + 1);
+
+            NetworkSystem server(new SdlNetworkBackend(serverConfig(tcp, udp)), serverConfig(tcp, udp));
+            NetworkSystem client(new SdlNetworkBackend(clientConfig(tcp, udp)), clientConfig(tcp, udp));
+            server.init();
+            client.init();
+
+            uint32_t id = 0;
+            NetIncoming in;
+
+            ASSERT_TRUE(runUntil(server, client, [&] {
+                while (server.poll(in))
+                    if (in.kind == NetIncoming::Kind::Connected)
+                        id = in.clientId;
+                return id != 0 and server.getClientState(id).udpLinked;
+            }));
+
+            MockBackend backend;
+            const ClientInfo ci = server.getClientState(id);
+
+            // To the client: a goodbye over UDP, even with the right id and token (an attacker on the path
+            // has them), and a ping: the server says those over TCP only
+            sendRawUdp(ci.udpAddr.host, ci.udpAddr.port, rawHeader(backend, id, ci.token, NetMsgType::Disconnect, 1, 0, 0));
+            sendRawUdp(ci.udpAddr.host, ci.udpAddr.port, rawHeader(backend, id + 1, 12345, NetMsgType::Disconnect, 1, 0, 0));
+
+            // To the server: the first fragment of a huge message, from nobody
+            sendRawUdp("127.0.0.1", udp, rawHeader(backend, 999, 1, NetMsgType::Custom, 4000, 0, 10));
+            sendRawUdp("127.0.0.1", udp, rawHeader(backend, id, ci.token ^ 0x55u, NetMsgType::Custom, 4000, 0, 10));
+
+            runUntil(server, client, [] { return false; }, 300);
+
+            EXPECT_EQ(client.getCurrentConnectingState(), ClientState::Connected);
+            EXPECT_TRUE(server.clientExists(id));
+            EXPECT_TRUE(server.getReassemblyBuffer().empty());
+        }
+
+        TEST(network_sockets, a_peer_that_stops_reading_is_cut_off_without_stalling_the_server)
+        {
+            const uint16_t tcp = static_cast<uint16_t>(basePort() + 70), udp = static_cast<uint16_t>(tcp + 1);
+
+            NetworkSystem server(new SdlNetworkBackend(serverConfig(tcp, udp)), serverConfig(tcp, udp));
+            server.init();
+
+            // A client that connects and never reads a byte
+            IPaddress addr{};
+            SDLNet_ResolveHost(&addr, "127.0.0.1", tcp);
+            TCPsocket mute = SDLNet_TCP_Open(&addr);
+            ASSERT_TRUE(mute);
+
+            uint32_t id = 0;
+            NetIncoming in;
+
+            for (int i = 0; i < 500 and id == 0; ++i)
+            {
+                server.execute();
+                while (server.poll(in))
+                    if (in.kind == NetIncoming::Kind::Connected)
+                        id = in.clientId;
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
+            ASSERT_NE(id, 0u);
+
+            // More than it may let pile up, a frame at a time: no frame waits on it
+            bool gone = false;
+            const auto start = std::chrono::steady_clock::now();
+
+            for (int i = 0; i < 400 and not gone; ++i)
+            {
+                if (i < 60)
+                    server.send(id, bytes(1024 * 1024, static_cast<uint8_t>(i)), true);
+
+                const auto frame = std::chrono::steady_clock::now();
+                server.execute();
+                EXPECT_LT(msSince(frame), 500.0);
+
+                while (server.poll(in))
+                    gone = gone or (in.kind == NetIncoming::Kind::Disconnected and in.clientId == id);
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
+
+            EXPECT_TRUE(gone);
+            // Cut off for not reading, before the silence timeout would have
+            EXPECT_LT(msSince(start), 5000.0);
+            SDLNet_TCP_Close(mute);
+        }
+
+        TEST(network_sockets, one_address_gets_only_so_many_connections)
+        {
+            const uint16_t tcp = static_cast<uint16_t>(basePort() + 80), udp = static_cast<uint16_t>(tcp + 1);
+            NetworkConfig cfg = serverConfig(tcp, udp);
+            cfg.maxConnectionsPerIp = 2;
+
+            NetworkSystem server(new SdlNetworkBackend(cfg), cfg);
+            server.init();
+
+            IPaddress addr{};
+            SDLNet_ResolveHost(&addr, "127.0.0.1", tcp);
+            std::vector<TCPsocket> socks;
+            for (int i = 0; i < 4; ++i)
+                socks.push_back(SDLNet_TCP_Open(&addr));
+
+            int connected = 0;
+            NetIncoming in;
+
+            for (int i = 0; i < 100; ++i)
+            {
+                server.execute();
+                while (server.poll(in))
+                    connected += in.kind == NetIncoming::Kind::Connected;
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
+
+            EXPECT_EQ(connected, 2);
+            EXPECT_EQ(server.getClientIds().size(), 2u);
+
+            for (TCPsocket s : socks)
+                if (s)
+                    SDLNet_TCP_Close(s);
+        }
+
+        TEST(network_sockets, a_kicked_client_is_told_and_gone)
+        {
+            const uint16_t tcp = static_cast<uint16_t>(basePort() + 90), udp = static_cast<uint16_t>(tcp + 1);
+            NetworkConfig ccfg = clientConfig(tcp, udp);
+            ccfg.autoReconnect = false;
+
+            NetworkSystem server(new SdlNetworkBackend(serverConfig(tcp, udp)), serverConfig(tcp, udp));
+            NetworkSystem client(new SdlNetworkBackend(ccfg), ccfg);
+            server.init();
+            client.init();
+
+            uint32_t id = 0;
+            NetIncoming in;
+
+            ASSERT_TRUE(runUntil(server, client, [&] {
+                while (server.poll(in))
+                    if (in.kind == NetIncoming::Kind::Connected)
+                        id = in.clientId;
+                return id != 0 and client.getCurrentConnectingState() == ClientState::Connected;
+            }));
+
+            // What was sent before the kick still arrives
+            server.send(id, bytes(500, 1), true);
+            server.kick(id);
+
+            bool got = false;
+            ASSERT_TRUE(runUntil(server, client, [&] {
+                while (client.poll(in))
+                    got = got or (in.kind == NetIncoming::Kind::Message and in.data == bytes(500, 1));
+                return client.getCurrentConnectingState() == ClientState::Disconnected;
+            }));
+
+            EXPECT_TRUE(got);
+            EXPECT_FALSE(server.clientExists(id));
         }
 
         TEST(network_sockets, a_client_with_nobody_to_talk_to_does_not_block)

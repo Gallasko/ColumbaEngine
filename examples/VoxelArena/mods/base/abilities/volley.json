@@ -14,5 +14,11 @@
                         "damage": 6, "poiseDamage": 6, "knockback": 3, "terrainDamage": 8,
                         "hitstop": 2, "shake": 0.2, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
         "swing": { "yaw": 0, "pitchFrom": 5, "pitchTo": -10 }
-    }
+    },
+    "tags": [],
+    "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
+    "branches": [
+        { "name": "Barrage", "text": "Three more arrows.", "boost": { "count": 3 } },
+        { "name": "Fire arrows", "text": "The arrows burn.", "element": "fire", "status": "burn", "tags": ["fire"] }
+    ]
 }

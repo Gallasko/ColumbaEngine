@@ -40,6 +40,14 @@ namespace arena::net
             if (part.empty() or part.front() == '.' or part.back() == '.' or reservedName(part))
                 return false;
 
+            // Compiled script (".pgc") anywhere in a name: the script compiler loads such a file as
+            // bytecode, unchecked, whatever comes after it ("x.pgc.json")
+            std::string lower = part;
+            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+            if (lower.find(".pgc") != std::string::npos)
+                return false;
+
             return std::all_of(part.begin(), part.end(), [](unsigned char c) { return std::isalnum(c) or c == '.' or c == '_' or c == '-'; });
         }
     }

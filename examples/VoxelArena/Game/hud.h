@@ -94,6 +94,7 @@ namespace arena
             float timer = 0.0f;
             bool bossWave = false;
             bool duel = false;      // the final duel: its time instead of the wave's
+            std::string arenaName;  // the arena it is fought in
             int shards = 0, level = 1, xp = 0, xpNext = 1, levelUps = 0, score = 0;
             std::vector<Mate> team;   // co-op: the others
 
@@ -107,6 +108,7 @@ namespace arena
             // Moments
             float hurt = 0.0f;              // the red wash, 0..1 (already times the option)
             std::string headline;           // a wave's or a boss's name as it starts
+            std::string subline;            // under it: the arena's name, as a run moves into it
             int countdown = 0;              // 3, 2, 1 at a wave's end (0: none)
             std::string message;            // "Paused", "You fell", "Connecting..."
             bool messageDim = false;        // over an ink wash (Paused)

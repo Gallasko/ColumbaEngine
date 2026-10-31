@@ -24,6 +24,7 @@ namespace arena::net
         void send(int peer, const std::vector<uint8_t>& data, bool reliable) override;
         bool poll(NetEvent& out) override;
         float rttMs(int peer) const override;
+        void disconnect(int peer) override;
 
         pg::NetworkSystem* system;
     };

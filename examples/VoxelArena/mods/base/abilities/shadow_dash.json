@@ -5,7 +5,7 @@
     "name": "Shadow dash",
     "kind": "attack",
     "weapons": ["dagger"],
-    "staminaCost": 15,
+    "staminaCost": 11,
     "cooldown": 3,
     "attack": {
         "startup": 6, "active": 8, "recovery": 14,
@@ -17,5 +17,11 @@
         "charge": { "at": 3, "frames": 45, "lunge": 1.8, "damage": 2.5 },
         "dodgeCancelFrom": 18,
         "swing": { "yaw": 0, "pitch": -5, "reach": 0.6 }
-    }
+    },
+    "tags": ["melee", "dash"],
+    "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
+    "branches": [
+        { "name": "Shock step", "text": "The dash crackles: its hits shock.", "element": "volt", "status": "shock", "tags": ["volt"] },
+        { "name": "Phantom", "text": "Back much sooner.", "boost": { "cooldown": 0.4 } }
+    ]
 }

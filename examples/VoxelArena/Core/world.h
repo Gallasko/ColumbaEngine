@@ -59,10 +59,11 @@ namespace arena
         /**
          * The arena run's shop and menus: BUY + i buys offer i, LOCK + i keeps it for the next shop,
          * REROLL rolls the shop again, LEVEL + i takes level-up pick i, START is ready (or plays again),
-         * WEAPON + i takes weapon i (Content::weaponOrder) before the first wave.
+         * WEAPON + i takes weapon i (Content::weaponOrder) before the first wave, FIRST_SPELL + i the
+         * first spell i of run.json's chooseSpell (after the weapon), PRESENT + i takes a present's pick i.
          */
         int pick = 0;
-        static constexpr int START = 9, BUY = 1, LOCK = 11, REROLL = 20, LEVEL = 31, WEAPON = 41;
+        static constexpr int START = 9, BUY = 1, LOCK = 11, REROLL = 20, LEVEL = 31, WEAPON = 41, PRESENT = 61, FIRST_SPELL = 71;
 
         static constexpr int ABILITIES = 8;
         bool abilityPressed[ABILITIES] = {};
@@ -113,12 +114,34 @@ namespace arena
         /** The spells on the spell keys (abilities "spell:1".."spell:3"): recipes the player made or picked. */
         std::vector<SpellRecipe> spells;
 
-        // The arena run: the stat items taken (ids, in order) and what they add up to
-        std::vector<std::string> boons;
+        // The arena run: the items taken (in order, each with its rarity, a spell item with its spell)
+        // and what the stat ones add up to
+        struct Boon
+        {
+            std::string id;
+            int rarity = 0;           // into the run's rarities
+
+            Boon() = default;
+            Boon(std::string id, int rarity = 0) : id(std::move(id)), rarity(rarity) {}
+            bool operator==(const std::string& other) const { return id == other; }
+            bool operator==(const Boon& o) const { return id == o.id and rarity == o.rarity; }
+        };
+        std::vector<Boon> boons;
+
+        // ... and the spells it was given (level ups), on the spell keys in order
+        struct RunSpell
+        {
+            std::string id;           // spells/*.json (a technique: abilities/*.json)
+            int level = 1;
+            int branch = -1;          // the branch taken at the branch level (-1: none yet)
+        };
+        std::vector<RunSpell> runSpells;
+        // ... and its weapon's techniques it was given, with their levels (owned too)
+        std::vector<RunSpell> runSkills;
         struct Boons
         {
             float maxHealth = 0.0f, damage = 0.0f, manaCost = 0.0f, manaRegen = 0.0f, staminaRegen = 0.0f;
-            float speed = 0.0f, cooldown = 0.0f, lifeOnHit = 0.0f, armor = 0.0f, crit = 0.0f, pickupRange = 0.0f, regen = 0.0f;
+            float speed = 0.0f, cooldown = 0.0f, lifeOnHit = 0.0f, armor = 0.0f, crit = 0.0f, pickupRange = 0.0f, regen = 0.0f, attackSpeed = 0.0f;
             int dashCharges = 0, statusStacks = 0;
         } boon;
 
@@ -131,9 +154,15 @@ namespace arena
             std::string id;           // a stat item (upgrades.json) or an unlock
             int price = 0;
             bool locked = false, bought = false;
+            int rarity = 0;           // an item's
         };
         std::vector<ShopOffer> shop;
-        std::vector<std::string> levelOffer;
+        int presents = 0;             // presents picked up, not opened yet: each a free item of presentOffer
+        std::vector<ShopOffer> presentOffer;
+        int banked = 0;               // shards kept through the last shop (they earn the interest)
+        bool armed = false;           // a run's weapon was chosen (the first spell comes next)
+        int interest = 0;             // shards the last interest gave
+        std::vector<std::string> levelOffer;   // a level up's picks: a spell (new, or its next level) or a weapon skill
         bool ready = false;
         int rerolls = 0;
 
@@ -280,6 +309,14 @@ namespace arena
      * Where the arena run is (see ArenaWorld::startRun). Armory: before the first wave, each player
      * picks a weapon. Duel: after the last wave, in multiplayer, everyone for themselves.
      */
+    /** Life on hit from an area's, a zone's or a chain's hit: this share of it. */
+    constexpr float AREA_LEECH = 0.2f;
+
+    /** A boost onto an attack: damage (and heals), area (hitboxes, heal radii), duration (heal zones), projectile speed and count. */
+    void applyBoost(AttackDef& attack, const SpellTweak& boost);
+    /** An attack quicker by `speed` (0.1: 10%): its frames fewer, its lunges faster (as far in less time). */
+    void hasten(AttackDef& attack, float speed);
+
     enum class RunPhase { Off, Fighting, Shop, Victory, Defeat, Duel, Armory };
 
     struct RunState
@@ -298,6 +335,7 @@ namespace arena
         float warmup = 0.0f;          // s before the duel's fighters may hurt each other
         uint32_t seed = 1;
         float spawnDue = 0.0f;        // enemies owed to the spawn rate
+        int presentsDropped = 0;      // this wave's
 
         struct Spawn
         {
@@ -318,6 +356,7 @@ namespace arena
         int value = 1;
         int target = 0;               // the player it flies to (0: lying there)
         float age = 0.0f;
+        bool present = false;         // an elite's present, not shards
     };
 
     struct HitEvent
@@ -424,6 +463,11 @@ namespace arena
         /** Rebuilds the grid from the arena definition. */
         void buildArena();
 
+        /** Outside a run: the training ground becomes this arena ("": arena.json), built anew with everyone at its spawn. */
+        void showArena(const std::string& id);
+        /** Where to stand at a point: its x and z on the nearest floor with room above (from a little over it, down). */
+        glm::vec3 groundNear(glm::vec3 point) const;
+
         Fighter* player();
         const Fighter* player() const;
         Fighter* find(int id);
@@ -482,12 +526,16 @@ namespace arena
         void chargeOn(Fighter& f, int button);
         /** A player's weapon for the run (the armory, before the first wave). */
         void chooseWeapon(Fighter& f, const std::string& id);
+        /** The first spell, among run.json's chooseSpell: on key 1. */
+        void chooseFirstSpell(Fighter& f, const std::string& id);
         /** A player's START begins a run even outside one (a dedicated server: there is no title there). */
         bool runOnRequest = false;
 
-        /** The arena being played: the run's own during a run (run.json "arena"), else arena.json. */
-        const ArenaDef& arena() const { return useRunArena and content->run.hasArena ? content->run.arena : content->arena; }
-        bool useRunArena = false;
+        /** The arena built (the grid is made from it): the wave's during a run, the training one's else. */
+        const ArenaDef& arena() const { return content->arenaById(arenaId); }
+        std::string arenaId;          // its id ("": the training arena, arena.json)
+        bool useRunArena = false;     // in a run: buildArena() builds the wave's arena (the duel's in the duel)
+        std::string trainingArena;    // outside a run: built instead of arena.json ("": arena.json)
         /** Goes up each time the arena is built anew: a server sends it whole, the game meshes it again. */
         int arenaBuilds = 0;
         /** Each player's place in the arena (a row across its spawn point). */
@@ -499,12 +547,56 @@ namespace arena
         int xpFor(int level) const;
         /** Shards to a player: money and XP (its level ups with them). */
         void collect(Fighter& f, int value);
+        /** The shop's offers rolled anew (the locked ones kept), and a level up's picks. */
+        void rollShop(Fighter& f);
+        void rollLevel(Fighter& f);
+        void rollPresent(Fighter& f);
         /** What the shop's reroll costs this player now. */
         int rerollPrice(const Fighter& f) const;
         /** What a fighter's boons add up to (from its list: a client works it out the same way). */
         void sumBoons(Fighter& f) const;
-        int maxDashes(const Fighter& f) const { return tuning.dash.charges + f.boon.dashCharges; }
+        /** What a rarity multiplies an item's numbers by (the run's rarities; 1 without). */
+        float rarityPower(int rarity) const;
 
+        /**
+         * The spell on a spell key: in a run, the one given to the player (its recipe grown by its
+         * levels, its spell items on it); outside one, the player's own recipe.
+         */
+        SpellRecipe spellRecipe(const Fighter& f, int slot) const;
+        /** A run's spell at a level: its recipe and the keywords of each level up to it. */
+        SpellRecipe spellAtLevel(const std::string& spellId, int level) const;
+
+        // ---- Growing in a run: levels, branches, tags ----
+        /**
+         * A spell or technique given in a run, as it is now: its recipe grown by its written levels,
+         * its branch's keywords, a mastery boost for each level past those (and past the branch), the
+         * branch's boost, and (with a player) the boosts of the player's tag items that reach it.
+         */
+        SpellRecipe spellAt(const Fighter::RunSpell& spell, const Fighter* f = nullptr) const;
+        /** All a technique gets in a run (levels, mastery, branch, the player's tag items); empty outside one. */
+        SpellTweak techniqueBoost(const Fighter& f, const std::string& abilityId) const;
+        /** A technique's attack with a boost (and a branch's element and status) on it. */
+        AttackDef boostedAttack(const AbilityDef& a, const SpellTweak& boost, const BranchDef* branch) const;
+        /** What tag items reach: a spell's ("spell", its element, "projectile", "area", "zone", "beam"), a technique's ("technique" and its own). */
+        std::vector<std::string> spellTags(const SpellRecipe& recipe) const;
+        std::vector<std::string> techniqueTags(const AbilityDef& a, int branch) const;
+        /** A weapon's attack's (a run's player's light and heavy): "attack", the weapon's role ("melee") and type, "projectile" when it shoots. */
+        std::vector<std::string> attackTags(const Fighter& f, const AttackDef& attack) const;
+        /** The boosts of a player's tag items reaching something with these tags. */
+        SpellTweak tagBoost(const Fighter& f, const std::vector<std::string>& tags) const;
+        /** The level a spell or technique with this many written levels (and branches) takes its branch at. */
+        int branchAt(int writtenLevels) const;
+        /** A level up's pick, split: "base:firebolt#1" is branch 1 of the firebolt (-1: none). */
+        static std::string offerTarget(const std::string& offer, int& branch);
+        const Fighter::RunSpell* runSkill(const Fighter& f, const std::string& abilityId) const;
+        /** Shop prices at a wave, times this (run.json shop.priceScale). */
+        float priceScale(int wave) const;
+        int maxDashes(const Fighter& f) const { return tuning.dash.charges + f.boon.dashCharges; }
+        /** Health a second a fighter gets back: its regen items and its weapon's mending. */
+        float healthRegen(const Fighter& f) const;
+
+        /** A hit landing: damage (boons, weakness, crits, armor), life on hit, poise, knockback, a status, a death. */
+        void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
         /** Puts a status on a fighter (stacks add up to its maxStacks): what a hit with one does. */
         void applyStatus(Fighter& target, const std::string& id, int stacks = 1);
         const Moveset* movesetOf(const Fighter& f) const;
@@ -546,6 +638,12 @@ namespace arena
         const Content* content = nullptr;
         Tuning tuning;
 
+        /**
+         * An input as the world may trust it: a remote player's comes from the network. The aim's ray
+         * starts within the camera's reach of the player, and its direction is a unit vector (or none).
+         */
+        InputFrame sanitized(const Fighter& f, const InputFrame& in) const;
+
     private:
         void stepPlayer(Fighter& f, const InputFrame& in);
         void stepEnemy(Fighter& f);
@@ -556,7 +654,6 @@ namespace arena
         void startAirDash(Fighter& f, const glm::vec3& dir);
         void spendDash(Fighter& f);
         void resolveHits();
-        void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
         void separate();
         void hitOrDefer(Fighter& attacker, Fighter& target, const AttackDef& attack, const glm::vec3& point);
         void resolvePendingHits();
@@ -586,10 +683,11 @@ namespace arena
         void stepRun(const std::map<int, InputFrame>& inputs);
         void beginWave(int wave);
         void endWave();
-        void rollShop(Fighter& f);
-        void rollLevel(Fighter& f);
         void shopPick(Fighter& f, int pick);
-        void takeBoon(Fighter& f, const std::string& id);
+        void takeBoon(Fighter& f, const Fighter::Boon& boon);
+        void takeLevel(Fighter& f, const std::string& id);
+        /** Items for sale (stat and tag items, rarity rolled), not already in `kept`, at most n. */
+        std::vector<Fighter::ShopOffer> rollItems(const Fighter& f, int n, const std::vector<Fighter::ShopOffer>& kept, bool unlocks);
         void stepPickups();
         void spawnShards(const Fighter& from, int value);
         glm::vec3 edgePoint(float awayFromPlayers);
@@ -597,6 +695,8 @@ namespace arena
         uint32_t runRandom();
         int nextPickup = 1;
         mutable std::map<std::string, std::shared_ptr<const Spell>> spellCache;
+        // A run's techniques, boosted, by fighter and ability (the key: what the boost was)
+        mutable std::map<std::string, std::pair<std::string, std::shared_ptr<AttackDef>>> techniqueCache;
         int nextZone = 1;
         void impact(const Projectile& p, const glm::vec3& point, Fighter* struck, const RayHit* wall);
         void elementOnTerrain(Element element, const glm::vec3& point, float radius);

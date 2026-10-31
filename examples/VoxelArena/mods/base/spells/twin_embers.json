@@ -1,2 +1,13 @@
-// Ready-made: two bolts, each leaving a long-lasting burning zone.
-{ "name": "Twin embers", "recipe": ["fire", "bolt", "multiply", "zone", "extend"] }
+// Two bolts, each leaving a long-lasting burning zone. Levels: wider zones, harder, longer.
+// In a run, level ups give spells and their next levels: each entry of "levels" is what that level
+// adds to the recipe (keywords, as in keywords.json).
+{
+    "name": "Twin embers",
+    "text": "Two bolts, each leaving a long-lasting burning patch.",
+    "recipe": ["fire", "bolt", "multiply", "zone", "extend"],
+    "levels": [["enlarge"], ["empower"], ["extend"]],
+    "branches": [
+        { "name": "Wildfire", "text": "The burning patches burst as they end.", "keywords": ["nova"] },
+        { "name": "Embers", "text": "One more bolt each cast.", "boost": { "count": 1 } }
+    ]
+}

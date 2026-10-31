@@ -1,2 +1,13 @@
-// Ready-made: a bolt that leaves a burning zone where it lands.
-{ "name": "Firebolt", "recipe": ["fire", "bolt", "zone"] }
+// A bolt that leaves a burning zone where it lands: the run starts with it. Levels: a wider zone, a longer one, harder.
+// In a run, level ups give spells and their next levels: each entry of "levels" is what that level
+// adds to the recipe (keywords, as in keywords.json).
+{
+    "name": "Firebolt",
+    "text": "A bolt that leaves a burning patch where it lands.",
+    "recipe": ["fire", "bolt", "zone"],
+    "levels": [["enlarge"], ["extend"], ["empower"]],
+    "branches": [
+        { "name": "Inferno", "text": "Its burning patch bursts into flame as it ends.", "keywords": ["nova"] },
+        { "name": "Twin bolts", "text": "One more bolt each cast.", "boost": { "count": 1 } }
+    ]
+}

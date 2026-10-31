@@ -231,9 +231,10 @@ namespace pg
     {
         if (_tcpSock)
         {
+            flushSocket(_tcpSock);   // a goodbye just queued: out if it can go at once
             SDLNet_TCP_DelSocket(sockSet, _tcpSock);
             SDLNet_TCP_Close(_tcpSock);
-            rxBuffers.erase(_tcpSock);
+            forget(_tcpSock);
             _tcpSock = nullptr;
         }
 
@@ -254,31 +255,104 @@ namespace pg
         if (not sock)
             return;
 
-        if (rxBuffers.erase(sock))
+        flushSocket(sock);   // what was queued last (a refusal, a goodbye): out if it can go at once
+
+        if (rxBuffers.count(sock))
         {
             SDLNet_TCP_DelSocket(sockSet, sock);
             --socketsInSet;
         }
 
+        forget(sock);
         SDLNet_TCP_Close(sock);
+    }
+
+    void SdlNetworkBackend::forget(TCPsocket sock)
+    {
+        rxBuffers.erase(sock);
+        txQueues.erase(sock);
+    }
+
+    std::string SdlNetworkBackend::tcpPeerHost(SocketHandle handle)
+    {
+        auto sock = static_cast<TCPsocket>(handle);
+        IPaddress* addr = sock ? SDLNet_TCP_GetPeerAddress(sock) : nullptr;
+        return addr ? numericHost(*addr) : "";
     }
 
     // ---- Sending ---------------------------------------------------------------------------------
 
     bool SdlNetworkBackend::sendTcp(SocketHandle handle, const NetPayload& data)
     {
-        if (not handle or data.size() > MAX_FRAME)
+        auto sock = static_cast<TCPsocket>(handle);
+
+        if (not sock or data.size() > MAX_FRAME or not rxBuffers.count(sock))
             return false;
 
-        // Length then bytes, in one write
-        NetPayload frame(4 + data.size());
-        SDLNet_Write32(static_cast<Uint32>(data.size()), frame.data());
+        SendQueue& q = txQueues[sock];
 
-        if (not data.empty())
-            std::memcpy(frame.data() + 4, data.data(), data.size());
+        if (q.broken)
+            return false;
 
-        const int sent = SDLNet_TCP_Send(static_cast<TCPsocket>(handle), frame.data(), static_cast<int>(frame.size()));
-        return sent == static_cast<int>(frame.size());
+        // A peer that does not read: cut off, instead of keeping all it is sent
+        if (q.data.size() - q.sent + 4 + data.size() > MAX_SEND_QUEUE)
+        {
+            LOG_ERROR(DOM, "A peer stopped reading (" << (q.data.size() - q.sent) << " bytes waiting): connection closed");
+            q.broken = true;
+            return false;
+        }
+
+        // Length then bytes, after what is already waiting
+        uint8_t length[4];
+        SDLNet_Write32(static_cast<Uint32>(data.size()), length);
+        q.data.insert(q.data.end(), length, length + 4);
+        q.data.insert(q.data.end(), data.begin(), data.end());
+
+        return flushSocket(sock);
+    }
+
+    bool SdlNetworkBackend::flushSocket(TCPsocket sock)
+    {
+        auto it = txQueues.find(sock);
+
+        if (it == txQueues.end())
+            return true;
+
+        SendQueue& q = it->second;
+
+        while (not q.broken and q.sent < q.data.size())
+        {
+            const size_t left = q.data.size() - q.sent;
+            const int n = SDLNet_TCP_SendNonBlocking(sock, q.data.data() + q.sent, static_cast<int>(std::min<size_t>(left, 1 << 20)));
+
+            if (n < 0)
+                q.broken = true;
+            else if (n == 0)
+                break;   // the system's buffer is full: the rest goes on a later flush
+            else
+                q.sent += static_cast<size_t>(n);
+        }
+
+        // Drop what went, now and then rather than after every send (it moves what is left)
+        if (q.sent == q.data.size())
+        {
+            q.data.clear();
+            q.sent = 0;
+        }
+        else if (q.sent > 1024 * 1024 and q.sent * 2 > q.data.size())
+        {
+            q.data.erase(q.data.begin(), q.data.begin() + static_cast<std::ptrdiff_t>(q.sent));
+            q.sent = 0;
+        }
+
+        return not q.broken;
+    }
+
+    void SdlNetworkBackend::flush()
+    {
+        for (auto& [sock, q] : txQueues)
+            if (q.sent < q.data.size())
+                flushSocket(sock);
     }
 
     bool SdlNetworkBackend::sendTcp(const NetPayload& data)
@@ -297,6 +371,10 @@ namespace pg
 
         if (it == resolved.end())
         {
+            // Every address a peer could make us answer: kept to a few
+            if (resolved.size() >= MAX_RESOLVED)
+                resolved.clear();
+
             IPaddress addr{};
 
             if (SDLNet_ResolveHost(&addr, dest.host.c_str(), dest.port) < 0)
@@ -316,6 +394,13 @@ namespace pg
 
     bool SdlNetworkBackend::readFrame(TCPsocket sock, NetPayload& out, bool& closed)
     {
+        // Sending to it broke (or it read nothing for too long): it is gone
+        if (auto tx = txQueues.find(sock); tx != txQueues.end() and tx->second.broken)
+        {
+            closed = true;
+            return false;
+        }
+
         auto& rx = rxBuffers[sock];
 
         auto extract = [&]() {

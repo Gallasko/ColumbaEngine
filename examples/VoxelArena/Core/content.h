@@ -173,19 +173,72 @@ namespace arena
     };
 
     /** The words of a spell: "fire", then keyword ids ("base:bolt", "base:zone"). */
+    /**
+     * What a run did to one spell or technique, on top of what it is: its tag items (upgrades.json),
+     * its levels past the written ones, its branch. damage 0.2 is 20% more, area 0.2 a 20% wider reach,
+     * cooldown 0.2 recharges 20% faster, cost 0.2 is 20% cheaper (mana, stamina), duration 0.2 lasts 20%
+     * longer (zones), speed 0.2 is a 20% faster projectile, count 1 is one more projectile.
+     */
+    struct SpellTweak
+    {
+        float damage = 0.0f, area = 0.0f, cooldown = 0.0f, cost = 0.0f, duration = 0.0f, speed = 0.0f;
+        int count = 0;
+
+        bool empty() const { return damage == 0.0f and area == 0.0f and cooldown == 0.0f and cost == 0.0f and duration == 0.0f and speed == 0.0f and count == 0; }
+        bool operator==(const SpellTweak& o) const
+        {
+            return damage == o.damage and area == o.area and cooldown == o.cooldown and cost == o.cost and duration == o.duration and speed == o.speed and count == o.count;
+        }
+
+        /** Adds another, its numbers (not its count) times k. */
+        void add(const SpellTweak& o, float k = 1.0f)
+        {
+            damage += o.damage * k;
+            area += o.area * k;
+            cooldown += o.cooldown * k;
+            cost += o.cost * k;
+            duration += o.duration * k;
+            speed += o.speed * k;
+            count += o.count;
+        }
+    };
+
     struct SpellRecipe
     {
         std::string element;
         std::vector<std::string> keywords;
+        SpellTweak tweak;
 
-        bool operator==(const SpellRecipe& o) const { return element == o.element and keywords == o.keywords; }
+        bool operator==(const SpellRecipe& o) const { return element == o.element and keywords == o.keywords and tweak == o.tweak; }
     };
 
-    /** A ready-made spell (spells/<name>.json): a name and a recipe. */
+    /**
+     * A ready-made spell (spells/<name>.json): a name and a recipe. In a run, spells are given by
+     * level ups, not made: each level after the first adds its `levels` entry's keywords to the recipe.
+     */
+    /**
+     * One of the ways a spell or a technique can grow at its branch level (run.json "branchLevel"): the
+     * player picks one. A spell's adds keywords to its recipe; a technique's gives its hits an element
+     * and a status. Either may add tags (what tag items reach) and a boost.
+     */
+    struct BranchDef
+    {
+        std::string name, text;
+        std::vector<std::string> keywords;   // a spell's: added to its recipe
+        std::vector<std::string> tags;
+        SpellTweak boost;
+        Element element = Element::None;     // a technique's hits
+        StatusHit status;
+    };
+
     struct SpellDef
     {
-        std::string id, name;
+        std::string id, name, text;
         SpellRecipe recipe;
+        std::vector<std::vector<std::string>> levels;   // what levels 2, 3... add
+        std::vector<BranchDef> branches;
+
+        int maxLevel() const { return 1 + static_cast<int>(levels.size()); }
     };
 
     /**
@@ -322,6 +375,7 @@ namespace arena
             float perSecond = 0.0f;
         } healZone;
 
+        float leech = 1.0f;       // the share of life on hit it gives (set as it hits, not read: 0.2 for an area's, a zone's, a chain's)
         bool tellHeavy = false;   // looks: an enemy's heavy attack shows a danger zone while it winds up ("tell": "heavy")
 
         int total() const { return startup + active + recovery; }
@@ -349,6 +403,7 @@ namespace arena
         std::string name;
         std::string type;        // "dagger", "sword"...: the weapon skills it can use (AbilityDef::weapons)
         std::string role;        // "melee", "ranged", "support": the weapon choice shows it
+        float regen = 0.0f;      // health a second while it is in hand (a melee weapon's mending)
         std::string text;        // a line on how it plays, for the weapon choice
         std::string model;       // model id, "base:sword"
         float modelScale = 0.0625f;
@@ -422,6 +477,12 @@ namespace arena
         std::vector<std::string> weapons;
         AttackDef attack;
 
+        // A technique in a run: what tag items reach it ("melee", "area"...), what its levels 2, 3...
+        // add, and the branches to pick from at the branch level
+        std::vector<std::string> tags;
+        std::vector<SpellTweak> levels;
+        std::vector<BranchDef> branches;
+
         std::string file;
     };
 
@@ -434,9 +495,14 @@ namespace arena
 
     struct ArenaDef
     {
+        std::string id;              // "base:gorge" (arenas/gorge.json); "" for the training arena
+        std::string name;            // shown as a run moves into it ("The Gorge")
         glm::ivec3 size = glm::ivec3(64, 32, 64);
         Json shapes;                 // list of { block, from, to } applied in order
         glm::vec3 playerSpawn = glm::vec3(32, 2, 32);
+        glm::vec3 centre = glm::vec3(32, 4, 32);   // the run's waves: enemies come in round it, the duel's ring is round it
+        float spawnRadius = 12.0f;   // m from the centre enemies come in at
+        bool hasCentre = false, hasSpawnRadius = false;   // given (else made from the size)
         std::vector<ArenaSpawn> spawns;
         std::string file;
         std::string mod;             // block names without a namespace are this mod's
@@ -463,8 +529,25 @@ namespace arena
         float crit = 0.0f;            // chance of a critical hit (1.75 times the damage)
         float pickupRange = 0.0f;     // m more that shards fly to you from
         float regen = 0.0f;           // health a second
-        int most = 3;                 // bought at most this many times in a run
+        float attackSpeed = 0.0f;     // the weapon's light and heavy attacks this much quicker (0.1: 10%)
+
+        // A tag item: its boost goes to every spell and technique of the player with the tag ("fire",
+        // "projectile", "area", "spell", "technique"...)
+        std::string tag;
+        SpellTweak boost;
+        bool forTag() const { return not tag.empty(); }
+
+        int most = 3;                 // bought at most this many times in a run (a spell item: for each spell)
         int price = 10;               // in shards, at the shop (it goes up with the waves)
+    };
+
+    /** How rare a shop item is: its numbers and its price times these, and how often it comes up. */
+    struct RarityDef
+    {
+        std::string name;
+        float power = 1.0f;           // the item's numbers (not its whole ones: dash charges, stacks) times this
+        float price = 1.0f;
+        glm::vec2 weight = glm::vec2(1.0f);   // how often, at the first wave and at the last
     };
 
     /** Who comes in during the waves of a run, from which wave on, how often (weight). */
@@ -484,13 +567,14 @@ namespace arena
         glm::ivec2 maxAlive = glm::ivec2(6, 30);
         float eliteFrom = 8;          // wave elites start to come in from
         float eliteChance = 0.1f;
-        float healthGrowth = 0.05f;      // enemies' health: this much more each wave     // then this share of the enemies
+        float healthGrowth = 0.05f;   // enemies' health: this much more each wave
+        float spawnScale = 1.0f;      // the spawn rate and the most at once, times this (for one player)
         std::vector<SpawnPool> pools;
         std::map<int, std::string> bosses;   // wave -> boss: the wave lasts until it falls
         float warn = 1.0f;            // s a spawn point shows before its enemy comes out
         glm::vec3 centre = glm::vec3(32, 4, 38);
         float spawnRadius = 12.0f;
-        float coopScale = 0.5f;       // more enemies per player after the first
+        float coopScale = 0.5f;       // more enemies per player after the first (0.5: half again each)
         int waveScore = 50;           // per wave survived, times its number
         int victoryScore = 2000;
 
@@ -499,13 +583,29 @@ namespace arena
         int xpBase = 10, xpStep = 6;  // shards to the next level: base + step x (level - 1)
         std::string startWeapon = "base:sword";
         std::vector<std::string> startOwned = {"element:fire", "base:bolt"};
+        std::vector<std::string> startSpells;   // the spells a run starts with (spells/*.json ids), on keys 1, 2, 3
+        std::vector<std::string> startChoices;  // the first spell each player picks among, with the weapon (then on key 1)
+
+        // Level ups, picked as a wave ends: a new spell, a spell's next level, or one of these weapon skills
+        std::vector<std::string> levelSkills;
+        float intermission = 2.5f;    // s between a wave's end and its level ups and shop (no misclicks)
+        int branchLevel = 5;          // the level a spell or technique with branches takes one of them
+        SpellTweak mastery;           // what each level past the written ones (and the branch) adds
+
+        // Presents: an elite may drop one (presentChance), at most presentsPerWave a wave; each is a free
+        // pick of presentChoices shop items
+        float presentChance = 0.35f;
+        int presentsPerWave = 3;
+        int presentChoices = 3;
+        std::vector<RarityDef> rarities;   // the shop's, commonest first (none: everything is the first)
 
         // The shop between waves: offers, rerolls, prices
         int shopSlots = 4;
         int weaponPrice = 30;         // a weapon not in unlocks (another mod's) sells for this
         int rerollPrice = 2, rerollStep = 2;   // the first reroll of a shop, then this much more each
-        float priceGrowth = 0.08f;    // prices grow this much a wave
-        int levelChoices = 4;         // stat items offered free for a level
+        glm::vec2 priceScale = glm::vec2(0.5f, 1.5f);   // prices times this, at the first wave and the last (in between, evenly)
+        bool interest = true;         // shards kept through a shop grow with the prices: what could be bought still can
+        int levelChoices = 3;         // picks offered for a level
         std::map<std::string, int> unlocks;   // weapons, skills, keywords, elements ("element:ice") -> price
         bool resetEachWave = true;    // the arena is built anew before each wave (and the players put back)
         bool chooseWeapon = true;     // each player picks their weapon before the first wave (none are for sale then)
@@ -517,9 +617,16 @@ namespace arena
             float duration = 120.0f;  // s; then the one with the most health left (of their max) wins
             float countdown = 3.0f;   // s before anyone may hurt anyone
             float radius = 9.0f;      // m from the arena's centre the players start, in a ring
+            std::string arena;        // the arena it is fought in ("": the last wave's)
         } duel;
-        bool hasArena = false;
-        ArenaDef arena;               // the run's own arena ("arena", as arena.json)
+
+        // The arenas the waves are fought in: each from its wave on, until the next one's
+        struct ArenaPick
+        {
+            std::string arena;        // an arenas/*.json id ("base:gorge")
+            int from = 1;
+        };
+        std::vector<ArenaPick> arenas;
         std::string file;
     };
 
@@ -595,7 +702,14 @@ namespace arena
         Json sounds;
         std::string tuningFile;
 
-        ArenaDef arena;
+        ArenaDef arena;               // the training arena (arena.json)
+        std::map<std::string, ArenaDef> arenas;   // arenas/*.json, and a run.json's own "arena" ("<mod>:run")
+
+        /** The arena of a wave of the run (duel: the final duel's), by id ("": none, the training one). */
+        std::string runArenaId(int wave, bool duel) const;
+
+        /** An arena by id: the training arena for "" or one unknown. */
+        const ArenaDef& arenaById(const std::string& id) const;
 
         ContentReport report;
 

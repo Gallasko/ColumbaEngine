@@ -41,4 +41,10 @@ namespace arena::net
     {
         return system->isServer() ? system->rttMs(static_cast<uint32_t>(peer)) : 0.0f;
     }
+
+    void EngineTransport::disconnect(int peer)
+    {
+        if (system->isServer())
+            system->kick(static_cast<uint32_t>(peer));
+    }
 }

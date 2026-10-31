@@ -11,7 +11,7 @@
 namespace arena::net
 {
     /** Bumped when messages change shape: a client and server of different versions refuse each other. */
-    constexpr uint16_t PROTOCOL_VERSION = 16;
+    constexpr uint16_t PROTOCOL_VERSION = 19;
 
     /** The server sends a snapshot every this many steps (60 / 2 = 30 per second). */
     constexpr int SNAPSHOT_EVERY = 2;
@@ -187,6 +187,15 @@ namespace arena::net
     {
         std::string name;
     };
+
+    /** The longest player name, in bytes. */
+    constexpr size_t MAX_NAME_BYTES = 32;
+
+    /**
+     * A name another machine sent, made safe to show and log: valid UTF-8 only, without control or
+     * text-direction characters, trimmed, at most maxBytes (cut between characters). May come back empty.
+     */
+    std::string cleanName(const std::string& name, size_t maxBytes = MAX_NAME_BYTES);
 
     Msg peek(const std::vector<uint8_t>& data);
 

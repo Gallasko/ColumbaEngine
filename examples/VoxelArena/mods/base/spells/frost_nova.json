@@ -1,2 +1,13 @@
-// Ready-made: a wide burst of cold all around you.
-{ "name": "Frost nova", "recipe": ["ice", "nova", "enlarge"] }
+// A wide burst of cold all around you. Levels: harder, wider, a second ring.
+// In a run, level ups give spells and their next levels: each entry of "levels" is what that level
+// adds to the recipe (keywords, as in keywords.json).
+{
+    "name": "Frost nova",
+    "text": "A burst of cold all around you.",
+    "recipe": ["ice", "nova", "enlarge"],
+    "levels": [["empower"], ["enlarge"], ["multiply"]],
+    "branches": [
+        { "name": "Permafrost", "text": "Leaves a field of cold where it burst.", "keywords": ["zone"] },
+        { "name": "Shatter", "text": "Much harder, and wider.", "boost": { "damage": 0.4, "area": 0.2 } }
+    ]
+}

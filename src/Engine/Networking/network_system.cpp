@@ -29,8 +29,10 @@ namespace pg
 
     uint32_t NetworkSystem::genToken() const
     {
-        static std::mt19937 rng{ std::random_device{}() };
-        return rng() | 1u;   // never 0: 0 is "no token yet"
+        // What proves a datagram comes from a client: it must not be guessed from the ones handed out
+        // before (a seeded mt19937 can be), so straight from the system's random source
+        static std::random_device rd;
+        return static_cast<uint32_t>(rd()) | 1u;   // never 0: 0 is "no token yet"
     }
 
     std::vector<uint32_t> NetworkSystem::getClientIds() const
@@ -65,11 +67,35 @@ namespace pg
         }
 
         std::lock_guard<std::mutex> lock(queueMutex);
+
+        // One client flooding: its own messages are dropped, not the others' (nor who came and went)
+        if (incoming.kind == NetIncoming::Kind::Message)
+        {
+            size_t& queued = inboxPerClient[incoming.clientId];
+
+            if (queued >= MAX_INBOX_PER_CLIENT)
+                return;
+
+            ++queued;
+        }
+
         inbox.push_back(std::move(incoming));
 
-        // Nobody reads the queue (an app using the events only): keep it from growing for ever
-        while (inbox.size() > 4096)
-            inbox.pop_front();
+        // Nobody reads the queue (an app using the events only): keep it from growing for ever, the
+        // oldest message going first
+        while (inbox.size() > MAX_INBOX)
+        {
+            auto it = std::find_if(inbox.begin(), inbox.end(), [](const NetIncoming& in) { return in.kind == NetIncoming::Kind::Message; });
+
+            if (it == inbox.end())
+                it = inbox.begin();
+
+            if (it->kind == NetIncoming::Kind::Message)
+                if (auto q = inboxPerClient.find(it->clientId); q != inboxPerClient.end() and q->second > 0)
+                    --q->second;
+
+            inbox.erase(it);
+        }
     }
 
     bool NetworkSystem::poll(NetIncoming& out)
@@ -81,6 +107,11 @@ namespace pg
 
         out = std::move(inbox.front());
         inbox.pop_front();
+
+        if (out.kind == NetIncoming::Kind::Message)
+            if (auto q = inboxPerClient.find(out.clientId); q != inboxPerClient.end() and q->second > 0 and --q->second == 0)
+                inboxPerClient.erase(q);
+
         return true;
     }
 
@@ -100,6 +131,12 @@ namespace pg
     {
         std::lock_guard<std::mutex> lock(queueMutex);
         leaving = true;
+    }
+
+    void NetworkSystem::kick(uint32_t clientId)
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        kicks.insert(clientId);
     }
 
     void NetworkSystem::flushOutbox()
@@ -184,6 +221,9 @@ namespace pg
         if (not backend or not backend->isReady())
             return;
 
+        // What waits to go out since the last frame (a peer slow to read)
+        backend->flush();
+
         if (netCfg.isServer)
             runServerFrame();
         else
@@ -195,11 +235,18 @@ namespace pg
             LOG_WARNING(DOM, dropped << " message(s) dropped: their fragments never all arrived");
     }
 
-    void NetworkSystem::runServerFrame()
+    bool NetworkSystem::fromClient(const NetPayload& raw, const ClientInfo& ci) const
     {
-        const uint64_t now = steadyMs();
+        if (raw.size() < HEADER_SIZE)
+            return false;
 
-        // 1) New clients (a few a frame)
+        const PacketHeader h = readHeader(raw.data(), backend);
+        return h.clientId == ci.clientId and h.token == ci.token;
+    }
+
+    void NetworkSystem::acceptClients(uint64_t now)
+    {
+        // A few a frame
         for (int i = 0; i < 4; ++i)
         {
             SocketHandle sock = backend->acceptTcpClient();
@@ -207,8 +254,24 @@ namespace pg
             if (not sock)
                 break;
 
+            // One machine taking every slot: only a few connections per address
+            const std::string host = backend->tcpPeerHost(sock);
+
+            if (netCfg.maxConnectionsPerIp > 0 and not host.empty())
+            {
+                const auto from = std::count_if(clients.begin(), clients.end(), [&](const auto& c) { return c.second.tcpHost == host; });
+
+                if (static_cast<uint32_t>(from) >= netCfg.maxConnectionsPerIp)
+                {
+                    LOG_WARNING(DOM, "Refused a connection from " << host << ": " << from << " already");
+                    backend->closeTcp(sock);
+                    continue;
+                }
+            }
+
             ClientInfo ci;
             ci.tcpSock = sock;
+            ci.tcpHost = host;
             ci.clientId = nextClientId++;
             ci.token = genToken();
             ci.state = ClientState::Connected;
@@ -229,9 +292,33 @@ namespace pg
             LOG_INFO(DOM, "Client " << ci.clientId << " connected");
             push({NetIncoming::Kind::Connected, ci.clientId, {}, true});
         }
+    }
 
-        // 2) What the application wants sent
+    void NetworkSystem::runServerFrame()
+    {
+        const uint64_t now = steadyMs();
+
+        // 1) New clients
+        acceptClients(now);
+
+        // 2) What the application wants sent, then who it closes
         flushOutbox();
+
+        std::set<uint32_t> kicked;
+        {
+            std::lock_guard<std::mutex> lock(queueMutex);
+            kicked.swap(kicks);
+        }
+
+        for (uint32_t id : kicked)
+        {
+            if (auto it = idToTcp.find(id); it != idToTcp.end())
+            {
+                const ClientInfo& ci = clients[it->second];
+                sendTCPMessage(ci.clientId, ci.token, NetMsgType::Disconnect, {}, ci.tcpSock);
+                leavingClients.insert(id);
+            }
+        }
 
         // 3) TCP from every client
         std::set<uint32_t> gone;
@@ -244,14 +331,15 @@ namespace pg
 
             while (backend->receiveTcp(s, data, closed))
             {
+                // A message on this socket must carry this client's id and token: checked before its
+                // fragments take any room
+                if (not fromClient(data, ci))
+                    continue;
+
                 ParsedPacket msg;
 
                 if (parseAndReassemble(data, reassembly, fragmentTimers, backend, msg))
                 {
-                    // A message on this socket must carry this client's id and token
-                    if (msg.header.clientId != ci.clientId or msg.header.token != ci.token)
-                        continue;
-
                     ci.lastHeartbeatMs = now;
                     handleServerMessage(sock, nullptr, msg.header, msg.payload);
                 }
@@ -283,15 +371,19 @@ namespace pg
 
         while (backend->receiveUdp(from, data))
         {
+            // Anyone can send a datagram, from any address: unknown id or wrong token, it is not one of
+            // ours, and is dropped before its fragments take any room
+            if (data.size() < HEADER_SIZE)
+                continue;
+
+            auto it = idToTcp.find(readHeader(data.data(), backend).clientId);
+
+            if (it == idToTcp.end() or not fromClient(data, clients[it->second]))
+                continue;
+
             ParsedPacket msg;
 
             if (not parseAndReassemble(data, reassembly, fragmentTimers, backend, msg))
-                continue;
-
-            auto it = idToTcp.find(msg.header.clientId);
-
-            // Unknown id or wrong token: not one of ours
-            if (it == idToTcp.end() or clients[it->second].token != msg.header.token)
                 continue;
 
             ClientInfo& ci = clients[it->second];
@@ -323,7 +415,15 @@ namespace pg
                     break;
 
                 // The client's UDP address, proven by the token it got over TCP. The answer goes over
-                // UDP: only the client can tell that this direction works, and until it does, TCP
+                // UDP: only the client can tell that this direction works, and until it does, TCP.
+                // Answered so often at most (the client asks every HANDSHAKE_EVERY_MS): a datagram
+                // from a forged address cannot make us send a stream of them somewhere else
+                const uint64_t now = steadyMs();
+
+                if (now - ci.lastHandshakeReplyMs < HANDSHAKE_EVERY_MS / 2)
+                    break;
+
+                ci.lastHandshakeReplyMs = now;
                 ci.udpAddr = *udpFrom;
                 ci.udpLinked = false;
 
@@ -358,7 +458,9 @@ namespace pg
             }
 
             case NetMsgType::Disconnect:
-                leavingClients.insert(ci.clientId);
+                // Over TCP only: a datagram's address can be anyone's
+                if (not udpFrom)
+                    leavingClients.insert(ci.clientId);
                 break;
 
             case NetMsgType::Custom:
@@ -465,6 +567,19 @@ namespace pg
 
         while (backend->receive(sock, udpSrc, buf))
         {
+            // A datagram can come from anyone: only one carrying our id and token, once we have them,
+            // is the server's (checked before its fragments take any room)
+            if (not sock)
+            {
+                if (currentClientState != ClientState::Connected or buf.size() < HEADER_SIZE)
+                    continue;
+
+                const PacketHeader h = readHeader(buf.data(), backend);
+
+                if (h.clientId != _myClientId or h.token != _myToken)
+                    continue;
+            }
+
             ParsedPacket msg;
 
             if (parseAndReassemble(buf, reassembly, fragmentTimers, backend, msg))
@@ -543,6 +658,10 @@ namespace pg
 
             case NetMsgType::Ping:
             {
+                // The server pings over TCP
+                if (not reliable)
+                    break;
+
                 uint8_t buf[8];
                 backend->writeU64BE(buf, header.timestamp);
                 sendTCPMessage(_myClientId, _myToken, NetMsgType::Pong, NetPayload(buf, buf + 8));
@@ -550,7 +669,9 @@ namespace pg
             }
 
             case NetMsgType::Disconnect:
-                lostServer();
+                // Over TCP only: a forged datagram must not cut us off
+                if (reliable)
+                    lostServer();
                 break;
 
             case NetMsgType::Custom:

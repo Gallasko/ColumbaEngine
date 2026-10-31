@@ -101,6 +101,16 @@ namespace arena
         std::vector<Weapon> weapons;
         bool picked = false;            // this player took one: waiting for the others
         int ready = 0, players = 1;
+
+        // Then the first spell (fire, ice, volt), when the run has a choice of them
+        struct Spell
+        {
+            std::string name, element, text;
+            bool chosen = false;
+        };
+        std::vector<Spell> spells;
+        bool choosingSpell = false;     // the weapon was taken: its spell now
+        std::string weapon;             // the weapon taken (to change it)
     };
 
     /** The controls (from the options): an action a row, its key, click it then press the new one. */
@@ -130,6 +140,8 @@ namespace arena
         void drawQuit(Ui& ui, float x, float y, bool armed);
         constexpr int INVITE_JOIN = 26;
         constexpr int ARMORY_PICK = 600;   // + the weapon's index
+        constexpr int ARMORY_SPELL = 650;  // + the first spell's index
+        constexpr int ARMORY_BACK = 690;   // back to the weapons
         constexpr int CONTROLS_RESET = 698, CONTROLS_BACK = 699, CONTROLS_ROW = 700;   // + the row's index
         void drawControls(Ui& ui, const ControlsView& v);
         void drawArmory(Ui& ui, const ArmoryView& v);

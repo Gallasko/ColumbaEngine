@@ -34,6 +34,8 @@ namespace pg
         uint64_t lastHeartbeatMs = 0;      // steady ms of the last message heard
         uint64_t lastPingSentMs  = 0;      // steady ms of the last ping sent
         float    rttMs           = 0;      // smoothed round trip
+        std::string tcpHost;               // the address it connected from
+        uint64_t lastHandshakeReplyMs = 0; // UDP handshakes are answered this often at most
     };
 
     /** What the application gets from the network (NetworkSystem::poll), in arrival order. */
@@ -94,6 +96,13 @@ namespace pg
 
         /** Client: say goodbye and stop (no reconnect). */
         void disconnect();
+
+        /** Server: close a client's connection, after what was sent to it (as far as it goes at once). */
+        void kick(uint32_t clientId);
+
+        /** Messages queued for the application from one client, at most: more are dropped (a flood). */
+        static constexpr size_t MAX_INBOX_PER_CLIENT = 1024;
+        static constexpr size_t MAX_INBOX = 4096;
 
         bool isServer() const { return netCfg.isServer; }
         float rttMs(uint32_t clientId) const;
@@ -168,8 +177,14 @@ namespace pg
         uint64_t udpRetryDelayMs = 0;      // doubles each time it goes silent again
         bool     leaving = false;
 
+        /** Server: a message from this client is checked before it takes room for its fragments. */
+        bool fromClient(const NetPayload& raw, const ClientInfo& ci) const;
+        void acceptClients(uint64_t now);
+
         mutable std::mutex queueMutex;
         std::deque<NetIncoming> inbox;
+        std::unordered_map<uint32_t, size_t> inboxPerClient;   // messages in the inbox, by client
         std::deque<Outgoing> outbox;
+        std::set<uint32_t> kicks;
     };
 }

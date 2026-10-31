@@ -174,6 +174,29 @@ namespace arena
         return nullptr;
     }
 
+    std::string Content::runArenaId(int wave, bool duel) const
+    {
+        if (duel and not run.duel.arena.empty() and arenas.count(run.duel.arena))
+            return run.duel.arena;
+
+        // The duel comes after the last wave: fought where it was, unless it has its own
+        if (duel)
+            wave = run.waves;
+
+        std::string id;
+        for (const auto& pick : run.arenas)
+            if (pick.from <= std::max(1, wave) or id.empty())
+                id = pick.arena;
+
+        return id;
+    }
+
+    const ArenaDef& Content::arenaById(const std::string& id) const
+    {
+        auto it = id.empty() ? arenas.end() : arenas.find(id);
+        return it != arenas.end() ? it->second : arena;
+    }
+
     std::string Content::assetPath(const std::string& id, const std::string& folder, const std::string& extension) const
     {
         const auto [ns, name] = splitId(id);
@@ -746,7 +769,7 @@ namespace arena
             }
 
             // One definition per file
-            for (const auto& [kind, folder] : std::vector<std::pair<std::string, std::string>>{{"weapon", "weapons"}, {"enemy", "enemies"}, {"ability", "abilities"}, {"spell", "spells"}})
+            for (const auto& [kind, folder] : std::vector<std::pair<std::string, std::string>>{{"weapon", "weapons"}, {"enemy", "enemies"}, {"ability", "abilities"}, {"spell", "spells"}, {"arenas", "arenas"}})
             {
                 for (const auto& path : filesIn(dir / folder, ".json"))
                 {
@@ -1052,6 +1075,51 @@ namespace arena
                 content.report.error(raw.file, raw.data.line, "unknown status \"" + hit.status + "\" (statuses.json)");
         }
 
+        /** A boost: { "damage": 0.2, "area": 0.2, "cooldown": 0.15, "cost": 0.2, "duration": 0.3, "speed": 0.25, "count": 1 } */
+        void readBoost(const Json& j, SpellTweak& out, const std::string& file, ContentReport& report, const std::string& what)
+        {
+            checkKeys(j, {"damage", "area", "cooldown", "cost", "duration", "speed", "count"}, file, report, what);
+            readNum(j, "damage", out.damage, file, report);
+            readNum(j, "area", out.area, file, report);
+            readNum(j, "cooldown", out.cooldown, file, report);
+            readNum(j, "cost", out.cost, file, report);
+            readNum(j, "duration", out.duration, file, report);
+            readNum(j, "speed", out.speed, file, report);
+            readInt(j, "count", out.count, file, report);
+        }
+
+        /** "branches": [{ "name", "text", "keywords" (a spell's), "tags", "boost", "element" and "status" (a technique's) }] */
+        void readBranches(Content& content, const Json& j, const RawDef& raw, std::vector<BranchDef>& out, const std::string& what)
+        {
+            auto& report = content.report;
+            const Json* branches = j.find("branches");
+
+            if (not branches)
+                return;
+
+            for (const auto& b : branches->array)
+            {
+                checkKeys(b, {"name", "text", "keywords", "tags", "boost", "element", "status"}, raw.file, report, what + "'s branch");
+                BranchDef d;
+                readStr(b, "name", d.name, raw.file, report);
+                readStr(b, "text", d.text, raw.file, report);
+                readStringList(b, "keywords", d.keywords, raw.file, report);
+                for (auto& k : d.keywords)
+                    k = resolveId(k, raw.mod);
+                readStringList(b, "tags", d.tags, raw.file, report);
+                if (const Json* boost = b.find("boost"))
+                    readBoost(*boost, d.boost, raw.file, report, what + "'s branch boost");
+                readElement(b, d.element, raw.file, report);
+                readStatusHit(b, d.status, raw.file, report);
+                resolveStatus(content, d.status, raw);
+
+                if (d.name.empty())
+                    report.error(raw.file, b.line, what + ": a branch needs a \"name\"");
+                else
+                    out.push_back(d);
+            }
+        }
+
         void requireModel(Content& content, const std::string& id, const std::string& file, int line);
 
         void typeElements(Content& content)
@@ -1163,12 +1231,13 @@ namespace arena
             for (const auto& [id, raw] : content.raw["spell"])
             {
                 const Json& j = raw.data;
-                checkKeys(j, {"id", "name", "recipe"}, raw.file, report, "spell " + id);
+                checkKeys(j, {"id", "name", "text", "recipe", "levels", "branches"}, raw.file, report, "spell " + id);
 
                 SpellDef s;
                 s.id = id;
                 s.name = splitId(id).second;
                 readStr(j, "name", s.name, raw.file, report);
+                readStr(j, "text", s.text, raw.file, report);
 
                 std::vector<std::string> words;
                 readStringList(j, "recipe", words, raw.file, report);
@@ -1192,22 +1261,85 @@ namespace arena
                     continue;
                 }
 
+                // Its levels: [["enlarge"], ["empower", "extend"]]: each must still make a spell
+                if (const Json* levels = j.find("levels"))
+                {
+                    SpellRecipe grown = s.recipe;
+
+                    for (const auto& level : levels->array)
+                    {
+                        std::vector<std::string> adds;
+                        for (const auto& w : level.array)
+                            if (w.isString())
+                                adds.push_back(resolveId(w.string, raw.mod));
+
+                        if (adds.empty())
+                        {
+                            report.error(raw.file, level.line, "spell \"" + id + "\": a level is a list of keywords it adds");
+                            break;
+                        }
+
+                        grown.keywords.insert(grown.keywords.end(), adds.begin(), adds.end());
+                        const Spell next = compileSpell(content, grown);
+
+                        if (not next.valid())
+                        {
+                            report.error(raw.file, level.line, "spell \"" + id + "\" level " + std::to_string(s.levels.size() + 2) + ": " + next.error);
+                            break;
+                        }
+
+                        s.levels.push_back(adds);
+                    }
+                }
+
+                // Its branches: each must still make a spell, on top of every level
+                readBranches(content, j, raw, s.branches, "spell \"" + id + "\"");
+                SpellRecipe full = s.recipe;
+                for (const auto& level : s.levels)
+                    full.keywords.insert(full.keywords.end(), level.begin(), level.end());
+
+                for (auto b = s.branches.begin(); b != s.branches.end();)
+                {
+                    SpellRecipe branched = full;
+                    branched.keywords.insert(branched.keywords.end(), b->keywords.begin(), b->keywords.end());
+                    const Spell next = compileSpell(content, branched);
+
+                    if (next.valid())
+                    {
+                        ++b;
+                        continue;
+                    }
+
+                    report.error(raw.file, j.line, "spell \"" + id + "\" branch \"" + b->name + "\": " + next.error);
+                    b = s.branches.erase(b);
+                }
+
                 content.spells[id] = s;
             }
         }
 
-        /** An arena: arena.json, or the run's own (run.json "arena"). */
+        /** An arena: arena.json, arenas/*.json, or the run's own (run.json "arena"). */
         void readArena(Content& content, const Json& j, const RawDef& raw, ArenaDef& a, const std::string& what)
         {
             auto& report = content.report;
             a.file = raw.file;
             a.mod = raw.mod;
 
-            checkKeys(j, {"size", "playerSpawn", "shapes", "spawns"}, raw.file, report, what);
+            checkKeys(j, {"id", "name", "size", "playerSpawn", "centre", "spawnRadius", "shapes", "spawns"}, raw.file, report, what);
 
+            readStr(j, "name", a.name, raw.file, report);
             readIVec3(j, "size", a.size, raw.file, report);
             a.size = glm::clamp(a.size, glm::ivec3(4), glm::ivec3(256));
             readVec3(j, "playerSpawn", a.playerSpawn, raw.file, report);
+
+            // The middle of the floor, at the players' height, unless it says; enemies come in most of the way to the walls
+            a.hasCentre = j.has("centre");
+            a.hasSpawnRadius = j.has("spawnRadius");
+            a.centre = glm::vec3(static_cast<float>(a.size.x) * 0.5f, a.playerSpawn.y, static_cast<float>(a.size.z) * 0.5f);
+            a.spawnRadius = static_cast<float>(std::min(a.size.x, a.size.z)) * 0.4f;
+            readVec3(j, "centre", a.centre, raw.file, report);
+            readNum(j, "spawnRadius", a.spawnRadius, raw.file, report);
+            a.spawnRadius = std::max(1.0f, a.spawnRadius);
 
             if (const Json* shapes = j.find("shapes"))
             {
@@ -1257,7 +1389,7 @@ namespace arena
             {
                 const Json& j = raw.data;
                 checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
-                              "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "price"},
+                              "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "attackSpeed", "price", "tag", "boost"},
                           raw.file, report, "boon " + id);
 
                 UpgradeDef u;
@@ -1280,7 +1412,16 @@ namespace arena
                 readNum(j, "crit", u.crit, raw.file, report);
                 readNum(j, "pickupRange", u.pickupRange, raw.file, report);
                 readNum(j, "regen", u.regen, raw.file, report);
+                readNum(j, "attackSpeed", u.attackSpeed, raw.file, report);
                 readInt(j, "price", u.price, raw.file, report);
+
+                // A tag item: "tag": "fire", "boost": { "damage": 0.2 }: for everything of the player with the tag
+                readStr(j, "tag", u.tag, raw.file, report);
+                if (const Json* boost = j.find("boost"))
+                    readBoost(*boost, u.boost, raw.file, report, "boon " + id + "'s boost");
+                if (u.forTag() != (j.find("boost") != nullptr))
+                    report.error(raw.file, j.line, "boon \"" + id + "\": a tag item has both a \"tag\" and a \"boost\"");
+
                 content.upgrades[id] = u;
             }
         }
@@ -1299,7 +1440,8 @@ namespace arena
             r.file = raw.file;
 
             checkKeys(j, {"waves", "duration", "spawnRate", "maxAlive", "eliteFrom", "eliteChance", "healthGrowth", "pools", "bosses", "warn", "centre", "spawnRadius", "coopScale",
-                          "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "resetEachWave", "duel", "chooseWeapon"},
+                          "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "arenas", "resetEachWave", "duel", "chooseWeapon",
+                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "presents"},
                       raw.file, report, "the run");
 
             readInt(j, "waves", r.waves, raw.file, report);
@@ -1325,6 +1467,19 @@ namespace arena
             readVec3(j, "centre", r.centre, raw.file, report);
             readNum(j, "spawnRadius", r.spawnRadius, raw.file, report);
             readNum(j, "coopScale", r.coopScale, raw.file, report);
+            readNum(j, "spawnScale", r.spawnScale, raw.file, report);
+            readInt(j, "branchLevel", r.branchLevel, raw.file, report);
+            r.branchLevel = std::max(2, r.branchLevel);
+            if (const Json* mastery = j.find("mastery"))
+                readBoost(*mastery, r.mastery, raw.file, report, "the run's mastery");
+            if (const Json* presents = j.find("presents"))
+            {
+                checkKeys(*presents, {"chance", "perWave", "choices"}, raw.file, report, "the run's presents");
+                readNum(*presents, "chance", r.presentChance, raw.file, report);
+                readInt(*presents, "perWave", r.presentsPerWave, raw.file, report);
+                readInt(*presents, "choices", r.presentChoices, raw.file, report);
+                r.presentChoices = std::clamp(r.presentChoices, 1, 4);
+            }
             readInt(j, "waveScore", r.waveScore, raw.file, report);
             readInt(j, "victoryScore", r.victoryScore, raw.file, report);
             readNum(j, "pickupRange", r.pickupRange, raw.file, report);
@@ -1333,19 +1488,59 @@ namespace arena
 
             if (const Json* duel = j.find("duel"))
             {
-                checkKeys(*duel, {"enabled", "duration", "countdown", "radius"}, raw.file, report, "the run's duel");
+                checkKeys(*duel, {"enabled", "duration", "countdown", "radius", "arena"}, raw.file, report, "the run's duel");
                 readBool(*duel, "enabled", r.duel.enabled, raw.file, report);
                 readNum(*duel, "duration", r.duel.duration, raw.file, report);
                 readNum(*duel, "countdown", r.duel.countdown, raw.file, report);
                 readNum(*duel, "radius", r.duel.radius, raw.file, report);
+                readStr(*duel, "arena", r.duel.arena, raw.file, report);
+                if (not r.duel.arena.empty())
+                {
+                    r.duel.arena = resolveId(r.duel.arena, raw.mod);
+                    if (not content.arenas.count(r.duel.arena))
+                        report.error(raw.file, duel->line, "the duel's arena \"" + r.duel.arena + "\" is no arenas/*.json");
+                }
                 r.duel.duration = std::max(5.0f, r.duel.duration);
                 r.duel.countdown = std::max(0.0f, r.duel.countdown);
             }
 
+            // Its own arena, written in: what the waves are fought in unless "arenas" says otherwise
             if (const Json* arena = j.find("arena"))
             {
-                readArena(content, *arena, raw, r.arena, "the run's arena");
-                r.hasArena = true;
+                ArenaDef own;
+                own.id = resolveId("run", raw.mod);
+                readArena(content, *arena, raw, own, "the run's arena");
+
+                // The run's centre and spawn radius are this arena's, when it has none of its own
+                if (not own.hasCentre)
+                    own.centre = r.centre;
+                if (not own.hasSpawnRadius)
+                    own.spawnRadius = r.spawnRadius;
+
+                r.arenas = {{own.id, 1}};
+                content.arenas[own.id] = std::move(own);
+            }
+
+            // The arenas by wave: [{ "arena": "gorge", "from": 5 }, ...], each until the next one's
+            if (const Json* arenas = j.find("arenas"))
+            {
+                r.arenas.clear();
+
+                for (const auto& a : arenas->array)
+                {
+                    checkKeys(a, {"arena", "from"}, raw.file, report, "a run's arena");
+                    RunDef::ArenaPick pick;
+                    readStr(a, "arena", pick.arena, raw.file, report);
+                    readInt(a, "from", pick.from, raw.file, report);
+                    pick.arena = resolveId(pick.arena, raw.mod);
+
+                    if (not content.arenas.count(pick.arena))
+                        report.error(raw.file, a.line, "unknown arena \"" + pick.arena + "\" (expected a file arenas/" + splitId(pick.arena).second + ".json in mod " + splitId(pick.arena).first + ")");
+                    else
+                        r.arenas.push_back(pick);
+                }
+
+                std::stable_sort(r.arenas.begin(), r.arenas.end(), [](const RunDef::ArenaPick& a, const RunDef::ArenaPick& b) { return a.from < b.from; });
             }
 
             if (const Json* pools = j.find("pools"))
@@ -1389,7 +1584,7 @@ namespace arena
 
             if (const Json* start = j.find("start"))
             {
-                checkKeys(*start, {"weapon", "owned"}, raw.file, report, "the run's start");
+                checkKeys(*start, {"weapon", "owned", "spells", "chooseSpell"}, raw.file, report, "the run's start");
                 readStr(*start, "weapon", r.startWeapon, raw.file, report);
                 r.startWeapon = resolveId(r.startWeapon, raw.mod);
                 if (start->has("owned"))
@@ -1400,15 +1595,70 @@ namespace arena
                         if (id.rfind("element:", 0) != 0)
                             id = resolveId(id, raw.mod);
                 }
+
+                readStringList(*start, "spells", r.startSpells, raw.file, report);
+                for (auto& id : r.startSpells)
+                {
+                    id = resolveId(id, raw.mod);
+                    if (not content.spells.count(id))
+                        report.error(raw.file, start->line, "the run starts with spell \"" + id + "\", which is no spells/*.json");
+                }
+                r.startSpells.erase(std::remove_if(r.startSpells.begin(), r.startSpells.end(), [&](const std::string& id) { return not content.spells.count(id); }), r.startSpells.end());
+
+                // The first spell each player picks, with the weapon (instead of "spells")
+                readStringList(*start, "chooseSpell", r.startChoices, raw.file, report);
+                for (auto& id : r.startChoices)
+                {
+                    id = resolveId(id, raw.mod);
+                    if (not content.spells.count(id))
+                        report.error(raw.file, start->line, "the run's spell choice names \"" + id + "\", which is no spells/*.json");
+                }
+                r.startChoices.erase(std::remove_if(r.startChoices.begin(), r.startChoices.end(), [&](const std::string& id) { return not content.spells.count(id); }), r.startChoices.end());
             }
+
+            // Level ups: which weapon skills they may give (besides spells), and the pause before them
+            readStringList(j, "levelSkills", r.levelSkills, raw.file, report);
+            for (auto& id : r.levelSkills)
+            {
+                id = resolveId(id, raw.mod);
+                if (not content.abilities.count(id))
+                    report.error(raw.file, j.line, "levelSkills: \"" + id + "\" is no ability");
+            }
+            readNum(j, "intermission", r.intermission, raw.file, report);
+            r.intermission = std::max(0.0f, r.intermission);
 
             if (const Json* shop = j.find("shop"))
             {
-                checkKeys(*shop, {"slots", "reroll", "rerollStep", "priceGrowth", "levelChoices", "weaponPrice", "unlocks"}, raw.file, report, "the run's shop");
+                checkKeys(*shop, {"slots", "reroll", "rerollStep", "priceScale", "interest", "levelChoices", "weaponPrice", "unlocks", "rarities"}, raw.file, report, "the run's shop");
+
+                // Rarities, commonest first: [{ "name": "Rare", "power": 1.5, "price": 1.5, "weight": [25, 35] }]
+                if (const Json* rarities = shop->find("rarities"))
+                {
+                    for (const auto& e : rarities->array)
+                    {
+                        checkKeys(e, {"name", "power", "price", "weight"}, raw.file, report, "a rarity");
+                        RarityDef rd;
+                        readStr(e, "name", rd.name, raw.file, report);
+                        readNum(e, "power", rd.power, raw.file, report);
+                        readNum(e, "price", rd.price, raw.file, report);
+                        if (const Json* w = e.find("weight"); w and w->isArray() and w->array.size() == 2)
+                            rd.weight = glm::vec2(static_cast<float>(w->array[0].number), static_cast<float>(w->array[1].number));
+                        else if (w)
+                            report.error(raw.file, w->line, "a rarity's \"weight\" is [at the first wave, at the last]");
+                        r.rarities.push_back(rd);
+                    }
+                }
                 readInt(*shop, "slots", r.shopSlots, raw.file, report);
                 readInt(*shop, "reroll", r.rerollPrice, raw.file, report);
                 readInt(*shop, "rerollStep", r.rerollStep, raw.file, report);
-                readNum(*shop, "priceGrowth", r.priceGrowth, raw.file, report);
+                if (const Json* ps = shop->find("priceScale"))
+                {
+                    if (ps->isArray() and ps->array.size() == 2)
+                        r.priceScale = glm::vec2(static_cast<float>(ps->array[0].number), static_cast<float>(ps->array[1].number));
+                    else
+                        report.error(raw.file, ps->line, "\"priceScale\" is [at the first wave, at the last]");
+                }
+                readBool(*shop, "interest", r.interest, raw.file, report);
                 readInt(*shop, "levelChoices", r.levelChoices, raw.file, report);
                 readInt(*shop, "weaponPrice", r.weaponPrice, raw.file, report);
                 r.shopSlots = std::clamp(r.shopSlots, 1, 4);
@@ -1435,6 +1685,19 @@ namespace arena
             for (const auto& [id, w] : content.weapons)
                 if (id != r.startWeapon and not r.unlocks.count(id))
                     r.unlocks[id] = r.weaponPrice;
+        }
+
+        void typeArenas(Content& content)
+        {
+            for (const auto& [id, raw] : content.raw["arenas"])
+            {
+                ArenaDef a;
+                a.id = id;
+                readArena(content, raw.data, raw, a, "an arena");
+                if (a.name.empty())
+                    a.name = splitId(id).second;
+                content.arenas[id] = std::move(a);
+            }
         }
 
         void typeArena(Content& content)
@@ -1482,7 +1745,7 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"id", "name", "type", "role", "text", "model", "modelScale", "grip", "rest", "moveset"}, raw.file, report, "weapon " + id);
+                checkKeys(j, {"id", "name", "type", "role", "text", "regen", "model", "modelScale", "grip", "rest", "moveset"}, raw.file, report, "weapon " + id);
 
                 WeaponDef w;
                 w.id = id;
@@ -1491,6 +1754,7 @@ namespace arena
                 readStr(j, "name", w.name, raw.file, report);
                 readStr(j, "type", w.type, raw.file, report);
                 readStr(j, "role", w.role, raw.file, report);
+                readNum(j, "regen", w.regen, raw.file, report);
                 readStr(j, "text", w.text, raw.file, report);
                 readStr(j, "model", w.model, raw.file, report);
                 w.model = w.model.empty() ? "" : resolveId(w.model, raw.mod);
@@ -1638,7 +1902,7 @@ namespace arena
                 const Json& j = raw.data;
 
                 checkKeys(j, {"id", "name", "kind", "block", "staminaCost", "cooldown", "range", "distance", "lifetime", "damage", "rate", "width", "height", "depth",
-                              "weapons", "attack"},
+                              "weapons", "attack", "tags", "levels", "branches"},
                           raw.file, report, "ability " + id);
 
                 AbilityDef a;
@@ -1659,6 +1923,19 @@ namespace arena
                 readInt(j, "height", a.height, raw.file, report);
                 readInt(j, "depth", a.depth, raw.file, report);
                 readStringList(j, "weapons", a.weapons, raw.file, report);
+                readStringList(j, "tags", a.tags, raw.file, report);
+
+                // A technique's levels in a run: [{ "damage": 0.2 }, { "cooldown": 0.15 }], what levels 2, 3... add
+                if (const Json* levels = j.find("levels"))
+                {
+                    for (const auto& level : levels->array)
+                    {
+                        SpellTweak t;
+                        readBoost(level, t, raw.file, report, "ability " + id + "'s level");
+                        a.levels.push_back(t);
+                    }
+                }
+                readBranches(content, j, raw, a.branches, "ability \"" + id + "\"");
 
                 if (const Json* aj = j.find("attack"))
                 {
@@ -2078,6 +2355,7 @@ namespace arena
         typeAbilities(content);
         typeSpells(content);
         typeUpgrades(content);
+        typeArenas(content);
         typeRun(content);
         typeArena(content);
 

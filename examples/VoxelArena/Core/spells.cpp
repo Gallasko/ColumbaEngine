@@ -144,6 +144,32 @@ namespace arena
             }
         }
 
+        // A run's boosts (tag items, mastery, a branch), on every form of it; more projectiles: more of its first bolt
+        const SpellTweak& t = recipe.tweak;
+        if (not t.empty())
+        {
+            for (auto& st : s.stages)
+            {
+                if (t.count != 0 and st.form.shape == "bolt")
+                {
+                    st.count = std::clamp(st.count + t.count, 1, MAX_COPIES);
+                    break;
+                }
+            }
+
+            for (auto& st : s.stages)
+            {
+                st.damage *= 1.0f + t.damage;
+                st.poiseDamage *= 1.0f + t.damage;
+                st.radius *= 1.0f + t.area;
+                st.duration *= 1.0f + t.duration;
+                st.speed *= 1.0f + t.speed;
+            }
+
+            s.mana *= std::max(0.2f, 1.0f - t.cost);
+            s.cooldown *= std::max(0.2f, 1.0f - t.cooldown);
+        }
+
         return s;
     }
 

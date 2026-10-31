@@ -789,6 +789,13 @@ namespace pg
 
         inline void setFrontEnd(FrontEnd fe) { frontEnd = fe; }
 
+        /**
+         * For scripts that may come from someone else (a game's mods, a server's): an import reaches
+         * only files beside the importing script or below it (no absolute path, no ".."), and never
+         * loads compiled bytecode (.pgc), which is run without being checked.
+         */
+        bool sandboxedImports = false;
+
         // Bytecode optimization
         PassManager passManager;
         bool enableOptimizations = true;
