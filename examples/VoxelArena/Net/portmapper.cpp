@@ -182,6 +182,27 @@ namespace arena::net
             return r;
         };
 
+        // A router that only takes permanent mappings keeps them after a crash (nothing closed them): the
+        // ones an earlier run of this game left for this machine are closed first. Leased ones expire alone
+        {
+            std::vector<std::pair<std::string, std::string>> leftovers;   // outside port, protocol
+
+            for (int i = 0; i < 256; ++i)
+            {
+                char ext[8] = {}, client[20] = {}, in[8] = {}, proto[8] = {}, desc[84] = {}, enabled[8] = {}, remote[68] = {}, duration[16] = {};
+                const std::string index = std::to_string(i);
+
+                if (UPNP_GetGenericPortMappingEntry(urls.controlURL, data.first.servicetype, index.c_str(), ext, client, in, proto, desc, enabled, remote, duration) != UPNPCOMMAND_SUCCESS)
+                    break;
+
+                if (description == desc and std::string(client) == lan and std::string(duration) == "0")
+                    leftovers.emplace_back(ext, proto);
+            }
+
+            for (const auto& [port, proto] : leftovers)
+                UPNP_DeletePortMapping(urls.controlURL, data.first.servicetype, port.c_str(), proto.c_str(), nullptr);
+        }
+
         // The first pair of outside ports the router takes: the TCP one, and the next for UDP
         std::string outTcp, outUdp;
         int lastError = 0;
