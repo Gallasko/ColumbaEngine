@@ -29,8 +29,10 @@ namespace pg
 
     uint32_t NetworkSystem::genToken() const
     {
-        static std::mt19937 rng{ std::random_device{}() };
-        return rng() | 1u;   // never 0: 0 is "no token yet"
+        // What proves a datagram comes from a client: it must not be guessed from the ones handed out
+        // before (a seeded mt19937 can be), so straight from the system's random source
+        static std::random_device rd;
+        return static_cast<uint32_t>(rd()) | 1u;   // never 0: 0 is "no token yet"
     }
 
     std::vector<uint32_t> NetworkSystem::getClientIds() const
