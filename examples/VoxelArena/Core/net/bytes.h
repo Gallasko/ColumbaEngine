@@ -23,7 +23,8 @@ namespace arena::net
         void i8(int8_t v) { u8(static_cast<uint8_t>(v)); }
         void i16(int16_t v) { u16(static_cast<uint16_t>(v)); }
         void i32(int32_t v) { u32(static_cast<uint32_t>(v)); }
-        void f32(float v) { uint32_t u; std::memcpy(&u, &v, 4); u32(u); }
+        /** A NaN or infinity goes as 0: the Reader refuses them, and one would make the whole message unreadable. */
+        void f32(float v) { if (not std::isfinite(v)) v = 0.0f; uint32_t u; std::memcpy(&u, &v, 4); u32(u); }
         void boolean(bool v) { u8(v ? 1 : 0); }
         void vec3(const glm::vec3& v) { f32(v.x); f32(v.y); f32(v.z); }
         void str(const std::string& s) { u16(static_cast<uint16_t>(s.size())); data.insert(data.end(), s.begin(), s.end()); }

@@ -17,6 +17,12 @@ namespace arena
             return a - 180.0f;
         }
 
+        /** The input's aim as a unit vector, or the fallback when it aims at nothing (a zero would be NaN). */
+        glm::vec3 aimDirOr(const InputFrame& in, const glm::vec3& fallback)
+        {
+            return glm::length(in.aimDir) > 1e-4f ? glm::normalize(in.aimDir) : fallback;
+        }
+
         float yawOf(const glm::vec3& dir)
         {
             return std::atan2(dir.x, dir.z) / DEG;
@@ -2169,7 +2175,7 @@ namespace arena
             // The first: from the chest at what the crosshair is on (the camera is behind: its own ray would miss)
             if (first)
             {
-                const glm::vec3 a = glm::normalize(aim->aimDir);
+                const glm::vec3 a = aimDirOr(*aim, dir);
                 from = chest(*caster) + glm::vec3(a.x, 0.0f, a.z) * 0.5f;
                 const RayHit onto = raycast(grid, content->blockTable, aim->aimOrigin, a, 80.0f);
                 const glm::vec3 target = aim->aimOrigin + a * (onto.hit ? onto.distance : 80.0f);
@@ -2214,12 +2220,12 @@ namespace arena
             // The first: along the crosshair's ray, from beside the caster
             if (first)
             {
-                const glm::vec3 a = glm::normalize(aim->aimDir);
+                const glm::vec3 a = aimDirOr(*aim, dir);
                 start = aim->aimOrigin + a * std::max(0.0f, glm::dot(chest(*caster) - aim->aimOrigin, a));
                 hand = chest(*caster) + glm::vec3(a.x, 0.0f, a.z) * 0.4f;
             }
 
-            const glm::vec3 a = first ? glm::normalize(aim->aimDir) : dir;
+            const glm::vec3 a = first ? aimDirOr(*aim, dir) : dir;
 
             for (int k = 0; k < st.count; ++k)
                 strikeBeam(spell, stage, start, hand, fanned(a, k, st.count, 5.0f), owner, team);
@@ -2245,7 +2251,7 @@ namespace arena
             // The first: on the ground where the crosshair is, within the form's range
             if (first)
             {
-                const glm::vec3 a = glm::normalize(aim->aimDir);
+                const glm::vec3 a = aimDirOr(*aim, dir);
                 const RayHit onto = raycast(grid, content->blockTable, aim->aimOrigin, a, st.range);
                 centre = aim->aimOrigin + a * (onto.hit ? onto.distance : st.range) - a * 0.05f;
             }

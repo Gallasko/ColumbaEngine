@@ -1116,6 +1116,57 @@ TEST(arena_net, a_far_ray_ends)
     EXPECT_FALSE(raycast(grid, table, glm::vec3(1.0f), glm::vec3(INFINITY, 0, 0), 10.0f).hit);
 }
 
+TEST(arena_net, a_spell_aimed_at_nothing_keeps_every_snapshot_readable)
+{
+    // A zero aim direction once made NaN spells, and a NaN in a snapshot made every client drop them all
+    Session s(10.0);
+    auto& a = s.join("a");
+    s.run(40);
+
+    SpellRecipe spell;
+    spell.element = "fire";
+    spell.keywords = {"base:bolt", "base:zone"};
+    a.client->setSpells({spell, {}, {}});
+    s.run(10);
+
+    int key = -1;
+    for (int i = 0; i < InputFrame::ABILITIES; ++i)
+        if (s.serverWorld.spellSlotAt(i) == 0)
+            key = i;
+    ASSERT_GE(key, 0);
+
+    a.input.aimDir = glm::vec3(0.0f);
+    a.input.abilityPressed[key] = true;
+    s.tick();
+    a.input.abilityPressed[key] = false;
+    s.run(30);
+
+    const auto finite = [](const glm::vec3& v) { return std::isfinite(v.x) and std::isfinite(v.y) and std::isfinite(v.z); };
+
+    for (const auto& p : s.serverWorld.projectiles)
+        EXPECT_TRUE(finite(p.position) and finite(p.velocity));
+    for (const auto& z : s.serverWorld.zones)
+        EXPECT_TRUE(finite(z.position));
+
+    // The client still follows the server
+    const uint32_t before = static_cast<uint32_t>(s.serverWorld.steps);
+    s.run(10);
+    ASSERT_TRUE(s.clientPlayer(a));
+    EXPECT_GT(s.serverWorld.steps, before);
+    EXPECT_NEAR(glm::length(s.clientPlayer(a)->body.position - s.serverPlayer(a)->body.position), 0.0f, 0.5f);
+
+    // And a NaN that would still get in goes as 0, not as a snapshot nobody can read
+    Names names;
+    names.build(s.content);
+    SnapshotMsg snap;
+    ProjectileState p;
+    p.position = glm::vec3(NAN);
+    snap.projectiles.push_back(p);
+    SnapshotMsg back;
+    ASSERT_TRUE(decode(encode(snap, names), back, names));
+    EXPECT_EQ(back.projectiles[0].position, glm::vec3(0.0f));
+}
+
 TEST(arena_net, an_aim_starts_near_its_player)
 {
     Session s;
