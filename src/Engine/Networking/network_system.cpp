@@ -415,7 +415,15 @@ namespace pg
                     break;
 
                 // The client's UDP address, proven by the token it got over TCP. The answer goes over
-                // UDP: only the client can tell that this direction works, and until it does, TCP
+                // UDP: only the client can tell that this direction works, and until it does, TCP.
+                // Answered so often at most (the client asks every HANDSHAKE_EVERY_MS): a datagram
+                // from a forged address cannot make us send a stream of them somewhere else
+                const uint64_t now = steadyMs();
+
+                if (now - ci.lastHandshakeReplyMs < HANDSHAKE_EVERY_MS / 2)
+                    break;
+
+                ci.lastHandshakeReplyMs = now;
                 ci.udpAddr = *udpFrom;
                 ci.udpLinked = false;
 

@@ -80,6 +80,9 @@ namespace pg
         /** Bytes waiting to go to one peer, at most: more and the peer is not reading, and is cut off. */
         static constexpr size_t MAX_SEND_QUEUE = 2 * MAX_FRAME + 1024 * 1024;
 
+        /** Destinations kept resolved, at most (forgotten all at once beyond: each costs a lookup again). */
+        static constexpr size_t MAX_RESOLVED = 256;
+
     private:
         /** Reads what a socket has and returns one whole frame if there is one; closed when the peer left or broke the framing. */
         bool readFrame(TCPsocket sock, NetPayload& out, bool& closed);

@@ -371,6 +371,10 @@ namespace pg
 
         if (it == resolved.end())
         {
+            // Every address a peer could make us answer: kept to a few
+            if (resolved.size() >= MAX_RESOLVED)
+                resolved.clear();
+
             IPaddress addr{};
 
             if (SDLNet_ResolveHost(&addr, dest.host.c_str(), dest.port) < 0)

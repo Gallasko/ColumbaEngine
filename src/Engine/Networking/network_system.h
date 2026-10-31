@@ -35,6 +35,7 @@ namespace pg
         uint64_t lastPingSentMs  = 0;      // steady ms of the last ping sent
         float    rttMs           = 0;      // smoothed round trip
         std::string tcpHost;               // the address it connected from
+        uint64_t lastHandshakeReplyMs = 0; // UDP handshakes are answered this often at most
     };
 
     /** What the application gets from the network (NetworkSystem::poll), in arrival order. */
