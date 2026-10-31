@@ -59,11 +59,11 @@ namespace arena
         /**
          * The arena run's shop and menus: BUY + i buys offer i, LOCK + i keeps it for the next shop,
          * REROLL rolls the shop again, LEVEL + i takes level-up pick i, START is ready (or plays again),
-         * WEAPON + i takes weapon i (Content::weaponOrder) before the first wave, PRESENT + i takes a
-         * present's pick i.
+         * WEAPON + i takes weapon i (Content::weaponOrder) before the first wave, FIRST_SPELL + i the
+         * first spell i of run.json's chooseSpell (after the weapon), PRESENT + i takes a present's pick i.
          */
         int pick = 0;
-        static constexpr int START = 9, BUY = 1, LOCK = 11, REROLL = 20, LEVEL = 31, WEAPON = 41, PRESENT = 61;
+        static constexpr int START = 9, BUY = 1, LOCK = 11, REROLL = 20, LEVEL = 31, WEAPON = 41, PRESENT = 61, FIRST_SPELL = 71;
 
         static constexpr int ABILITIES = 8;
         bool abilityPressed[ABILITIES] = {};
@@ -141,7 +141,7 @@ namespace arena
         struct Boons
         {
             float maxHealth = 0.0f, damage = 0.0f, manaCost = 0.0f, manaRegen = 0.0f, staminaRegen = 0.0f;
-            float speed = 0.0f, cooldown = 0.0f, lifeOnHit = 0.0f, armor = 0.0f, crit = 0.0f, pickupRange = 0.0f, regen = 0.0f;
+            float speed = 0.0f, cooldown = 0.0f, lifeOnHit = 0.0f, armor = 0.0f, crit = 0.0f, pickupRange = 0.0f, regen = 0.0f, attackSpeed = 0.0f;
             int dashCharges = 0, statusStacks = 0;
         } boon;
 
@@ -160,6 +160,7 @@ namespace arena
         int presents = 0;             // presents picked up, not opened yet: each a free item of presentOffer
         std::vector<ShopOffer> presentOffer;
         int banked = 0;               // shards kept through the last shop (they earn the interest)
+        bool armed = false;           // a run's weapon was chosen (the first spell comes next)
         int interest = 0;             // shards the last interest gave
         std::vector<std::string> levelOffer;   // a level up's picks: a spell (new, or its next level) or a weapon skill
         bool ready = false;
@@ -308,6 +309,14 @@ namespace arena
      * Where the arena run is (see ArenaWorld::startRun). Armory: before the first wave, each player
      * picks a weapon. Duel: after the last wave, in multiplayer, everyone for themselves.
      */
+    /** Life on hit from an area's, a zone's or a chain's hit: this share of it. */
+    constexpr float AREA_LEECH = 0.2f;
+
+    /** A boost onto an attack: damage (and heals), area (hitboxes, heal radii), duration (heal zones), projectile speed and count. */
+    void applyBoost(AttackDef& attack, const SpellTweak& boost);
+    /** An attack quicker by `speed` (0.1: 10%): its frames fewer, its lunges faster (as far in less time). */
+    void hasten(AttackDef& attack, float speed);
+
     enum class RunPhase { Off, Fighting, Shop, Victory, Defeat, Duel, Armory };
 
     struct RunState
@@ -517,6 +526,8 @@ namespace arena
         void chargeOn(Fighter& f, int button);
         /** A player's weapon for the run (the armory, before the first wave). */
         void chooseWeapon(Fighter& f, const std::string& id);
+        /** The first spell, among run.json's chooseSpell: on key 1. */
+        void chooseFirstSpell(Fighter& f, const std::string& id);
         /** A player's START begins a run even outside one (a dedicated server: there is no title there). */
         bool runOnRequest = false;
 
@@ -569,6 +580,8 @@ namespace arena
         /** What tag items reach: a spell's ("spell", its element, "projectile", "area", "zone", "beam"), a technique's ("technique" and its own). */
         std::vector<std::string> spellTags(const SpellRecipe& recipe) const;
         std::vector<std::string> techniqueTags(const AbilityDef& a, int branch) const;
+        /** A weapon's attack's (a run's player's light and heavy): "attack", the weapon's role ("melee") and type, "projectile" when it shoots. */
+        std::vector<std::string> attackTags(const Fighter& f, const AttackDef& attack) const;
         /** The boosts of a player's tag items reaching something with these tags. */
         SpellTweak tagBoost(const Fighter& f, const std::vector<std::string>& tags) const;
         /** The level a spell or technique with this many written levels (and branches) takes its branch at. */
@@ -579,7 +592,11 @@ namespace arena
         /** Shop prices at a wave, times this (run.json shop.priceScale). */
         float priceScale(int wave) const;
         int maxDashes(const Fighter& f) const { return tuning.dash.charges + f.boon.dashCharges; }
+        /** Health a second a fighter gets back: its regen items and its weapon's mending. */
+        float healthRegen(const Fighter& f) const;
 
+        /** A hit landing: damage (boons, weakness, crits, armor), life on hit, poise, knockback, a status, a death. */
+        void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
         /** Puts a status on a fighter (stacks add up to its maxStacks): what a hit with one does. */
         void applyStatus(Fighter& target, const std::string& id, int stacks = 1);
         const Moveset* movesetOf(const Fighter& f) const;
@@ -637,7 +654,6 @@ namespace arena
         void startAirDash(Fighter& f, const glm::vec3& dir);
         void spendDash(Fighter& f);
         void resolveHits();
-        void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
         void separate();
         void hitOrDefer(Fighter& attacker, Fighter& target, const AttackDef& attack, const glm::vec3& point);
         void resolvePendingHits();

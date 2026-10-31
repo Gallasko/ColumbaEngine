@@ -31,6 +31,8 @@ namespace
             // straight to the shop as a wave ends (the moment before it has its own)
             content.run.chooseWeapon = false;
             content.run.intermission = 0.0f;
+            content.run.startSpells = {"base:firebolt"};   // no first spell to pick either (its own test)
+            content.run.startChoices.clear();
 
             // Training: a bare floor (the run has its own arena, run.json's)
             content.arena.size = glm::ivec3(32, 16, 32);
@@ -239,10 +241,13 @@ TEST(arena_run, the_shop_sells_stat_and_tag_items_priced_by_the_wave_and_rarity)
     p.presents = 0;
     p.presentOffer.clear();
 
-    // What the player's spells reach
+    // What the player's spells and weapon attacks reach
     std::vector<std::string> tags;
     for (const auto& rs : p.runSpells)
         for (const auto& t : r.world.spellTags(r.world.spellAt(rs)))
+            tags.push_back(t);
+    for (const auto& [name, attack] : r.world.movesetOf(p)->attacks)
+        for (const auto& t : r.world.attackTags(p, attack))
             tags.push_back(t);
 
     // Only items: stat items, and tag items for a tag the player has; priced for the wave
@@ -724,7 +729,7 @@ TEST(arena_run, stat_items_change_the_player)
     // Regeneration
     p.health = 10.0f;
     r.past(1.0f);
-    EXPECT_NEAR(p.health, 10.0f + r.content.upgrades.at("base:mending").regen, 0.1f);
+    EXPECT_NEAR(p.health, 10.0f + r.content.upgrades.at("base:mending").regen + r.content.weapons.at(p.weapon).regen, 0.1f);   // and the weapon's
 
     // At its most, it is not offered again
     for (int i = 0; i < 10; ++i)
@@ -853,11 +858,11 @@ TEST(arena_run, it_plays_in_its_own_arena_built_anew_for_each_wave)
     EXPECT_EQ(glm::ivec3(r.world.grid.width(), r.world.grid.height(), r.world.grid.depth()), training);
 }
 
-TEST(arena_run, the_first_waves_are_slimes_for_a_minute)
+TEST(arena_run, the_first_waves_are_slimes_and_the_first_is_short)
 {
     RunArena r;
     r.world.startRun(17);
-    EXPECT_FLOAT_EQ(r.world.run.timer, 60.0f);
+    EXPECT_FLOAT_EQ(r.world.run.timer, 45.0f);
 
     r.past(20.0f);
     int slimes = 0;
@@ -1388,4 +1393,123 @@ TEST(arena_run, the_quarrys_table_falls_when_its_prop_burns)
     r.run(3);
     EXPECT_EQ(r.world.grid.get(10, 8, 37), AIR);
     EXPECT_FALSE(r.world.terrain.falling.empty());
+}
+
+TEST(arena_run, leech_heals_whole_from_a_direct_hit_a_fifth_from_an_area)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+    p.boons.push_back({"base:leech", 0});
+    r.world.sumBoons(p);
+    const float per = p.boon.lifeOnHit;
+    ASSERT_GT(per, 0.0f);
+
+    Fighter& e = r.near("base:brute", 2.0f);
+    const int id = e.id;
+    Fighter& me = r.player();
+
+    // A weapon hit: all of it
+    me.health = 50.0f;
+    AttackDef swing;
+    swing.damage = 1.0f;
+    r.world.applyHit(me, *r.world.find(id), swing);
+    EXPECT_NEAR(me.health, 50.0f + per, 0.01f);
+
+    // An area's (a nova, a burst, a zone, a chain): a fifth
+    me.health = 50.0f;
+    AttackDef bolt = swing;
+    bolt.leech = AREA_LEECH;
+    r.world.applyHit(me, *r.world.find(id), bolt);
+    EXPECT_NEAR(me.health, 50.0f + per * 0.2f, 0.01f);
+}
+
+TEST(arena_run, melee_and_attack_items_reach_the_weapons_own_attacks)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+    r.world.chooseWeapon(p, "base:sword");
+    const Moveset* m = r.world.movesetOf(p);
+    ASSERT_TRUE(m);
+    const float light = r.world.attackDef(p, m->light)->damage;
+
+    p.boons.push_back({"base:honed", 0});
+    const float honed = 1.0f + r.content.upgrades.at("base:honed").boost.damage;
+    EXPECT_NEAR(r.world.attackDef(p, m->light)->damage, light * honed, 0.01f);
+
+    p.boons.push_back({"base:whetstone", 0});
+    const float whet = r.content.upgrades.at("base:whetstone").boost.damage;
+    EXPECT_NEAR(r.world.attackDef(p, m->light)->damage, light * (honed + whet), 0.01f);
+
+    // Not an enemy's, not outside a run
+    r.world.stopRun();
+    EXPECT_FLOAT_EQ(r.world.attackDef(r.player(), m->light)->damage, light);
+}
+
+TEST(arena_run, each_player_picks_a_first_spell_after_the_weapon)
+{
+    RunArena r;
+    r.content.run.chooseWeapon = true;
+    r.content.run.startSpells.clear();
+    r.content.run.startChoices = {"base:firebolt", "base:frostbolt", "base:spark"};
+    r.world.startRun(5);
+    ASSERT_EQ(r.world.run.phase, RunPhase::Armory);
+
+    const auto& order = r.content.weaponOrder;
+    const int sword = static_cast<int>(std::find(order.begin(), order.end(), "base:sword") - order.begin());
+
+    // The weapon: not ready yet, the spell is still to pick
+    r.pick(InputFrame::WEAPON + sword);
+    EXPECT_TRUE(r.player().armed);
+    EXPECT_FALSE(r.player().ready);
+    EXPECT_EQ(r.world.run.phase, RunPhase::Armory);
+
+    // Ice: on key 1, and the wave begins
+    r.pick(InputFrame::FIRST_SPELL + 1);
+    ASSERT_EQ(r.world.run.phase, RunPhase::Fighting);
+    ASSERT_EQ(r.player().runSpells.size(), 1u);
+    EXPECT_EQ(r.player().runSpells[0].id, "base:frostbolt");
+    EXPECT_EQ(r.world.spellOf(r.world.spellRecipe(r.player(), 0))->element, Element::Ice);
+}
+
+TEST(arena_run, a_melee_weapon_mends_a_little)
+{
+    RunArena r;
+    r.world.startRun(5);
+    Fighter& p = r.player();
+    r.world.chooseWeapon(p, "base:sword");
+    const float regen = r.content.weapons.at("base:sword").regen;
+    ASSERT_GT(regen, 0.0f);
+    EXPECT_FLOAT_EQ(r.world.healthRegen(p), regen);
+    EXPECT_FLOAT_EQ(r.content.weapons.at("base:bow").regen, 0.0f);
+
+    p.health = 20.0f;
+    r.past(1.0f);
+    EXPECT_NEAR(r.player().health, 20.0f + regen, 0.05f);
+}
+
+TEST(arena_run, attack_speed_makes_the_weapons_attacks_quicker)
+{
+    RunArena r;
+    r.world.startRun(5);
+    Fighter& p = r.player();
+    r.world.chooseWeapon(p, "base:dagger");
+    const Moveset* m = r.world.movesetOf(p);
+    ASSERT_TRUE(m);
+    const AttackDef before = *r.world.attackDef(p, m->light);
+
+    // Two Frenzies: 20% quicker, its lunge as far
+    p.boons.push_back({"base:frenzy", 0});
+    p.boons.push_back({"base:frenzy", 0});
+    r.world.sumBoons(p);
+    const AttackDef* after = r.world.attackDef(p, m->light);
+    EXPECT_NEAR(static_cast<float>(after->total()), static_cast<float>(before.total()) / 1.2f, 2.0f);
+    EXPECT_LT(after->total(), before.total());
+    EXPECT_FLOAT_EQ(after->lunge, before.lunge * 1.2f);
+    EXPECT_FLOAT_EQ(after->damage, before.damage);
+
+    // Outside a run: as written
+    r.world.stopRun();
+    EXPECT_EQ(r.world.attackDef(r.player(), m->light)->total(), before.total());
 }

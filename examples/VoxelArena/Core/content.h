@@ -375,6 +375,7 @@ namespace arena
             float perSecond = 0.0f;
         } healZone;
 
+        float leech = 1.0f;       // the share of life on hit it gives (set as it hits, not read: 0.2 for an area's, a zone's, a chain's)
         bool tellHeavy = false;   // looks: an enemy's heavy attack shows a danger zone while it winds up ("tell": "heavy")
 
         int total() const { return startup + active + recovery; }
@@ -402,6 +403,7 @@ namespace arena
         std::string name;
         std::string type;        // "dagger", "sword"...: the weapon skills it can use (AbilityDef::weapons)
         std::string role;        // "melee", "ranged", "support": the weapon choice shows it
+        float regen = 0.0f;      // health a second while it is in hand (a melee weapon's mending)
         std::string text;        // a line on how it plays, for the weapon choice
         std::string model;       // model id, "base:sword"
         float modelScale = 0.0625f;
@@ -527,6 +529,7 @@ namespace arena
         float crit = 0.0f;            // chance of a critical hit (1.75 times the damage)
         float pickupRange = 0.0f;     // m more that shards fly to you from
         float regen = 0.0f;           // health a second
+        float attackSpeed = 0.0f;     // the weapon's light and heavy attacks this much quicker (0.1: 10%)
 
         // A tag item: its boost goes to every spell and technique of the player with the tag ("fire",
         // "projectile", "area", "spell", "technique"...)
@@ -581,6 +584,7 @@ namespace arena
         std::string startWeapon = "base:sword";
         std::vector<std::string> startOwned = {"element:fire", "base:bolt"};
         std::vector<std::string> startSpells;   // the spells a run starts with (spells/*.json ids), on keys 1, 2, 3
+        std::vector<std::string> startChoices;  // the first spell each player picks among, with the weapon (then on key 1)
 
         // Level ups, picked as a wave ends: a new spell, a spell's next level, or one of these weapon skills
         std::vector<std::string> levelSkills;

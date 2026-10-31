@@ -579,9 +579,19 @@ namespace arena
         else
             f.mana = std::min(tuning.mana.max, f.mana + tuning.mana.regen * (1.0f + f.boon.manaRegen) * STEP_SECONDS);
 
-        // Health back over time: a run's regen items
-        if (f.boon.regen > 0.0f and f.alive())
-            f.health = std::min(f.maxHealth, f.health + f.boon.regen * STEP_SECONDS);
+        // Health back over time: a run's regen items, a melee weapon's mending
+        const float regen = healthRegen(f);
+        if (regen > 0.0f and f.alive())
+            f.health = std::min(f.maxHealth, f.health + regen * STEP_SECONDS);
+    }
+
+    float ArenaWorld::healthRegen(const Fighter& f) const
+    {
+        float regen = f.boon.regen;
+        if (f.team == Team::Player)
+            if (auto w = content->weapons.find(f.weapon); w != content->weapons.end())
+                regen += w->second.regen;
+        return regen;
     }
 
     float ArenaWorld::speedScale(const Fighter& f) const
@@ -1803,7 +1813,32 @@ namespace arena
         }
 
         const Moveset* m = movesetOf(f);
-        return m ? m->find(name) : nullptr;
+        const AttackDef* base = m ? m->find(name) : nullptr;
+
+        // A run's player: the weapon's attacks take the tag items that reach them (damage, area, projectile speed)
+        if (not base or not inRun() or f.team != Team::Player)
+            return base;
+
+        SpellTweak boost = tagBoost(f, attackTags(f, *base));
+        boost.cooldown = boost.cost = boost.duration = 0.0f;
+        boost.count = 0;
+        const float quicker = f.boon.attackSpeed;
+        if (boost.empty() and quicker <= 0.0f)
+            return base;
+
+        std::string key;
+        for (float v : {boost.damage, boost.area, boost.speed, quicker})
+            key += "|" + std::to_string(v);
+
+        auto& slot = techniqueCache[std::to_string(f.id) + "|" + f.weapon + "|" + name];
+        if (not slot.second or slot.first != key)
+        {
+            AttackDef boosted = *base;
+            applyBoost(boosted, boost);
+            hasten(boosted, quicker);
+            slot = {key, std::make_shared<AttackDef>(boosted)};
+        }
+        return slot.second.get();
     }
 
     bool ArenaWorld::aimedCell(const Fighter& f, const glm::vec3& origin, const glm::vec3& dir, float range, RayHit& out) const
@@ -2259,7 +2294,8 @@ namespace arena
         else if (shape == "nova")
         {
             const glm::vec3 centre = first ? chest(*caster) : point;
-            const AttackDef hit = hitOf(st.form.id, st.damage, st.poiseDamage, st.knockback, 3, 0.3f, spell->element, spell->status);
+            AttackDef hit = hitOf(st.form.id, st.damage, st.poiseDamage, st.knockback, 3, 0.3f, spell->element, spell->status);
+            hit.leech = AREA_LEECH;
 
             for (int k = 0; k < st.count; ++k)
             {
@@ -2404,7 +2440,9 @@ namespace arena
             events.back().line = true;
             events.back().to = chest(*next);
             from = chest(*next);
-            hitOrDefer(attacker, *next, hit, from);
+            AttackDef jump = hit;
+            jump.leech = AREA_LEECH;
+            hitOrDefer(attacker, *next, jump, from);
         }
 
         attacker.hitstop = hitstopBefore;
@@ -2462,7 +2500,7 @@ namespace arena
 
         if (first)
         {
-            const AttackDef hit = hitOf(st.form.id, st.damage, st.poiseDamage, st.knockback, 2, 0.2f, spell->element, spell->status);
+            AttackDef hit = hitOf(st.form.id, st.damage, st.poiseDamage, st.knockback, 2, 0.2f, spell->element, spell->status);
             Fighter standIn;
             standIn.team = team;
             standIn.body.position = start;
@@ -2509,7 +2547,8 @@ namespace arena
                 if (z.damage > 0.0f or z.poiseDamage > 0.0f or z.spell)
                 {
                     const StatusHit status = z.spell ? z.spell->status : StatusHit{};
-                    const AttackDef hit = hitOf("zone", z.damage * 0.5f, z.poiseDamage * 0.5f, 0.0f, 0, 0.0f, z.element, status);
+                    AttackDef hit = hitOf("zone", z.damage * 0.5f, z.poiseDamage * 0.5f, 0.0f, 0, 0.0f, z.element, status);
+                    hit.leech = AREA_LEECH;   // damage over time
                     hitAround(hit, z.position, z.radius, z.owner, z.team, true);
                 }
             }
@@ -2529,7 +2568,7 @@ namespace arena
 
     void ArenaWorld::impact(const Projectile& p, const glm::vec3& point, Fighter* struck, const RayHit* wall)
     {
-        const AttackDef hit = hitOf(p.attack.empty() ? p.source : p.attack, p.def.damage, p.def.poiseDamage, p.def.knockback, p.def.hitstop, p.def.shake, p.def.element, p.def.status);
+        AttackDef hit = hitOf(p.attack.empty() ? p.source : p.attack, p.def.damage, p.def.poiseDamage, p.def.knockback, p.def.hitstop, p.def.shake, p.def.element, p.def.status);
 
         // Who it hits: the one struck, or everyone close enough to a burst
         std::vector<Fighter*> targets;
@@ -2560,7 +2599,12 @@ namespace arena
             glm::vec3 away = t == struck ? flight : t->body.position - point;
             away = glm::length(flat(away)) > 1e-4f ? glm::normalize(flat(away)) : flat(flight);
             attacker.body.position = t->body.position - away;
-            hitOrDefer(attacker, *t, hit, point);
+
+            // A burst: whole for the one struck, a share of life on hit for the rest
+            AttackDef each = hit;
+            if (p.def.burst > 0.0f and t != struck)
+                each.leech = AREA_LEECH;
+            hitOrDefer(attacker, *t, each, point);
 
             if (p.def.element == Element::None)
                 event("arrow_hit_fighter", point, 1.0f, t->id, AIR, p.owner);
@@ -3221,8 +3265,9 @@ namespace arena
         if (not spared)
             target.health -= damage;
 
+        // Life on hit: whole from a direct hit, a share from an area's, a zone's or a chain's (they hit many, or often)
         if (attacker.boon.lifeOnHit > 0.0f and attacker.alive() and damage > 0.0f)
-            attacker.health = std::min(attacker.maxHealth, attacker.health + attacker.boon.lifeOnHit);
+            attacker.health = std::min(attacker.maxHealth, attacker.health + attacker.boon.lifeOnHit * a.leech);
 
         target.sinceHit = 0.0f;
         target.flash = tuning.feel.hitFlashFrames;

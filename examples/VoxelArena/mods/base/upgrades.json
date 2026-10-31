@@ -3,7 +3,8 @@
 // taken (most: how many one can have in a run). damage 0.15 is 15% more, manaCost 0.15 is 15% cheaper
 // spells, cooldown 0.2 is 20% shorter skill and spell cooldowns, speed 0.08 is 8% faster, armor 0.06
 // takes 6% off the damage taken (70% at most), crit 0.06 is a 6% chance of a hit doing twice the
-// damage, pickupRange in metres, regen in health a second.
+// damage, pickupRange in metres, regen in health a second, attackSpeed 0.1 makes the weapon's light and
+// heavy attacks 10% quicker (their frames fewer, their lunges as far).
 {
     "tough":      { "name": "Tough",        "text": "+25 max health",                       "maxHealth": 25,     "most": 5, "price": 10 },
     "keen":       { "name": "Keen edge",    "text": "+15% damage",                           "damage": 0.15,      "most": 5, "price": 14 },
@@ -19,11 +20,14 @@
     "precise":    { "name": "Precise",      "text": "+6% chance of a double damage hit",     "crit": 0.06,        "most": 5, "price": 12 },
     "magnet":     { "name": "Magnet",       "text": "Pick up shards 1.5 m further",          "pickupRange": 1.5,  "most": 3, "price": 6 },
     "mending":    { "name": "Mending",      "text": "Regenerate 0.6 health a second",        "regen": 0.6,        "most": 4, "price": 12 },
+    "frenzy":     { "name": "Frenzy",       "text": "+10% attack speed",                     "attackSpeed": 0.1,  "most": 4, "price": 14 },
 
     // Tag items: a boost for every spell and technique of yours with the tag. Spells have "spell", their
     // element and their shapes' ("projectile" for a bolt, "area" for a nova or a zone, "zone", "beam");
     // techniques have "technique", their own ("melee", "area", "dash", "heal"...) and "projectile" when
-    // they shoot. A boost: damage, area, cooldown, cost (mana or stamina), duration, speed (projectile
+    // they shoot; the weapon's light and heavy attacks have "attack", its role ("melee", "ranged",
+    // "support"), its type ("sword") and "projectile" when they shoot (they take damage, area and
+    // projectile speed, not more projectiles). A boost: damage, area, cooldown, cost (mana or stamina), duration, speed (projectile
     // speed), count (more projectiles: not scaled by rarity). Offered only when something of yours has the tag.
     "searing":    { "name": "Searing",      "tag": "fire",       "boost": { "damage": 0.2 },   "most": 4, "price": 12 },
     "frostbite":  { "name": "Frostbite",    "tag": "ice",        "boost": { "damage": 0.2 },   "most": 4, "price": 12 },
@@ -35,6 +39,7 @@
     "hastened":   { "name": "Hastened",     "tag": "spell",      "boost": { "cooldown": 0.15 },"most": 3, "price": 14 },
     "frugal":     { "name": "Frugal",       "tag": "spell",      "boost": { "cost": 0.2 },     "most": 3, "price": 10 },
     "honed":      { "name": "Honed",        "tag": "melee",      "boost": { "damage": 0.2 },   "most": 4, "price": 12 },
+    "whetstone":  { "name": "Whetstone",    "tag": "attack",     "boost": { "damage": 0.15 },  "most": 4, "price": 12 },
     "drilled":    { "name": "Drilled",      "tag": "technique",  "boost": { "cooldown": 0.15 },"most": 3, "price": 14 },
     "tireless":   { "name": "Tireless",     "tag": "technique",  "boost": { "cost": 0.2 },     "most": 3, "price": 10 },
     "blessed":    { "name": "Blessed",      "tag": "heal",       "boost": { "damage": 0.25 },  "most": 3, "price": 12 }

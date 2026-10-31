@@ -5,7 +5,7 @@
     "name": "Shadow dash",
     "kind": "attack",
     "weapons": ["dagger"],
-    "staminaCost": 15,
+    "staminaCost": 11,
     "cooldown": 3,
     "attack": {
         "startup": 6, "active": 8, "recovery": 14,

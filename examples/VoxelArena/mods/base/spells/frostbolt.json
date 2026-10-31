@@ -1,0 +1,12 @@
+// A bolt that bursts into a chilling blast where it lands: a run can start with it (ice).
+// Levels: a wider blast, harder, two blasts. Branches: a cold field left behind, or a far harder blast.
+{
+    "name": "Frostbolt",
+    "text": "A bolt that bursts into a chilling blast where it lands.",
+    "recipe": ["ice", "bolt", "nova"],
+    "levels": [["enlarge"], ["empower"], ["multiply"]],
+    "branches": [
+        { "name": "Blizzard", "text": "Each blast leaves a field of cold.", "keywords": ["zone"] },
+        { "name": "Shatter", "text": "A much harder, wider blast.", "boost": { "damage": 0.4, "area": 0.2 } }
+    ]
+}

@@ -682,6 +682,7 @@ namespace arena::net
         }
         w.u16(static_cast<uint16_t>(std::clamp(f.banked, 0, 65535)));
         w.u16(static_cast<uint16_t>(std::clamp(f.interest, 0, 65535)));
+        w.boolean(f.armed);
     }
 
     void readFighter(Reader& r, Fighter& f, const Names& names)
@@ -826,6 +827,7 @@ namespace arena::net
         }
         f.banked = r.u16();
         f.interest = r.u16();
+        f.armed = r.boolean();
     }
 
     // ---- Snapshot ---------------------------------------------------------------------------------

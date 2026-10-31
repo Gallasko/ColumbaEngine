@@ -260,6 +260,8 @@ namespace arena
         void drawControls();
         std::string keyLabel(int scancode, int mouseButton) const;
         void drawArmory();
+        bool armoryBack = false;             // the first spell's step, back to the weapons
+        bool armoryChoosingSpell() const;
         bool uiTakesClicks() const;         // a screen is up that the mouse clicks on
         void handleUiClicks();
         void drawUi(float frameSeconds);

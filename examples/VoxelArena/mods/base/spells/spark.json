@@ -1,0 +1,12 @@
+// A bolt of lightning that jumps on to the enemies near the one it hits: a run can start with it (volt).
+// Levels: more jumps, harder, two bolts. Branches: a burst at each hit, or one more bolt.
+{
+    "name": "Spark",
+    "text": "A bolt of lightning that jumps on to the enemies near the one it hits.",
+    "recipe": ["volt", "bolt", "chain"],
+    "levels": [["chain"], ["empower"], ["multiply"]],
+    "branches": [
+        { "name": "Storm bolt", "text": "Each hit bursts around it.", "keywords": ["nova"], "tags": ["area"] },
+        { "name": "Fork", "text": "One more bolt each cast.", "boost": { "count": 1 } }
+    ]
+}

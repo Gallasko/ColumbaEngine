@@ -4,7 +4,7 @@
     "name": "Backflip",
     "kind": "attack",
     "weapons": ["dagger"],
-    "staminaCost": 12,
+    "staminaCost": 9,
     "cooldown": 1.5,
     "attack": {
         "startup": 1, "active": 4, "recovery": 18,

@@ -10,7 +10,7 @@
 // hitting, three times the shards). bosses: wave -> boss; that wave lasts until it falls.
 // xp: shards to level 2, and how many more for each level after.
 // start: the weapon in hand, what is owned (weapons, weapon skills) and the spells (spells/*.json) the
-// run starts with. Players make no spells in a run: level ups give them. As a wave ends, after
+// run starts with; chooseSpell: the first spell each player picks among, after the weapon (fire, ice, volt). Players make no spells in a run: level ups give them. As a wave ends, after
 // `intermission` s, each level up offers levelChoices picks: a spell not had yet (while one of the
 // three spell keys is free), a technique of levelSkills for the weapon in hand not had yet, or the
 // next level of one had. Levels never run out: after a spell's or technique's written "levels", at
@@ -38,7 +38,7 @@
 // each. The last one standing wins; after `duration` s, the one with the most of their health left.
 {
     "waves": 20,
-    "duration": [60, 90],
+    "duration": [45, 90],
     "spawnRate": [0.4, 1.8],
     "maxAlive": [5, 22],
     "healthGrowth": 0.06,
@@ -64,7 +64,7 @@
     "bosses": { "10": "chieftain", "20": "warden" },
 
     "xp": { "base": 10, "step": 3 },
-    "start": { "weapon": "sword", "owned": [], "spells": ["firebolt"] },
+    "start": { "weapon": "sword", "owned": [], "spells": [], "chooseSpell": ["firebolt", "frostbolt", "spark"] },
     "levelSkills": ["leap_slam", "whirlwind", "shadow_dash", "backflip", "volley", "disengage", "sanctuary", "radiance"],
     "intermission": 2.5,
     "branchLevel": 5,

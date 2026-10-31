@@ -4,6 +4,7 @@
     "name": "Ash Spear",
     "type": "spear",
     "role": "melee",
+    "regen": 0.5,
     "text": "Long reach: thrusts that keep enemies at the tip. No skills of its own (a mod's).",
     "model": "spear",
     "modelScale": 0.0625,

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <string>
 #include <vector>
 
@@ -50,5 +51,10 @@ namespace arena
         /** The level ups, before the shop: a card each for a new spell, a spell's next level, a weapon skill. */
         void drawLevelUp(Ui& ui, const Content& content, const ArenaWorld& world, const Fighter& me);
         void drawPresent(Ui& ui, const Content& content, const ArenaWorld& world, const Fighter& me);
+
+    private:
+        // The tooltip: shown once a card has been under the mouse a moment, fading in
+        int hoverCard = -1;
+        std::chrono::steady_clock::time_point hoverSince;
     };
 }

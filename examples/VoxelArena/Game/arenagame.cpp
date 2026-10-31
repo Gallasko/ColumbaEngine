@@ -862,11 +862,18 @@ namespace arena
             {
                 const RunPhase phase = world.run.phase;
 
-                // The weapon choice: 1-9 take one
+                // The weapon choice: 1-9 take one; then the first spell (Backspace: back to the weapons)
                 if (armoryOpen)
                 {
+                    const bool spellStep = armoryChoosingSpell();
+
                     if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_9)
-                        pendingPick = InputFrame::WEAPON + static_cast<int>(p.scancode - SDL_SCANCODE_1);
+                    {
+                        pendingPick = (spellStep ? InputFrame::FIRST_SPELL : InputFrame::WEAPON) + static_cast<int>(p.scancode - SDL_SCANCODE_1);
+                        armoryBack = false;
+                    }
+                    else if (p.scancode == SDL_SCANCODE_BACKSPACE and spellStep)
+                        armoryBack = true;
                     else if (p.scancode == SDL_SCANCODE_ESCAPE)
                         setOptionsOpen(true);
                     continue;
@@ -2604,8 +2611,15 @@ namespace arena
 
             if (armoryOpen)
             {
-                if (action >= screens::ARMORY_PICK)
+                if (action == screens::ARMORY_BACK)
+                    armoryBack = true;
+                else if (action >= screens::ARMORY_SPELL and action < screens::ARMORY_BACK)
+                    pendingPick = InputFrame::FIRST_SPELL + (action - screens::ARMORY_SPELL);
+                else if (action >= screens::ARMORY_PICK)
+                {
                     pendingPick = InputFrame::WEAPON + (action - screens::ARMORY_PICK);
+                    armoryBack = false;
+                }
                 continue;
             }
 
@@ -3038,9 +3052,9 @@ namespace arena
             ArmoryView::Weapon card;
             card.name = w.name;
             card.role = w.role;
-            card.text = w.text;
+            card.text = w.text + (w.regen > 0.0f ? " Mends " + std::to_string(w.regen).substr(0, 3) + " health a second while in hand." : "");
             card.icon = offerIcon(content, id);
-            card.chosen = me and me->ready and me->weapon == id;
+            card.chosen = me and me->armed and me->weapon == id;
 
             // Its skills: the weapon skills made for its type
             for (const auto& [aid, a] : content.abilities)
@@ -3050,7 +3064,32 @@ namespace arena
             v.weapons.push_back(card);
         }
 
+        // Then the first spell
+        v.choosingSpell = armoryChoosingSpell();
+        if (me and content.weapons.count(me->weapon))
+            v.weapon = content.weapons.at(me->weapon).name;
+
+        for (const auto& id : content.run.startChoices)
+        {
+            const SpellDef& sp = content.spells.at(id);
+            ArmoryView::Spell card;
+            card.name = sp.name;
+            card.element = sp.recipe.element;
+            std::string what = describe(content, compileSpell(content, sp.recipe));
+            if (not what.empty())
+                what[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(what[0])));
+            card.text = (sp.text.empty() ? "" : sp.text + " ") + what + ".";
+            card.chosen = me and not me->runSpells.empty() and me->runSpells.front().id == id;
+            v.spells.push_back(card);
+        }
+
         screens::drawArmory(ui, v);
+    }
+
+    bool ArenaGame::armoryChoosingSpell() const
+    {
+        const Fighter* me = world.player();
+        return me and me->armed and not content.run.startChoices.empty() and not armoryBack;
     }
 
     void ArenaGame::drawLobby()

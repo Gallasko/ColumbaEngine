@@ -69,6 +69,7 @@ namespace arena
             f.boon.crit += u.crit * k;
             f.boon.pickupRange += u.pickupRange * k;
             f.boon.regen += u.regen * k;
+            f.boon.attackSpeed += u.attackSpeed * k;
         }
     }
 
@@ -267,9 +268,8 @@ namespace arena
         return t;
     }
 
-    AttackDef ArenaWorld::boostedAttack(const AbilityDef& a, const SpellTweak& t, const BranchDef* branch) const
+    void applyBoost(AttackDef& out, const SpellTweak& t)
     {
-        AttackDef out = a.attack;
         const float damage = 1.0f + t.damage, area = 1.0f + t.area;
 
         out.damage *= damage;
@@ -290,6 +290,59 @@ namespace arena
         out.projectile.speed *= 1.0f + t.speed;
         if (out.projectile.enabled)
             out.projectile.count = std::clamp(out.projectile.count + t.count, 1, 16);
+    }
+
+    void hasten(AttackDef& a, float speed)
+    {
+        if (speed <= 0.0f)
+            return;
+
+        const float k = 1.0f / (1.0f + speed);
+        auto frames = [&](int& v, int least) {
+            if (v >= 0)
+                v = std::max(least, static_cast<int>(std::lround(static_cast<float>(v) * k)));
+        };
+
+        frames(a.startup, 1);
+        frames(a.active, 1);
+        frames(a.recovery, 0);
+        frames(a.chainFrom, 0);
+        frames(a.bufferFrom, 0);
+        frames(a.dodgeCancelFrom, 0);
+        frames(a.lungeFrom, 0);
+        frames(a.lungeTo, 0);
+        frames(a.moveUntil, 0);
+        frames(a.iframeFrom, 0);
+        frames(a.iframeTo, 0);
+        frames(a.leapAt, 0);
+        frames(a.turn.from, 0);
+        frames(a.turn.to, 0);
+        frames(a.charge.at, 0);
+        frames(a.charge.frames, 0);
+        a.lunge *= 1.0f + speed;
+    }
+
+    std::vector<std::string> ArenaWorld::attackTags(const Fighter& f, const AttackDef& attack) const
+    {
+        std::vector<std::string> tags = {"attack"};
+        if (auto w = content->weapons.find(f.weapon); w != content->weapons.end())
+        {
+            if (not w->second.role.empty())
+                tags.push_back(w->second.role);
+            if (not w->second.type.empty())
+                tags.push_back(w->second.type);
+        }
+        if (attack.projectile.enabled)
+            tags.push_back("projectile");
+        if (attack.element != Element::None)
+            tags.push_back(elementName(attack.element));
+        return tags;
+    }
+
+    AttackDef ArenaWorld::boostedAttack(const AbilityDef& a, const SpellTweak& t, const BranchDef* branch) const
+    {
+        AttackDef out = a.attack;
+        applyBoost(out, t);
 
         if (branch)
         {
@@ -363,14 +416,16 @@ namespace arena
             f.presents = f.banked = f.interest = 0;
             f.presentOffer.clear();
             f.ready = false;
+            f.armed = not (def.chooseWeapon and content->weaponOrder.size() > 1);
             sumBoons(f);
             respawn(f);
         }
 
         event("run_start", arena().centre, 1.0f);
 
-        // Each player picks a weapon first (when there is a choice): the first wave waits for everyone
-        if (def.chooseWeapon and content->weaponOrder.size() > 1)
+        // Each player picks a weapon first (when there is a choice), then a first spell (when there is one
+        // to pick): the first wave waits for everyone
+        if ((def.chooseWeapon and content->weaponOrder.size() > 1) or not def.startChoices.empty())
         {
             run.phase = RunPhase::Armory;
             run.wave = 1;
@@ -389,7 +444,26 @@ namespace arena
         f.owned.erase(std::remove_if(f.owned.begin(), f.owned.end(), [&](const std::string& o) { return content->weapons.count(o) > 0; }), f.owned.end());
         f.owned.push_back(id);
         f.weapon = id;
-        f.ready = true;
+        f.armed = true;
+        f.ready = content->run.startChoices.empty() or not f.runSpells.empty();
+        event("weapon_pick", chest(f), 1.0f, f.id);
+    }
+
+    void ArenaWorld::chooseFirstSpell(Fighter& f, const std::string& id)
+    {
+        const auto& choices = content->run.startChoices;
+        if (std::find(choices.begin(), choices.end(), id) == choices.end())
+            return;
+
+        // Key 1's spell (one picked before is changed for it); the start kit's others stay after it
+        f.runSpells.erase(std::remove_if(f.runSpells.begin(), f.runSpells.end(), [&](const Fighter::RunSpell& r) {
+            return std::find(choices.begin(), choices.end(), r.id) != choices.end();
+        }), f.runSpells.end());
+        f.runSpells.insert(f.runSpells.begin(), {id, 1});
+        if (f.runSpells.size() > SPELL_SLOTS)
+            f.runSpells.resize(SPELL_SLOTS);
+
+        f.ready = f.armed;
         event("weapon_pick", chest(f), 1.0f, f.id);
     }
 
@@ -842,6 +916,10 @@ namespace arena
         for (const auto& rs : f.runSkills)
             if (auto a = content->abilities.find(rs.id); a != content->abilities.end())
                 for (const auto& t : techniqueTags(a->second, rs.branch))
+                    tags.push_back(t);
+        if (const Moveset* m = movesetOf(f))
+            for (const auto& [name, attack] : m->attacks)
+                for (const auto& t : attackTags(f, attack))
                     tags.push_back(t);
 
         // What can be offered: items not at their most, unlocks (a mod's: the base run has none) not owned, nothing twice
@@ -1355,6 +1433,10 @@ namespace arena
                     const int pick = pickOf(f) - InputFrame::WEAPON;
                     if (pick >= 0 and pick < static_cast<int>(content->weaponOrder.size()))
                         chooseWeapon(f, content->weaponOrder[static_cast<size_t>(pick)]);
+
+                    const int spell = pickOf(f) - InputFrame::FIRST_SPELL;
+                    if (spell >= 0 and spell < static_cast<int>(def.startChoices.size()))
+                        chooseFirstSpell(f, def.startChoices[static_cast<size_t>(spell)]);
 
                     all = all and f.ready;
                 }

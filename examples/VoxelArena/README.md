@@ -60,7 +60,7 @@ and enemies that come back), **O** for the options.
   point; within an arena it is built anew before each wave, whatever was broken. The HUD names it
   under the wave's pips. Enemies only step up one block, so every floor has steps.
 
-- **Twenty timed waves**, from a minute to a minute and a half. Enemies keep coming in from the edges
+- **Twenty timed waves**, from 45 seconds to a minute and a half. Enemies keep coming in from the edges
   all through a wave (their spawn point glows red a moment first; one out of view, an arrow at the
   edge of the screen points the way), more and faster as the run goes on (`spawnScale` 0.75 of the
   written rates for one player), and half again for each player past the first. Survive until the
@@ -73,8 +73,10 @@ and enemies that come back), **O** for the options.
   free shop item, picked among three after the level ups.
 - **Shards**: what the enemies drop. They fly to you within pickup range (and the ones left lying
   are yours at the end of the wave). They are money and XP at once.
-- **Spells and techniques come from levels**: no spell is made in a run. It starts with Firebolt on
-  key 1. As a wave ends, after a moment (**Wave cleared**: 2.5 s in which nothing can be clicked, so a
+- **Spells and techniques come from levels**: no spell is made in a run. After the weapon, each
+  player picks a **first spell** for key 1 (1-3 or a click; Backspace back to the weapons): Firebolt
+  (fire: a bolt leaving a burning patch), Frostbolt (ice: a bolt bursting into a chilling blast) or
+  Spark (volt: a bolt jumping on to 2 more enemies) — `run.json` `start.chooseSpell`. As a wave ends, after a moment (**Wave cleared**: 2.5 s in which nothing can be clicked, so a
   click from the fight buys nothing), each level up offers three picks (1-3 or a click): a **new
   spell** (while one of the three spell keys is free), a **new technique** of the weapon in hand, or
   the **next level** of one you have. Levels never run out:
@@ -88,7 +90,8 @@ and enemies that come back), **O** for the options.
 
   Each card shows what changes, before -> after (green better, red worse). The XP to the next level
   grows slowly (10, then 3 more each level). Then the presents, then the shop.
-- **The weapon choice**: a run begins with each player picking a weapon (1-5 or a click), for the whole
+- **The weapon choice**: a run begins with each player picking a weapon (1-5 or a click; the melee ones,
+  sword, dagger and spear, mend 0.5 health a second while in hand: a weapon's `regen`), for the whole
   run: the bow, the dagger, the healer's staff, the sword (and testmod's spear). The first wave waits for
   everyone. No weapon is for sale after that: level ups offer the skills of the one in hand instead
   (`run.json` `chooseWeapon`; off, the start kit's weapon is the one, and weapons are for sale).
@@ -105,14 +108,19 @@ and enemies that come back), **O** for the options.
 - **The shop**, after the level ups and the presents, each player their own: four offers to buy with 1-4 or a click,
   and **Lock** (Shift + 1-4) keeps one for the next shop. **R** rerolls (dearer each time), **Enter**
   is ready; in co-op the next wave waits for everyone. On sale, only items (`upgrades.json`):
-  - stat items: health, damage, armor, crit, speed, regeneration, pickup range, dash charges,
+  - stat items: health, damage, armor, crit, speed, attack speed (Frenzy: the weapon's light and heavy
+    attacks 10% quicker each), regeneration, pickup range, dash charges,
     cheaper spells, faster cooldowns, life on hit...;
   - tag items: a boost for **every** spell and technique of yours with a tag. Spells are tagged with
     "spell", their element and their shapes ("projectile" for a bolt, "area" for a nova or a zone,
     "zone", "beam"); techniques with "technique", their own ("melee", "area", "dash", "heal") and
-    "projectile" when they shoot. Fire: +20% damage; Projectiles: +1 projectile, or +25% projectile
-    speed; Area: +20% area; Zones: last longer; Spells or Techniques: recharge faster, cost less...
-    One is offered only when something of yours has its tag.
+    "projectile" when they shoot; your weapon's light and heavy attacks with "attack", its role
+    ("melee", "ranged", "support"), its type and "projectile" when they shoot (they take damage, area
+    and projectile speed, not more projectiles). Fire: +20% damage; Melee: +20% damage (your sword's
+    swings too); Attacks: +15% damage; Projectiles: +1 projectile, or +25% projectile speed; Area: +20%
+    area; Zones: last longer; Spells or Techniques: recharge faster, cost less... One is offered only
+    when something of yours has its tag. Leech (life on hit) heals in full from a direct hit (a
+    swing, an arrow, a bolt or a beam striking), a fifth from an area's, a zone's or a chain's.
 
   Hover a card: a tooltip lists what buying it changes, before -> after (your numbers, each spell's
   and technique's). Each item comes at a **rarity**: Common, Rare (x1.5 its numbers), Epic (x2.1),

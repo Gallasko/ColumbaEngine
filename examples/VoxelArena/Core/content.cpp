@@ -1389,7 +1389,7 @@ namespace arena
             {
                 const Json& j = raw.data;
                 checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
-                              "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "price", "tag", "boost"},
+                              "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "attackSpeed", "price", "tag", "boost"},
                           raw.file, report, "boon " + id);
 
                 UpgradeDef u;
@@ -1412,6 +1412,7 @@ namespace arena
                 readNum(j, "crit", u.crit, raw.file, report);
                 readNum(j, "pickupRange", u.pickupRange, raw.file, report);
                 readNum(j, "regen", u.regen, raw.file, report);
+                readNum(j, "attackSpeed", u.attackSpeed, raw.file, report);
                 readInt(j, "price", u.price, raw.file, report);
 
                 // A tag item: "tag": "fire", "boost": { "damage": 0.2 }: for everything of the player with the tag
@@ -1583,7 +1584,7 @@ namespace arena
 
             if (const Json* start = j.find("start"))
             {
-                checkKeys(*start, {"weapon", "owned", "spells"}, raw.file, report, "the run's start");
+                checkKeys(*start, {"weapon", "owned", "spells", "chooseSpell"}, raw.file, report, "the run's start");
                 readStr(*start, "weapon", r.startWeapon, raw.file, report);
                 r.startWeapon = resolveId(r.startWeapon, raw.mod);
                 if (start->has("owned"))
@@ -1603,6 +1604,16 @@ namespace arena
                         report.error(raw.file, start->line, "the run starts with spell \"" + id + "\", which is no spells/*.json");
                 }
                 r.startSpells.erase(std::remove_if(r.startSpells.begin(), r.startSpells.end(), [&](const std::string& id) { return not content.spells.count(id); }), r.startSpells.end());
+
+                // The first spell each player picks, with the weapon (instead of "spells")
+                readStringList(*start, "chooseSpell", r.startChoices, raw.file, report);
+                for (auto& id : r.startChoices)
+                {
+                    id = resolveId(id, raw.mod);
+                    if (not content.spells.count(id))
+                        report.error(raw.file, start->line, "the run's spell choice names \"" + id + "\", which is no spells/*.json");
+                }
+                r.startChoices.erase(std::remove_if(r.startChoices.begin(), r.startChoices.end(), [&](const std::string& id) { return not content.spells.count(id); }), r.startChoices.end());
             }
 
             // Level ups: which weapon skills they may give (besides spells), and the pause before them
@@ -1734,7 +1745,7 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"id", "name", "type", "role", "text", "model", "modelScale", "grip", "rest", "moveset"}, raw.file, report, "weapon " + id);
+                checkKeys(j, {"id", "name", "type", "role", "text", "regen", "model", "modelScale", "grip", "rest", "moveset"}, raw.file, report, "weapon " + id);
 
                 WeaponDef w;
                 w.id = id;
@@ -1743,6 +1754,7 @@ namespace arena
                 readStr(j, "name", w.name, raw.file, report);
                 readStr(j, "type", w.type, raw.file, report);
                 readStr(j, "role", w.role, raw.file, report);
+                readNum(j, "regen", w.regen, raw.file, report);
                 readStr(j, "text", w.text, raw.file, report);
                 readStr(j, "model", w.model, raw.file, report);
                 w.model = w.model.empty() ? "" : resolveId(w.model, raw.mod);

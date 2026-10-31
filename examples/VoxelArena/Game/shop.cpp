@@ -21,6 +21,8 @@ namespace arena
         const Colour BOUGHT_FILL = hex(0x16261C);
         const Colour WAITING = hex(0x3A3E4A);
 
+        constexpr float TIP_DELAY = 1.0f, TIP_FADE = 0.2f;   // s hovering before a card's tooltip shows, s it fades in over
+
         constexpr int CARDS = 4;
         constexpr float CARD_X[CARDS] = {66, 287, 508, 729};
         constexpr float CARD_Y = 186, CARD_W = 209, CARD_H = 416;
@@ -100,7 +102,7 @@ namespace arena
     {
         static const std::map<std::string, std::string> labels = {
             {"fire", "Fire"}, {"ice", "Ice"}, {"volt", "Volt"}, {"projectile", "Projectiles"}, {"area", "Area"}, {"zone", "Zones"},
-            {"beam", "Beams"}, {"spell", "Spells"}, {"technique", "Techniques"}, {"melee", "Melee"}, {"dash", "Dashes"}, {"heal", "Healing"},
+            {"beam", "Beams"}, {"spell", "Spells"}, {"technique", "Techniques"}, {"attack", "Attacks"}, {"melee", "Melee"}, {"dash", "Dashes"}, {"heal", "Healing"},
         };
         auto it = labels.find(tag);
         if (it != labels.end())
@@ -230,10 +232,10 @@ namespace arena
             const auto& b = f.boon;
             return {
                 {"Health", f.maxHealth}, {"Damage %", b.damage * 100.0f}, {"Armor %", std::min(b.armor, 0.7f) * 100.0f}, {"Crit %", b.crit * 100.0f},
-                {"Speed %", b.speed * 100.0f}, {"Regen /s", b.regen}, {"Dashes", static_cast<float>(world.maxDashes(f))},
+                {"Speed %", b.speed * 100.0f}, {"Regen /s", world.healthRegen(f)}, {"Dashes", static_cast<float>(world.maxDashes(f))},
                 {"Pickup m", content.run.pickupRange + b.pickupRange}, {"Spell cost -%", b.manaCost * 100.0f}, {"Mana regen %", b.manaRegen * 100.0f},
                 {"Stamina regen %", b.staminaRegen * 100.0f}, {"Cooldowns -%", b.cooldown * 100.0f}, {"Life on hit", b.lifeOnHit},
-                {"Status stacks", static_cast<float>(b.statusStacks)},
+                {"Status stacks", static_cast<float>(b.statusStacks)}, {"Attack speed %", b.attackSpeed * 100.0f},
             };
         }
     }
@@ -259,6 +261,26 @@ namespace arena
             diff(out, runSpellName(content, {rs.id, 1}), was, now);
         }
 
+        // The weapon's attacks: its first light one and its heavy
+        if (const Moveset* m = world.movesetOf(after))
+        {
+            for (const std::string& name : {m->light, m->heavy})
+            {
+                const AttackDef* was = world.attackDef(before, name);
+                const AttackDef* now = world.attackDef(after, name);
+                if (not was or not now)
+                    continue;
+
+                auto attackStats = [](const AttackDef& a) {
+                    Stats st = {{"damage", a.projectile.enabled ? a.projectile.damage : a.damage}};
+                    if (a.projectile.enabled) st.push_back({"projectile speed", a.projectile.speed});
+                    if (not a.hitboxes.empty()) st.push_back({"area", a.hitboxes.front().size.x});
+                    return st;
+                };
+                diff(out, std::string(name == m->light ? "Light" : "Heavy") + " attack", attackStats(*was), attackStats(*now));
+            }
+        }
+
         for (const auto& rs : after.runSkills)
         {
             auto a = content.abilities.find(rs.id);
@@ -280,7 +302,10 @@ namespace arena
 
         if (u.forTag())
         {
-            const std::string who = u.tag == "spell" ? "every spell of yours" : u.tag == "technique" ? "every technique of yours" : "every spell and technique of yours tagged " + tagLabel(u.tag);
+            const std::string who = u.tag == "spell"       ? "every spell of yours"
+                                    : u.tag == "technique" ? "every technique of yours"
+                                    : u.tag == "attack"    ? "your weapon's light and heavy attacks"
+                                                           : "every spell, technique and weapon attack of yours tagged " + tagLabel(u.tag);
             return tagLabel(u.tag) + ": " + boostText(u.boost, k) + ". For " + who + ".";
         }
         else
@@ -299,6 +324,7 @@ namespace arena
             if (u.crit != 0.0f) parts.push_back("+" + pc(u.crit) + " chance of a critical hit");
             if (u.pickupRange != 0.0f) parts.push_back("Pick up shards " + num(u.pickupRange) + " m further");
             if (u.regen != 0.0f) parts.push_back("Regenerate " + num(u.regen) + " health a second");
+            if (u.attackSpeed != 0.0f) parts.push_back("+" + pc(u.attackSpeed) + " attack speed (your weapon's light and heavy attacks)");
         }
 
         if (parts.empty())
@@ -362,7 +388,7 @@ namespace arena
             static const std::map<std::string, std::string> stats = {
                 {"tough", "heart"}, {"keen", "keen"}, {"nimble", "dash"}, {"focus", "eye"}, {"wellspring", "drop"},
                 {"second_wind", "wind"}, {"swift", "dash"}, {"quick", "clock"}, {"leech", "drop"}, {"potent", "stacks"},
-                {"plated", "shield"}, {"precise", "target"}, {"magnet", "magnet"}, {"mending", "plus"},
+                {"plated", "shield"}, {"precise", "target"}, {"magnet", "magnet"}, {"mending", "plus"}, {"frenzy", "keen"},
             };
             auto it = stats.find(name);
             return it != stats.end() ? it->second : "star";
@@ -594,7 +620,8 @@ namespace arena
                 {"Armor", percent(std::min(b.armor, 0.7f)), " / 70"},
                 {"Crit", percent(b.crit), ""},
                 {"Speed", "+" + percent(b.speed), ""},
-                {"Regen", oneDecimal(b.regen) + "/s", ""},
+                {"Attack speed", "+" + percent(b.attackSpeed), ""},
+                {"Regen", oneDecimal(world.healthRegen(me)) + "/s", ""},
                 {"Dashes", std::to_string(world.maxDashes(me)), ""},
                 {"Pickup", oneDecimal(content.run.pickupRange + b.pickupRange) + " m", ""},
             };
@@ -724,43 +751,53 @@ namespace arena
             ui.hit(x, y, w, h, InputFrame::START);
         }
 
-        // The card under the mouse: what buying it would change, on top of everything
-        if (hovered >= 0)
+        // The card under the mouse: what buying it would change, on top of everything. After a moment
+        // of hovering (TIP_DELAY s), fading in (TIP_FADE s)
+        const auto now = std::chrono::steady_clock::now();
+        if (hovered != hoverCard)
+        {
+            hoverCard = hovered;
+            hoverSince = now;
+        }
+
+        const float hoveredFor = std::chrono::duration<float>(now - hoverSince).count();
+        const float alpha = std::clamp((hoveredFor - TIP_DELAY) / TIP_FADE, 0.0f, 1.0f);
+
+        if (hovered >= 0 and alpha > 0.0f and content.upgrades.count(me.shop[static_cast<size_t>(hovered)].id))
         {
             const auto& o = me.shop[static_cast<size_t>(hovered)];
             Fighter after = me;
             after.boons.push_back({o.id, o.rarity});
             world.sumBoons(after);
             after.maxHealth = me.maxHealth + (after.boon.maxHealth - me.boon.maxHealth);
-            const std::vector<Change> changes = content.upgrades.count(o.id) ? whatChanges(content, world, me, after) : std::vector<Change>{};
+            const std::vector<Change> changes = whatChanges(content, world, me, after);
+            auto faded = [&](const Colour& c) { return withAlpha(c, alpha * c.a / 255.0f); };
 
-            if (content.upgrades.count(o.id))
+            const auto tipScope = ui.scope(900);
+            const float w = 300.0f, line = 20.0f;
+            const size_t lines = std::max<size_t>(changes.size(), 1);
+            const float h = 44.0f + line * static_cast<float>(std::min<size_t>(lines, 14));
+            const float cardX = CARD_X[hovered];
+            const float x = hovered < CARDS - 1 ? cardX + CARD_W - 20.0f : cardX - w + 20.0f;
+            const float y = CARD_Y + 90.0f;
+
+            ui.rect(x + 3, y + 3, w, h, faded(INK));
+            ui.box(x, y, w, h, faded(PANEL), 2.0f, faded(GOLD));
+            ui.text(x + 14, y + 12, "IF YOU BUY IT", Font::Text700, 11, faded(GOLD), Align::Left, 1.5f);
+
+            if (changes.empty())
+                ui.text(x + 14, y + 36, "Nothing of yours changes yet", Font::Text500, 13, faded(MUTED));
+
+            float ly = y + 36.0f;
+            for (size_t k = 0; k < changes.size() and k < 14; ++k)
             {
-                const auto tipScope = ui.scope(900);
-                const float w = 300.0f, line = 20.0f;
-                const size_t lines = std::max<size_t>(changes.size(), 1);
-                const float h = 44.0f + line * static_cast<float>(std::min<size_t>(lines, 14));
-                const float cardX = CARD_X[hovered];
-                const float x = hovered < CARDS - 1 ? cardX + CARD_W - 20.0f : cardX - w + 20.0f;
-                const float y = CARD_Y + 90.0f;
-
-                ui.raised(x, y, w, h, PANEL, 3.0f, 2.0f, GOLD);
-                ui.text(x + 14, y + 12, "IF YOU BUY IT", Font::Text700, 11, GOLD, Align::Left, 1.5f);
-
-                if (changes.empty())
-                    ui.text(x + 14, y + 36, "Nothing of yours changes yet", Font::Text500, 13, MUTED);
-
-                float ly = y + 36.0f;
-                for (size_t k = 0; k < changes.size() and k < 14; ++k)
-                {
-                    const auto lineScope = ui.scope(1000 + k);
-                    const Change& c = changes[k];
-                    ui.text(x + 14, ly, ui.fit(c.what, Font::Text500, 13, 150.0f), Font::Text500, 13, TEXT_DIM);
-                    ui.text(x + w - 14, ly - 2, c.after, Font::Display, 18, c.better ? GOOD : WARNING, Align::Right);
-                    const float aw = ui.measure(c.after, Font::Display, 18);
-                    ui.text(x + w - 14 - aw - 8, ly, c.before + "  ->", Font::Text600, 12, MUTED, Align::Right);
-                    ly += line;
-                }
+                const auto lineScope = ui.scope(1000 + k);
+                const Change& c = changes[k];
+                ui.text(x + 14, ly, ui.fit(c.what, Font::Text500, 13, 150.0f), Font::Text500, 13, faded(TEXT_DIM));
+                ui.text(x + w - 14, ly - 2, c.after, Font::Display, 18, faded(c.better ? GOOD : WARNING), Align::Right);
+                const float aw = ui.measure(c.after, Font::Display, 18);
+                ui.text(x + w - 14 - aw - 8, ly, c.before + "  ->", Font::Text600, 12, faded(MUTED), Align::Right);
+                ly += line;
             }
         }
     }
@@ -808,7 +845,10 @@ namespace arena
                 if (isNew)
                 {
                     card.kind = "NEW SPELL";
-                    card.text = (def.text.empty() ? "" : def.text + " ") + describe(content, *world.spellOf(world.spellAt(next, &after)));
+                    std::string what = describe(content, *world.spellOf(world.spellAt(next, &after)));
+                    if (not what.empty())
+                        what[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(what[0])));
+                    card.text = (def.text.empty() ? "" : def.text + " ") + what + ".";
                     return card;
                 }
 

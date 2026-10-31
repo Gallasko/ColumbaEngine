@@ -216,6 +216,76 @@ namespace arena::screens
         ui.hit(912, 600, 150, 42, CONTROLS_BACK);
     }
 
+    namespace
+    {
+        void drawFirstSpell(Ui& ui, const ArmoryView& v)
+        {
+            ui.text(66, 84, "CHOOSE YOUR FIRST SPELL", Font::Display, 40, TEXT, Align::Left, 1.0f);
+            ui.text(66, 128, "On key 1 for the whole run: level ups grow it, and bring more.", Font::Text500, 13, TEXT_DIM);
+
+            // The weapon taken, to change it
+            {
+                const std::string label = "Weapon: " + v.weapon + "  \xC2\xB7  change";
+                const float w = ui.measure(label, Font::Text700, 13) + 28.0f;
+                const float x = 1214.0f - w, y = 124.0f;
+                const bool over = ui.hover(x, y, w, 30);
+                ui.box(x, y, w, 30, CARD, 2.0f, over ? GOLD : LINE);
+                ui.text(x + 14, y + 7, label, Font::Text700, 13, over ? GOLD : TEXT_DIM);
+                ui.hit(x, y, w, 30, ARMORY_BACK);
+            }
+
+            if (v.players > 1)
+                ui.text(1214, 84, std::to_string(v.ready) + " / " + std::to_string(v.players) + " ready", Font::Display, 26, v.picked ? GOOD : TEXT_DIM, Align::Right);
+
+            const size_t n = std::max<size_t>(1, v.spells.size());
+            const float gap = 24.0f, cw = 360.0f;
+            const float startX = 640.0f - (static_cast<float>(n) * cw + static_cast<float>(n - 1) * gap) * 0.5f;
+
+            for (size_t i = 0; i < v.spells.size(); ++i)
+            {
+                const auto itemScope = ui.scope(i);
+                const auto& sp = v.spells[i];
+                const float x = std::round(startX + static_cast<float>(i) * (cw + gap)), y = 170.0f, h = 450.0f;
+                const bool over = ui.hover(x, y, cw, h);
+                const Colour colour = elementColour(sp.element);
+
+                ui.raised(x, y, cw, h, CARD, 3.0f, 2.0f, sp.chosen ? GOLD : (over ? TEXT_DIM : colour));
+
+                float cy = y + 14.0f;
+                ui.keycap(x + 14, cy, 22, std::to_string(i + 1), GOLD, GOLD_INK, 18, 0.0f);
+                ui.rect(x + 46, cy + 7, 8, 8, colour);
+                ui.text(x + 60, cy + 4, sp.element, Font::Text700, 11, colour, Align::Left, 1.5f);
+                cy += 36.0f;
+
+                ui.box(x + 14, cy, 72, 72, WELL, 2.0f, colour);
+                ui.icon(sp.element, x + 25, cy + 11, 7.0f, colour);
+                cy += 86.0f;
+
+                ui.text(x + 14, cy, sp.name, Font::Display, 34, TEXT);
+                cy += 46.0f;
+                ui.paragraph(x + 14, cy, cw - 28, sp.text, Font::Text500, 14, TEXT_DIM, 19.6f, 8);
+
+                const float by = y + h - 14 - 44;
+                if (sp.chosen)
+                {
+                    ui.box(x + 14, by, cw - 28, 44, hex(0x16261C), 2.0f, INK);
+                    ui.icon("check", x + 26, by + 15, 2.0f, GOOD);
+                    ui.text(x + 46, by + 9, "TAKEN", Font::Display, 24, GOOD);
+                }
+                else
+                {
+                    ui.raised(x + 14, by, cw - 28, 44, GOLD, 3.0f, 2.0f, over ? TEXT : INK);
+                    ui.text(x + cw * 0.5f, by + 9, "Take it", Font::Display, 26, GOLD_INK, Align::Centre);
+                }
+
+                ui.hit(x, y, cw, h, ARMORY_SPELL + static_cast<int>(i));
+            }
+
+            ui.text(66, 640, v.picked and v.players > 1 ? "Waiting for the others\xE2\x80\xA6 (you can still change your mind)"
+                                                      : "1-" + std::to_string(n) + " or a click to take one \xC2\xB7 Backspace: back to the weapons", Font::Text500, 12, FAINT);
+        }
+    }
+
     void drawArmory(Ui& ui, const ArmoryView& v)
     {
         ui.section("armory");
@@ -224,6 +294,12 @@ namespace arena::screens
 
         ui.anchor(Anchor::Centre);
         ui.raised(40, 60, 1200, 600, PANEL, 4.0f);
+
+        if (v.choosingSpell)
+        {
+            drawFirstSpell(ui, v);
+            return;
+        }
 
         ui.text(66, 84, "CHOOSE YOUR WEAPON", Font::Display, 40, TEXT, Align::Left, 1.0f);
         ui.text(66, 128, "It is yours for the whole run: level ups offer its skills, with your spells.", Font::Text500, 13, TEXT_DIM);
