@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
     std::string modsDir;
     uint16_t port = 7777;
     bool upnp = true;
-    std::string upnpPorts;   // the outside ports to try on the router ("": the server's, then 45000-45200)
+    std::string upnpPorts;   // the outside ports to try on the router ("": the server's, then 50000, then 45000-45200)
 
     for (int i = 1; i < argc; ++i)
     {

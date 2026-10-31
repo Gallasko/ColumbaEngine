@@ -47,7 +47,10 @@ namespace arena::net
 
         /** "7777,45000-45200": ports and ranges, in order (a range by twos: each takes a pair). */
         static std::vector<uint16_t> parsePorts(const std::string& text);
-        static constexpr const char* DEFAULT_RANGE = "45000-45200";
+
+        /** The port a host typed: 1 to 65534, since UDP takes the next one. 0 when it is not one. */
+        static uint16_t parseHostPort(const std::string& text);
+        static constexpr const char* DEFAULT_RANGE = "50000,45000-45200";
         void stop();
 
         Status status() const;

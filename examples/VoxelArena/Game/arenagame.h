@@ -67,7 +67,7 @@ namespace arena
         std::string address;                    // a client: where it joined
         uint16_t port = 7777;                   // TCP; UDP is the next one
         bool upnp = true;                       // a host opens its ports on the router
-        std::string upnpPorts;                  // the outside ports to try there ("" : the game's, then 45000-45200)
+        std::string upnpPorts;                  // the outside ports to try there ("" : the game's, then 50000, then 45000-45200)
     };
 
     /** A key or a mouse button an action is bound to (from the "controls" section of the tuning). */
@@ -305,6 +305,9 @@ namespace arena
         // Inviting: the + of the title and the lobby. Alone, it hosts this game first (hostNow)
         bool inviteOpen = false;
         std::string inviteMessage;
+        std::string hostPortEdit;               // the panel's port field; "": the game looks for one
+        bool manualPort = false;                // hosting on the port the player chose
+        uint16_t autoPort = 7777;               // the game's port when the player chose none
         std::unique_ptr<pg::NetworkSystem> ownNetwork;   // hosting started from the title: stepped here, not by the engine
         pg::SdlNetworkBackend* ownBackend = nullptr;
         bool hostNow();

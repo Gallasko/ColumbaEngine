@@ -25,6 +25,20 @@ TEST(arena_portmapper, nonsense_and_repeats_are_left_out)
     EXPECT_EQ(ports, expected);
 }
 
+TEST(arena_portmapper, a_port_typed_by_the_host_leaves_room_for_udp_on_the_next_one)
+{
+    EXPECT_EQ(PortMapper::parseHostPort("5000"), 5000);
+    EXPECT_EQ(PortMapper::parseHostPort("1"), 1);
+    EXPECT_EQ(PortMapper::parseHostPort("65534"), 65534);
+
+    EXPECT_EQ(PortMapper::parseHostPort(""), 0);
+    EXPECT_EQ(PortMapper::parseHostPort("0"), 0);
+    EXPECT_EQ(PortMapper::parseHostPort("65535"), 0);
+    EXPECT_EQ(PortMapper::parseHostPort("99999"), 0);
+    EXPECT_EQ(PortMapper::parseHostPort("123456"), 0);
+    EXPECT_EQ(PortMapper::parseHostPort("50a0"), 0);
+}
+
 TEST(arena_portmapper, the_default_range_is_above_45000)
 {
     const auto ports = PortMapper::parsePorts(PortMapper::DEFAULT_RANGE);

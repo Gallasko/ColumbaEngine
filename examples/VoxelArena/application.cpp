@@ -95,11 +95,13 @@ GameApp::GameApp(const std::string& appName, const LaunchOptions& opts) : engine
             arenaOptions.playerName = options.name;
             arenaOptions.address = options.address;
             arenaOptions.port = options.port;
-            arenaOptions.upnp = options.upnp;
-            arenaOptions.upnpPorts = options.upnpPorts;
 
             LOG_INFO(DOM, (net.isServer ? "Hosting on port " : "Joining ") << (net.isServer ? "" : options.address + ":") << options.port);
         }
+
+        // Whatever the start: a game alone can host later, from its Multiplayer panel
+        arenaOptions.upnp = options.upnp;
+        arenaOptions.upnpPorts = options.upnpPorts;
 
         ecs.createSystem<arena::ArenaGame>(masterRenderer, &window, arenaOptions);
 

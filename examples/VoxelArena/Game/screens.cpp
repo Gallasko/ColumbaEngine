@@ -64,7 +64,8 @@ namespace arena::screens
         ui.hit(0, 0, ui.baseX(ui.width()), ui.baseY(ui.height()), INVITE_CLOSE);   // a click outside closes it
 
         ui.anchor(Anchor::Centre);
-        const float x = 330, y = 150, w = 620, h = 420;
+        const bool alone = not v.hosting and not v.joined;
+        const float x = 330, y = alone ? 125.0f : 150.0f, w = 620, h = alone ? 470.0f : 420.0f;
         ui.raised(x, y, w, h, PANEL, 4.0f);
         ui.hit(x, y, w, h, -1);   // the panel itself takes the click (nothing happens)
 
@@ -119,10 +120,19 @@ namespace arena::screens
                 ui.hit(x + 28, by, w - 56, 84, action);
             };
 
-            choice(ry, "H", "Host a game", "your friends join you, on port " + std::to_string(v.port) + " and " + std::to_string(v.port + 1), INVITE_HOST);
+            choice(ry, "H", "Host a game", v.portEdit.empty() ? std::string("your friends join you, the game looks for a port on your router")
+                                                              : "your friends join you, on port " + v.portEdit + " and the next one", INVITE_HOST);
             ry += 98.0f;
             choice(ry, "J", "Join a game", "a friend's, with the address their invite shows", INVITE_JOIN);
             ry += 98.0f;
+
+            // The port: digits typed land here, there is no other field
+            const bool caret = static_cast<int>(v.time * 2.0f) % 2 == 0;
+            ui.text(x + 28, ry + 16, "PORT", Font::Text700, 11, MUTED, Align::Left, 1.5f);
+            ui.box(x + 80, ry, 130, 44, WELL, 2.0f, GOLD);
+            ui.text(x + 94, ry + 8, (v.portEdit.empty() ? std::string("auto") : v.portEdit) + (caret ? "_" : ""), Font::Display, 26, v.portEdit.empty() ? FAINT : TEXT);
+            ui.paragraph(x + 224, ry + 2, w - 224 - 28, "Type the port your router lets in, it uses that one and the next. Empty: the game looks for one.",
+                         Font::Text500, 12, TEXT_DIM, 17.0f);
         }
         else if (v.joined)
         {
@@ -142,7 +152,12 @@ namespace arena::screens
                     row("ONLINE", "", "looking for your router\xE2\x80\xA6", MUTED, 0);
                     break;
                 default:
-                    row("ONLINE", "", "forward TCP " + std::to_string(v.port) + " and UDP " + std::to_string(v.port + 1) + " to " + v.lanAddress + " on your router", WARNING, 0);
+                    if (v.manualPort)
+                        row("ONLINE", (v.externalAddress.empty() ? std::string("your public address") : v.externalAddress) + port,
+                            "works once your router forwards TCP " + std::to_string(v.port) + " and UDP " + std::to_string(v.port + 1) + " to " + v.lanAddress, WARNING,
+                            v.externalAddress.empty() ? 0 : INVITE_COPY_ONLINE);
+                    else
+                        row("ONLINE", "", "forward TCP " + std::to_string(v.port) + " and UDP " + std::to_string(v.port + 1) + " to " + v.lanAddress + " on your router", WARNING, 0);
                     break;
             }
             row("SAME NETWORK", v.lanAddress + port, "", MUTED, INVITE_COPY_LAN);
@@ -575,7 +590,13 @@ namespace arena::screens
             ui.text(72, 642, "ONLINE", Font::Text700, 11, FAINT, Align::Left, 1.0f);
             const std::string forward = "forward TCP " + std::to_string(v.port) + " and UDP " + std::to_string(v.port + 1) + (v.lanAddress.empty() ? "" : " to " + v.lanAddress);
 
-            switch (v.router)
+            // A port the player chose may be forwarded by hand: the address stands, whatever UPnP said
+            if (v.manualPort and (v.router == LobbyView::Router::Closed or v.router == LobbyView::Router::Off))
+            {
+                const float aw = ui.text(130, 638, (v.externalAddress.empty() ? std::string("your public address") : v.externalAddress) + port, Font::Display, 22, TEXT);
+                ui.text(130 + aw + 10, 643, ui.fit("forward TCP " + std::to_string(v.port) + ", UDP " + std::to_string(v.port + 1), Font::Text600, 11, 414 - aw - 10), Font::Text600, 11, WARNING);
+            }
+            else switch (v.router)
             {
                 case LobbyView::Router::Searching:
                     ui.text(130, 641, "looking for your router\xE2\x80\xA6", Font::Text600, 12, MUTED);

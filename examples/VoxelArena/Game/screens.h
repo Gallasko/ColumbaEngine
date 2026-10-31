@@ -55,6 +55,7 @@ namespace arena
         std::string lanAddress, externalAddress, joined;
         int port = 7777;
         int externalPort = 0;           // the router's outside port (0: the game's)
+        bool manualPort = false;        // the player chose the port: the router may be forwarding it already
         enum class Router { Off, Searching, Open, Closed } router = Router::Off;
         std::string routerError;
 
@@ -74,6 +75,9 @@ namespace arena
         int port = 7777;
         int externalPort = 0;
         LobbyView::Router router = LobbyView::Router::Off;
+        std::string portEdit;           // alone: the port field ("": the game looks for one)
+        bool manualPort = false;        // hosting on a port the player chose
+        float time = 0.0f;
     };
 
     /** Joining a friend's game (the title's J): the host's address and the name the others see. */

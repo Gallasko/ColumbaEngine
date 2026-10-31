@@ -24,6 +24,7 @@ namespace arena
         // Multiplayer: the name the others see, and the last address joined (the join panel's start)
         std::string name;
         std::string lastJoin;
+        int hostPort = 0;            // the port to host on, chosen by the player; 0: the game looks for one
 
         // The keys the player chose (the controls screen): action -> its first key, SDL scancode names
         // ("W", "Space") or Mouse1-Mouse5; what is not here keeps the tuning's

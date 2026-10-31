@@ -132,6 +132,24 @@ namespace arena::net
             LOG_INFO(DOM, "Router did not open the ports: " << error);
     }
 
+    uint16_t PortMapper::parseHostPort(const std::string& text)
+    {
+        if (text.empty() or text.size() > 5)
+            return 0;
+
+        int port = 0;
+
+        for (char c : text)
+        {
+            if (c < '0' or c > '9')
+                return 0;
+
+            port = port * 10 + (c - '0');
+        }
+
+        return port <= 65534 ? static_cast<uint16_t>(port) : 0;
+    }
+
     void PortMapper::run()
     {
 #ifdef VOXELARENA_UPNP

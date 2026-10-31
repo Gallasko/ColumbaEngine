@@ -267,6 +267,9 @@ namespace arena
             loadOptions(optionsPath(), prefs);
             readControls();   // with the player's own keys now
 
+            autoPort = options.port;
+            hostPortEdit = prefs.hostPort > 0 ? std::to_string(prefs.hostPort) : "";
+
             // The name the others see: --name, else the one kept in the options
             if ((options.playerName.empty() or options.playerName == "player") and not prefs.name.empty())
                 options.playerName = prefs.name;
@@ -824,6 +827,12 @@ namespace arena
                     inviteOpen = false;
                 else if ((p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER or p.scancode == SDL_SCANCODE_H) and not networked())
                     hostNow();
+                else if (p.scancode == SDL_SCANCODE_BACKSPACE and not networked())
+                {
+                    if (not hostPortEdit.empty())
+                        hostPortEdit.pop_back();
+                    inviteMessage.clear();
+                }
                 else if (keyIs(p.scancode, "join") and not networked())
                 {
                     inviteOpen = false;
@@ -990,6 +999,15 @@ namespace arena
 
         if (optionsOpen and optionsScreen.naming and not text.empty())
             optionsScreen.type(text);
+
+        // The Multiplayer panel's port: digits go there, so H and J stay its keys
+        if (titleOpen and inviteOpen and not joinOpen and not networked() and not text.empty())
+        {
+            for (char c : text)
+                if (c >= '0' and c <= '9' and hostPortEdit.size() < 5)
+                    hostPortEdit += c;
+            inviteMessage.clear();
+        }
 
         if (joinOpen and not text.empty())
         {
@@ -2694,7 +2712,19 @@ namespace arena
         if (networked())
             return true;
 
-        // A server on the usual ports, owned by the game: the engine cannot add a system once running
+        // The port the player chose, or the game's own and a look for one on the router
+        const bool chosen = not hostPortEdit.empty();
+        const uint16_t port = chosen ? net::PortMapper::parseHostPort(hostPortEdit) : autoPort;
+
+        if (port == 0)
+        {
+            inviteMessage = "A port is a number from 1 to 65534";
+            return false;
+        }
+
+        options.port = port;
+
+        // A server owned by the game: the engine cannot add a system once running
         NetworkConfig net;
         net.isServer = true;
         net.tcpPort = options.port;
@@ -2709,9 +2739,13 @@ namespace arena
 
         if (not backend->isReady())
         {
-            inviteMessage = "Could not open port " + std::to_string(options.port) + " (another game hosting on this machine?)";
+            inviteMessage = "Could not open port " + std::to_string(options.port) + " (is something else on this machine using it?)";
             return false;
         }
+
+        manualPort = chosen;
+        prefs.hostPort = chosen ? port : 0;
+        saveOptions(optionsPath(), prefs);
 
         ownBackend = backend;
         ownNetwork = std::move(network);
@@ -2723,9 +2757,11 @@ namespace arena
         server->hostName = options.playerName;
         server->offerMods(options.modsDir);
 
+        // A chosen port is the only one asked for: it may be forwarded by hand, and then the router refuses
         lanAddress = net::PortMapper::localAddress();
         if (options.upnp)
-            portMapper.start(options.port, static_cast<uint16_t>(options.port + 1), "Voxel Arena", net::PortMapper::parsePorts(options.upnpPorts));
+            portMapper.start(options.port, static_cast<uint16_t>(options.port + 1), "Voxel Arena",
+                             chosen ? std::vector<uint16_t>{port} : net::PortMapper::parsePorts(options.upnpPorts));
 
         inviteMessage.clear();
         print("hosting on port " + std::to_string(options.port) + " (TCP) and " + std::to_string(options.port + 1) + " (UDP)");
@@ -2943,6 +2979,7 @@ namespace arena
         server.reset();
         transport.reset();
         portMapper.stop();
+        manualPort = false;
         ownNetwork.reset();
         ownBackend = nullptr;
         options.network = nullptr;
@@ -2976,7 +3013,7 @@ namespace arena
         const std::string lan = st.lanIp.empty() ? lanAddress : st.lanIp;
 
         // Online, the port the router opened (it may not be the game's: a Freebox opens above 45000)
-        const bool online = st.state == net::PortMapper::State::Open and not st.externalIp.empty();
+        const bool online = (st.state == net::PortMapper::State::Open or manualPort) and not st.externalIp.empty();
         const std::string outside = st.externalIp + ":" + std::to_string(st.externalPort ? st.externalPort : options.port);
 
         switch (action)
@@ -3000,6 +3037,9 @@ namespace arena
         v.hosting = server != nullptr;
         v.joined = client != nullptr;
         v.port = options.port;
+        v.portEdit = hostPortEdit;
+        v.manualPort = manualPort;
+        v.time = uiTime;
         v.message = inviteMessage;
         v.players = static_cast<int>(std::count_if(world.fighters.begin(), world.fighters.end(), [](const Fighter& f) { return f.team == Team::Player; }));
 
@@ -3068,6 +3108,7 @@ namespace arena
         // Leave: a client always; a host when it started hosting from the title (the engine's own network cannot be closed)
         v.canLeave = client != nullptr or (server != nullptr and ownNetwork != nullptr);
         v.port = options.port;
+        v.manualPort = manualPort;
         v.waves = content.run.waves;
         v.time = uiTime;
         v.log.assign(netLog.begin(), netLog.end());
@@ -4035,6 +4076,17 @@ namespace arena
 
             world.skipToWave(std::atoi(args[1].c_str()));
             return "wave " + std::to_string(world.run.wave);
+        }
+
+        if (cmd == "host")
+        {
+            if (networked())
+                return "host: already in a game (leave first)";
+
+            if (args.size() > 1)
+                hostPortEdit = args[1] == "auto" ? "" : args[1];
+
+            return hostNow() ? "" : "host: " + inviteMessage;
         }
 
         if (cmd == "join")

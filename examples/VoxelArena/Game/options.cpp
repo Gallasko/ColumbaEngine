@@ -112,6 +112,7 @@ namespace arena
         o.overlay = j.flag("overlay", o.overlay);
         o.name = j.str("name", o.name).substr(0, 24);
         o.lastJoin = j.str("lastJoin", o.lastJoin).substr(0, 64);
+        o.hostPort = std::clamp(static_cast<int>(j.num("hostPort", o.hostPort)), 0, 65534);
 
         if (const Json* keys = j.find("keys"); keys and keys->isObject())
             for (const auto& [action, key] : keys->object)
@@ -159,6 +160,7 @@ namespace arena
              << "    \"overlay\": " << flag(o.overlay) << ",\n"
              << "    \"name\": " << quoted(o.name) << ",\n"
              << "    \"lastJoin\": " << quoted(o.lastJoin) << ",\n"
+             << "    \"hostPort\": " << o.hostPort << ",\n"
              << "    \"keys\": {";
         bool first = true;
         for (const auto& [action, key] : o.keys)

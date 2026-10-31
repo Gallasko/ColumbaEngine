@@ -335,10 +335,15 @@ started hosting from its title) makes it a game alone again. Console: `join <add
 its address on the local network, and, when its router opened the ports by itself (UPnP), its public
 address. A router without UPnP (or with it off) says so, and the lobby says which ports to forward to
 which machine. `--no-upnp` (game or dedicated server) leaves the router alone. Some routers only open some outside
-ports (a Freebox: above 45000): the game asks for its own first, then 45000, 45002... up to 45200 (each
+ports (a Freebox: above 45000): the game asks for its own first, then 50000, then 45000, 45002... up to 45200 (each
 pair, TCP and the next for UDP, led to the game's 7777 and 7778), and the lobby and the invite show the one
 the router took (`81.2.3.4:45000`). `--upnp-ports 7777,45000-45200,50000` sets the ports tried, in order. The ports are closed
 again when the game quits; a mapping left by a crash runs out within an hour.
+
+**Choosing the port yourself**: when the search finds nothing, type a port in the Multiplayer panel (or `host 5000`
+in the console, `host auto` to go back). The game then listens on that port for TCP and the next one for UDP,
+asks the router for that pair and no other, and shows the address to share even if the router refused, since
+you may have forwarded the two ports by hand. The port is kept for next time.
 
 **Everyone must have the same gameplay content**, and players get it from the server. The server
 compares a fingerprint of it (the tuning, the arena, the scripts, and blocks, weapons, enemies and
