@@ -1,6 +1,9 @@
 #include "stdafx.h"
 
 #include "cparser.h"
+
+#include <algorithm>
+#include <cctype>
 #include "ast/ast_compiler.h"
 
 #include <unordered_map>
@@ -1542,6 +1545,28 @@ namespace pg
 
     bool CParser::parseImportFile(const std::string& moduleName)
     {
+        if (vm->sandboxedImports)
+        {
+            std::string lower = moduleName;
+            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+            bool outside = lower.empty() or lower.front() == '/' or lower.front() == '\\' or lower.find(':') != std::string::npos;
+
+            for (size_t start = 0; not outside and start <= lower.size();)
+            {
+                const size_t end = lower.find_first_of("/\\", start);
+                const std::string part = lower.substr(start, end == std::string::npos ? std::string::npos : end - start);
+                outside = part == "..";
+                start = end == std::string::npos ? lower.size() + 1 : end + 1;
+            }
+
+            if (outside or lower.find(".pgc") != std::string::npos)
+            {
+                error("Import of '" + moduleName + "' refused: this script may only import scripts beside it");
+                return true;   // refused, not missing: no native module of that name either
+            }
+        }
+
         // Extract the directory path from the current file being parsed
         std::string baseDir = "";
         if (not vm->currentFileName.empty())

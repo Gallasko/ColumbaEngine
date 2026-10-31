@@ -1023,6 +1023,43 @@ TEST_F(ScriptTestBench, ImportCompiledModule)
     EXPECT_EQ(trim(vm->testOutput), expected);
 }
 
+// A script from someone else (a game's mods) imports only what sits beside it: no way out of its
+// folder, and never compiled bytecode, which runs unchecked
+TEST_F(ScriptTestBench, SandboxedImportsStayBesideTheScript)
+{
+    namespace fs = std::filesystem;
+    const fs::path root = fs::temp_directory_path() / "pg-sandboxed-imports";
+    fs::remove_all(root);
+    fs::create_directories(root / "mod" / "lib");
+
+    std::ofstream(root / "outside.pg") << "fun secret()\n{\n    return 1\n}\n";
+    std::ofstream(root / "mod" / "lib" / "helper.pg") << "fun help()\n{\n    return 2\n}\n";
+    std::ofstream(root / "mod" / "evil.pgc.json") << "not bytecode";
+
+    auto compiles = [&](const std::string& source, bool sandboxed) {
+        const fs::path script = root / "mod" / "main.pg";
+        std::ofstream(script) << source;
+
+        VM vm;
+        registerNativeFunctions(&vm);
+        vm.sandboxedImports = sandboxed;
+        return vm.interpretFromFile(script.string(), true) == InterpretResult::OK;
+    };
+
+    EXPECT_TRUE(compiles("import \"lib/helper\"\nvar x = help()\n", true));
+    EXPECT_TRUE(compiles("import \"math\"\n", true));   // native modules still load
+
+    EXPECT_FALSE(compiles("import \"../outside\"\n", true));
+    EXPECT_FALSE(compiles("import \"lib/../../outside\"\n", true));
+    EXPECT_FALSE(compiles("import \"" + (root / "outside").generic_string() + "\"\n", true));
+    EXPECT_FALSE(compiles("import \"evil.pgc.json\"\n", true));
+
+    // Not sandboxed (the engine's own scripts): as before
+    EXPECT_TRUE(compiles("import \"../outside\"\nvar y = secret()\n", false));
+
+    fs::remove_all(root);
+}
+
 // TEST_F(ScriptTestBench, ImportNativeModule)
 // {
 //     testScript("test_native_math_module");
