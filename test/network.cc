@@ -350,6 +350,51 @@ namespace pg
             {
                 return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t).count();
             }
+
+            NetPayload rawHeader(MockBackend& backend, uint32_t id, uint32_t token, NetMsgType type, uint16_t total, uint16_t index, uint16_t len)
+            {
+                NetPayload p(HEADER_SIZE + len);
+                writeHeader(p.data(), &backend, PacketHeader{id, token, 1, 0, type, total, index, len});
+                return p;
+            }
+        }
+
+        TEST(network_fragments, a_sender_gets_only_so_much_room)
+        {
+            MockBackend backend;
+            NetPacketBuffer buffer;
+            NetPacketTimers timers;
+            ParsedPacket out;
+
+            // First fragments of messages that never finish: the oldest give way
+            for (uint32_t k = 0; k < 500; ++k)
+            {
+                auto frags = fragmentPayload(1, 2, NetMsgType::Custom, k, &backend, bytes(9000, 1));
+                EXPECT_FALSE(parseAndReassemble(frags[0], buffer, timers, &backend, out));
+            }
+
+            EXPECT_LE(buffer.size(), MAX_PENDING_MESSAGES);
+
+            // ... and the biggest messages: one at a time
+            for (uint32_t k = 0; k < 4; ++k)
+                EXPECT_FALSE(parseAndReassemble(rawHeader(backend, 1, 2, NetMsgType::Custom, 4000, 0, 10), buffer, timers, &backend, out));
+
+            size_t reserved = 0;
+            for (const auto& [key, slots] : buffer)
+                if (std::get<0>(key) == 1)
+                    reserved += slots.size() * (MAX_PAYLOAD - HEADER_SIZE);
+            EXPECT_LE(reserved, MAX_PENDING_BYTES);
+
+            // Another sender still gets its messages through
+            const auto other = fragmentPayload(7, 8, NetMsgType::Custom, 1, &backend, bytes(9000, 3));
+            bool whole = false;
+            for (const auto& f : other)
+                whole = parseAndReassemble(f, buffer, timers, &backend, out);
+            EXPECT_TRUE(whole);
+            EXPECT_EQ(out.payload, bytes(9000, 3));
+
+            // A fragment bigger than any sender cuts: it would let a message grow past MAX_MESSAGE
+            EXPECT_FALSE(parseAndReassemble(rawHeader(backend, 1, 2, NetMsgType::Custom, 2, 0, 60000), buffer, timers, &backend, out));
         }
 
         TEST(network_sockets, a_peer_that_stops_reading_is_cut_off_without_stalling_the_server)

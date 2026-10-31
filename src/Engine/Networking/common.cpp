@@ -115,7 +115,14 @@ namespace pg
         if (HEADER_SIZE + hdr.payloadLen > raw.size())
             return false;
 
-        if (static_cast<size_t>(hdr.totalFragments) * (MAX_PAYLOAD - HEADER_SIZE) > MAX_MESSAGE + MAX_PAYLOAD)
+        // No fragment is cut bigger than this (fragmentPayload never goes past MAX_PAYLOAD): bigger
+        // ones would let a message grow past MAX_MESSAGE
+        constexpr size_t MOST_PER_FRAGMENT = MAX_PAYLOAD - HEADER_SIZE;
+
+        if (hdr.payloadLen > MOST_PER_FRAGMENT)
+            return false;
+
+        if (static_cast<size_t>(hdr.totalFragments) * MOST_PER_FRAGMENT > MAX_MESSAGE + MAX_PAYLOAD)
             return false;
 
         NetPayload fragment(raw.begin() + HEADER_SIZE, raw.begin() + HEADER_SIZE + hdr.payloadLen);
@@ -129,13 +136,42 @@ namespace pg
         }
 
         const auto key = std::make_tuple(hdr.clientId, hdr.token, hdr.packetNumber, hdr.type);
-        auto& slots = buffer[key];
 
-        if (slots.empty())
+        // A new message: room for it, within what its sender may have waiting
+        if (buffer.find(key) == buffer.end())
         {
-            slots.resize(hdr.totalFragments);
+            const size_t wanted = static_cast<size_t>(hdr.totalFragments) * MOST_PER_FRAGMENT;
+
+            for (;;)
+            {
+                // The sender's messages are next to each other in the map (keys start with id and token)
+                auto first = buffer.lower_bound(std::make_tuple(hdr.clientId, hdr.token, uint32_t(0), NetMsgType(0)));
+                auto oldest = buffer.end();
+                size_t count = 0, bytes = 0;
+
+                for (auto it = first; it != buffer.end() and std::get<0>(it->first) == hdr.clientId and std::get<1>(it->first) == hdr.token; ++it)
+                {
+                    ++count;
+                    bytes += it->second.size() * MOST_PER_FRAGMENT;
+
+                    const auto t = rTimers.find(it->first), o = oldest == buffer.end() ? rTimers.end() : rTimers.find(oldest->first);
+                    if (oldest == buffer.end() or (t != rTimers.end() and o != rTimers.end() and t->second < o->second))
+                        oldest = it;
+                }
+
+                if (count < MAX_PENDING_MESSAGES and bytes + wanted <= MAX_PENDING_BYTES)
+                    break;
+
+                // Full: the oldest gives way (lost fragments leave messages that never finish)
+                rTimers.erase(oldest->first);
+                buffer.erase(oldest);
+            }
+
+            buffer[key].resize(hdr.totalFragments);
             rTimers[key] = steadyMs();
         }
+
+        auto& slots = buffer[key];
 
         // A fragment that disagrees with the first one about the message's size: drop the message
         if (slots.size() != hdr.totalFragments)

@@ -54,6 +54,13 @@ namespace pg
     /** Largest message a peer may send (after reassembly): anything bigger is refused. */
     constexpr size_t MAX_MESSAGE = 16 * 1024 * 1024;
 
+    /**
+     * What one sender (an id and token) may have waiting to be put back together: messages, and the
+     * bytes they would take whole. A new message beyond that pushes out the sender's oldest.
+     */
+    constexpr size_t MAX_PENDING_MESSAGES = 64;
+    constexpr size_t MAX_PENDING_BYTES = MAX_MESSAGE + 1024 * 1024;
+
     /** Milliseconds on a steady clock (not the wall clock: it never jumps). */
     uint64_t steadyMs();
 
@@ -114,7 +121,9 @@ namespace pg
     // Reassemble fragments
     /**
      * Adds one fragment; true (and out filled) when it completes its message. A fragment that does
-     * not read cleanly is refused before it takes any room in the buffer.
+     * not read cleanly is refused before it takes any room in the buffer, and a sender only gets so
+     * much room (MAX_PENDING_MESSAGES, MAX_PENDING_BYTES). Who the sender is must be checked before:
+     * the id and token in the header are what it claims.
      */
     bool parseAndReassemble(
         const NetPayload& raw,

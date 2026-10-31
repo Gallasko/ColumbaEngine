@@ -168,6 +168,9 @@ namespace pg
         uint64_t udpRetryDelayMs = 0;      // doubles each time it goes silent again
         bool     leaving = false;
 
+        /** Server: a message from this client is checked before it takes room for its fragments. */
+        bool fromClient(const NetPayload& raw, const ClientInfo& ci) const;
+
         mutable std::mutex queueMutex;
         std::deque<NetIncoming> inbox;
         std::deque<Outgoing> outbox;

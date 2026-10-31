@@ -198,6 +198,15 @@ namespace pg
             LOG_WARNING(DOM, dropped << " message(s) dropped: their fragments never all arrived");
     }
 
+    bool NetworkSystem::fromClient(const NetPayload& raw, const ClientInfo& ci) const
+    {
+        if (raw.size() < HEADER_SIZE)
+            return false;
+
+        const PacketHeader h = readHeader(raw.data(), backend);
+        return h.clientId == ci.clientId and h.token == ci.token;
+    }
+
     void NetworkSystem::runServerFrame()
     {
         const uint64_t now = steadyMs();
@@ -247,14 +256,15 @@ namespace pg
 
             while (backend->receiveTcp(s, data, closed))
             {
+                // A message on this socket must carry this client's id and token: checked before its
+                // fragments take any room
+                if (not fromClient(data, ci))
+                    continue;
+
                 ParsedPacket msg;
 
                 if (parseAndReassemble(data, reassembly, fragmentTimers, backend, msg))
                 {
-                    // A message on this socket must carry this client's id and token
-                    if (msg.header.clientId != ci.clientId or msg.header.token != ci.token)
-                        continue;
-
                     ci.lastHeartbeatMs = now;
                     handleServerMessage(sock, nullptr, msg.header, msg.payload);
                 }
@@ -286,15 +296,19 @@ namespace pg
 
         while (backend->receiveUdp(from, data))
         {
+            // Anyone can send a datagram, from any address: unknown id or wrong token, it is not one of
+            // ours, and is dropped before its fragments take any room
+            if (data.size() < HEADER_SIZE)
+                continue;
+
+            auto it = idToTcp.find(readHeader(data.data(), backend).clientId);
+
+            if (it == idToTcp.end() or not fromClient(data, clients[it->second]))
+                continue;
+
             ParsedPacket msg;
 
             if (not parseAndReassemble(data, reassembly, fragmentTimers, backend, msg))
-                continue;
-
-            auto it = idToTcp.find(msg.header.clientId);
-
-            // Unknown id or wrong token: not one of ours
-            if (it == idToTcp.end() or clients[it->second].token != msg.header.token)
                 continue;
 
             ClientInfo& ci = clients[it->second];
