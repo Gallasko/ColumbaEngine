@@ -1139,6 +1139,26 @@ TEST(arena_roles, the_skulker_goes_round_to_the_back_while_the_brute_holds_the_f
     EXPECT_TRUE(bit);
 }
 
+TEST(arena_roles, a_script_called_for_minutes_leaves_nothing_on_the_stack_of_its_vm)
+{
+    Arena a;
+    ScriptBrain brain;
+    ContentReport report;
+    brain.load(a.content, report);
+    ASSERT_TRUE(report.errors.empty()) << report.errors[0].str();
+    a.world.setBrain(&brain);
+    a.world.godMode = true;
+
+    a.player().body.position = glm::vec3(16, 1, 12);
+    for (const char* e : {"base:skulker","base:slime","base:archer","base:brute","base:chieftain","base:warden"}) a.world.spawnEnemy(e, glm::vec3(19, 1, 16), 180.0f);
+
+    // Enough calls to fill the stack if each left only a few values there: the VM stops the game then
+    for (int i = 0; i < 60000; ++i)
+        a.world.step(InputFrame{});
+
+    EXPECT_TRUE(a.world.player() != nullptr);
+}
+
 TEST(arena_roles, the_archer_backs_off_when_you_close_in)
 {
     Arena a;

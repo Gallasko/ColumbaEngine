@@ -927,8 +927,12 @@ namespace pg
         {
             vm->releaseAndDelete(value);
 
-            auto finalValue = vm->pop();
-            vm->releaseAndDelete(finalValue);
+            // Everything of the frame goes: the function, its arguments and its locals. A long-lived
+            // VM calling a script again and again would otherwise fill its stack, a little each call
+            const size_t frameBase = calleeStackBase - vm->stack.data();
+            while (vm->stack.size() > frameBase)
+                vm->releaseAndDelete(vm->pop());
+
             vm->vm_return(InterpretResult::OK);
 
             return nullptr;
