@@ -202,7 +202,9 @@ namespace arena::net
                                 if (p.cells.get(x, y, z) != AIR)
                                     p.occupied.emplace_back(x, y, z);
 
-                    pieces[p.id] = std::move(p);
+                    // Falling pieces live a few seconds: a server announcing more than this is broken
+                    if (pieces.size() < MAX_PIECES or pieces.count(p.id))
+                        pieces[p.id] = std::move(p);
                     break;
                 }
 
@@ -257,6 +259,10 @@ namespace arena::net
             else
                 held.push_back(e);
         }
+
+        // A server stamping its events far ahead would have them pile up here: only so many wait
+        while (held.size() > MAX_HELD_EVENTS)
+            held.pop_front();
 
         for (const auto& f : m.fighters)
             if (f.id == playerId)

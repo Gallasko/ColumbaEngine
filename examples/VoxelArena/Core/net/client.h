@@ -87,6 +87,8 @@ namespace arena::net
 
         static constexpr int INTERP_TICKS = 6;        // 100 ms behind the newest snapshot
         static constexpr size_t SEND_REDUNDANCY = 5;  // inputs repeated in each message, against loss
+        static constexpr size_t MAX_HELD_EVENTS = 4096;
+        static constexpr size_t MAX_PIECES = 1024;
 
         /** Estimate of the server's tick now. */
         double serverTick(double nowMs) const;
