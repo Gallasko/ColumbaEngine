@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,10 @@ namespace arena
         // Multiplayer: the name the others see, and the last address joined (the join panel's start)
         std::string name;
         std::string lastJoin;
+
+        // The keys the player chose (the controls screen): action -> its first key, SDL scancode names
+        // ("W", "Space") or Mouse1-Mouse5; what is not here keeps the tuning's
+        std::map<std::string, std::string> keys;
     };
 
     std::string optionsPath();
@@ -48,7 +53,7 @@ namespace arena
         /** The keys: up and down pick a row, left and right change it. Returns true when an option changed. */
         bool key(int dx, int dy, GameOptions& options);
 
-        static constexpr int QUIT = 97, NAME = 98, BACK = 99, ROW = 100;   // ROW + row * 10 + (1 minus, 2 plus, 3 first choice, 4 second)
+        static constexpr int CONTROLS = 96, QUIT = 97, NAME = 98, BACK = 99, ROW = 100;   // ROW + row * 10 + (1 minus, 2 plus, 3 first choice, 4 second)
 
         // The name the others see, edited in place: typed into while `naming`
         bool naming = false;

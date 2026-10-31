@@ -131,7 +131,12 @@ for the players from anywhere, whatever its engage range.
 | `` ` `` | Console |
 | Esc | Pause and open the options (alone; a shared game goes on); Esc again resumes. Hold Left Alt to free the mouse for a moment |
 
-Bindings are data: the `controls` section of `mods/base/tuning.json`.
+Bindings are data: the `controls` section of `mods/base/tuning.json`. Players rebind them in the game:
+Options, then Controls (moving, jumping, dodging, the attacks, the spells, the weapon skills, the terrain
+abilities, the next weapon): click a key, press the new one (a key or a mouse button). A key another
+action had moves to it the other way round (they swap); Reset to defaults clears them. The keys are kept
+in `options.json` (`"keys"`) over the tuning's, and are named as the keyboard prints them (an AZERTY shows
+Z Q S D where a QWERTY shows W A S D: the same keys, by position).
 
 ## How a fight works
 

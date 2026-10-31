@@ -97,6 +97,20 @@ namespace arena
         int ready = 0, players = 1;
     };
 
+    /** The controls (from the options): an action a row, its key, click it then press the new one. */
+    struct ControlsView
+    {
+        struct Row
+        {
+            std::string label, key, also;   // also: its other keys ("UP"), shown faint
+            bool waiting = false;           // clicked: the next key or button pressed is its new one
+        };
+
+        std::vector<Row> rows;
+        int split = 0;                      // the rows from this one go in the right column
+        std::string message;
+    };
+
     namespace screens
     {
         // Click actions
@@ -109,6 +123,8 @@ namespace arena
         void drawQuit(Ui& ui, float x, float y, bool armed);
         constexpr int INVITE_JOIN = 26;
         constexpr int ARMORY_PICK = 600;   // + the weapon's index
+        constexpr int CONTROLS_RESET = 698, CONTROLS_BACK = 699, CONTROLS_ROW = 700;   // + the row's index
+        void drawControls(Ui& ui, const ControlsView& v);
         void drawArmory(Ui& ui, const ArmoryView& v);
 
         constexpr int JOIN_ADDRESS = 31, JOIN_NAME = 32, JOIN_PASTE = 33, JOIN_GO = 34, JOIN_CLOSE = 35;

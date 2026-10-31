@@ -112,6 +112,11 @@ namespace arena
         o.overlay = j.flag("overlay", o.overlay);
         o.name = j.str("name", o.name).substr(0, 24);
         o.lastJoin = j.str("lastJoin", o.lastJoin).substr(0, 64);
+
+        if (const Json* keys = j.find("keys"); keys and keys->isObject())
+            for (const auto& [action, key] : keys->object)
+                if (key.isString() and not key.string.empty())
+                    o.keys[action] = key.string;
         out = o;
         return true;
     }
@@ -153,7 +158,15 @@ namespace arena
              << "    \"firstPerson\": " << flag(o.firstPerson) << ",\n"
              << "    \"overlay\": " << flag(o.overlay) << ",\n"
              << "    \"name\": " << quoted(o.name) << ",\n"
-             << "    \"lastJoin\": " << quoted(o.lastJoin) << "\n"
+             << "    \"lastJoin\": " << quoted(o.lastJoin) << ",\n"
+             << "    \"keys\": {";
+        bool first = true;
+        for (const auto& [action, key] : o.keys)
+        {
+            file << (first ? "" : ",") << "\n        " << quoted(action) << ": " << quoted(key);
+            first = false;
+        }
+        file << (o.keys.empty() ? "" : "\n    ") << "}\n"
              << "}\n";
         return static_cast<bool>(file);
     }
@@ -272,8 +285,13 @@ namespace arena
         ui.text(360 + kw + 10, 617, inGame ? "Resume" : "Back", Font::Display, 24, GOLD_INK);
         ui.hit(348, 610, 150, 42, BACK);
 
-        ui.text(512, 618, "Up / Down pick a row \xC2\xB7 Left / Right change it", Font::Text500, 11, FAINT);
-        ui.text(512, 634, "Esc closes", Font::Text500, 11, FAINT);
+        {
+            const float cw = ui.measure("Controls", Font::Display, 22) + 28.0f;
+            const bool over = ui.hover(512, 610, cw, 42);
+            ui.box(512, 610, cw, 42, CARD, 2.0f, over ? GOLD : LINE);
+            ui.text(512 + cw * 0.5f, 618, "Controls", Font::Display, 22, TEXT, Align::Centre);
+            ui.hit(512, 610, cw, 42, CONTROLS);
+        }
 
         // Quit: a second click to be sure
         {

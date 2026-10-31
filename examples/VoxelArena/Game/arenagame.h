@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <deque>
 #include <map>
@@ -246,6 +247,17 @@ namespace arena
         float uiTime = 0.0f;
         bool endOpen = false;               // the end of a run is up
         bool armoryOpen = false;            // the weapon choice before the first wave is up
+
+        // The controls screen (from the options): an action rebound by the next key or button pressed
+        bool controlsOpen = false;
+        std::string rebinding;              // the action waiting for its new key ("" when none)
+        std::atomic<bool> capturing{false}; // the input thread hands the next mouse button to it
+        int rebindMouse = -1;               // that button (under inputMutex)
+        std::string controlsMessage;
+        static const std::vector<std::pair<std::string, std::string>>& controlRows();
+        void bindKey(const std::string& action, const std::string& key);
+        void drawControls();
+        std::string keyLabel(int scancode, int mouseButton) const;
         void drawArmory();
         bool uiTakesClicks() const;         // a screen is up that the mouse clicks on
         void handleUiClicks();

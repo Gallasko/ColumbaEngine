@@ -163,6 +163,58 @@ namespace arena::screens
             ui.text(x + 28, y + h - 34, std::to_string(v.players) + (v.players == 1 ? " player" : " players") + " in \xC2\xB7 everyone needs the same mods", Font::Text600, 12, FAINT);
     }
 
+    void drawControls(Ui& ui, const ControlsView& v)
+    {
+        ui.section("controls");
+        ui.anchor(Anchor::TopLeft);
+        ui.rectPx(0, 0, ui.width(), ui.height(), withAlpha(INK, 0.4f));
+        ui.hit(0, 0, ui.baseX(ui.width()), ui.baseY(ui.height()), -1);
+
+        ui.anchor(Anchor::Centre);
+        ui.raised(190, 56, 900, 608, PANEL, 4.0f);
+
+        const float tw = ui.text(218, 76, "Controls", Font::Display, 44, TEXT);
+        ui.text(218 + tw + 14, 96, "click a key, then press the new one (a key or a mouse button); Esc cancels", Font::Text500, 12, MUTED);
+
+        for (size_t i = 0; i < v.rows.size(); ++i)
+        {
+            const auto itemScope = ui.scope(i);
+            const auto& r = v.rows[i];
+            const bool right = static_cast<int>(i) >= v.split;
+            const size_t k = right ? i - static_cast<size_t>(v.split) : i;
+            const float x = right ? 652.0f : 218.0f, y = 140.0f + static_cast<float>(k) * 48.0f;
+
+            ui.text(x, y + 10, r.label, Font::Text600, 15, r.waiting ? GOLD : TEXT_DIM);
+
+            const float bx = x + 270.0f, bw = 130.0f;
+            const bool over = ui.hover(bx, y, bw, 36);
+            ui.box(bx, y, bw, 36, r.waiting ? hex(0x2A2414) : WELL, 2.0f, r.waiting ? GOLD : (over ? TEXT_DIM : LINE));
+            ui.text(bx + bw * 0.5f, y + 6, r.waiting ? "press a key" : ui.fit(r.key, Font::Display, 22, bw - 16), Font::Display, 22, r.waiting ? GOLD : TEXT, Align::Centre);
+            if (not r.also.empty() and not r.waiting)
+                ui.text(bx - 10, y + 12, "or " + r.also, Font::Text600, 11, FAINT, Align::Right);
+            ui.hit(bx, y, bw, 36, CONTROLS_ROW + static_cast<int>(i));
+        }
+
+        {
+            const float w = ui.measure("Reset to defaults", Font::Display, 22) + 28.0f;
+            const bool over = ui.hover(218, 600, w, 42);
+            ui.box(218, 600, w, 42, CARD, 2.0f, over ? GOLD : LINE);
+            ui.text(218 + w * 0.5f, 608, "Reset to defaults", Font::Display, 22, TEXT_DIM, Align::Centre);
+            ui.hit(218, 600, w, 42, CONTROLS_RESET);
+        }
+
+        if (not v.message.empty())
+            ui.text(470, 613, ui.fit(v.message, Font::Text600, 12, 420), Font::Text600, 12, GOOD);
+
+        const bool over = ui.hover(912, 600, 150, 42);
+        ui.raised(912, 600, 150, 42, GOLD, 3.0f, 2.0f, over ? TEXT : INK);
+        const float kw = ui.measure("ESC", Font::Display, 15) + 10.0f;
+        ui.box(924, 610, kw, 22, INK, 0.0f);
+        ui.text(924 + kw * 0.5f, 612, "ESC", Font::Display, 15, GOLD, Align::Centre);
+        ui.text(924 + kw + 10, 607, "Back", Font::Display, 24, GOLD_INK);
+        ui.hit(912, 600, 150, 42, CONTROLS_BACK);
+    }
+
     void drawArmory(Ui& ui, const ArmoryView& v)
     {
         ui.section("armory");

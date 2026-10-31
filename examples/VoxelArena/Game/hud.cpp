@@ -379,7 +379,7 @@ namespace arena
 
         // The skills row: terrain, then the weapon's
         {
-            struct Item { float w, nameW, rightW; std::string right; };
+            struct Item { float w, keyW, nameW, rightW; std::string right; };
             std::vector<Item> items;
             float total = 0.0f;
 
@@ -387,6 +387,7 @@ namespace arena
             {
                 Item it;
                 it.nameW = ui.measure(s.name, Font::Text600, 14);
+                it.keyW = std::max(24.0f, std::ceil(ui.measure(s.key, Font::Display, 20)) + 10.0f);   // a long key (LMB, Space) widens its cap
                 if (s.charging)
                     it.right = "hold";
                 else if (s.progress < 1.0f)
@@ -396,7 +397,7 @@ namespace arena
                 // Room for whatever it may show there (seconds, "hold", its cost): the row does not move when it does
                 it.rightW = 6.0f + std::max({ui.measure("88.8", Font::Display, 20), ui.measure("hold", Font::Display, 20),
                                              ui.measure(std::to_string(s.cost), Font::Display, 20)});
-                it.w = 24.0f + 6.0f + it.nameW + it.rightW;
+                it.w = it.keyW + 6.0f + it.nameW + it.rightW;
                 total += it.w;
                 items.push_back(it);
             }
@@ -411,25 +412,26 @@ namespace arena
                 const bool cooling = s.charging or s.progress < 1.0f;
                 const bool ready = not cooling and not s.noStamina;
 
-                ui.rect(x + 2, 632, 24, 24, INK);
+                const float kw = it.keyW;
+                ui.rect(x + 2, 632, kw, 24, INK);
                 if (cooling)
                 {
-                    ui.box(x, 630, 24, 24, INK);
+                    ui.box(x, 630, kw, 24, INK);
                     const float fh = std::round(20.0f * std::clamp(s.progress, 0.0f, 1.0f));
                     if (fh > 0.0f)
-                        ui.rect(x + 2, 632 + 20 - fh, 20, fh, TEXT);
-                    ui.text(x + 12, 631, s.key, Font::Display, 20, fh > 10.0f ? INK : TEXT, Align::Centre);
+                        ui.rect(x + 2, 632 + 20 - fh, kw - 4.0f, fh, TEXT);
+                    ui.text(x + kw * 0.5f, 631, s.key, Font::Display, 20, fh > 10.0f ? INK : TEXT, Align::Centre);
                 }
                 else
                 {
-                    ui.box(x, 630, 24, 24, TEXT, 2.0f, s.noStamina ? EXHAUSTED : INK);
-                    ui.text(x + 12, 631, s.key, Font::Display, 20, INK, Align::Centre);
+                    ui.box(x, 630, kw, 24, TEXT, 2.0f, s.noStamina ? EXHAUSTED : INK);
+                    ui.text(x + kw * 0.5f, 631, s.key, Font::Display, 20, INK, Align::Centre);
                 }
 
                 const float base = 630.0f + 17.0f;
-                ui.textOn(x + 30, base, s.name, Font::Text600, 14, ready ? TEXT : COOLING, Align::Left, 0.0f, 2.0f);
+                ui.textOn(x + kw + 6, base, s.name, Font::Text600, 14, ready ? TEXT : COOLING, Align::Left, 0.0f, 2.0f);
                 if (not it.right.empty())
-                    ui.textOn(x + 30 + it.nameW + 6, base + 1, it.right, Font::Display, 20, s.noStamina and not cooling ? EXHAUSTED_TEXT : TEXT, Align::Left, 0.0f, 2.0f);
+                    ui.textOn(x + kw + 6 + it.nameW + 6, base + 1, it.right, Font::Display, 20, s.noStamina and not cooling ? EXHAUSTED_TEXT : TEXT, Align::Left, 0.0f, 2.0f);
 
                 x += it.w + 14.0f;
             }
@@ -437,7 +439,7 @@ namespace arena
 
         // The spells row
         {
-            struct Item { float w, nameW; std::string right; };
+            struct Item { float w, keyW, nameW; std::string right; };
             std::vector<Item> items;
             float total = 0.0f;
 
@@ -445,6 +447,7 @@ namespace arena
             {
                 Item it;
                 it.nameW = ui.measure(s.name, Font::Text700, 15);
+                it.keyW = std::max(28.0f, std::ceil(ui.measure(s.key, Font::Display, 22)) + 10.0f);
                 switch (s.state)
                 {
                     case SpellKey::State::Ready: case SpellKey::State::NoMana: it.right = std::to_string(s.mana); break;
@@ -454,7 +457,7 @@ namespace arena
                 // Room for its cost or its seconds (and "locked" when it is): the row does not move as they come and go
                 const float room = std::max({ui.measure(std::to_string(s.mana), Font::Display, 20), ui.measure("88.8", Font::Display, 20),
                                              s.state == SpellKey::State::Locked ? ui.measure("locked", Font::Display, 20) : 0.0f});
-                it.w = 28.0f + 6.0f + it.nameW + 6.0f + room;
+                it.w = it.keyW + 6.0f + it.nameW + 6.0f + room;
                 total += it.w;
                 items.push_back(it);
             }
@@ -471,20 +474,21 @@ namespace arena
                 const bool flash = i < spellFlash.size() and spellFlash[i] > 0;
 
                 Colour nameColour = elText, rightColour = MANA_TEXT, keyColour = INK;
-                ui.rect(x + 2, 666, 28, 28, INK);
+                const float kw = it.keyW;
+                ui.rect(x + 2, 666, kw, 28, INK);
 
                 switch (s.state)
                 {
                     case SpellKey::State::Ready:
-                        ui.box(x, 664, 28, 28, flash ? TEXT : el);
+                        ui.box(x, 664, kw, 28, flash ? TEXT : el);
                         break;
 
                     case SpellKey::State::Cooldown:
                     {
-                        ui.box(x, 664, 28, 28, INK);
+                        ui.box(x, 664, kw, 28, INK);
                         const float fh = std::round(24.0f * std::clamp(s.progress, 0.0f, 1.0f));
                         if (fh > 0.0f)
-                            ui.rect(x + 2, 666 + 24 - fh, 24, fh, el);
+                            ui.rect(x + 2, 666 + 24 - fh, kw - 4.0f, fh, el);
                         keyColour = fh > 12.0f ? INK : TEXT;
                         nameColour = dimmed(elText);
                         rightColour = TEXT;
@@ -492,24 +496,24 @@ namespace arena
                     }
 
                     case SpellKey::State::NoMana:
-                        ui.box(x, 664, 28, 28, MANA_LOW, 2.0f, WARNING);
+                        ui.box(x, 664, kw, 28, MANA_LOW, 2.0f, WARNING);
                         keyColour = TEXT;
                         rightColour = WARNING;
                         break;
 
                     case SpellKey::State::Locked:
-                        ui.box(x, 664, 28, 28, withAlpha(INK, 0.5f), 2.0f, FAINT);
+                        ui.box(x, 664, kw, 28, withAlpha(INK, 0.5f), 2.0f, FAINT);
                         keyColour = MUTED;
                         nameColour = MUTED;
                         rightColour = MUTED;
                         break;
                 }
 
-                ui.text(x + 14, 666, s.key, Font::Display, 22, keyColour, Align::Centre);
+                ui.text(x + kw * 0.5f, 666, s.key, Font::Display, 22, keyColour, Align::Centre);
 
                 const float base = 664.0f + 20.0f;
-                ui.textOn(x + 34, base, s.name, Font::Text700, 15, nameColour, Align::Left, 0.0f, 2.0f);
-                ui.textOn(x + 34 + it.nameW + 6, base + 1, it.right, Font::Display, 20, rightColour, Align::Left, 0.0f, 2.0f);
+                ui.textOn(x + kw + 6, base, s.name, Font::Text700, 15, nameColour, Align::Left, 0.0f, 2.0f);
+                ui.textOn(x + kw + 6 + it.nameW + 6, base + 1, it.right, Font::Display, 20, rightColour, Align::Left, 0.0f, 2.0f);
 
                 x += it.w + 16.0f;
             }

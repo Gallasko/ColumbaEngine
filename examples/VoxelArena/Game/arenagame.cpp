@@ -265,6 +265,7 @@ namespace arena
 
             // The player's options, as they were left
             loadOptions(optionsPath(), prefs);
+            readControls();   // with the player's own keys now
 
             // The name the others see: --name, else the one kept in the options
             if ((options.playerName.empty() or options.playerName == "player") and not prefs.name.empty())
@@ -391,6 +392,31 @@ namespace arena
                     controls[action].push_back(b);
             }
         }
+
+        // The player's own keys (the controls screen): each replaces its action's first key
+        for (const auto& [chosen, key] : prefs.keys)
+        {
+            const std::string action = chosen;
+            if (not controls.count(action) and std::none_of(DEFAULT_CONTROLS.begin(), DEFAULT_CONTROLS.end(), [&](const auto& d) { return d.first == action; }))
+                continue;
+
+            const Binding b = parse(key);
+            if (b.scancode < 0 and b.mouseButton < 0)
+                continue;
+
+            auto& list = controls[action];
+            if (list.empty())
+                list.push_back(b);
+            else
+                list.front() = b;
+
+            // Not twice in its list (its old second key may be the new first)
+            for (size_t i = 1; i < list.size();)
+                if (list[i].scancode == b.scancode and list[i].mouseButton == b.mouseButton)
+                    list.erase(list.begin() + static_cast<std::ptrdiff_t>(i));
+                else
+                    ++i;
+        }
     }
 
     std::shared_ptr<GpuMesh> ArenaGame::modelMesh(const std::string& modelId)
@@ -472,6 +498,13 @@ namespace arena
         // The engine's MouseClickSystem is the one reader of the press latch (Input::takePress): reading
         // it here too lost every click that system took first. Its click event comes once per press.
         std::lock_guard<std::mutex> lock(inputMutex);
+
+        // Rebinding: the button pressed is the new key, nothing else
+        if (capturing)
+        {
+            rebindMouse = static_cast<int>(event.button);
+            return;
+        }
 
         // A screen up (options, spellbook, shop, title, the end of a run) takes the clicks
         if (uiTakesClicks())
@@ -680,6 +713,25 @@ namespace arena
                     joinNow();
                 else if (p.scancode == SDL_SCANCODE_V and (p.mod & KMOD_CTRL))
                     joinAction(screens::JOIN_PASTE);
+                continue;
+            }
+
+            // The controls: the key pressed is the new one (Esc cancels); else Esc goes back to the options
+            if (controlsOpen)
+            {
+                if (not rebinding.empty())
+                {
+                    if (p.scancode == SDL_SCANCODE_ESCAPE)
+                        rebinding.clear();
+                    else if (not p.repeat)
+                    {
+                        bindKey(rebinding, SDL_GetScancodeName(static_cast<SDL_Scancode>(p.scancode)));
+                        rebinding.clear();
+                    }
+                    capturing = not rebinding.empty();
+                }
+                else if (p.scancode == SDL_SCANCODE_ESCAPE)
+                    controlsOpen = false;
                 continue;
             }
 
@@ -948,6 +1000,21 @@ namespace arena
         }
 
         handleUiClicks();
+
+        {
+            int button = -1;
+            {
+                std::lock_guard<std::mutex> lock(inputMutex);
+                std::swap(button, rebindMouse);
+            }
+
+            if (button > 0 and not rebinding.empty())
+            {
+                bindKey(rebinding, "Mouse" + std::to_string(button));
+                rebinding.clear();
+                capturing = false;
+            }
+        }
 
         updateShop();
 
@@ -1491,6 +1558,13 @@ namespace arena
 
         optionsOpen = open;
         optionsScreen.setOpen(open);
+
+        if (not open)
+        {
+            controlsOpen = false;
+            rebinding.clear();
+            capturing = false;
+        }
     }
 
     void ArenaGame::applyOptions()
@@ -2051,7 +2125,112 @@ namespace arena
             return "?";
 
         const Binding& b = it->second.front();
-        return b.scancode >= 0 ? SDL_GetScancodeName(static_cast<SDL_Scancode>(b.scancode)) : "Mouse" + std::to_string(b.mouseButton);
+        return keyLabel(b.scancode, b.mouseButton);
+    }
+
+    std::string ArenaGame::keyLabel(int scancode, int mouseButton) const
+    {
+        if (scancode < 0)
+        {
+            switch (mouseButton)
+            {
+                case 1: return "LMB";
+                case 2: return "MMB";
+                case 3: return "RMB";
+                default: return "M" + std::to_string(mouseButton);
+            }
+        }
+
+        // The letter the keyboard shows (Z on an AZERTY's W key); the bindings are by position (scancodes)
+        std::string name = SDL_GetKeyName(SDL_GetKeyFromScancode(static_cast<SDL_Scancode>(scancode)));
+        if (name.empty())
+            name = SDL_GetScancodeName(static_cast<SDL_Scancode>(scancode));
+
+        static const std::map<std::string, std::string> shorter = {
+            {"Left Shift", "LShift"}, {"Right Shift", "RShift"}, {"Left Ctrl", "LCtrl"}, {"Right Ctrl", "RCtrl"},
+            {"Left Alt", "LAlt"}, {"Right Alt", "RAlt"}, {"Return", "Enter"}, {"Backspace", "Bksp"},
+        };
+        if (auto it = shorter.find(name); it != shorter.end())
+            name = it->second;
+        return name;
+    }
+
+    const std::vector<std::pair<std::string, std::string>>& ArenaGame::controlRows()
+    {
+        // The rebindable ones, as the controls screen lists them (the left column first)
+        static const std::vector<std::pair<std::string, std::string>> rows = {
+            {"forward", "Move forward"}, {"back", "Move back"}, {"left", "Move left"}, {"right", "Move right"},
+            {"jump", "Jump"}, {"dodge", "Dodge / sprint"}, {"light", "Light attack"}, {"heavy", "Heavy attack"},
+            {"nextWeapon", "Next weapon"},
+            {"ability5", "Spell 1"}, {"ability6", "Spell 2"}, {"ability7", "Spell 3"},
+            {"ability4", "Weapon skill 1"}, {"ability8", "Weapon skill 2"},
+            {"ability1", "Raise wall"}, {"ability2", "Dig pit"}, {"ability3", "Mine"},
+        };
+        return rows;
+    }
+
+    void ArenaGame::bindKey(const std::string& action, const std::string& key)
+    {
+        auto nameOf = [](const Binding& b) {
+            return b.scancode >= 0 ? std::string(SDL_GetScancodeName(static_cast<SDL_Scancode>(b.scancode))) : "Mouse" + std::to_string(b.mouseButton);
+        };
+
+        const std::string old = controls.count(action) and not controls[action].empty() ? nameOf(controls[action].front()) : "";
+
+        // Another action of the list on that key gets this one's old key: they swap
+        for (const auto& [other, label] : controlRows())
+        {
+            if (other == action or not controls.count(other) or controls[other].empty() or nameOf(controls[other].front()) != key)
+                continue;
+
+            if (not old.empty())
+            {
+                prefs.keys[other] = old;
+                if (other == "dodge")
+                    prefs.keys["sprint"] = old;
+            }
+            controlsMessage = label + " moved to " + old;
+        }
+
+        prefs.keys[action] = key;
+        if (action == "dodge")
+            prefs.keys["sprint"] = key;   // the roll and the sprint share their key
+
+        saveOptions(optionsPath(), prefs);
+        readControls();
+    }
+
+    void ArenaGame::drawControls()
+    {
+        auto up = [](std::string t) {
+            for (auto& c : t)
+                c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            return t;
+        };
+
+        ControlsView v;
+        v.split = 9;
+        v.message = controlsMessage;
+
+        for (const auto& [action, label] : controlRows())
+        {
+            ControlsView::Row row;
+            row.label = label;
+            row.waiting = rebinding == action;
+
+            if (auto it = controls.find(action); it != controls.end() and not it->second.empty())
+            {
+                row.key = up(keyLabel(it->second.front().scancode, it->second.front().mouseButton));
+                if (it->second.size() > 1)
+                    row.also = up(keyLabel(it->second[1].scancode, it->second[1].mouseButton));
+            }
+            else
+                row.key = "-";
+
+            v.rows.push_back(row);
+        }
+
+        screens::drawControls(ui, v);
     }
 
     // --------------------------------------------------------------------------------------------
@@ -2317,6 +2496,30 @@ namespace arena
                 continue;
             }
 
+            if (controlsOpen)
+            {
+                if (action >= screens::CONTROLS_ROW and action < screens::CONTROLS_ROW + static_cast<int>(controlRows().size()))
+                {
+                    rebinding = controlRows()[static_cast<size_t>(action - screens::CONTROLS_ROW)].first;
+                    controlsMessage.clear();
+                    capturing = true;
+                }
+                else if (action == screens::CONTROLS_RESET)
+                {
+                    prefs.keys.clear();
+                    saveOptions(optionsPath(), prefs);
+                    readControls();
+                    controlsMessage = "Back to the default keys";
+                }
+                else if (action == screens::CONTROLS_BACK)
+                {
+                    controlsOpen = false;
+                    rebinding.clear();
+                    capturing = false;
+                }
+                continue;
+            }
+
             if (optionsOpen)
             {
                 // A click away from the name field keeps what was typed
@@ -2333,6 +2536,13 @@ namespace arena
                 if (action == OptionsScreen::QUIT)
                 {
                     quitClicked();
+                    continue;
+                }
+
+                if (action == OptionsScreen::CONTROLS)
+                {
+                    controlsOpen = true;
+                    controlsMessage.clear();
                     continue;
                 }
 
@@ -3043,7 +3253,17 @@ namespace arena
         }
 
         if (optionsOpen)
+        {
+            if (controlsOpen)
+                ui.mouse(-1.0f, -1.0f);
             optionsScreen.draw(ui, prefs, alone(), not (titleOpen or endOpen), quitArmed());
+
+            if (controlsOpen)
+            {
+                mouseBack();
+                drawControls();
+            }
+        }
 
         std::string banner;
         if (not content.report.errors.empty())
