@@ -1027,3 +1027,117 @@ TEST(arena_net, a_player_who_changes_name_is_shown_by_it_to_everyone)
     EXPECT_EQ(a.client->nameOf(b.client->playerId), "bobby");
     EXPECT_EQ(s.server->lobby().players[1].name, "bobby");
 }
+
+// ---- Hostile peers ------------------------------------------------------------------------------
+
+namespace
+{
+    /** A peer that speaks the protocol by hand, as a modified client would. */
+    struct RawPeer
+    {
+        Transport& t;
+        std::vector<NetEvent> got;
+
+        explicit RawPeer(Session& s) : t(s.hub.addClient()) {}
+
+        void hello(const Session& s, const std::string& name = "raw")
+        {
+            Hello h;
+            h.fingerprint = s.content.fingerprint;
+            h.name = name;
+            t.send(0, encode(h), true);
+        }
+
+        void input(const InputFrame& in, uint32_t seq)
+        {
+            InputMsg m;
+            m.clientTimeMs = seq;
+            m.inputs.push_back({seq, in});
+            t.send(0, encode(m), false);
+        }
+
+        bool disconnected() const
+        {
+            return std::any_of(got.begin(), got.end(), [](const NetEvent& e) { return e.type == NetEvent::Type::Disconnected; });
+        }
+    };
+
+    void pump(Session& s, RawPeer& raw, int steps)
+    {
+        for (int i = 0; i < steps; ++i)
+        {
+            NetEvent e;
+            while (raw.t.poll(e))
+                raw.got.push_back(e);
+
+            s.server->poll();
+            s.server->step(nullptr);
+            s.hub.advance(STEP_MS);
+        }
+    }
+}
+
+TEST(arena_net, an_aim_from_far_away_does_not_stall_the_server)
+{
+    // The ray of a mine (every player has it) is as long as its start is far: from 2e7 above, past where a
+    // float still moves by one cell, it walked for ever
+    Session s;
+    RawPeer raw(s);
+    raw.hello(s);
+    pump(s, raw, 5);
+    ASSERT_EQ(s.server->clientCount(), 1u);
+
+    InputFrame in;
+    in.aimOrigin = glm::vec3(16.0f, 2e7f, 8.0f);
+    in.aimDir = glm::vec3(1.0f, 0.0f, 0.0f);
+    for (int i = 0; i < InputFrame::ABILITIES; ++i)
+        in.abilityPressed[i] = in.abilityHeld[i] = true;
+
+    for (uint32_t seq = 1; seq < 20; ++seq)
+    {
+        raw.input(in, seq);
+        pump(s, raw, 1);
+    }
+
+    EXPECT_EQ(s.server->clientCount(), 1u);
+}
+
+TEST(arena_net, a_far_ray_ends)
+{
+    VoxelGrid grid(32, 16, 32);
+    const BlockTable table;
+
+    // Above the open sky, a horizontal ray as long as its start is high
+    const RayHit hit = raycast(grid, table, glm::vec3(16.0f, 2e7f, 8.0f), glm::vec3(1.0f, 0.0f, 0.0f), 2e7f);
+    EXPECT_FALSE(hit.hit);
+
+    // NaN and infinity: nothing, at once
+    EXPECT_FALSE(raycast(grid, table, glm::vec3(NAN), glm::vec3(1, 0, 0), 10.0f).hit);
+    EXPECT_FALSE(raycast(grid, table, glm::vec3(1.0f), glm::vec3(INFINITY, 0, 0), 10.0f).hit);
+}
+
+TEST(arena_net, an_aim_starts_near_its_player)
+{
+    Session s;
+    RawPeer raw(s);
+    raw.hello(s);
+    pump(s, raw, 5);
+
+    Fighter* f = nullptr;
+    for (auto& g : s.serverWorld.fighters)
+        if (g.team == Team::Player)
+            f = &g;
+    ASSERT_TRUE(f);
+
+    InputFrame in;
+    in.aimOrigin = glm::vec3(1e6f, 5.0f, 1e6f);
+    in.aimDir = glm::vec3(0.0f, -3.0f, 0.0f);
+
+    const InputFrame safe = s.serverWorld.sanitized(*f, in);
+    EXPECT_LT(glm::length(safe.aimOrigin - f->body.position), 40.0f);
+    EXPECT_NEAR(glm::length(safe.aimDir), 1.0f, 1e-5f);
+
+    // No aim stays no aim
+    in.aimDir = glm::vec3(0.0f);
+    EXPECT_EQ(s.serverWorld.sanitized(*f, in).aimDir, glm::vec3(0.0f));
+}

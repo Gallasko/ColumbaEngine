@@ -588,6 +588,12 @@ namespace arena
         const Content* content = nullptr;
         Tuning tuning;
 
+        /**
+         * An input as the world may trust it: a remote player's comes from the network. The aim's ray
+         * starts within the camera's reach of the player, and its direction is a unit vector (or none).
+         */
+        InputFrame sanitized(const Fighter& f, const InputFrame& in) const;
+
     private:
         void stepPlayer(Fighter& f, const InputFrame& in);
         void stepEnemy(Fighter& f);

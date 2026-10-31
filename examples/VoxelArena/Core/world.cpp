@@ -483,7 +483,7 @@ namespace arena
                 auto it = inputs.find(f.id);
 
                 if (it != inputs.end() and f.team == Team::Player)
-                    stepPlayer(f, it->second);
+                    stepPlayer(f, sanitized(f, it->second));
             }
 
             // The pieces the server says are falling carry the predicted player as they do on the server
@@ -499,7 +499,7 @@ namespace arena
             if (f.team == Team::Player)
             {
                 auto it = inputs.find(f.id);
-                stepPlayer(f, it != inputs.end() ? it->second : idle);
+                stepPlayer(f, it != inputs.end() ? sanitized(f, it->second) : idle);
             }
             else
             {
@@ -771,6 +771,39 @@ namespace arena
         f.queuedAge = -1.0f;
         f.jumping = false;
         ++f.airDashesUsed;
+    }
+
+    InputFrame ArenaWorld::sanitized(const Fighter& f, const InputFrame& input) const
+    {
+        InputFrame in = input;
+
+        const auto finite = [](const glm::vec3& v) { return std::isfinite(v.x) and std::isfinite(v.y) and std::isfinite(v.z); };
+
+        // A direction, or none (zero): what is aimed with is normalized wherever it is used
+        if (not finite(in.aimDir) or glm::length(in.aimDir) <= 1e-4f)
+            in.aimDir = glm::vec3(0.0f);
+        else
+            in.aimDir = glm::normalize(in.aimDir);
+
+        // The aim's ray starts at the camera: never further from the player than the camera goes (it
+        // trails a little behind a fast move). Rays and spells measured from there stay near the player
+        const glm::vec3 head = f.body.position + glm::vec3(0.0f, f.body.height * 0.9f, 0.0f);
+        const float reach = tuning.camera.maxDistance + tuning.camera.height + tuning.camera.shoulder + 8.0f;
+
+        if (not finite(in.aimOrigin))
+            in.aimOrigin = head;
+        else if (glm::length(in.aimOrigin - head) > reach)
+            in.aimOrigin = head + glm::normalize(in.aimOrigin - head) * reach;
+
+        in.cameraPitch = std::isfinite(in.cameraPitch) ? std::clamp(in.cameraPitch, -90.0f, 90.0f) : 0.0f;
+        in.cameraYaw = std::isfinite(in.cameraYaw) ? wrapDegrees(in.cameraYaw) : 0.0f;
+
+        if (not std::isfinite(in.move.x) or not std::isfinite(in.move.y))
+            in.move = glm::vec2(0.0f);
+        else if (glm::length(in.move) > 1.0f)
+            in.move = glm::normalize(in.move);
+
+        return in;
     }
 
     void ArenaWorld::stepPlayer(Fighter& f, const InputFrame& in)
